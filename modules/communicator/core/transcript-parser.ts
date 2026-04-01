@@ -39,6 +39,6 @@ export function parseTranscriptStream(buffer: string): ParsedStreamParts {
 
   parts.transcript = buffer.slice(afterOpen, closeIdx);
   parts.transcriptComplete = true;
-  parts.answer = buffer.slice(closeIdx + CLOSE.length);
+  parts.answer = buffer.slice(closeIdx + CLOSE.length).trimStart();
   return parts;
 }

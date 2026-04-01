@@ -7,6 +7,7 @@ export function AssistantBubble({
   text: string;
   isStreaming: boolean;
 }) {
+  const display = text.trimStart();
   return (
     <div className="flex justify-start px-3 pt-2">
       <div
@@ -14,7 +15,7 @@ export function AssistantBubble({
         style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
       >
         <p className="whitespace-pre-wrap break-words">
-          {text}
+          {display}
           {isStreaming && (
             <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-neutral-400 align-middle" />
           )}

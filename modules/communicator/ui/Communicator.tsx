@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -63,6 +64,29 @@ export interface CommunicatorProps {
 
 type Phase = "idle" | "recording" | "error";
 
+/** Индекс сообщения пользователя в паре «вопрос → ответ» для привязки ленты к верху экрана */
+function getTurnUserAnchorIndex(
+  list: CommunicatorHistoryMessage[],
+): number | null {
+  const n = list.length;
+  if (n < 1) return null;
+  if (list[n - 1].role === "assistant" && n >= 2 && list[n - 2].role === "user") {
+    return n - 2;
+  }
+  if (list[n - 1].role === "user") return n - 1;
+  return null;
+}
+
+/** Индекс последнего ответа ассистента в текущей паре (для нижнего якоря хода) */
+function getTurnAssistantAnchorIndex(
+  list: CommunicatorHistoryMessage[],
+): number | null {
+  const n = list.length;
+  if (n < 1) return null;
+  if (list[n - 1].role === "assistant") return n - 1;
+  return null;
+}
+
 export function Communicator({
   initialMode,
   mode,
@@ -113,9 +137,16 @@ export function Communicator({
   const suppressClickRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const transcriptAnchorRef = useRef<HTMLDivElement>(null);
-  const stickToBottomRef = useRef(true);
-  const prevTranscriptLenRef = useRef(0);
+  /** Верх блока с транскрипцией текущего хода — не выше верхней границы области прокрутки */
+  const turnAnchorRef = useRef<HTMLDivElement>(null);
+  /** Низ ответа ассистента в том же ходе — чтобы не оставлять лишний зазор снизу, если ответ короткий */
+  const turnTailRef = useRef<HTMLDivElement>(null);
+  const programmaticScrollRef = useRef(false);
+  /** Скрыть стрелку «вниз» до следующего ответа ИИ после любого жеста прокрутки пользователя */
+  const scrollHintDismissedRef = useRef(true);
+  /** Пользователь сдвинул ленту во время стрима — не перетягивать якорь на каждом чанке */
+  const streamScrollUserAdjustedRef = useRef(false);
+  const prevStreamBusyRef = useRef(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const sessionState: CommunicatorSessionState = useMemo(() => {
@@ -144,48 +175,108 @@ export function Communicator({
     const el = scrollRef.current;
     if (!el) return;
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const atBottom = gap < 72;
-    stickToBottomRef.current = atBottom;
-    setShowScrollDown(!atBottom && gap > 96);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", updateScrollDownFlag, { passive: true });
-    return () => el.removeEventListener("scroll", updateScrollDownFlag);
-  }, [updateScrollDownFlag]);
-
-  useEffect(() => {
-    if (!streamBusy) {
-      prevTranscriptLenRef.current = 0;
+    if (scrollHintDismissedRef.current) {
+      setShowScrollDown(false);
       return;
     }
+    setShowScrollDown(gap > 56);
+  }, []);
+
+  const alignTurnAnchorToTop = useCallback(() => {
+    const container = scrollRef.current;
+    const anchor = turnAnchorRef.current;
+    if (!container || !anchor) return;
+    programmaticScrollRef.current = true;
+
+    const cRect = container.getBoundingClientRect();
+    const H = container.clientHeight;
+    const maxScroll = Math.max(0, container.scrollHeight - H);
+    const s0 = container.scrollTop;
+
+    const pinScroll = s0 + (anchor.getBoundingClientRect().top - cRect.top);
+
+    const tail = turnTailRef.current;
+    let target = pinScroll;
+
+    if (tail) {
+      const tailBottomScroll =
+        s0 + (tail.getBoundingClientRect().bottom - cRect.top);
+      const bottomAlign = tailBottomScroll - H;
+      if (bottomAlign > 0) {
+        target = Math.min(pinScroll, bottomAlign);
+      } else {
+        target = pinScroll;
+      }
+    }
+
+    target = Math.min(Math.max(0, target), maxScroll);
+    container.scrollTop = target;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false;
+        updateScrollDownFlag();
+      });
+    });
+  }, [updateScrollDownFlag]);
+
+  useLayoutEffect(() => {
+    const prev = prevStreamBusyRef.current;
+    if (streamBusy && !prev) {
+      scrollHintDismissedRef.current = false;
+      streamScrollUserAdjustedRef.current = false;
+    }
+    if (prev && !streamBusy) {
+      requestAnimationFrame(() => alignTurnAnchorToTop());
+    }
+    prevStreamBusyRef.current = streamBusy;
+  }, [streamBusy, messages, alignTurnAnchorToTop]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (!programmaticScrollRef.current) {
+        scrollHintDismissedRef.current = true;
+        if (streamBusy) streamScrollUserAdjustedRef.current = true;
+      }
+      updateScrollDownFlag();
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [streamBusy, updateScrollDownFlag]);
+
+  useEffect(() => {
+    if (!streamBusy) return;
     const el = scrollRef.current;
     if (!el) return;
 
-    if (parts.transcript.length > 0 && prevTranscriptLenRef.current === 0) {
-      transcriptAnchorRef.current?.scrollIntoView({
-        block: "nearest",
-        behavior: "smooth",
-      });
-    }
-    prevTranscriptLenRef.current = parts.transcript.length;
-
     requestAnimationFrame(() => {
-      if (stickToBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
+      if (!streamScrollUserAdjustedRef.current) {
+        alignTurnAnchorToTop();
+      } else {
+        updateScrollDownFlag();
       }
-      updateScrollDownFlag();
     });
-  }, [streamRaw, parts.transcript, parts.answer, streamBusy, updateScrollDownFlag]);
+  }, [
+    streamRaw,
+    parts.transcript,
+    parts.answer,
+    streamBusy,
+    alignTurnAnchorToTop,
+    updateScrollDownFlag,
+  ]);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    programmaticScrollRef.current = true;
     el.scrollTop = el.scrollHeight;
-    stickToBottomRef.current = true;
+    scrollHintDismissedRef.current = true;
     setShowScrollDown(false);
+    requestAnimationFrame(() => {
+      programmaticScrollRef.current = false;
+    });
   }, []);
 
   const historyPayload = useCallback(() => {
@@ -315,6 +406,10 @@ export function Communicator({
       return;
     }
 
+    // Запись закончилась — иначе phase остаётся "recording" и isBusy не даёт
+    // повторить запись и блокирует переключатель TXT.
+    setPhase("idle");
+
     suppressClickRef.current = true;
     window.setTimeout(() => {
       suppressClickRef.current = false;
@@ -360,8 +455,16 @@ export function Communicator({
     setUiMode((m) => (m === "VOICE" ? "TXT" : "VOICE"));
   }, [canSwitchMode, isBusy]);
 
-  const micVisual =
-    phase === "recording" ? "recording" : isBusy ? "busy" : "idle";
+  /** «Выключенный» микрофон только после отпускания: отправка / ожидание (не во время удержания записи). */
+  const micShowsBusyAsset = isBusy && phase !== "recording";
+
+  const turnUserAnchorIdx = streamBusy
+    ? null
+    : getTurnUserAnchorIndex(messages);
+
+  const turnAssistantIdx = streamBusy
+    ? null
+    : getTurnAssistantAnchorIndex(messages);
 
   return (
     <div
@@ -371,36 +474,45 @@ export function Communicator({
         ref={scrollRef}
         className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
       >
-        <div className="mx-auto flex w-full max-w-lg flex-col pb-40 pt-2">
-          {messages.map((m) =>
+        <div className="mx-auto flex w-full max-w-lg flex-col pb-28 pt-2">
+          {messages.map((m, i) =>
             m.role === "user" ? (
-              <UserBubble
+              <div
                 key={m.id}
-                text={m.content}
-                isStreaming={false}
-              />
+                ref={turnUserAnchorIdx === i ? turnAnchorRef : undefined}
+              >
+                <UserBubble
+                  text={m.content}
+                  isStreaming={false}
+                />
+              </div>
             ) : (
-              <AssistantBubble
+              <div
                 key={m.id}
-                text={m.content}
-                isStreaming={false}
-              />
+                ref={turnAssistantIdx === i ? turnTailRef : undefined}
+              >
+                <AssistantBubble
+                  text={m.content}
+                  isStreaming={false}
+                />
+              </div>
             ),
           )}
 
           {streamBusy && (
             <>
-              <div key="pending-user" ref={transcriptAnchorRef}>
+              <div key="pending-user" ref={turnAnchorRef}>
                 <UserBubble
                   text={userBubbleText}
                   isStreaming={!parts.transcriptComplete}
                 />
               </div>
-              <AssistantBubble
-                key="pending-assistant"
-                text={parts.answer}
-                isStreaming={streamStatus === "streaming"}
-              />
+              <div key="pending-assistant" ref={turnTailRef}>
+                <AssistantBubble
+                  text={parts.answer}
+                  isStreaming={streamStatus === "streaming"}
+                />
+              </div>
             </>
           )}
         </div>
@@ -420,10 +532,7 @@ export function Communicator({
               )}
               <button
                 type="button"
-                className="relative flex h-[4.5rem] w-[4.5rem] shrink-0 touch-none select-none items-center justify-center rounded-full bg-sky-500 shadow-md active:scale-[0.98] dark:bg-sky-600"
-                style={{
-                  opacity: micVisual === "recording" ? 0.72 : 1,
-                }}
+                className="relative flex h-[4.5rem] w-[4.5rem] shrink-0 touch-none select-none items-center justify-center overflow-hidden rounded-full bg-transparent p-0 shadow-none ring-0 active:scale-[0.98]"
                 onPointerDown={onMicPointerDown}
                 onPointerUp={onMicPointerUp}
                 onPointerLeave={onMicPointerUp}
@@ -434,7 +543,7 @@ export function Communicator({
               >
                 <img
                   src={
-                    isBusy
+                    micShowsBusyAsset
                       ? "/icons/mic_button_off.png"
                       : "/icons/mic_button_on.png"
                   }
@@ -442,6 +551,12 @@ export function Communicator({
                   className="pointer-events-none h-14 w-14 object-contain"
                   draggable={false}
                 />
+                {phase === "recording" && (
+                  <span
+                    className="pointer-events-none absolute inset-0 rounded-full bg-black/35"
+                    aria-hidden
+                  />
+                )}
               </button>
             </div>
           ) : (

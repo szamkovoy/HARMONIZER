@@ -1,10 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { Content } from "@google/generative-ai";
+import type { Content, GenerateContentStreamResult } from "@google/generative-ai";
 
-/** Node: SDK Gemini не рассчитан на Edge — иначе часто 500 и HTML-страница ошибки Next. */
 export const runtime = "nodejs";
-
-const MODEL_ID = "gemini-1.5-flash";
 
 type IncomingHistory = { role: "user" | "assistant"; content: string };
 
@@ -16,19 +13,76 @@ type Body = {
     | { type: "audio"; mimeType: string; base64: string };
 };
 
+/** Официальные model code (Google AI, 2026): отдельных `gemini-3.1-flash` / `gemini-3.1-flash-preview` нет — см. доки. */
+const MODEL_CHAIN_DEFAULT = [
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3-flash-preview",
+  "gemini-3.1-pro-preview",
+  "gemini-2.5-flash",
+] as const;
+
+function resolveModelChain(): string[] {
+  const override = process.env.GEMINI_MODEL?.trim();
+  if (!override) return [...MODEL_CHAIN_DEFAULT];
+  const rest = MODEL_CHAIN_DEFAULT.filter((m) => m !== override);
+  return [override, ...rest];
+}
+
+function isTransientModelError(message: string): boolean {
+  return /503|429|UNAVAILABLE|high demand|overloaded|Resource exhausted|try again later/i.test(
+    message,
+  );
+}
+
+async function generateContentStreamWithFallback(
+  genAI: GoogleGenerativeAI,
+  contents: Content[],
+  modelIds: string[],
+): Promise<{ result: GenerateContentStreamResult; modelUsed: string }> {
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < modelIds.length; i++) {
+    const id = modelIds[i];
+    try {
+      const model = genAI.getGenerativeModel({ model: id });
+      const result = await model.generateContentStream({ contents });
+      if (i > 0) {
+        console.warn(`[communicator] using fallback model: ${id}`);
+      }
+      return { result, modelUsed: id };
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      const msg = lastError.message;
+      const canRetry = isTransientModelError(msg) && i < modelIds.length - 1;
+      console.warn(`[communicator] model ${id} failed:`, msg.slice(0, 200));
+      if (canRetry) continue;
+      throw lastError;
+    }
+  }
+
+  throw lastError ?? new Error("No models in chain");
+}
+
 function getApiKey(): string | null {
-  return (
-    process.env.GOOGLE_AI_API_KEY ??
-    process.env.GEMINI_API_KEY ??
-    ""
-  ) || null;
+  return (process.env.GOOGLE_AI_API_KEY ?? process.env.GEMINI_API_KEY ?? "") || null;
 }
 
 function toGeminiContents(
+  systemPrompt: string,
   history: IncomingHistory[],
   input: Body["input"],
 ): Content[] {
   const contents: Content[] = [];
+
+  contents.push({
+    role: "user",
+    parts: [{ text: `ИНСТРУКЦИЯ: ${systemPrompt}` }],
+  });
+
+  contents.push({
+    role: "model",
+    parts: [{ text: "Принято. Я готов соблюдать формат [T]." }],
+  });
 
   for (const h of history) {
     contents.push({
@@ -46,82 +100,56 @@ function toGeminiContents(
     contents.push({
       role: "user",
       parts: [
+        { inlineData: { mimeType: input.mimeType, data: input.base64 } },
         {
-          inlineData: {
-            mimeType: input.mimeType,
-            data: input.base64,
-          },
-        },
-        {
-          text: "Выполни инструкции по формату ответа: сначала [T]транскрипция[/T], затем ответ.",
+          text: "Выполни инструкции: сначала [T]транскрипция[/T], затем ответ.",
         },
       ],
     });
   }
-
   return contents;
 }
 
 export async function POST(req: Request) {
-  let body: Body;
   try {
-    body = (await req.json()) as Body;
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+    const body = (await req.json()) as Body;
+    const apiKey = getApiKey();
 
-  if (!body?.systemInstruction?.trim() || !body?.input) {
-    return new Response(
-      JSON.stringify({ error: "systemInstruction and input required" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
-  }
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "API Key not found" }), {
+        status: 500,
+      });
+    }
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return new Response(
-      JSON.stringify({
-        error:
-          "Missing GOOGLE_AI_API_KEY or GEMINI_API_KEY on the server (e.g. .env.local or Vercel env).",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  const signal = req.signal;
-
-  try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const fullInstruction = `${body.systemInstruction.trim()}\n\nВАЖНО: Сначала выведи транскрипцию в тегах [T] и [/T], затем ответ.`;
+    const modelChain = resolveModelChain();
 
-    const model = genAI.getGenerativeModel({
-      model: MODEL_ID,
-      systemInstruction: fullInstruction,
-    });
+    const fullInstruction = `${body.systemInstruction.trim()}\n\nВАЖНО: Ответ начинай с [T]транскрипции[/T].`;
+    const contents = toGeminiContents(
+      fullInstruction,
+      body.history ?? [],
+      body.input,
+    );
 
-    const contents = toGeminiContents(body.history ?? [], body.input);
+    const { result } = await generateContentStreamWithFallback(
+      genAI,
+      contents,
+      modelChain,
+    );
+
     const encoder = new TextEncoder();
-
-    const result = await model.generateContentStream({ contents });
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of result.stream) {
-            if (signal.aborted) break;
+            if (req.signal.aborted) break;
             const text = chunk.text();
             if (text) controller.enqueue(encoder.encode(text));
           }
           controller.close();
-        } catch (err) {
-          if (signal.aborted) {
-            controller.close();
-            return;
-          }
-          console.error("[communicator] stream", err);
+        } catch (streamErr) {
+          console.error("[communicator] stream", streamErr);
           controller.close();
         }
       },
@@ -135,9 +163,7 @@ export async function POST(req: Request) {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Generation error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("Critical Error:", message);
+    return new Response(JSON.stringify({ error: message }), { status: 502 });
   }
 }

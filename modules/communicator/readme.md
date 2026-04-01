@@ -44,7 +44,7 @@ import { Communicator } from "@/modules/communicator";
 
 - **Клиент:** `fetch` к `POST /api/communicator`, `MediaRecorder`, `AbortController`.
 - **Сервер:** `@google/generative-ai`, переменные окружения `GOOGLE_AI_API_KEY` или `GEMINI_API_KEY` (см. [`.env.example`](../../.env.example)).
-- **Ассеты UI:** `/icons/mic_button_on.png`, `/icons/mic_button_off.png` (кнопка микрофона).
+- **Ассеты UI (все в `public/icons/`):** `mic_button_on.png`, `mic_button_off.png`; переключатель режима — `mode_voice.png`, `mode_txt.png`.
 
 ## 4. Логика работы
 
@@ -56,7 +56,7 @@ import { Communicator } from "@/modules/communicator";
 ## 5. Чеклист теста на iPhone (PWA)
 
 - Развернуть приложение на **HTTPS** (например Vercel).
-- В [`manifest.json`](../../public/manifest.json) заданы **icons** 192×192 и 512×512, `display: standalone`.
+- В [`manifest.json`](../../public/manifest.json): **icons** `android-icon-192.png` / `android-icon-512.png`, `display: standalone`. В [`app/layout.tsx`](../../app/layout.tsx) в `metadata.icons` те же размеры плюс **apple** → `apple-touch-icon.png` для iOS.
 - В Safari: **Поделиться → На экран «Домой»**, открыть установленное приложение.
 - При первом использовании голоса выдать разрешение на **микрофон** для сайта.
 - На сервере задан `GOOGLE_AI_API_KEY` или `GEMINI_API_KEY` (не публикуйте ключ в клиенте).

@@ -1,6 +1,9 @@
 "use client";
 
-/** Пиктограммы-заглушки; позже заменить на ассеты из public/icons (см. README). */
+/**
+ * Пиктограммы: `/public/icons/mode_voice.png`, `mode_txt.png`.
+ * @see правило в `.cursor/rules/main.mdc` — ассеты UI в `public/icons/`.
+ */
 export function ModeToggle({
   targetMode,
   onToggle,
@@ -11,27 +14,27 @@ export function ModeToggle({
   onToggle: () => void;
   disabled?: boolean;
 }) {
+  const src =
+    targetMode === "VOICE"
+      ? "/icons/mode_voice.png"
+      : "/icons/mode_txt.png";
+
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onToggle}
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 shadow-sm active:scale-95 disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
-      aria-label={targetMode === "VOICE" ? "Режим голоса" : "Режим текста"}
+      className="flex h-10 w-10 shrink-0 items-center justify-center bg-transparent p-0 active:scale-95 disabled:opacity-40 disabled:active:scale-100 dark:[&_img]:brightness-0 dark:[&_img]:invert"
+      aria-label={targetMode === "VOICE" ? "Переключить на текст" : "Переключить на голос"}
     >
-      {targetMode === "VOICE" ? (
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden
-        >
-          <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 0014 0h-2z" />
-        </svg>
-      ) : (
-        <span className="text-[11px] font-bold tracking-tight">TXT</span>
-      )}
+      <img
+        src={src}
+        alt=""
+        width={targetMode === "VOICE" ? 22 : 40}
+        height={22}
+        draggable={false}
+        className="pointer-events-none object-contain select-none"
+      />
     </button>
   );
 }
