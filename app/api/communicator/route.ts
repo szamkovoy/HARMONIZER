@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Content } from "@google/generative-ai";
 
-export const runtime = "nodejs";
+// Используем 'edge', чтобы стриминг работал максимально быстро на Vercel
+export const runtime = "edge";
 
 const MODEL_ID = "gemini-1.5-flash";
 
@@ -15,21 +16,23 @@ type Body = {
     | { type: "audio"; mimeType: string; base64: string };
 };
 
+// Функция поиска API-ключа в .env.local
 function getApiKey(): string {
-  const key =
-    process.env.GOOGLE_AI_API_KEY ?? process.env.GEMINI_API_KEY ?? "";
+  const key = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
   if (!key) {
-    throw new Error("Missing GOOGLE_AI_API_KEY (or GEMINI_API_KEY)");
+    throw new Error("API Key не найден. Проверьте GOOGLE_AI_API_KEY в .env.local");
   }
   return key;
 }
 
+// Преобразование истории и ввода в формат Gemini
 function toGeminiContents(
   history: IncomingHistory[],
-  input: Body["input"],
+  input: Body["input"]
 ): Content[] {
   const contents: Content[] = [];
 
+  // Добавляем историю сообщений (если она есть)
   for (const h of history) {
     contents.push({
       role: h.role === "assistant" ? "model" : "user",
@@ -37,10 +40,11 @@ function toGeminiContents(
     });
   }
 
+  // Добавляем текущий ввод пользователя
   if (input.type === "text") {
     contents.push({
       role: "user",
-      parts: [{ text: input.text }],
+      parts: [{ text: `[T]${input.text}[/T]\n\nТеперь ответь на это.` }],
     });
   } else {
     contents.push({
@@ -53,7 +57,7 @@ function toGeminiContents(
           },
         },
         {
-          text: "Выполни инструкции по формату ответа: сначала [T]транскрипция[/T], затем ответ.",
+          text: "Транскрибируй мою речь в тегах [T]...[/T], а затем дай свой ответ.",
         },
       ],
     });
@@ -67,81 +71,53 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Body;
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
   }
 
-  if (!body?.systemInstruction || !body?.input) {
-    return new Response(
-      JSON.stringify({ error: "systemInstruction and input required" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  const signal = req.signal;
-
-  let genAI: GoogleGenerativeAI;
-  try {
-    genAI = new GoogleGenerativeAI(getApiKey());
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Config error";
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const genAI = new GoogleGenerativeAI(getApiKey());
+  
+  // Объединяем вашу роль (психолог) с правилом форматирования
+  const fullInstruction = `${body.systemInstruction}\n\nВАЖНО: Твой ответ ВСЕГДА должен начинаться с транскрипции слов пользователя, заключенной в теги [T] и [/T]. Только после этого пиши свой ответ.`;
 
   const model = genAI.getGenerativeModel({
     model: MODEL_ID,
-    systemInstruction: body.systemInstruction,
+    systemInstruction: fullInstruction,
   });
 
   const contents = toGeminiContents(body.history ?? [], body.input);
-
   const encoder = new TextEncoder();
 
-  let stream: ReadableStream<Uint8Array>;
   try {
-    const result = await model.generateContentStream({
-      contents,
-    });
+    const result = await model.generateContentStream({ contents });
 
-    stream = new ReadableStream({
+    const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of result.stream) {
-            if (signal.aborted) break;
+            // Если пользователь нажал "Отмена" (AbortController), прекращаем стрим
+            if (req.signal.aborted) break;
+            
             const text = chunk.text();
-            if (text) controller.enqueue(encoder.encode(text));
+            if (text) {
+              controller.enqueue(encoder.encode(text));
+            }
           }
           controller.close();
         } catch (err) {
-          if (signal.aborted) {
-            controller.close();
-            return;
-          }
-          console.error("[communicator]", err);
+          console.error("Stream Error:", err);
           controller.close();
         }
       },
-      cancel() {
-        /* клиент отменил чтение */
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
       },
     });
-  } catch (err) {
+  } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Generation error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: message }), { status: 502 });
   }
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
 }

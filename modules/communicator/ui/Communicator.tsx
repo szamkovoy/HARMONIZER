@@ -8,10 +8,6 @@ import {
   useState,
 } from "react";
 
-import {
-  readTextStream,
-  streamCommunicatorChat,
-} from "../api/communicator-client";
 import { blobToBase64, pickAudioMimeType } from "../core/blob-helpers";
 import { buildSystemInstruction, sliceHistoryForWindow } from "../core/session-helpers";
 import type {
@@ -21,12 +17,13 @@ import type {
   CommunicatorSessionState,
   EmotionSegmentPayload,
 } from "../core/types";
-import { parseTranscriptStream } from "../core/transcript-parser";
 import { AssistantBubble } from "./AssistantBubble";
 import { DecodingDots } from "./DecodingDots";
 import { ModeToggle } from "./ModeToggle";
 import { ScrollDownHint } from "./ScrollDownHint";
 import { UserBubble } from "./UserBubble";
+import type { CommunicatorStreamChunk } from "./communicator-stream";
+import { useCommunicatorStream } from "./useCommunicatorStream";
 
 function resolveUiMode(props: {
   mode?: CommunicatorModePolicy;
@@ -64,7 +61,7 @@ export interface CommunicatorProps {
   className?: string;
 }
 
-type Phase = "idle" | "recording" | "processing" | "streaming" | "error";
+type Phase = "idle" | "recording" | "error";
 
 export function Communicator({
   initialMode,
@@ -96,11 +93,19 @@ export function Communicator({
   );
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [streamRaw, setStreamRaw] = useState("");
   const [localUserLine, setLocalUserLine] = useState("");
   const [txtDraft, setTxtDraft] = useState("");
 
-  const abortRef = useRef<AbortController | null>(null);
+  const {
+    raw: streamRaw,
+    parsed: parts,
+    status: streamStatus,
+    run: runChatStream,
+    abort: abortChatStream,
+    reset: resetChatStream,
+    isBusy: streamBusy,
+  } = useCommunicatorStream({ onError });
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const recordMimeRef = useRef("");
@@ -116,17 +121,15 @@ export function Communicator({
   const sessionState: CommunicatorSessionState = useMemo(() => {
     let p: CommunicatorSessionState["phase"] = "idle";
     if (phase === "recording") p = "recording";
-    else if (phase === "processing") p = "processing";
-    else if (phase === "streaming") p = "streaming";
+    else if (streamStatus === "processing") p = "processing";
+    else if (streamStatus === "streaming") p = "streaming";
     else if (phase === "error") p = "error";
     return { phase: p, uiMode, canSwitchMode };
-  }, [phase, uiMode, canSwitchMode]);
+  }, [phase, streamStatus, uiMode, canSwitchMode]);
 
   useEffect(() => {
     onStateChange?.(sessionState);
   }, [sessionState, onStateChange]);
-
-  const parts = useMemo(() => parseTranscriptStream(streamRaw), [streamRaw]);
 
   const userBubbleText =
     parts.transcript.length > 0
@@ -135,7 +138,7 @@ export function Communicator({
         ? localUserLine
         : "";
 
-  const isBusy = phase === "processing" || phase === "streaming";
+  const isBusy = phase === "recording" || streamBusy;
 
   const updateScrollDownFlag = useCallback(() => {
     const el = scrollRef.current;
@@ -154,7 +157,7 @@ export function Communicator({
   }, [updateScrollDownFlag]);
 
   useEffect(() => {
-    if (!isBusy) {
+    if (!streamBusy) {
       prevTranscriptLenRef.current = 0;
       return;
     }
@@ -175,7 +178,7 @@ export function Communicator({
       }
       updateScrollDownFlag();
     });
-  }, [streamRaw, parts.transcript, parts.answer, isBusy, updateScrollDownFlag]);
+  }, [streamRaw, parts.transcript, parts.answer, streamBusy, updateScrollDownFlag]);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -194,8 +197,8 @@ export function Communicator({
   }, [messages, memoryWindow]);
 
   const finalizeStream = useCallback(
-    (raw: string) => {
-      const p = parseTranscriptStream(raw);
+    (result: CommunicatorStreamChunk) => {
+      const p = result.parsed;
       const u: CommunicatorHistoryMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -217,10 +220,6 @@ export function Communicator({
 
   const runStream = useCallback(
     async (input: { type: "text"; text: string } | { type: "audio"; blob: Blob }) => {
-      const ac = new AbortController();
-      abortRef.current = ac;
-      setPhase("processing");
-      setStreamRaw("");
       setLocalUserLine("");
 
       const systemInstruction = buildSystemInstruction(systemPrompt);
@@ -239,86 +238,50 @@ export function Communicator({
           bodyInput = { type: "audio", mimeType: mime, base64 };
         }
 
-        setPhase("streaming");
-
-        const stream = await streamCommunicatorChat({
+        const result = await runChatStream({
           systemInstruction,
           history: historyPayload(),
           input: bodyInput,
-          signal: ac.signal,
         });
 
-        let acc = "";
-        await readTextStream(
-          stream,
-          (chunk) => {
-            acc += chunk;
-            setStreamRaw(acc);
-          },
-          ac.signal,
-        );
-
-        if (ac.signal.aborted) {
-          setPhase("idle");
-          setStreamRaw("");
+        if (result == null) {
           setLocalUserLine("");
           return;
         }
 
-        finalizeStream(acc);
-        setStreamRaw("");
+        finalizeStream(result);
+        resetChatStream();
         setLocalUserLine("");
-        setPhase("idle");
-      } catch (e: unknown) {
-        const aborted =
-          ac.signal.aborted ||
-          (e instanceof Error && e.name === "AbortError") ||
-          (typeof e === "object" &&
-            e !== null &&
-            "name" in e &&
-            (e as { name: string }).name === "AbortError");
-        if (aborted) {
-          setPhase("idle");
-          setStreamRaw("");
-          setLocalUserLine("");
-          return;
-        }
-        const err = e instanceof Error ? e : new Error(String(e));
-        onError?.(err);
+      } catch {
         setPhase("error");
-        setStreamRaw("");
-        setLocalUserLine("");
         setTimeout(() => setPhase("idle"), 400);
-      } finally {
-        abortRef.current = null;
       }
     },
-    [finalizeStream, historyPayload, onError, systemPrompt],
+    [finalizeStream, historyPayload, resetChatStream, runChatStream, systemPrompt],
   );
 
   const abortRequest = useCallback(() => {
-    abortRef.current?.abort();
-    setStreamRaw("");
+    abortChatStream();
+    resetChatStream();
     setLocalUserLine("");
-    setPhase("idle");
     onAbort?.();
-  }, [onAbort]);
+  }, [abortChatStream, onAbort, resetChatStream]);
 
   const startRecording = useCallback(async () => {
     if (phase !== "idle" || uiMode !== "VOICE") return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mime = pickAudioMimeType();
       recordMimeRef.current = mime;
       chunksRef.current = [];
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const rec = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : undefined);
       mediaRecorderRef.current = rec;
       recordStartRef.current = performance.now();
       rec.ondataavailable = (ev) => {
         if (ev.data.size) chunksRef.current.push(ev.data);
       };
       rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
+        mediaStream.getTracks().forEach((t) => t.stop());
       };
       rec.start();
       setPhase("recording");
@@ -425,7 +388,7 @@ export function Communicator({
             ),
           )}
 
-          {isBusy && (
+          {streamBusy && (
             <>
               <div key="pending-user" ref={transcriptAnchorRef}>
                 <UserBubble
@@ -436,7 +399,7 @@ export function Communicator({
               <AssistantBubble
                 key="pending-assistant"
                 text={parts.answer}
-                isStreaming={phase === "streaming"}
+                isStreaming={streamStatus === "streaming"}
               />
             </>
           )}
@@ -449,7 +412,7 @@ export function Communicator({
         <div className="relative mx-auto flex w-full max-w-lg items-end gap-2">
           {uiMode === "VOICE" ? (
             <div className="flex min-h-[4.5rem] flex-1 flex-col items-center justify-end gap-1">
-              {(phase === "processing" || phase === "streaming") && (
+              {(streamStatus === "processing" || streamStatus === "streaming") && (
                 <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
                   Расшифровка
                   <DecodingDots />
