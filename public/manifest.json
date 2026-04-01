@@ -1,10 +1,21 @@
 {
   "name": "Harmonizer",
   "short_name": "Harmonizer",
-  "description": "Harmonizer application",
+  "description": "Психологический помощник и проводник в мир йоги",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0a0a0a",
-  "icons": []
+  "theme_color": "#0088cc",
+  "icons": [
+    {
+      "src": "/icons/icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
