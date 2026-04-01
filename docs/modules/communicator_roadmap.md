@@ -1,5 +1,12 @@
 # Дорожная карта развития модуля COMMUNICATOR
 
+## Статус V1 (реализовано)
+
+- Модуль в [`modules/communicator`](/modules/communicator): UI VOICE/TXT, стриминг Gemini 1.5 Flash через [`app/api/communicator/route.ts`](/app/api/communicator/route.ts), парсинг `[T]…[/T]`, отмена запроса, задел `onEmotionSegment`, индикатор «Расшифровка…», автоскролл и кнопка «вниз» при переполнении.
+- Демо: маршрут `/communicator`.
+
+## Будущие направления
+
 Для оптимизации работы модуля в будущем предусмотрены следующие альтернативные пути:
 
 ## 1. Двухходовая модель (Flash Speedup)
