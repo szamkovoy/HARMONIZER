@@ -13,12 +13,14 @@ type Body = {
     | { type: "audio"; mimeType: string; base64: string };
 };
 
-/** Официальные model code (Google AI, 2026): отдельных `gemini-3.1-flash` / `gemini-3.1-flash-preview` нет — см. доки. */
+/** Сначала стабильные имена из AI Studio; preview-модели — запас, если доступны в проекте. */
 const MODEL_CHAIN_DEFAULT = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-flash-preview",
   "gemini-3.1-pro-preview",
-  "gemini-2.5-flash",
 ] as const;
 
 function resolveModelChain(): string[] {
@@ -30,6 +32,13 @@ function resolveModelChain(): string[] {
 
 function isTransientModelError(message: string): boolean {
   return /503|429|UNAVAILABLE|high demand|overloaded|Resource exhausted|try again later/i.test(
+    message,
+  );
+}
+
+/** Неверное имя модели или модель недоступна для ключа — пробуем следующую в цепочке. */
+function isRetryableModelUnavailableError(message: string): boolean {
+  return /404|not\s*found|NOT_FOUND|invalid model|does not exist|not supported|Unknown model|Model .* not found|is not (found|supported)|no longer available/i.test(
     message,
   );
 }
@@ -53,7 +62,9 @@ async function generateContentStreamWithFallback(
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
       const msg = lastError.message;
-      const canRetry = isTransientModelError(msg) && i < modelIds.length - 1;
+      const canRetry =
+        i < modelIds.length - 1 &&
+        (isTransientModelError(msg) || isRetryableModelUnavailableError(msg));
       console.warn(`[communicator] model ${id} failed:`, msg.slice(0, 200));
       if (canRetry) continue;
       throw lastError;
