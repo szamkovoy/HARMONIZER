@@ -34,8 +34,20 @@ export async function streamCommunicatorChat(
   });
 
   if (!res.ok) {
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("application/json")) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error ?? `HTTP ${res.status}`);
+    }
     const errText = await res.text().catch(() => res.statusText);
-    throw new Error(errText || `HTTP ${res.status}`);
+    const looksLikeHtml =
+      errText.trimStart().startsWith("<!") || /<html[\s>]/i.test(errText);
+    if (looksLikeHtml) {
+      throw new Error(
+        `Сервер вернул HTML вместо API (${res.status}). Проверьте /api/communicator: runtime nodejs, ключ GOOGLE_AI_API_KEY, логи сервера.`,
+      );
+    }
+    throw new Error(errText.slice(0, 280) || `HTTP ${res.status}`);
   }
 
   if (!res.body) {
