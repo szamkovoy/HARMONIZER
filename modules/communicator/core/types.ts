@@ -16,12 +16,9 @@ export interface CommunicatorHistoryMessage {
 
 /** Задел под Hume: фрагмент записи для анализа эмоций (см. docs/hume_integration.md). */
 export interface EmotionSegmentPayload {
-  /** Например audio/webm */
   mimeType: string;
-  /** Base64 без префикса data: */
   base64: string;
   durationMs: number;
-  /** Индекс пользовательского сообщения в текущей сессии (0-based), если применимо */
   messageIndex?: number;
 }
 

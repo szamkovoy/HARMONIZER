@@ -1,17 +1,15 @@
-"use client";
-
 import { useEffect, useState } from "react";
+import { Text } from "react-native";
 
-/** Анимация точек 1…5 по циклу. */
 export function DecodingDots() {
   const [n, setN] = useState(1);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
+    const id = setInterval(() => {
       setN((x) => (x >= 5 ? 1 : x + 1));
     }, 280);
-    return () => window.clearInterval(id);
+    return () => clearInterval(id);
   }, []);
 
-  return <span aria-hidden>{".".repeat(n)}</span>;
+  return <Text aria-hidden>{".".repeat(n)}</Text>;
 }

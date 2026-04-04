@@ -3,18 +3,14 @@
  */
 
 export interface ParsedStreamParts {
-  /** Текст транскрипции (может наращиваться, пока не закрыт [/T]) */
   transcript: string;
-  /** true после полного парсинга закрывающего тега */
   transcriptComplete: boolean;
-  /** Текст ответа ассистента (после [/T]) */
   answer: string;
 }
 
 const OPEN = "[T]";
 const CLOSE = "[/T]";
 
-/** Убирает типичные «протечки» служебных фраз модели в блок транскрипции. */
 export function sanitizeTranscriptText(raw: string): string {
   let s = raw.trim();
   s = s.replace(
@@ -26,9 +22,6 @@ export function sanitizeTranscriptText(raw: string): string {
   return s;
 }
 
-/**
- * Разбор по полному накопленному буферу стрима.
- */
 export function parseTranscriptStream(buffer: string): ParsedStreamParts {
   const parts: ParsedStreamParts = {
     transcript: "",

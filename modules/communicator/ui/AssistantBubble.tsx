@@ -1,4 +1,4 @@
-"use client";
+import { StyleSheet, Text, useColorScheme, View } from "react-native";
 
 export function AssistantBubble({
   text,
@@ -7,20 +7,59 @@ export function AssistantBubble({
   text: string;
   isStreaming: boolean;
 }) {
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
   const display = text.trimStart();
+
   return (
-    <div className="flex min-w-0 w-full justify-start px-3 pt-2">
-      <div
-        className="min-w-0 max-w-[min(100%,36rem)] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-relaxed text-neutral-900 shadow-sm ring-1 ring-neutral-200/80 dark:bg-neutral-900 dark:text-neutral-100 dark:ring-neutral-700"
-        style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+    <View style={styles.row}>
+      <View
+        style={[
+          styles.bubble,
+          {
+            backgroundColor: isDark ? "#171717" : "#fff",
+            borderColor: isDark ? "#404040" : "#e5e5e5",
+          },
+        ]}
       >
-        <p className="whitespace-pre-wrap break-words">
+        <Text
+          style={[styles.text, { color: isDark ? "#fafafa" : "#171717" }]}
+        >
           {display}
-          {isStreaming && (
-            <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-neutral-400 align-middle" />
-          )}
-        </p>
-      </div>
-    </div>
+          {isStreaming ? (
+            <Text style={styles.cursor}>▍</Text>
+          ) : null}
+        </Text>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  row: {
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    alignItems: "flex-start",
+  },
+  bubble: {
+    maxWidth: "92%",
+    borderRadius: 20,
+    borderBottomLeftRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  text: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  cursor: {
+    opacity: 0.45,
+    fontSize: 15,
+  },
+});

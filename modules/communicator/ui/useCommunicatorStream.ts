@@ -1,35 +1,21 @@
-"use client";
-
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { StreamChatRequest } from "../api/communicator-client";
+import type { StreamChatRequest } from "@/services/communicator-client";
 import {
   parseTranscriptStream,
   type ParsedStreamParts,
-} from "../core/transcript-parser";
-import { runCommunicatorStream } from "./communicator-stream";
+} from "@/modules/communicator/core/transcript-parser";
+import { runCommunicatorStream } from "@/modules/communicator/api/communicator-stream";
 
-export type CommunicatorStreamStatus =
-  | "idle"
-  | "processing"
-  | "streaming";
+export type CommunicatorStreamStatus = "idle" | "processing" | "streaming";
 
-/**
- * Хук фронтенда: отправка на `/api/communicator`, стрим, парсинг `[T]…[/T]`.
- * `parsed` пересчитывается из накопленного `raw` при каждом чанке.
- */
-export function useCommunicatorStream(options?: {
-  onError?: (err: Error) => void;
-}) {
+export function useCommunicatorStream(options?: { onError?: (err: Error) => void }) {
   const { onError } = options ?? {};
   const [raw, setRaw] = useState("");
   const [status, setStatus] = useState<CommunicatorStreamStatus>("idle");
   const abortRef = useRef<AbortController | null>(null);
 
-  const parsed: ParsedStreamParts = useMemo(
-    () => parseTranscriptStream(raw),
-    [raw],
-  );
+  const parsed: ParsedStreamParts = useMemo(() => parseTranscriptStream(raw), [raw]);
 
   const reset = useCallback(() => {
     setRaw("");

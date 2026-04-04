@@ -1,40 +1,61 @@
-"use client";
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  useColorScheme,
+} from "react-native";
 
-/**
- * Пиктограммы: `/public/icons/mode_voice.png`, `mode_txt.png`.
- * @see правило в `.cursor/rules/main.mdc` — ассеты UI в `public/icons/`.
- */
+const voiceImg = require("@/assets/icons/mode_voice.png");
+const txtImg = require("@/assets/icons/mode_txt.png");
+
 export function ModeToggle({
   targetMode,
   onToggle,
   disabled,
 }: {
-  /** Режим, в который переключим по клику */
   targetMode: "VOICE" | "TXT";
   onToggle: () => void;
   disabled?: boolean;
 }) {
-  const src =
-    targetMode === "VOICE"
-      ? "/icons/mode_voice.png"
-      : "/icons/mode_txt.png";
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
 
   return (
-    <button
-      type="button"
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        targetMode === "VOICE"
+          ? "Переключить на голос"
+          : "Переключить на текст"
+      }
       disabled={disabled}
-      onClick={onToggle}
-      className="flex h-10 w-10 shrink-0 items-center justify-center bg-transparent p-0 outline-none [-webkit-tap-highlight-color:transparent] active:scale-95 focus:outline-none focus-visible:outline-none disabled:opacity-40 disabled:active:scale-100 dark:[&_img]:brightness-0 dark:[&_img]:invert"
-      aria-label={targetMode === "VOICE" ? "Переключить на текст" : "Переключить на голос"}
+      onPress={onToggle}
+      style={({ pressed }) => [
+        styles.hit,
+        disabled && styles.disabled,
+        pressed && !disabled && styles.pressed,
+        isDark && styles.darkImg,
+      ]}
     >
-      <img
-        src={src}
-        alt=""
-        width={targetMode === "VOICE" ? 22 : 40}
-        height={22}
-        draggable={false}
-        className="pointer-events-none object-contain select-none"
+      <Image
+        source={targetMode === "VOICE" ? voiceImg : txtImg}
+        style={targetMode === "VOICE" ? styles.imgVoice : styles.imgTxt}
+        resizeMode="contain"
       />
-    </button>
+    </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  hit: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabled: { opacity: 0.4 },
+  pressed: { opacity: 0.85 },
+  darkImg: { opacity: 0.95 },
+  imgVoice: { width: 22, height: 22 },
+  imgTxt: { width: 40, height: 22 },
+});
