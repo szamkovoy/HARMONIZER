@@ -52,11 +52,28 @@ export async function streamCommunicatorChat(
     throw new Error(errText.slice(0, 280) || `HTTP ${res.status}`);
   }
 
-  if (!res.body) {
-    throw new Error("No response body");
+  /**
+   * В React Native `fetch` часто возвращает `res.body === null` (нет ReadableStream),
+   * хотя ответ успешный и текст есть — читаем целиком и подаём как поток для общего парсера.
+   */
+  if (res.body) {
+    return res.body;
   }
 
-  return res.body;
+  const text = await res.text();
+  if (!text) {
+    throw new Error(
+      "Пустой ответ сервера (body недоступен как поток в React Native — проверьте API и ключи на Vercel).",
+    );
+  }
+
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(text));
+      controller.close();
+    },
+  });
 }
 
 export async function readTextStream(

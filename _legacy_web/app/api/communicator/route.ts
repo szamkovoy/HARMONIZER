@@ -13,7 +13,10 @@ type Body = {
     | { type: "audio"; mimeType: string; base64: string };
 };
 
-/** Сначала стабильные имена из AI Studio; preview-модели — запас, если доступны в проекте. */
+/**
+ * Цепочка на сервере (клиент RN не задаёт модель). Актуальные id: https://ai.google.dev/gemini-api/docs/models
+ * Стабильные первыми; preview — запас при 404/лимитах.
+ */
 const MODEL_CHAIN_DEFAULT = [
   "gemini-2.5-flash",
   "gemini-2.0-flash",

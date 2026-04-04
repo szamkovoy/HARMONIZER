@@ -4,7 +4,7 @@
 
 ## Зависимости среды
 
-- **API Gemini**: ключ `GOOGLE_AI_API_KEY` остаётся на сервере (Next route в `_legacy_web`, деплой на Vercel). Клиент ходит только на `EXPO_PUBLIC_COMMUNICATOR_API_URL` (origin без `/api/communicator`).
+- **API Gemini**: ключ `GOOGLE_AI_API_KEY` остаётся на сервере (Next route в `_legacy_web`, деплой на Vercel). Клиент ходит только на **`EXPO_PUBLIC_COMMUNICATOR_API_URL`** в `.env.local` (origin без `/api/communicator`). Без этой переменной запрос не уйдёт; ошибка показывается в Alert и в консоли Metro (`[Communicator]`). См. `docs/tech_stack.md` (отладка и логи).
 - **Supabase**: опционально `getSupabase()` в `services/supabase.ts` — те же значения, что `NEXT_PUBLIC_*` в вебе, с префиксом `EXPO_PUBLIC_`.
 
 ## Публичный UI

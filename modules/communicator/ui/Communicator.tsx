@@ -1,5 +1,5 @@
 import { Audio } from "expo-av";
-import { getInfoAsync, readAsStringAsync } from "expo-file-system";
+import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
 import {
   useCallback,
   useEffect,
@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  Alert,
   AppState,
   Image,
   KeyboardAvoidingView,
@@ -153,6 +154,17 @@ export function Communicator({
   const [localUserLine, setLocalUserLine] = useState("");
   const [txtDraft, setTxtDraft] = useState("");
 
+  const reportError = useCallback(
+    (err: Error) => {
+      console.error("[Communicator]", err.message, err.stack ?? "");
+      onError?.(err);
+      Alert.alert("Не удалось отправить сообщение", err.message, [
+        { text: "OK" },
+      ]);
+    },
+    [onError],
+  );
+
   const {
     raw: streamRaw,
     parsed: parts,
@@ -161,12 +173,17 @@ export function Communicator({
     abort: abortChatStream,
     reset: resetChatStream,
     isBusy: streamBusy,
-  } = useCommunicatorStream({ onError });
+  } = useCommunicatorStream({ onError: reportError });
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordStartRef = useRef(0);
   const suppressClickRef = useRef(false);
   const suppressAbortAfterRecordRef = useRef(false);
+  /** true от старта startRecording до момента, пока запись реально не пошла (показ системного окна разрешений) */
+  const micWarmupRef = useRef(false);
+  const startRecordingGenerationRef = useRef(0);
+  /** Сброс нативного «залипания» Pressable после отмены / отказа в разрешениях */
+  const [micPressResetKey, setMicPressResetKey] = useState(0);
 
   const scrollRef = useRef<ScrollView>(null);
   const [scrollViewH, setScrollViewH] = useState(0);
@@ -358,12 +375,14 @@ export function Communicator({
         finalizeStream(result);
         resetChatStream();
         setLocalUserLine("");
-      } catch {
+      } catch (e) {
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
+        const err = e instanceof Error ? e : new Error(String(e));
+        reportError(err);
       }
     },
-    [finalizeStream, historyPayload, resetChatStream, runChatStream, systemPrompt],
+    [finalizeStream, historyPayload, reportError, resetChatStream, runChatStream, systemPrompt],
   );
 
   const abortRequest = useCallback(() => {
@@ -385,42 +404,73 @@ export function Communicator({
     setPhase("idle");
   }, []);
 
+  const cancelMicWarmup = useCallback(() => {
+    startRecordingGenerationRef.current += 1;
+    micWarmupRef.current = false;
+    setPhase("idle");
+    setMicPressResetKey((k) => k + 1);
+  }, []);
+
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next !== "active") void discardRecording();
+      if (next === "inactive" && micWarmupRef.current) {
+        cancelMicWarmup();
+        return;
+      }
+      if (next === "background") {
+        void discardRecording();
+      }
     });
     return () => sub.remove();
-  }, [discardRecording]);
+  }, [cancelMicWarmup, discardRecording]);
 
   const startRecording = useCallback(async () => {
     if (phase !== "idle" || uiMode !== "VOICE" || streamBusy) return;
+    const generation = ++startRecordingGenerationRef.current;
+    micWarmupRef.current = true;
     try {
       const perm = await Audio.requestPermissionsAsync();
+      if (generation !== startRecordingGenerationRef.current) return;
       if (!perm.granted) {
-        onError?.(new Error("Нет доступа к микрофону"));
+        micWarmupRef.current = false;
+        reportError(new Error("Нет доступа к микрофону"));
+        setMicPressResetKey((k) => k + 1);
         return;
       }
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
+      if (generation !== startRecordingGenerationRef.current) return;
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
+      if (generation !== startRecordingGenerationRef.current) {
+        try {
+          await recording.stopAndUnloadAsync();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      micWarmupRef.current = false;
       recordingRef.current = recording;
       recordStartRef.current = Date.now();
       setPhase("recording");
     } catch (e) {
+      micWarmupRef.current = false;
       setPhase("idle");
+      setMicPressResetKey((k) => k + 1);
       const err = e instanceof Error ? e : new Error(String(e));
-      onError?.(err);
+      reportError(err);
     }
-  }, [onError, phase, streamBusy, uiMode]);
+  }, [phase, reportError, streamBusy, uiMode]);
 
   const stopRecordingAndSend = useCallback(async () => {
     const rec = recordingRef.current;
     if (!rec || phase !== "recording") return;
 
+    micWarmupRef.current = false;
     recordingRef.current = null;
     let uri: string | null = null;
     try {
@@ -443,11 +493,17 @@ export function Communicator({
 
     if (!uri) return;
 
-    const info = await getInfoAsync(uri);
-    const size = info.exists && !info.isDirectory ? info.size : 0;
-    if (size < 16 || durationMs < MIN_VOICE_MS) return;
-
-    const base64 = await readAsStringAsync(uri, { encoding: "base64" });
+    let base64: string;
+    try {
+      const info = await getInfoAsync(uri);
+      const size = info.exists && !info.isDirectory ? info.size : 0;
+      if (size < 16 || durationMs < MIN_VOICE_MS) return;
+      base64 = await readAsStringAsync(uri, { encoding: "base64" });
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      reportError(err);
+      return;
+    }
     const mime = mimeFromRecordingUri(uri);
     onEmotionSegment?.({
       mimeType: mime,
@@ -456,7 +512,7 @@ export function Communicator({
     });
 
     await runStream({ type: "audio", uri });
-  }, [onEmotionSegment, phase, runStream]);
+  }, [onEmotionSegment, phase, reportError, runStream]);
 
   const onMicPressIn = useCallback(() => {
     if (isBusy) return;
@@ -467,8 +523,12 @@ export function Communicator({
   const onMicPressOut = useCallback(() => {
     if (phase === "recording") {
       void stopRecordingAndSend();
+      return;
     }
-  }, [phase, stopRecordingAndSend]);
+    if (micWarmupRef.current) {
+      cancelMicWarmup();
+    }
+  }, [cancelMicWarmup, phase, stopRecordingAndSend]);
 
   const onMicPress = useCallback(() => {
     if (suppressClickRef.current || suppressAbortAfterRecordRef.current) return;
@@ -601,6 +661,7 @@ export function Communicator({
                 </Text>
               )}
               <Pressable
+                key={micPressResetKey}
                 accessibilityRole="button"
                 accessibilityLabel={
                   isBusy ? "Отменить запрос" : "Удерживайте для записи"
