@@ -24,7 +24,7 @@ export function ModeToggle({
       type="button"
       disabled={disabled}
       onClick={onToggle}
-      className="flex h-10 w-10 shrink-0 items-center justify-center bg-transparent p-0 active:scale-95 disabled:opacity-40 disabled:active:scale-100 dark:[&_img]:brightness-0 dark:[&_img]:invert"
+      className="flex h-10 w-10 shrink-0 items-center justify-center bg-transparent p-0 outline-none [-webkit-tap-highlight-color:transparent] active:scale-95 focus:outline-none focus-visible:outline-none disabled:opacity-40 disabled:active:scale-100 dark:[&_img]:brightness-0 dark:[&_img]:invert"
       aria-label={targetMode === "VOICE" ? "Переключить на текст" : "Переключить на голос"}
     >
       <img

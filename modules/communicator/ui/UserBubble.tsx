@@ -24,9 +24,9 @@ export function UserBubble({
   }, [text, long]);
 
   return (
-    <div className="flex justify-end px-3 pt-2">
+    <div className="flex min-w-0 w-full justify-end px-3 pt-2">
       <div
-        className="relative max-w-[min(100%,36rem)] rounded-[1.25rem] rounded-br-md bg-neutral-100 px-4 py-2.5 text-[15px] leading-relaxed text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-neutral-100"
+        className="relative min-w-0 max-w-[min(100%,36rem)] rounded-[1.25rem] rounded-br-md bg-neutral-100 px-4 py-2.5 text-[15px] leading-relaxed text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-neutral-100"
         style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
       >
         <p className="whitespace-pre-wrap break-words">{display || "\u00a0"}</p>

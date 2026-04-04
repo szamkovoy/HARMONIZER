@@ -113,7 +113,8 @@ function toGeminiContents(
       parts: [
         { inlineData: { mimeType: input.mimeType, data: input.base64 } },
         {
-          text: "Выполни инструкции: сначала [T]транскрипция[/T], затем ответ.",
+          // Короткий нейтральный текст — без формулировок, которые модель копирует в [T].
+          text: "Audio. Transcribe only the spoken words inside [T][/T]; no meta-instructions in [T].",
         },
       ],
     });

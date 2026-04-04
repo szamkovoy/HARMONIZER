@@ -2,7 +2,13 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUpFromLine, PlusSquare, X } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpFromLine,
+  MoreHorizontal,
+  PlusSquare,
+  X,
+} from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -214,37 +220,46 @@ export function InstallLanding({ titleFont }: { titleFont: string }) {
               Установка на iPhone
             </h2>
             <p className="mt-2 text-left text-sm text-stone-600">
-              В Safari установка делается через меню «Поделиться».
+              Сначала откройте меню браузера (три точки), затем «Поделиться» и
+              установку на экран «Домой».
             </p>
 
-            <ol className="mt-6 space-y-5 text-left">
+            <ol className="mt-6 list-none space-y-5 text-left">
               <li className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-800">
-                  <ArrowUpFromLine className="h-5 w-5" strokeWidth={2} aria-hidden />
+                <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-800">
+                  <MoreHorizontal className="h-6 w-6" strokeWidth={2.25} aria-hidden />
                 </span>
                 <span className="pt-1.5 text-sm leading-relaxed text-stone-700">
-                  Нажмите кнопку{' '}
-                  <strong className="text-stone-900">«Поделиться»</strong> (квадрат
-                  со стрелкой вверх) в нижней панели Safari.
+                  Нажмите <strong className="text-stone-900">троеточие</strong> в
+                  правом нижнем углу экрана.
                 </span>
               </li>
               <li className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-800">
+                <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-800">
+                  <ArrowUpFromLine className="h-5 w-5" strokeWidth={2} aria-hidden />
+                </span>
+                <span className="pt-1.5 text-sm leading-relaxed text-stone-700">
+                  В появившемся меню выберите пункт{' '}
+                  <strong className="text-stone-900">«Поделиться»</strong>.
+                </span>
+              </li>
+              <li className="flex gap-4">
+                <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-800">
                   <PlusSquare className="h-5 w-5" strokeWidth={2} aria-hidden />
                 </span>
                 <span className="pt-1.5 text-sm leading-relaxed text-stone-700">
-                  Затем выберите{' '}
+                  Затем прокрутите меню далеко вниз и выберите пункт{' '}
                   <strong className="text-stone-900">«На экран «Домой»»</strong>.
                 </span>
               </li>
             </ol>
 
-            <div className="pointer-events-none mt-8 flex flex-col items-center border-t border-stone-200/90 pt-6">
-              <span className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500">
-                Кнопка внизу экрана
+            <div className="pointer-events-none mt-8 flex flex-col items-end border-t border-stone-200/90 pt-6">
+              <span className="mb-2 max-w-[12rem] text-right text-[10px] font-semibold uppercase leading-tight tracking-wide text-stone-500">
+                ТРИ ТОЧКИ В УГЛУ ЭКРАНА
               </span>
-              <ArrowDown
-                className="h-9 w-9 animate-bounce text-teal-600"
+              <ArrowDownRight
+                className="h-10 w-10 animate-bounce text-teal-600"
                 strokeWidth={2.5}
                 aria-hidden
               />

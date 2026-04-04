@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { blobToBase64, pickAudioMimeType } from "../core/blob-helpers";
+import { sanitizeTranscriptText } from "../core/transcript-parser";
 import { buildSystemInstruction, sliceHistoryForWindow } from "../core/session-helpers";
 import type {
   CommunicatorHistoryMessage,
@@ -63,6 +64,9 @@ export interface CommunicatorProps {
 }
 
 type Phase = "idle" | "recording" | "error";
+
+/** Короче — считаем случайным срабатыванием при системных окнах (разрешение микрофона и т.п.). */
+const MIN_VOICE_MS = 450;
 
 /** Индекс сообщения пользователя в паре «вопрос → ответ» для привязки ленты к верху экрана */
 function getTurnUserAnchorIndex(
@@ -164,7 +168,9 @@ export function Communicator({
 
   const userBubbleText =
     parts.transcript.length > 0
-      ? parts.transcript
+      ? parts.transcriptComplete
+        ? sanitizeTranscriptText(parts.transcript)
+        : parts.transcript
       : uiMode === "TXT" && localUserLine
         ? localUserLine
         : "";
@@ -293,7 +299,7 @@ export function Communicator({
       const u: CommunicatorHistoryMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        content: p.transcript || localUserLine,
+        content: sanitizeTranscriptText(p.transcript || localUserLine),
         createdAt: Date.now(),
       };
       const a: CommunicatorHistoryMessage = {
@@ -358,6 +364,38 @@ export function Communicator({
     onAbort?.();
   }, [abortChatStream, onAbort, resetChatStream]);
 
+  const discardRecording = useCallback(async () => {
+    const rec = mediaRecorderRef.current;
+    if (!rec) return;
+    await new Promise<void>((resolve) => {
+      rec.addEventListener("error", () => resolve(), { once: true });
+      rec.addEventListener("stop", () => resolve(), { once: true });
+      try {
+        rec.stop();
+      } catch {
+        resolve();
+      }
+    });
+    mediaRecorderRef.current = null;
+    chunksRef.current = [];
+    setPhase("idle");
+  }, []);
+
+  useEffect(() => {
+    const onInterrupt = () => {
+      void discardRecording();
+    };
+    window.addEventListener("blur", onInterrupt);
+    const onVis = () => {
+      if (document.visibilityState === "hidden") onInterrupt();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("blur", onInterrupt);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [discardRecording]);
+
   const startRecording = useCallback(async () => {
     if (phase !== "idle" || uiMode !== "VOICE") return;
     try {
@@ -377,6 +415,7 @@ export function Communicator({
       rec.start();
       setPhase("recording");
     } catch (e) {
+      setPhase("idle");
       const err = e instanceof Error ? e : new Error(String(e));
       onError?.(err);
     }
@@ -401,7 +440,8 @@ export function Communicator({
     const blob = new Blob(chunksRef.current, { type: mime });
     chunksRef.current = [];
 
-    if (blob.size < 16) {
+    const durationMs = performance.now() - recordStartRef.current;
+    if (blob.size < 16 || durationMs < MIN_VOICE_MS) {
       setPhase("idle");
       return;
     }
@@ -415,7 +455,6 @@ export function Communicator({
       suppressClickRef.current = false;
     }, 450);
 
-    const durationMs = performance.now() - recordStartRef.current;
     const base64 = await blobToBase64(blob);
     onEmotionSegment?.({
       mimeType: mime,
@@ -474,7 +513,7 @@ export function Communicator({
         ref={scrollRef}
         className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
       >
-        <div className="mx-auto flex w-full max-w-lg flex-col pb-28 pt-2">
+        <div className="mx-auto flex w-full min-w-0 max-w-lg flex-col pb-28 pt-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]">
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div
@@ -520,8 +559,8 @@ export function Communicator({
         <ScrollDownHint visible={showScrollDown} onClick={scrollToBottom} />
       </div>
 
-      <div className="border-t border-neutral-200/80 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 dark:border-neutral-800 dark:bg-neutral-950/95">
-        <div className="relative mx-auto flex w-full max-w-lg items-end gap-2">
+      <div className="border-t border-neutral-200/80 bg-white/95 pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-2 dark:border-neutral-800 dark:bg-neutral-950/95">
+        <div className="relative mx-auto flex w-full min-w-0 max-w-lg items-end gap-3">
           {uiMode === "VOICE" ? (
             <div className="flex min-h-[4.5rem] flex-1 flex-col items-center justify-end gap-1">
               {(streamStatus === "processing" || streamStatus === "streaming") && (
@@ -532,7 +571,7 @@ export function Communicator({
               )}
               <button
                 type="button"
-                className="relative flex h-[4.5rem] w-[4.5rem] shrink-0 touch-none select-none items-center justify-center overflow-hidden rounded-full bg-transparent p-0 shadow-none ring-0 active:scale-[0.98]"
+                className="relative flex h-[4.5rem] w-[4.5rem] shrink-0 touch-none select-none items-center justify-center overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-none outline-none ring-0 [-webkit-tap-highlight-color:transparent] focus:outline-none focus-visible:outline-none active:scale-[0.98]"
                 onPointerDown={onMicPointerDown}
                 onPointerUp={onMicPointerUp}
                 onPointerLeave={onMicPointerUp}
