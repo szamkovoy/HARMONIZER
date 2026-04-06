@@ -6,6 +6,7 @@
 - **Expo Router** (~6.x) — файловый роутинг, каталог `app/`.
 - **TypeScript** (strict).
 - **UI:** React Native primitives + `react-native-safe-area-context`; анимации — `react-native-reanimated` (шаблон Expo).
+- **Procedural visuals:** `@shopify/react-native-skia` для `MandalaVisualCore` и debug-песочницы видео-медитаций.
 - **Аудио:** `expo-av` (запись голоса для модулей вроде COMMUNICATOR); разрешения микрофона задаются через плагин `expo-av` и `app.json` / нативные plist (iOS).
 
 Клиент **не** содержит серверных секретов для Gemini: обращение к модели идёт через развёрнутый HTTP API (см. ниже).

@@ -46,6 +46,7 @@
 ## 7. Текущие модули (каталог)
 
 - **COMMUNICATOR** — [`modules/communicator/readme.md`](../modules/communicator/readme.md): чат с ИИ (голос через **expo-av**, текст), стриминг ответа, задел под Hume (`onEmotionSegment`), интеграция с будущим ASSISTANT.
+- **MANDALA_VISUAL_CORE** — [`modules/mandala-visual-core/readme.md`](../modules/mandala-visual-core/readme.md): процедурный генератор видео-медитаций на **Skia**, `SharedValues` runtime, `BioSim` и debug-песочница для настройки параметров.
 
 ## 8. Мобильная специфика (Expo)
 
