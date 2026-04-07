@@ -112,6 +112,74 @@ function generationPhase(generation: number) {
   return fract(generation * 0.173 + 0.11);
 }
 
+function motifModeForGeneration(generation: number) {
+  return ((generation % 3) + 3) % 3;
+}
+
+function createSoftInkBoundaryPath(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  seed: number,
+) {
+  const path = Skia.Path.Make();
+  const segmentCount = 72;
+  const frequencyA = 3 + Math.floor(hash(seed + 1.1) * 3);
+  const frequencyB = 5 + Math.floor(hash(seed + 2.3) * 4);
+  const phaseA = hash(seed + 3.7) * Math.PI * 2;
+  const phaseB = hash(seed + 4.9) * Math.PI * 2;
+  const amplitudeA = lerp(0.0022, 0.0046, hash(seed + 5.4));
+  const amplitudeB = lerp(0.0012, 0.0028, hash(seed + 6.8));
+
+  for (let index = 0; index <= segmentCount; index += 1) {
+    const t = index / segmentCount;
+    const angle = t * Math.PI * 2;
+    const radialScale =
+      1 +
+      Math.sin(angle * frequencyA + phaseA) * amplitudeA +
+      Math.sin(angle * frequencyB + phaseB) * amplitudeB;
+    const localRadius = radius * radialScale;
+    const x = centerX + Math.cos(angle) * localRadius;
+    const y = centerY + Math.sin(angle) * localRadius;
+
+    if (index === 0) {
+      path.moveTo(x, y);
+    } else {
+      path.lineTo(x, y);
+    }
+  }
+
+  path.close();
+  return path;
+}
+
+function boundaryStyleForRing(generation: number, seed: number, minDimension: number) {
+  const harmonicClass = (Math.abs(generation) + Math.floor(hash(seed + 12.1) * 3)) % 3;
+  const widthScale = harmonicClass === 0 ? 1.06 : harmonicClass === 1 ? 1.34 : 1.72;
+  const echoScale = harmonicClass === 0 ? 0.62 : harmonicClass === 1 ? 0.72 : 0.84;
+  const brightnessShift = hash(seed + 9.7);
+
+  return {
+    harmonicClass,
+    strokeWidth: clamp((1.18 + minDimension * 0.00185) * widthScale, 1.4, 4.6),
+    echoStrokeWidth: clamp((0.82 + minDimension * 0.001) * echoScale, 0.9, 2.8),
+    primaryColor:
+      brightnessShift > 0.72
+        ? "rgba(236, 198, 108, 0.82)"
+        : brightnessShift > 0.34
+          ? "rgba(208, 168, 88, 0.78)"
+          : "rgba(184, 145, 74, 0.74)",
+    echoColor:
+      brightnessShift > 0.72
+        ? "rgba(255, 233, 176, 0.3)"
+        : brightnessShift > 0.34
+          ? "rgba(235, 207, 142, 0.26)"
+          : "rgba(208, 170, 110, 0.24)",
+    debugColor:
+      brightnessShift > 0.5 ? "rgba(236, 210, 148, 0.72)" : "rgba(206, 176, 126, 0.66)",
+  };
+}
+
 function attractorToNumber(attractor: SacredAttractor) {
   switch (attractor) {
     case "yantra":
@@ -399,6 +467,8 @@ uniform float contentTime;
 uniform float densityBias;
 uniform float sceneOuterR;
 uniform float scenePhase;
+uniform float motifMode;
+uniform float annulusInnerT;
 uniform float4 layerA;
 uniform float4 layerB;
 uniform float4 layerC;
@@ -527,6 +597,76 @@ vec3 paletteByPhase(float phaseA, float phaseB, float mixAmount) {
   return mix(a, b, mixAmount);
 }
 
+vec3 motifOrnament(
+  vec2 p,
+  float width,
+  float symmetry,
+  float aperture,
+  float sharpness,
+  float phase,
+  float pulse
+) {
+  float radius = length(p);
+  float angle = atan(p.y, p.x);
+  float mode = floor(motifMode + 0.5);
+  float innerT = annulusInnerT;
+  float bandWidth = max(1.0 - innerT, 0.001);
+  float bandCenter = innerT + bandWidth * 0.5;
+  float bandInner = innerT + bandWidth * 0.08;
+  float bandOuter = 1.0 - bandWidth * 0.08;
+  float line = 0.0;
+  float fill = 0.0;
+  float accent = 0.0;
+
+  if (mode < 0.5) {
+    float beads = 12.0;
+    float ringRadius = bandCenter;
+    float stepAngle = TAU / beads;
+    float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
+    float beadSeed = floor(angle / stepAngle + 0.5);
+    float beadRadius = bandWidth * mix(0.12, 0.17, hash11(beadSeed + phase * 7.3 + 1.7));
+    float beadOffset = bandWidth * mix(-0.025, 0.025, hash11(beadSeed + 4.1));
+    vec2 beadCenter = vec2(cos(snapped), sin(snapped)) * (ringRadius + beadOffset);
+    float outerBead = band(length(p - beadCenter), beadRadius + width * 0.9);
+    float innerHole = band(length(p - beadCenter), beadRadius * 0.46);
+    float beadRing = clamp(outerBead - innerHole * 0.92, 0.0, 1.0);
+    float belt = band(abs(radius - ringRadius), bandWidth * 0.18);
+    line = beadRing + belt * 0.1;
+    fill = beadRing * 0.18;
+    accent = beadRing * (0.18 + pulse * 0.1);
+  } else if (mode < 2.5) {
+    float teeth = floor(clamp(symmetry * 1.1, 10.0, 26.0));
+    float ringRadius = bandCenter;
+    float toothPhase = fract((angle / TAU) * teeth);
+    float triangle = 1.0 - abs(toothPhase * 2.0 - 1.0);
+    float softened = pow(clamp(triangle, 0.0, 1.0), 0.72);
+    float toothRadius = ringRadius + (softened - 0.5) * bandWidth * 0.62;
+    float innerToothRadius = ringRadius - bandWidth * 0.18;
+    line = band(abs(radius - toothRadius), width * 2.2 + bandWidth * 0.07);
+    fill = clamp(
+      (1.0 - smoothstep(innerToothRadius - bandWidth * 0.22, innerToothRadius + bandWidth * 0.08, radius)) *
+        smoothstep(ringRadius - bandWidth * 0.28, ringRadius + bandWidth * 0.06, radius),
+      0.0,
+      1.0
+    ) * 0.14;
+    accent = line * 0.1;
+  } else {
+    float petals = floor(clamp(symmetry * 0.9, 6.0, 18.0));
+    float petalWave = pow(max(0.5 + 0.5 * cos(angle * petals), 0.0001), sharpness * 0.9);
+    float petalTipRadius = bandInner + mix(bandWidth * 0.22, bandWidth * 0.9, petalWave);
+    float petalOuterLine = band(abs(radius - petalTipRadius), width * 1.8 + bandWidth * 0.04);
+    float petalBody =
+      smoothstep(bandInner - bandWidth * 0.02, bandInner + bandWidth * 0.08, radius) *
+      (1.0 - smoothstep(petalTipRadius - bandWidth * 0.16, petalTipRadius + bandWidth * 0.04, radius));
+    float innerSupport = band(abs(radius - bandInner), width * 1.2 + bandWidth * 0.02);
+    line = petalOuterLine + innerSupport * 0.42;
+    fill = petalBody * 0.28;
+    accent = petalOuterLine * 0.14;
+  }
+
+  return vec3(line, fill, accent);
+}
+
 vec3 mandalaScene(
   vec2 p,
   float4 A,
@@ -602,14 +742,15 @@ vec3 mandalaScene(
   }
 
   float sceneRadius = length(p);
+  vec3 ornament = motifOrnament(p, mix(0.005, 0.012, lineWidth), symmetry, aperture, sharpness, phase, pulse);
   float coreGlow = exp(-pow(sceneRadius / mix(0.08, 0.16, centerWeight), 1.4));
   float bindu = exp(-pow(sceneRadius / 0.03, 1.7));
   float auraNoise = fbm(p * (2.2 + densityBias * 1.2) + vec2(phase * 1.7, contentTime * 0.008 + seed * 0.03));
   float aura = exp(-pow(sceneRadius / 0.88, 1.7)) * (0.04 + auraNoise * 0.03 + sacredness * 0.03);
 
-  lineField = clamp(lineField + bindu * 0.45 + coreGlow * 0.05, 0.0, 1.4);
-  fillField = clamp(fillField + aura + coreGlow * 0.04, 0.0, 1.1);
-  accentField = clamp(accentField + bindu * 0.18, 0.0, 0.8);
+  lineField = clamp(lineField + ornament.x * 0.82 + bindu * 0.45 + coreGlow * 0.05, 0.0, 1.4);
+  fillField = clamp(fillField + ornament.y * 0.7 + aura + coreGlow * 0.04, 0.0, 1.1);
+  accentField = clamp(accentField + ornament.z * 0.8 + bindu * 0.18, 0.0, 0.8);
   return vec3(lineField, fillField, accentField);
 }
 
@@ -624,6 +765,17 @@ half4 main(vec2 fragcoord) {
   vec3 lineColor = paletteByPhase(layerD.w, fract(layerD.w + 0.21), 0.52 + densityBias * 0.14);
   vec3 fillColor = mix(lineColor, vec3(1.0, 0.96, 0.99), 0.24);
   vec3 accentColor = mix(vec3(1.0, 0.97, 0.99), lineColor, 0.3);
+  if (motifMode < 0.5) {
+    lineColor = mix(lineColor, vec3(0.34, 0.78, 0.88), 0.84);
+    fillColor = mix(fillColor, vec3(0.16, 0.46, 0.58), 0.54);
+    accentColor = mix(accentColor, vec3(0.82, 0.98, 1.0), 0.72);
+  } else if (motifMode < 1.5) {
+    lineColor = mix(lineColor, vec3(0.78, 0.62, 0.9), 0.3);
+    fillColor = mix(fillColor, vec3(0.46, 0.26, 0.5), 0.2);
+  } else {
+    lineColor = mix(lineColor, vec3(0.93, 0.74, 0.5), 0.34);
+    fillColor = mix(fillColor, vec3(0.78, 0.4, 0.52), 0.16);
+  }
   float edgeFade = 1.0 - smoothstep(1.02, 1.22, sceneRadius);
   vec3 color =
     fillColor * scene.y * 0.22 +
@@ -720,15 +872,39 @@ export function BinduSuccessionLabCanvas({
     stackOuterLimit,
   ]);
 
+  const boundaryDrawData = useMemo(
+    () =>
+      shellStack.map((shell) => {
+        const radiusPx = shell.outerRadius * minDimension;
+        const seed = sessionSeed * 17.31 + shell.generation * 3.17;
+        const path = createSoftInkBoundaryPath(centerX, centerY, radiusPx, seed);
+        const echoRadius = radiusPx * (1 + lerp(0.0014, 0.0028, hash(seed + 8.2)));
+        const echoPath = createSoftInkBoundaryPath(centerX, centerY, echoRadius, seed + 11.4);
+        const style = boundaryStyleForRing(shell.generation, seed, minDimension);
+
+        return {
+          key: shell.generation,
+          radius: shell.outerRadius,
+          path,
+          echoPath,
+          harmonicClass: style.harmonicClass,
+          strokeWidth: style.strokeWidth,
+          echoStrokeWidth: style.echoStrokeWidth,
+          primaryColor: style.primaryColor,
+          echoColor: style.echoColor,
+          debugColor: style.debugColor,
+        };
+      }),
+    [centerX, centerY, minDimension, sessionSeed, shellStack],
+  );
+
   const shellDrawData = useMemo(
     () =>
       shellStack.map((shell, index) => {
-        const outerRadiusPx = shell.outerRadius * minDimension;
-        const innerRadiusPx = shell.innerRadius * minDimension;
         const path = Skia.Path.Make();
-        path.addCircle(centerX, centerY, outerRadiusPx);
-        if (shell.kind === "annulus" && innerRadiusPx > 0.5) {
-          path.addCircle(centerX, centerY, innerRadiusPx);
+        path.addPath(boundaryDrawData[index].path);
+        if (shell.kind === "annulus" && index > 0) {
+          path.addPath(boundaryDrawData[index - 1].path);
           path.setFillType(FillType.EvenOdd);
         }
 
@@ -736,11 +912,12 @@ export function BinduSuccessionLabCanvas({
           ...shell,
           index,
           path,
+          annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
           fillOpacity:
             clamp((shell.kind === "embryoDisk" ? 0.9 : 0.82) + shell.fade * 0.08 - index * 0.018, 0.4, 0.96),
           glowOpacity:
             clamp((shell.kind === "embryoDisk" ? 0.12 : 0.055) + shell.fade * 0.05 - index * 0.008, 0.012, 0.18),
-          strokeOpacity: clamp(0.14 + shell.fade * 0.34 - index * 0.022, 0.08, 0.48),
+          strokeOpacity: clamp(0.2 + shell.fade * 0.34 + boundaryDrawData[index].harmonicClass * 0.04, 0.16, 0.58),
           primaryOpacity: 1 - shell.genomeBlend.mix,
           secondaryOpacity: shell.genomeBlend.mix,
           primaryUniforms: {
@@ -749,6 +926,8 @@ export function BinduSuccessionLabCanvas({
             densityBias,
             sceneOuterR: shell.outerRadius / Math.max(ringOuterRadius, 0.18),
             scenePhase: generationPhase(shell.generation),
+            motifMode: motifModeForGeneration(shell.generation),
+            annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
             layerA: toUniformA(shell.genomeBlend.from),
             layerB: toUniformB(shell.genomeBlend.from),
             layerC: toUniformC(shell.genomeBlend.from),
@@ -761,6 +940,8 @@ export function BinduSuccessionLabCanvas({
             densityBias,
             sceneOuterR: shell.outerRadius / Math.max(ringOuterRadius, 0.18),
             scenePhase: generationPhase(shell.generation + 1),
+            motifMode: motifModeForGeneration(shell.generation),
+            annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
             layerA: toUniformA(shell.genomeBlend.to),
             layerB: toUniformB(shell.genomeBlend.to),
             layerC: toUniformC(shell.genomeBlend.to),
@@ -769,20 +950,27 @@ export function BinduSuccessionLabCanvas({
           },
         };
       }),
-    [centerX, centerY, contentTime, densityBias, minDimension, ringOuterRadius, shellStack, size.height, size.width],
+    [boundaryDrawData, contentTime, densityBias, ringOuterRadius, shellStack, size.height, size.width],
   );
 
   const boundaryRadii = useMemo(
     () =>
       shellDrawData
-        .map((shell) => ({
+        .map((shell, index) => ({
           key: shell.generation,
           radius: shell.outerRadius,
+          path: boundaryDrawData[index].path,
+          echoPath: boundaryDrawData[index].echoPath,
           opacity: shell.strokeOpacity,
           glowOpacity: shell.glowOpacity,
+          strokeWidth: boundaryDrawData[index].strokeWidth,
+          echoStrokeWidth: boundaryDrawData[index].echoStrokeWidth,
+          primaryColor: boundaryDrawData[index].primaryColor,
+          echoColor: boundaryDrawData[index].echoColor,
+          debugColor: boundaryDrawData[index].debugColor,
         }))
         .filter((boundary) => boundary.radius < outerCullLimit),
-    [outerCullLimit, shellDrawData],
+    [boundaryDrawData, outerCullLimit, shellDrawData],
   );
 
   return (
@@ -802,14 +990,12 @@ export function BinduSuccessionLabCanvas({
                 />
               ))}
             {boundaryRadii.map((boundary) => (
-              <Circle
+              <Path
                 key={`geometry-boundary-${boundary.key}`}
-                cx={centerX}
-                cy={centerY}
-                r={boundary.radius * minDimension}
-                color="rgba(216, 224, 240, 0.56)"
+                path={boundary.path}
+                color={boundary.debugColor}
                 style="stroke"
-                strokeWidth={Math.max(0.95, minDimension * 0.0031)}
+                strokeWidth={boundary.strokeWidth}
               />
             ))}
           </>
@@ -840,15 +1026,20 @@ export function BinduSuccessionLabCanvas({
                 </Group>
               ))}
             {boundaryRadii.map((boundary) => (
-              <Circle
-                key={`shell-boundary-${boundary.key}`}
-                cx={centerX}
-                cy={centerY}
-                r={boundary.radius * minDimension}
-                color={`rgba(232, 236, 246, ${boundary.opacity.toFixed(3)})`}
-                style="stroke"
-                strokeWidth={Math.max(0.82, minDimension * 0.0026)}
-              />
+              <Group key={`shell-boundary-${boundary.key}`}>
+                <Path
+                  path={boundary.echoPath}
+                  color={boundary.echoColor}
+                  style="stroke"
+                  strokeWidth={boundary.echoStrokeWidth}
+                />
+                <Path
+                  path={boundary.path}
+                  color={boundary.primaryColor}
+                  style="stroke"
+                  strokeWidth={boundary.strokeWidth}
+                />
+              </Group>
             ))}
           </>
         )}
