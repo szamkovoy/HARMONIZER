@@ -25,6 +25,7 @@ export const DEFAULT_BIO_SIM_CONFIG: BioSimConfig = {
 export const DEFAULT_ART_DIRECTION: MandalaArtDirectionState = {
   visualRecipe: "lotusBloom",
   layerCount: 4,
+  petalOpacity: 0,
   ornamentDensity: 0.62,
   depthStrength: 0.58,
   glowStrength: 0.54,

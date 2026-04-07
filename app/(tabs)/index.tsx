@@ -22,6 +22,36 @@ export default function CommunicatorScreen() {
       >
         <Text style={{ color: "#eef2ff", fontWeight: "600" }}>Mandala Sandbox</Text>
       </Pressable>
+      <Pressable
+        onPress={() => router.push("/bindu-succession-lab")}
+        style={{
+          position: "absolute",
+          top: 108,
+          right: 16,
+          zIndex: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: "#16101f",
+        }}
+      >
+        <Text style={{ color: "#f7e8ff", fontWeight: "600" }}>Bindu Lab</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => router.push("/sacred-symbol-stream")}
+        style={{
+          position: "absolute",
+          top: 160,
+          right: 16,
+          zIndex: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: "#2a1327",
+        }}
+      >
+        <Text style={{ color: "#ffe6fb", fontWeight: "600" }}>Symbol Stream</Text>
+      </Pressable>
       <Communicator
         systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу."
         memoryWindow={24}

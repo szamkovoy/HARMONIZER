@@ -94,6 +94,7 @@ export interface BioWeightMap {
 export interface MandalaArtDirectionState {
   visualRecipe: VisualRecipe;
   layerCount: number;
+  petalOpacity: number;
   ornamentDensity: number;
   depthStrength: number;
   glowStrength: number;

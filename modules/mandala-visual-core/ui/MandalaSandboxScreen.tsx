@@ -25,7 +25,6 @@ import { sanitizeKeyframe } from "@/modules/mandala-visual-core/core/preset";
 import type {
   BioSignalFrame,
   EvolutionProfile,
-  MandalaSessionState,
   MeditationPresetKeyframe,
   MotionLogic,
   PetalProfile,
@@ -36,7 +35,10 @@ import { MandalaCanvas, type RenderMode } from "./MandalaCanvas";
 
 const LOTUS_RECIPE_ID = "lotusBloom" as const;
 
-function toDisplay(value: number): string {
+function toDisplay(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "";
+  }
   return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
@@ -175,7 +177,7 @@ interface LoadEstimate {
 }
 
 function estimateVisualLoad(
-  sessionState: MandalaSessionState,
+  sessionState: ReturnType<typeof useMandalaSession>["sessionState"],
   viewport: { width: number; height: number },
 ): LoadEstimate {
   const megapixels = Math.max(0.4, (viewport.width * viewport.height) / 1_000_000);
@@ -446,31 +448,6 @@ export function MandalaSandboxScreen() {
                   subtitle="Верхний художественный слой из ТЗ: он лучше всего задает характер Lotus Bloom."
                 >
                   <NumberField
-                    fieldId="artDirection.layerCount"
-                    label="Layer count"
-                    value={draft.artDirection.layerCount}
-                    helper="1–6. Количество одновременно дышащих слоев цветка."
-                    onFocusField={rememberFocusedField}
-                    registerInput={registerInput}
-                    onChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        artDirection: { ...current.artDirection, layerCount: value },
-                      }))
-                    }
-                  />
-                  <EnumField
-                    label="Petal profile"
-                    value={draft.artDirection.petalProfile}
-                    options={petalProfileOptions}
-                    onChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        artDirection: { ...current.artDirection, petalProfile: value },
-                      }))
-                    }
-                  />
-                  <NumberField
                     fieldId="artDirection.ornamentDensity"
                     label="Ornament density"
                     value={draft.artDirection.ornamentDensity}
@@ -516,19 +493,72 @@ export function MandalaSandboxScreen() {
 
                 <Section
                   title="Petal geometry"
-                  subtitle="Параметры, которые прямо формируют лепестки и внутренний цветок Lotus Bloom."
+                  subtitle="Параметры, которые прямо формируют вид цветка и работу рядов лепестков."
                 >
+                  <NumberField
+                    fieldId="artDirection.layerCount"
+                    label="Layer count"
+                    value={draft.artDirection.layerCount}
+                    helper="1–6. Добавляет дополнительные ряды лепестков. При непрозрачности верхний ряд может закрывать контуры нижних."
+                    onFocusField={rememberFocusedField}
+                    registerInput={registerInput}
+                    onChange={(value) =>
+                      setDraft((current) => ({
+                        ...current,
+                        artDirection: { ...current.artDirection, layerCount: value },
+                      }))
+                    }
+                  />
+                  <NumberField
+                    fieldId="artDirection.petalOpacity"
+                    label="Petal opacity"
+                    value={draft.artDirection.petalOpacity}
+                    helper="0.0–1.0. Насколько передние лепестки скрывают контуры лепестков нижних рядов."
+                    onFocusField={rememberFocusedField}
+                    registerInput={registerInput}
+                    onChange={(value) =>
+                      setDraft((current) => ({
+                        ...current,
+                        artDirection: { ...current.artDirection, petalOpacity: value },
+                      }))
+                    }
+                  />
+                  <EnumField
+                    label="Petal profile"
+                    value={draft.artDirection.petalProfile}
+                    options={petalProfileOptions}
+                    onChange={(value) =>
+                      setDraft((current) => ({
+                        ...current,
+                        artDirection: { ...current.artDirection, petalProfile: value },
+                      }))
+                    }
+                  />
                   <NumberField
                     fieldId="geometry.beamCount"
                     label="Beam count"
                     value={draft.geometry.beamCount}
-                    helper="3–64. Количество лучей-лепестков в радиальной розетке."
+                    helper="3–64. Количество лепестков в одном ряду. При `layerCount > 1` дополнительные ряды смещаются между существующими."
                     onFocusField={rememberFocusedField}
                     registerInput={registerInput}
                     onChange={(value) =>
                       setDraft((current) => ({
                         ...current,
                         geometry: { ...current.geometry, beamCount: value },
+                      }))
+                    }
+                  />
+                  <NumberField
+                    fieldId="geometry.binduSize"
+                    label="Bindu size"
+                    value={draft.geometry.binduSize}
+                    helper="0.005–0.08. Диаметр центральной зоны биджи, от которой зависит характер сердцевины цветка."
+                    onFocusField={rememberFocusedField}
+                    registerInput={registerInput}
+                    onChange={(value) =>
+                      setDraft((current) => ({
+                        ...current,
+                        geometry: { ...current.geometry, binduSize: value },
                       }))
                     }
                   />
@@ -578,7 +608,7 @@ export function MandalaSandboxScreen() {
                     fieldId="primitives.strokeWidth"
                     label="Stroke width"
                     value={draft.primitives.strokeWidth}
-                    helper="0.001–0.1. Толщина линий, влияющая на легкость или плотность цветка."
+                    helper="0.001–0.5. Толщина линий, влияющая на легкость или плотность цветка."
                     onFocusField={rememberFocusedField}
                     registerInput={registerInput}
                     onChange={(value) =>

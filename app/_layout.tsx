@@ -58,6 +58,14 @@ function RootLayoutNav() {
             name="mandala-sandbox"
             options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
           />
+          <Stack.Screen
+            name="bindu-succession-lab"
+            options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="sacred-symbol-stream"
+            options={{ title: "Sacred Symbol Stream", headerBackTitle: "Back" }}
+          />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>

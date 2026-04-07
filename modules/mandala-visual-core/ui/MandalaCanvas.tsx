@@ -158,6 +158,7 @@ function buildLayerUniforms(
     stressToEntropyWeight: sessionState.bioWeights.stressToEntropy,
     visualRecipe: visualRecipeToUniform(sessionState.artDirection.visualRecipe),
     layerCount: sessionState.artDirection.layerCount,
+    petalOpacity: sessionState.artDirection.petalOpacity,
     ornamentDensity: sessionState.artDirection.ornamentDensity,
     depthStrength: sessionState.artDirection.depthStrength,
     glowStrength: sessionState.artDirection.glowStrength,
@@ -218,6 +219,7 @@ uniform float hrvToComplexityWeight;
 uniform float stressToEntropyWeight;
 uniform int visualRecipe;
 uniform int layerCount;
+uniform float petalOpacity;
 uniform float ornamentDensity;
 uniform float depthStrength;
 uniform float glowStrength;
@@ -648,6 +650,103 @@ float lotusFlowerField(
   );
 }
 
+float lotusFlowerMask(
+  vec2 p,
+  float petals,
+  float width,
+  float apertureValue,
+  float overlapValue
+) {
+  vec2 polar = vec2(atan(p.y, p.x), length(p));
+  float safePetals = max(2.0, petals);
+  float cosinePetal = 0.5 + 0.5 * cos(polar.x * safePetals);
+  float overlapMix = clamp((overlapValue - 0.82) / 0.42, 0.0, 1.0);
+  float curvePower = mix(0.8, 2.6, clamp(curvature, 0.0, 1.0));
+  float aperturePower = mix(3.8, 1.1, clamp(apertureValue, 0.0, 1.0));
+  float innerRadius = mix(0.025, 0.09, overlapMix);
+  float outerRadius = mix(0.24, 0.46, overlapMix);
+  float axisPower = mix(0.45, 1.1, apertureValue);
+  float tipBoost = 1.0;
+  float baseTightness = 1.0;
+  float shoulderPower = mix(1.6, 4.2, clamp(curvature, 0.0, 1.0));
+  float shoulderBias = 0.0;
+  float rootAnchorScale = 0.12;
+  int blendMode = 0;
+
+  if (petalProfile == 1) {
+    curvePower *= 1.45;
+    aperturePower = mix(2.2, 0.82, apertureValue);
+    innerRadius *= 1.18;
+    outerRadius *= 0.82;
+    axisPower = mix(0.9, 1.9, apertureValue);
+    rootAnchorScale = 0.08;
+    blendMode = 1;
+  } else if (petalProfile == 2) {
+    curvePower *= 1.35;
+    aperturePower = mix(4.6, 1.2, apertureValue);
+    outerRadius *= 1.12;
+    tipBoost = 1.08;
+    baseTightness = 0.88;
+    rootAnchorScale = 0.1;
+  } else if (petalProfile == 3) {
+    curvePower *= 0.58;
+    aperturePower = mix(1.2, 0.62, apertureValue);
+    innerRadius *= 1.4;
+    outerRadius *= 0.76;
+    tipBoost = 0.94;
+    baseTightness = 1.32;
+    rootAnchorScale = 0.06;
+    blendMode = 2;
+  } else if (petalProfile == 4) {
+    curvePower *= 1.55;
+    aperturePower = mix(4.9, 1.34, apertureValue);
+    outerRadius *= 1.08;
+    tipBoost = 1.12;
+    baseTightness = 0.82;
+    shoulderBias = 0.08;
+    rootAnchorScale = 0.08;
+  } else if (petalProfile == 5) {
+    curvePower *= 1.08;
+    aperturePower = mix(3.2, 1.0, apertureValue);
+    innerRadius *= 1.02;
+    outerRadius *= 0.98;
+    shoulderBias = 0.12;
+    rootAnchorScale = 0.09;
+  } else if (petalProfile == 6) {
+    curvePower *= 1.12;
+    aperturePower = mix(3.6, 1.02, apertureValue);
+    rootAnchorScale = 0.08;
+  } else if (petalProfile == 7) {
+    curvePower *= 0.5;
+    aperturePower = mix(0.94, 0.54, apertureValue);
+    innerRadius *= 1.55;
+    outerRadius *= 0.72;
+    tipBoost = 0.9;
+    baseTightness = 1.45;
+    axisPower = mix(1.05, 2.1, apertureValue);
+    rootAnchorScale = 0.05;
+    blendMode = 2;
+  }
+
+  float petalWave = pow(cosinePetal, curvePower);
+  float petalShoulder = pow(cosinePetal, shoulderPower) + shoulderBias * (1.0 - petalWave) * cosinePetal;
+  float petalAxis = pow(max(cosinePetal, 0.0001), axisPower);
+  float petalBlend = pow(max(petalWave, 0.0001), aperturePower);
+  if (blendMode == 1) {
+    petalBlend = pow(sin(cosinePetal * PI * 0.5), mix(0.92, 1.24, apertureValue));
+  } else if (blendMode == 2) {
+    petalBlend = pow(cosinePetal, mix(0.38, 0.82, apertureValue));
+  }
+
+  float petalRadius = mix(innerRadius, outerRadius, petalBlend);
+  petalRadius *= mix(0.96, 1.08 * tipBoost, petalShoulder);
+  float rootAnchorRadius = innerRadius * max(0.028, rootAnchorScale * baseTightness);
+  float fillRadius = mix(rootAnchorRadius, petalRadius, petalAxis);
+  float outerMask = 1.0 - smoothstep(fillRadius - width * 0.8, fillRadius + width * 1.3, polar.y);
+  float innerMask = smoothstep(rootAnchorRadius - width * 1.4, rootAnchorRadius + width * 1.2, polar.y);
+  return clamp(outerMask * innerMask, 0.0, 1.0);
+}
+
 float softCloud(vec2 p, float radius, float softness) {
   float normalized = length(p) / max(radius, 0.001);
   return exp(-pow(normalized, mix(2.6, 1.45, softness)));
@@ -693,7 +792,7 @@ float scenePatternConfig(
   float normalizedLayers = clamp(float(safeLayerCount), 1.0, 6.0);
   float safeBeamCount = max(2.0, beamCountValue);
   float layeredField = 0.0;
-  float layerSpread = mix(0.04, 0.14, depthStrength);
+  float frontOcclusion = 0.0;
   float layerAngleStep = TAU / (safeBeamCount * normalizedLayers);
   for (int i = 0; i < 6; i++) {
     if (i >= safeLayerCount) {
@@ -701,27 +800,62 @@ float scenePatternConfig(
     }
     float fi = float(i);
     float layerBlend = fi / max(normalizedLayers - 1.0, 1.0);
-    float centeredLayerBlend = layerBlend - 0.5;
-    float layerScale = 1.0 + centeredLayerBlend * layerSpread;
+    float layerScale = 1.0;
     float layerPetals = safeBeamCount;
-    float layerWidth = width * mix(1.0, 0.9, layerBlend);
-    float layerOrnament = ornamentValue * mix(0.78, 1.0, layerBlend);
-    float layerAperture = clamp(apertureValue + centeredLayerBlend * 0.05, 0.1, 1.0);
-    float layerOverlap = clamp(overlapValue + centeredLayerBlend * 0.035, 0.7, 1.4);
+    float layerWidth = width * mix(1.0, 0.92, layerBlend);
+    float layerOrnament = ornamentValue * mix(1.0, 0.8, layerBlend);
+    float layerAperture = apertureValue;
+    float layerOverlap = overlapValue;
     float layerAngleOffset = rotationOffset + fi * layerAngleStep;
     vec2 rotatedP = p * rotate2d(layerAngleOffset);
-    layeredField = max(
-      layeredField,
-      lotusFlowerField(
+    float layerLifecycle = 1.0;
+    if (visualRecipe == 0 && renderMode == 1 && safeLayerCount > 1) {
+      float layerSeed = fi * 0.73 + safeBeamCount * 0.041 + float(evolutionProfile) * 0.29;
+      float layerNoise = pinkNoise(vec2(layerSeed, time * 0.018 + layerBlend * 4.3));
+      float layerCycleSpeed = 0.024 + ornamentValue * 0.005 + depthStrength * 0.003;
+      if (evolutionProfile == 1) {
+        layerCycleSpeed *= 0.92;
+      } else if (evolutionProfile == 2) {
+        layerCycleSpeed *= 0.74;
+      } else if (evolutionProfile == 3) {
+        layerCycleSpeed *= 0.86;
+      }
+      float layerPhaseOffset = (fi / normalizedLayers) * mix(0.16, 0.34, depthStrength) + layerNoise * 0.08;
+      float layerCycle = fract(time * layerCycleSpeed + layerPhaseOffset + rotationOffset * 0.025);
+      float layerInception = 1.0 - smoothstep(0.04, 0.18, layerCycle);
+      float layerBloom = smoothstep(0.1, 0.34, layerCycle) * (1.0 - smoothstep(0.56, 0.82, layerCycle));
+      float layerDissolution = smoothstep(0.72, 0.96, layerCycle);
+      layerLifecycle = clamp(0.3 + layerInception * 0.12 + layerBloom * 0.58 - layerDissolution * 0.12, 0.2, 1.0);
+      if (evolutionProfile == 2) {
+        layerLifecycle = clamp(0.62 + layerBloom * 0.26 - layerDissolution * 0.06, 0.5, 1.0);
+      } else if (evolutionProfile == 1) {
+        layerLifecycle = clamp(0.24 + layerInception * 0.08 + layerBloom * 0.44 - layerDissolution * 0.06, 0.2, 0.92);
+      }
+    }
+    float layerField = lotusFlowerField(
+      rotatedP * layerScale,
+      layerPetals,
+      layerWidth,
+      layerAperture,
+      layerOverlap,
+      layerOrnament,
+      detailMultiplier
+    );
+    layerField *= layerLifecycle;
+    if (visualRecipe == 0 && petalOpacity > 0.001 && i > 0) {
+      layerField *= 1.0 - frontOcclusion;
+    }
+    layeredField = max(layeredField, layerField);
+    if (visualRecipe == 0 && petalOpacity > 0.001) {
+      float layerMask = lotusFlowerMask(
         rotatedP * layerScale,
         layerPetals,
         layerWidth,
         layerAperture,
-        layerOverlap,
-        layerOrnament,
-        detailMultiplier
-      )
-    );
+        layerOverlap
+      );
+      frontOcclusion = max(frontOcclusion, layerMask * mix(0.58, 1.0, layerLifecycle) * petalOpacity);
+    }
   }
   float pattern = layeredField;
   return clamp(pattern, 0.0, 1.0);
@@ -764,7 +898,12 @@ half4 main(vec2 fragcoord) {
 
   vec2 uv = baseUv * flowerScale;
   if (renderMode == 1) {
-    float warpStrength = 0.012 + depthStrength * 0.01 + ornamentDensity * 0.006;
+    float warpDrift = pinkNoise(vec2(time * 0.006, 15.7 + beamCount * 0.021));
+    float warpStrength =
+      0.01 +
+      depthStrength * 0.008 +
+      ornamentDensity * 0.004 +
+      (warpDrift - 0.5) * 0.004;
     vec2 warpDirection = normalize(baseUv + vec2(0.0001, 0.0));
     uv += warpDirection * organicNoise * warpStrength * smoothstep(0.04, 0.7, length(baseUv));
   }
@@ -807,6 +946,7 @@ half4 main(vec2 fragcoord) {
   );
   vec3 pearlColor = mix(vec3(1.0, 0.96, 0.98), paletteColor(palettePreset, 0.92), 0.38);
   vec3 bijaColor = mix(pearlColor, accentColor, 0.18);
+  vec3 shadowColor = mix(paletteColor(palettePreset, 0.08), vec3(0.06, 0.05, 0.12), 0.55);
   float edgeFade = smoothstep(1.14, 0.08, length(baseUv));
   float luminancePulse = mix(0.55, 1.0, flicker) * glow;
   float colorMix = clamp(pattern * luminancePulse, 0.0, 1.0);

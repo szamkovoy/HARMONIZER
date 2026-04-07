@@ -47,6 +47,7 @@ export function sanitizeArtDirection(
   return {
     ...artDirection,
     layerCount: clampInt(artDirection.layerCount, 1, 6),
+    petalOpacity: clamp(artDirection.petalOpacity, 0, 1),
     ornamentDensity: clamp(artDirection.ornamentDensity, 0, 1),
     depthStrength: clamp(artDirection.depthStrength, 0, 1),
     glowStrength: clamp(artDirection.glowStrength, 0, 1),
@@ -80,7 +81,7 @@ export function sanitizeKeyframe(
     primitives: {
       curvature: clamp(keyframe.primitives.curvature, 0, 1),
       vertices: clampInt(keyframe.primitives.vertices, 3, 20),
-      strokeWidth: clamp(keyframe.primitives.strokeWidth, 0.001, 0.1),
+      strokeWidth: clamp(keyframe.primitives.strokeWidth, 0.001, 0.5),
       complexity: clamp(keyframe.primitives.complexity, 0, 1),
     },
     complexity: {

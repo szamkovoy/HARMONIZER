@@ -27,6 +27,7 @@
 - `MandalaCanvas` для `Skia`-рендера
 - `MandalaSandboxScreen` для dev/debug настройки
 - `MandalaAudioContract` как будущий контракт для аудио-модуля следующей фазы
+- `BinduSuccessionLabScreen` как изолированная R&D-лаборатория для поиска более сильной grammar видеомедитации
 
 ## Внешние зависимости
 
@@ -60,6 +61,21 @@
 - `evolutionProfile`: сценарии развития (`rebirth`, `spiralDrift`, `tidalBreath`, `haloCascade`).
 
 Это позволяет исследовать не только численные параметры, но и более высокоуровневые типы формы и роста внутри одного и того же runtime-контракта.
+
+## Изолированные эксперименты
+
+Для поисковых веток, которые не должны вмешиваться в основной runtime, используется отдельный контур `experiments/`.
+
+Текущий пример:
+
+- `Bindu Succession Lab`
+  - route: `app/bindu-succession-lab.tsx`
+  - экран: `modules/mandala-visual-core/experiments/BinduSuccessionLabScreen.tsx`
+  - canvas: `modules/mandala-visual-core/experiments/BinduSuccessionLabCanvas.tsx`
+
+Подробности и мотивация вынесены в:
+
+- [`docs/modules/bindu_succession_lab.md`](../../docs/modules/bindu_succession_lab.md)
 
 ## План развития
 
