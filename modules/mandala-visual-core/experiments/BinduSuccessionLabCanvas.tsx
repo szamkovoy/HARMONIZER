@@ -112,8 +112,29 @@ function generationPhase(generation: number) {
   return fract(generation * 0.173 + 0.11);
 }
 
+/**
+ * Safe toggle for ornament modes:
+ * - `1` disables `teeth`, leaving alternating `beads` + `petals`
+ * - `2` disables `petals`, leaving `beads` + `teeth`
+ * - `null` restores the original 3-way cycle
+ */
+const ORNAMENT_DISABLED_MODE: 1 | 2 | null = 1;
+
+/**
+ * Safe toggle: hides the secondary thin/translucent mandala layers from the shader
+ * while keeping the main ornament rings and CPU boundaries intact.
+ */
+const SHOW_SECONDARY_SCENE_LAYERS = false;
+
 function motifModeForGeneration(generation: number) {
-  return ((generation % 3) + 3) % 3;
+  const normalized = ((generation % 3) + 3) % 3;
+  if (ORNAMENT_DISABLED_MODE === 1) {
+    return generation % 2 === 0 ? 0 : 2;
+  }
+  if (ORNAMENT_DISABLED_MODE === 2) {
+    return normalized === 2 ? 1 : normalized;
+  }
+  return normalized;
 }
 
 function createSoftInkBoundaryPath(
@@ -469,6 +490,7 @@ uniform float sceneOuterR;
 uniform float scenePhase;
 uniform float motifMode;
 uniform float annulusInnerT;
+uniform float secondaryLayerGate;
 uniform float4 layerA;
 uniform float4 layerB;
 uniform float4 layerC;
@@ -742,10 +764,14 @@ vec3 mandalaScene(
 
   float sceneRadius = length(p);
   vec3 ornament = motifOrnament(p, mix(0.005, 0.012, lineWidth), symmetry, aperture, sharpness, phase, pulse);
-  float coreGlow = exp(-pow(sceneRadius / mix(0.08, 0.16, centerWeight), 1.4)) * 0.18;
-  float bindu = exp(-pow(sceneRadius / 0.03, 1.7));
+  lineField *= secondaryLayerGate;
+  fillField *= secondaryLayerGate;
+  accentField *= secondaryLayerGate;
+
+  float coreGlow = exp(-pow(sceneRadius / mix(0.08, 0.16, centerWeight), 1.4)) * 0.18 * secondaryLayerGate;
+  float bindu = exp(-pow(sceneRadius / 0.03, 1.7)) * secondaryLayerGate;
   float auraNoise = fbm(p * (2.2 + densityBias * 1.2) + vec2(phase * 1.7, contentTime * 0.008 + seed * 0.03));
-  float aura = exp(-pow(sceneRadius / 0.88, 1.7)) * (0.003 + auraNoise * 0.002 + sacredness * 0.002);
+  float aura = exp(-pow(sceneRadius / 0.88, 1.7)) * (0.003 + auraNoise * 0.002 + sacredness * 0.002) * secondaryLayerGate;
 
   lineField = clamp(lineField + ornament.x * 0.82 + bindu * 0.45 + coreGlow * 0.05, 0.0, 1.4);
   fillField = clamp(fillField + ornament.y * 0.7 + aura + coreGlow * 0.04, 0.0, 1.1);
@@ -926,6 +952,7 @@ export function BinduSuccessionLabCanvas({
             scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
             motifMode: motifModeForGeneration(shell.generation),
             annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
+            secondaryLayerGate: SHOW_SECONDARY_SCENE_LAYERS ? 1 : 0,
             layerA: toUniformA(blendedGenome),
             layerB: toUniformB(blendedGenome),
             layerC: toUniformC(blendedGenome),
