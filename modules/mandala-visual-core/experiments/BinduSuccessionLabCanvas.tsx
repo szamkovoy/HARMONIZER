@@ -515,7 +515,7 @@ float fbm(vec2 p) {
 }
 
 float band(float d, float width) {
-  float localFeather = clamp(width * 0.7, 0.00045, 0.02);
+  float localFeather = clamp(width * 0.28, 0.00018, 0.006);
   return 1.0 - smoothstep(width, width + localFeather, d);
 }
 
@@ -610,29 +610,32 @@ vec3 motifOrnament(
   float angle = atan(p.y, p.x);
   float mode = floor(motifMode + 0.5);
   float innerT = annulusInnerT;
-  float bandWidth = max(1.0 - innerT, 0.001);
-  float bandCenter = innerT + bandWidth * 0.5;
-  float bandInner = innerT + bandWidth * 0.08;
-  float bandOuter = 1.0 - bandWidth * 0.08;
+  float rawBandWidth = max(1.0 - innerT, 0.001);
+  float edgePadding = rawBandWidth * 0.1;
+  float bandInner = innerT + edgePadding;
+  float bandOuter = 1.0 - edgePadding;
+  float bandWidth = max(bandOuter - bandInner, rawBandWidth * 0.18);
+  float bandCenter = bandInner + bandWidth * 0.5;
+  float pixelWidth = 1.0 / min(resolution.x, resolution.y) / max(sceneOuterR, 0.0006);
+  float stroke = max(width * 1.05, pixelWidth * 1.25);
   float line = 0.0;
   float fill = 0.0;
   float accent = 0.0;
 
   if (mode < 0.5) {
-    float beads = 12.0;
+    float beads = floor(clamp(symmetry * 1.08, 12.0, 24.0));
     float ringRadius = bandCenter;
     float stepAngle = TAU / beads;
     float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
     float beadSeed = floor(angle / stepAngle + 0.5);
-    float beadRadius = bandWidth * mix(0.12, 0.17, hash11(beadSeed + phase * 7.3 + 1.7));
-    float beadOffset = bandWidth * mix(-0.025, 0.025, hash11(beadSeed + 4.1));
+    float beadRadius = bandWidth * mix(0.14, 0.2, hash11(beadSeed + phase * 7.3 + 1.7));
+    float beadOffset = bandWidth * mix(-0.012, 0.012, hash11(beadSeed + 4.1));
     vec2 beadCenter = vec2(cos(snapped), sin(snapped)) * (ringRadius + beadOffset);
-    float outerBead = band(length(p - beadCenter), beadRadius + width * 0.9);
-    float innerHole = band(length(p - beadCenter), beadRadius * 0.46);
+    float outerBead = band(length(p - beadCenter), beadRadius + stroke * 0.55);
+    float innerHole = band(length(p - beadCenter), beadRadius * 0.5);
     float beadRing = clamp(outerBead - innerHole * 0.92, 0.0, 1.0);
-    float belt = band(abs(radius - ringRadius), bandWidth * 0.18);
-    line = beadRing + belt * 0.1;
-    fill = beadRing * 0.18;
+    line = beadRing;
+    fill = beadRing * 0.04;
     accent = beadRing * (0.18 + pulse * 0.1);
   } else if (mode < 2.5) {
     float teeth = floor(clamp(symmetry * 1.1, 10.0, 26.0));
@@ -640,28 +643,24 @@ vec3 motifOrnament(
     float toothPhase = fract((angle / TAU) * teeth);
     float triangle = 1.0 - abs(toothPhase * 2.0 - 1.0);
     float softened = pow(clamp(triangle, 0.0, 1.0), 0.72);
-    float toothRadius = ringRadius + (softened - 0.5) * bandWidth * 0.62;
-    float innerToothRadius = ringRadius - bandWidth * 0.18;
-    line = band(abs(radius - toothRadius), width * 2.2 + bandWidth * 0.07);
-    fill = clamp(
-      (1.0 - smoothstep(innerToothRadius - bandWidth * 0.22, innerToothRadius + bandWidth * 0.08, radius)) *
-        smoothstep(ringRadius - bandWidth * 0.28, ringRadius + bandWidth * 0.06, radius),
-      0.0,
-      1.0
-    ) * 0.14;
+    float toothRadius = ringRadius + (softened - 0.5) * bandWidth * 0.56;
+    line = band(abs(radius - toothRadius), stroke * 1.45);
+    fill = 0.0;
     accent = line * 0.1;
   } else {
     float petals = floor(clamp(symmetry * 0.9, 6.0, 18.0));
+    float lotusBase = bandCenter - bandWidth * 0.34;
+    float lotusTop = bandCenter + bandWidth * 0.34;
     float petalWave = pow(max(0.5 + 0.5 * cos(angle * petals), 0.0001), sharpness * 0.9);
-    float petalTipRadius = bandInner + mix(bandWidth * 0.22, bandWidth * 0.9, petalWave);
-    float petalOuterLine = band(abs(radius - petalTipRadius), width * 1.8 + bandWidth * 0.04);
+    float petalTipRadius = lotusBase + mix(bandWidth * 0.12, lotusTop - lotusBase, petalWave);
+    float petalOuterLine = band(abs(radius - petalTipRadius), stroke * 1.25 + bandWidth * 0.015);
     float petalBody =
-      smoothstep(bandInner - bandWidth * 0.02, bandInner + bandWidth * 0.08, radius) *
-      (1.0 - smoothstep(petalTipRadius - bandWidth * 0.16, petalTipRadius + bandWidth * 0.04, radius));
-    float innerSupport = band(abs(radius - bandInner), width * 1.2 + bandWidth * 0.02);
+      smoothstep(lotusBase - bandWidth * 0.02, lotusBase + bandWidth * 0.08, radius) *
+      (1.0 - smoothstep(petalTipRadius - bandWidth * 0.16, petalTipRadius + bandWidth * 0.03, radius));
+    float innerSupport = band(abs(radius - lotusBase), stroke * 0.9 + bandWidth * 0.01);
     line = petalOuterLine + innerSupport * 0.42;
-    fill = petalBody * 0.28;
-    accent = petalOuterLine * 0.14;
+    fill = petalBody * 0.34;
+    accent = petalOuterLine * 0.18;
   }
 
   return vec3(line, fill, accent);
@@ -743,10 +742,10 @@ vec3 mandalaScene(
 
   float sceneRadius = length(p);
   vec3 ornament = motifOrnament(p, mix(0.005, 0.012, lineWidth), symmetry, aperture, sharpness, phase, pulse);
-  float coreGlow = exp(-pow(sceneRadius / mix(0.08, 0.16, centerWeight), 1.4));
+  float coreGlow = exp(-pow(sceneRadius / mix(0.08, 0.16, centerWeight), 1.4)) * 0.18;
   float bindu = exp(-pow(sceneRadius / 0.03, 1.7));
   float auraNoise = fbm(p * (2.2 + densityBias * 1.2) + vec2(phase * 1.7, contentTime * 0.008 + seed * 0.03));
-  float aura = exp(-pow(sceneRadius / 0.88, 1.7)) * (0.04 + auraNoise * 0.03 + sacredness * 0.03);
+  float aura = exp(-pow(sceneRadius / 0.88, 1.7)) * (0.003 + auraNoise * 0.002 + sacredness * 0.002);
 
   lineField = clamp(lineField + ornament.x * 0.82 + bindu * 0.45 + coreGlow * 0.05, 0.0, 1.4);
   fillField = clamp(fillField + ornament.y * 0.7 + aura + coreGlow * 0.04, 0.0, 1.1);
@@ -766,15 +765,17 @@ half4 main(vec2 fragcoord) {
   vec3 fillColor = mix(lineColor, vec3(1.0, 0.96, 0.99), 0.24);
   vec3 accentColor = mix(vec3(1.0, 0.97, 0.99), lineColor, 0.3);
   if (motifMode < 0.5) {
-    lineColor = mix(lineColor, vec3(0.34, 0.78, 0.88), 0.84);
-    fillColor = mix(fillColor, vec3(0.16, 0.46, 0.58), 0.54);
-    accentColor = mix(accentColor, vec3(0.82, 0.98, 1.0), 0.72);
+    lineColor = vec3(0.22, 0.96, 1.0);
+    fillColor = vec3(0.1, 0.84, 0.9);
+    accentColor = vec3(0.92, 1.0, 1.0);
   } else if (motifMode < 1.5) {
-    lineColor = mix(lineColor, vec3(0.78, 0.62, 0.9), 0.3);
-    fillColor = mix(fillColor, vec3(0.46, 0.26, 0.5), 0.2);
+    lineColor = vec3(0.22, 0.96, 1.0);
+    fillColor = vec3(0.1, 0.84, 0.9);
+    accentColor = vec3(0.92, 1.0, 1.0);
   } else {
-    lineColor = mix(lineColor, vec3(0.93, 0.74, 0.5), 0.34);
-    fillColor = mix(fillColor, vec3(0.78, 0.4, 0.52), 0.16);
+    lineColor = vec3(0.22, 0.96, 1.0);
+    fillColor = vec3(0.1, 0.84, 0.9);
+    accentColor = vec3(0.92, 1.0, 1.0);
   }
   float edgeFade = 1.0 - smoothstep(1.02, 1.22, sceneRadius);
   vec3 color =
@@ -901,6 +902,7 @@ export function BinduSuccessionLabCanvas({
   const shellDrawData = useMemo(
     () =>
       shellStack.map((shell, index) => {
+        const blendedGenome = blendGenomeDirect(shell.genomeBlend.from, shell.genomeBlend.to, shell.genomeBlend.mix);
         const path = Skia.Path.Make();
         path.addPath(boundaryDrawData[index].path);
         if (shell.kind === "annulus" && index > 0) {
@@ -913,44 +915,26 @@ export function BinduSuccessionLabCanvas({
           index,
           path,
           annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-          fillOpacity:
-            clamp((shell.kind === "embryoDisk" ? 0.9 : 0.82) + shell.fade * 0.08 - index * 0.018, 0.4, 0.96),
-          glowOpacity:
-            clamp((shell.kind === "embryoDisk" ? 0.12 : 0.055) + shell.fade * 0.05 - index * 0.008, 0.012, 0.18),
+          fillOpacity: 1,
+          glowOpacity: 0,
           strokeOpacity: clamp(0.2 + shell.fade * 0.34 + boundaryDrawData[index].harmonicClass * 0.04, 0.16, 0.58),
-          primaryOpacity: 1 - shell.genomeBlend.mix,
-          secondaryOpacity: shell.genomeBlend.mix,
-          primaryUniforms: {
+          shaderUniforms: {
             resolution: [Math.max(size.width, 1), Math.max(size.height, 1)],
             contentTime,
             densityBias,
-            sceneOuterR: shell.outerRadius / Math.max(ringOuterRadius, 0.18),
-            scenePhase: generationPhase(shell.generation),
+            sceneOuterR: shell.outerRadius,
+            scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
             motifMode: motifModeForGeneration(shell.generation),
             annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-            layerA: toUniformA(shell.genomeBlend.from),
-            layerB: toUniformB(shell.genomeBlend.from),
-            layerC: toUniformC(shell.genomeBlend.from),
-            layerD: toUniformD(shell.genomeBlend.from),
-            layerE: toUniformE(shell.genomeBlend.from),
-          },
-          secondaryUniforms: {
-            resolution: [Math.max(size.width, 1), Math.max(size.height, 1)],
-            contentTime,
-            densityBias,
-            sceneOuterR: shell.outerRadius / Math.max(ringOuterRadius, 0.18),
-            scenePhase: generationPhase(shell.generation + 1),
-            motifMode: motifModeForGeneration(shell.generation),
-            annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-            layerA: toUniformA(shell.genomeBlend.to),
-            layerB: toUniformB(shell.genomeBlend.to),
-            layerC: toUniformC(shell.genomeBlend.to),
-            layerD: toUniformD(shell.genomeBlend.to),
-            layerE: toUniformE(shell.genomeBlend.to),
+            layerA: toUniformA(blendedGenome),
+            layerB: toUniformB(blendedGenome),
+            layerC: toUniformC(blendedGenome),
+            layerD: toUniformD(blendedGenome),
+            layerE: toUniformE(blendedGenome),
           },
         };
       }),
-    [boundaryDrawData, contentTime, densityBias, ringOuterRadius, shellStack, size.height, size.width],
+    [boundaryDrawData, contentTime, densityBias, shellStack, size.height, size.width],
   );
 
   const boundaryRadii = useMemo(
@@ -1006,23 +990,11 @@ export function BinduSuccessionLabCanvas({
               .reverse()
               .map((shell) => (
                 <Group key={`shell-content-${shell.generation}`} clip={shell.path}>
-                  <Group opacity={shell.glowOpacity}>
-                    <Fill color={shell.kind === "embryoDisk" ? "rgba(255, 242, 250, 0.22)" : "rgba(244, 236, 250, 0.12)"} />
+                  <Group opacity={shell.fillOpacity}>
+                    <Fill>
+                      <Shader source={EFFECT} uniforms={shell.shaderUniforms} />
+                    </Fill>
                   </Group>
-                  {shell.primaryOpacity > 0.001 ? (
-                    <Group opacity={shell.fillOpacity * shell.primaryOpacity}>
-                      <Fill>
-                        <Shader source={EFFECT} uniforms={shell.primaryUniforms} />
-                      </Fill>
-                    </Group>
-                  ) : null}
-                  {shell.secondaryOpacity > 0.001 ? (
-                    <Group opacity={shell.fillOpacity * shell.secondaryOpacity}>
-                      <Fill>
-                        <Shader source={EFFECT} uniforms={shell.secondaryUniforms} />
-                      </Fill>
-                    </Group>
-                  ) : null}
                 </Group>
               ))}
             {boundaryRadii.map((boundary) => (
