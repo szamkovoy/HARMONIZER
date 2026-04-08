@@ -63,6 +63,8 @@ interface MandalaGenome {
 
 interface ShellLayer {
   generation: number;
+  ringSpec: RingSpec;
+  ringSlotIndex: number;
   genomeBlend: {
     from: MandalaGenome;
     to: MandalaGenome;
@@ -70,8 +72,23 @@ interface ShellLayer {
   };
   innerRadius: number;
   outerRadius: number;
+  shellWidth: number;
   fade: number;
   kind: "embryoDisk" | "annulus";
+}
+
+type RingLayoutMode = "stretch" | "fixedAspect" | "fixedStep";
+
+interface RingSpec {
+  ringId: "bindu" | "ring1" | "ring2" | "ring3" | "ring4" | "ring5" | "ring6";
+  widthPercent: number;
+  motif?: string;
+  count?: number;
+  strokeColor?: string;
+  fillColor?: string;
+  fillOpacity?: number;
+  rotationRpm?: number;
+  layoutMode?: RingLayoutMode;
 }
 
 const TUBE_SCENE_DURATION_SECONDS = 7.2;
@@ -79,8 +96,17 @@ const TUBE_GENOME_SCENE_DURATION_SECONDS = 21.6;
 const TUBE_GENOME_PHASE_OFFSET =
   (TUBE_SCENE_DURATION_SECONDS * 0.5) / TUBE_GENOME_SCENE_DURATION_SECONDS;
 const TUBE_VISIBLE_LAYER_COUNT = 7;
-const TUBE_RENDER_SHELL_COUNT = TUBE_VISIBLE_LAYER_COUNT + 2;
+const TUBE_RENDER_SHELL_COUNT = TUBE_VISIBLE_LAYER_COUNT;
 const SEQUENCE_LENGTH = 96;
+const RING_SPECS: RingSpec[] = [
+  { ringId: "bindu", widthPercent: 4, layoutMode: "stretch" },
+  { ringId: "ring1", widthPercent: 6, layoutMode: "stretch" },
+  { ringId: "ring2", widthPercent: 9, layoutMode: "stretch" },
+  { ringId: "ring3", widthPercent: 14, layoutMode: "stretch" },
+  { ringId: "ring4", widthPercent: 20, layoutMode: "stretch" },
+  { ringId: "ring5", widthPercent: 17, layoutMode: "stretch" },
+  { ringId: "ring6", widthPercent: 30, layoutMode: "stretch" },
+];
 
 function fract(value: number) {
   return value - Math.floor(value);
@@ -110,6 +136,54 @@ function smoothstep(edge0: number, edge1: number, value: number) {
 
 function generationPhase(generation: number) {
   return fract(generation * 0.173 + 0.11);
+}
+
+function buildRingProfile(specs: RingSpec[]) {
+  const totalPercent = specs.reduce((sum, spec) => sum + spec.widthPercent, 0);
+  const safeTotal = totalPercent > 0.0001 ? totalPercent : 100;
+  const widths = specs.map((spec) => spec.widthPercent / safeTotal);
+  const cumulative = [0];
+  for (const width of widths) {
+    cumulative.push(cumulative[cumulative.length - 1] + width);
+  }
+  return {
+    widths,
+    cumulative,
+    maxWidth: Math.max(...widths),
+  };
+}
+
+function wrappedRingIndex(index: number, length: number) {
+  return ((index % length) + length) % length;
+}
+
+function resolveGeometryStep(distance: number, widths: number[]) {
+  const cycleDistance = widths.reduce((sum, width) => sum + width, 0);
+  if (cycleDistance <= 0.00001 || widths.length === 0) {
+    return {
+      generation: 0,
+      ringSlotIndex: 0,
+      localDistance: 0,
+      currentWidth: 0,
+    };
+  }
+
+  const safeDistance = Math.max(distance, 0);
+  const completedCycles = Math.floor(safeDistance / cycleDistance);
+  let remainder = safeDistance - completedCycles * cycleDistance;
+  let ringSlotIndex = 0;
+
+  while (ringSlotIndex < widths.length - 1 && remainder >= widths[ringSlotIndex]) {
+    remainder -= widths[ringSlotIndex];
+    ringSlotIndex += 1;
+  }
+
+  return {
+    generation: completedCycles * widths.length + ringSlotIndex,
+    ringSlotIndex,
+    localDistance: remainder,
+    currentWidth: widths[ringSlotIndex],
+  };
 }
 
 /**
@@ -489,6 +563,8 @@ uniform float densityBias;
 uniform float sceneOuterR;
 uniform float scenePhase;
 uniform float motifMode;
+uniform float contentFadeStartR;
+uniform float contentFadeEndR;
 uniform float annulusInnerT;
 uniform float secondaryLayerGate;
 uniform float4 layerA;
@@ -782,6 +858,7 @@ vec3 mandalaScene(
 half4 main(vec2 fragcoord) {
   float minRes = min(resolution.x, resolution.y);
   vec2 uv = (fragcoord - resolution * 0.5) / minRes;
+  float screenRadius = length(uv);
   vec2 sceneUv = uv / max(sceneOuterR, 0.0006);
   float breath = 0.5 + 0.5 * sin(contentTime * 0.4);
   float pulse = pow(0.5 + 0.5 * sin(contentTime * 0.9), 2.0);
@@ -804,11 +881,12 @@ half4 main(vec2 fragcoord) {
     accentColor = vec3(0.92, 1.0, 1.0);
   }
   float edgeFade = 1.0 - smoothstep(1.02, 1.22, sceneRadius);
+  float contentScreenFade = 1.0 - smoothstep(contentFadeStartR, contentFadeEndR, screenRadius);
   vec3 color =
     fillColor * scene.y * 0.22 +
     lineColor * scene.x * 0.18 +
     accentColor * scene.z * 0.12;
-  color *= edgeFade;
+  color *= edgeFade * contentScreenFade;
   return half4(color, 1.0);
 }
 `;
@@ -847,18 +925,31 @@ export function BinduSuccessionLabCanvas({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const timeSeconds = useAnimationClock(isActive);
   const genomes = useMemo(() => buildGenomeSequence(sessionSeed, densityBias), [densityBias, sessionSeed]);
+  const ringProfile = useMemo(() => buildRingProfile(RING_SPECS), []);
   const contentTime = timeSeconds * 0.12;
-  const geometryTime = (timeSeconds * flowSpeed) / TUBE_SCENE_DURATION_SECONDS + sceneOffset;
-  const geometryGeneration = Math.floor(geometryTime);
-  const geometryPhase = fract(geometryTime);
   const ringOuterRadius = Math.max(tubeRingOuterR, 0.76);
   const ringInnerRadius = clamp(tubeRingInnerR, 0.14, ringOuterRadius - 0.08);
   // Keep the full mandala within the viewport while still leaving
   // enough room for the outer shell to dissolve before it disappears.
   const stackOuterLimit = 0.48;
-  const shellSpacing = stackOuterLimit / TUBE_VISIBLE_LAYER_COUNT;
-  const embryoOuterRadius = clamp(Math.min(tubeBinduOuterR * 0.2, ringInnerRadius * 0.24), 0.014, shellSpacing * 0.22);
-  const outerCullLimit = stackOuterLimit + shellSpacing * 1.4;
+  const averageStepDistance = stackOuterLimit / TUBE_VISIBLE_LAYER_COUNT;
+  const absoluteRingWidths = useMemo(
+    () => ringProfile.widths.map((width) => width * stackOuterLimit),
+    [ringProfile.widths, stackOuterLimit],
+  );
+  const geometryDistance =
+    ((timeSeconds * flowSpeed) / TUBE_SCENE_DURATION_SECONDS + sceneOffset) * averageStepDistance;
+  const geometryState = useMemo(
+    () => resolveGeometryStep(geometryDistance, absoluteRingWidths),
+    [absoluteRingWidths, geometryDistance],
+  );
+  const geometryGeneration = geometryState.generation;
+  const geometryPhase = geometryState.currentWidth > 0.00001 ? geometryState.localDistance / geometryState.currentWidth : 0;
+  const binduWidth = stackOuterLimit * ringProfile.widths[0];
+  const outerShellWidth = stackOuterLimit * ringProfile.widths[ringProfile.widths.length - 1];
+  const maxShellWidth = stackOuterLimit * ringProfile.maxWidth;
+  const embryoOuterRadius = clamp(Math.min(tubeBinduOuterR * 0.2, ringInnerRadius * 0.24), 0.014, binduWidth * 0.22);
+  const outerCullLimit = stackOuterLimit + Math.max(outerShellWidth, maxShellWidth) * 1.4;
   const geometryToGenomeRatio = TUBE_SCENE_DURATION_SECONDS / TUBE_GENOME_SCENE_DURATION_SECONDS;
 
   const handleLayout = (event: LayoutChangeEvent) => {
@@ -871,34 +962,50 @@ export function BinduSuccessionLabCanvas({
   const centerY = size.height * 0.5;
 
   const shellStack = useMemo<ShellLayer[]>(() => {
-    const newestOuterRadius = embryoOuterRadius + geometryPhase * shellSpacing;
+    const widthForGeneration = (generation: number) => absoluteRingWidths[wrappedRingIndex(generation, absoluteRingWidths.length)];
+    const ringSpecForGeneration = (generation: number) => {
+      const ringSlotIndex = wrappedRingIndex(generation, RING_SPECS.length);
+      return {
+        ringSlotIndex,
+        ringSpec: RING_SPECS[ringSlotIndex],
+      };
+    };
+
+    const newestOuterRadius = embryoOuterRadius + geometryState.localDistance;
+    let previousOuterRadius = newestOuterRadius;
 
     return Array.from({ length: TUBE_RENDER_SHELL_COUNT }, (_, index) => {
       const generation = geometryGeneration - index;
-      const outerRadius = newestOuterRadius + index * shellSpacing;
-      const innerRadius = index === 0 ? 0 : newestOuterRadius + (index - 1) * shellSpacing;
+      const { ringSlotIndex, ringSpec } = ringSpecForGeneration(generation);
+      const shellWidth = widthForGeneration(generation);
+      const innerRadius = index === 0 ? 0 : previousOuterRadius;
+      const outerRadius = index === 0 ? newestOuterRadius : innerRadius + shellWidth;
       const genomePosition = generation * geometryToGenomeRatio + TUBE_GENOME_PHASE_OFFSET;
       const genomeBlend = sampleGenomeBlendAtPosition(genomes, genomePosition);
-      const fade = 1 - smoothstep(stackOuterLimit * 0.88, outerCullLimit, outerRadius);
+      const fade = 1 - smoothstep(stackOuterLimit * 0.66, outerCullLimit, outerRadius);
+
+      previousOuterRadius = outerRadius;
 
       return {
         generation,
+        ringSpec,
+        ringSlotIndex,
         genomeBlend,
         innerRadius,
         outerRadius,
+        shellWidth,
         fade: clamp(fade, 0, 1),
         kind: index === 0 ? ("embryoDisk" as const) : ("annulus" as const),
       };
-    }).filter((shell) => shell.innerRadius < outerCullLimit && shell.fade > 0.001);
+    }).filter((shell) => shell.innerRadius < outerCullLimit && shell.fade > 0.00005);
   }, [
+    absoluteRingWidths,
     embryoOuterRadius,
     geometryGeneration,
-    geometryPhase,
     geometryToGenomeRatio,
+    geometryState.localDistance,
     genomes,
     outerCullLimit,
-    shellSpacing,
-    stackOuterLimit,
   ]);
 
   const boundaryDrawData = useMemo(
@@ -938,19 +1045,26 @@ export function BinduSuccessionLabCanvas({
           path.setFillType(FillType.EvenOdd);
         }
 
-        const outerDissolve = 1 - smoothstep(stackOuterLimit * 0.72, outerCullLimit, shell.outerRadius);
-        const dissolveOpacity = clamp(shell.fade * outerDissolve, 0, 1);
-        const boundaryDissolve = Math.pow(dissolveOpacity, 0.82);
-        const hazeAmount = 1 - outerDissolve;
+        const contentFadeStartR = stackOuterLimit * 0.5;
+        const contentFadeEndR = outerCullLimit;
+        const boundaryFadeStartR = stackOuterLimit * 0.44;
+        const contentDissolve = 1 - smoothstep(contentFadeStartR, contentFadeEndR, shell.outerRadius);
+        const boundaryOuterDissolve = 1 - smoothstep(boundaryFadeStartR, contentFadeEndR, shell.outerRadius);
+        const finalShutdownFade = smoothstep(0.0, 0.18, shell.fade);
+        const finalBoundaryShutdownFade = smoothstep(0.0, 0.24, shell.fade);
+        const dissolveOpacity = clamp(shell.fade * finalShutdownFade, 0, 1);
+        const boundaryOpacity = clamp(shell.fade * boundaryOuterDissolve * finalBoundaryShutdownFade, 0, 1);
+        const boundaryDissolve = Math.pow(boundaryOpacity, 0.82);
+        const hazeAmount = (1 - contentDissolve) * finalShutdownFade;
 
         return {
           ...shell,
           index,
           path,
           annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-          fillOpacity: clamp(0.16 + dissolveOpacity * 0.84, 0.08, 1),
+          fillOpacity: clamp(0.1 + dissolveOpacity * 0.9, 0.02, 1),
           glowOpacity: 0,
-          strokeOpacity: clamp((0.18 + boundaryDissolve * 0.32 + boundaryDrawData[index].harmonicClass * 0.04) * dissolveOpacity, 0.04, 0.58),
+          strokeOpacity: clamp((0.12 + boundaryDissolve * 0.3 + boundaryDrawData[index].harmonicClass * 0.04) * boundaryOpacity, 0.01, 0.56),
           hazeOpacity: clamp(shell.fade * hazeAmount * 0.22, 0, 0.16),
           hazeStrokeWidth: boundaryDrawData[index].echoStrokeWidth * lerp(1.8, 4.6, hazeAmount),
           shaderUniforms: {
@@ -960,6 +1074,8 @@ export function BinduSuccessionLabCanvas({
             sceneOuterR: shell.outerRadius,
             scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
             motifMode: motifModeForGeneration(shell.generation),
+            contentFadeStartR,
+            contentFadeEndR,
             annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
             secondaryLayerGate: SHOW_SECONDARY_SCENE_LAYERS ? 1 : 0,
             layerA: toUniformA(blendedGenome),
