@@ -78,7 +78,7 @@ const TUBE_SCENE_DURATION_SECONDS = 7.2;
 const TUBE_GENOME_SCENE_DURATION_SECONDS = 21.6;
 const TUBE_GENOME_PHASE_OFFSET =
   (TUBE_SCENE_DURATION_SECONDS * 0.5) / TUBE_GENOME_SCENE_DURATION_SECONDS;
-const TUBE_VISIBLE_LAYER_COUNT = 6;
+const TUBE_VISIBLE_LAYER_COUNT = 7;
 const TUBE_RENDER_SHELL_COUNT = TUBE_VISIBLE_LAYER_COUNT + 2;
 const SEQUENCE_LENGTH = 96;
 
@@ -853,7 +853,9 @@ export function BinduSuccessionLabCanvas({
   const geometryPhase = fract(geometryTime);
   const ringOuterRadius = Math.max(tubeRingOuterR, 0.76);
   const ringInnerRadius = clamp(tubeRingInnerR, 0.14, ringOuterRadius - 0.08);
-  const stackOuterLimit = 1.24;
+  // Keep the full mandala within the viewport while still leaving
+  // enough room for the outer shell to dissolve before it disappears.
+  const stackOuterLimit = 0.48;
   const shellSpacing = stackOuterLimit / TUBE_VISIBLE_LAYER_COUNT;
   const embryoOuterRadius = clamp(Math.min(tubeBinduOuterR * 0.2, ringInnerRadius * 0.24), 0.014, shellSpacing * 0.22);
   const outerCullLimit = stackOuterLimit + shellSpacing * 1.4;
@@ -936,14 +938,21 @@ export function BinduSuccessionLabCanvas({
           path.setFillType(FillType.EvenOdd);
         }
 
+        const outerDissolve = 1 - smoothstep(stackOuterLimit * 0.72, outerCullLimit, shell.outerRadius);
+        const dissolveOpacity = clamp(shell.fade * outerDissolve, 0, 1);
+        const boundaryDissolve = Math.pow(dissolveOpacity, 0.82);
+        const hazeAmount = 1 - outerDissolve;
+
         return {
           ...shell,
           index,
           path,
           annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-          fillOpacity: 1,
+          fillOpacity: clamp(0.16 + dissolveOpacity * 0.84, 0.08, 1),
           glowOpacity: 0,
-          strokeOpacity: clamp(0.2 + shell.fade * 0.34 + boundaryDrawData[index].harmonicClass * 0.04, 0.16, 0.58),
+          strokeOpacity: clamp((0.18 + boundaryDissolve * 0.32 + boundaryDrawData[index].harmonicClass * 0.04) * dissolveOpacity, 0.04, 0.58),
+          hazeOpacity: clamp(shell.fade * hazeAmount * 0.22, 0, 0.16),
+          hazeStrokeWidth: boundaryDrawData[index].echoStrokeWidth * lerp(1.8, 4.6, hazeAmount),
           shaderUniforms: {
             resolution: [Math.max(size.width, 1), Math.max(size.height, 1)],
             contentTime,
@@ -961,7 +970,7 @@ export function BinduSuccessionLabCanvas({
           },
         };
       }),
-    [boundaryDrawData, contentTime, densityBias, shellStack, size.height, size.width],
+    [boundaryDrawData, contentTime, densityBias, outerCullLimit, shellStack, size.height, size.width, stackOuterLimit],
   );
 
   const boundaryRadii = useMemo(
@@ -974,6 +983,8 @@ export function BinduSuccessionLabCanvas({
           echoPath: boundaryDrawData[index].echoPath,
           opacity: shell.strokeOpacity,
           glowOpacity: shell.glowOpacity,
+          hazeOpacity: shell.hazeOpacity,
+          hazeStrokeWidth: shell.hazeStrokeWidth,
           strokeWidth: boundaryDrawData[index].strokeWidth,
           echoStrokeWidth: boundaryDrawData[index].echoStrokeWidth,
           primaryColor: boundaryDrawData[index].primaryColor,
@@ -1025,7 +1036,17 @@ export function BinduSuccessionLabCanvas({
                 </Group>
               ))}
             {boundaryRadii.map((boundary) => (
-              <Group key={`shell-boundary-${boundary.key}`}>
+              <Group key={`shell-boundary-${boundary.key}`} opacity={boundary.opacity}>
+                {boundary.hazeOpacity > 0.001 ? (
+                  <Group opacity={boundary.hazeOpacity}>
+                    <Path
+                      path={boundary.echoPath}
+                      color={boundary.echoColor}
+                      style="stroke"
+                      strokeWidth={boundary.hazeStrokeWidth}
+                    />
+                  </Group>
+                ) : null}
                 <Path
                   path={boundary.echoPath}
                   color={boundary.echoColor}
