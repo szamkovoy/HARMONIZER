@@ -80,8 +80,6 @@ interface ShellLayer {
 type RingImageId =
   | "Eye Seeds"
   | "Lotus Petals Belt"
-  | "Triangle Rosette Belt"
-  | "Cloud Meander"
   | "Diamond Mesh"
   | "Petals"
   | "Kite Facet Belt"
@@ -108,14 +106,12 @@ const RING_IMAGES = {
 
 const RING_IMAGE_MODE: Record<RingImageId, number> = {
   "Eye Seeds": 0,
-  "Triangle Rosette Belt": 1,
-  "Cloud Meander": 2,
-  "Diamond Mesh": 8,
-  Petals: 3,
-  "Kite Facet Belt": 4,
-  "Rosette Window Chain": 5,
-  "Scallop Lace": 6,
-  "Lotus Petals Belt": 7,
+  Petals: 1,
+  "Kite Facet Belt": 2,
+  "Rosette Window Chain": 3,
+  "Scallop Lace": 4,
+  "Lotus Petals Belt": 5,
+  "Diamond Mesh": 6,
 };
 
 const RING_IMAGE_PALETTES: Record<RingImageId, RingImagePalette> = {
@@ -128,16 +124,6 @@ const RING_IMAGE_PALETTES: Record<RingImageId, RingImagePalette> = {
     lineColor: [1, 0.5, 0.72, 1],
     fillColor: [0.82, 0.24, 0.5, 1],
     accentColor: [1, 0.86, 0.92, 1],
-  },
-  "Triangle Rosette Belt": {
-    lineColor: [1, 0.4, 0.56, 1],
-    fillColor: [0.78, 0.18, 0.34, 1],
-    accentColor: [1, 0.82, 0.88, 1],
-  },
-  "Cloud Meander": {
-    lineColor: [0.4, 0.9, 1, 1],
-    fillColor: [0.16, 0.56, 0.82, 1],
-    accentColor: [0.86, 0.98, 1, 1],
   },
   "Diamond Mesh": {
     lineColor: [0.52, 0.9, 1, 1],
@@ -186,13 +172,13 @@ const TUBE_VISIBLE_LAYER_COUNT = 7;
 const TUBE_RENDER_SHELL_COUNT = TUBE_VISIBLE_LAYER_COUNT;
 const SEQUENCE_LENGTH = 96;
 const RING_SPECS: RingSpec[] = [
-  { ringId: "bindu", widthPercent: 9, image: RING_IMAGES.bindu },
-  { ringId: "ring1", widthPercent: 18, image: RING_IMAGES.ring1 },
-  { ringId: "ring2", widthPercent: 12, image: RING_IMAGES.ring2 },
-  { ringId: "ring3", widthPercent: 20, image: RING_IMAGES.ring3 },
-  { ringId: "ring4", widthPercent: 6, image: RING_IMAGES.ring4 },
-  { ringId: "ring5", widthPercent: 17, image: RING_IMAGES.ring5 },
-  { ringId: "ring6", widthPercent: 24, image: RING_IMAGES.ring6 },
+  { ringId: "bindu", widthPercent: 9, image: RING_IMAGES.bindu, imageColor: "#ec5b1c" },
+  { ringId: "ring1", widthPercent: 18, image: RING_IMAGES.ring1, imageColor: "#ff80b8" },
+  { ringId: "ring2", widthPercent: 12, image: RING_IMAGES.ring2, imageColor: "#85e6ff" },
+  { ringId: "ring3", widthPercent: 20, image: RING_IMAGES.ring3, imageColor: "#a87aff" },
+  { ringId: "ring4", widthPercent: 6, image: RING_IMAGES.ring4, count: 12, imageColor: "#70ffad" },
+  { ringId: "ring5", widthPercent: 17, image: RING_IMAGES.ring5, imageColor: "#ffa852" },
+  { ringId: "ring6", widthPercent: 24, image: RING_IMAGES.ring6, count: 12, imageColor: "#57c2ff" },
 ];
 
 function fract(value: number) {
@@ -283,8 +269,68 @@ function imageModeForRing(image: RingImageId | undefined) {
   return image ? RING_IMAGE_MODE[image] : RING_IMAGE_MODE.Petals;
 }
 
-function imagePaletteForRing(image: RingImageId | undefined) {
-  return image ? RING_IMAGE_PALETTES[image] : RING_IMAGE_PALETTES.Petals;
+function parseHexToShaderColor(color: string | undefined): ShaderColor | undefined {
+  if (!color) {
+    return undefined;
+  }
+
+  const normalized = color.trim();
+  const compactHex = normalized.startsWith("#") ? normalized.slice(1) : normalized;
+  if (!/^[\da-fA-F]{3}$|^[\da-fA-F]{6}$/.test(compactHex)) {
+    return undefined;
+  }
+
+  const expandedHex =
+    compactHex.length === 3
+      ? compactHex
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : compactHex;
+
+  const r = Number.parseInt(expandedHex.slice(0, 2), 16) / 255;
+  const g = Number.parseInt(expandedHex.slice(2, 4), 16) / 255;
+  const b = Number.parseInt(expandedHex.slice(4, 6), 16) / 255;
+  return [r, g, b, 1];
+}
+
+function scaleShaderColor(color: ShaderColor, factor: number): ShaderColor {
+  return [
+    clamp(color[0] * factor, 0, 1),
+    clamp(color[1] * factor, 0, 1),
+    clamp(color[2] * factor, 0, 1),
+    color[3],
+  ];
+}
+
+function mixShaderColor(a: ShaderColor, b: ShaderColor, amount: number): ShaderColor {
+  return [
+    lerp(a[0], b[0], amount),
+    lerp(a[1], b[1], amount),
+    lerp(a[2], b[2], amount),
+    lerp(a[3], b[3], amount),
+  ];
+}
+
+function paletteFromImageColor(imageColor: string | undefined): RingImagePalette | undefined {
+  const tintColor = parseHexToShaderColor(imageColor);
+  if (!tintColor) {
+    return undefined;
+  }
+
+  return {
+    lineColor: tintColor,
+    fillColor: scaleShaderColor(tintColor, 0.82),
+    accentColor: mixShaderColor(tintColor, [1, 1, 1, 1], 0.26),
+  };
+}
+
+function imagePaletteForRing(ringSpec: RingSpec | undefined) {
+  const paletteFromColor = paletteFromImageColor(ringSpec?.imageColor);
+  if (paletteFromColor) {
+    return paletteFromColor;
+  }
+  return ringSpec?.image ? RING_IMAGE_PALETTES[ringSpec.image] : RING_IMAGE_PALETTES.Petals;
 }
 
 function createSoftInkBoundaryPath(
@@ -639,6 +685,7 @@ uniform float densityBias;
 uniform float sceneOuterR;
 uniform float scenePhase;
 uniform float imageMode;
+uniform float imageCount;
 uniform float contentFadeStartR;
 uniform float contentFadeEndR;
 uniform float annulusInnerT;
@@ -694,6 +741,13 @@ float fbm(vec2 p) {
 float band(float d, float width) {
   float localFeather = clamp(width * 0.28, 0.00018, 0.006);
   return 1.0 - smoothstep(width, width + localFeather, d);
+}
+
+float resolveImageCount(float fallbackCount, float minCount, float maxCount) {
+  if (imageCount > 0.5) {
+    return clamp(floor(imageCount + 0.5), minCount, maxCount);
+  }
+  return floor(clamp(fallbackCount, minCount, maxCount));
 }
 
 float triangleSdf(vec2 p) {
@@ -1030,7 +1084,7 @@ vec3 motifOrnament(
   float accent = 0.0;
 
   if (mode < 0.5) {
-    float seeds = floor(clamp(symmetry * 0.82, 8.0, 16.0));
+    float seeds = resolveImageCount(symmetry * 0.82, 8.0, 16.0);
     float ringRadius = bandCenter;
     float stepAngle = TAU / seeds;
     float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
@@ -1049,58 +1103,7 @@ vec3 motifOrnament(
     fill = iris * 0.08;
     accent = slit * (0.22 + pulse * 0.08);
   } else if (mode < 1.5) {
-    float teeth = floor(clamp(symmetry * 1.08, 10.0, 24.0));
-    float ringRadius = bandCenter;
-    float toothPhase = fract((angle / TAU) * teeth);
-    float triangle = 1.0 - abs(toothPhase * 2.0 - 1.0);
-    float softened = pow(clamp(triangle, 0.0, 1.0), 0.68);
-    float rosetteOuter = ringRadius + (softened - 0.46) * bandWidth * 0.6;
-    float rosetteInner = ringRadius - bandWidth * 0.16 + softened * bandWidth * 0.22;
-    float outerLine = band(abs(radius - rosetteOuter), stroke * 1.36);
-    float innerLine = band(abs(radius - rosetteInner), stroke * 0.78);
-    line = clamp(outerLine + innerLine * 0.48, 0.0, 1.0);
-    fill =
-      smoothstep(ringRadius - bandWidth * 0.18, ringRadius - bandWidth * 0.02, radius) *
-      (1.0 - smoothstep(rosetteOuter - bandWidth * 0.12, rosetteOuter + bandWidth * 0.02, radius)) *
-      softened *
-      0.16;
-    accent = outerLine * (0.12 + pulse * 0.05);
-  } else if (mode < 2.5) {
-    float clouds = floor(clamp(symmetry * 0.84, 8.0, 16.0));
-    float stepAngle = TAU / clouds;
-    float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
-    vec2 cloudCenter = vec2(cos(snapped), sin(snapped)) * bandCenter;
-    vec2 cloudLocal = (p - cloudCenter) * rotate2d(-snapped);
-    float cloudGate = smoothstep(-bandWidth * 0.1, bandWidth * 0.03, cloudLocal.x);
-    float lobeSpread = bandWidth * 0.18;
-    float sideRadius = bandWidth * 0.18;
-    float crownRadius = bandWidth * 0.22;
-    vec2 leftCenter = vec2(bandWidth * 0.01, -lobeSpread);
-    vec2 crownCenter = vec2(bandWidth * 0.08, 0.0);
-    vec2 rightCenter = vec2(bandWidth * 0.01, lobeSpread);
-    float leftLobe = band(abs(length(cloudLocal - leftCenter) - sideRadius), stroke * 0.94) * cloudGate;
-    float crownLobe = band(abs(length(cloudLocal - crownCenter) - crownRadius), stroke * 1.02) * cloudGate;
-    float rightLobe = band(abs(length(cloudLocal - rightCenter) - sideRadius), stroke * 0.94) * cloudGate;
-    float leftCurl =
-      band(abs(length(cloudLocal - vec2(-bandWidth * 0.08, -bandWidth * 0.1)) - bandWidth * 0.085), stroke * 0.62) *
-      cloudGate *
-      smoothstep(-bandWidth * 0.3, -bandWidth * 0.06, cloudLocal.y) *
-      (1.0 - smoothstep(bandWidth * 0.0, bandWidth * 0.12, cloudLocal.y));
-    float rightCurl =
-      band(abs(length(cloudLocal - vec2(-bandWidth * 0.08, bandWidth * 0.1)) - bandWidth * 0.085), stroke * 0.62) *
-      cloudGate *
-      smoothstep(-bandWidth * 0.3, -bandWidth * 0.06, -cloudLocal.y) *
-      (1.0 - smoothstep(bandWidth * 0.0, bandWidth * 0.12, -cloudLocal.y));
-    float cloudBase = band(abs(radius - (bandCenter - bandWidth * 0.16)), stroke * 0.56) * 0.22;
-    line = clamp(max(max(leftLobe, crownLobe), max(rightLobe, max(leftCurl, rightCurl))) + cloudBase, 0.0, 1.0);
-    fill =
-      smoothstep(bandCenter - bandWidth * 0.14, bandCenter - bandWidth * 0.02, radius) *
-      (1.0 - smoothstep(bandCenter + bandWidth * 0.11, bandCenter + bandWidth * 0.22, radius)) *
-      cloudGate *
-      0.12;
-    accent = crownLobe * (0.12 + pulse * 0.05);
-  } else if (mode < 3.5) {
-    float modules = 20.0;
+    float modules = resolveImageCount(20.0, 6.0, 48.0);
     float stepAngle = TAU / modules;
     float localAngle = mod(angle + stepAngle * 0.5, stepAngle) - stepAngle * 0.5;
     float halfCellWidth = max(stepAngle * bandCenter * 0.5, pixelWidth * 3.0);
@@ -1112,8 +1115,8 @@ vec3 motifOrnament(
     line = scrollBorder.x;
     fill = scrollBorder.y;
     accent = scrollBorder.z;
-  } else if (mode < 4.5) {
-    float facets = floor(clamp(symmetry * 0.96, 8.0, 18.0));
+  } else if (mode < 2.5) {
+    float facets = resolveImageCount(symmetry * 0.96, 8.0, 18.0);
     float facetWave = pow(abs(cos(angle * facets * 0.5)), 1.25);
     float kiteInner = bandCenter - bandWidth * 0.22;
     float kiteOuter = bandCenter + bandWidth * 0.22;
@@ -1128,8 +1131,8 @@ vec3 motifOrnament(
       facetWave *
       0.14;
     accent = kiteSpine * (0.12 + pulse * 0.04);
-  } else if (mode < 5.5) {
-    float rosettes = floor(clamp(symmetry * 1.04, 10.0, 22.0));
+  } else if (mode < 3.5) {
+    float rosettes = resolveImageCount(symmetry * 1.04, 10.0, 22.0);
     float ringRadius = bandCenter;
     float stepAngle = TAU / rosettes;
     float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
@@ -1143,8 +1146,8 @@ vec3 motifOrnament(
     line = clamp(windowRing + chainLine * 0.22, 0.0, 1.0);
     fill = windowRing * 0.06;
     accent = windowRing * (0.16 + pulse * 0.06);
-  } else if (mode < 6.5) {
-    float scallops = floor(clamp(symmetry * 1.08, 10.0, 22.0));
+  } else if (mode < 4.5) {
+    float scallops = resolveImageCount(symmetry * 1.08, 10.0, 22.0);
     float stepAngle = TAU / scallops;
     float sectorPhase = fract((angle / TAU) * scallops + 0.5);
     float sectorX = sectorPhase * 2.0 - 1.0;
@@ -1170,8 +1173,8 @@ vec3 motifOrnament(
       archGate *
       0.16;
     accent = outerArchLine * (0.14 + pulse * 0.05);
-  } else if (mode < 7.5) {
-    float petals = floor(clamp(symmetry * 0.96, 10.0, 24.0));
+  } else if (mode < 5.5) {
+    float petals = resolveImageCount(symmetry * 0.96, 10.0, 24.0);
     float lotusBase = bandCenter - bandWidth * 0.32;
     float lotusTop = bandCenter + bandWidth * 0.28;
     float petalWave = pow(max(0.5 + 0.5 * cos(angle * petals), 0.0001), sharpness * 0.96);
@@ -1186,7 +1189,7 @@ vec3 motifOrnament(
     fill = petalBody * 0.26;
     accent = petalOuterLine * 0.16;
   } else {
-    float modules = floor(clamp(symmetry * 1.18, 18.0, 40.0));
+    float modules = resolveImageCount(symmetry * 1.18, 18.0, 40.0);
     float stepAngle = TAU / modules;
     float localAngle = mod(angle + stepAngle * 0.5, stepAngle) - stepAngle * 0.5;
     float halfCellWidth = max(stepAngle * bandCenter * 0.5, pixelWidth * 3.0);
@@ -1464,6 +1467,7 @@ export function BinduSuccessionLabCanvas({
     () =>
       shellStack.map((shell, index) => {
         const blendedGenome = blendGenomeDirect(shell.genomeBlend.from, shell.genomeBlend.to, shell.genomeBlend.mix);
+        const ornamentPalette = imagePaletteForRing(shell.ringSpec);
         const path = Skia.Path.Make();
         path.addPath(boundaryDrawData[index].path);
         if (shell.kind === "annulus" && index > 0) {
@@ -1500,13 +1504,14 @@ export function BinduSuccessionLabCanvas({
             sceneOuterR: shell.outerRadius,
             scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
             imageMode: imageModeForRing(shell.ringSpec.image),
+            imageCount: shell.ringSpec.count ?? 0,
             contentFadeStartR,
             contentFadeEndR,
             annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
             secondaryLayerGate: SHOW_SECONDARY_SCENE_LAYERS ? 1 : 0,
-            ornamentLineColor: imagePaletteForRing(shell.ringSpec.image).lineColor,
-            ornamentFillColor: imagePaletteForRing(shell.ringSpec.image).fillColor,
-            ornamentAccentColor: imagePaletteForRing(shell.ringSpec.image).accentColor,
+            ornamentLineColor: ornamentPalette.lineColor,
+            ornamentFillColor: ornamentPalette.fillColor,
+            ornamentAccentColor: ornamentPalette.accentColor,
             layerA: toUniformA(blendedGenome),
             layerB: toUniformB(blendedGenome),
             layerC: toUniformC(blendedGenome),
