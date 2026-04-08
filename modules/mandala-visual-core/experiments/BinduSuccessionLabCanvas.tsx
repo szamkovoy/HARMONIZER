@@ -79,24 +79,92 @@ interface ShellLayer {
 
 type RingImageId =
   | "Eye Seeds"
+  | "Lotus Petals Belt"
   | "Triangle Rosette Belt"
   | "Cloud Meander"
+  | "Diamond Mesh"
   | "Petals"
   | "Kite Facet Belt"
   | "Rosette Window Chain"
   | "Scallop Lace";
 
 type RingImageResizeMode = "stretch" | "fixedSize" | "fixedStep";
+type ShaderColor = readonly [number, number, number, number];
+type RingImagePalette = {
+  lineColor: ShaderColor;
+  fillColor: ShaderColor;
+  accentColor: ShaderColor;
+};
 
 const RING_IMAGES = {
   bindu: "Eye Seeds",
-  ring1: "Triangle Rosette Belt",
-  ring2: "Cloud Meander",
+  ring1: "Lotus Petals Belt",
+  ring2: "Diamond Mesh",
   ring3: "Petals",
   ring4: "Kite Facet Belt",
   ring5: "Rosette Window Chain",
   ring6: "Scallop Lace",
 } as const satisfies Record<RingSpec["ringId"], RingImageId>;
+
+const RING_IMAGE_MODE: Record<RingImageId, number> = {
+  "Eye Seeds": 0,
+  "Triangle Rosette Belt": 1,
+  "Cloud Meander": 2,
+  "Diamond Mesh": 8,
+  Petals: 3,
+  "Kite Facet Belt": 4,
+  "Rosette Window Chain": 5,
+  "Scallop Lace": 6,
+  "Lotus Petals Belt": 7,
+};
+
+const RING_IMAGE_PALETTES: Record<RingImageId, RingImagePalette> = {
+  "Eye Seeds": {
+    lineColor: [0.98, 0.78, 0.34, 1],
+    fillColor: [0.8, 0.5, 0.12, 1],
+    accentColor: [1, 0.94, 0.72, 1],
+  },
+  "Lotus Petals Belt": {
+    lineColor: [1, 0.5, 0.72, 1],
+    fillColor: [0.82, 0.24, 0.5, 1],
+    accentColor: [1, 0.86, 0.92, 1],
+  },
+  "Triangle Rosette Belt": {
+    lineColor: [1, 0.4, 0.56, 1],
+    fillColor: [0.78, 0.18, 0.34, 1],
+    accentColor: [1, 0.82, 0.88, 1],
+  },
+  "Cloud Meander": {
+    lineColor: [0.4, 0.9, 1, 1],
+    fillColor: [0.16, 0.56, 0.82, 1],
+    accentColor: [0.86, 0.98, 1, 1],
+  },
+  "Diamond Mesh": {
+    lineColor: [0.52, 0.9, 1, 1],
+    fillColor: [0.12, 0.28, 0.42, 1],
+    accentColor: [0.84, 0.96, 1, 1],
+  },
+  Petals: {
+    lineColor: [0.66, 0.48, 1, 1],
+    fillColor: [0.42, 0.24, 0.78, 1],
+    accentColor: [0.92, 0.84, 1, 1],
+  },
+  "Kite Facet Belt": {
+    lineColor: [0.44, 1, 0.68, 1],
+    fillColor: [0.14, 0.7, 0.36, 1],
+    accentColor: [0.86, 1, 0.9, 1],
+  },
+  "Rosette Window Chain": {
+    lineColor: [1, 0.66, 0.32, 1],
+    fillColor: [0.84, 0.36, 0.12, 1],
+    accentColor: [1, 0.92, 0.78, 1],
+  },
+  "Scallop Lace": {
+    lineColor: [0.34, 0.76, 1, 1],
+    fillColor: [0.1, 0.38, 0.74, 1],
+    accentColor: [0.82, 0.92, 1, 1],
+  },
+};
 
 interface RingSpec {
   ringId: "bindu" | "ring1" | "ring2" | "ring3" | "ring4" | "ring5" | "ring6";
@@ -206,28 +274,17 @@ function resolveGeometryStep(distance: number, widths: number[]) {
 }
 
 /**
- * Safe toggle for ornament modes:
- * - `1` disables `teeth`, leaving alternating `beads` + `petals`
- * - `2` disables `petals`, leaving `beads` + `teeth`
- * - `null` restores the original 3-way cycle
- */
-const ORNAMENT_DISABLED_MODE: 1 | 2 | null = 1;
-
-/**
  * Safe toggle: hides the secondary thin/translucent mandala layers from the shader
  * while keeping the main ornament rings and CPU boundaries intact.
  */
 const SHOW_SECONDARY_SCENE_LAYERS = false;
 
-function motifModeForGeneration(generation: number) {
-  const normalized = ((generation % 3) + 3) % 3;
-  if (ORNAMENT_DISABLED_MODE === 1) {
-    return generation % 2 === 0 ? 0 : 2;
-  }
-  if (ORNAMENT_DISABLED_MODE === 2) {
-    return normalized === 2 ? 1 : normalized;
-  }
-  return normalized;
+function imageModeForRing(image: RingImageId | undefined) {
+  return image ? RING_IMAGE_MODE[image] : RING_IMAGE_MODE.Petals;
+}
+
+function imagePaletteForRing(image: RingImageId | undefined) {
+  return image ? RING_IMAGE_PALETTES[image] : RING_IMAGE_PALETTES.Petals;
 }
 
 function createSoftInkBoundaryPath(
@@ -581,11 +638,14 @@ uniform float contentTime;
 uniform float densityBias;
 uniform float sceneOuterR;
 uniform float scenePhase;
-uniform float motifMode;
+uniform float imageMode;
 uniform float contentFadeStartR;
 uniform float contentFadeEndR;
 uniform float annulusInnerT;
 uniform float secondaryLayerGate;
+uniform float4 ornamentLineColor;
+uniform float4 ornamentFillColor;
+uniform float4 ornamentAccentColor;
 uniform float4 layerA;
 uniform float4 layerB;
 uniform float4 layerC;
@@ -714,6 +774,236 @@ vec3 paletteByPhase(float phaseA, float phaseB, float mixAmount) {
   return mix(a, b, mixAmount);
 }
 
+float ellipseOutline(vec2 p, vec2 center, vec2 radii, float rotation, float width) {
+  vec2 safeRadii = max(radii, vec2(0.0001));
+  vec2 local = (p - center) * rotate2d(-rotation);
+  float normalized = abs(length(local / safeRadii) - 1.0);
+  float scaledDistance = normalized * min(safeRadii.x, safeRadii.y);
+  return band(scaledDistance, width);
+}
+
+float ellipseFill(vec2 p, vec2 center, vec2 radii, float rotation, float softness) {
+  vec2 safeRadii = max(radii, vec2(0.0001));
+  vec2 local = (p - center) * rotate2d(-rotation);
+  float normalized = length(local / safeRadii);
+  float feather = softness / max(min(safeRadii.x, safeRadii.y), 0.0001);
+  return 1.0 - smoothstep(1.0 - feather, 1.0 + feather, normalized);
+}
+
+float horizontalSegment(vec2 p, float y, float xMin, float xMax, float width) {
+  float line = band(abs(p.y - y), width);
+  float gate = smoothstep(xMin - width * 2.0, xMin, p.x) * (1.0 - smoothstep(xMax, xMax + width * 2.0, p.x));
+  return line * gate;
+}
+
+float verticalSegment(vec2 p, float x, float yMin, float yMax, float width) {
+  float line = band(abs(p.x - x), width);
+  float gate = smoothstep(yMin - width * 2.0, yMin, p.y) * (1.0 - smoothstep(yMax, yMax + width * 2.0, p.y));
+  return line * gate;
+}
+
+vec3 borderGreekKeyOrnament(
+  vec2 q,
+  float halfCellWidth,
+  float halfBandHeight,
+  float stroke,
+  float lean
+) {
+  vec2 p = q;
+  p.x *= lean;
+  float outerX = halfCellWidth * 0.84;
+  float innerX = halfCellWidth * 0.18;
+  float coreX = -halfCellWidth * 0.24;
+  float topY = halfBandHeight * 0.56;
+  float bottomY = -halfBandHeight * 0.56;
+  float midTopY = halfBandHeight * 0.14;
+  float midBottomY = -halfBandHeight * 0.14;
+  float lineA = horizontalSegment(p, topY, -halfCellWidth, outerX, stroke * 0.9);
+  float lineB = verticalSegment(p, outerX, midTopY, topY, stroke * 0.9);
+  float lineC = horizontalSegment(p, midTopY, innerX, outerX, stroke * 0.9);
+  float lineD = verticalSegment(p, innerX, midBottomY, midTopY, stroke * 0.9);
+  float lineE = horizontalSegment(p, midBottomY, coreX, innerX, stroke * 0.9);
+  float lineF = verticalSegment(p, coreX, bottomY, midBottomY, stroke * 0.9);
+  float lineG = horizontalSegment(p, bottomY, -halfCellWidth, coreX, stroke * 0.9);
+  float innerTop = horizontalSegment(p, topY - stroke * 2.2, -halfCellWidth * 0.78, outerX - stroke * 1.8, stroke * 0.46);
+  float innerMid = horizontalSegment(p, midTopY - stroke * 1.6, innerX + stroke * 1.2, outerX - stroke * 1.8, stroke * 0.4);
+  float innerBottom = horizontalSegment(p, midBottomY + stroke * 1.6, coreX + stroke * 1.2, innerX - stroke * 1.2, stroke * 0.4);
+  float fillGate =
+    smoothstep(bottomY + stroke * 1.8, midBottomY - stroke * 0.6, p.y) *
+    (1.0 - smoothstep(midTopY + stroke * 0.6, topY - stroke * 1.8, p.y));
+  float fillBand = smoothstep(coreX + stroke * 1.2, innerX - stroke * 0.4, p.x) * (1.0 - smoothstep(innerX + stroke * 0.6, outerX - stroke * 1.2, p.x));
+  float fill = fillGate * fillBand * 0.1;
+  float line = clamp(lineA + lineB + lineC + lineD + lineE + lineF + lineG + innerTop * 0.55 + innerMid * 0.44 + innerBottom * 0.44, 0.0, 1.0);
+  float accent = clamp(lineC * 0.12 + lineE * 0.12 + lineD * 0.08, 0.0, 1.0);
+  return vec3(line, fill, accent);
+}
+
+vec3 borderDoubleScallopOrnament(
+  vec2 q,
+  float halfCellWidth,
+  float halfBandHeight,
+  float stroke,
+  float lean
+) {
+  vec2 p = q;
+  p.x += lean * halfCellWidth * 0.04;
+  float normalizedX = clamp(p.x / max(halfCellWidth, 0.0001), -1.0, 1.0);
+  float arch = sqrt(max(1.0 - normalizedX * normalizedX, 0.0));
+  float archGate = smoothstep(0.08, 0.24, arch);
+  float outerBase = -halfBandHeight * 0.42;
+  float outerCurve = outerBase + halfBandHeight * 1.06 * pow(arch, 0.9);
+  float innerBase = -halfBandHeight * 0.08;
+  float innerCurve = innerBase + halfBandHeight * 0.58 * pow(arch, 1.06);
+  float ribCurve = -halfBandHeight * 0.24 + halfBandHeight * 0.28 * pow(arch, 1.2);
+  float outerArc = band(abs(p.y - outerCurve), stroke * 0.96) * archGate;
+  float innerArc = band(abs(p.y - innerCurve), stroke * 0.76) * archGate;
+  float ribArc = band(abs(p.y - ribCurve), stroke * 0.46) * archGate * 0.5;
+  float leftShoulder =
+    band(length(p - vec2(-halfCellWidth * 0.42, -halfBandHeight * 0.06)), halfBandHeight * 0.14) *
+    smoothstep(-halfCellWidth * 0.82, -halfCellWidth * 0.18, p.x) *
+    0.34;
+  float rightShoulder =
+    band(length(p - vec2(halfCellWidth * 0.42, -halfBandHeight * 0.06)), halfBandHeight * 0.14) *
+    smoothstep(-halfCellWidth * 0.82, -halfCellWidth * 0.18, -p.x) *
+    0.34;
+  float baseLine = horizontalSegment(p, outerBase, -halfCellWidth * 0.88, halfCellWidth * 0.88, stroke * 0.32) * 0.18;
+  float fill =
+    smoothstep(outerBase + stroke * 0.4, outerBase + halfBandHeight * 0.18, p.y) *
+    (1.0 - smoothstep(innerCurve - halfBandHeight * 0.12, outerCurve - stroke * 0.4, p.y)) *
+    archGate *
+    0.16;
+  float line = clamp(outerArc + innerArc * 0.82 + ribArc + leftShoulder + rightShoulder + baseLine, 0.0, 1.0);
+  float accent = clamp(outerArc * 0.16 + innerArc * 0.08, 0.0, 1.0);
+  return vec3(line, fill, accent);
+}
+
+vec3 borderScrollOrnament(
+  vec2 q,
+  float halfCellWidth,
+  float halfBandHeight,
+  float stroke,
+  float lean
+) {
+  vec2 p = vec2(q.x, q.y * lean);
+  vec2 upperCenter = vec2(-halfCellWidth * 0.16, halfBandHeight * 0.16);
+  vec2 lowerCenter = vec2(halfCellWidth * 0.16, -halfBandHeight * 0.16);
+  vec2 lobeRadii = vec2(halfCellWidth * 0.28, halfBandHeight * 0.22);
+  vec2 innerRadii = vec2(halfCellWidth * 0.12, halfBandHeight * 0.1);
+  vec2 curlRadii = vec2(halfCellWidth * 0.065, halfBandHeight * 0.065);
+  float upperGate = smoothstep(-halfBandHeight * 0.02, halfBandHeight * 0.08, p.y);
+  float lowerGate = smoothstep(-halfBandHeight * 0.02, halfBandHeight * 0.08, -p.y);
+  float upperLobe = ellipseOutline(p, upperCenter, lobeRadii, 0.0, stroke * 0.78) * upperGate;
+  float lowerLobe = ellipseOutline(p, lowerCenter, lobeRadii, 0.0, stroke * 0.78) * lowerGate;
+  float upperInner =
+    ellipseOutline(p, upperCenter + vec2(halfCellWidth * 0.12, 0.0), innerRadii, 0.0, stroke * 0.48) *
+    upperGate;
+  float lowerInner =
+    ellipseOutline(p, lowerCenter + vec2(-halfCellWidth * 0.12, 0.0), innerRadii, 0.0, stroke * 0.48) *
+    lowerGate;
+  float upperCurl =
+    ellipseOutline(p, vec2(halfCellWidth * 0.19, halfBandHeight * 0.09), curlRadii, 0.0, stroke * 0.42) *
+    upperGate *
+    smoothstep(-halfCellWidth * 0.02, halfCellWidth * 0.24, p.x);
+  float lowerCurl =
+    ellipseOutline(p, vec2(-halfCellWidth * 0.19, -halfBandHeight * 0.09), curlRadii, 0.0, stroke * 0.42) *
+    lowerGate *
+    smoothstep(-halfCellWidth * 0.02, halfCellWidth * 0.24, -p.x);
+  float bridgeCore =
+    ellipseOutline(p, vec2(0.0, 0.0), vec2(halfCellWidth * 0.1, halfBandHeight * 0.34), 0.0, stroke * 0.28) *
+    (1.0 - smoothstep(halfCellWidth * 0.1, halfCellWidth * 0.26, abs(p.x))) *
+    0.56;
+  float bridgeTilt =
+    ellipseOutline(p, vec2(0.0, 0.0), vec2(halfCellWidth * 0.18, halfBandHeight * 0.12), 0.0, stroke * 0.22) *
+    (1.0 - smoothstep(halfBandHeight * 0.08, halfBandHeight * 0.26, abs(p.y))) *
+    0.26;
+  float upperFill = ellipseFill(p, upperCenter, lobeRadii, 0.0, stroke * 0.6) * upperGate;
+  float lowerFill = ellipseFill(p, lowerCenter, lobeRadii, 0.0, stroke * 0.6) * lowerGate;
+  float upperVoid = ellipseFill(p, upperCenter + vec2(halfCellWidth * 0.05, 0.0), vec2(halfCellWidth * 0.13, halfBandHeight * 0.1), 0.0, stroke * 0.34);
+  float lowerVoid = ellipseFill(p, lowerCenter + vec2(-halfCellWidth * 0.05, 0.0), vec2(halfCellWidth * 0.13, halfBandHeight * 0.1), 0.0, stroke * 0.34);
+  float fill = clamp(upperFill + lowerFill - upperVoid * 0.82 - lowerVoid * 0.82, 0.0, 1.0) * 0.08;
+  float line = clamp(upperLobe + lowerLobe + upperInner * 0.76 + lowerInner * 0.76 + upperCurl * 0.94 + lowerCurl * 0.94 + bridgeCore + bridgeTilt, 0.0, 1.0);
+  float accent = clamp(upperCurl * 0.14 + lowerCurl * 0.14 + bridgeCore * 0.08, 0.0, 1.0);
+  return vec3(line, fill, accent);
+}
+
+vec3 borderRosetteChainOrnament(
+  vec2 q,
+  float halfCellWidth,
+  float halfBandHeight,
+  float stroke,
+  float lean
+) {
+  vec2 p = q;
+  p.x += lean * halfCellWidth * 0.03;
+  vec2 rosetteCenter = vec2(0.0, 0.0);
+  vec2 majorCenters[4];
+  majorCenters[0] = vec2(0.0, halfBandHeight * 0.24);
+  majorCenters[1] = vec2(halfCellWidth * 0.22, 0.0);
+  majorCenters[2] = vec2(0.0, -halfBandHeight * 0.24);
+  majorCenters[3] = vec2(-halfCellWidth * 0.22, 0.0);
+  float petalRing = 0.0;
+  float petalFill = 0.0;
+  for (int i = 0; i < 4; i++) {
+    petalRing += ellipseOutline(p, majorCenters[i], vec2(halfCellWidth * 0.16, halfBandHeight * 0.16), 0.0, stroke * 0.58);
+    petalFill += ellipseFill(p, majorCenters[i], vec2(halfCellWidth * 0.16, halfBandHeight * 0.16), 0.0, stroke * 0.44);
+  }
+  float outerRosette = ellipseOutline(p, rosetteCenter, vec2(halfCellWidth * 0.2, halfBandHeight * 0.2), 0.0, stroke * 0.52);
+  float innerRosette = ellipseOutline(p, rosetteCenter, vec2(halfCellWidth * 0.09, halfBandHeight * 0.09), 0.0, stroke * 0.4);
+  float rosetteVoid = ellipseFill(p, rosetteCenter, vec2(halfCellWidth * 0.05, halfBandHeight * 0.05), 0.0, stroke * 0.32);
+  float leftWindow =
+    ellipseOutline(p, vec2(-halfCellWidth * 0.46, 0.0), vec2(halfCellWidth * 0.12, halfBandHeight * 0.12), 0.0, stroke * 0.52) *
+    smoothstep(-halfCellWidth * 0.72, -halfCellWidth * 0.18, p.x);
+  float rightWindow =
+    ellipseOutline(p, vec2(halfCellWidth * 0.46, 0.0), vec2(halfCellWidth * 0.12, halfBandHeight * 0.12), 0.0, stroke * 0.52) *
+    smoothstep(-halfCellWidth * 0.72, -halfCellWidth * 0.18, -p.x);
+  float bridgeTop = horizontalSegment(p, halfBandHeight * 0.06, -halfCellWidth * 0.34, halfCellWidth * 0.34, stroke * 0.36) * 0.5;
+  float bridgeBottom = horizontalSegment(p, -halfBandHeight * 0.06, -halfCellWidth * 0.34, halfCellWidth * 0.34, stroke * 0.36) * 0.5;
+  float sideLinks = horizontalSegment(p, 0.0, -halfCellWidth * 0.62, -halfCellWidth * 0.26, stroke * 0.28) * 0.44 +
+    horizontalSegment(p, 0.0, halfCellWidth * 0.26, halfCellWidth * 0.62, stroke * 0.28) * 0.44;
+  float line = clamp(
+    petalRing * 0.46 +
+    outerRosette * 0.72 +
+    innerRosette * 0.52 +
+    leftWindow * 0.74 +
+    rightWindow * 0.74 +
+    bridgeTop +
+    bridgeBottom +
+    sideLinks,
+    0.0,
+    1.0
+  );
+  float fill = clamp(petalFill * 0.12 - rosetteVoid * 0.42, 0.0, 1.0) * 0.14;
+  float accent = clamp((leftWindow + rightWindow) * 0.12 + outerRosette * 0.08, 0.0, 1.0);
+  return vec3(line, fill, accent);
+}
+
+vec3 borderDiamondMeshOrnament(
+  vec2 q,
+  float halfCellWidth,
+  float halfBandHeight,
+  float stroke
+) {
+  vec2 tile = vec2(max(halfCellWidth * 0.62, stroke * 4.0), max(halfBandHeight * 0.62, stroke * 4.0));
+  vec2 cell = mod(q + tile * 0.5, tile) - tile * 0.5;
+  float diamondScale = max(min(tile.x, tile.y), stroke * 4.0);
+  float diamondField = (abs(cell.x) + abs(cell.y)) / diamondScale;
+  float primaryDiamond = band(abs(diamondField - 0.82) * diamondScale, stroke * 0.48);
+
+  vec2 offsetCell = mod(q + vec2(tile.x, 0.0), tile) - tile * 0.5;
+  float secondaryField = (abs(offsetCell.x) + abs(offsetCell.y)) / diamondScale;
+  float secondaryDiamond = band(abs(secondaryField - 0.82) * diamondScale, stroke * 0.42) * 0.46;
+
+  float diagA = band(abs(cell.y - cell.x), stroke * 0.3) * 0.28;
+  float diagB = band(abs(cell.y + cell.x), stroke * 0.3) * 0.28;
+  float axialGate = 1.0 - smoothstep(halfBandHeight * 0.72, halfBandHeight * 0.98, abs(q.y));
+  float midRailTop = horizontalSegment(q, halfBandHeight * 0.22, -halfCellWidth, halfCellWidth, stroke * 0.22) * 0.12;
+  float midRailBottom = horizontalSegment(q, -halfBandHeight * 0.22, -halfCellWidth, halfCellWidth, stroke * 0.22) * 0.12;
+  float line = clamp((primaryDiamond + secondaryDiamond + diagA + diagB) * axialGate + midRailTop + midRailBottom, 0.0, 1.0);
+  float fill = clamp((1.0 - smoothstep(0.82, 1.06, diamondField)) * 0.035 * axialGate, 0.0, 1.0);
+  float accent = clamp((diagA + diagB) * 0.12, 0.0, 1.0);
+  return vec3(line, fill, accent);
+}
+
 vec3 motifOrnament(
   vec2 p,
   float width,
@@ -725,7 +1015,7 @@ vec3 motifOrnament(
 ) {
   float radius = length(p);
   float angle = atan(p.y, p.x);
-  float mode = floor(motifMode + 0.5);
+  float mode = floor(imageMode + 0.5);
   float innerT = annulusInnerT;
   float rawBandWidth = max(1.0 - innerT, 0.001);
   float edgePadding = rawBandWidth * 0.1;
@@ -740,44 +1030,172 @@ vec3 motifOrnament(
   float accent = 0.0;
 
   if (mode < 0.5) {
-    float beads = floor(clamp(symmetry * 1.08, 12.0, 24.0));
+    float seeds = floor(clamp(symmetry * 0.82, 8.0, 16.0));
     float ringRadius = bandCenter;
-    float stepAngle = TAU / beads;
+    float stepAngle = TAU / seeds;
     float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
-    float beadSeed = floor(angle / stepAngle + 0.5);
-    float beadRadius = bandWidth * mix(0.14, 0.2, hash11(beadSeed + phase * 7.3 + 1.7));
-    float beadOffset = bandWidth * mix(-0.012, 0.012, hash11(beadSeed + 4.1));
-    vec2 beadCenter = vec2(cos(snapped), sin(snapped)) * (ringRadius + beadOffset);
-    float outerBead = band(length(p - beadCenter), beadRadius + stroke * 0.55);
-    float innerHole = band(length(p - beadCenter), beadRadius * 0.5);
-    float beadRing = clamp(outerBead - innerHole * 0.92, 0.0, 1.0);
-    line = beadRing;
-    fill = beadRing * 0.04;
-    accent = beadRing * (0.18 + pulse * 0.1);
-  } else if (mode < 2.5) {
-    float teeth = floor(clamp(symmetry * 1.1, 10.0, 26.0));
+    float seedIndex = floor(angle / stepAngle + 0.5);
+    float eyeRadius = bandWidth * mix(0.16, 0.24, hash11(seedIndex + phase * 5.7 + 2.1));
+    float eyeOffset = bandWidth * mix(-0.02, 0.02, hash11(seedIndex + 3.8));
+    vec2 eyeCenter = vec2(cos(snapped), sin(snapped)) * (ringRadius + eyeOffset);
+    vec2 eyeLocal = (p - eyeCenter) * rotate2d(-snapped);
+    float eyeOuter = band(length(eyeLocal), eyeRadius + stroke * 0.48);
+    float eyeInner = band(length(eyeLocal), eyeRadius * 0.52);
+    float iris = clamp(eyeOuter - eyeInner * 0.94, 0.0, 1.0);
+    float slitY = 1.0 - smoothstep(stroke * 0.55, stroke * 1.8, abs(eyeLocal.y));
+    float slitX = 1.0 - smoothstep(eyeRadius * 0.65, eyeRadius * 1.08, abs(eyeLocal.x));
+    float slit = slitY * slitX;
+    line = clamp(iris + slit * 0.56, 0.0, 1.0);
+    fill = iris * 0.08;
+    accent = slit * (0.22 + pulse * 0.08);
+  } else if (mode < 1.5) {
+    float teeth = floor(clamp(symmetry * 1.08, 10.0, 24.0));
     float ringRadius = bandCenter;
     float toothPhase = fract((angle / TAU) * teeth);
     float triangle = 1.0 - abs(toothPhase * 2.0 - 1.0);
-    float softened = pow(clamp(triangle, 0.0, 1.0), 0.72);
-    float toothRadius = ringRadius + (softened - 0.5) * bandWidth * 0.56;
-    line = band(abs(radius - toothRadius), stroke * 1.45);
-    fill = 0.0;
-    accent = line * 0.1;
-  } else {
-    float petals = floor(clamp(symmetry * 0.9, 6.0, 18.0));
-    float lotusBase = bandCenter - bandWidth * 0.34;
-    float lotusTop = bandCenter + bandWidth * 0.34;
-    float petalWave = pow(max(0.5 + 0.5 * cos(angle * petals), 0.0001), sharpness * 0.9);
-    float petalTipRadius = lotusBase + mix(bandWidth * 0.12, lotusTop - lotusBase, petalWave);
-    float petalOuterLine = band(abs(radius - petalTipRadius), stroke * 1.25 + bandWidth * 0.015);
+    float softened = pow(clamp(triangle, 0.0, 1.0), 0.68);
+    float rosetteOuter = ringRadius + (softened - 0.46) * bandWidth * 0.6;
+    float rosetteInner = ringRadius - bandWidth * 0.16 + softened * bandWidth * 0.22;
+    float outerLine = band(abs(radius - rosetteOuter), stroke * 1.36);
+    float innerLine = band(abs(radius - rosetteInner), stroke * 0.78);
+    line = clamp(outerLine + innerLine * 0.48, 0.0, 1.0);
+    fill =
+      smoothstep(ringRadius - bandWidth * 0.18, ringRadius - bandWidth * 0.02, radius) *
+      (1.0 - smoothstep(rosetteOuter - bandWidth * 0.12, rosetteOuter + bandWidth * 0.02, radius)) *
+      softened *
+      0.16;
+    accent = outerLine * (0.12 + pulse * 0.05);
+  } else if (mode < 2.5) {
+    float clouds = floor(clamp(symmetry * 0.84, 8.0, 16.0));
+    float stepAngle = TAU / clouds;
+    float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
+    vec2 cloudCenter = vec2(cos(snapped), sin(snapped)) * bandCenter;
+    vec2 cloudLocal = (p - cloudCenter) * rotate2d(-snapped);
+    float cloudGate = smoothstep(-bandWidth * 0.1, bandWidth * 0.03, cloudLocal.x);
+    float lobeSpread = bandWidth * 0.18;
+    float sideRadius = bandWidth * 0.18;
+    float crownRadius = bandWidth * 0.22;
+    vec2 leftCenter = vec2(bandWidth * 0.01, -lobeSpread);
+    vec2 crownCenter = vec2(bandWidth * 0.08, 0.0);
+    vec2 rightCenter = vec2(bandWidth * 0.01, lobeSpread);
+    float leftLobe = band(abs(length(cloudLocal - leftCenter) - sideRadius), stroke * 0.94) * cloudGate;
+    float crownLobe = band(abs(length(cloudLocal - crownCenter) - crownRadius), stroke * 1.02) * cloudGate;
+    float rightLobe = band(abs(length(cloudLocal - rightCenter) - sideRadius), stroke * 0.94) * cloudGate;
+    float leftCurl =
+      band(abs(length(cloudLocal - vec2(-bandWidth * 0.08, -bandWidth * 0.1)) - bandWidth * 0.085), stroke * 0.62) *
+      cloudGate *
+      smoothstep(-bandWidth * 0.3, -bandWidth * 0.06, cloudLocal.y) *
+      (1.0 - smoothstep(bandWidth * 0.0, bandWidth * 0.12, cloudLocal.y));
+    float rightCurl =
+      band(abs(length(cloudLocal - vec2(-bandWidth * 0.08, bandWidth * 0.1)) - bandWidth * 0.085), stroke * 0.62) *
+      cloudGate *
+      smoothstep(-bandWidth * 0.3, -bandWidth * 0.06, -cloudLocal.y) *
+      (1.0 - smoothstep(bandWidth * 0.0, bandWidth * 0.12, -cloudLocal.y));
+    float cloudBase = band(abs(radius - (bandCenter - bandWidth * 0.16)), stroke * 0.56) * 0.22;
+    line = clamp(max(max(leftLobe, crownLobe), max(rightLobe, max(leftCurl, rightCurl))) + cloudBase, 0.0, 1.0);
+    fill =
+      smoothstep(bandCenter - bandWidth * 0.14, bandCenter - bandWidth * 0.02, radius) *
+      (1.0 - smoothstep(bandCenter + bandWidth * 0.11, bandCenter + bandWidth * 0.22, radius)) *
+      cloudGate *
+      0.12;
+    accent = crownLobe * (0.12 + pulse * 0.05);
+  } else if (mode < 3.5) {
+    float modules = 20.0;
+    float stepAngle = TAU / modules;
+    float localAngle = mod(angle + stepAngle * 0.5, stepAngle) - stepAngle * 0.5;
+    float halfCellWidth = max(stepAngle * bandCenter * 0.5, pixelWidth * 3.0);
+    float halfBandHeight = bandWidth * 0.5;
+    vec2 q = vec2(localAngle * bandCenter, radius - bandCenter);
+    float cellIndex = floor((angle + PI) / stepAngle + 0.0001);
+    float lean = mod(cellIndex, 2.0) < 0.5 ? -1.0 : 1.0;
+    vec3 scrollBorder = borderScrollOrnament(q, halfCellWidth, halfBandHeight, stroke, lean);
+    line = scrollBorder.x;
+    fill = scrollBorder.y;
+    accent = scrollBorder.z;
+  } else if (mode < 4.5) {
+    float facets = floor(clamp(symmetry * 0.96, 8.0, 18.0));
+    float facetWave = pow(abs(cos(angle * facets * 0.5)), 1.25);
+    float kiteInner = bandCenter - bandWidth * 0.22;
+    float kiteOuter = bandCenter + bandWidth * 0.22;
+    float kiteSpineRadius = mix(kiteInner, kiteOuter, facetWave);
+    float kiteSpine = band(abs(radius - kiteSpineRadius), stroke * 0.95);
+    float kiteInnerLine = band(abs(radius - kiteInner), stroke * 0.72);
+    float kiteOuterLine = band(abs(radius - kiteOuter), stroke * 0.72);
+    line = clamp(kiteSpine + (kiteInnerLine + kiteOuterLine) * 0.24, 0.0, 1.0);
+    fill =
+      smoothstep(kiteInner - bandWidth * 0.02, kiteInner + bandWidth * 0.06, radius) *
+      (1.0 - smoothstep(kiteSpineRadius - bandWidth * 0.12, kiteSpineRadius + bandWidth * 0.03, radius)) *
+      facetWave *
+      0.14;
+    accent = kiteSpine * (0.12 + pulse * 0.04);
+  } else if (mode < 5.5) {
+    float rosettes = floor(clamp(symmetry * 1.04, 10.0, 22.0));
+    float ringRadius = bandCenter;
+    float stepAngle = TAU / rosettes;
+    float snapped = floor(angle / stepAngle + 0.5) * stepAngle;
+    float windowIndex = floor(angle / stepAngle + 0.5);
+    float windowRadius = bandWidth * mix(0.14, 0.19, hash11(windowIndex + phase * 4.7 + 1.1));
+    vec2 windowCenter = vec2(cos(snapped), sin(snapped)) * ringRadius;
+    float outerWindow = band(length(p - windowCenter), windowRadius + stroke * 0.44);
+    float innerWindow = band(length(p - windowCenter), windowRadius * 0.56);
+    float windowRing = clamp(outerWindow - innerWindow * 0.9, 0.0, 1.0);
+    float chainLine = band(abs(radius - ringRadius), stroke * 0.7);
+    line = clamp(windowRing + chainLine * 0.22, 0.0, 1.0);
+    fill = windowRing * 0.06;
+    accent = windowRing * (0.16 + pulse * 0.06);
+  } else if (mode < 6.5) {
+    float scallops = floor(clamp(symmetry * 1.08, 10.0, 22.0));
+    float stepAngle = TAU / scallops;
+    float sectorPhase = fract((angle / TAU) * scallops + 0.5);
+    float sectorX = sectorPhase * 2.0 - 1.0;
+    float arch = sqrt(max(1.0 - sectorX * sectorX, 0.0));
+    float archGate = smoothstep(0.12, 0.42, arch);
+    float laceBase = bandCenter - bandWidth * 0.24;
+    float laceOuter = bandCenter + bandWidth * 0.2;
+    float outerArchRadius = laceBase + mix(bandWidth * 0.08, laceOuter - laceBase, pow(arch, 0.92));
+    float middleArchRadius = laceBase + mix(bandWidth * 0.05, (laceOuter - laceBase) * 0.76, pow(arch, 1.08));
+    float innerArchRadius = laceBase + mix(bandWidth * 0.02, (laceOuter - laceBase) * 0.52, pow(arch, 1.24));
+    float outerArchLine = band(abs(radius - outerArchRadius), stroke * 1.08) * archGate;
+    float middleArchLine = band(abs(radius - middleArchRadius), stroke * 0.94) * archGate;
+    float innerArchLine = band(abs(radius - innerArchRadius), stroke * 0.82) * archGate;
+    float supportLine = band(abs(radius - laceBase), stroke * 0.7);
+    float notchSeed = floor(angle / stepAngle + 0.5);
+    float notchOffset = mix(-0.08, 0.08, hash11(notchSeed + phase * 3.1 + 2.4));
+    float notchRadius = laceBase + bandWidth * (0.2 + notchOffset * 0.18);
+    float notchLine = band(abs(radius - notchRadius), stroke * 0.42) * pow(arch, 3.6) * 0.36;
+    line = clamp(outerArchLine + middleArchLine * 0.82 + innerArchLine * 0.56 + supportLine * 0.22 - notchLine, 0.0, 1.0);
+    fill =
+      smoothstep(laceBase - bandWidth * 0.01, laceBase + bandWidth * 0.05, radius) *
+      (1.0 - smoothstep(outerArchRadius - bandWidth * 0.12, outerArchRadius + bandWidth * 0.03, radius)) *
+      archGate *
+      0.16;
+    accent = outerArchLine * (0.14 + pulse * 0.05);
+  } else if (mode < 7.5) {
+    float petals = floor(clamp(symmetry * 0.96, 10.0, 24.0));
+    float lotusBase = bandCenter - bandWidth * 0.32;
+    float lotusTop = bandCenter + bandWidth * 0.28;
+    float petalWave = pow(max(0.5 + 0.5 * cos(angle * petals), 0.0001), sharpness * 0.96);
+    float petalTipRadius = lotusBase + mix(bandWidth * 0.14, lotusTop - lotusBase, petalWave);
+    float petalOuterLine = band(abs(radius - petalTipRadius), stroke * 1.18 + bandWidth * 0.012);
+    float petalInnerSpine = band(abs(radius - mix(lotusBase + bandWidth * 0.06, petalTipRadius - bandWidth * 0.08, petalWave)), stroke * 0.56);
+    float petalBaseLine = band(abs(radius - lotusBase), stroke * 0.74 + bandWidth * 0.008);
     float petalBody =
-      smoothstep(lotusBase - bandWidth * 0.02, lotusBase + bandWidth * 0.08, radius) *
-      (1.0 - smoothstep(petalTipRadius - bandWidth * 0.16, petalTipRadius + bandWidth * 0.03, radius));
-    float innerSupport = band(abs(radius - lotusBase), stroke * 0.9 + bandWidth * 0.01);
-    line = petalOuterLine + innerSupport * 0.42;
-    fill = petalBody * 0.34;
-    accent = petalOuterLine * 0.18;
+      smoothstep(lotusBase - bandWidth * 0.01, lotusBase + bandWidth * 0.08, radius) *
+      (1.0 - smoothstep(petalTipRadius - bandWidth * 0.14, petalTipRadius + bandWidth * 0.03, radius));
+    line = clamp(petalOuterLine + petalInnerSpine * 0.38 + petalBaseLine * 0.28, 0.0, 1.0);
+    fill = petalBody * 0.26;
+    accent = petalOuterLine * 0.16;
+  } else {
+    float modules = floor(clamp(symmetry * 1.18, 18.0, 40.0));
+    float stepAngle = TAU / modules;
+    float localAngle = mod(angle + stepAngle * 0.5, stepAngle) - stepAngle * 0.5;
+    float halfCellWidth = max(stepAngle * bandCenter * 0.5, pixelWidth * 3.0);
+    float halfBandHeight = bandWidth * 0.5;
+    vec2 q = vec2(localAngle * bandCenter, radius - bandCenter);
+    vec3 diamondMesh = borderDiamondMeshOrnament(q, halfCellWidth, halfBandHeight, stroke);
+    line = diamondMesh.x;
+    fill = diamondMesh.y;
+    accent = diamondMesh.z;
   }
 
   return vec3(line, fill, accent);
@@ -883,29 +1301,18 @@ half4 main(vec2 fragcoord) {
   float pulse = pow(0.5 + 0.5 * sin(contentTime * 0.9), 2.0);
   vec3 scene = mandalaScene(sceneUv, layerA, layerB, layerC, layerD, layerE, breath, pulse, scenePhase);
   float sceneRadius = length(sceneUv);
-  vec3 lineColor = paletteByPhase(layerD.w, fract(layerD.w + 0.21), 0.52 + densityBias * 0.14);
-  vec3 fillColor = mix(lineColor, vec3(1.0, 0.96, 0.99), 0.24);
-  vec3 accentColor = mix(vec3(1.0, 0.97, 0.99), lineColor, 0.3);
-  if (motifMode < 0.5) {
-    lineColor = vec3(0.22, 0.96, 1.0);
-    fillColor = vec3(0.1, 0.84, 0.9);
-    accentColor = vec3(0.92, 1.0, 1.0);
-  } else if (motifMode < 1.5) {
-    lineColor = vec3(0.22, 0.96, 1.0);
-    fillColor = vec3(0.1, 0.84, 0.9);
-    accentColor = vec3(0.92, 1.0, 1.0);
-  } else {
-    lineColor = vec3(0.22, 0.96, 1.0);
-    fillColor = vec3(0.1, 0.84, 0.9);
-    accentColor = vec3(0.92, 1.0, 1.0);
-  }
+  vec3 phaseColor = paletteByPhase(layerD.w, fract(layerD.w + 0.21), 0.52 + densityBias * 0.14);
+  vec3 lineColor = mix(phaseColor, ornamentLineColor.xyz, 0.92);
+  vec3 fillColor = mix(phaseColor, ornamentFillColor.xyz, 0.9);
+  vec3 accentColor = mix(vec3(1.0, 0.97, 0.99), ornamentAccentColor.xyz, 0.92);
   float edgeFade = 1.0 - smoothstep(1.02, 1.22, sceneRadius);
   float contentScreenFade = 1.0 - smoothstep(contentFadeStartR, contentFadeEndR, screenRadius);
   vec3 color =
-    fillColor * scene.y * 0.22 +
-    lineColor * scene.x * 0.18 +
-    accentColor * scene.z * 0.12;
+    fillColor * scene.y * 0.36 +
+    lineColor * scene.x * 0.46 +
+    accentColor * scene.z * 0.28;
   color *= edgeFade * contentScreenFade;
+  color = 1.0 - exp(-color * 1.85);
   return half4(color, 1.0);
 }
 `;
@@ -1092,11 +1499,14 @@ export function BinduSuccessionLabCanvas({
             densityBias,
             sceneOuterR: shell.outerRadius,
             scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
-            motifMode: motifModeForGeneration(shell.generation),
+            imageMode: imageModeForRing(shell.ringSpec.image),
             contentFadeStartR,
             contentFadeEndR,
             annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
             secondaryLayerGate: SHOW_SECONDARY_SCENE_LAYERS ? 1 : 0,
+            ornamentLineColor: imagePaletteForRing(shell.ringSpec.image).lineColor,
+            ornamentFillColor: imagePaletteForRing(shell.ringSpec.image).fillColor,
+            ornamentAccentColor: imagePaletteForRing(shell.ringSpec.image).accentColor,
             layerA: toUniformA(blendedGenome),
             layerB: toUniformB(blendedGenome),
             layerC: toUniformC(blendedGenome),
