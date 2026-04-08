@@ -77,18 +77,37 @@ interface ShellLayer {
   kind: "embryoDisk" | "annulus";
 }
 
-type RingLayoutMode = "stretch" | "fixedAspect" | "fixedStep";
+type RingImageId =
+  | "Eye Seeds"
+  | "Triangle Rosette Belt"
+  | "Cloud Meander"
+  | "Petals"
+  | "Kite Facet Belt"
+  | "Rosette Window Chain"
+  | "Scallop Lace";
+
+type RingImageResizeMode = "stretch" | "fixedSize" | "fixedStep";
+
+const RING_IMAGES = {
+  bindu: "Eye Seeds",
+  ring1: "Triangle Rosette Belt",
+  ring2: "Cloud Meander",
+  ring3: "Petals",
+  ring4: "Kite Facet Belt",
+  ring5: "Rosette Window Chain",
+  ring6: "Scallop Lace",
+} as const satisfies Record<RingSpec["ringId"], RingImageId>;
 
 interface RingSpec {
   ringId: "bindu" | "ring1" | "ring2" | "ring3" | "ring4" | "ring5" | "ring6";
   widthPercent: number;
-  motif?: string;
+  image?: RingImageId;
   count?: number;
-  strokeColor?: string;
+  imageColor?: string;
   fillColor?: string;
   fillOpacity?: number;
   rotationRpm?: number;
-  layoutMode?: RingLayoutMode;
+  imageResize?: RingImageResizeMode;
 }
 
 const TUBE_SCENE_DURATION_SECONDS = 7.2;
@@ -99,13 +118,13 @@ const TUBE_VISIBLE_LAYER_COUNT = 7;
 const TUBE_RENDER_SHELL_COUNT = TUBE_VISIBLE_LAYER_COUNT;
 const SEQUENCE_LENGTH = 96;
 const RING_SPECS: RingSpec[] = [
-  { ringId: "bindu", widthPercent: 4, layoutMode: "stretch" },
-  { ringId: "ring1", widthPercent: 6, layoutMode: "stretch" },
-  { ringId: "ring2", widthPercent: 9, layoutMode: "stretch" },
-  { ringId: "ring3", widthPercent: 14, layoutMode: "stretch" },
-  { ringId: "ring4", widthPercent: 20, layoutMode: "stretch" },
-  { ringId: "ring5", widthPercent: 17, layoutMode: "stretch" },
-  { ringId: "ring6", widthPercent: 30, layoutMode: "stretch" },
+  { ringId: "bindu", widthPercent: 9, image: RING_IMAGES.bindu },
+  { ringId: "ring1", widthPercent: 18, image: RING_IMAGES.ring1 },
+  { ringId: "ring2", widthPercent: 12, image: RING_IMAGES.ring2 },
+  { ringId: "ring3", widthPercent: 20, image: RING_IMAGES.ring3 },
+  { ringId: "ring4", widthPercent: 6, image: RING_IMAGES.ring4 },
+  { ringId: "ring5", widthPercent: 17, image: RING_IMAGES.ring5 },
+  { ringId: "ring6", widthPercent: 24, image: RING_IMAGES.ring6 },
 ];
 
 function fract(value: number) {
