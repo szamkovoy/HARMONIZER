@@ -37,6 +37,18 @@
 - route: `app/bindu-succession-lab.tsx`
 - экран: `modules/mandala-visual-core/experiments/BinduSuccessionLabScreen.tsx`
 - canvas: `modules/mandala-visual-core/experiments/BinduSuccessionLabCanvas.tsx`
+- typed visual presets: `modules/mandala-visual-core/experiments/binduSuccessionVisualPresets.ts`
+
+## Цветовые пресеты лаборатории
+
+- для chakra-режимов лаборатория теперь держит typed visual presets в `TypeScript`;
+- каждый пресет содержит:
+  - `cloud.color`
+  - `cloud.opacity`
+  - `ringImageColor.bindu`
+  - `ringImageColor.ring1..ring6`
+- sandbox-редактор на экране позволяет менять эти цвета в live preview;
+- baseline/default значения живут в `TypeScript`, а локальные правки редактора сохраняются как sandbox override на устройстве, чтобы можно было продолжать подбор без ручного переписывания кода после каждого клика.
 
 ## Tube mode
 

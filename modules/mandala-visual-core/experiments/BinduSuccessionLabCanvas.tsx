@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, View } from "react-native";
-import { Canvas, Circle, Fill, FillType, Group, Path, Shader, Skia } from "@shopify/react-native-skia";
+import { Canvas, Fill, FillType, Group, Path, Shader, Skia } from "@shopify/react-native-skia";
+
+import {
+  DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS,
+  type ChakraVisualPreset,
+} from "@/modules/mandala-visual-core/experiments/binduSuccessionVisualPresets";
 
 function useAnimationClock(isActive: boolean) {
   const [timeSeconds, setTimeSeconds] = useState(0);
@@ -94,6 +99,22 @@ type RingImagePalette = {
   accentColor: ShaderColor;
 };
 
+type CloudShapeVariant = {
+  radius: number;
+  coreSoftness: number;
+  haloScale: number;
+  haloSoftness: number;
+  mistScale: number;
+  mistSoftness: number;
+  outerBodyWeight: number;
+  bodyRingWeight: number;
+  coreWeight: number;
+  outerBodyAlpha: number;
+  bodyRingAlpha: number;
+  coreAlpha: number;
+  alphaCeiling: number;
+};
+
 const RING_IMAGES = {
   bindu: "Eye Seeds",
   ring1: "Lotus Petals Belt",
@@ -103,6 +124,38 @@ const RING_IMAGES = {
   ring5: "Rosette Window Chain",
   ring6: "Scallop Lace",
 } as const satisfies Record<RingSpec["ringId"], RingImageId>;
+
+const BASELINE_CLOUD_SHAPE: CloudShapeVariant = {
+  radius: 0.42,
+  coreSoftness: 0.62,
+  haloScale: 1.34,
+  haloSoftness: 0.72,
+  mistScale: 1.68,
+  mistSoftness: 0.8,
+  outerBodyWeight: 0.1,
+  bodyRingWeight: 0.34,
+  coreWeight: 0.24,
+  outerBodyAlpha: 0.12,
+  bodyRingAlpha: 0.4,
+  coreAlpha: 0.28,
+  alphaCeiling: 0.56,
+};
+
+const ACTIVE_CLOUD_SHAPE: CloudShapeVariant = {
+  radius: 0.5,
+  coreSoftness: 0.38,
+  haloScale: 1.1,
+  haloSoftness: 0.46,
+  mistScale: 1.34,
+  mistSoftness: 0.56,
+  outerBodyWeight: 0.16,
+  bodyRingWeight: 0.56,
+  coreWeight: 0.44,
+  outerBodyAlpha: 0.16,
+  bodyRingAlpha: 0.72,
+  coreAlpha: 0.56,
+  alphaCeiling: 0.88,
+};
 
 const RING_IMAGE_MODE: Record<RingImageId, number> = {
   "Eye Seeds": 0,
@@ -1310,13 +1363,18 @@ half4 main(vec2 fragcoord) {
   vec3 accentColor = mix(vec3(1.0, 0.97, 0.99), ornamentAccentColor.xyz, 0.92);
   float edgeFade = 1.0 - smoothstep(1.02, 1.22, sceneRadius);
   float contentScreenFade = 1.0 - smoothstep(contentFadeStartR, contentFadeEndR, screenRadius);
+  float lineMask = clamp(scene.x, 0.0, 1.0);
+  float accentMask = clamp(scene.z, 0.0, 1.0);
+  float fillMask = clamp(scene.y, 0.0, 1.0);
   vec3 color =
-    fillColor * scene.y * 0.36 +
-    lineColor * scene.x * 0.46 +
-    accentColor * scene.z * 0.28;
+    fillColor * fillMask * 0.08 +
+    lineColor * lineMask * 0.72 +
+    accentColor * accentMask * 0.34;
   color *= edgeFade * contentScreenFade;
   color = 1.0 - exp(-color * 1.85);
-  return half4(color, 1.0);
+  float alpha =
+    clamp((lineMask * 0.92 + accentMask * 0.48 + fillMask * 0.12) * edgeFade * contentScreenFade, 0.0, 1.0);
+  return half4(color, alpha);
 }
 `;
 
@@ -1328,6 +1386,61 @@ if (!effect) {
 
 const EFFECT = effect;
 
+const CLOUD_SHADER_SOURCE = `
+uniform float2 resolution;
+uniform float2 center;
+uniform float4 cloudColor;
+uniform float cloudRadius;
+uniform float cloudOpacity;
+uniform float cloudCoreSoftness;
+uniform float cloudHaloScale;
+uniform float cloudHaloSoftness;
+uniform float cloudMistScale;
+uniform float cloudMistSoftness;
+uniform float cloudOuterBodyWeight;
+uniform float cloudBodyRingWeight;
+uniform float cloudCoreWeight;
+uniform float cloudOuterBodyAlpha;
+uniform float cloudBodyRingAlpha;
+uniform float cloudCoreAlpha;
+uniform float cloudAlphaCeiling;
+
+float softCloud(vec2 p, float radius, float softness) {
+  float normalized = length(p) / max(radius, 0.001);
+  return exp(-pow(normalized, mix(2.6, 1.45, softness)));
+}
+
+half4 main(vec2 fragcoord) {
+  float minRes = max(min(resolution.x, resolution.y), 1.0);
+  vec2 baseUv = (fragcoord - center) / minRes;
+  float edgeFade = smoothstep(cloudRadius * 1.52, cloudRadius * 0.96, length(baseUv));
+  float cloudCore = softCloud(baseUv, cloudRadius, cloudCoreSoftness);
+  float cloudPlate = softCloud(baseUv, cloudRadius * 0.9, min(cloudCoreSoftness * 1.32, 0.82));
+  float backgroundHalo = softCloud(baseUv, cloudRadius * cloudHaloScale, cloudHaloSoftness);
+  float outerMist = softCloud(baseUv, cloudRadius * cloudMistScale, cloudMistSoftness);
+  float plateau = smoothstep(0.24, 0.84, cloudPlate);
+  float bodyRing = clamp(backgroundHalo - plateau * 0.64, 0.0, 1.0);
+  float outerBody = clamp(outerMist - backgroundHalo * 0.46, 0.0, 1.0);
+  vec3 coreColor = mix(cloudColor.xyz, vec3(1.0), 0.14);
+  vec3 haloColor = mix(cloudColor.xyz * 0.96, vec3(1.0), 0.06);
+  vec3 color =
+    cloudColor.xyz * outerBody * cloudOuterBodyWeight +
+    haloColor * bodyRing * cloudBodyRingWeight +
+    coreColor * plateau * cloudCoreWeight;
+  float alpha =
+    clamp((outerBody * cloudOuterBodyAlpha + bodyRing * cloudBodyRingAlpha + plateau * cloudCoreAlpha) * edgeFade * cloudOpacity, 0.0, cloudAlphaCeiling);
+  return half4(color * edgeFade, alpha);
+}
+`;
+
+const cloudEffect = Skia.RuntimeEffect.Make(CLOUD_SHADER_SOURCE);
+
+if (!cloudEffect) {
+  throw new Error("Failed to compile Bindu Succession Lab cloud shader.");
+}
+
+const CLOUD_EFFECT = cloudEffect;
+
 export interface BinduSuccessionLabCanvasProps {
   isActive?: boolean;
   sceneOffset?: number;
@@ -1338,6 +1451,8 @@ export interface BinduSuccessionLabCanvasProps {
   tubeRingOuterR?: number;
   tubeRingInnerR?: number;
   tubeBinduOuterR?: number;
+  visualPreset?: ChakraVisualPreset;
+  showMandala?: boolean;
 }
 
 export function BinduSuccessionLabCanvas({
@@ -1350,11 +1465,21 @@ export function BinduSuccessionLabCanvas({
   tubeRingOuterR = 0.88,
   tubeRingInnerR = 0.24,
   tubeBinduOuterR = 0.11,
+  visualPreset = DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS[6],
+  showMandala = true,
 }: BinduSuccessionLabCanvasProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const timeSeconds = useAnimationClock(isActive);
   const genomes = useMemo(() => buildGenomeSequence(sessionSeed, densityBias), [densityBias, sessionSeed]);
-  const ringProfile = useMemo(() => buildRingProfile(RING_SPECS), []);
+  const resolvedRingSpecs = useMemo(
+    () =>
+      RING_SPECS.map((spec) => ({
+        ...spec,
+        imageColor: visualPreset.ringImageColor[spec.ringId] ?? spec.imageColor,
+      })),
+    [visualPreset],
+  );
+  const ringProfile = useMemo(() => buildRingProfile(resolvedRingSpecs), [resolvedRingSpecs]);
   const contentTime = timeSeconds * 0.12;
   const ringOuterRadius = Math.max(tubeRingOuterR, 0.76);
   const ringInnerRadius = clamp(tubeRingInnerR, 0.14, ringOuterRadius - 0.08);
@@ -1389,14 +1514,24 @@ export function BinduSuccessionLabCanvas({
   const minDimension = Math.max(1, Math.min(size.width, size.height));
   const centerX = size.width * 0.5;
   const centerY = size.height * 0.5;
+  const cloudDrawData = useMemo(() => {
+    const fallbackColor: ShaderColor = [0.43, 0.3, 0.56, 1];
+    return {
+      color: parseHexToShaderColor(visualPreset.cloud.color) ?? fallbackColor,
+      opacity: visualPreset.cloud.opacity,
+      shape: ACTIVE_CLOUD_SHAPE,
+      center: [centerX, centerY] as const,
+      resolution: [Math.max(size.width, 1), Math.max(size.height, 1)] as const,
+    };
+  }, [centerX, centerY, size.height, size.width, visualPreset.cloud.color, visualPreset.cloud.opacity]);
 
   const shellStack = useMemo<ShellLayer[]>(() => {
     const widthForGeneration = (generation: number) => absoluteRingWidths[wrappedRingIndex(generation, absoluteRingWidths.length)];
     const ringSpecForGeneration = (generation: number) => {
-      const ringSlotIndex = wrappedRingIndex(generation, RING_SPECS.length);
+      const ringSlotIndex = wrappedRingIndex(generation, resolvedRingSpecs.length);
       return {
         ringSlotIndex,
-        ringSpec: RING_SPECS[ringSlotIndex],
+        ringSpec: resolvedRingSpecs[ringSlotIndex],
       };
     };
 
@@ -1435,6 +1570,7 @@ export function BinduSuccessionLabCanvas({
     geometryState.localDistance,
     genomes,
     outerCullLimit,
+    resolvedRingSpecs,
   ]);
 
   const boundaryDrawData = useMemo(
@@ -1475,16 +1611,20 @@ export function BinduSuccessionLabCanvas({
           path.setFillType(FillType.EvenOdd);
         }
 
-        const contentFadeStartR = stackOuterLimit * 0.5;
-        const contentFadeEndR = outerCullLimit;
-        const boundaryFadeStartR = stackOuterLimit * 0.44;
-        const contentDissolve = 1 - smoothstep(contentFadeStartR, contentFadeEndR, shell.outerRadius);
-        const boundaryOuterDissolve = 1 - smoothstep(boundaryFadeStartR, contentFadeEndR, shell.outerRadius);
-        const finalShutdownFade = smoothstep(0.0, 0.18, shell.fade);
-        const finalBoundaryShutdownFade = smoothstep(0.0, 0.24, shell.fade);
-        const dissolveOpacity = clamp(shell.fade * finalShutdownFade, 0, 1);
-        const boundaryOpacity = clamp(shell.fade * boundaryOuterDissolve * finalBoundaryShutdownFade, 0, 1);
-        const boundaryDissolve = Math.pow(boundaryOpacity, 0.82);
+        const contentFadeStartR = stackOuterLimit * 0.26;
+        const contentFadeEndR = stackOuterLimit + maxShellWidth * 0.52;
+        const boundaryFadeStartR = stackOuterLimit * 0.18;
+        const boundaryFadeEndR = stackOuterLimit + maxShellWidth * 0.34;
+        const contentDissolve = 1 - smoothstep(contentFadeStartR, contentFadeEndR, shell.innerRadius);
+        const boundaryOuterDissolve = 1 - smoothstep(boundaryFadeStartR, boundaryFadeEndR, shell.innerRadius);
+        const finalShutdownFade = Math.pow(smoothstep(0.0, 0.28, shell.fade), 1.2);
+        const finalBoundaryShutdownFade = Math.pow(smoothstep(0.0, 0.34, shell.fade), 1.35);
+        const dissolveOpacity = Math.pow(clamp(contentDissolve * shell.fade * finalShutdownFade, 0, 1), 1.6);
+        const boundaryOpacity = Math.pow(
+          clamp(boundaryOuterDissolve * shell.fade * finalBoundaryShutdownFade, 0, 1),
+          1.9,
+        );
+        const boundaryDissolve = Math.pow(boundaryOpacity, 0.92);
         const hazeAmount = (1 - contentDissolve) * finalShutdownFade;
 
         return {
@@ -1492,10 +1632,10 @@ export function BinduSuccessionLabCanvas({
           index,
           path,
           annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-          fillOpacity: clamp(0.1 + dissolveOpacity * 0.9, 0.02, 1),
+          fillOpacity: dissolveOpacity,
           glowOpacity: 0,
-          strokeOpacity: clamp((0.12 + boundaryDissolve * 0.3 + boundaryDrawData[index].harmonicClass * 0.04) * boundaryOpacity, 0.01, 0.56),
-          hazeOpacity: clamp(shell.fade * hazeAmount * 0.22, 0, 0.16),
+          strokeOpacity: clamp((0.08 + boundaryDissolve * 0.24 + boundaryDrawData[index].harmonicClass * 0.03) * boundaryOpacity, 0, 0.48),
+          hazeOpacity: clamp(shell.fade * hazeAmount * 0.12, 0, 0.1),
           hazeStrokeWidth: boundaryDrawData[index].echoStrokeWidth * lerp(1.8, 4.6, hazeAmount),
           shaderUniforms: {
             resolution: [Math.max(size.width, 1), Math.max(size.height, 1)],
@@ -1549,7 +1689,31 @@ export function BinduSuccessionLabCanvas({
     <View onLayout={handleLayout} style={styles.container}>
       <Canvas style={styles.canvas}>
         <Fill color="#000000" />
-        {debugGeometry ? (
+        <Fill>
+          <Shader
+            source={CLOUD_EFFECT}
+            uniforms={{
+              resolution: cloudDrawData.resolution,
+              center: cloudDrawData.center,
+              cloudColor: cloudDrawData.color,
+              cloudRadius: cloudDrawData.shape.radius,
+              cloudOpacity: cloudDrawData.opacity,
+              cloudCoreSoftness: cloudDrawData.shape.coreSoftness,
+              cloudHaloScale: cloudDrawData.shape.haloScale,
+              cloudHaloSoftness: cloudDrawData.shape.haloSoftness,
+              cloudMistScale: cloudDrawData.shape.mistScale,
+              cloudMistSoftness: cloudDrawData.shape.mistSoftness,
+              cloudOuterBodyWeight: cloudDrawData.shape.outerBodyWeight,
+              cloudBodyRingWeight: cloudDrawData.shape.bodyRingWeight,
+              cloudCoreWeight: cloudDrawData.shape.coreWeight,
+              cloudOuterBodyAlpha: cloudDrawData.shape.outerBodyAlpha,
+              cloudBodyRingAlpha: cloudDrawData.shape.bodyRingAlpha,
+              cloudCoreAlpha: cloudDrawData.shape.coreAlpha,
+              cloudAlphaCeiling: cloudDrawData.shape.alphaCeiling,
+            }}
+          />
+        </Fill>
+        {!showMandala ? null : debugGeometry ? (
           <>
             {shellDrawData
               .slice()
