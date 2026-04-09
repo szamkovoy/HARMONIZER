@@ -225,13 +225,13 @@ const TUBE_VISIBLE_LAYER_COUNT = 7;
 const TUBE_RENDER_SHELL_COUNT = TUBE_VISIBLE_LAYER_COUNT;
 const SEQUENCE_LENGTH = 96;
 const RING_SPECS: RingSpec[] = [
-  { ringId: "bindu", widthPercent: 9, image: RING_IMAGES.bindu, imageColor: "#ec5b1c" },
-  { ringId: "ring1", widthPercent: 18, image: RING_IMAGES.ring1, imageColor: "#ff80b8" },
-  { ringId: "ring2", widthPercent: 12, image: RING_IMAGES.ring2, imageColor: "#85e6ff" },
-  { ringId: "ring3", widthPercent: 20, image: RING_IMAGES.ring3, imageColor: "#a87aff" },
-  { ringId: "ring4", widthPercent: 6, image: RING_IMAGES.ring4, count: 12, imageColor: "#70ffad" },
-  { ringId: "ring5", widthPercent: 17, image: RING_IMAGES.ring5, imageColor: "#ffa852" },
-  { ringId: "ring6", widthPercent: 24, image: RING_IMAGES.ring6, count: 12, imageColor: "#57c2ff" },
+  { ringId: "bindu", widthPercent: 9, image: RING_IMAGES.bindu, imageColor: "#ec5b1c", rotationRpm: -0.3 },
+  { ringId: "ring1", widthPercent: 18, image: RING_IMAGES.ring1, imageColor: "#ff80b8", rotationRpm: 0.3 },
+  { ringId: "ring2", widthPercent: 12, image: RING_IMAGES.ring2, imageColor: "#85e6ff", rotationRpm: 0 },
+  { ringId: "ring3", widthPercent: 20, image: RING_IMAGES.ring3, imageColor: "#a87aff", rotationRpm: 0.2 },
+  { ringId: "ring4", widthPercent: 6, image: RING_IMAGES.ring4, count: 12, imageColor: "#70ffad", rotationRpm: 0.1 },
+  { ringId: "ring5", widthPercent: 17, image: RING_IMAGES.ring5, imageColor: "#ffa852", rotationRpm: -0.2 },
+  { ringId: "ring6", widthPercent: 24, image: RING_IMAGES.ring6, count: 12, imageColor: "#57c2ff", rotationRpm: 0 },
 ];
 
 function fract(value: number) {
@@ -320,6 +320,13 @@ const SHOW_SECONDARY_SCENE_LAYERS = false;
 
 function imageModeForRing(image: RingImageId | undefined) {
   return image ? RING_IMAGE_MODE[image] : RING_IMAGE_MODE.Petals;
+}
+
+function ringRotationRadians(timeSeconds: number, rotationRpm: number | undefined) {
+  if (!rotationRpm) {
+    return 0;
+  }
+  return (timeSeconds * rotationRpm * Math.PI * 2) / 60;
 }
 
 function parseHexToShaderColor(color: string | undefined): ShaderColor | undefined {
@@ -737,6 +744,7 @@ uniform float contentTime;
 uniform float densityBias;
 uniform float sceneOuterR;
 uniform float scenePhase;
+uniform float ringRotation;
 uniform float imageMode;
 uniform float imageCount;
 uniform float contentFadeStartR;
@@ -1353,10 +1361,11 @@ half4 main(vec2 fragcoord) {
   vec2 uv = (fragcoord - resolution * 0.5) / minRes;
   float screenRadius = length(uv);
   vec2 sceneUv = uv / max(sceneOuterR, 0.0006);
+  vec2 rotatedSceneUv = sceneUv * rotate2d(ringRotation);
   float breath = 0.5 + 0.5 * sin(contentTime * 0.4);
   float pulse = pow(0.5 + 0.5 * sin(contentTime * 0.9), 2.0);
-  vec3 scene = mandalaScene(sceneUv, layerA, layerB, layerC, layerD, layerE, breath, pulse, scenePhase);
-  float sceneRadius = length(sceneUv);
+  vec3 scene = mandalaScene(rotatedSceneUv, layerA, layerB, layerC, layerD, layerE, breath, pulse, scenePhase);
+  float sceneRadius = length(rotatedSceneUv);
   vec3 phaseColor = paletteByPhase(layerD.w, fract(layerD.w + 0.21), 0.52 + densityBias * 0.14);
   vec3 lineColor = mix(phaseColor, ornamentLineColor.xyz, 0.92);
   vec3 fillColor = mix(phaseColor, ornamentFillColor.xyz, 0.9);
@@ -1643,6 +1652,7 @@ export function BinduSuccessionLabCanvas({
             densityBias,
             sceneOuterR: shell.outerRadius,
             scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
+            ringRotation: ringRotationRadians(timeSeconds, shell.ringSpec.rotationRpm),
             imageMode: imageModeForRing(shell.ringSpec.image),
             imageCount: shell.ringSpec.count ?? 0,
             contentFadeStartR,
@@ -1660,7 +1670,7 @@ export function BinduSuccessionLabCanvas({
           },
         };
       }),
-    [boundaryDrawData, contentTime, densityBias, outerCullLimit, shellStack, size.height, size.width, stackOuterLimit],
+    [boundaryDrawData, contentTime, densityBias, outerCullLimit, shellStack, size.height, size.width, stackOuterLimit, timeSeconds],
   );
 
   const boundaryRadii = useMemo(
