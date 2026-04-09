@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 
-import { MandalaSandboxScreen } from "@/modules/mandala-visual-core/ui/MandalaSandboxScreen";
+import { MandalaSandboxScreen } from "@/modules/mandala/ui/MandalaSandboxScreen";
 
 export default function MandalaSandboxRoute() {
   return (

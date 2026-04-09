@@ -1,6 +1,6 @@
-import type { VisualRecipe } from "@/modules/mandala-visual-core/core/types";
-import { DEFAULT_EVOLUTION_SHADER_BLOCK } from "@/modules/mandala-visual-core/ui/default-evolution-shader";
-import { LOTUS_BLOOM_EVOLUTION_SHADER_BLOCK } from "@/modules/mandala-visual-core/ui/lotus-bloom-evolution-shader";
+import type { VisualRecipe } from "@/modules/mandala/core/types";
+import { DEFAULT_EVOLUTION_SHADER_BLOCK } from "@/modules/mandala/ui/default-evolution-shader";
+import { LOTUS_BLOOM_EVOLUTION_SHADER_BLOCK } from "@/modules/mandala/ui/lotus-bloom-evolution-shader";
 
 const EVOLUTION_SHADER_BLOCKS: Record<VisualRecipe, string> = {
   lotusBloom: LOTUS_BLOOM_EVOLUTION_SHADER_BLOCK,

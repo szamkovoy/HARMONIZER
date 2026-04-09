@@ -19,17 +19,17 @@ import { useIsFocused } from "@react-navigation/native";
 
 import {
   DEFAULT_SCENARIO,
-} from "@/modules/mandala-visual-core/core/defaults";
-import { getRecipeById } from "@/modules/mandala-visual-core/core/recipes";
-import { sanitizeKeyframe } from "@/modules/mandala-visual-core/core/preset";
+} from "@/modules/mandala/core/defaults";
+import { getRecipeById } from "@/modules/mandala/core/recipes";
+import { sanitizeKeyframe } from "@/modules/mandala/core/preset";
 import type {
   BioSignalFrame,
   EvolutionProfile,
   MeditationPresetKeyframe,
   MotionLogic,
   PetalProfile,
-} from "@/modules/mandala-visual-core/core/types";
-import { useMandalaSession } from "@/modules/mandala-visual-core/store/useMandalaSession";
+} from "@/modules/mandala/core/types";
+import { useMandalaSession } from "@/modules/mandala/store/useMandalaSession";
 
 import { MandalaCanvas, type RenderMode } from "./MandalaCanvas";
 
@@ -279,7 +279,7 @@ export function MandalaSandboxScreen() {
       pulsePhase: 0,
       breathRate: 0,
       pulseRate: 0,
-      hrv: 0,
+      rmssd: 0,
       stressIndex: 0,
       signalQuality: 0,
       // Bio influence is temporarily disabled while we tune the pure visual language of Lotus Bloom.

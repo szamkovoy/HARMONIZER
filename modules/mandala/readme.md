@@ -1,4 +1,4 @@
-# MANDALA_VISUAL_CORE
+# MANDALA
 
 Единый модуль генератора видео-медитаций для React Native / Expo: `Skia`-визуализация, runtime-состояние в `SharedValues`, `BioSim` для fail-safe анимации и debug-песочница для ручной настройки пресетов. Подробная спецификация: [`docs/meditation_video_generator_spec.md`](../../docs/meditation_video_generator_spec.md).
 
@@ -39,7 +39,7 @@
 
 1. `Preset JSON` санитизируется и нормализуется.
 2. `useMandalaSession()` переносит активный keyframe в `SharedValues` и синхронизирует runtime-состояние.
-3. `BioSim` генерирует `breathPhase`, `pulsePhase`, `hrv`, `stressIndex`, если реальный биосенсор не подключен.
+3. `BioSim` генерирует `breathPhase`, `pulsePhase`, `rmssd`, `stressIndex`, если реальный биосенсор не подключен.
 4. `MandalaCanvas` объединяет базовые параметры пресета и live-биомодуляцию в `Skia` shader uniforms.
 5. `MandalaSandboxScreen` позволяет менять параметры вручную и сразу применять их в runtime.
 
@@ -70,8 +70,8 @@
 
 - `Bindu Succession Lab`
   - route: `app/bindu-succession-lab.tsx`
-  - экран: `modules/mandala-visual-core/experiments/BinduSuccessionLabScreen.tsx`
-  - canvas: `modules/mandala-visual-core/experiments/BinduSuccessionLabCanvas.tsx`
+  - экран: `modules/mandala/experiments/BinduSuccessionLabScreen.tsx`
+  - canvas: `modules/mandala/experiments/BinduSuccessionLabCanvas.tsx`
 
 Подробности и мотивация вынесены в:
 

@@ -4,7 +4,7 @@ import type {
   MandalaSessionState,
   MeditationPresetKeyframe,
   MeditationPresetScenario,
-} from "@/modules/mandala-visual-core/core/types";
+} from "@/modules/mandala/core/types";
 
 const PETAL_PROFILES = [
   "teardrop",
@@ -36,7 +36,7 @@ export function sanitizeBioWeights(weights: BioWeightMap): BioWeightMap {
   return {
     breathToScale: clamp(weights.breathToScale, 0, 1),
     pulseToGlow: clamp(weights.pulseToGlow, 0, 1),
-    hrvToComplexity: clamp(weights.hrvToComplexity, 0, 1),
+    rmssdToComplexity: clamp(weights.rmssdToComplexity, 0, 1),
     stressToEntropy: clamp(weights.stressToEntropy, 0, 1),
   };
 }

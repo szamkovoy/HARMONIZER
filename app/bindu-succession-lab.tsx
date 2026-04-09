@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 
-import { BinduSuccessionLabScreen } from "@/modules/mandala-visual-core/experiments/BinduSuccessionLabScreen";
+import { BinduSuccessionLabScreen } from "@/modules/mandala/experiments/BinduSuccessionLabScreen";
 
 export default function BinduSuccessionLabRoute() {
   return (

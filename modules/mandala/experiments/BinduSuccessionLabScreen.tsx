@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 
-import { BinduSuccessionLabCanvas } from "@/modules/mandala-visual-core/experiments/BinduSuccessionLabCanvas";
+import { BinduSuccessionLabCanvas } from "@/modules/mandala/experiments/BinduSuccessionLabCanvas";
 import {
   applyColorToPresetSlot,
   BINDU_COLOR_EDITOR_SWATCHES,
@@ -26,7 +26,7 @@ import {
   sanitizeChakraVisualPresets,
   type ChakraVisualPreset,
   type EditableColorSlotId,
-} from "@/modules/mandala-visual-core/experiments/binduSuccessionVisualPresets";
+} from "@/modules/mandala/experiments/binduSuccessionVisualPresets";
 
 const TUBE_FLOW_SPEED = 1;
 const VISUAL_PRESETS_FILE_URI = documentDirectory
@@ -38,6 +38,8 @@ export function BinduSuccessionLabScreen() {
   const [appState, setAppState] = useState(AppState.currentState);
   const [chakraIndex, setChakraIndex] = useState(6);
   const [chakraPresets, setChakraPresets] = useState<ChakraVisualPreset[]>(DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS);
+  const [hasLoadedPresets, setHasLoadedPresets] = useState(false);
+  const [pendingPresetSave, setPendingPresetSave] = useState(false);
   const [showMandala, setShowMandala] = useState(true);
   const [isEditorVisible, setIsEditorVisible] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState<EditableColorSlotId>("cloud");
@@ -79,11 +81,14 @@ export function BinduSuccessionLabScreen() {
         const parsed = JSON.parse(raw);
         if (isMounted) {
           setChakraPresets(sanitizeChakraVisualPresets(parsed));
-          setSaveStatus("saved");
         }
       } catch {
         if (isMounted) {
           setSaveStatus("error");
+        }
+      } finally {
+        if (isMounted) {
+          setHasLoadedPresets(true);
         }
       }
     };
@@ -114,6 +119,15 @@ export function BinduSuccessionLabScreen() {
     }
   };
 
+  useEffect(() => {
+    if (!hasLoadedPresets || !pendingPresetSave) {
+      return;
+    }
+
+    setPendingPresetSave(false);
+    void persistPresets(chakraPresets);
+  }, [chakraPresets, hasLoadedPresets, pendingPresetSave]);
+
   const applySlotColor = (slotId: EditableColorSlotId, nextColor: string) => {
     const normalized = normalizeHexColor(nextColor);
     if (!normalized) {
@@ -121,12 +135,11 @@ export function BinduSuccessionLabScreen() {
     }
 
     setSaveStatus("idle");
+    setPendingPresetSave(true);
     setChakraPresets((current) => {
-      const next = current.map((preset, index) =>
+      return current.map((preset, index) =>
         index === chakraIndex ? applyColorToPresetSlot(preset, slotId, normalized) : preset,
       );
-      void persistPresets(next);
-      return next;
     });
     return true;
   };

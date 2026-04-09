@@ -5,13 +5,13 @@ import {
   createSessionStateFromKeyframe,
   DEFAULT_KEYFRAME,
   DEFAULT_SCENARIO,
-} from "@/modules/mandala-visual-core/core/defaults";
-import { sanitizeKeyframe, sanitizeScenario } from "@/modules/mandala-visual-core/core/preset";
+} from "@/modules/mandala/core/defaults";
+import { sanitizeKeyframe, sanitizeScenario } from "@/modules/mandala/core/preset";
 import type {
   MandalaSessionState,
   MeditationPresetKeyframe,
   MeditationPresetScenario,
-} from "@/modules/mandala-visual-core/core/types";
+} from "@/modules/mandala/core/types";
 
 function cloneSessionState(state: MandalaSessionState): MandalaSessionState {
   return {

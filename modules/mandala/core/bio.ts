@@ -3,7 +3,7 @@ import type {
   BioSignalFrame,
   BioSimConfig,
   MandalaAudioContract,
-} from "@/modules/mandala-visual-core/core/types";
+} from "@/modules/mandala/core/types";
 
 export const AUDIO_BAND_TRIGGERS: AudioBandTrigger[] = [
   { id: "alpha", minHz: 8, maxHz: 13, gongVariant: "small" },
@@ -36,7 +36,7 @@ export function createBioSimFrame(
       pulsePhase: 0.5,
       breathRate: clamp01((0.33 * 60 - 5) / 25),
       pulseRate: clamp01((1.1 * 60 - 40) / 140),
-      hrv: clamp01(config.hrvBase),
+      rmssd: clamp01(config.rmssdBase),
       stressIndex: clamp01(config.stressBase),
       signalQuality: 0.35,
       source: "offline",
@@ -45,9 +45,9 @@ export function createBioSimFrame(
 
   const breathWave = 0.5 + 0.5 * Math.sin(elapsedSeconds * Math.PI * 2 * config.breathHz);
   const pulseWave = 0.5 + 0.5 * Math.sin(elapsedSeconds * Math.PI * 2 * config.pulseHz);
-  const hrv =
+  const rmssd =
     clamp01(
-      config.hrvBase +
+      config.rmssdBase +
         0.12 * Math.sin(elapsedSeconds * config.breathHz * Math.PI) -
         0.04 * Math.cos(elapsedSeconds * 0.37),
     );
@@ -63,7 +63,7 @@ export function createBioSimFrame(
     pulsePhase: pulseWave,
     breathRate: normalizeRange(config.breathHz * 60, 5, 30),
     pulseRate: normalizeRange(config.pulseHz * 60, 40, 180),
-    hrv,
+    rmssd,
     stressIndex,
     signalQuality: 1,
     source: "simulated",

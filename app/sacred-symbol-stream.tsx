@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 
-import { SacredSymbolStreamScreen } from "@/modules/mandala-visual-core/experiments/SacredSymbolStreamScreen";
+import { SacredSymbolStreamScreen } from "@/modules/mandala/experiments/SacredSymbolStreamScreen";
 
 export default function SacredSymbolStreamRoute() {
   return (

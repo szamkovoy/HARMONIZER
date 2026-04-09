@@ -3,7 +3,7 @@ import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 
-import { BinduSuccessionFlowCanvas } from "@/modules/mandala-visual-core/experiments/BinduSuccessionFlowCanvas";
+import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
 
 const DENSITY_OPTIONS = [
   { label: "Airy", value: 0.18 },

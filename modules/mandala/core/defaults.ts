@@ -5,12 +5,12 @@ import type {
   MandalaSessionState,
   MeditationPresetKeyframe,
   MeditationPresetScenario,
-} from "@/modules/mandala-visual-core/core/types";
+} from "@/modules/mandala/core/types";
 
 export const DEFAULT_BIO_WEIGHTS: BioWeightMap = {
   breathToScale: 0.18,
   pulseToGlow: 0.08,
-  hrvToComplexity: 0.24,
+  rmssdToComplexity: 0.24,
   stressToEntropy: 0.32,
 };
 
@@ -18,7 +18,7 @@ export const DEFAULT_BIO_SIM_CONFIG: BioSimConfig = {
   enabled: true,
   breathHz: 0.33,
   pulseHz: 1.1,
-  hrvBase: 0.56,
+  rmssdBase: 0.56,
   stressBase: 0.32,
 };
 
@@ -91,7 +91,7 @@ export const DEFAULT_KEYFRAME: MeditationPresetKeyframe = {
 export const DEFAULT_SCENARIO: MeditationPresetScenario = {
   id: "sandbox-default",
   title: "Sandbox Alpha Flow",
-  description: "Базовый пресет для отладки MandalaVisualCore и BioSim.",
+  description: "Базовый пресет для отладки MANDALA и BioSim.",
   durationSeconds: 600,
   keyframes: [DEFAULT_KEYFRAME],
 };

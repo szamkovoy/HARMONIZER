@@ -1,6 +1,6 @@
 # LOTUS_BLOOM_EVOLUTION_STRATEGY
 
-Техническая рабочая запись по линии развития `Lotus Bloom` в `MANDALA_VISUAL_CORE`. Этот файл фиксирует текущие решения, причины выбора, извлеченные идеи из исследовательских материалов и безопасный план движения дальше.
+Техническая рабочая запись по линии развития `Lotus Bloom` в `MANDALA`. Этот файл фиксирует текущие решения, причины выбора, извлеченные идеи из исследовательских материалов и безопасный план движения дальше.
 
 ## 1. Зачем нужен этот файл
 
@@ -32,10 +32,10 @@
 
 Технически это реализовано в текущем `Skia RuntimeEffect` пайплайне:
 
-- `modules/mandala-visual-core/ui/MandalaCanvas.tsx`
-- `modules/mandala-visual-core/ui/evolution-shader.ts`
-- `modules/mandala-visual-core/ui/lotus-bloom-evolution-shader.ts`
-- `modules/mandala-visual-core/ui/evolution-registry.ts`
+- `modules/mandala/ui/MandalaCanvas.tsx`
+- `modules/mandala/ui/evolution-shader.ts`
+- `modules/mandala/ui/lotus-bloom-evolution-shader.ts`
+- `modules/mandala/ui/evolution-registry.ts`
 
 ## 3. Главный вывод на текущем этапе
 

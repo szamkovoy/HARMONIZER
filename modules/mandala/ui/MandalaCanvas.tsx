@@ -10,9 +10,9 @@ import type {
   RevealMode,
   MandalaSessionState,
   VisualRecipe,
-} from "@/modules/mandala-visual-core/core/types";
-import { EVOLUTION_SHADER_SHARED_BLOCK } from "@/modules/mandala-visual-core/ui/evolution-shader";
-import { getEvolutionShaderBlock } from "@/modules/mandala-visual-core/ui/evolution-registry";
+} from "@/modules/mandala/core/types";
+import { EVOLUTION_SHADER_SHARED_BLOCK } from "@/modules/mandala/ui/evolution-shader";
+import { getEvolutionShaderBlock } from "@/modules/mandala/ui/evolution-registry";
 
 function visualRecipeToUniform(recipe: VisualRecipe): number {
   switch (recipe) {
@@ -150,11 +150,11 @@ function buildLayerUniforms(
     pulsePhase: bioFrame.pulsePhase,
     breathRate: bioFrame.breathRate,
     pulseRate: bioFrame.pulseRate,
-    hrv: bioFrame.hrv,
+    rmssd: bioFrame.rmssd,
     stressIndex: bioFrame.stressIndex,
     breathToScaleWeight: sessionState.bioWeights.breathToScale,
     pulseToGlowWeight: sessionState.bioWeights.pulseToGlow,
-    hrvToComplexityWeight: sessionState.bioWeights.hrvToComplexity,
+    rmssdToComplexityWeight: sessionState.bioWeights.rmssdToComplexity,
     stressToEntropyWeight: sessionState.bioWeights.stressToEntropy,
     visualRecipe: visualRecipeToUniform(sessionState.artDirection.visualRecipe),
     layerCount: sessionState.artDirection.layerCount,
@@ -211,11 +211,11 @@ uniform float breathPhase;
 uniform float pulsePhase;
 uniform float breathRate;
 uniform float pulseRate;
-uniform float hrv;
+uniform float rmssd;
 uniform float stressIndex;
 uniform float breathToScaleWeight;
 uniform float pulseToGlowWeight;
-uniform float hrvToComplexityWeight;
+uniform float rmssdToComplexityWeight;
 uniform float stressToEntropyWeight;
 uniform int visualRecipe;
 uniform int layerCount;
@@ -1001,7 +1001,7 @@ half4 main(vec2 fragcoord) {
 function buildShaderEffect(shaderSource: string) {
   const effect = Skia.RuntimeEffect.Make(shaderSource);
   if (!effect) {
-    throw new Error("Failed to compile MandalaVisualCore shader.");
+    throw new Error("Failed to compile MANDALA shader.");
   }
   return effect;
 }

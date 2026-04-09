@@ -5,7 +5,7 @@ import { Canvas, Fill, FillType, Group, Path, Shader, Skia } from "@shopify/reac
 import {
   DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS,
   type ChakraVisualPreset,
-} from "@/modules/mandala-visual-core/experiments/binduSuccessionVisualPresets";
+} from "@/modules/mandala/experiments/binduSuccessionVisualPresets";
 
 function useAnimationClock(isActive: boolean) {
   const [timeSeconds, setTimeSeconds] = useState(0);
@@ -69,7 +69,6 @@ interface MandalaGenome {
 interface ShellLayer {
   generation: number;
   ringSpec: RingSpec;
-  ringSlotIndex: number;
   genomeBlend: {
     from: MandalaGenome;
     to: MandalaGenome;
@@ -124,22 +123,6 @@ const RING_IMAGES = {
   ring5: "Rosette Window Chain",
   ring6: "Scallop Lace",
 } as const satisfies Record<RingSpec["ringId"], RingImageId>;
-
-const BASELINE_CLOUD_SHAPE: CloudShapeVariant = {
-  radius: 0.42,
-  coreSoftness: 0.62,
-  haloScale: 1.34,
-  haloSoftness: 0.72,
-  mistScale: 1.68,
-  mistSoftness: 0.8,
-  outerBodyWeight: 0.1,
-  bodyRingWeight: 0.34,
-  coreWeight: 0.24,
-  outerBodyAlpha: 0.12,
-  bodyRingAlpha: 0.4,
-  coreAlpha: 0.28,
-  alphaCeiling: 0.56,
-};
 
 const ACTIVE_CLOUD_SHAPE: CloudShapeVariant = {
   radius: 0.5,
@@ -268,13 +251,8 @@ function buildRingProfile(specs: RingSpec[]) {
   const totalPercent = specs.reduce((sum, spec) => sum + spec.widthPercent, 0);
   const safeTotal = totalPercent > 0.0001 ? totalPercent : 100;
   const widths = specs.map((spec) => spec.widthPercent / safeTotal);
-  const cumulative = [0];
-  for (const width of widths) {
-    cumulative.push(cumulative[cumulative.length - 1] + width);
-  }
   return {
     widths,
-    cumulative,
     maxWidth: Math.max(...widths),
   };
 }
@@ -699,11 +677,6 @@ function blendGenomeDirect(a: MandalaGenome, b: MandalaGenome, t: number): Manda
     colorPhase: fract(lerp(a.colorPhase, b.colorPhase, t)),
     seed: lerp(a.seed, b.seed, t),
   });
-}
-
-function sampleGenomeAtPosition(sequence: MandalaGenome[], position: number): MandalaGenome {
-  const sampled = sampleGenomeBlendAtPosition(sequence, position);
-  return blendGenomeDirect(sampled.from, sampled.to, sampled.mix);
 }
 
 function sampleGenomeBlendAtPosition(sequence: MandalaGenome[], position: number) {
@@ -1507,7 +1480,6 @@ export function BinduSuccessionLabCanvas({
     [absoluteRingWidths, geometryDistance],
   );
   const geometryGeneration = geometryState.generation;
-  const geometryPhase = geometryState.currentWidth > 0.00001 ? geometryState.localDistance / geometryState.currentWidth : 0;
   const binduWidth = stackOuterLimit * ringProfile.widths[0];
   const outerShellWidth = stackOuterLimit * ringProfile.widths[ringProfile.widths.length - 1];
   const maxShellWidth = stackOuterLimit * ringProfile.maxWidth;
@@ -1517,7 +1489,7 @@ export function BinduSuccessionLabCanvas({
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    setSize({ width, height });
+    setSize((current) => (current.width === width && current.height === height ? current : { width, height }));
   };
 
   const minDimension = Math.max(1, Math.min(size.width, size.height));
@@ -1537,11 +1509,7 @@ export function BinduSuccessionLabCanvas({
   const shellStack = useMemo<ShellLayer[]>(() => {
     const widthForGeneration = (generation: number) => absoluteRingWidths[wrappedRingIndex(generation, absoluteRingWidths.length)];
     const ringSpecForGeneration = (generation: number) => {
-      const ringSlotIndex = wrappedRingIndex(generation, resolvedRingSpecs.length);
-      return {
-        ringSlotIndex,
-        ringSpec: resolvedRingSpecs[ringSlotIndex],
-      };
+      return resolvedRingSpecs[wrappedRingIndex(generation, resolvedRingSpecs.length)];
     };
 
     const newestOuterRadius = embryoOuterRadius + geometryState.localDistance;
@@ -1549,7 +1517,7 @@ export function BinduSuccessionLabCanvas({
 
     return Array.from({ length: TUBE_RENDER_SHELL_COUNT }, (_, index) => {
       const generation = geometryGeneration - index;
-      const { ringSlotIndex, ringSpec } = ringSpecForGeneration(generation);
+      const ringSpec = ringSpecForGeneration(generation);
       const shellWidth = widthForGeneration(generation);
       const innerRadius = index === 0 ? 0 : previousOuterRadius;
       const outerRadius = index === 0 ? newestOuterRadius : innerRadius + shellWidth;
@@ -1562,7 +1530,6 @@ export function BinduSuccessionLabCanvas({
       return {
         generation,
         ringSpec,
-        ringSlotIndex,
         genomeBlend,
         innerRadius,
         outerRadius,

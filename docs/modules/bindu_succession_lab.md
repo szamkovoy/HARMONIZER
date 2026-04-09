@@ -12,7 +12,7 @@
 
 ## Что здесь важно
 
-- лаборатория не меняет контракт основного `MANDALA_VISUAL_CORE`;
+- лаборатория не меняет контракт основного `MANDALA`;
 - используется отдельный route и отдельный canvas;
 - эксперимент можно удалить без затрагивания основного sandbox;
 - удачные идеи можно переносить точечно:
@@ -35,9 +35,9 @@
 ## Где находится
 
 - route: `app/bindu-succession-lab.tsx`
-- экран: `modules/mandala-visual-core/experiments/BinduSuccessionLabScreen.tsx`
-- canvas: `modules/mandala-visual-core/experiments/BinduSuccessionLabCanvas.tsx`
-- typed visual presets: `modules/mandala-visual-core/experiments/binduSuccessionVisualPresets.ts`
+- экран: `modules/mandala/experiments/BinduSuccessionLabScreen.tsx`
+- canvas: `modules/mandala/experiments/BinduSuccessionLabCanvas.tsx`
+- typed visual presets: `modules/mandala/experiments/binduSuccessionVisualPresets.ts`
 
 ## Цветовые пресеты лаборатории
 
@@ -50,10 +50,20 @@
 - sandbox-редактор на экране позволяет менять эти цвета в live preview;
 - baseline/default значения живут в `TypeScript`, а локальные правки редактора сохраняются как sandbox override на устройстве, чтобы можно было продолжать подбор без ручного переписывания кода после каждого клика.
 
+## Текущее рабочее состояние
+
+- `bindu/succession` геометрия считается рабочей и сейчас является опорой для следующих итераций;
+- внешний fade внешних колец уже переведен в более прозрачную dissolve-логику и считается удачным решением;
+- `imageColor` у каждого ring shell работает как реальный источник tint-палитры орнаментов, а не как декоративное поле;
+- `count` для тех колец, где он нужен, активен и участвует в рендере;
+- cloud оставлен в одном активном экспериментальном варианте без отдельного baseline-резерва;
+- на экране есть режим `showMandala`, чтобы смотреть cloud отдельно от мандалы;
+- редактор цветов со `swatches + hex` и live preview остается рабочей частью лаборатории и не должен убираться, пока продолжается подбор цвета.
+
 ## Текущий safe-next эксперимент
 
 - редактор цветов и локальные preset override не трогаем;
-- baseline и active варианты cloud shape сохраняем как отдельные опорные состояния;
+- текущий cloud shape держим в одном active-варианте без отдельного baseline-резерва;
 - следующий маленький слой эксперимента поверх рабочей геометрии: медленное независимое вращение ornament-content внутри каждого ring shell без изменения самой succession-геометрии и boundary fade;
 - стартовые скорости заданы в `rpm`:
   - `bindu = -0.3`
@@ -63,6 +73,24 @@
   - `ring4 = 0.1`
   - `ring5 = -0.2`
   - `ring6 = 0`
+
+## Организация кода
+
+- `BinduSuccessionLabCanvas` держит Bindu Algorithm в разделении `CPU geometry -> shell stack -> shader content`;
+- CPU отвечает за:
+  - ring order;
+  - shell lifecycle;
+  - boundary path'ы;
+  - dissolve/fade оболочек;
+- shader отвечает только за внутренний орнамент внутри уже заданного shell;
+- `BinduSuccessionLabScreen` отвечает за sandbox UI, chakra selection, режим `showMandala` и локальное сохранение color override;
+- `binduSuccessionVisualPresets.ts` остается единственным typed-источником default color preset'ов.
+
+## Замечания по стабильности
+
+- локальные override chakra preset'ов сохраняются отдельно от default preset'ов и санитизируются при чтении;
+- сохранение preset'ов должно жить вне `setState`-updater'ов, чтобы не смешивать React state transition и side effects;
+- при дальнейших экспериментах безопаснее добавлять новые визуальные параметры в typed preset/model слой, а не прятать их в ad-hoc константах внутри screen.
 
 ## Tube mode
 

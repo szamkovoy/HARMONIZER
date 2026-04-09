@@ -4,7 +4,14 @@ export type GridType = 0 | 3 | 4 | 6;
 export type SacredPreset = 1 | 2 | 3;
 export type Waveform = 0 | 1 | 2;
 export type MotionLogic = 0 | 1 | 2;
-export type BioSignalSource = "simulated" | "sensor" | "mixed" | "offline";
+export type BioSignalSource =
+  | "simulated"
+  | "fingerPpg"
+  | "faceRppg"
+  | "health"
+  | "wearable"
+  | "mixed"
+  | "offline";
 export type VisualRecipe =
   | "lotusBloom"
   | "tunnelBloom"
@@ -87,7 +94,7 @@ export interface MandalaKineticsState {
 export interface BioWeightMap {
   breathToScale: number;
   pulseToGlow: number;
-  hrvToComplexity: number;
+  rmssdToComplexity: number;
   stressToEntropy: number;
 }
 
@@ -109,7 +116,7 @@ export interface BioSignalFrame {
   pulsePhase: number;
   breathRate: number;
   pulseRate: number;
-  hrv: number;
+  rmssd: number;
   stressIndex: number;
   signalQuality: number;
   source: BioSignalSource;
@@ -156,7 +163,7 @@ export interface BioSimConfig {
   enabled: boolean;
   breathHz: number;
   pulseHz: number;
-  hrvBase: number;
+  rmssdBase: number;
   stressBase: number;
 }
 

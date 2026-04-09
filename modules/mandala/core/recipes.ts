@@ -1,5 +1,5 @@
-import { DEFAULT_ART_DIRECTION, DEFAULT_BIO_WEIGHTS, DEFAULT_KEYFRAME } from "@/modules/mandala-visual-core/core/defaults";
-import type { MeditationPresetKeyframe, VisualRecipe } from "@/modules/mandala-visual-core/core/types";
+import { DEFAULT_ART_DIRECTION, DEFAULT_BIO_WEIGHTS, DEFAULT_KEYFRAME } from "@/modules/mandala/core/defaults";
+import type { MeditationPresetKeyframe, VisualRecipe } from "@/modules/mandala/core/types";
 
 export interface MandalaRecipeDefinition {
   id: VisualRecipe;
