@@ -59,6 +59,10 @@ function RootLayoutNav() {
             options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
           />
           <Stack.Screen
+            name="biofeedback-probe"
+            options={{ title: "Biofeedback Probe", headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
             name="bindu-succession-lab"
             options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
           />

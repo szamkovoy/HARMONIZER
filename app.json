@@ -14,18 +14,27 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.harmonizer.app",
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Harmonizer использует микрофон для голосовых сообщений в чате."
+        "NSCameraUsageDescription": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
+        "NSMicrophoneUsageDescription": "Harmonizer использует микрофон для голосовых сообщений в чате.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.harmonizer.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -34,15 +43,35 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Harmonizer использует камеру для режимов BIOFEEDBACK."
+        }
+      ],
       [
         "expo-av",
         {
           "microphonePermission": "Harmonizer использует микрофон для голосовых сообщений в чате."
         }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
+          "enableFrameProcessors": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f70cebc4-c303-45f8-87c8-694daa3e1981"
+      }
     }
   }
 }

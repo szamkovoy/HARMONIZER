@@ -8,6 +8,21 @@ export default function CommunicatorScreen() {
     <View style={{ flex: 1 }}>
       <StatusBar style="auto" />
       <Pressable
+        onPress={() => router.push("/biofeedback-probe")}
+        style={{
+          position: "absolute",
+          top: 56,
+          left: 16,
+          zIndex: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: "#13231b",
+        }}
+      >
+        <Text style={{ color: "#e4fff1", fontWeight: "600" }}>Biofeedback Probe</Text>
+      </Pressable>
+      <Pressable
         onPress={() => router.push("/mandala-sandbox")}
         style={{
           position: "absolute",

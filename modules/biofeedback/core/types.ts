@@ -6,6 +6,24 @@ export type BiofeedbackSourceKind =
   | "wearable";
 
 export type BiofeedbackSignalStatus = "searching" | "stable" | "degraded" | "lost";
+export type PulseLockState = "searching" | "tracking" | "holding";
+export type StressReadinessTier = "warming" | "fast60" | "stable90";
+
+/** Тир длительности/качества практики для RMSSD/стресса (накопитель валидных ударов). */
+export type HrvPracticeTier =
+  | "none"
+  | "beats_30_59"
+  | "beats_60_89"
+  | "beats_90_119"
+  | "beats_120_179"
+  | "beats_180_plus";
+export type FingerPeakReasonCode =
+  | "accepted"
+  | "edge_margin"
+  | "below_height"
+  | "below_prominence"
+  | "refractory_replaced"
+  | "refractory_weaker";
 
 export type OpticalChannel = "redMean" | "greenMean" | "luma";
 
@@ -31,6 +49,108 @@ export interface OpticalSignalSample {
   channel: OpticalChannel;
   value: number;
   quality: number;
+}
+
+export interface FingerPeakDiagnostic {
+  sampleIndex: number;
+  timestampMs: number;
+  value: number;
+  prominence: number;
+  reasonCode: FingerPeakReasonCode;
+}
+
+export interface FingerCameraNativeSample {
+  timestampMs: number;
+  width: number;
+  height: number;
+  redMean: number;
+  greenMean: number;
+  blueMean: number;
+  lumaMean: number;
+  redDominance: number;
+  darknessRatio: number;
+  saturationRatio: number;
+  motion: number;
+  sampleCount: number;
+  roiAreaRatio: number;
+}
+
+export interface FingerSignalSnapshot {
+  timestampMs: number;
+  sampleCount: number;
+  signalStatus: BiofeedbackSignalStatus;
+  signalQuality: number;
+  fingerDetected: boolean;
+  fingerPresenceConfidence: number;
+  pulseReady: boolean;
+  /** Завершена ли калибровка: 10 с прогрева + 10 с окна проверки. */
+  pulseCalibrationComplete: boolean;
+  pulseWindowSeconds: number;
+  pulseLockState: PulseLockState;
+  pulseLockConfidence: number;
+  rawPulseRateBpm: number;
+  rmssdReady: boolean;
+  rmssdWindowSeconds: number;
+  rawRmssdMs: number;
+  hrvConfidence: number;
+  stressReady: boolean;
+  stressWindowSeconds: number;
+  stressTier: StressReadinessTier;
+  opticalValue: number;
+  /** Сколько миллисекунд палец на сенсоре накоплено (монотонно, пока контакт есть). */
+  fingerContactElapsedMs: number;
+  baseline: number;
+  detrendedValue: number;
+  /** Последнее значение после bandpass (0.8–2.5 Hz) + лёгкое сглаживание — то, что идёт в детектор пиков. */
+  ppgBandpassedValue: number;
+  pulseRateBpm: number;
+  breathRateBpm: number;
+  pulsePhase: number;
+  breathPhase: number;
+  rmssdMs: number;
+  baevskyStressIndexRaw: number;
+  stressIndex: number;
+  rrIntervalsMs: number[];
+  rawRrIntervalsMs: number[];
+  medianRrMs: number;
+  rawBaevskyStressIndexRaw: number;
+  detectedBeatCount: number;
+  candidatePeakCount: number;
+  acceptedPeakCount: number;
+  rejectedPeakCount: number;
+  candidatePeaks: FingerPeakDiagnostic[];
+  acceptedPeaks: FingerPeakDiagnostic[];
+  rejectedPeaks: FingerPeakDiagnostic[];
+  opticalSamples: OpticalSignalSample[];
+  redMean: number;
+  greenMean: number;
+  blueMean: number;
+  lumaMean: number;
+  redDominance: number;
+  darknessRatio: number;
+  saturationRatio: number;
+  motion: number;
+  /** Число валидных ударов в накопителе HRV (после калибровки). */
+  hrvEligibleBeatCount: number;
+  /** Удары вне tracking (условно «экстраполяция» / holding-контекст). */
+  hrvExtrapolatedBeatCount: number;
+  hrvMinDisplayEligibleBeats: number;
+  /** Верхняя граница для «длинной» практики (начало/конец сессии). */
+  hrvMinFullEligibleBeats: number;
+  hrvPracticeTier: HrvPracticeTier;
+  hrvRmssdApproximate: boolean;
+  hrvStressApproximate: boolean;
+  hrvShowInitialFinal: boolean;
+  hrvInitialRmssdMs: number;
+  hrvInitialStressIndex: number;
+  hrvFinalRmssdMs: number;
+  hrvFinalStressIndex: number;
+  /** Зафиксировано при переходе «палец был → палец снят» (средние начало/конец на момент снятия). */
+  hrvSessionEndCaptured: boolean;
+  hrvSessionEndInitialRmssdMs: number;
+  hrvSessionEndFinalRmssdMs: number;
+  hrvSessionEndInitialStressIndex: number;
+  hrvSessionEndFinalStressIndex: number;
 }
 
 export interface BiofeedbackFrame {
