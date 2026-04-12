@@ -36,9 +36,10 @@ async function shareJsonFile(path: string): Promise<void> {
     });
     return;
   }
+  const fileUrl = path.startsWith("file://") ? path : `file://${path}`;
   await Share.share({
     title,
-    url: path,
+    url: fileUrl,
   });
 }
 

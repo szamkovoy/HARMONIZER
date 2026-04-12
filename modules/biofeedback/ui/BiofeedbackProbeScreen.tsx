@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { cacheDirectory, getContentUriAsync, writeAsStringAsync } from "expo-file-system/legacy";
+import { AppState, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -555,9 +556,52 @@ function NativeProbeScreen() {
   const reportNativeFrame = Worklets.createRunOnJS(handleNativeFrame);
 
   const handleNewFingerMeasurement = useCallback(() => {
-    analyzerRef.current = new FingerSignalAnalyzer(FINGER_CAMERA_CAPTURE_CONFIG);
+    /** Не пересоздаём анализатор: иначе обнуляется накопитель HRV и ломается экспорт RMSSD-диагностики после замера. */
     setFingerSnapshot(null);
     setLiveContractFrame(null);
+  }, []);
+
+  const handleExportRmssdHampelDiagnostics = useCallback(async () => {
+    const analyzer = analyzerRef.current;
+    if (analyzer == null) {
+      Alert.alert("Нет анализатора", "Используется режим finger camera.");
+      return;
+    }
+    const payload = analyzer.getPracticeRmssdHampelDiagnostics();
+    if (payload == null) {
+      Alert.alert(
+        "Нет данных",
+        "Нужна хотя бы одна успешная серия: не меньше 30 валидных ударов в накопителе HRV после калибровки. Подождите накопления в пробы или откройте экран после замера без «Нового замера» до экспорта. После сброса сессии доступен кэш последнего расчёта, если он уже был.",
+      );
+      return;
+    }
+    try {
+      const json = JSON.stringify(payload, null, 2);
+      const base = cacheDirectory;
+      if (base == null) {
+        Alert.alert("Файлы", "Каталог кэша недоступен на этой платформе.");
+        return;
+      }
+      const path = `${base}hrv-rmssd-hampel-diag-${payload.exportedAtMs}.json`;
+      await writeAsStringAsync(path, json);
+      const title = "Диагностика RMSSD (классика vs пайплайн)";
+      if (Platform.OS === "android") {
+        const contentUri = await getContentUriAsync(path);
+        await Share.share({
+          title,
+          message: "hrv-rmssd-hampel-diag.json",
+          url: contentUri,
+        });
+      } else {
+        const fileUrl = path.startsWith("file://") ? path : `file://${path}`;
+        await Share.share({
+          title,
+          url: fileUrl,
+        });
+      }
+    } catch (error: unknown) {
+      Alert.alert("Ошибка экспорта", String(error));
+    }
   }, []);
 
   const frameProcessor = useFrameProcessor(
@@ -881,6 +925,20 @@ function NativeProbeScreen() {
                 Этот блок нужен уже для тонкой отладки, когда хочется понять, почему lock или HRV в конкретный момент
                 ухудшились.
               </Text>
+              <Pressable
+                style={styles.diagExportButton}
+                onPress={() => {
+                  void handleExportRmssdHampelDiagnostics();
+                }}
+              >
+                <Text style={styles.diagExportButtonText}>
+                  Экспорт JSON: RMSSD классика vs пайплайн (Хампель, блоки)
+                </Text>
+              </Pressable>
+              <Text style={styles.diagExportHint}>
+                Сравнивает «сырой» RMSSD только с жёстким фильтром RR и полный пайплайн на том же сегменте. Если
+                разница заметна — пришлите файл в чат для разбора.
+              </Text>
 
               <View style={styles.metricGrid}>
                 <View style={styles.metricPill}>
@@ -1188,6 +1246,28 @@ const styles = StyleSheet.create({
     color: "rgba(223, 229, 255, 0.72)",
     fontSize: 13,
     lineHeight: 19,
+  },
+  diagExportButton: {
+    minHeight: 46,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(18, 24, 40, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(125, 143, 255, 0.28)",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  diagExportButtonText: {
+    color: "#ecf1ff",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  diagExportHint: {
+    color: "rgba(200, 210, 255, 0.55)",
+    fontSize: 11,
+    lineHeight: 16,
   },
   cameraFrame: {
     overflow: "hidden",

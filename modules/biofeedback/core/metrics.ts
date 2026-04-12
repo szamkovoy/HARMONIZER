@@ -8,8 +8,9 @@ import {
   HRV_TAIL_BEATS_FINAL_MID,
 } from "@/modules/biofeedback/core/hrv-practice-constants";
 
-const HAMPEL_WINDOW_SIZE = 13;
-const HAMPEL_NSIGMA = 3;
+/** Экспортируются для диагностического JSON (сравнение с классическим RMSSD). */
+export const HRV_HAMPEL_WINDOW_SIZE = 13;
+export const HRV_HAMPEL_NSIGMA = 3;
 const HAMPEL_MAD_SCALE = 1.4826;
 
 function rrPairOkForRmssd(rr0: number, rr1: number): boolean {
@@ -108,32 +109,78 @@ function computeRmssdStandardFromRrIntervalsTrimmed(
   return trimmed.length === 0 ? Math.sqrt(mean(sq)) : Math.sqrt(mean(trimmed));
 }
 
+function computeRmssdStandardFromRrIntervalsTrimmedMasked(
+  rr: readonly number[],
+  trimRatio: number,
+  intervalValid: readonly boolean[],
+): number {
+  if (rr.length < 2 || intervalValid.length !== rr.length) {
+    return computeRmssdStandardFromRrIntervalsTrimmed(rr, trimRatio);
+  }
+  const sq: number[] = [];
+  for (let i = 0; i < rr.length - 1; i += 1) {
+    if (!intervalValid[i] || !intervalValid[i + 1]) {
+      continue;
+    }
+    const d = rr[i + 1] - rr[i];
+    sq.push(d * d);
+  }
+  if (sq.length === 0) {
+    return 0;
+  }
+  if (sq.length < 3) {
+    return Math.sqrt(mean(sq));
+  }
+  const sorted = [...sq].sort((left, right) => left - right);
+  const trimCount = Math.min(
+    Math.floor(sorted.length * trimRatio),
+    Math.floor((sorted.length - 1) / 2),
+  );
+  const trimmed = trimCount <= 0 ? sorted : sorted.slice(trimCount, sorted.length - trimCount);
+  return trimmed.length === 0 ? Math.sqrt(mean(sq)) : Math.sqrt(mean(trimmed));
+}
+
 /** Практика: верхняя граница правдоподобного сегментного RMSSD (камера/хвост при снятии пальца). */
 const HRV_PRACTICE_RMSSD_TRIM = 0.12;
 const HRV_PRACTICE_RMSSD_ABS_MAX_MS = 160;
 
-function medianBlockRmssd(rr: readonly number[], blockCount: number): number {
-  if (rr.length < 2 || blockCount <= 0) {
+function medianBlockRmssdMasked(
+  rr: readonly number[],
+  blockCount: number,
+  intervalValid: readonly boolean[],
+): number {
+  if (rr.length < 2 || blockCount <= 0 || intervalValid.length !== rr.length) {
     return 0;
   }
   if (blockCount === 1) {
-    return computeRmssdStandardFromRrIntervalsTrimmed(rr, HRV_PRACTICE_RMSSD_TRIM);
+    return computeRmssdStandardFromRrIntervalsTrimmedMasked(rr, HRV_PRACTICE_RMSSD_TRIM, intervalValid);
   }
   const chunks = splitIntoEqualChunks(rr, blockCount);
+  const valChunks = splitIntoEqualChunks(intervalValid, blockCount);
   const vals = chunks
-    .map((ch) => computeRmssdStandardFromRrIntervalsTrimmed(ch, HRV_PRACTICE_RMSSD_TRIM))
+    .map((ch, idx) =>
+      computeRmssdStandardFromRrIntervalsTrimmedMasked(
+        ch,
+        HRV_PRACTICE_RMSSD_TRIM,
+        valChunks[idx] ?? [],
+      ),
+    )
     .filter((v) => v > 0);
   return vals.length === 0 ? 0 : median(vals);
 }
 
-/** RMSSD по сегменту RR: медиана по блокам (trimmed), при нуле — по всему ряду; потолок против артефактов хвоста. */
-function rmssdSegment(rr: readonly number[], blockCount: number): number {
+function rmssdSegmentMasked(
+  rr: readonly number[],
+  blockCount: number,
+  hampelOutlier: readonly boolean[],
+): number {
   if (rr.length < 2) {
     return 0;
   }
-  let v = medianBlockRmssd(rr, blockCount);
+  const intervalValid = hampelOutlier.map((o) => !o);
+  let v = medianBlockRmssdMasked(rr, blockCount, intervalValid);
   if (v <= 0) {
-    v = computeRmssdStandardFromRrIntervalsTrimmed(rr, HRV_PRACTICE_RMSSD_TRIM);
+    v = computeRmssdStandardFromRrIntervalsTrimmedMasked(rr, HRV_PRACTICE_RMSSD_TRIM, intervalValid);
   }
   return Math.min(v, HRV_PRACTICE_RMSSD_ABS_MAX_MS);
 }
@@ -160,8 +207,8 @@ function stressSegmentRaw(rr: readonly number[], blockCount: number): number {
  */
 export function hampelFilterRrIntervals(
   rr: readonly number[],
-  windowSize = HAMPEL_WINDOW_SIZE,
-  nSigma = HAMPEL_NSIGMA,
+  windowSize = HRV_HAMPEL_WINDOW_SIZE,
+  nSigma = HRV_HAMPEL_NSIGMA,
 ): number[] {
   const n = rr.length;
   if (n === 0) {
@@ -184,11 +231,71 @@ export function hampelFilterRrIntervals(
   return out;
 }
 
+/**
+ * Те же правила, что у Хампеля, но только флаги выбросов (для RMSSD — исключение интервалов, не подмена).
+ */
+export function hampelOutlierFlags(
+  rr: readonly number[],
+  windowSize = HRV_HAMPEL_WINDOW_SIZE,
+  nSigma = HRV_HAMPEL_NSIGMA,
+): boolean[] {
+  const n = rr.length;
+  if (n === 0) {
+    return [];
+  }
+  const half = Math.floor(windowSize / 2);
+  const out = new Array<boolean>(n).fill(false);
+  for (let i = 0; i < n; i += 1) {
+    const lo = Math.max(0, i - half);
+    const hi = Math.min(n, i + half + 1);
+    const win = rr.slice(lo, hi);
+    const med = median(win);
+    const absDev = win.map((x) => Math.abs(x - med));
+    const mad = median(absDev);
+    const thr = nSigma * HAMPEL_MAD_SCALE * mad;
+    if (Math.abs(rr[i] - med) > thr) {
+      out[i] = true;
+    }
+  }
+  return out;
+}
+
 function preparePracticeRr(rr: readonly number[]): number[] {
   if (rr.length === 0) {
     return [];
   }
-  return hampelFilterRrIntervals(rr, HAMPEL_WINDOW_SIZE, HAMPEL_NSIGMA);
+  return hampelFilterRrIntervals(rr, HRV_HAMPEL_WINDOW_SIZE, HRV_HAMPEL_NSIGMA);
+}
+
+/** RR между соседними ударами в окне [startBeatIdx, endBeatExclusive) после жёсткого фильтра длительности. */
+function collectRrFromBeatWindow(
+  beatMs: readonly number[],
+  startBeatIdx: number,
+  endBeatExclusive: number,
+): number[] {
+  const rr: number[] = [];
+  const start = Math.max(0, startBeatIdx);
+  const end = Math.min(endBeatExclusive, beatMs.length);
+  for (let i = start; i < end - 1; i += 1) {
+    const d = beatMs[i + 1] - beatMs[i];
+    if (d >= HRV_RR_HARD_MIN_MS && d <= HRV_RR_HARD_MAX_MS) {
+      rr.push(d);
+    }
+  }
+  return rr;
+}
+
+function collectRrFromBeatPrefixBeats(beatMs: readonly number[], prefixBeatCount: number): number[] {
+  return collectRrFromBeatWindow(beatMs, 0, Math.min(prefixBeatCount, beatMs.length));
+}
+
+function collectRrFromBeatTailBeats(beatMs: readonly number[], tailBeatCount: number): number[] {
+  const n = beatMs.length;
+  if (n < 2 || tailBeatCount < 2) {
+    return [];
+  }
+  const start = Math.max(0, n - tailBeatCount);
+  return collectRrFromBeatWindow(beatMs, start, n);
 }
 
 export function toRrIntervalsMs(beatTimestampsMs: readonly number[]) {
@@ -637,64 +744,6 @@ export function calculateRmssdMsWithBeatEligibilityOrdinalTail(
   return Math.sqrt(mean(squaredDiffs));
 }
 
-/** RR между соседними по merged валидными ударами, оба с ordinal < maxOrdinalExclusive. */
-function collectEligibleRrOrdinalPrefix(
-  beatTimestampsMs: readonly number[],
-  beatEligible: readonly boolean[],
-  maxOrdinalExclusive: number,
-  practiceStartMs: number,
-): number[] {
-  const ord = buildEligibleOrdinalSinceStart(beatTimestampsMs, beatEligible, practiceStartMs);
-  const rr: number[] = [];
-  const n = beatTimestampsMs.length;
-  for (let i = 0; i < n - 1; i += 1) {
-    if (!beatEligible[i] || !beatEligible[i + 1]) {
-      continue;
-    }
-    if (ord[i] < 0 || ord[i + 1] < 0 || ord[i + 1] >= maxOrdinalExclusive) {
-      continue;
-    }
-    const d = beatTimestampsMs[i + 1] - beatTimestampsMs[i];
-    if (d >= HRV_RR_HARD_MIN_MS && d <= HRV_RR_HARD_MAX_MS) {
-      rr.push(d);
-    }
-  }
-  return rr;
-}
-
-/** RR в хвосте: оба удара с ordinal >= totalEligible - tailCount. */
-function collectEligibleRrOrdinalTail(
-  beatTimestampsMs: readonly number[],
-  beatEligible: readonly boolean[],
-  tailCount: number,
-  practiceStartMs: number,
-): number[] {
-  const totalEligible = countEligibleBeatsSinceStart(beatTimestampsMs, beatEligible, practiceStartMs);
-  if (totalEligible < 2 || tailCount < 2) {
-    return [];
-  }
-  const minOrd = totalEligible - tailCount;
-  const ord = buildEligibleOrdinalSinceStart(beatTimestampsMs, beatEligible, practiceStartMs);
-  const rr: number[] = [];
-  const n = beatTimestampsMs.length;
-  for (let i = 0; i < n - 1; i += 1) {
-    if (!beatEligible[i] || !beatEligible[i + 1]) {
-      continue;
-    }
-    if (ord[i] < 0 || ord[i] < minOrd) {
-      continue;
-    }
-    if (ord[i + 1] < minOrd || ord[i + 1] > totalEligible - 1) {
-      continue;
-    }
-    const d = beatTimestampsMs[i + 1] - beatTimestampsMs[i];
-    if (d >= HRV_RR_HARD_MIN_MS && d <= HRV_RR_HARD_MAX_MS) {
-      rr.push(d);
-    }
-  }
-  return rr;
-}
-
 export type PracticeHrvMetricsResult = {
   tier: HrvPracticeTier;
   /** Сколько валидных ударов в накопителе hrvValidBeats (не длина merged). */
@@ -716,17 +765,15 @@ export type PracticeHrvMetricsResult = {
 };
 
 /**
- * Метрики практики по числу валидных ударов в накопителе (после калибровки).
- * RR: жёсткий диапазон 300–2000 ms, затем Hampel (окно 13); RMSSD и Баевский по очищенному ряду;
- * агрегаты по блокам — медиана значений по блокам.
+ * Метрики практики по накопителю валидных ударов HRV (после калибровки).
+ * RR: жёсткий диапазон 300–2000 ms; Баевский — Хампель с подменой медианой; RMSSD — выбросы Хампеля исключаются из суммы разностей (без подмены).
+ * Сегменты считаются по **полному** ряду `hrvValidBeatTimestampsMs`, а не по скользящему окну merged-пиков.
  */
 export function computePracticeHrvMetrics(
-  beatTimestampsMs: readonly number[],
-  beatEligible: readonly boolean[],
-  hrvValidBeatCount: number,
-  practiceStartMs: number,
+  hrvValidBeatTimestampsMs: readonly number[],
 ): PracticeHrvMetricsResult {
-  const nBeat = hrvValidBeatCount;
+  const nBeat = hrvValidBeatTimestampsMs.length;
+  const beatMs = hrvValidBeatTimestampsMs;
   const zero: PracticeHrvMetricsResult = {
     tier: "none",
     validBeatCount: nBeat,
@@ -751,10 +798,9 @@ export function computePracticeHrvMetrics(
   }
 
   if (nBeat <= 59) {
-    const rr = preparePracticeRr(
-      collectEligibleRrOrdinalPrefix(beatTimestampsMs, beatEligible, nBeat, practiceStartMs),
-    );
-    const rmssdMs = rmssdSegment(rr, 1);
+    const rrRaw = collectRrFromBeatPrefixBeats(beatMs, nBeat);
+    const out = hampelOutlierFlags(rrRaw);
+    const rmssdMs = rmssdSegmentMasked(rrRaw, 1, out);
     return {
       tier: "beats_30_59",
       validBeatCount: nBeat,
@@ -776,11 +822,11 @@ export function computePracticeHrvMetrics(
   }
 
   if (nBeat <= 89) {
-    const rr = preparePracticeRr(
-      collectEligibleRrOrdinalPrefix(beatTimestampsMs, beatEligible, nBeat, practiceStartMs),
-    );
-    const rmssdMs = rmssdSegment(rr, 2);
-    const stressRaw = stressSegmentRaw(rr, 2);
+    const rrRaw = collectRrFromBeatPrefixBeats(beatMs, nBeat);
+    const rrBaevsky = preparePracticeRr(rrRaw);
+    const out = hampelOutlierFlags(rrRaw);
+    const rmssdMs = rmssdSegmentMasked(rrRaw, 2, out);
+    const stressRaw = stressSegmentRaw(rrBaevsky, 2);
     return {
       tier: "beats_60_89",
       validBeatCount: nBeat,
@@ -802,16 +848,11 @@ export function computePracticeHrvMetrics(
   }
 
   if (nBeat <= 119) {
-    const rr = preparePracticeRr(
-      collectEligibleRrOrdinalPrefix(
-        beatTimestampsMs,
-        beatEligible,
-        HRV_PREFIX_BEATS_FOR_SEGMENT,
-        practiceStartMs,
-      ),
-    );
-    const rmssdMs = rmssdSegment(rr, 3);
-    const stressRaw = stressSegmentRaw(rr, 3);
+    const rrRaw = collectRrFromBeatPrefixBeats(beatMs, HRV_PREFIX_BEATS_FOR_SEGMENT);
+    const rrBaevsky = preparePracticeRr(rrRaw);
+    const out = hampelOutlierFlags(rrRaw);
+    const rmssdMs = rmssdSegmentMasked(rrRaw, 3, out);
+    const stressRaw = stressSegmentRaw(rrBaevsky, 3);
     return {
       tier: "beats_90_119",
       validBeatCount: nBeat,
@@ -833,27 +874,17 @@ export function computePracticeHrvMetrics(
   }
 
   if (nBeat <= 179) {
-    const rrInitial = preparePracticeRr(
-      collectEligibleRrOrdinalPrefix(
-        beatTimestampsMs,
-        beatEligible,
-        HRV_PREFIX_BEATS_FOR_SEGMENT,
-        practiceStartMs,
-      ),
-    );
-    const initialRmssdMs = rmssdSegment(rrInitial, 3);
-    const stressRawInitial = stressSegmentRaw(rrInitial, 3);
+    const rrInitialRaw = collectRrFromBeatPrefixBeats(beatMs, HRV_PREFIX_BEATS_FOR_SEGMENT);
+    const rrInitialBaevsky = preparePracticeRr(rrInitialRaw);
+    const outInitial = hampelOutlierFlags(rrInitialRaw);
+    const initialRmssdMs = rmssdSegmentMasked(rrInitialRaw, 3, outInitial);
+    const stressRawInitial = stressSegmentRaw(rrInitialBaevsky, 3);
 
-    const rrFinal = preparePracticeRr(
-      collectEligibleRrOrdinalTail(
-        beatTimestampsMs,
-        beatEligible,
-        HRV_TAIL_BEATS_FINAL_MID,
-        practiceStartMs,
-      ),
-    );
-    const finalRmssdMs = rmssdSegment(rrFinal, 2);
-    const stressRawFinal = stressSegmentRaw(rrFinal, 2);
+    const rrFinalRaw = collectRrFromBeatTailBeats(beatMs, HRV_TAIL_BEATS_FINAL_MID);
+    const rrFinalBaevsky = preparePracticeRr(rrFinalRaw);
+    const outFinal = hampelOutlierFlags(rrFinalRaw);
+    const finalRmssdMs = rmssdSegmentMasked(rrFinalRaw, 2, outFinal);
+    const stressRawFinal = stressSegmentRaw(rrFinalBaevsky, 2);
 
     return {
       tier: "beats_120_179",
@@ -875,27 +906,17 @@ export function computePracticeHrvMetrics(
     };
   }
 
-  const rrInitial = preparePracticeRr(
-    collectEligibleRrOrdinalPrefix(
-      beatTimestampsMs,
-      beatEligible,
-      HRV_PREFIX_BEATS_FOR_SEGMENT,
-      practiceStartMs,
-    ),
-  );
-  const initialRmssdMs = rmssdSegment(rrInitial, 3);
-  const stressRawInitial = stressSegmentRaw(rrInitial, 3);
+  const rrInitialRaw = collectRrFromBeatPrefixBeats(beatMs, HRV_PREFIX_BEATS_FOR_SEGMENT);
+  const rrInitialBaevsky = preparePracticeRr(rrInitialRaw);
+  const outInitial = hampelOutlierFlags(rrInitialRaw);
+  const initialRmssdMs = rmssdSegmentMasked(rrInitialRaw, 3, outInitial);
+  const stressRawInitial = stressSegmentRaw(rrInitialBaevsky, 3);
 
-  const rrFinal = preparePracticeRr(
-    collectEligibleRrOrdinalTail(
-      beatTimestampsMs,
-      beatEligible,
-      HRV_TAIL_BEATS_FINAL_LONG,
-      practiceStartMs,
-    ),
-  );
-  const finalRmssdMs = rmssdSegment(rrFinal, 3);
-  const stressRawFinal = stressSegmentRaw(rrFinal, 3);
+  const rrFinalRaw = collectRrFromBeatTailBeats(beatMs, HRV_TAIL_BEATS_FINAL_LONG);
+  const rrFinalBaevsky = preparePracticeRr(rrFinalRaw);
+  const outFinal = hampelOutlierFlags(rrFinalRaw);
+  const finalRmssdMs = rmssdSegmentMasked(rrFinalRaw, 3, outFinal);
+  const stressRawFinal = stressSegmentRaw(rrFinalBaevsky, 3);
 
   return {
     tier: "beats_180_plus",
@@ -914,6 +935,153 @@ export function computePracticeHrvMetrics(
     finalRmssdMs,
     finalStressPercent: mapBaevskyStressToPercent(stressRawFinal),
     finalStressRaw: stressRawFinal,
+  };
+}
+
+export type PracticeRmssdHampelSegmentDiag = {
+  label: string;
+  blockCount: number;
+  rrMsHardFilterOnly: number[];
+  /** Ряд после Хампеля с подменой выбросов медианой — тот же, что для Баевского. */
+  rrMsAfterHampel: number[];
+  /** `true` — интервал помечен выбросом; в RMSSD пайплайна не подставляется медиана, вклад в разности исключается. */
+  hampelOutlierMask: boolean[];
+  rmssdClassicNoHampelMs: number;
+  rmssdPipelineMs: number;
+  /** `null`, если классика 0 — долю не считаем. */
+  diffPipelineVsClassicPercent: number | null;
+};
+
+export type PracticeRmssdHampelDiagnostics = {
+  schemaVersion: 2;
+  exportedAtMs: number;
+  validBeatCount: number;
+  tier: HrvPracticeTier;
+  hampelWindowSize: number;
+  hampelNSigma: number;
+  description: string;
+  /** Тот же сегмент, что и поле `rmssdMs` в `computePracticeHrvMetrics` (для 120+ — финальный хвост). */
+  primaryForRmssdField: PracticeRmssdHampelSegmentDiag;
+  /** Только при тирах с начало/конец — начальный сегмент (первые 90 ударов). */
+  initialSegment?: PracticeRmssdHampelSegmentDiag;
+  /** `cached` — снимок после сброса накопителя/«нового замера», пока нет свежего расчёта. */
+  exportSource?: "live" | "cached";
+};
+
+function pipelineVsClassicDiffPercent(classic: number, pipeline: number): number | null {
+  if (classic <= 0 || !Number.isFinite(classic)) {
+    return null;
+  }
+  return (Math.abs(pipeline - classic) / classic) * 100;
+}
+
+function packRmssdSegmentDiag(
+  label: string,
+  rrRaw: readonly number[],
+  blockCount: number,
+): PracticeRmssdHampelSegmentDiag {
+  const afterImputed = preparePracticeRr(rrRaw);
+  const outlier = hampelOutlierFlags(rrRaw);
+  const classic = computeRmssdStandardFromRrIntervals(rrRaw);
+  const pipeline = rmssdSegmentMasked(rrRaw, blockCount, outlier);
+  return {
+    label,
+    blockCount,
+    rrMsHardFilterOnly: [...rrRaw],
+    rrMsAfterHampel: [...afterImputed],
+    hampelOutlierMask: [...outlier],
+    rmssdClassicNoHampelMs: classic,
+    rmssdPipelineMs: pipeline,
+    diffPipelineVsClassicPercent: pipelineVsClassicDiffPercent(classic, pipeline),
+  };
+}
+
+/**
+ * Сравнение «классического» RMSSD (только жёсткий фильтр RR) с пайплайном практики (исключение выбросов Хампеля из RMSSD + trimmed + блоки).
+ * RR берутся из полного накопителя `hrvValidBeatTimestampsMs` (как в `computePracticeHrvMetrics`).
+ */
+export function computePracticeRmssdHampelDiagnostics(
+  hrvValidBeatTimestampsMs: readonly number[],
+): PracticeRmssdHampelDiagnostics | null {
+  const nBeat = hrvValidBeatTimestampsMs.length;
+  if (nBeat < HRV_MIN_VALID_BEATS_FOR_METRICS) {
+    return null;
+  }
+
+  const beatMs = hrvValidBeatTimestampsMs;
+  const description =
+    "schemaVersion 2: rmssdClassicNoHampelMs — по RR 300–2000 ms без Хампеля; rmssdPipelineMs — как в computePracticeHrvMetrics: выбросы Хампеля исключены из суммы разностей (не подмена медианой), затем trimmed и медиана блоков; Баевский по-прежнему на ряду с подменой медианой.";
+
+  if (nBeat <= 59) {
+    const rrRaw = collectRrFromBeatPrefixBeats(beatMs, nBeat);
+    return {
+      schemaVersion: 2,
+      exportedAtMs: Date.now(),
+      validBeatCount: nBeat,
+      tier: "beats_30_59",
+      hampelWindowSize: HRV_HAMPEL_WINDOW_SIZE,
+      hampelNSigma: HRV_HAMPEL_NSIGMA,
+      description,
+      primaryForRmssdField: packRmssdSegmentDiag("prefix_all_beats", rrRaw, 1),
+    };
+  }
+
+  if (nBeat <= 89) {
+    const rrRaw = collectRrFromBeatPrefixBeats(beatMs, nBeat);
+    return {
+      schemaVersion: 2,
+      exportedAtMs: Date.now(),
+      validBeatCount: nBeat,
+      tier: "beats_60_89",
+      hampelWindowSize: HRV_HAMPEL_WINDOW_SIZE,
+      hampelNSigma: HRV_HAMPEL_NSIGMA,
+      description,
+      primaryForRmssdField: packRmssdSegmentDiag("prefix_all_beats", rrRaw, 2),
+    };
+  }
+
+  if (nBeat <= 119) {
+    const rrRaw = collectRrFromBeatPrefixBeats(beatMs, HRV_PREFIX_BEATS_FOR_SEGMENT);
+    return {
+      schemaVersion: 2,
+      exportedAtMs: Date.now(),
+      validBeatCount: nBeat,
+      tier: "beats_90_119",
+      hampelWindowSize: HRV_HAMPEL_WINDOW_SIZE,
+      hampelNSigma: HRV_HAMPEL_NSIGMA,
+      description,
+      primaryForRmssdField: packRmssdSegmentDiag("prefix_first_90_beats", rrRaw, 3),
+    };
+  }
+
+  if (nBeat <= 179) {
+    const rrInitialRaw = collectRrFromBeatPrefixBeats(beatMs, HRV_PREFIX_BEATS_FOR_SEGMENT);
+    const rrFinalRaw = collectRrFromBeatTailBeats(beatMs, HRV_TAIL_BEATS_FINAL_MID);
+    return {
+      schemaVersion: 2,
+      exportedAtMs: Date.now(),
+      validBeatCount: nBeat,
+      tier: "beats_120_179",
+      hampelWindowSize: HRV_HAMPEL_WINDOW_SIZE,
+      hampelNSigma: HRV_HAMPEL_NSIGMA,
+      description,
+      primaryForRmssdField: packRmssdSegmentDiag("tail_last_60_beats_final_display", rrFinalRaw, 2),
+      initialSegment: packRmssdSegmentDiag("prefix_first_90_beats_initial", rrInitialRaw, 3),
+    };
+  }
+
+  const rrInitialRaw = collectRrFromBeatPrefixBeats(beatMs, HRV_PREFIX_BEATS_FOR_SEGMENT);
+  const rrFinalRaw = collectRrFromBeatTailBeats(beatMs, HRV_TAIL_BEATS_FINAL_LONG);
+  return {
+    schemaVersion: 2,
+    exportedAtMs: Date.now(),
+    validBeatCount: nBeat,
+    tier: "beats_180_plus",
+    hampelWindowSize: HRV_HAMPEL_WINDOW_SIZE,
+    hampelNSigma: HRV_HAMPEL_NSIGMA,
+    description,
+    primaryForRmssdField: packRmssdSegmentDiag("tail_last_90_beats_final_display", rrFinalRaw, 3),
+    initialSegment: packRmssdSegmentDiag("prefix_first_90_beats_initial", rrInitialRaw, 3),
   };
 }
 
@@ -939,11 +1107,17 @@ export function calculateBaevskyStressIndexRaw(
   return amplitudePercent / (2 * modeSeconds * variationRangeSeconds);
 }
 
+/**
+ * Нормировка сырого индекса Баевского в 0–100.
+ * Делитель больше 180 → мягче кривая (меньше «залипание» у 90+ на узком RR PPG — не баг, а шкала).
+ */
+export const BAEVSKY_STRESS_PERCENT_DIVISOR = 220;
+
 export function mapBaevskyStressToPercent(rawStressIndex: number) {
   if (rawStressIndex <= 0) {
     return 0;
   }
-  return clamp(100 * (1 - Math.exp(-rawStressIndex / 180)), 0, 100);
+  return clamp(100 * (1 - Math.exp(-rawStressIndex / BAEVSKY_STRESS_PERCENT_DIVISOR)), 0, 100);
 }
 
 export function normalizePulseRate(pulseRateBpm: number) {

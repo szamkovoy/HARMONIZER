@@ -9,7 +9,9 @@ import {
   calculatePulseRateBpm,
   calculatePulseRateBpmMedian,
   computePracticeHrvMetrics,
+  computePracticeRmssdHampelDiagnostics,
   type PracticeHrvMetricsResult,
+  type PracticeRmssdHampelDiagnostics,
 } from "@/modules/biofeedback/core/metrics";
 import { bandpassPpgForPeakDetection } from "@/modules/biofeedback/core/ppg-bandpass";
 import type {
@@ -66,6 +68,8 @@ const METRICS_RESET_GRACE_MS = 5_000;
 const QUALITY_HYSTERESIS_DROP = 0.44;
 /** Постоянная времени сглаживания отображаемой RMSSD (~63% за τ; целевой горизонт 10–15 с). */
 const HRV_RMSSD_DISPLAY_TAU_MS = 12_000;
+/** То же для стресса в режиме начало/конец: цель — финальный сегмент, но кадр к кадру сглаживаем (как RMSSD). */
+const HRV_STRESS_DISPLAY_TAU_MS = 12_000;
 const PULSE_RR_MIN_MS = 450;
 const PULSE_RR_MAX_MS = 1_400;
 const RR_SEQUENCE_WINDOW_SIZE = 9;
@@ -608,6 +612,8 @@ export class FingerSignalAnalyzer {
   private hrvSessionEndFinalRmssdMs = 0;
   private hrvSessionEndInitialStressIndex = 0;
   private hrvSessionEndFinalStressIndex = 0;
+  /** Последний успешный расчёт RMSSD diag (кнопка экспорта после «Новый замер» или при сбросе буфера). */
+  private lastRmssdHampelDiagnostics: PracticeRmssdHampelDiagnostics | null = null;
 
   constructor(private readonly config: BiofeedbackCaptureConfig) {}
 
@@ -655,6 +661,7 @@ export class FingerSignalAnalyzer {
     this.hrvSessionEndFinalRmssdMs = 0;
     this.hrvSessionEndInitialStressIndex = 0;
     this.hrvSessionEndFinalStressIndex = 0;
+    this.lastRmssdHampelDiagnostics = null;
   }
 
   private mergeBeatTimestampsPhase1(
@@ -980,12 +987,7 @@ export class FingerSignalAnalyzer {
       fingerPresenceConfidence >= FINGER_PRESENCE_HOLD_THRESHOLD;
     const qualityOk = signalQuality >= HRV_QUALITY_THRESHOLD;
     const practiceHrv = hrvUnlocked
-      ? computePracticeHrvMetrics(
-          this.beatTimestampsMs,
-          this.beatHrvEligible,
-          this.hrvValidBeatTimestampsMs.length,
-          this.hrvAccumulationStartTimestampMs,
-        )
+      ? computePracticeHrvMetrics(this.hrvValidBeatTimestampsMs)
       : {
           tier: "none" as const,
           validBeatCount: 0,
@@ -1108,8 +1110,13 @@ export class FingerSignalAnalyzer {
           practiceHrv.finalStressRaw > 0 ? practiceHrv.finalStressRaw : practiceHrv.stressRaw;
         const finalPct =
           practiceHrv.finalStressPercent > 0 ? practiceHrv.finalStressPercent : practiceHrv.stressPercent;
-        baevskyStressIndexRaw = finalRaw;
-        stressIndex = finalPct;
+        const stressDisplayAlpha = 1 - Math.exp(-frameDeltaMs / HRV_STRESS_DISPLAY_TAU_MS);
+        baevskyStressIndexRaw = blendTowards(
+          this.lastStableHrvBaevskyStressIndexRaw,
+          finalRaw,
+          stressDisplayAlpha,
+        );
+        stressIndex = blendTowards(this.lastStableHrvStressIndex, finalPct, stressDisplayAlpha);
       } else {
         const stressBlend = this.lastStableStressTimestampMs > 0 ? 0.16 : 1;
         baevskyStressIndexRaw = blendTowards(
@@ -1283,6 +1290,32 @@ export class FingerSignalAnalyzer {
       hrvSessionEndInitialStressIndex: this.hrvSessionEndInitialStressIndex,
       hrvSessionEndFinalStressIndex: this.hrvSessionEndFinalStressIndex,
     };
+  }
+
+  /**
+   * Снимок для экспорта: «классический» RMSSD по RR (без Хампеля) vs полный пайплайн на том же сегменте.
+   * Если буфер HRV сейчас пуст (например после «Новый замер» или долгого сброса), но ранее был успешный расчёт —
+   * возвращается **кэш** с `exportSource: "cached"`.
+   */
+  getPracticeRmssdHampelDiagnostics(): PracticeRmssdHampelDiagnostics | null {
+    const n = this.hrvValidBeatTimestampsMs.length;
+    const canCompute =
+      this.pulseCalibrationComplete && n >= HRV_MIN_VALID_BEATS_FOR_METRICS;
+    if (canCompute) {
+      const d = computePracticeRmssdHampelDiagnostics(this.hrvValidBeatTimestampsMs);
+      if (d) {
+        this.lastRmssdHampelDiagnostics = { ...d, exportSource: "live" };
+        return this.lastRmssdHampelDiagnostics;
+      }
+    }
+    if (this.lastRmssdHampelDiagnostics) {
+      return {
+        ...this.lastRmssdHampelDiagnostics,
+        exportedAtMs: Date.now(),
+        exportSource: "cached",
+      };
+    }
+    return null;
   }
 }
 
