@@ -67,6 +67,21 @@ export default function CommunicatorScreen() {
       >
         <Text style={{ color: "#ffe6fb", fontWeight: "600" }}>Symbol Stream</Text>
       </Pressable>
+      <Pressable
+        onPress={() => router.push("/breath-coherence")}
+        style={{
+          position: "absolute",
+          top: 212,
+          right: 16,
+          zIndex: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: "#0c1f18",
+        }}
+      >
+        <Text style={{ color: "#c6f6e9", fontWeight: "600" }}>Breath Coherence</Text>
+      </Pressable>
       <Communicator
         systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу."
         memoryWindow={24}

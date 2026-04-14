@@ -1249,6 +1249,7 @@ export class FingerSignalAnalyzer {
       baevskyStressIndexRaw,
       stressIndex,
       rrIntervalsMs: effectiveRrIntervalsMs,
+      beatTimestampsMs: merged,
       rawRrIntervalsMs: rawRrMeasurements.map((measurement) => measurement.intervalMs),
       medianRrMs: pulseMedianRrMs,
       rawBaevskyStressIndexRaw,

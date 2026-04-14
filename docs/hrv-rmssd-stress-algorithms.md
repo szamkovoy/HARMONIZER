@@ -8,13 +8,15 @@
 
 ## 0. Карта модулей и ответственность
 
-| Компонент | Роль |
-| --------- | ---- |
-| Камера + ROI | `FingerCameraNativeSample` с `timestampMs`. |
-| `FingerSignalAnalyzer` | Буфер кадров, детренд, полосовой фильтр, пики, merged-удары, калибровка, **накопитель** `hrvValidBeatTimestampsMs`, вызов `computePracticeHrvMetrics`, EMA для RMSSD/стресса, захват `hrvSessionEnd*`. |
-| `computePracticeHrvMetrics` | Чистая функция: **только** по упорядоченному ряду меток `hrvValidBeatTimestampsMs` строит сегменты RR, RMSSD и Баевского. **Не** использует merged `beatTimestampsMs` для метрик практики. |
-| `hrv-practice-constants.ts` | Пороги RR 300–2000 ms, 30/90/60/180 ударов и т.д. |
-| `updateHrvMetrics` в `metrics.ts` | **Не** используется пайплайном палец/камера; альтернатива для экспериментов. |
+
+| Компонент                         | Роль                                                                                                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Камера + ROI                      | `FingerCameraNativeSample` с `timestampMs`.                                                                                                                                                            |
+| `FingerSignalAnalyzer`            | Буфер кадров, детренд, полосовой фильтр, пики, merged-удары, калибровка, **накопитель** `hrvValidBeatTimestampsMs`, вызов `computePracticeHrvMetrics`, EMA для RMSSD/стресса, захват `hrvSessionEnd*`. |
+| `computePracticeHrvMetrics`       | Чистая функция: **только** по упорядоченному ряду меток `hrvValidBeatTimestampsMs` строит сегменты RR, RMSSD и Баевского. **Не** использует merged `beatTimestampsMs` для метрик практики.             |
+| `hrv-practice-constants.ts`       | Пороги RR 300–2000 ms, 30/90/60/180 ударов и т.д.                                                                                                                                                      |
+| `updateHrvMetrics` в `metrics.ts` | **Не** используется пайплайном палец/камера; альтернатива для экспериментов.                                                                                                                           |
+
 
 ---
 
@@ -36,7 +38,7 @@
 
 ### 2.2 Практика HRV (RMSSD / стресс)
 
-После калибровки заполняется **`hrvValidBeatTimestampsMs`**: дедуплицированные метки валидных для HRV ударов (`appendNewHrvValidBeats`). Число элементов = **`hrvValidBeatCount`** — это **единственный** источник длины ряда для `computePracticeHrvMetrics` и для диагностического `computePracticeRmssdHampelDiagnostics`.
+После калибровки заполняется `**hrvValidBeatTimestampsMs`**: дедуплицированные метки валидных для HRV ударов (`appendNewHrvValidBeats`). Число элементов = `**hrvValidBeatCount**` — это **единственный** источник длины ряда для `computePracticeHrvMetrics` и для диагностического `computePracticeRmssdHampelDiagnostics`.
 
 `practiceStartMs` / `hrvAccumulationStartTimestampMs` задают момент сброса накопителя при завершении калибровки; в накопитель попадают только удары после этого (см. код анализатора).
 
@@ -50,8 +52,8 @@
 
 ## 4. Валидность удара для HRV
 
-- **`beatHrvEligible`** на merged-индексе: синхронизация с tracking (`syncBeatEligibilityFromMerged`).
-- **`hrvValidBeatTimestampsMs`**: подмножество с особыми правилами «новый удар относительно последнего сохранённого» (см. `appendNewHrvValidBeats`).
+- `**beatHrvEligible`** на merged-индексе: синхронизация с tracking (`syncBeatEligibilityFromMerged`).
+- `**hrvValidBeatTimestampsMs**`: подмножество с особыми правилами «новый удар относительно последнего сохранённого» (см. `appendNewHrvValidBeats`).
 
 ---
 
@@ -78,18 +80,20 @@
 
 ## 6. Тиры `computePracticeHrvMetrics`
 
-Вход: длина **`hrvValidBeatTimestampsMs`** = `nBeat`.
+Вход: длина `**hrvValidBeatTimestampsMs`** = `nBeat`.
 
-| Диапазон `nBeat` | Тир | RMSSD / стресс | Начало/конец |
-| ---------------- | --- | -------------- | ------------ |
-| < 30 | `none` | Нет показа | — |
-| 30–59 | `beats_30_59` | Префикс всех накопленных ударов, 1 блок | Нет |
-| 60–89 | `beats_60_89` | 2 блока, приближённые флаги | Нет |
-| 90–119 | `beats_90_119` | Префикс **первых 90** ударов, 3 блока | Нет |
-| 120–179 | `beats_120_179` | Начало: первые 90; конец: хвост **60** ударов | Да |
-| 180+ | `beats_180_plus` | Начало: первые 90; конец: хвост **90** | Да |
 
-Поле **`rmssdMs`** в результате соответствует **финальному** сегменту (хвост), когда включён режим начало/конец.
+| Диапазон `nBeat` | Тир              | RMSSD / стресс                                | Начало/конец |
+| ---------------- | ---------------- | --------------------------------------------- | ------------ |
+| < 30             | `none`           | Нет показа                                    | —            |
+| 30–59            | `beats_30_59`    | Префикс всех накопленных ударов, 1 блок       | Нет          |
+| 60–89            | `beats_60_89`    | 2 блока, приближённые флаги                   | Нет          |
+| 90–119           | `beats_90_119`   | Префикс **первых 90** ударов, 3 блока         | Нет          |
+| 120–179          | `beats_120_179`  | Начало: первые 90; конец: хвост **60** ударов | Да           |
+| 180+             | `beats_180_plus` | Начало: первые 90; конец: хвост **90**        | Да           |
+
+
+Поле `**rmssdMs`** в результате соответствует **финальному** сегменту (хвост), когда включён режим начало/конец.
 
 ---
 
@@ -105,7 +109,7 @@
 
 На сегменте после **импутации** Хампелем (как в §5.3): мягкая гистограмма с шагом 50 ms, мода, AMo, Δ, сырой `I_raw` (`calculateBaevskyStressIndexRaw`), блоки — медиана по блокам.
 
-Нормировка в 0–100: `mapBaevskyStressToPercent` — `100·(1 − e^(−I_raw / D))`, с **`D = BAEVSKY_STRESS_PERCENT_DIVISOR`** (в коде **220**, мягче, чем старые 180, чтобы реже «прилипать» к верху на PPG).
+Нормировка в 0–100: `mapBaevskyStressToPercent` — `100·(1 − e^(−I_raw / D))`, с `**D = BAEVSKY_STRESS_PERCENT_DIVISOR`** (в коде **220**, мягче, чем старые 180, чтобы реже «прилипать» к верху на PPG).
 
 ---
 
@@ -144,10 +148,10 @@
 
 ## 11. Диагностика RMSSD (`computePracticeRmssdHampelDiagnostics`)
 
-- Вход: **`hrvValidBeatTimestampsMs`** (как основные метрики).
-- **`schemaVersion`: 2** в экспортируемом JSON.
-- На том же сегменте, что и `rmssdMs`: **`rmssdClassicNoHampelMs`** (без Хампеля), **`rmssdPipelineMs`** (как в продакшене — исключение выбросов для RMSSD + trimmed + блоки + потолок).
-- В сегменте: **`rrMsAfterHampel`** — ряд с **импутацией** (для согласованности с Баевским и наглядности); **`hampelOutlierMask`** — какие позиции считались выбросами.
+- Вход: `**hrvValidBeatTimestampsMs`** (как основные метрики).
+- `**schemaVersion`: 2** в экспортируемом JSON.
+- На том же сегменте, что и `rmssdMs`: `**rmssdClassicNoHampelMs`** (без Хампеля), `**rmssdPipelineMs**` (как в продакшене — исключение выбросов для RMSSD + trimmed + блоки + потолок).
+- В сегменте: `**rrMsAfterHampel**` — ряд с **импутацией** (для согласованности с Баевским и наглядности); `**hampelOutlierMask`** — какие позиции считались выбросами.
 - Кнопка в Biofeedback Probe: «Экспорт JSON: RMSSD классика vs пайплайн». На **iOS** для `Share` используется URL вида `file://…` для файла в кэше.
 
 Критерий «разница > ~30% между классикой и пайплайном» — эвристика; на очень коротких рядах RR после жёсткого фильтра сравнение шумное.
@@ -156,14 +160,16 @@
 
 ## 12. Файлы (кратко)
 
-| Файл | Содержание |
-|------|------------|
-| `hrv-practice-constants.ts` | Пороги RR и чисел ударов. |
-| `metrics.ts` | Сегменты по `hrvValidBeatTimestampsMs`, Хампель (импутация / флаги), RMSSD, Баевский, диагностика. |
-| `finger-analysis.ts` | Пайплайн камеры, накопитель HRV, EMA отображения, `getPracticeRmssdHampelDiagnostics()`. |
-| `BiofeedbackProbeScreen.tsx` | Пробы, экспорт диагностики. |
-| `FingerMeasurementSessionPanel.tsx` | Экспорт полной сессии, Share. |
-| `mandala-adapter.ts` | Нормализация в контракт мандалы. |
+
+| Файл                                | Содержание                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `hrv-practice-constants.ts`         | Пороги RR и чисел ударов.                                                                          |
+| `metrics.ts`                        | Сегменты по `hrvValidBeatTimestampsMs`, Хампель (импутация / флаги), RMSSD, Баевский, диагностика. |
+| `finger-analysis.ts`                | Пайплайн камеры, накопитель HRV, EMA отображения, `getPracticeRmssdHampelDiagnostics()`.           |
+| `BiofeedbackProbeScreen.tsx`        | Пробы, экспорт диагностики.                                                                        |
+| `FingerMeasurementSessionPanel.tsx` | Экспорт полной сессии, Share.                                                                      |
+| `mandala-adapter.ts`                | Нормализация в контракт мандалы.                                                                   |
+
 
 ---
 

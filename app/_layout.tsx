@@ -70,6 +70,10 @@ function RootLayoutNav() {
             name="sacred-symbol-stream"
             options={{ title: "Sacred Symbol Stream", headerBackTitle: "Back" }}
           />
+          <Stack.Screen
+            name="breath-coherence"
+            options={{ title: "Когерентное дыхание", headerBackTitle: "Back" }}
+          />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>

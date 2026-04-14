@@ -111,6 +111,8 @@ export interface FingerSignalSnapshot {
   baevskyStressIndexRaw: number;
   stressIndex: number;
   rrIntervalsMs: number[];
+  /** Абсолютные метки ударов (мс), для HRV/когерентности — тот же merged-поток, что и для RR. */
+  beatTimestampsMs: readonly number[];
   rawRrIntervalsMs: number[];
   medianRrMs: number;
   rawBaevskyStressIndexRaw: number;
