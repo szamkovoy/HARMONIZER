@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Ad-hoc OCR / Python experiments (не коммитить случайные выгрузки)
+.tmp_ocr/
+__tmp_ocr/

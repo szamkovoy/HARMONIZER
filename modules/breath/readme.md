@@ -1,26 +1,60 @@
 # BREATH
 
-Модуль дыхательных практик: оболочка экрана (`BreathPracticeShell`), первая сценарная практика — **когерентное дыхание** (120 с, ритм 5+5 с). Метки ударов для анализа накапливаются в `allSessionBeatsRef` (дедуп 220 мс), т.к. в одном снимке — только скользящий merged-буфер.
+Модуль дыхательных практик. Первая реализованная техника — **когерентное дыхание** (120 с,
+ритм 5+5 с). Дальнейшие техники (канальное, квадрат, треугольники, ритмичное в темпе пульса
+и т.д.) добавляются как новые экраны на той же шине `BiofeedbackBus`.
 
 ## Зависимости
 
-- **MANDALA** — визуализация (`MandalaCanvas`, пресет чакры 3 в `visuals/chakra3-mandala-keyframe.ts`).
-- **BIOFEEDBACK** — ППГ с пальца (`FingerSignalAnalyzer`, поле `beatTimestampsMs` в снимке для RR).
+- **BIOFEEDBACK** — единый источник биометрии. См. **[`docs/biofeedback-architecture.md`](../../docs/biofeedback-architecture.md)**.
+  Экран Breath — это просто потребитель каналов Bus (`pulseBpm`, `beat`, `coherence`, `contact`,
+  `session`) и временный «контроллер» жизненного цикла `CoherenceEngine` (start/finalize).
+- **MANDALA** — визуализация (`MandalaCanvas`, пресет 3-й чакры).
 
 ## Маршрут
 
-- `app/breath-coherence.tsx` — экран практики.
+- `app/breath-coherence.tsx` — экран «Когерентное дыхание».
 
-## UX
+## Архитектура (после рефакторинга 2026)
 
-- Перед текстом «вдох/выдох» в **dev build** с frame plugin: фаза **калибровки** до `pulseCalibrationComplete` и устойчивого пульса (как в probe). В Expo Go / без плагина — сразу практика, метрики по смоделированному RR.
-- Визуал: **Bindu succession** (`BreathBinduMandala` → `BinduSuccessionLabCanvas`), пресет 3-й чакры.
-- Полоска фазы: прогресс в `useFrameCallback` (Reanimated), таймер UI ~500 ms — без лишних перерисовок Skia.
+`CoherenceBreathScreen` оборачивается в `BiofeedbackProvider` и:
+
+1. Монтирует источник: `FingerPpgCameraSource` (если есть native plugin) или
+   `SimulatedSensorSource` (Expo Go / fallback).
+2. Управляет фазами UI: `idle → warmup → qualityCheck → running → results`.
+3. На переходе `qualityCheck → running` вызывает `pipeline.getCoherenceEngine().startSession({...})`.
+4. По окончании 120 с вызывает `finalize()` и показывает результаты.
+5. Подписывается на каналы Bus для отображения текущего пульса/качества/когерентности.
+6. Удары (`beat` channel) можно использовать для синхронизации дыхания с пульсом — для
+   когерентного дыхания этого пока не нужно (фиксированный ритм 5+5), но это
+   готовый канал для будущих практик.
+
+## Что удалено
+
+- `core/simulated-beats.ts` → перенесено в `modules/biofeedback/sensors/simulated-sensor.ts`.
+- `ui/BreathFingerCapture.tsx` → заменён на `modules/biofeedback/sensors/FingerPpgCameraSource.tsx`.
+- Накопители ударов (`allSessionBeatsRef`, `preflightBeatsRef`) в screen — теперь живут
+  внутри `CoherenceEngine` (`pipeline.getCoherenceEngine()`).
 
 ## Анализ когерентности
 
-Логика в `core/coherence-session-analysis.ts` (интерполяция 4 Гц, FFT, Pwin/Ptotal, RSA по циклам, нормированная RSA, время вхождения). Старт: 10 с прогрева без `pulseLog`, затем цикл проверки 5 с (tracking, quality > 0.7, ≥3 ударов), после успеха — 120 с практики с буфером QC для тахограммы. Режим анализа `test120s`.
+Чистая функция в `core/coherence-session-analysis.ts` (интерполяция 4 Гц, FFT, Pwin/Ptotal,
+RSA по циклам, нормированная RSA, время вхождения). Используется через `CoherenceEngine`
+(в `modules/biofeedback/engines/coherence-engine.ts`), который оборачивает её в stateful API
+для накопления ударов и периодических снимков.
 
 ## Экспорт
 
-Кнопка на экране результатов пишет JSON в cache и открывает системный Share (AirDrop и т.д.). Схема `schemaVersion: 2`: в `beats` разделены метки до/после дедупликации; полный разбор пайплайна и соответствие PDF — **`docs/breath-coherence-pipeline.md`**.
+Экран `CoherenceBreathScreen` пока пишет legacy-формат `schemaVersion: 2` через
+`buildCoherenceExportJson`. Параллельно доступен унифицированный
+`buildSessionExportV3` (см. `modules/biofeedback/export/SessionExporter.ts`) — его использует
+`BiofeedbackProbeScreen`. Финальное переключение Breath на v3 — следующий шаг продуктовой
+итерации.
+
+## Добавить новую дыхательную технику
+
+1. Создать константы практики (inhaleMs, exhaleMs, holdMs, циклы) в `core/`.
+2. Создать UI-экран по образцу `CoherenceBreathScreen`. Использовать `BiofeedbackProvider`.
+3. Если техника опирается на пульс — подписаться на `beat` (live channel) для синка.
+4. Если нужна метрика когерентности/RSA — переиспользовать `CoherenceEngine`.
+5. Добавить маршрут в `app/`.

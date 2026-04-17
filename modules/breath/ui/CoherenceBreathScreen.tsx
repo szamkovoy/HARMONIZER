@@ -13,28 +13,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { FingerSignalSnapshot } from "@/modules/biofeedback/core/types";
 import { isFingerFrameProcessorAvailable } from "@/modules/biofeedback-finger-frame-processor/src";
-import { getCoherenceBreathStrings, type BreathLocale } from "@/modules/breath/i18n/coherence";
+
+import { BiofeedbackProvider, useBiofeedbackPipeline } from "@/modules/biofeedback/bus/biofeedback-provider";
+import { useBiofeedbackBus, useBiofeedbackChannel } from "@/modules/biofeedback/bus/react";
+import { useBiofeedbackSnapshot } from "@/modules/biofeedback/bus/snapshot-adapter";
+import { FINGER_CAMERA_CAPTURE_CONFIG } from "@/modules/biofeedback/core/types";
+import { FingerPpgCameraSource } from "@/modules/biofeedback/sensors/FingerPpgCameraSource";
+import { SimulatedSensorSource } from "@/modules/biofeedback/sensors/SimulatedSensorSource";
+
 import {
-  COHERENCE_BEAT_DEDUPE_MS,
   COHERENCE_PREFLIGHT_BUFFER_MS,
   COHERENCE_QUALITY_WINDOW_MS,
   COHERENCE_WARMUP_MS,
 } from "@/modules/breath/core/coherence-constants";
 import { DEFAULT_COHERENCE_TEST_TIMING } from "@/modules/breath/core/types";
-import { generateSimulatedBeatTimestamps } from "@/modules/breath/core/simulated-beats";
-import {
-  buildCoherenceExportJson,
-  dedupeBeatTimestampsMs,
-  runCoherenceSessionAnalysis,
-  type CoherenceExportDebug,
-  type CoherencePulseLogEntry,
-  type CoherenceSessionResult,
-  type CoherenceSessionTimeBase,
+import { getCoherenceBreathStrings, type BreathLocale } from "@/modules/breath/i18n/coherence";
+import type {
+  CoherenceExportDebug,
+  CoherencePulseLogEntry,
+  CoherenceSessionResult,
 } from "@/modules/breath/core/coherence-session-analysis";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
-import { BreathFingerCapture } from "@/modules/breath/ui/BreathFingerCapture";
 
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
 
@@ -55,158 +55,56 @@ const useSimulatedPpg = isExpoGo || !isFingerFrameProcessorAvailable();
 
 type Phase = "idle" | "warmup" | "qualityCheck" | "running" | "results";
 
-function NativeBreathFingerBridge({
-  isActive,
-  onSnapshot,
-  fingerSessionKey,
-}: {
-  isActive: boolean;
-  onSnapshot: (s: FingerSignalSnapshot) => void;
-  fingerSessionKey: number;
-}) {
-  const VisionCamera = require("react-native-vision-camera") as typeof import("react-native-vision-camera");
-  const { useCameraPermission } = VisionCamera;
-  const { hasPermission, requestPermission } = useCameraPermission();
-
-  if (!isFingerFrameProcessorAvailable()) {
-    return (
-      <View style={styles.permissionBox}>
-        <Text style={styles.permissionText}>Нативный frame plugin недоступен — метрики будут по модели.</Text>
-      </View>
-    );
-  }
-
-  if (!hasPermission) {
-    return (
-      <View style={styles.permissionBox}>
-        <Text style={styles.permissionText}>Нужен доступ к камере для ППГ.</Text>
-        <Pressable onPress={() => void requestPermission()} style={styles.permissionBtn}>
-          <Text style={styles.permissionBtnText}>Разрешить камеру</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  return <BreathFingerCapture key={fingerSessionKey} isActive={isActive} onSnapshot={onSnapshot} />;
-}
-
-function BreathSignalBars({
-  values,
-  tintColor,
-}: {
-  values: readonly number[];
-  tintColor: string;
-}) {
-  const amplitude = Math.max(...values.map((value) => Math.abs(value)), 0.001);
-  return (
-    <View style={styles.signalBars}>
-      {values.map((value, index) => {
-        const normalized = Math.min(1, Math.max(0.14, Math.abs(value) / amplitude));
-        return (
-          <View
-            key={`${index}-${value}`}
-            style={[
-              styles.signalBar,
-              {
-                height: `${normalized * 100}%`,
-                opacity: value >= 0 ? 1 : 0.45,
-                backgroundColor: tintColor,
-              },
-            ]}
-          />
-        );
-      })}
-    </View>
-  );
-}
-
-function BreathOpticalStrip({
-  snapshot,
-  pulseLabel,
-  opticalCaption,
-  noSamplesHint,
-}: {
-  snapshot: FingerSignalSnapshot | null;
-  pulseLabel: string;
-  opticalCaption: string;
-  noSamplesHint: string;
-}) {
-  const opticalBars = useMemo(
-    () => snapshot?.opticalSamples.map((sample) => sample.value - snapshot.baseline) ?? [],
-    [snapshot],
-  );
-  return (
-    <View style={styles.opticalFooter}>
-      <Text style={styles.opticalCaption}>{opticalCaption}</Text>
-      {opticalBars.length > 0 ? (
-        <BreathSignalBars values={opticalBars} tintColor="#ff8f9f" />
-      ) : (
-        <View style={styles.opticalPlaceholder}>
-          <Text style={styles.opticalPlaceholderText}>{noSamplesHint}</Text>
-        </View>
-      )}
-      {snapshot ? (
-        <Text style={styles.opticalMeta}>
-          {pulseLabel}: {Math.round(snapshot.pulseRateBpm)} уд/мин · кач. {(snapshot.signalQuality * 100).toFixed(0)}%
-          {" · "}
-          {snapshot.fingerDetected ? "палец" : "нет пальца"} · {snapshot.pulseLockState}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
-export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale }) {
+/**
+ * Внутренний экран. Использует Bus + Pipeline через context (см. `BiofeedbackProvider`),
+ * подписывается на каналы, вместо прямой работы со снимками FingerSignalAnalyzer.
+ */
+function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
+  const pipeline = useBiofeedbackPipeline();
+  const bus = useBiofeedbackBus();
+  const snapshot = useBiofeedbackSnapshot();
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+  const coherenceLast = useBiofeedbackChannel("coherence");
   const [phase, setPhase] = useState<Phase>("idle");
   const phaseRef = useRef<Phase>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [sessionStartMs, setSessionStartMs] = useState<number | null>(null);
-  const [sessionEndMs, setSessionEndMs] = useState<number | null>(null);
+  const [sessionStartWallMs, setSessionStartWallMs] = useState<number | null>(null);
+  const [sessionStartLogicalMs, setSessionStartLogicalMs] = useState<number | null>(null);
   const [analysis, setAnalysis] = useState<CoherenceSessionResult | null>(null);
   const [exportDebug, setExportDebug] = useState<CoherenceExportDebug | null>(null);
-  const [fingerSessionKey, setFingerSessionKey] = useState(0);
-  const gongPlayedRef = useRef(false);
-  /** Последний merged-массив из снимка (для UI/мета в debug). */
-  const lastBeatsRef = useRef<number[]>([]);
-  /**
-   * Накопление меток ударов за текущую практику: в каждом снимке merged-массив — только скользящее окно (~12 с),
-   * поэтому сюда каждый кадр добавляем snapshot.beatTimestampsMs и схлопываем дубликаты (COHERENCE_BEAT_DEDUPE_MS).
-   * Иначе в анализ попадают только последние пики, хотя pulseLog показывает стабильный сигнал всю сессию.
-   */
-  const allSessionBeatsRef = useRef<number[]>([]);
-  /** Метки из успешного 5-секундного QC — буфер для тахограммы до logical T=0. */
-  const preflightBeatsRef = useRef<number[]>([]);
-  const warmupWallStartRef = useRef<number | null>(null);
-  const protocolWallStartRef = useRef<number | null>(null);
-  const qcCameraStartRef = useRef<number | null>(null);
+  const [sourceKey, setSourceKey] = useState(0);
+  /** Уникальный счётчик «сессий PPG» для legacy совместимости в debug-метаполях. */
+  const fingerSessionKey = sourceKey;
+
+  const warmupStartedAtMs = useRef<number | null>(null);
+  const protocolStartedAtMs = useRef<number | null>(null);
+  const qcStartLogicalMsRef = useRef<number | null>(null);
   const pulseLogRef = useRef<CoherencePulseLogEntry[]>([]);
   const lastPulseLogWallClockRef = useRef(0);
   const snapshotCallbacksTotalRef = useRef(0);
   const snapshotsWhileRunningRef = useRef(0);
-  const lastSnapMetaRef = useRef({
-    timestampMs: 0 as number | null,
-    beatTimestampsMsLength: 0,
-    detectedBeatCount: 0,
-    pulseLockState: "searching" as FingerSignalSnapshot["pulseLockState"],
-    fingerDetected: false,
-  });
-  /** Время кадра камеры в момент старта практики (см. нативный timestampMs в плагине — не Unix). */
-  const practicePpgAnchorMsRef = useRef<number | null>(null);
-  const lastCameraMsRunningRef = useRef<number | null>(null);
-  const fingerAbsentAccumMsRef = useRef(0);
+
+  /** Маска секунд практики, в которые сигнал был некачественным → BPM=0 на тахограмме. */
   const qualityBadAccumMsRef = useRef(0);
-  /** Индекс секунды 0..119 относительно practice anchor: принудительный BPM = 0 на тахограмме. */
-  const secondBpmForcedZeroRef = useRef<boolean[]>(new Array(PPG_SESSION_SECONDS).fill(false));
+  const fingerAbsentAccumMsRef = useRef(0);
+  const lastSampleMsRef = useRef<number | null>(null);
+
+  /** Обратный отсчёт окна QC (секунды по времени камеры); `null` — ждём первую метку. */
+  const [qcSecondsLeft, setQcSecondsLeft] = useState<number | null>(null);
+
+  /** UI banners. */
   const [ppgOverlayMessage, setPpgOverlayMessage] = useState<string | null>(null);
   const ppgBannerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Уже показали баннер за текущий эпизод «нет пальца» (сброс при возврате контакта). */
   const fingerLostBannerShownThisEpisodeRef = useRef(false);
-  /** Уже показали баннер за текущий эпизод «плохой сигнал» 2–7 с (сброс при восстановлении lock/SQ). */
   const weakSignalBannerShownThisEpisodeRef = useRef(false);
   const prevFingerDetectedForBannerRef = useRef(true);
   const prevBadSignalForBannerRef = useRef(false);
-  const [calibrationSnapshot, setCalibrationSnapshot] = useState<FingerSignalSnapshot | null>(null);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   const clearPpgBannerUi = useCallback(() => {
     setPpgOverlayMessage(null);
@@ -221,10 +119,6 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
   }, []);
 
   useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-
-  useEffect(() => {
     if (phase !== "running") {
       clearPpgBannerUi();
     }
@@ -233,291 +127,259 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
   const instructionOpacity = useRef(new RNAnimated.Value(1)).current;
   const mandalaOpacity = useRef(new RNAnimated.Value(0)).current;
 
-  const onFingerSnapshot = useCallback(
-    (snapshot: FingerSignalSnapshot) => {
-      snapshotCallbacksTotalRef.current += 1;
-      if (phaseRef.current === "running") {
-        snapshotsWhileRunningRef.current += 1;
-      }
-      lastBeatsRef.current = [...snapshot.beatTimestampsMs];
-      if (
-        !useSimulatedPpg &&
-        (phaseRef.current === "warmup" ||
-          phaseRef.current === "qualityCheck" ||
-          phaseRef.current === "running")
-      ) {
-        let shouldMergeBeats = true;
-        if (phaseRef.current === "running") {
-          const anchor = practicePpgAnchorMsRef.current;
-          const lastCam = lastCameraMsRunningRef.current;
-          const camTs = snapshot.timestampMs;
-          const delta = lastCam != null ? Math.max(0, camTs - lastCam) : 0;
-          lastCameraMsRunningRef.current = camTs;
-
-          if (anchor != null) {
-            const badSignal =
-              snapshot.pulseLockState === "searching" || snapshot.signalQuality < 0.5;
-
-            if (!snapshot.fingerDetected) {
-              fingerAbsentAccumMsRef.current += delta;
-              qualityBadAccumMsRef.current = 0;
-            } else {
-              fingerAbsentAccumMsRef.current = 0;
-              if (badSignal) {
-                qualityBadAccumMsRef.current += delta;
-              } else {
-                qualityBadAccumMsRef.current = 0;
-              }
-            }
-
-            const fingerJustReturned =
-              snapshot.fingerDetected && !prevFingerDetectedForBannerRef.current;
-            const signalJustRecovered =
-              snapshot.fingerDetected && !badSignal && prevBadSignalForBannerRef.current;
-
-            if (fingerJustReturned) {
-              if (ppgBannerHideTimerRef.current != null) {
-                clearTimeout(ppgBannerHideTimerRef.current);
-                ppgBannerHideTimerRef.current = null;
-              }
-              setPpgOverlayMessage(null);
-              fingerLostBannerShownThisEpisodeRef.current = false;
-            }
-
-            if (signalJustRecovered) {
-              if (ppgBannerHideTimerRef.current != null) {
-                clearTimeout(ppgBannerHideTimerRef.current);
-                ppgBannerHideTimerRef.current = null;
-              }
-              setPpgOverlayMessage(null);
-              weakSignalBannerShownThisEpisodeRef.current = false;
-            }
-
-            prevFingerDetectedForBannerRef.current = snapshot.fingerDetected;
-            prevBadSignalForBannerRef.current = badSignal;
-
-            const fingerOk = snapshot.fingerDetected;
-            const qualitySustainedBad =
-              fingerOk &&
-              qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
-              (snapshot.pulseLockState === "searching" || snapshot.signalQuality < 0.5);
-            shouldMergeBeats = fingerOk && !qualitySustainedBad;
-
-            if (!shouldMergeBeats) {
-              const sec = Math.min(
-                PPG_SESSION_SECONDS - 1,
-                Math.max(0, Math.floor((camTs - anchor) / 1000)),
-              );
-              secondBpmForcedZeroRef.current[sec] = true;
-            }
-
-            if (
-              !snapshot.fingerDetected &&
-              fingerAbsentAccumMsRef.current >= PPG_FINGER_LOST_OVERLAY_MS &&
-              !fingerLostBannerShownThisEpisodeRef.current
-            ) {
-              fingerLostBannerShownThisEpisodeRef.current = true;
-              if (ppgBannerHideTimerRef.current != null) {
-                clearTimeout(ppgBannerHideTimerRef.current);
-              }
-              setPpgOverlayMessage(str.ppgFingerLostMessage);
-              ppgBannerHideTimerRef.current = setTimeout(() => {
-                setPpgOverlayMessage(null);
-                ppgBannerHideTimerRef.current = null;
-              }, PPG_BANNER_DISPLAY_MS);
-            } else if (
-              snapshot.fingerDetected &&
-              badSignal &&
-              qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
-              qualityBadAccumMsRef.current < PPG_QUALITY_GRADE_C_MS &&
-              !weakSignalBannerShownThisEpisodeRef.current
-            ) {
-              weakSignalBannerShownThisEpisodeRef.current = true;
-              if (ppgBannerHideTimerRef.current != null) {
-                clearTimeout(ppgBannerHideTimerRef.current);
-              }
-              setPpgOverlayMessage(str.ppgWeakSignalMessage);
-              ppgBannerHideTimerRef.current = setTimeout(() => {
-                setPpgOverlayMessage(null);
-                ppgBannerHideTimerRef.current = null;
-              }, PPG_BANNER_DISPLAY_MS);
-            }
-          }
-        }
-
-        if (shouldMergeBeats) {
-          allSessionBeatsRef.current = dedupeBeatTimestampsMs(
-            [...allSessionBeatsRef.current, ...snapshot.beatTimestampsMs],
-            COHERENCE_BEAT_DEDUPE_MS,
-          );
-        }
-      }
-      lastSnapMetaRef.current = {
-        timestampMs: snapshot.timestampMs,
-        beatTimestampsMsLength: snapshot.beatTimestampsMs.length,
-        detectedBeatCount: snapshot.detectedBeatCount,
-        pulseLockState: snapshot.pulseLockState,
-        fingerDetected: snapshot.fingerDetected,
-      };
-      if (
-        phaseRef.current === "warmup" ||
-        phaseRef.current === "qualityCheck" ||
-        phaseRef.current === "running"
-      ) {
-        setCalibrationSnapshot(snapshot);
-      }
-
-      if (phaseRef.current === "running") {
-        const wall = Date.now();
-        if (wall - lastPulseLogWallClockRef.current >= 500) {
-          lastPulseLogWallClockRef.current = wall;
-          pulseLogRef.current.push({
-            cameraTimestampMs: snapshot.timestampMs,
-            wallClockMs: wall,
-            pulseRateBpm: snapshot.pulseRateBpm,
-            signalQuality: snapshot.signalQuality,
-            pulseReady: snapshot.pulseReady,
-            fingerDetected: snapshot.fingerDetected,
-            pulseLockState: snapshot.pulseLockState,
-            beatTimestampsCount: snapshot.beatTimestampsMs.length,
-          });
-        }
-      }
-
-      if (phaseRef.current === "qualityCheck" && !useSimulatedPpg) {
-        if (qcCameraStartRef.current == null) {
-          qcCameraStartRef.current = snapshot.timestampMs;
-        }
-        const qcStart = qcCameraStartRef.current;
-        if (snapshot.timestampMs < qcStart + COHERENCE_QUALITY_WINDOW_MS) {
-          return;
-        }
-        const winEnd = qcStart + COHERENCE_QUALITY_WINDOW_MS;
-        const beatsInWin = allSessionBeatsRef.current.filter((t) => t >= qcStart && t <= winEnd);
-        const ok =
-          snapshot.pulseLockState === "tracking" &&
-          snapshot.signalQuality > 0.7 &&
-          beatsInWin.length >= 3;
-        if (ok) {
-          preflightBeatsRef.current = dedupeBeatTimestampsMs(beatsInWin, COHERENCE_BEAT_DEDUPE_MS);
-          practicePpgAnchorMsRef.current = winEnd;
-          lastCameraMsRunningRef.current = null;
-          fingerAbsentAccumMsRef.current = 0;
-          qualityBadAccumMsRef.current = 0;
-          secondBpmForcedZeroRef.current = new Array(PPG_SESSION_SECONDS).fill(false);
-          clearPpgBannerUi();
-          setSessionStartMs(Date.now());
-          setElapsedMs(0);
-          gongPlayedRef.current = false;
-          setPhase("running");
-        } else {
-          qcCameraStartRef.current = snapshot.timestampMs;
-        }
-      }
-    },
-    [useSimulatedPpg, str.ppgFingerLostMessage, str.ppgWeakSignalMessage, clearPpgBannerUi],
-  );
+  // ─── Warmup → QC → Running переход ────────────────────────────────────────
 
   useEffect(() => {
-    if (phase !== "warmup" || useSimulatedPpg) {
-      return;
-    }
+    if (phase !== "warmup" || useSimulatedPpg) return;
     const id = setInterval(() => {
-      if (Date.now() - (warmupWallStartRef.current ?? 0) >= COHERENCE_WARMUP_MS) {
-        qcCameraStartRef.current = null;
+      if (Date.now() - (warmupStartedAtMs.current ?? 0) >= COHERENCE_WARMUP_MS) {
+        qcStartLogicalMsRef.current = null;
         setPhase("qualityCheck");
       }
     }, 200);
     return () => clearInterval(id);
-  }, [phase, useSimulatedPpg]);
+  }, [phase]);
 
   useEffect(() => {
-    if ((phase !== "warmup" && phase !== "qualityCheck") || useSimulatedPpg) {
-      return;
-    }
+    if ((phase !== "warmup" && phase !== "qualityCheck") || useSimulatedPpg) return;
     const id = setInterval(() => {
-      if (Date.now() - (protocolWallStartRef.current ?? 0) > COHERENCE_PROTOCOL_MAX_MS) {
+      if (Date.now() - (protocolStartedAtMs.current ?? 0) > COHERENCE_PROTOCOL_MAX_MS) {
         Alert.alert(str.calibrationTitle, str.calibrationTimeout);
-        allSessionBeatsRef.current = [];
         setPhase("idle");
-        setCalibrationSnapshot(null);
       }
     }, 2000);
     return () => clearInterval(id);
-  }, [phase, str.calibrationTimeout, str.calibrationTitle, useSimulatedPpg]);
+  }, [phase, str.calibrationTimeout, str.calibrationTitle]);
+
+  // ─── Подписка на pulseBpm для счёта QC окна и pulseLog ────────────────────
 
   useEffect(() => {
-    if (phase !== "running" || sessionStartMs == null) {
-      return;
-    }
-    let id: ReturnType<typeof setInterval>;
-    id = setInterval(() => {
-      const e = Date.now() - sessionStartMs;
-      setElapsedMs(Math.min(e, TIMING.totalMs));
-      if (e < TIMING.totalMs) {
+    return bus.subscribe("pulseBpm", (event) => {
+      snapshotCallbacksTotalRef.current += 1;
+      if (phaseRef.current === "running") {
+        snapshotsWhileRunningRef.current += 1;
+        const wall = Date.now();
+        if (wall - lastPulseLogWallClockRef.current >= 500) {
+          lastPulseLogWallClockRef.current = wall;
+          pulseLogRef.current.push({
+            cameraTimestampMs: pipeline.getLastSourceTimestampMs(),
+            wallClockMs: wall,
+            pulseRateBpm: event.bpm,
+            signalQuality: snapshot.signalQuality,
+            pulseReady: event.hasFreshBeat,
+            fingerDetected: snapshot.fingerDetected,
+            pulseLockState: event.lockState,
+            beatTimestampsCount: pipeline.getMergedBeats().length,
+          });
+        }
+      }
+    });
+  }, [bus, pipeline, snapshot.signalQuality, snapshot.fingerDetected]);
+
+  // ─── QC окно 5 с (camera time) ────────────────────────────────────────────
+
+  useEffect(() => {
+    if (phase !== "qualityCheck" || useSimulatedPpg) return;
+    const id = setInterval(() => {
+      const camTs = pipeline.getLastSourceTimestampMs();
+      if (camTs <= 0) {
+        setQcSecondsLeft(null);
         return;
       }
+      if (qcStartLogicalMsRef.current == null) {
+        qcStartLogicalMsRef.current = camTs;
+        setQcSecondsLeft(Math.ceil(COHERENCE_QUALITY_WINDOW_MS / 1000));
+        return;
+      }
+      const qcStart = qcStartLogicalMsRef.current;
+      const elapsed = camTs - qcStart;
+      const remainingMs = COHERENCE_QUALITY_WINDOW_MS - elapsed;
+      setQcSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
+
+      if (camTs < qcStart + COHERENCE_QUALITY_WINDOW_MS) return;
+
+      const winEnd = qcStart + COHERENCE_QUALITY_WINDOW_MS;
+      const beatsInWin = pipeline
+        .getMergedBeats()
+        .filter((t) => t >= qcStart && t <= winEnd);
+      const snap = snapshotRef.current;
+      const ok =
+        snap.pulseLockState === "tracking" &&
+        snap.signalQuality > 0.7 &&
+        beatsInWin.length >= 3;
+      if (ok) {
+        const anchor = winEnd;
+        pipeline.getCoherenceEngine().startSession({
+          sessionStartedAtMs: anchor,
+          inhaleMs: TIMING.inhaleMs,
+          exhaleMs: TIMING.exhaleMs,
+          mode: "test120s",
+          preflightBeats: beatsInWin,
+          bufferMsBeforeSession: COHERENCE_PREFLIGHT_BUFFER_MS,
+        });
+        qualityBadAccumMsRef.current = 0;
+        fingerAbsentAccumMsRef.current = 0;
+        lastSampleMsRef.current = anchor;
+        clearPpgBannerUi();
+        setSessionStartWallMs(Date.now());
+        setSessionStartLogicalMs(anchor);
+        setElapsedMs(0);
+        setPhase("running");
+      } else {
+        qcStartLogicalMsRef.current = camTs;
+      }
+    }, 250);
+    return () => {
       clearInterval(id);
-      const wallEndMs = sessionStartMs + TIMING.totalMs;
-      const anchor = practicePpgAnchorMsRef.current;
-      const usePpgTimeline = !useSimulatedPpg && anchor != null;
-      const sessionTimeBase: CoherenceSessionTimeBase = usePpgTimeline ? "cameraPresentationMs" : "unixEpochMs";
-      const analysisStartMs = usePpgTimeline ? anchor : sessionStartMs;
-      const analysisEndMs = usePpgTimeline ? anchor + TIMING.totalMs : wallEndMs;
-      const rawBeats = [...allSessionBeatsRef.current];
-      const beats = useSimulatedPpg
-        ? generateSimulatedBeatTimestamps(sessionStartMs, wallEndMs)
-        : rawBeats.filter(
-            (t) =>
-              t >= analysisStartMs - COHERENCE_PREFLIGHT_BUFFER_MS - 1 && t <= analysisEndMs + 1,
-          );
-      const rawBeatMinMs = rawBeats.length === 0 ? null : Math.min(...rawBeats);
-      const rawBeatMaxMs = rawBeats.length === 0 ? null : Math.max(...rawBeats);
-      const meta = lastSnapMetaRef.current;
-      const res = runCoherenceSessionAnalysis({
-        sessionStartedAtMs: analysisStartMs,
-        sessionEndedAtMs: analysisEndMs,
-        beatTimestampsMs: beats,
-        inhaleMs: TIMING.inhaleMs,
-        exhaleMs: TIMING.exhaleMs,
-        mode: "test120s",
-        bufferMsBeforeSession: useSimulatedPpg ? 0 : COHERENCE_PREFLIGHT_BUFFER_MS,
-        secondBpmForcedZero: useSimulatedPpg ? undefined : [...secondBpmForcedZeroRef.current],
-      });
-      const finalRes =
-        useSimulatedPpg ? { ...res, warnings: [...res.warnings, str.simulatedMetricsNote] } : res;
+      setQcSecondsLeft(null);
+    };
+  }, [phase, pipeline, clearPpgBannerUi]);
+
+  // ─── Running: добавляем удары в CoherenceEngine + ведём баннеры качества ─
+
+  useEffect(() => {
+    if (phase !== "running" || useSimulatedPpg) return;
+    const id = setInterval(() => {
+      const now = pipeline.getLastSourceTimestampMs();
+      if (now <= 0) return;
+      pipeline.getCoherenceEngine().appendBeats(pipeline.getMergedBeats());
+
+      const lastSample = lastSampleMsRef.current ?? now;
+      const delta = Math.max(0, now - lastSample);
+      lastSampleMsRef.current = now;
+
+      const fingerOk = snapshot.fingerDetected;
+      const badSignal =
+        snapshot.pulseLockState === "searching" || snapshot.signalQuality < 0.5;
+
+      if (!fingerOk) {
+        fingerAbsentAccumMsRef.current += delta;
+        qualityBadAccumMsRef.current = 0;
+      } else {
+        fingerAbsentAccumMsRef.current = 0;
+        if (badSignal) qualityBadAccumMsRef.current += delta;
+        else qualityBadAccumMsRef.current = 0;
+      }
+
+      const fingerJustReturned = fingerOk && !prevFingerDetectedForBannerRef.current;
+      const signalJustRecovered = fingerOk && !badSignal && prevBadSignalForBannerRef.current;
+      if (fingerJustReturned || signalJustRecovered) {
+        if (ppgBannerHideTimerRef.current != null) clearTimeout(ppgBannerHideTimerRef.current);
+        ppgBannerHideTimerRef.current = null;
+        setPpgOverlayMessage(null);
+        if (fingerJustReturned) fingerLostBannerShownThisEpisodeRef.current = false;
+        if (signalJustRecovered) weakSignalBannerShownThisEpisodeRef.current = false;
+      }
+      prevFingerDetectedForBannerRef.current = fingerOk;
+      prevBadSignalForBannerRef.current = badSignal;
+
+      const qualitySustainedBad =
+        fingerOk &&
+        qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
+        badSignal;
+
+      if (sessionStartLogicalMs != null) {
+        const sec = Math.min(
+          PPG_SESSION_SECONDS - 1,
+          Math.max(0, Math.floor((now - sessionStartLogicalMs) / 1000)),
+        );
+        if (!fingerOk || qualitySustainedBad) {
+          pipeline.getCoherenceEngine().forceSecondBpmZero(sec, PPG_SESSION_SECONDS);
+        }
+      }
+
+      if (
+        !fingerOk &&
+        fingerAbsentAccumMsRef.current >= PPG_FINGER_LOST_OVERLAY_MS &&
+        !fingerLostBannerShownThisEpisodeRef.current
+      ) {
+        fingerLostBannerShownThisEpisodeRef.current = true;
+        if (ppgBannerHideTimerRef.current != null) clearTimeout(ppgBannerHideTimerRef.current);
+        setPpgOverlayMessage(str.ppgFingerLostMessage);
+        ppgBannerHideTimerRef.current = setTimeout(() => {
+          setPpgOverlayMessage(null);
+          ppgBannerHideTimerRef.current = null;
+        }, PPG_BANNER_DISPLAY_MS);
+      } else if (
+        fingerOk &&
+        badSignal &&
+        qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
+        qualityBadAccumMsRef.current < PPG_QUALITY_GRADE_C_MS &&
+        !weakSignalBannerShownThisEpisodeRef.current
+      ) {
+        weakSignalBannerShownThisEpisodeRef.current = true;
+        if (ppgBannerHideTimerRef.current != null) clearTimeout(ppgBannerHideTimerRef.current);
+        setPpgOverlayMessage(str.ppgWeakSignalMessage);
+        ppgBannerHideTimerRef.current = setTimeout(() => {
+          setPpgOverlayMessage(null);
+          ppgBannerHideTimerRef.current = null;
+        }, PPG_BANNER_DISPLAY_MS);
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [
+    phase,
+    pipeline,
+    sessionStartLogicalMs,
+    snapshot.fingerDetected,
+    snapshot.pulseLockState,
+    snapshot.signalQuality,
+    str.ppgFingerLostMessage,
+    str.ppgWeakSignalMessage,
+  ]);
+
+  // ─── UI таймер сессии + анимации ─────────────────────────────────────────
+
+  useEffect(() => {
+    if (phase !== "running" || sessionStartWallMs == null || sessionStartLogicalMs == null) return;
+    const id = setInterval(() => {
+      const e = Date.now() - sessionStartWallMs;
+      setElapsedMs(Math.min(e, TIMING.totalMs));
+      if (e < TIMING.totalMs) return;
+      clearInterval(id);
+      const analysisEndLogicalMs = sessionStartLogicalMs + TIMING.totalMs;
+      const result = pipeline.getCoherenceEngine().finalize(analysisEndLogicalMs);
+      const finalRes = useSimulatedPpg
+        ? { ...result, warnings: [...result.warnings, str.simulatedMetricsNote] }
+        : result;
+      const sessionBeats = pipeline.getCoherenceEngine().getSessionBeats();
       const debug: CoherenceExportDebug = {
         fingerSessionKey,
-        sessionTimeBase,
-        practicePpgAnchorMs: anchor,
-        wallClockSessionStartMs: sessionStartMs,
+        sessionTimeBase: useSimulatedPpg ? "unixEpochMs" : "cameraPresentationMs",
+        practicePpgAnchorMs: useSimulatedPpg ? null : sessionStartLogicalMs,
+        wallClockSessionStartMs: sessionStartWallMs,
         snapshotCallbacksTotal: snapshotCallbacksTotalRef.current,
         snapshotsWhileRunning: snapshotsWhileRunningRef.current,
-        lastSnapshotTimestampMs: meta.timestampMs,
-        lastSnapshotBeatCount: meta.beatTimestampsMsLength,
-        lastSnapshotDetectedBeatCount: meta.detectedBeatCount,
-        lastSnapshotPulseLock: meta.pulseLockState,
-        lastSnapshotFingerDetected: meta.fingerDetected,
-        rawBeatArrayLengthBeforeFilter: rawBeats.length,
+        lastSnapshotTimestampMs: pipeline.getLastSourceTimestampMs(),
+        lastSnapshotBeatCount: pipeline.getMergedBeats().length,
+        lastSnapshotDetectedBeatCount: pipeline.getMergedBeats().length,
+        lastSnapshotPulseLock: pipeline.getLockState(),
+        lastSnapshotFingerDetected: snapshot.fingerDetected,
+        rawBeatArrayLengthBeforeFilter: sessionBeats.length,
         beatsAfterDedupeMs: finalRes.beatTimestampsMsAnalyzed.length,
-        rawBeatMinMs,
-        rawBeatMaxMs,
-        beatsAfterSessionWindowFilter: beats.length,
-        analysisSessionStartMs: analysisStartMs,
-        analysisSessionEndMs: analysisEndMs,
+        rawBeatMinMs: sessionBeats[0] ?? null,
+        rawBeatMaxMs: sessionBeats[sessionBeats.length - 1] ?? null,
+        beatsAfterSessionWindowFilter: finalRes.beatTimestampsMsBeforeDedupe.length,
+        analysisSessionStartMs: sessionStartLogicalMs,
+        analysisSessionEndMs: analysisEndLogicalMs,
       };
       setExportDebug(debug);
       setAnalysis(finalRes);
-      setSessionEndMs(wallEndMs);
       setPhase("results");
     }, UI_TICK_MS);
     return () => clearInterval(id);
-  }, [phase, sessionStartMs, fingerSessionKey, str.simulatedMetricsNote]);
+  }, [
+    phase,
+    sessionStartWallMs,
+    sessionStartLogicalMs,
+    fingerSessionKey,
+    pipeline,
+    snapshot.fingerDetected,
+    str.simulatedMetricsNote,
+  ]);
 
   useEffect(() => {
-    if (phase !== "running" || sessionStartMs == null) {
-      return;
-    }
+    if (phase !== "running" || sessionStartWallMs == null) return;
     const fadeStart = TIMING.instructionPhaseMs - 1500;
     if (elapsedMs >= fadeStart && elapsedMs < TIMING.instructionPhaseMs) {
       const t = (elapsedMs - fadeStart) / 1500;
@@ -530,17 +392,7 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
       instructionOpacity.setValue(1);
       mandalaOpacity.setValue(0);
     }
-  }, [elapsedMs, instructionOpacity, mandalaOpacity, phase, sessionStartMs]);
-
-  useEffect(() => {
-    if (phase !== "running" || sessionStartMs == null) {
-      return;
-    }
-    const at = TIMING.totalMs - TIMING.gongBeforeEndMs;
-    if (elapsedMs >= at && !gongPlayedRef.current) {
-      gongPlayedRef.current = true;
-    }
-  }, [elapsedMs, phase, sessionStartMs]);
+  }, [elapsedMs, instructionOpacity, mandalaOpacity, phase, sessionStartWallMs]);
 
   const { isInhale } = useBreathPhaseLabel(elapsedMs, TIMING.inhaleMs, TIMING.exhaleMs);
 
@@ -552,76 +404,56 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
         )
       : 0;
 
-  const beginFromIdle = () => {
-    practicePpgAnchorMsRef.current = null;
-    lastCameraMsRunningRef.current = null;
-    fingerAbsentAccumMsRef.current = 0;
+  const beginFromIdle = useCallback(() => {
+    pipeline.softReset();
+    pipeline.getCoherenceEngine().reset();
+    qcStartLogicalMsRef.current = null;
     qualityBadAccumMsRef.current = 0;
-    secondBpmForcedZeroRef.current = new Array(PPG_SESSION_SECONDS).fill(false);
-    clearPpgBannerUi();
-    preflightBeatsRef.current = [];
-    allSessionBeatsRef.current = [];
-    qcCameraStartRef.current = null;
-    warmupWallStartRef.current = Date.now();
-    protocolWallStartRef.current = Date.now();
+    fingerAbsentAccumMsRef.current = 0;
+    lastSampleMsRef.current = null;
     pulseLogRef.current = [];
     lastPulseLogWallClockRef.current = 0;
     snapshotCallbacksTotalRef.current = 0;
     snapshotsWhileRunningRef.current = 0;
-    setFingerSessionKey((k) => k + 1);
+    setSourceKey((k) => k + 1);
     setExportDebug(null);
-    lastBeatsRef.current = [];
-    setCalibrationSnapshot(null);
     setAnalysis(null);
-    setSessionEndMs(null);
+    setSessionStartLogicalMs(null);
+    clearPpgBannerUi();
+
     if (useSimulatedPpg) {
       const now = Date.now();
-      practicePpgAnchorMsRef.current = now;
-      setSessionStartMs(now);
-      setElapsedMs(0);
-      gongPlayedRef.current = false;
-      setPhase("running");
-      return;
-    }
-    setPhase("warmup");
-    setSessionStartMs(null);
-    setElapsedMs(0);
-  };
-
-  const exportJson = async () => {
-    if (analysis == null || sessionStartMs == null || sessionEndMs == null) {
-      return;
-    }
-    const anchor = practicePpgAnchorMsRef.current;
-    const usePpgTimeline = !useSimulatedPpg && anchor != null;
-    const analysisStartMs = usePpgTimeline ? anchor : sessionStartMs;
-    const analysisEndMs = usePpgTimeline ? anchor + TIMING.totalMs : sessionEndMs;
-    const raw = [...allSessionBeatsRef.current];
-    const beats = useSimulatedPpg
-      ? generateSimulatedBeatTimestamps(sessionStartMs, sessionEndMs)
-      : raw.filter(
-          (t) =>
-            t >= analysisStartMs - COHERENCE_PREFLIGHT_BUFFER_MS - 1 && t <= analysisEndMs + 1,
-        );
-    const payload = buildCoherenceExportJson(
-      {
-        sessionStartedAtMs: analysisStartMs,
-        sessionEndedAtMs: analysisEndMs,
-        beatTimestampsMs: beats,
+      pipeline.getCoherenceEngine().startSession({
+        sessionStartedAtMs: now,
         inhaleMs: TIMING.inhaleMs,
         exhaleMs: TIMING.exhaleMs,
         mode: "test120s",
-        bufferMsBeforeSession: useSimulatedPpg ? 0 : COHERENCE_PREFLIGHT_BUFFER_MS,
-        secondBpmForcedZero: useSimulatedPpg ? undefined : [...secondBpmForcedZeroRef.current],
-      },
-      analysis,
-      {
-        dataSource: useSimulatedPpg ? "simulated" : "fingerPpg",
-        debug: exportDebug ?? undefined,
-        pulseLog:
-          useSimulatedPpg ? undefined : pulseLogRef.current.filter((p) => p.wallClockMs >= sessionStartMs),
-      },
-    );
+        bufferMsBeforeSession: 0,
+      });
+      setSessionStartWallMs(now);
+      setSessionStartLogicalMs(now);
+      setElapsedMs(0);
+      setPhase("running");
+      return;
+    }
+
+    warmupStartedAtMs.current = Date.now();
+    protocolStartedAtMs.current = Date.now();
+    setSessionStartWallMs(null);
+    setElapsedMs(0);
+    setPhase("warmup");
+  }, [pipeline, clearPpgBannerUi]);
+
+  const exportJson = useCallback(async () => {
+    if (analysis == null || sessionStartWallMs == null || sessionStartLogicalMs == null) return;
+    const analysisEndLogicalMs = sessionStartLogicalMs + TIMING.totalMs;
+    const payload = pipeline.getCoherenceEngine().buildExportJson(analysisEndLogicalMs, {
+      dataSource: useSimulatedPpg ? "simulated" : "fingerPpg",
+      debug: exportDebug ?? undefined,
+      pulseLog: useSimulatedPpg
+        ? undefined
+        : pulseLogRef.current.filter((p) => p.wallClockMs >= sessionStartWallMs),
+    });
     const json = JSON.stringify(payload, null, 2);
     const base = cacheDirectory;
     if (base == null) {
@@ -642,7 +474,7 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
     } catch (e: unknown) {
       Alert.alert("Экспорт", String(e));
     }
-  };
+  }, [analysis, exportDebug, pipeline, sessionStartLogicalMs, sessionStartWallMs]);
 
   const centerInstruction = (
     <View style={styles.instructionBlock}>
@@ -653,10 +485,10 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
 
   const cameraActive = phase === "warmup" || phase === "qualityCheck" || phase === "running";
 
-  const practiceOpticalFooter = useMemo(() => {
-    if (phase !== "running") {
-      return null;
-    }
+  const liveCoherencePercent = coherenceLast?.currentPercent ?? null;
+
+  const practiceFooter = useMemo(() => {
+    if (phase !== "running") return null;
     if (useSimulatedPpg) {
       return (
         <View style={styles.opticalFooter}>
@@ -665,23 +497,33 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
       );
     }
     return (
-      <BreathOpticalStrip
-        snapshot={calibrationSnapshot}
-        pulseLabel={str.calibrationPulse}
-        opticalCaption={str.opticalSeriesCaption}
-        noSamplesHint={str.opticalNoSamples}
-      />
+      <View style={styles.opticalFooter}>
+        <Text style={styles.opticalCaption}>{str.opticalSeriesCaption}</Text>
+        <Text style={styles.opticalMeta}>
+          {str.calibrationPulse}: {Math.round(snapshot.pulseRateBpm || 0)} уд/мин · кач. {(snapshot.signalQuality * 100).toFixed(0)}%
+          {" · "}
+          {snapshot.fingerDetected ? "палец" : "нет пальца"} · {snapshot.pulseLockState}
+          {liveCoherencePercent != null ? ` · когерентность ${Math.round(liveCoherencePercent)}%` : ""}
+        </Text>
+      </View>
     );
-  }, [phase, useSimulatedPpg, calibrationSnapshot, str]);
+  }, [
+    phase,
+    snapshot.pulseRateBpm,
+    snapshot.signalQuality,
+    snapshot.fingerDetected,
+    snapshot.pulseLockState,
+    liveCoherencePercent,
+    str,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe}>
       {!isExpoGo && !useSimulatedPpg ? (
-        <NativeBreathFingerBridge
-          fingerSessionKey={fingerSessionKey}
-          isActive={cameraActive}
-          onSnapshot={onFingerSnapshot}
-        />
+        <FingerPpgCameraSource key={`finger-${sourceKey}`} isActive={cameraActive} />
+      ) : null}
+      {useSimulatedPpg ? (
+        <SimulatedSensorSource key={`sim-${sourceKey}`} isActive={cameraActive} />
       ) : null}
 
       {phase === "idle" ? (
@@ -700,21 +542,13 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
           <Text style={styles.calibTitle}>{str.warmupTitle}</Text>
           <Text style={styles.calibHint}>{str.warmupHint}</Text>
           <Text style={styles.calibStatus}>{str.calibrationWait}</Text>
-          {calibrationSnapshot ? (
-            <View style={styles.calibPill}>
-              <Text style={styles.calibPillText}>
-                {str.calibrationPulse}: {Math.round(calibrationSnapshot.pulseRateBpm)} уд/мин · кач.{" "}
-                {(calibrationSnapshot.signalQuality * 100).toFixed(0)}%
-              </Text>
-            </View>
-          ) : null}
-          <Pressable
-            onPress={() => {
-              setPhase("idle");
-              setCalibrationSnapshot(null);
-            }}
-            style={styles.secondaryBtn}
-          >
+          <View style={styles.calibPill}>
+            <Text style={styles.calibPillText}>
+              {str.calibrationPulse}: {Math.round(snapshot.pulseRateBpm || 0)} уд/мин · кач.{" "}
+              {(snapshot.signalQuality * 100).toFixed(0)}%
+            </Text>
+          </View>
+          <Pressable onPress={() => setPhase("idle")} style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>{str.backButton}</Text>
           </Pressable>
         </View>
@@ -724,22 +558,16 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
         <View style={styles.calib}>
           <Text style={styles.calibTitle}>{str.qualityCheckTitle}</Text>
           <Text style={styles.calibHint}>{str.qualityCheckHint}</Text>
-          <Text style={styles.calibStatus}>{str.qualityCheckWait}</Text>
-          {calibrationSnapshot ? (
-            <View style={styles.calibPill}>
-              <Text style={styles.calibPillText}>
-                {str.calibrationPulse}: {Math.round(calibrationSnapshot.pulseRateBpm)} уд/мин · кач.{" "}
-                {(calibrationSnapshot.signalQuality * 100).toFixed(0)}% · {calibrationSnapshot.pulseLockState}
-              </Text>
-            </View>
-          ) : null}
-          <Pressable
-            onPress={() => {
-              setPhase("idle");
-              setCalibrationSnapshot(null);
-            }}
-            style={styles.secondaryBtn}
-          >
+          <Text style={styles.calibStatus}>
+            {qcSecondsLeft === null ? str.qualityCheckWaitingTimebase : str.qualityCheckCountdown(qcSecondsLeft)}
+          </Text>
+          <View style={styles.calibPill}>
+            <Text style={styles.calibPillText}>
+              {str.calibrationPulse}: {Math.round(snapshot.pulseRateBpm || 0)} уд/мин · кач.{" "}
+              {(snapshot.signalQuality * 100).toFixed(0)}% · {snapshot.pulseLockState}
+            </Text>
+          </View>
+          <Pressable onPress={() => setPhase("idle")} style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>{str.backButton}</Text>
           </Pressable>
         </View>
@@ -748,17 +576,20 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
       {phase === "running" ? (
         <BreathPracticeShell
           isBreathTimingActive
-          breathSessionStartMs={sessionStartMs}
+          breathSessionStartMs={sessionStartWallMs}
           inhaleMs={TIMING.inhaleMs}
           exhaleMs={TIMING.exhaleMs}
           dimOpacity={dimOpacity}
-          footer={practiceOpticalFooter}
+          footer={practiceFooter}
           center={
             <View style={styles.centerStack}>
               <RNAnimated.View style={[styles.mandalaWrap, { opacity: mandalaOpacity }]}>
                 <BreathBinduMandala isActive />
               </RNAnimated.View>
-              <RNAnimated.View style={[styles.instructionWrap, { opacity: instructionOpacity }]} pointerEvents="none">
+              <RNAnimated.View
+                style={[styles.instructionWrap, { opacity: instructionOpacity }]}
+                pointerEvents="none"
+              >
                 {centerInstruction}
               </RNAnimated.View>
               {ppgOverlayMessage ? (
@@ -796,10 +627,7 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
           ) : null}
           <Text style={styles.metricLine}>
             {str.durationLabel}:{" "}
-            {sessionStartMs != null && sessionEndMs != null
-              ? ((sessionEndMs - sessionStartMs) / 1000).toFixed(0)
-              : "—"}{" "}
-            с
+            {sessionStartWallMs != null ? (TIMING.totalMs / 1000).toFixed(0) : "—"} с
           </Text>
           <Text style={styles.metricLine}>
             {str.coherenceAvgLabel}:{" "}
@@ -830,8 +658,8 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
           <Pressable
             onPress={() => {
               setPhase("idle");
-              setSessionStartMs(null);
-              setSessionEndMs(null);
+              setSessionStartWallMs(null);
+              setSessionStartLogicalMs(null);
               setAnalysis(null);
               setExportDebug(null);
               setElapsedMs(0);
@@ -843,6 +671,15 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
         </View>
       ) : null}
     </SafeAreaView>
+  );
+}
+
+/** Внешний экспортируемый экран: оборачивает в BiofeedbackProvider. */
+export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale }) {
+  return (
+    <BiofeedbackProvider config={FINGER_CAMERA_CAPTURE_CONFIG}>
+      <CoherenceBreathScreenInner locale={locale} />
+    </BiofeedbackProvider>
   );
 }
 
@@ -871,9 +708,7 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: { color: "#e2e8f0", fontWeight: "600" },
   centerStack: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center" },
-  mandalaWrap: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  mandalaWrap: { ...StyleSheet.absoluteFillObject },
   instructionWrap: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
@@ -889,10 +724,6 @@ const styles = StyleSheet.create({
   warnBox: { color: "#fca5a5", fontSize: 12, marginBottom: 12 },
   debugMini: { color: "#64748b", fontSize: 11, marginBottom: 10, lineHeight: 15 },
   metricLine: { color: "#e2e8f0", fontSize: 16, marginBottom: 8 },
-  permissionBox: { padding: 16 },
-  permissionText: { color: "#cbd5e1", marginBottom: 8 },
-  permissionBtn: { alignSelf: "flex-start", backgroundColor: "#334155", padding: 12, borderRadius: 8 },
-  permissionBtnText: { color: "#f8fafc", fontWeight: "600" },
   calib: { flex: 1, padding: 24, justifyContent: "center" },
   calibTitle: { color: "#f8fafc", fontSize: 20, fontWeight: "700", marginBottom: 10 },
   calibHint: { color: "#94a3b8", fontSize: 15, marginBottom: 16 },
@@ -907,37 +738,6 @@ const styles = StyleSheet.create({
   calibPillText: { color: "#cbd5e1", fontSize: 14 },
   opticalFooter: { gap: 6 },
   opticalCaption: { color: "rgba(226,232,240,0.88)", fontSize: 11, fontWeight: "600" },
-  signalBars: {
-    height: 72,
-    paddingHorizontal: 6,
-    paddingVertical: 8,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 2,
-    backgroundColor: "rgba(18, 24, 40, 0.72)",
-    borderWidth: 1,
-    borderColor: "rgba(125, 143, 255, 0.12)",
-  },
-  signalBar: {
-    flex: 1,
-    minHeight: 8,
-    borderRadius: 999,
-  },
-  opticalPlaceholder: {
-    minHeight: 72,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(18, 24, 40, 0.72)",
-    borderWidth: 1,
-    borderColor: "rgba(125, 143, 255, 0.12)",
-  },
-  opticalPlaceholderText: {
-    color: "rgba(228, 232, 255, 0.58)",
-    fontSize: 12,
-    fontWeight: "600",
-  },
   opticalMeta: { color: "#94a3b8", fontSize: 11, lineHeight: 15 },
   ppgOverlayWrap: {
     position: "absolute",

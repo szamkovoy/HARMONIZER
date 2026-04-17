@@ -1,7 +1,9 @@
 /**
- * Butterworth bandpass 4th order, 0.8–2.5 Hz (≈48–150 bpm), SOS from SciPy
- * `signal.butter(4, [0.8, 2.5], btype="band", fs=fs, output="sos")`.
- * Zero-phase: forward `sosfilt` + reverse + forward + reverse (same as scipy filtfilt).
+ * Butterworth bandpass 4th order, 0.8–2.5 Hz (≈48–150 bpm), SOS from SciPy:
+ *   `signal.butter(4, [0.8, 2.5], btype="band", fs=fs, output="sos")`
+ * Zero-phase: forward `sosfilt` + reverse + forward + reverse (как scipy filtfilt).
+ *
+ * Перенесено из `modules/biofeedback/core/ppg-bandpass.ts` без изменения коэффициентов.
  */
 
 export const BUTTERWORTH_PPG_SOS_FS_15 = [
@@ -51,7 +53,7 @@ function pickSosForSampleRateHz(sampleRateHz: number): Sos {
     { hz: 30, sos: BUTTERWORTH_PPG_SOS_FS_30 },
     { hz: 40, sos: BUTTERWORTH_PPG_SOS_FS_40 },
   ];
-  let best = buckets[3];
+  let best = buckets[3]!;
   let bestD = Infinity;
   for (const b of buckets) {
     const d = Math.abs(fs - b.hz);
@@ -70,10 +72,10 @@ function sosfilt(sos: Sos, x: readonly number[]): number[] {
   const zi = new Array(nSections).fill(0).map(() => [0, 0] as [number, number]);
 
   for (let i = 0; i < n; i += 1) {
-    let xCur = x[i];
+    let xCur = x[i]!;
     for (let s = 0; s < nSections; s += 1) {
-      const [b0, b1, b2, _a0, a1, a2] = sos[s];
-      const z = zi[s];
+      const [b0, b1, b2, _a0, a1, a2] = sos[s]!;
+      const z = zi[s]!;
       const yCur = b0 * xCur + z[0];
       z[0] = b1 * xCur - a1 * yCur + z[1];
       z[1] = b2 * xCur - a2 * yCur;
@@ -86,15 +88,13 @@ function sosfilt(sos: Sos, x: readonly number[]): number[] {
 
 function reverseInPlace(a: number[]): void {
   for (let i = 0, j = a.length - 1; i < j; i += 1, j -= 1) {
-    const t = a[i];
-    a[i] = a[j];
+    const t = a[i]!;
+    a[i] = a[j]!;
     a[j] = t;
   }
 }
 
-/**
- * Zero-phase bandpass (matches scipy `sosfiltfilt` for same SOS).
- */
+/** Zero-phase bandpass (matches scipy `sosfiltfilt` for same SOS). */
 export function sosfiltFiltfilt(sos: Sos, x: readonly number[]): number[] {
   if (x.length < 8) {
     return [...x];

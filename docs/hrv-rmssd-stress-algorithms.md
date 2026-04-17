@@ -38,7 +38,7 @@
 
 ### 2.2 Практика HRV (RMSSD / стресс)
 
-После калибровки заполняется `**hrvValidBeatTimestampsMs`**: дедуплицированные метки валидных для HRV ударов (`appendNewHrvValidBeats`). Число элементов = `**hrvValidBeatCount**` — это **единственный** источник длины ряда для `computePracticeHrvMetrics` и для диагностического `computePracticeRmssdHampelDiagnostics`.
+После калибровки заполняется `**hrvValidBeatTimestampsMs`**: дедуплицированные метки валидных для HRV ударов (`appendNewHrvValidBeats`). Число элементов = `**hrvValidBeatCount`** — это **единственный** источник длины ряда для `computePracticeHrvMetrics` и для диагностического `computePracticeRmssdHampelDiagnostics`.
 
 `practiceStartMs` / `hrvAccumulationStartTimestampMs` задают момент сброса накопителя при завершении калибровки; в накопитель попадают только удары после этого (см. код анализатора).
 
@@ -53,7 +53,7 @@
 ## 4. Валидность удара для HRV
 
 - `**beatHrvEligible`** на merged-индексе: синхронизация с tracking (`syncBeatEligibilityFromMerged`).
-- `**hrvValidBeatTimestampsMs**`: подмножество с особыми правилами «новый удар относительно последнего сохранённого» (см. `appendNewHrvValidBeats`).
+- `**hrvValidBeatTimestampsMs`**: подмножество с особыми правилами «новый удар относительно последнего сохранённого» (см. `appendNewHrvValidBeats`).
 
 ---
 
@@ -150,7 +150,7 @@
 
 - Вход: `**hrvValidBeatTimestampsMs`** (как основные метрики).
 - `**schemaVersion`: 2** в экспортируемом JSON.
-- На том же сегменте, что и `rmssdMs`: `**rmssdClassicNoHampelMs`** (без Хампеля), `**rmssdPipelineMs**` (как в продакшене — исключение выбросов для RMSSD + trimmed + блоки + потолок).
+- На том же сегменте, что и `rmssdMs`: `**rmssdClassicNoHampelMs`** (без Хампеля), `**rmssdPipelineMs`** (как в продакшене — исключение выбросов для RMSSD + trimmed + блоки + потолок).
 - В сегменте: `**rrMsAfterHampel**` — ряд с **импутацией** (для согласованности с Баевским и наглядности); `**hampelOutlierMask`** — какие позиции считались выбросами.
 - Кнопка в Biofeedback Probe: «Экспорт JSON: RMSSD классика vs пайплайн». На **iOS** для `Share` используется URL вида `file://…` для файла в кэше.
 

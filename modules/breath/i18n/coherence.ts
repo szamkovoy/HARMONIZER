@@ -9,7 +9,10 @@ export interface CoherenceBreathStrings {
   warmupHint: string;
   qualityCheckTitle: string;
   qualityCheckHint: string;
-  qualityCheckWait: string;
+  /** Пока нет валидной метки времени камеры для окна QC. */
+  qualityCheckWaitingTimebase: string;
+  /** Оставшиеся секунды окна проверки (1–5), по времени камеры. */
+  qualityCheckCountdown: (secondsLeft: number) => string;
   calibrationHint: string;
   calibrationPulse: string;
   calibrationWait: string;
@@ -52,7 +55,8 @@ const ru: CoherenceBreathStrings = {
   qualityCheckTitle: "Проверка качества сигнала",
   qualityCheckHint:
     "Удерживайте контакт. Нужны: tracking, качество > 70 %, не меньше 3 ударов за 5 с. При сбое окно начнётся снова.",
-  qualityCheckWait: "Окно 5 с…",
+  qualityCheckWaitingTimebase: "Синхронизация с камерой…",
+  qualityCheckCountdown: (s) => `Окно 5 с — осталось ${s} с`,
   calibrationHint:
     "Приложите палец к камере со вспышкой. Дождитесь, пока ритм станет устойчивым — затем начнётся практика.",
   calibrationPulse: "Пульс",
@@ -93,7 +97,8 @@ const en: CoherenceBreathStrings = {
   qualityCheckTitle: "Signal quality check",
   qualityCheckHint:
     "Keep contact. Need: tracking, quality > 70 %, at least 3 beats in 5 s. On failure the window restarts.",
-  qualityCheckWait: "5 s window…",
+  qualityCheckWaitingTimebase: "Syncing with camera clock…",
+  qualityCheckCountdown: (s) => `5 s window — ${s}s left`,
   calibrationHint:
     "Place your finger on the camera with flash. Wait until the rhythm is stable — then practice begins.",
   calibrationPulse: "Pulse",
