@@ -53,9 +53,10 @@ export function FingerPpgCameraSource({ isActive, style, visible = false }: Prop
       setTorchArmed(false);
       return;
     }
+    pipeline.setPulseSource("fingerCamera");
     const t = setTimeout(() => setTorchArmed(true), 250);
     return () => clearTimeout(t);
-  }, [isRenderActive, cameraReady]);
+  }, [isRenderActive, cameraReady, pipeline]);
 
   useEffect(() => {
     if (!isRenderActive) {

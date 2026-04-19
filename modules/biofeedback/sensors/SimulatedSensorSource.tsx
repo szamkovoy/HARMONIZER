@@ -21,6 +21,7 @@ export function SimulatedSensorSource({ isActive }: Props) {
     if (!isActive) return;
 
     const startMs = Date.now();
+    pipeline.setPulseSource("simulated");
     pipeline.markCalibrationCompleteForBeatSource(startMs);
 
     let lastEmittedMs = startMs;

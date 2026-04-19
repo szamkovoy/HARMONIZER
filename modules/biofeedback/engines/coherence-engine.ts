@@ -131,6 +131,32 @@ export class CoherenceEngine {
     return this.sessionBeats;
   }
 
+  /**
+   * Из snapshot'а текущей сессии вытаскивает **последний завершённый** RSA-цикл —
+   * используется `BreathPhasePlanner` для корректировки длительностей следующего цикла.
+   * null — если активной сессии нет или ни один цикл ещё не закрыт.
+   *
+   * Трактовка: в `CoherenceSessionResult` фиксируются `hrMax`/`hrMin` на окне одного
+   * дыхательного цикла; «вдох в начале цикла» приводит к подъёму HR → `hrMax ≈ hrInhale`,
+   * «выдох во второй половине» — к спаду → `hrMin ≈ hrExhale`.
+   */
+  extractLastCompletedRsaCycle(snapshotResult: CoherenceSessionResult | null):
+    | { hrInhale: number; hrExhale: number; rsaBpm: number; durationMs: number }
+    | null {
+    if (!snapshotResult) return null;
+    for (let i = snapshotResult.rsaCycles.length - 1; i >= 0; i -= 1) {
+      const c = snapshotResult.rsaCycles[i]!;
+      if (c.inactive) continue;
+      return {
+        hrInhale: c.hrMax,
+        hrExhale: c.hrMin,
+        rsaBpm: c.rsaBpm,
+        durationMs: c.endMs - c.startMs,
+      };
+    }
+    return null;
+  }
+
   reset(): void {
     this.active = false;
     this.sessionStartedAtMs = 0;

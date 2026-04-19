@@ -56,6 +56,59 @@ export function trimBeatHistory(
   return out;
 }
 
+function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)]!;
+}
+
+/**
+ * Пост-очистка уже смёрженного глобального ряда:
+ * если один реальный RR расколот на `короткий + длинный`, убираем внутренний beat.
+ *
+ * Важно: это делается ПОСЛЕ merge, а не только внутри одного окна peak detector.
+ * Именно здесь видно артефакты, которые пережили повторный анализ соседних окон и
+ * дожили до глобального merged-списка, на который потом опираются coherence / HRV / stress.
+ */
+export function collapseSplitMergedBeats(
+  merged: readonly number[],
+): { beats: number[]; removedCount: number } {
+  if (merged.length < 3) {
+    return { beats: [...merged], removedCount: 0 };
+  }
+  const out = [...merged];
+  let removedCount = 0;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 1; i < out.length - 1; i += 1) {
+      const recentIntervals: number[] = [];
+      for (let k = Math.max(1, i - 8); k < i; k += 1) {
+        const rr = out[k]! - out[k - 1]!;
+        if (rr >= 500 && rr <= 1_500) {
+          recentIntervals.push(rr);
+        }
+      }
+      if (recentIntervals.length === 0) {
+        continue;
+      }
+      const medianRr = median(recentIntervals);
+      const rrShort = out[i]! - out[i - 1]!;
+      const rrLong = out[i + 1]! - out[i]!;
+      const shortEnough = rrShort < medianRr * 0.72;
+      const pairMatchesNormal =
+        Math.abs(rrShort + rrLong - medianRr) <= Math.max(140, medianRr * 0.22);
+      if (medianRr > 0 && shortEnough && pairMatchesNormal) {
+        out.splice(i, 1);
+        removedCount += 1;
+        changed = true;
+        break;
+      }
+    }
+  }
+  return { beats: out, removedCount };
+}
+
 /**
  * Жадная дедупликация по допуску (близкие метки — оставляем только первую).
  * Используется как при анализе сессии когерентности (на полном ряду за сессию),

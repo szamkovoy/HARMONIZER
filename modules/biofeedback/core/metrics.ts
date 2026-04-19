@@ -765,9 +765,89 @@ export type PracticeHrvMetricsResult = {
 };
 
 /**
- * Метрики практики по накопителю валидных ударов HRV (после калибровки).
- * RR: жёсткий диапазон 300–2000 ms; Баевский — Хампель с подменой медианой; RMSSD — выбросы Хампеля исключаются из суммы разностей (без подмены).
- * Сегменты считаются по **полному** ряду `hrvValidBeatTimestampsMs`, а не по скользящему окну merged-пиков.
+ * Метрики практики по всему ряду валидных ударов — RMSSD и Баевский считаются по **полной**
+ * серии практики, без разделения на «начальный» и «финальный» сегменты.
+ *
+ * Пользовательский запрос (апрель 2026): «для практик дыхания RMSSD и индекс стресса должны
+ * рассчитываться по данным всей практики, усредняясь как и остальные показатели». Было:
+ * initial (первые 90 ударов) + final (последние 60/90 ударов). Стало: весь ряд как единый
+ * сегмент с блочной медианой RMSSD (устойчивой к выбросам) и Баевским по всему ряду
+ * (Хампель + импутация медианой).
+ *
+ * Тир определяется по числу валидных ударов: < 30 → `none`, иначе — по нижнему порогу
+ * (для UI-информации и апроксимации).
+ */
+export function computePracticeHrvMetricsFullSession(
+  hrvValidBeatTimestampsMs: readonly number[],
+): PracticeHrvMetricsResult {
+  const nBeat = hrvValidBeatTimestampsMs.length;
+  const zero: PracticeHrvMetricsResult = {
+    tier: "none",
+    validBeatCount: nBeat,
+    showRmssd: false,
+    showStress: false,
+    rmssdApproximate: false,
+    stressApproximate: false,
+    showInitialFinal: false,
+    rmssdMs: 0,
+    stressPercent: 0,
+    stressRaw: 0,
+    initialRmssdMs: 0,
+    initialStressPercent: 0,
+    initialStressRaw: 0,
+    finalRmssdMs: 0,
+    finalStressPercent: 0,
+    finalStressRaw: 0,
+  };
+
+  if (nBeat < HRV_MIN_VALID_BEATS_FOR_METRICS) {
+    return zero;
+  }
+
+  const rrRaw = collectRrFromBeatWindow(hrvValidBeatTimestampsMs, 0, nBeat);
+  if (rrRaw.length < 2) {
+    return zero;
+  }
+  const rrBaevsky = preparePracticeRr(rrRaw);
+  const hampelMask = hampelOutlierFlags(rrRaw);
+
+  // Разбиваем весь ряд на блоки ~30 RR для медианного RMSSD (устойчиво к локальным артефактам).
+  const blockCount = Math.max(1, Math.min(6, Math.floor(rrRaw.length / 30)));
+  const rmssdMs = rmssdSegmentMasked(rrRaw, blockCount, hampelMask);
+  const stressRaw = stressSegmentRaw(rrBaevsky, blockCount);
+  const stressPercent = mapBaevskyStressToPercent(stressRaw);
+
+  let tier: HrvPracticeTier = "beats_30_59";
+  if (nBeat >= 180) tier = "beats_180_plus";
+  else if (nBeat >= 120) tier = "beats_120_179";
+  else if (nBeat >= 90) tier = "beats_90_119";
+  else if (nBeat >= 60) tier = "beats_60_89";
+
+  const approximate = nBeat < 90;
+
+  return {
+    tier,
+    validBeatCount: nBeat,
+    showRmssd: true,
+    showStress: nBeat >= 60,
+    rmssdApproximate: approximate,
+    stressApproximate: approximate,
+    showInitialFinal: false,
+    rmssdMs,
+    stressPercent: nBeat >= 60 ? stressPercent : 0,
+    stressRaw: nBeat >= 60 ? stressRaw : 0,
+    initialRmssdMs: 0,
+    initialStressPercent: 0,
+    initialStressRaw: 0,
+    finalRmssdMs: rmssdMs,
+    finalStressPercent: nBeat >= 60 ? stressPercent : 0,
+    finalStressRaw: nBeat >= 60 ? stressRaw : 0,
+  };
+}
+
+/**
+ * Старая версия «initial + final» сегментация — оставлена для внешних интеграций / тестов.
+ * Для активной практики дыхания используется {@link computePracticeHrvMetricsFullSession}.
  */
 export function computePracticeHrvMetrics(
   hrvValidBeatTimestampsMs: readonly number[],

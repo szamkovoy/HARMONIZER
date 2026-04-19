@@ -47,7 +47,9 @@ export type FingerPeakReasonCode =
   | "below_height"
   | "below_prominence"
   | "refractory_replaced"
-  | "refractory_weaker";
+  | "refractory_weaker"
+  | "dicrotic_notch"
+  | "split_artifact";
 
 /** Какой канал оптики используется (legacy: для совместимости с UI диаграммами). */
 export type OpticalChannel = "redMean" | "greenMean" | "luma";

@@ -1,4 +1,7 @@
-import { TACHO_SAMPLE_RATE_HZ } from "@/modules/breath/core/coherence-constants";
+import {
+  TACHO_MAX_INTERBEAT_GAP_MS,
+  TACHO_SAMPLE_RATE_HZ,
+} from "@/modules/breath/core/coherence-constants";
 
 export type RrBeatEvent = { timeMs: number; rrMs: number };
 
@@ -88,8 +91,17 @@ function medianSorted(sorted: number[]): number {
 }
 
 /**
- * Строит мгновенный BPM в точках между ударами и линейно интерполирует на сетку sampleRate Гц
- * на интервале [windowStartMs, windowEndMs] относительно абсолютного времени.
+ * Строит мгновенный BPM в точках между ударами и линейно **интерполирует** на сетку
+ * sampleRate Гц на интервале [windowStartMs, windowEndMs].
+ *
+ * КЛЮЧЕВОЕ: НИКАКОЙ экстраполяции за пределы реальных ударов. Если точка сетки лежит вне
+ * диапазона [firstBeatMidTime, lastBeatMidTime], она **пропускается** — тахограмма в этом
+ * окне будет неполной (что и есть честное описание реальности). Иначе при пустом начале
+ * окна (новая практика, 60-секундное FFT-окно ещё не заполнено) линейная «экстраполяция
+ * назад» порождает абсурдные **отрицательные BPM** — FFT ловит фантомный низкочастотный
+ * тренд и даёт высокие Pwin/Ptotal, из-за чего «когерентность» на секундах 1-50 искусственно
+ * задирается к 80-100 %. Тот же эффект симметричен в конце окна, если последний удар
+ * раньше правого края.
  */
 export function buildTachogramBpmSeries(
   cleanedBeats: readonly RrBeatEvent[],
@@ -126,7 +138,14 @@ export function buildTachogramBpmSeries(
   const timesMs: number[] = [];
   const bpm: number[] = [];
 
+  const firstT = points[0]!.t;
+  const lastT = points[points.length - 1]!.t;
+
   for (let t = windowStartMs; t <= windowEndMs - 0.5; t += dtMs) {
+    // СТРОГО интерполяция — без экстраполяции наружу ближайших реальных BPM-точек.
+    if (t < firstT || t > lastT) {
+      continue;
+    }
     let i = 0;
     while (i < points.length - 2 && points[i + 1]!.t < t) {
       i += 1;
@@ -134,6 +153,12 @@ export function buildTachogramBpmSeries(
     const p0 = points[i]!;
     const p1 = points[i + 1] ?? p0;
     const span = p1.t - p0.t;
+    // НЕ затягиваем дыры от пропадания пальца: если ближайшие реальные beat-точки
+    // разнесены больше чем на TACHO_MAX_INTERBEAT_GAP_MS, точка сетки в этом
+    // промежутке не генерируется (coverage окна упадёт → insufficientCoverage).
+    if (span > TACHO_MAX_INTERBEAT_GAP_MS) {
+      continue;
+    }
     const w = span > 0 ? (t - p0.t) / span : 0;
     const v = p0.bpm * (1 - w) + p1.bpm * w;
     timesMs.push(t);

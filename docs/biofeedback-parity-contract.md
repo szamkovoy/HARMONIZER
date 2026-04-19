@@ -61,8 +61,8 @@
 | Параметр | Источник | Значение |
 | --- | --- | --- |
 | Тахограмма частота | `TACHO_SAMPLE_RATE_HZ` | 4 Hz |
-| Coherence master ratio | `COHERENCE_MASTER_RATIO` | 0.6 |
-| Stretch exponent | `COHERENCE_STRETCH_EXPONENT` | 0.7 |
+| Coherence master ratio | `COHERENCE_MASTER_RATIO` | 0.75 |
+| Stretch exponent | `COHERENCE_STRETCH_EXPONENT` | 1.25 |
 | Порог вхождения | `COHERENCE_ENTRY_THRESHOLD_PERCENT` | 40 |
 | Длительность вхождения | `ENTRY_STABILITY_SECONDS` | 15 s |
 | Медианный фильтр окно | `SMOOTH_WINDOW_SECONDS` | 3 s |

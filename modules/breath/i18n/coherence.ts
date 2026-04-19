@@ -11,8 +11,16 @@ export interface CoherenceBreathStrings {
   qualityCheckHint: string;
   /** Пока нет валидной метки времени камеры для окна QC. */
   qualityCheckWaitingTimebase: string;
-  /** Оставшиеся секунды окна проверки (1–5), по времени камеры. */
+  /** Оставшиеся секунды окна проверки (1–10), по времени камеры. */
   qualityCheckCountdown: (secondsLeft: number) => string;
+  /** Заголовок диалога «QC не прошло». */
+  qcFailedDialogTitle: string;
+  /** Подзаголовок диалога «QC не прошло». */
+  qcFailedDialogMessage: string;
+  /** Кнопка диалога: продолжить практику с эмулированным пульсом. */
+  qcFailedContinueWithoutSensor: string;
+  /** Кнопка диалога: повторить попытку установить контакт. */
+  qcFailedRetry: string;
   calibrationHint: string;
   calibrationPulse: string;
   calibrationWait: string;
@@ -24,8 +32,14 @@ export interface CoherenceBreathStrings {
   rsaLabel: string;
   rsaNormalizedLabel: string;
   entryTimeLabel: string;
+  rmssdLabel: string;
+  stressLabel: string;
   exportButton: string;
   startButton: string;
+  /** Кнопка «Начать без пульсометра» — запускает эмулированный пульс (75→65 BPM). */
+  startWithoutSensorButton: string;
+  /** Пояснение на экране результатов, когда пульс был эмулирован. */
+  emulatedPulseResultsNote: string;
   backButton: string;
   approximateMetricsNote: string;
   fingerHint: string;
@@ -54,9 +68,14 @@ const ru: CoherenceBreathStrings = {
   warmupHint: "Держите палец на камере со вспышкой. Идёт прогрев — запись сессии ещё не ведётся.",
   qualityCheckTitle: "Проверка качества сигнала",
   qualityCheckHint:
-    "Удерживайте контакт. Нужны: tracking, качество > 70 %, не меньше 3 ударов за 5 с. При сбое окно начнётся снова.",
+    "Удерживайте контакт ≈ 10 с. Нужны: tracking, качество > 70 %, не меньше 6 ударов за окно.",
   qualityCheckWaitingTimebase: "Синхронизация с камерой…",
-  qualityCheckCountdown: (s) => `Окно 5 с — осталось ${s} с`,
+  qualityCheckCountdown: (s) => `Окно 10 с — осталось ${s} с`,
+  qcFailedDialogTitle: "Пульс не распознан",
+  qcFailedDialogMessage:
+    "Сигнал оказался слишком нестабилен для достоверной оценки ритма. Можно продолжить практику без датчика — тогда ритм дыхания задаёт эмулятор пульса (75 → 65 BPM), а показатели HRV и когерентности не считаются. Либо попробовать ещё раз: прижмите палец плотнее к камере со вспышкой и не двигайтесь.",
+  qcFailedContinueWithoutSensor: "Продолжить без пульсометра",
+  qcFailedRetry: "Попробовать снова",
   calibrationHint:
     "Приложите палец к камере со вспышкой. Дождитесь, пока ритм станет устойчивым — затем начнётся практика.",
   calibrationPulse: "Пульс",
@@ -69,8 +88,13 @@ const ru: CoherenceBreathStrings = {
   rsaLabel: "Амплитуда RSA",
   rsaNormalizedLabel: "Нормированная RSA",
   entryTimeLabel: "Время вхождения",
+  rmssdLabel: "RMSSD",
+  stressLabel: "Индекс стресса",
   exportButton: "Экспорт JSON (отладка)",
   startButton: "Начать",
+  startWithoutSensorButton: "Начать без пульсометра",
+  emulatedPulseResultsNote:
+    "Пульс эмулировался (датчик не использовался) — метрики HRV, стресса, когерентности и RSA не рассчитываются.",
   backButton: "Закрыть",
   approximateMetricsNote:
     "Режим короткой сессии: метрики оценочные (окно анализа сокращено; см. JSON).",
@@ -96,9 +120,14 @@ const en: CoherenceBreathStrings = {
   warmupHint: "Keep your finger on the camera with flash. Warmup in progress — session logging has not started.",
   qualityCheckTitle: "Signal quality check",
   qualityCheckHint:
-    "Keep contact. Need: tracking, quality > 70 %, at least 3 beats in 5 s. On failure the window restarts.",
+    "Keep contact for ~10 s. Need: tracking, quality > 70 %, at least 6 beats in the window.",
   qualityCheckWaitingTimebase: "Syncing with camera clock…",
-  qualityCheckCountdown: (s) => `5 s window — ${s}s left`,
+  qualityCheckCountdown: (s) => `10 s window — ${s}s left`,
+  qcFailedDialogTitle: "Pulse not detected",
+  qcFailedDialogMessage:
+    "The signal was too unstable for a reliable rhythm estimate. You can continue without a sensor — the breath rhythm will then be driven by the emulated pulse (75 → 65 BPM), and HRV/coherence metrics will not be computed. Or try again: press your finger firmly against the camera with flash and stay still.",
+  qcFailedContinueWithoutSensor: "Continue without pulse sensor",
+  qcFailedRetry: "Try again",
   calibrationHint:
     "Place your finger on the camera with flash. Wait until the rhythm is stable — then practice begins.",
   calibrationPulse: "Pulse",
@@ -111,8 +140,13 @@ const en: CoherenceBreathStrings = {
   rsaLabel: "RSA amplitude",
   rsaNormalizedLabel: "Normalized RSA",
   entryTimeLabel: "Time to entry",
+  rmssdLabel: "RMSSD",
+  stressLabel: "Stress index",
   exportButton: "Export JSON (debug)",
   startButton: "Start",
+  startWithoutSensorButton: "Start without pulse sensor",
+  emulatedPulseResultsNote:
+    "Pulse was emulated (no sensor used) — HRV, stress, coherence, and RSA are not computed.",
   backButton: "Close",
   approximateMetricsNote:
     "Short session mode: metrics are approximate (reduced analysis window; see JSON).",

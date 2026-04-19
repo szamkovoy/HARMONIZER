@@ -8,10 +8,10 @@
  * EMA-сглаживание (12 s τ) — в UI-адаптере, не здесь.
  */
 
-import { computePracticeHrvMetrics } from "@/modules/biofeedback/core/metrics";
+import { computePracticeHrvMetricsFullSession } from "@/modules/biofeedback/core/metrics";
 import type { HrvPracticeTier } from "@/modules/biofeedback/core/types";
 
-export const STRESS_ENGINE_VERSION = "engine/stress@1.0";
+export const STRESS_ENGINE_VERSION = "engine/stress@1.1-fullsession";
 
 export interface StressEngineSnapshot {
   /** Финальный процент Баевского (0..100). 0 если данных мало. */
@@ -30,7 +30,7 @@ export interface StressEngineSnapshot {
 
 export class StressEngine {
   push(beats: readonly number[]): StressEngineSnapshot {
-    const r = computePracticeHrvMetrics(beats);
+    const r = computePracticeHrvMetricsFullSession(beats);
     return {
       percent: r.stressPercent,
       rawIndex: r.stressRaw,

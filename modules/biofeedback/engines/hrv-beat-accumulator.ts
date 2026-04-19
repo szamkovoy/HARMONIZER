@@ -15,16 +15,40 @@
 
 import { BEAT_DUPLICATE_TOLERANCE_MS } from "@/modules/biofeedback/constants";
 
+/**
+ * Если между последним принятым и новым ударом пауза больше этого порога, новый удар
+ * **не принимается** в накопитель, а интервал помечается как «рваный» (палец был оторван,
+ * реальный RR неизвестен, большой псевдо-RR исказил бы RMSSD/стресс в разы).
+ * Это событие увеличивает `gapCount` для downstream-правил withholding.
+ */
+const HRV_MAX_BEAT_GAP_MS = 2_000;
+
 export class HrvBeatAccumulator {
   private readonly beats: number[] = [];
   private accumulationStartMs = 0;
   private calibrationComplete = false;
+  /** Сколько раз пришёл удар после «дыры» > HRV_MAX_BEAT_GAP_MS (для withholding). */
+  private gapEventCount = 0;
+  /** Суммарная длительность дыр в мс (для отладки). */
+  private totalGapMs = 0;
 
   /** Вызывается из CalibrationStateMachine при переходе settle → ready. */
   markCalibrationComplete(timestampMs: number): void {
     this.calibrationComplete = true;
     this.accumulationStartMs = timestampMs;
     this.beats.length = 0;
+    this.gapEventCount = 0;
+    this.totalGapMs = 0;
+  }
+
+  /** Сколько раз приходил удар после дыры > 2 с (используется для withholding). */
+  getGapEventCount(): number {
+    return this.gapEventCount;
+  }
+
+  /** Суммарное время провалов в мс. */
+  getTotalGapMs(): number {
+    return this.totalGapMs;
   }
 
   /**
@@ -57,6 +81,16 @@ export class HrvBeatAccumulator {
         continue;
       }
       if (t > last) {
+        const gap = last > 0 ? t - last : 0;
+        // Фиксируем событие большой дыры (палец оторвался) и НЕ принимаем
+        // этот удар в накопитель HRV: его «RR» физически неизвестен и внес бы
+        // ~1500–3000 мс в пары ΔRR, уведя RMSSD в 150+ мс искусственно.
+        if (last > 0 && gap > HRV_MAX_BEAT_GAP_MS) {
+          this.gapEventCount += 1;
+          this.totalGapMs += gap;
+          last = t;
+          continue;
+        }
         this.beats.push(t);
         last = t;
         added += 1;
@@ -81,5 +115,7 @@ export class HrvBeatAccumulator {
     this.beats.length = 0;
     this.accumulationStartMs = 0;
     this.calibrationComplete = false;
+    this.gapEventCount = 0;
+    this.totalGapMs = 0;
   }
 }

@@ -11,14 +11,14 @@
  */
 
 import {
-  computePracticeHrvMetrics,
+  computePracticeHrvMetricsFullSession,
   computePracticeRmssdHampelDiagnostics,
   type PracticeHrvMetricsResult,
   type PracticeRmssdHampelDiagnostics,
 } from "@/modules/biofeedback/core/metrics";
 import type { HrvPracticeTier } from "@/modules/biofeedback/core/types";
 
-export const HRV_ENGINE_VERSION = "engine/hrv@1.0";
+export const HRV_ENGINE_VERSION = "engine/hrv@1.1-fullsession";
 
 export interface HrvEngineSnapshot {
   /** RMSSD финального сегмента (мс). 0 если данных мало. */
@@ -39,7 +39,7 @@ export interface HrvEngineSnapshot {
 
 export class HrvEngine {
   push(beats: readonly number[]): HrvEngineSnapshot {
-    const r = computePracticeHrvMetrics(beats);
+    const r = computePracticeHrvMetricsFullSession(beats);
     return {
       rmssdMs: r.rmssdMs,
       tier: r.tier,

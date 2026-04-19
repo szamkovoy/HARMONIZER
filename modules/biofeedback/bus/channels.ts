@@ -14,6 +14,7 @@ import type {
   CoherenceChannelEvent,
   ContactChannelEvent,
   PulseBpmChannelEvent,
+  PulseSourceChannelEvent,
   RmssdChannelEvent,
   RsaChannelEvent,
   SessionChannelEvent,
@@ -41,6 +42,8 @@ export interface ChannelMap {
   session: SessionChannelEvent;
   /** Сырые оптические сэмплы (для отладочного инспектора и экспорта v3). */
   optical: RawOpticalSample;
+  /** Источник ударов: реальный датчик vs эмулятор. Потребители → withhold метрик при эмуляции. */
+  pulseSource: PulseSourceChannelEvent;
   /** Ошибки сенсоров/engines (для UI-баннеров). */
   error: { source: string; message: string };
 }

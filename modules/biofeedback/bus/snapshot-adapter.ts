@@ -91,8 +91,8 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
       timestampMs: opticalRef.current[opticalRef.current.length - 1]?.timestampMs ?? 0,
       pulseRateBpm: pulse?.bpm ?? 0,
       signalQuality:
-        contact?.confidence != null
-          ? Math.min(1, Math.max(0, contact.confidence))
+        contact?.signalQuality != null
+          ? Math.min(1, Math.max(0, contact.signalQuality))
           : 0,
       fingerDetected: contact?.state === "present",
       pulseLockState: pulse?.lockState ?? "searching",

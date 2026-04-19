@@ -3,8 +3,10 @@ import {
   COHERENCE_BEAT_DEDUPE_MS,
   COHERENCE_ENTRY_THRESHOLD_PERCENT,
   COHERENCE_MASTER_RATIO,
+  COHERENCE_MAX_INSUFFICIENT_SECONDS_FRAC,
   COHERENCE_MIN_VALID_SECONDS_FOR_METRICS,
   COHERENCE_STRETCH_EXPONENT,
+  COHERENCE_WINDOW_MIN_COVERAGE_FRAC,
   ENTRY_STABILITY_SECONDS,
   PWIN_HALF_WIDTH_HZ,
   PWIN_SEARCH_MAX_HZ,
@@ -14,6 +16,7 @@ import {
   PTOTAL_MAX_HZ,
   PTOTAL_MIN_HZ,
   RR_ARTIFACT_DEVIATION,
+  RR_COHERENCE_HARD_WITHHOLD_FRACTION,
   RR_COHERENCE_WARN_FRACTION,
   RSA_CYCLE_MIN_BPM,
   SMOOTH_WINDOW_SECONDS,
@@ -53,7 +56,15 @@ export interface CoherenceSecondCheckpoint {
   windowStartMs: number;
   windowEndMs: number;
   windowSeconds: number;
+  /** Длина тахограммы после строгой интерполяции (точки с реальными BPM). */
   tachogramSampleCount: number;
+  /**
+   * Доля окна, покрытая реальными тахограммными точками (0..1).
+   * &lt; `COHERENCE_WINDOW_MIN_COVERAGE_FRAC` → окно помечается как insufficientCoverage и
+   * coherenceMappedPercent = 0 (для честной агрегации и времени вхождения).
+   */
+  coverageFraction: number;
+  insufficientCoverage: boolean;
   fftSize: number;
   /** До вычитания среднего. */
   bpmMean: number;
@@ -98,7 +109,7 @@ export interface CoherenceSessionResult {
   totalValidDataSeconds: number;
   /** Итоговые метрики (кроме длительности) не считаются: мало валидных секунд (test120s). */
   metricsWithheldDueToInsufficientData: boolean;
-  exportMeta: Record<string, string | number | boolean>;
+  exportMeta: Record<string, string | number | boolean | readonly string[]>;
 }
 
 /** Сортировка и слияние меток, ближе toleranceMs (жадно к ранней метке в паре). */
@@ -223,6 +234,8 @@ function analyzeWindow(
   bpm: readonly number[],
   sampleRateHz: number,
 ): { pwin: number; ptotal: number; coherenceRatio: number; fftSize: number; bpmMean: number } {
+  // Требуем хотя бы пару секунд данных (8 точек при 4 Гц) для формальной возможности FFT;
+  // для достоверности 60-с окна дополнительно проверяется покрытие снаружи.
   if (bpm.length < 8) {
     return { pwin: 0, ptotal: 0, coherenceRatio: 0, fftSize: 0, bpmMean: 0 };
   }
@@ -345,11 +358,34 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     practiceSecondsInt,
   );
   const totalValidDataSeconds = countValidDataSeconds(hasRealBpmSecond);
-  const metricsWithheldDueToInsufficientData =
-    mode === "test120s" && totalValidDataSeconds < COHERENCE_MIN_VALID_SECONDS_FOR_METRICS;
+
+  /**
+   * Жёсткий withholding метрик — НЕ выводить на UI (кроме длительности),
+   * потому что формулы спектра/RMSSD при рваном сигнале дают физически бессмысленные значения.
+   * Причины:
+   *   1) totalValidDataSeconds < COHERENCE_MIN_VALID_SECONDS_FOR_METRICS — тахограмма почти пустая.
+   *   2) badFraction >= RR_COHERENCE_HARD_WITHHOLD_FRACTION — большинство RR заменены на среднее,
+   *      т.е. исходный дыхательный ритм в спектре уже не виден.
+   */
+  const withholdReasons: string[] = [];
+  if (mode === "test120s" && totalValidDataSeconds < COHERENCE_MIN_VALID_SECONDS_FOR_METRICS) {
+    withholdReasons.push(
+      `totalValidDataSeconds=${totalValidDataSeconds} < ${COHERENCE_MIN_VALID_SECONDS_FOR_METRICS}`,
+    );
+  }
+  if (badFraction >= RR_COHERENCE_HARD_WITHHOLD_FRACTION) {
+    withholdReasons.push(
+      `rrBadFraction=${(badFraction * 100).toFixed(1)}% >= ${Math.round(RR_COHERENCE_HARD_WITHHOLD_FRACTION * 100)}%`,
+    );
+  }
 
   const perSecond: CoherenceSecondCheckpoint[] = [];
   const coherenceRawSeries: number[] = [];
+
+  const expectedSamplesPerWindow = windowSeconds * TACHO_SAMPLE_RATE_HZ;
+  const minSamplesForCoverage = Math.ceil(
+    expectedSamplesPerWindow * COHERENCE_WINDOW_MIN_COVERAGE_FRAC,
+  );
 
   const stepMs = 1000;
   for (let s = 1; s <= Math.floor(practiceDurationSec); s += 1) {
@@ -364,8 +400,25 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     );
     const bpm = [...bpmWin];
     applySecondBpmMask(timesMs, bpm, sessionStartedAtMs, secondBpmForcedZero);
-    const { pwin, ptotal, coherenceRatio, fftSize, bpmMean } = analyzeWindow(bpm, TACHO_SAMPLE_RATE_HZ);
-    const coherenceMappedPercent = mapCoherenceRatioToPercent(coherenceRatio);
+    const coverageFraction =
+      expectedSamplesPerWindow > 0 ? bpm.length / expectedSamplesPerWindow : 0;
+    const insufficientCoverage = bpm.length < minSamplesForCoverage;
+    let pwin = 0;
+    let ptotal = 0;
+    let coherenceRatio = 0;
+    let fftSize = 0;
+    let bpmMean = 0;
+    if (!insufficientCoverage) {
+      const res = analyzeWindow(bpm, TACHO_SAMPLE_RATE_HZ);
+      pwin = res.pwin;
+      ptotal = res.ptotal;
+      coherenceRatio = res.coherenceRatio;
+      fftSize = res.fftSize;
+      bpmMean = res.bpmMean;
+    }
+    const coherenceMappedPercent = insufficientCoverage
+      ? 0
+      : mapCoherenceRatioToPercent(coherenceRatio);
     coherenceRawSeries.push(coherenceMappedPercent);
     perSecond.push({
       secondIndex: s,
@@ -374,6 +427,8 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
       windowEndMs,
       windowSeconds,
       tachogramSampleCount: bpm.length,
+      coverageFraction,
+      insufficientCoverage,
       fftSize,
       bpmMean,
       pwin,
@@ -388,6 +443,23 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     secondIndex: i + 1,
     coherenceMappedPercent: v,
   }));
+
+  const secondsWithInsufficientCoverage = perSecond.filter((p) => p.insufficientCoverage).length;
+  if (
+    perSecond.length > 0 &&
+    secondsWithInsufficientCoverage / perSecond.length >= COHERENCE_MAX_INSUFFICIENT_SECONDS_FRAC
+  ) {
+    withholdReasons.push(
+      `insufficientCoverageFrac=${((secondsWithInsufficientCoverage / perSecond.length) * 100).toFixed(1)}% >= ${Math.round(COHERENCE_MAX_INSUFFICIENT_SECONDS_FRAC * 100)}%`,
+    );
+  }
+
+  const metricsWithheldDueToInsufficientData = withholdReasons.length > 0;
+  if (metricsWithheldDueToInsufficientData) {
+    warnings.push(
+      `Метрики не рассчитаны: сигнал был нестабилен (${withholdReasons.join("; ")}). Показана только длительность практики.`,
+    );
+  }
 
   const hasTachogramSignal =
     fullBpm.some((v) => v > BPM_ZERO_EPS) && perSecond.some((p) => p.tachogramSampleCount >= 8);
@@ -416,6 +488,14 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     fullBpm.length > 2 &&
     cycleMs > 0
   ) {
+    /**
+     * Для RSA берём цикл только если в его окне тахограмма покрыта реальными точками
+     * хотя бы на 80 % (после исправления `buildTachogramBpmSeries` экстраполяций нет —
+     * значит просто проверка длины). Иначе пики min/max HR искажены краями сессии.
+     */
+    const expectedSamplesPerCycle = Math.max(1, Math.round((cycleMs / 1000) * TACHO_SAMPLE_RATE_HZ));
+    const minSamplesForRsaCycle = Math.ceil(expectedSamplesPerCycle * 0.8);
+
     let cycleIndex = 0;
     for (let t0 = sessionStartedAtMs; t0 + cycleMs <= sessionEndedAtMs + 1; t0 += cycleMs) {
       const t1 = t0 + cycleMs;
@@ -426,7 +506,7 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
           slice.push(fullBpm[i]!);
         }
       }
-      if (slice.length > 2) {
+      if (slice.length >= minSamplesForRsaCycle) {
         const hrMax = Math.max(...slice);
         const hrMin = Math.min(...slice);
         const rsaBpm = hrMax - hrMin;
@@ -471,7 +551,9 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
   let maxConsecutiveSecondsAtOrAboveEntryThreshold = 0;
   if (!metricsWithheldDueToInsufficientData && hasTachogramSignal) {
     for (let i = 0; i < smoothed.length; i += 1) {
-      if (!hasRealBpmSecond[i]) {
+      const rawSec = perSecond[i]!;
+      // Секунда невалидна, если тахограмма не покрыла FFT-окно или нет реального BPM.
+      if (rawSec.insufficientCoverage || !hasRealBpmSecond[i]) {
         streak = 0;
         continue;
       }
@@ -482,7 +564,7 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
         }
         if (streak >= ENTRY_STABILITY_SECONDS && entryTimeSec == null) {
           /** Первая секунда устойчивого 15-секундного окна (1-based), см. PDF п. 10. */
-          entryTimeSec = i - ENTRY_STABILITY_SECONDS + 2;
+          entryTimeSec = rawSec.secondIndex - ENTRY_STABILITY_SECONDS + 1;
         }
       } else {
         streak = 0;
@@ -533,6 +615,17 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
       practiceBeatCount: practiceOnlyBeats.length,
       practiceBeatSpanMs,
       maxConsecutiveSecondsAtOrAboveEntryThreshold,
+      coherenceMasterRatio: COHERENCE_MASTER_RATIO,
+      coherenceStretchExponent: COHERENCE_STRETCH_EXPONENT,
+      pwinSearchMinHz: PWIN_SEARCH_MIN_HZ,
+      pwinSearchMaxHz: PWIN_SEARCH_MAX_HZ,
+      pwinHalfWidthHz: PWIN_HALF_WIDTH_HZ,
+      ptotalMinHz: PTOTAL_MIN_HZ,
+      ptotalMaxHz: PTOTAL_MAX_HZ,
+      windowCoverageMinFrac: COHERENCE_WINDOW_MIN_COVERAGE_FRAC,
+      secondsWithInsufficientCoverage,
+      withholdReasons,
+      secondsCountedInAggregate: eligibleSeconds.length,
     },
   };
 }
@@ -576,6 +669,43 @@ export type CoherenceExportDebug = {
   /** Границы, переданные в runCoherenceSessionAnalysis (согласованы с sessionTimeBase). */
   analysisSessionStartMs: number;
   analysisSessionEndMs: number;
+  // ─── Диагностика ритма и QC (coherent-breath-rhythm-overhaul, апрель 2026) ─
+  /** Ряд RR-интервалов после дедупликации, в миллисекундах. */
+  rrSeriesMs?: readonly number[];
+  /** Серия baseline BPM из planner-а, (tSinceSessionStartMs, bpm). */
+  baselineBpmSeries?: readonly { tMs: number; bpm: number }[];
+  /** Сводка по завершённым RSA-циклам: (hrInhale, hrExhale, rsaBpm, durationMs). */
+  rsaCyclesSummary?: readonly {
+    hrInhale: number;
+    hrExhale: number;
+    rsaBpm: number;
+    durationMs: number;
+  }[];
+  /** История планов дыхания (цикл за циклом). */
+  phaseDurationsHistory?: readonly {
+    planIndex: number;
+    cycleMs: number;
+    plannedInhaleMs: number;
+    plannedExhaleMs: number;
+    baselineBpm: number;
+    rsaBpm: number | null;
+  }[];
+  /** Исход QC: ok / user_chose_no_sensor / retry_failed. */
+  qcOutcome?: "ok" | "user_chose_no_sensor" | "retry_failed" | null;
+  /** Итоговый RMSSD по full-session HRV-накопителю практики. */
+  practiceRmssdMs?: number | null;
+  /** Итоговый индекс стресса по full-session HRV-накопителю практики. */
+  practiceStressPercent?: number | null;
+  /** Число валидных ударов в full-session HRV-накопителе. */
+  practiceHrvBeatCount?: number;
+  /** Диагностика детектора пиков (агрегированно за сессию). */
+  peakDetector?: {
+    dicroticRejectedTotal: number;
+    splitArtifactRejectedTotal: number;
+    peakWindowsObserved: number;
+    lastRefractoryAdaptiveMs: number | null;
+    lastMedianRrInPeakWindowMs: number | null;
+  };
 };
 
 export function buildCoherenceExportJson(

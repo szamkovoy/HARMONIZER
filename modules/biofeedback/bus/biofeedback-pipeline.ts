@@ -25,6 +25,7 @@
 import { bandpassPpgForPeakDetection } from "@/modules/biofeedback/signal/ppg-bandpass";
 import { detectBeats } from "@/modules/biofeedback/signal/peak-detector";
 import {
+  collapseSplitMergedBeats,
   mergeBeatTimestampsPhase1,
   syncEligibilityByNearestTime,
   trimBeatHistory,
@@ -57,6 +58,7 @@ import type {
   BiofeedbackCaptureConfig,
   PulseLockState,
 } from "@/modules/biofeedback/core/types";
+import type { PulseSourceKind } from "@/modules/biofeedback/engines/types";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 
 const PULSE_LOCK_RECENT_TRACKING_MS = 2_000;
@@ -91,11 +93,21 @@ export class BiofeedbackPipeline {
 
   // Внутреннее состояние трекинга пульса:
   private mergedBeats: number[] = [];
+  private canonicalBeats: number[] = [];
   private beatEligible: boolean[] = [];
   private lastStableRrMs = 0;
+  private lastMedianRrMs = 0;
   private lockState: PulseLockState = "searching";
   private lastPulseBpmPublishMs = 0;
   private lastCoherenceSnapshotMs = 0;
+  private pulseSource: PulseSourceKind = "none";
+
+  // Диагностика детектора пиков (аккумулируется для экспорта):
+  private dicroticRejectedTotal = 0;
+  private splitArtifactRejectedTotal = 0;
+  private peakWindowsObserved = 0;
+  private lastRefractoryAdaptiveMs = 0;
+  private lastMedianRrInPeakWindowMs = 0;
 
   constructor(
     private readonly bus: BiofeedbackBus,
@@ -112,14 +124,69 @@ export class BiofeedbackPipeline {
     return this.hrvAccumulator;
   }
 
+  /** Текущий источник ударов пульса. */
+  getPulseSource(): PulseSourceKind {
+    return this.pulseSource;
+  }
+
+  /**
+   * Удары идут из эмулятора (75→65 BPM без датчика) → все HRV/когерентность метрики
+   * должны быть withheld: ритм детерминирован и не отражает реального состояния пользователя.
+   * `simulated` — debug-источник Expo Go с живой RR-модуляцией; метрики по нему имеют смысл
+   * (для проверки пайплайна), поэтому здесь он emulated НЕ считается.
+   */
+  isPulseEmulated(): boolean {
+    return this.pulseSource === "emulated";
+  }
+
+  /**
+   * Явно пометить источник пульса (вызывается сенсорами при старте).
+   * Публикует событие на канал `pulseSource`, чтобы UI/engines могли реагировать.
+   */
+  setPulseSource(kind: PulseSourceKind): void {
+    if (this.pulseSource === kind) return;
+    this.pulseSource = kind;
+    this.bus.publish("pulseSource", {
+      kind,
+      isEmulated: kind === "emulated",
+    });
+  }
+
   /** Текущий merged-список ударов (только для чтения). */
   getMergedBeats(): readonly number[] {
     return this.mergedBeats;
   }
 
+  /** Канонический ряд ударов после pulse RR filter — использовать для downstream-метрик. */
+  getCanonicalBeats(): readonly number[] {
+    return this.canonicalBeats;
+  }
+
   /** Последний стабильный RR (мс) — для UI и debug. */
   getLastStableRrMs(): number {
     return this.lastStableRrMs;
+  }
+
+  /** Текущий медианный RR (мс) из PulseBpmEngine — для планировщика дыхания. */
+  getLastMedianRrMs(): number {
+    return this.lastMedianRrMs;
+  }
+
+  /** Накопленная диагностика детектора пиков — для экспорта. */
+  getPeakDetectorDiagnostics(): {
+    dicroticRejectedTotal: number;
+    splitArtifactRejectedTotal: number;
+    peakWindowsObserved: number;
+    lastRefractoryAdaptiveMs: number;
+    lastMedianRrInPeakWindowMs: number;
+  } {
+    return {
+      dicroticRejectedTotal: this.dicroticRejectedTotal,
+      splitArtifactRejectedTotal: this.splitArtifactRejectedTotal,
+      peakWindowsObserved: this.peakWindowsObserved,
+      lastRefractoryAdaptiveMs: this.lastRefractoryAdaptiveMs,
+      lastMedianRrInPeakWindowMs: this.lastMedianRrInPeakWindowMs,
+    };
   }
 
   /** Время последнего поступившего сэмпла/удара в шкале источника (camera time / Date.now). */
@@ -147,6 +214,7 @@ export class BiofeedbackPipeline {
       this.mergedBeats[0] ?? beatTimestampMs,
     );
     this.mergedBeats = trimBeatHistory(merged, timestampMs);
+    this.canonicalBeats = [...this.mergedBeats];
     this.beatEligible = this.mergedBeats.map(() => true);
 
     // Live pulse: для готовых источников всегда tracking.
@@ -169,18 +237,31 @@ export class BiofeedbackPipeline {
         mergedBeats: this.mergedBeats,
       });
       this.lastStableRrMs = bpmSnap.medianRrMs || this.lastStableRrMs;
+      this.lastMedianRrMs = bpmSnap.medianRrMs || this.lastMedianRrMs;
+      this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;
       this.bus.publish("pulseBpm", {
         bpm: bpmSnap.bpm,
+        rawBpm: bpmSnap.rawBpm,
         windowSeconds: bpmSnap.windowSeconds,
         lockState: "tracking",
         hasFreshBeat: true,
         confidence: bpmSnap.looksCoherent ? 1 : 0.6,
+        medianRrMs: bpmSnap.medianRrMs,
+        rrCount: bpmSnap.rrCount,
+        jitterMs: bpmSnap.jitterMs,
+        looksCoherent: bpmSnap.looksCoherent,
       });
     }
 
-    // HRV/Stress (только если калибровка отмечена готовой — для симулятора это делает обёртка).
-    if (this.hrvAccumulator.isReady()) {
-      this.hrvAccumulator.ingest(this.mergedBeats, this.beatEligible, timestampMs);
+    // HRV/Stress/Coherence: при эмулированном пульсе (SimulatedSensor / EmulatedPulseSensor)
+    // вычислять их бессмысленно — ритм заранее известен и задан синтетически. Чтобы UI не
+    // показывал «фантомные» метрики, ничего не публикуем. Симулятор в Expo Go остаётся
+    // прежним (там есть RR-модуляция, метрики полезны для отладки пайплайна) — поэтому
+    // исключение только для `emulated`.
+    const shouldSkipDerivedMetrics = this.pulseSource === "emulated";
+
+    if (this.hrvAccumulator.isReady() && !shouldSkipDerivedMetrics) {
+      this.hrvAccumulator.ingest(this.canonicalBeats, this.beatEligible, timestampMs);
       const beats = this.hrvAccumulator.getBeats();
       const hrvSnap = this.hrv.push(beats);
       const stressSnap = this.stress.push(beats);
@@ -208,9 +289,8 @@ export class BiofeedbackPipeline {
       }
     }
 
-    // Coherence — если активна сессия.
-    if (this.coherence.isActive()) {
-      this.coherence.appendBeats(this.mergedBeats);
+    if (this.coherence.isActive() && !shouldSkipDerivedMetrics) {
+      this.coherence.appendBeats(this.canonicalBeats);
       if (timestampMs - this.lastCoherenceSnapshotMs >= 1000) {
         this.lastCoherenceSnapshotMs = timestampMs;
         const snap = this.coherence.snapshot(timestampMs);
@@ -222,6 +302,7 @@ export class BiofeedbackPipeline {
             maxPercent: snap.coherenceMaxPercent ?? 0,
             smoothedSeries: snap.perSecondSmoothed.map((s) => s.coherenceMappedPercent),
             entryTimeSec: snap.entryTimeSec,
+            lastCompletedRsaCycle: this.coherence.extractLastCompletedRsaCycle(snap),
           });
         }
       }
@@ -241,11 +322,6 @@ export class BiofeedbackPipeline {
 
     // 2) Contact + Quality.
     const contactSnap = this.contact.push(sample.timestampMs, opt.fingerPresenceConfidence);
-    this.bus.publish("contact", {
-      state: contactSnap.state,
-      confidence: contactSnap.confidence,
-      absentForMs: contactSnap.absentForMs,
-    });
 
     if (contactSnap.shouldHardReset) {
       this.softReset();
@@ -256,6 +332,12 @@ export class BiofeedbackPipeline {
       opt.signalQuality,
       this.lockState === "tracking",
     );
+    this.bus.publish("contact", {
+      state: contactSnap.state,
+      confidence: contactSnap.confidence,
+      signalQuality: qualitySnap.value,
+      absentForMs: contactSnap.absentForMs,
+    });
 
     // 3) Peak detection + merge (только после прогрева).
     const calibrationPhaseBefore = this.calibration.getPhase();
@@ -272,6 +354,15 @@ export class BiofeedbackPipeline {
       const smoothed = movingAverage3(bandpassed);
       const result = detectBeats(samples, smoothed, this.config, opt.fps);
       detectedBeatsThisFrame = result.beatTimestampsMs;
+      this.dicroticRejectedTotal += result.dicroticRejectedCount;
+      this.splitArtifactRejectedTotal += result.splitArtifactRejectedCount;
+      this.peakWindowsObserved += 1;
+      if (result.refractoryMsAdaptive > 0) {
+        this.lastRefractoryAdaptiveMs = result.refractoryMsAdaptive;
+      }
+      if (result.medianRrMsInWindow > 0) {
+        this.lastMedianRrInPeakWindowMs = result.medianRrMsInWindow;
+      }
     }
 
     const prevMerged = [...this.mergedBeats];
@@ -282,6 +373,9 @@ export class BiofeedbackPipeline {
       this.optical.getSamples()[0]?.timestampMs ?? sample.timestampMs,
     );
     merged = trimBeatHistory(merged, sample.timestampMs);
+    const collapsed = collapseSplitMergedBeats(merged);
+    merged = collapsed.beats;
+    this.splitArtifactRejectedTotal += collapsed.removedCount;
     this.mergedBeats = merged;
     this.beatEligible = syncEligibilityByNearestTime(
       merged,
@@ -296,6 +390,14 @@ export class BiofeedbackPipeline {
       mergedBeats: merged,
     });
 
+    this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;
+    const canonicalEligible = syncEligibilityByNearestTime(
+      this.canonicalBeats,
+      merged,
+      this.beatEligible,
+      this.lockState === "tracking",
+    );
+
     const hasFreshBeat =
       merged.length > 0 && sample.timestampMs - merged[merged.length - 1]! <= 4_200;
     const hasValidBpm =
@@ -307,6 +409,11 @@ export class BiofeedbackPipeline {
       hasValidBpm &&
       bpmSnap.looksCoherent;
 
+    if (bpmSnap.medianRrMs > 0) {
+      // Планировщику дыхания полезен свежий median RR даже в holding,
+      // чтобы следующий цикл планировался не от устаревшего baseline.
+      this.lastMedianRrMs = bpmSnap.medianRrMs;
+    }
     if (trackingNow) {
       this.lockState = "tracking";
       this.lastStableRrMs = bpmSnap.medianRrMs;
@@ -335,7 +442,7 @@ export class BiofeedbackPipeline {
 
     // 6) HRV accumulator (только после ready).
     if (this.hrvAccumulator.isReady()) {
-      this.hrvAccumulator.ingest(merged, this.beatEligible, sample.timestampMs);
+      this.hrvAccumulator.ingest(this.canonicalBeats, canonicalEligible, sample.timestampMs);
     }
 
     // 7) Live pulse channel.
@@ -361,10 +468,15 @@ export class BiofeedbackPipeline {
       this.lastPulseBpmPublishMs = sample.timestampMs;
       this.bus.publish("pulseBpm", {
         bpm: bpmSnap.bpm,
+        rawBpm: bpmSnap.rawBpm,
         windowSeconds: bpmSnap.windowSeconds,
         lockState: this.lockState,
         hasFreshBeat,
         confidence: bpmSnap.looksCoherent ? Math.min(1, bpmSnap.rrCount / 10) : 0,
+        medianRrMs: bpmSnap.medianRrMs,
+        rrCount: bpmSnap.rrCount,
+        jitterMs: bpmSnap.jitterMs,
+        looksCoherent: bpmSnap.looksCoherent,
       });
     }
 
@@ -400,7 +512,7 @@ export class BiofeedbackPipeline {
 
     // 10) Coherence (только если активна сессия).
     if (this.coherence.isActive()) {
-      this.coherence.appendBeats(merged);
+      this.coherence.appendBeats(this.canonicalBeats);
       // Публикуем снимок раз в секунду.
       if (sample.timestampMs - this.lastCoherenceSnapshotMs >= 1000) {
         this.lastCoherenceSnapshotMs = sample.timestampMs;
@@ -413,6 +525,7 @@ export class BiofeedbackPipeline {
             maxPercent: snap.coherenceMaxPercent ?? 0,
             smoothedSeries: snap.perSecondSmoothed.map((s) => s.coherenceMappedPercent),
             entryTimeSec: snap.entryTimeSec,
+            lastCompletedRsaCycle: this.coherence.extractLastCompletedRsaCycle(snap),
           });
         }
       }
@@ -430,11 +543,18 @@ export class BiofeedbackPipeline {
     this.livePulse.reset();
     this.hrvAccumulator.reset();
     this.mergedBeats = [];
+    this.canonicalBeats = [];
     this.beatEligible = [];
     this.lastStableRrMs = 0;
+    this.lastMedianRrMs = 0;
     this.lockState = "searching";
     this.lastPulseBpmPublishMs = 0;
     this.lastCoherenceSnapshotMs = 0;
+    this.dicroticRejectedTotal = 0;
+    this.splitArtifactRejectedTotal = 0;
+    this.peakWindowsObserved = 0;
+    this.lastRefractoryAdaptiveMs = 0;
+    this.lastMedianRrInPeakWindowMs = 0;
   }
 
   /** Полный сброс — между экранами / при unmount. */
