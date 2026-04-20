@@ -44,10 +44,18 @@ const RSA_MIN_HR_EXHALE = 40;
 
 export type BreathPhaseKind = "inhale" | "exhale" | "hold";
 
+/**
+ * Ноздря/канал, через который идёт фаза. По умолчанию `both` (симметричное когерентное
+ * дыхание, квадрат, треугольники). Для нади-шодханы / сурья-бхеданы / чандра-бхеданы
+ * указывается `left`/`right`.
+ */
+export type BreathChannel = "both" | "left" | "right";
+
 /** Декларация одной фазы в рисунке дыхания. */
 export interface BreathPhaseSpec {
   kind: BreathPhaseKind;
   beats: number;
+  channel?: BreathChannel;
 }
 
 /** Полный рисунок дыхания: массив фаз + отметка базовой фазы (для будущего слайдера скорости). */
@@ -71,6 +79,8 @@ export interface PlannedPhase {
   phaseMs: number;
   /** Эффективный BPM, использованный при расчёте длины фазы. */
   bpmForPhase: number;
+  /** Ноздря/канал фазы (см. `BreathChannel`). */
+  channel: BreathChannel;
 }
 
 /** Полностью «замороженный» план цикла. Используется индикатором дыхания as-is. */
@@ -209,6 +219,7 @@ export class BreathPhasePlanner {
       return {
         kind: ph.kind,
         beats: ph.beats,
+        channel: ph.channel ?? "both",
         rawMs: phaseMsFromBeats(ph.beats, bpmForPhase),
         bpmForPhase,
       };
@@ -228,6 +239,7 @@ export class BreathPhasePlanner {
         endMsInCycle: cursorMs,
         phaseMs: scaled,
         bpmForPhase: p.bpmForPhase,
+        channel: p.channel,
       };
     });
 

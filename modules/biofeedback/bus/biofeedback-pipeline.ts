@@ -100,6 +100,13 @@ export class BiofeedbackPipeline {
   private lockState: PulseLockState = "searching";
   private lastPulseBpmPublishMs = 0;
   private lastCoherenceSnapshotMs = 0;
+  /**
+   * Последнее время вычисления RMSSD / стресса. HRV-анализ внутри делает Hampel-фильтр
+   * с windowed median → **O(N²)** по количеству ударов. При сессии 20+ мин это
+   * квадратично растущая нагрузка, если запускать на каждом кадре (30 Hz). UI
+   * обновляет RMSSD/стресс не чаще 1 Hz, поэтому троттлим до 1 секунды.
+   */
+  private lastHrvStressComputeMs = 0;
   private pulseSource: PulseSourceKind = "none";
 
   // Диагностика детектора пиков (аккумулируется для экспорта):
@@ -261,31 +268,36 @@ export class BiofeedbackPipeline {
     const shouldSkipDerivedMetrics = this.pulseSource === "emulated";
 
     if (this.hrvAccumulator.isReady() && !shouldSkipDerivedMetrics) {
+      // Накапливать beats — всегда (это дёшево). Но тяжёлый HRV/Stress расчёт
+      // (Hampel O(N²)) троттлим до 1 Hz, см. комментарий у `lastHrvStressComputeMs`.
       this.hrvAccumulator.ingest(this.canonicalBeats, this.beatEligible, timestampMs);
-      const beats = this.hrvAccumulator.getBeats();
-      const hrvSnap = this.hrv.push(beats);
-      const stressSnap = this.stress.push(beats);
-      if (hrvSnap.tier !== "none") {
-        this.bus.publish("rmssd", {
-          rmssdMs: hrvSnap.rmssdMs,
-          segment: hrvSnap.showInitialFinal ? "final" : "all",
-          tier: hrvSnap.tier,
-          validBeatCount: hrvSnap.validBeatCount,
-          approximate: hrvSnap.approximate,
-        });
-      }
-      if (stressSnap.tier !== "none") {
-        const tier =
-          stressSnap.tier === "beats_180_plus" || stressSnap.tier === "beats_90_119"
-            ? "stable90"
-            : "fast60";
-        this.bus.publish("stress", {
-          percent: stressSnap.percent,
-          rawIndex: stressSnap.rawIndex,
-          segment: stressSnap.showInitialFinal ? "final" : "all",
-          tier,
-          approximate: stressSnap.approximate,
-        });
+      if (timestampMs - this.lastHrvStressComputeMs >= 1000) {
+        this.lastHrvStressComputeMs = timestampMs;
+        const beats = this.hrvAccumulator.getBeats();
+        const hrvSnap = this.hrv.push(beats);
+        const stressSnap = this.stress.push(beats);
+        if (hrvSnap.tier !== "none") {
+          this.bus.publish("rmssd", {
+            rmssdMs: hrvSnap.rmssdMs,
+            segment: hrvSnap.showInitialFinal ? "final" : "all",
+            tier: hrvSnap.tier,
+            validBeatCount: hrvSnap.validBeatCount,
+            approximate: hrvSnap.approximate,
+          });
+        }
+        if (stressSnap.tier !== "none") {
+          const tier =
+            stressSnap.tier === "beats_180_plus" || stressSnap.tier === "beats_90_119"
+              ? "stable90"
+              : "fast60";
+          this.bus.publish("stress", {
+            percent: stressSnap.percent,
+            rawIndex: stressSnap.rawIndex,
+            segment: stressSnap.showInitialFinal ? "final" : "all",
+            tier,
+            approximate: stressSnap.approximate,
+          });
+        }
       }
     }
 
@@ -365,10 +377,14 @@ export class BiofeedbackPipeline {
       }
     }
 
-    const prevMerged = [...this.mergedBeats];
-    const prevEligible = [...this.beatEligible];
+    // mergeBeatTimestampsPhase1 возвращает НОВЫЙ массив, не мутирует this.mergedBeats
+    // — значит ссылки на старые мы можем просто сохранить без копии. Раньше делали
+    // `[...this.mergedBeats]` и `[...this.beatEligible]` каждый optical sample (30 Hz),
+    // что на длинных практиках было O(N) × 30 Hz = заметная нагрузка на CPU.
+    const prevMerged = this.mergedBeats;
+    const prevEligible = this.beatEligible;
     let merged = mergeBeatTimestampsPhase1(
-      this.mergedBeats,
+      prevMerged,
       detectedBeatsThisFrame,
       this.optical.getSamples()[0]?.timestampMs ?? sample.timestampMs,
     );
@@ -480,8 +496,15 @@ export class BiofeedbackPipeline {
       });
     }
 
-    // 9) HRV / Stress (после ready).
-    if (this.hrvAccumulator.isReady() && qualitySnap.enoughForHrv) {
+    // 9) HRV / Stress (после ready) — троттлим до 1 Hz. Внутри `computePracticeHrvMetricsFullSession`
+    // Hampel-фильтр O(N²): на 40-й минуте ~3000 beats × 30 Hz = сотни миллионов ops/s.
+    // UI всё равно показывает не чаще 1 Hz — значит достаточно раз в секунду.
+    if (
+      this.hrvAccumulator.isReady() &&
+      qualitySnap.enoughForHrv &&
+      sample.timestampMs - this.lastHrvStressComputeMs >= 1000
+    ) {
+      this.lastHrvStressComputeMs = sample.timestampMs;
       const beats = this.hrvAccumulator.getBeats();
       const hrvSnap = this.hrv.push(beats);
       const stressSnap = this.stress.push(beats);
@@ -550,6 +573,7 @@ export class BiofeedbackPipeline {
     this.lockState = "searching";
     this.lastPulseBpmPublishMs = 0;
     this.lastCoherenceSnapshotMs = 0;
+    this.lastHrvStressComputeMs = 0;
     this.dicroticRejectedTotal = 0;
     this.splitArtifactRejectedTotal = 0;
     this.peakWindowsObserved = 0;

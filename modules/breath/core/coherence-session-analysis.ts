@@ -38,8 +38,16 @@ export interface CoherenceSessionInput {
   sessionEndedAtMs: number;
   /** Абсолютные метки ударов: окно практики ± буфер QC перед logical start (см. bufferMsBeforeSession). */
   beatTimestampsMs: readonly number[];
+  /** Длительность фазы вдоха (для legacy двухфазных практик) — используется для расчёта цикла. */
   inhaleMs: number;
+  /** Длительность фазы выдоха (legacy). */
   exhaleMs: number;
+  /**
+   * Полная длительность дыхательного цикла (мс). Если задано — используется напрямую
+   * вместо `inhaleMs + exhaleMs`; это нужно для практик с задержками (квадрат, треугольник),
+   * где сумма «вдох + выдох» не покрывает весь цикл. Опционально для обратной совместимости.
+   */
+  cycleMs?: number;
   mode: BreathAnalysisMode;
   /** Включать метки до sessionStartedAtMs для тахограммы (буфер успешного QC, мс). */
   bufferMsBeforeSession?: number;
@@ -481,7 +489,7 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     }
   }
 
-  const cycleMs = inhaleMs + exhaleMs;
+  const cycleMs = input.cycleMs ?? inhaleMs + exhaleMs;
   let rsaCycles: CoherenceSessionResult["rsaCycles"] = [];
   if (
     !metricsWithheldDueToInsufficientData &&

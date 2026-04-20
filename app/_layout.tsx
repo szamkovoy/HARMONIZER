@@ -72,7 +72,7 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="breath-coherence"
-            options={{ title: "Когерентное дыхание", headerBackTitle: "Back" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>

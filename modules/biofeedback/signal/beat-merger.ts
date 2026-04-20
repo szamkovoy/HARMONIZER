@@ -142,26 +142,35 @@ export function dedupeBeatTimestampsMs(
  * `defaultEligible` — что назначить новому удару, у которого не нашлось соседа в prev
  * (как правило: tracking → true, иначе false).
  */
+/**
+ * O(N) two-pointer синхронизация eligibility: для каждой записи в `merged` находит
+ * ближайшую по времени запись в `prevBeats` и, если расстояние ≤ допуска дедупликации,
+ * переносит с неё `eligibility`; иначе ставит `defaultEligible`.
+ *
+ * Обе последовательности отсортированы по возрастанию времени (инвариант beat-merger),
+ * поэтому достаточно одного прохода с двумя указателями. Раньше здесь был честный
+ * O(N·M) двойной цикл, который при N ≈ 3000 и частоте вызова 30 Hz (каждый optical
+ * sample) выдавал ~540 миллионов сравнений в секунду — отсюда ощутимый нагрев CPU и
+ * деградация FPS мандалы к концу длинной практики.
+ */
 export function syncEligibilityByNearestTime(
   merged: readonly number[],
   prevBeats: readonly number[],
   prevEligible: readonly boolean[],
   defaultEligible: boolean,
 ): boolean[] {
-  const out: boolean[] = [];
+  const out: boolean[] = new Array(merged.length);
+  const tol = BEAT_DUPLICATE_TOLERANCE_MS;
+  let j = 0;
   for (let i = 0; i < merged.length; i += 1) {
     const ts = merged[i]!;
-    let bestJ = -1;
-    let bestDist = Infinity;
-    for (let j = 0; j < prevBeats.length; j += 1) {
-      const d = Math.abs(ts - prevBeats[j]!);
-      if (d < bestDist) {
-        bestDist = d;
-        bestJ = j;
-      }
+    // Продвигаем j, пока следующий prevBeat ближе к ts.
+    while (j + 1 < prevBeats.length && Math.abs(prevBeats[j + 1]! - ts) <= Math.abs(prevBeats[j]! - ts)) {
+      j += 1;
     }
-    if (bestJ >= 0 && bestDist <= BEAT_DUPLICATE_TOLERANCE_MS) {
-      out[i] = prevEligible[bestJ] ?? false;
+    const bestDist = prevBeats.length > 0 ? Math.abs(prevBeats[j]! - ts) : Infinity;
+    if (prevBeats.length > 0 && bestDist <= tol) {
+      out[i] = prevEligible[j] ?? false;
     } else {
       out[i] = defaultEligible;
     }

@@ -3,6 +3,15 @@ export type BreathLocale = "ru" | "en";
 export interface CoherenceBreathStrings {
   inhale: string;
   exhale: string;
+  /** Третья фаза для квадрата/треугольников. */
+  hold: string;
+  /** Суффикс секунд — «сек»/«sec» (отображается под ВДОХ/ВЫДОХ/ЗАДЕРЖКА). */
+  secondsShortLabel: string;
+  /**
+   * Подпись длительности фазы в **ударах пульса**: `5 → «5 ударов»`, `1 → «1 удар»`.
+   * Используется под ВДОХ/ВЫДОХ/ЗАДЕРЖКА, чтобы число совпадало с выбранным на панели.
+   */
+  beatsShortLabel: (count: number) => string;
   practiceTitle: string;
   calibrationTitle: string;
   warmupTitle: string;
@@ -13,6 +22,16 @@ export interface CoherenceBreathStrings {
   qualityCheckWaitingTimebase: string;
   /** Оставшиеся секунды окна проверки (1–10), по времени камеры. */
   qualityCheckCountdown: (secondsLeft: number) => string;
+  /**
+   * Объединённый экран «прогрев + QC» для пользователя: одно название, одна инструкция.
+   * Сам прогрев и проверка качества — деталь реализации, не выносим её в UI.
+   */
+  sensorActivationTitle: string;
+  sensorActivationHint: string;
+  /** Строка под таймером «Ожидание устойчивого сигнала…». */
+  sensorActivationStableWait: string;
+  /** Надпись над пиктограммой поиска сигнала (пока палец не на объективе). */
+  sensorActivationFingerSearch: string;
   /** Заголовок диалога «QC не прошло». */
   qcFailedDialogTitle: string;
   /** Подзаголовок диалога «QC не прошло». */
@@ -57,11 +76,45 @@ export interface CoherenceBreathStrings {
   ppgWeakSignalMessage: string;
   /** Слабый сигнал &gt; 7 с. */
   ppgBiometryPausedMessage: string;
+  /** Короткий суффикс длительности на панели управления: «МИН» / «MIN». */
+  practiceMinutesShort: string;
+  /** Диалог подтверждения досрочного выхода из практики. */
+  stopConfirmTitle: string;
+  stopConfirmMessage: string;
+  stopConfirmYes: string;
+  stopConfirmNo: string;
+  /** Accessibility-подсказка для счётчика базового числа ударов на фазу. */
+  baseBeatsAccessibilityLabel: string;
+  /** Заголовок на панели idle — выбор типа практики. */
+  practicePickerTitle: string;
+  /** Универсальная кнопка «Отменить». */
+  cancelButton: string;
+  /** Отображаемые имена практик (на родном языке). */
+  practiceName: Record<BreathPracticeId, string>;
+  /** Санскритские подзаголовки практик. */
+  practiceSanskritName: Record<BreathPracticeId, string>;
 }
+
+/**
+ * Идентификаторы всех поддерживаемых дыхательных практик. Держим их в i18n, чтобы
+ * зависимые строки нельзя было «забыть» локализовать — при добавлении нового id
+ * TypeScript потребует строки для всех языков.
+ */
+export type BreathPracticeId =
+  | "coherent"
+  | "nadi-shodhana"
+  | "surya-bhedana"
+  | "chandra-bhedana"
+  | "square"
+  | "triangle-up"
+  | "triangle-down";
 
 const ru: CoherenceBreathStrings = {
   inhale: "ВДОХ",
   exhale: "ВЫДОХ",
+  hold: "ЗАДЕРЖКА",
+  secondsShortLabel: "сек",
+  beatsShortLabel: (count: number) => `${count} уд.пульса`,
   practiceTitle: "Когерентное дыхание",
   calibrationTitle: "Калибровка пульса",
   warmupTitle: "Прогрев датчика",
@@ -71,9 +124,14 @@ const ru: CoherenceBreathStrings = {
     "Удерживайте контакт ≈ 10 с. Нужны: tracking, качество > 70 %, не меньше 6 ударов за окно.",
   qualityCheckWaitingTimebase: "Синхронизация с камерой…",
   qualityCheckCountdown: (s) => `Окно 10 с — осталось ${s} с`,
+  sensorActivationTitle: "Активация пульсометра",
+  sensorActivationHint:
+    "Кладите подушечку указательного пальца на 5 секунд по очереди на разные объективы телефона, пока внизу на графике не увидите пульсацию. Далее удерживайте палец на этом объективе, не двигая им в течение всей практики.",
+  sensorActivationStableWait: "Ожидание устойчивого сигнала…",
+  sensorActivationFingerSearch: "Ищу палец на объективе…",
   qcFailedDialogTitle: "Пульс не распознан",
   qcFailedDialogMessage:
-    "Сигнал оказался слишком нестабилен для достоверной оценки ритма. Можно продолжить практику без датчика — тогда ритм дыхания задаёт эмулятор пульса (75 → 65 BPM), а показатели HRV и когерентности не считаются. Либо попробовать ещё раз: прижмите палец плотнее к камере со вспышкой и не двигайтесь.",
+    "Стабильный сигнал не получен. Не двигайте палец и не давите им на объектив слишком сильно. Вы можете повторить попытку активировать пульсометр или выполните практику без использования биологической обратной связи.",
   qcFailedContinueWithoutSensor: "Продолжить без пульсометра",
   qcFailedRetry: "Попробовать снова",
   calibrationHint:
@@ -109,11 +167,41 @@ const ru: CoherenceBreathStrings = {
   ppgFingerLostMessage: "Пульс потерян, биометрия приостановлена",
   ppgWeakSignalMessage: "Слабый сигнал, пульс не прощупывается",
   ppgBiometryPausedMessage: "Биометрия приостановлена, но продолжайте дыхание.",
+  practiceMinutesShort: "минут",
+  stopConfirmTitle: "Завершить практику?",
+  stopConfirmMessage:
+    "Практика будет остановлена, а результаты по текущему отрезку не будут рассчитаны.",
+  stopConfirmYes: "Завершить",
+  stopConfirmNo: "Продолжить",
+  baseBeatsAccessibilityLabel: "Количество ударов пульса на фазу дыхания",
+  practicePickerTitle: "Тип дыхательной практики",
+  cancelButton: "Отменить",
+  practiceName: {
+    coherent: "Когерентное дыхание",
+    "nadi-shodhana": "Попеременное дыхание ноздрями",
+    "surya-bhedana": "Дыхание правой ноздрёй",
+    "chandra-bhedana": "Дыхание левой ноздрёй",
+    square: "Дыхание «Квадрат»",
+    "triangle-up": "Треугольник вершиной вверх",
+    "triangle-down": "Треугольник вершиной вниз",
+  },
+  practiceSanskritName: {
+    coherent: "Сама-Вритти",
+    "nadi-shodhana": "Нади Шодхана",
+    "surya-bhedana": "Сурья Бхедана",
+    "chandra-bhedana": "Чандра Бхедана",
+    square: "Чатуранга пранаяма",
+    "triangle-up": "Висама-Вритти · Бахир Кумбхака",
+    "triangle-down": "Висама-Вритти · Антар Кумбхака",
+  },
 };
 
 const en: CoherenceBreathStrings = {
   inhale: "INHALE",
   exhale: "EXHALE",
+  hold: "HOLD",
+  secondsShortLabel: "sec",
+  beatsShortLabel: (count: number) => `${count} pulse beats`,
   practiceTitle: "Coherence breath",
   calibrationTitle: "Pulse calibration",
   warmupTitle: "Sensor warmup",
@@ -123,9 +211,14 @@ const en: CoherenceBreathStrings = {
     "Keep contact for ~10 s. Need: tracking, quality > 70 %, at least 6 beats in the window.",
   qualityCheckWaitingTimebase: "Syncing with camera clock…",
   qualityCheckCountdown: (s) => `10 s window — ${s}s left`,
+  sensorActivationTitle: "Pulse sensor activation",
+  sensorActivationHint:
+    "Press the tip of your index finger for about 5 seconds on each of your phone's cameras in turn until you see a pulsation on the chart below. Then keep the finger still on that lens for the whole practice.",
+  sensorActivationStableWait: "Waiting for a stable signal…",
+  sensorActivationFingerSearch: "Looking for a finger on the lens…",
   qcFailedDialogTitle: "Pulse not detected",
   qcFailedDialogMessage:
-    "The signal was too unstable for a reliable rhythm estimate. You can continue without a sensor — the breath rhythm will then be driven by the emulated pulse (75 → 65 BPM), and HRV/coherence metrics will not be computed. Or try again: press your finger firmly against the camera with flash and stay still.",
+    "A stable signal was not obtained. Keep the finger still and don't press too hard against the lens. You can try the sensor again or run the practice without biofeedback.",
   qcFailedContinueWithoutSensor: "Continue without pulse sensor",
   qcFailedRetry: "Try again",
   calibrationHint:
@@ -161,6 +254,33 @@ const en: CoherenceBreathStrings = {
   ppgFingerLostMessage: "Pulse lost, biometrics paused",
   ppgWeakSignalMessage: "Weak signal, pulse cannot be felt",
   ppgBiometryPausedMessage: "Biometrics paused — keep breathing.",
+  practiceMinutesShort: "min",
+  stopConfirmTitle: "End practice?",
+  stopConfirmMessage:
+    "The session will be stopped and results for the current run will not be computed.",
+  stopConfirmYes: "End",
+  stopConfirmNo: "Continue",
+  baseBeatsAccessibilityLabel: "Pulse beats per breathing phase",
+  practicePickerTitle: "Breathing practice",
+  cancelButton: "Cancel",
+  practiceName: {
+    coherent: "Coherent breathing",
+    "nadi-shodhana": "Alternate nostril breathing",
+    "surya-bhedana": "Right-nostril breathing",
+    "chandra-bhedana": "Left-nostril breathing",
+    square: "Square breathing",
+    "triangle-up": "Triangle (apex up)",
+    "triangle-down": "Triangle (apex down)",
+  },
+  practiceSanskritName: {
+    coherent: "Sama Vritti",
+    "nadi-shodhana": "Nadi Shodhana",
+    "surya-bhedana": "Surya Bhedana",
+    "chandra-bhedana": "Chandra Bhedana",
+    square: "Chaturanga pranayama",
+    "triangle-up": "Vishama Vritti · Bahir Kumbhaka",
+    "triangle-down": "Vishama Vritti · Antar Kumbhaka",
+  },
 };
 
 export function getCoherenceBreathStrings(locale: BreathLocale): CoherenceBreathStrings {

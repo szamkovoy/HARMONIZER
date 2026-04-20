@@ -20,7 +20,7 @@
 | Параметр | Источник | Значение |
 | --- | --- | --- |
 | Дедуп пиков | `BEAT_DUPLICATE_TOLERANCE_MS` | 220 ms |
-| История ударов | `BEAT_HISTORY_WINDOW_MS` | 45 минут |
+| История ударов | `BEAT_HISTORY_WINDOW_MS` | 2 минуты (рабочий буфер; full-session beats хранятся в HrvBeatAccumulator и CoherenceEngine) |
 | Окно для среднего BPM | `PULSE_WINDOW_MS` | 10 s |
 | Жёсткие границы RR пульса | `PULSE_RR_MIN_MS` / `PULSE_RR_MAX_MS` | 450 / 1400 ms |
 | Sequential filter (% отклонения) | `PULSE_RR_DEVIATION_RATIO` | 0.16 |

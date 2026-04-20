@@ -1,9 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import { StyleSheet, View } from "react-native";
-import Animated, {
-  type SharedValue,
+import { Pressable, StyleSheet, View } from "react-native";
+import {
   runOnJS,
-  useAnimatedStyle,
   useFrameCallback,
   useSharedValue,
 } from "react-native-reanimated";
@@ -11,10 +9,9 @@ import Animated, {
 import {
   type PlannedCycle,
 } from "@/modules/breath/core/breath-phase-planner";
-import {
-  computeBreathPosition,
-  phaseAtTimeInCycle,
-} from "@/modules/breath/core/rhythm-easing";
+import type { BreathIndicatorKind } from "@/modules/breath/core/practices";
+import { phaseAtTimeInCycle } from "@/modules/breath/core/rhythm-easing";
+import { BreathIndicatorView } from "@/modules/breath/ui/BreathIndicatorView";
 
 /**
  * Контракт компонента:
@@ -48,26 +45,32 @@ export interface BreathPracticeShellProps {
   /** `Date.now()` в момент старта текущего цикла. Авторитет для worklet. */
   cycleStartMs: number | null;
   /**
-   * Вызывается один раз на каждый завершённый цикл (на UI-потоке → runOnJS).
-   * Родитель должен в ответ установить новый `plannedCycle` и сдвинутый `cycleStartMs`.
+   * Вызывается на каждой границе фазы (на UI-потоке → runOnJS).
+   *  - `nextPhaseIndex === 0` — переход из последней фазы в первую, т.е. конец цикла.
+   *    Родитель должен построить новый план и сдвинуть `cycleStartMs`.
+   *  - `nextPhaseIndex > 0` — обычный переход между фазами внутри цикла. Родитель может
+   *    решить, надо ли что-то пересобрать (например, применить новое `baseBeats`), или
+   *    проигнорировать — тогда текущий план продолжит работать.
    */
-  onCycleEnd?: () => void;
+  onPhaseChange?: (nextPhaseIndex: number) => void;
   /** Нижняя полоса (например optical-сигнал как в пробе ППГ). */
   footer?: ReactNode;
-}
-
-function BreathPhaseRail({ progress }: { progress: SharedValue<number> }) {
-  const animatedFillStyle = useAnimatedStyle(() => ({
-    height: `${Math.min(1, Math.max(0, progress.value)) * 100}%`,
-  }));
-
-  return (
-    <View style={styles.railOuter} accessibilityLabel="Breath rhythm indicator">
-      <View style={styles.railTrack}>
-        <Animated.View style={[styles.railFill, animatedFillStyle]} />
-      </View>
-    </View>
-  );
+  /**
+   * Какой визуальный индикатор фаз рисуется. По умолчанию — `bar` (одиночный
+   * вертикальный столбик когерентного дыхания).
+   */
+  indicatorKind?: BreathIndicatorKind;
+  /**
+   * Колбэк на «тап по экрану мимо слотов-контролов» — используется для того, чтобы
+   * показать/скрыть всплывающую панель управления. Если не передан — слой-перехватчик
+   * тапов не создаётся, все тапы идут в underlay/center/footer как раньше.
+   */
+  onScreenTap?: () => void;
+  /**
+   * Слот поверх всех визуальных слоёв: панель управления, тост, баннер и т.п.
+   * Элемент должен сам позиционироваться абсолютно (панель обычно `bottom`).
+   */
+  overlay?: ReactNode;
 }
 
 /**
@@ -85,11 +88,16 @@ function planToSv(plan: PlannedCycle | null): PlannedCycle | null {
       endMsInCycle: ph.endMsInCycle,
       phaseMs: ph.phaseMs,
       bpmForPhase: ph.bpmForPhase,
+      channel: ph.channel,
     })),
     baselineBpm: plan.baselineBpm,
     rsaInfo: plan.rsaInfo ? { ...plan.rsaInfo } : null,
     shape: {
-      phases: plan.shape.phases.map((p) => ({ kind: p.kind, beats: p.beats })),
+      phases: plan.shape.phases.map((p) => ({
+        kind: p.kind,
+        beats: p.beats,
+        channel: p.channel,
+      })),
       baseIndex: plan.shape.baseIndex,
     },
   };
@@ -102,25 +110,30 @@ export function BreathPracticeShell({
   isBreathTimingActive,
   plannedCycle,
   cycleStartMs,
-  onCycleEnd,
+  onPhaseChange,
   footer,
+  indicatorKind = "bar",
+  onScreenTap,
+  overlay,
 }: BreathPracticeShellProps) {
-  const progressSV = useSharedValue(0);
   const runSV = useSharedValue(0);
   const startSV = useSharedValue(0);
   const planSV = useSharedValue<PlannedCycle | null>(null);
-  /** Флаг: репорт onCycleEnd для текущего плана уже выслан. Сбрасывается при смене плана. */
-  const endReportedSV = useSharedValue(0);
+  /**
+   * Следим за уже «разрешённой» границей фаз: значение = `phaseIndex + 1`, чтобы отличать
+   * «не репортилось ни разу» (0) от «репорт для phase 0» (1). Сбрасывается при смене плана.
+   */
+  const boundaryReportedIndexSV = useSharedValue(0);
 
-  const planRef = useRef(onCycleEnd);
-  planRef.current = onCycleEnd;
+  const phaseChangeRef = useRef(onPhaseChange);
+  phaseChangeRef.current = onPhaseChange;
 
   const planMaterialized = useMemo(() => planToSv(plannedCycle), [plannedCycle]);
 
   useEffect(() => {
     planSV.value = planMaterialized;
-    endReportedSV.value = 0;
-  }, [planMaterialized, planSV, endReportedSV]);
+    boundaryReportedIndexSV.value = 0;
+  }, [planMaterialized, planSV, boundaryReportedIndexSV]);
 
   useEffect(() => {
     if (isBreathTimingActive && cycleStartMs != null) {
@@ -128,34 +141,36 @@ export function BreathPracticeShell({
       runSV.value = 1;
     } else {
       runSV.value = 0;
-      progressSV.value = 0;
     }
-  }, [isBreathTimingActive, cycleStartMs, runSV, startSV, progressSV]);
+  }, [isBreathTimingActive, cycleStartMs, runSV, startSV]);
 
   useFrameCallback(() => {
     "worklet";
-    if (runSV.value < 0.5) {
-      return;
-    }
+    if (runSV.value < 0.5) return;
     const plan = planSV.value;
-    if (!plan || plan.cycleMs <= 0) {
-      return;
-    }
-    const start = startSV.value;
-    const t = Date.now() - start;
-
+    if (!plan || plan.cycleMs <= 0) return;
+    const t = Date.now() - startSV.value;
+    // Вычисляем текущую «следующую» границу фаз. -1 — ничего не пересекли.
+    let nextPhaseIndex = -1;
     if (t >= plan.cycleMs) {
-      // Удерживаем позицию на конечной точке цикла до апдейта плана родителем.
-      progressSV.value = computeBreathPosition(plan, plan.cycleMs);
-      if (endReportedSV.value === 0) {
-        endReportedSV.value = 1;
-        const cb = planRef.current;
-        if (cb) runOnJS(cb)();
+      nextPhaseIndex = 0; // конец цикла
+    } else {
+      for (let i = 0; i < plan.phases.length - 1; i += 1) {
+        if (t >= plan.phases[i]!.endMsInCycle) {
+          nextPhaseIndex = i + 1;
+        } else {
+          break;
+        }
       }
-      return;
     }
-
-    progressSV.value = computeBreathPosition(plan, Math.max(0, t));
+    if (
+      nextPhaseIndex >= 0 &&
+      boundaryReportedIndexSV.value !== nextPhaseIndex + 1
+    ) {
+      boundaryReportedIndexSV.value = nextPhaseIndex + 1;
+      const cb = phaseChangeRef.current;
+      if (cb) runOnJS(cb)(nextPhaseIndex);
+    }
   });
 
   return (
@@ -169,7 +184,20 @@ export function BreathPracticeShell({
           {footer}
         </View>
       ) : null}
-      <BreathPhaseRail progress={progressSV} />
+      <BreathIndicatorView
+        kind={indicatorKind}
+        plannedCycle={plannedCycle}
+        cycleStartMs={cycleStartMs}
+      />
+      {onScreenTap ? (
+        <Pressable
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={styles.tapBackdrop}
+          onPress={onScreenTap}
+        />
+      ) : null}
+      {overlay}
       <View style={[styles.dim, { opacity: dimOpacity }]} pointerEvents="none" />
     </View>
   );
@@ -215,29 +243,13 @@ const styles = StyleSheet.create({
     bottom: 20,
     zIndex: 4,
   },
-  railOuter: {
-    position: "absolute",
-    right: 18,
-    top: 120,
-    bottom: 120,
-    width: 14,
-    justifyContent: "center",
-  },
-  railTrack: {
-    flex: 1,
-    width: 14,
-    borderRadius: 7,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    overflow: "hidden",
-    justifyContent: "flex-end",
-  },
-  railFill: {
-    width: "100%",
-    backgroundColor: "rgba(186, 230, 200, 0.85)",
-    borderRadius: 7,
-  },
   dim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
+  },
+  tapBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+    zIndex: 30,
   },
 });

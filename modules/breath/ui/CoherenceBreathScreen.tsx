@@ -11,6 +11,12 @@ import {
   Text,
   View,
 } from "react-native";
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { isFingerFrameProcessorAvailable } from "@/modules/biofeedback-finger-frame-processor/src";
@@ -28,6 +34,7 @@ import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 import {
   COHERENCE_PREFLIGHT_BUFFER_MS,
   COHERENCE_PREP_TOTAL_MS,
+  COHERENCE_QUALITY_WINDOW_EARLY_SUCCESS_MS,
   COHERENCE_QUALITY_WINDOW_MS,
   COHERENCE_WARMUP_MS,
   QC_BPM_STDEV_MAX,
@@ -35,18 +42,33 @@ import {
 } from "@/modules/breath/core/coherence-constants";
 import {
   BreathPhasePlanner,
-  buildSimpleInhaleExhaleShape,
+  type BreathPhaseShape,
   type PlannedCycle,
 } from "@/modules/breath/core/breath-phase-planner";
+import {
+  BREATH_PRACTICES,
+  getBreathPracticeById,
+  type BreathPracticeDescriptor,
+} from "@/modules/breath/core/practices";
 import { DEFAULT_COHERENCE_TEST_TIMING } from "@/modules/breath/core/types";
-import { getCoherenceBreathStrings, type BreathLocale } from "@/modules/breath/i18n/coherence";
+import {
+  getCoherenceBreathStrings,
+  type BreathLocale,
+  type BreathPracticeId,
+} from "@/modules/breath/i18n/coherence";
 import type {
   CoherenceExportDebug,
   CoherencePulseLogEntry,
   CoherenceSessionResult,
 } from "@/modules/breath/core/coherence-session-analysis";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
-import { PpgOpticalPreview } from "@/modules/breath/ui/PpgOpticalPreview";
+import { BreathOverlayControlPanel } from "@/modules/breath/ui/BreathOverlayControlPanel";
+import { PpgMiniChart } from "@/modules/breath/ui/PpgMiniChart";
+import { AppButton } from "@/modules/ui/AppButton";
+import { AppDialog } from "@/modules/ui/AppDialog";
+import { AppText } from "@/modules/ui/AppText";
+import { CountdownRing } from "@/modules/ui/CountdownRing";
+import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
 
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
 
@@ -62,11 +84,8 @@ const UI_TICK_MS = 500;
  * 250 мс достаточно, чтобы EMA успевал отслеживать медленные изменения BPM.
  */
 const PLANNER_BASELINE_TICK_MS = 250;
-/** Декларативный рисунок дыхания для когерентной практики. */
-const COHERENCE_SHAPE = buildSimpleInhaleExhaleShape(
-  TIMING.inhaleBeats,
-  TIMING.exhaleBeats,
-);
+/** Панель управления: через сколько мс бездействия автоматически скрыть панель. */
+const OVERLAY_AUTOHIDE_MS = 4_000;
 /** Пороги независимых конечных автоматов: палец / качество (мс по шкале камеры). */
 const PPG_FINGER_LOST_OVERLAY_MS = 1000;
 const PPG_QUALITY_GRADE_B_MS = 2000;
@@ -100,10 +119,36 @@ function computeStdDev(values: readonly number[]): number {
 }
 
 /**
+ * По рисунку практики и медианному RR-интервалу на старте вычисляет длительности
+ * `inhaleMs`, `exhaleMs` и полную `cycleMs` для передачи в CoherenceSessionInput.
+ * Сохраняем старые поля `inhaleMs`/`exhaleMs` для обратной совместимости, но
+ * `cycleMs` теперь главный — он корректен и для практик с задержками.
+ */
+function computeCycleMsForAnalysis(
+  shape: BreathPhaseShape,
+  medianRrMs?: number,
+): { inhaleMs: number; exhaleMs: number; cycleMs: number } {
+  const fallbackRr = 1000; // 60 BPM если нет измерения
+  const rrMs =
+    medianRrMs != null && medianRrMs > 0 && Number.isFinite(medianRrMs)
+      ? medianRrMs
+      : fallbackRr;
+  const phaseMsForKind = (kind: "inhale" | "exhale" | "hold") =>
+    shape.phases
+      .filter((p) => p.kind === kind)
+      .reduce((acc, p) => acc + p.beats * rrMs, 0);
+  const inhaleMs = Math.max(phaseMsForKind("inhale"), 1000);
+  const exhaleMs = Math.max(phaseMsForKind("exhale"), 1000);
+  const cycleMs = shape.phases.reduce((acc, p) => acc + p.beats * rrMs, 0);
+  return { inhaleMs, exhaleMs, cycleMs };
+}
+
+/**
  * Внутренний экран. Использует Bus + Pipeline через context (см. `BiofeedbackProvider`),
  * подписывается на каналы, вместо прямой работы со снимками FingerSignalAnalyzer.
  */
 function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
+  const theme = useTheme();
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
   const pipeline = useBiofeedbackPipeline();
   const bus = useBiofeedbackBus();
@@ -164,6 +209,42 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   /** Уникальный счётчик «сессий PPG» для legacy совместимости в debug-метаполях. */
   const fingerSessionKey = sourceKey;
 
+  /**
+   * Текущий выбор дыхательной практики (выбирается на idle-экране). При смене практики
+   * на idle shape пересчитывается из дескриптора; в активной сессии пользователь
+   * практику не меняет — только базовое число ударов.
+   */
+  const [practiceId, setPracticeId] = useState<BreathPracticeId>("coherent");
+  const practice: BreathPracticeDescriptor = useMemo(
+    () => getBreathPracticeById(practiceId),
+    [practiceId],
+  );
+
+  /**
+   * Базовое число ударов пульса на фазу дыхания. Для большинства практик это
+   * симметричное 5 (вдох 5, выдох 5 и т.п.). Для дерева задержек/треугольников то же
+   * число становится общим масштабом для всех фаз.
+   */
+  const [baseBeats, setBaseBeats] = useState<number>(TIMING.inhaleBeats);
+  // Сбрасываем baseBeats при смене практики на «нормальное» значение, чтобы пользователь
+  // видел сразу корректную подсветку и рисунок без ручной корректировки.
+  useEffect(() => {
+    setBaseBeats(practice.normalBaseBeats);
+  }, [practice.id, practice.normalBaseBeats]);
+
+  const coherenceShape = useMemo(
+    () => practice.buildShape(baseBeats),
+    [practice, baseBeats],
+  );
+  const coherenceShapeRef = useRef(coherenceShape);
+  coherenceShapeRef.current = coherenceShape;
+  /**
+   * Shape, по которому построен **текущий** план в shell. Используется чтобы реагировать
+   * на смену скорости на ближайшей границе фазы: если `lastAppliedShape !== coherenceShape`,
+   * надо пересобрать план. Иначе — не трогаем текущий, он сам доиграет до cycle-end.
+   */
+  const lastAppliedShapeRef = useRef(coherenceShape);
+
   const warmupStartedAtMs = useRef<number | null>(null);
   const protocolStartedAtMs = useRef<number | null>(null);
   const qcStartLogicalMsRef = useRef<number | null>(null);
@@ -195,6 +276,30 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
    */
   const qcOutcomeRef = useRef<"ok" | "user_chose_no_sensor" | "retry_failed" | null>(null);
 
+  /**
+   * Всплывающая снизу панель управления.
+   *  - появляется при тапе по «чёрному» полотну экрана (мандала + индикатор);
+   *  - если тап попал по самой панели / её контролам → таймер бездействия сбрасывается;
+   *  - по истечении `OVERLAY_AUTOHIDE_MS` без касаний панель уезжает вниз.
+   */
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const overlayHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Диалог подтверждения досрочного выхода из практики (крестик на панели). */
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+
+  /**
+   * Переход между окном «Активация пульсометра» и экраном дыхания.
+   *
+   * Делаем «fade-to-black-and-back»: поверх всего появляется чёрная штора,
+   * под ней sensor-UI аккуратно размонтируется и появляется running-UI, и только
+   * после полного её исчезновения `isBreathTimingActive` становится `true`. Cross-fade
+   * не годится — индикатор успевал «просачиваться» через затухающую sensor-UI.
+   */
+  const blackCurtainSv = useSharedValue(0);
+  const [sensorUiMounted, setSensorUiMounted] = useState(false);
+  const [runningUiRevealed, setRunningUiRevealed] = useState(false);
+  const [isBreathTimingActive, setIsBreathTimingActive] = useState(false);
+
   /** UI banners. */
   const [ppgOverlayMessage, setPpgOverlayMessage] = useState<string | null>(null);
   const ppgBannerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -206,6 +311,63 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  /**
+   * Переход «sensor → running» через чёрную штору:
+   *  - warmup/qualityCheck: штора прозрачна, sensor-UI виден.
+   *  - успех QC (phase=running): штора закрывается в чёрное (600 мс), под ней sensor-UI
+   *    размонтируется; затем штора открывается (600 мс), появляется running-UI.
+   *  - дыхание стартует только после полного открытия шторы
+   *    (cycleStartMs = Date.now() одновременно с `isBreathTimingActive = true`).
+   */
+  useEffect(() => {
+    if (phase === "warmup" || phase === "qualityCheck") {
+      blackCurtainSv.value = 0;
+      setSensorUiMounted(true);
+      setRunningUiRevealed(false);
+      setIsBreathTimingActive(false);
+      setCycleStartMs(null);
+      return;
+    }
+    if (phase === "running") {
+      const FADE_OUT_MS = 600;
+      const FADE_IN_MS = 600;
+      // Стартовое состояние: sensor-UI ещё смонтирован, running-UI НЕ смонтирован,
+      // штора в текущем значении (как правило 0). Сразу начинаем закрывать чёрный занавес.
+      setRunningUiRevealed(false);
+      blackCurtainSv.value = withTiming(1, {
+        duration: FADE_OUT_MS,
+        easing: Easing.inOut(Easing.quad),
+      });
+      // Когда штора полностью закрыта → размонтируем sensor, монтируем running,
+      // затем открываем штору (running проявляется из черноты).
+      const midTimer = setTimeout(() => {
+        setSensorUiMounted(false);
+        setRunningUiRevealed(true);
+        blackCurtainSv.value = withTiming(0, {
+          duration: FADE_IN_MS,
+          easing: Easing.inOut(Easing.quad),
+        });
+      }, FADE_OUT_MS + 50);
+      // Дыхание стартует только после полного раскрытия running-UI.
+      const breathTimer = setTimeout(() => {
+        setCycleStartMs(Date.now());
+        setIsBreathTimingActive(true);
+      }, FADE_OUT_MS + 50 + FADE_IN_MS);
+      return () => {
+        clearTimeout(midTimer);
+        clearTimeout(breathTimer);
+      };
+    }
+    // idle / results
+    blackCurtainSv.value = 0;
+    setSensorUiMounted(false);
+    setRunningUiRevealed(false);
+    setIsBreathTimingActive(false);
+    return undefined;
+  }, [phase, blackCurtainSv]);
+
+  const blackCurtainStyle = useAnimatedStyle(() => ({ opacity: blackCurtainSv.value }));
 
   const clearPpgBannerUi = useCallback(() => {
     setPpgOverlayMessage(null);
@@ -254,11 +416,19 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
   // ─── Live optical preview для warmup/QC/running ───────────────────────────
 
+  /**
+   * Optical-превью нужно ТОЛЬКО в фазах `warmup`/`qualityCheck`, когда на экране
+   * активации пульсометра крутится мини-график. В `running`/`idle`/`results` график
+   * скрыт, а подписка оставалась активной — `setOpticalPreviewSamples([...72 элементов])`
+   * каждые 120 мс перерендеривал весь экран ~8 раз в секунду и съедал JS-thread, из-за
+   * чего мандала и индикатор начинали «подвисать» по мере практики.
+   *
+   * Поэтому подписка привязана к `phase`: активна только в окне активации пульсометра.
+   */
   useEffect(() => {
+    if (phase !== "warmup" && phase !== "qualityCheck") return;
+    if (useSimulatedPpg) return;
     return bus.subscribe("optical", (sample) => {
-      if (useSimulatedPpg || phaseRef.current === "idle" || phaseRef.current === "results") {
-        return;
-      }
       opticalPreviewBufferRef.current.push(sample);
       if (opticalPreviewBufferRef.current.length > 72) {
         opticalPreviewBufferRef.current = opticalPreviewBufferRef.current.slice(-72);
@@ -269,7 +439,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         setOpticalPreviewSamples([...opticalPreviewBufferRef.current]);
       }
     });
-  }, [bus]);
+  }, [bus, phase, useSimulatedPpg]);
 
   // ─── Подписка на pulseBpm для QC, debug и pulseLog ────────────────────────
 
@@ -307,6 +477,13 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
             pulseLockState: event.lockState,
             beatTimestampsCount: pipeline.getMergedBeats().length,
           });
+          // Cap буфера на 60 минут × 2 записи/с = 7200. Длинные практики (60+ мин)
+          // не должны съедать память; при экспорте всё равно попадут последние
+          // 60 минут, а для анализа достаточно: RMSSD/coherence считаются по beats,
+          // pulseLog нужен только для диагностики.
+          if (pulseLogRef.current.length > 7200) {
+            pulseLogRef.current = pulseLogRef.current.slice(-7200);
+          }
         }
       }
     });
@@ -332,16 +509,23 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       const remainingMs = COHERENCE_QUALITY_WINDOW_MS - elapsed;
       setQcSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
 
-      if (camTs < qcStart + COHERENCE_QUALITY_WINDOW_MS) return;
+      // Ранний успех: после 10 с QC-окна проверяем, достаточно ли устойчив сигнал.
+      //  - если да → сразу в практику (короткий путь: warmup 10 + QC 10 = 20 с);
+      //  - если нет → ждём до полного окна (COHERENCE_QUALITY_WINDOW_MS = 20 с);
+      //  - по истечении полного окна: успех или диалог «не распознан».
+      const isEarlyCheck = elapsed < COHERENCE_QUALITY_WINDOW_MS;
+      const isFinalCheck = elapsed >= COHERENCE_QUALITY_WINDOW_MS;
+      if (!isFinalCheck && elapsed < COHERENCE_QUALITY_WINDOW_EARLY_SUCCESS_MS) return;
 
-      const winEnd = qcStart + COHERENCE_QUALITY_WINDOW_MS;
+      const probeEnd = Math.min(camTs, qcStart + COHERENCE_QUALITY_WINDOW_MS);
       const beatsInWin = pipeline
         .getCanonicalBeats()
-        .filter((t) => t >= qcStart && t <= winEnd);
+        .filter((t) => t >= qcStart && t <= probeEnd);
       const snap = snapshotRef.current;
 
       const pulseSamples = qcPulseSamplesRef.current.filter(
-        (sample) => sample.cameraTimestampMs >= qcStart && sample.cameraTimestampMs <= winEnd,
+        (sample) =>
+          sample.cameraTimestampMs >= qcStart && sample.cameraTimestampMs <= probeEnd,
       );
       const stableSamples = pulseSamples.filter(
         (sample) =>
@@ -356,9 +540,18 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       const bpmStdev = computeStdDev(bpmValues);
       const stableFraction =
         pulseSamples.length > 0 ? stableSamples.length / pulseSamples.length : 0;
+      // Среднее качество за всё окно — устойчивее к мгновенным просадкам (частое явление,
+      // когда живой `snap.signalQuality` скачет ниже 0.7, хотя график явно идёт ровно).
+      const meanSignalQuality =
+        pulseSamples.length > 0
+          ? pulseSamples.reduce((acc, s) => acc + s.signalQuality, 0) / pulseSamples.length
+          : 0;
 
       const ok =
-        snap.signalQuality >= 0.7 &&
+        // Либо моментальное качество ≥ 0.7, либо усреднённое за всё окно ≥ 0.6 —
+        // второе условие страхует от коротких просадок, из-за которых раньше первая
+        // попытка стабильно не проходила даже при визуально чистом PPG-графике.
+        (snap.signalQuality >= 0.7 || meanSignalQuality >= 0.6) &&
         beatsInWin.length >= QC_MIN_BEATS &&
         stableSamples.length >= 3 &&
         stableFraction >= 0.55 &&
@@ -366,11 +559,16 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
       if (ok) {
         qcOutcomeRef.current = "ok";
-        const anchor = winEnd;
+        const anchor = probeEnd;
+        const estCycleMs = computeCycleMsForAnalysis(
+          coherenceShapeRef.current,
+          pulseBpmLast?.medianRrMs,
+        );
         pipeline.getCoherenceEngine().startSession({
           sessionStartedAtMs: anchor,
-          inhaleMs: TIMING.inhaleMs,
-          exhaleMs: TIMING.exhaleMs,
+          inhaleMs: estCycleMs.inhaleMs,
+          exhaleMs: estCycleMs.exhaleMs,
+          cycleMs: estCycleMs.cycleMs,
           mode: "test120s",
           preflightBeats: beatsInWin,
           bufferMsBeforeSession: COHERENCE_PREFLIGHT_BUFFER_MS,
@@ -383,10 +581,13 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         setSessionStartLogicalMs(anchor);
         setElapsedMs(0);
         setPhase("running");
-      } else {
-        // Одна попытка — если не прошло, показываем диалог выбора.
+      } else if (isFinalCheck) {
+        // Полное окно прошло, сигнал всё ещё не устойчивый — показываем диалог.
         qcOutcomeRef.current = "retry_failed";
         setShowQcFailedDialog(true);
+      } else if (isEarlyCheck) {
+        // Ранний чек не прошёл — ждём дальше до полного окна.
+        return;
       }
     }, 250);
     return () => {
@@ -440,16 +641,6 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         if (badSignal) qualityBadAccumMsRef.current += delta;
         else qualityBadAccumMsRef.current = 0;
       }
-
-      const fingerJustReturned = fingerOk && !prevFingerDetectedForBannerRef.current;
-      const signalJustRecovered = fingerOk && !badSignal && prevBadSignalForBannerRef.current;
-      if (fingerJustReturned || signalJustRecovered) {
-        if (ppgBannerHideTimerRef.current != null) clearTimeout(ppgBannerHideTimerRef.current);
-        ppgBannerHideTimerRef.current = null;
-        setPpgOverlayMessage(null);
-        if (fingerJustReturned) fingerLostBannerShownThisEpisodeRef.current = false;
-        if (signalJustRecovered) weakSignalBannerShownThisEpisodeRef.current = false;
-      }
       prevFingerDetectedForBannerRef.current = fingerOk;
       prevBadSignalForBannerRef.current = badSignal;
 
@@ -468,33 +659,21 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         }
       }
 
-      if (
-        !fingerOk &&
-        fingerAbsentAccumMsRef.current >= PPG_FINGER_LOST_OVERLAY_MS &&
-        !fingerLostBannerShownThisEpisodeRef.current
-      ) {
-        fingerLostBannerShownThisEpisodeRef.current = true;
-        if (ppgBannerHideTimerRef.current != null) clearTimeout(ppgBannerHideTimerRef.current);
-        setPpgOverlayMessage(str.ppgFingerLostMessage);
-        ppgBannerHideTimerRef.current = setTimeout(() => {
-          setPpgOverlayMessage(null);
-          ppgBannerHideTimerRef.current = null;
-        }, PPG_BANNER_DISPLAY_MS);
-      } else if (
-        fingerOk &&
-        badSignal &&
-        qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
-        qualityBadAccumMsRef.current < PPG_QUALITY_GRADE_C_MS &&
-        !weakSignalBannerShownThisEpisodeRef.current
-      ) {
-        weakSignalBannerShownThisEpisodeRef.current = true;
-        if (ppgBannerHideTimerRef.current != null) clearTimeout(ppgBannerHideTimerRef.current);
-        setPpgOverlayMessage(str.ppgWeakSignalMessage);
-        ppgBannerHideTimerRef.current = setTimeout(() => {
-          setPpgOverlayMessage(null);
-          ppgBannerHideTimerRef.current = null;
-        }, PPG_BANNER_DISPLAY_MS);
+      // Детерминированный расчёт желаемого сообщения. Приоритеты от сильного к слабому:
+      //   1) «палец потерян»   — если finger absent ≥ 1 с;
+      //   2) «биометрия приостановлена» — если finger есть, но плохой сигнал ≥ 7 с;
+      //   3) «слабый сигнал»   — если finger есть, но плохой сигнал ≥ 2 с.
+      let desired: string | null = null;
+      if (!fingerOk && fingerAbsentAccumMsRef.current >= PPG_FINGER_LOST_OVERLAY_MS) {
+        desired = str.ppgFingerLostMessage;
+      } else if (fingerOk && badSignal) {
+        if (qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_C_MS) {
+          desired = str.ppgBiometryPausedMessage;
+        } else if (qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS) {
+          desired = str.ppgWeakSignalMessage;
+        }
       }
+      setPpgOverlayMessage((prev) => (prev === desired ? prev : desired));
     }, 250);
     return () => clearInterval(id);
   }, [
@@ -506,6 +685,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     snapshot.signalQuality,
     str.ppgFingerLostMessage,
     str.ppgWeakSignalMessage,
+    str.ppgBiometryPausedMessage,
   ]);
 
   // ─── UI таймер сессии + анимации ─────────────────────────────────────────
@@ -582,18 +762,19 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
   /**
    * Инициализация планировщика при переходе в "running": seed BPM + первый план цикла.
-   * Дальнейшее — через `handleCycleEnd` (по онCycleEnd от shell) и `updateBaseline` из
-   * подписки на `pulseBpm`.
+   * Дальнейшее — через `handlePhaseChange` (границы фаз от shell) и `updateBaseline`
+   * из подписки на `pulseBpm`.
    */
   useEffect(() => {
     if (phase !== "running") return;
     const planner = plannerRef.current;
     const seedBpm = snapshot.pulseRateBpm > 0 ? snapshot.pulseRateBpm : INITIAL_SEED_BPM;
     planner.seedBaseline(seedBpm);
-    const firstPlan = planner.planNextCycle(COHERENCE_SHAPE);
-    const startAtMs = Date.now();
+    const firstPlan = planner.planNextCycle(coherenceShapeRef.current);
     setCurrentPlan(firstPlan);
-    setCycleStartMs(startAtMs);
+    lastAppliedShapeRef.current = coherenceShapeRef.current;
+    // cycleStartMs специально НЕ задаётся здесь — его выставит «штора»-эффект
+    // одновременно с `isBreathTimingActive = true` уже после полного появления practice-UI.
     phaseDurationsHistoryRef.current = [
       {
         planIndex: 0,
@@ -619,6 +800,12 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         planner.updateBaseline(now, bpm);
         if (sessionStartWallMs != null) {
           baselineBpmSeriesRef.current.push({ tMs: now - sessionStartWallMs, bpm });
+          // Кап 60 мин × 2 Hz = 7200 точек. На практике pulseBpm может идти и
+          // до 5 Hz, поэтому даём запас до 14400 — экспорт не превратится в
+          // мегабайты JSON на длинных практиках.
+          if (baselineBpmSeriesRef.current.length > 14_400) {
+            baselineBpmSeriesRef.current = baselineBpmSeriesRef.current.slice(-14_400);
+          }
         }
       }
     });
@@ -642,20 +829,68 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
           rsaBpm: cycle.rsaBpm,
           durationMs: cycle.durationMs,
         });
+        // Кап на 2000 циклов (~8 часов практики при 15 с/цикл).
+        if (rsaCyclesSummaryRef.current.length > 2000) {
+          rsaCyclesSummaryRef.current = rsaCyclesSummaryRef.current.slice(-2000);
+        }
       }
     });
   }, [phase, bus]);
 
-  /** Вызывается shell-ом по концу каждого цикла → запланировать следующий. */
-  const handleCycleEnd = useCallback(() => {
+  /**
+   * Вызывается shell-ом на каждой границе фаз.
+   *  - `nextPhaseIndex === 0` → конец цикла: строим полный новый план (как раньше).
+   *  - `nextPhaseIndex > 0` и shape изменился → применяем новое `baseBeats` сейчас:
+   *    строим новый план и сдвигаем `cycleStartMs` так, чтобы блик оказался ровно в
+   *    начале фазы `nextPhaseIndex` в новом плане. Позиция индикатора не прыгает.
+   *  - `nextPhaseIndex > 0` и shape не изменился → ничего не делаем, текущий план доиграет.
+   *
+   * Это не нарушает ни скользящее окно пульса, ни подсчёт RSA / coherence: аналитика
+   * смотрит только на поток beats и внешний `cycleMs`, независимо от того, в какие
+   * моменты обновляется UI-план.
+   */
+  const handlePhaseChange = useCallback((nextPhaseIndex: number) => {
     const prevPlan = currentPlanRef.current;
     const prevStart = cycleStartMsRef.current;
     if (!prevPlan || prevStart == null) return;
     const planner = plannerRef.current;
-    const nextPlan = planner.planNextCycle(COHERENCE_SHAPE);
-    const nextStart = prevStart + prevPlan.cycleMs;
+    const shapeNow = coherenceShapeRef.current;
+    const shapeChanged = lastAppliedShapeRef.current !== shapeNow;
+
+    if (nextPhaseIndex === 0) {
+      // Конец цикла — строим следующий цикл как обычно.
+      const nextPlan = planner.planNextCycle(shapeNow);
+      const nextStart = prevStart + prevPlan.cycleMs;
+      setCurrentPlan(nextPlan);
+      setCycleStartMs(nextStart);
+      lastAppliedShapeRef.current = shapeNow;
+      phaseDurationsHistoryRef.current.push({
+        planIndex: phaseDurationsHistoryRef.current.length,
+        cycleMs: nextPlan.cycleMs,
+        plannedInhaleMs: nextPlan.phases.find((p) => p.kind === "inhale")?.phaseMs ?? 0,
+        plannedExhaleMs: nextPlan.phases.find((p) => p.kind === "exhale")?.phaseMs ?? 0,
+        baselineBpm: nextPlan.baselineBpm,
+        rsaBpm: nextPlan.rsaInfo?.rsaBpm ?? null,
+      });
+      // Кап на 4000 циклов (~16 часов практики при 15 с/цикл).
+      if (phaseDurationsHistoryRef.current.length > 4000) {
+        phaseDurationsHistoryRef.current = phaseDurationsHistoryRef.current.slice(-4000);
+      }
+      return;
+    }
+
+    if (!shapeChanged) return; // shape тот же — текущий план продолжает работать.
+
+    // Смена базового числа ударов в середине цикла: перепланируем с тем же shape
+    // (не ротируем — рисунок практики в целом не меняется), а cycleStartMs сдвигаем
+    // так, чтобы индикатор продолжил с начала фазы `nextPhaseIndex` нового плана.
+    const nextPlan = planner.planNextCycle(shapeNow);
+    const prevPhaseEnd = prevPlan.phases[nextPhaseIndex - 1]?.endMsInCycle ?? 0;
+    const newPhaseStart = nextPlan.phases[nextPhaseIndex]?.startMsInCycle ?? 0;
+    const nextStart = prevStart + prevPhaseEnd - newPhaseStart;
     setCurrentPlan(nextPlan);
     setCycleStartMs(nextStart);
+    lastAppliedShapeRef.current = shapeNow;
     phaseDurationsHistoryRef.current.push({
       planIndex: phaseDurationsHistoryRef.current.length,
       cycleMs: nextPlan.cycleMs,
@@ -691,6 +926,59 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
           (elapsedMs - (TIMING.totalMs - TIMING.dimBeforeEndMs)) / TIMING.dimBeforeEndMs,
         )
       : 0;
+
+  // ─── Панель управления: auto-hide, тап-по-экрану, клик мимо панели ────────
+
+  const clearOverlayTimer = useCallback(() => {
+    if (overlayHideTimerRef.current != null) {
+      clearTimeout(overlayHideTimerRef.current);
+      overlayHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleOverlayHide = useCallback(() => {
+    clearOverlayTimer();
+    overlayHideTimerRef.current = setTimeout(() => {
+      overlayHideTimerRef.current = null;
+      setOverlayVisible(false);
+    }, OVERLAY_AUTOHIDE_MS);
+  }, [clearOverlayTimer]);
+
+  const handleScreenTap = useCallback(() => {
+    if (showStopConfirm) return;
+    setOverlayVisible((prev) => {
+      const next = !prev;
+      if (next) scheduleOverlayHide();
+      else clearOverlayTimer();
+      return next;
+    });
+  }, [scheduleOverlayHide, clearOverlayTimer, showStopConfirm]);
+
+  const handleOverlayInteraction = useCallback(() => {
+    scheduleOverlayHide();
+  }, [scheduleOverlayHide]);
+
+  const handleIncrementBeats = useCallback(() => {
+    setBaseBeats((prev) => Math.min(practice.maxBaseBeats, prev + 1));
+  }, [practice.maxBaseBeats]);
+
+  const handleDecrementBeats = useCallback(() => {
+    setBaseBeats((prev) => Math.max(practice.minBaseBeats, prev - 1));
+  }, [practice.minBaseBeats]);
+
+  const handleRequestStop = useCallback(() => {
+    clearOverlayTimer();
+    setShowStopConfirm(true);
+  }, [clearOverlayTimer]);
+
+  useEffect(() => {
+    if (phase !== "running") {
+      setOverlayVisible(false);
+      clearOverlayTimer();
+    }
+  }, [phase, clearOverlayTimer]);
+
+  useEffect(() => () => clearOverlayTimer(), [clearOverlayTimer]);
 
   const beginFromIdle = useCallback(
     (forceEmulatedPulse = false) => {
@@ -728,10 +1016,15 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
       if (useSimulatedPpg || forceEmulatedPulse) {
         const now = Date.now();
+        const estCycleMs = computeCycleMsForAnalysis(
+          coherenceShapeRef.current,
+          pulseBpmLast?.medianRrMs,
+        );
         pipeline.getCoherenceEngine().startSession({
           sessionStartedAtMs: now,
-          inhaleMs: TIMING.inhaleMs,
-          exhaleMs: TIMING.exhaleMs,
+          inhaleMs: estCycleMs.inhaleMs,
+          exhaleMs: estCycleMs.exhaleMs,
+          cycleMs: estCycleMs.cycleMs,
           mode: "test120s",
           bufferMsBeforeSession: 0,
         });
@@ -783,17 +1076,78 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     }
   }, [analysis, exportDebug, pipeline, sessionStartLogicalMs, sessionStartWallMs]);
 
-  const inhaleMsForHint =
-    currentPlan?.phases.find((p) => p.kind === "inhale")?.phaseMs ?? TIMING.inhaleMs;
-  const exhaleMsForHint =
-    currentPlan?.phases.find((p) => p.kind === "exhale")?.phaseMs ?? TIMING.exhaleMs;
+  /**
+   * Индекс активной фазы текущего плана. Обновляется ~15 Гц от **того же** таймбейза,
+   * что и worklet индикатора (`cycleStartMs`), иначе текст фазы опережает/отстаёт от
+   * движения блика (особенно когда между phase="running" и стартом дыхания есть fade-in).
+   */
+  const [activePhaseIndex, setActivePhaseIndex] = useState(0);
+  useEffect(() => {
+    if (phase !== "running" || !isBreathTimingActive || cycleStartMs == null) {
+      setActivePhaseIndex(0);
+      return;
+    }
+    const plan = currentPlan;
+    if (!plan || plan.cycleMs <= 0) return;
+    const id = setInterval(() => {
+      const t = ((Date.now() - cycleStartMs) % plan.cycleMs + plan.cycleMs) % plan.cycleMs;
+      let idx = 0;
+      for (let i = 0; i < plan.phases.length; i += 1) {
+        if (t >= plan.phases[i]!.startMsInCycle && t < plan.phases[i]!.endMsInCycle) {
+          idx = i;
+          break;
+        }
+      }
+      setActivePhaseIndex((prev) => (prev === idx ? prev : idx));
+    }, 60);
+    return () => clearInterval(id);
+  }, [phase, isBreathTimingActive, cycleStartMs, currentPlan]);
+
+  const activePhase = currentPlan?.phases[activePhaseIndex] ?? null;
+
+  const phaseLabel = !activePhase
+    ? str.inhale
+    : activePhase.kind === "inhale"
+      ? str.inhale
+      : activePhase.kind === "exhale"
+        ? str.exhale
+        : str.hold;
+  // Длительность фазы под словом ВДОХ/ВЫДОХ/ЗАДЕРЖКА показываем **в ударах пульса**, а
+  // не в секундах. Так число совпадает с цифрой выбора ритма на панели управления.
+  const phaseBeats = activePhase ? activePhase.beats : 0;
+  void isInhale; // isInhale больше не используется — оставлен хук-вызов для согласия с dep.
+
+  // Мягкий fade при смене фазы: на смену kind делаем dimming до ≈20 % и обратно,
+  // с подменой текста в середине. Текст не пропадает полностью — «небольшой» fade.
+  const phaseOpacitySv = useSharedValue(1);
+  const [displayedPhaseLabel, setDisplayedPhaseLabel] = useState(phaseLabel);
+  useEffect(() => {
+    if (displayedPhaseLabel === phaseLabel) return;
+    phaseOpacitySv.value = withTiming(0.25, {
+      duration: 140,
+      easing: Easing.out(Easing.quad),
+    });
+    const swapTimer = setTimeout(() => {
+      setDisplayedPhaseLabel(phaseLabel);
+      phaseOpacitySv.value = withTiming(1, {
+        duration: 200,
+        easing: Easing.out(Easing.quad),
+      });
+    }, 150);
+    return () => clearTimeout(swapTimer);
+  }, [phaseLabel, displayedPhaseLabel, phaseOpacitySv]);
+  const phaseTextStyle = useAnimatedStyle(() => ({ opacity: phaseOpacitySv.value }));
 
   const centerInstruction = (
     <View style={styles.instructionBlock}>
-      <Text style={styles.inhaleTitle}>{isInhale ? str.inhale : str.exhale}</Text>
-      <Text style={styles.secHint}>
-        {((isInhale ? inhaleMsForHint : exhaleMsForHint) / 1000).toFixed(0)} с
-      </Text>
+      <Reanimated.View style={phaseTextStyle}>
+        <AppText variant="numericLarge" tone="primary" style={styles.inhaleTitle}>
+          {displayedPhaseLabel}
+        </AppText>
+      </Reanimated.View>
+      <AppText variant="dialogBody" tone="muted" style={styles.secHint}>
+        {str.beatsShortLabel(phaseBeats)}
+      </AppText>
     </View>
   );
 
@@ -829,29 +1183,15 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     };
   }, [phase, pipeline, pulseBpmLast, qcSecondsLeft, prepSecondsLeft]);
 
-  const qcOpticalPreview =
-    !useSimulatedPpg && (phase === "warmup" || phase === "qualityCheck") ? (
-      <PpgOpticalPreview
-        title={str.opticalSeriesCaption}
-        samples={opticalPreviewSamples}
-        beatTimestampsMs={snapshot.mergedBeats}
-        emptyText={str.opticalNoSamples}
-        footer={
-          <View style={styles.qcDebugWrap}>
-            <Text style={styles.qcDebugText}>
-              stable {Math.round(qcDebugSnapshot.stableBpm || 0)} · raw{" "}
-              {Math.round(qcDebugSnapshot.rawBpm || 0)} · RR {qcDebugSnapshot.rrCount} · jitter{" "}
-              {Math.round(qcDebugSnapshot.jitterMs)} ms
-            </Text>
-            <Text style={styles.qcDebugTextMuted}>
-              good {qcDebugSnapshot.stableFractionPct}% · {snapshot.pulseLockState} · сигн.{" "}
-              {(snapshot.signalQuality * 100).toFixed(0)}% ·{" "}
-              {qcDebugSnapshot.looksCoherent ? "coherent" : "noisy"}
-            </Text>
-          </View>
-        }
-      />
-    ) : null;
+  /**
+   * Активация пульсометра показывается сразу в warmup/qualityCheck, независимо от того,
+   * «видим» мы палец или нет: иначе камера, чувствительная к случайному просвету, давала
+   * ложные переключения ring ↔ searching-icon и дёрганый UI.
+   */
+  const sensorActivationActive =
+    (phase === "warmup" || phase === "qualityCheck") && !useSimulatedPpg;
+
+  void qcDebugSnapshot;
 
   const cameraActive = phase === "warmup" || phase === "qualityCheck" || phase === "running";
 
@@ -952,92 +1292,135 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
       {phase === "idle" ? (
         <View style={styles.idle}>
-          <Text style={styles.idleTitle}>{str.practiceTitle}</Text>
-          <Text style={styles.idleHint}>{str.fingerHint}</Text>
-          {useSimulatedPpg ? <Text style={styles.simNote}>{str.simulatedMetricsNote}</Text> : null}
-          <Pressable onPress={() => beginFromIdle(false)} style={styles.primaryBtn}>
-            <Text style={styles.primaryBtnText}>{str.startButton}</Text>
-          </Pressable>
+          <AppText variant="screenTitle" tone="primary" style={styles.idleTitle}>
+            {str.practiceName[practiceId]}
+          </AppText>
+          <AppText variant="statPillLabel" tone="muted" style={styles.idleSubtitle}>
+            {str.practiceSanskritName[practiceId]}
+          </AppText>
+          <AppText variant="screenHint" tone="primary" style={styles.idleHint}>
+            {str.fingerHint}
+          </AppText>
+          {useSimulatedPpg ? (
+            <AppText variant="bannerMessage" tone="muted" style={styles.simNote}>
+              {str.simulatedMetricsNote}
+            </AppText>
+          ) : null}
+          <View style={styles.practicePicker}>
+            <AppText variant="statPillLabel" tone="muted" style={styles.pickerLabel}>
+              {str.practicePickerTitle}
+            </AppText>
+            <View style={styles.pickerChipsRow}>
+              {BREATH_PRACTICES.map((p) => {
+                const selected = p.id === practiceId;
+                return (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => setPracticeId(p.id)}
+                    style={[
+                      styles.pickerChip,
+                      {
+                        borderColor: theme.colors.surfaceBorder,
+                        backgroundColor: selected
+                          ? theme.colors.accent
+                          : theme.colors.controlButtonBg,
+                      },
+                    ]}
+                  >
+                    <AppText
+                      variant="statPillLabel"
+                      tone={selected ? "accentOn" : "primary"}
+                      style={styles.pickerChipText}
+                      numberOfLines={1}
+                    >
+                      {str.practiceName[p.id]}
+                    </AppText>
+                    <AppText
+                      variant="technicalCaption"
+                      tone={selected ? "accentOn" : "muted"}
+                      numberOfLines={1}
+                    >
+                      {str.practiceSanskritName[p.id]}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <AppButton
+            variant="primary"
+            label={str.startButton}
+            onPress={() => beginFromIdle(false)}
+            style={styles.idleStartBtn}
+          />
           {!useSimulatedPpg ? (
-            <Pressable onPress={() => beginFromIdle(true)} style={styles.secondaryBtn}>
-              <Text style={styles.secondaryBtnText}>{str.startWithoutSensorButton}</Text>
-            </Pressable>
+            <AppButton
+              variant="secondary"
+              label={str.startWithoutSensorButton}
+              onPress={() => beginFromIdle(true)}
+              style={styles.idleStartBtn}
+            />
           ) : null}
         </View>
       ) : null}
 
-      {phase === "warmup" ? (
-        <View style={styles.calib}>
-          <Text style={styles.calibTitle}>{str.warmupTitle}</Text>
-          <Text style={styles.calibHint}>{str.warmupHint}</Text>
-          {prepSecondsLeft != null ? (
-            <View style={styles.prepCountdownWrap}>
-              <View style={styles.prepCountdownRing}>
-                <Text style={styles.prepCountdownNum}>{prepSecondsLeft}</Text>
-              </View>
-              <Text style={styles.prepCountdownCaption}>с</Text>
-            </View>
-          ) : null}
-          <Text style={styles.calibStatus}>{str.calibrationWait}</Text>
-          <View style={styles.calibPill}>
-            <Text style={styles.calibPillText}>
-              {str.calibrationPulse}: {Math.round(snapshot.pulseRateBpm || 0)} уд/мин · кач.{" "}
-              {(snapshot.signalQuality * 100).toFixed(0)}% · raw {Math.round(pulseBpmLast?.rawBpm || 0)}
-            </Text>
+      {sensorUiMounted ? (
+        <View
+          style={styles.calib}
+          pointerEvents={phase === "running" ? "none" : "auto"}
+        >
+          <AppText variant="screenTitle" tone="primary" style={styles.sensorTitle}>
+            {str.sensorActivationTitle}
+          </AppText>
+          <AppText variant="screenHint" tone="primary" style={styles.sensorHint}>
+            {str.sensorActivationHint}
+          </AppText>
+          <View style={styles.sensorTimerWrap}>
+            {protocolStartedAtMs.current != null ? (
+              <CountdownRing
+                startedAtMs={protocolStartedAtMs.current}
+                totalSeconds={Math.round(COHERENCE_PREP_TOTAL_MS / 1000)}
+                size={104}
+                strokeWidth={4}
+              />
+            ) : null}
           </View>
-          {qcOpticalPreview}
-          <Pressable onPress={() => setPhase("idle")} style={styles.secondaryBtn}>
-            <Text style={styles.secondaryBtnText}>{str.backButton}</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {phase === "qualityCheck" ? (
-        <View style={styles.calib}>
-          <Text style={styles.calibTitle}>{str.qualityCheckTitle}</Text>
-          <Text style={styles.calibHint}>{str.qualityCheckHint}</Text>
-          {prepSecondsLeft != null ? (
-            <View style={styles.prepCountdownWrap}>
-              <View style={styles.prepCountdownRing}>
-                <Text style={styles.prepCountdownNum}>{prepSecondsLeft}</Text>
-              </View>
-              <Text style={styles.prepCountdownCaption}>с</Text>
-            </View>
-          ) : null}
-          <Text style={styles.calibStatus}>
-            {qcSecondsLeft === null ? str.qualityCheckWaitingTimebase : str.qualityCheckCountdown(qcSecondsLeft)}
-          </Text>
-          <View style={styles.calibPill}>
-            <Text style={styles.calibPillText}>
-              {str.calibrationPulse}: {Math.round(snapshot.pulseRateBpm || 0)} уд/мин · кач.{" "}
-              {(snapshot.signalQuality * 100).toFixed(0)}% · raw {Math.round(pulseBpmLast?.rawBpm || 0)}
-              {" · "}
-              {snapshot.pulseLockState}
-            </Text>
+          <AppText variant="technicalCaption" tone="muted" style={styles.sensorStatus}>
+            {str.sensorActivationStableWait}
+          </AppText>
+          {/*
+           * График показываем всё время, пока sensor-UI смонтирован (включая фазу
+           * закрытия чёрной шторы при переходе в `running`). Иначе при смене
+           * `phase` на `running` график пропадал скачком — и блок `sensorBackBtn`
+           * подтягивался вверх, что визуально ощущалось как «дёрганье окна».
+           */}
+          <View style={styles.sensorChartWrap}>
+            {!useSimulatedPpg ? (
+              <PpgMiniChart
+                samples={opticalPreviewSamples}
+                beatTimestampsMs={snapshot.mergedBeats}
+              />
+            ) : null}
           </View>
-          {qcOpticalPreview}
-          <Pressable onPress={() => setPhase("idle")} style={styles.secondaryBtn}>
-            <Text style={styles.secondaryBtnText}>{str.backButton}</Text>
-          </Pressable>
+          <AppButton
+            variant="secondary"
+            label={str.cancelButton}
+            onPress={() => setPhase("idle")}
+            style={styles.sensorBackBtn}
+          />
         </View>
       ) : null}
 
-      {showQcFailedDialog ? (
-        <View style={styles.dialogBackdrop}>
-          <View style={styles.dialogCard}>
-            <Text style={styles.dialogTitle}>{str.qcFailedDialogTitle}</Text>
-            <Text style={styles.dialogMessage}>{str.qcFailedDialogMessage}</Text>
-            <Pressable
-              onPress={() => {
-                setShowQcFailedDialog(false);
-                qcOutcomeRef.current = "user_chose_no_sensor";
-                beginFromIdle(true);
-              }}
-              style={styles.primaryBtn}
-            >
-              <Text style={styles.primaryBtnText}>{str.qcFailedContinueWithoutSensor}</Text>
-            </Pressable>
-            <Pressable
+      <AppDialog
+        visible={showQcFailedDialog}
+        title={str.qcFailedDialogTitle}
+        message={str.qcFailedDialogMessage}
+        actionsLayout="column"
+        actions={
+          <>
+            <AppButton
+              variant="primary"
+              label={str.qcFailedRetry}
               onPress={() => {
                 setShowQcFailedDialog(false);
                 qcStartLogicalMsRef.current = null;
@@ -1049,39 +1432,133 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
                 protocolStartedAtMs.current = Date.now();
                 setPhase("warmup");
               }}
-              style={styles.secondaryBtn}
-            >
-              <Text style={styles.secondaryBtnText}>{str.qcFailedRetry}</Text>
-            </Pressable>
-          </View>
+            />
+            <AppButton
+              variant="secondary"
+              label={str.qcFailedContinueWithoutSensor}
+              onPress={() => {
+                setShowQcFailedDialog(false);
+                qcOutcomeRef.current = "user_chose_no_sensor";
+                beginFromIdle(true);
+              }}
+            />
+          </>
+        }
+      />
+
+      {phase === "running" && runningUiRevealed ? (
+        <View style={styles.runningAbs}>
+          <BreathPracticeShell
+            isBreathTimingActive={isBreathTimingActive}
+            plannedCycle={currentPlan}
+            cycleStartMs={cycleStartMs}
+            onPhaseChange={handlePhaseChange}
+            dimOpacity={dimOpacity}
+            footer={practiceFooter}
+            indicatorKind={practice.indicatorKind}
+            onScreenTap={handleScreenTap}
+            overlay={
+              <BreathOverlayControlPanel
+                visible={overlayVisible}
+                title={str.practiceName[practiceId]}
+                subtitle={str.practiceSanskritName[practiceId]}
+                totalMs={TIMING.totalMs}
+                elapsedMs={elapsedMs}
+                minutesShortLabel={str.practiceMinutesShort}
+                beatsDisplay={{
+                  type: "single",
+                  value: baseBeats,
+                  isHighlighted: baseBeats === practice.normalBaseBeats,
+                }}
+                onIncrement={
+                  baseBeats < practice.maxBaseBeats ? handleIncrementBeats : undefined
+                }
+                onDecrement={
+                  baseBeats > practice.minBaseBeats ? handleDecrementBeats : undefined
+                }
+                onRequestClose={handleRequestStop}
+                onInteraction={handleOverlayInteraction}
+                accessibilityLabel={str.baseBeatsAccessibilityLabel}
+              />
+            }
+            center={
+              <View style={styles.centerStack}>
+                <RNAnimated.View style={[styles.mandalaWrap, { opacity: mandalaOpacity }]}>
+                  <BreathBinduMandala isActive />
+                </RNAnimated.View>
+                <RNAnimated.View
+                  style={[styles.instructionWrap, { opacity: instructionOpacity }]}
+                  pointerEvents="none"
+                >
+                  {centerInstruction}
+                </RNAnimated.View>
+              </View>
+            }
+          />
+        </View>
+      ) : null}
+
+      {/* Чёрная штора поверх всего — включается на переходе sensor → practice. */}
+      <Reanimated.View
+        pointerEvents="none"
+        style={[styles.blackCurtain, blackCurtainStyle]}
+      />
+
+      {phase === "running" && !useEmulatedPulseMode && !useSimulatedPpg && ppgOverlayMessage ? (
+        <View style={styles.ppgBannerBottomWrap} pointerEvents="none">
+          <AppText
+            variant="technicalCaption"
+            tone="primary"
+            style={styles.ppgBannerText}
+          >
+            {ppgOverlayMessage}
+          </AppText>
         </View>
       ) : null}
 
       {phase === "running" ? (
-        <BreathPracticeShell
-          isBreathTimingActive
-          plannedCycle={currentPlan}
-          cycleStartMs={cycleStartMs}
-          onCycleEnd={handleCycleEnd}
-          dimOpacity={dimOpacity}
-          footer={practiceFooter}
-          center={
-            <View style={styles.centerStack}>
-              <RNAnimated.View style={[styles.mandalaWrap, { opacity: mandalaOpacity }]}>
-                <BreathBinduMandala isActive />
-              </RNAnimated.View>
-              <RNAnimated.View
-                style={[styles.instructionWrap, { opacity: instructionOpacity }]}
-                pointerEvents="none"
-              >
-                {centerInstruction}
-              </RNAnimated.View>
-              {ppgOverlayMessage ? (
-                <View style={styles.ppgOverlayWrap} pointerEvents="none">
-                  <Text style={styles.ppgOverlayText}>{ppgOverlayMessage}</Text>
-                </View>
-              ) : null}
-            </View>
+        <AppDialog
+          visible={showStopConfirm}
+          title={str.stopConfirmTitle}
+          message={str.stopConfirmMessage}
+          actions={
+            <>
+              <AppButton
+                variant="secondary"
+                label={str.stopConfirmNo}
+                onPress={() => {
+                  setShowStopConfirm(false);
+                  setOverlayVisible(true);
+                  scheduleOverlayHide();
+                }}
+                style={styles.dialogAction}
+              />
+              <AppButton
+                variant="primary"
+                label={str.stopConfirmYes}
+                onPress={() => {
+                  setShowStopConfirm(false);
+                  clearOverlayTimer();
+                  setOverlayVisible(false);
+                  pipeline.softReset();
+                  pipeline.getCoherenceEngine().reset();
+                  plannerRef.current.reset();
+                  setSessionStartWallMs(null);
+                  setSessionStartLogicalMs(null);
+                  setAnalysis(null);
+                  setExportDebug(null);
+                  setFinalRmssdMs(null);
+                  setFinalStressPercent(null);
+                  setFinalPulseWasEmulated(false);
+                  setElapsedMs(0);
+                  setCurrentPlan(null);
+                  setCycleStartMs(null);
+                  setUseEmulatedPulseMode(false);
+                  setPhase("idle");
+                }}
+                style={styles.dialogAction}
+              />
+            </>
           }
         />
       ) : null}
@@ -1183,18 +1660,47 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 /** Внешний экспортируемый экран: оборачивает в BiofeedbackProvider. */
 export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale }) {
   return (
-    <BiofeedbackProvider config={FINGER_CAMERA_CAPTURE_CONFIG}>
-      <CoherenceBreathScreenInner locale={locale} />
-    </BiofeedbackProvider>
+    <ThemeProvider value={defaultTheme}>
+      <BiofeedbackProvider config={FINGER_CAMERA_CAPTURE_CONFIG}>
+        <CoherenceBreathScreenInner locale={locale} />
+      </BiofeedbackProvider>
+    </ThemeProvider>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#07080c" },
   idle: { flex: 1, padding: 24, justifyContent: "center" },
-  idleTitle: { color: "#f1f5f9", fontSize: 22, fontWeight: "700", marginBottom: 12 },
-  idleHint: { color: "#94a3b8", fontSize: 15, marginBottom: 12 },
-  simNote: { color: "#94a3b8", fontSize: 13, marginBottom: 16 },
+  idleTitle: { marginBottom: 2 },
+  idleSubtitle: { marginBottom: 12 },
+  idleHint: { marginBottom: 12 },
+  simNote: { marginBottom: 12 },
+  idleStartBtn: { marginTop: 12 },
+  practicePicker: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  pickerLabel: {
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  pickerChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  pickerChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    minWidth: 148,
+  },
+  pickerChipText: {
+    fontWeight: "700",
+    marginBottom: 2,
+  },
   primaryBtn: {
     alignSelf: "flex-start",
     backgroundColor: "#22c55e",
@@ -1219,11 +1725,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    paddingRight: 40,
   },
   instructionBlock: { alignItems: "center" },
-  inhaleTitle: { color: "#f8fafc", fontSize: 42, fontWeight: "800", letterSpacing: 1 },
-  secHint: { color: "#94a3b8", marginTop: 8, fontSize: 18 },
+  inhaleTitle: { textAlign: "center" },
+  secHint: { marginTop: 8, textAlign: "center" },
   results: { flex: 1, padding: 24, justifyContent: "center" },
   resultsTitle: { color: "#f8fafc", fontSize: 20, fontWeight: "700", marginBottom: 12 },
   approx: { color: "#fbbf24", marginBottom: 12, fontSize: 13 },
@@ -1247,80 +1752,66 @@ const styles = StyleSheet.create({
   opticalMeta: { color: "#94a3b8", fontSize: 11, lineHeight: 15 },
   opticalMetrics: { color: "#e2e8f0", fontSize: 12, lineHeight: 16, fontWeight: "600" },
   opticalMetricsMuted: { color: "#94a3b8", fontSize: 11, lineHeight: 15 },
-  qcDebugWrap: { gap: 2 },
-  qcDebugText: { color: "#e2e8f0", fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  qcDebugTextMuted: { color: "#94a3b8", fontSize: 11, lineHeight: 15 },
-  ppgOverlayWrap: {
+  /**
+   * PPG-баннер «Пульс потерян/слабый сигнал» во время практики. Лежит в самом низу поверх
+   * всего полотна, чтобы всплывающая панель управления не перекрывала его (панель выезжает
+   * над этим баннером, поскольку у неё больший `bottom`).
+   */
+  runningAbs: { ...StyleSheet.absoluteFillObject },
+  /**
+   * Чёрная штора поверх всего. В обычное время прозрачна и не ловит касания. Используется
+   * только для fade-to-black-and-back между sensor-UI и practice-UI. zIndex выше, чем у
+   * панели управления, чтобы штора действительно перекрывала её на момент перехода.
+   */
+  blackCurtain: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+    zIndex: 80,
+  },
+  ppgBannerBottomWrap: {
     position: "absolute",
     left: 20,
-    right: 52,
-    top: "12%",
+    right: 20,
+    /**
+     * Выше линии, где появится всплывающая панель управления (card ≈ 135 px + SafeArea).
+     * Оставляем зазор, чтобы панель не перекрывала текст, когда выезжает.
+     */
+    bottom: 190,
     alignItems: "center",
-    justifyContent: "flex-start",
+    zIndex: 35,
   },
-  ppgOverlayText: {
-    color: "#fbbf24",
-    fontSize: 15,
-    fontWeight: "normal",
+  ppgBannerText: {
     textAlign: "center",
-    lineHeight: 21,
   },
-  prepCountdownWrap: {
-    flexDirection: "row",
-    alignItems: "center",
+  sensorTitle: {
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  sensorHint: {
+    marginBottom: 28,
+    textAlign: "center",
+  },
+  sensorTimerWrap: {
     alignSelf: "center",
-    marginBottom: 20,
-  },
-  prepCountdownRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 4,
-    borderColor: "#22c55e",
-    justifyContent: "center",
+    width: 104, // совпадает с `size` у CountdownRing: место всегда зарезервировано,
+    height: 104,
     alignItems: "center",
-    backgroundColor: "rgba(34,197,94,0.08)",
-  },
-  prepCountdownNum: {
-    color: "#f8fafc",
-    fontSize: 32,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  prepCountdownCaption: {
-    color: "#94a3b8",
-    marginLeft: 12,
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  dialogBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(2,6,23,0.82)",
     justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    zIndex: 50,
+    marginBottom: 28,
   },
-  dialogCard: {
-    width: "100%",
-    maxWidth: 480,
-    backgroundColor: "#0f172a",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#1e293b",
-    gap: 12,
+  sensorStatus: {
+    textAlign: "center",
+    marginBottom: 28,
   },
-  dialogTitle: {
-    color: "#f8fafc",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 4,
+  sensorChartWrap: {
+    minHeight: 72, // совпадает с `height` у PpgMiniChart — резервирует место, чтобы
+    // содержимое окна активации не «прыгало», даже если график временно не отрисуется.
+    marginBottom: 32,
   },
-  dialogMessage: {
-    color: "#cbd5e1",
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
+  sensorBackBtn: {
+    alignSelf: "stretch",
+  },
+  dialogAction: {
+    flex: 1,
   },
 });

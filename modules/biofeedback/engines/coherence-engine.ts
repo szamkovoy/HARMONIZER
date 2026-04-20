@@ -15,7 +15,6 @@
 import { COHERENCE_BEAT_DEDUPE_MS } from "@/modules/breath/core/coherence-constants";
 import {
   buildCoherenceExportJson,
-  dedupeBeatTimestampsMs,
   runCoherenceSessionAnalysis,
   type BreathAnalysisMode,
   type CoherenceExportDebug,
@@ -30,6 +29,8 @@ export interface CoherenceSessionStartOptions {
   sessionStartedAtMs: number;
   inhaleMs: number;
   exhaleMs: number;
+  /** Полная длительность цикла (мс) — нужно указывать для практик с задержками. */
+  cycleMs?: number;
   mode: BreathAnalysisMode;
   /** Метки из QC-окна перед T=0 (для тахограммы — буфер). */
   preflightBeats?: readonly number[];
@@ -41,6 +42,7 @@ export class CoherenceEngine {
   private sessionStartedAtMs = 0;
   private inhaleMs = 5000;
   private exhaleMs = 5000;
+  private cycleMs: number | undefined;
   private mode: BreathAnalysisMode = "test120s";
   private bufferMsBeforeSession = 0;
   /** Полный merged ряд ударов за сессию (с буфером QC). Растёт от каждого `appendBeat`. */
@@ -56,6 +58,7 @@ export class CoherenceEngine {
     this.sessionStartedAtMs = opts.sessionStartedAtMs;
     this.inhaleMs = opts.inhaleMs;
     this.exhaleMs = opts.exhaleMs;
+    this.cycleMs = opts.cycleMs;
     this.mode = opts.mode;
     this.bufferMsBeforeSession = opts.bufferMsBeforeSession ?? 0;
     this.sessionBeats = [];
@@ -66,13 +69,31 @@ export class CoherenceEngine {
     this.cachedResult = null;
   }
 
-  /** Добавляет новые удары из merged-ленты в активную сессию (сам дедуплицирует). */
+  /**
+   * Инкрементально добавляет новые удары из merged-ленты в активную сессию.
+   *
+   * Раньше реализация делала `[...sessionBeats, ...merged]` + полный `dedupeBeatTimestampsMs`
+   * **на каждый optical sample (30 Hz)**. Для сессии в 20+ минут это O(N) копия + O(N) дедуп,
+   * 30 раз в секунду, при растущем N — фактически квадратичная нагрузка, сильно грела CPU.
+   *
+   * Теперь добавляем только те удары из `merged`, у которых timestamp > последнего в
+   * `sessionBeats + COHERENCE_BEAT_DEDUPE_MS`. Оба массива отсортированы по возрастанию,
+   * дедуп внутри `merged` обеспечивает beat-merger. Итого — O(M) на вызов, где M — лишь
+   * несколько новых ударов за 30 мс кадра. Семантика совпадает: старая функция
+   * `dedupeBeatTimestampsMs` оставлена ниже как fallback для snapshot/finalize.
+   */
   appendBeats(merged: readonly number[]): void {
-    if (!this.active) return;
-    this.sessionBeats = dedupeBeatTimestampsMs(
-      [...this.sessionBeats, ...merged],
-      COHERENCE_BEAT_DEDUPE_MS,
-    );
+    if (!this.active || merged.length === 0) return;
+    let lastTs = this.sessionBeats.length > 0
+      ? this.sessionBeats[this.sessionBeats.length - 1]!
+      : -Infinity;
+    const minGap = COHERENCE_BEAT_DEDUPE_MS;
+    for (let i = 0; i < merged.length; i += 1) {
+      const t = merged[i]!;
+      if (t <= lastTs + minGap) continue;
+      this.sessionBeats.push(t);
+      lastTs = t;
+    }
   }
 
   /** Помечает секунду относительно session start как «не считать BPM» (плохой сигнал). */
@@ -119,6 +140,7 @@ export class CoherenceEngine {
       beatTimestampsMs: this.sessionBeats,
       inhaleMs: this.inhaleMs,
       exhaleMs: this.exhaleMs,
+      cycleMs: this.cycleMs,
       mode: this.mode,
       bufferMsBeforeSession: this.bufferMsBeforeSession,
       secondBpmForcedZero: this.secondBpmForcedZero,
@@ -162,6 +184,7 @@ export class CoherenceEngine {
     this.sessionStartedAtMs = 0;
     this.inhaleMs = 5000;
     this.exhaleMs = 5000;
+    this.cycleMs = undefined;
     this.mode = "test120s";
     this.bufferMsBeforeSession = 0;
     this.sessionBeats = [];
@@ -180,6 +203,7 @@ export class CoherenceEngine {
       beatTimestampsMs: this.sessionBeats,
       inhaleMs: this.inhaleMs,
       exhaleMs: this.exhaleMs,
+      cycleMs: this.cycleMs,
       mode: this.mode,
       bufferMsBeforeSession: this.bufferMsBeforeSession,
       secondBpmForcedZero: this.secondBpmForcedZero,

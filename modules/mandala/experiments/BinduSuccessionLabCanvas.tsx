@@ -7,14 +7,29 @@ import {
   type ChakraVisualPreset,
 } from "@/modules/mandala/experiments/binduSuccessionVisualPresets";
 
+/**
+ * Минимальный интервал между тиками мандалы в миллисекундах (≈ 30 FPS).
+ *
+ * Рендер мандалы тяжёлый (создание SkPath и множества uniforms в useMemo на каждый
+ * render). Нативный `requestAnimationFrame` на iOS ProMotion выдаёт до 120 Гц, что
+ * при включённой камере + torch давало нагрев CPU/GPU → thermal throttling → рывки
+ * мандалы и индикатора уже на 2-й минуте длинных практик.
+ *
+ * 30 FPS — более чем достаточно для такой плавной медитативной анимации и тратит в
+ * 2-4 раза меньше ресурсов.
+ */
+const MANDALA_MIN_TICK_INTERVAL_MS = 1000 / 30;
+
 function useAnimationClock(isActive: boolean) {
   const [timeSeconds, setTimeSeconds] = useState(0);
   const frameRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
+  const lastAppliedFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isActive) {
       lastFrameRef.current = null;
+      lastAppliedFrameRef.current = null;
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
       }
@@ -23,8 +38,17 @@ function useAnimationClock(isActive: boolean) {
 
     const tick = (timestamp: number) => {
       const last = lastFrameRef.current ?? timestamp;
+      // Троттл до 30 FPS: если с прошлого *применённого* тика прошло меньше
+      // `MANDALA_MIN_TICK_INTERVAL_MS`, пропускаем этот кадр без пересчёта state.
+      const lastApplied = lastAppliedFrameRef.current ?? 0;
+      const deltaSinceApplied = timestamp - lastApplied;
+      if (lastApplied > 0 && deltaSinceApplied < MANDALA_MIN_TICK_INTERVAL_MS) {
+        frameRef.current = requestAnimationFrame(tick);
+        return;
+      }
       const deltaSeconds = Math.min((timestamp - last) / 1000, 1 / 20);
       lastFrameRef.current = timestamp;
+      lastAppliedFrameRef.current = timestamp;
       setTimeSeconds((current) => current + deltaSeconds);
       frameRef.current = requestAnimationFrame(tick);
     };

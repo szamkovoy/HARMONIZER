@@ -48,6 +48,16 @@ export interface BiofeedbackSnapshot {
 }
 
 const OPTICAL_HISTORY_LIMIT = 48;
+/**
+ * Минимальный интервал между двумя `setRevision`. Bus-каналы `pulseBpm`/`contact`/
+ * `coherence` могут эмитить события 5-10 раз в секунду, и каждое из них раньше
+ * вызывало полный re-render `CoherenceBreathScreen` (а значит и `BreathBinduMandala`,
+ * `BreathIndicatorView` и остального). На длинных практиках (20-40 мин) это
+ * приводило к видимому замедлению мандалы и «скачкам» индикатора. Троттлим до 4 Hz
+ * — этого достаточно для текстовых индикаторов пульса/качества, а анимации идут
+ * через shared values Reanimated и не зависят от re-render'ов React.
+ */
+const SNAPSHOT_BUMP_MIN_INTERVAL_MS = 250;
 
 export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
   const bus = useBiofeedbackBus();
@@ -55,9 +65,35 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
   /** Без этого `useMemo` ниже не пересчитывается: `bus`/`pipeline` стабильны между кадрами. */
   const [revision, setRevision] = useState(0);
   const opticalRef = useRef<RawOpticalSample[]>([]);
+  const lastBumpWallMsRef = useRef(0);
+  const pendingBumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const bump = () => setRevision((n) => n + 1);
+    /**
+     * Троттлёный «форс re-render». Если между событиями прошло меньше
+     * `SNAPSHOT_BUMP_MIN_INTERVAL_MS` — планируем один отложенный bump и игнорируем
+     * промежуточные события. Когда таймер срабатывает, делаем ОДИН `setRevision` —
+     * React возьмёт самое свежее состояние каналов через `bus.getLast(...)`.
+     */
+    const bump = () => {
+      const now = Date.now();
+      const sinceLast = now - lastBumpWallMsRef.current;
+      if (sinceLast >= SNAPSHOT_BUMP_MIN_INTERVAL_MS) {
+        if (pendingBumpTimerRef.current != null) {
+          clearTimeout(pendingBumpTimerRef.current);
+          pendingBumpTimerRef.current = null;
+        }
+        lastBumpWallMsRef.current = now;
+        setRevision((n) => n + 1);
+        return;
+      }
+      if (pendingBumpTimerRef.current != null) return;
+      pendingBumpTimerRef.current = setTimeout(() => {
+        pendingBumpTimerRef.current = null;
+        lastBumpWallMsRef.current = Date.now();
+        setRevision((n) => n + 1);
+      }, SNAPSHOT_BUMP_MIN_INTERVAL_MS - sinceLast);
+    };
     const unsubs: Array<() => void> = [];
     unsubs.push(
       bus.subscribe("contact", bump),
@@ -76,6 +112,10 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
     );
     return () => {
       for (const u of unsubs) u();
+      if (pendingBumpTimerRef.current != null) {
+        clearTimeout(pendingBumpTimerRef.current);
+        pendingBumpTimerRef.current = null;
+      }
     };
   }, [bus]);
 
