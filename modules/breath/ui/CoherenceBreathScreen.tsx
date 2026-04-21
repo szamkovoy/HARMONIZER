@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated as RNAnimated,
+  Easing as RNEasing,
   Platform,
   Pressable,
   Share,
@@ -90,7 +91,8 @@ const OVERLAY_AUTOHIDE_MS = 4_000;
 const PPG_FINGER_LOST_OVERLAY_MS = 1000;
 const PPG_QUALITY_GRADE_B_MS = 2000;
 const PPG_QUALITY_GRADE_C_MS = 7000;
-const PPG_SESSION_SECONDS = 120;
+/** Совпадает с длительностью практики (`TIMING.totalMs`), иначе forceSecondBpmZero не покрывает хвост сессии. */
+const PPG_SESSION_SECONDS = Math.round(TIMING.totalMs / 1000);
 /** Длительность одного показа баннера ППГ (секунды × 1000). */
 const PPG_BANNER_DISPLAY_MS = 4000;
 
@@ -156,9 +158,11 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
   const pulseBpmLast = useBiofeedbackChannel("pulseBpm");
-  const coherenceLast = useBiofeedbackChannel("coherence");
-  const rmssdLast = useBiofeedbackChannel("rmssd");
-  const stressLast = useBiofeedbackChannel("stress");
+  // ПРИНЦИПИАЛЬНО: не подписываемся на "coherence"/"rmssd"/"stress" на уровне компонента —
+  // любая подписка через `useBiofeedbackChannel` вызывает re-render всего
+  // `CoherenceBreathScreenInner` (а с ним — мандалы, индикатора дыхания, всех useMemo).
+  // Coherence/RMSSD/стресс нужны только для результатов и считаются в `finalize()`.
+  // Единственный подписчик coherence-канала — отдельный эффект ниже (для `planner`).
   // Подписка держит провайдер в курсе источника (UI использует `finalPulseWasEmulated`,
   // но канал нужен, чтобы React перерендеривал компонент при смене источника и
   // snapshot-кэш канала оставался заполненным).
@@ -444,9 +448,16 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   // ─── Подписка на pulseBpm для QC, debug и pulseLog ────────────────────────
 
   useEffect(() => {
+    // Подписка стабильная: читаем актуальное состояние snapshot через `snapshotRef`,
+    // чтобы deps этого useEffect не зависели от часто меняющихся `signalQuality` /
+    // `fingerDetected`. Иначе даже с учётом троттла snapshot-адаптера (4 Гц) мы
+    // делали `unsubscribe + subscribe` 4 раза в секунду; за 20-минутную практику
+    // это 4800 раз, и каждый unsubscribe делает `Set.delete` по хэшу. Плюс дорожнее
+    // накопление временных объектов в V8/Hermes для GC.
     return bus.subscribe("pulseBpm", (event) => {
       snapshotCallbacksTotalRef.current += 1;
       const cameraTimestampMs = pipeline.getLastSourceTimestampMs();
+      const snap = snapshotRef.current;
       if (phaseRef.current === "warmup" || phaseRef.current === "qualityCheck") {
         qcPulseSamplesRef.current.push({
           cameraTimestampMs,
@@ -455,7 +466,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
           rrCount: event.rrCount,
           jitterMs: event.jitterMs,
           looksCoherent: event.looksCoherent,
-          signalQuality: snapshotRef.current.signalQuality,
+          signalQuality: snap.signalQuality,
           lockState: event.lockState,
         });
         qcPulseSamplesRef.current = qcPulseSamplesRef.current.filter(
@@ -471,9 +482,9 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
             cameraTimestampMs: pipeline.getLastSourceTimestampMs(),
             wallClockMs: wall,
             pulseRateBpm: event.bpm,
-            signalQuality: snapshot.signalQuality,
+            signalQuality: snap.signalQuality,
             pulseReady: event.hasFreshBeat,
-            fingerDetected: snapshot.fingerDetected,
+            fingerDetected: snap.fingerDetected,
             pulseLockState: event.lockState,
             beatTimestampsCount: pipeline.getMergedBeats().length,
           });
@@ -487,7 +498,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         }
       }
     });
-  }, [bus, pipeline, snapshot.signalQuality, snapshot.fingerDetected]);
+  }, [bus, pipeline]);
 
   // ─── QC окно 10 с (camera time) — ОДНА попытка, затем диалог ──────────────
 
@@ -620,6 +631,12 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
   useEffect(() => {
     if (phase !== "running" || useSimulatedPpg) return;
+    // ВАЖНО: читаем поля `snapshot` через `snapshotRef`, а не из замыкания,
+    // чтобы deps этого useEffect были стабильными. Иначе каждые 250 мс (темп
+    // обновления snapshot-адаптера) мы пересоздавали setInterval — это и есть
+    // «копится и множится в процессе дыхания»: за 20-минутную практику 4800
+    // циклов clearInterval+setInterval, каждый из которых отписывает/подписывает
+    // таймер в event loop и создаёт новые closure-объекты для GC.
     const id = setInterval(() => {
       const now = pipeline.getLastSourceTimestampMs();
       if (now <= 0) return;
@@ -629,9 +646,10 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       const delta = Math.max(0, now - lastSample);
       lastSampleMsRef.current = now;
 
-      const fingerOk = snapshot.fingerDetected;
+      const snap = snapshotRef.current;
+      const fingerOk = snap.fingerDetected;
       const badSignal =
-        snapshot.pulseLockState === "searching" || snapshot.signalQuality < 0.5;
+        snap.pulseLockState === "searching" || snap.signalQuality < 0.5;
 
       if (!fingerOk) {
         fingerAbsentAccumMsRef.current += delta;
@@ -680,9 +698,6 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     phase,
     pipeline,
     sessionStartLogicalMs,
-    snapshot.fingerDetected,
-    snapshot.pulseLockState,
-    snapshot.signalQuality,
     str.ppgFingerLostMessage,
     str.ppgWeakSignalMessage,
     str.ppgBiometryPausedMessage,
@@ -724,7 +739,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         lastSnapshotBeatCount: pipeline.getMergedBeats().length,
         lastSnapshotDetectedBeatCount: pipeline.getMergedBeats().length,
         lastSnapshotPulseLock: pipeline.getLockState(),
-        lastSnapshotFingerDetected: snapshot.fingerDetected,
+        lastSnapshotFingerDetected: snapshotRef.current.fingerDetected,
         rawBeatArrayLengthBeforeFilter: sessionBeats.length,
         beatsAfterDedupeMs: finalRes.beatTimestampsMsAnalyzed.length,
         rawBeatMinMs: sessionBeats[0] ?? null,
@@ -756,7 +771,6 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     sessionStartLogicalMs,
     fingerSessionKey,
     pipeline,
-    snapshot.fingerDetected,
     str.simulatedMetricsNote,
   ]);
 
@@ -901,20 +915,72 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     });
   }, []);
 
+  /**
+   * Плавный переход «текст инструкции» → «мандала» на старте практики.
+   *
+   * Было: каждый тик `elapsedMs` (~500 мс) вручную пересчитывался opacity
+   * линейно от 1→0 и 0→1 на окне 1500 мс. Поскольку `elapsedMs` обновляется
+   * дискретно, opacity прыгал ступенями ~33 % → текст «растворялся рывками»
+   * и мандала появлялась «скачками», что пользователь и заметил.
+   *
+   * Стало: при достижении порога `fadeStart` ОДИН раз запускаем
+   * `RNAnimated.timing` на нативном драйвере — анимация идёт плавно на UI
+   * thread (60 fps), без участия JS-thread'а и без дёрганых пересчётов.
+   *
+   * Дополнительно:
+   *  - увеличили длительность фейда с 1500 до 2200 мс — переход ощущается
+   *    более «дышащим», в духе самой практики;
+   *  - начинаем растворять текст на 300 мс раньше (fadeStart сдвинут назад),
+   *    чтобы мандала успевала «проявиться» до того, как человек переведёт
+   *    взгляд;
+   *  - `easing: Easing.inOut(Easing.sin)` даёт S-образную кривую, которая
+   *    плавно стартует и плавно завершается — без резкого начала/конца.
+   */
+  const FADE_TEXT_TO_MANDALA_MS = 2_200;
+  const fadeStartedRef = useRef(false);
   useEffect(() => {
-    if (phase !== "running" || sessionStartWallMs == null) return;
-    const fadeStart = TIMING.instructionPhaseMs - 1500;
-    if (elapsedMs >= fadeStart && elapsedMs < TIMING.instructionPhaseMs) {
-      const t = (elapsedMs - fadeStart) / 1500;
-      instructionOpacity.setValue(1 - t);
-      mandalaOpacity.setValue(t);
-    } else if (elapsedMs >= TIMING.instructionPhaseMs) {
-      instructionOpacity.setValue(0);
-      mandalaOpacity.setValue(1);
-    } else {
+    if (phase !== "running" || sessionStartWallMs == null) {
+      fadeStartedRef.current = false;
       instructionOpacity.setValue(1);
       mandalaOpacity.setValue(0);
+      return;
     }
+    const fadeStart = TIMING.instructionPhaseMs - FADE_TEXT_TO_MANDALA_MS;
+    if (elapsedMs < fadeStart) {
+      if (fadeStartedRef.current) {
+        fadeStartedRef.current = false;
+        instructionOpacity.setValue(1);
+        mandalaOpacity.setValue(0);
+      }
+      return;
+    }
+    if (elapsedMs >= TIMING.instructionPhaseMs) {
+      instructionOpacity.setValue(0);
+      mandalaOpacity.setValue(1);
+      return;
+    }
+    if (fadeStartedRef.current) return;
+    fadeStartedRef.current = true;
+    // Сколько ещё осталось до конца фейда — если сессия стартует почти на
+    // границе, запускаем анимацию на остаток, чтобы не «щёлкнула» в конце.
+    const remainingMs = Math.max(
+      300,
+      TIMING.instructionPhaseMs - elapsedMs,
+    );
+    RNAnimated.parallel([
+      RNAnimated.timing(instructionOpacity, {
+        toValue: 0,
+        duration: remainingMs,
+        easing: RNEasing.inOut(RNEasing.sin),
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(mandalaOpacity, {
+        toValue: 1,
+        duration: remainingMs,
+        easing: RNEasing.inOut(RNEasing.sin),
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [elapsedMs, instructionOpacity, mandalaOpacity, phase, sessionStartWallMs]);
 
   const { isInhale } = useBreathPhaseLabel(elapsedMs, currentPlan);
@@ -1089,8 +1155,22 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     }
     const plan = currentPlan;
     if (!plan || plan.cycleMs <= 0) return;
+    /**
+     * Lookahead для смены слова вдох/выдох/задержка.
+     *
+     * Фейдинг (dim→swap→restore) занимает ~370 мс, а воспринимается
+     * «текстом нового слова» только после swap. Если переключать точно
+     * на границе фазы, глаз успевает зафиксировать новое слово уже с
+     * опозданием 150-200 мс после того, как индикатор дыхания начал
+     * новое движение. Сдвигаем момент смены «назад» по времени — так,
+     * чтобы swap нового слова приходился примерно на реальную смену
+     * фазы, а не на её середину.
+     */
+    const PHASE_LABEL_LOOKAHEAD_MS = 160;
     const id = setInterval(() => {
-      const t = ((Date.now() - cycleStartMs) % plan.cycleMs + plan.cycleMs) % plan.cycleMs;
+      const cycleMs = plan.cycleMs;
+      const rawT = Date.now() - cycleStartMs + PHASE_LABEL_LOOKAHEAD_MS;
+      const t = ((rawT % cycleMs) + cycleMs) % cycleMs;
       let idx = 0;
       for (let i = 0; i < plan.phases.length; i += 1) {
         if (t >= plan.phases[i]!.startMsInCycle && t < plan.phases[i]!.endMsInCycle) {
@@ -1117,23 +1197,33 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   const phaseBeats = activePhase ? activePhase.beats : 0;
   void isInhale; // isInhale больше не используется — оставлен хук-вызов для согласия с dep.
 
-  // Мягкий fade при смене фазы: на смену kind делаем dimming до ≈20 % и обратно,
-  // с подменой текста в середине. Текст не пропадает полностью — «небольшой» fade.
+  // Мягкий fade при смене фазы: dim→swap→restore с подменой текста по пути.
+  // Длительности заметно увеличены (по сравнению с 140/150/200 мс), чтобы переход
+  // ощущался плавным, а не «дёрганным»: человеческий глаз хорошо различает
+  // изменения яркости длительностью < 200 мс, и короткий fade читается как
+  // резкое переключение. 260/200/340 мс даёт ~800 мс на всю анимацию —
+  // этого достаточно для ощущения плавности, но всё ещё короче половины
+  // самой короткой фазы (обычно ≥ 3 с), поэтому нового слова никто не
+  // пропустит.
+  //
+  // Дополнительно мы dim'им текст сильнее (до 0.15 вместо 0.25) — при
+  // большем контрасте между «почти исчез» и «полностью появился» глаз
+  // не фиксирует «скачка» и переход выглядит органичнее.
   const phaseOpacitySv = useSharedValue(1);
   const [displayedPhaseLabel, setDisplayedPhaseLabel] = useState(phaseLabel);
   useEffect(() => {
     if (displayedPhaseLabel === phaseLabel) return;
-    phaseOpacitySv.value = withTiming(0.25, {
-      duration: 140,
-      easing: Easing.out(Easing.quad),
+    phaseOpacitySv.value = withTiming(0.15, {
+      duration: 260,
+      easing: Easing.inOut(Easing.quad),
     });
     const swapTimer = setTimeout(() => {
       setDisplayedPhaseLabel(phaseLabel);
       phaseOpacitySv.value = withTiming(1, {
-        duration: 200,
-        easing: Easing.out(Easing.quad),
+        duration: 340,
+        easing: Easing.inOut(Easing.quad),
       });
-    }, 150);
+    }, 200);
     return () => clearTimeout(swapTimer);
   }, [phaseLabel, displayedPhaseLabel, phaseOpacitySv]);
   const phaseTextStyle = useAnimatedStyle(() => ({ opacity: phaseOpacitySv.value }));
@@ -1195,18 +1285,19 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
   const cameraActive = phase === "warmup" || phase === "qualityCheck" || phase === "running";
 
-  const liveCoherencePercent = coherenceLast?.currentPercent ?? null;
-  const liveCoherenceAvgPercent = coherenceLast?.averagePercent ?? null;
-  const liveCoherenceEntrySec = coherenceLast?.entryTimeSec ?? null;
-  const liveRmssdMs = rmssdLast?.rmssdMs ?? null;
-  const liveStressPercent = stressLast?.percent ?? null;
-
   /**
-   * Live-RSA: медиана последних до 5 валидных циклов из снапшота CoherenceEngine (~1 Гц).
+   * Live-метрики в футере практики: ОСОЗНАННО минимальны. Во время практики мы
+   * НЕ вычисляем coherence %, RMSSD, стресс, entry-time — это результатные метрики,
+   * они появятся на экране результатов из полного анализа всех beats в `finalize()`.
    *
-   * Раньше показывали только последний цикл — он сильно скачет (одиночные выбросы до 40–60 уд/мин
-   * даже у сидящего неподвижно человека из-за шума PPG в конкретные 10-с интервалы). Медиана
-   * последних 3–5 циклов гораздо стабильнее и отражает реальный тонус RSA.
+   * Единственная живая метрика, которую действительно полезно видеть в процессе —
+   * `liveRsaBpm` (медиана размаха HR по последним дыхательным циклам): она уже
+   * посчитана `CoherenceEngine.tickLive` дешёво, на окне одного цикла. И `pulseRateBpm`
+   * — для ощущения контакта с собственным ритмом.
+   *
+   * Раньше здесь пересчитывались coherence %, smoothedSeries длины T каждую секунду,
+   * плюс Hampel по всем 1500 beats для RMSSD/стресса — всё это суммарно давало O(T²)
+   * нагрузку и к 10-й минуте тормозило мандалу и индикатор дыхания.
    */
   const [liveRsaBpm, setLiveRsaBpm] = useState<number | null>(null);
   useEffect(() => {
@@ -1215,22 +1306,21 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       return;
     }
     const id = setInterval(() => {
-      const now = pipeline.getLastSourceTimestampMs();
-      if (now <= 0) return;
-      const snap = pipeline.getCoherenceEngine().snapshot(now);
-      if (snap == null) return;
-      const active = snap.rsaCycles.filter((c) => !c.inactive);
-      if (active.length === 0) {
-        setLiveRsaBpm(null);
-        return;
-      }
-      const tail = active.slice(-5).map((c) => c.rsaBpm).sort((a, b) => a - b);
-      const median = tail[Math.floor(tail.length / 2)]!;
-      setLiveRsaBpm(median);
+      const live = pipeline.getCoherenceEngine().getLiveSnapshot();
+      setLiveRsaBpm(live?.rsaMedianBpmRecent ?? null);
     }, 1000);
     return () => clearInterval(id);
   }, [phase, pipeline]);
 
+  /**
+   * Футер во время практики: показываем ТОЛЬКО живые метрики, которые реально
+   * считаем в процессе — пульс (для ощущения ритма) и медиану RSA по последним
+   * циклам. Coherence %, RMSSD, стресс, entry-time — результатные, уйдут на экран
+   * результатов после `finalize()`.
+   *
+   * Зависимость от `elapsedMs` даёт обновление раз в `UI_TICK_MS = 500 мс` — но
+   * это не дорого, потому что в этой memo НЕТ тяжёлых вычислений, только formatting.
+   */
   const practiceFooter = useMemo(() => {
     if (phase !== "running") return null;
     if (useSimulatedPpg) {
@@ -1250,15 +1340,10 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
           {snapshot.fingerDetected ? "палец" : "нет пальца"} · {snapshot.pulseLockState}
         </Text>
         <Text style={styles.opticalMetrics}>
-          Гармония: {liveCoherencePercent != null ? `${Math.round(liveCoherencePercent)}%` : "—"}
-          {liveCoherenceAvgPercent != null ? ` (ср. ${Math.round(liveCoherenceAvgPercent)}%)` : ""}
-          {" · "}RSA: {liveRsaBpm != null ? `${Math.round(liveRsaBpm)} уд/мин` : "—"}
-          {" · "}RMSSD: {liveRmssdMs != null ? `${Math.round(liveRmssdMs)} мс` : "—"}
-          {" · "}стресс: {liveStressPercent != null ? `${Math.round(liveStressPercent)}%` : "—"}
+          RSA: {liveRsaBpm != null ? `${Math.round(liveRsaBpm)} уд/мин` : "—"}
         </Text>
         <Text style={styles.opticalMetricsMuted}>
-          Вход в поток: {liveCoherenceEntrySec != null ? `${liveCoherenceEntrySec} с` : "—"}
-          {" · "}время практики: {elapsedSec} с из {Math.round(TIMING.totalMs / 1000)} с
+          время практики: {elapsedSec} с из {Math.round(TIMING.totalMs / 1000)} с
         </Text>
       </View>
     );
@@ -1268,12 +1353,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     snapshot.signalQuality,
     snapshot.fingerDetected,
     snapshot.pulseLockState,
-    liveCoherencePercent,
-    liveCoherenceAvgPercent,
-    liveCoherenceEntrySec,
     liveRsaBpm,
-    liveRmssdMs,
-    liveStressPercent,
     elapsedMs,
     str,
   ]);

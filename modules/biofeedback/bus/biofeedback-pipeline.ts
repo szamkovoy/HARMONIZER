@@ -32,12 +32,17 @@ import {
 } from "@/modules/biofeedback/signal/beat-merger";
 import {
   OpticalRingBuffer,
+  calculateFingerPresenceConfidence,
+  isFingerDetected,
   movingAverage3,
 } from "@/modules/biofeedback/signal/optical-pipeline";
 
 import { ContactMonitor } from "@/modules/biofeedback/quality/contact-monitor";
 import { SignalQualityMonitor } from "@/modules/biofeedback/quality/signal-quality-monitor";
-import { CalibrationStateMachine } from "@/modules/biofeedback/quality/calibration-state-machine";
+import {
+  CalibrationStateMachine,
+  type CalibrationSnapshot,
+} from "@/modules/biofeedback/quality/calibration-state-machine";
 
 import {
   HRV_RR_HARD_MAX_MS,
@@ -62,6 +67,13 @@ import type { PulseSourceKind } from "@/modules/biofeedback/engines/types";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 
 const PULSE_LOCK_RECENT_TRACKING_MS = 2_000;
+
+/**
+ * Стабильная «пустая» ссылка для устаревшего поля `smoothedSeries`. Поле больше не
+ * используется в live-пути (серия считается только в `finalize()`), но тип канала
+ * этого требует. Переиспользуем один и тот же пустой массив, чтобы не плодить GC.
+ */
+const EMPTY_SERIES: readonly number[] = Object.freeze([]);
 
 export interface PipelineEngineVersions {
   hrv: string;
@@ -100,13 +112,87 @@ export class BiofeedbackPipeline {
   private lockState: PulseLockState = "searching";
   private lastPulseBpmPublishMs = 0;
   private lastCoherenceSnapshotMs = 0;
+  /** Последнее опубликованное `revision` live-снимка CoherenceEngine — чтобы не дублировать. */
+  private lastCoherenceRevisionPublished = 0;
   /**
-   * Последнее время вычисления RMSSD / стресса. HRV-анализ внутри делает Hampel-фильтр
-   * с windowed median → **O(N²)** по количеству ударов. При сессии 20+ мин это
-   * квадратично растущая нагрузка, если запускать на каждом кадре (30 Hz). UI
-   * обновляет RMSSD/стресс не чаще 1 Hz, поэтому троттлим до 1 секунды.
+   * Последнее время вычисления RMSSD / стресса. Hampel-фильтр внутри линейно растёт
+   * по длине RR-ряда (O(N×W), где W — окно Hampel, ~9). За сессию из ~1500 beats это
+   * даёт десятки тысяч операций на каждый push, плюс создание window-slice массивов
+   * (GC-давление). UI показывает RMSSD/стресс в footer и меняется медленно, поэтому
+   * троттлим до 10 с — разницы на глаз нет, а нагрузка падает в 10 раз. Финальные
+   * значения всё равно считаются заново из `computePracticeHrvMetricsFullSession()`
+   * в `finalize()` — это даёт точный результат по всем beats практики.
    */
   private lastHrvStressComputeMs = 0;
+  private static readonly HRV_STRESS_LIVE_INTERVAL_MS = 10_000;
+  /**
+   * Минимальный интервал между запусками peak-detection + bandpass по оптике.
+   *
+   * Сама камера присылает сэмплы 30 Гц, и раньше на КАЖДОМ сэмпле мы прогоняли
+   * `bandpassPpgForPeakDetection` (4 прохода по окну 12 с × 30 fps = 1440 ops SOS)
+   * + `movingAverage3` + `detectBeats`. Это давало постоянную базовую нагрузку в
+   * ~1 млн ops/с, плюс аллокация нескольких массивов ~360 элементов за кадр —
+   * сильный GC pressure. Через 10 минут на телефоне это складывалось с
+   * `torch + camera + JS-таймеры + ре-рендеры` и приводило к thermal throttling
+   * CPU → мандала замирала, индикатор дыхания начинал прыгать.
+   *
+   * Пиковый детектор ищет удары с минимальным RR ~450 мс. Запускать его чаще,
+   * чем каждые ~67 мс (15 Гц), бессмысленно — один и тот же пик будет найден
+   * повторно, и merge его всё равно схлопнет. Между запусками `detectedBeatsThisFrame`
+   * остаётся пустым; merged/eligible пересчёт уже O(N) от окна и проходит быстро.
+   */
+  private static readonly PEAK_DETECT_MIN_INTERVAL_MS = 66;
+  private lastPeakDetectMs = 0;
+  /**
+   * Минимальный интервал между «полными» пересчётами среднего BPM и
+   * публикацией события `pulseBpm`. Движок `PulseBpmEngine` каждый раз делает
+   * O(N) по всему окну ударов + несколько медиан/копий массивов; запускать его
+   * 30 раз в секунду не имеет смысла — UI и дыхательный планировщик
+   * опрашивают BPM на порядки реже (≤ 2 Гц). Раньше на каждом кадре камеры
+   * (30 Hz) создавалось 7-9 временных массивов RR-измерений — на длинных
+   * практиках это складывалось в ощутимую GC-нагрузку.
+   */
+  private static readonly PULSE_BPM_COMPUTE_INTERVAL_MS = 250;
+  private lastPulseBpmComputeMs = 0;
+  private lastPulseBpmSnapshot: ReturnType<PulseBpmEngine["push"]> | null = null;
+  /**
+   * Публикация `session` раньше шла на каждый optical-сэмпл (30 Hz) — 36 000
+   * событий на 20-минутной практике. Подписчики реагируют только на смену
+   * фазы (`phase`) и на одноразовые флаги `becameReady/becameLost`, поэтому
+   * публикуем только когда что-то действительно поменялось (+ heartbeat
+   * один раз в секунду, чтобы UI-таймеры в фазах warmup/settle могли обновлять
+   * прогресс).
+   */
+  private lastSessionEventPhase: CalibrationSnapshot["phase"] | null = null;
+  private lastSessionEventMs = 0;
+  private static readonly SESSION_HEARTBEAT_MS = 1_000;
+  /**
+   * Троттлинг публикации `contact`. Раньше публиковалось каждый кадр (30/15
+   * Hz), что создавало 18-36 тыс. событий на 20-минутной практике + заставляло
+   * snapshot-adapter делать bump() на каждое, а значит пересчитывать snapshot
+   * и гонять 4-Hz ре-рендеры через useBiofeedbackSnapshot.
+   *
+   * Подписчики в реальности реагируют только на смену `state` (present/absent/weak)
+   * и на изменение `signalQuality` (footer UI «биодатчики активны/нет»). Поэтому
+   * публикуем либо при смене state, либо когда signalQuality изменился заметно
+   * (> 0.05), либо раз в секунду heartbeat, чтобы UI не застревал в устаревших
+   * значениях после долгого «нет событий».
+   */
+  private lastContactStatePublished: "absent" | "weak" | "present" | null = null;
+  private lastContactSignalQualityPublished = 0;
+  private lastContactEventMs = 0;
+  private static readonly CONTACT_HEARTBEAT_MS = 1_000;
+  private static readonly CONTACT_QUALITY_EPSILON = 0.05;
+  /**
+   * Троттлинг публикации `optical`. Raw-сэмпл optical читает только мини-график
+   * PPG в фазе warmup/qualityCheck — running/idle/results в нём не нуждаются.
+   * Но pipeline не знает текущую фазу дыхательной практики, поэтому мы
+   * консервативно публикуем optical ТОЛЬКО при присутствии пальца. Без пальца
+   * сэмпл — это шум и публиковать его бессмысленно.
+   *
+   * Кроме того, при работе камеры на 15 Hz мы получаем ровно 15 событий/с —
+   * для ~120-мс throttle в UI этого более чем достаточно.
+   */
   private pulseSource: PulseSourceKind = "none";
 
   // Диагностика детектора пиков (аккумулируется для экспорта):
@@ -268,10 +354,11 @@ export class BiofeedbackPipeline {
     const shouldSkipDerivedMetrics = this.pulseSource === "emulated";
 
     if (this.hrvAccumulator.isReady() && !shouldSkipDerivedMetrics) {
-      // Накапливать beats — всегда (это дёшево). Но тяжёлый HRV/Stress расчёт
-      // (Hampel O(N²)) троттлим до 1 Hz, см. комментарий у `lastHrvStressComputeMs`.
       this.hrvAccumulator.ingest(this.canonicalBeats, this.beatEligible, timestampMs);
-      if (timestampMs - this.lastHrvStressComputeMs >= 1000) {
+      if (
+        timestampMs - this.lastHrvStressComputeMs >=
+        BiofeedbackPipeline.HRV_STRESS_LIVE_INTERVAL_MS
+      ) {
         this.lastHrvStressComputeMs = timestampMs;
         const beats = this.hrvAccumulator.getBeats();
         const hrvSnap = this.hrv.push(beats);
@@ -305,20 +392,31 @@ export class BiofeedbackPipeline {
       this.coherence.appendBeats(this.canonicalBeats);
       if (timestampMs - this.lastCoherenceSnapshotMs >= 1000) {
         this.lastCoherenceSnapshotMs = timestampMs;
-        const snap = this.coherence.snapshot(timestampMs);
-        if (snap) {
-          const last = snap.perSecond[snap.perSecond.length - 1];
-          this.bus.publish("coherence", {
-            currentPercent: last?.coherenceMappedPercent ?? 0,
-            averagePercent: snap.coherenceAveragePercent ?? 0,
-            maxPercent: snap.coherenceMaxPercent ?? 0,
-            smoothedSeries: snap.perSecondSmoothed.map((s) => s.coherenceMappedPercent),
-            entryTimeSec: snap.entryTimeSec,
-            lastCompletedRsaCycle: this.coherence.extractLastCompletedRsaCycle(snap),
-          });
-        }
+        this.publishCoherenceIfNew(timestampMs);
       }
     }
+  }
+
+  /**
+   * Публикует coherence-событие только если `tickLive` вернул **новый** `revision`
+   * (т.е. только что закрылся очередной дыхательный цикл). Это резко снижает частоту
+   * ре-рендеров UI: раньше каждая секунда вызывала полный re-render `CoherenceBreathScreen`,
+   * теперь — только раз в цикл (≈10–15 с). Мандала и индикатор дыхания получают
+   * стабильный JS-поток.
+   */
+  private publishCoherenceIfNew(timestampMs: number): void {
+    const live = this.coherence.tickLive(timestampMs);
+    if (!live) return;
+    if (live.revision === this.lastCoherenceRevisionPublished) return;
+    this.lastCoherenceRevisionPublished = live.revision;
+    this.bus.publish("coherence", {
+      currentPercent: 0,
+      averagePercent: 0,
+      maxPercent: 0,
+      smoothedSeries: EMPTY_SERIES,
+      entryTimeSec: null,
+      lastCompletedRsaCycle: live.lastCompletedRsaCycle,
+    });
   }
 
   /** Для beat-источников (симулятор, watch): пометить калибровку готовой вручную. */
@@ -328,9 +426,77 @@ export class BiofeedbackPipeline {
 
   /** Подаёт сырой кадр в конвейер. */
   pushOpticalSample(sample: RawOpticalSample): void {
-    // 1) Optical pipeline.
+    // ---- Быстрая проверка присутствия пальца БЕЗ touching optical ring --
+    //
+    // `calculateFingerPresenceConfidence` — чистая функция по одному сэмплу
+    // (порядка 10 FP-операций). `optical.push()` стоит на порядок дороже:
+    // поддержание ring buffer, медиана baseline, amplitude, quality, аллокации.
+    // Если пользователь снял палец и история ударов пуста, мы хотим вообще
+    // НЕ трогать optical ring (иначе тысячи лишних итераций медианы на
+    // бесполезных данных греют процессор — это и есть «тормоза через 2
+    // минуты без пальца», о которых сообщал тестировщик).
+    const quickPresenceConfidence = calculateFingerPresenceConfidence(sample);
+    const quickFingerDetected = isFingerDetected(quickPresenceConfidence);
+    const canTakeUltraFastPath =
+      !quickFingerDetected && this.mergedBeats.length === 0;
+
+    // ---- ULTRA-FAST-PATH: пальца нет, ударов нет -----------------------
+    //
+    // Пропускаем:
+    //  - `optical.push()` — ring buffer / baseline median / amplitude / FPS.
+    //    Без пальца это шум, и держать его в памяти 12 с — только грузить GC.
+    //  - `bus.publish("optical")` — никто его в running не слушает, а в
+    //    warmup/qualityCheck мы в этот момент ещё не попадём, т.к. без пальца
+    //    calibration уходит в contactSearch.
+    //  - `SignalQualityMonitor.push` — без пальца quality=0, монитор
+    //    просто держит hysteresis; не зовя его, мы экономим ещё ~20 FP-op.
+    //
+    // Остаются только:
+    //  - `contact.push()` (для корректного перехода contact → warmup при
+    //    возвращении пальца);
+    //  - `calibration.push()` (тот же FSM);
+    //  - одна троттленная публикация `contact` (для UI-индикатора);
+    //  - `maybePublishSessionEvent` (троттл 1 Hz + events).
+    //
+    // Это снимает ~90 % нагрузки в «холостом» режиме (без пальца). Раньше
+    // эта же «холостая» нагрузка лежала в фоне и ускоряла перегрев.
+    if (canTakeUltraFastPath) {
+      const contactSnap = this.contact.push(sample.timestampMs, quickPresenceConfidence);
+      if (contactSnap.shouldHardReset) {
+        // softReset в нашем случае бесплатен — всё и так уже пусто, но
+        // сбрасывает optical-кэш и calibration-таймеры.
+        this.softReset();
+      }
+      this.maybePublishContactEvent(
+        sample.timestampMs,
+        contactSnap.state,
+        contactSnap.confidence,
+        0, // signalQuality: без пальца 0
+        contactSnap.absentForMs,
+      );
+      const calSnap = this.calibration.push({
+        timestampMs: sample.timestampMs,
+        contactPresent: false,
+        goodSettleTick: false,
+        contactLost: true,
+      });
+      this.maybePublishSessionEvent(sample.timestampMs, calSnap);
+      return;
+    }
+
+    // ---- Полный путь: либо палец на камере, либо есть накопленная история
+    //
+    // Здесь уже нужна вся optical-обработка для peak detection и quality
+    // monitoring. Единственное, что мы делаем всегда — это обрабатываем
+    // сэмпл через ring buffer.
     const opt = this.optical.push(sample);
-    this.bus.publish("optical", sample);
+    // Публикуем optical ТОЛЬКО при присутствии пальца. Без пальца — шум, и
+    // единственный подписчик (optical-превью в warmup/qualityCheck) до
+    // этой фазы ещё не доходит. Так мы дополнительно отрезаем нейтральные
+    // 15 сэмплов/с от «пустой» публикации.
+    if (quickFingerDetected) {
+      this.bus.publish("optical", sample);
+    }
 
     // 2) Contact + Quality.
     const contactSnap = this.contact.push(sample.timestampMs, opt.fingerPresenceConfidence);
@@ -344,24 +510,57 @@ export class BiofeedbackPipeline {
       opt.signalQuality,
       this.lockState === "tracking",
     );
-    this.bus.publish("contact", {
-      state: contactSnap.state,
-      confidence: contactSnap.confidence,
-      signalQuality: qualitySnap.value,
-      absentForMs: contactSnap.absentForMs,
-    });
+    this.maybePublishContactEvent(
+      sample.timestampMs,
+      contactSnap.state,
+      contactSnap.confidence,
+      qualitySnap.value,
+      contactSnap.absentForMs,
+    );
 
-    // 3) Peak detection + merge (только после прогрева).
+    const contactPresent = contactSnap.state === "present";
     const calibrationPhaseBefore = this.calibration.getPhase();
+
+    // ---- FAST-PATH после обновления ring-буфера: пальца всё ещё нет, но
+    // mergedBeats не пуст — надо лишь «додонести» калибровку, а пиковую
+    // обработку пропустить (см. подробный комментарий ниже).
+    if (!contactPresent && this.mergedBeats.length === 0) {
+      const calSnap = this.calibration.push({
+        timestampMs: sample.timestampMs,
+        contactPresent: false,
+        goodSettleTick: false,
+        contactLost: true,
+      });
+      this.maybePublishSessionEvent(sample.timestampMs, calSnap);
+      return;
+    }
+
+    // 3) Peak detection + merge (только после прогрева и при наличии пальца).
+    //
+    // Если пальца нет (`contactSnap.state !== "present"`), нет смысла гонять
+    // `bandpassPpgForPeakDetection` + `detectBeats` — на шуме от торча без пальца
+    // детектор ничего осмысленного не вернёт, но SOS-фильтрация по всему окну в 360
+    // сэмплов + несколько аллокаций массивов работают впустую каждые 33 мс.
+    //
+    // Дополнительно троттлим peak detection до 15 Гц — выше частоты камеры он
+    // ничего нового не находит (refractory period детектора ≥ 300 мс).
     const inWarmupOrEarlier =
       calibrationPhaseBefore === "idle" ||
       calibrationPhaseBefore === "contactSearch" ||
       calibrationPhaseBefore === "warmup";
+    const peakDetectThrottleOk =
+      sample.timestampMs - this.lastPeakDetectMs >=
+      BiofeedbackPipeline.PEAK_DETECT_MIN_INTERVAL_MS;
 
     let detectedBeatsThisFrame: number[] = [];
-    if (!inWarmupOrEarlier) {
+    if (!inWarmupOrEarlier && contactPresent && peakDetectThrottleOk) {
+      this.lastPeakDetectMs = sample.timestampMs;
       const samples = this.optical.getSamples();
-      const detrendedValues = samples.map((p) => p.opticalValue - opt.baseline);
+      // Детрендированные значения строим только сейчас, прямо перед пиковым
+      // детектором, и только когда он реально запускается (≈ 15 Hz).
+      // OpticalRingBuffer хранит baseline в кэше — это тот же самый baseline,
+      // что был возвращён из `optical.push()`.
+      const detrendedValues = this.optical.getDetrendedValues();
       const bandpassed = bandpassPpgForPeakDetection(detrendedValues, opt.fps);
       const smoothed = movingAverage3(bandpassed);
       const result = detectBeats(samples, smoothed, this.config, opt.fps);
@@ -377,106 +576,169 @@ export class BiofeedbackPipeline {
       }
     }
 
-    // mergeBeatTimestampsPhase1 возвращает НОВЫЙ массив, не мутирует this.mergedBeats
-    // — значит ссылки на старые мы можем просто сохранить без копии. Раньше делали
-    // `[...this.mergedBeats]` и `[...this.beatEligible]` каждый optical sample (30 Hz),
-    // что на длинных практиках было O(N) × 30 Hz = заметная нагрузка на CPU.
+    // Мердж делаем только если есть новые удары ИЛИ история непуста и надо её
+    // подрезать по окну BEAT_HISTORY_WINDOW_MS. Если обе части пусты — выходим
+    // через fast-path выше. Если новых ударов нет, но старая история
+    // присутствует, всё равно один раз проходим по trim+collapse: иначе после
+    // потери контакта beats «зависают» в памяти до нового реального удара.
     const prevMerged = this.mergedBeats;
     const prevEligible = this.beatEligible;
-    let merged = mergeBeatTimestampsPhase1(
-      prevMerged,
-      detectedBeatsThisFrame,
-      this.optical.getSamples()[0]?.timestampMs ?? sample.timestampMs,
-    );
-    merged = trimBeatHistory(merged, sample.timestampMs);
-    const collapsed = collapseSplitMergedBeats(merged);
-    merged = collapsed.beats;
-    this.splitArtifactRejectedTotal += collapsed.removedCount;
-    this.mergedBeats = merged;
-    this.beatEligible = syncEligibilityByNearestTime(
-      merged,
-      prevMerged,
-      prevEligible,
-      this.lockState === "tracking",
-    );
+    let merged: number[];
+    let mergedChanged = false;
+    if (detectedBeatsThisFrame.length > 0) {
+      merged = mergeBeatTimestampsPhase1(
+        prevMerged,
+        detectedBeatsThisFrame,
+        this.optical.getSamples()[0]?.timestampMs ?? sample.timestampMs,
+      );
+      merged = trimBeatHistory(merged, sample.timestampMs);
+      const collapsed = collapseSplitMergedBeats(merged);
+      merged = collapsed.beats;
+      this.splitArtifactRejectedTotal += collapsed.removedCount;
+      mergedChanged = true;
+    } else {
+      // Новых ударов в этом кадре нет — просто поддерживаем окно истории.
+      // trimBeatHistory — O(N) one-pass; выполним только если хвост реально
+      // может «выпасть», иначе вообще ничего не делаем (экономим ~2 мс/кадр
+      // на длинных практиках, когда 99% кадров — «без новых ударов»).
+      const oldestKeepMs = sample.timestampMs - 2 * 60 * 1000;
+      if (prevMerged.length > 0 && prevMerged[0]! < oldestKeepMs) {
+        merged = trimBeatHistory(prevMerged, sample.timestampMs);
+        mergedChanged = true;
+      } else {
+        merged = prevMerged as number[];
+      }
+    }
 
-    // 4) Pulse BPM (для обновления lockState и публикации).
-    const bpmSnap = this.pulseBpm.push({
-      timestampMs: sample.timestampMs,
-      mergedBeats: merged,
-    });
+    if (mergedChanged) {
+      this.mergedBeats = merged;
+      this.beatEligible = syncEligibilityByNearestTime(
+        merged,
+        prevMerged,
+        prevEligible,
+        this.lockState === "tracking",
+      );
+    }
 
-    this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;
-    const canonicalEligible = syncEligibilityByNearestTime(
-      this.canonicalBeats,
-      merged,
-      this.beatEligible,
-      this.lockState === "tracking",
-    );
+    // 4) Pulse BPM — троттлим до ~4 Гц. Движок за кадр делает 7-9 аллокаций
+    // временных массивов + несколько медиан; 30 Hz на длинных сессиях — это
+    // основной источник GC-давления. UI показывает BPM не чаще 2 Hz,
+    // LivePulseChannel использует `lastStableRrMs` (обновляется тут же),
+    // поэтому учащённый пересчёт бесполезен. Между вычислениями используем
+    // кэш последнего снимка `lastPulseBpmSnapshot`.
+    const bpmComputeDue =
+      mergedChanged ||
+      this.lastPulseBpmSnapshot === null ||
+      sample.timestampMs - this.lastPulseBpmComputeMs >=
+        BiofeedbackPipeline.PULSE_BPM_COMPUTE_INTERVAL_MS;
+    let bpmSnap = this.lastPulseBpmSnapshot;
+    if (bpmComputeDue) {
+      this.lastPulseBpmComputeMs = sample.timestampMs;
+      bpmSnap = this.pulseBpm.push({
+        timestampMs: sample.timestampMs,
+        mergedBeats: merged,
+      });
+      this.lastPulseBpmSnapshot = bpmSnap;
+      this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;
+    }
+
+    // Fallback на случай, если bpmSnap всё ещё null (первый кадр): делаем
+    // минимальную заглушку, чтобы дальнейший код мог спокойно читать поля.
+    if (bpmSnap === null) {
+      bpmSnap = {
+        bpm: 0,
+        rawBpm: 0,
+        windowSeconds: 0,
+        rrCount: 0,
+        medianRrMs: 0,
+        jitterMs: 0,
+        intervalsMs: [],
+        looksCoherent: false,
+        lastBeatTimestampMs: 0,
+        filteredBeatTimestampsMs: [],
+      };
+    }
+
+    // canonicalEligible пересчитываем только когда реально что-то поменялось в
+    // merged- или canonical-цепочке — иначе старая eligibility остаётся валидна.
+    let canonicalEligible = this.beatEligible;
+    if (bpmComputeDue && mergedChanged) {
+      canonicalEligible = syncEligibilityByNearestTime(
+        this.canonicalBeats,
+        merged,
+        this.beatEligible,
+        this.lockState === "tracking",
+      );
+    }
 
     const hasFreshBeat =
       merged.length > 0 && sample.timestampMs - merged[merged.length - 1]! <= 4_200;
     const hasValidBpm =
       bpmSnap.bpm >= this.config.minPulseBpm && bpmSnap.bpm <= this.config.maxPulseBpm;
     const trackingNow =
-      contactSnap.state === "present" &&
+      contactPresent &&
       qualitySnap.enoughForTracking &&
       hasFreshBeat &&
       hasValidBpm &&
       bpmSnap.looksCoherent;
 
     if (bpmSnap.medianRrMs > 0) {
-      // Планировщику дыхания полезен свежий median RR даже в holding,
-      // чтобы следующий цикл планировался не от устаревшего baseline.
       this.lastMedianRrMs = bpmSnap.medianRrMs;
     }
     if (trackingNow) {
       this.lockState = "tracking";
       this.lastStableRrMs = bpmSnap.medianRrMs;
     } else if (this.lockState === "tracking") {
-      // Переход в hold — позволяем engines использовать последний стабильный RR.
       this.lockState = "holding";
     }
 
     // 5) Calibration FSM.
     const calSnap = this.calibration.push({
       timestampMs: sample.timestampMs,
-      contactPresent: contactSnap.state === "present",
+      contactPresent,
       goodSettleTick: trackingNow,
-      contactLost: contactSnap.state !== "present",
+      contactLost: !contactPresent,
     });
-    this.bus.publish("session", {
-      phase: calSnap.phase,
-      warmupElapsedMs: calSnap.warmupElapsedMs,
-      settleGoodMsAccum: calSnap.settleGoodMsAccum,
-      becameReady: calSnap.becameReady,
-      becameLost: calSnap.becameLost,
-    });
+    this.maybePublishSessionEvent(sample.timestampMs, calSnap);
     if (calSnap.becameReady) {
       this.hrvAccumulator.markCalibrationComplete(sample.timestampMs);
     }
 
-    // 6) HRV accumulator (только после ready).
-    if (this.hrvAccumulator.isReady()) {
+    // 6) HRV accumulator (только после ready и только если реально появились
+    // новые удары — ingest по уже накопленному ряду на каждом кадре только
+    // создаёт временные индексы, ничего не добавляя).
+    if (this.hrvAccumulator.isReady() && mergedChanged) {
       this.hrvAccumulator.ingest(this.canonicalBeats, canonicalEligible, sample.timestampMs);
     }
 
-    // 7) Live pulse channel.
-    const liveSnap = this.livePulse.push({
-      timestampMs: sample.timestampMs,
-      mergedBeats: merged,
-      pulseLockState: this.lockState,
-      lastStableRrMs: this.lastStableRrMs,
-      fingerDetected: contactSnap.state === "present",
-    });
-    for (const tick of liveSnap.newTicks) {
-      this.bus.publish("beat", { beat: tick.beat });
-    }
-    if (liveSnap.heartbeatLost) {
-      this.bus.publish("error", {
-        source: "LivePulseChannel",
-        message: "heartbeatLost",
+    // 7) Live pulse channel — нужен только когда реально трекаем пульс
+    // (пальцем) ИЛИ ещё доступна экстраполяция по последнему RR. Без этих
+    // условий он всё равно не эмитит тиков, но зато каждый кадр делает
+    // slice(16) + spread + Set-проверки. За 20-минутную практику это
+    // сотни тысяч бесполезных аллокаций.
+    const livePulseNeeded =
+      contactPresent ||
+      (this.lastStableRrMs > 0 &&
+        merged.length > 0 &&
+        sample.timestampMs - merged[merged.length - 1]! <=
+          PULSE_LOCK_RECENT_TRACKING_MS);
+    if (livePulseNeeded) {
+      const liveSnap = this.livePulse.push({
+        timestampMs: sample.timestampMs,
+        mergedBeats: merged,
+        pulseLockState: this.lockState,
+        lastStableRrMs: this.lastStableRrMs,
+        fingerDetected: contactPresent,
       });
+      for (const tick of liveSnap.newTicks) {
+        this.bus.publish("beat", { beat: tick.beat });
+      }
+      if (liveSnap.heartbeatLost) {
+        this.bus.publish("error", {
+          source: "LivePulseChannel",
+          message: "heartbeatLost",
+        });
+      }
     }
 
     // 8) Pulse BPM publish (~2 Гц throttle).
@@ -496,19 +758,17 @@ export class BiofeedbackPipeline {
       });
     }
 
-    // 9) HRV / Stress (после ready) — троттлим до 1 Hz. Внутри `computePracticeHrvMetricsFullSession`
-    // Hampel-фильтр O(N²): на 40-й минуте ~3000 beats × 30 Hz = сотни миллионов ops/s.
-    // UI всё равно показывает не чаще 1 Hz — значит достаточно раз в секунду.
+    // 9) HRV / Stress (после ready) — троттлим до 10 с.
     if (
       this.hrvAccumulator.isReady() &&
       qualitySnap.enoughForHrv &&
-      sample.timestampMs - this.lastHrvStressComputeMs >= 1000
+      sample.timestampMs - this.lastHrvStressComputeMs >=
+        BiofeedbackPipeline.HRV_STRESS_LIVE_INTERVAL_MS
     ) {
       this.lastHrvStressComputeMs = sample.timestampMs;
       const beats = this.hrvAccumulator.getBeats();
       const hrvSnap = this.hrv.push(beats);
       const stressSnap = this.stress.push(beats);
-      // Публикуем только если есть рассчитанный тиер и валидные ударов ≥ minimum.
       if (hrvSnap.tier !== "none") {
         this.bus.publish("rmssd", {
           rmssdMs: hrvSnap.rmssdMs,
@@ -533,26 +793,80 @@ export class BiofeedbackPipeline {
       }
     }
 
-    // 10) Coherence (только если активна сессия).
+    // 10) Coherence (только если активна сессия). Appendим новые удары только
+    // когда они действительно появились: за сессию это 20-60 закрытий циклов,
+    // а не 36 000 кадров.
     if (this.coherence.isActive()) {
-      this.coherence.appendBeats(this.canonicalBeats);
-      // Публикуем снимок раз в секунду.
+      if (mergedChanged) {
+        this.coherence.appendBeats(this.canonicalBeats);
+      }
       if (sample.timestampMs - this.lastCoherenceSnapshotMs >= 1000) {
         this.lastCoherenceSnapshotMs = sample.timestampMs;
-        const snap = this.coherence.snapshot(sample.timestampMs);
-        if (snap) {
-          const last = snap.perSecond[snap.perSecond.length - 1];
-          this.bus.publish("coherence", {
-            currentPercent: last?.coherenceMappedPercent ?? 0,
-            averagePercent: snap.coherenceAveragePercent ?? 0,
-            maxPercent: snap.coherenceMaxPercent ?? 0,
-            smoothedSeries: snap.perSecondSmoothed.map((s) => s.coherenceMappedPercent),
-            entryTimeSec: snap.entryTimeSec,
-            lastCompletedRsaCycle: this.coherence.extractLastCompletedRsaCycle(snap),
-          });
-        }
+        this.publishCoherenceIfNew(sample.timestampMs);
       }
     }
+  }
+
+  /**
+   * Публикует `contact` только при реальных изменениях: смена `state`
+   * (present/absent/weak), заметный сдвиг `signalQuality` (>
+   * `CONTACT_QUALITY_EPSILON`) или heartbeat раз в секунду. Раньше событие
+   * шло на каждый кадр (15-30 Hz) — за 20 минут это 18-36 тыс. публикаций,
+   * и каждая пробуждала `snapshot-adapter`'s bump() → лишние рендеры UI.
+   */
+  private maybePublishContactEvent(
+    timestampMs: number,
+    state: "absent" | "weak" | "present",
+    confidence: number,
+    signalQuality: number,
+    absentForMs: number,
+  ): void {
+    const stateChanged = state !== this.lastContactStatePublished;
+    const qualityDelta = Math.abs(signalQuality - this.lastContactSignalQualityPublished);
+    const qualityShiftSignificant = qualityDelta >= BiofeedbackPipeline.CONTACT_QUALITY_EPSILON;
+    const heartbeatDue =
+      timestampMs - this.lastContactEventMs >= BiofeedbackPipeline.CONTACT_HEARTBEAT_MS;
+    if (!stateChanged && !qualityShiftSignificant && !heartbeatDue) {
+      return;
+    }
+    this.lastContactStatePublished = state;
+    this.lastContactSignalQualityPublished = signalQuality;
+    this.lastContactEventMs = timestampMs;
+    this.bus.publish("contact", {
+      state,
+      confidence,
+      signalQuality,
+      absentForMs,
+    });
+  }
+
+  /**
+   * Публикует `session` только если реально что-то изменилось: поменялась фаза,
+   * сработал одноразовый флаг `becameReady/becameLost`, или прошёл «heartbeat»
+   * в `SESSION_HEARTBEAT_MS` (для прогресс-индикаторов warmup/settle в UI).
+   * Раньше на каждый кадр (30 Hz) публиковалось событие — за 20-минутную
+   * практику 36 000 событий, и каждое будило snapshot-bump + обновляло history
+   * ring на шине. Теперь — ≤ 1 Hz в стабильной фазе + моментально на смену.
+   */
+  private maybePublishSessionEvent(
+    timestampMs: number,
+    calSnap: CalibrationSnapshot,
+  ): void {
+    const phaseChanged = calSnap.phase !== this.lastSessionEventPhase;
+    const heartbeatDue =
+      timestampMs - this.lastSessionEventMs >= BiofeedbackPipeline.SESSION_HEARTBEAT_MS;
+    if (!phaseChanged && !calSnap.becameReady && !calSnap.becameLost && !heartbeatDue) {
+      return;
+    }
+    this.lastSessionEventPhase = calSnap.phase;
+    this.lastSessionEventMs = timestampMs;
+    this.bus.publish("session", {
+      phase: calSnap.phase,
+      warmupElapsedMs: calSnap.warmupElapsedMs,
+      settleGoodMsAccum: calSnap.settleGoodMsAccum,
+      becameReady: calSnap.becameReady,
+      becameLost: calSnap.becameLost,
+    });
   }
 
   /**
@@ -573,7 +887,16 @@ export class BiofeedbackPipeline {
     this.lockState = "searching";
     this.lastPulseBpmPublishMs = 0;
     this.lastCoherenceSnapshotMs = 0;
+    this.lastCoherenceRevisionPublished = 0;
     this.lastHrvStressComputeMs = 0;
+    this.lastPeakDetectMs = 0;
+    this.lastPulseBpmComputeMs = 0;
+    this.lastPulseBpmSnapshot = null;
+    this.lastSessionEventPhase = null;
+    this.lastSessionEventMs = 0;
+    this.lastContactStatePublished = null;
+    this.lastContactSignalQualityPublished = 0;
+    this.lastContactEventMs = 0;
     this.dicroticRejectedTotal = 0;
     this.splitArtifactRejectedTotal = 0;
     this.peakWindowsObserved = 0;

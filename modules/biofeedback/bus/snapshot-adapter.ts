@@ -18,6 +18,17 @@ import type { CalibrationPhase } from "@/modules/biofeedback/quality/calibration
 import type { PulseLockState } from "@/modules/biofeedback/core/types";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 
+/**
+ * Стабильная пустая ссылка для устаревшего поля `opticalSamples` в
+ * `BiofeedbackSnapshot`. Подписка на `optical`-канал здесь больше не
+ * нужна: единственным потребителем optical preview остался
+ * `CoherenceBreathScreen`, который держит свою локальную подписку,
+ * активную только в фазах `warmup`/`qualityCheck`. Подписываться на
+ * optical 30 Гц в общем snapshot-адаптере и копить 48 последних сэмплов
+ * каждый кадр — это GC-давление без потребителей.
+ */
+const EMPTY_OPTICAL_SAMPLES: readonly RawOpticalSample[] = Object.freeze([]);
+
 export interface BiofeedbackSnapshot {
   /** Метка последнего значимого события (по времени сэмпла). */
   timestampMs: number;
@@ -47,7 +58,6 @@ export interface BiofeedbackSnapshot {
   currentStressPercent: number | null;
 }
 
-const OPTICAL_HISTORY_LIMIT = 48;
 /**
  * Минимальный интервал между двумя `setRevision`. Bus-каналы `pulseBpm`/`contact`/
  * `coherence` могут эмитить события 5-10 раз в секунду, и каждое из них раньше
@@ -64,7 +74,6 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
   const pipeline = useBiofeedbackPipeline();
   /** Без этого `useMemo` ниже не пересчитывается: `bus`/`pipeline` стабильны между кадрами. */
   const [revision, setRevision] = useState(0);
-  const opticalRef = useRef<RawOpticalSample[]>([]);
   const lastBumpWallMsRef = useRef(0);
   const pendingBumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -102,13 +111,6 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
       bus.subscribe("rmssd", bump),
       bus.subscribe("stress", bump),
       bus.subscribe("coherence", bump),
-      bus.subscribe("optical", (sample) => {
-        opticalRef.current.push(sample);
-        if (opticalRef.current.length > OPTICAL_HISTORY_LIMIT) {
-          opticalRef.current = opticalRef.current.slice(-OPTICAL_HISTORY_LIMIT);
-        }
-        // Не форсим re-render на каждом optical сэмпле — UI его и так часто не показывает.
-      }),
     );
     return () => {
       for (const u of unsubs) u();
@@ -127,8 +129,9 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
     const stress = bus.getLast("stress");
     const coh = bus.getLast("coherence");
 
+    const lastOptical = bus.getLast("optical");
     return {
-      timestampMs: opticalRef.current[opticalRef.current.length - 1]?.timestampMs ?? 0,
+      timestampMs: lastOptical?.timestampMs ?? 0,
       pulseRateBpm: pulse?.bpm ?? 0,
       signalQuality:
         contact?.signalQuality != null
@@ -140,7 +143,7 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
       calibrationPhase: session?.phase ?? "idle",
       hasFreshBeat: pulse?.hasFreshBeat ?? false,
       mergedBeats: pipeline.getMergedBeats(),
-      opticalSamples: opticalRef.current,
+      opticalSamples: EMPTY_OPTICAL_SAMPLES,
       currentCoherencePercent: coh?.currentPercent ?? null,
       currentRmssdMs: rmssd?.rmssdMs ?? null,
       currentStressPercent: stress?.percent ?? null,

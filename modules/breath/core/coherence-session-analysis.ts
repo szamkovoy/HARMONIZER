@@ -135,8 +135,20 @@ export function dedupeBeatTimestampsMs(values: readonly number[], toleranceMs: n
   return out;
 }
 
-function beatsToEvents(beats: readonly number[]): RrBeatEvent[] {
-  const sorted = [...beats].sort((a, b) => a - b);
+/**
+ * Из ряда меток beats (абсолютное время, мс) строит последовательность RR-событий:
+ * `timeMs` — середина между соседними beats, `rrMs` — интервал.
+ *
+ * По контракту `CoherenceEngine.appendBeats` входной массив уже отсортирован и
+ * дедуплицирован; флаг `sortIfNeeded=false` позволяет live-пути на «горячем» тике
+ * не пересортировывать массив каждую секунду.
+ */
+export function beatsToEvents(
+  beats: readonly number[],
+  options: { sortIfNeeded?: boolean } = {},
+): RrBeatEvent[] {
+  const { sortIfNeeded = true } = options;
+  const sorted = sortIfNeeded ? [...beats].sort((a, b) => a - b) : beats;
   const out: RrBeatEvent[] = [];
   for (let i = 1; i < sorted.length; i += 1) {
     const rr = sorted[i]! - sorted[i - 1]!;
@@ -150,13 +162,13 @@ function beatsToEvents(beats: readonly number[]): RrBeatEvent[] {
   return out;
 }
 
-function mapCoherenceRatioToPercent(ratio: number): number {
+export function mapCoherenceRatioToPercent(ratio: number): number {
   const clamped = Math.min(1, ratio / COHERENCE_MASTER_RATIO);
   return Math.min(100, 100 * clamped ** COHERENCE_STRETCH_EXPONENT);
 }
 
 /** Медианный фильтр по окну `windowSeconds` секунд при частоте 1 выборка/с (п. 8 ТЗ). */
-function medianFilter1HzWindowSeconds(values: readonly number[], windowSeconds: number): number[] {
+export function medianFilter1HzWindowSeconds(values: readonly number[], windowSeconds: number): number[] {
   if (values.length === 0) {
     return [];
   }
@@ -191,9 +203,9 @@ function median(values: readonly number[]): number | null {
   return s[mid]!;
 }
 
-const BPM_ZERO_EPS = 0.5;
+export const BPM_ZERO_EPS = 0.5;
 
-function applySecondBpmMask(
+export function applySecondBpmMask(
   timesMs: readonly number[],
   bpm: number[],
   sessionStartedAtMs: number,
@@ -238,7 +250,7 @@ function countValidDataSeconds(hasReal: readonly boolean[]): number {
   return n;
 }
 
-function analyzeWindow(
+export function analyzeWindow(
   bpm: readonly number[],
   sampleRateHz: number,
 ): { pwin: number; ptotal: number; coherenceRatio: number; fftSize: number; bpmMean: number } {

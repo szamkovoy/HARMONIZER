@@ -19,6 +19,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.source_files = "**/*.{h,m,mm,swift}"
+  s.frameworks = "Accelerate"
   s.dependency "ExpoModulesCore"
   s.dependency "VisionCamera"
 end

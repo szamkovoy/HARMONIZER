@@ -20,7 +20,8 @@ export interface CoherenceBreathTiming {
 }
 
 export const DEFAULT_COHERENCE_TEST_TIMING: CoherenceBreathTiming = {
-  totalMs: 120_000,
+  // Временно 20 мин — тест перформанса визуализации; обычно 120_000 (2 мин).
+  totalMs: 20 * 60_000,
   instructionPhaseMs: 20_000,
   gongBeforeEndMs: 10_000,
   dimBeforeEndMs: 5000,

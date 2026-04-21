@@ -18,6 +18,18 @@ import type {
 
 const RING_SIZE_DEFAULT = 256;
 
+/**
+ * Каналы с «высокой» частотой публикаций (≥10 Гц): optical 30 Гц, contact 30 Гц.
+ * Для них храним **существенно меньше** истории — иначе на длинных практиках
+ * накапливается GC-давление (каждая публикация делает `history.push + history.shift`
+ * при переполнении, а full-скан массива в 256 элементов на каждом из 36 000 кадров
+ * за 20 минут сессии ощутимо греет CPU). Экспорт v3 всё равно ограничивает
+ * channel log `slice(-256)`, и 64 точки оптики/контакта за последнюю секунду
+ * достаточно для диагностики.
+ */
+const HOT_CHANNELS: ReadonlySet<string> = new Set<string>(["optical", "contact"]);
+const HOT_CHANNEL_HISTORY_LIMIT = 32;
+
 export class BiofeedbackBus {
   private readonly listeners: Map<ChannelName, Set<ChannelListener<ChannelName>>> = new Map();
   private readonly lastEvent: Map<ChannelName, unknown> = new Map();
@@ -26,6 +38,13 @@ export class BiofeedbackBus {
 
   constructor(options: { historyLimit?: number } = {}) {
     this.historyLimit = options.historyLimit ?? RING_SIZE_DEFAULT;
+  }
+
+  private limitForChannel(channel: ChannelName): number {
+    if (HOT_CHANNELS.has(String(channel))) {
+      return Math.min(HOT_CHANNEL_HISTORY_LIMIT, this.historyLimit);
+    }
+    return this.historyLimit;
   }
 
   subscribe<K extends ChannelName>(channel: K, listener: ChannelListener<K>): () => void {
@@ -45,10 +64,14 @@ export class BiofeedbackBus {
 
   publish<K extends ChannelName>(channel: K, event: ChannelEvent<K>): void {
     this.lastEvent.set(channel, event);
+    const limit = this.limitForChannel(channel);
     const ring = this.history.get(channel) ?? [];
     ring.push(event);
-    if (ring.length > this.historyLimit) {
-      ring.shift();
+    // Для hot-каналов дополнительно схлопываем возможно переросшую историю в
+    // один `splice`, а не многократные `shift` — важно при переходе с большого
+    // лимита (для холодных каналов) обратно на маленький.
+    if (ring.length > limit) {
+      ring.splice(0, ring.length - limit);
     }
     this.history.set(channel, ring);
 
