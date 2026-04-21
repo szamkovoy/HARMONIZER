@@ -1,9 +1,11 @@
 import AVFoundation
 import ExpoModulesCore
+import Foundation
 import VisionCamera
 
 public class BiofeedbackFingerFrameProcessorModule: Module {
   private static var hasRegisteredPlugin = false
+  private var thermalObserver: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {
     Name("BiofeedbackFingerFrameProcessor")
@@ -12,6 +14,8 @@ public class BiofeedbackFingerFrameProcessorModule: Module {
       "analyzeMethod": "analyzeFingerRoi"
     ])
 
+    Events("onThermalStateChanged")
+
     OnCreate {
       if !Self.hasRegisteredPlugin {
         FrameProcessorPluginRegistry.addFrameProcessorPlugin("analyzeFingerRoi") { proxy, options in
@@ -19,6 +23,42 @@ public class BiofeedbackFingerFrameProcessorModule: Module {
         }
         Self.hasRegisteredPlugin = true
       }
+      // Подписываемся на системное уведомление о смене теплового состояния.
+      // iOS даёт только 4 уровня (nominal/fair/serious/critical), событие
+      // приходит при переходе между ними. Используется гибридным режимом
+      // измерения: при первом переходе в `fair` (первый «звонок» о нагреве)
+      // переключаем сессию в эмуляцию пульса, пока телефон не остыл.
+      self.thermalObserver = NotificationCenter.default.addObserver(
+        forName: ProcessInfo.thermalStateDidChangeNotification,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        guard let self = self else { return }
+        let state = Self.thermalStateString(ProcessInfo.processInfo.thermalState)
+        self.sendEvent("onThermalStateChanged", ["state": state])
+      }
+    }
+
+    OnDestroy {
+      if let observer = self.thermalObserver {
+        NotificationCenter.default.removeObserver(observer)
+        self.thermalObserver = nil
+      }
+    }
+
+    /**
+     * Возвращает текущий уровень теплового состояния (ProcessInfo.thermalState).
+     * Значения: "nominal" | "fair" | "serious" | "critical".
+     *
+     * - nominal: все хорошо, троттлинга нет.
+     * - fair: первый «звонок», ОС готовится снижать частоты. **Рекомендуем
+     *   на этом уровне уводить сессию в эмуляцию пульса**: графика ещё не
+     *   тормозит, но тепло быстро накопится — лучше отпустить процессор.
+     * - serious: частоты уже снижены, приложение начинает заметно лагать.
+     * - critical: экстренное состояние, система может убить процесс.
+     */
+    AsyncFunction("getThermalState") { () -> String in
+      return Self.thermalStateString(ProcessInfo.processInfo.thermalState)
     }
 
     /**
@@ -94,5 +134,15 @@ public class BiofeedbackFingerFrameProcessorModule: Module {
       position: .back
     )
     return session.devices.first
+  }
+
+  private static func thermalStateString(_ state: ProcessInfo.ThermalState) -> String {
+    switch state {
+    case .nominal: return "nominal"
+    case .fair: return "fair"
+    case .serious: return "serious"
+    case .critical: return "critical"
+    @unknown default: return "nominal"
+    }
   }
 }

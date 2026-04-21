@@ -124,6 +124,14 @@ export class BreathPhasePlanner {
   private lastRsaCycle: RsaCycleForPlanner | null = null;
   /** Для первого цикла, пока нет ударов. */
   private seedBpm = 60;
+  /**
+   * Если true — `updateBaseline()` — no-op. Используется в гибридном режиме
+   * измерения на фазе эмуляции: baseline заморожен на значении, вычисленном
+   * по последней минуте реальных замеров, и не должен дёргаться случайными
+   * beats, которые в это время могут проскакивать (например, последние
+   * отложенные события merged-ленты).
+   */
+  private baselineFrozen = false;
 
   /** Задать стартовый BPM (используется до первого EMA-шага). */
   seedBaseline(bpm: number): void {
@@ -135,13 +143,38 @@ export class BreathPhasePlanner {
   }
 
   /**
+   * Заморозить baseline: следующие `updateBaseline()` будут проигнорированы.
+   * Используется гибридным контроллером при переходе realStart → emulated.
+   * Предполагается, что вызову предшествует `seedBaseline(stableBpm)` с
+   * «хорошим» значением, либо внешний ramp (см. CoherenceBreathScreen,
+   * там делается плавный 10-секундный переход через seedBaseline).
+   */
+  freezeBaseline(): void {
+    this.baselineFrozen = true;
+  }
+
+  /**
+   * Разморозить baseline. Используется при переходе emulated → realEnd:
+   * реальные beats возобновляются, и EMA снова ведёт baseline за ними.
+   * Сбрасываем `lastBaselineSampleMs = 0`, чтобы первый апдейт после
+   * разморозки не пытался интерполировать большой Δt и не дёргал baseline.
+   */
+  unfreezeBaseline(): void {
+    this.baselineFrozen = false;
+    this.lastBaselineSampleMs = 0;
+  }
+
+  /**
    * Обновить baseline EMA значением «мгновенного» BPM (из `medianRrMs`).
    *  - `nowMs` — текущее время кадра;
    *  - `currentBpm` — свежий BPM (0 игнорируется).
    *
    * Линейный ramp: `dBpm = Δ × dtMs / TAU`, за τ достигается любой диапазон.
+   *
+   * Если baseline заморожен (см. `freezeBaseline`), апдейты игнорируются.
    */
   updateBaseline(nowMs: number, currentBpm: number): void {
+    if (this.baselineFrozen) return;
     const b = clampBaseline(currentBpm);
     if (!(b > 0)) return;
 
@@ -182,6 +215,7 @@ export class BreathPhasePlanner {
     this.baselineBpm = 0;
     this.lastBaselineSampleMs = 0;
     this.lastRsaCycle = null;
+    this.baselineFrozen = false;
   }
 
   getBaselineBpm(): number {

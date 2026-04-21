@@ -1,9 +1,17 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { VisionCameraProxy, type Frame } from "react-native-vision-camera";
 
+export type ThermalState = "nominal" | "fair" | "serious" | "critical";
+
+type ThermalStateEvent = { state: ThermalState };
+
+type ThermalSubscription = { remove(): void };
+
 type BiofeedbackFingerFrameProcessorNative = {
   setBackTorchLevel?(level: number): Promise<boolean>;
   turnOffBackTorch?(): Promise<boolean>;
+  getThermalState?(): Promise<ThermalState>;
+  addListener?(eventName: string, listener: (event: ThermalStateEvent) => void): ThermalSubscription;
 };
 
 const nativeModule = requireOptionalNativeModule<BiofeedbackFingerFrameProcessorNative>(
@@ -38,6 +46,54 @@ export async function turnOffBackTorch(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Возвращает текущий уровень теплового состояния (iOS ProcessInfo.thermalState).
+ *
+ * Уровни: "nominal" | "fair" | "serious" | "critical".
+ *  - `nominal` — троттлинга нет.
+ *  - `fair` — ОС готовится снижать частоты CPU/GPU (первый «звонок»).
+ *    Гибридный контроллер переключает сессию в эмуляцию пульса на этом
+ *    уровне, чтобы предотвратить лаг ДО того, как он станет заметным.
+ *  - `serious` — частоты снижены, приложение уже подтормаживает.
+ *  - `critical` — экстренное состояние, система может убить процесс.
+ *
+ * На Android / в симуляторе / при отсутствии native-модуля всегда
+ * возвращает `"nominal"`. В таком режиме гибридный контроллер опирается
+ * только на временной кэп (см. `hybrid-measurement-controller`).
+ */
+export async function getThermalState(): Promise<ThermalState> {
+  if (!nativeModule?.getThermalState) return "nominal";
+  try {
+    return await nativeModule.getThermalState();
+  } catch {
+    return "nominal";
+  }
+}
+
+/**
+ * Подписка на изменения теплового состояния. iOS шлёт событие один раз
+ * при переходе между уровнями (nominal ↔ fair ↔ serious ↔ critical).
+ *
+ * Используется гибридным контроллером для мгновенной реакции: как только
+ * система повысила уровень до `fair`, контроллер готов переключать сессию
+ * в эмуляцию (если также соблюдены min-time и достаточно данных).
+ */
+export function subscribeThermalState(
+  listener: (state: ThermalState) => void,
+): { remove(): void } {
+  if (!nativeModule?.addListener) {
+    return { remove() {} };
+  }
+  const subscription = nativeModule.addListener("onThermalStateChanged", (event) => {
+    listener(event.state);
+  });
+  return {
+    remove() {
+      subscription.remove();
+    },
+  };
 }
 
 export type FingerFrameProcessorOptions = {

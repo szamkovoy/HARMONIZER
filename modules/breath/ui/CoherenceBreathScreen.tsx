@@ -20,12 +20,20 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { isFingerFrameProcessorAvailable } from "@/modules/biofeedback-finger-frame-processor/src";
+import {
+  getThermalState,
+  isFingerFrameProcessorAvailable,
+  subscribeThermalState,
+  type ThermalState,
+} from "@/modules/biofeedback-finger-frame-processor/src";
 
 import { BiofeedbackProvider, useBiofeedbackPipeline } from "@/modules/biofeedback/bus/biofeedback-provider";
 import { useBiofeedbackBus, useBiofeedbackChannel } from "@/modules/biofeedback/bus/react";
 import { useBiofeedbackSnapshot } from "@/modules/biofeedback/bus/snapshot-adapter";
-import { computePracticeHrvMetricsFullSession } from "@/modules/biofeedback/core/metrics";
+import {
+  computePracticeHrvMetricsFullSession,
+  type PracticeHrvMetricsResult,
+} from "@/modules/biofeedback/core/metrics";
 import { FINGER_CAMERA_CAPTURE_CONFIG } from "@/modules/biofeedback/core/types";
 import { EmulatedPulseSensorSource } from "@/modules/biofeedback/sensors/EmulatedPulseSensorSource";
 import { FingerPpgCameraSource } from "@/modules/biofeedback/sensors/FingerPpgCameraSource";
@@ -46,6 +54,10 @@ import {
   type BreathPhaseShape,
   type PlannedCycle,
 } from "@/modules/breath/core/breath-phase-planner";
+import {
+  HybridMeasurementController,
+  type HybridPhase,
+} from "@/modules/breath/core/hybrid-measurement-controller";
 import {
   BREATH_PRACTICES,
   getBreathPracticeById,
@@ -93,6 +105,30 @@ const PPG_QUALITY_GRADE_B_MS = 2000;
 const PPG_QUALITY_GRADE_C_MS = 7000;
 /** Совпадает с длительностью практики (`TIMING.totalMs`), иначе forceSecondBpmZero не покрывает хвост сессии. */
 const PPG_SESSION_SECONDS = Math.round(TIMING.totalMs / 1000);
+/**
+ * Гибридный режим измерения активируется только для достаточно длинных
+ * практик. Короче этого — нет смысла разбивать на три фазы: даже минимум
+ * realStart (3 мин) + endWindow (4 мин) + буфер не помещаются.
+ */
+const MIN_TOTAL_MS_FOR_HYBRID = 10 * 60_000;
+/**
+ * Период tick'ов гибридного контроллера (сверка по времени + thermalState).
+ * 1 Гц достаточно: переходы между фазами не требуют миллисекундной точности.
+ */
+const HYBRID_TICK_MS = 1_000;
+/**
+ * Длительность плавного перехода baselineBpm с реального значения на
+ * frozen-значение при переходе в emulated. За 10 с индикатор дыхания
+ * без рывков придёт к зафиксированной скорости.
+ */
+const HYBRID_BASELINE_RAMP_MS = 10_000;
+const HYBRID_BASELINE_RAMP_STEP_MS = 500;
+/**
+ * Окно RR-истории для вычисления «стабильного» BPM в момент перехода
+ * realStart → emulated. Последние 60 с реальных замеров дают достаточно
+ * устойчивое значение, чтобы индикатор не прыгал при переходе.
+ */
+const HYBRID_STABLE_BPM_WINDOW_MS = 60_000;
 /** Длительность одного показа баннера ППГ (секунды × 1000). */
 const PPG_BANNER_DISPLAY_MS = 4000;
 
@@ -118,6 +154,26 @@ function computeStdDev(values: readonly number[]): number {
   const variance =
     values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
   return Math.sqrt(variance);
+}
+
+/**
+ * Медианный BPM по валидным RR-интервалам ряда beats. Устойчив к
+ * пропущенным или ложным ударам (которые проявляются как очень длинные
+ * или очень короткие RR). Используется для расчёта «стабильного» BPM
+ * перед заморозкой baseline (переход realStart → emulated) и для
+ * финальных метрик (средний пульс по окну начала/конца).
+ */
+function computeMedianBpmFromBeats(beats: readonly number[]): number | null {
+  if (beats.length < 3) return null;
+  const rrs: number[] = [];
+  for (let i = 1; i < beats.length; i += 1) {
+    const d = beats[i]! - beats[i - 1]!;
+    if (d >= 300 && d <= 2000) rrs.push(d);
+  }
+  if (rrs.length < 2) return null;
+  const sorted = rrs.slice().sort((a, b) => a - b);
+  const med = sorted[Math.floor(sorted.length / 2)]!;
+  return med > 0 ? 60_000 / med : null;
 }
 
 /**
@@ -184,6 +240,79 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
    * следующей сессии раньше, чем пользователь уйдёт с results).
    */
   const [finalPulseWasEmulated, setFinalPulseWasEmulated] = useState(false);
+
+  // ─── Гибридный режим измерения ─────────────────────────────────────────
+  //
+  // Длинные практики делятся на три фазы реальной vs эмулируемой работы
+  // с PPG-камерой. См. `HybridMeasurementController` и комментарий к
+  // `MIN_TOTAL_MS_FOR_HYBRID`.
+  const hybridControllerRef = useRef<HybridMeasurementController>(new HybridMeasurementController());
+  /**
+   * Текущая фаза гибридного режима. Держим в `ref`, а не в `state`, чтобы
+   * не вызывать перерендеры на границе фаз — UI во время `emulated` намеренно
+   * выглядит идентично `realStart`, чтобы пользователь не заметил перехода.
+   */
+  const hybridPhaseRef = useRef<HybridPhase>("realStart");
+  const thermalStateRef = useRef<ThermalState>("nominal");
+  /**
+   * `silent=true` → FingerPpgCameraSource держит камеру и фонарик активными,
+   * но worklet не вызывает native-плагин. Включается на фазе emulated.
+   */
+  const [cameraSilent, setCameraSilent] = useState(false);
+  /**
+   * Границы окон реальных измерений в логической шкале времени
+   * (camera-presentation ms). Держим в `ref`, чтобы не заставлять finalize-
+   * эффект пере-регистрировать `setInterval` при смене фаз гибрида.
+   */
+  const realStartEndedAtMsRef = useRef<number | null>(null);
+  const realEndStartedAtMsRef = useRef<number | null>(null);
+  /**
+   * Финальные dual-window метрики. На экране результатов показываются две
+   * колонки: «начало» и «конец», без усреднения между ними.
+   */
+  const [finalStartHrv, setFinalStartHrv] = useState<PracticeHrvMetricsResult | null>(null);
+  const [finalEndHrv, setFinalEndHrv] = useState<PracticeHrvMetricsResult | null>(null);
+  const [finalStartAnalysis, setFinalStartAnalysis] = useState<CoherenceSessionResult | null>(null);
+  const [finalEndAnalysis, setFinalEndAnalysis] = useState<CoherenceSessionResult | null>(null);
+  const [finalStartAvgBpm, setFinalStartAvgBpm] = useState<number | null>(null);
+  const [finalEndAvgBpm, setFinalEndAvgBpm] = useState<number | null>(null);
+  const [finalStartWindowMs, setFinalStartWindowMs] = useState<number | null>(null);
+  const [finalEndWindowMs, setFinalEndWindowMs] = useState<number | null>(null);
+
+  /**
+   * Рамп-таймер плавного перехода baselineBpm при переходе в emulated.
+   * Живёт только во время 10-секундного ramp'а, очищается либо сам собой
+   * при достижении target'а, либо при смене фазы / сбросе практики.
+   */
+  const baselineRampTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopBaselineRamp = useCallback(() => {
+    if (baselineRampTimerRef.current) {
+      clearInterval(baselineRampTimerRef.current);
+      baselineRampTimerRef.current = null;
+    }
+  }, []);
+  const startBaselineRampTo = useCallback(
+    (targetBpm: number) => {
+      stopBaselineRamp();
+      const planner = plannerRef.current;
+      const fromBpm = planner.getBaselineBpm();
+      const startMs = Date.now();
+      if (!(targetBpm > 0) || Math.abs(targetBpm - fromBpm) < 0.5) {
+        // Нечего ramp'ить — просто фиксируем target.
+        planner.seedBaseline(targetBpm > 0 ? targetBpm : fromBpm);
+        return;
+      }
+      baselineRampTimerRef.current = setInterval(() => {
+        const t = Math.min(1, (Date.now() - startMs) / HYBRID_BASELINE_RAMP_MS);
+        const bpm = fromBpm + (targetBpm - fromBpm) * t;
+        planner.seedBaseline(bpm);
+        if (t >= 1) {
+          stopBaselineRamp();
+        }
+      }, HYBRID_BASELINE_RAMP_STEP_MS);
+    },
+    [stopBaselineRamp],
+  );
 
   /**
    * Cycle-delayed playback: план каждого цикла фиксируется на его старте и меняется
@@ -703,6 +832,93 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     str.ppgBiometryPausedMessage,
   ]);
 
+  // ─── Thermal state: подписка на native event + первичный опрос ──────────
+  //
+  // На iOS `ProcessInfo.thermalState` приходит в JS через нативный модуль.
+  // Обновляем `thermalStateRef.current`, чтобы hybrid-тикер мог принимать
+  // решение о переходе realStart → emulated заранее, ДО наступления сильного
+  // троттлинга (уровень `fair`).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getThermalState();
+        if (!cancelled) thermalStateRef.current = s;
+      } catch {
+        // игнорируем: в Expo Go / симуляторе getThermalState может отсутствовать
+      }
+    })();
+    const sub = subscribeThermalState((s) => {
+      thermalStateRef.current = s;
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
+  // ─── Гибридный тик: смена фаз measurement/emulation/measurement ─────────
+  //
+  // Работает только для длительных практик (≥ `MIN_TOTAL_MS_FOR_HYBRID`). В
+  // короткой практике (≤ 10 мин) трёхфазный режим не имеет смысла: там нет
+  // перегрева, и дуальное окно финала съест половину сессии.
+  useEffect(() => {
+    if (phase !== "running" || sessionStartWallMs == null || sessionStartLogicalMs == null) {
+      return;
+    }
+    if (TIMING.totalMs < MIN_TOTAL_MS_FOR_HYBRID) return;
+
+    const controller = hybridControllerRef.current;
+    const pipelineLocal = pipeline;
+    const id = setInterval(() => {
+      const now = Date.now();
+      const out = controller.tick({
+        nowMs: now,
+        practiceStartMs: sessionStartWallMs,
+        practiceTotalMs: TIMING.totalMs,
+        thermalState: thermalStateRef.current,
+      });
+      if (!out.changed) return;
+      hybridPhaseRef.current = out.phase;
+
+      if (out.phase === "emulated") {
+        // realStart → emulated.
+        // 1) Вычисляем стабильный BPM по последним 60с beats.
+        const beats = pipelineLocal.getHrvAccumulator().getBeats();
+        const cutoff = sessionStartLogicalMs + (now - sessionStartWallMs) - HYBRID_STABLE_BPM_WINDOW_MS;
+        const recent = beats.filter((t) => t >= cutoff);
+        const stableBpm = computeMedianBpmFromBeats(recent.length >= 3 ? recent : beats);
+        const fallbackBpm = plannerRef.current.getBaselineBpm();
+        const targetBpm = stableBpm != null && stableBpm > 0 ? stableBpm : fallbackBpm;
+        // 2) Плавный ramp к стабильному BPM в течение ~10с.
+        startBaselineRampTo(targetBpm);
+        // 3) Замораживаем baseline, чтобы новых pulseBpm-событий не приходило
+        //    (и не могло сместить темп).
+        plannerRef.current.freezeBaseline();
+        // 4) Глушим optical-путь и frame-processor (камера остаётся активной).
+        pipelineLocal.setOpticalPaused(true);
+        setCameraSilent(true);
+        // 5) Сохраняем границу окна начала.
+        realStartEndedAtMsRef.current = sessionStartLogicalMs + (now - sessionStartWallMs);
+      } else if (out.phase === "realEnd") {
+        // emulated → realEnd.
+        stopBaselineRamp();
+        plannerRef.current.unfreezeBaseline();
+        pipelineLocal.setOpticalPaused(false);
+        setCameraSilent(false);
+        realEndStartedAtMsRef.current = sessionStartLogicalMs + (now - sessionStartWallMs);
+      }
+    }, HYBRID_TICK_MS);
+    return () => clearInterval(id);
+  }, [
+    phase,
+    sessionStartWallMs,
+    sessionStartLogicalMs,
+    pipeline,
+    startBaselineRampTo,
+    stopBaselineRamp,
+  ]);
+
   // ─── UI таймер сессии + анимации ─────────────────────────────────────────
 
   useEffect(() => {
@@ -713,7 +929,8 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       if (e < TIMING.totalMs) return;
       clearInterval(id);
       const analysisEndLogicalMs = sessionStartLogicalMs + TIMING.totalMs;
-      const result = pipeline.getCoherenceEngine().finalize(analysisEndLogicalMs);
+      const coherenceEngine = pipeline.getCoherenceEngine();
+      const result = coherenceEngine.finalize(analysisEndLogicalMs);
       const finalRes = useSimulatedPpg
         ? { ...result, warnings: [...result.warnings, str.simulatedMetricsNote] }
         : result;
@@ -762,6 +979,42 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       setFinalRmssdMs(practiceHrv.showRmssd ? practiceHrv.rmssdMs : null);
       setFinalStressPercent(practiceHrv.showStress ? practiceHrv.stressPercent : null);
       setFinalPulseWasEmulated(pipeline.isPulseEmulated());
+
+      // ─── Dual-window анализ для гибридного режима ─────────────────────
+      //
+      // Если контроллер действительно отработал переходы (realStartEndedAtMs
+      // и realEndStartedAtMs выставлены), считаем метрики отдельно для
+      // «окна начала» и «окна конца». Без усреднения между ними — так
+      // пользователь видит реальную динамику между первым и последним
+      // замером, а не смазанный средний.
+      const realStartEndedAtMs = realStartEndedAtMsRef.current;
+      const realEndStartedAtMs = realEndStartedAtMsRef.current;
+      if (realStartEndedAtMs != null && realEndStartedAtMs != null) {
+        const allBeats = pipeline.getHrvAccumulator().getBeats();
+        const startBeats = allBeats.filter(
+          (t) => t >= sessionStartLogicalMs && t <= realStartEndedAtMs,
+        );
+        const endBeats = allBeats.filter(
+          (t) => t >= realEndStartedAtMs && t <= analysisEndLogicalMs,
+        );
+        const startAnalysisRes = coherenceEngine.analyzeWindow(
+          sessionStartLogicalMs,
+          realStartEndedAtMs,
+        );
+        const endAnalysisRes = coherenceEngine.analyzeWindow(
+          realEndStartedAtMs,
+          analysisEndLogicalMs,
+        );
+        setFinalStartAnalysis(startAnalysisRes);
+        setFinalEndAnalysis(endAnalysisRes);
+        setFinalStartHrv(computePracticeHrvMetricsFullSession(startBeats));
+        setFinalEndHrv(computePracticeHrvMetricsFullSession(endBeats));
+        setFinalStartAvgBpm(computeMedianBpmFromBeats(startBeats));
+        setFinalEndAvgBpm(computeMedianBpmFromBeats(endBeats));
+        setFinalStartWindowMs(realStartEndedAtMs - sessionStartLogicalMs);
+        setFinalEndWindowMs(analysisEndLogicalMs - realEndStartedAtMs);
+      }
+
       setPhase("results");
     }, UI_TICK_MS);
     return () => clearInterval(id);
@@ -1066,6 +1319,24 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       baselineBpmSeriesRef.current = [];
       rsaCyclesSummaryRef.current = [];
       qcOutcomeRef.current = forceEmulatedPulse ? "user_chose_no_sensor" : null;
+      // Сброс гибридного режима — иначе прошлые границы окон утекут в
+      // dual-window анализ следующей практики.
+      hybridControllerRef.current.reset();
+      realStartEndedAtMsRef.current = null;
+      realEndStartedAtMsRef.current = null;
+      stopBaselineRamp();
+      pipeline.setOpticalPaused(false);
+      plannerRef.current.unfreezeBaseline();
+      hybridPhaseRef.current = "realStart";
+      setCameraSilent(false);
+      setFinalStartAnalysis(null);
+      setFinalEndAnalysis(null);
+      setFinalStartHrv(null);
+      setFinalEndHrv(null);
+      setFinalStartAvgBpm(null);
+      setFinalEndAvgBpm(null);
+      setFinalStartWindowMs(null);
+      setFinalEndWindowMs(null);
       setSourceKey((k) => k + 1);
       setExportDebug(null);
       setAnalysis(null);
@@ -1107,7 +1378,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       setElapsedMs(0);
       setPhase("warmup");
     },
-    [pipeline, clearPpgBannerUi],
+    [pipeline, clearPpgBannerUi, stopBaselineRamp],
   );
 
   const exportJson = useCallback(async () => {
@@ -1361,7 +1632,11 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   return (
     <SafeAreaView style={styles.safe}>
       {!isExpoGo && !useSimulatedPpg && !useEmulatedPulseMode ? (
-        <FingerPpgCameraSource key={`finger-${sourceKey}`} isActive={cameraActive} />
+        <FingerPpgCameraSource
+          key={`finger-${sourceKey}`}
+          isActive={cameraActive}
+          silent={cameraSilent}
+        />
       ) : null}
       {useSimulatedPpg ? (
         <SimulatedSensorSource key={`sim-${sourceKey}`} isActive={cameraActive} />
@@ -1623,6 +1898,22 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
                   pipeline.softReset();
                   pipeline.getCoherenceEngine().reset();
                   plannerRef.current.reset();
+                  // Hybrid mode: снимаем паузу / заморозку / silent.
+                  pipeline.setOpticalPaused(false);
+                  hybridControllerRef.current.reset();
+                  realStartEndedAtMsRef.current = null;
+                  realEndStartedAtMsRef.current = null;
+                  stopBaselineRamp();
+                  hybridPhaseRef.current = "realStart";
+                  setCameraSilent(false);
+                  setFinalStartAnalysis(null);
+                  setFinalEndAnalysis(null);
+                  setFinalStartHrv(null);
+                  setFinalEndHrv(null);
+                  setFinalStartAvgBpm(null);
+                  setFinalEndAvgBpm(null);
+                  setFinalStartWindowMs(null);
+                  setFinalEndWindowMs(null);
                   setSessionStartWallMs(null);
                   setSessionStartLogicalMs(null);
                   setAnalysis(null);
@@ -1673,7 +1964,22 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
             {str.durationLabel}:{" "}
             {sessionStartWallMs != null ? (TIMING.totalMs / 1000).toFixed(0) : "—"} с
           </Text>
-          {analysis?.metricsWithheldDueToInsufficientData || finalPulseWasEmulated ? (
+          {finalStartAnalysis != null && finalEndAnalysis != null ? (
+            <>
+              <Text style={styles.approx}>{str.hybridEmulatedMidNote}</Text>
+              <HybridResultsTable
+                str={str}
+                startAnalysis={finalStartAnalysis}
+                endAnalysis={finalEndAnalysis}
+                startHrv={finalStartHrv}
+                endHrv={finalEndHrv}
+                startAvgBpm={finalStartAvgBpm}
+                endAvgBpm={finalEndAvgBpm}
+                startWindowMs={finalStartWindowMs}
+                endWindowMs={finalEndWindowMs}
+              />
+            </>
+          ) : analysis?.metricsWithheldDueToInsufficientData || finalPulseWasEmulated ? (
             <Text style={styles.metricLine}>
               {str.coherenceAvgLabel}: — · {str.coherenceMaxLabel}: — · {str.rsaLabel}: — ·{" "}
               {str.rsaNormalizedLabel}: — · {str.entryTimeLabel}: — · {str.rmssdLabel}: — ·{" "}
@@ -1725,6 +2031,18 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
               setFinalRmssdMs(null);
               setFinalStressPercent(null);
               setFinalPulseWasEmulated(false);
+              setFinalStartAnalysis(null);
+              setFinalEndAnalysis(null);
+              setFinalStartHrv(null);
+              setFinalEndHrv(null);
+              setFinalStartAvgBpm(null);
+              setFinalEndAvgBpm(null);
+              setFinalStartWindowMs(null);
+              setFinalEndWindowMs(null);
+              hybridPhaseRef.current = "realStart";
+              realStartEndedAtMsRef.current = null;
+              realEndStartedAtMsRef.current = null;
+              hybridControllerRef.current.reset();
               setElapsedMs(0);
             }}
             style={styles.primaryBtn}
@@ -1747,6 +2065,188 @@ export function CoherenceBreathScreen({ locale = "ru" }: { locale?: BreathLocale
     </ThemeProvider>
   );
 }
+
+/**
+ * Двухколоночная таблица результатов для гибридного режима. Слева — метрики
+ * реального окна в начале практики, справа — в конце. Средние значения между
+ * окнами умышленно не считаем: динамика «до vs после» — основная информация
+ * для пользователя.
+ */
+function HybridResultsTable(props: {
+  str: ReturnType<typeof getCoherenceBreathStrings>;
+  startAnalysis: CoherenceSessionResult;
+  endAnalysis: CoherenceSessionResult;
+  startHrv: PracticeHrvMetricsResult | null;
+  endHrv: PracticeHrvMetricsResult | null;
+  startAvgBpm: number | null;
+  endAvgBpm: number | null;
+  startWindowMs: number | null;
+  endWindowMs: number | null;
+}) {
+  const {
+    str,
+    startAnalysis,
+    endAnalysis,
+    startHrv,
+    endHrv,
+    startAvgBpm,
+    endAvgBpm,
+    startWindowMs,
+    endWindowMs,
+  } = props;
+
+  const formatDuration = (ms: number | null): string => {
+    if (ms == null || !(ms > 0)) return "—";
+    const total = Math.round(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return str.resultsWindowDurationLabel(m, s);
+  };
+
+  const fmtPercent = (value: number | null | undefined): string =>
+    value != null ? `${Math.round(value)}%` : "—";
+  const fmtBpm = (value: number | null | undefined): string =>
+    value != null ? `${Math.round(value)} уд/мин` : "—";
+  const fmtMs = (value: number | null | undefined): string =>
+    value != null ? `${Math.round(value)} мс` : "—";
+  const fmtSec = (value: number | null | undefined): string =>
+    value != null ? `${value} с` : "—";
+
+  const rmssdStart =
+    startHrv != null && startHrv.showRmssd ? startHrv.rmssdMs : null;
+  const rmssdEnd =
+    endHrv != null && endHrv.showRmssd ? endHrv.rmssdMs : null;
+  const stressStart =
+    startHrv != null && startHrv.showStress ? startHrv.stressPercent : null;
+  const stressEnd =
+    endHrv != null && endHrv.showStress ? endHrv.stressPercent : null;
+
+  const rows: { label: string; start: string; end: string }[] = [
+    {
+      label: str.avgBpmLabel,
+      start: fmtBpm(startAvgBpm),
+      end: fmtBpm(endAvgBpm),
+    },
+    {
+      label: str.coherenceAvgLabel,
+      start: fmtPercent(startAnalysis.coherenceAveragePercent),
+      end: fmtPercent(endAnalysis.coherenceAveragePercent),
+    },
+    {
+      label: str.coherenceMaxLabel,
+      start: fmtPercent(startAnalysis.coherenceMaxPercent),
+      end: fmtPercent(endAnalysis.coherenceMaxPercent),
+    },
+    {
+      label: str.rsaLabel,
+      start: fmtBpm(startAnalysis.rsaAmplitudeBpm),
+      end: fmtBpm(endAnalysis.rsaAmplitudeBpm),
+    },
+    {
+      label: str.rsaNormalizedLabel,
+      start: fmtPercent(startAnalysis.rsaNormalizedPercent),
+      end: fmtPercent(endAnalysis.rsaNormalizedPercent),
+    },
+    {
+      label: str.entryTimeLabel,
+      start: fmtSec(startAnalysis.entryTimeSec),
+      end: fmtSec(endAnalysis.entryTimeSec),
+    },
+    {
+      label: str.rmssdLabel,
+      start: fmtMs(rmssdStart),
+      end: fmtMs(rmssdEnd),
+    },
+    {
+      label: str.stressLabel,
+      start: fmtPercent(stressStart),
+      end: fmtPercent(stressEnd),
+    },
+  ];
+
+  return (
+    <View style={hybridStyles.table}>
+      <View style={hybridStyles.headerRow}>
+        <View style={hybridStyles.labelCell} />
+        <View style={hybridStyles.valueCell}>
+          <Text style={hybridStyles.headerText}>{str.resultsWindowStartLabel}</Text>
+          <Text style={hybridStyles.subHeaderText}>{formatDuration(startWindowMs)}</Text>
+        </View>
+        <View style={hybridStyles.valueCell}>
+          <Text style={hybridStyles.headerText}>{str.resultsWindowEndLabel}</Text>
+          <Text style={hybridStyles.subHeaderText}>{formatDuration(endWindowMs)}</Text>
+        </View>
+      </View>
+      {rows.map((row) => (
+        <View key={row.label} style={hybridStyles.row}>
+          <View style={hybridStyles.labelCell}>
+            <Text style={hybridStyles.labelText}>{row.label}</Text>
+          </View>
+          <View style={hybridStyles.valueCell}>
+            <Text style={hybridStyles.valueText}>{row.start}</Text>
+          </View>
+          <View style={hybridStyles.valueCell}>
+            <Text style={hybridStyles.valueText}>{row.end}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const hybridStyles = StyleSheet.create({
+  table: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  labelCell: {
+    flex: 1.4,
+    paddingRight: 8,
+  },
+  valueCell: {
+    flex: 1,
+    alignItems: "flex-end",
+    paddingLeft: 8,
+  },
+  headerText: {
+    color: "#e2e8f0",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  subHeaderText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  labelText: {
+    color: "#cbd5e1",
+    fontSize: 14,
+  },
+  valueText: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#07080c" },

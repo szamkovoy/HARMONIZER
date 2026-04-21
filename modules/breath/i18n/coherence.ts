@@ -53,6 +53,16 @@ export interface CoherenceBreathStrings {
   entryTimeLabel: string;
   rmssdLabel: string;
   stressLabel: string;
+  /** Средний пульс за окно (начало / конец). */
+  avgBpmLabel: string;
+  /** Заголовок колонки «в начале практики» в таблице результатов. */
+  resultsWindowStartLabel: string;
+  /** Заголовок колонки «в конце практики» в таблице результатов. */
+  resultsWindowEndLabel: string;
+  /** Подпись под заголовком колонки: длительность реального измерения (мм:сс). */
+  resultsWindowDurationLabel: (minutes: number, seconds: number) => string;
+  /** Пояснение на экране результатов, что в середине практики пульс эмулировался. */
+  hybridEmulatedMidNote: string;
   exportButton: string;
   startButton: string;
   /** Кнопка «Начать без пульсометра» — запускает эмулированный пульс (75→65 BPM). */
@@ -148,6 +158,13 @@ const ru: CoherenceBreathStrings = {
   entryTimeLabel: "Время вхождения",
   rmssdLabel: "RMSSD",
   stressLabel: "Индекс стресса",
+  avgBpmLabel: "Средний пульс",
+  resultsWindowStartLabel: "В начале",
+  resultsWindowEndLabel: "В конце",
+  resultsWindowDurationLabel: (m, s) =>
+    `${m}:${s.toString().padStart(2, "0")} замера`,
+  hybridEmulatedMidNote:
+    "В середине практики использовалась эмуляция пульса для снижения нагрузки на устройство. Метрики ниже рассчитаны по реальным измерениям в начале и в конце практики.",
   exportButton: "Экспорт JSON (отладка)",
   startButton: "Начать",
   startWithoutSensorButton: "Начать без пульсометра",
@@ -235,6 +252,13 @@ const en: CoherenceBreathStrings = {
   entryTimeLabel: "Time to entry",
   rmssdLabel: "RMSSD",
   stressLabel: "Stress index",
+  avgBpmLabel: "Average pulse",
+  resultsWindowStartLabel: "Start",
+  resultsWindowEndLabel: "End",
+  resultsWindowDurationLabel: (m, s) =>
+    `${m}:${s.toString().padStart(2, "0")} of measurement`,
+  hybridEmulatedMidNote:
+    "Mid-practice the pulse was emulated to reduce device load. The metrics below are computed from real measurements at the start and end of the practice.",
   exportButton: "Export JSON (debug)",
   startButton: "Start",
   startWithoutSensorButton: "Start without pulse sensor",

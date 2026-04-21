@@ -195,6 +195,18 @@ export class BiofeedbackPipeline {
    */
   private pulseSource: PulseSourceKind = "none";
 
+  /**
+   * Если true — `pushOpticalSample()` завершается сразу же, без какой-либо
+   * обработки. Используется гибридным режимом измерения на фазе эмуляции
+   * пульса: камера с фонариком активны (визуально пользователь видит
+   * обычную практику), но pipeline-работа заморожена — процессор отдыхает,
+   * телефон остывает. Worklet в FingerPpgCameraSource в этом же режиме
+   * тоже ранний-выход, так что сэмплы в pipeline не приходят вовсе;
+   * этот флаг — safety-net на случай, если проскочит какой-то кадр
+   * в момент переключения состояний.
+   */
+  private opticalPaused = false;
+
   // Диагностика детектора пиков (аккумулируется для экспорта):
   private dicroticRejectedTotal = 0;
   private splitArtifactRejectedTotal = 0;
@@ -243,6 +255,18 @@ export class BiofeedbackPipeline {
       kind,
       isEmulated: kind === "emulated",
     });
+  }
+
+  /**
+   * Включить/выключить паузу для optical-пути (используется гибридным
+   * режимом измерения). См. комментарий к полю `opticalPaused`.
+   */
+  setOpticalPaused(paused: boolean): void {
+    this.opticalPaused = paused;
+  }
+
+  isOpticalPaused(): boolean {
+    return this.opticalPaused;
   }
 
   /** Текущий merged-список ударов (только для чтения). */
@@ -426,6 +450,16 @@ export class BiofeedbackPipeline {
 
   /** Подаёт сырой кадр в конвейер. */
   pushOpticalSample(sample: RawOpticalSample): void {
+    // ---- SAFETY NET: гибридный режим эмуляции поставил pipeline на паузу ---
+    //
+    // На фазе emulated worklet в FingerPpgCameraSource сам не вызывает
+    // `analyzeFingerRoi`, так что сюда ничего не приходит. Но в момент
+    // переключения состояний может проскочить один-два сэмпла, а также
+    // любой код (тест, debug-панель, будущий источник) всё ещё может
+    // вызвать этот метод. Один `if` стоит близко к нулю и гарантирует,
+    // что pipeline на emulated-фазе полностью не тратит CPU.
+    if (this.opticalPaused) return;
+
     // ---- Быстрая проверка присутствия пальца БЕЗ touching optical ring --
     //
     // `calculateFingerPresenceConfidence` — чистая функция по одному сэмплу

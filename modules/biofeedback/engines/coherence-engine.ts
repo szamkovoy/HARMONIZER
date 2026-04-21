@@ -367,6 +367,35 @@ export class CoherenceEngine {
     return this.cachedResult;
   }
 
+  /**
+   * Coherence-анализ по произвольному окну [startMs, endMs] с использованием
+   * накопленных `sessionBeats` и настроек сессии (inhale/exhale/cycleMs/mode).
+   *
+   * В отличие от `finalize()`, не меняет состояние engine (не помечает
+   * сессию неактивной, не кэширует результат). Используется гибридным
+   * режимом измерения для независимого анализа начального и конечного
+   * окон реального PPG-замера — без усреднения между ними.
+   *
+   * Важно: `beatTimestampsMs` передаётся ПОЛНЫЙ ряд `sessionBeats`, а
+   * `runCoherenceSessionAnalysis` внутри себя фильтрует удары по
+   * [sessionStartedAtMs - buffer, sessionEndedAtMs]. Это гарантирует,
+   * что для каждого окна анализ видит удары только своего диапазона.
+   */
+  analyzeWindow(startMs: number, endMs: number): CoherenceSessionResult {
+    const input: CoherenceSessionInput = {
+      sessionStartedAtMs: startMs,
+      sessionEndedAtMs: endMs,
+      beatTimestampsMs: this.sessionBeats,
+      inhaleMs: this.inhaleMs,
+      exhaleMs: this.exhaleMs,
+      cycleMs: this.cycleMs,
+      mode: this.mode,
+      bufferMsBeforeSession: this.bufferMsBeforeSession,
+      secondBpmForcedZero: this.secondBpmForcedZero,
+    };
+    return runCoherenceSessionAnalysis(input);
+  }
+
   /** Полный JSON для экспорта (legacy v2 schema). v3 — отдельный SessionExporter. */
   buildExportJson(
     sessionEndedAtMs: number,
