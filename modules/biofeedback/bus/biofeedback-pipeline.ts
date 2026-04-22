@@ -207,6 +207,13 @@ export class BiofeedbackPipeline {
    */
   private opticalPaused = false;
 
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — счётчик вызовов `pushOpticalSample` после
+   * проверки паузы (реальная обработка кадра ППГ). Для сравнения нагрузки с
+   * гибридной фазой `emulated`.
+   */
+  private perfDiagnosticOpticalPushCount = 0;
+
   // Диагностика детектора пиков (аккумулируется для экспорта):
   private dicroticRejectedTotal = 0;
   private splitArtifactRejectedTotal = 0;
@@ -267,6 +274,11 @@ export class BiofeedbackPipeline {
 
   isOpticalPaused(): boolean {
     return this.opticalPaused;
+  }
+
+  /** TAG_REMOVE_PERF_DIAGNOSTICS — см. `perfDiagnosticOpticalPushCount`. */
+  getPerfDiagnosticOpticalPushCount(): number {
+    return this.perfDiagnosticOpticalPushCount;
   }
 
   /** Текущий merged-список ударов (только для чтения). */
@@ -459,6 +471,9 @@ export class BiofeedbackPipeline {
     // вызвать этот метод. Один `if` стоит близко к нулю и гарантирует,
     // что pipeline на emulated-фазе полностью не тратит CPU.
     if (this.opticalPaused) return;
+
+    // TAG_REMOVE_PERF_DIAGNOSTICS
+    this.perfDiagnosticOpticalPushCount += 1;
 
     // ---- Быстрая проверка присутствия пальца БЕЗ touching optical ring --
     //
@@ -936,6 +951,7 @@ export class BiofeedbackPipeline {
     this.peakWindowsObserved = 0;
     this.lastRefractoryAdaptiveMs = 0;
     this.lastMedianRrInPeakWindowMs = 0;
+    this.perfDiagnosticOpticalPushCount = 0;
   }
 
   /** Полный сброс — между экранами / при unmount. */

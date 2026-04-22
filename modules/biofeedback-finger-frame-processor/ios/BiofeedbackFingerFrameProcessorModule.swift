@@ -1,7 +1,17 @@
 import AVFoundation
 import ExpoModulesCore
 import Foundation
+import UIKit
 import VisionCamera
+
+/*
+ * TAG_ANDROID_ADAPTATION
+ *
+ * Этот модуль — iOS-only реализация. Для Android нужно создать зеркало
+ * на Kotlin в `modules/biofeedback-finger-frame-processor/android/`.
+ * Полный чек-лист функций и их Android-эквивалентов:
+ *   `/docs/android-adaptation-notes.md`
+ */
 
 public class BiofeedbackFingerFrameProcessorModule: Module {
   private static var hasRegisteredPlugin = false
@@ -120,6 +130,67 @@ public class BiofeedbackFingerFrameProcessorModule: Module {
         return true
       } catch {
         return false
+      }
+    }
+
+    /**
+     * TAG_REMOVE_PERF_DIAGNOSTICS
+     *
+     * Нативное использование памяти процессом в мегабайтах.
+     *
+     * Ранее использовали `mach_task_basic_info` / `resident_size`, но у него
+     * две проблемы: (1) на iOS 14+ `resident_size` сильно отличается от того,
+     * что система считает «памятью приложения» (jetsam-лимит), (2) Swift-вызов
+     * с плейсхолдером `mach_task_basic_info()` как default-init в некоторых
+     * сборках тихо возвращал KERN_INVALID_ARGUMENT. Переходим на канонический
+     * рецепт Apple — `task_vm_info` / `phys_footprint`: это ровно то число,
+     * что Xcode показывает в Debug Navigator → Memory. Дешёвый (≪1 мкс),
+     * thread-safe, работает на симуляторе и на устройстве.
+     *
+     * Возвращает `-1`, если `task_info` вернул ошибку — JS-обёртка трактует
+     * такое значение как `null` и пишет в лог причину (через console.warn)
+     * один раз за сессию, чтобы не забивать Metro-терминал.
+     */
+    AsyncFunction("getMemoryUsageMb") { () -> Double in
+      var info = task_vm_info_data_t()
+      var count = mach_msg_type_number_t(
+        MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size
+      )
+      let kr: kern_return_t = withUnsafeMutablePointer(to: &info) { infoPtr in
+        infoPtr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+          task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), intPtr, &count)
+        }
+      }
+      if kr != KERN_SUCCESS {
+        return -1.0
+      }
+      return Double(info.phys_footprint) / 1_048_576.0
+    }
+
+    /**
+     * TAG_REMOVE_PERF_DIAGNOSTICS
+     *
+     * Уровень заряда батареи в процентах [0..100].
+     *
+     * Важно: `UIDevice.current` и `batteryLevel` требуют main-thread. Expo
+     * `AsyncFunction` по-умолчанию диспатчит в фоновую очередь, и в прошлой
+     * реализации мы читали `batteryLevel` вне main — результат был `-1.0`
+     * на всех сэмплах. Здесь явно уходим в `DispatchQueue.main.sync`, это
+     * безопасно (вызывающая очередь — не main) и стоит микросекунды.
+     *
+     * iOS возвращает ступенчатое значение (~5%), но для 20-минутной практики
+     * этого достаточно, чтобы оценить падение заряда как косвенный признак
+     * нагрузки CPU/камеры/LED. Возвращает `-1`, если определить не удалось.
+     */
+    AsyncFunction("getBatteryLevelPct") { () -> Double in
+      return DispatchQueue.main.sync {
+        let device = UIDevice.current
+        if !device.isBatteryMonitoringEnabled {
+          device.isBatteryMonitoringEnabled = true
+        }
+        let lvl = device.batteryLevel // -1 если unknown, иначе 0.0..1.0
+        if lvl < 0 { return -1.0 }
+        return Double(lvl) * 100.0
       }
     }
   }

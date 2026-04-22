@@ -47,12 +47,31 @@ export type HybridTickInput = {
   practiceTotalMs: number;
   /** Текущий thermalState (iOS). На Android / симуляторе всегда "nominal". */
   thermalState: ThermalState;
+  /**
+   * Сигнал jank-детектора «приложение уже деградирует» (см. `JankDetector`).
+   * Если true — это второй независимый триггер перехода в emulated, не
+   * полагающийся на iOS `thermalState`. Фактически это «увидели проблему
+   * глазами, не дожидаясь теплового датчика». Интегратор заполняет поле
+   * значением `jankDetector.shouldTriggerEmulated()`.
+   */
+  jankTriggered?: boolean;
 };
+
+/**
+ * Причина последнего перехода фазы (заполняется только в момент changed=true).
+ *  - `thermal` — сработал `thermalState ≥ thermalTriggerLevel`;
+ *  - `jank`    — сработал пользовательский детектор деградации;
+ *  - `timeCap` — ни thermal, ни jank; сработал верхний кэп `maxRealStartMs`;
+ *  - `endWindow` — переход emulated → realEnd по оставшемуся времени.
+ */
+export type HybridTransitionReason = "thermal" | "jank" | "timeCap" | "endWindow";
 
 export type HybridTickOutput = {
   phase: HybridPhase;
   /** true — фаза сменилась на этом tick'е (используется для one-shot эффектов). */
   changed: boolean;
+  /** Причина перехода (заполняется только при `changed=true`). */
+  transitionReason: HybridTransitionReason | null;
   /** Момент окончания realStart (конец «начального окна» для финальных метрик). */
   realStartEndedAtMs: number | null;
   /** Момент начала realEnd (начало «конечного окна»). */
@@ -155,6 +174,7 @@ export class HybridMeasurementController {
   getSnapshot(): Omit<HybridTickOutput, "changed"> {
     return {
       phase: this.phase,
+      transitionReason: null,
       realStartEndedAtMs: this.realStartEndedAtMs,
       realEndStartedAtMs: this.realEndStartedAtMs,
       endWindowMs: this.endWindowMs,
@@ -180,16 +200,19 @@ export class HybridMeasurementController {
    */
   tick(input: HybridTickInput): HybridTickOutput {
     const prev = this.phase;
-    const { nowMs, practiceStartMs, practiceTotalMs, thermalState } = input;
+    const { nowMs, practiceStartMs, practiceTotalMs, thermalState, jankTriggered } = input;
     const elapsedMs = Math.max(0, nowMs - practiceStartMs);
     const remainingMs = Math.max(0, practiceTotalMs - elapsedMs);
+
+    let reason: HybridTransitionReason | null = null;
 
     if (this.phase === "realStart") {
       const hasEnoughData = elapsedMs >= this.config.minRealStartMs;
       if (hasEnoughData) {
         const thermalTrigger = thermalAtLeast(thermalState, this.config.thermalTriggerLevel);
+        const jankTrigger = jankTriggered === true;
         const timeTrigger = elapsedMs >= this.config.maxRealStartMs;
-        if (thermalTrigger || timeTrigger) {
+        if (thermalTrigger || jankTrigger || timeTrigger) {
           // Оцениваем, поместится ли осмысленный endWindow в оставшееся время.
           const endWindow = this.computeEndWindowMs(elapsedMs);
           const haveRoomForEnd = remainingMs >= endWindow + this.config.endBufferMs;
@@ -197,6 +220,11 @@ export class HybridMeasurementController {
             this.phase = "emulated";
             this.realStartEndedAtMs = nowMs;
             this.endWindowMs = endWindow;
+            // Приоритет причин: jank > thermal > timeCap. thermal (iOS) ставит
+            // флаг загодя, но jank — прямое наблюдение деградации «здесь и сейчас»
+            // и важнее для анализа: если он сработал первым, это и есть
+            // реальная причина проблем у пользователя на этом устройстве.
+            reason = jankTrigger ? "jank" : thermalTrigger ? "thermal" : "timeCap";
           }
           // Если не помещается — просто остаёмся в realStart, но разрешение
           // стоит выше min-time: значит до конца практики будет непрерывный
@@ -212,13 +240,16 @@ export class HybridMeasurementController {
       if (remainingMs <= endWindow) {
         this.phase = "realEnd";
         this.realEndStartedAtMs = nowMs;
+        reason = "endWindow";
       }
     }
     // realEnd — терминальная фаза; дальше переходов нет.
 
+    const changed = this.phase !== prev;
     return {
       phase: this.phase,
-      changed: this.phase !== prev,
+      changed,
+      transitionReason: changed ? reason : null,
       realStartEndedAtMs: this.realStartEndedAtMs,
       realEndStartedAtMs: this.realEndStartedAtMs,
       endWindowMs: this.endWindowMs,

@@ -368,6 +368,21 @@ export class CoherenceEngine {
   }
 
   /**
+   * Завершает сессию уже готовым результатом анализа (гибридное измерение:
+   * два `analyzeWindow` + объединение, без полного прогона по всей шкале времени
+   * с участком без реальных RR).
+   */
+  finalizePrecomputed(result: CoherenceSessionResult): CoherenceSessionResult {
+    if (!this.active) {
+      throw new Error("CoherenceEngine.finalizePrecomputed() called without active session");
+    }
+    this.active = false;
+    this.cachedResult = result;
+    this.live = null;
+    return result;
+  }
+
+  /**
    * Coherence-анализ по произвольному окну [startMs, endMs] с использованием
    * накопленных `sessionBeats` и настроек сессии (inhale/exhale/cycleMs/mode).
    *

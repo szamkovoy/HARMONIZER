@@ -13,10 +13,23 @@ import {
   analyzeFingerRoi,
   isFingerFrameProcessorAvailable,
   setBackTorchLevel,
+  turnOffBackTorch,
   type FingerFrameProcessorResult,
 } from "@/modules/biofeedback-finger-frame-processor/src";
 import { useBiofeedbackPipeline } from "@/modules/biofeedback/bus/biofeedback-provider";
 import type { BiofeedbackPipeline } from "@/modules/biofeedback/bus/biofeedback-pipeline";
+
+/**
+ * Колбэк диагностики кадров (опциональный). Вызывается из JS потока на каждом
+ * принятом frame processor'ом сэмпле. `processingMs` — время работы
+ * `analyzeFingerRoi` в нативном плагине (измеряется в worklet `Date.now()`),
+ * `receivedAtMs` — момент доставки сэмпла в JS. Используется jank-детектором
+ * в `CoherenceBreathScreen` для независимой оценки нагрузки.
+ */
+export type FingerPpgFrameStats = {
+  processingMs: number;
+  receivedAtMs: number;
+};
 
 type Props = {
   isActive: boolean;
@@ -25,12 +38,43 @@ type Props = {
   /** Если true — контейнер камеры отрисовывается обычным размером (для probe-экрана). */
   visible?: boolean;
   /**
-   * Если true — камера и фонарик остаются активными (пользователь не замечает
-   * разницы), но worklet не вызывает `analyzeFingerRoi` и ничего не шлёт в
-   * pipeline. Используется в гибридном режиме измерения на этапе эмуляции
-   * пульса: телефон остывает, но визуально всё выглядит как обычная практика.
+   * Гибридная фаза «эмуляция пульса»: **не** собираем PPG (worklet выходит
+   * до `analyzeFingerRoi`), но **сессия камеры остаётся активной** с захватом
+   * **1 fps**.
+   *
+   * Почему нельзя было делать `isActive=false` у VisionCamera и держать
+   * torch через `setBackTorchLevel` из нативного модуля: на iOS после
+   * `AVCaptureSession.stopRunning()` система сбрасывает `torchMode`, а прямой
+   * вызов `setTorchModeOn(level:)` **без удерживающей capture-сессии** на
+   * части устройств/прошивок не удерживает LED стабильно — пользователь
+   * видел гашение фонарика вместе с камерой. Надёжный контракт: либо активная
+   * сессия + `torch` у VisionCamera, либо отдельная минимальная сессия в
+   * нативном коде (не внедряли). Здесь — сессия на 1 fps: ISP нагружает в
+   * ~15 раз меньше, чем при 15 fps, зато LED остаётся включённым штатно.
    */
   silent?: boolean;
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS
+   *
+   * Колбэк для jank-детектора. Вызывается из JS на каждый принятый frame
+   * processor'ом сэмпл. Родитель (CoherenceBreathScreen) передаёт сюда
+   * `jankDetectorRef.current.pushFrameProcLatency`. Удалить вместе с
+   * диагностикой перегрева.
+   */
+  onFrameStats?: (stats: FingerPpgFrameStats) => void;
+  /**
+   * Режим сэмплинга:
+   *  - "normal" (по умолчанию): fps = [1, TARGET_PPG_FPS(15)]. Используется
+   *    во время основной практики — компромисс между точностью PPG и теплом.
+   *  - "highPrecision": fps = [1, HIGH_PRECISION_PPG_FPS(25)]. Используется
+   *    в фазах warmup/qualityCheck, когда практика ещё не началась и тепло
+   *    не успевает накопиться. Даёт более плотный raw PPG график на экране
+   *    активации пульсометра: пользователь видит живую кривую, а не редкие
+   *    точки раз в ~60 мс, и доверяет «угадыванию пульса» приложением.
+   *    Суммарное время в этом режиме — 20 с (warmup 10 с + QC 10 с), что
+   *    пренебрежимо мало для теплового бюджета.
+   */
+  captureRateHint?: "normal" | "highPrecision";
 };
 
 /**
@@ -56,6 +100,24 @@ type Props = {
  *    «нормой» и «повышенным стрессом» (порядка 20-30 мс).
  */
 const TARGET_PPG_FPS = 15;
+
+/**
+ * Повышенная частота PPG для фаз warmup/qualityCheck (первые ~20 с перед
+ * стартом замера). В этот короткий интервал камера работает плотнее, чтобы
+ * пользователь видел «живой» график пульса и не сомневался в точности
+ * детекции. После перехода в `running` возвращаемся к TARGET_PPG_FPS.
+ *
+ * Почему 25, а не 30:
+ *  - большинство iPhone формата 640×480 надёжно выдают 30 fps только в
+ *    «full session» с автоэкспозицией; при наших ограничениях (yuv, torch
+ *    held) встречаются модели с плавающим фактическим fps. 25 — безопасный
+ *    порог, где реальная частота почти гарантированно достигается и нет
+ *    лишней ISP-нагрузки;
+ *  - 25 × 20 с = 500 кадров за все 2 фазы прогрева. Заметно больше, чем
+ *    15 × 20 = 300, но всё ещё ≈ 0,5 % бюджета практики (60 000 кадров при
+ *    20 мин × 15 fps × 2 реальных окна). Не видимый эффект на тепло.
+ */
+const HIGH_PRECISION_PPG_FPS = 25;
 
 /**
  * Шаг субсэмплинга пикселей в ROI в native frame processor'е.
@@ -96,7 +158,14 @@ const PPG_SAMPLE_STRIDE = 6;
  * pipeline стабильной ссылкой, но любые false-срабатывания (перемонтирование
  * провайдера при HMR) больше не форсят пересоздание worklet-моста.
  */
-function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = false }: Props) {
+function FingerPpgCameraSourceImpl({
+  isActive,
+  style,
+  visible = false,
+  silent = false,
+  onFrameStats,
+  captureRateHint = "normal",
+}: Props) {
   const VisionCamera = require("react-native-vision-camera") as typeof import("react-native-vision-camera");
   const WorkletsCore = require("react-native-worklets-core") as typeof import("react-native-worklets-core");
   const {
@@ -123,7 +192,15 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
   const permissionRequestedRef = useRef(false);
   const [showOpenSettingsHint, setShowOpenSettingsHint] = useState(false);
 
+  /**
+   * `isRenderActive` — общий признак, что компонент «хочет» работать (экран в
+   * фокусе, приложение на переднем плане, родитель не размонтирует).
+   * `isCameraSessionActive` — VisionCamera `<Camera isActive>`. При
+   * `silent=true` сессия **остаётся включённой** (см. JSDoc к `silent`), иначе
+   * iOS гасит фонарик вместе с остановкой сессии.
+   */
   const isRenderActive = isFocused && appState === "active" && isActive;
+  const isCameraSessionActive = isRenderActive;
   const device = useCameraDevice("back", { physicalDevices: ["wide-angle-camera"] });
   /**
    * Для PPG-камеры выбираем САМОЕ лёгкое возможное разрешение и самый низкий
@@ -140,11 +217,22 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
    * приоритета). Это безопаснее, чем жёстко задавать `fps` без format, т.к.
    * без согласования камера может остаться на 30/60 fps формата по умолчанию.
    */
+  /**
+   * Максимальный fps для этой ссесии: HIGH_PRECISION_PPG_FPS в warmup/QC,
+   * TARGET_PPG_FPS в обычном running. Формат камеры подбираем под
+   * верхнюю границу — иначе VisionCamera на некоторых прошивках выберет
+   * формат на 30 fps и будет расходовать ISP впустую, игнорируя fps-лимит.
+   */
+  const effectiveMaxFps = captureRateHint === "highPrecision" ? HIGH_PRECISION_PPG_FPS : TARGET_PPG_FPS;
+  /** В silent — один кадр в секунду: минимальная нагрузка ISP при живой сессии и torch. */
+  const formatTargetFps = silent ? 1 : effectiveMaxFps;
   const format = useCameraFormat(device, [
     { videoResolution: { width: 640, height: 480 } },
-    { fps: TARGET_PPG_FPS },
+    { fps: formatTargetFps },
   ]);
-  const shouldEnableTorch = isRenderActive && cameraReady && torchArmed && Boolean(device?.hasTorch);
+  /** VisionCamera включает torch только когда сессия активна (у нас всегда так при `isRenderActive`). */
+  const shouldEnableTorchViaVisionCamera =
+    isCameraSessionActive && cameraReady && torchArmed && Boolean(device?.hasTorch);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (s) => setAppState(s));
@@ -152,14 +240,14 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
   }, []);
 
   useEffect(() => {
-    if (!isRenderActive) {
+    if (!isCameraSessionActive) {
       setTorchArmed(false);
       return;
     }
     pipeline.setPulseSource("fingerCamera");
     const t = setTimeout(() => setTorchArmed(true), 250);
     return () => clearTimeout(t);
-  }, [isRenderActive, cameraReady, pipeline]);
+  }, [isCameraSessionActive, cameraReady, pipeline]);
 
   /**
    * Снижаем яркость задней вспышки до 0.35 для PPG-замера.
@@ -181,7 +269,7 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
    * остаётся стабильно низким всю практику.
    */
   useEffect(() => {
-    if (!shouldEnableTorch) return;
+    if (!shouldEnableTorchViaVisionCamera) return;
     let cancelled = false;
     const applyLevel = () => {
       if (cancelled) return;
@@ -194,10 +282,20 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
       clearTimeout(initialTimer);
       clearInterval(heartbeat);
     };
-  }, [shouldEnableTorch]);
+  }, [shouldEnableTorchViaVisionCamera]);
+
+  /**
+   * При полном unmount / `isActive=false` принудительно выключаем torch —
+   * защита от «залипшего» фонарика, если последним держателем был
+   * нативный модуль (silent-mode).
+   */
+  useEffect(() => {
+    if (isRenderActive) return;
+    void turnOffBackTorch();
+  }, [isRenderActive]);
 
   useEffect(() => {
-    if (!isRenderActive) {
+    if (!isCameraSessionActive) {
       permissionRequestedRef.current = false;
       setShowOpenSettingsHint(false);
       return;
@@ -211,7 +309,15 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
     void requestPermission().then((granted) => {
       if (!granted) setShowOpenSettingsHint(true);
     });
-  }, [isRenderActive, hasPermission, requestPermission]);
+  }, [isCameraSessionActive, hasPermission, requestPermission]);
+
+  /**
+   * Стабильная ref-обёртка над `onFrameStats`, чтобы родитель мог менять
+   * колбэк без пересоздания worklet-моста (который дорогой, см.
+   * комментарий к React.memo).
+   */
+  const onFrameStatsRef = useRef<typeof onFrameStats>(onFrameStats);
+  onFrameStatsRef.current = onFrameStats;
 
   // Один раз на монтирование создаём стабильный мост «worklet → JS».
   // `reportFrame` ссылочно не меняется, поэтому useFrameProcessor ниже тоже
@@ -222,10 +328,15 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
       _height: number,
       _pixelFormat: string | undefined,
       fingerSample: FingerFrameProcessorResult | null,
+      processingMs: number,
     ) => {
       if (!cameraReadyRef.current) {
         cameraReadyRef.current = true;
         setCameraReady(true);
+      }
+      const cb = onFrameStatsRef.current;
+      if (cb && processingMs > 0) {
+        cb({ processingMs, receivedAtMs: Date.now() });
       }
       if (fingerSample == null) return;
       pipelineRef.current.pushOpticalSample(fingerSample);
@@ -256,6 +367,18 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
   }, [silent, silentMode]);
 
   /**
+   * SharedValue для динамического target fps в worklet. Аналогично
+   * silentMode: нельзя менять frame processor при переходе warmup→running,
+   * чтобы не пересоздавать worklet-мост. `runAtTargetFps(value)` читает
+   * из SharedValue и меняет частоту вызова callback'а без пересоздания
+   * processor'а.
+   */
+  const targetFpsSV = useMemo(() => Worklets.createSharedValue(TARGET_PPG_FPS), [Worklets]);
+  useEffect(() => {
+    targetFpsSV.value = effectiveMaxFps;
+  }, [effectiveMaxFps, targetFpsSV]);
+
+  /**
    * Частота обработки PPG. См. константы `TARGET_PPG_FPS` и `PPG_SAMPLE_STRIDE`
    * на уровне модуля для подробной истории и обоснования.
    *
@@ -278,13 +401,20 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
     (frame) => {
       "worklet";
       if (silentMode.value) return;
-      runAtTargetFps(TARGET_PPG_FPS, () => {
+      runAtTargetFps(targetFpsSV.value, () => {
         "worklet";
+        // Замер длительности работы нативного плагина. `Date.now()` доступен
+        // в worklet-контексте (react-native-worklets-core). Передаём
+        // `processingMs` в JS → jank-детектор ловит, когда плагин начинает
+        // «разгоняться» (typically 3–7 мс при норме; 30–80 мс при перегреве
+        // — прямое проявление troттлинга ISP/CPU).
+        const t0 = Date.now();
         const fingerSample = analyzeFingerRoi(frame, { roiScale: 0.34, sampleStride: PPG_SAMPLE_STRIDE });
-        reportFrame(frame.width, frame.height, frame.pixelFormat, fingerSample);
+        const processingMs = Date.now() - t0;
+        reportFrame(frame.width, frame.height, frame.pixelFormat, fingerSample, processingMs);
       });
     },
-    [reportFrame, silentMode],
+    [reportFrame, silentMode, targetFpsSV],
   );
 
   if (!isFingerFrameProcessorAvailable()) return null;
@@ -320,8 +450,8 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
         style={visible ? styles.cameraVisible : styles.camera}
         device={device}
         format={format}
-        isActive={isRenderActive}
-        torch={shouldEnableTorch ? "on" : "off"}
+        isActive={isCameraSessionActive}
+        torch={shouldEnableTorchViaVisionCamera ? "on" : "off"}
         frameProcessor={frameProcessor}
         photo={false}
         video={false}
@@ -334,9 +464,8 @@ function FingerPpgCameraSourceImpl({ isActive, style, visible = false, silent = 
         //    VisionCamera возьмёт ближайшее из диапазона (обычно 10 или 12);
         //  - если формат поддерживает ≤ 15 только «от», диапазон позволяет
         //    гладко деградировать без runtime-ошибки.
-        // `runAtTargetFps(TARGET_PPG_FPS)` в worklet дополнительно ограничит
-        // частоту JS-моста, если камера всё же отдаст чуть больше.
-        fps={[1, TARGET_PPG_FPS]}
+        // В silent — строго 1 fps (см. `formatTargetFps`); иначе — до effectiveMaxFps.
+        fps={silent ? [1, 1] : [1, effectiveMaxFps]}
         onInitialized={() => setCameraReady(true)}
       />
     </View>

@@ -30,6 +30,7 @@ import {
   cleanRrSequenceCoherence,
   type RrBeatEvent,
 } from "@/modules/breath/core/tachogram-4hz";
+import type { PerfDiagSample } from "@/modules/breath/debug/session-runtime-diagnostics";
 
 export type BreathAnalysisMode = "production" | "test120s";
 
@@ -477,7 +478,7 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
   const metricsWithheldDueToInsufficientData = withholdReasons.length > 0;
   if (metricsWithheldDueToInsufficientData) {
     warnings.push(
-      `Метрики не рассчитаны: сигнал был нестабилен (${withholdReasons.join("; ")}). Показана только длительность практики.`,
+      `Метрики не рассчитаны (${withholdReasons.join("; ")}). Валидных секунд с ненулевым BPM на тахограмме (после маски): ${totalValidDataSeconds}.`,
     );
   }
 
@@ -560,9 +561,6 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     rsaAmplitudeBpm = null;
     rsaNormalizedPercent = null;
     rsaCycles = [];
-    warnings.push(
-      `Итоговые метрики не рассчитаны: валидных секунд с пульсом (${totalValidDataSeconds}) меньше ${COHERENCE_MIN_VALID_SECONDS_FOR_METRICS} с.`,
-    );
   }
 
   let entryTimeSec: number | null = null;
@@ -701,7 +699,30 @@ export type CoherenceExportDebug = {
     rsaBpm: number;
     durationMs: number;
   }[];
-  /** История планов дыхания (цикл за циклом). */
+  /**
+   * ID выбранной дыхательной практики (`coherent` / `triangle-up` / `square` / ...).
+   * Нужен для корректной интерпретации `phaseDurationsHistory`: у квадрата 4 фазы,
+   * у треугольника 3, у когерентного 2. Без этого поля пост-анализ не может
+   * различить дыхательные рисунки.
+   */
+  breathPracticeId?: string;
+  /** Снимок текущего shape (на момент экспорта): полный список фаз. */
+  breathShape?: {
+    baseIndex: number;
+    phases: readonly {
+      kind: "inhale" | "exhale" | "hold";
+      beats: number;
+      channel: "both" | "left" | "right";
+    }[];
+  };
+  /**
+   * История планов дыхания (цикл за циклом).
+   *
+   * Legacy-поля `plannedInhaleMs`/`plannedExhaleMs` оставлены для обратной
+   * совместимости, но теперь дополняются полным массивом `phases[]` с
+   * длительностью каждой фазы — только так можно корректно отразить
+   * треугольник (3 фазы) или квадрат (4 фазы) в JSON.
+   */
   phaseDurationsHistory?: readonly {
     planIndex: number;
     cycleMs: number;
@@ -709,6 +730,14 @@ export type CoherenceExportDebug = {
     plannedExhaleMs: number;
     baselineBpm: number;
     rsaBpm: number | null;
+    /** Полный список фаз цикла (новое поле, опционально). */
+    phases?: readonly {
+      kind: "inhale" | "exhale" | "hold";
+      channel: "both" | "left" | "right";
+      beats: number;
+      phaseMs: number;
+      bpmForPhase: number;
+    }[];
   }[];
   /** Исход QC: ok / user_chose_no_sensor / retry_failed. */
   qcOutcome?: "ok" | "user_chose_no_sensor" | "retry_failed" | null;
@@ -726,6 +755,11 @@ export type CoherenceExportDebug = {
     lastRefractoryAdaptiveMs: number | null;
     lastMedianRrInPeakWindowMs: number | null;
   };
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — thermal / heap / фаза гибрида / счётчики по времени.
+   * Удалить вместе с `session-runtime-diagnostics.ts`.
+   */
+  runtimeDiagnostics?: readonly PerfDiagSample[];
 };
 
 export function buildCoherenceExportJson(

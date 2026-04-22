@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { cacheDirectory, getContentUriAsync, writeAsStringAsync } from "expo-file-system/legacy";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -21,6 +22,8 @@ import Reanimated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
+  getBatteryLevelPct,
+  getNativeMemoryMb,
   getThermalState,
   isFingerFrameProcessorAvailable,
   subscribeThermalState,
@@ -54,10 +57,17 @@ import {
   type BreathPhaseShape,
   type PlannedCycle,
 } from "@/modules/breath/core/breath-phase-planner";
+import { mergeHybridCoherenceSessionResults } from "@/modules/breath/core/coherence-hybrid-merge";
 import {
   HybridMeasurementController,
   type HybridPhase,
 } from "@/modules/breath/core/hybrid-measurement-controller";
+import { JankDetector } from "@/modules/breath/debug/jank-detector";
+import {
+  PERF_DIAGNOSTICS_ENABLED,
+  readJsHeapUsedBytes,
+  SessionRuntimeDiagnostics,
+} from "@/modules/breath/debug/session-runtime-diagnostics";
 import {
   BREATH_PRACTICES,
   getBreathPracticeById,
@@ -129,6 +139,11 @@ const HYBRID_BASELINE_RAMP_STEP_MS = 500;
  * устойчивое значение, чтобы индикатор не прыгал при переходе.
  */
 const HYBRID_STABLE_BPM_WINDOW_MS = 60_000;
+/**
+ * TAG_REMOVE_PERF_DIAGNOSTICS — периодическая телеметрия торможения / перегрева.
+ * Удалить вместе с `session-runtime-diagnostics.ts`.
+ */
+const PERF_DIAG_SAMPLE_MS = 10_000;
 /** Длительность одного показа баннера ППГ (секунды × 1000). */
 const PPG_BANNER_DISPLAY_MS = 4000;
 
@@ -314,6 +329,40 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     [stopBaselineRamp],
   );
 
+  /** TAG_REMOVE_PERF_DIAGNOSTICS — удалить вместе с `session-runtime-diagnostics.ts`. */
+  const perfDiagnosticsRef = useRef(new SessionRuntimeDiagnostics());
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — jank-детектор.
+   *
+   * Собирает UI FPS, frame-processor latency и JS-loop lag в скользящем окне
+   * (~5 с). Hybrid-тикер читает `shouldTriggerEmulated()` каждую секунду —
+   * если приложение уже заметно деградирует, уходим в emulated, не
+   * дожидаясь iOS `thermalState`.
+   */
+  const jankDetectorRef = useRef(new JankDetector());
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — последние прочитанные значения native
+   * memory / battery / jank-snapshot. Обновляем периодически (1 Гц) из
+   * main-тикера и читаем синхронно в `recordPerfDiagSample`.
+   */
+  const nativeMemoryMbRef = useRef<number | null>(null);
+  const batteryLevelPctRef = useRef<number | null>(null);
+  /** Причина последнего перехода фазы — помечается в текущем сэмпле и сбрасывается. */
+  const pendingHybridTransitionReasonRef = useRef<
+    "thermal" | "jank" | "timeCap" | "endWindow" | null
+  >(null);
+  /**
+   * Колбэк, который FingerPpgCameraSource зовёт на каждый обработанный кадр.
+   * Стабильная функция (useRef-обёртка на detector), чтобы не пересоздавать
+   * worklet-мост в source'е (см. комментарий к React.memo в source'е).
+   */
+  const handleFrameStats = useCallback(
+    ({ processingMs, receivedAtMs }: { processingMs: number; receivedAtMs: number }) => {
+      jankDetectorRef.current.pushFrameProcLatency(receivedAtMs, processingMs);
+    },
+    [],
+  );
+
   /**
    * Cycle-delayed playback: план каждого цикла фиксируется на его старте и меняется
    * только по `onCycleEnd`. Это устраняет дёрганье индикатора.
@@ -328,10 +377,50 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   const [cycleStartMs, setCycleStartMs] = useState<number | null>(null);
   const cycleStartMsRef = useRef<number | null>(null);
   cycleStartMsRef.current = cycleStartMs;
-  /** История планов за сессию (для diagnostic export). */
-  const phaseDurationsHistoryRef = useRef<
-    { planIndex: number; cycleMs: number; plannedInhaleMs: number; plannedExhaleMs: number; baselineBpm: number; rsaBpm: number | null }[]
-  >([]);
+  /**
+   * История планов за сессию (для diagnostic export). Содержит и legacy-поля
+   * `plannedInhaleMs/plannedExhaleMs` (для обратной совместимости), и полный
+   * список фаз — чтобы корректно экспортировать треугольник/квадрат/нади.
+   */
+  type PhaseHistoryEntry = {
+    planIndex: number;
+    cycleMs: number;
+    plannedInhaleMs: number;
+    plannedExhaleMs: number;
+    baselineBpm: number;
+    rsaBpm: number | null;
+    phases: {
+      kind: "inhale" | "exhale" | "hold";
+      channel: "both" | "left" | "right";
+      beats: number;
+      phaseMs: number;
+      bpmForPhase: number;
+    }[];
+  };
+  const phaseDurationsHistoryRef = useRef<PhaseHistoryEntry[]>([]);
+  /**
+   * Собрать запись истории дыхательных циклов из `PlannedCycle`. Логика в
+   * одном месте, чтобы не дублировать маппинг `PlannedPhase[] → phases[]`
+   * в трёх точках записи.
+   */
+  const planToHistoryEntry = useCallback(
+    (plan: PlannedCycle, planIndex: number): PhaseHistoryEntry => ({
+      planIndex,
+      cycleMs: plan.cycleMs,
+      plannedInhaleMs: plan.phases.find((p) => p.kind === "inhale")?.phaseMs ?? 0,
+      plannedExhaleMs: plan.phases.find((p) => p.kind === "exhale")?.phaseMs ?? 0,
+      baselineBpm: plan.baselineBpm,
+      rsaBpm: plan.rsaInfo?.rsaBpm ?? null,
+      phases: plan.phases.map((p) => ({
+        kind: p.kind,
+        channel: p.channel,
+        beats: p.beats,
+        phaseMs: Math.round(p.phaseMs),
+        bpmForPhase: Math.round(p.bpmForPhase * 10) / 10,
+      })),
+    }),
+    [],
+  );
   /** baseline BPM в planner-е: (t_since_session_start_ms, bpm). */
   const baselineBpmSeriesRef = useRef<{ tMs: number; bpm: number }[]>([]);
   /** Сводка по завершённым RSA-циклам. */
@@ -371,6 +460,9 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   );
   const coherenceShapeRef = useRef(coherenceShape);
   coherenceShapeRef.current = coherenceShape;
+  /** Стабильный ref на текущий practice.id — чтобы читать его в finalize без пересоздания эффекта. */
+  const practiceIdRef = useRef<BreathPracticeId>(practiceId);
+  practiceIdRef.current = practiceId;
   /**
    * Shape, по которому построен **текущий** план в shell. Используется чтобы реагировать
    * на смену скорости на ближайшей границе фазы: если `lastAppliedShape !== coherenceShape`,
@@ -388,6 +480,54 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
   const lastPulseLogWallClockRef = useRef(0);
   const snapshotCallbacksTotalRef = useRef(0);
   const snapshotsWhileRunningRef = useRef(0);
+
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — зафиксировать один сэмпл телеметрии.
+   *
+   * Отражает «портрет» приложения в момент вызова: тепловое состояние,
+   * фаза гибрида, jank-метрики (FPS/frame-proc latency/JS lag), память
+   * (heap + native RSS) и состояние камеры/торча. Все поля nullable, чтобы
+   * на платформе без нужных API / при `PERF_DIAGNOSTICS_ENABLED=false`
+   * экспорт оставался валидным.
+   */
+  const recordPerfDiagSample = useCallback(() => {
+    if (!PERF_DIAGNOSTICS_ENABLED) return;
+    if (sessionStartWallMs == null) return;
+    const now = Date.now();
+    const jank = jankDetectorRef.current.getSnapshot();
+    const phaseSnapshot = hybridPhaseRef.current;
+    // Реальный Finger PPG: сессия активна и при silent (1 fps + torch у VC);
+    // нативный torch-only режим снят — iOS гасил LED без capture-сессии.
+    const cameraSessionActive = !useSimulatedPpg && !useEmulatedPulseMode;
+    const torchHeldByNative = false;
+    perfDiagnosticsRef.current.push({
+      wallClockMs: now,
+      sessionOffsetMs: now - sessionStartWallMs,
+      thermalState: thermalStateRef.current,
+      hybridPhase: phaseSnapshot,
+      cameraSilent,
+      cameraSessionActive,
+      torchHeldByNative,
+      opticalPaused: pipeline.isOpticalPaused(),
+      hybridTransitionReason: pendingHybridTransitionReasonRef.current,
+      uiFpsMedian: jank.uiFpsMedian,
+      uiFpsP5: jank.uiFpsP5,
+      frameProcLatencyMsAvg: jank.frameProcLatencyMsAvg,
+      frameProcLatencyMsP95: jank.frameProcLatencyMsP95,
+      cameraFrameIntervalMsAvg: jank.cameraFrameIntervalMsAvg,
+      jsTimerLagMsAvg: jank.jsTimerLagMsAvg,
+      usedJsHeapBytes: readJsHeapUsedBytes(),
+      nativeMemoryMb: nativeMemoryMbRef.current,
+      counters: {
+        snapshotCallbacksTotal: snapshotCallbacksTotalRef.current,
+        snapshotsWhileRunning: snapshotsWhileRunningRef.current,
+        opticalPipelinePushes: pipeline.getPerfDiagnosticOpticalPushCount(),
+      },
+    });
+    // transitionReason — one-shot: пометили последний сэмпл и сбросили.
+    pendingHybridTransitionReasonRef.current = null;
+  }, [sessionStartWallMs, cameraSilent, pipeline, useSimulatedPpg, useEmulatedPulseMode]);
+
   const [opticalPreviewSamples, setOpticalPreviewSamples] = useState<RawOpticalSample[]>([]);
 
   /** Маска секунд практики, в которые сигнал был некачественным → BPM=0 на тахограмме. */
@@ -443,6 +583,44 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
 
   useEffect(() => {
     phaseRef.current = phase;
+  }, [phase]);
+
+  /**
+   * Блокируем автоматический переход экрана в сон, пока идёт пранаяма.
+   *
+   * Зачем: во время фазы `emulated` гибридного режима камера выключается и
+   * на экране остаётся только анимированная мандала + индикатор дыхания —
+   * пользователь не прикасается к дисплею, и iOS/Android через 30–120 с
+   * (в зависимости от настроек) погружают устройство в сон. Это приводит к
+   * нескольким неприятным побочным эффектам:
+   *  - сбрасывается torch у модели FingerPpgCameraSource (даже при нашем
+   *    2-Hz heartbeat, если устройство реально в спящем режиме);
+   *  - JS/VC-циклы приостанавливаются → гибридный контроллер не тикает,
+   *    фаза `emulated` не завершится вовремя, `realEnd` стартует
+   *    позже запланированного;
+   *  - пользователь, не видя индикатор, сбивается с ритма дыхания.
+   *
+   * Активируем только во время `warmup|qualityCheck|running`; на `idle` и
+   * `results` экран может спать свободно — пользователь там в любой момент
+   * может уйти с экрана. `deactivateKeepAwake` в cleanup гарантирует
+   * снятие блокировки даже при размонтировании компонента в процессе
+   * практики (например, навигация назад).
+   *
+   * TAG_ANDROID_ADAPTATION: expo-keep-awake работает и на Android
+   * (использует `Window.setKeepScreenOn`), без дополнительных разрешений.
+   * Cм. `docs/android-adaptation-notes.md`.
+   */
+  useEffect(() => {
+    if (phase !== "warmup" && phase !== "qualityCheck" && phase !== "running") return;
+    const tag = "harmonizer-practice";
+    void activateKeepAwakeAsync(tag).catch(() => {
+      // silently ignore — старые версии Expo Go / web могут не поддерживать
+    });
+    return () => {
+      void deactivateKeepAwake(tag).catch(() => {
+        // swallow — compat с web/unsupported платформами
+      });
+    };
   }, [phase]);
 
   /**
@@ -872,14 +1050,22 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     const pipelineLocal = pipeline;
     const id = setInterval(() => {
       const now = Date.now();
+      // Независимый jank-триггер: смотрим на реальные проявления деградации
+      // (UI FPS обвалился / frame-proc latency скаканул / JS-loop отстаёт).
+      // Это более надёжный сигнал, чем iOS `thermalState`, который на части
+      // устройств остаётся `nominal` даже при явном торможении приложения.
+      const jankTriggered = jankDetectorRef.current.shouldTriggerEmulated();
       const out = controller.tick({
         nowMs: now,
         practiceStartMs: sessionStartWallMs,
         practiceTotalMs: TIMING.totalMs,
         thermalState: thermalStateRef.current,
+        jankTriggered,
       });
       if (!out.changed) return;
       hybridPhaseRef.current = out.phase;
+      pendingHybridTransitionReasonRef.current = out.transitionReason;
+      recordPerfDiagSample();
 
       if (out.phase === "emulated") {
         // realStart → emulated.
@@ -917,7 +1103,73 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     pipeline,
     startBaselineRampTo,
     stopBaselineRamp,
+    recordPerfDiagSample,
   ]);
+
+  // TAG_REMOVE_PERF_DIAGNOSTICS — периодические снимки нагрузки / thermal / фаза.
+  useEffect(() => {
+    if (phase !== "running" || sessionStartWallMs == null) return;
+    recordPerfDiagSample();
+    const id = setInterval(recordPerfDiagSample, PERF_DIAG_SAMPLE_MS);
+    return () => clearInterval(id);
+  }, [phase, sessionStartWallMs, recordPerfDiagSample]);
+
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — быстрый 1 Гц тикер:
+   *   • опрашивает native RSS / battery (async, кэшируем в ref);
+   *   • кормит JankDetector сигналом «как живёт JS-loop» — реальное
+   *     dt между тиками минус номинальные 1000 мс;
+   *   • кормит UI-FPS proxy (на JS-потоке Date.now()-аппроксимация
+   *     частоты кадров, которую UI реально успевает обработать).
+   *
+   * Всё в одном тикере, чтобы не плодить setInterval'ов.
+   */
+  useEffect(() => {
+    if (!PERF_DIAGNOSTICS_ENABLED) return;
+    if (phase !== "running") return;
+    let lastTickMs = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - lastTickMs;
+      lastTickMs = now;
+      // Лаг таймера = сколько «украли» тяжёлые задачи на JS-loop.
+      jankDetectorRef.current.onJsTimerTick(now, elapsed);
+      // Async чтение native-диагностики.
+      void getNativeMemoryMb().then((mb) => {
+        nativeMemoryMbRef.current = mb;
+      });
+      void getBatteryLevelPct().then((pct) => {
+        batteryLevelPctRef.current = pct;
+      });
+    }, 1_000);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS — JankDetector UI-frame signal.
+   *
+   * Reanimated's `useFrameCallback` здесь использовать сложно (он
+   * в shell'е — см. `BreathPracticeShell.onBreathFrame`); вместо
+   * этого эмитим «viewFrame» через requestAnimationFrame. На JS-потоке
+   * это не точная UI FPS, но отлично показывает, когда JS-loop начинает
+   * пропускать кадры: в норме rAF-колбэк приходит каждые ~16 мс, при
+   * лагаx — каждые 30–50 мс.
+   */
+  useEffect(() => {
+    if (!PERF_DIAGNOSTICS_ENABLED) return;
+    if (phase !== "running") return;
+    let cancelled = false;
+    const loop = () => {
+      if (cancelled) return;
+      jankDetectorRef.current.onUiFrame(Date.now());
+      requestAnimationFrame(loop);
+    };
+    const handle = requestAnimationFrame(loop);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(handle);
+    };
+  }, [phase]);
 
   // ─── UI таймер сессии + анимации ─────────────────────────────────────────
 
@@ -928,15 +1180,61 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       setElapsedMs(Math.min(e, TIMING.totalMs));
       if (e < TIMING.totalMs) return;
       clearInterval(id);
+      // TAG_REMOVE_PERF_DIAGNOSTICS — последняя точка перед finalize-export.
+      recordPerfDiagSample();
+
       const analysisEndLogicalMs = sessionStartLogicalMs + TIMING.totalMs;
       const coherenceEngine = pipeline.getCoherenceEngine();
-      const result = coherenceEngine.finalize(analysisEndLogicalMs);
+      const rs = realStartEndedAtMsRef.current;
+      const re = realEndStartedAtMsRef.current;
+      const isHybridSession =
+        !useSimulatedPpg &&
+        rs != null &&
+        re != null &&
+        TIMING.totalMs >= MIN_TOTAL_MS_FOR_HYBRID;
+
+      let finalResult: CoherenceSessionResult;
+      let practiceHrv: PracticeHrvMetricsResult;
+
+      if (isHybridSession) {
+        const startR = coherenceEngine.analyzeWindow(sessionStartLogicalMs, rs);
+        const endR = coherenceEngine.analyzeWindow(re, analysisEndLogicalMs);
+        finalResult = mergeHybridCoherenceSessionResults(startR, endR);
+        coherenceEngine.finalizePrecomputed(finalResult);
+
+        const allBeats = pipeline.getHrvAccumulator().getBeats();
+        const startBeats = allBeats.filter((t) => t >= sessionStartLogicalMs && t <= rs);
+        const endBeats = allBeats.filter((t) => t >= re && t <= analysisEndLogicalMs);
+        setFinalStartAnalysis(startR);
+        setFinalEndAnalysis(endR);
+        setFinalStartHrv(computePracticeHrvMetricsFullSession(startBeats));
+        setFinalEndHrv(computePracticeHrvMetricsFullSession(endBeats));
+        setFinalStartAvgBpm(computeMedianBpmFromBeats(startBeats));
+        setFinalEndAvgBpm(computeMedianBpmFromBeats(endBeats));
+        setFinalStartWindowMs(rs - sessionStartLogicalMs);
+        setFinalEndWindowMs(analysisEndLogicalMs - re);
+
+        const hybridHrvBeats = [...startBeats, ...endBeats].sort((a, b) => a - b);
+        practiceHrv = computePracticeHrvMetricsFullSession(hybridHrvBeats);
+      } else {
+        finalResult = coherenceEngine.finalize(analysisEndLogicalMs);
+        practiceHrv = computePracticeHrvMetricsFullSession(
+          pipeline.getHrvAccumulator().getBeats(),
+        );
+        setFinalStartAnalysis(null);
+        setFinalEndAnalysis(null);
+        setFinalStartHrv(null);
+        setFinalEndHrv(null);
+        setFinalStartAvgBpm(null);
+        setFinalEndAvgBpm(null);
+        setFinalStartWindowMs(null);
+        setFinalEndWindowMs(null);
+      }
+
       const finalRes = useSimulatedPpg
-        ? { ...result, warnings: [...result.warnings, str.simulatedMetricsNote] }
-        : result;
-      const practiceHrv = computePracticeHrvMetricsFullSession(
-        pipeline.getHrvAccumulator().getBeats(),
-      );
+        ? { ...finalResult, warnings: [...finalResult.warnings, str.simulatedMetricsNote] }
+        : finalResult;
+
       const sessionBeats = pipeline.getCoherenceEngine().getSessionBeats();
       const analyzedBeats = finalRes.beatTimestampsMsAnalyzed;
       const rrSeriesMs: number[] = [];
@@ -968,52 +1266,27 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
         baselineBpmSeries: baselineBpmSeriesRef.current.slice(),
         rsaCyclesSummary: rsaCyclesSummaryRef.current.slice(),
         phaseDurationsHistory: phaseDurationsHistoryRef.current.slice(),
+        breathPracticeId: practiceIdRef.current,
+        breathShape: {
+          baseIndex: coherenceShapeRef.current.baseIndex,
+          phases: coherenceShapeRef.current.phases.map((p) => ({
+            kind: p.kind,
+            beats: p.beats,
+            channel: p.channel ?? "both",
+          })),
+        },
         qcOutcome: qcOutcomeRef.current,
         practiceRmssdMs: practiceHrv.showRmssd ? practiceHrv.rmssdMs : null,
         practiceStressPercent: practiceHrv.showStress ? practiceHrv.stressPercent : null,
         practiceHrvBeatCount: practiceHrv.validBeatCount,
         peakDetector: peakDiag,
+        runtimeDiagnostics: perfDiagnosticsRef.current.getSeries(),
       };
       setExportDebug(debug);
       setAnalysis(finalRes);
       setFinalRmssdMs(practiceHrv.showRmssd ? practiceHrv.rmssdMs : null);
       setFinalStressPercent(practiceHrv.showStress ? practiceHrv.stressPercent : null);
       setFinalPulseWasEmulated(pipeline.isPulseEmulated());
-
-      // ─── Dual-window анализ для гибридного режима ─────────────────────
-      //
-      // Если контроллер действительно отработал переходы (realStartEndedAtMs
-      // и realEndStartedAtMs выставлены), считаем метрики отдельно для
-      // «окна начала» и «окна конца». Без усреднения между ними — так
-      // пользователь видит реальную динамику между первым и последним
-      // замером, а не смазанный средний.
-      const realStartEndedAtMs = realStartEndedAtMsRef.current;
-      const realEndStartedAtMs = realEndStartedAtMsRef.current;
-      if (realStartEndedAtMs != null && realEndStartedAtMs != null) {
-        const allBeats = pipeline.getHrvAccumulator().getBeats();
-        const startBeats = allBeats.filter(
-          (t) => t >= sessionStartLogicalMs && t <= realStartEndedAtMs,
-        );
-        const endBeats = allBeats.filter(
-          (t) => t >= realEndStartedAtMs && t <= analysisEndLogicalMs,
-        );
-        const startAnalysisRes = coherenceEngine.analyzeWindow(
-          sessionStartLogicalMs,
-          realStartEndedAtMs,
-        );
-        const endAnalysisRes = coherenceEngine.analyzeWindow(
-          realEndStartedAtMs,
-          analysisEndLogicalMs,
-        );
-        setFinalStartAnalysis(startAnalysisRes);
-        setFinalEndAnalysis(endAnalysisRes);
-        setFinalStartHrv(computePracticeHrvMetricsFullSession(startBeats));
-        setFinalEndHrv(computePracticeHrvMetricsFullSession(endBeats));
-        setFinalStartAvgBpm(computeMedianBpmFromBeats(startBeats));
-        setFinalEndAvgBpm(computeMedianBpmFromBeats(endBeats));
-        setFinalStartWindowMs(realStartEndedAtMs - sessionStartLogicalMs);
-        setFinalEndWindowMs(analysisEndLogicalMs - realEndStartedAtMs);
-      }
 
       setPhase("results");
     }, UI_TICK_MS);
@@ -1042,16 +1315,7 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     lastAppliedShapeRef.current = coherenceShapeRef.current;
     // cycleStartMs специально НЕ задаётся здесь — его выставит «штора»-эффект
     // одновременно с `isBreathTimingActive = true` уже после полного появления practice-UI.
-    phaseDurationsHistoryRef.current = [
-      {
-        planIndex: 0,
-        cycleMs: firstPlan.cycleMs,
-        plannedInhaleMs: firstPlan.phases.find((p) => p.kind === "inhale")?.phaseMs ?? 0,
-        plannedExhaleMs: firstPlan.phases.find((p) => p.kind === "exhale")?.phaseMs ?? 0,
-        baselineBpm: firstPlan.baselineBpm,
-        rsaBpm: firstPlan.rsaInfo?.rsaBpm ?? null,
-      },
-    ];
+    phaseDurationsHistoryRef.current = [planToHistoryEntry(firstPlan, 0)];
     // next effects: subscribe to pulseBpm to keep baseline EMA fresh.
   }, [phase]);
 
@@ -1131,14 +1395,9 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       setCurrentPlan(nextPlan);
       setCycleStartMs(nextStart);
       lastAppliedShapeRef.current = shapeNow;
-      phaseDurationsHistoryRef.current.push({
-        planIndex: phaseDurationsHistoryRef.current.length,
-        cycleMs: nextPlan.cycleMs,
-        plannedInhaleMs: nextPlan.phases.find((p) => p.kind === "inhale")?.phaseMs ?? 0,
-        plannedExhaleMs: nextPlan.phases.find((p) => p.kind === "exhale")?.phaseMs ?? 0,
-        baselineBpm: nextPlan.baselineBpm,
-        rsaBpm: nextPlan.rsaInfo?.rsaBpm ?? null,
-      });
+      phaseDurationsHistoryRef.current.push(
+        planToHistoryEntry(nextPlan, phaseDurationsHistoryRef.current.length),
+      );
       // Кап на 4000 циклов (~16 часов практики при 15 с/цикл).
       if (phaseDurationsHistoryRef.current.length > 4000) {
         phaseDurationsHistoryRef.current = phaseDurationsHistoryRef.current.slice(-4000);
@@ -1158,15 +1417,10 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
     setCurrentPlan(nextPlan);
     setCycleStartMs(nextStart);
     lastAppliedShapeRef.current = shapeNow;
-    phaseDurationsHistoryRef.current.push({
-      planIndex: phaseDurationsHistoryRef.current.length,
-      cycleMs: nextPlan.cycleMs,
-      plannedInhaleMs: nextPlan.phases.find((p) => p.kind === "inhale")?.phaseMs ?? 0,
-      plannedExhaleMs: nextPlan.phases.find((p) => p.kind === "exhale")?.phaseMs ?? 0,
-      baselineBpm: nextPlan.baselineBpm,
-      rsaBpm: nextPlan.rsaInfo?.rsaBpm ?? null,
-    });
-  }, []);
+    phaseDurationsHistoryRef.current.push(
+      planToHistoryEntry(nextPlan, phaseDurationsHistoryRef.current.length),
+    );
+  }, [planToHistoryEntry]);
 
   /**
    * Плавный переход «текст инструкции» → «мандала» на старте практики.
@@ -1322,6 +1576,11 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
       // Сброс гибридного режима — иначе прошлые границы окон утекут в
       // dual-window анализ следующей практики.
       hybridControllerRef.current.reset();
+      perfDiagnosticsRef.current.reset();
+      jankDetectorRef.current.reset();
+      nativeMemoryMbRef.current = null;
+      batteryLevelPctRef.current = null;
+      pendingHybridTransitionReasonRef.current = null;
       realStartEndedAtMsRef.current = null;
       realEndStartedAtMsRef.current = null;
       stopBaselineRamp();
@@ -1636,6 +1895,8 @@ function CoherenceBreathScreenInner({ locale }: { locale: BreathLocale }) {
           key={`finger-${sourceKey}`}
           isActive={cameraActive}
           silent={cameraSilent}
+          onFrameStats={handleFrameStats}
+          captureRateHint={phase === "warmup" || phase === "qualityCheck" ? "highPrecision" : "normal"}
         />
       ) : null}
       {useSimulatedPpg ? (

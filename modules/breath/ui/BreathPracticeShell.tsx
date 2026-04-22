@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
   runOnJS,
@@ -125,8 +125,16 @@ export function BreathPracticeShell({
    */
   const boundaryReportedIndexSV = useSharedValue(0);
 
-  const phaseChangeRef = useRef(onPhaseChange);
-  phaseChangeRef.current = onPhaseChange;
+  /**
+   * Нельзя читать `ref.current` из worklet — ref сериализуется в UI-runtime, а на JS
+   * `current` меняется каждый рендер → спам WARN Worklets («modify key current…»).
+   * Стабильная функция вызывается через `runOnJS` и уже на JS читает актуальный колбэк.
+   */
+  const onPhaseChangeRef = useRef(onPhaseChange);
+  onPhaseChangeRef.current = onPhaseChange;
+  const emitPhaseChangeOnJs = useCallback((nextPhaseIndex: number) => {
+    onPhaseChangeRef.current?.(nextPhaseIndex);
+  }, []);
 
   const planMaterialized = useMemo(() => planToSv(plannedCycle), [plannedCycle]);
 
@@ -168,8 +176,7 @@ export function BreathPracticeShell({
       boundaryReportedIndexSV.value !== nextPhaseIndex + 1
     ) {
       boundaryReportedIndexSV.value = nextPhaseIndex + 1;
-      const cb = phaseChangeRef.current;
-      if (cb) runOnJS(cb)(nextPhaseIndex);
+      runOnJS(emitPhaseChangeOnJs)(nextPhaseIndex);
     }
   });
 

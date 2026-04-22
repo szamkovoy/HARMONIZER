@@ -14,16 +14,17 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.harmonizer.app",
+      "bundleIdentifier": "com.szamkovoy.harmonizer",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
         "NSMicrophoneUsageDescription": "Harmonizer использует микрофон для голосовых сообщений в чате.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "GYBQ9CUW4W"
     },
     "android": {
-      "package": "com.harmonizer.app",
+      "package": "com.szamkovoy.harmonizer",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

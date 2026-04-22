@@ -244,11 +244,25 @@ export class BreathPhasePlanner {
     );
 
     const rsa = this.lastRsaCycle;
+    /**
+     * Для задержек (hold) при наличии RSA важно НЕ брать `baseline`, т.к.
+     * он в медленном EMA-усреднении занижен (особенно при сильной RSA — см.
+     * наблюдение пользователя по треугольному дыханию: 5-5-5 → 3.0/4.2/6.0 с,
+     * задержка растягивалась в 2× относительно вдоха, потому что inhale/exhale
+     * считались по hrInhale≈100 и hrExhale≈75, а hold — по baseline≈62).
+     *
+     * Используем арифметическое среднее `(hrInhale + hrExhale) / 2`. Это
+     * физиологически близко к реальной ЧСС во время задержки (пульс «возврат-
+     * ается» к средней линии), и не заставляет задержку быть значительно
+     * длиннее фаз движения. Фолбэк на baseline остаётся, если RSA отсутствует.
+     */
+    const holdBpm = rsa ? (rsa.hrInhale + rsa.hrExhale) / 2 : baseline;
     const rawPhases = shape.phases.map((ph) => {
       let bpmForPhase = baseline;
       if (rsa) {
         if (ph.kind === "inhale") bpmForPhase = rsa.hrInhale;
         else if (ph.kind === "exhale") bpmForPhase = rsa.hrExhale;
+        else if (ph.kind === "hold") bpmForPhase = holdBpm;
       }
       return {
         kind: ph.kind,
