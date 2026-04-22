@@ -10,7 +10,7 @@ function withIosAutomaticSigning(config) {
     const project = cfg.modResults;
     const [targetUuid, nativeTarget] = IOSConfig.Target.findFirstNativeTarget(project);
 
-    IOSConfig.Xcodeproj.getBuildConfigurationsForListId(
+    IOSConfig.XcodeUtils.getBuildConfigurationsForListId(
       project,
       nativeTarget.buildConfigurationList,
     ).forEach(([, item]) => {
@@ -20,9 +20,9 @@ function withIosAutomaticSigning(config) {
     });
 
     const teamId = cfg.ios?.appleTeamId;
-    const projectSection = IOSConfig.Xcodeproj.getProjectSection(project);
+    const projectSection = IOSConfig.XcodeUtils.getProjectSection(project);
     Object.entries(projectSection)
-      .filter(IOSConfig.Xcodeproj.isNotComment)
+      .filter(IOSConfig.XcodeUtils.isNotComment)
       .forEach(([, section]) => {
         if (!section.attributes) {
           section.attributes = {};
