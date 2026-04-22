@@ -63,7 +63,8 @@
           "cameraPermissionText": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
           "enableFrameProcessors": true
         }
-      ]
+      ],
+      "./plugins/with-ios-automatic-signing.js"
     ],
     "experiments": {
       "typedRoutes": true
