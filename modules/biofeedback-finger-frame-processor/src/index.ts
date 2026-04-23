@@ -13,6 +13,8 @@ import { VisionCameraProxy, type Frame } from "react-native-vision-camera";
  * просто деградирует (thermal trigger недоступен, torch level не
  * регулируется). Полный перечень Android-эквивалентов и план работ:
  *   `/docs/android-adaptation-notes.md`
+ *
+ * Для **web** см. `index.web.ts` — Metro подменяет модуль и не тянет VisionCamera.
  */
 
 export type ThermalState = "nominal" | "fair" | "serious" | "critical";
