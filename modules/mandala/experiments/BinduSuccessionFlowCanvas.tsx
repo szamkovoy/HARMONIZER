@@ -1001,13 +1001,23 @@ half4 main(vec2 fragcoord) {
 }
 `;
 
-const effect = Skia.RuntimeEffect.Make(SHADER_SOURCE);
+/** См. BinduSuccessionLabCanvas: не вызывать Skia.RuntimeEffect.Make на верхнем уровне модуля. */
+let binduFlowShaderCache: NonNullable<ReturnType<typeof Skia.RuntimeEffect.Make>> | null = null;
 
-if (!effect) {
-  throw new Error("Failed to compile Bindu Succession Flow shader.");
+function getBinduFlowShader() {
+  if (binduFlowShaderCache) return binduFlowShaderCache;
+  if (!Skia?.RuntimeEffect) {
+    throw new Error(
+      "Skia.RuntimeEffect недоступен. Пересоберите dev-client: npx expo run:ios --device.",
+    );
+  }
+  const compiled = Skia.RuntimeEffect.Make(SHADER_SOURCE);
+  if (!compiled) {
+    throw new Error("Failed to compile Bindu Succession Flow shader.");
+  }
+  binduFlowShaderCache = compiled;
+  return binduFlowShaderCache;
 }
-
-const EFFECT = effect;
 
 export interface BinduSuccessionFlowCanvasProps {
   isActive?: boolean;
@@ -1038,6 +1048,7 @@ export function BinduSuccessionFlowCanvas({
   tubeBinduOuterR = 0.11,
 }: BinduSuccessionFlowCanvasProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const flowShader = useMemo(() => getBinduFlowShader(), []);
   const timeSeconds = useAnimationClock(isActive);
   const genomes = useMemo(() => buildGenomeSequence(sessionSeed, densityBias), [densityBias, sessionSeed]);
   const streamSceneTime = (timeSeconds * flowSpeed) / SCENE_DURATION_SECONDS + sceneOffset;
@@ -1133,7 +1144,7 @@ export function BinduSuccessionFlowCanvas({
       <Canvas style={styles.canvas}>
         <Fill color="#000000" />
         <Fill>
-          <Shader source={EFFECT} uniforms={uniforms} />
+          <Shader source={flowShader} uniforms={uniforms} />
         </Fill>
       </Canvas>
     </View>
