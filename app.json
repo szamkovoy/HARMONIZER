@@ -64,7 +64,8 @@
           "enableFrameProcessors": true
         }
       ],
-      "./plugins/with-ios-automatic-signing.js"
+      "./plugins/with-ios-automatic-signing.js",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

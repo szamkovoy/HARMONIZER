@@ -1,82 +1,144 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import 'react-native-reanimated';
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider as NavThemeProvider,
+} from "@react-navigation/native";
+import { useFonts } from "expo-font";
+import { Stack, useRouter, useSegments, type Href } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
+import { View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import "react-native-reanimated";
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { useColorScheme } from "@/components/useColorScheme";
+import { AuthProvider, useAuth } from "@/modules/auth";
+import { ThemeProvider as UiThemeProvider, defaultTheme } from "@/modules/ui/theme";
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export { ErrorBoundary } from "expo-router";
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+  initialRouteName: "(tabs)",
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
-  }
+  if (!loaded) return null;
 
-  return <RootLayoutNav />;
+  return (
+    <SafeAreaProvider>
+      <UiThemeProvider value={defaultTheme}>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </UiThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+/**
+ * Авто-редиректы на основании auth-состояния.
+ *
+ *   • нет сессии           → /sign-in
+ *   • есть сессия + нет onboarded_at → /onboarding
+ *   • всё готово           → текущий маршрут (или (tabs) если пришли с /sign-in)
+ *
+ * `useSegments()` возвращает массив сегментов текущего маршрута — по нему мы
+ * понимаем, где сейчас пользователь, и НЕ перенаправляем, если он уже на
+ * нужном экране (иначе будет бесконечный цикл).
+ */
+function useAuthRouteGate() {
+  const { session, profile, profileLoading, initializing } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (initializing) return;
+    // Пока тянем profile после смены session — не принимаем решений про
+    // onboarding, иначе возвращающийся пользователь мигнёт на /onboarding.
+    if (session && profileLoading) return;
+
+    const current = segments[0] as string | undefined;
+    const isOnAuth = current === "sign-in";
+    const isOnOnboarding = current === "onboarding";
+
+    // typed-routes ещё не знает про новые файлы до первого `expo start`,
+    // поэтому кастуем через Href — после регена типов каст можно убрать.
+    if (!session) {
+      if (!isOnAuth) router.replace("/sign-in" as Href);
+      return;
+    }
+    if (!profile?.onboarded_at) {
+      if (!isOnOnboarding) router.replace("/onboarding" as Href);
+      return;
+    }
+    if (isOnAuth || isOnOnboarding) {
+      router.replace("/");
+    }
+  }, [initializing, session, profileLoading, profile?.onboarded_at, segments, router]);
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const { initializing } = useAuth();
+  useAuthRouteGate();
+
+  // Пока читаем сессию из SecureStore — держим чёрный фон, чтобы не мигало
+  // на фоне стартового (tabs). Сплэш-скрин Expo уже скрыт (fonts loaded),
+  // поэтому показываем минимальный плейсхолдер.
+  if (initializing) {
+    return <View style={{ flex: 1, backgroundColor: "#000" }} />;
+  }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="mandala-sandbox"
-            options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
-          />
-          <Stack.Screen
-            name="biofeedback-probe"
-            options={{ title: "Biofeedback Probe", headerBackTitle: "Back" }}
-          />
-          <Stack.Screen
-            name="bindu-succession-lab"
-            options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
-          />
-          <Stack.Screen
-            name="sacred-symbol-stream"
-            options={{ title: "Sacred Symbol Stream", headerBackTitle: "Back" }}
-          />
-          <Stack.Screen
-            name="breath-coherence"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        </Stack>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <NavThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="sign-in"
+          options={{ headerShown: false, animation: "fade" }}
+        />
+        <Stack.Screen
+          name="onboarding"
+          options={{ headerShown: false, animation: "fade" }}
+        />
+        <Stack.Screen
+          name="mandala-sandbox"
+          options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="biofeedback-probe"
+          options={{ title: "Biofeedback Probe", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="bindu-succession-lab"
+          options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="sacred-symbol-stream"
+          options={{ title: "Sacred Symbol Stream", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="breath-coherence"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      </Stack>
+    </NavThemeProvider>
   );
 }
