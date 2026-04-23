@@ -1,9 +1,9 @@
 /**
- * Экран входа. Две кнопки — Apple и Google.
+ * Экран входа. Apple (только iOS) + Google.
  *
- * Apple: используем AppleAuthenticationButton — Apple требует именно свой
- * компонент со стандартным оформлением (иначе ревью App Store режет).
- * Скрываем кнопку на Android/симуляторе без поддержки.
+ * Apple: `AppleAuthenticationButton` + `signInWithIdToken` (см. sign-in-apple.ts).
+ * Кнопку «Войти с Apple» не показываем на Android и веб — только
+ * `Platform.OS === "ios"` и успешный `isAvailableAsync()`.
  *
  * Google: кастомная кнопка в нашей палитре. Guidelines Google допускают
  * кастомное оформление, если оно содержит слова "Sign in with Google" и
@@ -82,7 +82,7 @@ export default function SignInScreen() {
       </View>
 
       <View style={styles.buttons}>
-        {appleAvailable && (
+        {Platform.OS === "ios" && appleAvailable ? (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
             buttonStyle={
@@ -94,7 +94,7 @@ export default function SignInScreen() {
             style={styles.appleButton}
             onPress={tryApple}
           />
-        )}
+        ) : null}
 
         <Pressable
           onPress={tryGoogle}

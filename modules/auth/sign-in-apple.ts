@@ -1,19 +1,26 @@
 /**
- * Вход через Apple ID.
+ * Нативный вход через Apple (iOS) — `expo-apple-authentication` + Supabase
+ * `auth.signInWithIdToken({ provider: "apple", ... })`.
+ *
+ * Намеренно НЕ используем `signInWithOAuth` для Apple: нативный identity token
+ * не требует Client Secret (JWT), который при веб-OAuth у Apple нужно обновлять
+ * каждые ~6 месяцев.
  *
  * Поток:
  *   1. Генерируем случайный rawNonce (32 байта → hex).
- *   2. Считаем SHA-256 от него — hashedNonce; именно его отдаём Apple.
- *   3. Apple возвращает identityToken (JWT), внутри которого claim `nonce` =
- *      hashedNonce.
- *   4. Отдаём Supabase identityToken + оригинальный rawNonce. Supabase на своей
- *      стороне хеширует nonce и сверяет с claim — это защищает от replay-атак.
+ *   2. Считаем SHA-256 от него — hashedNonce; в `signInAsync` передаём именно
+ *      hashed nonce (требование Apple).
+ *   3. Apple возвращает `identityToken` (JWT). В payload `aud` = Bundle ID
+ *      приложения — он должен совпадать с `ios.bundleIdentifier` в app.json
+ *      (`com.zamkovoi.harmonizer.app`) и с App ID в Apple Developer / настройками
+ *      Apple в Supabase для нативного входа.
+ *   4. В Supabase передаём `token: identityToken` и `nonce: rawNonce`; сервер
+ *      хеширует nonce и сверяет с claim в JWT.
  *
- * Apple возвращает имя/email только при ПЕРВОМ входе. Supabase сам это
- * учитывает и сохраняет в user_metadata. Дальше имя берём из profile.
+ * Имя/email Apple отдаёт только при первом входе — дальше Supabase хранит
+ * метаданные пользователя.
  *
- * На симуляторе Apple Sign-In не работает до iOS 13.3+; на Android/web его нет
- * вовсе — проверяем `isAvailableAsync()` и выбрасываем осмысленную ошибку.
+ * Доступность: `isAvailableAsync()` (симулятор с ограничениями; Android — нет).
  */
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";

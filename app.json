@@ -14,7 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.zamkovoi.harmonizer",
+      "bundleIdentifier": "com.zamkovoi.harmonizer.app",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Harmonizer использует камеру для режимов BIOFEEDBACK.",

@@ -10,7 +10,7 @@
  *     "Web application"). Используется и в Supabase (раздел Providers) и тут
  *     — они должны совпадать.
  *   • `iosClientId` — OAuth 2.0 Client ID типа "iOS" для bundle id
- *     com.zamkovoi.harmonizer.
+ *     com.zamkovoi.harmonizer.app.
  *   • Android берёт конфигурацию автоматически из google-services.json /
  *     SHA-1 отпечатка подписи APK.
  *
