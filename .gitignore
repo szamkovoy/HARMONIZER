@@ -1,5 +1,7 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+Apple_AuthKey_SZG247VG98.p8
+
 # dependencies
 node_modules/
 
