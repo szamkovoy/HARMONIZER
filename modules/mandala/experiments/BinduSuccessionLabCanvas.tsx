@@ -1464,14 +1464,6 @@ half4 main(vec2 fragcoord) {
 }
 `;
 
-const effect = Skia.RuntimeEffect.Make(SHADER_SOURCE);
-
-if (!effect) {
-  throw new Error("Failed to compile Bindu Succession Lab shader.");
-}
-
-const EFFECT = effect;
-
 const CLOUD_SHADER_SOURCE = `
 uniform float2 resolution;
 uniform float2 center;
@@ -1519,13 +1511,36 @@ half4 main(vec2 fragcoord) {
 }
 `;
 
-const cloudEffect = Skia.RuntimeEffect.Make(CLOUD_SHADER_SOURCE);
+/**
+ * Компиляция RuntimeEffect только при первом обращении с устройства.
+ *
+ * Раньше `Skia.RuntimeEffect.Make(...)` вызывались на верхнем уровне модуля.
+ * При обработке запросов Metro / некоторых не-JSI контекстах `Skia` (= global
+ * SkiaApi) ещё не установлен → «Cannot read properties of undefined
+ * (reading 'RuntimeEffect')» и HTTP 500 на `/`. Ленивая инициализация внутри
+ * React-компонента гарантирует, что шейдеры собираются только после того,
+ * как `NativeSetup` поднял JSI.
+ */
+let binduLabShaderCache: {
+  mandala: NonNullable<ReturnType<typeof Skia.RuntimeEffect.Make>>;
+  cloud: NonNullable<ReturnType<typeof Skia.RuntimeEffect.Make>>;
+} | null = null;
 
-if (!cloudEffect) {
-  throw new Error("Failed to compile Bindu Succession Lab cloud shader.");
+function getBinduLabShaders() {
+  if (binduLabShaderCache) return binduLabShaderCache;
+  if (!Skia?.RuntimeEffect) {
+    throw new Error(
+      "Skia.RuntimeEffect недоступен. Пересоберите dev-client: npx expo run:ios --device.",
+    );
+  }
+  const mandala = Skia.RuntimeEffect.Make(SHADER_SOURCE);
+  const cloud = Skia.RuntimeEffect.Make(CLOUD_SHADER_SOURCE);
+  if (!mandala || !cloud) {
+    throw new Error("Не удалось скомпилировать шейдеры Bindu Succession Lab.");
+  }
+  binduLabShaderCache = { mandala, cloud };
+  return binduLabShaderCache;
 }
-
-const CLOUD_EFFECT = cloudEffect;
 
 export interface BinduSuccessionLabCanvasProps {
   isActive?: boolean;
@@ -1573,6 +1588,7 @@ export function BinduSuccessionLabCanvas({
 }: BinduSuccessionLabCanvasProps) {
   if (onRenderCommitted) onRenderCommitted();
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const compiledShaders = useMemo(() => getBinduLabShaders(), []);
   const timeSeconds = useAnimationClock(isActive, targetFps);
   const genomes = useMemo(() => buildGenomeSequence(sessionSeed, densityBias), [densityBias, sessionSeed]);
   const resolvedRingSpecs = useMemo(
@@ -1839,7 +1855,7 @@ export function BinduSuccessionLabCanvas({
         <Fill color="#000000" />
         <Fill>
           <Shader
-            source={CLOUD_EFFECT}
+            source={compiledShaders.cloud}
             uniforms={{
               resolution: cloudDrawData.resolution,
               center: cloudDrawData.center,
@@ -1892,7 +1908,7 @@ export function BinduSuccessionLabCanvas({
                 <Group key={`shell-content-${shell.generation}`} clip={shell.path}>
                   <Group opacity={shell.fillOpacity}>
                     <Fill>
-                      <Shader source={EFFECT} uniforms={shell.shaderUniforms} />
+                      <Shader source={compiledShaders.mandala} uniforms={shell.shaderUniforms} />
                     </Fill>
                   </Group>
                 </Group>
