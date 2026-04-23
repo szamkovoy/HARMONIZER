@@ -21,7 +21,7 @@
         "NSMicrophoneUsageDescription": "Harmonizer использует микрофон для голосовых сообщений в чате.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "appleTeamId": "GYBQ9CUW4W"
+      "appleTeamId": "T59BVP7L9H"
     },
     "android": {
       "package": "com.zamkovoi.harmonizer",
