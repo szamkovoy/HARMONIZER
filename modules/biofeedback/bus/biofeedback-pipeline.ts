@@ -35,6 +35,7 @@ import {
   calculateFingerPresenceConfidence,
   isFingerDetected,
   movingAverage3,
+  type AnalyzerPoint,
 } from "@/modules/biofeedback/signal/optical-pipeline";
 
 import { ContactMonitor } from "@/modules/biofeedback/quality/contact-monitor";
@@ -208,6 +209,26 @@ export class BiofeedbackPipeline {
   private opticalPaused = false;
 
   /**
+   * Гейт «live vs batch»: при true pipeline продолжает считать пульс/RSA
+   * (`peakDetector`, `pulseBpmEngine`, `coherence.appendBeats+tickLive` —
+   * нужен для `BreathPhasePlanner`), но **не** аккумулирует beats в
+   * `HrvBeatAccumulator` и не считает HRV/стресс. Именно HRV-накопление —
+   * главный источник прогрессирующей нагрузки, т.к. на каждый кадр
+   * фильтрует RR, отбрасывает гэпы > 2 с, держит большой массив.
+   *
+   * Используется гибридным режимом: в середине практики (окно `emulated`)
+   * capture ставится на паузу — показатели RMSSD/Stress/Coherence для
+   * отчёта всё равно строятся **только** по двум окнам
+   * (`realStart` + `realEnd`), т.е. накопление в середине — мёртвый вес.
+   *
+   * Важно: `coherence.appendBeats` не гейтится, потому что его
+   * `sessionBeats` — единственный источник для `tickLive` → RSA
+   * индикатора. Массив в CoherenceEngine невелик (≤ 2000 чисел за
+   * 20 мин) и не пересчитывает окна, только push.
+   */
+  private metricsCapturePaused = false;
+
+  /**
    * TAG_REMOVE_PERF_DIAGNOSTICS — счётчик вызовов `pushOpticalSample` после
    * проверки паузы (реальная обработка кадра ППГ). Для сравнения нагрузки с
    * гибридной фазой `emulated`.
@@ -276,6 +297,36 @@ export class BiofeedbackPipeline {
     return this.opticalPaused;
   }
 
+  /**
+   * Включить/выключить «тяжёлую» ветвь (HRV accumulator + финальные
+   * метрики). См. комментарий к `metricsCapturePaused`.
+   */
+  setMetricsCapturePaused(paused: boolean): void {
+    this.metricsCapturePaused = paused;
+  }
+
+  isMetricsCapturePaused(): boolean {
+    return this.metricsCapturePaused;
+  }
+
+  /**
+   * Диагностика размеров коллекций — отдаём в UI для runtimeDiagnostics,
+   * чтобы было видно, что именно растёт за практику.
+   */
+  getCollectionSizes(): {
+    mergedBeats: number;
+    canonicalBeats: number;
+    sessionBeatsInCoherence: number;
+    hrvAccumulatorBeats: number;
+  } {
+    return {
+      mergedBeats: this.mergedBeats.length,
+      canonicalBeats: this.canonicalBeats.length,
+      sessionBeatsInCoherence: this.coherence.getSessionBeatsLength(),
+      hrvAccumulatorBeats: this.hrvAccumulator.getBeats().length,
+    };
+  }
+
   /** TAG_REMOVE_PERF_DIAGNOSTICS — см. `perfDiagnosticOpticalPushCount`. */
   getPerfDiagnosticOpticalPushCount(): number {
     return this.perfDiagnosticOpticalPushCount;
@@ -315,6 +366,47 @@ export class BiofeedbackPipeline {
       peakWindowsObserved: this.peakWindowsObserved,
       lastRefractoryAdaptiveMs: this.lastRefractoryAdaptiveMs,
       lastMedianRrInPeakWindowMs: this.lastMedianRrInPeakWindowMs,
+    };
+  }
+
+  /**
+   * TAG_REMOVE_PERF_DIAGNOSTICS
+   *
+   * Снимок текущего состояния pipeline для **отладки активации пульсометра**.
+   * Используется `CoherenceBreathScreen` для ручной кнопки «Диагностика»
+   * на экране активации: пользователь держит палец ~20-60 с, затем жмёт —
+   * JSON с полным содержимым окна идёт разработчику.
+   *
+   * Включает:
+   *  - `opticalSamples` — ВЕСЬ окно сырых сэмплов из `OpticalRingBuffer`
+   *    (последние ~12 с), с redMean/greenMean/blueMean/opticalValue/
+   *    quality/timestampMs и всеми сопутствующими метриками качества
+   *    (lumaMean, darknessRatio, saturationRatio, motion, redDominance).
+   *    Ровно этого достаточно, чтобы оффлайн восстановить весь signal
+   *    path (baseline, detrend, bandpass, peak detection);
+   *  - `mergedBeats` — весь список ударов с timestamps;
+   *  - `peakDetectorDiagnostics` — счётчики дикротика/split-артефактов,
+   *    последний refractory.
+   *
+   * Сам детектор запускается троттлом ~15 Hz в `pushOpticalSample`, а не
+   * здесь — этот метод чисто read-only и в прямую память не копирует
+   * (возвращает reference на внутренний массив).
+   */
+  getActivationDiagnostic(): {
+    opticalSamples: readonly AnalyzerPoint[];
+    mergedBeats: readonly number[];
+    peakDetectorDiagnostics: ReturnType<BiofeedbackPipeline["getPeakDetectorDiagnostics"]>;
+    lastStableRrMs: number;
+    lastMedianRrMs: number;
+    opticalPushCount: number;
+  } {
+    return {
+      opticalSamples: this.optical.getSamples(),
+      mergedBeats: this.mergedBeats,
+      peakDetectorDiagnostics: this.getPeakDetectorDiagnostics(),
+      lastStableRrMs: this.lastStableRrMs,
+      lastMedianRrMs: this.lastMedianRrMs,
+      opticalPushCount: this.perfDiagnosticOpticalPushCount,
     };
   }
 
@@ -387,7 +479,8 @@ export class BiofeedbackPipeline {
     // показывал «фантомные» метрики, ничего не публикуем. Симулятор в Expo Go остаётся
     // прежним (там есть RR-модуляция, метрики полезны для отладки пайплайна) — поэтому
     // исключение только для `emulated`.
-    const shouldSkipDerivedMetrics = this.pulseSource === "emulated";
+    const shouldSkipDerivedMetrics =
+      this.pulseSource === "emulated" || this.metricsCapturePaused;
 
     if (this.hrvAccumulator.isReady() && !shouldSkipDerivedMetrics) {
       this.hrvAccumulator.ingest(this.canonicalBeats, this.beatEligible, timestampMs);
@@ -756,7 +849,13 @@ export class BiofeedbackPipeline {
     // 6) HRV accumulator (только после ready и только если реально появились
     // новые удары — ingest по уже накопленному ряду на каждом кадре только
     // создаёт временные индексы, ничего не добавляя).
-    if (this.hrvAccumulator.isReady() && mergedChanged) {
+    // В «batch-паузе» (фаза emulated гибридного режима) — skip: метрики
+    // в отчёте строятся только по началу и концу практики, середина — мёртвый вес.
+    if (
+      this.hrvAccumulator.isReady() &&
+      mergedChanged &&
+      !this.metricsCapturePaused
+    ) {
       this.hrvAccumulator.ingest(this.canonicalBeats, canonicalEligible, sample.timestampMs);
     }
 
@@ -808,9 +907,13 @@ export class BiofeedbackPipeline {
     }
 
     // 9) HRV / Stress (после ready) — троттлим до 10 с.
+    // Тоже скипаем при batch-паузе — beats всё равно перестали
+    // аккумулироваться, считать заново ту же выборку каждые 10 с
+    // незачем.
     if (
       this.hrvAccumulator.isReady() &&
       qualitySnap.enoughForHrv &&
+      !this.metricsCapturePaused &&
       sample.timestampMs - this.lastHrvStressComputeMs >=
         BiofeedbackPipeline.HRV_STRESS_LIVE_INTERVAL_MS
     ) {
@@ -952,6 +1055,7 @@ export class BiofeedbackPipeline {
     this.lastRefractoryAdaptiveMs = 0;
     this.lastMedianRrInPeakWindowMs = 0;
     this.perfDiagnosticOpticalPushCount = 0;
+    this.metricsCapturePaused = false;
   }
 
   /** Полный сброс — между экранами / при unmount. */
@@ -959,6 +1063,8 @@ export class BiofeedbackPipeline {
     this.softReset();
     this.contact.reset();
     this.coherence.reset();
+    this.opticalPaused = false;
+    this.metricsCapturePaused = false;
   }
 
   /** Проверка валидности RR (для UI / отладки). */

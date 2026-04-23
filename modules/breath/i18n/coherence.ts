@@ -40,6 +40,12 @@ export interface CoherenceBreathStrings {
   qcFailedContinueWithoutSensor: string;
   /** Кнопка диалога: повторить попытку установить контакт. */
   qcFailedRetry: string;
+  /**
+   * Ссылка для отправки отладочного JSON разработчику (бета-период).
+   * Отображается только при `DEBUG_ACTIVATION_EXPORT_ENABLED=true`.
+   * Будет удалена до публичного релиза.
+   */
+  qcFailedSendReport: string;
   calibrationHint: string;
   calibrationPulse: string;
   calibrationWait: string;
@@ -53,6 +59,12 @@ export interface CoherenceBreathStrings {
   entryTimeLabel: string;
   rmssdLabel: string;
   stressLabel: string;
+  /**
+   * «Базовый пульс» — скользящая EMA по RR-интервалам из BreathPhasePlanner.
+   * Самая устойчивая оценка «твоего текущего пульса», без per-секундных
+   * флуктуаций. Показываем тренд: `72 → 80` за практику.
+   */
+  baselineBpmTrendLabel: string;
   /** Средний пульс за окно (начало / конец). */
   avgBpmLabel: string;
   /** Заголовок колонки «в начале практики» в таблице результатов. */
@@ -103,6 +115,31 @@ export interface CoherenceBreathStrings {
   practiceName: Record<BreathPracticeId, string>;
   /** Санскритские подзаголовки практик. */
   practiceSanskritName: Record<BreathPracticeId, string>;
+
+  // ─── Экран результатов: mood-picker + кнопки «Обсудить/Закрыть» ────────
+  /** Вопрос перед показом таблицы результатов. */
+  resultsMoodQuestion: string;
+  /** Подпись под «весёлым» смайлом. */
+  resultsMoodBetter: string;
+  /** Подпись под нейтральным смайлом. */
+  resultsMoodSame: string;
+  /** Подпись под «грустным» смайлом. */
+  resultsMoodWorse: string;
+  /** Заголовок раздела с метриками после выбора настроения. */
+  resultsMetricsHeader: string;
+  /** Кнопка «Обсудить» — открывает коммуникатор с результатами практики. */
+  resultsDiscussButton: string;
+  /** Кнопка «Закрыть» — возврат на главный экран. */
+  resultsCloseButton: string;
+  /**
+   * Системный промпт, с которым открывается коммуникатор при нажатии «Обсудить».
+   */
+  resultsDiscussSystemPrompt: string;
+  /**
+   * Вводная строка пользовательского сообщения при обсуждении результатов.
+   * Полный текст = это + JSON-блок с метриками.
+   */
+  resultsDiscussUserIntro: string;
 }
 
 /**
@@ -144,6 +181,7 @@ const ru: CoherenceBreathStrings = {
     "Стабильный сигнал не получен. Не двигайте палец и не давите им на объектив слишком сильно. Вы можете повторить попытку активировать пульсометр или выполните практику без использования биологической обратной связи.",
   qcFailedContinueWithoutSensor: "Продолжить без пульсометра",
   qcFailedRetry: "Попробовать снова",
+  qcFailedSendReport: "Отправить отчёт разработчику",
   calibrationHint:
     "Приложите палец к камере со вспышкой. Дождитесь, пока ритм станет устойчивым — затем начнётся практика.",
   calibrationPulse: "Пульс",
@@ -158,13 +196,14 @@ const ru: CoherenceBreathStrings = {
   entryTimeLabel: "Время вхождения",
   rmssdLabel: "RMSSD",
   stressLabel: "Индекс стресса",
+  baselineBpmTrendLabel: "Базовый пульс",
   avgBpmLabel: "Средний пульс",
   resultsWindowStartLabel: "В начале",
   resultsWindowEndLabel: "В конце",
   resultsWindowDurationLabel: (m, s) =>
     `${m}:${s.toString().padStart(2, "0")} замера`,
   hybridEmulatedMidNote:
-    "В середине практики использовалась эмуляция пульса для снижения нагрузки на устройство. Метрики ниже рассчитаны по реальным измерениям в начале и в конце практики.",
+    "Метрики ниже рассчитаны по двум окнам реальных PPG-замеров — в начале и в конце практики. Середина практики использовалась для свободного дыхания и не входит в итоговую аналитику.",
   exportButton: "Экспорт JSON (отладка)",
   startButton: "Начать",
   startWithoutSensorButton: "Начать без пульсометра",
@@ -211,6 +250,22 @@ const ru: CoherenceBreathStrings = {
     "triangle-up": "Висама-Вритти · Бахир Кумбхака",
     "triangle-down": "Висама-Вритти · Антар Кумбхака",
   },
+  resultsMoodQuestion: "Как изменилось ваше состояние?",
+  resultsMoodBetter: "стало лучше",
+  resultsMoodSame: "осталось прежним",
+  resultsMoodWorse: "стало хуже",
+  resultsMetricsHeader: "Ваши показатели",
+  resultsDiscussButton: "Обсудить",
+  resultsCloseButton: "Закрыть",
+  resultsDiscussSystemPrompt:
+    "Ты эмпатичный наставник дыхательных практик в приложении Harmonizer. " +
+    "Когда пользователь делится с тобой результатами практики, ты кратко и тепло " +
+    "поддерживаешь, выделяешь положительные изменения и динамику, избегаешь " +
+    "медицинских выводов и не ставишь диагнозов. Пиши по-русски, без эмодзи, " +
+    "коротко (2–4 предложения). После ответа — пригласи задать уточняющие вопросы.",
+  resultsDiscussUserIntro:
+    "Вот результаты моей только что завершённой дыхательной практики. " +
+    "Пожалуйста, выдели положительные моменты и прокомментируй динамику.",
 };
 
 const en: CoherenceBreathStrings = {
@@ -238,6 +293,7 @@ const en: CoherenceBreathStrings = {
     "A stable signal was not obtained. Keep the finger still and don't press too hard against the lens. You can try the sensor again or run the practice without biofeedback.",
   qcFailedContinueWithoutSensor: "Continue without pulse sensor",
   qcFailedRetry: "Try again",
+  qcFailedSendReport: "Send debug report to developer",
   calibrationHint:
     "Place your finger on the camera with flash. Wait until the rhythm is stable — then practice begins.",
   calibrationPulse: "Pulse",
@@ -252,6 +308,7 @@ const en: CoherenceBreathStrings = {
   entryTimeLabel: "Time to entry",
   rmssdLabel: "RMSSD",
   stressLabel: "Stress index",
+  baselineBpmTrendLabel: "Baseline heart rate",
   avgBpmLabel: "Average pulse",
   resultsWindowStartLabel: "Start",
   resultsWindowEndLabel: "End",
@@ -305,6 +362,21 @@ const en: CoherenceBreathStrings = {
     "triangle-up": "Vishama Vritti · Bahir Kumbhaka",
     "triangle-down": "Vishama Vritti · Antar Kumbhaka",
   },
+  resultsMoodQuestion: "How has your state changed?",
+  resultsMoodBetter: "got better",
+  resultsMoodSame: "stayed the same",
+  resultsMoodWorse: "got worse",
+  resultsMetricsHeader: "Your metrics",
+  resultsDiscussButton: "Discuss",
+  resultsCloseButton: "Close",
+  resultsDiscussSystemPrompt:
+    "You are an empathetic breathing-practice mentor in the Harmonizer app. " +
+    "When the user shares practice results, respond briefly and warmly, highlight " +
+    "positive changes and dynamics, avoid medical conclusions and diagnoses. " +
+    "Write in English, no emoji, 2–4 sentences. End by inviting follow-up questions.",
+  resultsDiscussUserIntro:
+    "Here are the results of my just-completed breathing practice. " +
+    "Please highlight positive aspects and comment on the dynamics.",
 };
 
 export function getCoherenceBreathStrings(locale: BreathLocale): CoherenceBreathStrings {

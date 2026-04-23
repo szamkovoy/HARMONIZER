@@ -136,62 +136,56 @@ public class BiofeedbackFingerFrameProcessorModule: Module {
     /**
      * TAG_REMOVE_PERF_DIAGNOSTICS
      *
-     * Нативное использование памяти процессом в мегабайтах.
+     * Возвращает нативное использование памяти процессом (resident size) в
+     * мегабайтах через `mach_task_basic_info`. На iOS это наиболее точный
+     * и дешёвый способ получить «сколько реально занимает приложение» —
+     * соответствует полю `Memory` в Xcode Debug Navigator.
      *
-     * Ранее использовали `mach_task_basic_info` / `resident_size`, но у него
-     * две проблемы: (1) на iOS 14+ `resident_size` сильно отличается от того,
-     * что система считает «памятью приложения» (jetsam-лимит), (2) Swift-вызов
-     * с плейсхолдером `mach_task_basic_info()` как default-init в некоторых
-     * сборках тихо возвращал KERN_INVALID_ARGUMENT. Переходим на канонический
-     * рецепт Apple — `task_vm_info` / `phys_footprint`: это ровно то число,
-     * что Xcode показывает в Debug Navigator → Memory. Дешёвый (≪1 мкс),
-     * thread-safe, работает на симуляторе и на устройстве.
+     * Используется диагностикой гибридного режима: если RSS непрерывно
+     * растёт по ходу практики, это даёт независимый от теплового состояния
+     * сигнал о возможной утечке / fragmentation.
      *
-     * Возвращает `-1`, если `task_info` вернул ошибку — JS-обёртка трактует
-     * такое значение как `null` и пишет в лог причину (через console.warn)
-     * один раз за сессию, чтобы не забивать Metro-терминал.
+     * При ошибке возвращает -1.0 (sentinel). JS-слой отличает -1 от реального
+     * нулевого RSS (которого на живом процессе быть не может) и пишет null
+     * в диагностику. Важно: **не** возвращать 0.0 при ошибке — это было
+     * источником путаницы: раньше JS фильтровал `v > 0`, и при реальном
+     * kern_success был шанс, что для короткого всплеска вернётся очень
+     * малое значение (округлённое до 0 при делении на 1M). Теперь
+     * контракт однозначный: любое значение >= 0 — валидный RSS.
      */
     AsyncFunction("getMemoryUsageMb") { () -> Double in
-      var info = task_vm_info_data_t()
-      var count = mach_msg_type_number_t(
-        MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size
-      )
-      let kr: kern_return_t = withUnsafeMutablePointer(to: &info) { infoPtr in
-        infoPtr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
-          task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), intPtr, &count)
+      var info = mach_task_basic_info()
+      var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+      let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
+        $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+          task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
         }
       }
-      if kr != KERN_SUCCESS {
+      if kerr != KERN_SUCCESS {
         return -1.0
       }
-      return Double(info.phys_footprint) / 1_048_576.0
+      return Double(info.resident_size) / 1_048_576.0
     }
 
     /**
      * TAG_REMOVE_PERF_DIAGNOSTICS
      *
-     * Уровень заряда батареи в процентах [0..100].
+     * Уровень заряда батареи в процентах [0..100]. На iOS возвращает
+     * ступенчатое значение (iOS округляет до ~5%), но для длительной
+     * практики это всё равно полезно: если за 20 мин батарея упала на
+     * 15-20%, это косвенно говорит о мощной нагрузке. Требует
+     * `isBatteryMonitoringEnabled = true` (включаем один раз).
      *
-     * Важно: `UIDevice.current` и `batteryLevel` требуют main-thread. Expo
-     * `AsyncFunction` по-умолчанию диспатчит в фоновую очередь, и в прошлой
-     * реализации мы читали `batteryLevel` вне main — результат был `-1.0`
-     * на всех сэмплах. Здесь явно уходим в `DispatchQueue.main.sync`, это
-     * безопасно (вызывающая очередь — не main) и стоит микросекунды.
-     *
-     * iOS возвращает ступенчатое значение (~5%), но для 20-минутной практики
-     * этого достаточно, чтобы оценить падение заряда как косвенный признак
-     * нагрузки CPU/камеры/LED. Возвращает `-1`, если определить не удалось.
+     * Возвращает -1, если уровень неизвестен.
      */
     AsyncFunction("getBatteryLevelPct") { () -> Double in
-      return DispatchQueue.main.sync {
-        let device = UIDevice.current
-        if !device.isBatteryMonitoringEnabled {
-          device.isBatteryMonitoringEnabled = true
-        }
-        let lvl = device.batteryLevel // -1 если unknown, иначе 0.0..1.0
-        if lvl < 0 { return -1.0 }
-        return Double(lvl) * 100.0
+      let device = UIDevice.current
+      if !device.isBatteryMonitoringEnabled {
+        device.isBatteryMonitoringEnabled = true
       }
+      let lvl = device.batteryLevel // -1 если unknown, иначе 0.0..1.0
+      if lvl < 0 { return -1.0 }
+      return Double(lvl) * 100.0
     }
   }
 

@@ -355,6 +355,14 @@ export class CoherenceEngine {
     return this.live?.cachedSnapshot ?? null;
   }
 
+  /**
+   * Диагностика: текущая длина массива `sessionBeats`. Используется
+   * runtimeDiagnostics, чтобы видеть, как растут коллекции за практику.
+   */
+  getSessionBeatsLength(): number {
+    return this.sessionBeats.length;
+  }
+
   /** Финализирует сессию: вызывается по окончании практики; результат кэшируется. */
   finalize(sessionEndedAtMs: number): CoherenceSessionResult {
     if (!this.active) {

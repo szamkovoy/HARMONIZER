@@ -1,9 +1,30 @@
 import { Communicator } from "@/modules/communicator/ui/Communicator";
+import { consumeCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
 import { StatusBar } from "expo-status-bar";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
+const DEFAULT_SYSTEM_PROMPT =
+  "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.";
+
 export default function CommunicatorScreen() {
+  // При каждом возвращении на экран коммуникатора забираем pending-greeting
+  // (если его поставил кто-то через enqueueCommunicatorGreeting) и
+  // перемонтируем `<Communicator />` с новым `key` — чтобы `autoSendInitialMessage`
+  // сработал заново. Без смены ключа эффект autoSend был бы выполнен только
+  // при первом mount и ре-заходы не давали бы новый авто-send.
+  const [pending, setPending] = useState(() => consumeCommunicatorGreeting());
+  useFocusEffect(
+    useCallback(() => {
+      const next = consumeCommunicatorGreeting();
+      if (next) setPending(next);
+    }, []),
+  );
+
+  const systemPrompt = pending?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+  const communicatorKey = pending ? `greet-${pending.enqueuedAtMs}` : "default";
+
   return (
     <View style={{ flex: 1 }}>
       <StatusBar style="auto" />
@@ -83,8 +104,10 @@ export default function CommunicatorScreen() {
         <Text style={{ color: "#c6f6e9", fontWeight: "600" }}>Breath Coherence</Text>
       </Pressable>
       <Communicator
-        systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу."
+        key={communicatorKey}
+        systemPrompt={systemPrompt}
         memoryWindow={24}
+        autoSendInitialMessage={pending?.userText}
       />
     </View>
   );

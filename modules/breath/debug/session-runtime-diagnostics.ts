@@ -17,6 +17,7 @@
  */
 
 import type { ThermalState } from "@/modules/biofeedback-finger-frame-processor/src";
+import { PERF_DIAGNOSTICS_ENABLED } from "@/modules/breath/config/debug-flags";
 import type { HybridPhase } from "@/modules/breath/core/hybrid-measurement-controller";
 
 /**
@@ -25,8 +26,12 @@ import type { HybridPhase } from "@/modules/breath/core/hybrid-measurement-contr
  * возвращает `[]`, `readJsHeapUsedBytes()` сразу отдаёт `null`. В дереве
  * компонентов jank-детектор тоже опрашивается только когда этот флаг `true`
  * (см. `CoherenceBreathScreen`).
+ *
+ * ИСТОЧНИК ИСТИНЫ — `modules/breath/config/debug-flags.ts`. Здесь только
+ * реэкспорт, чтобы старый код, импортирующий константу из этого файла,
+ * продолжал работать без изменений.
  */
-export const PERF_DIAGNOSTICS_ENABLED = true;
+export { PERF_DIAGNOSTICS_ENABLED };
 
 /** Максимум точек в серии. При 10-секундном сэмплинге это ~75 мин практики. */
 const MAX_SAMPLES = 450;
@@ -86,6 +91,66 @@ export type PerfDiagSample = {
     snapshotsWhileRunning: number;
     opticalPipelinePushes: number;
   };
+
+  /**
+   * Размеры накопительных коллекций pipeline/UI на момент сэмпла.
+   * Добавлено апр 2026 — чтобы post-factum видеть, что именно растёт
+   * за практику (возможный источник накопительных стопов UI).
+   * Все nullable: если coherence не активна или accumulator не готов
+   * — 0. Если диагностика отключена — поле может быть null.
+   */
+  collectionSizes: {
+    mergedBeats: number;
+    sessionBeatsInCoherence: number;
+    hrvAccumulatorBeats: number;
+    baselineBpmSeries: number;
+    phaseDurationsHistory: number;
+    rsaCyclesSummary: number;
+    pulseLog: number;
+    opticalPreviewBuffer: number;
+  } | null;
+
+  /**
+   * Гейт тяжёлой ветви pipeline (HRV accumulator + coherence append).
+   * Зеркалит `pipeline.isMetricsCapturePaused()` в момент сэмпла —
+   * т.е. видно, в какие промежутки «live-only» батч был выключен.
+   */
+  metricsCapturePaused: boolean | null;
+
+  /**
+   * Кумулятивные счётчики активности, чтобы post-factum видеть,
+   * кто именно "крутит JS-поток". Все значения — от начала сессии,
+   * не дельта; дельта между сэмплами = эффективная частота (Гц).
+   *
+   * Добавлено апр 2026 после теста 1776894951179: версия о накоплении
+   * массивов оказалась несостоятельной (замедление было даже при
+   * полном opticalPaused). Главные подозреваемые теперь — React
+   * re-renders и мандала (useState 30 Hz). Эти счётчики должны
+   * показать точного виновника за один тест.
+   */
+  activityCounters: {
+    /** Сколько раз ре-рендерился `CoherenceBreathScreenInner` с начала сессии. */
+    renderCountInner: number;
+    /**
+     * Сколько раз ре-рендерился `BinduSuccessionLabCanvas`. При 30 Hz
+     * clock это ≈ 30 × T_sec. Если держится стабильно и в конце —
+     * значит JS-поток справляется, тормоза где-то ещё. Если падает —
+     * значит JS захлёбывается.
+     */
+    mandalaRenderCount: number;
+    /**
+     * Сколько раз отработал RAF-loop в `CoherenceBreathScreen` (для
+     * JankDetector). При идеальных условиях ≈ 60 Hz × T_sec, на
+     * decim = 4 в `emulated` — ≈ 15 Hz × T_sec.
+     */
+    rafTicksCumulative: number;
+    /** Тики hybrid-controller интервала. ~2 Hz. */
+    hybridTickCount: number;
+    /** Тики perf-diag сэмплера. ~0.1 Hz. */
+    perfDiagTickCount: number;
+    /** Тики 1 Hz sampler (native memory / battery). */
+    nativeSamplerTickCount: number;
+  } | null;
 };
 
 /**

@@ -692,6 +692,27 @@ export type CoherenceExportDebug = {
   rrSeriesMs?: readonly number[];
   /** Серия baseline BPM из planner-а, (tSinceSessionStartMs, bpm). */
   baselineBpmSeries?: readonly { tMs: number; bpm: number }[];
+  /**
+   * Сводка по baseline BPM за сессию: значения в начале/конце и разброс.
+   * Baseline BPM — это «живая EMA» (экспоненциальная средняя) по RR-
+   * интервалам, которую использует `BreathPhasePlanner` для дыхательных
+   * циклов. Это самая устойчивая оценка «твоего пульса сейчас» без
+   * per-секундных флуктуаций.
+   *
+   * `startBpm` — первая точка серии (первые секунды после активации),
+   * `endBpm` — последняя (ближе к концу практики). Разность и направление
+   * хорошо характеризуют реакцию вегетатики на практику (чаще: дыхание
+   * с задержками → пульс плавно растёт на 5-10 уд/мин, чистое когерентное
+   * → остаётся на уровне или чуть падает).
+   */
+  baselineBpmSummary?: {
+    startBpm: number | null;
+    endBpm: number | null;
+    minBpm: number | null;
+    maxBpm: number | null;
+    meanBpm: number | null;
+    sampleCount: number;
+  } | null;
   /** Сводка по завершённым RSA-циклам: (hrInhale, hrExhale, rsaBpm, durationMs). */
   rsaCyclesSummary?: readonly {
     hrInhale: number;
@@ -755,6 +776,26 @@ export type CoherenceExportDebug = {
     lastRefractoryAdaptiveMs: number | null;
     lastMedianRrInPeakWindowMs: number | null;
   };
+  /**
+   * Статистика распределения HRV-валидных ударов по двум окнам гибридного
+   * измерения. Добавлено 23 апр 2026 — чтобы diagnosticать случаи, когда
+   * колонка «в начале» на экране результатов показывает `—` по RMSSD /
+   * stress / средний пульс (причина: `startWindowBeatsCount <
+   * HRV_MIN_VALID_BEATS_FOR_METRICS` — 30).
+   *
+   * `allBeatsCount` — общее число beats в `HrvBeatAccumulator` на момент
+   * finalize (т.е. beats, которые прошли калибровку и все фильтры).
+   * `startWindowBeatsCount` / `endWindowBeatsCount` — сколько из них
+   * попало в соответствующее окно гибридного merge (`[sessionStart, rs]`
+   * и `[re, sessionEnd]`).
+   */
+  hybridWindowStats?: {
+    allBeatsCount: number;
+    startWindowBeatsCount: number;
+    endWindowBeatsCount: number;
+    startWindowMs: number | null;
+    endWindowMs: number | null;
+  } | null;
   /**
    * TAG_REMOVE_PERF_DIAGNOSTICS — thermal / heap / фаза гибрида / счётчики по времени.
    * Удалить вместе с `session-runtime-diagnostics.ts`.

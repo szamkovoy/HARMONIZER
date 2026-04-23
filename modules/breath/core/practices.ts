@@ -69,7 +69,10 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     indicatorKind: "bar",
     channelMode: "both",
     buildShape: (n) => equalPair("inhale", "exhale", n, "both", "both"),
-    normalBaseBeats: 5,
+    // Когерентное дыхание: 6 ударов пульса в вдох/выдох — это стандарт
+    // Coherence 6bpm ≈ 0.1 Hz, резонансная частота парасимпатической
+    // вариабельности HRV для большинства взрослых.
+    normalBaseBeats: 6,
     minBaseBeats: 1,
     maxBaseBeats: 10,
   },
@@ -77,7 +80,9 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     id: "nadi-shodhana",
     indicatorKind: "dual-bar",
     channelMode: "alternating",
-    // Полный цикл попеременного дыхания: L-in, R-ex, R-in, L-ex
+    // Полный цикл попеременного дыхания: L-in, R-ex, R-in, L-ex.
+    // 6 ударов по каждой стороне — тот же резонансный темп, что и у
+    // coherent (канальное — подвид когерентного по динамике).
     buildShape: (n) => ({
       phases: [
         { kind: "inhale", beats: n, channel: "left" },
@@ -87,7 +92,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
       ],
       baseIndex: 0,
     }),
-    normalBaseBeats: 5,
+    normalBaseBeats: 6,
     minBaseBeats: 1,
     maxBaseBeats: 10,
   },
@@ -96,7 +101,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     indicatorKind: "dual-bar",
     channelMode: "right",
     buildShape: (n) => equalPair("inhale", "exhale", n, "right", "right"),
-    normalBaseBeats: 5,
+    normalBaseBeats: 6,
     minBaseBeats: 1,
     maxBaseBeats: 10,
   },
@@ -105,7 +110,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     indicatorKind: "dual-bar",
     channelMode: "left",
     buildShape: (n) => equalPair("inhale", "exhale", n, "left", "left"),
-    normalBaseBeats: 5,
+    normalBaseBeats: 6,
     minBaseBeats: 1,
     maxBaseBeats: 10,
   },
@@ -113,7 +118,10 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     id: "square",
     indicatorKind: "square",
     channelMode: "both",
-    // Чатуранга пранаяма (5-5-5-5): вдох → задержка → выдох → задержка
+    // Чатуранга пранаяма: вдох → задержка → выдох → задержка.
+    // 4 удара на сторону — классический стандарт сама-вритти (1:1:1:1 @ 4),
+    // удобно удерживать без напряжения. 4*4 = 16 ударов на цикл ≈ 16 с при
+    // 60 bpm — комфортный ритм.
     buildShape: (n) => ({
       phases: [
         { kind: "inhale", beats: n, channel: "both" },
@@ -123,7 +131,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
       ],
       baseIndex: 0,
     }),
-    normalBaseBeats: 5,
+    normalBaseBeats: 4,
     minBaseBeats: 1,
     maxBaseBeats: 10,
   },
@@ -131,7 +139,10 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     id: "triangle-up",
     indicatorKind: "triangle-up",
     channelMode: "both",
-    // Висама-Вритти · Бахир Кумбхака (5-5-5): вдох → выдох → задержка после выдоха
+    // Висама-Вритти · Бахир Кумбхака: вдох → выдох → задержка после выдоха.
+    // 5 ударов на сторону — средний темп: 3 фазы × 5 = 15 ударов ≈ 15 с
+    // при 60 bpm. Быстрее, чем квадрат 4 (16 с), медленнее когерентного 6
+    // (12 с на цикл).
     buildShape: (n) => ({
       phases: [
         { kind: "inhale", beats: n, channel: "both" },
@@ -148,7 +159,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     id: "triangle-down",
     indicatorKind: "triangle-down",
     channelMode: "both",
-    // Висама-Вритти · Антар Кумбхака (5-5-5): вдох → задержка после вдоха → выдох
+    // Висама-Вритти · Антар Кумбхака: вдох → задержка после вдоха → выдох.
     buildShape: (n) => ({
       phases: [
         { kind: "inhale", beats: n, channel: "both" },

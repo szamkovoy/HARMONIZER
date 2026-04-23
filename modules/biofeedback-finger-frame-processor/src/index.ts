@@ -97,74 +97,37 @@ export async function getThermalState(): Promise<ThermalState> {
  * в эмуляцию (если также соблюдены min-time и достаточно данных).
  */
 /**
- * Потребление памяти процессом в МБ. На iOS — `task_vm_info.phys_footprint`
- * (ровно то число, что Xcode показывает в Debug Navigator → Memory). На
- * Android / симуляторе без нативного модуля возвращает `null`.
- *
- * Лог диагностики: первый fail (метод отсутствует или бросает) попадает
- * в `console.warn` один раз за процесс — если в Metro видно это сообщение,
- * значит dev-client собран без новых нативных функций и нужен rebuild
- * (`npx expo run:ios --device`). Дальше молчит, чтобы не засорять лог.
+ * Текущее потребление памяти процессом в МБ (iOS resident size через
+ * `mach_task_basic_info`). На Android / в симуляторе / без native-модуля
+ * возвращает `null`. Используется диагностикой гибридного режима как
+ * независимый от thermalState индикатор нагрузки.
  */
-let loggedMemDiagFailure = false;
 export async function getNativeMemoryMb(): Promise<number | null> {
-  if (!nativeModule?.getMemoryUsageMb) {
-    if (!loggedMemDiagFailure) {
-      loggedMemDiagFailure = true;
-      console.warn(
-        "[perfDiag] BiofeedbackFingerFrameProcessor.getMemoryUsageMb недоступен — пересоберите dev-client",
-      );
-    }
-    return null;
-  }
+  if (!nativeModule?.getMemoryUsageMb) return null;
   try {
     const v = await nativeModule.getMemoryUsageMb();
-    if (Number.isFinite(v) && v > 0) return v;
-    if (!loggedMemDiagFailure) {
-      loggedMemDiagFailure = true;
-      console.warn(`[perfDiag] getMemoryUsageMb вернул нерабочее значение: ${v}`);
-    }
-    return null;
-  } catch (err) {
-    if (!loggedMemDiagFailure) {
-      loggedMemDiagFailure = true;
-      console.warn("[perfDiag] getMemoryUsageMb бросил исключение:", err);
-    }
+    // Swift возвращает -1.0 при ошибке kern_return, иначе resident_size в MB.
+    // На живом процессе RSS всегда > 0 МБ (хотя бы единицы МБ загрузчика),
+    // поэтому фильтруем только sentinel < 0 и нефинитные значения. В
+    // частности, 0.0 не было бы валидным RSS, но и не встретится — Swift
+    // больше не возвращает 0 при ошибке.
+    return Number.isFinite(v) && v >= 0 ? v : null;
+  } catch {
     return null;
   }
 }
 
 /**
- * Уровень заряда батареи в процентах [0..100]. iOS читает `UIDevice.batteryLevel`
- * с main-thread (без этого возвращал `-1.0` → `null`). Дискретность на iOS
- * ~5%, но по 20-минутной практике даёт полезную оценку энергобюджета.
- *
- * При первом сбое пишет в `console.warn` (см. `getNativeMemoryMb` — та же идея).
+ * Уровень заряда батареи в процентах [0..100]. `null`, если недоступно
+ * (iOS без включённого battery monitoring, Android без permissions и т.п.).
+ * Помогает оценить реальный энергобюджет практики.
  */
-let loggedBatteryDiagFailure = false;
 export async function getBatteryLevelPct(): Promise<number | null> {
-  if (!nativeModule?.getBatteryLevelPct) {
-    if (!loggedBatteryDiagFailure) {
-      loggedBatteryDiagFailure = true;
-      console.warn(
-        "[perfDiag] BiofeedbackFingerFrameProcessor.getBatteryLevelPct недоступен — пересоберите dev-client",
-      );
-    }
-    return null;
-  }
+  if (!nativeModule?.getBatteryLevelPct) return null;
   try {
     const v = await nativeModule.getBatteryLevelPct();
-    if (Number.isFinite(v) && v >= 0) return v;
-    if (!loggedBatteryDiagFailure) {
-      loggedBatteryDiagFailure = true;
-      console.warn(`[perfDiag] getBatteryLevelPct вернул нерабочее значение: ${v}`);
-    }
-    return null;
-  } catch (err) {
-    if (!loggedBatteryDiagFailure) {
-      loggedBatteryDiagFailure = true;
-      console.warn("[perfDiag] getBatteryLevelPct бросил исключение:", err);
-    }
+    return Number.isFinite(v) && v >= 0 ? v : null;
+  } catch {
     return null;
   }
 }

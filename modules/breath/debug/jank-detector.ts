@@ -30,11 +30,6 @@ import { PERF_DIAGNOSTICS_ENABLED } from "@/modules/breath/debug/session-runtime
 const WINDOW_MS = 5_000;
 /** Максимум точек в ring buffer'е (защита от аномального всплеска частоты). */
 const MAX_POINTS = 1024;
-/**
- * Интервал опроса JS-таймера. Номинально 16 мс ≈ 60 Hz; разница между
- * фактическим dt и 16 мс показывает, насколько JS-loop захлёбывается.
- */
-const JS_TIMER_NOMINAL_MS = 16;
 
 type RingPoint = { tMs: number; v: number };
 
@@ -86,11 +81,27 @@ export class JankDetector {
   private lastUiFrameMs = 0;
   private lastCameraFrameMs = 0;
 
-  /** Вызывать из useFrameCallback через runOnJS (или из setInterval 60 Hz). */
-  onUiFrame(tMs: number): void {
+  /**
+   * Вызывать из useFrameCallback через runOnJS (или из requestAnimationFrame
+   * loop'а). `sampleEveryN` — коэффициент прореживания (1 = каждый кадр, 4 =
+   * каждый 4-й кадр). Внутри мы делим фактический dt на этот коэффициент,
+   * чтобы значение uiFps оставалось корректным оценкой ИСТИННОЙ частоты
+   * rAF. Это важно: без нормализации decimation 1:4 даёт артефакт 15 fps
+   * даже при идеальных 60 fps (см. PERF-отчёт: в emulated uiFpsMedian
+   * «залипал» на 15 только из-за decimation).
+   *
+   * Контракт: если вызывающая сторона пропускает кадры, она должна
+   * передавать реальное количество пропущенных (+ текущий = `sampleEveryN`).
+   * Если sampleEveryN не передан или 1 — считаем по фактическим dt.
+   */
+  onUiFrame(tMs: number, sampleEveryN: number = 1): void {
     if (!PERF_DIAGNOSTICS_ENABLED) return;
     if (this.lastUiFrameMs > 0) {
-      const dt = tMs - this.lastUiFrameMs;
+      const rawDt = tMs - this.lastUiFrameMs;
+      // Нормализуем: фактический dt — это интервал между НАШИМИ вызовами
+      // (каждый N-й rAF), а нам нужен средний dt между rAF-кадрами.
+      const divisor = Math.max(1, sampleEveryN);
+      const dt = rawDt / divisor;
       if (dt > 0 && dt < 1000) this.uiFrameDeltas.push(tMs, dt);
     }
     this.lastUiFrameMs = tMs;
@@ -114,10 +125,24 @@ export class JankDetector {
     this.lastCameraFrameMs = nowMs;
   }
 
-  /** Прогон лага JS-таймера. `elapsedMs` — фактическое dt от последнего тика. */
-  onJsTimerTick(tMs: number, elapsedMs: number): void {
+  /**
+   * Прогон лага JS-таймера. `elapsedMs` — фактическое dt от последнего тика,
+   * `expectedIntervalMs` — требуемый интервал (аргумент `setInterval`). Лаг
+   * = насколько фактический интервал превысил ожидаемый. Положительное
+   * значение — JS-loop «украден» тяжёлой работой и не успел прокинуть тик
+   * вовремя.
+   *
+   * Ранее константа `JS_TIMER_NOMINAL_MS = 16` была захардкожена для 60 Hz
+   * таймера, а вызывался метод из 1 Гц тикера — получался постоянный
+   * «лаг» ~984 мс, не отражавший реальное здоровье JS-loop'а. Теперь
+   * вызывающая сторона сообщает реальный ожидаемый интервал.
+   */
+  onJsTimerTick(tMs: number, elapsedMs: number, expectedIntervalMs: number): void {
     if (!PERF_DIAGNOSTICS_ENABLED) return;
-    const lag = elapsedMs - JS_TIMER_NOMINAL_MS;
+    const lag = elapsedMs - expectedIntervalMs;
+    // 2000 мс — верхняя граница «разумного» отставания. За её пределами
+    // значение почти наверняка артефакт (например, первый тик после
+    // возобновления из background) и шумит mean; отбрасываем.
     if (lag > -5 && lag < 2000) this.jsTimerLags.push(tMs, lag);
   }
 

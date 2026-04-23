@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, View } from "react-native";
 import { Canvas, Fill, FillType, Group, Path, Shader, Skia } from "@shopify/react-native-skia";
+import type { SkMatrix, SkPath } from "@shopify/react-native-skia";
 
 import {
   DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS,
@@ -8,23 +9,41 @@ import {
 } from "@/modules/mandala/experiments/binduSuccessionVisualPresets";
 
 /**
- * Минимальный интервал между тиками мандалы в миллисекундах (≈ 30 FPS).
+ * Целевая частота тиков мандалы по умолчанию.
  *
- * Рендер мандалы тяжёлый (создание SkPath и множества uniforms в useMemo на каждый
- * render). Нативный `requestAnimationFrame` на iOS ProMotion выдаёт до 120 Гц, что
- * при включённой камере + torch давало нагрев CPU/GPU → thermal throttling → рывки
- * мандалы и индикатора уже на 2-й минуте длинных практик.
+ * Рендер мандалы тяжёлый: на каждый тик пересчитывается `shellDrawData`
+ * useMemo (создаёт `Skia.Path.Make()` × число shell'ов и готовит uniforms
+ * для shader). Это происходит на JS-потоке.
  *
- * 30 FPS — более чем достаточно для такой плавной медитативной анимации и тратит в
- * 2-4 раза меньше ресурсов.
+ * История значений:
+ *  - 120 Hz (нативный rAF на ProMotion): быстро грел CPU/GPU → thermal
+ *    throttling → рывки уже на 2-й минуте длинных практик.
+ *  - 30 Hz: убрали мгновенный перегрев, но накопительное торможение в
+ *    последние 4 минуты 20-минутной практики оставалось даже при полной
+ *    заморозке pipeline (см. тесты 1776849647247, 1776891125997,
+ *    1776894951179). Виновником оказалась сама мандала — 30 setState/с
+ *    + тяжёлый shellDrawData useMemo не успевают при thermal-даунклоке
+ *    CPU (3 ГГц → 1 ГГц).
+ *  - 15 Hz (текущее): плавности достаточно для медитативной мандалы,
+ *    React-ре-рендеры и пересчёт shellDrawData сокращены в 2 раза.
+ *
+ * При подтверждении, что и 15 Hz — много, можно ещё снизить через prop
+ * `targetFps`, не трогая сам алгоритм.
  */
-const MANDALA_MIN_TICK_INTERVAL_MS = 1000 / 30;
+const DEFAULT_MANDALA_TARGET_FPS = 20;
+const MIN_MANDALA_TARGET_FPS = 6;
+const MAX_MANDALA_TARGET_FPS = 60;
 
-function useAnimationClock(isActive: boolean) {
+function useAnimationClock(isActive: boolean, targetFps: number) {
   const [timeSeconds, setTimeSeconds] = useState(0);
   const frameRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
   const lastAppliedFrameRef = useRef<number | null>(null);
+  // Храним текущий targetFps в ref, чтобы менять частоту на лету без
+  // пересоздания RAF-loop. Ранее любое изменение `isActive` пересоздавало
+  // эффект — для targetFps мы специально не перезапускаем.
+  const targetFpsRef = useRef(targetFps);
+  targetFpsRef.current = targetFps;
 
   useEffect(() => {
     if (!isActive) {
@@ -38,11 +57,16 @@ function useAnimationClock(isActive: boolean) {
 
     const tick = (timestamp: number) => {
       const last = lastFrameRef.current ?? timestamp;
-      // Троттл до 30 FPS: если с прошлого *применённого* тика прошло меньше
-      // `MANDALA_MIN_TICK_INTERVAL_MS`, пропускаем этот кадр без пересчёта state.
+      // Троттл до `targetFps`: читаем из ref, чтобы поддерживать смену
+      // частоты на лету (например, при переходе hybrid → emulated).
+      const fps = Math.max(
+        MIN_MANDALA_TARGET_FPS,
+        Math.min(MAX_MANDALA_TARGET_FPS, targetFpsRef.current),
+      );
+      const minIntervalMs = 1000 / fps;
       const lastApplied = lastAppliedFrameRef.current ?? 0;
       const deltaSinceApplied = timestamp - lastApplied;
-      if (lastApplied > 0 && deltaSinceApplied < MANDALA_MIN_TICK_INTERVAL_MS) {
+      if (lastApplied > 0 && deltaSinceApplied < minIntervalMs) {
         frameRef.current = requestAnimationFrame(tick);
         return;
       }
@@ -395,12 +419,27 @@ function imagePaletteForRing(ringSpec: RingSpec | undefined) {
   return ringSpec?.image ? RING_IMAGE_PALETTES[ringSpec.image] : RING_IMAGE_PALETTES.Petals;
 }
 
-function createSoftInkBoundaryPath(
-  centerX: number,
-  centerY: number,
-  radius: number,
-  seed: number,
-) {
+/**
+ * Кэш unit-radius (r=1, центр = 0,0) boundary-путей по seed.
+ *
+ * Каждый уникальный `seed` (а их в 20-минутной практике детерминированное
+ * количество ≈ `числу генераций × 2`) порождает ровно ОДИН SkPath со
+ * своей уникальной геометрией из 72 сегментов. На каждом кадре мы больше
+ * не строим путь с нуля (72 JSI-вызова moveTo/lineTo × 14 путей × 20 Hz
+ * = ~20 000 JSI-вызовов/секунду), а клонируем кэшированный unit-path
+ * через `addPath(unit, matrix)` — ровно 2 JSI-вызова на путь.
+ *
+ * Это критически снижает нативную нагрузку в «хвосте» практики: именно
+ * накопительные аллокации SkPath + GC-давление ранее вызывали UI-FPS
+ * просадку в последние 2–3 минуты 20-минутных сессий.
+ */
+const UNIT_BOUNDARY_PATH_CACHE_MAX = 512;
+const unitBoundaryPathCache = new Map<number, SkPath>();
+
+function getUnitSoftInkBoundaryPath(seed: number): SkPath {
+  const cached = unitBoundaryPathCache.get(seed);
+  if (cached) return cached;
+
   const path = Skia.Path.Make();
   const segmentCount = 72;
   const frequencyA = 3 + Math.floor(hash(seed + 1.1) * 3);
@@ -417,9 +456,8 @@ function createSoftInkBoundaryPath(
       1 +
       Math.sin(angle * frequencyA + phaseA) * amplitudeA +
       Math.sin(angle * frequencyB + phaseB) * amplitudeB;
-    const localRadius = radius * radialScale;
-    const x = centerX + Math.cos(angle) * localRadius;
-    const y = centerY + Math.sin(angle) * localRadius;
+    const x = Math.cos(angle) * radialScale;
+    const y = Math.sin(angle) * radialScale;
 
     if (index === 0) {
       path.moveTo(x, y);
@@ -429,7 +467,49 @@ function createSoftInkBoundaryPath(
   }
 
   path.close();
+  // Non-volatile hint позволяет Skia закэшировать GPU-ресурсы (rasterized
+  // geometry cache), если этот SkPath будет нарисован многократно.
+  path.setIsVolatile(false);
+
+  // Мягкий FIFO-лимит: Map сохраняет порядок вставки, удаляем самую
+  // старую при переполнении. Для типичной 20-минутной сессии нужно
+  // ~600 путей (300 поколений × 2), поэтому запас в 512 ловит 90%-й
+  // случай и удерживает нативную память в узких пределах даже для
+  // 60+ минутных сессий.
+  if (unitBoundaryPathCache.size >= UNIT_BOUNDARY_PATH_CACHE_MAX) {
+    const oldestKey = unitBoundaryPathCache.keys().next().value;
+    if (oldestKey !== undefined) unitBoundaryPathCache.delete(oldestKey);
+  }
+  unitBoundaryPathCache.set(seed, path);
   return path;
+}
+
+/**
+ * Временная scratch-матрица. Переиспользуем, чтобы не плодить
+ * JSI-объект `SkMatrix` на каждый путь на каждом кадре. `createSoft…Path`
+ * вызывается синхронно из useMemo, поэтому race condition невозможен.
+ */
+let boundaryScratchMatrix: SkMatrix | null = null;
+
+function createSoftInkBoundaryPath(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  seed: number,
+): SkPath {
+  const unit = getUnitSoftInkBoundaryPath(seed);
+  if (!boundaryScratchMatrix) boundaryScratchMatrix = Skia.Matrix();
+  const matrix = boundaryScratchMatrix;
+  matrix.identity();
+  // Порядок важен: сначала scale (к unit-координате (x,y) в радиусе 1),
+  // потом postTranslate (смещение в (centerX, centerY)). Итог:
+  //   p' = T · S · p  =>  (radius·x + centerX, radius·y + centerY).
+  matrix.scale(radius, radius);
+  matrix.postTranslate(centerX, centerY);
+
+  const scaled = Skia.Path.Make();
+  scaled.addPath(unit, matrix);
+  return scaled;
 }
 
 function boundaryStyleForRing(generation: number, seed: number, minDimension: number) {
@@ -1459,6 +1539,21 @@ export interface BinduSuccessionLabCanvasProps {
   tubeBinduOuterR?: number;
   visualPreset?: ChakraVisualPreset;
   showMandala?: boolean;
+  /**
+   * Диагностический хук: вызывается на каждом коммите компонента.
+   * Используется `CoherenceBreathScreen` для подсчёта ре-рендеров
+   * мандалы в разрезе всей практики (телеметрия накопительного
+   * торможения). Не влияет на рендер — просто инкремент внешнего ref.
+   */
+  onRenderCommitted?: () => void;
+  /**
+   * Целевая частота обновления анимации (Гц). По умолчанию 15.
+   * Родительский компонент может временно опустить значение (например,
+   * при thermal throttling или в «эмулированной» середине практики),
+   * чтобы снизить нагрузку на JS-поток и Skia-коммит без рефакторинга
+   * внутренних алгоритмов. Изменение применяется на лету.
+   */
+  targetFps?: number;
 }
 
 export function BinduSuccessionLabCanvas({
@@ -1473,9 +1568,12 @@ export function BinduSuccessionLabCanvas({
   tubeBinduOuterR = 0.11,
   visualPreset = DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS[6],
   showMandala = true,
+  onRenderCommitted,
+  targetFps = DEFAULT_MANDALA_TARGET_FPS,
 }: BinduSuccessionLabCanvasProps) {
+  if (onRenderCommitted) onRenderCommitted();
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const timeSeconds = useAnimationClock(isActive);
+  const timeSeconds = useAnimationClock(isActive, targetFps);
   const genomes = useMemo(() => buildGenomeSequence(sessionSeed, densityBias), [densityBias, sessionSeed]);
   const resolvedRingSpecs = useMemo(
     () =>
@@ -1599,69 +1697,118 @@ export function BinduSuccessionLabCanvas({
     [centerX, centerY, minDimension, sessionSeed, shellStack],
   );
 
+  /**
+   * Static per-shell data, depends ONLY on geometry + visual preset.
+   * Создаётся ОДИН РАЗ на монтирование (или при смене `shellStack`).
+   *
+   * Ранее вся эта работа (включая `Skia.Path.Make()` × N shells + addPath +
+   * все opacity-формулы) делалась внутри `shellDrawData`, который пере-
+   * считывался на каждый тик `timeSeconds`. За 20 минут практики это было
+   * ~180 000 нативных Skia-path аллокаций → накопительная фрагментация
+   * нативной памяти + GC-паузы в последние 2-3 минуты практики
+   * независимо от всего остального (камера, pipeline, метрики).
+   *
+   * Теперь время (`contentTime`, `ringRotation`) влияет только на быстрый
+   * `shellDrawData` ниже, который собирает JS-объект с shader uniforms —
+   * без нативных аллокаций.
+   */
+  const shellStaticData = useMemo(() => {
+    const contentFadeStartR = stackOuterLimit * 0.26;
+    const contentFadeEndR = stackOuterLimit + maxShellWidth * 0.52;
+    const boundaryFadeStartR = stackOuterLimit * 0.18;
+    const boundaryFadeEndR = stackOuterLimit + maxShellWidth * 0.34;
+    const resolutionW = Math.max(size.width, 1);
+    const resolutionH = Math.max(size.height, 1);
+
+    return shellStack.map((shell, index) => {
+      const blendedGenome = blendGenomeDirect(shell.genomeBlend.from, shell.genomeBlend.to, shell.genomeBlend.mix);
+      const ornamentPalette = imagePaletteForRing(shell.ringSpec);
+      const path = Skia.Path.Make();
+      path.addPath(boundaryDrawData[index].path);
+      if (shell.kind === "annulus" && index > 0) {
+        path.addPath(boundaryDrawData[index - 1].path);
+        path.setFillType(FillType.EvenOdd);
+      }
+
+      const contentDissolve = 1 - smoothstep(contentFadeStartR, contentFadeEndR, shell.innerRadius);
+      const boundaryOuterDissolve = 1 - smoothstep(boundaryFadeStartR, boundaryFadeEndR, shell.innerRadius);
+      const finalShutdownFade = Math.pow(smoothstep(0.0, 0.28, shell.fade), 1.2);
+      const finalBoundaryShutdownFade = Math.pow(smoothstep(0.0, 0.34, shell.fade), 1.35);
+      const dissolveOpacity = Math.pow(clamp(contentDissolve * shell.fade * finalShutdownFade, 0, 1), 1.6);
+      const boundaryOpacity = Math.pow(
+        clamp(boundaryOuterDissolve * shell.fade * finalBoundaryShutdownFade, 0, 1),
+        1.9,
+      );
+      const boundaryDissolve = Math.pow(boundaryOpacity, 0.92);
+      const hazeAmount = (1 - contentDissolve) * finalShutdownFade;
+      const annulusInnerT = shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0;
+      const rotationRpm = shell.ringSpec.rotationRpm;
+
+      return {
+        shell,
+        index,
+        path,
+        annulusInnerT,
+        rotationRpm,
+        fillOpacity: dissolveOpacity,
+        glowOpacity: 0,
+        strokeOpacity: clamp((0.08 + boundaryDissolve * 0.24 + boundaryDrawData[index].harmonicClass * 0.03) * boundaryOpacity, 0, 0.48),
+        hazeOpacity: clamp(shell.fade * hazeAmount * 0.12, 0, 0.1),
+        hazeStrokeWidth: boundaryDrawData[index].echoStrokeWidth * lerp(1.8, 4.6, hazeAmount),
+        /** Неизменные во времени поля `shaderUniforms`. К ним на каждом тике добавляются `contentTime` + `ringRotation`. */
+        staticUniforms: {
+          resolution: [resolutionW, resolutionH],
+          densityBias,
+          sceneOuterR: shell.outerRadius,
+          scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
+          imageMode: imageModeForRing(shell.ringSpec.image),
+          imageCount: shell.ringSpec.count ?? 0,
+          contentFadeStartR,
+          contentFadeEndR,
+          annulusInnerT,
+          secondaryLayerGate: SHOW_SECONDARY_SCENE_LAYERS ? 1 : 0,
+          ornamentLineColor: ornamentPalette.lineColor,
+          ornamentFillColor: ornamentPalette.fillColor,
+          ornamentAccentColor: ornamentPalette.accentColor,
+          layerA: toUniformA(blendedGenome),
+          layerB: toUniformB(blendedGenome),
+          layerC: toUniformC(blendedGenome),
+          layerD: toUniformD(blendedGenome),
+          layerE: toUniformE(blendedGenome),
+        },
+      };
+    });
+  }, [boundaryDrawData, densityBias, shellStack, size.height, size.width, stackOuterLimit]);
+
+  /**
+   * Per-tick shellDrawData: собирает финальный shader-uniforms bundle,
+   * дописывая во время-зависимые поля (`contentTime`, `ringRotation`)
+   * поверх статических `staticUniforms`. Никаких native allocations.
+   *
+   * NOTE: этот useMemo всё ещё ре-вычисляется при каждом изменении
+   * `timeSeconds` (≈ 20 раз/с), но теперь это чистая JS-работа —
+   * сборка нескольких объектов, без Skia.Path.Make / addPath /
+   * setFillType. Amortized cost ~50× ниже исходного варианта.
+   */
   const shellDrawData = useMemo(
     () =>
-      shellStack.map((shell, index) => {
-        const blendedGenome = blendGenomeDirect(shell.genomeBlend.from, shell.genomeBlend.to, shell.genomeBlend.mix);
-        const ornamentPalette = imagePaletteForRing(shell.ringSpec);
-        const path = Skia.Path.Make();
-        path.addPath(boundaryDrawData[index].path);
-        if (shell.kind === "annulus" && index > 0) {
-          path.addPath(boundaryDrawData[index - 1].path);
-          path.setFillType(FillType.EvenOdd);
-        }
-
-        const contentFadeStartR = stackOuterLimit * 0.26;
-        const contentFadeEndR = stackOuterLimit + maxShellWidth * 0.52;
-        const boundaryFadeStartR = stackOuterLimit * 0.18;
-        const boundaryFadeEndR = stackOuterLimit + maxShellWidth * 0.34;
-        const contentDissolve = 1 - smoothstep(contentFadeStartR, contentFadeEndR, shell.innerRadius);
-        const boundaryOuterDissolve = 1 - smoothstep(boundaryFadeStartR, boundaryFadeEndR, shell.innerRadius);
-        const finalShutdownFade = Math.pow(smoothstep(0.0, 0.28, shell.fade), 1.2);
-        const finalBoundaryShutdownFade = Math.pow(smoothstep(0.0, 0.34, shell.fade), 1.35);
-        const dissolveOpacity = Math.pow(clamp(contentDissolve * shell.fade * finalShutdownFade, 0, 1), 1.6);
-        const boundaryOpacity = Math.pow(
-          clamp(boundaryOuterDissolve * shell.fade * finalBoundaryShutdownFade, 0, 1),
-          1.9,
-        );
-        const boundaryDissolve = Math.pow(boundaryOpacity, 0.92);
-        const hazeAmount = (1 - contentDissolve) * finalShutdownFade;
-
-        return {
-          ...shell,
-          index,
-          path,
-          annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-          fillOpacity: dissolveOpacity,
-          glowOpacity: 0,
-          strokeOpacity: clamp((0.08 + boundaryDissolve * 0.24 + boundaryDrawData[index].harmonicClass * 0.03) * boundaryOpacity, 0, 0.48),
-          hazeOpacity: clamp(shell.fade * hazeAmount * 0.12, 0, 0.1),
-          hazeStrokeWidth: boundaryDrawData[index].echoStrokeWidth * lerp(1.8, 4.6, hazeAmount),
-          shaderUniforms: {
-            resolution: [Math.max(size.width, 1), Math.max(size.height, 1)],
-            contentTime,
-            densityBias,
-            sceneOuterR: shell.outerRadius,
-            scenePhase: generationPhase(shell.generation + shell.genomeBlend.mix),
-            ringRotation: ringRotationRadians(timeSeconds, shell.ringSpec.rotationRpm),
-            imageMode: imageModeForRing(shell.ringSpec.image),
-            imageCount: shell.ringSpec.count ?? 0,
-            contentFadeStartR,
-            contentFadeEndR,
-            annulusInnerT: shell.outerRadius > 0.0001 ? shell.innerRadius / shell.outerRadius : 0,
-            secondaryLayerGate: SHOW_SECONDARY_SCENE_LAYERS ? 1 : 0,
-            ornamentLineColor: ornamentPalette.lineColor,
-            ornamentFillColor: ornamentPalette.fillColor,
-            ornamentAccentColor: ornamentPalette.accentColor,
-            layerA: toUniformA(blendedGenome),
-            layerB: toUniformB(blendedGenome),
-            layerC: toUniformC(blendedGenome),
-            layerD: toUniformD(blendedGenome),
-            layerE: toUniformE(blendedGenome),
-          },
-        };
-      }),
-    [boundaryDrawData, contentTime, densityBias, outerCullLimit, shellStack, size.height, size.width, stackOuterLimit, timeSeconds],
+      shellStaticData.map(({ shell, index, path, annulusInnerT, rotationRpm, fillOpacity, glowOpacity, strokeOpacity, hazeOpacity, hazeStrokeWidth, staticUniforms }) => ({
+        ...shell,
+        index,
+        path,
+        annulusInnerT,
+        fillOpacity,
+        glowOpacity,
+        strokeOpacity,
+        hazeOpacity,
+        hazeStrokeWidth,
+        shaderUniforms: {
+          ...staticUniforms,
+          contentTime,
+          ringRotation: ringRotationRadians(timeSeconds, rotationRpm),
+        },
+      })),
+    [contentTime, shellStaticData, timeSeconds],
   );
 
   const boundaryRadii = useMemo(

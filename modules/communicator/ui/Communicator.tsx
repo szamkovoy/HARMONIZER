@@ -86,6 +86,18 @@ export interface CommunicatorProps {
   history?: CommunicatorHistoryMessage[];
   /** Последние N пар сообщений в запросе; без ограничения — вся переданная история */
   memoryWindow?: number;
+  /**
+   * Автоматически отправить это сообщение от имени пользователя при
+   * монтировании (эквивалент ручного ввода + send). Используется, когда
+   * другой модуль открывает коммуникатор с заранее заданным контекстом
+   * для обсуждения — например, «Обсудить результаты практики» из BREATH.
+   *
+   * Отправляется ровно один раз на mount: смена значения после первого
+   * рендера эффекта не повторит отправку (ref-guard). Если надо запустить
+   * новый auto-send — пере-смонтируй компонент (например, `key` по id
+   * очереди).
+   */
+  autoSendInitialMessage?: string;
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
   onError?: (err: Error) => void;
@@ -124,6 +136,7 @@ export function Communicator({
   systemPrompt,
   history,
   memoryWindow,
+  autoSendInitialMessage,
   onEmotionSegment,
   onMessage,
   onError,
@@ -391,6 +404,26 @@ export function Communicator({
     setLocalUserLine("");
     onAbort?.();
   }, [abortChatStream, onAbort, resetChatStream]);
+
+  /**
+   * Автоматическая отправка первого сообщения при монтировании компонента.
+   * См. проп `autoSendInitialMessage`. Ref-guard защищает от повторной
+   * отправки при StrictMode-двойном ране эффекта или при смене пропа —
+   * «первое» должно остаться ровно одним.
+   */
+  const autoSendFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoSendFiredRef.current) return;
+    const text = autoSendInitialMessage?.trim();
+    if (!text) return;
+    autoSendFiredRef.current = true;
+    // Небольшая задержка: даём UI смонтироваться, чтобы пользователь видел,
+    // как сообщение появляется «естественно», а не мгновенно
+    const h = setTimeout(() => {
+      void runStream({ type: "text", text });
+    }, 120);
+    return () => clearTimeout(h);
+  }, [autoSendInitialMessage, runStream]);
 
   const discardRecording = useCallback(async () => {
     const rec = recordingRef.current;
