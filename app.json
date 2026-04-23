@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "harmonizerexpo",
+    "scheme": "com.zamkovoi.harmonizer.app",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,7 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.szamkovoy.harmonizer",
+      "bundleIdentifier": "com.zamkovoi.harmonizer",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
@@ -24,7 +24,7 @@
       "appleTeamId": "GYBQ9CUW4W"
     },
     "android": {
-      "package": "com.szamkovoy.harmonizer",
+      "package": "com.zamkovoi.harmonizer",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
