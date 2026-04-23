@@ -1,9 +1,10 @@
 /**
  * Клиент Supabase для мобильного приложения.
  *
- * Хранилище сессии — `expo-secure-store`, чтобы access/refresh токены лежали в
- * iOS Keychain / Android Keystore, а не в AsyncStorage (который можно прочитать
- * из рутованного устройства).
+ * Хранилище сессии: на **iOS/Android** — `expo-secure-store` (Keychain / Keystore).
+ * На **web** (в т.ч. если случайно открыли `http://…:8081` в Safari) —
+ * `localStorage`, иначе `expo-secure-store` не инициализируется и падает
+ * `getValueWithKeyAsync is not a function`.
  *
  * Экспортируем один синглтон: импортируйте `supabase` из этого модуля во всём
  * приложении — не создавайте дополнительные клиенты.
@@ -17,26 +18,62 @@
  */
 import "react-native-url-polyfill/auto";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import type { Database } from "./supabase-types";
 
 const EXPO_SB_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const EXPO_SB_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-/**
- * Адаптер expo-secure-store к ожидаемому supabase-js storage API
- * (setItem/getItem/removeItem).
- *
- * SecureStore имеет лимит ~2 KB на запись — обычно токенов это хватает с
- * запасом, но Supabase при желании может писать больше. Если столкнёмся с
- * "Value too large" — добавим fallback на AsyncStorage только для крупных
- * полей. Пока держим просто.
- */
-const secureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+type SupabaseAuthStorage = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
 };
+
+/**
+ * Адаптер под supabase-js `auth.storage`.
+ * Не импортируем `expo-secure-store` на верхнем уровне — иначе web-бандл
+ * тянет нативный модуль и падает при открытии Metro URL в браузере / Safari.
+ */
+function createAuthStorageAdapter(): SupabaseAuthStorage {
+  if (Platform.OS === "web") {
+    return {
+      async getItem(key: string) {
+        if (typeof localStorage === "undefined") return null;
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      async setItem(key: string, value: string) {
+        if (typeof localStorage === "undefined") return;
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          /* ignore quota / private mode */
+        }
+      },
+      async removeItem(key: string) {
+        if (typeof localStorage === "undefined") return;
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          /* ignore */
+        }
+      },
+    };
+  }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const SecureStore = require("expo-secure-store") as typeof import("expo-secure-store");
+  return {
+    getItem: (key: string) => SecureStore.getItemAsync(key),
+    setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+    removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+  };
+}
+
+const authStorageAdapter = createAuthStorageAdapter();
 
 function createSupabaseClient(): SupabaseClient<Database> | null {
   if (!EXPO_SB_URL || !EXPO_SB_KEY) {
@@ -44,7 +81,7 @@ function createSupabaseClient(): SupabaseClient<Database> | null {
   }
   return createClient<Database>(EXPO_SB_URL, EXPO_SB_KEY, {
     auth: {
-      storage: secureStoreAdapter,
+      storage: authStorageAdapter,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
