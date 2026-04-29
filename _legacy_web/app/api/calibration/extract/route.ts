@@ -86,6 +86,44 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+async function enableUltraMode(
+  db: SupabaseClient,
+  userId: string,
+  calibration: { id: string; version: number; source: CalibrationSource },
+): Promise<{ enabledUntil: string; source: string }> {
+  const enabledUntil = addDays(new Date(), 3).toISOString();
+  const { data: settings, error: readError } = await db
+    .from("user_settings")
+    .select("preferences")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const preferences =
+    settings?.preferences && typeof settings.preferences === "object" && !Array.isArray(settings.preferences)
+      ? settings.preferences
+      : {};
+  const nextPreferences = {
+    ...preferences,
+    ultraModeUntil: enabledUntil,
+    ultraModeSource: "calibration",
+    ultraModeCalibrationId: calibration.id,
+    ultraModeCalibrationVersion: calibration.version,
+    ultraModeCalibrationSource: calibration.source,
+  };
+
+  const { error: writeError } = await db
+    .from("user_settings")
+    .upsert({ user_id: userId, preferences: nextPreferences }, { onConflict: "user_id" });
+  if (writeError) throw writeError;
+
+  return { enabledUntil, source: "calibration" };
+}
+
 function toApiShape(row: CalibrationRow & { id: string; based_on_version: number | null; last_calibration_date: string; created_at: string }) {
   return {
     id: row.id,
@@ -175,8 +213,15 @@ export async function POST(req: Request) {
       .gte("forecast_date", todayIsoDate());
     if (cacheError) throw cacheError;
 
+    const ultraMode = await enableUltraMode(db, userId, {
+      id: data.id,
+      version: data.version,
+      source,
+    });
+
     return json({
       calibration: toApiShape(data as CalibrationRow & { id: string; based_on_version: number | null; last_calibration_date: string; created_at: string }),
+      ultraMode,
       debug:
         process.env.NODE_ENV === "production"
           ? undefined

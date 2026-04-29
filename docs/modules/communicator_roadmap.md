@@ -2,7 +2,7 @@
 
 ## Статус V1 (реализовано)
 
-- Модуль в [`modules/communicator`](../../modules/communicator): UI **VOICE** / **TXT**, стриминг ответа Gemini через HTTP API (**[`_legacy_web/app/api/communicator/route.ts`](../../_legacy_web/app/api/communicator/route.ts)** на Vercel), парсинг `[T]…[/T]`, отмена запроса (`AbortController`), задел `onEmotionSegment`, индикатор «Расшифровка…», автоскролл и подсказка «вниз» при переполнении.
+- Модуль в [`modules/communicator`](../../modules/communicator): UI **VOICE** / **TXT**, стриминг ответа через Orchestrator API (`_legacy_web/app/api/communicator/v2/dialog/route.ts`) на Vercel, SSE-события `orchestrator_decision` / `chunk` / `complete`, отмена запроса (`AbortController`), задел `onEmotionSegment`, индикатор «думаю», автоскролл и подсказка «вниз» при переполнении.
 - Клиент: **React Native**, запись — **`expo-av`**, иконки — **`assets/icons/`** (см. [`modules/communicator/readme.md`](../../modules/communicator/readme.md)).
 - Демо: экран по умолчанию в приложении — `app/(tabs)/index.tsx` (в архиве веба был маршрут `/communicator`).
 

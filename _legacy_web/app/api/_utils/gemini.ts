@@ -10,7 +10,7 @@ type GenerateJsonOptions = {
 const DEFAULT_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] as const;
 
 function getApiKey(): string {
-  const key = process.env.GEMINI_API_KEY?.trim() ?? process.env.GOOGLE_AI_API_KEY?.trim();
+  const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) throw new Error("Missing GEMINI_API_KEY");
   return key;
 }

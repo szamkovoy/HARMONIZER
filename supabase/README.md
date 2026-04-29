@@ -6,6 +6,7 @@
 
 - `config.toml` — локальная конфигурация Supabase CLI (не коммитить чувствительные поля).
 - `migrations/` — версионируемые миграции схемы. Каждая — timestamped `.sql` файл.
+- `functions/` — Edge Functions для cron-автоматизации.
 - `seed.sql` — справочники и идемпотентный стартовый контент (чакры, каталог практик).
 
 ## Что в схеме
@@ -44,6 +45,24 @@ supabase db push
 
 # прогнать seed (идемпотентно)
 supabase db execute --file supabase/seed.sql
+```
+
+## Edge Functions / Cron
+
+Фаза 7 Orchestrator architecture:
+
+- `auto-calibrate` — ежедневный анализ диалогов и мягкое предложение обновить калибровку.
+- `precompute-daily-forecasts` — ежечасный precompute M2 для активных пользователей в их локальную полночь.
+- `cleanup-expired-proposals` — еженедельная очистка `ai_state_proposals`.
+
+Секреты: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, опционально `CRON_SECRET`, для LLM-анализа `GEMINI_API_KEY`.
+
+Рекомендуемые расписания в Supabase Scheduled Functions:
+
+```cron
+0 3 * * *      auto-calibrate
+0 * * * *      precompute-daily-forecasts
+0 4 * * 0      cleanup-expired-proposals
 ```
 
 ## Как добавлять новые миграции

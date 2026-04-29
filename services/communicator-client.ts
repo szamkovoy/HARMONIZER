@@ -72,6 +72,10 @@ export interface CalibrationExtractRequest {
 
 export interface CalibrationExtractResponse {
   calibration?: unknown;
+  ultraMode?: {
+    enabledUntil: string;
+    source: "calibration";
+  };
   debug?: unknown;
   error?: string;
 }

@@ -1,5 +1,6 @@
 /**
- * Базовый URL развёрнутого API с маршрутом `POST /api/communicator`
+ * Базовый URL развёрнутого API с маршрутами новой архитектуры
+ * (`/api/communicator/v2/*`, `/api/calibration/*`, `/api/astro/*`)
  * (например Next.js из `_legacy_web` на Vercel).
  */
 export function getCommunicatorApiBaseUrl(): string {
@@ -10,10 +11,6 @@ export function getCommunicatorApiBaseUrl(): string {
     );
   }
   return raw.replace(/\/$/, "");
-}
-
-export function getCommunicatorApiUrl(): string {
-  return `${getCommunicatorApiBaseUrl()}/api/communicator`;
 }
 
 export function getCommunicatorV2DialogUrl(): string {

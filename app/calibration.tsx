@@ -121,7 +121,14 @@ export default function CalibrationScreen() {
         language: "ru",
       });
       const calibration = result.calibration as { version?: number } | undefined;
-      setSummary(`Калибровка сохранена${calibration?.version ? `, версия ${calibration.version}` : ""}.`);
+      const ultraUntil = result.ultraMode?.enabledUntil
+        ? new Date(result.ultraMode.enabledUntil).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
+        : null;
+      setSummary(
+        `Калибровка сохранена${calibration?.version ? `, версия ${calibration.version}` : ""}. ${
+          ultraUntil ? `Ultra-режим активен до ${ultraUntil}.` : "Ultra-режим активирован на 3 дня."
+        }`,
+      );
       setPhase("complete");
     } catch (e) {
       reportError(e instanceof Error ? e : new Error(String(e)));

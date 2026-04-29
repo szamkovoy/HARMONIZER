@@ -134,6 +134,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_state_proposals: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          proposed_label: string
+          proposed_planet: string
+          proposed_polarity: string
+          responded_at: string | null
+          status: string
+          trigger_phrase: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          proposed_label: string
+          proposed_planet: string
+          proposed_polarity: string
+          responded_at?: string | null
+          status?: string
+          trigger_phrase?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          proposed_label?: string
+          proposed_planet?: string
+          proposed_polarity?: string
+          responded_at?: string | null
+          status?: string
+          trigger_phrase?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_state_proposals_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_state_proposals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chakras: {
         Row: {
           color_hex: string
@@ -280,6 +337,42 @@ export type Database = {
           model?: string | null
           personalization_version?: number | null
           slogan_template?: Json
+        }
+        Relationships: []
+      }
+      dialogue_phases: {
+        Row: {
+          description: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean
+          is_silent: boolean
+          is_terminal: boolean
+          phase_id: string
+          prompt_key: string
+          use_case: string
+        }
+        Insert: {
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean
+          is_silent?: boolean
+          is_terminal?: boolean
+          phase_id: string
+          prompt_key: string
+          use_case: string
+        }
+        Update: {
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean
+          is_silent?: boolean
+          is_terminal?: boolean
+          phase_id?: string
+          prompt_key?: string
+          use_case?: string
         }
         Relationships: []
       }
@@ -626,6 +719,68 @@ export type Database = {
         }
         Relationships: []
       }
+      prompts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          max_output_tokens: number | null
+          model_hint: string | null
+          notes: string | null
+          prompt_key: string
+          prompt_type: string
+          response_format: string | null
+          temperature: number | null
+          template: string
+          use_case: string | null
+          variables: Json
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          max_output_tokens?: number | null
+          model_hint?: string | null
+          notes?: string | null
+          prompt_key: string
+          prompt_type: string
+          response_format?: string | null
+          temperature?: number | null
+          template: string
+          use_case?: string | null
+          variables?: Json
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          max_output_tokens?: number | null
+          model_hint?: string | null
+          notes?: string | null
+          prompt_key?: string
+          prompt_type?: string
+          response_format?: string | null
+          temperature?: number | null
+          template?: string
+          use_case?: string | null
+          variables?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           created_at: string | null
@@ -886,6 +1041,243 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_calibrations: {
+        Row: {
+          based_on_version: number | null
+          created_at: string
+          delta_from_initial: Json
+          h_calibrated: Json
+          id: string
+          is_active: boolean
+          last_calibration_date: string
+          portrait: string | null
+          portrait_chunks: Json | null
+          raw_feedback: Json
+          s_calibrated: Json
+          source: string
+          states_map: Json
+          user_id: string
+          user_lexicon: Json
+          version: number
+        }
+        Insert: {
+          based_on_version?: number | null
+          created_at?: string
+          delta_from_initial: Json
+          h_calibrated: Json
+          id?: string
+          is_active?: boolean
+          last_calibration_date?: string
+          portrait?: string | null
+          portrait_chunks?: Json | null
+          raw_feedback: Json
+          s_calibrated: Json
+          source: string
+          states_map: Json
+          user_id: string
+          user_lexicon: Json
+          version: number
+        }
+        Update: {
+          based_on_version?: number | null
+          created_at?: string
+          delta_from_initial?: Json
+          h_calibrated?: Json
+          id?: string
+          is_active?: boolean
+          last_calibration_date?: string
+          portrait?: string | null
+          portrait_chunks?: Json | null
+          raw_feedback?: Json
+          s_calibrated?: Json
+          source?: string
+          states_map?: Json
+          user_id?: string
+          user_lexicon?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_calibrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_daily_forecasts: {
+        Row: {
+          activation: Json
+          alternative_reason_text: string | null
+          cache_valid_until: string
+          computed_at: string
+          corrected_at: string | null
+          forecast_date: string
+          id: string
+          importance: Json
+          is_alternative_choice: boolean
+          is_corrected_via_dialog: boolean
+          planet_of_the_day: string
+          ranked_planets: Json
+          recommendation_long_text: string | null
+          recommendation_short_text: string | null
+          today_planet_state: Json
+          transit_chart: Json
+          user_id: string
+          user_timezone: string
+          windows_of_opportunity: Json
+        }
+        Insert: {
+          activation: Json
+          alternative_reason_text?: string | null
+          cache_valid_until: string
+          computed_at?: string
+          corrected_at?: string | null
+          forecast_date: string
+          id?: string
+          importance: Json
+          is_alternative_choice?: boolean
+          is_corrected_via_dialog?: boolean
+          planet_of_the_day: string
+          ranked_planets: Json
+          recommendation_long_text?: string | null
+          recommendation_short_text?: string | null
+          today_planet_state: Json
+          transit_chart: Json
+          user_id: string
+          user_timezone: string
+          windows_of_opportunity: Json
+        }
+        Update: {
+          activation?: Json
+          alternative_reason_text?: string | null
+          cache_valid_until?: string
+          computed_at?: string
+          corrected_at?: string | null
+          forecast_date?: string
+          id?: string
+          importance?: Json
+          is_alternative_choice?: boolean
+          is_corrected_via_dialog?: boolean
+          planet_of_the_day?: string
+          ranked_planets?: Json
+          recommendation_long_text?: string | null
+          recommendation_short_text?: string | null
+          today_planet_state?: Json
+          transit_chart?: Json
+          user_id?: string
+          user_timezone?: string
+          windows_of_opportunity?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_daily_forecasts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_natal_charts: {
+        Row: {
+          ascendant_longitude: number | null
+          computed_at: string
+          created_at: string
+          ephemeris_lib_version: string | null
+          house_system: string
+          id: string
+          is_active: boolean
+          is_day_chart: boolean
+          planets: Json
+          precision_mode: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          ascendant_longitude?: number | null
+          computed_at?: string
+          created_at?: string
+          ephemeris_lib_version?: string | null
+          house_system: string
+          id?: string
+          is_active?: boolean
+          is_day_chart: boolean
+          planets: Json
+          precision_mode: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          ascendant_longitude?: number | null
+          computed_at?: string
+          created_at?: string
+          ephemeris_lib_version?: string | null
+          house_system?: string
+          id?: string
+          is_active?: boolean
+          is_day_chart?: boolean
+          planets?: Json
+          precision_mode?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_natal_charts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_practice_preferences: {
+        Row: {
+          completion_count: number
+          is_favorite: boolean
+          is_skipped: boolean
+          last_completed_at: string | null
+          practice_id: string
+          user_id: string
+          user_rating: number | null
+        }
+        Insert: {
+          completion_count?: number
+          is_favorite?: boolean
+          is_skipped?: boolean
+          last_completed_at?: string | null
+          practice_id: string
+          user_id: string
+          user_rating?: number | null
+        }
+        Update: {
+          completion_count?: number
+          is_favorite?: boolean
+          is_skipped?: boolean
+          last_completed_at?: string | null
+          practice_id?: string
+          user_id?: string
+          user_rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_practice_preferences_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_practice_preferences_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"

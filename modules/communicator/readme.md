@@ -1,10 +1,10 @@
 # COMMUNICATOR (React Native / Expo)
 
-Универсальный модуль чата с ИИ: голос (удержание микрофона, **expo-av**) и текст, стриминг ответа через тот же контракт API, что и сервер в **`_legacy_web`** (`POST /api/communicator` на Vercel). Общая архитектура: [`docs/system_structure.md`](../../docs/system_structure.md), дорожная карта: [`docs/modules/communicator_roadmap.md`](../../docs/modules/communicator_roadmap.md).
+Универсальный модуль чата с ИИ: голос (удержание микрофона, **expo-av**) и текст, стриминг ответа через новый Orchestrator API (`POST /api/communicator/v2/dialog` на Vercel). Общая архитектура: [`docs/system_structure.md`](../../docs/system_structure.md), дорожная карта: [`docs/modules/communicator_roadmap.md`](../../docs/modules/communicator_roadmap.md).
 
 ## Зависимости среды
 
-- **API Gemini**: ключ `GOOGLE_AI_API_KEY` остаётся на сервере (Next route в `_legacy_web`, деплой на Vercel). Клиент ходит только на **`EXPO_PUBLIC_COMMUNICATOR_API_URL`** в `.env.local` (origin без `/api/communicator`). Без этой переменной запрос не уйдёт; ошибка показывается в Alert и в консоли Metro (`[Communicator]`). См. `docs/tech_stack.md` (отладка и логи).
+- **API Gemini**: ключ `GEMINI_API_KEY` остаётся на сервере (Next route в `_legacy_web`, деплой на Vercel). Клиент ходит только на **`EXPO_PUBLIC_COMMUNICATOR_API_URL`** в `.env.local` (origin без пути API). Без этой переменной запрос не уйдёт; ошибка показывается в Alert и в консоли Metro (`[Communicator]`). См. `docs/tech_stack.md` (отладка и логи).
 - **Supabase**: опционально `getSupabase()` в `services/supabase.ts` — те же значения, что `NEXT_PUBLIC_*` в вебе, с префиксом `EXPO_PUBLIC_`.
 
 ## Публичный UI
@@ -37,7 +37,7 @@ import { Communicator } from "@/modules/communicator/ui/Communicator";
 ## Поток данных
 
 1. Клиент: `services/communicator-client.ts` → стрим UTF-8.
-2. Парсинг `[T]…[/T]`: `core/transcript-parser.ts` (как в архиве).
+2. Сервер присылает SSE-события `orchestrator_decision`, `chunk`, `complete`.
 3. Системный формат ответа: `core/session-helpers.ts` → `buildSystemInstruction`.
 
 ## Ассеты

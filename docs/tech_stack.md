@@ -13,8 +13,8 @@
 
 ## Сервер и API (Vercel)
 
-- Код и маршруты из архива **`_legacy_web/`** (Next.js App Router): например `POST /api/communicator` с `@google/generative-ai`, цепочка моделей Gemini, переменные `GOOGLE_AI_API_KEY` / `GEMINI_API_KEY` только на сервере.
-- **Deployment:** Vercel (или эквивалент) как origin для `EXPO_PUBLIC_COMMUNICATOR_API_URL` (без хвоста `/api/communicator` в переменной — только базовый URL приложения).
+- Код и маршруты из архива **`_legacy_web/`** (Next.js App Router): `POST /api/communicator/v2/dialog`, `/api/communicator/v2/transcribe`, `/api/calibration/*`, `/api/astro/*`; переменная `GEMINI_API_KEY` только на сервере.
+- **Deployment:** Vercel (или эквивалент) как origin для `EXPO_PUBLIC_COMMUNICATOR_API_URL` (без хвоста API path — только базовый URL приложения).
 
 Отдельно от «страниц» Next: в продакшене для мобильного клиента важен именно **API-слой**; статическая PWA-оболочка из архива не является целевой платформой.
 
@@ -28,7 +28,7 @@
 | Назначение | Пример переменных |
 |------------|-------------------|
 | Мобильный клиент (Expo) | `EXPO_PUBLIC_COMMUNICATOR_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` |
-| Сервер (`_legacy_web` на Vercel) | `GOOGLE_AI_API_KEY`, `GEMINI_MODEL` (опционально), `NEXT_PUBLIC_SUPABASE_*` если веб-часть архива ещё собирается |
+| Сервер (`_legacy_web` на Vercel) | `GEMINI_API_KEY`, `GROQ_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 
 Локально: `.env.local` в корне (не коммитится); для Expo переменные с префиксом `EXPO_PUBLIC_` подхватываются при сборке/запуске.
 
