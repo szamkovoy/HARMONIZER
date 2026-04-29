@@ -1,0 +1,76 @@
+# HARMONIZER Deploy Checklist
+
+## Supabase Edge Functions
+
+Required secrets for deployed functions:
+
+- `SUPABASE_URL` - Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY` - service-role key for cron/server-side writes.
+- `CRON_SECRET` - shared secret required by scheduled functions. Send it as `Authorization: Bearer <secret>` or `x-cron-secret`.
+- `GEMINI_API_KEY` - Gemini key for `auto-calibrate` LLM digest. If absent, `auto-calibrate` falls back to heuristic digest.
+
+Functions to deploy:
+
+- `auto-calibrate`
+- `precompute-daily-forecasts`
+- `cleanup-expired-proposals`
+
+Recommended schedules:
+
+- `auto-calibrate`: `0 3 * * *`
+- `precompute-daily-forecasts`: `0 * * * *`
+- `cleanup-expired-proposals`: `0 4 * * 0`
+
+## Next.js Backend (`_legacy_web`)
+
+Required Vercel environment variables:
+
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL for auth validation and server clients.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key for JWT validation.
+- `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
+- `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
+- `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
+
+Optional environment variables:
+
+- `GEMINI_MODEL` - model override for Gemini calls.
+- `DIALOG_GREETING_BYPASS_ENABLED` - defaults to enabled unless set to `false`.
+- `DIALOG_DECISION_CACHE_ENABLED` - defaults to enabled unless set to `false`.
+- `DIALOG_DECISION_CACHE_MIN_ITERATION` - defaults to `3`.
+- `DIALOG_DECISION_CACHE_THRESHOLD` - defaults to `0.8`.
+
+Do not use `GOOGLE_AI_API_KEY` for the current backend. The code reads `GEMINI_API_KEY`.
+
+## Mobile Client
+
+Required Expo public variables for the production app build:
+
+- `EXPO_PUBLIC_COMMUNICATOR_API_URL` - origin of the deployed `_legacy_web` backend, for example `https://your-app.vercel.app`.
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+
+## Production SQL Migrations
+
+Apply these migrations in timestamp order:
+
+1. `supabase/migrations/20260423080000_init.sql`
+2. `supabase/migrations/20260423080500_fix_get_user_stories.sql`
+3. `supabase/migrations/20260429051600_calibration_dialogue_orchestrator.sql`
+4. `supabase/migrations/20260429180000_rls_tighten_natal_forecasts_proposals.sql`
+5. `supabase/migrations/20260429183000_fix_auto_calibration_proposals_missing_expires_at.sql`
+
+After migrations, run the idempotent seed:
+
+```bash
+supabase db execute --file supabase/seed.sql
+```
+
+## Pre-Launch Verification
+
+- `npm test` passes.
+- Supabase Edge Functions are deployed with the secrets above.
+- Vercel deployment uses `GEMINI_API_KEY`, not `GOOGLE_AI_API_KEY`.
+- `user_event_log` receives `llm_prompt_size` events from `communicator/v2/dialog`, `calibration/extract`, `greeting`, and `auto-calibrate`.
+- A manual calibration returns `ultraMode.enabledUntil` and writes `preferences.ultraModeUntil` in `user_settings`.
