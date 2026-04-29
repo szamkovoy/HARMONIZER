@@ -15,6 +15,10 @@ export interface UseDailyForecastResult {
   refresh: (opts?: { forceRefresh?: boolean }) => Promise<void>;
 }
 
+interface UseDailyForecastOptions {
+  locationErrorMessage?: string;
+}
+
 function localDateIso(timezone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -26,13 +30,11 @@ function localDateIso(timezone: string): string {
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
-function locationError(): Error {
-  return new Error(
-    "Для расчёта окон возможностей нужна геолокация. Разрешите её в настройках профиля или пройдите онбординг заново.",
-  );
+function locationError(message?: string): Error {
+  return new Error(message ?? "Location is required to compute opportunity windows.");
 }
 
-export function useDailyForecast(): UseDailyForecastResult {
+export function useDailyForecast(options?: UseDailyForecastOptions): UseDailyForecastResult {
   const { profile } = useAuth();
   const abortRef = useRef<AbortController | null>(null);
 
@@ -56,7 +58,7 @@ export function useDailyForecast(): UseDailyForecastResult {
       setError(null);
 
       if (!userLocation) {
-        const err = locationError();
+        const err = locationError(options?.locationErrorMessage);
         setForecast(null);
         setSource(null);
         setStatus("missing_location");
@@ -89,7 +91,7 @@ export function useDailyForecast(): UseDailyForecastResult {
         }
       }
     },
-    [userLocation],
+    [options?.locationErrorMessage, userLocation],
   );
 
   useEffect(() => {

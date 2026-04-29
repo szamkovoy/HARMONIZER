@@ -1,14 +1,19 @@
-import { Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+
+import type { CommunicatorStrings } from "@/modules/communicator/i18n/communicator";
+import { AppText } from "@/modules/ui/AppText";
+import { useTheme } from "@/modules/ui/theme";
 
 export function ScrollDownHint({
   visible,
   onPress,
+  strings,
 }: {
   visible: boolean;
   onPress: () => void;
+  strings: CommunicatorStrings;
 }) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const theme = useTheme();
 
   if (!visible) return null;
 
@@ -16,19 +21,17 @@ export function ScrollDownHint({
     <View style={styles.wrap} pointerEvents="box-none">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Прокрутить вниз"
+        accessibilityLabel={strings.scrollDownAccessibilityLabel}
         onPress={onPress}
         style={[
           styles.btn,
           {
-            backgroundColor: isDark ? "rgba(23,23,23,0.96)" : "rgba(255,255,255,0.96)",
-            borderColor: isDark ? "#525252" : "#e5e5e5",
+            backgroundColor: theme.colors.surfaceElevated,
+            borderColor: theme.colors.surfaceBorder,
           },
         ]}
       >
-        <Text style={[styles.arrow, { color: isDark ? "#e5e5e5" : "#404040" }]}>
-          ↓
-        </Text>
+        <AppText variant="sectionTitle">↓</AppText>
       </Pressable>
     </View>
   );
@@ -54,9 +57,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-  },
-  arrow: {
-    fontSize: 18,
-    fontWeight: "600",
   },
 });

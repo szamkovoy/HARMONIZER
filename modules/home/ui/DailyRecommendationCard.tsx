@@ -1,30 +1,22 @@
 import { StyleSheet, View } from "react-native";
 
 import type { DailyForecast } from "@/modules/daily-engine";
+import type { HomeStrings } from "@/modules/home/i18n/home";
+import { getForecastRecommendation } from "@/modules/home/i18n/home";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { PLANET_CHAKRA, PLANET_LABELS, toneRecommendationVerb } from "../planetChakra";
+import { PLANET_CHAKRA } from "../planetChakra";
 
 interface DailyRecommendationCardProps {
   forecast: DailyForecast;
+  strings: HomeStrings;
   onDiscuss: () => void;
 }
 
-type ForecastWithRecommendation = DailyForecast & {
-  recommendationShortText?: string;
-};
-
-function fallbackRecommendation(forecast: DailyForecast): string {
-  const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
-  const verb = toneRecommendationVerb(forecast.todayPlanetState.todayTone);
-  return `Сегодня полезно ${verb} ${meta.chakraName.toLowerCase()}: уделите внимание теме «${meta.label}» и выберите практику без спешки.`;
-}
-
-export function DailyRecommendationCard({ forecast, onDiscuss }: DailyRecommendationCardProps) {
+export function DailyRecommendationCard({ forecast, strings, onDiscuss }: DailyRecommendationCardProps) {
   const theme = useTheme();
-  const withText = forecast as ForecastWithRecommendation;
-  const text = withText.recommendationShortText?.trim() || fallbackRecommendation(forecast);
+  const text = getForecastRecommendation(forecast, strings);
   const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
 
   return (
@@ -38,9 +30,9 @@ export function DailyRecommendationCard({ forecast, onDiscuss }: DailyRecommenda
       ]}
     >
       <View style={styles.header}>
-        <AppText variant="sectionTitle">Рекомендация дня</AppText>
+        <AppText variant="sectionTitle">{strings.recommendation.title}</AppText>
         <AppText variant="technicalCaption" tone="muted">
-          {PLANET_LABELS[forecast.planetOfTheDay]} · {meta.chakraName}
+          {strings.recommendation.meta(strings.planetLabels[forecast.planetOfTheDay], meta.chakraName)}
         </AppText>
       </View>
       <AppText variant="screenHint">{text}</AppText>
@@ -49,7 +41,7 @@ export function DailyRecommendationCard({ forecast, onDiscuss }: DailyRecommenda
           {forecast.alternativeReasonText}
         </AppText>
       ) : null}
-      <AppButton label="Обсудить с ассистентом" onPress={onDiscuss} />
+      <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} />
     </View>
   );
 }

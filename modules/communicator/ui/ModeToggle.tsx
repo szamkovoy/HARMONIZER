@@ -2,8 +2,9 @@ import {
   Image,
   Pressable,
   StyleSheet,
-  useColorScheme,
 } from "react-native";
+
+import type { CommunicatorStrings } from "@/modules/communicator/i18n/communicator";
 
 const voiceImg = require("@/assets/icons/mode_voice.png");
 const txtImg = require("@/assets/icons/mode_txt.png");
@@ -12,21 +13,20 @@ export function ModeToggle({
   targetMode,
   onToggle,
   disabled,
+  strings,
 }: {
   targetMode: "VOICE" | "TXT";
   onToggle: () => void;
   disabled?: boolean;
+  strings: CommunicatorStrings;
 }) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
-
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={
         targetMode === "VOICE"
-          ? "Переключить на голос"
-          : "Переключить на текст"
+          ? strings.switchToVoiceAccessibilityLabel
+          : strings.switchToTextAccessibilityLabel
       }
       disabled={disabled}
       onPress={onToggle}
@@ -34,7 +34,6 @@ export function ModeToggle({
         styles.hit,
         disabled && styles.disabled,
         pressed && !disabled && styles.pressed,
-        isDark && styles.darkImg,
       ]}
     >
       <Image
@@ -55,7 +54,6 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.85 },
-  darkImg: { opacity: 0.95 },
   imgVoice: { width: 22, height: 22 },
   imgTxt: { width: 40, height: 22 },
 });

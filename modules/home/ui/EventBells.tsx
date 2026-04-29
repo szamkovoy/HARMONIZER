@@ -2,6 +2,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { StyleSheet, View } from "react-native";
 
 import type { DailyForecast } from "@/modules/daily-engine";
+import type { HomeStrings } from "@/modules/home/i18n/home";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -9,6 +10,7 @@ type Windows = DailyForecast["windowsOfOpportunity"];
 
 interface EventBellsProps {
   windows: Windows;
+  strings: HomeStrings;
 }
 
 function isFuture(time: string): boolean {
@@ -16,21 +18,22 @@ function isFuture(time: string): boolean {
   return Number.isFinite(value) && value > Date.now();
 }
 
-function formatTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(11, 16);
-  return new Intl.DateTimeFormat("ru", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-export function EventBells({ windows }: EventBellsProps) {
+export function EventBells({ windows, strings }: EventBellsProps) {
   const theme = useTheme();
   const events = [
-    windows.sunrise ? { key: "sunrise", title: "Восход", time: windows.sunrise.time } : null,
-    windows.culmination ? { key: "culmination", title: "Кульминация", time: windows.culmination.time } : null,
-    windows.exactAspect ? { key: "exactAspect", title: "Аспект", time: windows.exactAspect.time } : null,
+    windows.sunrise
+      ? { key: "sunrise", title: strings.opportunityWindows.windowTitles.sunrise, time: windows.sunrise.time }
+      : null,
+    windows.culmination
+      ? {
+          key: "culmination",
+          title: strings.opportunityWindows.windowTitles.culmination,
+          time: windows.culmination.time,
+        }
+      : null,
+    windows.exactAspect
+      ? { key: "exactAspect", title: strings.eventBells.aspectTitle, time: windows.exactAspect.time }
+      : null,
   ].filter((event): event is { key: string; title: string; time: string } => Boolean(event));
 
   const upcoming = events.filter((event) => isFuture(event.time));
@@ -47,7 +50,7 @@ export function EventBells({ windows }: EventBellsProps) {
     >
       <View style={styles.header}>
         <FontAwesome name="bell" size={16} color={theme.colors.accent} />
-        <AppText variant="sectionTitle">Колокольчики</AppText>
+        <AppText variant="sectionTitle">{strings.eventBells.title}</AppText>
       </View>
       {upcoming.length ? (
         <View style={styles.bells}>
@@ -56,14 +59,14 @@ export function EventBells({ windows }: EventBellsProps) {
               <FontAwesome name="bell-o" size={14} color={theme.colors.textMuted} />
               <AppText variant="statPillLabel">{event.title}</AppText>
               <AppText variant="technicalCaption" tone="muted">
-                {formatTime(event.time)}
+                {strings.formatTime(event.time)}
               </AppText>
             </View>
           ))}
         </View>
       ) : (
         <AppText variant="screenHint" tone="muted">
-          На сегодня нет предстоящих астро-событий с точным временем.
+          {strings.eventBells.empty}
         </AppText>
       )}
     </View>

@@ -1,14 +1,18 @@
-import { StyleSheet, Text, useColorScheme, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+
+import { AppText } from "@/modules/ui/AppText";
+import { useTheme } from "@/modules/ui/theme";
 
 export function AssistantBubble({
   text,
   isStreaming,
+  phaseLabel,
 }: {
   text: string;
   isStreaming: boolean;
+  phaseLabel?: string;
 }) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const theme = useTheme();
   const display = text.trimStart();
 
   return (
@@ -17,19 +21,22 @@ export function AssistantBubble({
         style={[
           styles.bubble,
           {
-            backgroundColor: isDark ? "#171717" : "#fff",
-            borderColor: isDark ? "#404040" : "#e5e5e5",
+            backgroundColor: theme.colors.surfaceElevated,
+            borderColor: theme.colors.surfaceBorder,
           },
         ]}
       >
-        <Text
-          style={[styles.text, { color: isDark ? "#fafafa" : "#171717" }]}
-        >
+        {phaseLabel ? (
+          <AppText variant="technicalCaption" tone="faint" style={styles.phase}>
+            {phaseLabel}
+          </AppText>
+        ) : null}
+        <AppText variant="screenHint">
           {display}
           {isStreaming ? (
-            <Text style={styles.cursor}>▍</Text>
+            <AppText variant="screenHint" tone="faint">▍</AppText>
           ) : null}
-        </Text>
+        </AppText>
       </View>
     </View>
   );
@@ -54,12 +61,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
-  text: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  cursor: {
-    opacity: 0.45,
-    fontSize: 15,
+  phase: {
+    marginBottom: 3,
   },
 });

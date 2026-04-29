@@ -1,20 +1,23 @@
-import { StyleSheet, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, StyleSheet, View } from "react-native";
 import Svg, { Circle, Ellipse, G } from "react-native-svg";
 
-import type { Planet, TodayTone } from "@/modules/daily-engine";
+import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
+import type { HomeStrings } from "@/modules/home/i18n/home";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { PLANET_CHAKRA, PLANET_LABELS, PLANET_ORDER, toneLabel } from "../planetChakra";
+import { PLANET_CHAKRA, PLANET_ORDER } from "../planetChakra";
+
+const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 
 interface ChakraFlowerProps {
-  importance: Record<Planet, number>;
-  planetOfTheDay: Planet;
-  todayTone: TodayTone;
+  forecast: DailyForecast;
+  strings: HomeStrings;
 }
 
-function glowOpacity(tone: TodayTone): number {
-  if (tone === "harmonic") return 0.42;
-  if (tone === "dissonant") return 0.58;
+function selectedGlowOpacity(tone: TodayTone): number {
+  if (tone === "harmonic") return 0.34;
+  if (tone === "dissonant") return 0.62;
   return 0.32;
 }
 
@@ -23,11 +26,41 @@ function normalizedImportance(importance: Record<Planet, number>, planet: Planet
   return Math.max(0.08, Math.min(1, (importance[planet] ?? 0) / max));
 }
 
-export function ChakraFlower({ importance, planetOfTheDay, todayTone }: ChakraFlowerProps) {
+function petalOpacity(tone: TodayTone, selected: boolean, normalized: number): number {
+  if (!selected) return 0.36 + normalized * 0.28;
+  if (tone === "dissonant") return 0.86;
+  if (tone === "harmonic") return 0.96;
+  return 0.9;
+}
+
+export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
   const theme = useTheme();
+  const pulse = useRef(new Animated.Value(0.82)).current;
   const center = 130;
   const petalCy = 62;
+  const { importance, planetOfTheDay } = forecast;
+  const todayTone = forecast.todayPlanetState.todayTone;
   const selectedMeta = PLANET_CHAKRA[planetOfTheDay];
+  const selectedTone = strings.toneLabels[todayTone];
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1600,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.82,
+          duration: 1600,
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
 
   return (
     <View
@@ -41,13 +74,13 @@ export function ChakraFlower({ importance, planetOfTheDay, todayTone }: ChakraFl
     >
       <View style={styles.titleRow}>
         <View>
-          <AppText variant="sectionTitle">Цветок состояния</AppText>
+          <AppText variant="sectionTitle">{strings.chakraFlower.title}</AppText>
           <AppText variant="technicalCaption" tone="muted" style={styles.caption}>
-            Размер лепестков отражает важность чакр на сегодня.
+            {strings.chakraFlower.caption}
           </AppText>
         </View>
         <View style={[styles.pill, { borderColor: selectedMeta.color }]}>
-          <AppText variant="statPillLabel">{toneLabel(todayTone)}</AppText>
+          <AppText variant="statPillLabel">{selectedTone}</AppText>
         </View>
       </View>
 
@@ -63,13 +96,16 @@ export function ChakraFlower({ importance, planetOfTheDay, todayTone }: ChakraFl
             return (
               <G key={planet} transform={`rotate(${angle} ${center} ${center})`}>
                 {isSelected ? (
-                  <Ellipse
+                  <AnimatedEllipse
                     cx={center}
                     cy={petalCy}
                     rx={rx + 13}
                     ry={ry + 13}
                     fill={meta.color}
-                    opacity={glowOpacity(todayTone)}
+                    opacity={pulse.interpolate({
+                      inputRange: [0.82, 1],
+                      outputRange: [selectedGlowOpacity(todayTone) * 0.72, selectedGlowOpacity(todayTone)],
+                    })}
                   />
                 ) : null}
                 <Ellipse
@@ -78,22 +114,22 @@ export function ChakraFlower({ importance, planetOfTheDay, todayTone }: ChakraFl
                   rx={rx}
                   ry={ry}
                   fill={meta.color}
-                  opacity={isSelected ? 0.92 : 0.46 + n * 0.28}
+                  opacity={petalOpacity(todayTone, isSelected, n)}
                 />
               </G>
             );
           })}
-          <Circle cx={center} cy={center} r={37} fill="rgba(7,8,12,0.86)" />
+          <Circle cx={center} cy={center} r={37} fill={theme.colors.screenBg} opacity={0.88} />
           <Circle cx={center} cy={center} r={25} fill={selectedMeta.color} opacity={0.84} />
         </Svg>
       </View>
 
       <View style={styles.focus}>
         <AppText variant="screenHint" style={styles.focusText}>
-          Сегодня в фокусе {selectedMeta.chakraName}: {selectedMeta.label}
+          {strings.chakraFlower.focus(selectedMeta.chakraName, selectedMeta.label)}
         </AppText>
         <AppText variant="technicalCaption" tone="muted" style={styles.focusText}>
-          Планета дня: {PLANET_LABELS[planetOfTheDay]}
+          {strings.chakraFlower.planetOfDay(strings.planetLabels[planetOfTheDay])}
         </AppText>
       </View>
     </View>

@@ -2,58 +2,48 @@ import { useAuth } from "@/modules/auth";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { useDailyForecast } from "@/modules/daily-engine/ui/useDailyForecast";
+import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { EventBells } from "@/modules/home/ui/EventBells";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
-import { PLANET_CHAKRA, PLANET_LABELS, toneLabel } from "@/modules/home/planetChakra";
+import { PlanetOfDayBanner } from "@/modules/home/ui/PlanetOfDayBanner";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const DEFAULT_SYSTEM_PROMPT =
-  "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.";
-
-function buildDailyDialogInitialMessage(forecast: DailyForecast): string {
-  const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
-  return [
-    "Хочу обсудить рекомендацию дня и подобрать практику.",
-    "",
-    "Контекст прогноза:",
-    `- планета дня: ${PLANET_LABELS[forecast.planetOfTheDay]}`,
-    `- чакра: ${meta.chakraName} (${meta.label})`,
-    `- тональность: ${toneLabel(forecast.todayPlanetState.todayTone)}`,
-  ].join("\n");
-}
+type ForecastSource = "cache" | "computed";
 
 function HomeHeader({
   loading,
   source,
   onRefresh,
+  strings,
 }: {
   loading: boolean;
-  source: string | null;
+  source: ForecastSource | null;
   onRefresh: () => void;
+  strings: HomeStrings;
 }) {
   const theme = useTheme();
   return (
     <View style={styles.header}>
       <View style={styles.headerText}>
         <AppText variant="screenTitle" accessibilityRole="header">
-          Harmonizer
+          {strings.appTitle}
         </AppText>
         <AppText variant="screenHint" tone="muted">
-          Главная настройка дня: чакры, окна возможностей и мягкая рекомендация.
+          {strings.headerHint}
         </AppText>
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Обновить прогноз дня"
+        accessibilityLabel={strings.refreshAccessibilityLabel}
         onPress={onRefresh}
         disabled={loading}
         style={({ pressed }) => [
@@ -64,18 +54,20 @@ function HomeHeader({
           },
         ]}
       >
-        <AppText variant="statPillLabel">{loading ? "..." : "Обновить"}</AppText>
+        <AppText variant="statPillLabel">
+          {loading ? strings.refreshingLabel : strings.refreshButton}
+        </AppText>
       </Pressable>
       {source ? (
         <AppText variant="technicalCaption" tone="faint">
-          Источник: {source === "cache" ? "кеш" : "новый расчёт"}
+          {strings.sourceLabel(source)}
         </AppText>
       ) : null}
     </View>
   );
 }
 
-function HomeSkeleton() {
+function HomeSkeleton({ strings }: { strings: HomeStrings }) {
   const theme = useTheme();
   return (
     <View
@@ -89,7 +81,7 @@ function HomeSkeleton() {
     >
       <ActivityIndicator color={theme.colors.accent} />
       <AppText variant="screenHint" tone="muted" style={styles.centerText}>
-        Собираю прогноз дня и окна возможностей...
+        {strings.skeletonText}
       </AppText>
     </View>
   );
@@ -99,10 +91,12 @@ function HomeError({
   message,
   missingLocation,
   onRetry,
+  strings,
 }: {
   message: string;
   missingLocation: boolean;
   onRetry: () => void;
+  strings: HomeStrings;
 }) {
   const theme = useTheme();
   return (
@@ -116,25 +110,25 @@ function HomeError({
       ]}
     >
       <AppText variant="sectionTitle" tone={missingLocation ? "warning" : "danger"} style={styles.centerText}>
-        {missingLocation ? "Нужна геолокация" : "Не удалось загрузить прогноз"}
+        {missingLocation ? strings.locationErrorTitle : strings.forecastErrorTitle}
       </AppText>
       <AppText variant="screenHint" tone="muted" style={styles.centerText}>
         {message}
       </AppText>
-      {!missingLocation ? <AppButton label="Повторить" variant="secondary" onPress={onRetry} /> : null}
+      {!missingLocation ? <AppButton label={strings.retryButton} variant="secondary" onPress={onRetry} /> : null}
     </View>
   );
 }
 
-function DevLinks() {
+function DevLinks({ strings }: { strings: HomeStrings }) {
   const theme = useTheme();
   const links = [
-    { label: "Biofeedback", href: "/biofeedback-probe" },
-    { label: "Mandala", href: "/mandala-sandbox" },
-    { label: "Bindu", href: "/bindu-succession-lab" },
-    { label: "Symbols", href: "/sacred-symbol-stream" },
-    { label: "Breath", href: "/breath-coherence" },
-    { label: "Calibration", href: "/calibration" },
+    { label: strings.devLinks.biofeedback, href: "/biofeedback-probe" },
+    { label: strings.devLinks.mandala, href: "/mandala-sandbox" },
+    { label: strings.devLinks.bindu, href: "/bindu-succession-lab" },
+    { label: strings.devLinks.symbols, href: "/sacred-symbol-stream" },
+    { label: strings.devLinks.breath, href: "/breath-coherence" },
+    { label: strings.devLinks.calibration, href: "/calibration" },
   ];
 
   return (
@@ -162,9 +156,11 @@ function DevLinks() {
 
 function CommunicatorOverlay({
   forecast,
+  strings,
   onClose,
 }: {
   forecast: DailyForecast;
+  strings: HomeStrings;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -182,10 +178,10 @@ function CommunicatorOverlay({
             },
           ]}
         >
-          <AppText variant="sectionTitle">Ассистент</AppText>
+          <AppText variant="sectionTitle">{strings.assistantTitle}</AppText>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Закрыть ассистента"
+            accessibilityLabel={strings.closeAssistantAccessibilityLabel}
             onPress={onClose}
             style={({ pressed }) => [
               styles.closeButton,
@@ -195,12 +191,13 @@ function CommunicatorOverlay({
               },
             ]}
           >
-            <AppText variant="buttonLabel">Закрыть</AppText>
+            <AppText variant="buttonLabel">{strings.closeButton}</AppText>
           </Pressable>
         </View>
         <Communicator
           key={`${forecast.date}-${forecast.planetOfTheDay}`}
-          systemPrompt={DEFAULT_SYSTEM_PROMPT}
+          systemPrompt={strings.defaultSystemPrompt}
+          locale={strings.locale}
           useCase="daily_dialog"
           entrySource="home"
           triggerMeta={{
@@ -210,7 +207,7 @@ function CommunicatorOverlay({
             windowsOfOpportunity: forecast.windowsOfOpportunity,
           }}
           memoryWindow={24}
-          autoSendInitialMessage={buildDailyDialogInitialMessage(forecast)}
+          autoSendInitialMessage={strings.discussInitialMessage(forecast)}
         />
       </View>
     </Modal>
@@ -220,8 +217,14 @@ function CommunicatorOverlay({
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { signOut, signingIn } = useAuth();
-  const { forecast, loading, error, refresh, source, status } = useDailyForecast();
+  const { profile, signOut, signingIn } = useAuth();
+  const strings = useMemo(
+    () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
+    [profile?.locale],
+  );
+  const { forecast, loading, error, refresh, source, status } = useDailyForecast({
+    locationErrorMessage: strings.locationErrorMessage,
+  });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
 
   const onSignOut = useCallback(async () => {
@@ -235,7 +238,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
-      <StatusBar style="light" />
+      <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -245,39 +248,39 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <HomeHeader loading={loading} source={source} onRefresh={onRefresh} />
+        <HomeHeader loading={loading} source={source} onRefresh={onRefresh} strings={strings} />
 
-        {loading ? <HomeSkeleton /> : null}
+        {loading ? <HomeSkeleton strings={strings} /> : null}
         {error ? (
           <HomeError
             message={error.message}
             missingLocation={status === "missing_location"}
             onRetry={onRefresh}
+            strings={strings}
           />
         ) : null}
 
         {forecast ? (
           <>
-            <ChakraFlower
-              importance={forecast.importance}
-              planetOfTheDay={forecast.planetOfTheDay}
-              todayTone={forecast.todayPlanetState.todayTone}
-            />
+            <PlanetOfDayBanner forecast={forecast} strings={strings} />
+            <ChakraFlower forecast={forecast} strings={strings} />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}
               windows={forecast.windowsOfOpportunity}
+              strings={strings}
             />
             <DailyRecommendationCard
               forecast={forecast}
+              strings={strings}
               onDiscuss={() => setCommunicatorOpen(true)}
             />
-            <EventBells windows={forecast.windowsOfOpportunity} />
+            <EventBells windows={forecast.windowsOfOpportunity} strings={strings} />
           </>
         ) : null}
 
-        <DevLinks />
+        <DevLinks strings={strings} />
         <AppButton
-          label={signingIn ? "Выходим..." : "Выйти"}
+          label={signingIn ? strings.signingOutButton : strings.signOutButton}
           variant="secondary"
           onPress={onSignOut}
           disabled={signingIn}
@@ -285,7 +288,11 @@ export default function HomeScreen() {
       </ScrollView>
 
       {communicatorOpen && forecast ? (
-        <CommunicatorOverlay forecast={forecast} onClose={() => setCommunicatorOpen(false)} />
+        <CommunicatorOverlay
+          forecast={forecast}
+          strings={strings}
+          onClose={() => setCommunicatorOpen(false)}
+        />
       ) : null}
     </View>
   );

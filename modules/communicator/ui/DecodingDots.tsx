@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text } from "react-native";
+import { AppText } from "@/modules/ui/AppText";
 
 export function DecodingDots() {
   const [n, setN] = useState(1);
@@ -11,5 +11,5 @@ export function DecodingDots() {
     return () => clearInterval(id);
   }, []);
 
-  return <Text aria-hidden>{".".repeat(n)}</Text>;
+  return <AppText variant="technicalCaption" tone="muted">{".".repeat(n)}</AppText>;
 }

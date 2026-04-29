@@ -20,14 +20,13 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
-  useColorScheme,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
+import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
 import type {
   CommunicatorHistoryMessage,
@@ -37,6 +36,9 @@ import type {
   EmotionSegmentPayload,
 } from "@/modules/communicator/core/types";
 import { transcribeCommunicatorAudio, type DialogueEntrySource, type DialogueUseCase, type PracticePicked } from "@/services/communicator-client";
+import type { OrchestratorDecision } from "@/services/communicator-client";
+import { AppText } from "@/modules/ui/AppText";
+import { useTheme } from "@/modules/ui/theme";
 
 import { AssistantBubble } from "./AssistantBubble";
 import { DecodingDots } from "./DecodingDots";
@@ -83,6 +85,7 @@ export interface CommunicatorProps {
   initialMode?: CommunicatorInitialMode;
   mode?: CommunicatorModePolicy;
   systemPrompt: string;
+  locale?: CommunicatorLocale;
   useCase?: DialogueUseCase;
   entrySource?: DialogueEntrySource;
   triggerMeta?: Record<string, unknown>;
@@ -135,10 +138,33 @@ function getTurnAssistantAnchorIndex(
   return null;
 }
 
+function ThinkingIndicator({ label }: { label: string }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.assistantStatusRow}>
+      <View
+        style={[
+          styles.assistantStatusBubble,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            borderColor: theme.colors.surfaceBorder,
+          },
+        ]}
+      >
+        <AppText variant="screenHint" tone="muted">
+          {label}
+        </AppText>
+        <DecodingDots />
+      </View>
+    </View>
+  );
+}
+
 export function Communicator({
   initialMode,
   mode,
   systemPrompt,
+  locale,
   useCase = "daily_dialog",
   entrySource = "home",
   triggerMeta,
@@ -154,8 +180,8 @@ export function Communicator({
   onStateChange,
 }: CommunicatorProps) {
   const insets = useSafeAreaInsets();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const theme = useTheme();
+  const strings = useMemo(() => getCommunicatorStrings(locale ?? "ru"), [locale]);
 
   const resolved = useMemo(
     () => resolveUiMode({ mode, initialMode }),
@@ -181,15 +207,16 @@ export function Communicator({
     (err: Error) => {
       console.error("[Communicator]", err.message, err.stack ?? "");
       onError?.(err);
-      Alert.alert("Не удалось отправить сообщение", err.message, [
-        { text: "OK" },
+      Alert.alert(strings.sendErrorTitle, err.message, [
+        { text: strings.alertOk },
       ]);
     },
-    [onError],
+    [onError, strings.alertOk, strings.sendErrorTitle],
   );
 
   const {
     assistantText,
+    decision,
     status: streamStatus,
     run: runChatStream,
     abort: abortChatStream,
@@ -337,7 +364,7 @@ export function Communicator({
           const transcript = await transcribeCommunicatorAudio({
             mimeType: mime,
             base64,
-            language: "ru",
+            language: strings.transcribeLanguage,
           });
           userMessageText = transcript.text.trim();
           setPhase("idle");
@@ -407,6 +434,7 @@ export function Communicator({
       systemPrompt,
       triggerMeta,
       useCase,
+      strings.transcribeLanguage,
     ],
   );
 
@@ -477,7 +505,7 @@ export function Communicator({
       if (generation !== startRecordingGenerationRef.current) return;
       if (!perm.granted) {
         micWarmupRef.current = false;
-        reportError(new Error("Нет доступа к микрофону"));
+        reportError(new Error(strings.microphonePermissionError));
         setMicPressResetKey((k) => k + 1);
         return;
       }
@@ -508,7 +536,7 @@ export function Communicator({
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
-  }, [phase, reportError, streamBusy, uiMode]);
+  }, [phase, reportError, streamBusy, strings.microphonePermissionError, uiMode]);
 
   const stopRecordingAndSend = useCallback(async () => {
     const rec = recordingRef.current;
@@ -617,12 +645,27 @@ export function Communicator({
     [updateScrollDownFlag],
   );
 
-  const borderColor = isDark ? "#262626" : "#e5e5e5";
-  const footerBg = isDark ? "rgba(10,10,10,0.96)" : "rgba(255,255,255,0.96)";
+  const borderColor = theme.colors.surfaceBorder;
+  const footerBg = theme.colors.surface;
+  const currentPhaseLabel = strings.phaseLabelFor(decision);
+  const pendingStatus =
+    streamStatus === "thinking"
+      ? strings.thinkingStatus
+      : streamStatus === "typing"
+        ? strings.typingStatus(currentPhaseLabel)
+        : undefined;
+
+  const messagePhaseLabel = useCallback(
+    (message: CommunicatorHistoryMessage): string | undefined => {
+      const decisionMeta = message.meta?.orchestratorDecision as OrchestratorDecision | null | undefined;
+      return strings.phaseLabelFor(decisionMeta ?? null);
+    },
+    [strings],
+  );
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: isDark ? "#0a0a0a" : "#fafafa" }]}
+      style={[styles.root, { backgroundColor: theme.colors.screenBg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={insets.bottom + 8}
     >
@@ -647,35 +690,46 @@ export function Communicator({
                   key={m.id}
                   onLayout={turnUserAnchorIdx === i ? onAnchorLayout : undefined}
                 >
-                  <UserBubble text={m.content} isStreaming={false} />
+                  <UserBubble text={m.content} isStreaming={false} strings={strings} />
                 </View>
               ) : (
                 <View
                   key={m.id}
                   onLayout={turnAssistantIdx === i ? onTailLayout : undefined}
                 >
-                  <AssistantBubble text={m.content} isStreaming={false} />
-                  {m.meta?.practicePicked ? (
-                    <PracticeCard practice={m.meta.practicePicked} onPress={onPracticePicked} />
+                  <AssistantBubble
+                    text={m.content}
+                    isStreaming={false}
+                    phaseLabel={messagePhaseLabel(m)}
+                  />
+                  {Boolean(m.meta?.shouldClose) && m.meta?.practicePicked ? (
+                    <PracticeCard
+                      practice={m.meta.practicePicked}
+                      strings={strings}
+                      onPress={onPracticePicked}
+                    />
                   ) : null}
                 </View>
               ),
             )}
 
             {streamBusy && (
-              <>
-                <View key="pending-assistant" onLayout={onTailLayout}>
+              <View key="pending-assistant" onLayout={onTailLayout}>
+                {streamStatus === "thinking" ? (
+                  <ThinkingIndicator label={strings.thinkingStatus} />
+                ) : (
                   <AssistantBubble
-                    text={assistantText || (streamStatus === "thinking" ? "Дай мне мгновение, я собираю контекст." : "")}
+                    text={assistantText}
                     isStreaming={streamStatus === "typing"}
+                    phaseLabel={pendingStatus}
                   />
-                </View>
-              </>
+                )}
+              </View>
             )}
           </View>
         </ScrollView>
 
-        <ScrollDownHint visible={showScrollDown} onPress={scrollToBottom} />
+        <ScrollDownHint visible={showScrollDown} onPress={scrollToBottom} strings={strings} />
       </View>
 
       <View
@@ -694,22 +748,22 @@ export function Communicator({
           {uiMode === "VOICE" ? (
             <View style={styles.voiceCol}>
               {(phase === "transcribing" || streamStatus === "thinking" || streamStatus === "typing") && (
-                <Text
-                  style={[styles.hint, { color: isDark ? "#a3a3a3" : "#737373" }]}
-                >
-                  {phase === "transcribing"
-                    ? "Расшифровка"
-                    : streamStatus === "thinking"
-                      ? "Размышляю"
-                      : "Отвечаю"}
+                <View style={styles.hintRow}>
+                  <AppText variant="technicalCaption" tone="muted">
+                    {phase === "transcribing"
+                      ? strings.transcribingStatus
+                      : streamStatus === "thinking"
+                        ? strings.thinkingStatus
+                        : strings.respondingStatus}
+                  </AppText>
                   <DecodingDots />
-                </Text>
+                </View>
               )}
               <Pressable
                 key={micPressResetKey}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  isBusy ? "Отменить запрос" : "Удерживайте для записи"
+                  isBusy ? strings.cancelRequestAccessibilityLabel : strings.holdToRecordAccessibilityLabel
                 }
                 onPressIn={onMicPressIn}
                 onPressOut={onMicPressOut}
@@ -732,35 +786,43 @@ export function Communicator({
                 styles.txtBar,
                 {
                   borderColor,
-                  backgroundColor: isDark ? "#171717" : "#fff",
+                  backgroundColor: theme.colors.surfaceElevated,
                 },
               ]}
             >
               <TextInput
                 value={txtDraft}
                 onChangeText={setTxtDraft}
-                placeholder="Сообщение…"
-                placeholderTextColor={isDark ? "#737373" : "#a3a3a3"}
+                placeholder={strings.textPlaceholder}
+                placeholderTextColor={theme.colors.textFaint}
                 editable={!isBusy}
                 multiline
                 maxLength={8000}
                 style={[
                   styles.input,
-                  { color: isDark ? "#fafafa" : "#171717" },
+                  {
+                    color: theme.colors.textPrimary,
+                    fontSize: theme.typography.screenHint.fontSize,
+                    lineHeight: theme.typography.screenHint.lineHeight,
+                    fontWeight: theme.typography.screenHint.fontWeight,
+                    fontFamily: theme.typography.screenHint.fontFamily,
+                  },
                 ]}
                 onSubmitEditing={() => void sendText()}
               />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Отправить"
+                accessibilityLabel={strings.sendAccessibilityLabel}
                 disabled={isBusy || !txtDraft.trim()}
                 onPress={() => void sendText()}
-                style={[
+                style={({ pressed }) => [
                   styles.sendBtn,
+                  { backgroundColor: theme.colors.buttonPrimaryBg },
                   (isBusy || !txtDraft.trim()) && styles.sendBtnDisabled,
+                  pressed && !(isBusy || !txtDraft.trim()) && styles.sendBtnPressed,
                 ]}
               >
-                <Text style={styles.sendBtnText}>Отпр.</Text>
+                <AppText variant="buttonLabel" tone="accentOn">{strings.sendButton}</AppText>
               </Pressable>
             </View>
           )}
@@ -770,6 +832,7 @@ export function Communicator({
               targetMode={uiMode === "VOICE" ? "TXT" : "VOICE"}
               onToggle={toggleMode}
               disabled={isBusy}
+              strings={strings}
             />
           ) : (
             <View style={styles.toggleSpacer} />
@@ -809,9 +872,28 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 4,
   },
-  hint: {
-    fontSize: 12,
-    textAlign: "center",
+  hintRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    minHeight: 18,
+  },
+  assistantStatusRow: {
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    alignItems: "flex-start",
+  },
+  assistantStatusBubble: {
+    alignItems: "center",
+    borderRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 2,
+    maxWidth: "92%",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   micHit: {
     width: 72,
@@ -848,12 +930,11 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     borderRadius: 999,
-    backgroundColor: "#0ea5e9",
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 2,
   },
   sendBtnDisabled: { opacity: 0.4 },
-  sendBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  sendBtnPressed: { opacity: 0.85 },
   toggleSpacer: { width: 40 },
 });

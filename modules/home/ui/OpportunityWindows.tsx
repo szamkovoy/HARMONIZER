@@ -1,55 +1,44 @@
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import Svg, { Circle, Line } from "react-native-svg";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
+import type { HomeStrings } from "@/modules/home/i18n/home";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { PLANET_LABELS } from "../planetChakra";
 
 type Windows = DailyForecast["windowsOfOpportunity"];
 
 interface OpportunityWindowsProps {
   planetOfTheDay: Planet;
   windows: Windows;
+  strings: HomeStrings;
 }
 
-const ASPECT_LABELS: Record<AspectType, string> = {
-  conjunction: "соединение",
-  opposition: "оппозиция",
-  square: "квадрат",
-  trine: "трин",
-  sextile: "секстиль",
-};
-
-function formatTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(11, 16);
-  return new Intl.DateTimeFormat("ru", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-export function OpportunityWindows({ planetOfTheDay, windows }: OpportunityWindowsProps) {
+export function OpportunityWindows({ planetOfTheDay, windows, strings }: OpportunityWindowsProps) {
   const theme = useTheme();
+  const t = strings.opportunityWindows;
   const items = [
     {
       key: "sunrise",
-      title: "Восход",
+      title: t.windowTitles.sunrise,
       time: windows.sunrise?.time,
-      detail: windows.sunrise ? `${PLANET_LABELS[windows.sunrise.planet]} поднимается над горизонтом` : null,
+      detail: windows.sunrise ? t.sunriseDetail(strings.planetLabels[windows.sunrise.planet]) : null,
     },
     {
       key: "culmination",
-      title: "Кульминация",
+      title: t.windowTitles.culmination,
       time: windows.culmination?.time,
-      detail: windows.culmination ? `${PLANET_LABELS[windows.culmination.planet]} в максимальной силе` : null,
+      detail: windows.culmination ? t.culminationDetail(strings.planetLabels[windows.culmination.planet]) : null,
     },
     {
       key: "exactAspect",
-      title: "Точный аспект",
+      title: t.windowTitles.exactAspect,
       time: windows.exactAspect?.time,
       detail: windows.exactAspect
-        ? `${ASPECT_LABELS[windows.exactAspect.aspectType]} к ${PLANET_LABELS[windows.exactAspect.toNatalPlanet]}`
+        ? t.exactAspectDetail(
+            t.aspectLabels[windows.exactAspect.aspectType as AspectType],
+            strings.planetLabels[windows.exactAspect.toNatalPlanet],
+          )
         : null,
     },
   ];
@@ -65,13 +54,17 @@ export function OpportunityWindows({ planetOfTheDay, windows }: OpportunityWindo
       ]}
     >
       <View style={styles.header}>
-        <AppText variant="sectionTitle">Окна возможностей</AppText>
+        <AppText variant="sectionTitle">{t.title}</AppText>
         <AppText variant="technicalCaption" tone="muted">
-          Главная тема: {PLANET_LABELS[planetOfTheDay]}
+          {t.subtitle(strings.planetLabels[planetOfTheDay])}
         </AppText>
       </View>
 
-      <View style={styles.timeline}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.timeline}
+      >
         {items.map((item) => {
           const active = Boolean(item.time);
           return (
@@ -85,19 +78,37 @@ export function OpportunityWindows({ planetOfTheDay, windows }: OpportunityWindo
                 },
               ]}
             >
+              <Svg width={76} height={18} viewBox="0 0 76 18">
+                <Line
+                  x1={0}
+                  y1={9}
+                  x2={76}
+                  y2={9}
+                  stroke={active ? theme.colors.accent : theme.colors.surfaceBorder}
+                  strokeWidth={1}
+                />
+                <Circle
+                  cx={38}
+                  cy={9}
+                  r={active ? 6 : 4}
+                  fill={active ? theme.colors.accent : theme.colors.controlButtonBg}
+                  stroke={theme.colors.surfaceBorder}
+                  strokeWidth={1}
+                />
+              </Svg>
               <AppText variant="statPillLabel" tone={active ? "primary" : "muted"}>
                 {item.title}
               </AppText>
               <AppText variant="screenTitle" style={styles.time}>
-                {item.time ? formatTime(item.time) : "—"}
+                {item.time ? strings.formatTime(item.time) : strings.emptyTimeLabel}
               </AppText>
               <AppText variant="technicalCaption" tone="muted" style={styles.detail}>
-                {item.detail ?? "Сегодня без точного окна"}
+                {item.detail ?? t.emptyDetail}
               </AppText>
             </View>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -115,11 +126,12 @@ const styles = StyleSheet.create({
   timeline: {
     flexDirection: "row",
     gap: 10,
+    paddingRight: 2,
   },
   window: {
     borderWidth: 1,
     borderRadius: 18,
-    flex: 1,
+    width: 172,
     minHeight: 118,
     padding: 12,
     justifyContent: "space-between",

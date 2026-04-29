@@ -7,14 +7,14 @@ import {
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/modules/auth";
-import { ThemeProvider as UiThemeProvider, defaultTheme } from "@/modules/ui/theme";
+import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -25,6 +25,8 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+  const uiTheme = useMemo(() => buildTheme(colorScheme === "dark" ? "dark" : "light"), [colorScheme]);
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
@@ -42,7 +44,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <UiThemeProvider value={defaultTheme}>
+      <UiThemeProvider value={uiTheme}>
         <AuthProvider>
           <RootLayoutNav />
         </AuthProvider>
@@ -95,14 +97,14 @@ function useAuthRouteGate() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const theme = useTheme();
   const { initializing } = useAuth();
   useAuthRouteGate();
 
-  // Пока читаем сессию из SecureStore — держим чёрный фон, чтобы не мигало
-  // на фоне стартового (tabs). Сплэш-скрин Expo уже скрыт (fonts loaded),
-  // поэтому показываем минимальный плейсхолдер.
+  // Пока читаем сессию из SecureStore — держим фон текущей UI-темы, чтобы не мигало
+  // на фоне стартового (tabs). Сплэш-скрин Expo уже скрыт (fonts loaded).
   if (initializing) {
-    return <View style={{ flex: 1, backgroundColor: "#000" }} />;
+    return <View style={{ flex: 1, backgroundColor: theme.colors.screenBg }} />;
   }
 
   return (
