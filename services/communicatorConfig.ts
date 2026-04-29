@@ -28,3 +28,8 @@ export function getCalibrationExtractUrl(): string {
 export function getDailyForecastUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/astro/daily-forecast`;
 }
+
+/** POST: принять/отклонить AI-предложение состояния (Bearer JWT). */
+export function getAiProposalRespondUrl(proposalId: string): string {
+  return `${getCommunicatorApiBaseUrl()}/api/proposals/${proposalId}/respond`;
+}

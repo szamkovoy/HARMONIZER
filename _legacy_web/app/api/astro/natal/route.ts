@@ -2,6 +2,7 @@ import { computeNatalProfileWithAstronomia, type BirthData } from "../../../../.
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { nextVersionFor } from "../../_utils/astro-db";
 
+// Запись в user_natal_charts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
 
 type Body = {

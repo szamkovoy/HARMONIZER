@@ -3,6 +3,7 @@ import { createServiceSupabase, errorResponse, json, requireUserId } from "../..
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
 import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
 
+// Запись в user_daily_forecasts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
 
 type Body = {
