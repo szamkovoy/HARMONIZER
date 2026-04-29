@@ -34,6 +34,25 @@ function locationError(message?: string): Error {
   return new Error(message ?? "Location is required to compute opportunity windows.");
 }
 
+function toError(value: unknown): Error {
+  if (value instanceof Error) return value;
+  if (typeof value === "string") return new Error(value);
+  if (value && typeof value === "object") {
+    const error = value as { message?: unknown; error?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const message = [error.message, error.error, error.details, error.hint, error.code]
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+    if (message) return new Error(message);
+    try {
+      return new Error(JSON.stringify(value));
+    } catch {
+      return new Error("Unknown daily forecast error");
+    }
+  }
+  return new Error("Unknown daily forecast error");
+}
+
 export function useDailyForecast(options?: UseDailyForecastOptions): UseDailyForecastResult {
   const { profile } = useAuth();
   const abortRef = useRef<AbortController | null>(null);
@@ -82,7 +101,7 @@ export function useDailyForecast(options?: UseDailyForecastOptions): UseDailyFor
         setStatus("ready");
       } catch (e) {
         if (controller.signal.aborted) return;
-        const err = e instanceof Error ? e : new Error(String(e));
+        const err = toError(e);
         setError(err);
         setStatus("error");
       } finally {

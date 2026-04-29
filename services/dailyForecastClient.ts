@@ -42,8 +42,10 @@ type DailyForecastResponse = {
   source?: ForecastSource;
   forecast?: ForecastPayload;
   forecastPayload?: ForecastPayload;
-  error?: string;
+  error?: unknown;
 };
+
+const DAILY_FORECAST_TIMEOUT_MS = 25000;
 
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
@@ -56,11 +58,30 @@ async function getAccessToken(): Promise<string> {
 async function readError(res: Response): Promise<Error> {
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("application/json")) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    return new Error(data?.error ?? `HTTP ${res.status}`);
+    const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
+    return new Error(errorMessage(data?.error, `HTTP ${res.status}`));
   }
   const text = await res.text().catch(() => res.statusText);
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
+}
+
+function errorMessage(value: unknown, fallback = "Unknown error"): string {
+  if (value instanceof Error) return value.message;
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const error = value as { message?: unknown; error?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const message = [error.message, error.error, error.details, error.hint, error.code]
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+    if (message) return message;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
 }
 
 function required<T>(value: T | null | undefined, label: string): T {
@@ -98,24 +119,47 @@ function normalizeForecast(raw: ForecastPayload): DailyForecast {
 
 export async function fetchDailyForecast(req: DailyForecastRequest): Promise<DailyForecastResult> {
   const token = await getAccessToken();
-  const res = await fetch(getDailyForecastUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      forecastDate: req.forecastDate,
-      userLocation: req.userLocation,
-      recentPlanetsOfDay: req.recentPlanetsOfDay,
-      forceRefresh: req.forceRefresh,
-    }),
-    signal: req.signal,
-  });
+  const url = getDailyForecastUrl();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DAILY_FORECAST_TIMEOUT_MS);
+  req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  /** Supabase Functions gateway ожидает `apikey` вместе с JWT пользователя. */
+  if (url.includes("/functions/v1/")) {
+    const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+    if (anon) headers.apikey = anon;
+  }
+
+  console.log("Fetching forecast from:", url);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        forecastDate: req.forecastDate,
+        userLocation: req.userLocation,
+        recentPlanetsOfDay: req.recentPlanetsOfDay,
+        forceRefresh: req.forceRefresh,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted && !req.signal?.aborted) {
+      throw new Error(`Daily forecast request timed out after ${Math.round(DAILY_FORECAST_TIMEOUT_MS / 1000)}s.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) throw await readError(res);
   const data = (await res.json()) as DailyForecastResponse;
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new Error(errorMessage(data.error, "DailyForecast: server returned an error"));
   const raw = data.forecastPayload
     ? { ...(data.forecast ?? {}), ...data.forecastPayload }
     : data.forecast;

@@ -25,7 +25,19 @@ export function getCalibrationExtractUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/calibration/extract`;
 }
 
+/**
+ * Дневной прогноз: предпочтительно Supabase Edge `daily-forecast` (тот же проект, что и auth),
+ * либо явный URL, либо legacy Next `/api/astro/daily-forecast` на Vercel.
+ */
 export function getDailyForecastUrl(): string {
+  const explicit = process.env.EXPO_PUBLIC_DAILY_FORECAST_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+  if (supabaseUrl) {
+    return `${supabaseUrl.replace(/\/$/, "")}/functions/v1/daily-forecast`;
+  }
+
   return `${getCommunicatorApiBaseUrl()}/api/astro/daily-forecast`;
 }
 

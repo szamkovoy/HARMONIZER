@@ -384,6 +384,9 @@ verify_jwt = false
 [functions.cleanup-expired-proposals]
 verify_jwt = false
 
+[functions.daily-forecast]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327
