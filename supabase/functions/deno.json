@@ -1,0 +1,18 @@
+{
+  "imports": {
+    "astronomia/julian": "npm:astronomia@4.2.0/julian",
+    "astronomia/solar": "npm:astronomia@4.2.0/solar",
+    "astronomia/moonposition": "npm:astronomia@4.2.0/moonposition",
+    "astronomia/planetposition": "npm:astronomia@4.2.0/planetposition",
+    "astronomia/elliptic": "npm:astronomia@4.2.0/elliptic",
+    "astronomia/nutation": "npm:astronomia@4.2.0/nutation",
+    "astronomia/coord": "npm:astronomia@4.2.0/coord",
+    "astronomia/sidereal": "npm:astronomia@4.2.0/sidereal",
+    "astronomia/data/vsop87Bearth": "npm:astronomia@4.2.0/data/vsop87Bearth",
+    "astronomia/data/vsop87Bmercury": "npm:astronomia@4.2.0/data/vsop87Bmercury",
+    "astronomia/data/vsop87Bvenus": "npm:astronomia@4.2.0/data/vsop87Bvenus",
+    "astronomia/data/vsop87Bmars": "npm:astronomia@4.2.0/data/vsop87Bmars",
+    "astronomia/data/vsop87Bjupiter": "npm:astronomia@4.2.0/data/vsop87Bjupiter",
+    "astronomia/data/vsop87Bsaturn": "npm:astronomia@4.2.0/data/vsop87Bsaturn"
+  }
+}

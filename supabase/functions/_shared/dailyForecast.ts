@@ -6,21 +6,20 @@
  *
  * Backlog: вынести общий `daily-engine-core` (PATCH 4 Вариант 1) после стабилизации.
  */
-import { DateTime } from "https://esm.sh/luxon@3.7.2";
-import julian from "https://esm.sh/astronomia@4.2.0/julian";
-import solar from "https://esm.sh/astronomia@4.2.0/solar";
-import moonposition from "https://esm.sh/astronomia@4.2.0/moonposition";
-import planetposition from "https://esm.sh/astronomia@4.2.0/planetposition";
-import elliptic from "https://esm.sh/astronomia@4.2.0/elliptic";
-import nutation from "https://esm.sh/astronomia@4.2.0/nutation";
-import coord from "https://esm.sh/astronomia@4.2.0/coord";
-import sidereal from "https://esm.sh/astronomia@4.2.0/sidereal";
-import vsop87Bearth from "https://esm.sh/astronomia@4.2.0/data/vsop87Bearth";
-import vsop87Bmercury from "https://esm.sh/astronomia@4.2.0/data/vsop87Bmercury";
-import vsop87Bvenus from "https://esm.sh/astronomia@4.2.0/data/vsop87Bvenus";
-import vsop87Bmars from "https://esm.sh/astronomia@4.2.0/data/vsop87Bmars";
-import vsop87Bjupiter from "https://esm.sh/astronomia@4.2.0/data/vsop87Bjupiter";
-import vsop87Bsaturn from "https://esm.sh/astronomia@4.2.0/data/vsop87Bsaturn";
+import julian from "astronomia/julian";
+import solar from "astronomia/solar";
+import moonposition from "astronomia/moonposition";
+import planetposition from "astronomia/planetposition";
+import elliptic from "astronomia/elliptic";
+import nutation from "astronomia/nutation";
+import coord from "astronomia/coord";
+import sidereal from "astronomia/sidereal";
+import vsop87Bearth from "astronomia/data/vsop87Bearth";
+import vsop87Bmercury from "astronomia/data/vsop87Bmercury";
+import vsop87Bvenus from "astronomia/data/vsop87Bvenus";
+import vsop87Bmars from "astronomia/data/vsop87Bmars";
+import vsop87Bjupiter from "astronomia/data/vsop87Bjupiter";
+import vsop87Bsaturn from "astronomia/data/vsop87Bsaturn";
 
 export const PLANETS_7 = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
 
@@ -41,6 +40,65 @@ const planetData = {
   Jupiter: new planetposition.Planet(vsop87Bjupiter),
   Saturn: new planetposition.Planet(vsop87Bsaturn),
 };
+
+function numberPart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): number {
+  const value = parts.find((part) => part.type === type)?.value;
+  return value ? Number(value) : 0;
+}
+
+function zonedParts(date: Date, timezone: string): Intl.DateTimeFormatPart[] {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+}
+
+function timezoneOffsetMs(date: Date, timezone: string): number {
+  const parts = zonedParts(date, timezone);
+  const asUtc = Date.UTC(
+    numberPart(parts, "year"),
+    numberPart(parts, "month") - 1,
+    numberPart(parts, "day"),
+    numberPart(parts, "hour"),
+    numberPart(parts, "minute"),
+    numberPart(parts, "second"),
+  );
+  return asUtc - date.getTime();
+}
+
+function zonedLocalDateTimeToUtc(date: string, time: string, timezone: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute, second = 0] = time.split(":").map(Number);
+  const naiveUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const firstPass = new Date(naiveUtc.getTime() - timezoneOffsetMs(naiveUtc, timezone));
+  return new Date(naiveUtc.getTime() - timezoneOffsetMs(firstPass, timezone));
+}
+
+function addLocalDays(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function zonedIso(date: Date, timezone: string): string {
+  const parts = zonedParts(date, timezone);
+  const offset = timezoneOffsetMs(date, timezone);
+  const sign = offset >= 0 ? "+" : "-";
+  const abs = Math.abs(Math.trunc(offset / 60000));
+  const offsetHours = String(Math.floor(abs / 60)).padStart(2, "0");
+  const offsetMinutes = String(abs % 60).padStart(2, "0");
+  const ms = String(date.getMilliseconds()).padStart(3, "0");
+  return [
+    `${String(numberPart(parts, "year")).padStart(4, "0")}-${String(numberPart(parts, "month")).padStart(2, "0")}-${String(numberPart(parts, "day")).padStart(2, "0")}`,
+    `T${String(numberPart(parts, "hour")).padStart(2, "0")}:${String(numberPart(parts, "minute")).padStart(2, "0")}:${String(numberPart(parts, "second")).padStart(2, "0")}.${ms}`,
+    `${sign}${offsetHours}:${offsetMinutes}`,
+  ].join("");
+}
 
 function normalizeLongitude(longitude: number): number {
   const normalized = longitude % 360;
@@ -111,19 +169,21 @@ function positionForPlanetAt(planet: string, date: Date) {
 }
 
 function localReferenceDate(forecastDate: string, timezone: string): Date {
-  return DateTime.fromISO(`${forecastDate}T14:00`, { zone: timezone }).toUTC().toJSDate();
+  return zonedLocalDateTimeToUtc(forecastDate, "14:00:00", timezone);
 }
 
 function localDayBounds(forecastDate: string, timezone: string): { start: Date; end: Date } {
-  const start = DateTime.fromISO(forecastDate, { zone: timezone }).startOf("day");
-  return { start: start.toUTC().toJSDate(), end: start.plus({ days: 1 }).toUTC().toJSDate() };
+  return {
+    start: zonedLocalDateTimeToUtc(forecastDate, "00:00:00", timezone),
+    end: zonedLocalDateTimeToUtc(addLocalDays(forecastDate, 1), "00:00:00", timezone),
+  };
 }
 
 function computeTransitChart(input: { forecastDate: string; timezone: string }) {
   const referenceDate = localReferenceDate(input.forecastDate, input.timezone);
   const planets = Object.fromEntries(PLANETS_7.map((planet) => [planet, positionForPlanetAt(planet, referenceDate)]));
   return {
-    referenceTime: DateTime.fromJSDate(referenceDate, { zone: "utc" }).setZone(input.timezone).toISO(),
+    referenceTime: zonedIso(referenceDate, input.timezone),
     planets,
   };
 }
@@ -236,7 +296,7 @@ function computeRiseTime(input: any, planet: string): string | null {
   for (let t = previous.t + TEN_MINUTES_MS; t <= end.getTime(); t += TEN_MINUTES_MS) {
     const current = { t, altitude: altitudeAt(planet, new Date(t), input.userLocation.lat, input.userLocation.lng) };
     if (previous.altitude < 0 && current.altitude >= 0) {
-      return DateTime.fromJSDate(interpolateCrossing(previous, current), { zone: "utc" }).setZone(input.userLocation.timezone).toISO();
+      return zonedIso(interpolateCrossing(previous, current), input.userLocation.timezone);
     }
     previous = current;
   }
@@ -254,7 +314,7 @@ function computeCulminationTime(input: any, planet: string): string | null {
   }
 
   if (!best || best.altitude < 0) return null;
-  return DateTime.fromMillis(best.t, { zone: "utc" }).setZone(input.userLocation.timezone).toISO();
+  return zonedIso(new Date(best.t), input.userLocation.timezone);
 }
 
 function computeExactAspectTime(input: any, context: any): string | null {
@@ -270,7 +330,7 @@ function computeExactAspectTime(input: any, context: any): string | null {
   }
 
   if (best.orb > 0.1) return null;
-  return DateTime.fromMillis(best.t, { zone: "utc" }).setZone(input.userLocation.timezone).toISO();
+  return zonedIso(new Date(best.t), input.userLocation.timezone);
 }
 
 function mainContributionFor(contributions: any[], planetOfTheDay: string) {
@@ -318,7 +378,7 @@ export function computeDailyForecast(input: {
     };
   }
 
-  const endOfDay = DateTime.fromISO(input.forecastDate, { zone: input.userLocation.timezone }).endOf("day");
+  const { end } = localDayBounds(input.forecastDate, input.userLocation.timezone);
   return {
     date: input.forecastDate,
     importance,
@@ -332,7 +392,7 @@ export function computeDailyForecast(input: {
     windowsOfOpportunity,
     transitChart,
     computedAt: new Date().toISOString(),
-    cacheValidUntil: endOfDay.toUTC().toISO(),
+    cacheValidUntil: new Date(end.getTime() - 1).toISOString(),
   };
 }
 

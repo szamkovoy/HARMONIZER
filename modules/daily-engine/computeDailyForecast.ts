@@ -1,3 +1,5 @@
+import { DateTime } from "luxon";
+
 import { computeActivation, computeImportance, effectiveNatalParams } from "./core/activation";
 import { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
 import type {
@@ -24,8 +26,8 @@ function todayToneFor(harmoniousness: number): TodayTone {
   return "neutral";
 }
 
-function endOfForecastDateUtc(date: string): string {
-  return new Date(`${date}T23:59:59.999Z`).toISOString();
+function endOfForecastDateUtc(date: string, timezone: string): string {
+  return DateTime.fromISO(date, { zone: timezone }).endOf("day").toUTC().toISO() ?? new Date(`${date}T23:59:59.999Z`).toISOString();
 }
 
 function mainContributionFor(
@@ -74,7 +76,7 @@ export function computeDailyForecastFromTransits(params: {
     },
     transitChart,
     computedAt: params.computedAt ?? new Date().toISOString(),
-    cacheValidUntil: endOfForecastDateUtc(input.forecastDate),
+    cacheValidUntil: endOfForecastDateUtc(input.forecastDate, input.userLocation.timezone),
   };
 }
 

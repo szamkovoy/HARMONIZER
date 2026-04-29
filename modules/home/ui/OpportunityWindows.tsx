@@ -1,5 +1,4 @@
 import { ScrollView, StyleSheet, View } from "react-native";
-import Svg, { Circle, Line } from "react-native-svg";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -12,6 +11,33 @@ interface OpportunityWindowsProps {
   planetOfTheDay: Planet;
   windows: Windows;
   strings: HomeStrings;
+}
+
+function WindowGlyph({ active }: { active: boolean }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.glyph} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View
+        style={[
+          styles.glyphLine,
+          {
+            backgroundColor: active ? theme.colors.accent : theme.colors.surfaceBorder,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.glyphDot,
+          {
+            backgroundColor: active ? theme.colors.accent : theme.colors.controlButtonBg,
+            borderColor: theme.colors.surfaceBorder,
+            height: active ? 12 : 8,
+            width: active ? 12 : 8,
+          },
+        ]}
+      />
+    </View>
+  );
 }
 
 export function OpportunityWindows({ planetOfTheDay, windows, strings }: OpportunityWindowsProps) {
@@ -78,24 +104,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings }: Opportu
                 },
               ]}
             >
-              <Svg width={76} height={18} viewBox="0 0 76 18">
-                <Line
-                  x1={0}
-                  y1={9}
-                  x2={76}
-                  y2={9}
-                  stroke={active ? theme.colors.accent : theme.colors.surfaceBorder}
-                  strokeWidth={1}
-                />
-                <Circle
-                  cx={38}
-                  cy={9}
-                  r={active ? 6 : 4}
-                  fill={active ? theme.colors.accent : theme.colors.controlButtonBg}
-                  stroke={theme.colors.surfaceBorder}
-                  strokeWidth={1}
-                />
-              </Svg>
+              <WindowGlyph active={active} />
               <AppText variant="statPillLabel" tone={active ? "primary" : "muted"}>
                 {item.title}
               </AppText>
@@ -135,6 +144,24 @@ const styles = StyleSheet.create({
     minHeight: 118,
     padding: 12,
     justifyContent: "space-between",
+  },
+  glyph: {
+    alignItems: "center",
+    height: 18,
+    justifyContent: "center",
+    position: "relative",
+    width: 76,
+  },
+  glyphLine: {
+    borderRadius: 999,
+    height: StyleSheet.hairlineWidth,
+    position: "absolute",
+    width: 76,
+  },
+  glyphDot: {
+    borderRadius: 999,
+    borderWidth: 1,
+    position: "absolute",
   },
   time: {
     marginTop: 8,

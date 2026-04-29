@@ -1,5 +1,4 @@
 import { StyleSheet, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
 
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -29,11 +28,11 @@ export function PlanetOfDayBanner({ forecast, strings }: PlanetOfDayBannerProps)
         },
       ]}
     >
-      <Svg width={72} height={72} viewBox="0 0 72 72">
-        <Circle cx={36} cy={36} r={32} fill={meta.color} opacity={0.18} />
-        <Circle cx={36} cy={36} r={22} fill={meta.color} opacity={0.82} />
-        <Circle cx={36} cy={36} r={8} fill={theme.colors.screenBg} opacity={0.72} />
-      </Svg>
+      <View style={styles.symbol} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={[styles.symbolHalo, { backgroundColor: meta.color }]} />
+        <View style={[styles.symbolCore, { backgroundColor: meta.color }]} />
+        <View style={[styles.symbolDot, { backgroundColor: theme.colors.screenBg }]} />
+      </View>
 
       <View style={styles.copy}>
         <AppText variant="technicalCaption" tone="muted">
@@ -59,6 +58,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     padding: 18,
+  },
+  symbol: {
+    alignItems: "center",
+    height: 72,
+    justifyContent: "center",
+    position: "relative",
+    width: 72,
+  },
+  symbolHalo: {
+    borderRadius: 32,
+    height: 64,
+    opacity: 0.18,
+    position: "absolute",
+    width: 64,
+  },
+  symbolCore: {
+    borderRadius: 22,
+    height: 44,
+    opacity: 0.82,
+    position: "absolute",
+    width: 44,
+  },
+  symbolDot: {
+    borderRadius: 8,
+    height: 16,
+    opacity: 0.72,
+    position: "absolute",
+    width: 16,
   },
   copy: {
     flex: 1,

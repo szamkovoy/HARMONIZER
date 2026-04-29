@@ -1,14 +1,11 @@
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import Svg, { Circle, Ellipse, G } from "react-native-svg";
 
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { PLANET_CHAKRA, PLANET_ORDER } from "../planetChakra";
-
-const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 
 interface ChakraFlowerProps {
   forecast: DailyForecast;
@@ -85,7 +82,7 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
       </View>
 
       <View style={styles.flowerWrap}>
-        <Svg width={260} height={260} viewBox="0 0 260 260">
+        <View style={styles.flowerCanvas} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {PLANET_ORDER.map((planet, index) => {
             const meta = PLANET_CHAKRA[planet];
             const n = normalizedImportance(importance, planet);
@@ -94,34 +91,67 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
             const ry = 50 + n * 26;
             const angle = index * (360 / PLANET_ORDER.length);
             return (
-              <G key={planet} transform={`rotate(${angle} ${center} ${center})`}>
+              <View
+                key={planet}
+                pointerEvents="none"
+                style={[
+                  styles.petalLayer,
+                  {
+                    transform: [{ rotate: `${angle}deg` }],
+                  },
+                ]}
+              >
                 {isSelected ? (
-                  <AnimatedEllipse
-                    cx={center}
-                    cy={petalCy}
-                    rx={rx + 13}
-                    ry={ry + 13}
-                    fill={meta.color}
-                    opacity={pulse.interpolate({
-                      inputRange: [0.82, 1],
-                      outputRange: [selectedGlowOpacity(todayTone) * 0.72, selectedGlowOpacity(todayTone)],
-                    })}
+                  <Animated.View
+                    style={[
+                      styles.petal,
+                      {
+                        backgroundColor: meta.color,
+                        height: (ry + 13) * 2,
+                        left: center - (rx + 13),
+                        opacity: pulse.interpolate({
+                          inputRange: [0.82, 1],
+                          outputRange: [selectedGlowOpacity(todayTone) * 0.72, selectedGlowOpacity(todayTone)],
+                        }),
+                        top: petalCy - (ry + 13),
+                        width: (rx + 13) * 2,
+                      },
+                    ]}
                   />
                 ) : null}
-                <Ellipse
-                  cx={center}
-                  cy={petalCy}
-                  rx={rx}
-                  ry={ry}
-                  fill={meta.color}
-                  opacity={petalOpacity(todayTone, isSelected, n)}
+                <View
+                  style={[
+                    styles.petal,
+                    {
+                      backgroundColor: meta.color,
+                      height: ry * 2,
+                      left: center - rx,
+                      opacity: petalOpacity(todayTone, isSelected, n),
+                      top: petalCy - ry,
+                      width: rx * 2,
+                    },
+                  ]}
                 />
-              </G>
+              </View>
             );
           })}
-          <Circle cx={center} cy={center} r={37} fill={theme.colors.screenBg} opacity={0.88} />
-          <Circle cx={center} cy={center} r={25} fill={selectedMeta.color} opacity={0.84} />
-        </Svg>
+          <View
+            style={[
+              styles.centerOuter,
+              {
+                backgroundColor: theme.colors.screenBg,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.centerInner,
+              {
+                backgroundColor: selectedMeta.color,
+              },
+            ]}
+          />
+        </View>
       </View>
 
       <View style={styles.focus}>
@@ -161,6 +191,40 @@ const styles = StyleSheet.create({
   flowerWrap: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  flowerCanvas: {
+    height: 260,
+    position: "relative",
+    width: 260,
+  },
+  petalLayer: {
+    height: 260,
+    left: 0,
+    position: "absolute",
+    top: 0,
+    width: 260,
+  },
+  petal: {
+    borderRadius: 999,
+    position: "absolute",
+  },
+  centerOuter: {
+    borderRadius: 37,
+    height: 74,
+    left: 93,
+    opacity: 0.88,
+    position: "absolute",
+    top: 93,
+    width: 74,
+  },
+  centerInner: {
+    borderRadius: 25,
+    height: 50,
+    left: 105,
+    opacity: 0.84,
+    position: "absolute",
+    top: 105,
+    width: 50,
   },
   focus: {
     alignItems: "center",

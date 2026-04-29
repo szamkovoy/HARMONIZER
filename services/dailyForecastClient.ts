@@ -133,8 +133,6 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
     if (anon) headers.apikey = anon;
   }
 
-  console.log("Fetching forecast from:", url);
-
   let res: Response;
   try {
     res = await fetch(url, {

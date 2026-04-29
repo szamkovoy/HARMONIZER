@@ -1,12 +1,9 @@
 // @ts-nocheck
+import { computeDailyForecast, dailyForecastToInsert } from "../_shared/dailyForecast.ts";
+
 /**
  * POST: дневной прогноз M2.
- * Повторяет контракт `_legacy_web/app/api/astro/daily-forecast/route.ts`.
- *
- * В remote-схеме сейчас есть только глобальная `daily_forecasts`.
- * Поэтому функция не пишет M2 payload в БД: структура
- * `daily_forecasts` (`slogan_template`, `long_text_template`, `chakras`,
- * `astro_summary`) несовместима с персональными полями прогноза.
+ * Контракт синхронизирован с `_legacy_web/app/api/astro/daily-forecast/route.ts`.
  */
 
 const corsHeaders = {
@@ -229,6 +226,25 @@ async function maybeSingle(table: string, query: string): Promise<any | null> {
   return rows[0] ?? null;
 }
 
+async function restUpsert(table: string, onConflict: string, payload: Record<string, unknown>): Promise<any> {
+  const { url, service } = supabaseEnv();
+  const res = await fetch(`${url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+    method: "POST",
+    headers: {
+      apikey: service,
+      Authorization: `Bearer ${service}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation",
+    },
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw data ?? new Error(`REST ${res.status}`);
+  return Array.isArray(data) ? data[0] : data;
+}
+
 async function loadRecentPlanets(userId: string): Promise<string[]> {
   const data = await maybeSingle(
     "user_settings",
@@ -263,6 +279,23 @@ async function loadActiveNatalProfile(userId: string) {
     );
     if (!data) return null;
     return { profile: natalProfileFromRow(data) };
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+async function loadCachedDailyForecast(userId: string, forecastDate: string): Promise<any | null> {
+  try {
+    return await maybeSingle(
+      "user_daily_forecasts",
+      [
+        "select=*",
+        `user_id=eq.${encodeURIComponent(userId)}`,
+        `forecast_date=eq.${encodeURIComponent(forecastDate)}`,
+        `cache_valid_until=gt.${encodeURIComponent(new Date().toISOString())}`,
+      ].join("&"),
+    );
   } catch (error) {
     if (isMissingTableError(error)) return null;
     throw error;
@@ -307,7 +340,17 @@ Deno.serve(async (req) => {
     }
 
     const forecastDate = body.forecastDate ?? todayLocalDate(body.userLocation.timezone);
-    const globalForecast = body.forceRefresh ? null : await loadGlobalForecastSummary(forecastDate);
+
+    if (!body.forceRefresh) {
+      const cached = await loadCachedDailyForecast(userId, forecastDate);
+      if (cached) {
+        return json({
+          source: "cache",
+          forecast: cached,
+          diagnostics: { mode: "personal_cache" },
+        });
+      }
+    }
 
     const [natal, calibration, recentPlanetsOfDay] = await Promise.all([
       loadActiveNatalProfile(userId),
@@ -315,8 +358,42 @@ Deno.serve(async (req) => {
       body.recentPlanetsOfDay ? Promise.resolve(body.recentPlanetsOfDay.slice(0, 2)) : loadRecentPlanets(userId),
     ]);
 
+    if (natal) {
+      try {
+        const forecast = computeDailyForecast({
+          natalProfile: natal.profile,
+          calibration,
+          forecastDate,
+          userLocation: body.userLocation,
+          recentPlanetsOfDay,
+        });
+        const saved = await restUpsert(
+          "user_daily_forecasts",
+          "user_id,forecast_date",
+          dailyForecastToInsert(userId, body.userLocation.timezone, forecast),
+        );
+
+        return json({
+          source: "computed",
+          forecast: saved ?? dailyForecastToInsert(userId, body.userLocation.timezone, forecast),
+          forecastPayload: forecast,
+          diagnostics: {
+            mode: "personal_m2",
+            recentPlanetsOfDay,
+            hasCalibration: Boolean(calibration),
+          },
+        });
+      } catch (error) {
+        if (!isMissingTableError(error)) throw error;
+      }
+    }
+
+    const globalForecast = await loadGlobalForecastSummary(forecastDate).catch((error) => {
+      if (isMissingTableError(error)) return null;
+      throw error;
+    });
     const fallbackReason = natal
-      ? "full M2 engine is disabled in Edge until remote M1/M2 tables are migrated"
+      ? "user_daily_forecasts table is unavailable in remote schema"
       : "user_natal_charts table or active natal profile is unavailable";
 
     return json({
