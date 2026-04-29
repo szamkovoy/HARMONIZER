@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@sentry/nextjs": "^10.51.0",
     "@supabase/supabase-js": "^2.101.0",
     "astronomia": "^4.2.0",
     "lucide-react": "^1.7.0",

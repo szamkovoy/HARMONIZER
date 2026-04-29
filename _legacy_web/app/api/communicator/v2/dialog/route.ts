@@ -4,6 +4,7 @@ import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
 import { parseResponseMarkers, stripResponseMarkers, type PracticePickMarker } from "../../../_utils/markers";
+import { reportRouteError } from "../../../_utils/monitoring";
 import {
   contextSimilarity,
   estimateDensity,
@@ -142,7 +143,7 @@ async function loadContext(db: SupabaseClient, userId: string) {
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle(),
-    db.from("users").select("display_name,birth_date").eq("id", userId).maybeSingle(),
+    db.from("users").select("display_name,birth_date,locale").eq("id", userId).maybeSingle(),
   ]);
   if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
@@ -152,7 +153,7 @@ async function loadContext(db: SupabaseClient, userId: string) {
     calibration: calibrationResult.data as Record<string, unknown> | null,
     forecast: forecastResult.data as Record<string, unknown> | null,
     natal: natalResult.data ? natalProfileFromRow(natalResult.data as never) : null,
-    user: (userResult.data as { display_name?: string | null; birth_date?: string | null } | null) ?? {},
+    user: (userResult.data as { display_name?: string | null; birth_date?: string | null; locale?: string | null } | null) ?? {},
   };
 }
 
@@ -258,14 +259,14 @@ async function buildDecision(params: {
     !TERMINAL_PHASES.has(previousDecision.next_phase) &&
     !shouldForceFreshDecision(previousDecisions)
   ) {
-    const similarity = contextSimilarity(params.userMessage, lastUserMessage(params.history), previousDecision);
+    const similarity = contextSimilarity(params.userMessage, lastUserMessage(params.history), previousDecision, params.context.user.locale);
     if (similarity > threshold) {
       return {
         decision: {
           ...previousDecision,
           reasoning: `Reused: similarity ${similarity.toFixed(2)} > ${threshold} threshold at iter ${iterationNumber}`,
           information_density: estimateDensity(params.userMessage),
-          user_signals: quickSignalDetection(params.userMessage),
+          user_signals: quickSignalDetection(params.userMessage, params.context.user.locale),
           decision_source: "cache_reused",
           cache_similarity: similarity,
           bypass_reason: undefined,
@@ -341,17 +342,21 @@ function phaseVariables(params: {
 }
 
 export async function POST(req: Request) {
+  let db: SupabaseClient | null = null;
+  let userId: string | null = null;
+  let endpointStage = "request";
   try {
     const requestStarted = Date.now();
-    const userId = await requireUserId(req);
+    userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     const useCase = assertUseCase(body.useCase);
     const userMessage = String(body.userMessage ?? "").trim();
     const userTimezone = body.userTimezone ?? "UTC";
     if (!userMessage) return json({ error: "userMessage is required" }, { status: 400 });
 
-    const db = createServiceSupabase();
+    db = createServiceSupabase();
     const conversationIdWasNull = !body.conversationId;
+    endpointStage = "load_context";
     const conversation = await loadConversation(db, userId, {
       ...body,
       entrySource: body.entrySource ?? "home",
@@ -363,6 +368,7 @@ export async function POST(req: Request) {
       loadContext(db, userId),
     ]);
 
+    endpointStage = "orchestrator";
     const { decision, orchestratorLatencyMs } = await buildDecision({
       db,
       userId,
@@ -386,6 +392,8 @@ export async function POST(req: Request) {
       meta: { use_case: useCase },
     });
 
+    const routeDb = db;
+    const routeUserId = userId;
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -400,9 +408,9 @@ export async function POST(req: Request) {
             return;
           }
 
-          const phasePrompt = await getActivePrompt(db, phase.prompt_key);
-          const responderPrompt = await getActivePrompt(db, "responder_main");
-          const practiceCandidate = PRACTICE_STACK_PHASES.has(phase.phase_id) ? await choosePractice(db, null, context) : null;
+          const phasePrompt = await getActivePrompt(routeDb, phase.prompt_key);
+          const responderPrompt = await getActivePrompt(routeDb, "responder_main");
+          const practiceCandidate = PRACTICE_STACK_PHASES.has(phase.phase_id) ? await choosePractice(routeDb, null, context) : null;
           const practicesList = practiceCandidate
             ? JSON.stringify(
                 (practiceCandidate.stack ?? []).map((practice) => ({
@@ -419,7 +427,7 @@ export async function POST(req: Request) {
           const profileSize = logDTOSize("dialog.responder.profile", profileDTO, 350);
           const forecastSize = logDTOSize("dialog.responder.forecast", forecastDTO, 200);
           const historySize = logDTOSize("dialog.responder.history", historyDTO, 1500);
-          await logPromptSize(db, userId, {
+          await logPromptSize(routeDb, routeUserId, {
             endpoint: "communicator/v2/dialog",
             stage: "responder",
             phase: phase.phase_id,
@@ -462,23 +470,23 @@ export async function POST(req: Request) {
 
           const markers = parseResponseMarkers(fullText);
           const cleanText = stripResponseMarkers(fullText);
-          const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(db, markers.practicePick, context) : null;
+          const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(routeDb, markers.practicePick, context) : null;
 
           if (markers.stateProposals.length) {
             const stateProposalExpiresAt = new Date();
             stateProposalExpiresAt.setUTCDate(stateProposalExpiresAt.getUTCDate() + 30);
             const expiresAtIso = stateProposalExpiresAt.toISOString();
-            await db.from("ai_state_proposals").insert(
+            await routeDb.from("ai_state_proposals").insert(
               markers.stateProposals.map((proposal) => ({
                 ...proposal,
-                user_id: userId,
+                user_id: routeUserId,
                 conversation_id: conversation.id,
                 expires_at: expiresAtIso,
               })),
             );
           }
           if (markers.recommendationCorrection && context.forecast?.id) {
-            await db
+            await routeDb
               .from("user_daily_forecasts")
               .update({
                 recommendation_short_text: markers.recommendationCorrection.short_text ?? context.forecast.recommendation_short_text,
@@ -489,10 +497,10 @@ export async function POST(req: Request) {
           }
 
           const shouldClose = phase.is_terminal || decision.should_close;
-          const { data: assistantMessage, error: messageError } = await db
+          const { data: assistantMessage, error: messageError } = await routeDb
             .from("messages")
             .insert({
-              user_id: userId,
+              user_id: routeUserId,
               conversation_id: conversation.id,
               role: "assistant",
               content: cleanText,
@@ -512,9 +520,9 @@ export async function POST(req: Request) {
             .single();
           if (messageError) throw messageError;
 
-          if (shouldClose) await db.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
-          await db.from("user_event_log").insert({
-            user_id: userId,
+          if (shouldClose) await routeDb.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
+          await routeDb.from("user_event_log").insert({
+            user_id: routeUserId,
             kind: "dialog_turn",
             payload: {
               conversation_id: conversation.id,
@@ -544,6 +552,17 @@ export async function POST(req: Request) {
           );
           controller.close();
         } catch (error) {
+          await reportRouteError(error, {
+            db: routeDb,
+            userId: routeUserId,
+            endpoint: "communicator/v2/dialog",
+            stage: "responder_stream",
+            payload: {
+              conversation_id: conversation.id,
+              phase: phase.phase_id,
+              use_case: useCase,
+            },
+          });
           controller.error(error);
         }
       },
@@ -557,6 +576,12 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
+    await reportRouteError(error, {
+      db,
+      userId,
+      endpoint: "communicator/v2/dialog",
+      stage: endpointStage,
+    });
     return errorResponse(error);
   }
 }

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { generateGeminiText } from "../../../_utils/gemini";
+import { reportRouteError } from "../../../_utils/monitoring";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
@@ -65,12 +66,16 @@ async function logPromptSize(db: SupabaseClient, userId: string, payload: Record
 }
 
 export async function POST(req: Request) {
+  let db: SupabaseClient | null = null;
+  let userId: string | null = null;
+  let endpointStage = "request";
   try {
-    const userId = await requireUserId(req);
+    userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     const useCase = assertUseCase(body.useCase);
     const userTimezone = body.userTimezone ?? "UTC";
-    const db = createServiceSupabase();
+    db = createServiceSupabase();
+    endpointStage = "create_conversation";
     const { data: conversation, error: conversationError } = await db
       .from("conversations")
       .insert({
@@ -107,6 +112,7 @@ export async function POST(req: Request) {
       entry_source_label: body.entrySource ?? "home",
       window_time: body.triggerMeta?.window_time ?? "",
     });
+    endpointStage = "responder";
     const result = await generateGeminiText({
       prompt: renderPrompt(responderPrompt.template, {
         current_phase: decision.next_phase,
@@ -150,6 +156,12 @@ export async function POST(req: Request) {
       suggestedOptions: [],
     });
   } catch (error) {
+    await reportRouteError(error, {
+      db,
+      userId,
+      endpoint: "communicator/v2/greeting",
+      stage: endpointStage,
+    });
     return errorResponse(error);
   }
 }

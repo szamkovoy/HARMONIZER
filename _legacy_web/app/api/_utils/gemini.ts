@@ -12,6 +12,14 @@ type GenerateTextOptions = GenerateJsonOptions & {
 };
 
 const DEFAULT_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] as const;
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+class GeminiTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Gemini request timed out after ${timeoutMs}ms`);
+    this.name = "GeminiTimeoutError";
+  }
+}
 
 function getApiKey(): string {
   const key = process.env.GEMINI_API_KEY?.trim();
@@ -23,6 +31,26 @@ function modelChain(preferred?: string | null): string[] {
   const override = preferred?.trim() || process.env.GEMINI_MODEL?.trim();
   if (!override) return [...DEFAULT_MODEL_CHAIN];
   return [override, ...DEFAULT_MODEL_CHAIN.filter((model) => model !== override)];
+}
+
+function timeoutMs(): number {
+  const value = Number(process.env.GEMINI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
+}
+
+async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
+  const ms = timeoutMs();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new GeminiTimeoutError(ms)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function extractJson(text: string): unknown {
@@ -58,7 +86,7 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
           responseMimeType: "application/json",
         },
       });
-      const result = await model.generateContent(options.prompt);
+      const result = await withGeminiTimeout(model.generateContent(options.prompt));
       const rawText = result.response.text();
       return { json: extractJson(rawText) as T, rawText, modelUsed: modelId };
     } catch (error) {
@@ -86,7 +114,7 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
           responseMimeType: options.responseMimeType ?? "text/plain",
         },
       });
-      const result = await model.generateContent(options.prompt);
+      const result = await withGeminiTimeout(model.generateContent(options.prompt));
       return { text: result.response.text(), modelUsed: modelId };
     } catch (error) {
       lastError = error;
@@ -113,7 +141,7 @@ export async function* streamGeminiText(options: GenerateTextOptions): AsyncGene
           responseMimeType: options.responseMimeType ?? "text/plain",
         },
       });
-      const result = await model.generateContentStream(options.prompt);
+      const result = await withGeminiTimeout(model.generateContentStream(options.prompt));
       for await (const chunk of result.stream) {
         const text = chunk.text();
         if (text) yield { text, modelUsed: modelId };

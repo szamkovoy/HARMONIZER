@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateGeminiText } from "../../../_utils/gemini";
+import { reportRouteError } from "../../../_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
 
@@ -15,11 +17,15 @@ function todayIsoDate(): string {
 }
 
 export async function POST(req: Request) {
+  let db: SupabaseClient | null = null;
+  let userId: string | null = null;
+  let endpointStage = "request";
   try {
-    const userId = await requireUserId(req);
+    userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     const mode = body.mode === "long" ? "long" : "short";
-    const db = createServiceSupabase();
+    db = createServiceSupabase();
+    endpointStage = "load_forecast";
     const { data: forecast, error: forecastError } = await db
       .from("user_daily_forecasts")
       .select("*")
@@ -29,6 +35,7 @@ export async function POST(req: Request) {
     if (forecastError) throw forecastError;
     if (!forecast) return json({ error: "Forecast not found" }, { status: 404 });
 
+    endpointStage = "recommendation_generation";
     const prompt = await getActivePrompt(db, mode === "long" ? "recommendation_long" : "recommendation_short");
     const result = await generateGeminiText({
       prompt: renderPrompt(prompt.template, {
@@ -52,6 +59,12 @@ export async function POST(req: Request) {
 
     return json({ text: result.text.trim(), modelUsed: result.modelUsed, forecast: data });
   } catch (error) {
+    await reportRouteError(error, {
+      db,
+      userId,
+      endpoint: "communicator/v2/recommendation-text",
+      stage: endpointStage,
+    });
     return errorResponse(error);
   }
 }

@@ -16,6 +16,7 @@ import {
 } from "../../_utils/calibration";
 import { buildCalibrationCompact, buildProfileCompact, logDTOSize } from "../../_utils/dto";
 import { generateGeminiJson } from "../../_utils/gemini";
+import { reportRouteError } from "../../_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { getUserTimezone, todayLocalDate } from "./forecast-cache-date";
@@ -167,8 +168,11 @@ function toApiShape(row: CalibrationRow & { id: string; based_on_version: number
 }
 
 export async function POST(req: Request) {
+  let db: SupabaseClient | null = null;
+  let userId: string | null = null;
+  let endpointStage = "request";
   try {
-    const userId = await requireUserId(req);
+    userId = await requireUserId(req);
     const body = (await req.json()) as ExtractBody;
     const source = assertSource(body.source);
 
@@ -179,13 +183,15 @@ export async function POST(req: Request) {
       return json({ error: "conversationDigest or feedbackText is required" }, { status: 400 });
     }
 
-    const db = createServiceSupabase();
+    db = createServiceSupabase();
+    endpointStage = "load_context";
     const [{ profile: natalProfile }, previousCalibration, userTz] = await Promise.all([
       loadActiveNatalProfile(db, userId),
       loadActiveCalibration(db, userId),
       getUserTimezone(db, userId),
     ]);
 
+    endpointStage = "extraction";
     const { extraction, rawText, modelUsed } = await extractWithGemini(db, userId, natalProfile, previousCalibration, body);
     const averaged = averageCalibration(natalProfile, extraction, source);
     const statesMap = buildStatesMap(extraction, baselineStatesJson as BaselineStates, previousCalibration);
@@ -271,6 +277,12 @@ export async function POST(req: Request) {
             },
     });
   } catch (error) {
+    await reportRouteError(error, {
+      db,
+      userId,
+      endpoint: "calibration/extract",
+      stage: endpointStage,
+    });
     return errorResponse(error);
   }
 }

@@ -20,6 +20,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/native": "^7.1.8",
+    "@sentry/react-native": "^8.9.2",
     "@shopify/react-native-skia": "2.2.12",
     "@supabase/supabase-js": "^2.101.1",
     "astronomia": "^4.2.0",

@@ -30,10 +30,13 @@ Required Vercel environment variables:
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
+- `SENTRY_DSN` - Sentry project DSN for backend error monitoring.
 
 Optional environment variables:
 
 - `GEMINI_MODEL` - model override for Gemini calls.
+- `GEMINI_TIMEOUT_MS` - Gemini request timeout, defaults to `30000`.
+- `SENTRY_TRACES_SAMPLE_RATE` - Sentry traces sample rate, defaults to `0.05`.
 - `DIALOG_GREETING_BYPASS_ENABLED` - defaults to enabled unless set to `false`.
 - `DIALOG_DECISION_CACHE_ENABLED` - defaults to enabled unless set to `false`.
 - `DIALOG_DECISION_CACHE_MIN_ITERATION` - defaults to `3`.
@@ -50,6 +53,8 @@ Required Expo public variables for the production app build:
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
 - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+- `EXPO_PUBLIC_SENTRY_DSN` - Sentry project DSN for frontend error monitoring.
+- `EXPO_PUBLIC_APP_ENV` - app environment label, for example `production`.
 
 ## Production SQL Migrations
 
