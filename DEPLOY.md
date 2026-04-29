@@ -56,6 +56,11 @@ Required Expo public variables for the production app build:
 - `EXPO_PUBLIC_SENTRY_DSN` - Sentry project DSN for frontend error monitoring.
 - `EXPO_PUBLIC_APP_ENV` - app environment label, for example `production`.
 
+Optional Expo public variables:
+
+- `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` - explicit iOS URL scheme for Google Sign-In. If absent, `app.config.ts` derives it from `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
+- `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` - frontend Sentry traces sample rate, defaults to `0.05`.
+
 ## Production SQL Migrations
 
 Apply these migrations in timestamp order:
