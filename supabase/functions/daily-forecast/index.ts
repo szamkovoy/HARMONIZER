@@ -8,10 +8,42 @@
  * `daily_forecasts` (`slogan_template`, `long_text_template`, `chakras`,
  * `astro_summary`) несовместима с персональными полями прогноза.
  */
-import { DateTime } from "https://esm.sh/luxon@3.7.2";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
-import { computeDailyForecast } from "../_shared/dailyForecast.ts";
-import { corsHeaders, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const PLANETS_7 = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
+const FALLBACK_PLANETS = ["Sun", "Moon", "Venus", "Mercury", "Jupiter", "Mars", "Saturn"] as const;
+
+type Planet = (typeof PLANETS_7)[number];
+
+function json(data: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(data), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders,
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+function isOptions(req: Request): boolean {
+  return req.method === "OPTIONS";
+}
+
+function supabaseEnv() {
+  const url = Deno.env.get("SUPABASE_URL");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !anon || !service) {
+    throw json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+  return { url, anon, service };
+}
 
 function errorMessage(value: unknown): string {
   if (value instanceof Error) return value.message;
@@ -34,7 +66,101 @@ function errorMessage(value: unknown): string {
 
 function todayLocalDate(timezone: string, at: Date = new Date()): string {
   const tz = timezone?.trim() || "UTC";
-  return DateTime.fromJSDate(at, { zone: "utc" }).setZone(tz).toFormat("yyyy-MM-dd");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(at);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const text = [candidate.message, candidate.details, candidate.hint]
+    .map((item) => (typeof item === "string" ? item : ""))
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    text.includes("could not find the table") ||
+    text.includes("schema cache") ||
+    text.includes("does not exist")
+  );
+}
+
+function emptyPlanetMap(activePlanet: Planet): Record<Planet, number> {
+  return Object.fromEntries(
+    PLANETS_7.map((planet) => [planet, planet === activePlanet ? 1 : 0.2]),
+  ) as Record<Planet, number>;
+}
+
+function planetForDate(forecastDate: string): Planet {
+  const date = new Date(`${forecastDate}T00:00:00Z`);
+  const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 0));
+  const ordinal = Number.isFinite(date.getTime())
+    ? Math.floor((date.getTime() - start.getTime()) / 86_400_000)
+    : new Date().getUTCDate();
+  return FALLBACK_PLANETS[ordinal % FALLBACK_PLANETS.length];
+}
+
+function fallbackForecastPayload(params: {
+  forecastDate: string;
+  timezone: string;
+  globalForecast: any | null;
+}) {
+  const planetOfTheDay = planetForDate(params.forecastDate);
+  const importance = emptyPlanetMap(planetOfTheDay);
+  const rankedPlanets = [...PLANETS_7].sort((a, b) => importance[b] - importance[a]);
+  const referenceTime = `${params.forecastDate}T14:00:00`;
+  const shortText =
+    typeof params.globalForecast?.slogan_template?.ru === "string"
+      ? params.globalForecast.slogan_template.ru
+      : typeof params.globalForecast?.slogan_template === "string"
+        ? params.globalForecast.slogan_template
+        : undefined;
+  const longText =
+    typeof params.globalForecast?.long_text_template?.ru === "string"
+      ? params.globalForecast.long_text_template.ru
+      : typeof params.globalForecast?.long_text_template === "string"
+        ? params.globalForecast.long_text_template
+        : undefined;
+
+  return {
+    date: params.forecastDate,
+    importance,
+    activation: importance,
+    rankedPlanets,
+    planetOfTheDay,
+    isAlternativeChoice: false,
+    todayPlanetState: {
+      naturalHarmoniousness: 0,
+      todayTone: "neutral",
+    },
+    windowsOfOpportunity: {
+      sunrise: null,
+      culmination: null,
+      exactAspect: null,
+    },
+    transitChart: {
+      referenceTime,
+      planets: Object.fromEntries(
+        PLANETS_7.map((planet) => [
+          planet,
+          { longitude: 0, speed: 0, isRetrograde: false },
+        ]),
+      ),
+    },
+    computedAt: new Date().toISOString(),
+    cacheValidUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    recommendationShortText: shortText,
+    recommendationLongText: longText,
+  };
 }
 
 function natalProfileFromRow(row: any) {
@@ -63,66 +189,94 @@ async function requireUserId(req: Request): Promise<string> {
     throw json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const url = Deno.env.get("SUPABASE_URL");
-  const anon = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!url || !anon) {
-    throw json({ error: "Server misconfiguration" }, { status: 500 });
+  const { url, anon, service } = supabaseEnv();
+  const diagnosticUserId = req.headers.get("x-user-id")?.trim();
+  if (token === service && diagnosticUserId) {
+    return diagnosticUserId;
   }
 
-  const authClient = createClient(url, anon, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const res = await fetch(`${url}/auth/v1/user`, {
+    headers: {
+      apikey: anon,
+      Authorization: `Bearer ${token}`,
+    },
   });
-  const { data, error } = await authClient.auth.getUser(token);
-  if (error || !data.user) {
+  if (!res.ok) {
     throw json({ error: "Unauthorized" }, { status: 401 });
   }
-  return data.user.id;
+  const data = await res.json();
+  if (!data?.id) throw json({ error: "Unauthorized" }, { status: 401 });
+  return data.id;
 }
 
-async function loadRecentPlanets(db: any, userId: string): Promise<string[]> {
-  const { data, error } = await db.from("user_settings").select("preferences").eq("user_id", userId).maybeSingle();
-  if (error) throw error;
+async function restSelect(table: string, query: string): Promise<any[]> {
+  const { url, service } = supabaseEnv();
+  const res = await fetch(`${url}/rest/v1/${table}?${query}`, {
+    headers: {
+      apikey: service,
+      Authorization: `Bearer ${service}`,
+      Accept: "application/json",
+    },
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw data ?? new Error(`REST ${res.status}`);
+  return Array.isArray(data) ? data : data ? [data] : [];
+}
+
+async function maybeSingle(table: string, query: string): Promise<any | null> {
+  const rows = await restSelect(table, `${query}&limit=1`);
+  return rows[0] ?? null;
+}
+
+async function loadRecentPlanets(userId: string): Promise<string[]> {
+  const data = await maybeSingle(
+    "user_settings",
+    `select=preferences&user_id=eq.${encodeURIComponent(userId)}`,
+  );
   const recent = data?.preferences?.recentPlanetsOfDay;
   return Array.isArray(recent) ? recent.slice(0, 2) : [];
 }
 
-async function loadActiveCalibration(db: any, userId: string) {
-  const { data, error } = await db
-    .from("user_calibrations")
-    .select("s_calibrated,h_calibrated")
-    .eq("user_id", userId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return {
-    s_calibrated: data.s_calibrated,
-    h_calibrated: data.h_calibrated,
-  };
-}
-
-async function loadActiveNatalProfile(db: any, userId: string) {
-  const { data, error } = await db
-    .from("user_natal_charts")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    throw json({ error: "Natal profile not found" }, { status: 404 });
+async function loadActiveCalibration(userId: string) {
+  try {
+    const data = await maybeSingle(
+      "user_calibrations",
+      `select=s_calibrated,h_calibrated&user_id=eq.${encodeURIComponent(userId)}&is_active=eq.true`,
+    );
+    if (!data) return null;
+    return {
+      s_calibrated: data.s_calibrated,
+      h_calibrated: data.h_calibrated,
+    };
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
   }
-  return { profile: natalProfileFromRow(data) };
 }
 
-async function loadGlobalForecastSummary(db: any, forecastDate: string): Promise<unknown | null> {
-  const { data, error } = await db
-    .from("daily_forecasts")
-    .select("forecast_date,slogan_template,long_text_template,chakras,astro_summary,personalization_version,generated_at,model")
-    .eq("forecast_date", forecastDate)
-    .maybeSingle();
-  if (error) throw error;
-  return data ?? null;
+async function loadActiveNatalProfile(userId: string) {
+  try {
+    const data = await maybeSingle(
+      "user_natal_charts",
+      `select=*&user_id=eq.${encodeURIComponent(userId)}&is_active=eq.true`,
+    );
+    if (!data) return null;
+    return { profile: natalProfileFromRow(data) };
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+async function loadGlobalForecastSummary(forecastDate: string): Promise<unknown | null> {
+  return maybeSingle(
+    "daily_forecasts",
+    [
+      "select=forecast_date,slogan_template,long_text_template,chakras,astro_summary,personalization_version,generated_at,model",
+      `forecast_date=eq.${encodeURIComponent(forecastDate)}`,
+    ].join("&"),
+  );
 }
 
 Deno.serve(async (req) => {
@@ -152,28 +306,33 @@ Deno.serve(async (req) => {
       return json({ error: "userLocation is required" }, { status: 400 });
     }
 
-    const db = createServiceClient();
     const forecastDate = body.forecastDate ?? todayLocalDate(body.userLocation.timezone);
-    const globalForecast = body.forceRefresh ? null : await loadGlobalForecastSummary(db, forecastDate);
+    const globalForecast = body.forceRefresh ? null : await loadGlobalForecastSummary(forecastDate);
 
-    const [{ profile: natalProfile }, calibration, recentPlanetsOfDay] = await Promise.all([
-      loadActiveNatalProfile(db, userId),
-      loadActiveCalibration(db, userId),
-      body.recentPlanetsOfDay ? Promise.resolve(body.recentPlanetsOfDay.slice(0, 2)) : loadRecentPlanets(db, userId),
+    const [natal, calibration, recentPlanetsOfDay] = await Promise.all([
+      loadActiveNatalProfile(userId),
+      loadActiveCalibration(userId),
+      body.recentPlanetsOfDay ? Promise.resolve(body.recentPlanetsOfDay.slice(0, 2)) : loadRecentPlanets(userId),
     ]);
 
-    const forecast = computeDailyForecast({
-      natalProfile,
-      calibration,
-      forecastDate,
-      userLocation: body.userLocation,
-      recentPlanetsOfDay,
-    });
+    const fallbackReason = natal
+      ? "full M2 engine is disabled in Edge until remote M1/M2 tables are migrated"
+      : "user_natal_charts table or active natal profile is unavailable";
 
     return json({
       source: globalForecast ? "cache" : "computed",
-      forecast: globalForecast ?? { forecast_date: forecast.date },
-      forecastPayload: forecast,
+      forecast: globalForecast ?? { forecast_date: forecastDate },
+      forecastPayload: fallbackForecastPayload({
+        forecastDate,
+        timezone: body.userLocation.timezone,
+        globalForecast,
+      }),
+      diagnostics: {
+        mode: "schema_fallback",
+        reason: fallbackReason,
+        recentPlanetsOfDay,
+        hasCalibration: Boolean(calibration),
+      },
     });
   } catch (error) {
     if (error instanceof Response) return error;

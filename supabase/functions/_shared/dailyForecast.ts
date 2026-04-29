@@ -296,31 +296,27 @@ export function computeDailyForecast(input: {
   const choice = chooseFinalPlanet(rankedPlanets, input.recentPlanetsOfDay);
   const mainContribution = mainContributionFor(contributions, choice.planetOfTheDay);
   const todayH = H_eff[choice.planetOfTheDay];
-  const windowsOfOpportunity = mainContribution
-    ? {
-        sunrise: computeRiseTime(input, mainContribution.transitPlanet)
-          ? { time: computeRiseTime(input, mainContribution.transitPlanet), planet: mainContribution.transitPlanet }
-          : null,
-        culmination: computeCulminationTime(input, mainContribution.transitPlanet)
-          ? { time: computeCulminationTime(input, mainContribution.transitPlanet), planet: mainContribution.transitPlanet }
-          : null,
-        exactAspect: computeExactAspectTime(input, {
-          mainTransitPlanet: mainContribution.transitPlanet,
-          planetOfTheDay: choice.planetOfTheDay,
-          mainAspect: mainContribution.aspect,
-        })
-          ? {
-              time: computeExactAspectTime(input, {
-                mainTransitPlanet: mainContribution.transitPlanet,
-                planetOfTheDay: choice.planetOfTheDay,
-                mainAspect: mainContribution.aspect,
-              }),
-              aspectType: mainContribution.aspect.type,
-              toNatalPlanet: choice.planetOfTheDay,
-            }
-          : null,
-      }
-    : { sunrise: null, culmination: null, exactAspect: null };
+  let windowsOfOpportunity = { sunrise: null, culmination: null, exactAspect: null };
+  if (mainContribution) {
+    const sunriseTime = computeRiseTime(input, mainContribution.transitPlanet);
+    const culminationTime = computeCulminationTime(input, mainContribution.transitPlanet);
+    const exactAspectTime = computeExactAspectTime(input, {
+      mainTransitPlanet: mainContribution.transitPlanet,
+      planetOfTheDay: choice.planetOfTheDay,
+      mainAspect: mainContribution.aspect,
+    });
+    windowsOfOpportunity = {
+      sunrise: sunriseTime ? { time: sunriseTime, planet: mainContribution.transitPlanet } : null,
+      culmination: culminationTime ? { time: culminationTime, planet: mainContribution.transitPlanet } : null,
+      exactAspect: exactAspectTime
+        ? {
+            time: exactAspectTime,
+            aspectType: mainContribution.aspect.type,
+            toNatalPlanet: choice.planetOfTheDay,
+          }
+        : null,
+    };
+  }
 
   const endOfDay = DateTime.fromISO(input.forecastDate, { zone: input.userLocation.timezone }).endOf("day");
   return {
