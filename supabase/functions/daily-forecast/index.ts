@@ -1,11 +1,16 @@
 // @ts-nocheck
 /**
- * POST: дневной прогноз M2 (кэш в user_daily_forecasts или пересчёт).
+ * POST: дневной прогноз M2.
  * Повторяет контракт `_legacy_web/app/api/astro/daily-forecast/route.ts`.
+ *
+ * В remote-схеме сейчас есть только глобальная `daily_forecasts`.
+ * Поэтому функция не пишет M2 payload в БД: структура
+ * `daily_forecasts` (`slogan_template`, `long_text_template`, `chakras`,
+ * `astro_summary`) несовместима с персональными полями прогноза.
  */
 import { DateTime } from "https://esm.sh/luxon@3.7.2";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
-import { computeDailyForecast, dailyForecastToInsert } from "../_shared/dailyForecast.ts";
+import { computeDailyForecast } from "../_shared/dailyForecast.ts";
 import { corsHeaders, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
 
 function errorMessage(value: unknown): string {
@@ -110,13 +115,11 @@ async function loadActiveNatalProfile(db: any, userId: string) {
   return { profile: natalProfileFromRow(data) };
 }
 
-async function cachedForecast(db: any, userId: string, forecastDate: string): Promise<unknown | null> {
+async function loadGlobalForecastSummary(db: any, forecastDate: string): Promise<unknown | null> {
   const { data, error } = await db
-    .from("user_daily_forecasts")
-    .select("*")
-    .eq("user_id", userId)
+    .from("daily_forecasts")
+    .select("forecast_date,slogan_template,long_text_template,chakras,astro_summary,personalization_version,generated_at,model")
     .eq("forecast_date", forecastDate)
-    .gt("cache_valid_until", new Date().toISOString())
     .maybeSingle();
   if (error) throw error;
   return data ?? null;
@@ -151,11 +154,7 @@ Deno.serve(async (req) => {
 
     const db = createServiceClient();
     const forecastDate = body.forecastDate ?? todayLocalDate(body.userLocation.timezone);
-
-    if (!body.forceRefresh) {
-      const cached = await cachedForecast(db, userId, forecastDate);
-      if (cached) return json({ source: "cache", forecast: cached });
-    }
+    const globalForecast = body.forceRefresh ? null : await loadGlobalForecastSummary(db, forecastDate);
 
     const [{ profile: natalProfile }, calibration, recentPlanetsOfDay] = await Promise.all([
       loadActiveNatalProfile(db, userId),
@@ -171,16 +170,11 @@ Deno.serve(async (req) => {
       recentPlanetsOfDay,
     });
 
-    const { data, error } = await db
-      .from("user_daily_forecasts")
-      .upsert(dailyForecastToInsert(userId, body.userLocation.timezone, forecast), {
-        onConflict: "user_id,forecast_date",
-      })
-      .select("*")
-      .single();
-    if (error) throw error;
-
-    return json({ source: "computed", forecast: data, forecastPayload: forecast });
+    return json({
+      source: globalForecast ? "cache" : "computed",
+      forecast: globalForecast ?? { forecast_date: forecast.date },
+      forecastPayload: forecast,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     const message = errorMessage(error);
