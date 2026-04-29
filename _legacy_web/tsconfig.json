@@ -14,7 +14,12 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./*"] }
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "luxon": ["./node_modules/@types/luxon"],
+      "astronomia/*": ["./node_modules/astronomia/*"]
+    }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

@@ -1,0 +1,13 @@
+{
+  "name": "@harmonizer/modules",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Shared modules (astro-core, daily-engine): install on CI/Vercel so TS can resolve luxon/astronomia from ../modules without repo-root node_modules.",
+  "dependencies": {
+    "astronomia": "^4.2.0",
+    "luxon": "^3.7.2"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.1"
+  }
+}
