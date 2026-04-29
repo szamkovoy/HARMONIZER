@@ -1,0 +1,14 @@
+declare module "astronomia/julian";
+declare module "astronomia/solar";
+declare module "astronomia/moonposition";
+declare module "astronomia/planetposition";
+declare module "astronomia/elliptic";
+declare module "astronomia/nutation";
+declare module "astronomia/coord";
+declare module "astronomia/sidereal";
+declare module "astronomia/data/vsop87Bearth";
+declare module "astronomia/data/vsop87Bmercury";
+declare module "astronomia/data/vsop87Bvenus";
+declare module "astronomia/data/vsop87Bmars";
+declare module "astronomia/data/vsop87Bjupiter";
+declare module "astronomia/data/vsop87Bsaturn";

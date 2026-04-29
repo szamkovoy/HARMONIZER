@@ -11,7 +11,9 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.101.0",
+    "astronomia": "^4.2.0",
     "lucide-react": "^1.7.0",
+    "luxon": "^3.7.2",
     "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

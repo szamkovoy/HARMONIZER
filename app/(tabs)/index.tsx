@@ -1,14 +1,24 @@
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import { consumeCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
+import { useAuth } from "@/modules/auth";
 import { StatusBar } from "expo-status-bar";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const DEFAULT_SYSTEM_PROMPT =
   "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.";
 
 export default function CommunicatorScreen() {
+  const insets = useSafeAreaInsets();
+  const { signOut, signingIn } = useAuth();
+
+  const onSignOut = useCallback(async () => {
+    // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
+    await signOut();
+  }, [signOut]);
+
   // При каждом возвращении на экран коммуникатора забираем pending-greeting
   // (если его поставил кто-то через enqueueCommunicatorGreeting) и
   // перемонтируем `<Communicator />` с новым `key` — чтобы `autoSendInitialMessage`
@@ -102,6 +112,23 @@ export default function CommunicatorScreen() {
         }}
       >
         <Text style={{ color: "#c6f6e9", fontWeight: "600" }}>Breath Coherence</Text>
+      </Pressable>
+      <Pressable
+        onPress={onSignOut}
+        disabled={signingIn}
+        style={{
+          position: "absolute",
+          bottom: Math.max(insets.bottom, 12) + 8,
+          left: 16,
+          zIndex: 10,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: "#3f1a1a",
+          opacity: signingIn ? 0.55 : 1,
+        }}
+      >
+        <Text style={{ color: "#fecaca", fontWeight: "600" }}>Выйти</Text>
       </Pressable>
       <Communicator
         key={communicatorKey}
