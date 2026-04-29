@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-const root = path.dirname(fileURLToPath(new URL(import.meta.url)));
+const root = path.dirname(fileURLToPath(import.meta.url));
 
 /** Map Supabase Edge `https://esm.sh/...` imports to local npm packages for Vitest parity tests. */
 export default defineConfig({
