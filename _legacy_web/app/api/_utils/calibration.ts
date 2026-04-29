@@ -4,6 +4,12 @@ export const PLANETS_7: Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "
 
 export type CalibrationSource = "initial" | "manual_resync" | "auto_aggregated";
 
+export const AVERAGING_WEIGHTS: Record<CalibrationSource, { wNatal: number; wProposed: number }> = {
+  initial: { wNatal: 0.6, wProposed: 0.4 },
+  manual_resync: { wNatal: 0.6, wProposed: 0.4 },
+  auto_aggregated: { wNatal: 0.5, wProposed: 0.5 },
+};
+
 export type BaselineState = {
   chakra_number: number;
   harmonicStates: string[];
@@ -114,7 +120,8 @@ function addedStatePolarity(value: string | { polarity?: "positive" | "negative"
   return typeof value === "string" ? "negative" : value.polarity ?? "negative";
 }
 
-export function averageCalibration(natalProfile: NatalProfile, extraction: CalibrationExtraction) {
+export function averageCalibration(natalProfile: NatalProfile, extraction: CalibrationExtraction, source: CalibrationSource) {
+  const { wNatal, wProposed } = AVERAGING_WEIGHTS[source];
   const S_calibrated = {} as Record<Planet, number>;
   const H_calibrated = {} as Record<Planet, number>;
   const deltaFromInitial = {} as Record<Planet, { dS: number; dH: number }>;
@@ -132,8 +139,8 @@ export function averageCalibration(natalProfile: NatalProfile, extraction: Calib
     const hInitial = natal.H_initial;
     const sProposed = clamp(sInitial + dS, 0, 1);
     const hProposed = clamp(hInitial + dH, -1, 1);
-    const sCal = clamp((sInitial + sProposed) / 2, 0, 1);
-    const hCal = clamp((hInitial + hProposed) / 2, -1, 1);
+    const sCal = clamp(wNatal * sInitial + wProposed * sProposed, 0, 1);
+    const hCal = clamp(wNatal * hInitial + wProposed * hProposed, -1, 1);
 
     S_calibrated[planet] = round4(sCal);
     H_calibrated[planet] = round4(hCal);

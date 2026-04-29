@@ -3,6 +3,7 @@ import type { NatalProfile } from "../../../../../modules/astro-core";
 import baselineStatesJson from "../../../../data/chakra_states_baseline.json";
 import { loadActiveNatalProfile, nextVersionFor } from "../../_utils/astro-db";
 import {
+  AVERAGING_WEIGHTS,
   averageCalibration,
   buildLexicon,
   buildStatesMap,
@@ -38,7 +39,7 @@ type PreviousCalibration = {
 
 function assertSource(source: unknown): CalibrationSource {
   if (source === "initial" || source === "manual_resync" || source === "auto_aggregated") return source;
-  return "initial";
+  throw new Response(JSON.stringify({ error: "Invalid source. Must be initial, manual_resync, or auto_aggregated" }), { status: 400 });
 }
 
 async function loadActiveCalibration(db: SupabaseClient, userId: string): Promise<PreviousCalibration | null> {
@@ -162,7 +163,7 @@ export async function POST(req: Request) {
     ]);
 
     const { extraction, rawText, modelUsed } = await extractWithGemini(db, natalProfile, previousCalibration, body);
-    const averaged = averageCalibration(natalProfile, extraction);
+    const averaged = averageCalibration(natalProfile, extraction, source);
     const statesMap = buildStatesMap(extraction, baselineStatesJson as BaselineStates, previousCalibration);
     const userLexicon = buildLexicon(extraction, previousCalibration, source);
     const version = await nextVersionFor(db, "user_calibrations", userId);
@@ -227,7 +228,7 @@ export async function POST(req: Request) {
           ? undefined
           : {
               llmRawResponse: extraction,
-              averagingProportion: { w_original: 0.5, w_user: 0.5 },
+              averagingProportion: AVERAGING_WEIGHTS[source],
               beforeAfterComparison: averaged.debug,
               newPhrasesAdded: userLexicon.phrases.filter((phrase) => phrase.source === `calibration_${source}`).length,
               statesAdded: Object.values(statesMap).reduce(

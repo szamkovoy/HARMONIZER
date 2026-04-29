@@ -49,6 +49,7 @@ type MessageRecord = {
 };
 
 const HISTORY_LIMIT = 12;
+const MESSAGE_HISTORY_LIMIT = 40;
 const TEXT_BUDGET = 2_400;
 
 function sse(event: string, data: unknown): string {
@@ -95,16 +96,21 @@ async function loadConversation(db: SupabaseClient, userId: string, body: Requir
   return data as { id: string; trigger_meta?: Record<string, unknown> | null; entry_source?: string | null };
 }
 
-async function loadHistory(db: SupabaseClient, userId: string, conversationId: string): Promise<MessageRecord[]> {
+export async function loadHistory(
+  db: SupabaseClient,
+  userId: string,
+  conversationId: string,
+  limit = MESSAGE_HISTORY_LIMIT,
+): Promise<MessageRecord[]> {
   const { data, error } = await db
     .from("messages")
     .select("id,role,content,transcript,meta,created_at")
     .eq("user_id", userId)
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
-    .limit(40);
+    .order("created_at", { ascending: false })
+    .limit(limit);
   if (error) throw error;
-  return (data ?? []) as MessageRecord[];
+  return ([...(data ?? [])] as MessageRecord[]).reverse();
 }
 
 async function loadPhases(db: SupabaseClient, useCase: DialogueUseCase): Promise<PhaseRecord[]> {
@@ -155,11 +161,12 @@ function lastUserMessage(history: MessageRecord[]): string | null {
   return message?.content ?? message?.transcript ?? null;
 }
 
-function lastAssistantDecisions(history: MessageRecord[]): OrchestratorDecision[] {
+export function lastAssistantDecisions(history: MessageRecord[], count = 2): OrchestratorDecision[] {
   return history
     .filter((message) => message.role === "assistant")
     .map((message) => (message.meta?.orchestrator_decision ?? null) as OrchestratorDecision | null)
-    .filter((decision): decision is OrchestratorDecision => Boolean(decision?.next_phase));
+    .filter((decision): decision is OrchestratorDecision => Boolean(decision?.next_phase))
+    .slice(-count);
 }
 
 function profileSummary(context: Awaited<ReturnType<typeof loadContext>>): string {
