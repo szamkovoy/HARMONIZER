@@ -1,100 +1,269 @@
-import { getCommunicatorApiUrl } from "@/services/communicatorConfig";
+import { getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
+import { requireSupabase } from "@/services/supabase";
 
-export interface StreamChatTextInput {
-  type: "text";
-  text: string;
+export type DialogueUseCase = "calibration" | "daily_dialog";
+export type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
+export type DialogueDecisionSource = "fresh" | "bypass_greeting" | "cache_reused";
+
+export interface OrchestratorDecision {
+  next_phase: string;
+  reasoning: string;
+  information_completeness: Record<string, number>;
+  information_density: number;
+  user_signals: string[];
+  should_close: boolean;
+  close_reason?: "goal_reached" | "soft_cap_hit" | "user_disengaged" | null;
+  responder_hints?: {
+    tone?: "warm" | "neutral" | "energising" | "calming";
+    use_user_phrases?: string[];
+    avoid_topics?: string[];
+  };
+  decision_source?: DialogueDecisionSource;
+  cache_similarity?: number;
+  bypass_reason?: string;
 }
 
-export interface StreamChatAudioInput {
-  type: "audio";
+export interface PracticePicked {
+  id: string;
+  name?: string;
+  reason?: string;
+}
+
+export interface RecommendationCorrected {
+  newShortText?: string;
+  short_text?: string;
+  windows_correction?: string;
+}
+
+export interface DialogCompleteEvent {
+  messageId?: string;
+  conversationId?: string;
+  fullText: string;
+  shouldClose: boolean;
+  practicePicked?: PracticePicked;
+  recommendationCorrected?: RecommendationCorrected;
+}
+
+export interface SendDialogMessageParams {
+  conversationId: string | null;
+  useCase: DialogueUseCase;
+  entrySource: DialogueEntrySource;
+  triggerMeta?: Record<string, unknown>;
+  userMessage: string;
+  userTimezone: string;
+  signal?: AbortSignal;
+  onOrchestratorDecision?: (decision: OrchestratorDecision) => void;
+  onChunk?: (text: string) => void;
+  onComplete?: (event: DialogCompleteEvent) => void;
+}
+
+export interface SendDialogMessageResult {
+  decision: OrchestratorDecision | null;
+  fullText: string;
+  complete: DialogCompleteEvent | null;
+}
+
+export interface CalibrationExtractRequest {
+  source?: "initial" | "manual_resync" | "auto_aggregated";
+  feedbackText?: string;
+  conversationDigest?: unknown;
+  language?: string;
+}
+
+export interface CalibrationExtractResponse {
+  calibration?: unknown;
+  debug?: unknown;
+  error?: string;
+}
+
+export interface TranscribeAudioRequest {
   mimeType: string;
   base64: string;
-}
-
-export interface StreamChatRequest {
-  systemInstruction: string;
-  history: { role: "user" | "assistant"; content: string }[];
-  input: StreamChatTextInput | StreamChatAudioInput;
+  language?: string;
   signal?: AbortSignal;
 }
 
-/**
- * POST /api/communicator — поток текста UTF-8 (как в `_legacy_web/app/api/communicator/route.ts`).
- */
-export async function streamCommunicatorChat(
-  req: StreamChatRequest,
-): Promise<ReadableStream<Uint8Array>> {
-  const res = await fetch(getCommunicatorApiUrl(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: req.systemInstruction,
-      history: req.history,
-      input: req.input,
-    }),
-    signal: req.signal,
-  });
-
-  if (!res.ok) {
-    const ct = res.headers.get("content-type") ?? "";
-    if (ct.includes("application/json")) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(data?.error ?? `HTTP ${res.status}`);
-    }
-    const errText = await res.text().catch(() => res.statusText);
-    const looksLikeHtml =
-      errText.trimStart().startsWith("<!") || /<html[\s>]/i.test(errText);
-    if (looksLikeHtml) {
-      throw new Error(
-        `Сервер вернул HTML вместо API (${res.status}). Проверьте EXPO_PUBLIC_COMMUNICATOR_API_URL и ключ GOOGLE_AI_API_KEY на сервере.`,
-      );
-    }
-    throw new Error(errText.slice(0, 280) || `HTTP ${res.status}`);
-  }
-
-  /**
-   * В React Native `fetch` часто возвращает `res.body === null` (нет ReadableStream),
-   * хотя ответ успешный и текст есть — читаем целиком и подаём как поток для общего парсера.
-   */
-  if (res.body) {
-    return res.body;
-  }
-
-  const text = await res.text();
-  if (!text) {
-    throw new Error(
-      "Пустой ответ сервера (body недоступен как поток в React Native — проверьте API и ключи на Vercel).",
-    );
-  }
-
-  const encoder = new TextEncoder();
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(encoder.encode(text));
-      controller.close();
-    },
-  });
+export interface TranscribeAudioResponse {
+  text: string;
+  language?: string;
+  durationSeconds?: number;
+  confidence?: number;
 }
 
-export async function readTextStream(
-  stream: ReadableStream<Uint8Array>,
-  onChunk: (text: string) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const reader = stream.getReader();
+type SseEvent = {
+  event: string;
+  data: string;
+};
+
+async function getAccessToken(): Promise<string> {
+  const { data, error } = await requireSupabase().auth.getSession();
+  if (error) throw error;
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Нужна авторизация Supabase для запроса к ассистенту.");
+  return token;
+}
+
+async function readError(res: Response): Promise<Error> {
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    return new Error(data?.error ?? `HTTP ${res.status}`);
+  }
+  const errText = await res.text().catch(() => res.statusText);
+  const looksLikeHtml = errText.trimStart().startsWith("<!") || /<html[\s>]/i.test(errText);
+  if (looksLikeHtml) {
+    return new Error(`Сервер вернул HTML вместо API (${res.status}). Проверьте EXPO_PUBLIC_COMMUNICATOR_API_URL.`);
+  }
+  return new Error(errText.slice(0, 280) || `HTTP ${res.status}`);
+}
+
+function parseSseBlock(block: string): SseEvent | null {
+  let event = "message";
+  const data: string[] = [];
+  for (const rawLine of block.split(/\r?\n/)) {
+    const line = rawLine.trimEnd();
+    if (!line || line.startsWith(":")) continue;
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      data.push(line.slice("data:".length).trimStart());
+    }
+  }
+  if (data.length === 0) return null;
+  return { event, data: data.join("\n") };
+}
+
+function safeJson<T>(raw: string): T {
+  return JSON.parse(raw) as T;
+}
+
+function handleSseEvent(
+  event: SseEvent,
+  params: SendDialogMessageParams,
+  state: SendDialogMessageResult,
+) {
+  if (event.event === "orchestrator_decision") {
+    const decision = safeJson<OrchestratorDecision>(event.data);
+    state.decision = decision;
+    params.onOrchestratorDecision?.(decision);
+    return;
+  }
+  if (event.event === "chunk") {
+    const payload = safeJson<{ text?: string }>(event.data);
+    const text = payload.text ?? "";
+    state.fullText += text;
+    params.onChunk?.(text);
+    return;
+  }
+  if (event.event === "complete") {
+    const complete = safeJson<DialogCompleteEvent>(event.data);
+    state.complete = complete;
+    if (!state.fullText && complete.fullText) state.fullText = complete.fullText;
+    params.onComplete?.(complete);
+  }
+}
+
+async function readSseResponse(res: Response, params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
+  const state: SendDialogMessageResult = { decision: null, fullText: "", complete: null };
+
+  if (!res.body) {
+    const text = await res.text();
+    for (const block of text.split(/\r?\n\r?\n/)) {
+      const event = parseSseBlock(block);
+      if (event) handleSseEvent(event, params, state);
+    }
+    return state;
+  }
+
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
   try {
     for (;;) {
-      if (signal?.aborted) {
+      if (params.signal?.aborted) {
         await reader.cancel();
         break;
       }
       const { done, value } = await reader.read();
       if (done) break;
-      if (value) onChunk(decoder.decode(value, { stream: true }));
+      if (!value) continue;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() ?? "";
+      for (const block of blocks) {
+        const event = parseSseBlock(block);
+        if (event) handleSseEvent(event, params, state);
+      }
     }
-    if (!signal?.aborted) onChunk(decoder.decode());
+    buffer += decoder.decode();
+    const lastEvent = parseSseBlock(buffer);
+    if (lastEvent) handleSseEvent(lastEvent, params, state);
   } finally {
     reader.releaseLock();
   }
+
+  return state;
+}
+
+export async function sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
+  const token = await getAccessToken();
+  const res = await fetch(getCommunicatorV2DialogUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      conversationId: params.conversationId,
+      useCase: params.useCase,
+      entrySource: params.entrySource,
+      triggerMeta: params.triggerMeta ?? {},
+      userMessage: params.userMessage,
+      userTimezone: params.userTimezone,
+    }),
+    signal: params.signal,
+  });
+
+  if (!res.ok) throw await readError(res);
+  return readSseResponse(res, params);
+}
+
+export async function transcribeCommunicatorAudio(req: TranscribeAudioRequest): Promise<TranscribeAudioResponse> {
+  const token = await getAccessToken();
+  const res = await fetch(getCommunicatorV2TranscribeUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      audio: { mimeType: req.mimeType, base64: req.base64 },
+      language: req.language ?? "ru",
+    }),
+    signal: req.signal,
+  });
+  if (!res.ok) throw await readError(res);
+  return (await res.json()) as TranscribeAudioResponse;
+}
+
+export async function extractCalibration(req: CalibrationExtractRequest, signal?: AbortSignal): Promise<CalibrationExtractResponse> {
+  const token = await getAccessToken();
+  const res = await fetch(getCalibrationExtractUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      source: req.source ?? "initial",
+      feedbackText: req.feedbackText,
+      conversationDigest: req.conversationDigest,
+      language: req.language ?? "ru",
+    }),
+    signal,
+  });
+  if (!res.ok) throw await readError(res);
+  return (await res.json()) as CalibrationExtractResponse;
 }

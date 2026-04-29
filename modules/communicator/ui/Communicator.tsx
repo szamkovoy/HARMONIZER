@@ -28,8 +28,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
-import { buildSystemInstruction, sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
-import { sanitizeTranscriptText } from "@/modules/communicator/core/transcript-parser";
+import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
 import type {
   CommunicatorHistoryMessage,
   CommunicatorInitialMode,
@@ -37,11 +36,12 @@ import type {
   CommunicatorSessionState,
   EmotionSegmentPayload,
 } from "@/modules/communicator/core/types";
-import type { CommunicatorStreamChunk } from "@/modules/communicator/api/communicator-stream";
+import { transcribeCommunicatorAudio, type DialogueEntrySource, type DialogueUseCase, type PracticePicked } from "@/services/communicator-client";
 
 import { AssistantBubble } from "./AssistantBubble";
 import { DecodingDots } from "./DecodingDots";
 import { ModeToggle } from "./ModeToggle";
+import { PracticeCard } from "./PracticeCard";
 import { ScrollDownHint } from "./ScrollDownHint";
 import { UserBubble } from "./UserBubble";
 import { useCommunicatorStream } from "./useCommunicatorStream";
@@ -83,6 +83,10 @@ export interface CommunicatorProps {
   initialMode?: CommunicatorInitialMode;
   mode?: CommunicatorModePolicy;
   systemPrompt: string;
+  useCase?: DialogueUseCase;
+  entrySource?: DialogueEntrySource;
+  triggerMeta?: Record<string, unknown>;
+  conversationId?: string | null;
   history?: CommunicatorHistoryMessage[];
   /** Последние N пар сообщений в запросе; без ограничения — вся переданная история */
   memoryWindow?: number;
@@ -100,12 +104,13 @@ export interface CommunicatorProps {
   autoSendInitialMessage?: string;
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
+  onPracticePicked?: (practice: PracticePicked) => void;
   onError?: (err: Error) => void;
   onAbort?: () => void;
   onStateChange?: (state: CommunicatorSessionState) => void;
 }
 
-type Phase = "idle" | "recording" | "error";
+type Phase = "idle" | "recording" | "transcribing" | "error";
 
 const MIN_VOICE_MS = 450;
 
@@ -134,11 +139,16 @@ export function Communicator({
   initialMode,
   mode,
   systemPrompt,
+  useCase = "daily_dialog",
+  entrySource = "home",
+  triggerMeta,
+  conversationId,
   history,
   memoryWindow,
   autoSendInitialMessage,
   onEmotionSegment,
   onMessage,
+  onPracticePicked,
   onError,
   onAbort,
   onStateChange,
@@ -164,7 +174,7 @@ export function Communicator({
   );
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [localUserLine, setLocalUserLine] = useState("");
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId ?? null);
   const [txtDraft, setTxtDraft] = useState("");
 
   const reportError = useCallback(
@@ -179,8 +189,7 @@ export function Communicator({
   );
 
   const {
-    raw: streamRaw,
-    parsed: parts,
+    assistantText,
     status: streamStatus,
     run: runChatStream,
     abort: abortChatStream,
@@ -214,8 +223,9 @@ export function Communicator({
   const sessionState: CommunicatorSessionState = useMemo(() => {
     let p: CommunicatorSessionState["phase"] = "idle";
     if (phase === "recording") p = "recording";
-    else if (streamStatus === "processing") p = "processing";
-    else if (streamStatus === "streaming") p = "streaming";
+    else if (phase === "transcribing") p = "processing";
+    else if (streamStatus === "thinking") p = "thinking";
+    else if (streamStatus === "typing") p = "typing";
     else if (phase === "error") p = "error";
     return { phase: p, uiMode, canSwitchMode };
   }, [phase, streamStatus, uiMode, canSwitchMode]);
@@ -224,16 +234,7 @@ export function Communicator({
     onStateChange?.(sessionState);
   }, [sessionState, onStateChange]);
 
-  const userBubbleText =
-    parts.transcript.length > 0
-      ? parts.transcriptComplete
-        ? sanitizeTranscriptText(parts.transcript)
-        : parts.transcript
-      : uiMode === "TXT" && localUserLine
-        ? localUserLine
-        : "";
-
-  const isBusy = phase === "recording" || streamBusy;
+  const isBusy = phase === "recording" || phase === "transcribing" || streamBusy;
 
   const updateScrollDownFlag = useCallback(() => {
     if (scrollHintDismissedRef.current) {
@@ -307,9 +308,7 @@ export function Communicator({
       }
     });
   }, [
-    streamRaw,
-    parts.transcript,
-    parts.answer,
+    assistantText,
     streamBusy,
     alignTurnAnchorToTop,
     updateScrollDownFlag,
@@ -322,72 +321,74 @@ export function Communicator({
     setShowScrollDown(false);
   }, [contentH, scrollViewH]);
 
-  const historyPayload = useCallback(() => {
-    const base = sliceHistoryForWindow(messages, memoryWindow);
-    return base.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-  }, [messages, memoryWindow]);
-
-  const finalizeStream = useCallback(
-    (result: CommunicatorStreamChunk) => {
-      const p = result.parsed;
-      const u: CommunicatorHistoryMessage = {
-        id: newMessageId(),
-        role: "user",
-        content: sanitizeTranscriptText(p.transcript || localUserLine),
-        createdAt: Date.now(),
-      };
-      const a: CommunicatorHistoryMessage = {
-        id: newMessageId(),
-        role: "assistant",
-        content: p.answer,
-        createdAt: Date.now(),
-      };
-      setMessages((prev) => [...prev, u, a]);
-      onMessage?.(u);
-      onMessage?.(a);
-    },
-    [localUserLine, onMessage],
-  );
-
   const runStream = useCallback(
     async (input: { type: "text"; text: string } | { type: "audio"; uri: string }) => {
-      setLocalUserLine("");
-
-      const systemInstruction = buildSystemInstruction(systemPrompt);
-
       try {
-        let bodyInput:
-          | { type: "text"; text: string }
-          | { type: "audio"; mimeType: string; base64: string };
+        let userMessageText = "";
 
         if (input.type === "text") {
-          bodyInput = { type: "text", text: input.text };
-          setLocalUserLine(input.text);
+          userMessageText = input.text.trim();
         } else {
           const mime = mimeFromRecordingUri(input.uri);
           const base64 = await readAsStringAsync(input.uri, {
             encoding: "base64",
           });
-          bodyInput = { type: "audio", mimeType: mime, base64 };
+          setPhase("transcribing");
+          const transcript = await transcribeCommunicatorAudio({
+            mimeType: mime,
+            base64,
+            language: "ru",
+          });
+          userMessageText = transcript.text.trim();
+          setPhase("idle");
         }
 
+        if (!userMessageText) return;
+
+        const userMessage: CommunicatorHistoryMessage = {
+          id: newMessageId(),
+          role: "user",
+          content: userMessageText,
+          createdAt: Date.now(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+        onMessage?.(userMessage);
+
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
         const result = await runChatStream({
-          systemInstruction,
-          history: historyPayload(),
-          input: bodyInput,
+          conversationId: activeConversationId,
+          useCase,
+          entrySource,
+          triggerMeta: {
+            systemPrompt,
+            ...(triggerMeta ?? {}),
+          },
+          userMessage: userMessageText,
+          userTimezone: timezone,
         });
 
         if (result == null) {
-          setLocalUserLine("");
           return;
         }
 
-        finalizeStream(result);
+        const complete = result.complete;
+        if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+        const assistant: CommunicatorHistoryMessage = {
+          id: complete?.messageId ?? newMessageId(),
+          role: "assistant",
+          content: complete?.fullText || result.assistantText,
+          createdAt: Date.now(),
+          meta: {
+            orchestratorDecision: result.decision,
+            practicePicked: complete?.practicePicked,
+            shouldClose: complete?.shouldClose,
+            recommendationCorrected: complete?.recommendationCorrected,
+          },
+        };
+        setMessages((prev) => [...prev, assistant]);
+        onMessage?.(assistant);
+        if (complete?.practicePicked) onPracticePicked?.(complete.practicePicked);
         resetChatStream();
-        setLocalUserLine("");
       } catch (e) {
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
@@ -395,13 +396,23 @@ export function Communicator({
         reportError(err);
       }
     },
-    [finalizeStream, historyPayload, reportError, resetChatStream, runChatStream, systemPrompt],
+    [
+      activeConversationId,
+      entrySource,
+      onMessage,
+      onPracticePicked,
+      reportError,
+      resetChatStream,
+      runChatStream,
+      systemPrompt,
+      triggerMeta,
+      useCase,
+    ],
   );
 
   const abortRequest = useCallback(() => {
     abortChatStream();
     resetChatStream();
-    setLocalUserLine("");
     onAbort?.();
   }, [abortChatStream, onAbort, resetChatStream]);
 
@@ -644,22 +655,19 @@ export function Communicator({
                   onLayout={turnAssistantIdx === i ? onTailLayout : undefined}
                 >
                   <AssistantBubble text={m.content} isStreaming={false} />
+                  {m.meta?.practicePicked ? (
+                    <PracticeCard practice={m.meta.practicePicked} onPress={onPracticePicked} />
+                  ) : null}
                 </View>
               ),
             )}
 
             {streamBusy && (
               <>
-                <View key="pending-user" onLayout={onAnchorLayout}>
-                  <UserBubble
-                    text={userBubbleText}
-                    isStreaming={!parts.transcriptComplete}
-                  />
-                </View>
                 <View key="pending-assistant" onLayout={onTailLayout}>
                   <AssistantBubble
-                    text={parts.answer}
-                    isStreaming={streamStatus === "streaming"}
+                    text={assistantText || (streamStatus === "thinking" ? "Дай мне мгновение, я собираю контекст." : "")}
+                    isStreaming={streamStatus === "typing"}
                   />
                 </View>
               </>
@@ -685,11 +693,15 @@ export function Communicator({
         <View style={styles.footerRow}>
           {uiMode === "VOICE" ? (
             <View style={styles.voiceCol}>
-              {(streamStatus === "processing" || streamStatus === "streaming") && (
+              {(phase === "transcribing" || streamStatus === "thinking" || streamStatus === "typing") && (
                 <Text
                   style={[styles.hint, { color: isDark ? "#a3a3a3" : "#737373" }]}
                 >
-                  Расшифровка
+                  {phase === "transcribing"
+                    ? "Расшифровка"
+                    : streamStatus === "thinking"
+                      ? "Размышляю"
+                      : "Отвечаю"}
                   <DecodingDots />
                 </Text>
               )}

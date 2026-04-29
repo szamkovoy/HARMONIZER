@@ -15,3 +15,15 @@ export function getCommunicatorApiBaseUrl(): string {
 export function getCommunicatorApiUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/communicator`;
 }
+
+export function getCommunicatorV2DialogUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/dialog`;
+}
+
+export function getCommunicatorV2TranscribeUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/transcribe`;
+}
+
+export function getCalibrationExtractUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/calibration/extract`;
+}

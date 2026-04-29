@@ -1,35 +1,48 @@
 import {
-  readTextStream,
-  streamCommunicatorChat,
-  type StreamChatRequest,
+  sendDialogMessage,
+  type DialogCompleteEvent,
+  type OrchestratorDecision,
+  type SendDialogMessageParams,
 } from "@/services/communicator-client";
-import {
-  parseTranscriptStream,
-  type ParsedStreamParts,
-} from "@/modules/communicator/core/transcript-parser";
 
 export type CommunicatorStreamChunk = {
-  raw: string;
-  parsed: ParsedStreamParts;
+  assistantText: string;
+  decision: OrchestratorDecision | null;
+  complete: DialogCompleteEvent | null;
 };
 
 export async function runCommunicatorStream(
-  params: StreamChatRequest & {
+  params: Omit<SendDialogMessageParams, "onChunk"> & {
     onChunk?: (chunk: CommunicatorStreamChunk) => void;
   },
 ): Promise<CommunicatorStreamChunk> {
-  const { onChunk, ...req } = params;
-  const body = await streamCommunicatorChat(req);
-  let acc = "";
-  await readTextStream(
-    body,
-    (text) => {
-      acc += text;
-      const parsed = parseTranscriptStream(acc);
-      onChunk?.({ raw: acc, parsed });
+  let assistantText = "";
+  let decision: OrchestratorDecision | null = null;
+  let complete: DialogCompleteEvent | null = null;
+  const { onChunk, onOrchestratorDecision, onComplete, ...rest } = params;
+
+  const result = await sendDialogMessage({
+    ...rest,
+    onOrchestratorDecision: (nextDecision) => {
+      decision = nextDecision;
+      onOrchestratorDecision?.(nextDecision);
+      onChunk?.({ assistantText, decision, complete });
     },
-    req.signal,
-  );
-  const parsed = parseTranscriptStream(acc);
-  return { raw: acc, parsed };
+    onChunk: (text) => {
+      assistantText += text;
+      onChunk?.({ assistantText, decision, complete });
+    },
+    onComplete: (event) => {
+      complete = event;
+      if (!assistantText && event.fullText) assistantText = event.fullText;
+      onComplete?.(event);
+      onChunk?.({ assistantText, decision, complete });
+    },
+  });
+
+  return {
+    assistantText: result.fullText || assistantText,
+    decision: result.decision ?? decision,
+    complete: result.complete ?? complete,
+  };
 }

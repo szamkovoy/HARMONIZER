@@ -11,7 +11,13 @@ export interface CommunicatorHistoryMessage {
   role: "user" | "assistant";
   content: string;
   createdAt?: number;
-  meta?: Record<string, unknown>;
+  meta?: Record<string, unknown> & {
+    practicePicked?: {
+      id: string;
+      name?: string;
+      reason?: string;
+    };
+  };
 }
 
 /** Задел под Hume: фрагмент записи для анализа эмоций (см. docs/hume_integration.md). */
@@ -25,6 +31,8 @@ export interface EmotionSegmentPayload {
 export type CommunicatorSessionPhase =
   | "idle"
   | "recording"
+  | "thinking"
+  | "typing"
   | "processing"
   | "streaming"
   | "error"

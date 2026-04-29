@@ -1,24 +1,24 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { StreamChatRequest } from "@/services/communicator-client";
-import {
-  parseTranscriptStream,
-  type ParsedStreamParts,
-} from "@/modules/communicator/core/transcript-parser";
+import type { DialogCompleteEvent, OrchestratorDecision, SendDialogMessageParams } from "@/services/communicator-client";
 import { runCommunicatorStream } from "@/modules/communicator/api/communicator-stream";
 
-export type CommunicatorStreamStatus = "idle" | "processing" | "streaming";
+export type CommunicatorStreamStatus = "idle" | "thinking" | "typing";
 
 export function useCommunicatorStream(options?: { onError?: (err: Error) => void }) {
   const { onError } = options ?? {};
-  const [raw, setRaw] = useState("");
+  const [assistantText, setAssistantText] = useState("");
+  const [decision, setDecision] = useState<OrchestratorDecision | null>(null);
+  const [complete, setComplete] = useState<DialogCompleteEvent | null>(null);
   const [status, setStatus] = useState<CommunicatorStreamStatus>("idle");
   const abortRef = useRef<AbortController | null>(null);
 
-  const parsed: ParsedStreamParts = useMemo(() => parseTranscriptStream(raw), [raw]);
+  const isBusy = useMemo(() => status === "thinking" || status === "typing", [status]);
 
   const reset = useCallback(() => {
-    setRaw("");
+    setAssistantText("");
+    setDecision(null);
+    setComplete(null);
     setStatus("idle");
   }, []);
 
@@ -27,19 +27,28 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
   }, []);
 
   const run = useCallback(
-    async (req: Omit<StreamChatRequest, "signal">) => {
+    async (req: Omit<SendDialogMessageParams, "signal" | "onChunk">) => {
       const ac = new AbortController();
       abortRef.current = ac;
-      setStatus("processing");
-      setRaw("");
+      setStatus("thinking");
+      setAssistantText("");
+      setDecision(null);
+      setComplete(null);
 
       try {
-        setStatus("streaming");
         const result = await runCommunicatorStream({
           ...req,
           signal: ac.signal,
-          onChunk: ({ raw: next }) => {
-            setRaw(next);
+          onOrchestratorDecision: (nextDecision) => {
+            setDecision(nextDecision);
+            setStatus("typing");
+            req.onOrchestratorDecision?.(nextDecision);
+          },
+          onChunk: ({ assistantText: nextText, decision: nextDecision, complete: nextComplete }) => {
+            setStatus("typing");
+            setAssistantText(nextText);
+            setDecision(nextDecision);
+            setComplete(nextComplete);
           },
         });
 
@@ -48,7 +57,9 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
           return null;
         }
 
-        setRaw(result.raw);
+        setAssistantText(result.assistantText);
+        setDecision(result.decision);
+        setComplete(result.complete);
         setStatus("idle");
         return result;
       } catch (e: unknown) {
@@ -75,12 +86,13 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
   );
 
   return {
-    raw,
-    parsed,
+    assistantText,
+    decision,
+    complete,
     status,
     run,
     abort,
     reset,
-    isBusy: status === "processing" || status === "streaming",
+    isBusy,
   };
 }

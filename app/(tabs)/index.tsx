@@ -114,6 +114,21 @@ export default function CommunicatorScreen() {
         <Text style={{ color: "#c6f6e9", fontWeight: "600" }}>Breath Coherence</Text>
       </Pressable>
       <Pressable
+        onPress={() => router.push("/calibration" as never)}
+        style={{
+          position: "absolute",
+          top: 264,
+          right: 16,
+          zIndex: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: "#211a0c",
+        }}
+      >
+        <Text style={{ color: "#fdecc8", fontWeight: "600" }}>Calibration</Text>
+      </Pressable>
+      <Pressable
         onPress={onSignOut}
         disabled={signingIn}
         style={{
@@ -133,6 +148,8 @@ export default function CommunicatorScreen() {
       <Communicator
         key={communicatorKey}
         systemPrompt={systemPrompt}
+        useCase="daily_dialog"
+        entrySource="home"
         memoryWindow={24}
         autoSendInitialMessage={pending?.userText}
       />
