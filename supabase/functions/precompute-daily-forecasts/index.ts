@@ -83,6 +83,7 @@ async function processUser(db: any, chart: any, force: boolean) {
   if (!force && localNow.hour !== 0) return { status: "skipped", reason: "outside_local_midnight" };
   if (!force && !(await hasRecentActivity(db, user.id))) return { status: "skipped", reason: "inactive" };
 
+  /** `forecast_date` в БД — календарный день пользователя (IANA `users.tz`), не UTC-полночь. */
   const forecastDate = localNow.toISODate();
   if (!forecastDate) return { status: "skipped", reason: "invalid_date" };
   if (!force && (await hasFreshCache(db, user.id, forecastDate))) return { status: "skipped", reason: "cache_hit" };

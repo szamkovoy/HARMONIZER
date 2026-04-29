@@ -17,6 +17,7 @@ import {
 import { generateGeminiJson } from "../../_utils/gemini";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
+import { getUserTimezone, todayLocalDate } from "./forecast-cache-date";
 
 export const runtime = "nodejs";
 
@@ -81,10 +82,6 @@ async function extractWithGemini(
   });
 
   return { extraction: result.json, rawText: result.rawText, modelUsed: result.modelUsed };
-}
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function addDays(date: Date, days: number): Date {
@@ -157,9 +154,10 @@ export async function POST(req: Request) {
     }
 
     const db = createServiceSupabase();
-    const [{ profile: natalProfile }, previousCalibration] = await Promise.all([
+    const [{ profile: natalProfile }, previousCalibration, userTz] = await Promise.all([
       loadActiveNatalProfile(db, userId),
       loadActiveCalibration(db, userId),
+      getUserTimezone(db, userId),
     ]);
 
     const { extraction, rawText, modelUsed } = await extractWithGemini(db, natalProfile, previousCalibration, body);
@@ -207,12 +205,16 @@ export async function POST(req: Request) {
       .single();
     if (error) throw error;
 
+    const localToday = todayLocalDate(userTz);
     const { error: cacheError } = await db
       .from("user_daily_forecasts")
       .delete()
       .eq("user_id", userId)
-      .gte("forecast_date", todayIsoDate());
+      .gte("forecast_date", localToday);
     if (cacheError) throw cacheError;
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[calibration-extract] Invalidated forecasts for user ${userId} from ${localToday} (tz: ${userTz})`);
+    }
 
     const ultraMode = await enableUltraMode(db, userId, {
       id: data.id,
@@ -239,6 +241,7 @@ export async function POST(req: Request) {
                 0,
               ),
               statesRejected: Object.values(statesMap).reduce((sum, item) => sum + item.rejected_states.length, 0),
+              forecastCacheInvalidation: { fromDate: localToday, userTz },
             },
     });
   } catch (error) {

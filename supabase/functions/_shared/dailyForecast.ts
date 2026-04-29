@@ -1,4 +1,11 @@
 // @ts-nocheck
+/**
+ * ⚠️ ВНИМАНИЕ: дублирует логику `modules/daily-engine` (активация, S_eff/H_eff, importance).
+ * Любое изменение формул здесь должно быть зеркально отражено в модуле.
+ * Покрыто parity-тестом: `supabase/functions/_shared/daily-engine-parity.test.ts`.
+ *
+ * Backlog: вынести общий `daily-engine-core` (PATCH 4 Вариант 1) после стабилизации.
+ */
 import { DateTime } from "https://esm.sh/luxon@3.7.2";
 import julian from "https://esm.sh/astronomia@4.2.0/julian";
 import solar from "https://esm.sh/astronomia@4.2.0/solar";
@@ -142,7 +149,7 @@ function emptyPlanetMap() {
   return Object.fromEntries(PLANETS_7.map((planet) => [planet, 0]));
 }
 
-function effectiveNatalParams(natalProfile: any, calibration: any | null) {
+export function effectiveNatalParams(natalProfile: any, calibration: any | null) {
   const S_eff = emptyPlanetMap();
   const H_eff = emptyPlanetMap();
   const sCal = calibration?.S_calibrated ?? calibration?.s_calibrated;
@@ -154,7 +161,7 @@ function effectiveNatalParams(natalProfile: any, calibration: any | null) {
   return { S_eff, H_eff };
 }
 
-function computeActivation(natalProfile: any, transitChart: any) {
+export function computeActivation(natalProfile: any, transitChart: any) {
   const activation = emptyPlanetMap();
   const contributions: any[] = [];
 
@@ -183,6 +190,12 @@ function computeActivation(natalProfile: any, transitChart: any) {
   }
 
   return { activation, contributions };
+}
+
+export function computeImportance(activation: Record<string, number>, S_eff: Record<string, number>) {
+  const importance = emptyPlanetMap();
+  for (const planet of PLANETS_7) importance[planet] = activation[planet] * (0.5 + 0.5 * S_eff[planet]);
+  return importance;
 }
 
 function rankPlanets(importance: Record<string, number>) {
@@ -277,8 +290,7 @@ export function computeDailyForecast(input: {
   });
   const { S_eff, H_eff } = effectiveNatalParams(input.natalProfile, input.calibration);
   const { activation, contributions } = computeActivation(input.natalProfile, transitChart);
-  const importance = emptyPlanetMap();
-  for (const planet of PLANETS_7) importance[planet] = activation[planet] * (0.5 + 0.5 * S_eff[planet]);
+  const importance = computeImportance(activation, S_eff);
 
   const rankedPlanets = rankPlanets(importance);
   const choice = chooseFinalPlanet(rankedPlanets, input.recentPlanetsOfDay);

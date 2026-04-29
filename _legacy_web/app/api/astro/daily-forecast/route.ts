@@ -1,6 +1,7 @@
 import { computeDailyForecastWithAstronomia, type CalibrationLike, type DailyEngineInput, type Planet } from "../../../../../modules/daily-engine";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
+import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
 
 export const runtime = "nodejs";
 
@@ -10,10 +11,6 @@ type Body = {
   recentPlanetsOfDay?: Planet[];
   forceRefresh?: boolean;
 };
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 async function loadRecentPlanets(db: ReturnType<typeof createServiceSupabase>, userId: string): Promise<Planet[]> {
   const { data, error } = await db
@@ -69,7 +66,7 @@ export async function POST(req: Request) {
     }
 
     const db = createServiceSupabase();
-    const forecastDate = body.forecastDate ?? todayIsoDate();
+    const forecastDate = body.forecastDate ?? todayLocalDate(body.userLocation.timezone);
 
     if (!body.forceRefresh) {
       const cached = await cachedForecast(db, userId, forecastDate);
