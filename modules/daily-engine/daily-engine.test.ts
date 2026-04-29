@@ -152,4 +152,39 @@ describe("M2 Daily-Engine", () => {
     expect(dissonant.planetOfTheDay).toBe("Saturn");
     expect(dissonant.todayPlanetState.todayTone).toBe("dissonant");
   });
+
+  it("uses calibrated S when computing importance", () => {
+    const baseInput = inputFor({
+      natalProfile: natalProfile({ Saturn: { longitude: 100 } }),
+    });
+    const transits = transitChart({
+      Saturn: { longitude: 101, speed: 0.03 },
+    });
+
+    const lowStrength = computeDailyForecastFromTransits({
+      input: {
+        ...baseInput,
+        calibration: {
+          S_calibrated: {
+            Saturn: 0,
+          },
+        },
+      },
+      transitChart: transits,
+    });
+    const highStrength = computeDailyForecastFromTransits({
+      input: {
+        ...baseInput,
+        calibration: {
+          S_calibrated: {
+            Saturn: 1,
+          },
+        },
+      },
+      transitChart: transits,
+    });
+
+    expect(highStrength.activation.Saturn).toBe(lowStrength.activation.Saturn);
+    expect(highStrength.importance.Saturn).toBeGreaterThan(lowStrength.importance.Saturn);
+  });
 });

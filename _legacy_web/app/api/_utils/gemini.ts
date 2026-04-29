@@ -7,6 +7,10 @@ type GenerateJsonOptions = {
   maxOutputTokens?: number | null;
 };
 
+type GenerateTextOptions = GenerateJsonOptions & {
+  responseMimeType?: "text/plain" | "application/json";
+};
+
 const DEFAULT_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] as const;
 
 function getApiKey(): string {
@@ -66,4 +70,62 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
   }
 
   throw lastError instanceof Error ? lastError : new Error("Gemini generation failed");
+}
+
+export async function generateGeminiText(options: GenerateTextOptions): Promise<{ text: string; modelUsed: string }> {
+  const genAI = new GoogleGenerativeAI(getApiKey());
+  let lastError: unknown;
+
+  for (const modelId of modelChain(options.model)) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelId,
+        generationConfig: {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxOutputTokens ?? 400,
+          responseMimeType: options.responseMimeType ?? "text/plain",
+        },
+      });
+      const result = await model.generateContent(options.prompt);
+      return { text: result.response.text(), modelUsed: modelId };
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = /404|429|503|not\s*found|NOT_FOUND|UNAVAILABLE|overloaded|Resource exhausted/i.test(message);
+      if (!retryable) break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Gemini generation failed");
+}
+
+export async function* streamGeminiText(options: GenerateTextOptions): AsyncGenerator<{ text: string; modelUsed: string }> {
+  const genAI = new GoogleGenerativeAI(getApiKey());
+  let lastError: unknown;
+
+  for (const modelId of modelChain(options.model)) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelId,
+        generationConfig: {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxOutputTokens ?? 400,
+          responseMimeType: options.responseMimeType ?? "text/plain",
+        },
+      });
+      const result = await model.generateContentStream(options.prompt);
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) yield { text, modelUsed: modelId };
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = /404|429|503|not\s*found|NOT_FOUND|UNAVAILABLE|overloaded|Resource exhausted/i.test(message);
+      if (!retryable) break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Gemini streaming failed");
 }

@@ -34,7 +34,9 @@ export function createServiceClient() {
 
 export function assertCronSecret(req: Request): Response | null {
   const expected = Deno.env.get("CRON_SECRET");
-  if (!expected) return null;
+  if (!expected) {
+    return json({ error: "CRON_SECRET is required" }, { status: 500 });
+  }
 
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const header = req.headers.get("x-cron-secret");
