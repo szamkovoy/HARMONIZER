@@ -29,13 +29,13 @@ Required Vercel environment variables:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key for JWT validation.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
+- `GEMINI_TIMEOUT_MS=90000` - Gemini request timeout for production.
 - `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
-- `SENTRY_DSN` - Sentry project DSN for backend error monitoring.
+- `SENTRY_DSN=https://fa0cbb049716d242310a11464f1684e2@o4511304250884096.ingest.de.sentry.io/4511304290533456` - Sentry project DSN for backend error monitoring.
 
 Optional environment variables:
 
 - `GEMINI_MODEL` - model override for Gemini calls.
-- `GEMINI_TIMEOUT_MS` - Gemini request timeout, defaults to `30000`.
 - `SENTRY_TRACES_SAMPLE_RATE` - Sentry traces sample rate, defaults to `0.05`.
 - `DIALOG_GREETING_BYPASS_ENABLED` - defaults to enabled unless set to `false`.
 - `DIALOG_DECISION_CACHE_ENABLED` - defaults to enabled unless set to `false`.
