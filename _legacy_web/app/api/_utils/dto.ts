@@ -222,7 +222,12 @@ export function buildCalibrationCompact(calibration: CalibrationLike | null | un
 }
 
 export function buildHistoryCompact(
-  messages: Array<{ role: string; content?: string | null; transcript?: string | null; meta?: any }>,
+  messages: Array<{
+    role: string;
+    content?: string | null;
+    transcript?: string | null;
+    meta?: { responder?: { phase_used?: string | number } } | null;
+  }>,
   budgetChars = 5250,
 ): HistoryCompactDTO {
   const compactMessages = messages

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lastAssistantDecisions, loadHistory } from "./route";
+import { lastAssistantDecisions, loadHistory } from "./dialogHelpers";
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];
