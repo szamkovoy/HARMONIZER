@@ -74,3 +74,4 @@ supabase db execute --file supabase/seed.sql
 - Vercel deployment uses `GEMINI_API_KEY`, not `GOOGLE_AI_API_KEY`.
 - `user_event_log` receives `llm_prompt_size` events from `communicator/v2/dialog`, `calibration/extract`, `greeting`, and `auto-calibrate`.
 - A manual calibration returns `ultraMode.enabledUntil` and writes `preferences.ultraModeUntil` in `user_settings`.
+
