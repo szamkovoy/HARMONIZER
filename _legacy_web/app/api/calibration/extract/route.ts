@@ -14,6 +14,7 @@ import {
   type UserLexicon,
   type StatesMap,
 } from "../../_utils/calibration";
+import { buildCalibrationCompact, buildProfileCompact, logDTOSize } from "../../_utils/dto";
 import { generateGeminiJson } from "../../_utils/gemini";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
@@ -32,6 +33,8 @@ type ExtractBody = {
 type PreviousCalibration = {
   id: string;
   version: number;
+  s_calibrated?: Record<string, number>;
+  h_calibrated?: Record<string, number>;
   states_map?: StatesMap;
   user_lexicon?: UserLexicon;
   portrait?: string | null;
@@ -46,7 +49,7 @@ function assertSource(source: unknown): CalibrationSource {
 async function loadActiveCalibration(db: SupabaseClient, userId: string): Promise<PreviousCalibration | null> {
   const { data, error } = await db
     .from("user_calibrations")
-    .select("id,version,states_map,user_lexicon,portrait,portrait_chunks")
+    .select("id,version,s_calibrated,h_calibrated,states_map,user_lexicon,portrait,portrait_chunks")
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
@@ -57,6 +60,7 @@ async function loadActiveCalibration(db: SupabaseClient, userId: string): Promis
 
 async function extractWithGemini(
   db: SupabaseClient,
+  userId: string,
   natalProfile: NatalProfile,
   previousCalibration: PreviousCalibration | null,
   body: ExtractBody,
@@ -66,11 +70,24 @@ async function extractWithGemini(
   }
 
   const prompt = await getActivePrompt(db, "calibration_extraction");
+  const natalDTO = buildProfileCompact(natalProfile, null, {});
+  const previousCalibrationDTO = buildCalibrationCompact(previousCalibration);
+  const natalSize = logDTOSize("calibration.extract.natal", natalDTO, 350);
+  const previousSize = logDTOSize("calibration.extract.previous", previousCalibrationDTO, 300);
+  const feedbackSize = logDTOSize("calibration.extract.feedback", body.feedbackText ?? body.conversationDigest ?? {}, 1500);
+  await logPromptSize(db, userId, {
+    endpoint: "calibration/extract",
+    stage: "extraction",
+    natal_tokens: natalSize.tokens,
+    previous_calibration_tokens: previousSize.tokens,
+    feedback_tokens: feedbackSize.tokens,
+    total_tokens: natalSize.tokens + previousSize.tokens + feedbackSize.tokens,
+  });
   const rendered = renderPrompt(prompt.template, {
-    natal_profile_json: natalProfile,
+    natal_profile_json: natalDTO,
     baseline_states_json: baselineStatesJson,
     user_feedback_text: body.feedbackText ?? JSON.stringify(body.conversationDigest ?? {}),
-    previous_calibration_json: previousCalibration ?? null,
+    previous_calibration_json: previousCalibrationDTO,
     language: body.language ?? "ru",
   });
 
@@ -82,6 +99,15 @@ async function extractWithGemini(
   });
 
   return { extraction: result.json, rawText: result.rawText, modelUsed: result.modelUsed };
+}
+
+async function logPromptSize(db: SupabaseClient, userId: string, payload: Record<string, unknown>) {
+  const { error } = await db.from("user_event_log").insert({
+    user_id: userId,
+    kind: "llm_prompt_size",
+    payload,
+  });
+  if (error) console.warn("[calibration-extract] Failed to log prompt size", error);
 }
 
 function addDays(date: Date, days: number): Date {
@@ -160,7 +186,7 @@ export async function POST(req: Request) {
       getUserTimezone(db, userId),
     ]);
 
-    const { extraction, rawText, modelUsed } = await extractWithGemini(db, natalProfile, previousCalibration, body);
+    const { extraction, rawText, modelUsed } = await extractWithGemini(db, userId, natalProfile, previousCalibration, body);
     const averaged = averageCalibration(natalProfile, extraction, source);
     const statesMap = buildStatesMap(extraction, baselineStatesJson as BaselineStates, previousCalibration);
     const userLexicon = buildLexicon(extraction, previousCalibration, source);

@@ -1,3 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { natalProfileFromRow } from "../../../_utils/astro-db";
+import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { generateGeminiText } from "../../../_utils/gemini";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
@@ -14,6 +17,51 @@ type Body = {
 
 function assertUseCase(useCase: unknown): DialogueUseCase {
   return useCase === "calibration" ? "calibration" : "daily_dialog";
+}
+
+async function loadGreetingContext(db: SupabaseClient, userId: string) {
+  const [calibrationResult, forecastResult, natalResult, userResult] = await Promise.all([
+    db
+      .from("user_calibrations")
+      .select("version,states_map,user_lexicon,s_calibrated,h_calibrated,last_calibration_date")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    db
+      .from("user_daily_forecasts")
+      .select("*")
+      .eq("user_id", userId)
+      .order("forecast_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("user_natal_charts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    db.from("users").select("display_name,birth_date").eq("id", userId).maybeSingle(),
+  ]);
+  if (calibrationResult.error) throw calibrationResult.error;
+  if (forecastResult.error) throw forecastResult.error;
+  if (natalResult.error) throw natalResult.error;
+  if (userResult.error) throw userResult.error;
+
+  return {
+    calibration: calibrationResult.data as Record<string, unknown> | null,
+    forecast: forecastResult.data as Record<string, unknown> | null,
+    natal: natalResult.data ? natalProfileFromRow(natalResult.data as never) : null,
+    user: (userResult.data as { display_name?: string | null; birth_date?: string | null } | null) ?? {},
+  };
+}
+
+async function logPromptSize(db: SupabaseClient, userId: string, payload: Record<string, unknown>) {
+  const { error } = await db.from("user_event_log").insert({
+    user_id: userId,
+    kind: "llm_prompt_size",
+    payload,
+  });
+  if (error) console.warn("[greeting] Failed to log prompt size", error);
 }
 
 export async function POST(req: Request) {
@@ -36,8 +84,23 @@ export async function POST(req: Request) {
 
     const decision = greetingBypassDecision(useCase, userTimezone, "greeting_endpoint");
     const phasePromptKey = useCase === "calibration" ? "phase_welcome_and_hint" : "phase_contextual_greeting";
-    const [phasePrompt, responderPrompt] = await Promise.all([getActivePrompt(db, phasePromptKey), getActivePrompt(db, "responder_main")]);
+    const [phasePrompt, responderPrompt, context] = await Promise.all([
+      getActivePrompt(db, phasePromptKey),
+      getActivePrompt(db, "responder_main"),
+      loadGreetingContext(db, userId),
+    ]);
     const tod = timeOfDayContext(new Date(), userTimezone);
+    const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
+    const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
+    const profileSize = logDTOSize("greeting.profile", profileDTO, 350);
+    const forecastSize = logDTOSize("greeting.forecast", forecastDTO, 200);
+    await logPromptSize(db, userId, {
+      endpoint: "communicator/v2/greeting",
+      stage: "responder",
+      profile_tokens: profileSize.tokens,
+      forecast_tokens: forecastSize.tokens,
+      total_tokens: profileSize.tokens + forecastSize.tokens,
+    });
     const phaseInstruction = renderPrompt(phasePrompt.template, {
       time_of_day_greeting: tod.greeting,
       entry_source: body.entrySource ?? "home",
@@ -53,8 +116,8 @@ export async function POST(req: Request) {
         user_phrases: "",
         use_user_phrases: [],
         avoid_topics: [],
-        user_profile_summary: "",
-        daily_context: "",
+        user_profile_summary: profileDTO,
+        daily_context: forecastDTO,
       }),
       model: phasePrompt.model_hint ?? responderPrompt.model_hint,
       temperature: phasePrompt.temperature ?? responderPrompt.temperature,

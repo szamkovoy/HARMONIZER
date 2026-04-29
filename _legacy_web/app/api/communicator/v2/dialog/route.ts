@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "../../../../../data/information_axes.json";
+import { natalProfileFromRow } from "../../../_utils/astro-db";
+import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
 import { parseResponseMarkers, stripResponseMarkers, type PracticePickMarker } from "../../../_utils/markers";
 import {
@@ -48,17 +50,11 @@ type MessageRecord = {
   created_at: string | null;
 };
 
-const HISTORY_LIMIT = 12;
 const MESSAGE_HISTORY_LIMIT = 40;
-const TEXT_BUDGET = 2_400;
+const PRACTICE_STACK_PHASES = new Set(["suggest_practice", "ask_practice_intent"]);
 
 function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
-function truncate(text: string, max = TEXT_BUDGET): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 32).trimEnd()}\n...[truncated]`;
 }
 
 function assertUseCase(useCase: unknown): DialogueUseCase {
@@ -126,7 +122,7 @@ async function loadPhases(db: SupabaseClient, useCase: DialogueUseCase): Promise
 }
 
 async function loadContext(db: SupabaseClient, userId: string) {
-  const [calibrationResult, forecastResult] = await Promise.all([
+  const [calibrationResult, forecastResult, natalResult, userResult] = await Promise.all([
     db
       .from("user_calibrations")
       .select("version,states_map,user_lexicon,s_calibrated,h_calibrated,last_calibration_date")
@@ -140,20 +136,24 @@ async function loadContext(db: SupabaseClient, userId: string) {
       .order("forecast_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    db
+      .from("user_natal_charts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    db.from("users").select("display_name,birth_date").eq("id", userId).maybeSingle(),
   ]);
   if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
-  return { calibration: calibrationResult.data as Record<string, unknown> | null, forecast: forecastResult.data as Record<string, unknown> | null };
-}
-
-function formatHistory(history: MessageRecord[]): string {
-  return truncate(
-    history
-      .slice(-HISTORY_LIMIT)
-      .map((message) => `${message.role}: ${message.content ?? message.transcript ?? ""}`.trim())
-      .filter(Boolean)
-      .join("\n"),
-  );
+  if (natalResult.error) throw natalResult.error;
+  if (userResult.error) throw userResult.error;
+  return {
+    calibration: calibrationResult.data as Record<string, unknown> | null,
+    forecast: forecastResult.data as Record<string, unknown> | null,
+    natal: natalResult.data ? natalProfileFromRow(natalResult.data as never) : null,
+    user: (userResult.data as { display_name?: string | null; birth_date?: string | null } | null) ?? {},
+  };
 }
 
 function lastUserMessage(history: MessageRecord[]): string | null {
@@ -169,39 +169,18 @@ export function lastAssistantDecisions(history: MessageRecord[], count = 2): Orc
     .slice(-count);
 }
 
-function profileSummary(context: Awaited<ReturnType<typeof loadContext>>): string {
+function relevantUserPhrases(context: Awaited<ReturnType<typeof loadContext>>): string[] {
   const calibration = context.calibration;
   const forecast = context.forecast;
+  const planet = String(forecast?.planet_of_the_day ?? "");
   const phrases = Array.isArray((calibration?.user_lexicon as { phrases?: unknown[] } | undefined)?.phrases)
     ? ((calibration?.user_lexicon as { phrases: Array<{ text?: string }> }).phrases ?? [])
-        .slice(0, 8)
+        .filter((phrase) => !planet || (phrase as { associated_planet?: string }).associated_planet === planet)
+        .slice(0, 5)
         .map((phrase) => phrase.text)
         .filter(Boolean)
     : [];
-  return truncate(
-    JSON.stringify({
-      calibrationVersion: calibration?.version ?? null,
-      lastCalibrationDate: calibration?.last_calibration_date ?? null,
-      planetOfTheDay: forecast?.planet_of_the_day ?? null,
-      todayTone: (forecast?.today_planet_state as { todayTone?: string } | undefined)?.todayTone ?? null,
-      userPhrases: phrases,
-    }),
-    1_200,
-  );
-}
-
-function dailyContext(context: Awaited<ReturnType<typeof loadContext>>): string {
-  const forecast = context.forecast;
-  if (!forecast) return "";
-  return truncate(
-    JSON.stringify({
-      planetOfTheDay: forecast.planet_of_the_day,
-      todayPlanetState: forecast.today_planet_state,
-      recommendationShortText: forecast.recommendation_short_text,
-      windowsOfOpportunity: forecast.windows_of_opportunity,
-    }),
-    1_200,
-  );
+  return phrases as string[];
 }
 
 function todayStatesOptions(context: Awaited<ReturnType<typeof loadContext>>): string {
@@ -233,8 +212,18 @@ async function choosePractice(db: SupabaseClient, marker: PracticePickMarker | n
   return { id: picked.id, name: title, reason: marker?.reason, stack };
 }
 
+async function logPromptSize(db: SupabaseClient, userId: string, payload: Record<string, unknown>) {
+  const { error } = await db.from("user_event_log").insert({
+    user_id: userId,
+    kind: "llm_prompt_size",
+    payload,
+  });
+  if (error) console.warn("[dialog] Failed to log prompt size", error);
+}
+
 async function buildDecision(params: {
   db: SupabaseClient;
+  userId: string;
   useCase: DialogueUseCase;
   userTimezone: string;
   conversationIdWasNull: boolean;
@@ -289,6 +278,17 @@ async function buildDecision(params: {
   const fallbackPhase = params.useCase === "calibration" ? "deepen_specific_chakra" : "collect_state";
   const tod = timeOfDayContext(new Date(), params.userTimezone);
   const prompt = await getActivePrompt(params.db, "orchestrator_decision");
+  const profileDTO = buildProfileCompact(params.context.natal, params.context.calibration, params.context.user);
+  const historyDTO = buildHistoryCompact(params.history);
+  const profileSize = logDTOSize("dialog.orchestrator.profile", profileDTO, 350);
+  const historySize = logDTOSize("dialog.orchestrator.history", historyDTO, 1500);
+  await logPromptSize(params.db, params.userId, {
+    endpoint: "communicator/v2/dialog",
+    stage: "orchestrator",
+    profile_tokens: profileSize.tokens,
+    history_tokens: historySize.tokens,
+    total_tokens: profileSize.tokens + historySize.tokens,
+  });
   const result = await generateGeminiJson<unknown>({
     prompt: renderPrompt(prompt.template, {
       use_case: params.useCase,
@@ -299,8 +299,8 @@ async function buildDecision(params: {
       time_of_day_hint: tod,
       iteration_number: iterationNumber,
       soft_cap: axes.soft_cap,
-      user_profile_summary: profileSummary(params.context),
-      conversation_history: formatHistory(params.history),
+      user_profile_summary: profileDTO,
+      conversation_history: historyDTO,
       user_message: params.userMessage,
     }),
     model: prompt.model_hint,
@@ -365,6 +365,7 @@ export async function POST(req: Request) {
 
     const { decision, orchestratorLatencyMs } = await buildDecision({
       db,
+      userId,
       useCase,
       userTimezone,
       conversationIdWasNull,
@@ -401,15 +402,33 @@ export async function POST(req: Request) {
 
           const phasePrompt = await getActivePrompt(db, phase.prompt_key);
           const responderPrompt = await getActivePrompt(db, "responder_main");
-          const practiceCandidate = await choosePractice(db, null, context);
-          const practicesList = JSON.stringify(
-            (practiceCandidate?.stack ?? []).map((practice) => ({
-              id: practice.id,
-              title: typeof practice.title === "string" ? practice.title : practice.title?.ru ?? practice.title?.en ?? practice.slug,
-              kind: practice.kind,
-              durationSec: practice.default_duration_sec,
-            })),
-          );
+          const practiceCandidate = PRACTICE_STACK_PHASES.has(phase.phase_id) ? await choosePractice(db, null, context) : null;
+          const practicesList = practiceCandidate
+            ? JSON.stringify(
+                (practiceCandidate.stack ?? []).map((practice) => ({
+                  id: practice.id,
+                  title: typeof practice.title === "string" ? practice.title : practice.title?.ru ?? practice.title?.en ?? practice.slug,
+                  kind: practice.kind,
+                  durationSec: practice.default_duration_sec,
+                })),
+              )
+            : "";
+          const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
+          const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
+          const historyDTO = buildHistoryCompact(history);
+          const profileSize = logDTOSize("dialog.responder.profile", profileDTO, 350);
+          const forecastSize = logDTOSize("dialog.responder.forecast", forecastDTO, 200);
+          const historySize = logDTOSize("dialog.responder.history", historyDTO, 1500);
+          await logPromptSize(db, userId, {
+            endpoint: "communicator/v2/dialog",
+            stage: "responder",
+            phase: phase.phase_id,
+            profile_tokens: profileSize.tokens,
+            forecast_tokens: forecastSize.tokens,
+            history_tokens: historySize.tokens,
+            practices_tokens: logDTOSize("dialog.responder.practices", practicesList, 250).tokens,
+            total_tokens: profileSize.tokens + forecastSize.tokens + historySize.tokens,
+          });
           const renderedPhase = renderPrompt(
             phasePrompt.template,
             phaseVariables({ body, context, decision, userMessage, timezone: userTimezone, practicesList }),
@@ -419,11 +438,12 @@ export async function POST(req: Request) {
             phase_instruction: renderedPhase,
             tone: decision.responder_hints?.tone ?? "neutral",
             style_markers: (context.calibration?.user_lexicon as { style_markers?: unknown } | undefined)?.style_markers ?? {},
-            user_phrases: profileSummary(context),
+            user_phrases: relevantUserPhrases(context),
             use_user_phrases: decision.responder_hints?.use_user_phrases ?? [],
             avoid_topics: decision.responder_hints?.avoid_topics ?? [],
-            user_profile_summary: profileSummary(context),
-            daily_context: useCase === "daily_dialog" ? dailyContext(context) : "",
+            user_profile_summary: profileDTO,
+            daily_context: forecastDTO,
+            history: historyDTO,
           });
 
           let fullText = "";
@@ -445,11 +465,15 @@ export async function POST(req: Request) {
           const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(db, markers.practicePick, context) : null;
 
           if (markers.stateProposals.length) {
+            const stateProposalExpiresAt = new Date();
+            stateProposalExpiresAt.setUTCDate(stateProposalExpiresAt.getUTCDate() + 30);
+            const expiresAtIso = stateProposalExpiresAt.toISOString();
             await db.from("ai_state_proposals").insert(
               markers.stateProposals.map((proposal) => ({
                 ...proposal,
                 user_id: userId,
                 conversation_id: conversation.id,
+                expires_at: expiresAtIso,
               })),
             );
           }

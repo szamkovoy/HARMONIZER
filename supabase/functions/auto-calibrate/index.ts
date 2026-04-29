@@ -1,16 +1,11 @@
 // @ts-nocheck
+import { buildHistoryCompact, buildStatesMapCompact, logDTOSize } from "../_shared/dto.ts";
 import { addDays, assertCronSecret, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
+import { isPendingProposal, isRejectedRecently, PROPOSAL_TTL_DAYS } from "./proposal.ts";
 
 const MIN_DAYS_BETWEEN_CALIBRATIONS = 7;
 const MIN_USER_MESSAGES = 5;
-const PROPOSAL_TTL_DAYS = 14;
 const BATCH_SIZE = 50;
-
-function isPendingProposal(preferences: any): boolean {
-  const proposal = preferences?.autoCalibrationProposal;
-  if (!proposal || proposal.status !== "pending") return false;
-  return !proposal.expiresAt || new Date(proposal.expiresAt).getTime() > Date.now();
-}
 
 function compactUserMessages(messages: any[]): string {
   return messages
@@ -40,21 +35,37 @@ function fallbackDigest(messages: any[]) {
   };
 }
 
-async function buildDigestWithGemini(messages: any[], calibration: any | null) {
+async function buildDigestWithGemini(db: any, userId: string, messages: any[], calibration: any | null) {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) return fallbackDigest(messages);
 
-  const userText = compactUserMessages(messages);
+  const historyDTO = buildHistoryCompact(messages, 8000);
+  const statesDTO = buildStatesMapCompact(calibration?.states_map ?? {});
+  const historySize = logDTOSize("auto-calibrate.history", historyDTO, 2300);
+  const statesSize = logDTOSize("auto-calibrate.states", statesDTO, 250);
+  await logPromptSize(db, userId, {
+    endpoint: "auto-calibrate",
+    stage: "digest",
+    history_tokens: historySize.tokens,
+    states_tokens: statesSize.tokens,
+    total_tokens: historySize.tokens + statesSize.tokens,
+  });
+
+  const userText = historyDTO.messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.text.trim())
+    .filter(Boolean)
+    .join("\n");
   if (!userText) return fallbackDigest(messages);
 
   const prompt = `Ты анализируешь диалоги пользователя HARMONIZER для мягкого предложения калибровки.
 Не меняй профиль сам. Нужно только понять, есть ли устойчивые новые паттерны за неделю.
 
-Текущая states_map:
-${JSON.stringify(calibration?.states_map ?? {})}
+Текущая states_map (compact):
+${JSON.stringify(statesDTO)}
 
-Сообщения пользователя:
-${userText}
+История диалога (compact):
+${JSON.stringify(historyDTO)}
 
 Верни строгий JSON:
 {
@@ -101,6 +112,15 @@ ${userText}
   }
 }
 
+async function logPromptSize(db: any, userId: string, payload: Record<string, unknown>) {
+  const { error } = await db.from("user_event_log").insert({
+    user_id: userId,
+    kind: "llm_prompt_size",
+    payload,
+  });
+  if (error) console.warn("[auto-calibrate] Failed to log prompt size", error);
+}
+
 async function loadPreferences(db: any, userId: string) {
   const { data, error } = await db.from("user_settings").select("preferences").eq("user_id", userId).maybeSingle();
   if (error) throw error;
@@ -131,11 +151,13 @@ async function loadMessagesSince(db: any, userId: string, since: string) {
 }
 
 async function saveProposal(db: any, userId: string, preferences: any, payload: any) {
+  const now = new Date();
   const proposal = {
-    status: "pending",
-    suggestedAt: new Date().toISOString(),
-    expiresAt: addDays(new Date(), PROPOSAL_TTL_DAYS).toISOString(),
     ...payload,
+    status: "pending",
+    suggestedAt: now.toISOString(),
+    createdAt: now.toISOString(),
+    expiresAt: addDays(now, PROPOSAL_TTL_DAYS).toISOString(),
   };
 
   const nextPreferences = {
@@ -165,13 +187,15 @@ async function processCalibration(db: any, calibration: any) {
   if (ageDays < MIN_DAYS_BETWEEN_CALIBRATIONS) return { status: "skipped", reason: "too_recent" };
 
   const preferences = await loadPreferences(db, userId);
-  if (isPendingProposal(preferences)) return { status: "skipped", reason: "proposal_already_pending" };
+  const currentProposal = preferences?.autoCalibrationProposal;
+  if (isPendingProposal(currentProposal)) return { status: "skipped", reason: "proposal_already_pending" };
+  if (isRejectedRecently(currentProposal)) return { status: "skipped", reason: "rejected_cooldown" };
 
   const messages = await loadMessagesSince(db, userId, lastDate);
   const userMessages = messages.filter((message) => message.role === "user");
   if (userMessages.length < MIN_USER_MESSAGES) return { status: "skipped", reason: "not_enough_dialogue" };
 
-  const digest = await buildDigestWithGemini(messages, calibration);
+  const digest = await buildDigestWithGemini(db, userId, messages, calibration);
   if (digest.significantChanges < 3 || digest.confidence < 0.45) {
     return { status: "skipped", reason: "no_significant_changes", digest };
   }
