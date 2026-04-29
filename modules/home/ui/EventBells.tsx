@@ -1,0 +1,99 @@
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { StyleSheet, View } from "react-native";
+
+import type { DailyForecast } from "@/modules/daily-engine";
+import { AppText } from "@/modules/ui/AppText";
+import { useTheme } from "@/modules/ui/theme";
+
+type Windows = DailyForecast["windowsOfOpportunity"];
+
+interface EventBellsProps {
+  windows: Windows;
+}
+
+function isFuture(time: string): boolean {
+  const value = new Date(time).getTime();
+  return Number.isFinite(value) && value > Date.now();
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(11, 16);
+  return new Intl.DateTimeFormat("ru", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export function EventBells({ windows }: EventBellsProps) {
+  const theme = useTheme();
+  const events = [
+    windows.sunrise ? { key: "sunrise", title: "Восход", time: windows.sunrise.time } : null,
+    windows.culmination ? { key: "culmination", title: "Кульминация", time: windows.culmination.time } : null,
+    windows.exactAspect ? { key: "exactAspect", title: "Аспект", time: windows.exactAspect.time } : null,
+  ].filter((event): event is { key: string; title: string; time: string } => Boolean(event));
+
+  const upcoming = events.filter((event) => isFuture(event.time));
+
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.surfaceBorder,
+        },
+      ]}
+    >
+      <View style={styles.header}>
+        <FontAwesome name="bell" size={16} color={theme.colors.accent} />
+        <AppText variant="sectionTitle">Колокольчики</AppText>
+      </View>
+      {upcoming.length ? (
+        <View style={styles.bells}>
+          {upcoming.map((event) => (
+            <View key={event.key} style={[styles.bell, { borderColor: theme.colors.surfaceBorder }]}>
+              <FontAwesome name="bell-o" size={14} color={theme.colors.textMuted} />
+              <AppText variant="statPillLabel">{event.title}</AppText>
+              <AppText variant="technicalCaption" tone="muted">
+                {formatTime(event.time)}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <AppText variant="screenHint" tone="muted">
+          На сегодня нет предстоящих астро-событий с точным временем.
+        </AppText>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 18,
+    gap: 14,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  bells: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  bell: {
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+});

@@ -1,158 +1,357 @@
-import { Communicator } from "@/modules/communicator/ui/Communicator";
-import { consumeCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
 import { useAuth } from "@/modules/auth";
+import { Communicator } from "@/modules/communicator/ui/Communicator";
+import type { DailyForecast } from "@/modules/daily-engine";
+import { useDailyForecast } from "@/modules/daily-engine/ui/useDailyForecast";
+import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
+import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
+import { EventBells } from "@/modules/home/ui/EventBells";
+import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
+import { PLANET_CHAKRA, PLANET_LABELS, toneLabel } from "@/modules/home/planetChakra";
+import { AppButton } from "@/modules/ui/AppButton";
+import { AppText } from "@/modules/ui/AppText";
+import { useTheme } from "@/modules/ui/theme";
 import { StatusBar } from "expo-status-bar";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const DEFAULT_SYSTEM_PROMPT =
   "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.";
 
-export default function CommunicatorScreen() {
+function buildDailyDialogInitialMessage(forecast: DailyForecast): string {
+  const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+  return [
+    "Хочу обсудить рекомендацию дня и подобрать практику.",
+    "",
+    "Контекст прогноза:",
+    `- планета дня: ${PLANET_LABELS[forecast.planetOfTheDay]}`,
+    `- чакра: ${meta.chakraName} (${meta.label})`,
+    `- тональность: ${toneLabel(forecast.todayPlanetState.todayTone)}`,
+  ].join("\n");
+}
+
+function HomeHeader({
+  loading,
+  source,
+  onRefresh,
+}: {
+  loading: boolean;
+  source: string | null;
+  onRefresh: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerText}>
+        <AppText variant="screenTitle" accessibilityRole="header">
+          Harmonizer
+        </AppText>
+        <AppText variant="screenHint" tone="muted">
+          Главная настройка дня: чакры, окна возможностей и мягкая рекомендация.
+        </AppText>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Обновить прогноз дня"
+        onPress={onRefresh}
+        disabled={loading}
+        style={({ pressed }) => [
+          styles.refresh,
+          {
+            borderColor: theme.colors.surfaceBorder,
+            opacity: loading ? 0.45 : pressed ? 0.72 : 1,
+          },
+        ]}
+      >
+        <AppText variant="statPillLabel">{loading ? "..." : "Обновить"}</AppText>
+      </Pressable>
+      {source ? (
+        <AppText variant="technicalCaption" tone="faint">
+          Источник: {source === "cache" ? "кеш" : "новый расчёт"}
+        </AppText>
+      ) : null}
+    </View>
+  );
+}
+
+function HomeSkeleton() {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.stateCard,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.surfaceBorder,
+        },
+      ]}
+    >
+      <ActivityIndicator color={theme.colors.accent} />
+      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
+        Собираю прогноз дня и окна возможностей...
+      </AppText>
+    </View>
+  );
+}
+
+function HomeError({
+  message,
+  missingLocation,
+  onRetry,
+}: {
+  message: string;
+  missingLocation: boolean;
+  onRetry: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.stateCard,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: missingLocation ? theme.colors.warning : theme.colors.danger,
+        },
+      ]}
+    >
+      <AppText variant="sectionTitle" tone={missingLocation ? "warning" : "danger"} style={styles.centerText}>
+        {missingLocation ? "Нужна геолокация" : "Не удалось загрузить прогноз"}
+      </AppText>
+      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
+        {message}
+      </AppText>
+      {!missingLocation ? <AppButton label="Повторить" variant="secondary" onPress={onRetry} /> : null}
+    </View>
+  );
+}
+
+function DevLinks() {
+  const theme = useTheme();
+  const links = [
+    { label: "Biofeedback", href: "/biofeedback-probe" },
+    { label: "Mandala", href: "/mandala-sandbox" },
+    { label: "Bindu", href: "/bindu-succession-lab" },
+    { label: "Symbols", href: "/sacred-symbol-stream" },
+    { label: "Breath", href: "/breath-coherence" },
+    { label: "Calibration", href: "/calibration" },
+  ];
+
+  return (
+    <View style={styles.devLinks}>
+      {links.map((link) => (
+        <Pressable
+          key={link.href}
+          accessibilityRole="button"
+          onPress={() => router.push(link.href as never)}
+          style={({ pressed }) => [
+            styles.devPill,
+            {
+              borderColor: theme.colors.surfaceBorder,
+              backgroundColor: theme.colors.controlButtonBg,
+              opacity: pressed ? 0.75 : 1,
+            },
+          ]}
+        >
+          <AppText variant="technicalCaption">{link.label}</AppText>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function CommunicatorOverlay({
+  forecast,
+  onClose,
+}: {
+  forecast: DailyForecast;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  return (
+    <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={styles.overlayRoot}>
+        <View
+          style={[
+            styles.overlayHeader,
+            {
+              paddingTop: insets.top + 10,
+              backgroundColor: theme.colors.screenBg,
+              borderBottomColor: theme.colors.surfaceBorder,
+            },
+          ]}
+        >
+          <AppText variant="sectionTitle">Ассистент</AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Закрыть ассистента"
+            onPress={onClose}
+            style={({ pressed }) => [
+              styles.closeButton,
+              {
+                backgroundColor: theme.colors.controlButtonBg,
+                opacity: pressed ? 0.72 : 1,
+              },
+            ]}
+          >
+            <AppText variant="buttonLabel">Закрыть</AppText>
+          </Pressable>
+        </View>
+        <Communicator
+          key={`${forecast.date}-${forecast.planetOfTheDay}`}
+          systemPrompt={DEFAULT_SYSTEM_PROMPT}
+          useCase="daily_dialog"
+          entrySource="home"
+          triggerMeta={{
+            forecastDate: forecast.date,
+            planetOfTheDay: forecast.planetOfTheDay,
+            todayTone: forecast.todayPlanetState.todayTone,
+            windowsOfOpportunity: forecast.windowsOfOpportunity,
+          }}
+          memoryWindow={24}
+          autoSendInitialMessage={buildDailyDialogInitialMessage(forecast)}
+        />
+      </View>
+    </Modal>
+  );
+}
+
+export default function HomeScreen() {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { signOut, signingIn } = useAuth();
+  const { forecast, loading, error, refresh, source, status } = useDailyForecast();
+  const [communicatorOpen, setCommunicatorOpen] = useState(false);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
     await signOut();
   }, [signOut]);
 
-  // При каждом возвращении на экран коммуникатора забираем pending-greeting
-  // (если его поставил кто-то через enqueueCommunicatorGreeting) и
-  // перемонтируем `<Communicator />` с новым `key` — чтобы `autoSendInitialMessage`
-  // сработал заново. Без смены ключа эффект autoSend был бы выполнен только
-  // при первом mount и ре-заходы не давали бы новый авто-send.
-  const [pending, setPending] = useState(() => consumeCommunicatorGreeting());
-  useFocusEffect(
-    useCallback(() => {
-      const next = consumeCommunicatorGreeting();
-      if (next) setPending(next);
-    }, []),
-  );
-
-  const systemPrompt = pending?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-  const communicatorKey = pending ? `greet-${pending.enqueuedAtMs}` : "default";
+  const onRefresh = useCallback(() => {
+    void refresh({ forceRefresh: true });
+  }, [refresh]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <StatusBar style="auto" />
-      <Pressable
-        onPress={() => router.push("/biofeedback-probe")}
-        style={{
-          position: "absolute",
-          top: 56,
-          left: 16,
-          zIndex: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#13231b",
-        }}
+    <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
+      <StatusBar style="light" />
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + 20,
+            paddingBottom: insets.bottom + 32,
+          },
+        ]}
       >
-        <Text style={{ color: "#e4fff1", fontWeight: "600" }}>Biofeedback Probe</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/mandala-sandbox")}
-        style={{
-          position: "absolute",
-          top: 56,
-          right: 16,
-          zIndex: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#0f172f",
-        }}
-      >
-        <Text style={{ color: "#eef2ff", fontWeight: "600" }}>Mandala Sandbox</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/bindu-succession-lab")}
-        style={{
-          position: "absolute",
-          top: 108,
-          right: 16,
-          zIndex: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#16101f",
-        }}
-      >
-        <Text style={{ color: "#f7e8ff", fontWeight: "600" }}>Bindu Lab</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/sacred-symbol-stream")}
-        style={{
-          position: "absolute",
-          top: 160,
-          right: 16,
-          zIndex: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#2a1327",
-        }}
-      >
-        <Text style={{ color: "#ffe6fb", fontWeight: "600" }}>Symbol Stream</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/breath-coherence")}
-        style={{
-          position: "absolute",
-          top: 212,
-          right: 16,
-          zIndex: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#0c1f18",
-        }}
-      >
-        <Text style={{ color: "#c6f6e9", fontWeight: "600" }}>Breath Coherence</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/calibration" as never)}
-        style={{
-          position: "absolute",
-          top: 264,
-          right: 16,
-          zIndex: 10,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#211a0c",
-        }}
-      >
-        <Text style={{ color: "#fdecc8", fontWeight: "600" }}>Calibration</Text>
-      </Pressable>
-      <Pressable
-        onPress={onSignOut}
-        disabled={signingIn}
-        style={{
-          position: "absolute",
-          bottom: Math.max(insets.bottom, 12) + 8,
-          left: 16,
-          zIndex: 10,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: "#3f1a1a",
-          opacity: signingIn ? 0.55 : 1,
-        }}
-      >
-        <Text style={{ color: "#fecaca", fontWeight: "600" }}>Выйти</Text>
-      </Pressable>
-      <Communicator
-        key={communicatorKey}
-        systemPrompt={systemPrompt}
-        useCase="daily_dialog"
-        entrySource="home"
-        memoryWindow={24}
-        autoSendInitialMessage={pending?.userText}
-      />
+        <HomeHeader loading={loading} source={source} onRefresh={onRefresh} />
+
+        {loading ? <HomeSkeleton /> : null}
+        {error ? (
+          <HomeError
+            message={error.message}
+            missingLocation={status === "missing_location"}
+            onRetry={onRefresh}
+          />
+        ) : null}
+
+        {forecast ? (
+          <>
+            <ChakraFlower
+              importance={forecast.importance}
+              planetOfTheDay={forecast.planetOfTheDay}
+              todayTone={forecast.todayPlanetState.todayTone}
+            />
+            <OpportunityWindows
+              planetOfTheDay={forecast.planetOfTheDay}
+              windows={forecast.windowsOfOpportunity}
+            />
+            <DailyRecommendationCard
+              forecast={forecast}
+              onDiscuss={() => setCommunicatorOpen(true)}
+            />
+            <EventBells windows={forecast.windowsOfOpportunity} />
+          </>
+        ) : null}
+
+        <DevLinks />
+        <AppButton
+          label={signingIn ? "Выходим..." : "Выйти"}
+          variant="secondary"
+          onPress={onSignOut}
+          disabled={signingIn}
+        />
+      </ScrollView>
+
+      {communicatorOpen && forecast ? (
+        <CommunicatorOverlay forecast={forecast} onClose={() => setCommunicatorOpen(false)} />
+      ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  content: {
+    alignSelf: "center",
+    gap: 16,
+    maxWidth: 620,
+    paddingHorizontal: 18,
+    width: "100%",
+  },
+  header: {
+    gap: 12,
+  },
+  headerText: {
+    gap: 8,
+  },
+  refresh: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  stateCard: {
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 24,
+    gap: 12,
+    padding: 20,
+  },
+  centerText: {
+    textAlign: "center",
+  },
+  devLinks: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "center",
+    paddingTop: 4,
+  },
+  devPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  overlayRoot: {
+    flex: 1,
+  },
+  overlayHeader: {
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 10,
+    paddingHorizontal: 16,
+  },
+  closeButton: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+});

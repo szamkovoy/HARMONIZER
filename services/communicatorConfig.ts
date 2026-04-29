@@ -27,3 +27,7 @@ export function getCommunicatorV2TranscribeUrl(): string {
 export function getCalibrationExtractUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/calibration/extract`;
 }
+
+export function getDailyForecastUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/astro/daily-forecast`;
+}
