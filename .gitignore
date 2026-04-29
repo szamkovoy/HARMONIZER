@@ -2,11 +2,15 @@
 
 Apple_AuthKey_SZG247VG98.p8
 
-# dependencies
+# dependencies (любая вложенность)
 node_modules/
 
-# Expo
+# Expo (любая вложенность)
 .expo/
+
+# Next.js — артефакты сборки, не коммитить
+.next/
+out/
 dist/
 web-build/
 expo-env.d.ts
