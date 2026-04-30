@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NatalProfile } from "../../../../../modules/astro-core";
+import type { NatalProfile } from "../../../../modules/astro-core";
 import baselineStatesJson from "../../../../data/chakra_states_baseline.json";
 import { loadActiveNatalProfile, nextVersionFor } from "../../_utils/astro-db";
 import {

@@ -1,4 +1,4 @@
-import { computeNatalProfileWithAstronomia, type BirthData } from "../../../../../modules/astro-core";
+import { computeNatalProfileWithAstronomia, type BirthData } from "../../../../modules/astro-core";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { nextVersionFor } from "../../_utils/astro-db";
 import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";

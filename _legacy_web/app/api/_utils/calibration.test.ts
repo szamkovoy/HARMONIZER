@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { NatalProfile, Planet } from "../../../../modules/astro-core";
+import type { NatalProfile, Planet } from "../../../modules/astro-core";
 import { PLANETS_7 } from "./calibration";
 import { averageCalibration, type CalibrationExtraction } from "./calibration";
 

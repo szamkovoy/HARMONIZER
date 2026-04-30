@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { signOf } from "../../../../modules/astro-core/core/math";
-import type { NatalProfile } from "../../../../modules/astro-core";
-import type { DailyForecast } from "../../../../modules/daily-engine";
+import { signOf } from "../../../modules/astro-core/core/math";
+import type { NatalProfile } from "../../../modules/astro-core";
+import type { DailyForecast } from "../../../modules/daily-engine";
 
 type NatalChartRow = {
   id: string;

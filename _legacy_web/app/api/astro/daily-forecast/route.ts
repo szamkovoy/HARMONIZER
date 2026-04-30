@@ -1,4 +1,4 @@
-import { computeDailyForecastWithAstronomia, type CalibrationLike, type DailyEngineInput, type Planet } from "../../../../../modules/daily-engine";
+import { computeDailyForecastWithAstronomia, type CalibrationLike, type DailyEngineInput, type Planet } from "../../../../modules/daily-engine";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
 import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";

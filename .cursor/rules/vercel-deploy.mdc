@@ -1,0 +1,22 @@
+---
+description: Vercel deploy procedure for the HARMONIZER backend
+alwaysApply: true
+---
+
+# Vercel Deploy
+
+When the user asks to deploy the backend to Vercel:
+
+- Deploy from the repository root, not from `_legacy_web`.
+- Use:
+
+```bash
+cd /Users/sergey/Desktop/HARMONIZER
+npx vercel --prod --yes
+```
+
+- The Vercel project `harmonizer` must have `Root Directory = _legacy_web`.
+- Keep `Output Directory` as the Next.js default, not a manual `.next` override.
+- `_legacy_web/next.config.ts` should keep `outputFileTracingRoot` pointed at `_legacy_web` itself.
+- `.vercelignore` must exclude root Expo/iOS/Android files without excluding `_legacy_web/app` or `_legacy_web/modules`.
+- Do not run `npx vercel --prod` from inside `_legacy_web`; that can make Vercel look for `_legacy_web/_legacy_web`.

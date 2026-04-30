@@ -1,4 +1,4 @@
-import type { NatalProfile, Planet } from "../../../../modules/astro-core";
+import type { NatalProfile, Planet } from "../../../modules/astro-core";
 
 export const PLANETS_7: Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
 

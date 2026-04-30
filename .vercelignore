@@ -1,10 +1,30 @@
 # Lean uploads for `vercel deploy` from monorepo root (Vercel Root Directory = _legacy_web).
-# `.git` alone can add tens of thousands of files; `node_modules` is reinstalled on the build machine.
+# Keep the Expo/iOS/Android app out of CLI uploads; dependencies are reinstalled on Vercel.
 .git
 **/.git
+.vercel
+**/.vercel
+node_modules
 **/node_modules
+.next
 **/.next
+out
 **/out
-.expo
-.tmp_ocr
-__tmp_ocr
+**/.env*
+**/Apple_AuthKey*.p8
+
+/android
+/ios
+/.expo
+/app
+/assets
+/components
+/constants
+/docs
+/modules
+/plugins
+/scripts
+/services
+/supabase
+/.tmp_ocr
+/__tmp_ocr
