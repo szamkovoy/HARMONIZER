@@ -114,6 +114,11 @@ async function readError(res: Response): Promise<Error> {
     return new Error(data?.error ?? `HTTP ${res.status}`);
   }
   const errText = await res.text().catch(() => res.statusText);
+  if (errText.includes("DEPLOYMENT_NOT_FOUND")) {
+    return new Error(
+      `Vercel deployment is not available for EXPO_PUBLIC_COMMUNICATOR_API_URL (${res.status}). Обновите backend origin или запустите локальный _legacy_web API.`,
+    );
+  }
   const looksLikeHtml = errText.trimStart().startsWith("<!") || /<html[\s>]/i.test(errText);
   if (looksLikeHtml) {
     return new Error(`Сервер вернул HTML вместо API (${res.status}). Проверьте EXPO_PUBLIC_COMMUNICATOR_API_URL.`);

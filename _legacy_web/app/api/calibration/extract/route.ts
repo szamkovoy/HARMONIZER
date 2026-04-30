@@ -15,7 +15,7 @@ import {
   type StatesMap,
 } from "../../_utils/calibration";
 import { buildCalibrationCompact, buildProfileCompact, logDTOSize } from "../../_utils/dto";
-import { generateGeminiJson } from "../../_utils/gemini";
+import { GeminiJsonParseError, generateGeminiJson } from "../../_utils/gemini";
 import { reportRouteError } from "../../_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
@@ -41,6 +41,23 @@ type PreviousCalibration = {
   portrait?: string | null;
   portrait_chunks?: Record<string, string> | null;
 };
+
+function emptyExtraction(): CalibrationExtraction {
+  return {
+    deltas: Object.fromEntries(
+      ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"].map((planet) => [
+        planet,
+        { dS: 0, dH: 0, confirmed: false, reasoning: "Fallback: invalid LLM JSON." },
+      ]),
+    ) as CalibrationExtraction["deltas"],
+    vocabulary: Object.fromEntries(
+      ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"].map((planet) => [
+        planet,
+        { confirmedStates: [], rejectedStates: [], addedStates: [], personalPhrases: [] },
+      ]),
+    ) as CalibrationExtraction["vocabulary"],
+  };
+}
 
 function assertSource(source: unknown): CalibrationSource {
   if (source === "initial" || source === "manual_resync" || source === "auto_aggregated") return source;
@@ -92,14 +109,25 @@ async function extractWithGemini(
     language: body.language ?? "ru",
   });
 
-  const result = await generateGeminiJson<CalibrationExtraction>({
-    prompt: rendered,
-    model: prompt.model_hint,
-    temperature: prompt.temperature,
-    maxOutputTokens: prompt.max_output_tokens,
-  });
+  try {
+    const result = await generateGeminiJson<CalibrationExtraction>({
+      prompt: rendered,
+      model: prompt.model_hint,
+      temperature: prompt.temperature,
+      maxOutputTokens: prompt.max_output_tokens,
+    });
 
-  return { extraction: result.json, rawText: result.rawText, modelUsed: result.modelUsed };
+    return { extraction: result.json, rawText: result.rawText, modelUsed: result.modelUsed };
+  } catch (error) {
+    if (!(error instanceof GeminiJsonParseError)) throw error;
+    await logPromptSize(db, userId, {
+      endpoint: "calibration/extract",
+      stage: "json_recovery",
+      parse_error: error.message,
+      raw_preview: error.rawText.slice(0, 500),
+    });
+    return { extraction: emptyExtraction(), rawText: error.rawText, modelUsed: "json_recovery_fallback" };
+  }
 }
 
 async function logPromptSize(db: SupabaseClient, userId: string, payload: Record<string, unknown>) {

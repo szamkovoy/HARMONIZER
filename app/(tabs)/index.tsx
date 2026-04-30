@@ -1,4 +1,5 @@
 import { useAuth } from "@/modules/auth";
+import type { BirthData } from "@/modules/astro-core";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { useDailyForecast } from "@/modules/daily-engine/ui/useDailyForecast";
@@ -11,13 +12,20 @@ import { PlanetOfDayBanner } from "@/modules/home/ui/PlanetOfDayBanner";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import { createNatalProfile } from "@/services/natalProfileClient";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ForecastSource = "cache" | "computed";
+
+const MOSCOW_BIRTH_LOCATION: BirthData["location"] = {
+  lat: 55.7558,
+  lng: 37.6173,
+  timezone: "Europe/Moscow",
+};
 
 function HomeHeader({
   loading,
@@ -154,6 +162,124 @@ function DevLinks({ strings }: { strings: HomeStrings }) {
   );
 }
 
+function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.natalBridgeCard,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.surfaceBorder,
+        },
+      ]}
+    >
+      <View style={styles.natalBridgeText}>
+        <AppText variant="sectionTitle">Тестовый ввод M1</AppText>
+        <AppText variant="screenHint" tone="muted">
+          Временный мост: дата и время рождения, место рождения зафиксировано как Москва.
+        </AppText>
+      </View>
+      <AppButton label="Ввести натальные данные" variant="secondary" onPress={onOpen} />
+    </View>
+  );
+}
+
+function NatalBridgeModal({
+  visible,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (birthData: BirthData) => Promise<void>;
+}) {
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+
+  const submit = useCallback(() => {
+    const normalizedDate = date.trim();
+    const normalizedTime = time.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+      Alert.alert("Проверьте дату", "Введите дату в формате YYYY-MM-DD.");
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(normalizedTime)) {
+      Alert.alert("Проверьте время", "Введите время в формате HH:MM.");
+      return;
+    }
+
+    void onSubmit({
+      date: normalizedDate,
+      time: normalizedTime,
+      timeMode: "precise",
+      location: MOSCOW_BIRTH_LOCATION,
+    });
+  }, [date, onSubmit, time]);
+
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: theme.colors.screenBg,
+              borderColor: theme.colors.surfaceBorder,
+              paddingBottom: insets.bottom + 18,
+            },
+          ]}
+        >
+          <AppText variant="sectionTitle">Натальные данные</AppText>
+          <AppText variant="screenHint" tone="muted">
+            Это временный технический ввод для M1. Место рождения пока фиксировано: Москва, Europe/Moscow.
+          </AppText>
+          <TextInput
+            value={date}
+            onChangeText={setDate}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={theme.colors.textFaint}
+            autoCapitalize="none"
+            keyboardType="numbers-and-punctuation"
+            editable={!saving}
+            style={[
+              styles.input,
+              {
+                borderColor: theme.colors.surfaceBorder,
+                color: theme.colors.textPrimary,
+              },
+            ]}
+          />
+          <TextInput
+            value={time}
+            onChangeText={setTime}
+            placeholder="HH:MM"
+            placeholderTextColor={theme.colors.textFaint}
+            autoCapitalize="none"
+            keyboardType="numbers-and-punctuation"
+            editable={!saving}
+            style={[
+              styles.input,
+              {
+                borderColor: theme.colors.surfaceBorder,
+                color: theme.colors.textPrimary,
+              },
+            ]}
+          />
+          <View style={styles.modalActions}>
+            <AppButton label="Отмена" variant="secondary" onPress={onClose} disabled={saving} />
+            <AppButton label={saving ? "Сохраняю..." : "Сохранить"} onPress={submit} disabled={saving} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function CommunicatorOverlay({
   forecast,
   strings,
@@ -217,7 +343,7 @@ function CommunicatorOverlay({
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { profile, signOut, signingIn } = useAuth();
+  const { profile, signOut, signingIn, refreshProfile } = useAuth();
   const strings = useMemo(
     () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
     [profile?.locale],
@@ -226,6 +352,8 @@ export default function HomeScreen() {
     locationErrorMessage: strings.locationErrorMessage,
   });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
+  const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
+  const [natalSaving, setNatalSaving] = useState(false);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
@@ -235,6 +363,25 @@ export default function HomeScreen() {
   const onRefresh = useCallback(() => {
     void refresh({ forceRefresh: true });
   }, [refresh]);
+
+  const onSaveNatalBridge = useCallback(
+    async (birthData: BirthData) => {
+      setNatalSaving(true);
+      try {
+        await createNatalProfile(birthData);
+        await refreshProfile();
+        await refresh({ forceRefresh: true });
+        setNatalBridgeOpen(false);
+        Alert.alert("Готово", "Натальный профиль сохранён. Прогноз дня пересчитан в персональном режиме.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Не удалось сохранить натальные данные.";
+        Alert.alert("Ошибка сохранения", message);
+      } finally {
+        setNatalSaving(false);
+      }
+    },
+    [refresh, refreshProfile],
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
@@ -278,6 +425,7 @@ export default function HomeScreen() {
           </>
         ) : null}
 
+        <NatalBridgeCard onOpen={() => setNatalBridgeOpen(true)} />
         <DevLinks strings={strings} />
         <AppButton
           label={signingIn ? strings.signingOutButton : strings.signOutButton}
@@ -294,6 +442,12 @@ export default function HomeScreen() {
           onClose={() => setCommunicatorOpen(false)}
         />
       ) : null}
+      <NatalBridgeModal
+        visible={natalBridgeOpen}
+        saving={natalSaving}
+        onClose={() => setNatalBridgeOpen(false)}
+        onSubmit={onSaveNatalBridge}
+      />
     </View>
   );
 }
@@ -344,6 +498,39 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 7,
+  },
+  natalBridgeCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    gap: 14,
+    padding: 16,
+  },
+  natalBridgeText: {
+    gap: 6,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  modalCard: {
+    borderTopWidth: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    gap: 14,
+    padding: 18,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 16,
+    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end",
   },
   overlayRoot: {
     flex: 1,

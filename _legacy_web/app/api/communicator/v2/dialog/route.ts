@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "../../../../../data/information_axes.json";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
+import { GeminiJsonParseError, generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
 import { parseResponseMarkers, stripResponseMarkers, type PracticePickMarker } from "../../../_utils/markers";
 import { reportRouteError } from "../../../_utils/monitoring";
 import {
@@ -256,8 +256,7 @@ async function buildDecision(params: {
     history_tokens: historySize.tokens,
     total_tokens: profileSize.tokens + historySize.tokens,
   });
-  const result = await generateGeminiJson<unknown>({
-    prompt: renderPrompt(prompt.template, {
+  const renderedPrompt = renderPrompt(prompt.template, {
       use_case: params.useCase,
       available_phases: params.phases.map((phase) => `- ${phase.phase_id}: ${phase.description ?? ""}`).join("\n"),
       information_axes: axes,
@@ -269,12 +268,39 @@ async function buildDecision(params: {
       user_profile_summary: profileDTO,
       conversation_history: historyDTO,
       user_message: params.userMessage,
-    }),
-    model: prompt.model_hint,
-    temperature: prompt.temperature,
-    maxOutputTokens: prompt.max_output_tokens,
   });
-  const decision = validateOrchestratorDecision(result.json, fallbackPhase);
+
+  let decision: OrchestratorDecision;
+  try {
+    const result = await generateGeminiJson<unknown>({
+      prompt: renderedPrompt,
+      model: prompt.model_hint,
+      temperature: prompt.temperature,
+      maxOutputTokens: prompt.max_output_tokens,
+    });
+    decision = validateOrchestratorDecision(result.json, fallbackPhase);
+  } catch (error) {
+    if (!(error instanceof GeminiJsonParseError)) throw error;
+    await logPromptSize(params.db, params.userId, {
+      endpoint: "communicator/v2/dialog",
+      stage: "orchestrator_json_recovery",
+      parse_error: error.message,
+      raw_preview: error.rawText.slice(0, 500),
+    });
+    decision = validateOrchestratorDecision(
+      {
+        next_phase: fallbackPhase,
+        reasoning: "Fallback: orchestrator returned invalid JSON, continuing with a safe phase.",
+        information_completeness: {},
+        information_density: estimateDensity(params.userMessage),
+        user_signals: quickSignalDetection(params.userMessage, params.context.user.locale),
+        should_close: false,
+        close_reason: null,
+        responder_hints: { tone: tod.tone, use_user_phrases: [], avoid_topics: [] },
+      },
+      fallbackPhase,
+    );
+  }
   return {
     decision: { ...decision, decision_source: "fresh" },
     orchestratorLatencyMs: Date.now() - started,

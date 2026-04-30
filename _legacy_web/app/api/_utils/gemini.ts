@@ -14,6 +14,17 @@ type GenerateTextOptions = GenerateJsonOptions & {
 const DEFAULT_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] as const;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+export class GeminiJsonParseError extends Error {
+  constructor(
+    message: string,
+    public readonly rawText: string,
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = "GeminiJsonParseError";
+  }
+}
+
 class GeminiTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`Gemini request timed out after ${timeoutMs}ms`);
@@ -53,23 +64,86 @@ async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-function extractJson(text: string): unknown {
-  const trimmed = text.trim();
-  const withoutFence = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
+function normalizeJsonText(text: string): string {
+  return text
+    .trim()
+    .replace(/^\uFEFF/, "")
+    .replace(/^```(?:json|javascript|js)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
+}
 
-  try {
-    return JSON.parse(withoutFence);
-  } catch {
-    const start = withoutFence.indexOf("{");
-    const end = withoutFence.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      return JSON.parse(withoutFence.slice(start, end + 1));
-    }
-    throw new Error("Gemini response is not valid JSON");
+function parseJsonCandidate(candidate: string): unknown {
+  const parsed = JSON.parse(candidate);
+  if (typeof parsed === "string" && /^[\s`]*[\[{]/.test(parsed)) {
+    return JSON.parse(normalizeJsonText(parsed));
   }
+  return parsed;
+}
+
+function balancedJsonSlice(text: string): string | null {
+  const openIndex = text.search(/[\[{]/);
+  if (openIndex < 0) return null;
+
+  const open = text[openIndex];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = openIndex; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+    if (ch === open) depth += 1;
+    if (ch === close) depth -= 1;
+    if (depth === 0) return text.slice(openIndex, i + 1);
+  }
+
+  return text.slice(openIndex);
+}
+
+function repairJsonCandidate(candidate: string): string {
+  return candidate
+    .replace(/[“”]/g, "\"")
+    .replace(/[‘’]/g, "'")
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/([}\]"0-9])\s+(?="[\w-]+"\s*:)/g, "$1,")
+    .replace(/\b(true|false|null)\s+(?="[\w-]+"\s*:)/g, "$1,");
+}
+
+export function extractJson(text: string): unknown {
+  const normalized = normalizeJsonText(text);
+  const candidates = [
+    normalized,
+    balancedJsonSlice(normalized),
+    normalized.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim() ?? null,
+  ].filter((candidate): candidate is string => Boolean(candidate?.trim()));
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    for (const attempt of [candidate, repairJsonCandidate(candidate)]) {
+      try {
+        return parseJsonCandidate(attempt);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+
+  throw new GeminiJsonParseError("Gemini response is not valid JSON", text, lastError);
 }
 
 export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promise<{ json: T; rawText: string; modelUsed: string }> {

@@ -146,6 +146,15 @@ $prompt$СИСТЕМНАЯ РОЛЬ:
 3. Не разгоняй дельты: "у меня нет проблем" = мягкая положительная коррекция, а не максимум.
 4. Не выдумывай то, чего пользователь не сказал.
 
+ЖЁСТКИЙ JSON-КОНТРАКТ:
+- Верни ТОЛЬКО один JSON-объект. Без markdown, без ```json, без пояснений до или после.
+- Все ключи и строковые значения только в двойных кавычках.
+- После каждого свойства ставь запятую, кроме последнего свойства объекта.
+- Если данных нет, используй пустые массивы и нулевые дельты.
+
+ПРИМЕР ВАЛИДНОГО ОТВЕТА:
+{"deltas":{"Sun":{"dS":0,"dH":0,"confirmed":false},"Moon":{"dS":0,"dH":-0.1,"confirmed":true},"Mercury":{"dS":0,"dH":0,"confirmed":false},"Venus":{"dS":0,"dH":0,"confirmed":false},"Mars":{"dS":0.05,"dH":-0.05,"confirmed":true},"Jupiter":{"dS":0,"dH":0,"confirmed":false},"Saturn":{"dS":0,"dH":0,"confirmed":false}},"vocabulary":{"Sun":{"confirmedStates":[],"rejectedStates":[],"addedStates":[],"personalPhrases":[]},"Moon":{"confirmedStates":["тревога"],"rejectedStates":[],"addedStates":[],"personalPhrases":["плохо сплю"]},"Mercury":{"confirmedStates":[],"rejectedStates":[],"addedStates":[],"personalPhrases":[]},"Venus":{"confirmedStates":[],"rejectedStates":[],"addedStates":[],"personalPhrases":[]},"Mars":{"confirmedStates":[],"rejectedStates":[],"addedStates":[{"label":"импульсивность","polarity":"negative"}],"personalPhrases":["очень импульсивный"]},"Jupiter":{"confirmedStates":[],"rejectedStates":[],"addedStates":[],"personalPhrases":[]},"Saturn":{"confirmedStates":[],"rejectedStates":[],"addedStates":[],"personalPhrases":[]}}}
+
 ФОРМАТ ОТВЕТА: строгий JSON, без markdown:
 {
   "deltas": {
@@ -201,6 +210,12 @@ $prompt$Ты — оркестратор диалога в приложении �
 - В daily_dialog инсайт должен предшествовать предложению практики.
 - Если пользователь готов действовать, переходи к ask_practice_intent или suggest_practice.
 - Если soft cap близко исчерпан, мягко веди к завершению.
+- Верни ТОЛЬКО JSON-объект. Никакого markdown, текста, списков или ```json.
+- next_phase обязан быть одним из доступных phase_id выше.
+- close_reason: "goal_reached", "soft_cap_hit", "user_disengaged" или null.
+
+ПРИМЕР ВАЛИДНОГО ОТВЕТА:
+{"next_phase":"offer_insight","reasoning":"Пользователь дал достаточно контекста и готов к инсайту.","information_completeness":{"user_state":0.8,"context":0.7,"insight_offered":0,"practice_intent":0},"information_density":0.7,"user_signals":["open","self_reflective"],"should_close":false,"close_reason":null,"responder_hints":{"tone":"calming","use_user_phrases":[],"avoid_topics":[]}}
 
 ФОРМАТ: строгий JSON:
 {

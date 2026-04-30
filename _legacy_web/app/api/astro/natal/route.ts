@@ -1,6 +1,7 @@
 import { computeNatalProfileWithAstronomia, type BirthData } from "../../../../../modules/astro-core";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { nextVersionFor } from "../../_utils/astro-db";
+import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
 
 // Запись в user_natal_charts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
@@ -20,6 +21,19 @@ export async function POST(req: Request) {
     const db = createServiceSupabase();
     const profile = await computeNatalProfileWithAstronomia(body.birthData);
     const version = await nextVersionFor(db, "user_natal_charts", userId);
+    const birthPlace = {
+      name: "Москва",
+      lat: body.birthData.location.lat,
+      lon: body.birthData.location.lng,
+      timezone: body.birthData.location.timezone,
+    };
+
+    const { data: userRow, error: userLoadError } = await db
+      .from("users")
+      .select("lat,lon,tz,location_name")
+      .eq("id", userId)
+      .maybeSingle();
+    if (userLoadError) throw userLoadError;
 
     const { error: deactivateError } = await db
       .from("user_natal_charts")
@@ -45,6 +59,28 @@ export async function POST(req: Request) {
       .select("*")
       .single();
     if (error) throw error;
+
+    const { error: userUpdateError } = await db
+      .from("users")
+      .update({
+        birth_date: body.birthData.date,
+        birth_time: body.birthData.timeMode === "unknown" ? null : body.birthData.time ?? null,
+        birth_place: birthPlace,
+        lat: userRow?.lat ?? body.birthData.location.lat,
+        lon: userRow?.lon ?? body.birthData.location.lng,
+        tz: userRow?.tz ?? body.birthData.location.timezone,
+        location_name: userRow?.location_name ?? birthPlace.name,
+      })
+      .eq("id", userId);
+    if (userUpdateError) throw userUpdateError;
+
+    const forecastDate = todayLocalDate(userRow?.tz ?? body.birthData.location.timezone);
+    const { error: cacheError } = await db
+      .from("user_daily_forecasts")
+      .delete()
+      .eq("user_id", userId)
+      .gte("forecast_date", forecastDate);
+    if (cacheError) throw cacheError;
 
     return json({ natalChart: data, profile });
   } catch (error) {

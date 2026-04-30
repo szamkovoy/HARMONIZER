@@ -4,13 +4,21 @@
  * (например Next.js из `_legacy_web` на Vercel).
  */
 export function getCommunicatorApiBaseUrl(): string {
-  const raw = process.env.EXPO_PUBLIC_COMMUNICATOR_API_URL?.trim();
+  const raw = (
+    process.env.EXPO_PUBLIC_COMMUNICATOR_API_URL ??
+    process.env.EXPO_PUBLIC_BACKEND_API_URL ??
+    ""
+  ).trim();
   if (!raw) {
     throw new Error(
-      "Задайте EXPO_PUBLIC_COMMUNICATOR_API_URL (origin без /api/communicator), например https://your-app.vercel.app",
+      "Задайте EXPO_PUBLIC_COMMUNICATOR_API_URL (origin без /api), например https://your-app.vercel.app",
     );
   }
-  return raw.replace(/\/$/, "");
+  return raw
+    .replace(/\/+$/, "")
+    .replace(/\/api\/communicator\/v2\/?$/, "")
+    .replace(/\/api\/communicator\/?$/, "")
+    .replace(/\/api\/?$/, "");
 }
 
 export function getCommunicatorV2DialogUrl(): string {
@@ -23,6 +31,10 @@ export function getCommunicatorV2TranscribeUrl(): string {
 
 export function getCalibrationExtractUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/calibration/extract`;
+}
+
+export function getAstroNatalUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/astro/natal`;
 }
 
 /**
