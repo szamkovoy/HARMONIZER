@@ -35,8 +35,6 @@ export interface HomeStrings {
   chakraFlower: {
     title: string;
     caption: string;
-    focus: (chakraName: string, label: string) => string;
-    planetOfDay: (planet: string) => string;
   };
   planetBanner: {
     eyebrow: string;
@@ -101,11 +99,11 @@ const enPlanetLabels: Record<Planet, string> = {
 const ru: HomeStrings = {
   locale: "ru",
   appTitle: "Harmonizer",
-  headerHint: "Главная настройка дня: чакры, окна сверхспособностей и мягкая рекомендация.",
+  headerHint: "Главная настройка дня: чакры, окна возможностей и практическая рекомендация.",
   daySlogan: (forecast) => {
     if (!forecast) return "Настройся бережно и выбери один ясный шаг.";
     const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
-    return `Сегодня: ${meta.label}. Мягко собери внимание вокруг главного.`;
+    return meta.chakraNumber === 7 ? "Собери внимание вокруг главного" : `Собери внимание в теме «${meta.label}»`;
   },
   refreshButton: "Обновить",
   refreshAccessibilityLabel: "Обновить прогноз дня",
@@ -121,7 +119,7 @@ const ru: HomeStrings = {
   assistantTitle: "Ассистент",
   closeButton: "Закрыть",
   closeAssistantAccessibilityLabel: "Закрыть ассистента",
-  signOutButton: "Выйти",
+  signOutButton: "Выход",
   signingOutButton: "Выходим...",
   defaultSystemPrompt: "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.",
   discussInitialMessage: (forecast) => {
@@ -147,10 +145,8 @@ const ru: HomeStrings = {
     dissonant: "бережно стабилизировать",
   },
   chakraFlower: {
-    title: "Цветок состояния",
+    title: "Цветок дня",
     caption: "Размер лепестков отражает важность чакр на сегодня.",
-    focus: (chakraName, label) => `Сегодня в фокусе ${chakraName}: ${label}`,
-    planetOfDay: (planet) => `Планета дня: ${planet}`,
   },
   planetBanner: {
     eyebrow: "Планета дня",
@@ -159,7 +155,7 @@ const ru: HomeStrings = {
     toneLine: (tone, label) => `${tone} тон · ${label}`,
   },
   opportunityWindows: {
-    title: "Окна сверхспособностей",
+    title: "Окно возможностей",
     subtitle: (planet) => `Главная тема: ${planet}`,
     emptyDetail: "Сегодня без точного окна",
     windowTitles: {
@@ -179,14 +175,14 @@ const ru: HomeStrings = {
     exactAspectDetail: (aspect, planet) => `${aspect} к ${planet}`,
   },
   recommendation: {
-    title: "Рекомендация дня",
+    title: "Рекомендации на день",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
       const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
       const verb = ru.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
-      return `Сегодня полезно ${verb} ${meta.chakraName.toLowerCase()}: уделите внимание теме «${meta.label}» и выберите практику без спешки.`;
+      return `Сегодня держите фокус на теме «${meta.label}»: не распыляйтесь, не доказывайте лишнего и не пытайтесь ускорять процессы силой. Полезнее выбрать один ясный шаг, ${verb} ${meta.chakraName.toLowerCase()} через тело и дыхание, а в сложных разговорах сначала возвращаться к спокойному ритму. Так день станет не прогнозом, а понятным планом действий.`;
     },
-    discussButton: "Обсудить с ассистентом",
+    discussButton: "Что делать?",
   },
   eventBells: {
     title: "Колокольчики",
@@ -254,8 +250,6 @@ const en: HomeStrings = {
   chakraFlower: {
     title: "State flower",
     caption: "Petal size reflects today's chakra importance.",
-    focus: (chakraName, label) => `Today's focus is ${chakraName}: ${label}`,
-    planetOfDay: (planet) => `Planet of the day: ${planet}`,
   },
   planetBanner: {
     eyebrow: "Planet of the Day",

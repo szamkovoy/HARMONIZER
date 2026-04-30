@@ -1,12 +1,12 @@
 import { useAuth } from "@/modules/auth";
 import type { BirthData } from "@/modules/astro-core";
+import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/types";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { useDailyForecast } from "@/modules/daily-engine/ui/useDailyForecast";
 import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
-import { EventBells } from "@/modules/home/ui/EventBells";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -18,8 +18,6 @@ import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type ForecastSource = "cache" | "computed";
-
 const MOSCOW_BIRTH_LOCATION: BirthData["location"] = {
   lat: 55.7558,
   lng: 37.6173,
@@ -27,19 +25,12 @@ const MOSCOW_BIRTH_LOCATION: BirthData["location"] = {
 };
 
 function HomeHeader({
-  loading,
-  source,
-  onRefresh,
   forecast,
   strings,
 }: {
-  loading: boolean;
-  source: ForecastSource | null;
-  onRefresh: () => void;
   forecast: DailyForecast | null;
   strings: HomeStrings;
 }) {
-  const theme = useTheme();
   const today = new Intl.DateTimeFormat(strings.locale === "ru" ? "ru" : "en", {
     weekday: "long",
     day: "numeric",
@@ -60,29 +51,32 @@ function HomeHeader({
           </AppText>
         </View>
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={strings.refreshAccessibilityLabel}
-        onPress={onRefresh}
-        disabled={loading}
-        style={({ pressed }) => [
-          styles.refresh,
-          {
-            borderColor: theme.colors.surfaceBorder,
-            opacity: loading ? 0.45 : pressed ? 0.72 : 1,
-          },
-        ]}
-      >
-        <AppText variant="statPillLabel">
-          {loading ? strings.refreshingLabel : strings.refreshButton}
-        </AppText>
-      </Pressable>
-      {source ? (
-        <AppText variant="technicalCaption" tone="faint">
-          {strings.sourceLabel(source)}
-        </AppText>
-      ) : null}
     </View>
+  );
+}
+
+function AnnouncementBanner() {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.announcement,
+        {
+          backgroundColor: theme.colors.controlButtonBg,
+          borderColor: theme.colors.surfaceBorder,
+          opacity: pressed ? 0.72 : 1,
+        },
+      ]}
+    >
+      <View style={[styles.announcementDot, { backgroundColor: theme.colors.accent }]} />
+      <AppText variant="technicalCaption" tone="muted" style={styles.announcementText}>
+        21.04 · 19:00 МСК - вебинар
+      </AppText>
+      <AppText variant="sectionTitle" tone="muted" style={styles.announcementArrow}>
+        ›
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -174,26 +168,7 @@ function DevLinks({ strings }: { strings: HomeStrings }) {
 }
 
 function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.natalBridgeCard,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.surfaceBorder,
-        },
-      ]}
-    >
-      <View style={styles.natalBridgeText}>
-        <AppText variant="sectionTitle">Тестовый ввод M1</AppText>
-        <AppText variant="screenHint" tone="muted">
-          Временный мост: дата и время рождения, место рождения зафиксировано как Москва.
-        </AppText>
-      </View>
-      <AppButton label="Ввести натальные данные" variant="secondary" onPress={onOpen} />
-    </View>
-  );
+  return <AppButton label="Ввести натальные данные" variant="secondary" onPress={onOpen} />;
 }
 
 function NatalBridgeModal({
@@ -302,6 +277,29 @@ function CommunicatorOverlay({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const initialAssistantMessage = useMemo<CommunicatorHistoryMessage>(() => {
+    const hour = new Date().getHours();
+    const greeting = hour >= 5 && hour < 11 ? "Доброе утро" : hour >= 11 && hour < 17 ? "Добрый день" : hour >= 17 && hour < 22 ? "Добрый вечер" : "Доброй ночи";
+    const meta = forecast.planetOfTheDay;
+    const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
+    return {
+      id: `daily-opening-${forecast.date}-${forecast.planetOfTheDay}`,
+      role: "assistant",
+      createdAt: Date.now(),
+      content: `${greeting}. Сегодня главная тема дня связана с ${strings.planetLabels[meta].toLowerCase()} и состоянием «${strings.daySlogan(forecast)}». Тональность дня: ${tone}. Расскажи, что сейчас с тобой: больше нужна ясность, энергия, спокойствие, отношения, тело или внутренние границы? Можно ответить голосом.`,
+      meta: {
+        orchestratorDecision: {
+          next_phase: "contextual_greeting",
+          reasoning: "Client-side opening based on daily forecast context.",
+          information_completeness: {},
+          information_density: 0,
+          user_signals: [],
+          should_close: false,
+          decision_source: "bypass_greeting",
+        },
+      },
+    };
+  }, [forecast, strings]);
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={styles.overlayRoot}>
@@ -338,13 +336,14 @@ function CommunicatorOverlay({
           useCase="daily_dialog"
           entrySource="home"
           triggerMeta={{
+            clientGreetingShown: true,
             forecastDate: forecast.date,
             planetOfTheDay: forecast.planetOfTheDay,
             todayTone: forecast.todayPlanetState.todayTone,
             windowsOfOpportunity: forecast.windowsOfOpportunity,
           }}
+          history={[initialAssistantMessage]}
           memoryWindow={24}
-          autoSendInitialMessage={strings.discussInitialMessage(forecast)}
         />
       </View>
     </Modal>
@@ -359,7 +358,7 @@ export default function HomeScreen() {
     () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
     [profile?.locale],
   );
-  const { forecast, loading, error, refresh, source, status } = useDailyForecast({
+  const { forecast, loading, error, refresh, status } = useDailyForecast({
     locationErrorMessage: strings.locationErrorMessage,
   });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
@@ -370,10 +369,6 @@ export default function HomeScreen() {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
     await signOut();
   }, [signOut]);
-
-  const onRefresh = useCallback(() => {
-    void refresh({ forceRefresh: true });
-  }, [refresh]);
 
   const onSaveNatalBridge = useCallback(
     async (birthData: BirthData) => {
@@ -406,14 +401,15 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <HomeHeader loading={loading} source={source} onRefresh={onRefresh} forecast={forecast} strings={strings} />
+        <HomeHeader forecast={forecast} strings={strings} />
+        <AnnouncementBanner />
 
         {loading ? <HomeSkeleton strings={strings} /> : null}
         {error ? (
           <HomeError
             message={error.message}
             missingLocation={status === "missing_location"}
-            onRetry={onRefresh}
+            onRetry={() => void refresh({ forceRefresh: true })}
             strings={strings}
           />
         ) : null}
@@ -421,17 +417,16 @@ export default function HomeScreen() {
         {forecast ? (
           <>
             <ChakraFlower forecast={forecast} strings={strings} />
-            <OpportunityWindows
-              planetOfTheDay={forecast.planetOfTheDay}
-              windows={forecast.windowsOfOpportunity}
-              strings={strings}
-            />
             <DailyRecommendationCard
               forecast={forecast}
               strings={strings}
               onDiscuss={() => setCommunicatorOpen(true)}
             />
-            <EventBells windows={forecast.windowsOfOpportunity} strings={strings} />
+            <OpportunityWindows
+              planetOfTheDay={forecast.planetOfTheDay}
+              windows={forecast.windowsOfOpportunity}
+              strings={strings}
+            />
           </>
         ) : null}
 
@@ -468,9 +463,9 @@ const styles = StyleSheet.create({
   },
   content: {
     alignSelf: "center",
-    gap: 16,
-    maxWidth: 620,
-    paddingHorizontal: 18,
+    gap: 18,
+    maxWidth: 460,
+    paddingHorizontal: 20,
     width: "100%",
   },
   header: {
@@ -503,12 +498,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "capitalize",
   },
-  refresh: {
-    alignSelf: "flex-start",
+  announcement: {
+    alignItems: "center",
+    borderRadius: 14,
     borderWidth: 1,
-    borderRadius: 999,
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 40,
     paddingHorizontal: 14,
-    paddingVertical: 9,
+  },
+  announcementDot: {
+    borderRadius: 999,
+    height: 7,
+    opacity: 0.8,
+    width: 7,
+  },
+  announcementText: {
+    flex: 1,
+    fontWeight: "600",
+  },
+  announcementArrow: {
+    fontSize: 24,
+    lineHeight: 24,
   },
   stateCard: {
     alignItems: "center",
@@ -532,15 +543,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 7,
-  },
-  natalBridgeCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    gap: 14,
-    padding: 16,
-  },
-  natalBridgeText: {
-    gap: 6,
   },
   modalBackdrop: {
     flex: 1,

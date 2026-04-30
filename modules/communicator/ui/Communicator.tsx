@@ -160,6 +160,10 @@ function ThinkingIndicator() {
   );
 }
 
+function isGeminiJsonError(error: Error): boolean {
+  return /Gemini response is not valid JSON/i.test(error.message);
+}
+
 function ModelBadge({ model }: { model?: string }) {
   const theme = useTheme();
   if (!HARMONIZER_TEST_MODE) return null;
@@ -244,6 +248,7 @@ export function Communicator({
 
   const reportError = useCallback(
     (err: Error) => {
+      if (isGeminiJsonError(err)) return;
       console.error("[Communicator]", err.message, err.stack ?? "");
       onError?.(err);
       Alert.alert(strings.sendErrorTitle, err.message, [
@@ -461,6 +466,20 @@ export function Communicator({
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
         const err = e instanceof Error ? e : new Error(String(e));
+        if (isGeminiJsonError(err)) {
+          const fallback: CommunicatorHistoryMessage = {
+            id: newMessageId(),
+            role: "assistant",
+            content:
+              "Я услышал вопрос, но сейчас не смог корректно разобрать ответ сервера. Если коротко: выбери один главный фокус дня, не распыляйся, и начни с практики на 5-10 минут, которая возвращает тело в спокойный ритм. Напиши ещё раз, что именно у тебя сегодня впереди, и я помогу привязать рекомендацию к ситуации.",
+            createdAt: Date.now(),
+            meta: { shouldClose: false },
+          };
+          setMessages((prev) => [...prev, fallback]);
+          onMessage?.(fallback);
+          resetChatStream();
+          return;
+        }
         reportError(err);
       }
     },
@@ -799,6 +818,9 @@ export function Communicator({
         ]}
       >
         <View style={styles.footerRow}>
+          {uiMode === "VOICE" ? (
+            <View style={styles.toggleSpacer} />
+          ) : null}
           {uiMode === "VOICE" ? (
             <View style={styles.voiceCol}>
               {HARMONIZER_TEST_MODE && (phase === "transcribing" || streamStatus === "thinking" || streamStatus === "typing") ? (

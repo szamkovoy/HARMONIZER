@@ -6,7 +6,6 @@ import { useTheme } from "@/modules/ui/theme";
 export function AssistantBubble({
   text,
   isStreaming,
-  phaseLabel,
 }: {
   text: string;
   isStreaming: boolean;
@@ -26,11 +25,6 @@ export function AssistantBubble({
           },
         ]}
       >
-        {phaseLabel ? (
-          <AppText variant="technicalCaption" tone="faint" style={styles.phase}>
-            {phaseLabel}
-          </AppText>
-        ) : null}
         <AppText variant="screenHint">
           {display}
           {isStreaming ? (
@@ -60,8 +54,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
-  },
-  phase: {
-    marginBottom: 3,
   },
 });

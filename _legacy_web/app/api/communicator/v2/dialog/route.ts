@@ -188,12 +188,21 @@ async function logPromptSize(db: SupabaseClient, userId: string, payload: Record
   if (error) console.warn("[dialog] Failed to log prompt size", error);
 }
 
+function isGeminiJsonParseError(error: unknown): error is GeminiJsonParseError {
+  return (
+    error instanceof GeminiJsonParseError ||
+    (error instanceof Error &&
+      (error.name === "GeminiJsonParseError" || /Gemini response is not valid JSON/i.test(error.message)))
+  );
+}
+
 async function buildDecision(params: {
   db: SupabaseClient;
   userId: string;
   useCase: DialogueUseCase;
   userTimezone: string;
   conversationIdWasNull: boolean;
+  clientGreetingShown: boolean;
   userMessage: string;
   history: MessageRecord[];
   phases: PhaseRecord[];
@@ -203,7 +212,7 @@ async function buildDecision(params: {
   const axes = axesFor(params.useCase);
   const iterationNumber = params.history.filter((message) => message.role === "user").length + 1;
   const greetingBypassEnabled = process.env.DIALOG_GREETING_BYPASS_ENABLED !== "false";
-  if (greetingBypassEnabled && (params.conversationIdWasNull || params.history.length === 0)) {
+  if (greetingBypassEnabled && !params.clientGreetingShown && (params.conversationIdWasNull || params.history.length === 0)) {
     return {
       decision: {
         ...greetingBypassDecision(params.useCase, params.userTimezone, params.conversationIdWasNull ? "null_conversation_id" : "no_history"),
@@ -280,12 +289,13 @@ async function buildDecision(params: {
     });
     decision = validateOrchestratorDecision(result.json, fallbackPhase);
   } catch (error) {
-    if (!(error instanceof GeminiJsonParseError)) throw error;
+    if (!isGeminiJsonParseError(error)) throw error;
+    const rawText = error instanceof GeminiJsonParseError ? error.rawText : "";
     await logPromptSize(params.db, params.userId, {
       endpoint: "communicator/v2/dialog",
       stage: "orchestrator_json_recovery",
       parse_error: error.message,
-      raw_preview: error.rawText.slice(0, 500),
+      raw_preview: rawText.slice(0, 500),
     });
     decision = validateOrchestratorDecision(
       {
@@ -367,11 +377,16 @@ export async function POST(req: Request) {
       useCase,
       userTimezone,
       conversationIdWasNull,
+      clientGreetingShown: body.triggerMeta?.clientGreetingShown === true,
       userMessage,
       history,
       phases,
       context,
     });
+    if (body.triggerMeta?.clientGreetingShown === true && decision.next_phase === "contextual_greeting") {
+      decision.next_phase = useCase === "daily_dialog" ? "offer_insight" : "deepen_specific_chakra";
+      decision.reasoning = "Client greeting was already shown; answering the user's message instead of greeting again.";
+    }
     const phase = phases.find((item) => item.phase_id === decision.next_phase) ?? phases[0];
     decision.next_phase = phase.phase_id;
 
