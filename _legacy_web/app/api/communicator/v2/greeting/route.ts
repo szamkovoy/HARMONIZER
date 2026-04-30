@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { generateGeminiText } from "../../../_utils/gemini";
+import { communicatorModel, generateGeminiText } from "../../../_utils/gemini";
 import { reportRouteError } from "../../../_utils/monitoring";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
         user_profile_summary: profileDTO,
         daily_context: forecastDTO,
       }),
-      model: phasePrompt.model_hint ?? responderPrompt.model_hint,
+      model: communicatorModel(),
       temperature: phasePrompt.temperature ?? responderPrompt.temperature,
       maxOutputTokens: phasePrompt.max_output_tokens ?? responderPrompt.max_output_tokens,
     });

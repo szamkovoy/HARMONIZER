@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "../../../../../data/information_axes.json";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { GeminiJsonParseError, generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
+import { GeminiJsonParseError, communicatorModel, generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
 import { parseResponseMarkers, stripResponseMarkers, type PracticePickMarker } from "../../../_utils/markers";
 import { reportRouteError } from "../../../_utils/monitoring";
 import {
@@ -274,7 +274,7 @@ async function buildDecision(params: {
   try {
     const result = await generateGeminiJson<unknown>({
       prompt: renderedPrompt,
-      model: prompt.model_hint,
+      model: communicatorModel(),
       temperature: prompt.temperature,
       maxOutputTokens: prompt.max_output_tokens,
     });
@@ -447,17 +447,17 @@ export async function POST(req: Request) {
           });
 
           let fullText = "";
-          let modelUsed = phasePrompt.model_hint ?? responderPrompt.model_hint ?? "gemini";
+          let modelUsed = communicatorModel();
           for await (const chunk of streamGeminiText({
             prompt,
-            model: phasePrompt.model_hint ?? responderPrompt.model_hint,
+            model: communicatorModel(),
             temperature: phasePrompt.temperature ?? responderPrompt.temperature,
             maxOutputTokens: phasePrompt.max_output_tokens ?? responderPrompt.max_output_tokens,
           })) {
             modelUsed = chunk.modelUsed;
             if (firstTokenLatencyMs == null) firstTokenLatencyMs = Date.now() - requestStarted;
             fullText += chunk.text;
-            controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text })));
+            controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed })));
           }
 
           const markers = parseResponseMarkers(fullText);
@@ -533,6 +533,7 @@ export async function POST(req: Request) {
                 messageId: assistantMessage.id,
                 fullText: cleanText,
                 shouldClose,
+                modelUsed,
                 practicePicked: finalPractice
                   ? { id: finalPractice.id, name: finalPractice.name, reason: finalPractice.reason ?? markers.practicePick?.reason }
                   : undefined,

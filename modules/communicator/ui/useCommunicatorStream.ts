@@ -10,6 +10,7 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
   const [assistantText, setAssistantText] = useState("");
   const [decision, setDecision] = useState<OrchestratorDecision | null>(null);
   const [complete, setComplete] = useState<DialogCompleteEvent | null>(null);
+  const [modelUsed, setModelUsed] = useState<string | undefined>();
   const [status, setStatus] = useState<CommunicatorStreamStatus>("idle");
   const abortRef = useRef<AbortController | null>(null);
 
@@ -19,6 +20,7 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
     setAssistantText("");
     setDecision(null);
     setComplete(null);
+    setModelUsed(undefined);
     setStatus("idle");
   }, []);
 
@@ -34,6 +36,7 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
       setAssistantText("");
       setDecision(null);
       setComplete(null);
+      setModelUsed(undefined);
 
       try {
         const result = await runCommunicatorStream({
@@ -49,6 +52,7 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
             setAssistantText(nextText);
             setDecision(nextDecision);
             setComplete(nextComplete);
+            setModelUsed(nextComplete?.modelUsed);
           },
         });
 
@@ -60,6 +64,7 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
         setAssistantText(result.assistantText);
         setDecision(result.decision);
         setComplete(result.complete);
+        setModelUsed(result.modelUsed ?? result.complete?.modelUsed);
         setStatus("idle");
         return result;
       } catch (e: unknown) {
@@ -89,6 +94,7 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
     assistantText,
     decision,
     complete,
+    modelUsed,
     status,
     run,
     abort,

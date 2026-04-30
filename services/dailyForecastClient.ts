@@ -84,6 +84,11 @@ function errorMessage(value: unknown, fallback = "Unknown error"): string {
   return fallback;
 }
 
+function networkError(url: string, error: unknown): Error {
+  const message = errorMessage(error, "Network request failed");
+  return new Error(`Daily forecast network error for ${url}: ${message}`);
+}
+
 function required<T>(value: T | null | undefined, label: string): T {
   if (value == null) throw new Error(`DailyForecast: missing ${label}`);
   return value;
@@ -150,7 +155,7 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
     if (controller.signal.aborted && !req.signal?.aborted) {
       throw new Error(`Daily forecast request timed out after ${Math.round(DAILY_FORECAST_TIMEOUT_MS / 1000)}s.`);
     }
-    throw error;
+    throw networkError(url, error);
   } finally {
     clearTimeout(timeoutId);
   }

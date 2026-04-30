@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   Alert,
+  Animated,
   AppState,
   Image,
   KeyboardAvoidingView,
@@ -38,6 +39,7 @@ import type {
 import { transcribeCommunicatorAudio, type DialogueEntrySource, type DialogueUseCase, type PracticePicked } from "@/services/communicator-client";
 import type { OrchestratorDecision } from "@/services/communicator-client";
 import { AppText } from "@/modules/ui/AppText";
+import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 
 import { AssistantBubble } from "./AssistantBubble";
@@ -55,6 +57,7 @@ function resolveUiMode(props: {
   mode?: CommunicatorModePolicy;
   initialMode?: CommunicatorInitialMode;
 }): { uiMode: "VOICE" | "TXT"; canSwitch: boolean } {
+  if (!COMMUNICATOR_TEXT_MODE_ENABLED) return { uiMode: "VOICE", canSwitch: false };
   const m = props.mode;
   if (m === "VOICE_ONLY") return { uiMode: "VOICE", canSwitch: false };
   if (m === "TXT_ONLY") return { uiMode: "TXT", canSwitch: false };
@@ -138,7 +141,7 @@ function getTurnAssistantAnchorIndex(
   return null;
 }
 
-function ThinkingIndicator({ label }: { label: string }) {
+function ThinkingIndicator() {
   const theme = useTheme();
   return (
     <View style={styles.assistantStatusRow}>
@@ -151,12 +154,48 @@ function ThinkingIndicator({ label }: { label: string }) {
           },
         ]}
       >
-        <AppText variant="screenHint" tone="muted">
-          {label}
-        </AppText>
         <DecodingDots />
       </View>
     </View>
+  );
+}
+
+function ModelBadge({ model }: { model?: string }) {
+  const theme = useTheme();
+  if (!HARMONIZER_TEST_MODE) return null;
+  return (
+    <View style={[styles.modelBadge, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.controlButtonBg }]}>
+      <AppText variant="technicalCaption" tone="muted">
+        model: {model ?? COMMUNICATOR_MODEL_LABEL}
+      </AppText>
+    </View>
+  );
+}
+
+function RecordingAura({ level }: { level: Animated.Value }) {
+  const theme = useTheme();
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.recordingAura,
+        {
+          borderColor: theme.colors.accent,
+          opacity: level.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.18, 0.42],
+          }),
+          transform: [
+            {
+              scale: level.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1.05, 1.35],
+              }),
+            },
+          ],
+        },
+      ]}
+    />
   );
 }
 
@@ -217,6 +256,7 @@ export function Communicator({
   const {
     assistantText,
     decision,
+    modelUsed,
     status: streamStatus,
     run: runChatStream,
     abort: abortChatStream,
@@ -233,6 +273,7 @@ export function Communicator({
   const startRecordingGenerationRef = useRef(0);
   /** Сброс нативного «залипания» Pressable после отмены / отказа в разрешениях */
   const [micPressResetKey, setMicPressResetKey] = useState(0);
+  const voiceLevel = useRef(new Animated.Value(0.1)).current;
 
   const scrollRef = useRef<ScrollView>(null);
   const [scrollViewH, setScrollViewH] = useState(0);
@@ -515,7 +556,10 @@ export function Communicator({
       });
       if (generation !== startRecordingGenerationRef.current) return;
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        {
+          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+          isMeteringEnabled: true,
+        },
       );
       if (generation !== startRecordingGenerationRef.current) {
         try {
@@ -527,6 +571,16 @@ export function Communicator({
       }
       micWarmupRef.current = false;
       recordingRef.current = recording;
+      recording.setOnRecordingStatusUpdate((status) => {
+        const metering = "metering" in status && typeof status.metering === "number" ? status.metering : -60;
+        const normalized = Math.max(0.08, Math.min(1, (metering + 60) / 60));
+        Animated.timing(voiceLevel, {
+          toValue: normalized,
+          duration: 90,
+          useNativeDriver: true,
+        }).start();
+      });
+      recording.setProgressUpdateInterval(90);
       recordStartRef.current = Date.now();
       setPhase("recording");
     } catch (e) {
@@ -716,7 +770,7 @@ export function Communicator({
             {streamBusy && (
               <View key="pending-assistant" onLayout={onTailLayout}>
                 {streamStatus === "thinking" ? (
-                  <ThinkingIndicator label={strings.thinkingStatus} />
+                  <ThinkingIndicator />
                 ) : (
                   <AssistantBubble
                     text={assistantText}
@@ -747,7 +801,7 @@ export function Communicator({
         <View style={styles.footerRow}>
           {uiMode === "VOICE" ? (
             <View style={styles.voiceCol}>
-              {(phase === "transcribing" || streamStatus === "thinking" || streamStatus === "typing") && (
+              {HARMONIZER_TEST_MODE && (phase === "transcribing" || streamStatus === "thinking" || streamStatus === "typing") ? (
                 <View style={styles.hintRow}>
                   <AppText variant="technicalCaption" tone="muted">
                     {phase === "transcribing"
@@ -756,9 +810,9 @@ export function Communicator({
                         ? strings.thinkingStatus
                         : strings.respondingStatus}
                   </AppText>
-                  <DecodingDots />
                 </View>
-              )}
+              ) : null}
+              <ModelBadge model={modelUsed} />
               <Pressable
                 key={micPressResetKey}
                 accessibilityRole="button"
@@ -770,6 +824,7 @@ export function Communicator({
                 onPress={onMicPress}
                 style={styles.micHit}
               >
+                {phase === "recording" ? <RecordingAura level={voiceLevel} /> : null}
                 <Image
                   source={micShowsBusyAsset ? micOff : micOn}
                   style={styles.micImg}
@@ -827,7 +882,7 @@ export function Communicator({
             </View>
           )}
 
-          {canSwitchMode ? (
+          {canSwitchMode && COMMUNICATOR_TEXT_MODE_ENABLED ? (
             <ModeToggle
               targetMode={uiMode === "VOICE" ? "TXT" : "VOICE"}
               onToggle={toggleMode}
@@ -878,6 +933,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 18,
   },
+  modelBadge: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
   assistantStatusRow: {
     width: "100%",
     paddingHorizontal: 12,
@@ -900,6 +961,13 @@ const styles = StyleSheet.create({
     height: 72,
     alignItems: "center",
     justifyContent: "center",
+  },
+  recordingAura: {
+    position: "absolute",
+    width: 76,
+    height: 76,
+    borderRadius: 999,
+    borderWidth: 8,
   },
   micImg: {
     width: 56,

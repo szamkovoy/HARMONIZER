@@ -1,0 +1,10 @@
+# Lean uploads for `vercel deploy` from monorepo root (Vercel Root Directory = _legacy_web).
+# `.git` alone can add tens of thousands of files; `node_modules` is reinstalled on the build machine.
+.git
+**/.git
+**/node_modules
+**/.next
+**/out
+.expo
+.tmp_ocr
+__tmp_ocr

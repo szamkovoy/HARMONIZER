@@ -75,8 +75,9 @@ ${JSON.stringify(historyDTO)}
   "confidence": 0..1
 }`;
 
+  const model = Deno.env.get("GEMINI_PRO_MODEL") ?? "gemini-3.1-pro-preview";
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,7 +106,7 @@ ${JSON.stringify(historyDTO)}
       summary: String(parsed.summary ?? ""),
       proposedFocus: Array.isArray(parsed.proposedFocus) ? parsed.proposedFocus.slice(0, 6) : [],
       confidence: Number(parsed.confidence ?? 0),
-      source: "gemini-2.5-flash",
+      source: model,
     };
   } catch (_error) {
     return fallbackDigest(messages);

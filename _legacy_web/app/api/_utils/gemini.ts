@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 type GenerateJsonOptions = {
   prompt: string;
   model?: string | null;
+  fallbackModels?: readonly string[];
   temperature?: number | null;
   maxOutputTokens?: number | null;
 };
@@ -11,7 +12,21 @@ type GenerateTextOptions = GenerateJsonOptions & {
   responseMimeType?: "text/plain" | "application/json";
 };
 
-const DEFAULT_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] as const;
+export const GEMINI_COMMUNICATOR_MODEL = "gemini-3.1-flash-lite-preview";
+export const GEMINI_PRO_MODEL = "gemini-3.1-pro-preview";
+
+const DEFAULT_MODEL_CHAIN = [
+  GEMINI_COMMUNICATOR_MODEL,
+  "gemini-3.1-flash-preview",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+] as const;
+const PRO_MODEL_CHAIN = [
+  GEMINI_PRO_MODEL,
+  "gemini-2.5-pro",
+  GEMINI_COMMUNICATOR_MODEL,
+  "gemini-2.5-flash",
+] as const;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export class GeminiJsonParseError extends Error {
@@ -38,10 +53,27 @@ function getApiKey(): string {
   return key;
 }
 
-function modelChain(preferred?: string | null): string[] {
+export function communicatorModel(): string {
+  return process.env.GEMINI_COMMUNICATOR_MODEL?.trim() || GEMINI_COMMUNICATOR_MODEL;
+}
+
+export function proModel(): string {
+  return process.env.GEMINI_PRO_MODEL?.trim() || GEMINI_PRO_MODEL;
+}
+
+export function proModelChain(): readonly string[] {
+  return [proModel(), ...PRO_MODEL_CHAIN.filter((model) => model !== proModel())];
+}
+
+function isDeprecatedGeminiModel(model: string): boolean {
+  return /^gemini-1\./.test(model);
+}
+
+function modelChain(preferred?: string | null, fallbackModels?: readonly string[]): string[] {
   const override = preferred?.trim() || process.env.GEMINI_MODEL?.trim();
-  if (!override) return [...DEFAULT_MODEL_CHAIN];
-  return [override, ...DEFAULT_MODEL_CHAIN.filter((model) => model !== override)];
+  const fallbacks = fallbackModels?.length ? fallbackModels : DEFAULT_MODEL_CHAIN;
+  if (!override || isDeprecatedGeminiModel(override)) return [...fallbacks];
+  return [override, ...fallbacks.filter((model) => model !== override)];
 }
 
 function timeoutMs(): number {
@@ -150,7 +182,7 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
 
-  for (const modelId of modelChain(options.model)) {
+  for (const modelId of modelChain(options.model, options.fallbackModels)) {
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
@@ -178,7 +210,7 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
 
-  for (const modelId of modelChain(options.model)) {
+  for (const modelId of modelChain(options.model, options.fallbackModels)) {
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
@@ -205,7 +237,7 @@ export async function* streamGeminiText(options: GenerateTextOptions): AsyncGene
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
 
-  for (const modelId of modelChain(options.model)) {
+  for (const modelId of modelChain(options.model, options.fallbackModels)) {
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,

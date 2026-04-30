@@ -40,6 +40,7 @@ export interface DialogCompleteEvent {
   conversationId?: string;
   fullText: string;
   shouldClose: boolean;
+  modelUsed?: string;
   practicePicked?: PracticePicked;
   recommendationCorrected?: RecommendationCorrected;
 }
@@ -60,6 +61,7 @@ export interface SendDialogMessageParams {
 export interface SendDialogMessageResult {
   decision: OrchestratorDecision | null;
   fullText: string;
+  modelUsed?: string;
   complete: DialogCompleteEvent | null;
 }
 
@@ -148,6 +150,11 @@ function safeJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
 }
 
+function networkError(url: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`Communicator network error for ${url}: ${message}`);
+}
+
 function handleSseEvent(
   event: SseEvent,
   params: SendDialogMessageParams,
@@ -160,9 +167,10 @@ function handleSseEvent(
     return;
   }
   if (event.event === "chunk") {
-    const payload = safeJson<{ text?: string }>(event.data);
+    const payload = safeJson<{ text?: string; modelUsed?: string }>(event.data);
     const text = payload.text ?? "";
     state.fullText += text;
+    if (payload.modelUsed) state.modelUsed = payload.modelUsed;
     params.onChunk?.(text);
     return;
   }
@@ -170,6 +178,7 @@ function handleSseEvent(
     const complete = safeJson<DialogCompleteEvent>(event.data);
     state.complete = complete;
     if (!state.fullText && complete.fullText) state.fullText = complete.fullText;
+    if (complete.modelUsed) state.modelUsed = complete.modelUsed;
     params.onComplete?.(complete);
   }
 }
@@ -218,22 +227,28 @@ async function readSseResponse(res: Response, params: SendDialogMessageParams): 
 
 export async function sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
   const token = await getAccessToken();
-  const res = await fetch(getCommunicatorV2DialogUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      conversationId: params.conversationId,
-      useCase: params.useCase,
-      entrySource: params.entrySource,
-      triggerMeta: params.triggerMeta ?? {},
-      userMessage: params.userMessage,
-      userTimezone: params.userTimezone,
-    }),
-    signal: params.signal,
-  });
+  const url = getCommunicatorV2DialogUrl();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        conversationId: params.conversationId,
+        useCase: params.useCase,
+        entrySource: params.entrySource,
+        triggerMeta: params.triggerMeta ?? {},
+        userMessage: params.userMessage,
+        userTimezone: params.userTimezone,
+      }),
+      signal: params.signal,
+    });
+  } catch (error) {
+    throw networkError(url, error);
+  }
 
   if (!res.ok) throw await readError(res);
   return readSseResponse(res, params);
@@ -241,38 +256,50 @@ export async function sendDialogMessage(params: SendDialogMessageParams): Promis
 
 export async function transcribeCommunicatorAudio(req: TranscribeAudioRequest): Promise<TranscribeAudioResponse> {
   const token = await getAccessToken();
-  const res = await fetch(getCommunicatorV2TranscribeUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      audio: { mimeType: req.mimeType, base64: req.base64 },
-      language: req.language ?? "ru",
-    }),
-    signal: req.signal,
-  });
+  const url = getCommunicatorV2TranscribeUrl();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        audio: { mimeType: req.mimeType, base64: req.base64 },
+        language: req.language ?? "ru",
+      }),
+      signal: req.signal,
+    });
+  } catch (error) {
+    throw networkError(url, error);
+  }
   if (!res.ok) throw await readError(res);
   return (await res.json()) as TranscribeAudioResponse;
 }
 
 export async function extractCalibration(req: CalibrationExtractRequest, signal?: AbortSignal): Promise<CalibrationExtractResponse> {
   const token = await getAccessToken();
-  const res = await fetch(getCalibrationExtractUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      source: req.source ?? "initial",
-      feedbackText: req.feedbackText,
-      conversationDigest: req.conversationDigest,
-      language: req.language ?? "ru",
-    }),
-    signal,
-  });
+  const url = getCalibrationExtractUrl();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        source: req.source ?? "initial",
+        feedbackText: req.feedbackText,
+        conversationDigest: req.conversationDigest,
+        language: req.language ?? "ru",
+      }),
+      signal,
+    });
+  } catch (error) {
+    throw networkError(url, error);
+  }
   if (!res.ok) throw await readError(res);
   return (await res.json()) as CalibrationExtractResponse;
 }

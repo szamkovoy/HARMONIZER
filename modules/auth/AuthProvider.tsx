@@ -32,17 +32,23 @@ interface AuthProviderProps {
 
 async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
   const supabase = requireSupabase();
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn("[auth] fetchProfile error", error.message);
+      return null;
+    }
+    return data;
+  } catch (error) {
     // eslint-disable-next-line no-console
-    console.warn("[auth] fetchProfile error", error.message);
+    console.warn("[auth] fetchProfile network error", error instanceof Error ? error.message : String(error));
     return null;
   }
-  return data;
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -76,12 +82,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const supabase = requireSupabase();
 
     // 1) Прочитать сохранённую сессию (SecureStore).
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      void syncProfile(data.session?.user ?? null).finally(() =>
-        setInitializing(false),
-      );
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+        void syncProfile(data.session?.user ?? null).finally(() =>
+          setInitializing(false),
+        );
+      })
+      .catch((error) => {
+        // На холодном старте сеть может быть ещё недоступна; показываем auth UI,
+        // а не красный экран LogBox с безымянным `Network request failed`.
+        // eslint-disable-next-line no-console
+        console.warn("[auth] getSession network error", error instanceof Error ? error.message : String(error));
+        setSession(null);
+        setProfile(null);
+        setInitializing(false);
+      });
 
     // 2) Подписаться на изменения (логин, логаут, рефреш токена).
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {

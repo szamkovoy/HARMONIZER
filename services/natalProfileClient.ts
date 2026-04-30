@@ -31,17 +31,28 @@ async function readError(res: Response): Promise<Error> {
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
 }
 
+function networkError(url: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`Natal profile network error for ${url}: ${message}`);
+}
+
 export async function createNatalProfile(birthData: BirthData, signal?: AbortSignal): Promise<CreateNatalProfileResult> {
   const token = await getAccessToken();
-  const res = await fetch(getAstroNatalUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ birthData }),
-    signal,
-  });
+  const url = getAstroNatalUrl();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ birthData }),
+      signal,
+    });
+  } catch (error) {
+    throw networkError(url, error);
+  }
 
   if (!res.ok) throw await readError(res);
   return (await res.json()) as CreateNatalProfileResult;

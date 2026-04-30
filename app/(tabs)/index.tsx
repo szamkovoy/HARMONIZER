@@ -8,7 +8,6 @@ import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { EventBells } from "@/modules/home/ui/EventBells";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
-import { PlanetOfDayBanner } from "@/modules/home/ui/PlanetOfDayBanner";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -16,7 +15,7 @@ import { createNatalProfile } from "@/services/natalProfileClient";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ForecastSource = "cache" | "computed";
@@ -31,23 +30,35 @@ function HomeHeader({
   loading,
   source,
   onRefresh,
+  forecast,
   strings,
 }: {
   loading: boolean;
   source: ForecastSource | null;
   onRefresh: () => void;
+  forecast: DailyForecast | null;
   strings: HomeStrings;
 }) {
   const theme = useTheme();
+  const today = new Intl.DateTimeFormat(strings.locale === "ru" ? "ru" : "en", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
   return (
     <View style={styles.header}>
-      <View style={styles.headerText}>
-        <AppText variant="screenTitle" accessibilityRole="header">
-          {strings.appTitle}
-        </AppText>
-        <AppText variant="screenHint" tone="muted">
-          {strings.headerHint}
-        </AppText>
+      <View style={styles.heroRow}>
+        <View style={styles.avatarRing}>
+          <Image source={require("@/assets/icons/apple-touch-icon.png")} style={styles.avatar} resizeMode="cover" />
+        </View>
+        <View style={styles.headerText}>
+          <AppText variant="screenHint" accessibilityRole="header" style={styles.dateText}>
+            {today}
+          </AppText>
+          <AppText variant="screenHint" tone="muted">
+            {strings.daySlogan(forecast)}
+          </AppText>
+        </View>
       </View>
       <Pressable
         accessibilityRole="button"
@@ -395,7 +406,7 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <HomeHeader loading={loading} source={source} onRefresh={onRefresh} strings={strings} />
+        <HomeHeader loading={loading} source={source} onRefresh={onRefresh} forecast={forecast} strings={strings} />
 
         {loading ? <HomeSkeleton strings={strings} /> : null}
         {error ? (
@@ -409,7 +420,6 @@ export default function HomeScreen() {
 
         {forecast ? (
           <>
-            <PlanetOfDayBanner forecast={forecast} strings={strings} />
             <ChakraFlower forecast={forecast} strings={strings} />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}
@@ -466,8 +476,32 @@ const styles = StyleSheet.create({
   header: {
     gap: 12,
   },
+  heroRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 14,
+  },
+  avatarRing: {
+    alignItems: "center",
+    borderColor: "#9B5BEB",
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 58,
+    justifyContent: "center",
+    width: 58,
+  },
+  avatar: {
+    borderRadius: 999,
+    height: 50,
+    width: 50,
+  },
   headerText: {
+    flex: 1,
     gap: 8,
+  },
+  dateText: {
+    fontWeight: "700",
+    textTransform: "capitalize",
   },
   refresh: {
     alignSelf: "flex-start",

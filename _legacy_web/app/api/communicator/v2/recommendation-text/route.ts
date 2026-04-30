@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { generateGeminiText } from "../../../_utils/gemini";
+import { generateGeminiText, proModel, proModelChain } from "../../../_utils/gemini";
 import { reportRouteError } from "../../../_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
@@ -43,7 +43,8 @@ export async function POST(req: Request) {
         context_json: body.context ?? {},
         planet_of_the_day: forecast.planet_of_the_day,
       }),
-      model: prompt.model_hint,
+      model: proModel(),
+      fallbackModels: proModelChain(),
       temperature: prompt.temperature,
       maxOutputTokens: prompt.max_output_tokens,
     });

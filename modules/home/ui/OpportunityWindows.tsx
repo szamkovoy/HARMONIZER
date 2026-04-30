@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import Svg, { Circle, Path, Text as SvgText } from "react-native-svg";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -11,33 +12,6 @@ interface OpportunityWindowsProps {
   planetOfTheDay: Planet;
   windows: Windows;
   strings: HomeStrings;
-}
-
-function WindowGlyph({ active }: { active: boolean }) {
-  const theme = useTheme();
-  return (
-    <View style={styles.glyph} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View
-        style={[
-          styles.glyphLine,
-          {
-            backgroundColor: active ? theme.colors.accent : theme.colors.surfaceBorder,
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.glyphDot,
-          {
-            backgroundColor: active ? theme.colors.accent : theme.colors.controlButtonBg,
-            borderColor: theme.colors.surfaceBorder,
-            height: active ? 12 : 8,
-            width: active ? 12 : 8,
-          },
-        ]}
-      />
-    </View>
-  );
 }
 
 export function OpportunityWindows({ planetOfTheDay, windows, strings }: OpportunityWindowsProps) {
@@ -68,6 +42,14 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings }: Opportu
         : null,
     },
   ];
+  const activeItems = items.filter((item) => item.time);
+  const chartPoints = activeItems.length
+    ? activeItems.map((item, index) => ({
+        ...item,
+        x: activeItems.length === 1 ? 150 : 34 + index * (232 / Math.max(1, activeItems.length - 1)),
+        y: index % 2 === 0 ? 92 : 36,
+      }))
+    : [];
 
   return (
     <View
@@ -86,38 +68,44 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings }: Opportu
         </AppText>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.timeline}
-      >
-        {items.map((item) => {
-          const active = Boolean(item.time);
-          return (
-            <View
-              key={item.key}
-              style={[
-                styles.window,
-                {
-                  borderColor: active ? theme.colors.accent : theme.colors.surfaceBorder,
-                  opacity: active ? 1 : 0.58,
-                },
-              ]}
+      <View style={styles.chartWrap}>
+        <Svg width="100%" height={148} viewBox="0 0 300 148">
+          <Path
+            d="M8 104 C58 18 92 18 142 80 S224 142 292 44"
+            fill="none"
+            stroke={theme.colors.accent}
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+          {chartPoints.map((point) => (
+            <Circle key={point.key} cx={point.x} cy={point.y} r={6} fill={theme.colors.accent} />
+          ))}
+          {chartPoints.map((point) => (
+            <SvgText
+              key={`${point.key}-label`}
+              x={point.x}
+              y={point.y + 26}
+              fill={theme.colors.textPrimary}
+              fontSize="12"
+              fontWeight="600"
+              textAnchor="middle"
             >
-              <WindowGlyph active={active} />
-              <AppText variant="statPillLabel" tone={active ? "primary" : "muted"}>
-                {item.title}
-              </AppText>
-              <AppText variant="screenTitle" style={styles.time}>
-                {item.time ? strings.formatTime(item.time) : strings.emptyTimeLabel}
-              </AppText>
-              <AppText variant="technicalCaption" tone="muted" style={styles.detail}>
-                {item.detail ?? t.emptyDetail}
-              </AppText>
-            </View>
-          );
-        })}
-      </ScrollView>
+              {point.time ? strings.formatTime(point.time) : ""}
+            </SvgText>
+          ))}
+        </Svg>
+      </View>
+
+      <View style={styles.windowList}>
+        {items.map((item) => (
+          <View key={item.key} style={styles.windowLine}>
+            <AppText variant="statPillLabel">{item.title}</AppText>
+            <AppText variant="technicalCaption" tone="muted" style={styles.windowDetail}>
+              {item.time ? `${strings.formatTime(item.time)} · ${item.detail}` : t.emptyDetail}
+            </AppText>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -132,41 +120,17 @@ const styles = StyleSheet.create({
   header: {
     gap: 4,
   },
-  timeline: {
-    flexDirection: "row",
-    gap: 10,
-    paddingRight: 2,
-  },
-  window: {
-    borderWidth: 1,
-    borderRadius: 18,
-    width: 172,
-    minHeight: 118,
-    padding: 12,
-    justifyContent: "space-between",
-  },
-  glyph: {
-    alignItems: "center",
-    height: 18,
+  chartWrap: {
+    height: 148,
     justifyContent: "center",
-    position: "relative",
-    width: 76,
   },
-  glyphLine: {
-    borderRadius: 999,
-    height: StyleSheet.hairlineWidth,
-    position: "absolute",
-    width: 76,
+  windowList: {
+    gap: 8,
   },
-  glyphDot: {
-    borderRadius: 999,
-    borderWidth: 1,
-    position: "absolute",
+  windowLine: {
+    gap: 2,
   },
-  time: {
-    marginTop: 8,
-  },
-  detail: {
-    marginTop: 8,
+  windowDetail: {
+    lineHeight: 18,
   },
 });

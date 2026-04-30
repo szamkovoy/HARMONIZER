@@ -11,6 +11,7 @@ export interface HomeStrings {
   locale: HomeLocale;
   appTitle: string;
   headerHint: string;
+  daySlogan: (forecast?: DailyForecast | null) => string;
   refreshButton: string;
   refreshAccessibilityLabel: string;
   refreshingLabel: string;
@@ -100,7 +101,12 @@ const enPlanetLabels: Record<Planet, string> = {
 const ru: HomeStrings = {
   locale: "ru",
   appTitle: "Harmonizer",
-  headerHint: "Главная настройка дня: чакры, окна возможностей и мягкая рекомендация.",
+  headerHint: "Главная настройка дня: чакры, окна сверхспособностей и мягкая рекомендация.",
+  daySlogan: (forecast) => {
+    if (!forecast) return "Настройся бережно и выбери один ясный шаг.";
+    const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+    return `Сегодня: ${meta.label}. Мягко собери внимание вокруг главного.`;
+  },
   refreshButton: "Обновить",
   refreshAccessibilityLabel: "Обновить прогноз дня",
   refreshingLabel: "...",
@@ -153,7 +159,7 @@ const ru: HomeStrings = {
     toneLine: (tone, label) => `${tone} тон · ${label}`,
   },
   opportunityWindows: {
-    title: "Окна возможностей",
+    title: "Окна сверхспособностей",
     subtitle: (planet) => `Главная тема: ${planet}`,
     emptyDetail: "Сегодня без точного окна",
     windowTitles: {
@@ -202,6 +208,11 @@ const en: HomeStrings = {
   ...ru,
   locale: "en",
   headerHint: "Daily tuning: chakras, opportunity windows, and a gentle recommendation.",
+  daySlogan: (forecast) => {
+    if (!forecast) return "Tune gently and choose one clear step.";
+    const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+    return `Today: ${meta.label}. Gather attention around what matters.`;
+  },
   refreshButton: "Refresh",
   refreshAccessibilityLabel: "Refresh daily forecast",
   sourceLabel: (source) => `Source: ${source === "cache" ? "cache" : "new calculation"}`,

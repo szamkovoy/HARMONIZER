@@ -9,6 +9,7 @@ export type CommunicatorStreamChunk = {
   assistantText: string;
   decision: OrchestratorDecision | null;
   complete: DialogCompleteEvent | null;
+  modelUsed?: string;
 };
 
 export async function runCommunicatorStream(
@@ -19,6 +20,7 @@ export async function runCommunicatorStream(
   let assistantText = "";
   let decision: OrchestratorDecision | null = null;
   let complete: DialogCompleteEvent | null = null;
+  let modelUsed: string | undefined;
   const { onChunk, onOrchestratorDecision, onComplete, ...rest } = params;
 
   const result = await sendDialogMessage({
@@ -26,17 +28,18 @@ export async function runCommunicatorStream(
     onOrchestratorDecision: (nextDecision) => {
       decision = nextDecision;
       onOrchestratorDecision?.(nextDecision);
-      onChunk?.({ assistantText, decision, complete });
+      onChunk?.({ assistantText, decision, complete, modelUsed });
     },
     onChunk: (text) => {
       assistantText += text;
-      onChunk?.({ assistantText, decision, complete });
+      onChunk?.({ assistantText, decision, complete, modelUsed });
     },
     onComplete: (event) => {
       complete = event;
+      modelUsed = event.modelUsed ?? modelUsed;
       if (!assistantText && event.fullText) assistantText = event.fullText;
       onComplete?.(event);
-      onChunk?.({ assistantText, decision, complete });
+      onChunk?.({ assistantText, decision, complete, modelUsed });
     },
   });
 
@@ -44,5 +47,6 @@ export async function runCommunicatorStream(
     assistantText: result.fullText || assistantText,
     decision: result.decision ?? decision,
     complete: result.complete ?? complete,
+    modelUsed: result.modelUsed ?? modelUsed,
   };
 }
