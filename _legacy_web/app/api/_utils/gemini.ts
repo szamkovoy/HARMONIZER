@@ -13,6 +13,10 @@ type GenerateTextOptions = GenerateJsonOptions & {
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const LEGACY_MODEL_UPGRADES: Record<string, string> = {
+  "gemini-1.5-flash": "gemini-2.5-flash",
+  "gemini-1.5-pro": "gemini-2.5-flash",
+};
 
 export class GeminiJsonParseError extends Error {
   constructor(
@@ -46,6 +50,10 @@ export function getModelByHint(hint: string | null | undefined): string {
     throw new Error(
       tier === "premium" ? "Missing AI_MODEL_PREMIUM environment variable" : "Missing AI_MODEL_STANDARD environment variable",
     );
+  }
+  const normalizedModel = model.trim().toLowerCase();
+  if (process.env.ALLOW_LEGACY_GEMINI_MODELS !== "true" && LEGACY_MODEL_UPGRADES[normalizedModel]) {
+    return LEGACY_MODEL_UPGRADES[normalizedModel];
   }
   return model;
 }

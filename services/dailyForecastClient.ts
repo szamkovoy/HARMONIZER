@@ -65,6 +65,10 @@ async function readError(res: Response): Promise<Error> {
     return new Error(errorMessage(data?.error, `HTTP ${res.status}`));
   }
   const text = await res.text().catch(() => res.statusText);
+  const looksLikeHtml = text.trimStart().startsWith("<!") || /<html[\s>]/i.test(text);
+  if (looksLikeHtml) {
+    return new Error(`Сервер вернул HTML вместо прогноза (${res.status}). Проверьте деплой Vercel API.`);
+  }
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
 }
 

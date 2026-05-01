@@ -48,7 +48,7 @@ function HomeHeader({
             {today}
           </AppText>
           <AppText variant="screenHint" tone="muted">
-            {strings.daySlogan(forecast)}
+            {forecast?.slogan?.trim() || strings.daySlogan(forecast)}
           </AppText>
         </View>
       </View>
@@ -346,13 +346,16 @@ function CommunicatorOverlay({
   const initialAssistantMessage = useMemo<CommunicatorHistoryMessage>(() => {
     const hour = new Date().getHours();
     const greeting = hour >= 5 && hour < 11 ? "Доброе утро" : hour >= 11 && hour < 17 ? "Добрый день" : hour >= 17 && hour < 22 ? "Добрый вечер" : "Доброй ночи";
-    const meta = forecast.planetOfTheDay;
+    const headline = forecast.slogan?.trim() || strings.daySlogan(forecast);
     const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
+    const recommendation = forecast.recommendationShortText?.trim();
     return {
       id: `daily-opening-${forecast.date}-${forecast.planetOfTheDay}`,
       role: "assistant",
       createdAt: Date.now(),
-      content: `${greeting}. Сегодня главная тема дня связана с ${strings.planetLabels[meta].toLowerCase()} и состоянием «${strings.daySlogan(forecast)}». Тональность дня: ${tone}. Расскажи, что сейчас с тобой: больше нужна ясность, энергия, спокойствие, отношения, тело или внутренние границы? Можно ответить голосом.`,
+      content: recommendation
+        ? `${greeting}. Сегодняшний фокус: «${headline}». Тон дня ${tone}; рекомендация уже есть, а здесь можно разобрать её по-человечески. Что сейчас важнее: ясность, энергия, спокойствие, отношения, тело или внутренние границы?`
+        : `${greeting}. Сегодняшний фокус: «${headline}». Что сейчас важнее разобрать: ясность, энергия, спокойствие, отношения, тело или внутренние границы? Можно ответить голосом.`,
       meta: {
         orchestratorDecision: {
           next_phase: "contextual_greeting",

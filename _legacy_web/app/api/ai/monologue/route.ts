@@ -189,8 +189,9 @@ export async function POST(req: Request) {
     }
 
     endpointStage = "cache_lookup";
+    const forceRefresh = body.variables?.forceRefresh === true || body.variables?.force_refresh === true;
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, userId, db);
-    if (cached && !isStaleMorningCache(scenario.id, cached)) {
+    if (!forceRefresh && cached && !isStaleMorningCache(scenario.id, cached)) {
       return json({
         ...cached,
         cached: true,

@@ -40,6 +40,10 @@ async function readError(res: Response): Promise<Error> {
     return new Error(data?.error ?? `HTTP ${res.status}`);
   }
   const text = await res.text().catch(() => res.statusText);
+  const looksLikeHtml = text.trimStart().startsWith("<!") || /<html[\s>]/i.test(text);
+  if (looksLikeHtml) {
+    return new Error(`AI monologue API returned HTML (${res.status}).`);
+  }
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
 }
 

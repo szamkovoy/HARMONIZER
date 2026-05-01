@@ -44,6 +44,7 @@ export function DailyRecommendationCard({
     "Окна возможностей ниже показывают моменты, когда телу и вниманию легче перестроиться: восход даёт импульс, кульминация усиливает проявление, точный аспект делает тему особенно заметной.",
   ].join("\n\n");
   const longExplanation = forecast.recommendationLongText ?? detailText;
+  const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
   return (
     <>
@@ -74,11 +75,11 @@ export function DailyRecommendationCard({
         {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
       </View>
       <ModalLongExplanation
-        visible={modalLevel !== "none"}
+        visible={modalLevel === "long"}
         onClose={() => setModalLevel("none")}
         longExplanation={longExplanation}
         onOpenMath={() => setModalLevel("math")}
-        canOpenMath
+        canOpenMath={hasMathLevel}
       />
       <ModalMathLevel
         visible={modalLevel === "math"}

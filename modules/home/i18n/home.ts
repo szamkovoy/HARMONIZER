@@ -102,8 +102,9 @@ const ru: HomeStrings = {
   headerHint: "Главная настройка дня: чакры, окна возможностей и практическая рекомендация.",
   daySlogan: (forecast) => {
     if (!forecast) return "Настройся бережно и выбери один ясный шаг.";
+    if (forecast.slogan?.trim()) return forecast.slogan.trim();
     const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
-    return meta.chakraNumber === 7 ? "Собери внимание вокруг главного" : `Собери внимание в теме «${meta.label}»`;
+    return meta.chakraNumber === 7 ? "Соберите внимание вокруг главного" : `Мягко держите фокус: ${meta.label}`;
   },
   refreshButton: "Обновить",
   refreshAccessibilityLabel: "Обновить прогноз дня",
@@ -206,6 +207,7 @@ const en: HomeStrings = {
   headerHint: "Daily tuning: chakras, opportunity windows, and a gentle recommendation.",
   daySlogan: (forecast) => {
     if (!forecast) return "Tune gently and choose one clear step.";
+    if (forecast.slogan?.trim()) return forecast.slogan.trim();
     const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
     return `Today: ${meta.label}. Gather attention around what matters.`;
   },

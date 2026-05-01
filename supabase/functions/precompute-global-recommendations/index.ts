@@ -30,6 +30,9 @@ function getModelByHint(hint: string | null | undefined): string {
   const tier = hint?.trim().toLowerCase();
   const model = tier === "premium" ? Deno.env.get("AI_MODEL_PREMIUM")?.trim() : Deno.env.get("AI_MODEL_STANDARD")?.trim();
   if (!model) throw new Error(tier === "premium" ? "Missing AI_MODEL_PREMIUM" : "Missing AI_MODEL_STANDARD");
+  if (Deno.env.get("ALLOW_LEGACY_GEMINI_MODELS") !== "true") {
+    if (model === "gemini-1.5-flash" || model === "gemini-1.5-pro") return "gemini-2.5-flash";
+  }
   return model;
 }
 

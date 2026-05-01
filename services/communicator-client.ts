@@ -143,6 +143,10 @@ async function readError(res: Response): Promise<Error> {
   return new Error(errText.slice(0, 280) || `HTTP ${res.status}`);
 }
 
+function isMissingSessionSyncEndpoint(error: Error): boolean {
+  return /\bHTTP 40[45]\b|Сервер вернул HTML вместо API \(404\)/i.test(error.message);
+}
+
 function parseSseBlock(block: string): SseEvent | null {
   let event = "message";
   const data: string[] = [];
@@ -296,7 +300,13 @@ export async function fetchDialogSession(params: {
   } catch (error) {
     throw networkError(url, error);
   }
-  if (!res.ok) throw await readError(res);
+  if (!res.ok) {
+    const error = await readError(res);
+    if (isMissingSessionSyncEndpoint(error)) {
+      return { conversationId: null, messages: [], reset: true };
+    }
+    throw error;
+  }
   return (await res.json()) as DialogSessionResponse;
 }
 

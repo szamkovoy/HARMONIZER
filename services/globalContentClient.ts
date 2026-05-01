@@ -75,7 +75,65 @@ async function readError(res: Response): Promise<Error> {
     return new Error(typeof data?.error === "string" ? data.error : `HTTP ${res.status}`);
   }
   const text = await res.text().catch(() => res.statusText);
+  const looksLikeHtml = text.trimStart().startsWith("<!") || /<html[\s>]/i.test(text);
+  if (looksLikeHtml) {
+    return new Error(`Global content API returned HTML (${res.status}).`);
+  }
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
+}
+
+function localDateIso(timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+async function fetchGlobalContentDirect(timezone: string): Promise<GlobalContentResponse> {
+  const localDate = localDateIso(timezone);
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("global_daily_content")
+    .select("*")
+    .eq("forecast_date_utc", localDate)
+    .maybeSingle();
+  if (error) throw error;
+
+  const content = data as Record<string, unknown> | null;
+  if (!content) {
+    const { data: fallback, error: fallbackError } = await db
+      .from("global_daily_content")
+      .select("*")
+      .order("forecast_date_utc", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (fallbackError) throw fallbackError;
+    if (!fallback) throw new Error("No global content available");
+    return globalResponseFromRow(fallback as Record<string, unknown>, true);
+  }
+
+  return globalResponseFromRow(content, false);
+}
+
+function globalResponseFromRow(row: Record<string, unknown>, isFallback: boolean): GlobalContentResponse {
+  return {
+    slogan: typeof row.slogan === "string" ? row.slogan : undefined,
+    short_text: typeof row.short_text === "string" ? row.short_text : "",
+    long_explanation: typeof row.long_explanation === "string" ? row.long_explanation : undefined,
+    math_level: row.math_level as DailyForecast["mathLevel"],
+    primary_planet: row.primary_planet as Planet,
+    primary_tone: row.primary_tone as GlobalContentResponse["primary_tone"],
+    top_petals: (row.top_petals as GlobalTopPetal[]) ?? [],
+    planet_positions: row.planet_positions,
+    forecast_date: String(row.forecast_date_utc ?? ""),
+    is_fallback: isFallback,
+    membership_tier: "free",
+    has_premium_access: false,
+  };
 }
 
 export async function fetchGlobalContent(req: {
@@ -83,18 +141,23 @@ export async function fetchGlobalContent(req: {
   signal?: AbortSignal;
 }): Promise<GlobalContentResult> {
   const token = await getAccessToken();
-  const res = await fetch(getAiGlobalContentUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: "{}",
-    signal: req.signal,
-  });
-  if (!res.ok) throw await readError(res);
-
-  const data = (await res.json()) as GlobalContentResponse;
+  let data: GlobalContentResponse;
+  try {
+    const res = await fetch(getAiGlobalContentUrl(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: "{}",
+      signal: req.signal,
+    });
+    if (!res.ok) throw await readError(res);
+    data = (await res.json()) as GlobalContentResponse;
+  } catch (error) {
+    if (req.signal?.aborted) throw error;
+    data = await fetchGlobalContentDirect(req.userLocation.timezone);
+  }
   if (data.error) throw new Error(typeof data.error === "string" ? data.error : "Global content request failed");
 
   const importance = emptyPlanetMap();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/modules/auth";
 import type { DailyForecast } from "@/modules/daily-engine";
+import { callMonologue, type MorningRecommendationResponse } from "@/services/aiClient";
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 
@@ -64,6 +65,31 @@ function accessModeFor(profile: { membership_tier?: string | null; trial_expires
   return hasPremiumAccess(profile) ? "trial" : "free";
 }
 
+async function enrichWithMorningContent(
+  forecast: DailyForecast,
+  forceRefresh: boolean | undefined,
+  signal: AbortSignal,
+): Promise<DailyForecast> {
+  try {
+    const content = await callMonologue<MorningRecommendationResponse>(
+      "morning_recommendation",
+      { forceRefresh: Boolean(forceRefresh) },
+      signal,
+    );
+    if (content.error) throw new Error(content.error);
+    return Object.assign(forecast, {
+      recommendationShortText: content.short_text?.trim() || forecast.recommendationShortText,
+      recommendationLongText: content.long_explanation?.trim() || forecast.recommendationLongText,
+      slogan: content.slogan?.trim() || forecast.slogan,
+      mathLevel: content.math_level ?? forecast.mathLevel,
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    console.warn("[Home] Failed to load morning recommendation monologue", error);
+    return forecast;
+  }
+}
+
 export function useDayContent(options?: UseDayContentOptions): UseDayContentResult {
   const { profile } = useAuth();
   const abortRef = useRef<AbortController | null>(null);
@@ -120,7 +146,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             forceRefresh: opts?.forceRefresh,
             signal: controller.signal,
           });
-          setForecast(result.forecast);
+          const forecastWithContent = await enrichWithMorningContent(result.forecast, opts?.forceRefresh, controller.signal);
+          setForecast(forecastWithContent);
           setSource(result.source);
         }
         setStatus("ready");
