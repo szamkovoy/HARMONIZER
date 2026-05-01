@@ -1,0 +1,49 @@
+import { getAiMonologueUrl } from "@/services/communicatorConfig";
+import { requireSupabase } from "@/services/supabase";
+
+export type MonologueResponse<T extends Record<string, unknown> = Record<string, unknown>> = T & {
+  cached?: boolean;
+  scenario_id?: string;
+  modelUsed?: string;
+  error?: string;
+};
+
+async function getAccessToken(): Promise<string> {
+  const { data, error } = await requireSupabase().auth.getSession();
+  if (error) throw error;
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Нужна авторизация Supabase для AI-сценария.");
+  return token;
+}
+
+async function readError(res: Response): Promise<Error> {
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    return new Error(data?.error ?? `HTTP ${res.status}`);
+  }
+  const text = await res.text().catch(() => res.statusText);
+  return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
+}
+
+export async function callMonologue<T extends Record<string, unknown> = Record<string, unknown>>(
+  scenarioId: string,
+  variables: Record<string, unknown> = {},
+  signal?: AbortSignal,
+): Promise<MonologueResponse<T>> {
+  const token = await getAccessToken();
+  const res = await fetch(getAiMonologueUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      scenario_id: scenarioId,
+      variables,
+    }),
+    signal,
+  });
+  if (!res.ok) throw await readError(res);
+  return (await res.json()) as MonologueResponse<T>;
+}

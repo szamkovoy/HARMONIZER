@@ -17,6 +17,7 @@ export type MessageRecord = {
 
 export type ConversationRecord = {
   id: string;
+  scenario_id?: string | null;
   trigger_meta?: Record<string, unknown> | null;
   entry_source?: string | null;
   started_at?: string | null;

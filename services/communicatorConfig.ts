@@ -25,6 +25,14 @@ export function getCommunicatorV2DialogUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/dialog`;
 }
 
+export function getAiDialogUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/ai/dialog`;
+}
+
+export function getAiMonologueUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/ai/monologue`;
+}
+
 export function getCommunicatorV2TranscribeUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/transcribe`;
 }

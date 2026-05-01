@@ -1,4 +1,4 @@
-import { getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
+import { getAiDialogUrl, getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 
 export type DialogueUseCase = "calibration" | "daily_dialog";
@@ -46,6 +46,7 @@ export interface DialogCompleteEvent {
 }
 
 export interface SendDialogMessageParams {
+  scenarioId?: string;
   conversationId: string | null;
   useCase: DialogueUseCase;
   entrySource: DialogueEntrySource;
@@ -241,7 +242,7 @@ async function readSseResponse(res: Response, params: SendDialogMessageParams): 
 
 export async function sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
   const token = await getAccessToken();
-  const url = getCommunicatorV2DialogUrl();
+  const url = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
   let res: Response;
   try {
     res = await fetch(url, {
@@ -251,6 +252,7 @@ export async function sendDialogMessage(params: SendDialogMessageParams): Promis
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        scenario_id: params.scenarioId,
         conversationId: params.conversationId,
         useCase: params.useCase,
         entrySource: params.entrySource,
@@ -269,13 +271,19 @@ export async function sendDialogMessage(params: SendDialogMessageParams): Promis
 }
 
 export async function fetchDialogSession(params: {
+  scenarioId?: string;
   useCase: DialogueUseCase;
   entrySource: DialogueEntrySource;
   signal?: AbortSignal;
 }): Promise<DialogSessionResponse> {
   const token = await getAccessToken();
-  const baseUrl = getCommunicatorV2DialogUrl();
-  const url = `${baseUrl}?useCase=${encodeURIComponent(params.useCase)}&entrySource=${encodeURIComponent(params.entrySource)}`;
+  const baseUrl = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
+  const query = new URLSearchParams({
+    useCase: params.useCase,
+    entrySource: params.entrySource,
+  });
+  if (params.scenarioId) query.set("scenario_id", params.scenarioId);
+  const url = `${baseUrl}?${query.toString()}`;
   let res: Response;
   try {
     res = await fetch(url, {

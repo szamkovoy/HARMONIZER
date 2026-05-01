@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
+import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
 import type {
   CommunicatorHistoryMessage,
   CommunicatorInitialMode,
@@ -125,6 +126,7 @@ export interface CommunicatorProps {
 type Phase = "idle" | "recording" | "transcribing" | "error";
 
 const MIN_VOICE_MS = 450;
+const LOW_TRANSCRIPTION_CONFIDENCE = 0.65;
 
 function getTurnUserAnchorIndex(
   list: CommunicatorHistoryMessage[],
@@ -250,6 +252,8 @@ export function Communicator({
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId ?? null);
   const [sessionSynced, setSessionSynced] = useState(false);
   const [txtDraft, setTxtDraft] = useState("");
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
+  const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
   const initialHistoryRef = useRef<CommunicatorHistoryMessage[]>(ensureIds(sliceHistoryForWindow(history, memoryWindow)));
 
   const reportError = useCallback(
@@ -458,6 +462,11 @@ export function Communicator({
           });
           userMessageText = transcript.text.trim();
           setPhase("idle");
+          if (userMessageText && transcript.confidence != null && transcript.confidence < LOW_TRANSCRIPTION_CONFIDENCE) {
+            setPendingTranscript(userMessageText);
+            setPendingTranscriptConfidence(transcript.confidence);
+            return;
+          }
         }
 
         if (!userMessageText) return;
@@ -619,12 +628,7 @@ export function Communicator({
         playsInSilentModeIOS: true,
       });
       if (generation !== startRecordingGenerationRef.current) return;
-      const { recording } = await Audio.Recording.createAsync(
-        {
-          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-          isMeteringEnabled: true,
-        },
-      );
+      const { recording } = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: true }));
       if (generation !== startRecordingGenerationRef.current) {
         try {
           await recording.stopAndUnloadAsync();
@@ -731,6 +735,19 @@ export function Communicator({
     setTxtDraft("");
     await runStream({ type: "text", text: t });
   }, [isBusy, runStream, txtDraft]);
+
+  const cancelTranscriptReview = useCallback(() => {
+    setPendingTranscript(null);
+    setPendingTranscriptConfidence(undefined);
+  }, []);
+
+  const sendReviewedTranscript = useCallback(async () => {
+    const text = pendingTranscript?.trim();
+    if (!text || streamBusy) return;
+    setPendingTranscript(null);
+    setPendingTranscriptConfidence(undefined);
+    await runStream({ type: "text", text });
+  }, [pendingTranscript, runStream, streamBusy]);
 
   const toggleMode = useCallback(() => {
     if (!canSwitchMode || isBusy) return;
@@ -862,6 +879,65 @@ export function Communicator({
           },
         ]}
       >
+        {pendingTranscript != null ? (
+          <View
+            style={[
+              styles.transcriptReview,
+              {
+                borderColor,
+                backgroundColor: theme.colors.surfaceElevated,
+              },
+            ]}
+          >
+            <AppText variant="buttonLabel">{strings.transcriptionReviewTitle}</AppText>
+            <AppText variant="technicalCaption" tone="muted">
+              {strings.transcriptionReviewHint(pendingTranscriptConfidence)}
+            </AppText>
+            <TextInput
+              value={pendingTranscript}
+              onChangeText={setPendingTranscript}
+              placeholder={strings.textPlaceholder}
+              placeholderTextColor={theme.colors.textFaint}
+              editable={!streamBusy}
+              multiline
+              maxLength={8000}
+              style={[
+                styles.transcriptReviewInput,
+                {
+                  color: theme.colors.textPrimary,
+                  borderColor,
+                  backgroundColor: theme.colors.surface,
+                  fontSize: theme.typography.screenHint.fontSize,
+                  lineHeight: theme.typography.screenHint.lineHeight,
+                  fontWeight: theme.typography.screenHint.fontWeight,
+                  fontFamily: theme.typography.screenHint.fontFamily,
+                },
+              ]}
+            />
+            <View style={styles.transcriptReviewActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={streamBusy}
+                onPress={cancelTranscriptReview}
+                style={[styles.reviewSecondaryBtn, streamBusy && styles.sendBtnDisabled]}
+              >
+                <AppText variant="buttonLabel" tone="muted">{strings.transcriptionReviewCancel}</AppText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={streamBusy || !pendingTranscript.trim()}
+                onPress={() => void sendReviewedTranscript()}
+                style={[
+                  styles.reviewPrimaryBtn,
+                  { backgroundColor: theme.colors.buttonPrimaryBg },
+                  (streamBusy || !pendingTranscript.trim()) && styles.sendBtnDisabled,
+                ]}
+              >
+                <AppText variant="buttonLabel" tone="accentOn">{strings.transcriptionReviewSend}</AppText>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
         <View style={styles.footerRow}>
           {uiMode === "VOICE" ? (
             <View style={styles.toggleSpacer} />
@@ -960,6 +1036,7 @@ export function Communicator({
             <View style={styles.toggleSpacer} />
           )}
         </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -986,6 +1063,39 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     width: "100%",
     alignSelf: "center",
+  },
+  transcriptReview: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    gap: 8,
+    maxWidth: 560,
+    width: "100%",
+    alignSelf: "center",
+    padding: 12,
+  },
+  transcriptReviewInput: {
+    minHeight: 72,
+    maxHeight: 140,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    textAlignVertical: "top",
+  },
+  transcriptReviewActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  reviewSecondaryBtn: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  reviewPrimaryBtn: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   voiceCol: {
     flex: 1,

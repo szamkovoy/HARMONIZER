@@ -37,6 +37,10 @@ export interface CommunicatorStrings {
   expandAccessibilityLabel: string;
   switchToVoiceAccessibilityLabel: string;
   switchToTextAccessibilityLabel: string;
+  transcriptionReviewTitle: string;
+  transcriptionReviewHint: (confidence?: number) => string;
+  transcriptionReviewCancel: string;
+  transcriptionReviewSend: string;
   practiceCard: {
     eyebrow: string;
     fallbackTitle: string;
@@ -109,6 +113,13 @@ const ru: CommunicatorStrings = {
   expandAccessibilityLabel: "Развернуть",
   switchToVoiceAccessibilityLabel: "Переключить на голос",
   switchToTextAccessibilityLabel: "Переключить на текст",
+  transcriptionReviewTitle: "Проверь распознавание",
+  transcriptionReviewHint: (confidence) =>
+    confidence == null
+      ? "Я не получил оценку качества расшифровки. Проверь текст перед отправкой."
+      : `Я не уверен, что точно тебя услышал (${Math.round(confidence * 100)}%). Поправь текст, если нужно.`,
+  transcriptionReviewCancel: "Отменить",
+  transcriptionReviewSend: "Отправить",
   practiceCard: {
     eyebrow: "Подходящая практика",
     fallbackTitle: "Практика",
@@ -143,6 +154,13 @@ const en: CommunicatorStrings = {
   expandAccessibilityLabel: "Expand",
   switchToVoiceAccessibilityLabel: "Switch to voice",
   switchToTextAccessibilityLabel: "Switch to text",
+  transcriptionReviewTitle: "Check transcription",
+  transcriptionReviewHint: (confidence) =>
+    confidence == null
+      ? "I did not receive a transcription quality score. Please check the text before sending."
+      : `I am not fully sure I heard you correctly (${Math.round(confidence * 100)}%). Edit the text if needed.`,
+  transcriptionReviewCancel: "Cancel",
+  transcriptionReviewSend: "Send",
   practiceCard: {
     eyebrow: "Suggested practice",
     fallbackTitle: "Practice",

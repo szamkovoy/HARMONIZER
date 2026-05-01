@@ -28,6 +28,7 @@ import {
   type OrchestratorDecision,
 } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
+import { getScenario } from "../../../_utils/scenarios";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
 import {
   isConversationExpired,
@@ -44,6 +45,7 @@ export const runtime = "nodejs";
 type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
 
 type Body = {
+  scenario_id?: string;
   conversationId?: string | null;
   useCase?: DialogueUseCase;
   entrySource?: DialogueEntrySource;
@@ -67,8 +69,38 @@ function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+function warnDeprecatedDialogRoute(req: Request): void {
+  if (new URL(req.url).pathname.includes("/api/communicator/v2/dialog")) {
+    console.warn("[DEPRECATED] /api/communicator/v2/dialog is deprecated. Use /api/ai/dialog with scenario_id.");
+  }
+}
+
 function assertUseCase(useCase: unknown): DialogueUseCase {
-  return useCase === "calibration" ? "calibration" : "daily_dialog";
+  return typeof useCase === "string" && useCase.trim() ? useCase.trim() : "daily_dialog";
+}
+
+async function resolveDialogueScenario(
+  db: SupabaseClient,
+  body: Pick<Body, "scenario_id" | "useCase">,
+): Promise<{ useCase: DialogueUseCase; scenarioId: string | null }> {
+  const scenarioId = body.scenario_id?.trim();
+  if (!scenarioId) {
+    const useCase = assertUseCase(body.useCase);
+    return {
+      useCase,
+      scenarioId: useCase === "calibration" || useCase === "daily_dialog" ? useCase : null,
+    };
+  }
+
+  const scenario = await getScenario(scenarioId, db);
+  if (!scenario) throw new Response(JSON.stringify({ error: "Scenario not found" }), { status: 404 });
+  if (scenario.scenario_type !== "dialogue") {
+    throw new Response(JSON.stringify({ error: "Invalid scenario for dialog endpoint" }), { status: 400 });
+  }
+  if (!scenario.dialogue_use_case) {
+    throw new Response(JSON.stringify({ error: "Scenario has no dialogue_use_case configured" }), { status: 500 });
+  }
+  return { useCase: scenario.dialogue_use_case, scenarioId: scenario.id };
 }
 
 function axesFor(useCase: DialogueUseCase) {
@@ -88,12 +120,14 @@ async function createConversation(
   userId: string,
   body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body,
   useCase: DialogueUseCase,
+  scenarioId: string | null,
   extraMeta: Record<string, unknown> = {},
 ): Promise<ConversationRecord> {
   const { data, error } = await db
     .from("conversations")
     .insert({
       user_id: userId,
+      scenario_id: scenarioId,
       entry_source: body.entrySource,
       trigger_meta: {
         ...conversationTriggerMeta(body, useCase),
@@ -111,6 +145,7 @@ async function loadConversation(
   userId: string,
   body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body,
   useCase: DialogueUseCase,
+  scenarioId: string | null,
   timezone: string,
 ) {
   if (body.conversationId) {
@@ -127,14 +162,14 @@ async function loadConversation(
 
     const summary = await summarizeConversationIfNeeded(db, userId, conversation.id);
     await db.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
-    return createConversation(db, userId, body, useCase, {
+    return createConversation(db, userId, body, useCase, scenarioId, {
       reset_reason: "session_expired",
       previous_conversation_id: conversation.id,
       previous_conversation_summary: summary,
     });
   }
 
-  return createConversation(db, userId, body, useCase);
+  return createConversation(db, userId, body, useCase, scenarioId);
 }
 
 async function loadPhases(db: SupabaseClient, useCase: DialogueUseCase): Promise<PhaseRecord[]> {
@@ -341,7 +376,12 @@ async function buildDecision(params: {
   if (greetingBypassEnabled && !params.clientGreetingShown && (params.conversationIdWasNull || params.history.length === 0)) {
     return {
       decision: {
-        ...greetingBypassDecision(params.useCase, params.userTimezone, params.conversationIdWasNull ? "null_conversation_id" : "no_history"),
+        ...greetingBypassDecision(
+          params.useCase,
+          params.userTimezone,
+          params.conversationIdWasNull ? "null_conversation_id" : "no_history",
+          params.phases[0]?.phase_id,
+        ),
         reasoning: "Bypass: первый ход диалога, фаза детерминирована.",
         insight_metrics: insightMetrics,
       },
@@ -499,17 +539,21 @@ export async function GET(req: Request) {
   let db: SupabaseClient | null = null;
   let userId: string | null = null;
   try {
+    warnDeprecatedDialogRoute(req);
     userId = await requireUserId(req);
     const url = new URL(req.url);
-    const useCase = assertUseCase(url.searchParams.get("useCase"));
+    db = createServiceSupabase();
+    const { useCase, scenarioId } = await resolveDialogueScenario(db, {
+      scenario_id: url.searchParams.get("scenario_id") ?? undefined,
+      useCase: url.searchParams.get("useCase") ?? undefined,
+    });
     const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
 
-    db = createServiceSupabase();
     const context = await loadContext(db, userId);
     const userTimezone = context.user.tz ?? "UTC";
     const { data, error } = await db
       .from("conversations")
-      .select("id,trigger_meta,entry_source,started_at,ended_at,last_message_at")
+      .select("id,scenario_id,trigger_meta,entry_source,started_at,ended_at,last_message_at")
       .eq("user_id", userId)
       .eq("entry_source", entrySource)
       .is("ended_at", null)
@@ -519,7 +563,8 @@ export async function GET(req: Request) {
 
     const conversation = ((data ?? []) as ConversationRecord[]).find((item) => {
       const metaUseCase = typeof item.trigger_meta?.use_case === "string" ? item.trigger_meta.use_case : null;
-      return (!metaUseCase || metaUseCase === useCase) && !isConversationExpired(item, userTimezone);
+      const scenarioMatches = !scenarioId || item.scenario_id === scenarioId || (!item.scenario_id && metaUseCase === useCase);
+      return scenarioMatches && (!metaUseCase || metaUseCase === useCase) && !isConversationExpired(item, userTimezone);
     });
     if (!conversation) return json({ conversationId: null, messages: [], reset: true });
 
@@ -555,14 +600,15 @@ export async function POST(req: Request) {
   let userId: string | null = null;
   let endpointStage = "request";
   try {
+    warnDeprecatedDialogRoute(req);
     const requestStarted = Date.now();
     userId = await requireUserId(req);
     const body = (await req.json()) as Body;
-    const useCase = assertUseCase(body.useCase);
     const userMessage = String(body.userMessage ?? "").trim();
     if (!userMessage) return json({ error: "userMessage is required" }, { status: 400 });
 
     db = createServiceSupabase();
+    const { useCase, scenarioId } = await resolveDialogueScenario(db, body);
     const conversationIdWasNull = !body.conversationId;
     endpointStage = "load_context";
     const [context, phases] = await Promise.all([loadContext(db, userId), loadPhases(db, useCase)]);
@@ -571,7 +617,7 @@ export async function POST(req: Request) {
       ...body,
       entrySource: body.entrySource ?? "home",
       triggerMeta: body.triggerMeta ?? {},
-    }, useCase, userTimezone);
+    }, useCase, scenarioId, userTimezone);
     const [history, dailyBackground] = await Promise.all([
       loadHistory(db, userId, conversation.id),
       loadDayBackground(db, userId, userTimezone),
@@ -603,7 +649,7 @@ export async function POST(req: Request) {
       role: "user",
       content: userMessage,
       content_type: "text",
-      meta: { use_case: useCase },
+      meta: { use_case: useCase, scenario_id: scenarioId },
     });
 
     const routeDb = db;
@@ -737,6 +783,7 @@ export async function POST(req: Request) {
               content_type: "text",
               meta: {
                 use_case: useCase,
+                scenario_id: scenarioId,
                 orchestrator_decision: decision,
                 responder: {
                   phase_used: phase.phase_id,

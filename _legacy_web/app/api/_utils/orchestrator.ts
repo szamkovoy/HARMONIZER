@@ -1,7 +1,7 @@
 import { getOrchestratorLocaleConfig } from "./locale-configs";
 import type { TTMStage } from "./insightDetection";
 
-export type DialogueUseCase = "calibration" | "daily_dialog";
+export type DialogueUseCase = string;
 export type UserSignal =
   | "open"
   | "closed"
@@ -104,10 +104,15 @@ export function timeOfDayContext(date = new Date(), timezone = "UTC"): TimeOfDay
   };
 }
 
-export function greetingBypassDecision(useCase: DialogueUseCase, timezone: string, bypassReason = "no_history"): OrchestratorDecision {
+export function greetingBypassDecision(
+  useCase: DialogueUseCase,
+  timezone: string,
+  bypassReason = "no_history",
+  initialPhaseId?: string,
+): OrchestratorDecision {
   const tod = timeOfDayContext(new Date(), timezone);
   return {
-    next_phase: useCase === "calibration" ? "welcome_and_hint" : "contextual_greeting",
+    next_phase: initialPhaseId ?? (useCase === "calibration" ? "welcome_and_hint" : "contextual_greeting"),
     reasoning: "Bypass: первый ход диалога, фаза детерминирована.",
     information_completeness: {},
     information_density: 0,

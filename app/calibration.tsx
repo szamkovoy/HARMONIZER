@@ -6,11 +6,13 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, useColorSche
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
+import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
 import { extractCalibration, transcribeCommunicatorAudio } from "@/services/communicator-client";
 
 type CalibrationPhase = "idle" | "recording" | "transcribing" | "editing" | "extracting" | "complete" | "error";
 
 const MIN_VOICE_MS = 450;
+const LOW_TRANSCRIPTION_CONFIDENCE = 0.65;
 
 function phaseLabel(phase: CalibrationPhase): string {
   switch (phase) {
@@ -39,6 +41,7 @@ export default function CalibrationScreen() {
   const recordStartRef = useRef(0);
   const [phase, setPhase] = useState<CalibrationPhase>("idle");
   const [feedbackText, setFeedbackText] = useState("");
+  const [transcriptionConfidence, setTranscriptionConfidence] = useState<number | undefined>(undefined);
   const [summary, setSummary] = useState<string | null>(null);
 
   const reportError = useCallback((err: Error) => {
@@ -58,10 +61,11 @@ export default function CalibrationScreen() {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      const { recording } = await Audio.Recording.createAsync(whisperRecordingOptions());
       recordingRef.current = recording;
       recordStartRef.current = Date.now();
       setSummary(null);
+      setTranscriptionConfidence(undefined);
       setPhase("recording");
     } catch (e) {
       reportError(e instanceof Error ? e : new Error(String(e)));
@@ -93,6 +97,7 @@ export default function CalibrationScreen() {
       const base64 = await readAsStringAsync(uri, { encoding: "base64" });
       const transcript = await transcribeCommunicatorAudio({ mimeType, base64, language: "ru" });
       setFeedbackText(transcript.text);
+      setTranscriptionConfidence(transcript.confidence);
       setPhase("editing");
     } catch (e) {
       setPhase("editing");
@@ -172,7 +177,9 @@ export default function CalibrationScreen() {
       >
         <Text style={[styles.status, { color: isDark ? "#f5f5f5" : "#171717" }]}>{phaseLabel(phase)}</Text>
         <Text style={[styles.statusHint, { color: isDark ? "#a3a3a3" : "#737373" }]}>
-          {phase === "extracting"
+          {transcriptionConfidence != null && transcriptionConfidence < LOW_TRANSCRIPTION_CONFIDENCE
+            ? `Я не уверен, что точно услышал (${Math.round(transcriptionConfidence * 100)}%). Проверь и поправь текст перед калибровкой.`
+            : phase === "extracting"
             ? "Сверяю твои слова с картой состояний и пересчитываю силу планет."
             : "Это не редактирование текста, а настройка основы, из которой строится рекомендация."}
         </Text>

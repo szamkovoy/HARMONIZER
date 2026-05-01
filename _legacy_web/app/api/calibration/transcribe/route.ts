@@ -1,5 +1,5 @@
-import { errorResponse, json, requireUserId } from "../../../_utils/supabase";
-import { transcribeGroqAudio, type TranscribeAudioBody } from "../../../_utils/whisperTranscription";
+import { errorResponse, json, requireUserId } from "../../_utils/supabase";
+import { transcribeGroqAudio, type TranscribeAudioBody } from "../../_utils/whisperTranscription";
 
 export const runtime = "nodejs";
 
