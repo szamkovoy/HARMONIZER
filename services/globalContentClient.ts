@@ -24,7 +24,7 @@ type GlobalContentResponse = {
   slogan?: string;
   short_text: string;
   long_explanation?: string;
-  math_level?: unknown;
+  math_level?: DailyForecast["mathLevel"];
   primary_planet: Planet;
   primary_tone: "harmonic" | "dissonant" | "ambivalent_strong";
   top_petals: GlobalTopPetal[];

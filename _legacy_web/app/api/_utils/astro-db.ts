@@ -19,6 +19,10 @@ type NatalChartRow = {
 };
 
 export function natalProfileFromRow(row: NatalChartRow): NatalProfile {
+  const house1Cusp =
+    row.precision_mode === "precise" && row.ascendant_longitude != null
+      ? Math.floor(row.ascendant_longitude / 30) * 30
+      : null;
   return {
     precisionMode: row.precision_mode,
     isDayChart: row.is_day_chart,
@@ -30,6 +34,7 @@ export function natalProfileFromRow(row: NatalChartRow): NatalProfile {
             sign: signOf(row.ascendant_longitude),
           },
     houseSystem: row.house_system,
+    houseCusps: house1Cusp == null ? undefined : Array.from({ length: 12 }, (_, i) => (house1Cusp + i * 30) % 360),
     planets: row.planets,
     computedAt: row.computed_at,
     ephemerisLibVersion: row.ephemeris_lib_version ?? "unknown",

@@ -145,4 +145,24 @@ describe("M1 Astro-Core natal math", () => {
     expect(profile.planets.Mars.S_initial).toBeGreaterThan(0.75);
     expect(profile.planets.Mars.H_initial).toBeGreaterThan(0.5);
   });
+
+  it("derives whole-sign house cusps only for precise birth time", () => {
+    const precise = computeNatalProfileFromPositions({
+      precisionMode: "precise",
+      chart: chart({
+        ascendantLongitude: 155,
+        positions: {},
+      }),
+    });
+    const approximate = computeNatalProfileFromPositions({
+      precisionMode: "approximate",
+      chart: chart({
+        ascendantLongitude: 155,
+        positions: {},
+      }),
+    });
+
+    expect(precise.houseCusps).toEqual([150, 180, 210, 240, 270, 300, 330, 0, 30, 60, 90, 120]);
+    expect(approximate.houseCusps).toBeUndefined();
+  });
 });

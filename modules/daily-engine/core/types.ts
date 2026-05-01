@@ -63,6 +63,14 @@ export interface DailyForecast {
   transitChart: TransitChart;
   computedAt: string;
   cacheValidUntil: string;
+  recommendationShortText?: string;
+  recommendationLongText?: string;
+  slogan?: string;
+  mathLevel?: {
+    markdown: string;
+    structured?: unknown;
+  };
+  isGlobal?: boolean;
 }
 
 export interface WindowComputationContext {

@@ -1,7 +1,14 @@
-import { computeDailyForecastWithAstronomia, type CalibrationLike, type DailyEngineInput, type Planet } from "../../../../modules/daily-engine";
+import {
+  computeDailyForecastWithAstronomia,
+  type CalibrationLike,
+  type DailyEngineInput,
+  type DailyForecast,
+  type Planet,
+} from "../../../../modules/daily-engine";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
 import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
+import { buildMathLevel } from "../../_utils/mathLevelBuilder";
 
 // Запись в user_daily_forecasts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
@@ -58,6 +65,13 @@ async function cachedForecast(
   return data ?? null;
 }
 
+function forecastWithMathLevel(forecast: unknown, natalProfile: DailyEngineInput["natalProfile"], calibration: CalibrationLike | null) {
+  return {
+    ...(forecast as Record<string, unknown>),
+    mathLevel: buildMathLevel(forecast as DailyForecast, natalProfile, calibration),
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const userId = await requireUserId(req);
@@ -71,7 +85,17 @@ export async function POST(req: Request) {
 
     if (!body.forceRefresh) {
       const cached = await cachedForecast(db, userId, forecastDate);
-      if (cached) return json({ source: "cache", forecast: cached });
+      if (cached) {
+        const [{ profile: natalProfile }, calibration] = await Promise.all([
+          loadActiveNatalProfile(db, userId),
+          loadActiveCalibration(db, userId),
+        ]);
+        return json({
+          source: "cache",
+          forecast: cached,
+          forecastPayload: forecastWithMathLevel(cached, natalProfile, calibration),
+        });
+      }
     }
 
     const [{ profile: natalProfile }, calibration, recentPlanetsOfDay] = await Promise.all([
@@ -97,7 +121,11 @@ export async function POST(req: Request) {
       .single();
     if (error) throw error;
 
-    return json({ source: "computed", forecast: data, forecastPayload: forecast });
+    return json({
+      source: "computed",
+      forecast: data,
+      forecastPayload: forecastWithMathLevel(forecast, natalProfile, calibration),
+    });
   } catch (error) {
     return errorResponse(error);
   }

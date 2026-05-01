@@ -34,6 +34,9 @@ type ForecastPayload = Partial<DailyForecast> & {
   recommendation_short_text?: string | null;
   recommendationLongText?: string | null;
   recommendation_long_text?: string | null;
+  slogan?: string | null;
+  mathLevel?: DailyForecast["mathLevel"] | null;
+  math_level?: DailyForecast["mathLevel"] | null;
   computed_at?: string;
   cache_valid_until?: string;
 };
@@ -119,6 +122,8 @@ function normalizeForecast(raw: ForecastPayload): DailyForecast {
   return Object.assign(forecast, {
     recommendationShortText: raw.recommendationShortText ?? raw.recommendation_short_text ?? undefined,
     recommendationLongText: raw.recommendationLongText ?? raw.recommendation_long_text ?? undefined,
+    slogan: raw.slogan ?? undefined,
+    mathLevel: raw.mathLevel ?? raw.math_level ?? undefined,
   });
 }
 

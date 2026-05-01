@@ -1,5 +1,5 @@
 import { useAuth } from "@/modules/auth";
-import type { BirthData } from "@/modules/astro-core";
+import type { BirthData, NatalProfile } from "@/modules/astro-core";
 import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/types";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
@@ -11,11 +11,11 @@ import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { createNatalProfile } from "@/services/natalProfileClient";
+import { createNatalProfile, fetchActiveNatalProfile } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -431,6 +431,26 @@ export default function HomeScreen() {
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [tierSwitching, setTierSwitching] = useState(false);
+  const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!profile?.id || accessMode === "free") {
+      setNatalProfile(null);
+      return;
+    }
+    fetchActiveNatalProfile()
+      .then((value) => {
+        if (!cancelled) setNatalProfile(value);
+      })
+      .catch((error) => {
+        console.warn("[Home] Failed to load active natal profile", error);
+        if (!cancelled) setNatalProfile(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessMode, profile?.id]);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
@@ -441,7 +461,8 @@ export default function HomeScreen() {
     async (birthData: BirthData) => {
       setNatalSaving(true);
       try {
-        await createNatalProfile(birthData);
+        const result = await createNatalProfile(birthData);
+        setNatalProfile(result.profile);
         await refreshProfile();
         await refresh({ forceRefresh: true });
         setNatalBridgeOpen(false);
@@ -512,6 +533,8 @@ export default function HomeScreen() {
               strings={strings}
               onDiscuss={() => setCommunicatorOpen(true)}
               showDiscuss={accessMode !== "free"}
+              accessMode={accessMode}
+              natalProfile={natalProfile}
             />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}

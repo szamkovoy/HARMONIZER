@@ -29,6 +29,12 @@ function validateBirthData(input: BirthData): void {
   }
 }
 
+function wholeSignCusps(ascendantLongitude: number | undefined, precisionMode: BirthData["timeMode"]): number[] | undefined {
+  if (precisionMode !== "precise" || ascendantLongitude == null) return undefined;
+  const house1Cusp = Math.floor(ascendantLongitude / 30) * 30;
+  return Array.from({ length: 12 }, (_, i) => (house1Cusp + i * 30) % 360);
+}
+
 export function computeNatalProfileFromPositions(params: {
   precisionMode: BirthData["timeMode"];
   chart: ChartPositions;
@@ -110,6 +116,7 @@ export function computeNatalProfileFromPositions(params: {
         ? { longitude: chart.ascendantLongitude, sign: signOf(chart.ascendantLongitude) }
         : undefined,
     houseSystem,
+    houseCusps: wholeSignCusps(chart.ascendantLongitude, precisionMode),
     planets,
     computedAt: chart.computedAt ?? new Date().toISOString(),
     ephemerisLibVersion: chart.ephemerisLibVersion,

@@ -100,6 +100,7 @@ export interface NatalProfile {
   isDayChart: boolean;
   ascendant?: { longitude: number; sign: ZodiacSign };
   houseSystem: HouseSystem;
+  houseCusps?: number[];
   planets: Record<Planet, PlanetState>;
   computedAt: string;
   ephemerisLibVersion: string;
