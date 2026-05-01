@@ -1,9 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "../../../../../data/information_axes.json";
+import { buildAddressFormHint } from "../../../_utils/addressForm";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
 import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "../../../_utils/gemini";
+import {
+  computeCSI,
+  computeETV,
+  detectInsightMoment,
+  detectTTMStage,
+  estimateEmotionalValence,
+  isReadyForPractice,
+} from "../../../_utils/insightDetection";
 import { parseResponseMarkers, stripResponseMarkers, type PracticePickMarker } from "../../../_utils/markers";
 import { reportRouteError } from "../../../_utils/monitoring";
 import {
@@ -247,6 +256,70 @@ function isGeminiJsonParseError(error: unknown): error is GeminiJsonParseError {
   );
 }
 
+function userMessageText(message: MessageRecord): string {
+  return String(message.content ?? message.transcript ?? "").trim();
+}
+
+function buildInsightMetrics(history: MessageRecord[], userMessage: string, locale?: string | null): NonNullable<OrchestratorDecision["insight_metrics"]> {
+  const language = (locale ?? "ru").slice(0, 2);
+  const previousUserMessages = history.filter((message) => message.role === "user").map(userMessageText).filter(Boolean);
+  const recentMessages = [...previousUserMessages, userMessage].slice(-5);
+  const csiTrend = recentMessages.map((message) => computeCSI(message, language));
+  const insight = detectInsightMoment(csiTrend);
+  const valenceTrend = recentMessages.map((message) => estimateEmotionalValence(message, language));
+  const ttm = detectTTMStage(recentMessages, language);
+  const readiness = isReadyForPractice(ttm.stage);
+
+  return {
+    csi: csiTrend.at(-1) ?? 0,
+    csi_trend: csiTrend,
+    insight_detected: insight.detected,
+    insight_confidence: insight.confidence,
+    ttm_stage: ttm.stage,
+    ttm_confidence: ttm.confidence,
+    ready_for_practice: readiness.ready,
+    readiness_reason: readiness.reason,
+    etv: computeETV(valenceTrend),
+    valence_trend: valenceTrend,
+  };
+}
+
+function blockedPhasesForInsight(metrics: NonNullable<OrchestratorDecision["insight_metrics"]>, useCase: DialogueUseCase): string[] {
+  if (useCase !== "daily_dialog" || metrics.ready_for_practice) return [];
+  return ["ask_practice_intent", "suggest_practice"];
+}
+
+function etvHint(etv: number): string {
+  if (etv > 0.6) return "high (пользователь раскачивается, копай глубже)";
+  if (etv < 0.3) return "low (стабилен, можно к практике при готовности)";
+  return "moderate";
+}
+
+function ttmHint(metrics: NonNullable<OrchestratorDecision["insight_metrics"]>): string {
+  return `Стадия готовности: ${metrics.ttm_stage}. ${
+    metrics.ready_for_practice ? "Готов к практике." : `НЕ ГОТОВ к практике (${metrics.readiness_reason}).`
+  }`;
+}
+
+function insightHint(metrics: NonNullable<OrchestratorDecision["insight_metrics"]>): string {
+  return metrics.insight_detected
+    ? `Инсайт детектирован (CSI=${(metrics.insight_confidence ?? 0).toFixed(2)}). Можно закреплять или переходить к практике, если TTM позволяет.`
+    : "Инсайт не детектирован.";
+}
+
+function enforceInsightPhaseGuards(decision: OrchestratorDecision, metrics: NonNullable<OrchestratorDecision["insight_metrics"]>, useCase: DialogueUseCase): OrchestratorDecision {
+  if (useCase !== "daily_dialog" || metrics.ready_for_practice) return decision;
+  if (decision.next_phase !== "ask_practice_intent" && decision.next_phase !== "suggest_practice") return decision;
+
+  return {
+    ...decision,
+    next_phase: metrics.ttm_stage === "preconcept" ? "deepen_inquiry" : "offer_insight",
+    reasoning: `${decision.reasoning} Insight Engine guard: ${metrics.ttm_stage} blocks practice (${metrics.readiness_reason}).`,
+    should_close: false,
+    close_reason: null,
+  };
+}
+
 async function buildDecision(params: {
   db: SupabaseClient;
   userId: string;
@@ -262,12 +335,15 @@ async function buildDecision(params: {
   const started = Date.now();
   const axes = axesFor(params.useCase);
   const iterationNumber = params.history.filter((message) => message.role === "user").length + 1;
+  const insightMetrics = buildInsightMetrics(params.history, params.userMessage, params.context.user.locale);
+  const blockedPhases = blockedPhasesForInsight(insightMetrics, params.useCase);
   const greetingBypassEnabled = process.env.DIALOG_GREETING_BYPASS_ENABLED !== "false";
   if (greetingBypassEnabled && !params.clientGreetingShown && (params.conversationIdWasNull || params.history.length === 0)) {
     return {
       decision: {
         ...greetingBypassDecision(params.useCase, params.userTimezone, params.conversationIdWasNull ? "null_conversation_id" : "no_history"),
         reasoning: "Bypass: первый ход диалога, фаза детерминирована.",
+        insight_metrics: insightMetrics,
       },
       orchestratorLatencyMs: 0,
     };
@@ -287,16 +363,22 @@ async function buildDecision(params: {
   ) {
     const similarity = contextSimilarity(params.userMessage, lastUserMessage(params.history), previousDecision, params.context.user.locale);
     if (similarity > threshold) {
-      return {
-        decision: {
+      const reusedDecision = enforceInsightPhaseGuards(
+        {
           ...previousDecision,
           reasoning: `Reused: similarity ${similarity.toFixed(2)} > ${threshold} threshold at iter ${iterationNumber}`,
           information_density: estimateDensity(params.userMessage),
           user_signals: quickSignalDetection(params.userMessage, params.context.user.locale),
+          insight_metrics: insightMetrics,
           decision_source: "cache_reused",
           cache_similarity: similarity,
           bypass_reason: undefined,
         },
+        insightMetrics,
+        params.useCase,
+      );
+      return {
+        decision: reusedDecision,
         orchestratorLatencyMs: 0,
       };
     }
@@ -320,6 +402,11 @@ async function buildDecision(params: {
       use_case: params.useCase,
       available_phases: params.phases.map((phase) => `- ${phase.phase_id}: ${phase.description ?? ""}`).join("\n"),
       information_axes: axes,
+      blocked_phases: blockedPhases.join(", ") || "none",
+      insight_metrics_json: insightMetrics,
+      ttm_hint: ttmHint(insightMetrics),
+      etv_hint: etvHint(insightMetrics.etv),
+      insight_hint: insightHint(insightMetrics),
       time_of_day: tod.timeOfDay,
       local_hour: tod.localHour,
       time_of_day_hint: tod,
@@ -355,6 +442,7 @@ async function buildDecision(params: {
         information_completeness: {},
         information_density: estimateDensity(params.userMessage),
         user_signals: quickSignalDetection(params.userMessage, params.context.user.locale),
+        insight_metrics: insightMetrics,
         should_close: false,
         close_reason: null,
         responder_hints: { tone: tod.tone, use_user_phrases: [], avoid_topics: [] },
@@ -363,7 +451,7 @@ async function buildDecision(params: {
     );
   }
   return {
-    decision: { ...decision, decision_source: "fresh" },
+    decision: enforceInsightPhaseGuards({ ...decision, insight_metrics: insightMetrics, decision_source: "fresh" }, insightMetrics, params.useCase),
     orchestratorLatencyMs: Date.now() - started,
   };
 }
@@ -375,22 +463,35 @@ function phaseVariables(params: {
   userMessage: string;
   timezone: string;
   practicesList: string;
+  selectedPractice: { id: string; name: string; reason?: string | null } | null;
 }) {
   const tod = timeOfDayContext(new Date(), params.timezone);
   const planet = String(params.context.forecast?.planet_of_the_day ?? "Sun");
+  const todayTone = (params.context.forecast?.today_planet_state as { todayTone?: string; today_tone?: string } | undefined)?.todayTone
+    ?? (params.context.forecast?.today_planet_state as { today_tone?: string } | undefined)?.today_tone
+    ?? "neutral";
+  const addressFormHint = buildAddressFormHint(params.context.user.address_form, params.context.user.locale);
   return {
     time_of_day_greeting: tod.greeting,
+    time_of_day: tod.timeOfDay,
+    local_hour: tod.localHour,
     entry_source: params.body.entrySource ?? "home",
     entry_source_label: params.body.entrySource ?? "home",
     tone: params.decision.responder_hints?.tone ?? tod.tone,
     today_states_options: todayStatesOptions(params.context),
-    planet_of_day_summary: `${planet}, tone=${(params.context.forecast?.today_planet_state as { todayTone?: string } | undefined)?.todayTone ?? "neutral"}`,
+    planet_of_day_summary: `${planet}, tone=${todayTone}`,
+    today_tone: todayTone,
     user_current_state_summary: params.userMessage,
+    user_last_message: params.userMessage,
     filtered_practices_list: params.practicesList,
+    selected_practice: params.selectedPractice ?? {},
+    selected_practice_id: params.selectedPractice?.id ?? "",
     deepen_axis: Object.entries(params.decision.information_completeness ?? {}).sort((a, b) => a[1] - b[1])[0]?.[0] ?? "user_state",
     focus_chakra_label: planet,
     focus_chakra_number: { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 }[planet] ?? 7,
     window_time: (params.body.triggerMeta?.window_time as string | undefined) ?? "",
+    address_form_hint: addressFormHint,
+    user_key_phrases_from_dialog: relevantUserPhrases(params.context).join(", "),
   };
 }
 
@@ -556,7 +657,17 @@ export async function POST(req: Request) {
           });
           const renderedPhase = renderPrompt(
             phasePrompt.template,
-            phaseVariables({ body, context, decision, userMessage, timezone: userTimezone, practicesList }),
+            phaseVariables({
+              body,
+              context,
+              decision,
+              userMessage,
+              timezone: userTimezone,
+              practicesList,
+              selectedPractice: practiceCandidate
+                ? { id: practiceCandidate.id, name: practiceCandidate.name, reason: practiceCandidate.reason }
+                : null,
+            }),
           );
           const prompt = renderPrompt(responderPrompt.template, {
             author_voice_block: authorVoiceBlock,

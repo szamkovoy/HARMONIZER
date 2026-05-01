@@ -407,3 +407,11 @@ on conflict (use_case, phase_id) do update set
   description = excluded.description,
   display_order = excluded.display_order,
   is_active = true;
+
+-- PATCH 9: keep fresh database seeds aligned with the deployed phase prompt library.
+-- The included migration is idempotent: it deactivates older active phase prompts
+-- and upserts version 2 prompts with the current model tier schema.
+\ir migrations/20260501170500_phase_prompts_v2.sql
+
+-- PATCH 10: keep fresh database seeds aligned with the insight-aware orchestrator.
+\ir migrations/20260501172000_orchestrator_insight_engine.sql

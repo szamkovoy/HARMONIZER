@@ -1,4 +1,5 @@
 import { getOrchestratorLocaleConfig } from "./locale-configs";
+import type { TTMStage } from "./insightDetection";
 
 export type DialogueUseCase = "calibration" | "daily_dialog";
 export type UserSignal =
@@ -25,6 +26,18 @@ export type OrchestratorDecision = {
     tone?: "warm" | "neutral" | "energising" | "calming";
     use_user_phrases?: string[];
     avoid_topics?: string[];
+  };
+  insight_metrics?: {
+    csi: number;
+    csi_trend: number[];
+    insight_detected: boolean;
+    insight_confidence?: number;
+    ttm_stage: TTMStage;
+    ttm_confidence: number;
+    ready_for_practice: boolean;
+    readiness_reason: string;
+    etv: number;
+    valence_trend: number[];
   };
   decision_source?: "fresh" | "bypass_greeting" | "cache_reused";
   cache_similarity?: number;
@@ -186,6 +199,7 @@ export function validateOrchestratorDecision(value: unknown, fallbackPhase: stri
     should_close: Boolean(raw.should_close),
     close_reason: raw.close_reason ?? null,
     responder_hints: raw.responder_hints ?? { tone: "neutral", use_user_phrases: [], avoid_topics: [] },
+    insight_metrics: raw.insight_metrics,
     decision_source: raw.decision_source,
     cache_similarity: raw.cache_similarity,
     bypass_reason: raw.bypass_reason,

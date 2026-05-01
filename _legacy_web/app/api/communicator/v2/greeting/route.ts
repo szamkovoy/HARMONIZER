@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildAddressFormHint } from "../../../_utils/addressForm";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
 import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
@@ -104,6 +105,11 @@ export async function POST(req: Request) {
     const tod = timeOfDayContext(new Date(), userTimezone);
     const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
     const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
+    const todayTone = (context.forecast?.today_planet_state as { todayTone?: string; today_tone?: string } | undefined)?.todayTone
+      ?? (context.forecast?.today_planet_state as { today_tone?: string } | undefined)?.today_tone
+      ?? "neutral";
+    const planetOfDay = String(context.forecast?.planet_of_the_day ?? "Sun");
+    const addressFormHint = buildAddressFormHint(context.user.address_form, context.user.locale);
     const authorVoiceBlock = formatAuthorVoiceForPrompt(
       getAuthorVoice(context.user.locale),
       context.user.address_form === "informal" ? "ty" : "vy",
@@ -119,8 +125,13 @@ export async function POST(req: Request) {
     });
     const phaseInstruction = renderPrompt(phasePrompt.template, {
       time_of_day_greeting: tod.greeting,
+      time_of_day: tod.timeOfDay,
+      local_hour: tod.localHour,
       entry_source: body.entrySource ?? "home",
       entry_source_label: body.entrySource ?? "home",
+      planet_of_day_summary: `${planetOfDay}, tone=${todayTone}`,
+      today_tone: todayTone,
+      address_form_hint: addressFormHint,
       window_time: body.triggerMeta?.window_time ?? "",
     });
     endpointStage = "responder";
