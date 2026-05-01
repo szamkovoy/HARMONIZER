@@ -58,6 +58,20 @@ export interface SendDialogMessageParams {
   onComplete?: (event: DialogCompleteEvent) => void;
 }
 
+export interface DialogSessionMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: number;
+  meta?: Record<string, unknown>;
+}
+
+export interface DialogSessionResponse {
+  conversationId: string | null;
+  messages: DialogSessionMessage[];
+  reset: boolean;
+}
+
 export interface SendDialogMessageResult {
   decision: OrchestratorDecision | null;
   fullText: string;
@@ -252,6 +266,30 @@ export async function sendDialogMessage(params: SendDialogMessageParams): Promis
 
   if (!res.ok) throw await readError(res);
   return readSseResponse(res, params);
+}
+
+export async function fetchDialogSession(params: {
+  useCase: DialogueUseCase;
+  entrySource: DialogueEntrySource;
+  signal?: AbortSignal;
+}): Promise<DialogSessionResponse> {
+  const token = await getAccessToken();
+  const baseUrl = getCommunicatorV2DialogUrl();
+  const url = `${baseUrl}?useCase=${encodeURIComponent(params.useCase)}&entrySource=${encodeURIComponent(params.entrySource)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: params.signal,
+    });
+  } catch (error) {
+    throw networkError(url, error);
+  }
+  if (!res.ok) throw await readError(res);
+  return (await res.json()) as DialogSessionResponse;
 }
 
 export async function transcribeCommunicatorAudio(req: TranscribeAudioRequest): Promise<TranscribeAudioResponse> {

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
+import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
 import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { communicatorModel, generateGeminiText } from "../../../_utils/gemini";
+import { generateGeminiText, getModelByHint } from "../../../_utils/gemini";
 import { reportRouteError } from "../../../_utils/monitoring";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
@@ -41,7 +42,7 @@ async function loadGreetingContext(db: SupabaseClient, userId: string) {
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle(),
-    db.from("users").select("display_name,birth_date").eq("id", userId).maybeSingle(),
+    db.from("users").select("display_name,birth_date,locale,address_form").eq("id", userId).maybeSingle(),
   ]);
   if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
@@ -52,7 +53,13 @@ async function loadGreetingContext(db: SupabaseClient, userId: string) {
     calibration: calibrationResult.data as Record<string, unknown> | null,
     forecast: forecastResult.data as Record<string, unknown> | null,
     natal: natalResult.data ? natalProfileFromRow(natalResult.data as never) : null,
-    user: (userResult.data as { display_name?: string | null; birth_date?: string | null } | null) ?? {},
+    user:
+      (userResult.data as {
+        display_name?: string | null;
+        birth_date?: string | null;
+        locale?: string | null;
+        address_form?: string | null;
+      } | null) ?? {},
   };
 }
 
@@ -97,6 +104,10 @@ export async function POST(req: Request) {
     const tod = timeOfDayContext(new Date(), userTimezone);
     const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
     const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
+    const authorVoiceBlock = formatAuthorVoiceForPrompt(
+      getAuthorVoice(context.user.locale),
+      context.user.address_form === "informal" ? "ty" : "vy",
+    );
     const profileSize = logDTOSize("greeting.profile", profileDTO, 350);
     const forecastSize = logDTOSize("greeting.forecast", forecastDTO, 200);
     await logPromptSize(db, userId, {
@@ -115,6 +126,7 @@ export async function POST(req: Request) {
     endpointStage = "responder";
     const result = await generateGeminiText({
       prompt: renderPrompt(responderPrompt.template, {
+        author_voice_block: authorVoiceBlock,
         current_phase: decision.next_phase,
         phase_instruction: phaseInstruction,
         tone: decision.responder_hints?.tone ?? tod.tone,
@@ -125,9 +137,9 @@ export async function POST(req: Request) {
         user_profile_summary: profileDTO,
         daily_context: forecastDTO,
       }),
-      model: communicatorModel(),
-      temperature: phasePrompt.temperature ?? responderPrompt.temperature,
-      maxOutputTokens: phasePrompt.max_output_tokens ?? responderPrompt.max_output_tokens,
+      model: getModelByHint(responderPrompt.model_hint),
+      temperature: responderPrompt.temperature,
+      maxOutputTokens: responderPrompt.max_output_tokens,
     });
 
     const { data: message, error: messageError } = await db

@@ -15,7 +15,7 @@ import {
   type StatesMap,
 } from "../../_utils/calibration";
 import { buildCalibrationCompact, buildProfileCompact, logDTOSize } from "../../_utils/dto";
-import { GeminiJsonParseError, generateGeminiJson, proModel, proModelChain } from "../../_utils/gemini";
+import { GeminiJsonParseError, generateGeminiJson, getModelByHint } from "../../_utils/gemini";
 import { reportRouteError } from "../../_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
@@ -112,8 +112,7 @@ async function extractWithGemini(
   try {
     const result = await generateGeminiJson<CalibrationExtraction>({
       prompt: rendered,
-      model: proModel(),
-      fallbackModels: proModelChain(),
+      model: getModelByHint(prompt.model_hint),
       temperature: prompt.temperature,
       maxOutputTokens: prompt.max_output_tokens,
     });

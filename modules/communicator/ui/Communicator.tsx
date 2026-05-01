@@ -36,7 +36,13 @@ import type {
   CommunicatorSessionState,
   EmotionSegmentPayload,
 } from "@/modules/communicator/core/types";
-import { transcribeCommunicatorAudio, type DialogueEntrySource, type DialogueUseCase, type PracticePicked } from "@/services/communicator-client";
+import {
+  fetchDialogSession,
+  transcribeCommunicatorAudio,
+  type DialogueEntrySource,
+  type DialogueUseCase,
+  type PracticePicked,
+} from "@/services/communicator-client";
 import type { OrchestratorDecision } from "@/services/communicator-client";
 import { AppText } from "@/modules/ui/AppText";
 import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -238,13 +244,13 @@ export function Communicator({
     setUiMode(resolved.uiMode);
   }, [resolved.uiMode]);
 
-  const [messages, setMessages] = useState<CommunicatorHistoryMessage[]>(() =>
-    ensureIds(sliceHistoryForWindow(history, memoryWindow)),
-  );
+  const [messages, setMessages] = useState<CommunicatorHistoryMessage[]>([]);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId ?? null);
+  const [sessionSynced, setSessionSynced] = useState(false);
   const [txtDraft, setTxtDraft] = useState("");
+  const initialHistoryRef = useRef<CommunicatorHistoryMessage[]>(ensureIds(sliceHistoryForWindow(history, memoryWindow)));
 
   const reportError = useCallback(
     (err: Error) => {
@@ -308,6 +314,44 @@ export function Communicator({
   }, [sessionState, onStateChange]);
 
   const isBusy = phase === "recording" || phase === "transcribing" || streamBusy;
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setSessionSynced(false);
+    void fetchDialogSession({ useCase, entrySource, signal: ac.signal })
+      .then((session) => {
+        if (ac.signal.aborted) return;
+        setActiveConversationId(session.conversationId);
+        if (session.messages.length > 0) {
+          setMessages(
+            ensureIds(
+              sliceHistoryForWindow(
+                session.messages.map((message) => ({
+                  id: message.id,
+                  role: message.role,
+                  content: message.content,
+                  createdAt: message.createdAt,
+                  meta: message.meta,
+                })),
+                memoryWindow,
+              ),
+            ),
+          );
+        } else {
+          setMessages([]);
+        }
+      })
+      .catch((error) => {
+        if (ac.signal.aborted) return;
+        reportError(error instanceof Error ? error : new Error(String(error)));
+        setMessages(initialHistoryRef.current);
+        setActiveConversationId(conversationId ?? null);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setSessionSynced(true);
+      });
+    return () => ac.abort();
+  }, [conversationId, entrySource, memoryWindow, reportError, useCase]);
 
   const updateScrollDownFlag = useCallback(() => {
     if (scrollHintDismissedRef.current) {
@@ -513,6 +557,7 @@ export function Communicator({
   const autoSendFiredRef = useRef(false);
   useEffect(() => {
     if (autoSendFiredRef.current) return;
+    if (!sessionSynced) return;
     const text = autoSendInitialMessage?.trim();
     if (!text) return;
     autoSendFiredRef.current = true;
@@ -522,7 +567,7 @@ export function Communicator({
       void runStream({ type: "text", text });
     }, 120);
     return () => clearTimeout(h);
-  }, [autoSendInitialMessage, runStream]);
+  }, [autoSendInitialMessage, runStream, sessionSynced]);
 
   const discardRecording = useCallback(async () => {
     const rec = recordingRef.current;

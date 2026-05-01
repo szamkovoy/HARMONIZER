@@ -29,20 +29,19 @@ Required Vercel environment variables:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key for JWT validation.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
+- `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.
+- `AI_MODEL_PREMIUM` - concrete Gemini model for `premium` prompt/scenario tier.
 - `GEMINI_TIMEOUT_MS=90000` - Gemini request timeout for production.
 - `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
 - `SENTRY_DSN=https://fa0cbb049716d242310a11464f1684e2@o4511304250884096.ingest.de.sentry.io/4511304290533456` - Sentry project DSN for backend error monitoring.
 
 Optional environment variables:
 
-- `GEMINI_MODEL` - model override for Gemini calls.
 - `SENTRY_TRACES_SAMPLE_RATE` - Sentry traces sample rate, defaults to `0.05`.
 - `DIALOG_GREETING_BYPASS_ENABLED` - defaults to enabled unless set to `false`.
 - `DIALOG_DECISION_CACHE_ENABLED` - defaults to enabled unless set to `false`.
 - `DIALOG_DECISION_CACHE_MIN_ITERATION` - defaults to `3`.
 - `DIALOG_DECISION_CACHE_THRESHOLD` - defaults to `0.8`.
-
-Do not use `GOOGLE_AI_API_KEY` for the current backend. The code reads `GEMINI_API_KEY`.
 
 ## Mobile Client
 
@@ -81,7 +80,6 @@ supabase db execute --file supabase/seed.sql
 
 - `npm test` passes.
 - Supabase Edge Functions are deployed with the secrets above.
-- Vercel deployment uses `GEMINI_API_KEY`, not `GOOGLE_AI_API_KEY`.
 - `user_event_log` receives `llm_prompt_size` events from `communicator/v2/dialog`, `calibration/extract`, `greeting`, and `auto-calibrate`.
 - A manual calibration returns `ultraMode.enabledUntil` and writes `preferences.ultraModeUntil` in `user_settings`.
 

@@ -7,6 +7,13 @@ const MIN_DAYS_BETWEEN_CALIBRATIONS = 7;
 const MIN_USER_MESSAGES = 5;
 const BATCH_SIZE = 50;
 
+function getModelByHint(hint: string | null | undefined): string {
+  const tier = hint?.trim().toLowerCase();
+  const model = tier === "premium" ? Deno.env.get("AI_MODEL_PREMIUM")?.trim() : Deno.env.get("AI_MODEL_STANDARD")?.trim();
+  if (!model) throw new Error(tier === "premium" ? "Missing AI_MODEL_PREMIUM" : "Missing AI_MODEL_STANDARD");
+  return model;
+}
+
 function compactUserMessages(messages: any[]): string {
   return messages
     .filter((message) => message.role === "user")
@@ -75,7 +82,7 @@ ${JSON.stringify(historyDTO)}
   "confidence": 0..1
 }`;
 
-  const model = Deno.env.get("GEMINI_PRO_MODEL") ?? "gemini-3.1-pro-preview";
+  const model = getModelByHint("premium");
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {

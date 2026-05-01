@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "../../../../../data/information_axes.json";
 import { natalProfileFromRow } from "../../../_utils/astro-db";
+import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
 import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { GeminiJsonParseError, communicatorModel, generateGeminiJson, streamGeminiText } from "../../../_utils/gemini";
+import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "../../../_utils/gemini";
 import { parseResponseMarkers, stripResponseMarkers, type PracticePickMarker } from "../../../_utils/markers";
 import { reportRouteError } from "../../../_utils/monitoring";
 import {
@@ -19,7 +20,15 @@ import {
 } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
-import { lastAssistantDecisions, loadHistory, type MessageRecord } from "./dialogHelpers";
+import {
+  isConversationExpired,
+  lastAssistantDecisions,
+  loadDayBackground,
+  loadHistory,
+  summarizeConversationIfNeeded,
+  type ConversationRecord,
+  type MessageRecord,
+} from "./dialogHelpers";
 
 export const runtime = "nodejs";
 
@@ -58,7 +67,43 @@ function axesFor(useCase: DialogueUseCase) {
   return data[useCase] ?? { axes: {}, soft_cap: useCase === "calibration" ? 4 : 6 };
 }
 
-async function loadConversation(db: SupabaseClient, userId: string, body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body) {
+function conversationTriggerMeta(body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body, useCase: DialogueUseCase) {
+  return {
+    ...(body.triggerMeta ?? {}),
+    use_case: useCase,
+  };
+}
+
+async function createConversation(
+  db: SupabaseClient,
+  userId: string,
+  body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body,
+  useCase: DialogueUseCase,
+  extraMeta: Record<string, unknown> = {},
+): Promise<ConversationRecord> {
+  const { data, error } = await db
+    .from("conversations")
+    .insert({
+      user_id: userId,
+      entry_source: body.entrySource,
+      trigger_meta: {
+        ...conversationTriggerMeta(body, useCase),
+        ...extraMeta,
+      },
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as ConversationRecord;
+}
+
+async function loadConversation(
+  db: SupabaseClient,
+  userId: string,
+  body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body,
+  useCase: DialogueUseCase,
+  timezone: string,
+) {
   if (body.conversationId) {
     const { data, error } = await db
       .from("conversations")
@@ -68,20 +113,19 @@ async function loadConversation(db: SupabaseClient, userId: string, body: Requir
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new Response(JSON.stringify({ error: "Conversation not found" }), { status: 404 });
-    return data as { id: string; trigger_meta?: Record<string, unknown> | null; entry_source?: string | null };
+    const conversation = data as ConversationRecord;
+    if (!isConversationExpired(conversation, timezone)) return conversation;
+
+    const summary = await summarizeConversationIfNeeded(db, userId, conversation.id);
+    await db.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
+    return createConversation(db, userId, body, useCase, {
+      reset_reason: "session_expired",
+      previous_conversation_id: conversation.id,
+      previous_conversation_summary: summary,
+    });
   }
 
-  const { data, error } = await db
-    .from("conversations")
-    .insert({
-      user_id: userId,
-      entry_source: body.entrySource,
-      trigger_meta: body.triggerMeta ?? {},
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data as { id: string; trigger_meta?: Record<string, unknown> | null; entry_source?: string | null };
+  return createConversation(db, userId, body, useCase);
 }
 
 async function loadPhases(db: SupabaseClient, useCase: DialogueUseCase): Promise<PhaseRecord[]> {
@@ -117,7 +161,7 @@ async function loadContext(db: SupabaseClient, userId: string) {
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle(),
-    db.from("users").select("display_name,birth_date,locale").eq("id", userId).maybeSingle(),
+    db.from("users").select("display_name,birth_date,locale,address_form,tz").eq("id", userId).maybeSingle(),
   ]);
   if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
@@ -127,7 +171,14 @@ async function loadContext(db: SupabaseClient, userId: string) {
     calibration: calibrationResult.data as Record<string, unknown> | null,
     forecast: forecastResult.data as Record<string, unknown> | null,
     natal: natalResult.data ? natalProfileFromRow(natalResult.data as never) : null,
-    user: (userResult.data as { display_name?: string | null; birth_date?: string | null; locale?: string | null } | null) ?? {},
+    user:
+      (userResult.data as {
+        display_name?: string | null;
+        birth_date?: string | null;
+        locale?: string | null;
+        address_form?: string | null;
+        tz?: string | null;
+      } | null) ?? {},
   };
 }
 
@@ -283,7 +334,7 @@ async function buildDecision(params: {
   try {
     const result = await generateGeminiJson<unknown>({
       prompt: renderedPrompt,
-      model: communicatorModel(),
+      model: getModelByHint(prompt.model_hint),
       temperature: prompt.temperature,
       maxOutputTokens: prompt.max_output_tokens,
     });
@@ -343,6 +394,61 @@ function phaseVariables(params: {
   };
 }
 
+export async function GET(req: Request) {
+  let db: SupabaseClient | null = null;
+  let userId: string | null = null;
+  try {
+    userId = await requireUserId(req);
+    const url = new URL(req.url);
+    const useCase = assertUseCase(url.searchParams.get("useCase"));
+    const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
+
+    db = createServiceSupabase();
+    const context = await loadContext(db, userId);
+    const userTimezone = context.user.tz ?? "UTC";
+    const { data, error } = await db
+      .from("conversations")
+      .select("id,trigger_meta,entry_source,started_at,ended_at,last_message_at")
+      .eq("user_id", userId)
+      .eq("entry_source", entrySource)
+      .is("ended_at", null)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(10);
+    if (error) throw error;
+
+    const conversation = ((data ?? []) as ConversationRecord[]).find((item) => {
+      const metaUseCase = typeof item.trigger_meta?.use_case === "string" ? item.trigger_meta.use_case : null;
+      return (!metaUseCase || metaUseCase === useCase) && !isConversationExpired(item, userTimezone);
+    });
+    if (!conversation) return json({ conversationId: null, messages: [], reset: true });
+
+    const cutoffMs = Date.now() - 2 * 60 * 60 * 1000;
+    const history = (await loadHistory(db, userId, conversation.id)).filter((message) => {
+      const createdMs = Date.parse(message.created_at ?? "");
+      return Number.isFinite(createdMs) && createdMs >= cutoffMs;
+    });
+    return json({
+      conversationId: conversation.id,
+      messages: history.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content ?? message.transcript ?? "",
+        createdAt: message.created_at ? Date.parse(message.created_at) : undefined,
+        meta: message.meta ?? {},
+      })),
+      reset: history.length === 0,
+    });
+  } catch (error) {
+    await reportRouteError(error, {
+      db,
+      userId,
+      endpoint: "communicator/v2/dialog",
+      stage: "session_sync",
+    });
+    return errorResponse(error);
+  }
+}
+
 export async function POST(req: Request) {
   let db: SupabaseClient | null = null;
   let userId: string | null = null;
@@ -353,21 +459,21 @@ export async function POST(req: Request) {
     const body = (await req.json()) as Body;
     const useCase = assertUseCase(body.useCase);
     const userMessage = String(body.userMessage ?? "").trim();
-    const userTimezone = body.userTimezone ?? "UTC";
     if (!userMessage) return json({ error: "userMessage is required" }, { status: 400 });
 
     db = createServiceSupabase();
     const conversationIdWasNull = !body.conversationId;
     endpointStage = "load_context";
+    const [context, phases] = await Promise.all([loadContext(db, userId), loadPhases(db, useCase)]);
+    const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
     const conversation = await loadConversation(db, userId, {
       ...body,
       entrySource: body.entrySource ?? "home",
       triggerMeta: body.triggerMeta ?? {},
-    });
-    const [history, phases, context] = await Promise.all([
+    }, useCase, userTimezone);
+    const [history, dailyBackground] = await Promise.all([
       loadHistory(db, userId, conversation.id),
-      loadPhases(db, useCase),
-      loadContext(db, userId),
+      loadDayBackground(db, userId, userTimezone),
     ]);
 
     endpointStage = "orchestrator";
@@ -431,6 +537,10 @@ export async function POST(req: Request) {
           const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
           const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
           const historyDTO = buildHistoryCompact(history);
+          const authorVoiceBlock = formatAuthorVoiceForPrompt(
+            getAuthorVoice(context.user.locale),
+            context.user.address_form === "informal" ? "ty" : "vy",
+          );
           const profileSize = logDTOSize("dialog.responder.profile", profileDTO, 350);
           const forecastSize = logDTOSize("dialog.responder.forecast", forecastDTO, 200);
           const historySize = logDTOSize("dialog.responder.history", historyDTO, 1500);
@@ -449,6 +559,7 @@ export async function POST(req: Request) {
             phaseVariables({ body, context, decision, userMessage, timezone: userTimezone, practicesList }),
           );
           const prompt = renderPrompt(responderPrompt.template, {
+            author_voice_block: authorVoiceBlock,
             current_phase: phase.phase_id,
             phase_instruction: renderedPhase,
             tone: decision.responder_hints?.tone ?? "neutral",
@@ -458,16 +569,17 @@ export async function POST(req: Request) {
             avoid_topics: decision.responder_hints?.avoid_topics ?? [],
             user_profile_summary: profileDTO,
             daily_context: forecastDTO,
+            daily_background: dailyBackground,
             history: historyDTO,
           });
 
           let fullText = "";
-          let modelUsed = communicatorModel();
+          let modelUsed = getModelByHint(responderPrompt.model_hint);
           for await (const chunk of streamGeminiText({
             prompt,
-            model: communicatorModel(),
-            temperature: phasePrompt.temperature ?? responderPrompt.temperature,
-            maxOutputTokens: phasePrompt.max_output_tokens ?? responderPrompt.max_output_tokens,
+            model: getModelByHint(responderPrompt.model_hint),
+            temperature: responderPrompt.temperature,
+            maxOutputTokens: responderPrompt.max_output_tokens,
           })) {
             modelUsed = chunk.modelUsed;
             if (firstTokenLatencyMs == null) firstTokenLatencyMs = Date.now() - requestStarted;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lastAssistantDecisions, loadHistory } from "./dialogHelpers";
+import { isConversationExpired, lastAssistantDecisions, loadHistory, todayLocalDate } from "./dialogHelpers";
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];
@@ -103,5 +103,49 @@ describe("dialog decision cache history helpers", () => {
     expect(lastTwo).toHaveLength(2);
     expect(lastTwo[0].next_phase).toBe("phase_B");
     expect(lastTwo[1].next_phase).toBe("phase_C");
+  });
+});
+
+describe("dialog session lifecycle helpers", () => {
+  it("uses user timezone to calculate local day", () => {
+    const now = new Date("2026-05-01T21:30:00.000Z");
+
+    expect(todayLocalDate("Europe/Moscow", now)).toBe("2026-05-02");
+    expect(todayLocalDate("America/New_York", now)).toBe("2026-05-01");
+  });
+
+  it("expires conversations after two hours or local day change", () => {
+    const now = new Date("2026-05-01T12:00:00.000Z");
+
+    expect(
+      isConversationExpired(
+        {
+          started_at: "2026-05-01T09:00:00.000Z",
+          last_message_at: "2026-05-01T10:30:01.000Z",
+        },
+        "UTC",
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isConversationExpired(
+        {
+          started_at: "2026-05-01T09:00:00.000Z",
+          last_message_at: "2026-05-01T09:59:59.000Z",
+        },
+        "UTC",
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isConversationExpired(
+        {
+          started_at: "2026-04-30T21:30:00.000Z",
+          last_message_at: "2026-05-01T00:30:00.000Z",
+        },
+        "America/New_York",
+        now,
+      ),
+    ).toBe(true);
   });
 });

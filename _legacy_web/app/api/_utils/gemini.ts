@@ -12,21 +12,6 @@ type GenerateTextOptions = GenerateJsonOptions & {
   responseMimeType?: "text/plain" | "application/json";
 };
 
-export const GEMINI_COMMUNICATOR_MODEL = "gemini-3.1-flash-lite-preview";
-export const GEMINI_PRO_MODEL = "gemini-3.1-pro-preview";
-
-const DEFAULT_MODEL_CHAIN = [
-  GEMINI_COMMUNICATOR_MODEL,
-  "gemini-3.1-flash-preview",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-] as const;
-const PRO_MODEL_CHAIN = [
-  GEMINI_PRO_MODEL,
-  "gemini-2.5-pro",
-  GEMINI_COMMUNICATOR_MODEL,
-  "gemini-2.5-flash",
-] as const;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export class GeminiJsonParseError extends Error {
@@ -53,27 +38,21 @@ function getApiKey(): string {
   return key;
 }
 
-export function communicatorModel(): string {
-  return process.env.GEMINI_COMMUNICATOR_MODEL?.trim() || GEMINI_COMMUNICATOR_MODEL;
-}
-
-export function proModel(): string {
-  return process.env.GEMINI_PRO_MODEL?.trim() || GEMINI_PRO_MODEL;
-}
-
-export function proModelChain(): readonly string[] {
-  return [proModel(), ...PRO_MODEL_CHAIN.filter((model) => model !== proModel())];
-}
-
-function isDeprecatedGeminiModel(model: string): boolean {
-  return /^gemini-1\./.test(model);
+export function getModelByHint(hint: string | null | undefined): string {
+  const tier = hint?.trim().toLowerCase();
+  const model = tier === "premium" ? process.env.AI_MODEL_PREMIUM?.trim() : process.env.AI_MODEL_STANDARD?.trim();
+  if (!model) {
+    throw new Error(
+      tier === "premium" ? "Missing AI_MODEL_PREMIUM environment variable" : "Missing AI_MODEL_STANDARD environment variable",
+    );
+  }
+  return model;
 }
 
 function modelChain(preferred?: string | null, fallbackModels?: readonly string[]): string[] {
-  const override = preferred?.trim() || process.env.GEMINI_MODEL?.trim();
-  const fallbacks = fallbackModels?.length ? fallbackModels : DEFAULT_MODEL_CHAIN;
-  if (!override || isDeprecatedGeminiModel(override)) return [...fallbacks];
-  return [override, ...fallbacks.filter((model) => model !== override)];
+  const primary = preferred?.trim() || getModelByHint("standard");
+  const fallbacks = fallbackModels?.length ? fallbackModels : [];
+  return [primary, ...fallbacks.filter((model) => model !== primary)];
 }
 
 function timeoutMs(): number {

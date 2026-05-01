@@ -1,6 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { extractJson, getModelByHint } from "./gemini";
 
-import { extractJson } from "./gemini";
+const originalStandard = process.env.AI_MODEL_STANDARD;
+const originalPremium = process.env.AI_MODEL_PREMIUM;
+
+afterEach(() => {
+  process.env.AI_MODEL_STANDARD = originalStandard;
+  process.env.AI_MODEL_PREMIUM = originalPremium;
+});
+
+describe("getModelByHint", () => {
+  it("maps premium hint to premium environment tier", () => {
+    process.env.AI_MODEL_STANDARD = "standard-model";
+    process.env.AI_MODEL_PREMIUM = "premium-model";
+
+    expect(getModelByHint("premium")).toBe("premium-model");
+  });
+
+  it("maps standard, null and unknown hints to standard tier", () => {
+    process.env.AI_MODEL_STANDARD = "standard-model";
+    process.env.AI_MODEL_PREMIUM = "premium-model";
+
+    expect(getModelByHint("standard")).toBe("standard-model");
+    expect(getModelByHint(null)).toBe("standard-model");
+    expect(getModelByHint("legacy-model-name")).toBe("standard-model");
+  });
+});
 
 describe("extractJson", () => {
   it("parses fenced JSON", () => {
