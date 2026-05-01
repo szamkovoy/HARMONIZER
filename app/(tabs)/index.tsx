@@ -25,6 +25,25 @@ const MOSCOW_BIRTH_LOCATION: BirthData["location"] = {
   timezone: "Europe/Moscow",
 };
 
+function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
+  if (value instanceof Error && value.message.trim()) return value.message;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    const error = value as { message?: unknown; error?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const message = [error.message, error.error, error.details, error.hint, error.code]
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+    if (message) return message;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
 function HomeHeader({
   forecast,
   strings,
@@ -471,7 +490,7 @@ export default function HomeScreen() {
         setNatalBridgeOpen(false);
         Alert.alert("Готово", "Натальный профиль сохранён. Прогноз дня пересчитан в персональном режиме.");
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Не удалось сохранить натальные данные.";
+        const message = errorMessage(error, "Не удалось сохранить натальные данные.");
         Alert.alert("Ошибка сохранения", message);
       } finally {
         setNatalSaving(false);
@@ -491,10 +510,13 @@ export default function HomeScreen() {
             : { membership_tier: "free", trial_expires_at: new Date(Date.now() - 60_000).toISOString() };
         const { error } = await requireSupabase().from("users").update(update).eq("id", profile.id);
         if (error) throw error;
-        await refreshProfile();
-        await refresh({ forceRefresh: true });
+        await refreshProfile().catch((error) => {
+          console.warn("[Home] Tier switched, but profile refresh failed", error);
+        });
+        await refresh({ forceRefresh: true, accessModeOverride: mode });
       } catch (error) {
-        Alert.alert("Не удалось переключить тариф", error instanceof Error ? error.message : String(error));
+        console.warn("[Home] Failed to switch test tier", error);
+        Alert.alert("Не удалось переключить тариф", errorMessage(error));
       } finally {
         setTierSwitching(false);
       }

@@ -111,49 +111,53 @@ export default function OnboardingScreen() {
       style={[
         styles.root,
         {
-          backgroundColor: theme.colors.screenBg,
-          paddingTop: insets.top + 32,
+          backgroundColor: theme.colors.controlButtonBg,
+          paddingTop: insets.top + 24,
           paddingBottom: insets.bottom + 24,
         },
       ]}
     >
-      <View style={styles.header}>
-        <AppText variant="screenTitle">Добро пожаловать</AppText>
-        <AppText
-          variant="screenHint"
-          style={{ color: theme.colors.textMuted, marginTop: 12 }}
-        >
-          Чтобы корректно показывать окна возможностей — восходы Солнца, Луны и
-          планет — нам нужно знать, где вы находитесь. Координаты сохраняются
-          только в вашем профиле.
-        </AppText>
-      </View>
-
-      <View style={styles.actions}>
-        <AppButton
-          label={busy ? "Определение координат…" : "Разрешить геолокацию"}
-          onPress={() => finish({ withLocation: true })}
-          disabled={busy}
-        />
-        <AppButton
-          label="Продолжить без геолокации"
-          variant="secondary"
-          onPress={() => finish({ withLocation: false })}
-          disabled={busy}
-        />
-        {busy && (
-          <View style={{ alignItems: "center", paddingTop: 8 }}>
-            <ActivityIndicator color={theme.colors.accent} />
-          </View>
-        )}
-        {errorText && (
-          <AppText
-            variant="technicalCaption"
-            style={{ color: theme.colors.danger, textAlign: "center" }}
-          >
-            {errorText}
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.screenBg,
+            borderColor: theme.colors.surfaceBorder,
+          },
+        ]}
+      >
+        <View style={styles.header}>
+          <AppText variant="sectionTitle" style={styles.centerText}>
+            Геолокация
           </AppText>
-        )}
+          <AppText variant="screenHint" tone="muted" style={styles.centerText}>
+            Чтобы показывать окна возможностей, нам нужны ваши координаты. Они сохраняются только в профиле.
+          </AppText>
+        </View>
+
+        <View style={styles.actions}>
+          <AppButton
+            label={busy ? "Определяю…" : "Разрешить"}
+            onPress={() => finish({ withLocation: true })}
+            disabled={busy}
+          />
+          <AppButton
+            label="Без геолокации"
+            variant="secondary"
+            onPress={() => finish({ withLocation: false })}
+            disabled={busy}
+          />
+          {busy && (
+            <View style={styles.loader}>
+              <ActivityIndicator color={theme.colors.accent} />
+            </View>
+          )}
+          {errorText && (
+            <AppText variant="technicalCaption" style={[styles.centerText, { color: theme.colors.danger }]}>
+              {errorText}
+            </AppText>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -162,13 +166,30 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 24,
-    justifyContent: "space-between",
+  },
+  card: {
+    borderRadius: 28,
+    borderWidth: 1,
+    gap: 22,
+    maxWidth: 420,
+    padding: 22,
+    width: "100%",
   },
   header: {
     alignItems: "center",
+    gap: 10,
   },
   actions: {
     gap: 12,
+  },
+  centerText: {
+    textAlign: "center",
+  },
+  loader: {
+    alignItems: "center",
+    paddingTop: 8,
   },
 });

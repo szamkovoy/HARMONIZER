@@ -616,7 +616,7 @@ export function Communicator({
   }, [cancelMicWarmup, discardRecording]);
 
   const startRecording = useCallback(async () => {
-    if (phase !== "idle" || uiMode !== "VOICE" || streamBusy) return;
+    if (phase !== "idle" || uiMode !== "VOICE" || streamBusy || micWarmupRef.current || recordingRef.current) return;
     const generation = ++startRecordingGenerationRef.current;
     micWarmupRef.current = true;
     try {
@@ -631,7 +631,11 @@ export function Communicator({
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
       });
+      if (generation !== startRecordingGenerationRef.current) return;
+      await discardRecording();
       if (generation !== startRecordingGenerationRef.current) return;
       const { recording } = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: true }));
       if (generation !== startRecordingGenerationRef.current) {
@@ -657,13 +661,14 @@ export function Communicator({
       recordStartRef.current = Date.now();
       setPhase("recording");
     } catch (e) {
+      if (generation !== startRecordingGenerationRef.current) return;
       micWarmupRef.current = false;
       setPhase("idle");
       setMicPressResetKey((k) => k + 1);
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
-  }, [phase, reportError, streamBusy, strings.microphonePermissionError, uiMode]);
+  }, [discardRecording, phase, reportError, streamBusy, strings.microphonePermissionError, uiMode]);
 
   const stopRecordingAndSend = useCallback(async () => {
     const rec = recordingRef.current;

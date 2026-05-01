@@ -16,7 +16,7 @@ export interface UseDayContentResult {
   status: DayContentStatus;
   loading: boolean;
   error: Error | null;
-  refresh: (opts?: { forceRefresh?: boolean }) => Promise<void>;
+  refresh: (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode }) => Promise<void>;
 }
 
 interface UseDayContentOptions {
@@ -46,6 +46,11 @@ function toError(value: unknown): Error {
     if (message) return new Error(message);
   }
   return new Error("Unknown day content error");
+}
+
+function withCause(message: string, cause: unknown): Error {
+  const root = toError(cause);
+  return new Error(`${message}: ${root.message}`);
 }
 
 function locationError(message?: string): Error {
@@ -86,7 +91,10 @@ async function enrichWithMorningContent(
   } catch (error) {
     if (signal.aborted) throw error;
     console.warn("[Home] Failed to load morning recommendation monologue", error);
-    return forecast;
+    throw withCause(
+      "Не удалось загрузить персональную рекомендацию дня. Проверьте EXPO_PUBLIC_COMMUNICATOR_API_URL и деплой Vercel API",
+      error,
+    );
   }
 }
 
@@ -110,7 +118,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   }, [profile?.lat, profile?.lon, profile?.tz]);
 
   const refresh = useCallback(
-    async (opts?: { forceRefresh?: boolean }) => {
+    async (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode }) => {
       abortRef.current?.abort();
       setError(null);
 
@@ -128,7 +136,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       setStatus("loading");
 
       try {
-        const nextAccessMode = accessModeFor(profile);
+        const nextAccessMode = opts?.accessModeOverride ?? accessModeFor(profile);
         setAccessMode(nextAccessMode);
 
         if (nextAccessMode === "free") {
@@ -153,6 +161,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setStatus("ready");
       } catch (e) {
         if (controller.signal.aborted) return;
+        setForecast(null);
+        setSource(null);
         setError(toError(e));
         setStatus("error");
       } finally {
