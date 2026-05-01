@@ -12,6 +12,8 @@ export { AstronomiaTransitProvider, computeDailyForecastWithAstronomia } from ".
 export { computeActivation, computeImportance, effectiveNatalParams } from "./core/activation";
 export { findAspect } from "./core/aspects";
 export { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
+export { computeWindowsForFreeUser } from "./freeWindows";
+export type { FreeUserTopAspect } from "./freeWindows";
 export type {
   ActivationContribution,
   AspectType,

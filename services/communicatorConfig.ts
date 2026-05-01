@@ -33,6 +33,10 @@ export function getAiMonologueUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/ai/monologue`;
 }
 
+export function getAiGlobalContentUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/ai/global-content`;
+}
+
 export function getCommunicatorV2TranscribeUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/transcribe`;
 }

@@ -134,6 +134,57 @@ export type Database = {
         }
         Relationships: []
       }
+      global_daily_content: {
+        Row: {
+          expires_at_utc: string
+          forecast_date_utc: string
+          generated_at: string
+          llm_model: string | null
+          llm_tokens_used: number | null
+          long_explanation: string
+          math_level: Json
+          planet_positions: Json
+          primary_chakra_number: number
+          primary_planet: string
+          primary_tone: string
+          short_text: string
+          slogan: string
+          top_petals: Json
+        }
+        Insert: {
+          expires_at_utc: string
+          forecast_date_utc: string
+          generated_at?: string
+          llm_model?: string | null
+          llm_tokens_used?: number | null
+          long_explanation: string
+          math_level: Json
+          planet_positions: Json
+          primary_chakra_number: number
+          primary_planet: string
+          primary_tone: string
+          short_text: string
+          slogan: string
+          top_petals: Json
+        }
+        Update: {
+          expires_at_utc?: string
+          forecast_date_utc?: string
+          generated_at?: string
+          llm_model?: string | null
+          llm_tokens_used?: number | null
+          long_explanation?: string
+          math_level?: Json
+          planet_positions?: Json
+          primary_chakra_number?: number
+          primary_planet?: string
+          primary_tone?: string
+          short_text?: string
+          slogan?: string
+          top_petals?: Json
+        }
+        Relationships: []
+      }
       ai_state_proposals: {
         Row: {
           conversation_id: string | null
@@ -1361,7 +1412,9 @@ export type Database = {
           locale: string | null
           location_name: string | null
           lon: number | null
+          membership_tier: string
           onboarded_at: string | null
+          trial_expires_at: string | null
           tz: string | null
           updated_at: string | null
         }
@@ -1378,7 +1431,9 @@ export type Database = {
           locale?: string | null
           location_name?: string | null
           lon?: number | null
+          membership_tier?: string
           onboarded_at?: string | null
+          trial_expires_at?: string | null
           tz?: string | null
           updated_at?: string | null
         }
@@ -1395,7 +1450,9 @@ export type Database = {
           locale?: string | null
           location_name?: string | null
           lon?: number | null
+          membership_tier?: string
           onboarded_at?: string | null
+          trial_expires_at?: string | null
           tz?: string | null
           updated_at?: string | null
         }

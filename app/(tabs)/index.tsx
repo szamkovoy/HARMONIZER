@@ -3,8 +3,8 @@ import type { BirthData } from "@/modules/astro-core";
 import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/types";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
-import { useDailyForecast } from "@/modules/daily-engine/ui/useDailyForecast";
 import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
+import { useDayContent } from "@/modules/home/useDayContent";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
@@ -12,6 +12,7 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { createNatalProfile } from "@/services/natalProfileClient";
+import { requireSupabase } from "@/services/supabase";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -169,6 +170,71 @@ function DevLinks({ strings }: { strings: HomeStrings }) {
 
 function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
   return <AppButton label="Ввести натальные данные" variant="secondary" onPress={onOpen} />;
+}
+
+function FreeTierBanner() {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.freeTierBanner,
+        {
+          backgroundColor: theme.colors.controlButtonBg,
+          borderColor: theme.colors.warning,
+        },
+      ]}
+    >
+      <AppText variant="screenHint">
+        Внизу вы видите универсальный прогноз на этот день. Конечно, индивидуальные прогнозы, опирающиеся на вашу дату
+        рождения, гораздо точнее. Перейдите на платный тариф, чтобы их получать.
+      </AppText>
+    </View>
+  );
+}
+
+function DevTierSwitch({
+  accessMode,
+  switching,
+  onSetFree,
+  onSetPremium,
+}: {
+  accessMode: "free" | "trial" | "premium";
+  switching: boolean;
+  onSetFree: () => void;
+  onSetPremium: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.tierSwitch, { borderColor: theme.colors.surfaceBorder }]}>
+      <AppText variant="technicalCaption" tone="muted">
+        Тест тарифа: {accessMode === "premium" ? "платный" : accessMode === "trial" ? "триал" : "бесплатный"}
+      </AppText>
+      <View style={styles.tierSwitchActions}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={switching}
+          onPress={onSetFree}
+          style={({ pressed }) => [
+            styles.tierSwitchLink,
+            { opacity: pressed || switching ? 0.55 : 1, borderColor: theme.colors.surfaceBorder },
+          ]}
+        >
+          <AppText variant="technicalCaption">Бесплатный</AppText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={switching}
+          onPress={onSetPremium}
+          style={({ pressed }) => [
+            styles.tierSwitchLink,
+            { opacity: pressed || switching ? 0.55 : 1, borderColor: theme.colors.surfaceBorder },
+          ]}
+        >
+          <AppText variant="technicalCaption">Платный</AppText>
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 function NatalBridgeModal({
@@ -358,12 +424,13 @@ export default function HomeScreen() {
     () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
     [profile?.locale],
   );
-  const { forecast, loading, error, refresh, status } = useDailyForecast({
+  const { forecast, loading, error, refresh, status, accessMode } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
   });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
+  const [tierSwitching, setTierSwitching] = useState(false);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
@@ -387,6 +454,28 @@ export default function HomeScreen() {
       }
     },
     [refresh, refreshProfile],
+  );
+
+  const switchTier = useCallback(
+    async (mode: "free" | "premium") => {
+      if (!profile?.id) return;
+      setTierSwitching(true);
+      try {
+        const update =
+          mode === "premium"
+            ? { membership_tier: "premium", trial_expires_at: null }
+            : { membership_tier: "free", trial_expires_at: new Date(Date.now() - 60_000).toISOString() };
+        const { error } = await requireSupabase().from("users").update(update).eq("id", profile.id);
+        if (error) throw error;
+        await refreshProfile();
+        await refresh({ forceRefresh: true });
+      } catch (error) {
+        Alert.alert("Не удалось переключить тариф", error instanceof Error ? error.message : String(error));
+      } finally {
+        setTierSwitching(false);
+      }
+    },
+    [profile?.id, refresh, refreshProfile],
   );
 
   return (
@@ -416,11 +505,13 @@ export default function HomeScreen() {
 
         {forecast ? (
           <>
+            {accessMode === "free" ? <FreeTierBanner /> : null}
             <ChakraFlower forecast={forecast} strings={strings} />
             <DailyRecommendationCard
               forecast={forecast}
               strings={strings}
               onDiscuss={() => setCommunicatorOpen(true)}
+              showDiscuss={accessMode !== "free"}
             />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}
@@ -431,6 +522,14 @@ export default function HomeScreen() {
         ) : null}
 
         <NatalBridgeCard onOpen={() => setNatalBridgeOpen(true)} />
+        {__DEV__ ? (
+          <DevTierSwitch
+            accessMode={accessMode}
+            switching={tierSwitching}
+            onSetFree={() => void switchTier("free")}
+            onSetPremium={() => void switchTier("premium")}
+          />
+        ) : null}
         <DevLinks strings={strings} />
         <AppButton
           label={signingIn ? strings.signingOutButton : strings.signOutButton}
@@ -537,6 +636,28 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: "center",
     paddingTop: 4,
+  },
+  freeTierBanner: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+  },
+  tierSwitch: {
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 18,
+    gap: 10,
+    padding: 12,
+  },
+  tierSwitchActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  tierSwitchLink: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   devPill: {
     borderWidth: 1,

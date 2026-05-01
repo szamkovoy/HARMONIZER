@@ -13,10 +13,11 @@ import { PLANET_CHAKRA } from "../planetChakra";
 interface DailyRecommendationCardProps {
   forecast: DailyForecast;
   strings: HomeStrings;
-  onDiscuss: () => void;
+  onDiscuss?: () => void;
+  showDiscuss?: boolean;
 }
 
-export function DailyRecommendationCard({ forecast, strings, onDiscuss }: DailyRecommendationCardProps) {
+export function DailyRecommendationCard({ forecast, strings, onDiscuss, showDiscuss = true }: DailyRecommendationCardProps) {
   const theme = useTheme();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const text = getForecastRecommendation(forecast, strings);
@@ -70,7 +71,7 @@ export function DailyRecommendationCard({ forecast, strings, onDiscuss }: DailyR
             {forecast.alternativeReasonText}
           </AppText>
         ) : null}
-        <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} />
+        {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
       </View>
       <Modal animationType="fade" transparent visible={detailsOpen} onRequestClose={() => setDetailsOpen(false)}>
         <View style={styles.modalBackdrop}>
