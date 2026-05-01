@@ -40,6 +40,7 @@ function getApiKey(): string {
 
 export function getModelByHint(hint: string | null | undefined): string {
   const tier = hint?.trim().toLowerCase();
+  if (tier?.startsWith("gemini-")) return tier;
   const model = tier === "premium" ? process.env.AI_MODEL_PREMIUM?.trim() : process.env.AI_MODEL_STANDARD?.trim();
   if (!model) {
     throw new Error(

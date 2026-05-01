@@ -25,6 +25,10 @@ describe("getModelByHint", () => {
     expect(getModelByHint(null)).toBe("standard-model");
     expect(getModelByHint("legacy-model-name")).toBe("standard-model");
   });
+
+  it("accepts concrete Gemini model hints", () => {
+    expect(getModelByHint("gemini-2.5-flash")).toBe("gemini-2.5-flash");
+  });
 });
 
 describe("extractJson", () => {

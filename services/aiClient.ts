@@ -8,6 +8,23 @@ export type MonologueResponse<T extends Record<string, unknown> = Record<string,
   error?: string;
 };
 
+export type MathLevelResponse = {
+  markdown: string;
+  structured: {
+    natal_strengths: Array<{ planet: string; chakra: number; S: number; H: number; formula_summary: string }>;
+    main_aspects: Array<{ from: string; to: string; type: string; orb: number; coef: number; activation: number }>;
+    importance_breakdown: Array<{ planet: string; activation: number; S_eff: number; importance: number }>;
+    calibration_deltas?: Array<{ planet: string; dS: number; dH: number }>;
+  };
+};
+
+export type MorningRecommendationResponse = MonologueResponse<{
+  slogan: string;
+  short_text: string;
+  long_explanation: string;
+  math_level: MathLevelResponse;
+}>;
+
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
