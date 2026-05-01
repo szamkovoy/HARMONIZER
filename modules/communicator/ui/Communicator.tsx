@@ -256,6 +256,10 @@ export function Communicator({
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
   const initialHistoryRef = useRef<CommunicatorHistoryMessage[]>(ensureIds(sliceHistoryForWindow(history, memoryWindow)));
 
+  useEffect(() => {
+    initialHistoryRef.current = ensureIds(sliceHistoryForWindow(history, memoryWindow));
+  }, [history, memoryWindow]);
+
   const reportError = useCallback(
     (err: Error) => {
       if (isGeminiJsonError(err)) return;
@@ -342,7 +346,8 @@ export function Communicator({
             ),
           );
         } else {
-          setMessages([]);
+          const seed = initialHistoryRef.current;
+          setMessages(seed.length ? [...seed] : []);
         }
       })
       .catch((error) => {

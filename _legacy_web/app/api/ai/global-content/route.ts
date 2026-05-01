@@ -1,3 +1,4 @@
+import { ensureGlobalDailyContentRow } from "../../_utils/ensureGlobalDailyContent";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -78,7 +79,24 @@ export async function POST(req: Request) {
       .limit(1)
       .maybeSingle();
     if (fallbackError) throw fallbackError;
-    if (!fallback) return json({ error: "No global content available" }, { status: 503 });
+    if (!fallback) {
+      try {
+        await ensureGlobalDailyContentRow(db, localDate);
+      } catch (synthError) {
+        console.error("[global-content] on-demand synthesis failed", synthError);
+        return json({ error: "No global content available" }, { status: 503 });
+      }
+      const { data: created, error: createdError } = await db
+        .from("global_daily_content")
+        .select("*")
+        .eq("forecast_date_utc", localDate)
+        .maybeSingle();
+      if (createdError) throw createdError;
+      if (created) {
+        return json(payloadFromContent(created as Record<string, unknown>, user as UserAccess, false));
+      }
+      return json({ error: "No global content available" }, { status: 503 });
+    }
 
     return json(payloadFromContent(fallback as Record<string, unknown>, user as UserAccess, true));
   } catch (error) {

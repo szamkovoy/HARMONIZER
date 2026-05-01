@@ -101,6 +101,7 @@ export function ModalMathLevel({ visible, onClose, mathLevel, natalProfile, fore
             natalProfile={natalProfile}
             forecast={forecast ?? undefined}
             aspects={aspects}
+            presentation="nestedOverlay"
           />
         </Suspense>
       ) : null}

@@ -344,12 +344,19 @@ export function buildGlobalMathLevel(forecast: any) {
     "\n### Активные аспекты дня\n",
     ...forecast.aspects.map((aspect) => `- ${aspect.from} ${aspect.type} ${aspect.to}, orb=${aspect.orb.toFixed(2)}°`),
   ];
+  const main_aspects = forecast.aspects.map((a: { from: string; to: string; type: string; orb: number }) => ({
+    from: a.from,
+    to: a.to,
+    type: a.type,
+    orb: a.orb,
+  }));
   return {
     markdown: md.join("\n"),
     structured: {
       planet_positions: forecast.planet_positions,
       aspects: forecast.aspects,
       top_petals: forecast.top_petals,
+      main_aspects,
     },
   };
 }

@@ -211,11 +211,15 @@ export async function POST(req: Request) {
     }
 
     endpointStage = "generate";
+    const maxOutputTokens =
+      scenario.id === "morning_recommendation"
+        ? Math.max(prompt.max_output_tokens ?? 2200, 6144)
+        : (prompt.max_output_tokens ?? 1500);
     const result = await generateGeminiJson<Record<string, unknown>>({
       prompt: renderPrompt(prompt.template, variables),
       model: getModelByHint(prompt.model_hint),
       temperature: prompt.temperature,
-      maxOutputTokens: prompt.max_output_tokens,
+      maxOutputTokens,
     });
     const payload = {
       ...result.json,

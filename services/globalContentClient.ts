@@ -68,6 +68,27 @@ function accessModeFromResponse(data: GlobalContentResponse): AccessMode {
   return data.has_premium_access ? "trial" : "free";
 }
 
+function transitPlanetsFromGlobalRow(
+  positions: unknown,
+): DailyForecast["transitChart"]["planets"] {
+  const empty = {} as DailyForecast["transitChart"]["planets"];
+  if (!positions || typeof positions !== "object") return empty;
+  const src = positions as Record<string, { lon?: number; longitude?: number; speed?: number; isRetrograde?: boolean }>;
+  const planets: Partial<DailyForecast["transitChart"]["planets"]> = {};
+  for (const p of ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const) {
+    const row = src[p];
+    if (!row) continue;
+    const lon = typeof row.longitude === "number" ? row.longitude : row.lon;
+    if (typeof lon !== "number") continue;
+    planets[p] = {
+      longitude: lon,
+      speed: typeof row.speed === "number" ? row.speed : 0,
+      isRetrograde: Boolean(row.isRetrograde),
+    };
+  }
+  return planets as DailyForecast["transitChart"]["planets"];
+}
+
 async function readError(res: Response): Promise<Error> {
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("application/json")) {
@@ -190,7 +211,7 @@ export async function fetchGlobalContent(req: {
       windowsOfOpportunity,
       transitChart: {
         referenceTime: `${data.forecast_date}T12:00:00Z`,
-        planets: {} as DailyForecast["transitChart"]["planets"],
+        planets: transitPlanetsFromGlobalRow(data.planet_positions),
       },
       computedAt: new Date().toISOString(),
       cacheValidUntil: new Date(`${data.forecast_date}T23:59:59.999Z`).toISOString(),

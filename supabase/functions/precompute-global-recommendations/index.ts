@@ -93,7 +93,7 @@ async function generateForDate(db: any, date: string) {
     }),
     modelHint: prompt.model_hint,
     temperature: prompt.temperature,
-    maxOutputTokens: prompt.max_output_tokens,
+    maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
   });
 
   const { error: insertError } = await db.from("global_daily_content").insert({
