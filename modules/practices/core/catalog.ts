@@ -4,7 +4,13 @@ import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { getSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
 
-import type { PracticeCatalog, PracticeDurationPolicy, PracticeKind, PracticeSummary } from "./types";
+import type {
+  PracticeCatalog,
+  PracticeCatalogFilters,
+  PracticeDurationPolicy,
+  PracticeKind,
+  PracticeSummary,
+} from "./types";
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type PracticeChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -33,6 +39,7 @@ const STATIC_MEDITATIONS: PracticeSummary[] = [
     durationPolicy: "fixed",
     chakraIds: [6, 7],
     primaryChakra: 6,
+    quality: 3,
     source: "static",
     params: {
       duration_policy: "fixed",
@@ -67,6 +74,10 @@ function optionalPositiveNumber(value: number | null): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function durationPolicyFromParams(params: Record<string, unknown>, kind: PracticeKind): PracticeDurationPolicy {
   return params.duration_policy === "fixed" || kind === "yoga" ? "fixed" : "user_selectable";
 }
@@ -97,6 +108,7 @@ function createBreathPractices(): PracticeSummary[] {
       durationPolicy: "user_selectable",
       chakraIds: [primaryChakra],
       primaryChakra,
+      quality: 3,
       source: "breath_catalog",
       params: {
         indicatorKind: practice.indicatorKind,
@@ -145,6 +157,7 @@ function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]):
     chakraIds,
     primaryChakra,
     quality: optionalPositiveNumber(row.rating),
+    recordedAt: optionalString(params.recorded_at),
     source: "supabase",
     video,
     params,
@@ -156,6 +169,47 @@ function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]):
       chakra: primaryChakra,
     },
   };
+}
+
+function durationRank(seconds: number | undefined): number {
+  if (!seconds) return Number.MAX_SAFE_INTEGER;
+  if (seconds <= 10 * 60) return 1;
+  if (seconds <= 25 * 60) return 2;
+  return 3;
+}
+
+export function sortPracticesForCatalog(practices: PracticeSummary[]): PracticeSummary[] {
+  return [...practices].sort((a, b) => {
+    const qualityDelta = (b.quality ?? 3) - (a.quality ?? 3);
+    if (qualityDelta !== 0) return qualityDelta;
+
+    const recordedA = a.recordedAt ? Date.parse(a.recordedAt) : Number.POSITIVE_INFINITY;
+    const recordedB = b.recordedAt ? Date.parse(b.recordedAt) : Number.POSITIVE_INFINITY;
+    const normalizedRecordedA = Number.isFinite(recordedA) ? recordedA : Number.POSITIVE_INFINITY;
+    const normalizedRecordedB = Number.isFinite(recordedB) ? recordedB : Number.POSITIVE_INFINITY;
+    if (normalizedRecordedA !== normalizedRecordedB) return normalizedRecordedA - normalizedRecordedB;
+
+    const durationDelta = durationRank(a.defaultDurationSec) - durationRank(b.defaultDurationSec);
+    if (durationDelta !== 0) return durationDelta;
+    return a.title.localeCompare(b.title, "ru");
+  });
+}
+
+export function filterPractices(practices: PracticeSummary[], filters: PracticeCatalogFilters): PracticeSummary[] {
+  return sortPracticesForCatalog(
+    practices.filter((practice) => {
+      if (filters.chakra && filters.chakra !== "any" && !practice.chakraIds.includes(filters.chakra)) {
+        return false;
+      }
+      if (!filters.duration || filters.duration === "any") return true;
+
+      const seconds = practice.defaultDurationSec;
+      if (!seconds) return practice.durationPolicy === "user_selectable";
+      if (filters.duration === "short") return seconds <= 10 * 60;
+      if (filters.duration === "medium") return seconds > 10 * 60 && seconds <= 25 * 60;
+      return seconds > 25 * 60;
+    }),
+  );
 }
 
 function chunks<T>(values: T[], size: number): T[][] {
@@ -191,20 +245,20 @@ async function loadYogaPractices(): Promise<PracticeSummary[]> {
     chakraRows.push(...((data ?? []) as PracticeChakraRow[]));
   }
 
-  return practices
+  return sortPracticesForCatalog(practices
     .map((practice) =>
       yogaPracticeFromRow(
         practice,
         (chakraRows ?? []).filter((row) => row.practice_id === practice.id),
       ),
     )
-    .filter((practice): practice is PracticeSummary => practice !== null);
+    .filter((practice): practice is PracticeSummary => practice !== null));
 }
 
 export async function loadPracticeCatalog(): Promise<PracticeCatalog> {
   return {
-    meditation: STATIC_MEDITATIONS,
-    breath: createBreathPractices(),
+    meditation: sortPracticesForCatalog(STATIC_MEDITATIONS),
+    breath: sortPracticesForCatalog(createBreathPractices()),
     yoga: await loadYogaPractices(),
   };
 }

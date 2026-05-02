@@ -7,6 +7,13 @@ export type PracticeDurationPolicy = "fixed" | "user_selectable";
 
 export type PracticeSource = "static" | "breath_catalog" | "supabase";
 
+export type PracticeDurationBucket = "any" | "short" | "medium" | "long";
+
+export interface PracticeCatalogFilters {
+  chakra?: Chakra | "any";
+  duration?: PracticeDurationBucket;
+}
+
 export interface PracticeVideoMetadata {
   provider: "youtube" | "vimeo" | "vk_video" | "rutube" | string;
   url?: string;
@@ -50,6 +57,7 @@ export interface PracticeSummary {
   chakraIds: Chakra[];
   primaryChakra?: Chakra;
   quality?: number;
+  recordedAt?: string;
   source: PracticeSource;
   video?: PracticeVideoMetadata;
   params?: Record<string, unknown>;

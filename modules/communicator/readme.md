@@ -38,7 +38,8 @@ import { Communicator } from "@/modules/communicator/ui/Communicator";
 
 1. Клиент: `services/communicator-client.ts` → стрим UTF-8.
 2. Сервер присылает SSE-события `orchestrator_decision`, `chunk`, `complete`.
-3. Системный формат ответа: `core/session-helpers.ts` → `buildSystemInstruction`.
+3. В `complete.practicePicked` приходит выбранная backend-логикой практика; assistant не выдумывает ID.
+4. Если пользователь отказывается от предложенной карточки, backend удерживает фазу `suggest_practice` и исключает недавно предложенные/завершенные практики из стека.
 
 ## Ассеты
 

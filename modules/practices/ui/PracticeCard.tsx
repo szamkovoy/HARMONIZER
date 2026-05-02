@@ -44,6 +44,7 @@ export function PracticeCard({
 }) {
   const theme = useTheme();
   const quality = typeof practice.quality === "number" ? `Качество ${practice.quality.toFixed(1)}` : null;
+  const recordedAt = practice.recordedAt ? `Запись ${practice.recordedAt}` : null;
 
   return (
     <View
@@ -81,6 +82,7 @@ export function PracticeCard({
         <MetaPill label={durationLabel(practice)} />
         <MetaPill label={chakraLabel(practice)} />
         {quality ? <MetaPill label={quality} /> : null}
+        {recordedAt ? <MetaPill label={recordedAt} /> : null}
         {practice.video?.externalId ? <MetaPill label="Vimeo metadata" /> : null}
       </View>
 

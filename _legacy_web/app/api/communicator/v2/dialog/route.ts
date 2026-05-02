@@ -77,6 +77,7 @@ type PracticeCandidate = {
   default_duration_sec: number | null;
   min_duration_sec?: number | null;
   max_duration_sec?: number | null;
+  rating?: number | null;
   params?: Record<string, unknown> | null;
   video_external_id?: string | null;
   practice_chakras?: Array<{ chakra_id: number; weight?: number | null }>;
@@ -328,6 +329,67 @@ function durationDistance(practice: PracticeCandidate, targetSec: number | null)
   return Math.abs(practice.default_duration_sec - targetSec);
 }
 
+function recordedAtMs(practice: PracticeCandidate): number {
+  const raw = practice.params?.recorded_at;
+  if (typeof raw !== "string") return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function practiceQuality(practice: PracticeCandidate): number {
+  const paramsQuality = practice.params?.quality;
+  if (typeof practice.rating === "number" && Number.isFinite(practice.rating)) return practice.rating;
+  if (typeof paramsQuality === "number" && Number.isFinite(paramsQuality)) return paramsQuality;
+  return 3;
+}
+
+function practiceMetaId(message: MessageRecord): string | null {
+  const meta = message.meta as { practicePicked?: { id?: unknown }; practice_picked?: { id?: unknown } } | null;
+  const id = meta?.practicePicked?.id ?? meta?.practice_picked?.id;
+  return typeof id === "string" && id.trim() ? id : null;
+}
+
+function recentOfferedPracticeIds(history: MessageRecord[]): string[] {
+  return [...history]
+    .reverse()
+    .map(practiceMetaId)
+    .filter((id): id is string => Boolean(id));
+}
+
+function userRejectsLastPractice(text: string): boolean {
+  return /(друг|инач|не\s+хочу|не\s+подходит|не\s+то|замен|альтернатив|another|different|not\s+this)/i.test(text);
+}
+
+function lastAssistantOfferedPractice(history: MessageRecord[]): boolean {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant");
+  return Boolean(lastAssistant && practiceMetaId(lastAssistant));
+}
+
+async function recentCompletedPracticeIds(
+  db: SupabaseClient,
+  userId: string,
+  preferredKind: PracticeKind | null,
+): Promise<string[]> {
+  const limit = preferredKind === "yoga" ? 15 : preferredKind ? 12 : 20;
+  const { data, error } = await db
+    .from("practice_sessions")
+    .select("practice_id,practice_slug,practices(kind)")
+    .eq("user_id", userId)
+    .not("ended_at", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(50);
+  if (error) {
+    console.warn("[dialog] Failed to load recent practice sessions", error.message);
+    return [];
+  }
+
+  return ((data ?? []) as Array<{ practice_id: string | null; practice_slug: string; practices?: { kind?: string } | null }>)
+    .filter((item) => !preferredKind || item.practices?.kind === preferredKind || (!item.practice_id && item.practice_slug))
+    .map((item) => item.practice_id ?? item.practice_slug)
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
 function launchForPractice(practice: PracticeCandidate, chakraId: number): PracticePickedPayload["launch"] {
   if (practice.kind === "breath") {
     return {
@@ -382,21 +444,24 @@ function publicPracticePickedPayload(practice: PracticePickedPayload, reason?: s
 
 async function choosePractice(
   db: SupabaseClient,
+  userId: string,
   marker: PracticePickMarker | null,
   context: Awaited<ReturnType<typeof loadContext>>,
   userMessage: string,
+  history: MessageRecord[],
 ) {
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
   const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
   const preferredKind = inferPreferredPracticeKind(userMessage);
   const preferredDurationSec = inferPreferredDurationSec(userMessage);
+  const recentIds = new Set([...(await recentCompletedPracticeIds(db, userId, preferredKind)), ...recentOfferedPracticeIds(history)]);
 
   let query = db
     .from("practices")
-    .select("id,slug,title,description,kind,default_duration_sec,min_duration_sec,max_duration_sec,params,video_external_id,practice_chakras(chakra_id,weight)")
+    .select("id,slug,title,description,kind,default_duration_sec,min_duration_sec,max_duration_sec,rating,params,video_external_id,practice_chakras(chakra_id,weight)")
     .eq("is_active", true)
-    .order("rating", { ascending: false })
-    .limit(7);
+    .order("rating", { ascending: false, nullsFirst: false })
+    .limit(200);
   if (preferredKind) query = query.eq("kind", preferredKind);
 
   const { data, error } = await query;
@@ -404,10 +469,26 @@ async function choosePractice(
 
   const all = (data ?? []) as PracticeCandidate[];
   const chakraMatches = all.filter((practice) => practice.practice_chakras?.some((item) => item.chakra_id === chakraId));
-  const stack = (chakraMatches.length ? chakraMatches : all).sort(
-    (a, b) => durationDistance(a, preferredDurationSec) - durationDistance(b, preferredDurationSec),
-  );
-  const picked = stack.find((practice) => practice.id === marker?.id) ?? stack[0];
+  const durationWindow =
+    preferredKind === "yoga" && preferredDurationSec
+      ? (chakraMatches.length ? chakraMatches : all).filter(
+          (practice) =>
+            practice.default_duration_sec &&
+            Math.abs(practice.default_duration_sec - preferredDurationSec) <= preferredDurationSec * 0.15,
+        )
+      : [];
+  const baseStack = durationWindow.length ? durationWindow : chakraMatches.length ? chakraMatches : all;
+  const freshStack = baseStack.filter((practice) => !recentIds.has(practice.id) && !recentIds.has(practice.slug));
+  const stack = (freshStack.length ? freshStack : baseStack).sort((a, b) => {
+    const durationDelta = durationDistance(a, preferredDurationSec) - durationDistance(b, preferredDurationSec);
+    if (durationDelta !== 0) return durationDelta;
+    const qualityDelta = practiceQuality(b) - practiceQuality(a);
+    if (qualityDelta !== 0) return qualityDelta;
+    const recordedDelta = recordedAtMs(a) - recordedAtMs(b);
+    if (recordedDelta !== 0) return recordedDelta;
+    return a.id.localeCompare(b.id);
+  });
+  const picked = stack.find((practice) => practice.id === marker?.id && !recentIds.has(practice.id)) ?? stack[0];
   if (!picked) return null;
   return toPracticePickedPayload(picked, marker?.reason, chakraId, stack);
 }
@@ -718,7 +799,12 @@ export async function GET(req: Request) {
         role: message.role,
         content: message.content ?? message.transcript ?? "",
         createdAt: message.created_at ? Date.parse(message.created_at) : undefined,
-        meta: message.meta ?? {},
+        meta: {
+          ...(message.meta ?? {}),
+          practicePicked:
+            (message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null)?.practicePicked ??
+            (message.meta as { practice_picked?: unknown } | null)?.practice_picked,
+        },
       })),
       reset: history.length === 0,
     });
@@ -778,6 +864,12 @@ export async function POST(req: Request) {
       decision.next_phase = useCase === "daily_dialog" ? "offer_insight" : "deepen_specific_chakra";
       decision.reasoning = "Client greeting was already shown; answering the user's message instead of greeting again.";
     }
+    if (useCase === "daily_dialog" && lastAssistantOfferedPractice(history) && userRejectsLastPractice(userMessage)) {
+      decision.next_phase = "suggest_practice";
+      decision.reasoning = `${decision.reasoning} User reacted to the last practice offer; staying in suggest_practice and rotating the practice stack.`;
+      decision.should_close = false;
+      decision.close_reason = null;
+    }
     const phase = phases.find((item) => item.phase_id === decision.next_phase) ?? phases[0];
     decision.next_phase = phase.phase_id;
 
@@ -808,7 +900,7 @@ export async function POST(req: Request) {
 
           const phasePrompt = await getActivePrompt(routeDb, phase.prompt_key);
           const responderPrompt = await getActivePrompt(routeDb, "responder_main");
-          const practiceCandidate = PRACTICE_STACK_PHASES.has(phase.phase_id) ? await choosePractice(routeDb, null, context, userMessage) : null;
+          const practiceCandidate = PRACTICE_STACK_PHASES.has(phase.phase_id) ? await choosePractice(routeDb, routeUserId, null, context, userMessage, history) : null;
           const practicesList = practiceCandidate
             ? JSON.stringify(
                 (practiceCandidate.stack ?? []).map((practice) => ({
@@ -883,7 +975,10 @@ export async function POST(req: Request) {
 
           const markers = parseResponseMarkers(fullText);
           const cleanText = stripResponseMarkers(fullText);
-          const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(routeDb, markers.practicePick, context, userMessage) : null;
+          const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(routeDb, routeUserId, markers.practicePick, context, userMessage, history) : null;
+          const finalPracticePublic = finalPractice
+            ? publicPracticePickedPayload(finalPractice, markers.practicePick?.reason)
+            : undefined;
 
           if (markers.stateProposals.length) {
             const stateProposalExpiresAt = new Date();
@@ -928,6 +1023,7 @@ export async function POST(req: Request) {
                   ai_state_proposals: markers.stateProposals,
                   model_used: modelUsed,
                 },
+                practice_picked: finalPracticePublic,
               },
             })
             .select("id")
@@ -956,9 +1052,7 @@ export async function POST(req: Request) {
                 fullText: cleanText,
                 shouldClose,
                 modelUsed,
-                practicePicked: finalPractice
-                  ? publicPracticePickedPayload(finalPractice, markers.practicePick?.reason)
-                  : undefined,
+                practicePicked: finalPracticePublic,
                 recommendationCorrected: markers.recommendationCorrection
                   ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
                   : undefined,

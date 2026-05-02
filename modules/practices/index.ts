@@ -1,6 +1,8 @@
-export { loadPracticeCatalog } from "@/modules/practices/core/catalog";
+export { filterPractices, loadPracticeCatalog, sortPracticesForCatalog } from "@/modules/practices/core/catalog";
 export type {
   PracticeCatalog,
+  PracticeCatalogFilters,
+  PracticeDurationBucket,
   PracticeDurationPolicy,
   PracticeKind,
   PracticeLaunchParams,

@@ -10,6 +10,7 @@ import { useAuth } from "@/modules/auth";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import { recordPracticeSession } from "@/services/practiceSessions";
 import { getSupabase } from "@/services/supabase";
 import type { Database } from "@/services/supabase-types";
 
@@ -67,7 +68,7 @@ function vimeoHtml(videoId: string, audiotrack: string): string {
 export default function AsanaPracticeRoute() {
   const theme = useTheme();
   const { canUseFeature } = useAccess();
-  const { profile } = useAuth();
+  const { authUser, profile } = useAuth();
   const params = useLocalSearchParams<{
     practiceId?: string;
     durationMs?: string;
@@ -76,6 +77,8 @@ export default function AsanaPracticeRoute() {
   const [metadata, setMetadata] = useState<AsanaMetadata | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [savingCompletion, setSavingCompletion] = useState(false);
+  const [completionSaved, setCompletionSaved] = useState(false);
   const practiceId = typeof params.practiceId === "string" ? params.practiceId : null;
 
   const routeDurationMinutes =
@@ -132,6 +135,34 @@ export default function AsanaPracticeRoute() {
       ? metadata.chakras.map((item) => item.chakra_id).join(", ")
       : params.chakra ?? "не выбрана";
 
+  const completePractice = async () => {
+    if (!authUser?.id || !practice || completionSaved || savingCompletion) return;
+    setSavingCompletion(true);
+    const durationSec = practice.default_duration_sec ?? (routeDurationMinutes ? routeDurationMinutes * 60 : 0);
+    const endedAt = Date.now();
+    const startedAt = endedAt - Math.max(1, durationSec) * 1000;
+    const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
+    const savedId = await recordPracticeSession({
+      userId: authUser.id,
+      practiceId: practice.id,
+      practiceSlug: practice.slug,
+      practiceVersion: practice.version ?? 1,
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      completionPct: 100,
+      chakraFocusIds: chakraIds,
+      metrics: {},
+      context: {
+        source: "asana",
+        launch_source: "practice_screen",
+        practice_kind: "yoga",
+        vimeo_id: vimeoId,
+      },
+    });
+    setCompletionSaved(Boolean(savedId));
+    setSavingCompletion(false);
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
       <StatusBar style="auto" />
@@ -186,7 +217,14 @@ export default function AsanaPracticeRoute() {
             <MetaRow label="Audio track" value={audiotrack} />
           </View>
 
-          <AppButton label="Назад к каталогу" variant="secondary" onPress={() => router.back()} />
+          <View style={styles.actionRow}>
+            <AppButton
+              label={completionSaved ? "Практика сохранена" : savingCompletion ? "Сохраняем..." : "Завершить практику"}
+              onPress={completePractice}
+              disabled={!practice || !authUser?.id || completionSaved || savingCompletion}
+            />
+            <AppButton label="Назад к каталогу" variant="secondary" onPress={() => router.back()} />
+          </View>
         </View>
       </ScrollView>
       <UpgradeDialog
@@ -238,6 +276,10 @@ const styles = StyleSheet.create({
   },
   metaBlock: {
     gap: 8,
+  },
+  actionRow: {
+    alignItems: "flex-start",
+    gap: 10,
   },
   metaRow: {
     gap: 2,

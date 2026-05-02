@@ -4,8 +4,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
 
 import { UpgradeDialog, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
-import { loadPracticeCatalog } from "@/modules/practices/core/catalog";
-import type { PracticeCatalog, PracticeKind, PracticeSummary } from "@/modules/practices/core/types";
+import { isChakra, type Chakra } from "@/modules/breath";
+import { filterPractices, loadPracticeCatalog } from "@/modules/practices/core/catalog";
+import type { PracticeCatalog, PracticeDurationBucket, PracticeKind, PracticeSummary } from "@/modules/practices/core/types";
 import { PRACTICE_GROUPS } from "@/modules/practices/core/types";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -27,8 +28,26 @@ const EMPTY_CATALOG: PracticeCatalog = {
 const GROUP_HINT: Record<PracticeKind, string> = {
   meditation: "Визуальные и созерцательные практики для настройки внимания.",
   breath: "Пранаяма и когерентное дыхание с параметрами запуска.",
-  yoga: "Асаны из Vimeo-каталога. Если импорт еще не выполнен, группа остается пустой.",
+  yoga: "Асаны ранжируются по чакре, длительности, качеству и дате записи.",
 };
+
+const CHAKRA_FILTERS: Array<{ value: Chakra | "any"; label: string }> = [
+  { value: "any", label: "Все чакры" },
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4" },
+  { value: 5, label: "5" },
+  { value: 6, label: "6" },
+  { value: 7, label: "7" },
+];
+
+const DURATION_FILTERS: Array<{ value: PracticeDurationBucket; label: string }> = [
+  { value: "any", label: "Любая длительность" },
+  { value: "short", label: "до 10 мин" },
+  { value: "medium", label: "10-25 мин" },
+  { value: "long", label: "25+ мин" },
+];
 
 function totalCount(catalog: PracticeCatalog): number {
   return catalog.meditation.length + catalog.breath.length + catalog.yoga.length;
@@ -66,6 +85,8 @@ export function PracticeCatalogScreen() {
   const theme = useTheme();
   const { canUseFeature } = useAccess();
   const [selectedKind, setSelectedKind] = useState<PracticeKind>("meditation");
+  const [chakraFilter, setChakraFilter] = useState<Chakra | "any">("any");
+  const [durationFilter, setDurationFilter] = useState<PracticeDurationBucket>("any");
   const [lockedFeature, setLockedFeature] = useState<FeatureKey | null>(
     canUseFeature("practice_catalog") ? null : "practice_catalog",
   );
@@ -97,7 +118,10 @@ export function PracticeCatalogScreen() {
   }, [load]);
 
   const catalog = state.catalog ?? EMPTY_CATALOG;
-  const selectedPractices = catalog[selectedKind];
+  const selectedPractices = filterPractices(catalog[selectedKind], {
+    chakra: chakraFilter,
+    duration: durationFilter,
+  });
   const catalogAllowed = canUseFeature("practice_catalog");
   const asanaAllowed = canUseFeature("asana_practices");
 
@@ -194,6 +218,37 @@ export function PracticeCatalogScreen() {
               </AppText>
             </View>
 
+            <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>
+              <AppText variant="technicalCaption" tone="muted">
+                Фильтры второго витка
+              </AppText>
+              <View style={styles.chipRow}>
+                {CHAKRA_FILTERS.map((item) => (
+                  <FilterChip
+                    key={String(item.value)}
+                    label={item.label}
+                    active={chakraFilter === item.value}
+                    onPress={() => setChakraFilter(item.value)}
+                  />
+                ))}
+              </View>
+              <View style={styles.chipRow}>
+                {DURATION_FILTERS.map((item) => (
+                  <FilterChip
+                    key={item.value}
+                    label={item.label}
+                    active={durationFilter === item.value}
+                    onPress={() => setDurationFilter(item.value)}
+                  />
+                ))}
+              </View>
+              {chakraFilter !== "any" && !isChakra(chakraFilter) ? (
+                <AppText variant="technicalCaption" tone="warning">
+                  Некорректный фильтр чакры будет проигнорирован.
+                </AppText>
+              ) : null}
+            </View>
+
             <View style={styles.list}>
               {selectedPractices.length ? (
                 selectedPractices.map((practice) => (
@@ -211,7 +266,7 @@ export function PracticeCatalogScreen() {
                 >
                   <AppText variant="sectionTitle">Здесь скоро появятся практики</AppText>
                   <AppText variant="dialogBody" tone="muted">
-                    Для асан достаточно импортировать Vimeo metadata в таблицу practices с kind=yoga.
+                    Попробуйте другой фильтр или импортируйте Vimeo metadata в practices с kind=yoga.
                   </AppText>
                 </View>
               )}
@@ -232,6 +287,28 @@ export function PracticeCatalogScreen() {
         />
       ) : null}
     </SafeAreaView>
+  );
+}
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.filterChip,
+        {
+          backgroundColor: active ? theme.colors.buttonPrimaryBg : theme.colors.controlButtonBg,
+          borderColor: active ? theme.colors.buttonPrimaryBg : theme.colors.surfaceBorder,
+          opacity: pressed ? 0.82 : 1,
+        },
+      ]}
+    >
+      <AppText variant="technicalCaption" tone={active ? "accentOn" : "muted"}>
+        {label}
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -268,6 +345,23 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     gap: 6,
+  },
+  filterPanel: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    gap: 10,
+    padding: 12,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  filterChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   list: {
     gap: 12,

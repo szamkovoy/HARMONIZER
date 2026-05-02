@@ -96,6 +96,7 @@ import {
   type BreathPracticeSummary,
 } from "@/modules/breath/core/practice-io";
 import { enqueueCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
+import { useAuth } from "@/modules/auth";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
 import { BreathOverlayControlPanel } from "@/modules/breath/ui/BreathOverlayControlPanel";
 import { PpgMiniChart } from "@/modules/breath/ui/PpgMiniChart";
@@ -104,6 +105,8 @@ import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
 import { CountdownRing } from "@/modules/ui/CountdownRing";
 import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
+import { recordPracticeSession, selfRatingFromMood } from "@/services/practiceSessions";
+import type { Json } from "@/services/supabase-types";
 
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
 
@@ -3024,19 +3027,12 @@ function ResultsView(props: {
     onClose,
   } = props;
 
+  const { authUser } = useAuth();
   const [stage, setStage] = useState<"mood" | "details">("mood");
   const moodRef = useRef<ResultsMood | null>(null);
+  const savedSessionRef = useRef(false);
 
-  const handleMoodSelect = useCallback((mood: ResultsMood) => {
-    // В проде: persist-ить в БД для отчётов + эффективности практик.
-    // Сейчас — только локально: запомним для прикрепления к «Обсудить»,
-    // никуда не шлём.
-    moodRef.current = mood;
-    setStage("details");
-  }, []);
-
-  const handleDiscuss = useCallback(() => {
-    // Собираем summary и hybrid breakdown в plain-JSON payload.
+  const buildOutcome = useCallback((): BreathPracticeOutcome => {
     const summary: BreathPracticeSummary = {
       durationMs: practiceTotalMs,
       pulseEmulated: finalPulseWasEmulated || useSimulatedPpg,
@@ -3075,6 +3071,57 @@ function ResultsView(props: {
       hybrid,
       diagnostics: null,
     };
+    return outcome;
+  }, [
+    analysis,
+    chakra,
+    finalEndAnalysis,
+    finalEndAvgBpm,
+    finalEndHrv,
+    finalEndWindowMs,
+    finalPulseWasEmulated,
+    finalRmssdMs,
+    finalStartAnalysis,
+    finalStartAvgBpm,
+    finalStartHrv,
+    finalStartWindowMs,
+    finalStressPercent,
+    locale,
+    practiceId,
+    practiceTotalMs,
+    useSimulatedPpg,
+  ]);
+
+  const handleMoodSelect = useCallback((mood: ResultsMood) => {
+    moodRef.current = mood;
+    setStage("details");
+
+    if (!authUser?.id || savedSessionRef.current) return;
+    savedSessionRef.current = true;
+    const fallbackStartedAt = Date.now() - practiceTotalMs;
+    const startedAtMs = sessionStartWallMs ?? fallbackStartedAt;
+    const outcome = buildOutcome();
+    void recordPracticeSession({
+      userId: authUser.id,
+      practiceSlug: practiceId,
+      startedAt: new Date(startedAtMs).toISOString(),
+      endedAt: new Date(startedAtMs + practiceTotalMs).toISOString(),
+      selfRating: selfRatingFromMood(mood),
+      completionPct: 100,
+      metrics: outcomeToCommunicatorPayload(outcome) as Json,
+      chakraFocusIds: [chakra],
+      context: {
+        source: "breath",
+        launch_source: "practice_screen",
+        practice_kind: "breath",
+        duration_ms: practiceTotalMs,
+      },
+    });
+  }, [authUser?.id, buildOutcome, chakra, practiceId, practiceTotalMs, sessionStartWallMs]);
+
+  const handleDiscuss = useCallback(() => {
+    // Собираем summary и hybrid breakdown в plain-JSON payload.
+    const outcome = buildOutcome();
     const payload = outcomeToCommunicatorPayload(outcome);
     // Лёгкая метка настроения идёт рядом с payload-ом — ИИ может учесть.
     const mood = moodRef.current;
@@ -3103,24 +3150,8 @@ function ResultsView(props: {
       /* если мы не внутри expo-router — тихо игнорируем */
     }
   }, [
-    analysis,
-    chakra,
-    finalEndAnalysis,
-    finalEndAvgBpm,
-    finalEndHrv,
-    finalEndWindowMs,
-    finalPulseWasEmulated,
-    finalRmssdMs,
-    finalStartAnalysis,
-    finalStartAvgBpm,
-    finalStartHrv,
-    finalStartWindowMs,
-    finalStressPercent,
-    locale,
-    practiceId,
-    practiceTotalMs,
+    buildOutcome,
     str,
-    useSimulatedPpg,
   ]);
 
   if (stage === "mood") {
