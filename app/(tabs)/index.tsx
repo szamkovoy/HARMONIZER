@@ -1,4 +1,5 @@
 import { useAuth } from "@/modules/auth";
+import { DevTierSwitch as AccessDevTierSwitch, UpgradeDialog, accessModeForTier, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
 import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/types";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
@@ -15,8 +16,9 @@ import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
 import { createNatalProfile, fetchActiveNatalProfile } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
+import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -163,6 +165,7 @@ function DevLinks({ strings, leadingAccessory }: { strings: HomeStrings; leading
     { label: strings.devLinks.bindu, href: "/bindu-succession-lab" },
     { label: strings.devLinks.symbols, href: "/sacred-symbol-stream" },
     { label: strings.devLinks.breath, href: "/breath-coherence" },
+    { label: "Практики", href: "/practices" },
     { label: strings.devLinks.calibration, href: "/calibration" },
   ];
 
@@ -210,51 +213,6 @@ function FreeTierBanner() {
         Внизу вы видите универсальный прогноз на этот день. Конечно, индивидуальные прогнозы, опирающиеся на вашу дату
         рождения, гораздо точнее. Перейдите на платный тариф, чтобы их получать.
       </AppText>
-    </View>
-  );
-}
-
-function DevTierSwitch({
-  accessMode,
-  switching,
-  onSetFree,
-  onSetPremium,
-}: {
-  accessMode: "free" | "trial" | "premium";
-  switching: boolean;
-  onSetFree: () => void;
-  onSetPremium: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.tierSwitch, { borderColor: theme.colors.surfaceBorder }]}>
-      <AppText variant="technicalCaption" tone="muted">
-        Тест тарифа: {accessMode === "premium" ? "платный" : accessMode === "trial" ? "триал" : "бесплатный"}
-      </AppText>
-      <View style={styles.tierSwitchActions}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={switching}
-          onPress={onSetFree}
-          style={({ pressed }) => [
-            styles.tierSwitchLink,
-            { opacity: pressed || switching ? 0.55 : 1, borderColor: theme.colors.surfaceBorder },
-          ]}
-        >
-          <AppText variant="technicalCaption">Бесплатный</AppText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          disabled={switching}
-          onPress={onSetPremium}
-          style={({ pressed }) => [
-            styles.tierSwitchLink,
-            { opacity: pressed || switching ? 0.55 : 1, borderColor: theme.colors.surfaceBorder },
-          ]}
-        >
-          <AppText variant="technicalCaption">Платный</AppText>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -354,6 +312,45 @@ function NatalBridgeModal({
   );
 }
 
+function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => void) {
+  const launch = practice.launch;
+  onClose();
+
+  if (launch?.route) {
+    router.push({
+      pathname: launch.route,
+      params: launch.params,
+    } as Href);
+    return;
+  }
+
+  if (practice.kind === "breath") {
+    router.push({
+      pathname: "/breath-coherence",
+      params: {
+        practiceId: practice.slug ?? practice.id,
+        durationMs: String((practice.durationSec ?? 600) * 1000),
+        chakra: String(practice.chakraIds?.[0] ?? 4),
+      },
+    } as Href);
+    return;
+  }
+
+  if (practice.kind === "yoga") {
+    router.push({
+      pathname: "/asana-practice",
+      params: {
+        practiceId: practice.id,
+        ...(practice.durationSec ? { durationMs: String(practice.durationSec * 1000) } : {}),
+        ...(practice.chakraIds?.[0] ? { chakra: String(practice.chakraIds[0]) } : {}),
+      },
+    } as Href);
+    return;
+  }
+
+  router.push("/sacred-symbol-stream" as Href);
+}
+
 function CommunicatorOverlay({
   forecast,
   strings,
@@ -437,6 +434,7 @@ function CommunicatorOverlay({
           }}
           history={[initialAssistantMessage]}
           memoryWindow={24}
+          onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onClose)}
         />
       </View>
     </Modal>
@@ -447,24 +445,26 @@ export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { profile, signOut, signingIn, refreshProfile } = useAuth();
+  const { access, canUseFeature, setDevTierOverride } = useAccess();
   const strings = useMemo(
     () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
     [profile?.locale],
   );
   const { forecast, loading, error, refresh, status, accessMode, modelUsed } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
+    accessModeOverride: accessModeForTier(access.tier),
   });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
-  const [tierSwitching, setTierSwitching] = useState(false);
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
   const [assistantRemountKey, setAssistantRemountKey] = useState(0);
   const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
+  const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!profile?.id || accessMode === "free") {
+    if (!profile?.id || !canUseFeature("personal_daily_forecast")) {
       setNatalProfile(null);
       return;
     }
@@ -479,7 +479,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [accessMode, profile?.id]);
+  }, [canUseFeature, profile?.id]);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
@@ -524,33 +524,6 @@ export default function HomeScreen() {
     }
   }, [refresh]);
 
-  const switchTier = useCallback(
-    async (mode: "free" | "premium") => {
-      if (!profile?.id) return;
-      setTierSwitching(true);
-      try {
-        const update =
-          mode === "premium"
-            ? { membership_tier: "premium", trial_expires_at: null }
-            : { membership_tier: "free", trial_expires_at: new Date(Date.now() - 60_000).toISOString() };
-        const { error } = await requireSupabase().from("users").update(update).eq("id", profile.id);
-        if (error) throw error;
-        // Сначала перезагрузка контента с override — иначе refreshProfile обновит profile,
-        // useDayContent пересоздаст refresh, useEffect сделает abort() и оборвёт этот запрос.
-        await refresh({ forceRefresh: true, accessModeOverride: mode });
-        await refreshProfile().catch((err) => {
-          console.warn("[Home] Tier switched, but profile refresh failed", err);
-        });
-      } catch (error) {
-        console.warn("[Home] Failed to switch test tier", error);
-        Alert.alert("Не удалось переключить тариф", errorMessage(error));
-      } finally {
-        setTierSwitching(false);
-      }
-    },
-    [profile?.id, refresh, refreshProfile],
-  );
-
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
       <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
@@ -578,13 +551,19 @@ export default function HomeScreen() {
 
         {forecast ? (
           <>
-            {accessMode === "free" ? <FreeTierBanner /> : null}
+            {access.tier === "free" ? <FreeTierBanner /> : null}
             <ChakraFlower forecast={forecast} strings={strings} />
             <DailyRecommendationCard
               forecast={forecast}
               strings={strings}
-              onDiscuss={() => setCommunicatorOpen(true)}
-              showDiscuss={accessMode !== "free"}
+              onDiscuss={() => {
+                if (canUseFeature("assistant_dialog")) {
+                  setCommunicatorOpen(true);
+                } else {
+                  setUpgradeFeature("assistant_dialog");
+                }
+              }}
+              showDiscuss
               accessMode={accessMode}
               natalProfile={natalProfile}
               modelUsed={modelUsed}
@@ -597,15 +576,16 @@ export default function HomeScreen() {
           </>
         ) : null}
 
-        <NatalBridgeCard onOpen={() => setNatalBridgeOpen(true)} />
-        {__DEV__ ? (
-          <DevTierSwitch
-            accessMode={accessMode}
-            switching={tierSwitching}
-            onSetFree={() => void switchTier("free")}
-            onSetPremium={() => void switchTier("premium")}
-          />
-        ) : null}
+        <NatalBridgeCard
+          onOpen={() => {
+            if (canUseFeature("calibration")) {
+              setNatalBridgeOpen(true);
+            } else {
+              setUpgradeFeature("calibration");
+            }
+          }}
+        />
+        {__DEV__ ? <AccessDevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
         {HARMONIZER_TEST_MODE ? (
           <DevLinks
             strings={strings}
@@ -658,6 +638,14 @@ export default function HomeScreen() {
         onClose={() => setNatalBridgeOpen(false)}
         onSubmit={onSaveNatalBridge}
       />
+      {upgradeFeature ? (
+        <UpgradeDialog
+          visible
+          feature={upgradeFeature}
+          requiredTier={requiredTierFor(upgradeFeature)}
+          onClose={() => setUpgradeFeature(null)}
+        />
+      ) : null}
     </View>
   );
 }

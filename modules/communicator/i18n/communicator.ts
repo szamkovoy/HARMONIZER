@@ -47,6 +47,10 @@ export interface CommunicatorStrings {
     startButton: string;
     startAccessibilityLabel: string;
     closedWithoutPractice: string;
+    detailsButton: string;
+    detailsTitle: string;
+    closeDetailsButton: string;
+    instructionVideoLabel: string;
   };
   transcribeLanguage: string;
   defaultSystemPrompt: (useCase: DialogueUseCase) => string;
@@ -121,11 +125,15 @@ const ru: CommunicatorStrings = {
   transcriptionReviewCancel: "Отменить",
   transcriptionReviewSend: "Отправить",
   practiceCard: {
-    eyebrow: "Подходящая практика",
+    eyebrow: "Практика на сейчас",
     fallbackTitle: "Практика",
     startButton: "Начать практику",
     startAccessibilityLabel: "Начать практику",
     closedWithoutPractice: "Диалог завершён. Практика не была выбрана.",
+    detailsButton: "Описание",
+    detailsTitle: "О практике",
+    closeDetailsButton: "Понятно",
+    instructionVideoLabel: "есть инструкция",
   },
   transcribeLanguage: "ru",
   defaultSystemPrompt: () => "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.",
@@ -162,11 +170,15 @@ const en: CommunicatorStrings = {
   transcriptionReviewCancel: "Cancel",
   transcriptionReviewSend: "Send",
   practiceCard: {
-    eyebrow: "Suggested practice",
+    eyebrow: "Practice for now",
     fallbackTitle: "Practice",
     startButton: "Start practice",
     startAccessibilityLabel: "Start practice",
     closedWithoutPractice: "The dialog is complete. No practice was selected.",
+    detailsButton: "Details",
+    detailsTitle: "About this practice",
+    closeDetailsButton: "Got it",
+    instructionVideoLabel: "instruction available",
   },
   transcribeLanguage: "en",
   defaultSystemPrompt: () => "You are an empathetic Harmonizer mentor. Reply briefly and practically.",

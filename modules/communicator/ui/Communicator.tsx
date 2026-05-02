@@ -542,7 +542,6 @@ export function Communicator({
         };
         setMessages((prev) => [...prev, assistant]);
         onMessage?.(assistant);
-        if (complete?.practicePicked) onPracticePicked?.(complete.practicePicked);
         resetChatStream();
       } catch (e) {
         setPhase("error");
@@ -913,7 +912,7 @@ export function Communicator({
                     isStreaming={false}
                     phaseLabel={messagePhaseLabel(m)}
                   />
-                  {Boolean(m.meta?.shouldClose) && m.meta?.practicePicked ? (
+                  {m.meta?.practicePicked ? (
                     <PracticeCard
                       practice={m.meta.practicePicked}
                       strings={strings}

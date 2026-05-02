@@ -7,12 +7,13 @@ import {
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 
@@ -52,12 +53,19 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <UiThemeProvider value={uiTheme}>
         <AuthProvider>
-          <AuthSplashBridge fontsLoaded={loaded} />
-          <RootLayoutNav />
+          <AccessBridge>
+            <AuthSplashBridge fontsLoaded={loaded} />
+            <RootLayoutNav />
+          </AccessBridge>
         </AuthProvider>
       </UiThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+function AccessBridge({ children }: { children: ReactNode }) {
+  const { profile } = useAuth();
+  return <AccessProvider profile={profile}>{children}</AccessProvider>;
 }
 
 /**
@@ -152,6 +160,10 @@ function RootLayoutNav() {
         <Stack.Screen
           name="sacred-symbol-stream"
           options={{ title: "Sacred Symbol Stream", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="asana-practice"
+          options={{ title: "Асаны", headerBackTitle: "Back" }}
         />
         <Stack.Screen
           name="breath-coherence"

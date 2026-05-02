@@ -1,9 +1,25 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { useState } from "react";
 
 import type { CommunicatorStrings } from "@/modules/communicator/i18n/communicator";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import type { PracticePicked } from "@/services/communicator-client";
+
+const KIND_LABEL: Record<NonNullable<PracticePicked["kind"]>, string> = {
+  breath: "Дыхание",
+  meditation: "Медитация",
+  yoga: "Асаны",
+};
+
+function durationLabel(practice: PracticePicked): string | null {
+  if (!practice.durationSec) return null;
+  const minutes = Math.max(1, Math.round(practice.durationSec / 60));
+  if (practice.minDurationSec && practice.maxDurationSec && practice.minDurationSec !== practice.maxDurationSec) {
+    return `${minutes} мин, можно настроить`;
+  }
+  return `${minutes} мин`;
+}
 
 export function PracticeCard({
   practice,
@@ -15,7 +31,9 @@ export function PracticeCard({
   onPress?: (practice: PracticePicked) => void;
 }) {
   const theme = useTheme();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const title = practice.name ?? strings.practiceCard.fallbackTitle;
+  const meta = [practice.kind ? KIND_LABEL[practice.kind] : null, durationLabel(practice)].filter(Boolean).join(" · ");
 
   return (
     <View style={styles.row}>
@@ -32,8 +50,35 @@ export function PracticeCard({
           {strings.practiceCard.eyebrow}
         </AppText>
         <AppText variant="sectionTitle">{title}</AppText>
+        {meta ? (
+          <AppText variant="technicalCaption" tone="muted">
+            {meta}
+          </AppText>
+        ) : null}
         {practice.reason ? (
           <AppText variant="dialogBody" tone="muted">{practice.reason}</AppText>
+        ) : null}
+        {(practice.hasDescription || practice.hasInstructionVideo) ? (
+          <View style={styles.metaRow}>
+            {practice.hasDescription ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setDetailsOpen(true)}
+                style={[styles.metaPill, { borderColor: theme.colors.surfaceBorder }]}
+              >
+                <AppText variant="technicalCaption" tone="muted">
+                  {strings.practiceCard.detailsButton}
+                </AppText>
+              </Pressable>
+            ) : null}
+            {practice.hasInstructionVideo ? (
+              <View style={[styles.metaPill, { borderColor: theme.colors.surfaceBorder }]}>
+                <AppText variant="technicalCaption" tone="muted">
+                  {strings.practiceCard.instructionVideoLabel}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
         ) : null}
         <Pressable
           accessibilityRole="button"
@@ -51,6 +96,38 @@ export function PracticeCard({
             {strings.practiceCard.startButton}
           </AppText>
         </Pressable>
+        <Modal
+          visible={detailsOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDetailsOpen(false)}
+        >
+          <View style={[styles.modalBackdrop, { backgroundColor: theme.colors.modalBackdrop }]}>
+            <View
+              style={[
+                styles.modalCard,
+                {
+                  backgroundColor: theme.colors.surfaceElevated,
+                  borderColor: theme.colors.surfaceBorder,
+                },
+              ]}
+            >
+              <AppText variant="sectionTitle">{strings.practiceCard.detailsTitle}</AppText>
+              <AppText variant="dialogBody" tone="muted">
+                {practice.reason ?? title}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setDetailsOpen(false)}
+                style={[styles.button, { backgroundColor: theme.colors.buttonPrimaryBg }]}
+              >
+                <AppText variant="buttonLabel" tone="accentOn">
+                  {strings.practiceCard.closeDetailsButton}
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     </View>
   );
@@ -81,5 +158,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     marginTop: 2,
+  },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  metaPill: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
   },
 });

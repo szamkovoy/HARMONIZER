@@ -25,8 +25,20 @@ export interface OrchestratorDecision {
 
 export interface PracticePicked {
   id: string;
+  slug?: string;
   name?: string;
+  kind?: "breath" | "meditation" | "yoga";
   reason?: string;
+  durationSec?: number | null;
+  minDurationSec?: number | null;
+  maxDurationSec?: number | null;
+  chakraIds?: number[];
+  launch?: {
+    route: string;
+    params: Record<string, string>;
+  };
+  hasDescription?: boolean;
+  hasInstructionVideo?: boolean;
 }
 
 export interface RecommendationCorrected {

@@ -5,6 +5,7 @@ import type { DailyForecast } from "@/modules/daily-engine";
 import { callMonologue, type MorningRecommendationResponse } from "@/services/aiClient";
 import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communicatorConfig";
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
+import { clearDayContentCache, loadDayContentCache, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 
 type DayContentStatus = "idle" | "loading" | "ready" | "error" | "missing_location";
@@ -23,6 +24,7 @@ export interface UseDayContentResult {
 
 interface UseDayContentOptions {
   locationErrorMessage?: string;
+  accessModeOverride?: AccessMode;
 }
 
 function localDateIso(timezone: string): string {
@@ -72,6 +74,23 @@ function accessModeFor(profile: { membership_tier?: string | null; trial_expires
   return hasPremiumAccess(profile) ? "trial" : "free";
 }
 
+function dayContentScopeKey(
+  profile: {
+    birth_date?: string | null;
+    birth_time?: string | null;
+    birth_place?: unknown;
+    updated_at?: string | null;
+  } | null,
+): string {
+  const raw = [
+    profile?.birth_date ?? "",
+    profile?.birth_time ?? "",
+    typeof profile?.birth_place === "string" ? profile.birth_place : JSON.stringify(profile?.birth_place ?? null),
+    profile?.updated_at ?? "",
+  ].join("|");
+  return raw.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "default";
+}
+
 async function enrichWithMorningContent(
   forecast: DailyForecast,
   forceRefresh: boolean | undefined,
@@ -107,8 +126,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
   const [forecast, setForecast] = useState<DailyForecast | null>(null);
   const [source, setSource] = useState<DayContentSource | null>(null);
-  /** «loading» с первого кадра — иначе до первого refresh кратко пустой экран без скелетона. */
-  const [status, setStatus] = useState<DayContentStatus>("loading");
+  const [status, setStatus] = useState<DayContentStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
   const [accessMode, setAccessMode] = useState<AccessMode>("free");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
@@ -139,11 +157,40 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
       const controller = new AbortController();
       abortRef.current = controller;
-      setStatus("loading");
 
       try {
-        const nextAccessMode = opts?.accessModeOverride ?? accessModeFor(profile);
+        const nextAccessMode = opts?.accessModeOverride ?? options?.accessModeOverride ?? accessModeFor(profile);
+        const forecastDate = localDateIso(userLocation.timezone);
+        const userId = profile?.id;
+        const scopeKey = dayContentScopeKey(profile);
         setAccessMode(nextAccessMode);
+
+        if (userId) {
+          await pruneDayContentCache({ userId, forecastDate });
+          if (opts?.forceRefresh) {
+            await clearDayContentCache({ userId, forecastDate });
+          }
+        }
+
+        if (!opts?.forceRefresh && userId) {
+          const cached = await loadDayContentCache({
+            userId,
+            accessMode: nextAccessMode,
+            forecastDate,
+            scopeKey,
+            userLocation,
+          });
+          if (controller.signal.aborted) return;
+          if (cached) {
+            setForecast(cached.forecast);
+            setSource(cached.source);
+            setModelUsed(cached.modelUsed);
+            setStatus("ready");
+            return;
+          }
+        }
+
+        setStatus("loading");
         const requestUrl = nextAccessMode === "free" ? getAiGlobalContentUrl() : getDailyForecastUrl();
         // eslint-disable-next-line no-console
         console.log("[dayContent] refresh url", requestUrl);
@@ -161,9 +208,23 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             console.log("[dayContent] modelUsed", result.modelUsed ?? "unknown");
           }
           setAccessMode(result.accessMode);
+          if (userId) {
+            void saveDayContentCache({
+              userId,
+              accessMode: result.accessMode,
+              forecastDate,
+              scopeKey,
+              userLocation,
+              content: {
+                forecast: result.forecast,
+                source: "global",
+                modelUsed: result.modelUsed,
+              },
+            }).catch(() => undefined);
+          }
         } else {
           const result = await fetchDailyForecast({
-            forecastDate: localDateIso(userLocation.timezone),
+            forecastDate,
             userLocation,
             forceRefresh: opts?.forceRefresh,
             signal: controller.signal,
@@ -175,6 +236,20 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (__DEV__) {
             // eslint-disable-next-line no-console
             console.log("[dayContent] modelUsed", forecastWithContent.modelUsed ?? "unknown");
+          }
+          if (userId) {
+            void saveDayContentCache({
+              userId,
+              accessMode: nextAccessMode,
+              forecastDate,
+              scopeKey,
+              userLocation,
+              content: {
+                forecast: forecastWithContent.forecast,
+                source: result.source,
+                modelUsed: forecastWithContent.modelUsed,
+              },
+            }).catch(() => undefined);
           }
         }
         setStatus("ready");
@@ -191,7 +266,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
       }
     },
-    [options?.locationErrorMessage, profile, userLocation],
+    [options?.accessModeOverride, options?.locationErrorMessage, profile, userLocation],
   );
 
   useEffect(() => {
