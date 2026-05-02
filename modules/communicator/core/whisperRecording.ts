@@ -1,5 +1,9 @@
 import { Audio } from "expo-av";
 
+/**
+ * 16 kHz mono AAC — ориентир для Whisper и Hume EVI (latency); см. docs/hume_integration.md.
+ * Стабильность `prepareToRecord` на iOS — в Communicator (DuckOthers, пауза после setAudioModeAsync, ретраи).
+ */
 export const WHISPER_OPTIMIZED_PRESET: Audio.RecordingOptions = {
   android: {
     extension: ".m4a",

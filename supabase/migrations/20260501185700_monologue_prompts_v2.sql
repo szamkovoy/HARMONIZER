@@ -302,7 +302,7 @@ $prompt$,
   }'::jsonb,
   'standard',
   0.85,
-  2200,
+  6144,
   'json_object'
 )
 on conflict (prompt_key, version) do update set

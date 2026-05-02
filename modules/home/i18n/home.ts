@@ -64,6 +64,8 @@ export interface HomeStrings {
     aspectTitle: string;
   };
   devLinks: Record<string, string>;
+  /** Кнопка в тестовом ряду: POST global-content { devReset: true } + refresh */
+  devResetDayContent: string;
   formatTime: (value: string) => string;
 }
 
@@ -198,6 +200,7 @@ const ru: HomeStrings = {
     breath: "Breath",
     calibration: "Calibration",
   },
+  devResetDayContent: "Обновить",
   formatTime: (value) => formatTime(value, "ru"),
 };
 
@@ -294,6 +297,7 @@ const en: HomeStrings = {
     empty: "There are no upcoming timed astro-events today.",
     aspectTitle: "Aspect",
   },
+  devResetDayContent: "Refresh",
   formatTime: (value) => formatTime(value, "en"),
 };
 

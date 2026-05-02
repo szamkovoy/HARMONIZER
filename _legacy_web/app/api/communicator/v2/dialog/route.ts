@@ -5,6 +5,7 @@ import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
 import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "../../../_utils/gemini";
+import { dialogSurfaceModelHint } from "../../../_utils/userModelTier";
 import {
   computeCSI,
   computeETV,
@@ -205,7 +206,11 @@ async function loadContext(db: SupabaseClient, userId: string) {
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle(),
-    db.from("users").select("display_name,birth_date,locale,address_form,tz").eq("id", userId).maybeSingle(),
+    db
+      .from("users")
+      .select("display_name,birth_date,locale,address_form,tz,membership_tier,trial_expires_at")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
   if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
@@ -222,6 +227,8 @@ async function loadContext(db: SupabaseClient, userId: string) {
         locale?: string | null;
         address_form?: string | null;
         tz?: string | null;
+        membership_tier?: string | null;
+        trial_expires_at?: string | null;
       } | null) ?? {},
   };
 }
@@ -730,11 +737,12 @@ export async function POST(req: Request) {
             history: historyDTO,
           });
 
+          const responderModel = dialogSurfaceModelHint(responderPrompt.model_hint, context.user);
           let fullText = "";
-          let modelUsed = getModelByHint(responderPrompt.model_hint);
+          let modelUsed = getModelByHint(responderModel);
           for await (const chunk of streamGeminiText({
             prompt,
-            model: getModelByHint(responderPrompt.model_hint),
+            model: getModelByHint(responderModel),
             temperature: responderPrompt.temperature,
             maxOutputTokens: responderPrompt.max_output_tokens,
           })) {

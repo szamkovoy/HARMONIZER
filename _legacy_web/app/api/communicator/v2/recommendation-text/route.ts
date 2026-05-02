@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateGeminiText, getModelByHint } from "../../../_utils/gemini";
+import { dialogSurfaceModelHint } from "../../../_utils/userModelTier";
 import { reportRouteError } from "../../../_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
@@ -35,15 +36,24 @@ export async function POST(req: Request) {
     if (forecastError) throw forecastError;
     if (!forecast) return json({ error: "Forecast not found" }, { status: 404 });
 
+    endpointStage = "load_user_tier";
+    const { data: userRow, error: userErr } = await db
+      .from("users")
+      .select("membership_tier,trial_expires_at")
+      .eq("id", userId)
+      .maybeSingle();
+    if (userErr) throw userErr;
+
     endpointStage = "recommendation_generation";
     const prompt = await getActivePrompt(db, mode === "long" ? "recommendation_long" : "recommendation_short");
+    const recModel = dialogSurfaceModelHint(prompt.model_hint, userRow);
     const result = await generateGeminiText({
       prompt: renderPrompt(prompt.template, {
         forecast_json: forecast,
         context_json: body.context ?? {},
         planet_of_the_day: forecast.planet_of_the_day,
       }),
-      model: getModelByHint(prompt.model_hint),
+      model: getModelByHint(recModel),
       temperature: prompt.temperature,
       maxOutputTokens: prompt.max_output_tokens,
     });

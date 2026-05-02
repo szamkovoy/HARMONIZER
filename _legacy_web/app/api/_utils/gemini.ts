@@ -13,9 +13,17 @@ type GenerateTextOptions = GenerateJsonOptions & {
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** Разрешить только при явном ALLOW_LEGACY_GEMINI_MODELS=true — иначе используется ровно значение из env. */
 const LEGACY_MODEL_UPGRADES: Record<string, string> = {
   "gemini-1.5-flash": "gemini-2.5-flash",
   "gemini-1.5-pro": "gemini-2.5-flash",
+};
+
+/** Informal names (docs/marketing) → ids that exist on generativelanguage.googleapis.com v1beta. */
+const INFORMAL_GEMINI_MODEL_IDS: Record<string, string> = {
+  "gemini-3.1-flash": "gemini-3-flash-preview",
+  "gemini-3.1-pro": "gemini-3.1-pro-preview",
 };
 
 export class GeminiJsonParseError extends Error {
@@ -42,20 +50,28 @@ function getApiKey(): string {
   return key;
 }
 
+function resolvePublishedGeminiModelId(modelId: string): string {
+  const trimmed = modelId.trim();
+  const lower = trimmed.toLowerCase();
+  if (process.env.ALLOW_LEGACY_GEMINI_MODELS === "true" && LEGACY_MODEL_UPGRADES[lower]) {
+    return LEGACY_MODEL_UPGRADES[lower];
+  }
+  return INFORMAL_GEMINI_MODEL_IDS[lower] ?? trimmed;
+}
+
 export function getModelByHint(hint: string | null | undefined): string {
-  const tier = hint?.trim().toLowerCase();
-  if (tier?.startsWith("gemini-")) return tier;
+  const rawHint = hint?.trim() ?? "";
+  const tier = rawHint.toLowerCase();
+  if (tier.startsWith("gemini-")) {
+    return resolvePublishedGeminiModelId(rawHint);
+  }
   const model = tier === "premium" ? process.env.AI_MODEL_PREMIUM?.trim() : process.env.AI_MODEL_STANDARD?.trim();
   if (!model) {
     throw new Error(
       tier === "premium" ? "Missing AI_MODEL_PREMIUM environment variable" : "Missing AI_MODEL_STANDARD environment variable",
     );
   }
-  const normalizedModel = model.trim().toLowerCase();
-  if (process.env.ALLOW_LEGACY_GEMINI_MODELS !== "true" && LEGACY_MODEL_UPGRADES[normalizedModel]) {
-    return LEGACY_MODEL_UPGRADES[normalizedModel];
-  }
-  return model;
+  return resolvePublishedGeminiModelId(model);
 }
 
 function modelChain(preferred?: string | null, fallbackModels?: readonly string[]): string[] {

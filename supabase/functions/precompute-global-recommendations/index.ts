@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
 import { assertCronSecret, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
 import { buildGlobalMathLevel, computeGlobalDailyForecast } from "../_shared/dailyForecast.ts";
 
@@ -26,16 +27,6 @@ function renderTemplate(template: string, variables: Record<string, unknown>): s
   });
 }
 
-function getModelByHint(hint: string | null | undefined): string {
-  const tier = hint?.trim().toLowerCase();
-  const model = tier === "premium" ? Deno.env.get("AI_MODEL_PREMIUM")?.trim() : Deno.env.get("AI_MODEL_STANDARD")?.trim();
-  if (!model) throw new Error(tier === "premium" ? "Missing AI_MODEL_PREMIUM" : "Missing AI_MODEL_STANDARD");
-  if (Deno.env.get("ALLOW_LEGACY_GEMINI_MODELS") !== "true") {
-    if (model === "gemini-1.5-flash" || model === "gemini-1.5-pro") return "gemini-2.5-flash";
-  }
-  return model;
-}
-
 async function generateGeminiJson(params: {
   prompt: string;
   modelHint: string | null | undefined;
@@ -44,7 +35,7 @@ async function generateGeminiJson(params: {
 }) {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY is required");
-  const model = getModelByHint(params.modelHint);
+  const model = resolveGeminiModelIdFromTierEnv(params.modelHint);
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

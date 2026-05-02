@@ -19,6 +19,7 @@ import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { requireSupabase } from "@/services/supabase";
+import { rewriteAuthNetworkError } from "./authNetworkErrors";
 import { signInWithApple } from "./sign-in-apple";
 import { signInWithGoogle, signOutGoogle } from "./sign-in-google";
 import type { AuthContextValue, AuthUserRow } from "./types";
@@ -86,15 +87,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .getSession()
       .then(({ data }) => {
         setSession(data.session);
-        void syncProfile(data.session?.user ?? null).finally(() =>
-          setInitializing(false),
-        );
+        void syncProfile(data.session?.user ?? null)
+          .catch((error: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[auth] syncProfile after getSession",
+              rewriteAuthNetworkError(error, "profile").message,
+            );
+          })
+          .finally(() => setInitializing(false));
       })
       .catch((error) => {
         // На холодном старте сеть может быть ещё недоступна; показываем auth UI,
         // а не красный экран LogBox с безымянным `Network request failed`.
         // eslint-disable-next-line no-console
-        console.warn("[auth] getSession network error", error instanceof Error ? error.message : String(error));
+        console.warn("[auth] getSession failed", rewriteAuthNetworkError(error, "session").message);
         setSession(null);
         setProfile(null);
         setInitializing(false);
@@ -103,21 +110,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // 2) Подписаться на изменения (логин, логаут, рефреш токена).
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
-      void syncProfile(next?.user ?? null);
+      void syncProfile(next?.user ?? null).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[auth] syncProfile onAuthStateChange",
+          rewriteAuthNetworkError(error, "profile").message,
+        );
+      });
     });
 
-    // 3) Авто-рефреш при возврате приложения из фона (рекомендация Supabase).
+    const safeStartAutoRefresh = () => {
+      void supabase.auth.startAutoRefresh().catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[auth] startAutoRefresh",
+          rewriteAuthNetworkError(error, "refresh").message,
+        );
+      });
+    };
+    const safeStopAutoRefresh = () => {
+      void supabase.auth.stopAutoRefresh().catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[auth] stopAutoRefresh",
+          rewriteAuthNetworkError(error, "refresh").message,
+        );
+      });
+    };
+
+    // 3) Авто-рефреш при старте и при возврате из фона (рекомендация Supabase).
+    safeStartAutoRefresh();
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
-        void supabase.auth.startAutoRefresh();
+        safeStartAutoRefresh();
       } else {
-        void supabase.auth.stopAutoRefresh();
+        safeStopAutoRefresh();
       }
     });
 
     return () => {
       sub.subscription.unsubscribe();
       appStateSub.remove();
+      safeStopAutoRefresh();
     };
   }, [syncProfile]);
 

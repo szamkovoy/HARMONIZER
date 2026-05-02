@@ -8,7 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -24,6 +24,16 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
+/** Нативный сплэш держим до готовности шрифтов и первичной проверки сессии — меньше «белого экрана». */
+function AuthSplashBridge({ fontsLoaded }: { fontsLoaded: boolean }) {
+  const { initializing } = useAuth();
+  useEffect(() => {
+    if (!fontsLoaded || initializing) return;
+    void SplashScreen.hideAsync();
+  }, [fontsLoaded, initializing]);
+  return null;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const uiTheme = useMemo(() => buildTheme(colorScheme === "dark" ? "dark" : "light"), [colorScheme]);
@@ -36,16 +46,13 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
-
   if (!loaded) return null;
 
   return (
     <SafeAreaProvider>
       <UiThemeProvider value={uiTheme}>
         <AuthProvider>
+          <AuthSplashBridge fontsLoaded={loaded} />
           <RootLayoutNav />
         </AuthProvider>
       </UiThemeProvider>
@@ -104,7 +111,18 @@ function RootLayoutNav() {
   // Пока читаем сессию из SecureStore — держим фон текущей UI-темы, чтобы не мигало
   // на фоне стартового (tabs). Сплэш-скрин Expo уже скрыт (fonts loaded).
   if (initializing) {
-    return <View style={{ flex: 1, backgroundColor: theme.colors.screenBg }} />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.colors.screenBg,
+        }}
+      >
+        <ActivityIndicator size="large" color={theme.colors.accent} />
+      </View>
+    );
   }
 
   return (

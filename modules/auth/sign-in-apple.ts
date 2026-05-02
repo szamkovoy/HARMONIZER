@@ -24,6 +24,7 @@
  */
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
+import { rewriteAuthNetworkError } from "./authNetworkErrors";
 import { requireSupabase } from "@/services/supabase";
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -58,10 +59,14 @@ export async function signInWithApple(): Promise<void> {
   }
 
   const supabase = requireSupabase();
-  const { error } = await supabase.auth.signInWithIdToken({
-    provider: "apple",
-    token: credential.identityToken,
-    nonce: rawNonce,
-  });
-  if (error) throw error;
+  try {
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: credential.identityToken,
+      nonce: rawNonce,
+    });
+    if (error) throw error;
+  } catch (error) {
+    throw rewriteAuthNetworkError(error, "sign_in");
+  }
 }

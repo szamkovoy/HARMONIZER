@@ -10,12 +10,14 @@ import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCa
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
+import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
 import { createNatalProfile, fetchActiveNatalProfile } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -153,7 +155,7 @@ function HomeError({
   );
 }
 
-function DevLinks({ strings }: { strings: HomeStrings }) {
+function DevLinks({ strings, leadingAccessory }: { strings: HomeStrings; leadingAccessory?: ReactNode }) {
   const theme = useTheme();
   const links = [
     { label: strings.devLinks.biofeedback, href: "/biofeedback-probe" },
@@ -166,6 +168,7 @@ function DevLinks({ strings }: { strings: HomeStrings }) {
 
   return (
     <View style={styles.devLinks}>
+      {leadingAccessory}
       {links.map((link) => (
         <Pressable
           key={link.href}
@@ -355,10 +358,12 @@ function CommunicatorOverlay({
   forecast,
   strings,
   onClose,
+  remountKey,
 }: {
   forecast: DailyForecast;
   strings: HomeStrings;
   onClose: () => void;
+  remountKey: number;
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -418,7 +423,7 @@ function CommunicatorOverlay({
           </Pressable>
         </View>
         <Communicator
-          key={`${forecast.date}-${forecast.planetOfTheDay}`}
+          key={`${forecast.date}-${forecast.planetOfTheDay}-${remountKey}`}
           systemPrompt={strings.defaultSystemPrompt}
           locale={strings.locale}
           useCase="daily_dialog"
@@ -453,6 +458,8 @@ export default function HomeScreen() {
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [tierSwitching, setTierSwitching] = useState(false);
+  const [devDayResetBusy, setDevDayResetBusy] = useState(false);
+  const [assistantRemountKey, setAssistantRemountKey] = useState(0);
   const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
 
   useEffect(() => {
@@ -499,6 +506,20 @@ export default function HomeScreen() {
     [refresh, refreshProfile],
   );
 
+  const onDevResetDayContent = useCallback(async () => {
+    setDevDayResetBusy(true);
+    try {
+      await postGlobalContentDevReset();
+      await refresh({ forceRefresh: true });
+      setAssistantRemountKey((k) => k + 1);
+      Alert.alert("Готово", "Данные дня обновлены.");
+    } catch (error) {
+      Alert.alert("Сброс", errorMessage(error));
+    } finally {
+      setDevDayResetBusy(false);
+    }
+  }, [refresh]);
+
   const switchTier = useCallback(
     async (mode: "free" | "premium") => {
       if (!profile?.id) return;
@@ -510,10 +531,12 @@ export default function HomeScreen() {
             : { membership_tier: "free", trial_expires_at: new Date(Date.now() - 60_000).toISOString() };
         const { error } = await requireSupabase().from("users").update(update).eq("id", profile.id);
         if (error) throw error;
-        await refreshProfile().catch((error) => {
-          console.warn("[Home] Tier switched, but profile refresh failed", error);
-        });
+        // Сначала перезагрузка контента с override — иначе refreshProfile обновит profile,
+        // useDayContent пересоздаст refresh, useEffect сделает abort() и оборвёт этот запрос.
         await refresh({ forceRefresh: true, accessModeOverride: mode });
+        await refreshProfile().catch((err) => {
+          console.warn("[Home] Tier switched, but profile refresh failed", err);
+        });
       } catch (error) {
         console.warn("[Home] Failed to switch test tier", error);
         Alert.alert("Не удалось переключить тариф", errorMessage(error));
@@ -578,7 +601,36 @@ export default function HomeScreen() {
             onSetPremium={() => void switchTier("premium")}
           />
         ) : null}
-        <DevLinks strings={strings} />
+        {HARMONIZER_TEST_MODE ? (
+          <DevLinks
+            strings={strings}
+            leadingAccessory={
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={strings.devResetDayContent}
+                disabled={devDayResetBusy}
+                onPress={() => void onDevResetDayContent()}
+                style={({ pressed }) => [
+                  styles.devPill,
+                  {
+                    borderColor: theme.colors.accent,
+                    backgroundColor: theme.colors.controlButtonBg,
+                    opacity: pressed || devDayResetBusy ? 0.55 : 1,
+                    minWidth: 88,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                {devDayResetBusy ? (
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                ) : (
+                  <AppText variant="technicalCaption">{strings.devResetDayContent}</AppText>
+                )}
+              </Pressable>
+            }
+          />
+        ) : null}
         <AppButton
           label={signingIn ? strings.signingOutButton : strings.signOutButton}
           variant="secondary"
@@ -591,6 +643,7 @@ export default function HomeScreen() {
         <CommunicatorOverlay
           forecast={forecast}
           strings={strings}
+          remountKey={assistantRemountKey}
           onClose={() => setCommunicatorOpen(false)}
         />
       ) : null}

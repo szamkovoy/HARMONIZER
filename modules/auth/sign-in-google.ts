@@ -32,6 +32,7 @@ import {
   isErrorWithCode,
 } from "@react-native-google-signin/google-signin";
 import type { AuthError } from "@supabase/supabase-js";
+import { isLikelyFetchNetworkFailure, rewriteAuthNetworkError } from "./authNetworkErrors";
 import { requireSupabase } from "@/services/supabase";
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
@@ -110,13 +111,22 @@ export async function signInWithGoogle(): Promise<void> {
     accessToken = undefined;
   }
 
-  const { error } = await supabase.auth.signInWithIdToken({
-    provider: "google",
-    token: idToken,
-    ...(accessToken ? { access_token: accessToken } : {}),
-  });
+  let signResult;
+  try {
+    signResult = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token: idToken,
+      ...(accessToken ? { access_token: accessToken } : {}),
+    });
+  } catch (error) {
+    throw rewriteAuthNetworkError(error, "sign_in");
+  }
 
+  const { error } = signResult;
   if (error) {
+    if (isLikelyFetchNetworkFailure(error)) {
+      throw rewriteAuthNetworkError(error, "sign_in");
+    }
     const payload = decodeJwtPayload(idToken);
     const tokenHasNonce =
       typeof payload?.nonce === "string" && (payload.nonce as string).length > 0;

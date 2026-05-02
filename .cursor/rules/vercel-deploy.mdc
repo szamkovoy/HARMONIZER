@@ -7,6 +7,10 @@ alwaysApply: true
 
 When the user asks to deploy the backend to Vercel:
 
+- Before deploying, compare required server runtime variables from root `.env.local`, `_legacy_web/.env.local`, `DEPLOY.md`, and code references with `npx vercel env ls`.
+- Proactively add missing required Vercel variables with `npx vercel env add <NAME> production` when their local value is known and safe to sync. Do not ask an extra question just to mirror a required local server config.
+- Never add client-only Expo variables as server secrets unless the backend actually requires them.
+- Do not replace missing env with code defaults. Required env must fail fast until Vercel config is fixed.
 - Deploy from the repository root, not from `_legacy_web`.
 - Use:
 

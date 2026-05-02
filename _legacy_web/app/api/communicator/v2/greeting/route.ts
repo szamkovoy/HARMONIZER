@@ -4,6 +4,7 @@ import { natalProfileFromRow } from "../../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
 import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
 import { generateGeminiText, getModelByHint } from "../../../_utils/gemini";
+import { dialogSurfaceModelHint } from "../../../_utils/userModelTier";
 import { reportRouteError } from "../../../_utils/monitoring";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "../../../_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
@@ -43,7 +44,11 @@ async function loadGreetingContext(db: SupabaseClient, userId: string) {
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle(),
-    db.from("users").select("display_name,birth_date,locale,address_form").eq("id", userId).maybeSingle(),
+    db
+      .from("users")
+      .select("display_name,birth_date,locale,address_form,membership_tier,trial_expires_at")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
   if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
@@ -60,6 +65,8 @@ async function loadGreetingContext(db: SupabaseClient, userId: string) {
         birth_date?: string | null;
         locale?: string | null;
         address_form?: string | null;
+        membership_tier?: string | null;
+        trial_expires_at?: string | null;
       } | null) ?? {},
   };
 }
@@ -135,6 +142,7 @@ export async function POST(req: Request) {
       window_time: body.triggerMeta?.window_time ?? "",
     });
     endpointStage = "responder";
+    const greetingModel = dialogSurfaceModelHint(responderPrompt.model_hint, context.user);
     const result = await generateGeminiText({
       prompt: renderPrompt(responderPrompt.template, {
         author_voice_block: authorVoiceBlock,
@@ -148,7 +156,7 @@ export async function POST(req: Request) {
         user_profile_summary: profileDTO,
         daily_context: forecastDTO,
       }),
-      model: getModelByHint(responderPrompt.model_hint),
+      model: getModelByHint(greetingModel),
       temperature: responderPrompt.temperature,
       maxOutputTokens: responderPrompt.max_output_tokens,
     });

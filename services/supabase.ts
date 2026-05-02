@@ -1,3 +1,5 @@
+import "./supabase-auth-console-filter";
+
 /**
  * Клиент Supabase для мобильного приложения.
  *
@@ -24,6 +26,26 @@ import type { Database } from "./supabase-types";
 
 const EXPO_SB_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const EXPO_SB_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+function assertExpoPublicSupabaseUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(
+      "EXPO_PUBLIC_SUPABASE_URL задан некорректно (не распознаётся как URL). Ожидается https://<ref>.supabase.co",
+    );
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("EXPO_PUBLIC_SUPABASE_URL должен начинаться с https://");
+  }
+  const host = parsed.hostname.trim();
+  if (!host || host.includes("<") || host.includes(" ") || host === "your-project.supabase.co") {
+    throw new Error(
+      "EXPO_PUBLIC_SUPABASE_URL содержит заглушку или пустой хост — проверьте .env.local и перезапустите Metro: npx expo start -c",
+    );
+  }
+}
 
 type SupabaseAuthStorage = {
   getItem: (key: string) => Promise<string | null>;
@@ -164,6 +186,7 @@ function createSupabaseClient(): SupabaseClient<Database> | null {
   if (!EXPO_SB_URL || !EXPO_SB_KEY) {
     return null;
   }
+  assertExpoPublicSupabaseUrl(EXPO_SB_URL);
   return createClient<Database>(EXPO_SB_URL, EXPO_SB_KEY, {
     auth: {
       storage: authStorageAdapter,

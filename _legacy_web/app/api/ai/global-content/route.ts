@@ -1,3 +1,4 @@
+import { runDevDayContentReset } from "../../_utils/devDayContentReset";
 import { ensureGlobalDailyContentRow } from "../../_utils/ensureGlobalDailyContent";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
@@ -52,6 +53,14 @@ export async function POST(req: Request) {
   try {
     const userId = await requireUserId(req);
     const db = createServiceSupabase();
+    const body = (await req.json().catch(() => ({}))) as { devReset?: boolean };
+
+    let devResetExtra: { dev_reset_forecast_date?: string } = {};
+    if (body.devReset === true) {
+      const { forecast_date } = await runDevDayContentReset(db, userId);
+      devResetExtra = { dev_reset_forecast_date: forecast_date };
+    }
+
     const { data: user, error: userError } = await db
       .from("users")
       .select("tz,membership_tier,trial_expires_at")
@@ -69,7 +78,7 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     if (content) {
-      return json(payloadFromContent(content as Record<string, unknown>, user as UserAccess, false));
+      return json({ ...payloadFromContent(content as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
     }
 
     const { data: fallback, error: fallbackError } = await db
@@ -84,7 +93,7 @@ export async function POST(req: Request) {
         await ensureGlobalDailyContentRow(db, localDate);
       } catch (synthError) {
         console.error("[global-content] on-demand synthesis failed", synthError);
-        return json({ error: "No global content available" }, { status: 503 });
+        return json({ error: "No global content available", ...devResetExtra }, { status: 503 });
       }
       const { data: created, error: createdError } = await db
         .from("global_daily_content")
@@ -93,12 +102,12 @@ export async function POST(req: Request) {
         .maybeSingle();
       if (createdError) throw createdError;
       if (created) {
-        return json(payloadFromContent(created as Record<string, unknown>, user as UserAccess, false));
+        return json({ ...payloadFromContent(created as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
       }
-      return json({ error: "No global content available" }, { status: 503 });
+      return json({ error: "No global content available", ...devResetExtra }, { status: 503 });
     }
 
-    return json(payloadFromContent(fallback as Record<string, unknown>, user as UserAccess, true));
+    return json({ ...payloadFromContent(fallback as Record<string, unknown>, user as UserAccess, true), ...devResetExtra });
   } catch (error) {
     return errorResponse(error);
   }

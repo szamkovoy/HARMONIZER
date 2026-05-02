@@ -104,7 +104,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
   const [forecast, setForecast] = useState<DailyForecast | null>(null);
   const [source, setSource] = useState<DayContentSource | null>(null);
-  const [status, setStatus] = useState<DayContentStatus>("idle");
+  /** «loading» с первого кадра — иначе до первого refresh кратко пустой экран без скелетона. */
+  const [status, setStatus] = useState<DayContentStatus>("loading");
   const [error, setError] = useState<Error | null>(null);
   const [accessMode, setAccessMode] = useState<AccessMode>("free");
 
@@ -175,7 +176,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   );
 
   useEffect(() => {
-    void refresh();
+    void refresh().catch((e: unknown) => {
+      // eslint-disable-next-line no-console
+      console.warn("[dayContent] initial refresh", e instanceof Error ? e.message : String(e));
+    });
     return () => {
       abortRef.current?.abort();
     };

@@ -31,8 +31,18 @@ type BaselineStates = {
   dissonantStates?: string[];
 };
 
-function isStaleMorningCache(scenarioId: string, cached: Record<string, unknown>): boolean {
-  return scenarioId === "morning_recommendation" && !cached.math_level;
+function isStaleMorningCache(
+  scenarioId: string,
+  cached: Record<string, unknown>,
+  expectedModel: string | null,
+): boolean {
+  if (scenarioId !== "morning_recommendation") return false;
+  if (!cached.math_level) return true;
+  if (!expectedModel) return false;
+  const used = typeof (cached as { modelUsed?: unknown }).modelUsed === "string" ? (cached as { modelUsed: string }).modelUsed.trim() : "";
+  // Старый кэш без modelUsed или с другой моделью (после смены env / tier) — пересчитать.
+  if (!used) return true;
+  return used !== expectedModel;
 }
 
 async function loadActiveCalibration(db: SupabaseClient, userId: string): Promise<CalibrationLike | null> {
@@ -188,19 +198,20 @@ export async function POST(req: Request) {
       return json({ error: "Scenario has no monologue prompt configured" }, { status: 500 });
     }
 
+    endpointStage = "load_prompt";
+    const prompt = await getActivePrompt(db, scenario.monologue_prompt_key);
+    const expectedModel = scenario.id === "morning_recommendation" ? getModelByHint(prompt.model_hint) : null;
+
     endpointStage = "cache_lookup";
     const forceRefresh = body.variables?.forceRefresh === true || body.variables?.force_refresh === true;
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, userId, db);
-    if (!forceRefresh && cached && !isStaleMorningCache(scenario.id, cached)) {
+    if (!forceRefresh && cached && !isStaleMorningCache(scenario.id, cached, expectedModel)) {
       return json({
         ...cached,
         cached: true,
         scenario_id: scenario.id,
       });
     }
-
-    endpointStage = "load_prompt";
-    const prompt = await getActivePrompt(db, scenario.monologue_prompt_key);
     let variables = addScenarioVariables(scenario.id, body.variables ?? {});
     let mathLevel: ReturnType<typeof buildMathLevel> | null = null;
     if (scenario.id === "morning_recommendation") {

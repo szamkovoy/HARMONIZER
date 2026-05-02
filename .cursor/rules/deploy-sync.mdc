@@ -1,0 +1,17 @@
+---
+description: Unified deployment synchronization for HARMONIZER
+alwaysApply: true
+---
+
+# Deployment Sync
+
+Treat deployment as synchronization of the whole working system, not only source code.
+
+- When deploying or preparing a deployment, check whether local changes require remote updates in Vercel, Supabase, GitHub, or other project infrastructure.
+- If local configuration in `.env.local` or `_legacy_web/.env.local` is required by server runtime, make sure the matching provider environment variables exist before deploy. Do this proactively with the provider CLI when authenticated and safe.
+- Never commit `.env*` secrets to Git. Use provider environment stores (`vercel env`, Supabase secrets, GitHub secrets) for remote secret/config sync.
+- Do not invent fallback values for required config. Missing required env is a real deployment error and should stay visible until the config is fixed.
+- Keep local and remote naming aligned. If code reads `AI_MODEL_STANDARD`, Vercel/Supabase must also have `AI_MODEL_STANDARD`, not only an older alias.
+- For Supabase changes, deploy the required migrations/seeds/functions together with the code that depends on them, or clearly stop before deploy if that would break runtime compatibility.
+- For GitHub, do not push or create commits unless the user asks, but when a deploy depends on committed remote code, say so and keep the deployment path explicit.
+- After syncing remote config or infrastructure, verify with the provider CLI (`vercel env ls`, Supabase status/secrets/functions, GitHub checks) before declaring the deployment ready.

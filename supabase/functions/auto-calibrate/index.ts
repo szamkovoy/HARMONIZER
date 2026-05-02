@@ -1,18 +1,12 @@
 // @ts-nocheck
 import { buildHistoryCompact, buildStatesMapCompact, logDTOSize } from "../_shared/dto.ts";
+import { resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
 import { addDays, assertCronSecret, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
 import { isPendingProposal, isRejectedRecently, PROPOSAL_TTL_DAYS } from "./proposal.ts";
 
 const MIN_DAYS_BETWEEN_CALIBRATIONS = 7;
 const MIN_USER_MESSAGES = 5;
 const BATCH_SIZE = 50;
-
-function getModelByHint(hint: string | null | undefined): string {
-  const tier = hint?.trim().toLowerCase();
-  const model = tier === "premium" ? Deno.env.get("AI_MODEL_PREMIUM")?.trim() : Deno.env.get("AI_MODEL_STANDARD")?.trim();
-  if (!model) throw new Error(tier === "premium" ? "Missing AI_MODEL_PREMIUM" : "Missing AI_MODEL_STANDARD");
-  return model;
-}
 
 function compactUserMessages(messages: any[]): string {
   return messages
@@ -82,7 +76,7 @@ ${JSON.stringify(historyDTO)}
   "confidence": 0..1
 }`;
 
-  const model = getModelByHint("premium");
+  const model = resolveGeminiModelIdFromTierEnv("premium");
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {

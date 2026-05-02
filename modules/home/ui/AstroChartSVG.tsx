@@ -1,4 +1,5 @@
-import Svg, { Circle, G, Line, Text as SvgText } from "react-native-svg";
+import { Canvas, Circle, Path, Skia } from "@shopify/react-native-skia";
+import { StyleSheet, Text, View } from "react-native";
 
 import { PLANETS_7, type NatalProfile, type Planet } from "@/modules/astro-core";
 import type { AspectType } from "@/modules/daily-engine";
@@ -58,6 +59,13 @@ function transitLongitude(value: { longitude?: number; lon?: number } | undefine
   return null;
 }
 
+function segmentPath(x1: number, y1: number, x2: number, y2: number) {
+  const p = Skia.Path.Make();
+  p.moveTo(x1, y1);
+  p.lineTo(x2, y2);
+  return p;
+}
+
 export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHouses, size }: AstroChartSVGProps) {
   const theme = useTheme();
   const cx = size / 2;
@@ -77,108 +85,149 @@ export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHou
     };
   };
 
+  const border = theme.colors.surfaceBorder;
+  const faint = theme.colors.textFaint;
+  const primary = theme.colors.textPrimary;
+  const warning = theme.colors.warning;
+
   return (
-    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Circle cx={cx} cy={cy} r={outerRadius} fill="none" stroke={theme.colors.surfaceBorder} strokeWidth={1.2} />
-      <Circle cx={cx} cy={cy} r={zodiacInnerRadius} fill="none" stroke={theme.colors.surfaceBorder} strokeWidth={1} />
-      <Circle cx={cx} cy={cy} r={natalRadius - 22} fill="none" stroke={theme.colors.surfaceBorder} strokeWidth={0.8} />
+    <View style={{ width: size, height: size }}>
+      <Canvas style={{ width: size, height: size }}>
+        <Circle cx={cx} cy={cy} r={outerRadius} color={border} style="stroke" strokeWidth={1.2} />
+        <Circle cx={cx} cy={cy} r={zodiacInnerRadius} color={border} style="stroke" strokeWidth={1} />
+        <Circle cx={cx} cy={cy} r={natalRadius - 22} color={border} style="stroke" strokeWidth={0.8} />
 
-      {ZODIAC_SIGNS.map((sign, index) => {
-        const signStart = index * 30;
-        const outer = lonToXY(signStart, outerRadius);
-        const inner = lonToXY(signStart, zodiacInnerRadius);
-        const label = lonToXY(signStart + 15, outerRadius - 13);
-        return (
-          <G key={sign.name}>
-            <Line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} stroke={theme.colors.surfaceBorder} />
-            <SvgText x={label.x} y={label.y} fontSize={15} textAnchor="middle" alignmentBaseline="middle" fill={sign.color}>
-              {sign.symbol}
-            </SvgText>
-          </G>
-        );
-      })}
-
-      {showHouses && natalProfile.houseCusps?.map((cusp, index) => {
-        const outer = lonToXY(cusp, houseRadius);
-        const inner = lonToXY(cusp, 18);
-        const label = lonToXY(cusp + 15, Math.max(30, houseRadius - 16));
-        return (
-          <G key={`house-${index}`}>
-            <Line
-              x1={inner.x}
-              y1={inner.y}
-              x2={outer.x}
-              y2={outer.y}
-              stroke={theme.colors.textFaint}
-              strokeWidth={index === 0 || index === 6 ? 1.8 : 0.8}
-              strokeOpacity={0.7}
+        {ZODIAC_SIGNS.map((sign, index) => {
+          const signStart = index * 30;
+          const outer = lonToXY(signStart, outerRadius);
+          const inner = lonToXY(signStart, zodiacInnerRadius);
+          return (
+            <Path
+              key={sign.name}
+              path={segmentPath(inner.x, inner.y, outer.x, outer.y)}
+              style="stroke"
+              strokeWidth={1}
+              color={border}
             />
-            <SvgText x={label.x} y={label.y} fontSize={10} textAnchor="middle" alignmentBaseline="middle" fill={theme.colors.textFaint}>
-              {index + 1}
-            </SvgText>
-          </G>
-        );
-      })}
+          );
+        })}
 
-      {aspects?.map((aspect) => {
-        const natalLon = natalProfile.planets[aspect.to]?.longitude;
-        const transitLon = transitLongitude(transitPositions?.[aspect.from]);
-        if (typeof natalLon !== "number" || transitLon == null) return null;
-        const from = lonToXY(transitLon, transitRadius);
-        const to = lonToXY(natalLon, natalRadius);
-        const color = ASPECT_COLORS[aspect.type] ?? theme.colors.textFaint;
-        return (
-          <Line
-            key={`aspect-${aspect.from}-${aspect.to}-${aspect.type}`}
-            x1={from.x}
-            y1={from.y}
-            x2={to.x}
-            y2={to.y}
-            stroke={color}
-            strokeOpacity={0.52}
-            strokeWidth={1.4}
-            strokeDasharray={aspect.type === "square" || aspect.type === "opposition" ? "4 3" : undefined}
-          />
-        );
-      })}
-
-      {PLANETS_7.map((planet) => {
-        const xy = lonToXY(natalProfile.planets[planet].longitude, natalRadius);
-        return (
-          <SvgText
-            key={`natal-${planet}`}
-            x={xy.x}
-            y={xy.y}
-            fontSize={20}
-            textAnchor="middle"
-            alignmentBaseline="middle"
-            fill={theme.colors.textPrimary}
-          >
-            {PLANET_SYMBOLS[planet]}
-          </SvgText>
-        );
-      })}
-
-      {transitPositions
-        ? PLANETS_7.map((planet) => {
-            const lon = transitLongitude(transitPositions[planet]);
-            if (lon == null) return null;
-            const xy = lonToXY(lon, transitRadius);
+        {showHouses &&
+          natalProfile.houseCusps?.map((cusp, index) => {
+            const outer = lonToXY(cusp, houseRadius);
+            const inner = lonToXY(cusp, 18);
             return (
-              <SvgText
-                key={`transit-${planet}`}
-                x={xy.x}
-                y={xy.y}
-                fontSize={17}
-                textAnchor="middle"
-                alignmentBaseline="middle"
-                fill={theme.colors.warning}
-              >
-                {PLANET_SYMBOLS[planet]}
-              </SvgText>
+              <Path
+                key={`house-${index}`}
+                path={segmentPath(inner.x, inner.y, outer.x, outer.y)}
+                style="stroke"
+                strokeWidth={index === 0 || index === 6 ? 1.8 : 0.8}
+                color={faint}
+                opacity={0.7}
+              />
             );
-          })
-        : null}
-    </Svg>
+          })}
+
+        {aspects?.map((aspect) => {
+          const natalLon = natalProfile.planets[aspect.to]?.longitude;
+          const transitLon = transitLongitude(transitPositions?.[aspect.from]);
+          if (typeof natalLon !== "number" || transitLon == null) return null;
+          const from = lonToXY(transitLon, transitRadius);
+          const to = lonToXY(natalLon, natalRadius);
+          const color = ASPECT_COLORS[aspect.type] ?? faint;
+          return (
+            <Path
+              key={`aspect-${aspect.from}-${aspect.to}-${aspect.type}`}
+              path={segmentPath(from.x, from.y, to.x, to.y)}
+              style="stroke"
+              strokeWidth={1.4}
+              color={color}
+              opacity={0.52}
+            />
+          );
+        })}
+      </Canvas>
+
+      <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
+        {ZODIAC_SIGNS.map((sign, index) => {
+          const signStart = index * 30;
+          const label = lonToXY(signStart + 15, outerRadius - 13);
+          return (
+            <Text
+              key={`z-${sign.name}`}
+              style={[styles.zodiacSymbol, { left: label.x - 10, top: label.y - 11, color: sign.color }]}
+            >
+              {sign.symbol}
+            </Text>
+          );
+        })}
+
+        {showHouses &&
+          natalProfile.houseCusps?.map((cusp, index) => {
+            const label = lonToXY(cusp + 15, Math.max(30, houseRadius - 16));
+            return (
+              <Text
+                key={`hn-${index}`}
+                style={[styles.houseNum, { left: label.x - 7, top: label.y - 8, color: faint }]}
+              >
+                {index + 1}
+              </Text>
+            );
+          })}
+
+        {PLANETS_7.map((planet) => {
+          const xy = lonToXY(natalProfile.planets[planet].longitude, natalRadius);
+          return (
+            <Text key={`n-${planet}`} style={[styles.planetNatal, { left: xy.x - 12, top: xy.y - 14, color: primary }]}>
+              {PLANET_SYMBOLS[planet]}
+            </Text>
+          );
+        })}
+
+        {transitPositions
+          ? PLANETS_7.map((planet) => {
+              const lon = transitLongitude(transitPositions[planet]);
+              if (lon == null) return null;
+              const xy = lonToXY(lon, transitRadius);
+              return (
+                <Text key={`t-${planet}`} style={[styles.planetTransit, { left: xy.x - 10, top: xy.y - 12, color: warning }]}>
+                  {PLANET_SYMBOLS[planet]}
+                </Text>
+              );
+            })
+          : null}
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: { alignItems: "flex-start", justifyContent: "flex-start" },
+  zodiacSymbol: {
+    position: "absolute",
+    fontSize: 15,
+    textAlign: "center",
+    width: 20,
+    fontWeight: "500",
+  },
+  houseNum: {
+    position: "absolute",
+    fontSize: 10,
+    textAlign: "center",
+    width: 14,
+  },
+  planetNatal: {
+    position: "absolute",
+    fontSize: 20,
+    textAlign: "center",
+    width: 24,
+    fontWeight: "600",
+  },
+  planetTransit: {
+    position: "absolute",
+    fontSize: 17,
+    textAlign: "center",
+    width: 22,
+    fontWeight: "600",
+  },
+});

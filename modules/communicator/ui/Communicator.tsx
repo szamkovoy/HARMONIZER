@@ -1,4 +1,4 @@
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
 import {
   useCallback,
@@ -13,6 +13,7 @@ import {
   Animated,
   AppState,
   Image,
+  InteractionManager,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -45,6 +46,7 @@ import {
   type PracticePicked,
 } from "@/services/communicator-client";
 import type { OrchestratorDecision } from "@/services/communicator-client";
+import { useAuth } from "@/modules/auth";
 import { AppText } from "@/modules/ui/AppText";
 import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
@@ -172,13 +174,22 @@ function isGeminiJsonError(error: Error): boolean {
   return /Gemini response is not valid JSON/i.test(error.message);
 }
 
-function ModelBadge({ model }: { model?: string }) {
+function tierLabelFromProfile(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): string {
+  if (!profile) return COMMUNICATOR_MODEL_LABEL;
+  if (profile.membership_tier === "premium") return "premium";
+  if (profile.membership_tier === "free" && profile.trial_expires_at) {
+    if (new Date(profile.trial_expires_at).getTime() > Date.now()) return "premium";
+  }
+  return "standard";
+}
+
+function ModelBadge({ model, accessTier }: { model?: string; accessTier: string }) {
   const theme = useTheme();
   if (!HARMONIZER_TEST_MODE) return null;
   return (
     <View style={[styles.modelBadge, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.controlButtonBg }]}>
       <AppText variant="technicalCaption" tone="muted">
-        model: {model ?? COMMUNICATOR_MODEL_LABEL}
+        model: {model ?? accessTier}
       </AppText>
     </View>
   );
@@ -232,6 +243,8 @@ export function Communicator({
 }: CommunicatorProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const { profile } = useAuth();
+  const modelAccessTier = useMemo(() => tierLabelFromProfile(profile), [profile]);
   const strings = useMemo(() => getCommunicatorStrings(locale ?? "ru"), [locale]);
 
   const resolved = useMemo(
@@ -619,6 +632,29 @@ export function Communicator({
     if (phase !== "idle" || uiMode !== "VOICE" || streamBusy || micWarmupRef.current || recordingRef.current) return;
     const generation = ++startRecordingGenerationRef.current;
     micWarmupRef.current = true;
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const prepareRecordingSession = async () => {
+      await Audio.setIsEnabledAsync(true);
+      // DuckOthers на iOS мягче DoNotMix: реже ломает prepare, если сессия занята системой / другим плеером.
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        interruptionModeIOS:
+          Platform.OS === "ios" ? InterruptionModeIOS.DuckOthers : InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        playThroughEarpieceAndroid: false,
+      });
+      await discardRecording();
+      await new Promise<void>((resolve) => {
+        InteractionManager.runAfterInteractions(() => resolve());
+      });
+      // iOS: дать AVAudioSession/AVAudioRecorder стабилизироваться после смены режима.
+      await sleep(Platform.OS === "ios" ? 320 : 140);
+    };
+
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (generation !== startRecordingGenerationRef.current) return;
@@ -628,16 +664,45 @@ export function Communicator({
         setMicPressResetKey((k) => k + 1);
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-      if (generation !== startRecordingGenerationRef.current) return;
-      await discardRecording();
-      if (generation !== startRecordingGenerationRef.current) return;
-      const { recording } = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: true }));
+
+      let recording: Audio.Recording | null = null;
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (generation !== startRecordingGenerationRef.current) return;
+        try {
+          await prepareRecordingSession();
+          if (generation !== startRecordingGenerationRef.current) return;
+          // Первая попытка без metering — меньше сбоев prepare на iOS; далее — с metering для индикатора.
+          const metering = attempt >= 1;
+          const created = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: metering }));
+          recording = created.recording;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (attempt < 2) {
+            try {
+              await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+                shouldDuckAndroid: true,
+                interruptionModeIOS:
+                  Platform.OS === "ios" ? InterruptionModeIOS.DuckOthers : InterruptionModeIOS.DoNotMix,
+                interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                playThroughEarpieceAndroid: false,
+              });
+            } catch {
+              /* ignore */
+            }
+            await sleep(attempt === 0 ? 240 : 400);
+          }
+        }
+      }
+
+      if (!recording) {
+        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "Recording failed"));
+      }
+
       if (generation !== startRecordingGenerationRef.current) {
         try {
           await recording.stopAndUnloadAsync();
@@ -965,7 +1030,7 @@ export function Communicator({
                   </AppText>
                 </View>
               ) : null}
-              <ModelBadge model={modelUsed} />
+              <ModelBadge model={modelUsed} accessTier={modelAccessTier} />
               <Pressable
                 key={micPressResetKey}
                 accessibilityRole="button"

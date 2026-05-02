@@ -1,0 +1,43 @@
+/**
+ * React Native / fetch часто отдают только `TypeError: Network request failed`
+ * без URL и без кода — пользователю и разработчику это не помогает.
+ */
+export function isLikelyFetchNetworkFailure(error: unknown): boolean {
+  if (!error) return false;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+  const name = error instanceof Error ? error.name : "";
+  if (/Network request failed/i.test(message)) return true;
+  if (name === "TypeError" && /Failed to fetch|NetworkError|network/i.test(message)) return true;
+  return false;
+}
+
+export function rewriteAuthNetworkError(
+  error: unknown,
+  context: "session" | "sign_in" | "refresh" | "profile",
+): Error {
+  if (isLikelyFetchNetworkFailure(error)) {
+    const hint =
+      context === "session"
+        ? "Не удалось восстановить сессию"
+        : context === "sign_in"
+          ? "Не удалось завершить вход"
+          : context === "refresh"
+            ? "Не удалось обновить сессию в фоне"
+            : "Не удалось загрузить профиль";
+    return new Error(
+      `${hint}: нет связи с сервером авторизации (Supabase). Проверьте Wi‑Fi/VPN, ` +
+        `что в .env.local заданы EXPO_PUBLIC_SUPABASE_URL (https://…supabase.co) и ` +
+        `EXPO_PUBLIC_SUPABASE_ANON_KEY, затем перезапустите Metro с очисткой кэша: npx expo start -c`,
+    );
+  }
+  if (error instanceof Error) return error;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return new Error(String((error as { message: unknown }).message));
+  }
+  return new Error(String(error));
+}
