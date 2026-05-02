@@ -2,6 +2,8 @@
  * Публичные типы модуля COMMUNICATOR (контракт интеграции с ASSISTANT и др.).
  */
 
+import type { PracticeRecommendation } from "@/modules/practices/core/recommendation";
+
 export type CommunicatorModePolicy = "VOICE" | "TXT" | "VOICE_ONLY" | "TXT_ONLY";
 
 export type CommunicatorInitialMode = "VOICE" | "TXT";
@@ -12,23 +14,7 @@ export interface CommunicatorHistoryMessage {
   content: string;
   createdAt?: number;
   meta?: Record<string, unknown> & {
-    practicePicked?: {
-      id: string;
-      slug?: string;
-      name?: string;
-      kind?: "breath" | "meditation" | "yoga";
-      reason?: string;
-      durationSec?: number | null;
-      minDurationSec?: number | null;
-      maxDurationSec?: number | null;
-      chakraIds?: number[];
-      launch?: {
-        route: string;
-        params: Record<string, string>;
-      };
-      hasDescription?: boolean;
-      hasInstructionVideo?: boolean;
-    };
+    practicePicked?: Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">;
   };
 }
 

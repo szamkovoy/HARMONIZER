@@ -39,7 +39,21 @@ import { Communicator } from "@/modules/communicator/ui/Communicator";
 1. Клиент: `services/communicator-client.ts` → стрим UTF-8.
 2. Сервер присылает SSE-события `orchestrator_decision`, `chunk`, `complete`.
 3. В `complete.practicePicked` приходит выбранная backend-логикой практика; assistant не выдумывает ID.
-4. Если пользователь отказывается от предложенной карточки, backend удерживает фазу `suggest_practice` и исключает недавно предложенные/завершенные практики из стека.
+4. Backend route делегирует подбор в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`, а тот использует общий `modules/practices/core/selector.ts`: сервер только загружает Supabase-данные и адаптирует их в selector candidate.
+5. Старый endpoint `communicator/v2/select-practice` оставлен как совместимый wrapper поверх того же `choosePractice`, без отдельного алгоритма ранжирования.
+6. Если пользователь отказывается от предложенной карточки, backend удерживает фазу `suggest_practice` и исключает недавно предложенные/завершенные практики из стека.
+
+Автотесты покрывают общий selector, server-side `practiceSelection`, wrapper `communicator/v2/select-practice` и RN-helper `launchPractice`.
+
+## Practice Recommendation Smoke Test
+
+Для финальной ручной проверки на авторизованном окружении:
+
+1. Открыть обсуждение рекомендации дня и довести диалог до `suggest_practice`.
+2. Проверить, что SSE `complete.practicePicked` содержит `id`, `kind`, `durationSec`, `chakraIds`, `launch`.
+3. Нажать "Начать практику" в карточке и проверить переход на `/breath-coherence`, `/sacred-symbol-stream` или `/asana-practice`.
+4. Завершить практику и проверить запись в `practice_sessions` с `context.launch_source='assistant'`.
+5. Вернуться в чат, попросить другую практику и убедиться, что фаза остается `suggest_practice`, а recent stack исключает только что завершенную/предложенную практику.
 
 ## Ассеты
 

@@ -73,6 +73,7 @@ export default function AsanaPracticeRoute() {
     practiceId?: string;
     durationMs?: string;
     chakra?: string;
+    launchSource?: string;
   }>();
   const [metadata, setMetadata] = useState<AsanaMetadata | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,6 +81,9 @@ export default function AsanaPracticeRoute() {
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [completionSaved, setCompletionSaved] = useState(false);
   const practiceId = typeof params.practiceId === "string" ? params.practiceId : null;
+  const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
+    ? params.launchSource.trim()
+    : "practice_screen";
 
   const routeDurationMinutes =
     typeof params.durationMs === "string" && Number.parseInt(params.durationMs, 10) > 0
@@ -154,7 +158,7 @@ export default function AsanaPracticeRoute() {
       metrics: {},
       context: {
         source: "asana",
-        launch_source: "practice_screen",
+        launch_source: launchSource,
         practice_kind: "yoga",
         vimeo_id: vimeoId,
       },
@@ -215,6 +219,7 @@ export default function AsanaPracticeRoute() {
             <MetaRow label="Качество" value={practice?.rating ? String(practice.rating) : "не указано"} />
             <MetaRow label="Embed origin" value={embedOrigin} />
             <MetaRow label="Audio track" value={audiotrack} />
+            <MetaRow label="Источник запуска" value={launchSource} />
           </View>
 
           <View style={styles.actionRow}>

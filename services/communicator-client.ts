@@ -1,5 +1,6 @@
 import { getAiDialogUrl, getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import type { PracticeRecommendation } from "@/modules/practices";
 
 export type DialogueUseCase = "calibration" | "daily_dialog";
 export type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
@@ -23,23 +24,7 @@ export interface OrchestratorDecision {
   bypass_reason?: string;
 }
 
-export interface PracticePicked {
-  id: string;
-  slug?: string;
-  name?: string;
-  kind?: "breath" | "meditation" | "yoga";
-  reason?: string;
-  durationSec?: number | null;
-  minDurationSec?: number | null;
-  maxDurationSec?: number | null;
-  chakraIds?: number[];
-  launch?: {
-    route: string;
-    params: Record<string, string>;
-  };
-  hasDescription?: boolean;
-  hasInstructionVideo?: boolean;
-}
+export type PracticePicked = Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">;
 
 export interface RecommendationCorrected {
   newShortText?: string;

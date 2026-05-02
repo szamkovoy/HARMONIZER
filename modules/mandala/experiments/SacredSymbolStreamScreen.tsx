@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
+import { router } from "expo-router";
 
+import { useAuth } from "@/modules/auth";
 import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
+import { recordPracticeSession } from "@/services/practiceSessions";
 
 const DENSITY_OPTIONS = [
   { label: "Airy", value: 0.18 },
@@ -11,7 +14,23 @@ const DENSITY_OPTIONS = [
   { label: "Dense", value: 0.84 },
 ] as const;
 
-export function SacredSymbolStreamScreen() {
+const DEFAULT_DURATION_MS = 5 * 60_000;
+const DEFAULT_CHAKRA = 6;
+
+export function SacredSymbolStreamScreen({
+  durationMs = DEFAULT_DURATION_MS,
+  chakra = DEFAULT_CHAKRA,
+  launchSource = "practice_screen",
+}: {
+  durationMs?: number;
+  chakra?: number;
+  launchSource?: string;
+}) {
+  const { authUser } = useAuth();
+  const sessionStartedAtRef = useRef(Date.now());
+  const [savingCompletion, setSavingCompletion] = useState(false);
+  const [completionSaved, setCompletionSaved] = useState(false);
+
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState);
   const [sceneOffset, setSceneOffset] = useState(0);
@@ -26,6 +45,30 @@ export function SacredSymbolStreamScreen() {
     });
     return () => subscription.remove();
   }, []);
+
+  const completePractice = useCallback(async () => {
+    if (!authUser?.id || savingCompletion || completionSaved) return;
+    setSavingCompletion(true);
+    const endedAt = Date.now();
+    const startedAt = Math.min(sessionStartedAtRef.current, endedAt - Math.max(1, durationMs));
+    const savedId = await recordPracticeSession({
+      userId: authUser.id,
+      practiceSlug: "sacred-symbol-stream",
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      completionPct: 100,
+      chakraFocusIds: [chakra],
+      metrics: {},
+      context: {
+        source: "meditation",
+        launch_source: launchSource,
+        practice_kind: "meditation",
+        duration_ms: durationMs,
+      },
+    });
+    setCompletionSaved(Boolean(savedId));
+    setSavingCompletion(false);
+  }, [authUser?.id, chakra, completionSaved, durationMs, launchSource, savingCompletion]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -85,6 +128,21 @@ export function SacredSymbolStreamScreen() {
               style={[styles.button, styles.primaryButton]}
             >
               <Text style={styles.primaryButtonText}>{isPaused ? "Продолжить" : "Пауза"}</Text>
+            </Pressable>
+            <Pressable
+              onPress={completePractice}
+              disabled={!authUser?.id || savingCompletion || completionSaved}
+              style={[styles.button, completionSaved ? styles.savedButton : styles.primaryButton]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {completionSaved ? "Практика сохранена" : savingCompletion ? "Сохраняем..." : "Завершить"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.back()}
+              style={[styles.button, styles.secondaryButton]}
+            >
+              <Text style={styles.secondaryButtonText}>Назад</Text>
             </Pressable>
           </View>
         </View>
@@ -174,6 +232,9 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: "#7a8cff",
+  },
+  savedButton: {
+    backgroundColor: "#9ee6c7",
   },
   secondaryButton: {
     backgroundColor: "rgba(18, 24, 40, 0.86)",

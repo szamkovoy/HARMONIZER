@@ -247,17 +247,20 @@ function computeCycleMsForAnalysis(
  *     используется `DEFAULT_COHERENCE_TEST_TIMING.totalMs`;
  *   - `chakra`            — 1..7; преобразуется в `chakraPresetIndex` (0..6)
  *     для `<BreathBinduMandala />`.
+ *   - `launchSource`      — источник запуска для `practice_sessions.context`.
  */
 function CoherenceBreathScreenInner({
   locale,
   initialPracticeId,
   durationMs,
   chakra,
+  launchSource,
 }: {
   locale: BreathLocale;
   initialPracticeId?: BreathPracticeId;
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
+  launchSource?: string;
 }) {
   const theme = useTheme();
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
@@ -2924,6 +2927,7 @@ function CoherenceBreathScreenInner({
           practiceId={practiceId}
           chakra={chakra ?? 3}
           locale={locale}
+          launchSource={launchSource}
           onExportJson={exportJson}
           onClose={() => {
             setPhase("idle");
@@ -2999,6 +3003,7 @@ function ResultsView(props: {
   practiceId: BreathPracticeId;
   chakra: number;
   locale: BreathLocale;
+  launchSource?: string;
   onExportJson: () => void;
   onClose: () => void;
 }) {
@@ -3023,6 +3028,7 @@ function ResultsView(props: {
     practiceId,
     chakra,
     locale,
+    launchSource,
     onExportJson,
     onClose,
   } = props;
@@ -3112,12 +3118,12 @@ function ResultsView(props: {
       chakraFocusIds: [chakra],
       context: {
         source: "breath",
-        launch_source: "practice_screen",
+        launch_source: launchSource ?? "practice_screen",
         practice_kind: "breath",
         duration_ms: practiceTotalMs,
       },
     });
-  }, [authUser?.id, buildOutcome, chakra, practiceId, practiceTotalMs, sessionStartWallMs]);
+  }, [authUser?.id, buildOutcome, chakra, launchSource, practiceId, practiceTotalMs, sessionStartWallMs]);
 
   const handleDiscuss = useCallback(() => {
     // Собираем summary и hybrid breakdown в plain-JSON payload.
@@ -3299,12 +3305,14 @@ function ResultsView(props: {
  *   - `practiceId`  — тип практики (когерентное / канальное / квадрат / треугольник);
  *   - `durationMs`  — длительность практики в миллисекундах;
  *   - `chakra`      — чакра 1..7; выбирает цветовой профиль мандалы.
+ *   - `launchSource` — источник запуска для статистики и recent stack diagnostics.
  */
 export interface CoherenceBreathScreenProps {
   locale?: BreathLocale;
   practiceId?: BreathPracticeId;
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
+  launchSource?: string;
 }
 
 export function CoherenceBreathScreen({
@@ -3312,6 +3320,7 @@ export function CoherenceBreathScreen({
   practiceId,
   durationMs,
   chakra,
+  launchSource,
 }: CoherenceBreathScreenProps) {
   return (
     <ThemeProvider value={defaultTheme}>
@@ -3321,6 +3330,7 @@ export function CoherenceBreathScreen({
           initialPracticeId={practiceId}
           durationMs={durationMs}
           chakra={chakra}
+          launchSource={launchSource}
         />
       </BiofeedbackProvider>
     </ThemeProvider>

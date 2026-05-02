@@ -1,4 +1,5 @@
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
+import { choosePractice, publicPracticePickedPayload } from "../dialog/practiceSelection";
 
 export const runtime = "nodejs";
 
@@ -8,56 +9,38 @@ type Body = {
   reason?: string;
 };
 
-const PLANET_TO_CHAKRA: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
-
-function titleOf(title: unknown, fallback: string): string {
-  if (typeof title === "string") return title;
-  if (title && typeof title === "object") {
-    const record = title as Record<string, unknown>;
-    return String(record.ru ?? record.en ?? fallback);
-  }
-  return fallback;
-}
-
 export async function POST(req: Request) {
   try {
     const userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     const db = createServiceSupabase();
-    const chakraId = PLANET_TO_CHAKRA[body.planetOfTheDay ?? ""] ?? 7;
-
-    const { data, error } = await db
-      .from("practices")
-      .select("id,slug,title,kind,default_duration_sec,practice_chakras!inner(chakra_id,weight)")
-      .eq("is_active", true)
-      .eq("practice_chakras.chakra_id", chakraId)
-      .order("rating", { ascending: false })
-      .limit(7);
-    if (error) throw error;
-
-    const stack = (data ?? []) as Array<{ id: string; slug: string; title: unknown; kind: string; default_duration_sec: number | null }>;
-    const picked = stack.find((practice) => practice.id === body.practiceId) ?? stack[0];
-    if (!picked) return json({ error: "No active practices found" }, { status: 404 });
+    const selected = await choosePractice(
+      db,
+      userId,
+      body.practiceId ? { id: body.practiceId, reason: body.reason } : null,
+      { forecast: { planet_of_the_day: body.planetOfTheDay ?? "Sun" } },
+      "Подбери практику из каталога",
+      [],
+    );
+    if (!selected) return json({ error: "No active practices found" }, { status: 404 });
+    const practicePicked = publicPracticePickedPayload(selected, body.reason);
 
     await db.from("user_event_log").insert({
       user_id: userId,
       kind: "practice_selected",
       payload: {
-        practice_id: picked.id,
+        practice_id: selected.id,
         reason: body.reason ?? null,
-        source: body.practiceId === picked.id ? "model_pick" : "fallback_top_ranked",
+        source: body.practiceId === selected.id ? "model_pick" : "fallback_top_ranked",
+        endpoint: "communicator/v2/select-practice",
       },
     });
 
     return json({
-      practicePicked: {
-        id: picked.id,
-        name: titleOf(picked.title, picked.slug),
-        reason: body.reason,
-      },
-      stack: stack.map((practice) => ({
+      practicePicked,
+      stack: (selected.stack ?? []).map((practice) => ({
         id: practice.id,
-        name: titleOf(practice.title, practice.slug),
+        name: typeof practice.title === "string" ? practice.title : practice.title?.ru ?? practice.title?.en ?? practice.slug,
         kind: practice.kind,
         durationSec: practice.default_duration_sec,
       })),

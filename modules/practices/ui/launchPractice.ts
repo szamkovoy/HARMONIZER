@@ -1,0 +1,80 @@
+import { router, type Href } from "expo-router";
+
+import type { PracticeRecommendationLaunch } from "@/modules/practices/core/recommendation";
+import type { PracticeLaunchParams } from "@/modules/practices/core/types";
+
+type LaunchInput = PracticeLaunchParams | PracticeRecommendationLaunch | null | undefined;
+type LaunchOptions = {
+  launchSource?: "catalog" | "assistant" | "direct" | string;
+};
+
+function isRecommendationLaunch(launch: LaunchInput): launch is PracticeRecommendationLaunch {
+  return Boolean(launch && "params" in launch);
+}
+
+function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, string> | undefined {
+  if (launch.kind === "breath") {
+    return {
+      practiceId: launch.practiceId,
+      durationMs: String(launch.durationMs),
+      chakra: String(launch.chakra),
+    };
+  }
+
+  if (launch.kind === "yoga") {
+    return {
+      practiceId: launch.practiceId,
+      ...(launch.durationMs ? { durationMs: String(launch.durationMs) } : {}),
+      ...(launch.chakra ? { chakra: String(launch.chakra) } : {}),
+    };
+  }
+
+  if (launch.kind === "meditation") {
+    return {
+      practiceId: launch.practiceId,
+      ...(launch.durationMs ? { durationMs: String(launch.durationMs) } : {}),
+      ...(launch.chakra ? { chakra: String(launch.chakra) } : {}),
+    };
+  }
+
+  return undefined;
+}
+
+function withLaunchSource(params: Record<string, string> | undefined, launchSource: string | undefined) {
+  if (!launchSource) return params;
+  return {
+    ...(params ?? {}),
+    launchSource,
+  };
+}
+
+export function launchPractice(launch: LaunchInput, options: LaunchOptions = {}): boolean {
+  if (!launch?.route) return false;
+
+  if (isRecommendationLaunch(launch)) {
+    router.push({
+      pathname: launch.route,
+      params: withLaunchSource(launch.params, options.launchSource),
+    } as Href);
+    return true;
+  }
+
+  const params = paramsForCatalogLaunch(launch);
+  if (params) {
+    router.push({
+      pathname: launch.route,
+      params: withLaunchSource(params, options.launchSource),
+    } as Href);
+    return true;
+  }
+
+  router.push(
+    options.launchSource
+      ? ({
+          pathname: launch.route,
+          params: { launchSource: options.launchSource },
+        } as Href)
+      : (launch.route as Href),
+  );
+  return true;
+}

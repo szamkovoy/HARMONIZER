@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, type Href } from "expo-router";
 
 import { UpgradeDialog, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import { isChakra, type Chakra } from "@/modules/breath";
@@ -13,6 +12,7 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
 import { PracticeCard } from "./PracticeCard";
+import { launchPractice } from "./launchPractice";
 
 type CatalogState =
   | { status: "loading"; catalog: null; error: null }
@@ -51,34 +51,6 @@ const DURATION_FILTERS: Array<{ value: PracticeDurationBucket; label: string }> 
 
 function totalCount(catalog: PracticeCatalog): number {
   return catalog.meditation.length + catalog.breath.length + catalog.yoga.length;
-}
-
-function pushPractice(practice: PracticeSummary) {
-  if (practice.launch.kind === "breath") {
-    router.push({
-      pathname: practice.launch.route,
-      params: {
-        practiceId: practice.launch.practiceId,
-        durationMs: String(practice.launch.durationMs),
-        chakra: String(practice.launch.chakra),
-      },
-    } as Href);
-    return;
-  }
-
-  if (practice.launch.kind === "yoga") {
-    router.push({
-      pathname: practice.launch.route,
-      params: {
-        practiceId: practice.launch.practiceId,
-        durationMs: practice.launch.durationMs ? String(practice.launch.durationMs) : undefined,
-        chakra: practice.launch.chakra ? String(practice.launch.chakra) : undefined,
-      },
-    } as Href);
-    return;
-  }
-
-  router.push(practice.launch.route as Href);
 }
 
 export function PracticeCatalogScreen() {
@@ -134,7 +106,7 @@ export function PracticeCatalogScreen() {
       setLockedFeature("asana_practices");
       return;
     }
-    pushPractice(practice);
+    launchPractice(practice.launch, { launchSource: "catalog" });
   };
 
   return (

@@ -11,6 +11,7 @@ import type {
   PracticeKind,
   PracticeSummary,
 } from "./types";
+import { sortPracticeCandidatesForCatalog } from "./selector";
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type PracticeChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -171,28 +172,8 @@ function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]):
   };
 }
 
-function durationRank(seconds: number | undefined): number {
-  if (!seconds) return Number.MAX_SAFE_INTEGER;
-  if (seconds <= 10 * 60) return 1;
-  if (seconds <= 25 * 60) return 2;
-  return 3;
-}
-
 export function sortPracticesForCatalog(practices: PracticeSummary[]): PracticeSummary[] {
-  return [...practices].sort((a, b) => {
-    const qualityDelta = (b.quality ?? 3) - (a.quality ?? 3);
-    if (qualityDelta !== 0) return qualityDelta;
-
-    const recordedA = a.recordedAt ? Date.parse(a.recordedAt) : Number.POSITIVE_INFINITY;
-    const recordedB = b.recordedAt ? Date.parse(b.recordedAt) : Number.POSITIVE_INFINITY;
-    const normalizedRecordedA = Number.isFinite(recordedA) ? recordedA : Number.POSITIVE_INFINITY;
-    const normalizedRecordedB = Number.isFinite(recordedB) ? recordedB : Number.POSITIVE_INFINITY;
-    if (normalizedRecordedA !== normalizedRecordedB) return normalizedRecordedA - normalizedRecordedB;
-
-    const durationDelta = durationRank(a.defaultDurationSec) - durationRank(b.defaultDurationSec);
-    if (durationDelta !== 0) return durationDelta;
-    return a.title.localeCompare(b.title, "ru");
-  });
+  return sortPracticeCandidatesForCatalog(practices);
 }
 
 export function filterPractices(practices: PracticeSummary[], filters: PracticeCatalogFilters): PracticeSummary[] {

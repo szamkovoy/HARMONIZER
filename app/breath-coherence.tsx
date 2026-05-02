@@ -13,6 +13,7 @@ import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
  *   - `practiceId` — один из `BreathPracticeId` (`coherent`, `square`, …);
  *   - `durationMs` — длительность практики в миллисекундах;
  *   - `chakra`     — 1..7, чакра для цветового профиля мандалы.
+ *   - `launchSource` — откуда открыли практику: catalog / assistant / direct.
  *
  * Если что-то не парсится — используется дефолт модуля BREATH.
  * См. контракт входа — `@/modules/breath/core/practice-io`.
@@ -22,6 +23,7 @@ export default function BreathCoherenceRoute() {
     practiceId?: string;
     durationMs?: string;
     chakra?: string;
+    launchSource?: string;
   }>();
 
   const practiceId = useMemo<BreathPracticeId | undefined>(() => {
@@ -61,6 +63,7 @@ export default function BreathCoherenceRoute() {
         practiceId={practiceId}
         durationMs={durationMs}
         chakra={chakra}
+        launchSource={typeof params.launchSource === "string" ? params.launchSource : undefined}
       />
     </>
   );

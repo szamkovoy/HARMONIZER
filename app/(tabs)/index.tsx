@@ -9,6 +9,7 @@ import { useDayContent } from "@/modules/home/useDayContent";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
+import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -18,7 +19,7 @@ import { createNatalProfile, fetchActiveNatalProfile } from "@/services/natalPro
 import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
-import { router, type Href } from "expo-router";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -313,42 +314,31 @@ function NatalBridgeModal({
 }
 
 function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => void) {
-  const launch = practice.launch;
   onClose();
-
-  if (launch?.route) {
-    router.push({
-      pathname: launch.route,
-      params: launch.params,
-    } as Href);
-    return;
-  }
-
+  if (launchPractice(practice.launch, { launchSource: "assistant" })) return;
   if (practice.kind === "breath") {
-    router.push({
-      pathname: "/breath-coherence",
+    launchPractice({
+      route: "/breath-coherence",
       params: {
         practiceId: practice.slug ?? practice.id,
         durationMs: String((practice.durationSec ?? 600) * 1000),
         chakra: String(practice.chakraIds?.[0] ?? 4),
       },
-    } as Href);
+    }, { launchSource: "assistant" });
     return;
   }
-
   if (practice.kind === "yoga") {
-    router.push({
-      pathname: "/asana-practice",
+    launchPractice({
+      route: "/asana-practice",
       params: {
         practiceId: practice.id,
         ...(practice.durationSec ? { durationMs: String(practice.durationSec * 1000) } : {}),
         ...(practice.chakraIds?.[0] ? { chakra: String(practice.chakraIds[0]) } : {}),
       },
-    } as Href);
+    }, { launchSource: "assistant" });
     return;
   }
-
-  router.push("/sacred-symbol-stream" as Href);
+  launchPractice({ route: "/sacred-symbol-stream", params: {} }, { launchSource: "assistant" });
 }
 
 function CommunicatorOverlay({
