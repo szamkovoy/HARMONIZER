@@ -8,6 +8,7 @@ import { getForecastRecommendation } from "@/modules/home/i18n/home";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { PLANET_CHAKRA } from "../planetChakra";
 import { ModalLongExplanation } from "./ModalLongExplanation";
@@ -20,6 +21,7 @@ interface DailyRecommendationCardProps {
   showDiscuss?: boolean;
   accessMode: AccessMode;
   natalProfile?: NatalProfile | null;
+  modelUsed?: string | null;
 }
 
 export function DailyRecommendationCard({
@@ -29,6 +31,7 @@ export function DailyRecommendationCard({
   showDiscuss = true,
   accessMode,
   natalProfile,
+  modelUsed,
 }: DailyRecommendationCardProps) {
   const theme = useTheme();
   const [modalLevel, setModalLevel] = useState<"none" | "long" | "math">("none");
@@ -66,6 +69,11 @@ export function DailyRecommendationCard({
           </View>
         </View>
         <AppText variant="screenHint">{text}</AppText>
+        {HARMONIZER_TEST_MODE ? (
+          <AppText variant="technicalCaption" tone="muted">
+            model: {modelUsed ?? "unknown"} · {accessMode}
+          </AppText>
+        ) : null}
         {forecast.isAlternativeChoice && forecast.alternativeReasonText ? (
           <AppText variant="technicalCaption" tone="muted">
             {forecast.alternativeReasonText}

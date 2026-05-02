@@ -378,8 +378,8 @@ function CommunicatorOverlay({
       role: "assistant",
       createdAt: Date.now(),
       content: recommendation
-        ? `${greeting}. Сегодняшний фокус: «${headline}». Тон дня ${tone}; рекомендация уже есть, а здесь можно разобрать её по-человечески. Что сейчас важнее: ясность, энергия, спокойствие, отношения, тело или внутренние границы?`
-        : `${greeting}. Сегодняшний фокус: «${headline}». Что сейчас важнее разобрать: ясность, энергия, спокойствие, отношения, тело или внутренние границы? Можно ответить голосом.`,
+        ? `${greeting}. Сегодняшний фокус: «${headline}». Тон дня ${tone}; рекомендация уже есть, а здесь можно перевести её в живую ситуацию, без технического языка. Где это сейчас сильнее отзывается — в теле, в голове или в разговоре, который назревает?`
+        : `${greeting}. Сегодняшний фокус: «${headline}». Давай разберём его через живую ситуацию. Где сейчас больше всего напряжения — в теле, в голове или в общении?`,
       meta: {
         orchestratorDecision: {
           next_phase: "contextual_greeting",
@@ -451,7 +451,7 @@ export default function HomeScreen() {
     () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
     [profile?.locale],
   );
-  const { forecast, loading, error, refresh, status, accessMode } = useDayContent({
+  const { forecast, loading, error, refresh, status, accessMode, modelUsed } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
   });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
@@ -509,10 +509,14 @@ export default function HomeScreen() {
   const onDevResetDayContent = useCallback(async () => {
     setDevDayResetBusy(true);
     try {
-      await postGlobalContentDevReset();
+      const resetResult = await postGlobalContentDevReset();
       await refresh({ forceRefresh: true });
       setAssistantRemountKey((k) => k + 1);
-      Alert.alert("Готово", "Данные дня обновлены.");
+      const deleted = resetResult?.deleted;
+      const debugLine = deleted
+        ? `\n\nСброшено: forecast=${deleted.user_daily_forecasts ?? 0}, monologue=${deleted.scenario_cache ?? 0}, global=${deleted.global_daily_content ?? 0}, dialogs=${deleted.open_home_conversations ?? 0}.`
+        : "";
+      Alert.alert("Готово", `Данные дня обновлены.${debugLine}`);
     } catch (error) {
       Alert.alert("Сброс", errorMessage(error));
     } finally {
@@ -583,6 +587,7 @@ export default function HomeScreen() {
               showDiscuss={accessMode !== "free"}
               accessMode={accessMode}
               natalProfile={natalProfile}
+              modelUsed={modelUsed}
             />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}

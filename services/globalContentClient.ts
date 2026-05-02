@@ -9,6 +9,7 @@ export interface GlobalContentResult {
   forecast: DailyForecast;
   accessMode: AccessMode;
   isFallback: boolean;
+  modelUsed: string | null;
 }
 
 type GlobalTopPetal = {
@@ -34,6 +35,7 @@ type GlobalContentResponse = {
   membership_tier?: "free" | "premium";
   has_premium_access?: boolean;
   trial_expires_at?: string | null;
+  llm_model?: string | null;
   error?: unknown;
 };
 
@@ -151,6 +153,7 @@ function globalResponseFromRow(row: Record<string, unknown>, isFallback: boolean
     top_petals: (row.top_petals as GlobalTopPetal[]) ?? [],
     planet_positions: row.planet_positions,
     forecast_date: String(row.forecast_date_utc ?? ""),
+    llm_model: typeof row.llm_model === "string" ? row.llm_model : null,
     is_fallback: isFallback,
     membership_tier: "free",
     has_premium_access: false,
@@ -229,5 +232,6 @@ export async function fetchGlobalContent(req: {
     forecast,
     accessMode: accessModeFromResponse(data),
     isFallback: Boolean(data.is_fallback),
+    modelUsed: typeof data.llm_model === "string" && data.llm_model.trim() ? data.llm_model.trim() : null,
   };
 }

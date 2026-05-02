@@ -1,4 +1,4 @@
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
+import { Audio, InterruptionModeAndroid } from "expo-av";
 import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
 import {
   useCallback,
@@ -13,7 +13,6 @@ import {
   Animated,
   AppState,
   Image,
-  InteractionManager,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -174,6 +173,10 @@ function isGeminiJsonError(error: Error): boolean {
   return /Gemini response is not valid JSON/i.test(error.message);
 }
 
+function isRecorderPrepareError(error: Error): boolean {
+  return /prepare.*recorder|recorder not prepared|prepareToRecord/i.test(error.message);
+}
+
 function tierLabelFromProfile(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): string {
   if (!profile) return COMMUNICATOR_MODEL_LABEL;
   if (profile.membership_tier === "premium") return "premium";
@@ -276,9 +279,17 @@ export function Communicator({
   const reportError = useCallback(
     (err: Error) => {
       if (isGeminiJsonError(err)) return;
-      console.error("[Communicator]", err.message, err.stack ?? "");
+      const recorderPrepareError = isRecorderPrepareError(err);
+      const displayMessage = recorderPrepareError
+        ? "Не удалось подготовить микрофон. Проверьте, что другое приложение не удерживает запись, и попробуйте ещё раз."
+        : err.message;
+      if (recorderPrepareError) {
+        console.warn("[Communicator]", err.message, err.stack ?? "");
+      } else {
+        console.error("[Communicator]", err.message, err.stack ?? "");
+      }
       onError?.(err);
-      Alert.alert(strings.sendErrorTitle, err.message, [
+      Alert.alert(strings.sendErrorTitle, displayMessage, [
         { text: strings.alertOk },
       ]);
     },
@@ -635,24 +646,17 @@ export function Communicator({
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     const prepareRecordingSession = async () => {
+      await discardRecording();
       await Audio.setIsEnabledAsync(true);
-      // DuckOthers на iOS мягче DoNotMix: реже ломает prepare, если сессия занята системой / другим плеером.
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
-        interruptionModeIOS:
-          Platform.OS === "ios" ? InterruptionModeIOS.DuckOthers : InterruptionModeIOS.DoNotMix,
         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
         playThroughEarpieceAndroid: false,
       });
-      await discardRecording();
-      await new Promise<void>((resolve) => {
-        InteractionManager.runAfterInteractions(() => resolve());
-      });
-      // iOS: дать AVAudioSession/AVAudioRecorder стабилизироваться после смены режима.
-      await sleep(Platform.OS === "ios" ? 320 : 140);
+      await sleep(Platform.OS === "ios" ? 180 : 80);
     };
 
     try {
@@ -672,9 +676,7 @@ export function Communicator({
         try {
           await prepareRecordingSession();
           if (generation !== startRecordingGenerationRef.current) return;
-          // Первая попытка без metering — меньше сбоев prepare на iOS; далее — с metering для индикатора.
-          const metering = attempt >= 1;
-          const created = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: metering }));
+          const created = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: false }));
           recording = created.recording;
           break;
         } catch (e) {
@@ -686,15 +688,13 @@ export function Communicator({
                 playsInSilentModeIOS: true,
                 staysActiveInBackground: false,
                 shouldDuckAndroid: true,
-                interruptionModeIOS:
-                  Platform.OS === "ios" ? InterruptionModeIOS.DuckOthers : InterruptionModeIOS.DoNotMix,
                 interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
                 playThroughEarpieceAndroid: false,
               });
             } catch {
               /* ignore */
             }
-            await sleep(attempt === 0 ? 240 : 400);
+            await sleep(attempt === 0 ? 260 : 420);
           }
         }
       }
@@ -714,8 +714,9 @@ export function Communicator({
       micWarmupRef.current = false;
       recordingRef.current = recording;
       recording.setOnRecordingStatusUpdate((status) => {
-        const metering = "metering" in status && typeof status.metering === "number" ? status.metering : -60;
-        const normalized = Math.max(0.08, Math.min(1, (metering + 60) / 60));
+        const metering = "metering" in status && typeof status.metering === "number" ? status.metering : null;
+        const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
+        const normalized = metering == null ? fallbackPulse : Math.max(0.08, Math.min(1, (metering + 60) / 60));
         Animated.timing(voiceLevel, {
           toValue: normalized,
           duration: 90,
@@ -922,6 +923,12 @@ export function Communicator({
                 </View>
               ),
             )}
+
+            {!sessionSynced ? (
+              <View key="session-sync-pending" onLayout={onTailLayout}>
+                <ThinkingIndicator />
+              </View>
+            ) : null}
 
             {streamBusy && (
               <View key="pending-assistant" onLayout={onTailLayout}>

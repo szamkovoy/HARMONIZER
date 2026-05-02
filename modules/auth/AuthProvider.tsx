@@ -27,12 +27,24 @@ import type { AuthContextValue, AuthUserRow } from "./types";
 const AuthContext = createContext<AuthContextValue | null>(null);
 export { AuthContext };
 
+const INITIAL_SESSION_TIMEOUT_MS = 7000;
+
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+function getProfileRequestUrl(userId: string): string {
+  const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  const url = new URL("/rest/v1/users", baseUrl);
+  url.searchParams.set("select", "*");
+  url.searchParams.set("id", `eq.${userId}`);
+  return url.toString();
+}
+
 async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
   const supabase = requireSupabase();
+  // eslint-disable-next-line no-console
+  console.log("[auth] fetchProfile url", getProfileRequestUrl(userId));
   try {
     const { data, error } = await supabase
       .from("users")
@@ -81,43 +93,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const supabase = requireSupabase();
-
-    // 1) Прочитать сохранённую сессию (SecureStore).
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        setSession(data.session);
-        void syncProfile(data.session?.user ?? null)
-          .catch((error: unknown) => {
-            // eslint-disable-next-line no-console
-            console.warn(
-              "[auth] syncProfile after getSession",
-              rewriteAuthNetworkError(error, "profile").message,
-            );
-          })
-          .finally(() => setInitializing(false));
-      })
-      .catch((error) => {
-        // На холодном старте сеть может быть ещё недоступна; показываем auth UI,
-        // а не красный экран LogBox с безымянным `Network request failed`.
-        // eslint-disable-next-line no-console
-        console.warn("[auth] getSession failed", rewriteAuthNetworkError(error, "session").message);
-        setSession(null);
-        setProfile(null);
-        setInitializing(false);
-      });
-
-    // 2) Подписаться на изменения (логин, логаут, рефреш токена).
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      void syncProfile(next?.user ?? null).catch((error: unknown) => {
-        // eslint-disable-next-line no-console
-        console.warn(
-          "[auth] syncProfile onAuthStateChange",
-          rewriteAuthNetworkError(error, "profile").message,
-        );
-      });
-    });
+    let cancelled = false;
+    let initialSessionReady = false;
 
     const safeStartAutoRefresh = () => {
       void supabase.auth.startAutoRefresh().catch((error: unknown) => {
@@ -138,9 +115,65 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     };
 
-    // 3) Авто-рефреш при старте и при возврате из фона (рекомендация Supabase).
-    safeStartAutoRefresh();
+    const getSessionWithTimeout = Promise.race([
+      supabase.auth.getSession(),
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`Supabase getSession timed out after ${INITIAL_SESSION_TIMEOUT_MS}ms`)),
+          INITIAL_SESSION_TIMEOUT_MS,
+        );
+      }),
+    ]);
+
+    // 1) Прочитать сохранённую сессию (SecureStore).
+    getSessionWithTimeout
+      .then(({ data }) => {
+        if (cancelled) return;
+        setSession(data.session);
+        void syncProfile(data.session?.user ?? null)
+          .catch((error: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[auth] syncProfile after getSession",
+              rewriteAuthNetworkError(error, "profile").message,
+            );
+          })
+          .finally(() => {
+            if (cancelled) return;
+            initialSessionReady = true;
+            setInitializing(false);
+            safeStartAutoRefresh();
+          });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        // На холодном старте сеть может быть ещё недоступна; показываем auth UI,
+        // а не красный экран LogBox с безымянным `Network request failed`.
+        // eslint-disable-next-line no-console
+        console.warn("[auth] getSession failed", rewriteAuthNetworkError(error, "session").message);
+        setSession(null);
+        setProfile(null);
+        initialSessionReady = true;
+        setInitializing(false);
+        safeStopAutoRefresh();
+        void supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      });
+
+    // 2) Подписаться на изменения (логин, логаут, рефреш токена).
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+      void syncProfile(next?.user ?? null).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[auth] syncProfile onAuthStateChange",
+          rewriteAuthNetworkError(error, "profile").message,
+        );
+      });
+    });
+
+    // 3) Авто-рефреш запускаем только после первичной проверки сессии.
     const appStateSub = AppState.addEventListener("change", (state) => {
+      if (cancelled || !initialSessionReady) return;
       if (state === "active") {
         safeStartAutoRefresh();
       } else {
@@ -149,6 +182,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     return () => {
+      cancelled = true;
       sub.subscription.unsubscribe();
       appStateSub.remove();
       safeStopAutoRefresh();

@@ -41,6 +41,7 @@ function payloadFromContent(content: Record<string, unknown>, user: UserAccess, 
     top_petals: content.top_petals,
     planet_positions: content.planet_positions,
     forecast_date: content.forecast_date_utc,
+    llm_model: content.llm_model,
     is_global: true,
     is_fallback: isFallback,
     membership_tier: user.membership_tier ?? "free",
@@ -55,10 +56,9 @@ export async function POST(req: Request) {
     const db = createServiceSupabase();
     const body = (await req.json().catch(() => ({}))) as { devReset?: boolean };
 
-    let devResetExtra: { dev_reset_forecast_date?: string } = {};
+    let devResetExtra: { dev_reset?: Awaited<ReturnType<typeof runDevDayContentReset>> } = {};
     if (body.devReset === true) {
-      const { forecast_date } = await runDevDayContentReset(db, userId);
-      devResetExtra = { dev_reset_forecast_date: forecast_date };
+      devResetExtra = { dev_reset: await runDevDayContentReset(db, userId) };
     }
 
     const { data: user, error: userError } = await db

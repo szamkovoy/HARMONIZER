@@ -182,19 +182,64 @@ function createAuthStorageAdapter(): SupabaseAuthStorage {
 
 const authStorageAdapter = createAuthStorageAdapter();
 
+type SupabaseFetchInput = string | URL | Request;
+
+function requestUrl(input: SupabaseFetchInput): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  if (typeof Request !== "undefined" && input instanceof Request) return input.url;
+  if (typeof input === "object" && input !== null && "url" in input) {
+    return String((input as { url: unknown }).url);
+  }
+  return String(input);
+}
+
+function requestMethod(input: SupabaseFetchInput, init?: RequestInit): string {
+  if (init?.method) return init.method;
+  if (typeof Request !== "undefined" && input instanceof Request) return input.method;
+  if (typeof input === "object" && input !== null && "method" in input) {
+    return String((input as { method: unknown }).method);
+  }
+  return "GET";
+}
+
+async function loggedSupabaseFetch(
+  input: URL | RequestInfo,
+  init?: RequestInit,
+): Promise<Response> {
+  const url = requestUrl(input as SupabaseFetchInput);
+  const method = requestMethod(input as SupabaseFetchInput, init);
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log("[supabase] fetch", method, url);
+  }
+  try {
+    return await fetch(input as RequestInfo, init);
+  } catch (error) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn("[supabase] fetch failed", method, url, error instanceof Error ? error.message : String(error));
+    }
+    throw error;
+  }
+}
+
 function createSupabaseClient(): SupabaseClient<Database> | null {
   if (!EXPO_SB_URL || !EXPO_SB_KEY) {
     return null;
   }
   assertExpoPublicSupabaseUrl(EXPO_SB_URL);
   return createClient<Database>(EXPO_SB_URL, EXPO_SB_KEY, {
+    global: {
+      fetch: loggedSupabaseFetch as typeof fetch,
+    },
     auth: {
       storage: authStorageAdapter,
-      autoRefreshToken: true,
+      autoRefreshToken: false,
       persistSession: true,
       detectSessionInUrl: false,
     },
-  });
+  }) as SupabaseClient<Database>;
 }
 
 /**

@@ -7,23 +7,42 @@ import { getUserTimezone, todayLocalDate } from "../calibration/extract/forecast
  * Сброс кэшей дня для тестов ИИ (кнопка на главной, POST /api/ai/global-content + devReset).
  * Удаление `global_daily_content` на дату влияет на всех пользователей окружения.
  */
-export async function runDevDayContentReset(db: SupabaseClient, userId: string): Promise<{ forecast_date: string }> {
+export async function runDevDayContentReset(db: SupabaseClient, userId: string): Promise<{
+  forecast_date: string;
+  deleted: {
+    scenario_cache: number;
+    user_daily_forecasts: number;
+    global_daily_content: number;
+    open_home_conversations: number;
+  };
+}> {
   const tz = await getUserTimezone(db, userId);
   const localDate = todayLocalDate(tz);
 
-  const { error: scErr } = await db.from("scenario_cache").delete().eq("user_id", userId).eq("scenario_id", "morning_recommendation");
+  const { count: scenarioCacheCount, error: scErr } = await db
+    .from("scenario_cache")
+    .delete({ count: "exact" })
+    .eq("user_id", userId)
+    .eq("scenario_id", "morning_recommendation");
   if (scErr) throw scErr;
 
-  const { error: udfErr } = await db.from("user_daily_forecasts").delete().eq("user_id", userId).eq("forecast_date", localDate);
+  const { count: forecastCount, error: udfErr } = await db
+    .from("user_daily_forecasts")
+    .delete({ count: "exact" })
+    .eq("user_id", userId)
+    .eq("forecast_date", localDate);
   if (udfErr) throw udfErr;
 
-  const { error: gdcErr } = await db.from("global_daily_content").delete().eq("forecast_date_utc", localDate);
+  const { count: globalContentCount, error: gdcErr } = await db
+    .from("global_daily_content")
+    .delete({ count: "exact" })
+    .eq("forecast_date_utc", localDate);
   if (gdcErr) throw gdcErr;
 
   const nowIso = new Date().toISOString();
-  const { error: convErr } = await db
+  const { count: conversationCount, error: convErr } = await db
     .from("conversations")
-    .update({ ended_at: nowIso })
+    .update({ ended_at: nowIso }, { count: "exact" })
     .eq("user_id", userId)
     .is("ended_at", null)
     .eq("entry_source", "home");
@@ -31,5 +50,13 @@ export async function runDevDayContentReset(db: SupabaseClient, userId: string):
 
   await ensureGlobalDailyContentRow(db, localDate);
 
-  return { forecast_date: localDate };
+  return {
+    forecast_date: localDate,
+    deleted: {
+      scenario_cache: scenarioCacheCount ?? 0,
+      user_daily_forecasts: forecastCount ?? 0,
+      global_daily_content: globalContentCount ?? 0,
+      open_home_conversations: conversationCount ?? 0,
+    },
+  };
 }

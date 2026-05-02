@@ -40,6 +40,7 @@ function shouldDemoteToWarn(args: unknown[]): boolean {
   const joined = argsText(args);
   if (joined.includes(SUPABASE_AUTH_TICK)) return true;
   if (isBareRnFetchNetworkTypeErrorLog(args)) return true;
+  if (args.length === 1 && /^(TypeError:\s*)?Network request failed/i.test(joined.trim())) return true;
 
   const fromSupabaseAuth =
     joined.includes("auth-js") ||
