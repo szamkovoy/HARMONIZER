@@ -123,7 +123,7 @@ function toPractice(row) {
         origin: EMBED_ORIGIN,
         player_url_template: "https://player.vimeo.com/video/{vimeo_id}?audiotrack={audiotrack}",
         audiotrack_by_locale: {
-          ru: "en",
+          ru: "ru",
           en: "en",
         },
         iframe: {

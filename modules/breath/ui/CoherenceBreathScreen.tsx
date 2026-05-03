@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import { cacheDirectory, getContentUriAsync, writeAsStringAsync } from "expo-file-system/legacy";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Animated as RNAnimated,
@@ -98,13 +98,14 @@ import {
 import { enqueueCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
 import { useAuth } from "@/modules/auth";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
-import { MandalaSoundProvider, useMandalaSoundSync } from "@/modules/mandala-sound";
+import { MandalaSoundProvider, useMandalaSoundFrame, useMandalaSoundSync } from "@/modules/mandala-sound";
 import { BreathOverlayControlPanel } from "@/modules/breath/ui/BreathOverlayControlPanel";
 import { PpgMiniChart } from "@/modules/breath/ui/PpgMiniChart";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
 import { CountdownRing } from "@/modules/ui/CountdownRing";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession, selfRatingFromMood } from "@/services/practiceSessions";
 import type { Json } from "@/services/supabase-types";
@@ -251,6 +252,23 @@ function SyncedBreathBinduMandala({
       onRenderCommitted={onRenderCommitted}
       externalSync={soundSync}
     />
+  );
+}
+
+function SyncedPracticeFooter({ baseFooter }: { baseFooter: ReactNode }) {
+  const soundFrame = useMandalaSoundFrame();
+  if (!HARMONIZER_TEST_MODE) return <>{baseFooter}</>;
+
+  return (
+    <>
+      {baseFooter}
+      <View style={styles.opticalFooter}>
+        <Text style={styles.opticalMetricsMuted}>
+          Mandala Sound: {soundFrame.targetHz.toFixed(1)} Гц · {soundFrame.band} · cloud{" "}
+          {(soundFrame.flickerIntensity * 100).toFixed(0)}%
+        </Text>
+      </View>
+    </>
   );
 }
 
@@ -2825,7 +2843,7 @@ function CoherenceBreathScreenInner({
               cycleStartMs={cycleStartMs}
               onPhaseChange={handlePhaseChange}
               dimOpacity={dimOpacity}
-              footer={practiceFooter}
+              footer={<SyncedPracticeFooter baseFooter={practiceFooter} />}
               indicatorKind={practice.indicatorKind}
               onScreenTap={handleScreenTap}
               overlay={

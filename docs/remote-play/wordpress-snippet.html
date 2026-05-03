@@ -19,6 +19,7 @@
   const statusEl = document.getElementById("hrp-status");
   const playerEl = document.getElementById("hrp-player");
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const VIMEO_AUDIO_TRACK = "ru";
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -30,6 +31,7 @@
   let player = null;
   let pollTimer = null;
   let lastVideoKey = null;
+  let lastPlayerError = "";
 
   const MSG_WAIT = "Ожидаем подключение из приложения";
   const MSG_IDLE = "Подключено. Выберите практику в приложении.";
@@ -77,25 +79,8 @@
     throw new Error("Не удалось создать уникальный код. Обновите страницу.");
   }
 
-  /**
-   * Без query в URL: параметр ?audiotrack=… ломает часть роликов («We're having a little trouble»),
-   * если дорожки нет или Vimeo отвергает комбинацию. Язык выбираем после ready через Player API.
-   */
   function vimeoEmbedUrl(vimeoId) {
-    return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}`;
-  }
-
-  async function preferRussianAudioTrack(player) {
-    if (!player || typeof player.selectAudioTrack !== "function") return;
-    const langs = ["ru", "ru-RU"];
-    for (let i = 0; i < langs.length; i += 1) {
-      try {
-        await player.selectAudioTrack(langs[i]);
-        return;
-      } catch (_) {
-        /* нет дорожки — остаёмся на умолчании */
-      }
-    }
+    return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?audiotrack=${encodeURIComponent(VIMEO_AUDIO_TRACK)}`;
   }
 
   async function destroyPlayer() {
@@ -106,15 +91,16 @@
     } finally {
       player = null;
       lastVideoKey = null;
+      lastPlayerError = "";
       playerEl.innerHTML = "";
       await sleep(220);
     }
   }
 
   async function mountPlayerIfNeeded(vimeoId) {
-    if (!vimeoId) return;
+    if (!vimeoId) return false;
     const wantKey = String(vimeoId);
-    if (player && lastVideoKey === wantKey) return;
+    if (player && lastVideoKey === wantKey) return !lastPlayerError;
 
     await destroyPlayer();
     const iframe = document.createElement("iframe");
@@ -128,13 +114,22 @@
     playerEl.appendChild(iframe);
     player = new Vimeo.Player(iframe);
     lastVideoKey = wantKey;
+    player.on("error", (error) => {
+      lastPlayerError = error && error.message ? error.message : "Vimeo не разрешил воспроизведение.";
+      setStatusStable(`Ошибка Vimeo: ${lastPlayerError}`, true);
+    });
     try {
       await player.ready();
-      await preferRussianAudioTrack(player);
-      await player.play().catch(() => {});
+      if (lastPlayerError) return false;
+      await player.play().catch((error) => {
+        lastPlayerError = error && error.message ? error.message : "";
+      });
       iframe?.requestFullscreen?.().catch(() => {});
+      return !lastPlayerError;
     } catch {
-      /* следующий опрос с тем же состоянием не пересоздаст iframe благодаря fingerprint */
+      lastPlayerError = "Проверьте Privacy / Embed domains у этого Vimeo-ролика.";
+      setStatusStable(`Ошибка Vimeo: ${lastPlayerError}`, true);
+      return false;
     }
   }
 
@@ -164,8 +159,13 @@
       const wantKey = String(next.vimeo_id);
       const already = player && lastVideoKey === wantKey;
       if (!already) setStatusStable(MSG_STARTING, true);
-      await mountPlayerIfNeeded(next.vimeo_id);
+      const mounted = await mountPlayerIfNeeded(next.vimeo_id);
+      if (!mounted) {
+        lastFingerprint = fp;
+        return;
+      }
       if (!player || lastVideoKey !== wantKey) return;
+      if (already) await player.play().catch(() => {});
       lastFingerprint = fp;
       setStatusStable(MSG_PLAYING, true);
       return;
@@ -173,7 +173,11 @@
 
     if (next.status === "paused" && next.vimeo_id) {
       const wantKey = String(next.vimeo_id);
-      await mountPlayerIfNeeded(next.vimeo_id);
+      const mounted = await mountPlayerIfNeeded(next.vimeo_id);
+      if (!mounted) {
+        lastFingerprint = fp;
+        return;
+      }
       if (!player || lastVideoKey !== wantKey) return;
       lastFingerprint = fp;
       setStatusStable(MSG_PAUSED, true);

@@ -7,11 +7,12 @@
 - `core/timeline.ts` переводит длительность практики в плавный brainwave target: beta → alpha → theta → delta. Короткие практики не загоняются в delta.
 - `core/sync.ts` собирает `MandalaSoundSyncFrame`: дыхание, пульс, целевая частота мерцания, громкости слоёв и gong trigger.
 - `ui/MandalaSoundProvider.tsx` запускает `expo-av` loops только во время активной практики и обновляет параметры с частотой 10 Hz.
+- `core/assets.ts` подключает настоящий stereo binaural layer: левый и правый каналы имеют разницу `beta=16 Hz`, `alpha=10 Hz`, `theta=6 Hz`, `delta=2.5 Hz`.
 - `useMandalaSoundSync()` отдаёт тот же sync в визуальный слой, чтобы облако/мандала мерцали в одном ритме со звуком.
 
 ## Performance choices
 
-V1 намеренно не использует AudioWorklet, BiquadFilterNode или live oscillator DSP: в текущем Expo/RN стеке приложения их нет, а дыхательная практика уже нагружает телефон камерой, PPG pipeline и Skia. Вместо этого используются тихие локальные loops, редкие one-shot события и мягкие volume ramps.
+V1 намеренно не использует AudioWorklet, BiquadFilterNode или live oscillator DSP: в текущем Expo/RN стеке приложения их нет, а дыхательная практика уже нагружает телефон камерой, PPG pipeline и Skia. Вместо этого используются тихие локальные loops, предрендеренный binaural stereo layer, редкие one-shot события и мягкие volume ramps.
 
 ## Biometrics
 
@@ -23,6 +24,7 @@ V1 намеренно не использует AudioWorklet, BiquadFilterNode �
 
 - `drones/`: 7 чакральных drone loops;
 - `textures/`: 3 мягкие текстуры;
+- `binaural/`: 4 stereo loops для beta/alpha/theta/delta. Проверять лучше в наушниках;
 - `gongs/`: alpha/theta/delta anchors;
 - `events/`: редкие мягкие события.
 
@@ -30,4 +32,4 @@ V1 намеренно не использует AudioWorklet, BiquadFilterNode �
 
 ## V2 direction
 
-Настоящие бинауральные биения и фильтры стоит делать отдельной native-аудио фазой или предрендеренными stereo loops. Поле `flickerHz` уже синхронизирует visual/audio rhythm, но не является live per-ear oscillator.
+Следующий шаг — native-аудио фаза с continuous per-ear oscillator, чтобы `targetHz` менялся не только по диапазонам, а плавно на каждом участке timeline. Текущая версия уже даёт реальный binaural beat, но дискретно по band loops.

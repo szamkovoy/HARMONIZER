@@ -15,6 +15,12 @@ export const MANDALA_SOUND_ASSETS: MandalaSoundAssetPreset = {
     require("../../../assets/audio/mandala-sound/textures/texture-2.wav"),
     require("../../../assets/audio/mandala-sound/textures/texture-3.wav"),
   ],
+  binaural: {
+    beta: require("../../../assets/audio/mandala-sound/binaural/beta.wav"),
+    alpha: require("../../../assets/audio/mandala-sound/binaural/alpha.wav"),
+    theta: require("../../../assets/audio/mandala-sound/binaural/theta.wav"),
+    delta: require("../../../assets/audio/mandala-sound/binaural/delta.wav"),
+  },
   gongs: {
     alpha: require("../../../assets/audio/mandala-sound/gongs/alpha.wav"),
     theta: require("../../../assets/audio/mandala-sound/gongs/theta.wav"),

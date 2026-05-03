@@ -38,6 +38,7 @@ export interface MandalaSoundSyncFrame {
   textureBrightness: number;
   droneGain: number;
   textureGain: number;
+  binauralGain: number;
   flickerHz: number;
   flickerIntensity: number;
   gongTrigger: AudioBandTrigger["id"] | null;
@@ -53,6 +54,7 @@ export interface MandalaSoundVisualSync {
 export interface MandalaSoundAssetPreset {
   drones: readonly number[];
   textures: readonly number[];
+  binaural: Record<MandalaSoundBand, number>;
   gongs: Record<AudioBandTrigger["id"], number>;
   events: readonly number[];
 }

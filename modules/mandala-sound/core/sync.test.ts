@@ -84,6 +84,8 @@ describe("mandala sound sync", () => {
 
     expect(frame.textureGain).toBeGreaterThan(0);
     expect(frame.textureGain).toBeLessThan(0.14);
-    expect(frame.flickerIntensity).toBeLessThan(0.2);
+    expect(frame.binauralGain).toBeGreaterThan(0.03);
+    expect(frame.binauralGain).toBeLessThan(0.06);
+    expect(frame.flickerIntensity).toBeLessThan(0.35);
   });
 });

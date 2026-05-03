@@ -1510,10 +1510,12 @@ half4 main(vec2 fragcoord) {
     haloColor * bodyRing * cloudBodyRingWeight +
     coreColor * plateau * cloudCoreWeight;
   float flickerWave = 0.5 + 0.5 * sin(syncTime * 6.28318530718 * externalFlickerHz);
-  float flickerGain = mix(1.0, 0.94 + 0.14 * flickerWave, clamp(externalFlickerIntensity, 0.0, 1.0));
+  float flickerAmount = clamp(externalFlickerIntensity, 0.0, 1.0);
+  float flickerGain = mix(1.0, 0.86 + 0.28 * flickerWave, flickerAmount);
+  vec3 flickerColor = color * mix(1.0, 0.92 + 0.2 * flickerWave, flickerAmount);
   float alpha =
     clamp((outerBody * cloudOuterBodyAlpha + bodyRing * cloudBodyRingAlpha + plateau * cloudCoreAlpha) * edgeFade * cloudOpacity * flickerGain, 0.0, cloudAlphaCeiling);
-  return half4(color * edgeFade, alpha);
+  return half4(flickerColor * edgeFade, alpha);
 }
 `;
 

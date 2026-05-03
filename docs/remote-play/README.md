@@ -22,4 +22,6 @@ Paste `docs/remote-play/wordpress-snippet.html` into a WordPress Custom HTML blo
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
-The snippet creates a waiting session, shows the code, subscribes to the row, and starts Vimeo playback when Expo writes `vimeo_id`. It also polls the same row every 2 seconds as a fallback in case a browser or WordPress page loses a Realtime event. Vimeo embed URL must be exactly `https://player.vimeo.com/video/<id>?audiotrack=<slug>` (no other query params); `VIMEO_AUDIO_TRACK` defaults to `ru`.
+The snippet creates a waiting session, shows the code, subscribes to the row, and starts Vimeo playback when Expo writes `vimeo_id`. It also polls the same row every 2 seconds as a fallback in case a browser or WordPress page loses a Realtime event. Vimeo embed URL must be exactly `https://player.vimeo.com/video/<id>?audiotrack=<slug>` (no other query params); `VIMEO_AUDIO_TRACK` defaults to `ru`. Do not switch the audio language through the Vimeo Player API after mount: Russian playback depends on the iframe `src` carrying `?audiotrack=ru`.
+
+If the iframe shows `Sorry / We're having a little trouble`, verify the exact Vimeo video ID in that practice. Vimeo returns this as `PrivacyError` when the individual video is not allowed to embed on `zamkovoi.yoga` / `zamkovoi.ru`, even if other videos from the same account work.

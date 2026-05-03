@@ -158,8 +158,9 @@ export function buildMandalaSoundFrame({
     textureBrightness: clamp01(contract.textureBrightness * 0.55 + breathBrightness * 0.45),
     droneGain: clamp01(0.16 + pulseWave * pulseDepth),
     textureGain: clamp01(0.025 + breathBrightness * 0.105),
+    binauralGain: clamp01(0.035 + (1 - breath.phase) * 0.018),
     flickerHz: targetHz,
-    flickerIntensity: clamp01(0.06 + breath.phase * 0.08 + pulse.confidence * 0.04),
+    flickerIntensity: clamp01(0.14 + breath.phase * 0.12 + pulse.confidence * 0.06),
     gongTrigger: detectGongTransition(previousBand, band),
   };
 }
