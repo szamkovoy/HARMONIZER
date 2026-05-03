@@ -1398,6 +1398,47 @@ export type Database = {
           },
         ]
       }
+      tv_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          pairing_code: string
+          status: string
+          updated_at: string
+          user_id: string | null
+          vimeo_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          pairing_code: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          vimeo_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          pairing_code?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          vimeo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tv_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null

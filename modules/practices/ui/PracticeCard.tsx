@@ -31,9 +31,15 @@ function durationOptions(practice: PracticeSummary): number[] {
 export function PracticeCard({
   practice,
   onLaunch,
+  onRemotePlay,
+  remotePlayConnected = false,
+  remotePlayDisabled = false,
 }: {
   practice: PracticeSummary;
   onLaunch: (practice: PracticeSummary) => void;
+  onRemotePlay?: (practice: PracticeSummary) => void;
+  remotePlayConnected?: boolean;
+  remotePlayDisabled?: boolean;
 }) {
   const theme = useTheme();
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
@@ -155,11 +161,22 @@ export function PracticeCard({
         </View>
       )}
 
-      <AppButton
-        label="Начать практику"
-        onPress={launchConfiguredPractice}
-        style={styles.button}
-      />
+      <View style={styles.buttonRow}>
+        <AppButton
+          label={practice.kind === "yoga" && remotePlayConnected ? "Открыть на телефоне" : "Начать практику"}
+          onPress={launchConfiguredPractice}
+          style={styles.button}
+        />
+        {practice.kind === "yoga" && remotePlayConnected && onRemotePlay ? (
+          <AppButton
+            label="Открыть на ТВ"
+            variant="secondary"
+            onPress={() => onRemotePlay(practice)}
+            disabled={remotePlayDisabled}
+            style={styles.button}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -298,6 +315,10 @@ const styles = StyleSheet.create({
   button: {
     alignSelf: "flex-start",
     minWidth: 160,
+  },
+  buttonRow: {
+    alignItems: "flex-start",
+    gap: 8,
   },
   dropdownField: {
     gap: 6,
