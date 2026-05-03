@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { PRODUCT_TIERS, TIER_LABELS, type ProductTier } from "@/modules/access/core/tiers";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import { logRuntimeTap } from "@/services/runtimeDiagnostics";
 
 export function DevTierSwitch({
   value,
@@ -18,9 +19,24 @@ export function DevTierSwitch({
         Dev effective tier: {value ? TIER_LABELS[value] : "из профиля"}
       </AppText>
       <View style={styles.row}>
-        <TierButton label="Профиль" active={!value} onPress={() => onChange(null)} />
+        <TierButton
+          label="Профиль"
+          active={!value}
+          onPress={() => {
+            logRuntimeTap("dev_tier_switch", { tier: null });
+            onChange(null);
+          }}
+        />
         {PRODUCT_TIERS.map((tier) => (
-          <TierButton key={tier} label={TIER_LABELS[tier]} active={value === tier} onPress={() => onChange(tier)} />
+          <TierButton
+            key={tier}
+            label={TIER_LABELS[tier]}
+            active={value === tier}
+            onPress={() => {
+              logRuntimeTap("dev_tier_switch", { tier });
+              onChange(tier);
+            }}
+          />
         ))}
       </View>
     </View>

@@ -15,6 +15,11 @@ const GLOBAL_PROMPT_KEY = "global_morning_recommendation";
 /** Cyrillic JSON + three fields need headroom; DB prompt may still say 2200. */
 const GLOBAL_LLM_MIN_OUTPUT_TOKENS = 6144;
 
+export async function getExpectedGlobalDailyContentModel(db: SupabaseClient): Promise<string> {
+  const prompt = await getActivePrompt(db, GLOBAL_PROMPT_KEY);
+  return getModelByHint(prompt.model_hint);
+}
+
 /**
  * Если в `global_daily_content` нет строки на дату — считаем эфемериды, зовём Gemini,
  * upsert в БД (идемпотентно при гонках).

@@ -26,6 +26,7 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { useTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { requireSupabase } from "@/services/supabase";
+import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
 function getDeviceTimeZone(): string {
   try {
@@ -45,6 +46,7 @@ export default function OnboardingScreen() {
 
   async function finish(opts: { withLocation: boolean }) {
     if (!authUser) return;
+    logRuntimeTap("onboarding_finish", { withLocation: opts.withLocation });
     setErrorText(null);
     setBusy(true);
     try {
@@ -54,7 +56,9 @@ export default function OnboardingScreen() {
       let locationName: string | null = null;
 
       if (opts.withLocation) {
+        logRuntimeEvent("location:permission_request", { source: "onboarding" });
         const perm = await Location.requestForegroundPermissionsAsync();
+        logRuntimeEvent("location:permission_result", { status: perm.status, canAskAgain: perm.canAskAgain });
         if (perm.status !== "granted") {
           setErrorText(
             "Разрешение на геолокацию не получено. Вы можете продолжить без неё — и указать координаты позже в настройках.",
@@ -65,6 +69,7 @@ export default function OnboardingScreen() {
         const pos = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
+        logRuntimeEvent("location:current_position_ready", { accuracy: pos.coords.accuracy ?? null });
         lat = pos.coords.latitude;
         lon = pos.coords.longitude;
 

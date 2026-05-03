@@ -2,26 +2,42 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, View } from "react-native";
 import { Canvas, Fill, Shader, Skia } from "@shopify/react-native-skia";
 import type { MandalaSoundVisualSync } from "@/modules/mandala-sound";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
+
+const TARGET_CLOCK_FRAME_MS = 1000 / 30;
 
 function useAnimationClock(isActive: boolean) {
   const [timeSeconds, setTimeSeconds] = useState(0);
   const frameRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
+  const tickCountRef = useRef(0);
 
   useEffect(() => {
     if (!isActive) {
       lastFrameRef.current = null;
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
       }
       return;
     }
 
     const tick = (timestamp: number) => {
+      if (lastFrameRef.current != null && timestamp - lastFrameRef.current < TARGET_CLOCK_FRAME_MS) {
+        frameRef.current = requestAnimationFrame(tick);
+        return;
+      }
       const last = lastFrameRef.current ?? timestamp;
       const deltaSeconds = Math.min((timestamp - last) / 1000, 1 / 20);
       lastFrameRef.current = timestamp;
       setTimeSeconds((current) => current + deltaSeconds);
+      tickCountRef.current += 1;
+      if (tickCountRef.current % 120 === 0) {
+        logRuntimeEvent("bindu_flow:clock_tick", {
+          tickCount: tickCountRef.current,
+          targetFps: Math.round(1000 / TARGET_CLOCK_FRAME_MS),
+        }, "debug");
+      }
       frameRef.current = requestAnimationFrame(tick);
     };
 
@@ -30,6 +46,7 @@ function useAnimationClock(isActive: boolean) {
     return () => {
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
       }
     };
   }, [isActive]);

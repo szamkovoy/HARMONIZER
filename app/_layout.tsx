@@ -8,7 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo, type ReactNode } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -17,6 +17,7 @@ import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
+import { logRuntimeEvent, logRuntimeTap, useRuntimeDiagnosticsSampler } from "@/services/runtimeDiagnostics";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -103,7 +104,7 @@ function useAuthRouteGate() {
       if (!isOnAuth) router.replace("/sign-in" as Href);
       return;
     }
-    if (!profile?.onboarded_at) {
+    if (profile && !profile.onboarded_at) {
       if (!isOnOnboarding) router.replace("/onboarding" as Href);
       return;
     }
@@ -117,7 +118,26 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
   const { initializing } = useAuth();
+  const segments = useSegments();
   useAuthRouteGate();
+  useRuntimeDiagnosticsSampler();
+
+  const routePath = segments.join("/") || "/";
+
+  useEffect(() => {
+    logRuntimeEvent("screen:route", { routePath });
+  }, [routePath]);
+
+  const handleRootTouch = (event: GestureResponderEvent) => {
+    const touch = event.nativeEvent;
+    logRuntimeTap("root", {
+      routePath,
+      locationX: Math.round(touch.locationX),
+      locationY: Math.round(touch.locationY),
+      pageX: Math.round(touch.pageX),
+      pageY: Math.round(touch.pageY),
+    });
+  };
 
   // Пока читаем сессию из SecureStore — держим фон текущей UI-темы, чтобы не мигало
   // на фоне стартового (tabs). Сплэш-скрин Expo уже скрыт (fonts loaded).
@@ -137,51 +157,53 @@ function RootLayoutNav() {
   }
 
   return (
-    <NavThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="sign-in"
-          options={{ headerShown: false, animation: "fade" }}
-        />
-        <Stack.Screen
-          name="onboarding"
-          options={{ headerShown: false, animation: "fade" }}
-        />
-        <Stack.Screen
-          name="mandala-sandbox"
-          options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="biofeedback-probe"
-          options={{ title: "Biofeedback Probe", headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="bindu-succession-lab"
-          options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="sacred-symbol-stream"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="asana-practice"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="connect-tv"
-          options={{ presentation: "fullScreenModal", headerShown: false }}
-        />
-        <Stack.Screen
-          name="tv-remote"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="breath-coherence"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-      </Stack>
-    </NavThemeProvider>
+    <View style={{ flex: 1 }} onTouchStart={handleRootTouch}>
+      <NavThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="sign-in"
+            options={{ headerShown: false, animation: "fade" }}
+          />
+          <Stack.Screen
+            name="onboarding"
+            options={{ headerShown: false, animation: "fade" }}
+          />
+          <Stack.Screen
+            name="mandala-sandbox"
+            options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="biofeedback-probe"
+            options={{ title: "Biofeedback Probe", headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="bindu-succession-lab"
+            options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="sacred-symbol-stream"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="asana-practice"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="connect-tv"
+            options={{ presentation: "fullScreenModal", headerShown: false }}
+          />
+          <Stack.Screen
+            name="tv-remote"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="breath-coherence"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        </Stack>
+      </NavThemeProvider>
+    </View>
   );
 }

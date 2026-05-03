@@ -632,11 +632,11 @@ export function Communicator({
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "inactive" && micWarmupRef.current) {
-        cancelMicWarmup();
-        return;
-      }
       if (next === "background") {
+        if (micWarmupRef.current) {
+          cancelMicWarmup();
+          return;
+        }
         void discardRecording();
       }
     });

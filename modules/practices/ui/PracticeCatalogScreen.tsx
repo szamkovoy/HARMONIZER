@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
@@ -12,6 +12,7 @@ import { useRemotePlay } from "@/modules/remote-play";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
 import { PracticeCard } from "./PracticeCard";
 import { launchPractice } from "./launchPractice";
@@ -57,6 +58,7 @@ export function PracticeCatalogScreen() {
   const [chakraFilter, setChakraFilter] = useState<Chakra | "any">("any");
   const [durationFilter, setDurationFilter] = useState<PracticeDurationBucket>("any");
   const [remoteBusyPracticeId, setRemoteBusyPracticeId] = useState<string | null>(null);
+  const [yogaLateLoading, setYogaLateLoading] = useState(false);
   const [lockedFeature, setLockedFeature] = useState<FeatureKey | null>(
     canUseFeature("practice_catalog") ? null : "practice_catalog",
   );
@@ -65,14 +67,50 @@ export function PracticeCatalogScreen() {
     catalog: null,
     error: null,
   });
+  const loadSeqRef = useRef(0);
 
-  const load = useMemo(
-    () => async () => {
+  const load = useCallback(
+    async () => {
+      const seq = ++loadSeqRef.current;
+      const startedAt = Date.now();
+      logRuntimeEvent("practice_catalog:screen_load_start", { seq });
       setState({ status: "loading", catalog: null, error: null });
+      setYogaLateLoading(false);
       try {
-        const catalog = await loadPracticeCatalog();
+        const catalog = await loadPracticeCatalog({
+          onLateYogaPractices: (yoga) => {
+            if (seq !== loadSeqRef.current) return;
+            setYogaLateLoading(false);
+            setState((current) => {
+              const base = current.catalog ?? EMPTY_CATALOG;
+              return {
+                status: "ready",
+                catalog: { ...base, yoga },
+                error: null,
+              };
+            });
+            logRuntimeEvent("practice_catalog:screen_late_yoga_ready", { seq, yogaCount: yoga.length });
+          },
+        });
+        if (seq !== loadSeqRef.current) return;
+        if (catalog.yoga.length === 0) {
+          setYogaLateLoading(true);
+        }
+        logRuntimeEvent("practice_catalog:screen_load_ready", {
+          seq,
+          durationMs: Date.now() - startedAt,
+          meditationCount: catalog.meditation.length,
+          breathCount: catalog.breath.length,
+          yogaCount: catalog.yoga.length,
+        });
         setState({ status: "ready", catalog, error: null });
       } catch (error) {
+        if (seq !== loadSeqRef.current) return;
+        logRuntimeEvent(
+          "practice_catalog:screen_load_error",
+          { seq, durationMs: Date.now() - startedAt, message: error instanceof Error ? error.message : String(error) },
+          "warn",
+        );
         setState({
           status: "error",
           catalog: EMPTY_CATALOG,
@@ -85,6 +123,10 @@ export function PracticeCatalogScreen() {
 
   useEffect(() => {
     void load();
+    return () => {
+      loadSeqRef.current += 1;
+      logRuntimeEvent("practice_catalog:screen_unmount", undefined, "debug");
+    };
   }, [load]);
 
   const catalog = state.catalog ?? EMPTY_CATALOG;
@@ -99,6 +141,13 @@ export function PracticeCatalogScreen() {
   const asanaAllowed = canUseFeature("asana_practices");
 
   const onLaunch = (practice: PracticeSummary) => {
+    logRuntimeTap("practice_launch", {
+      id: practice.id,
+      kind: practice.kind,
+      slug: practice.slug,
+      catalogAllowed,
+      asanaAllowed,
+    });
     if (!catalogAllowed) {
       setLockedFeature("practice_catalog");
       return;
@@ -111,6 +160,11 @@ export function PracticeCatalogScreen() {
   };
 
   const onRemotePlay = async (practice: PracticeSummary) => {
+    logRuntimeTap("practice_remote_play", {
+      id: practice.id,
+      kind: practice.kind,
+      connected: remotePlay.connected,
+    });
     if (!catalogAllowed) {
       setLockedFeature("practice_catalog");
       return;
@@ -191,6 +245,11 @@ export function PracticeCatalogScreen() {
                     key={group.kind}
                     accessibilityRole="button"
                     onPress={() => {
+                      logRuntimeTap("practice_group", {
+                        kind: group.kind,
+                        locked,
+                        catalogAllowed,
+                      });
                       if (!catalogAllowed) {
                         setLockedFeature("practice_catalog");
                         return;
@@ -211,7 +270,7 @@ export function PracticeCatalogScreen() {
                       {group.title}
                     </AppText>
                     <AppText variant="technicalCaption" tone={active ? "accentOn" : "muted"}>
-                      {locked ? "только Master" : count ? `${count} практик` : "пока пусто"}
+                      {locked ? "только Master" : count ? `${count} практик` : group.kind === "yoga" && yogaLateLoading ? "загружаем..." : "пока пусто"}
                     </AppText>
                   </Pressable>
                 );
@@ -281,6 +340,22 @@ export function PracticeCatalogScreen() {
                     remotePlayDisabled={remoteBusyPracticeId === practice.id || remotePlay.busy}
                   />
                 ))
+              ) : selectedKind === "yoga" && yogaLateLoading ? (
+                <View
+                  style={[
+                    styles.emptyCard,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.surfaceBorder,
+                    },
+                  ]}
+                >
+                  <ActivityIndicator color={theme.colors.accent} />
+                  <AppText variant="sectionTitle">Асаны ещё загружаются</AppText>
+                  <AppText variant="dialogBody" tone="muted">
+                    Supabase отвечает медленнее обычного. Каталог уже открыт, а асаны появятся здесь автоматически.
+                  </AppText>
+                </View>
               ) : (
                 <View
                   style={[

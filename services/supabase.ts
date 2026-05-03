@@ -23,6 +23,7 @@ import "react-native-url-polyfill/auto";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import type { Database } from "./supabase-types";
+import { logRuntimeEvent } from "./runtimeDiagnostics";
 
 const EXPO_SB_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const EXPO_SB_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
@@ -209,13 +210,26 @@ async function loggedSupabaseFetch(
 ): Promise<Response> {
   const url = requestUrl(input as SupabaseFetchInput);
   const method = requestMethod(input as SupabaseFetchInput, init);
+  const startedAt = Date.now();
+  logRuntimeEvent("supabase:request_start", { method, url }, "debug");
   if (__DEV__) {
     // eslint-disable-next-line no-console
     console.log("[supabase] fetch", method, url);
   }
   try {
-    return await fetch(input as RequestInfo, init);
+    const response = await fetch(input as RequestInfo, init);
+    logRuntimeEvent(
+      "supabase:request_end",
+      { method, url, status: response.status, durationMs: Date.now() - startedAt },
+      response.ok ? "debug" : "warn",
+    );
+    return response;
   } catch (error) {
+    logRuntimeEvent(
+      "supabase:request_failed",
+      { method, url, durationMs: Date.now() - startedAt, message: error instanceof Error ? error.message : String(error) },
+      "warn",
+    );
     if (__DEV__) {
       // eslint-disable-next-line no-console
       console.warn("[supabase] fetch failed", method, url, error instanceof Error ? error.message : String(error));

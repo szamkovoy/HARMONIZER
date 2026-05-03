@@ -7,6 +7,7 @@ import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communica
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
 import { clearDayContentCache, loadDayContentCache, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 type DayContentStatus = "idle" | "loading" | "ready" | "error" | "missing_location";
 type DayContentSource = DailyForecastResult["source"] | "global";
@@ -147,6 +148,11 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
       if (!userLocation) {
         const err = locationError(options?.locationErrorMessage);
+        logRuntimeEvent("day_content:missing_location", {
+          hasProfile: Boolean(profile),
+          profileId: profile?.id ?? null,
+          tz: profile?.tz ?? null,
+        }, "warn");
         setForecast(null);
         setSource(null);
         setModelUsed(null);
@@ -192,6 +198,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
         setStatus("loading");
         const requestUrl = nextAccessMode === "free" ? getAiGlobalContentUrl() : getDailyForecastUrl();
+        logRuntimeEvent("day_content:request_start", {
+          accessMode: nextAccessMode,
+          forecastDate,
+          url: requestUrl,
+          forceRefresh: Boolean(opts?.forceRefresh),
+        });
         // eslint-disable-next-line no-console
         console.log("[dayContent] refresh url", requestUrl);
 
@@ -253,8 +265,17 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           }
         }
         setStatus("ready");
+        logRuntimeEvent("day_content:ready", {
+          accessMode: nextAccessMode,
+          source: nextAccessMode === "free" ? "global" : "personal",
+        });
       } catch (e) {
         if (controller.signal.aborted) return;
+        logRuntimeEvent(
+          "day_content:error",
+          { message: e instanceof Error ? e.message : String(e) },
+          "warn",
+        );
         setForecast(null);
         setSource(null);
         setModelUsed(null);

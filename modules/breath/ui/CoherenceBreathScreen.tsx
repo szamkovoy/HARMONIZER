@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { cacheDirectory, getContentUriAsync, writeAsStringAsync } from "expo-file-system/legacy";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
@@ -108,6 +109,7 @@ import { CountdownRing } from "@/modules/ui/CountdownRing";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession, selfRatingFromMood } from "@/services/practiceSessions";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type { Json } from "@/services/supabase-types";
 
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
@@ -237,6 +239,11 @@ function computeCycleMsForAnalysis(
   return { inhaleMs, exhaleMs, cycleMs };
 }
 
+function formatCoherencePercent(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return value >= 99.5 ? "≥99%" : `${Math.round(value)}%`;
+}
+
 function SyncedBreathBinduMandala({
   chakraPresetIndex,
   onRenderCommitted,
@@ -301,6 +308,21 @@ function CoherenceBreathScreenInner({
   launchSource?: string;
   usePulseSensor?: boolean;
 }) {
+  /**
+   * Важно: `useIsFocused()` может временно становиться `false` в iOS-сценариях
+   * вроде системного оверлея/SMS (AppState `inactive`), хотя пользователь
+   * объективно остаётся на экране практики и палец остаётся на сенсоре.
+   *
+   * Для ресурсов (камера/PPG) используем `useFocusEffect`: он отражает именно
+   * blur/unmount маршрута — т.е. пользователь реально ушёл с экрана дыхания.
+   */
+  const [breathRouteVisible, setBreathRouteVisible] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setBreathRouteVisible(true);
+      return () => setBreathRouteVisible(false);
+    }, []),
+  );
   const theme = useTheme();
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
   const pipeline = useBiofeedbackPipeline();
@@ -2526,7 +2548,18 @@ function CoherenceBreathScreenInner({
 
   void qcDebugSnapshot;
 
-  const cameraActive = phase === "warmup" || phase === "qualityCheck" || phase === "running";
+  const breathResourcesActive =
+    breathRouteVisible && (phase === "warmup" || phase === "qualityCheck" || phase === "running");
+  const cameraActive = breathResourcesActive;
+
+  useEffect(() => {
+    logRuntimeEvent("breath:resources_active", {
+      breathRouteVisible,
+      phase,
+      cameraActive,
+      isBreathTimingActive,
+    }, "debug");
+  }, [breathRouteVisible, cameraActive, isBreathTimingActive, phase]);
 
   /**
    * Live-метрики в футере практики: ОСОЗНАННО минимальны. Во время практики мы
@@ -2819,7 +2852,7 @@ function CoherenceBreathScreenInner({
             practiceKind="breath"
             durationMs={practiceTotalMs}
             chakra={chakra ?? 4}
-            isActive={phase === "running" && isBreathTimingActive}
+            isActive={breathRouteVisible && phase === "running" && isBreathTimingActive}
             plannedCycle={currentPlan}
             cycleStartMs={cycleStartMs}
             biofeedbackEnabled
@@ -3319,13 +3352,11 @@ function ResultsView(props: {
         <>
           <Text style={styles.metricLine}>
             {str.coherenceAvgLabel}:{" "}
-            {analysis?.coherenceAveragePercent != null
-              ? `${Math.round(analysis.coherenceAveragePercent)}%`
-              : "—"}
+            {formatCoherencePercent(analysis?.coherenceAveragePercent)}
           </Text>
           <Text style={styles.metricLine}>
             {str.coherenceMaxLabel}:{" "}
-            {analysis?.coherenceMaxPercent != null ? `${Math.round(analysis.coherenceMaxPercent)}%` : "—"}
+            {formatCoherencePercent(analysis?.coherenceMaxPercent)}
           </Text>
           <Text style={styles.metricLine}>
             {str.rsaLabel}:{" "}
@@ -3447,7 +3478,7 @@ function HybridResultsTable(props: {
   };
 
   const fmtPercent = (value: number | null | undefined): string =>
-    value != null ? `${Math.round(value)}%` : "—";
+    formatCoherencePercent(value);
   const fmtBpm = (value: number | null | undefined): string =>
     value != null ? `${Math.round(value)} уд/мин` : "—";
   const fmtMs = (value: number | null | undefined): string =>

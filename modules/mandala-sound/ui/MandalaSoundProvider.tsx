@@ -13,6 +13,7 @@ import { useBiofeedbackSubscribe } from "@/modules/biofeedback/bus/react";
 import type { BeatEvent } from "@/modules/biofeedback/sensors/types";
 import { ExpoMandalaSoundEngine } from "@/modules/mandala-sound/core/engine";
 import { buildMandalaSoundFrame } from "@/modules/mandala-sound/core/sync";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type {
   MandalaSoundBand,
   MandalaSoundSessionInput,
@@ -20,7 +21,7 @@ import type {
   MandalaSoundVisualSync,
 } from "@/modules/mandala-sound/core/types";
 
-const CONTROL_TICK_MS = 100;
+const CONTROL_TICK_MS = 250;
 const DEFAULT_DURATION_MS = 5 * 60_000;
 const DEFAULT_FRAME: MandalaSoundSyncFrame = buildMandalaSoundFrame({
   startedAtMs: 0,
@@ -90,6 +91,7 @@ export function MandalaSoundProvider({
     let cancelled = false;
 
     if (!isActive) {
+      logRuntimeEvent("mandala_sound_provider:inactive", { practiceKind }, "debug");
       startedAtRef.current = null;
       previousBandRef.current = null;
       lastBeatRef.current = null;
@@ -101,6 +103,12 @@ export function MandalaSoundProvider({
 
     if (startedAtRef.current == null) {
       startedAtRef.current = Date.now();
+      logRuntimeEvent("mandala_sound_provider:active", {
+        practiceKind,
+        durationMs,
+        chakra,
+        controlTickMs: CONTROL_TICK_MS,
+      });
     }
 
     if (engineRef.current == null) {
@@ -135,6 +143,7 @@ export function MandalaSoundProvider({
     return () => {
       cancelled = true;
       clearInterval(id);
+      logRuntimeEvent("mandala_sound_provider:tick_cleanup", { practiceKind }, "debug");
     };
   }, [chakra, cycleStartMs, durationMs, isActive, plannedCycle, practiceKind]);
 

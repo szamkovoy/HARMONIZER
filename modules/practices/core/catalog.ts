@@ -1,6 +1,7 @@
 import { BREATH_PRACTICES, DEFAULT_CHAKRA, isChakra } from "@/modules/breath";
 import type { Chakra } from "@/modules/breath";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { getSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
 
@@ -17,6 +18,7 @@ type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type PracticeChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
 
 const BREATH_DEFAULT_DURATION_SEC = 10 * 60;
+const YOGA_CATALOG_TIMEOUT_MS = 12_000;
 
 const BREATH_PRIMARY_CHAKRA: Record<string, Chakra> = {
   coherent: 4,
@@ -208,10 +210,12 @@ function chunks<T>(values: T[], size: number): T[][] {
   return result;
 }
 
-async function loadYogaPractices(): Promise<PracticeSummary[]> {
+export async function loadYogaPractices(): Promise<PracticeSummary[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
 
+  const startedAt = Date.now();
+  logRuntimeEvent("practice_catalog:yoga_load_start", undefined, "debug");
   const { data: practices, error } = await supabase
     .from("practices")
     .select(
@@ -221,7 +225,14 @@ async function loadYogaPractices(): Promise<PracticeSummary[]> {
     .eq("is_active", true)
     .order("rating", { ascending: false, nullsFirst: false });
 
-  if (error || !practices?.length) return [];
+  if (error || !practices?.length) {
+    logRuntimeEvent(
+      "practice_catalog:yoga_load_empty",
+      { durationMs: Date.now() - startedAt, error: error?.message ?? null },
+      error ? "warn" : "debug",
+    );
+    return [];
+  }
 
   const ids = practices.map((practice) => practice.id);
   const chakraRows: PracticeChakraRow[] = [];
@@ -233,7 +244,7 @@ async function loadYogaPractices(): Promise<PracticeSummary[]> {
     chakraRows.push(...((data ?? []) as PracticeChakraRow[]));
   }
 
-  return sortPracticesForCatalog(practices
+  const result = sortPracticesForCatalog(practices
     .map((practice) =>
       yogaPracticeFromRow(
         practice,
@@ -241,12 +252,67 @@ async function loadYogaPractices(): Promise<PracticeSummary[]> {
       ),
     )
     .filter((practice): practice is PracticeSummary => practice !== null));
+  logRuntimeEvent("practice_catalog:yoga_load_ready", {
+    durationMs: Date.now() - startedAt,
+    practiceCount: result.length,
+    chakraRows: chakraRows.length,
+  });
+  return result;
 }
 
-export async function loadPracticeCatalog(): Promise<PracticeCatalog> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  fallback: T,
+  label: string,
+): Promise<{ value: T; timedOut: boolean }> {
+  return Promise.race([
+    promise.then((value) => ({ value, timedOut: false })),
+    new Promise<{ value: T; timedOut: boolean }>((resolve) => {
+      const id = setTimeout(() => {
+        logRuntimeEvent(`${label}:timeout`, { timeoutMs }, "warn");
+        resolve({ value: fallback, timedOut: true });
+      }, timeoutMs);
+      promise.finally(() => clearTimeout(id)).catch(() => clearTimeout(id));
+    }),
+  ]);
+}
+
+export async function loadPracticeCatalog(options?: {
+  onLateYogaPractices?: (practices: PracticeSummary[]) => void;
+}): Promise<PracticeCatalog> {
+  const startedAt = Date.now();
+  logRuntimeEvent("practice_catalog:load_start", undefined, "debug");
+  const yogaPromise = loadYogaPractices();
+  const { value: yoga, timedOut } = await withTimeout(
+    yogaPromise,
+    YOGA_CATALOG_TIMEOUT_MS,
+    [],
+    "practice_catalog:yoga_load",
+  );
+  if (timedOut && options?.onLateYogaPractices) {
+    yogaPromise
+      .then((lateYoga) => {
+        logRuntimeEvent("practice_catalog:yoga_load_late_ready", { yogaCount: lateYoga.length });
+        options.onLateYogaPractices?.(lateYoga);
+      })
+      .catch((error: unknown) => {
+        logRuntimeEvent(
+          "practice_catalog:yoga_load_late_error",
+          { message: error instanceof Error ? error.message : String(error) },
+          "warn",
+        );
+      });
+  }
+  logRuntimeEvent("practice_catalog:load_ready", {
+    durationMs: Date.now() - startedAt,
+    meditationCount: STATIC_MEDITATIONS.length,
+    breathCount: BREATH_PRACTICES.length,
+    yogaCount: yoga.length,
+  });
   return {
     meditation: sortPracticesForCatalog(STATIC_MEDITATIONS),
     breath: sortPracticesForCatalog(createBreathPractices()),
-    yoga: await loadYogaPractices(),
+    yoga,
   };
 }

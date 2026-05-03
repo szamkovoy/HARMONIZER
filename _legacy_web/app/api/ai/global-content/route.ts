@@ -1,5 +1,5 @@
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
-import { ensureGlobalDailyContentRow } from "../../_utils/ensureGlobalDailyContent";
+import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel } from "../../_utils/ensureGlobalDailyContent";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -70,6 +70,7 @@ export async function POST(req: Request) {
     if (!user) return json({ error: "User not found" }, { status: 404 });
 
     const localDate = todayLocalDate((user as UserAccess).tz ?? "UTC");
+    const expectedModel = await getExpectedGlobalDailyContentModel(db);
     const { data: content, error } = await db
       .from("global_daily_content")
       .select("*")
@@ -78,6 +79,19 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     if (content) {
+      const contentModel = typeof content.llm_model === "string" ? content.llm_model.trim() : "";
+      if (contentModel && contentModel !== expectedModel) {
+        await ensureGlobalDailyContentRow(db, localDate);
+        const { data: refreshed, error: refreshedError } = await db
+          .from("global_daily_content")
+          .select("*")
+          .eq("forecast_date_utc", localDate)
+          .maybeSingle();
+        if (refreshedError) throw refreshedError;
+        if (refreshed) {
+          return json({ ...payloadFromContent(refreshed as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
+        }
+      }
       return json({ ...payloadFromContent(content as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
     }
 

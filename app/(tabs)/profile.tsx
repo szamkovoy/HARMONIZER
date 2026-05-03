@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
@@ -7,8 +7,10 @@ import { DevTierSwitch, TIER_LABELS, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { loadDailyPracticeStats, type DailyPracticeStat } from "@/services/practiceSessions";
+import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
 
 export default function ProfileTabRoute() {
   const theme = useTheme();
@@ -21,6 +23,7 @@ export default function ProfileTabRoute() {
   }, [refreshProfile]);
 
   const loadStats = useCallback(async () => {
+    logRuntimeTap("profile_load_stats", { canUseStats: canUseFeature("stats") });
     if (!authUser?.id || !canUseFeature("stats")) {
       setStats([]);
       return;
@@ -33,6 +36,18 @@ export default function ProfileTabRoute() {
   useEffect(() => {
     void loadStats();
   }, [loadStats]);
+
+  const exportDiagnostics = useCallback(() => {
+    logRuntimeTap("profile_export_diagnostics");
+    void shareRuntimeDiagnosticsReport().catch((error: unknown) => {
+      Alert.alert("Диагностика", error instanceof Error ? error.message : "Не удалось экспортировать JSON.");
+    });
+  }, []);
+
+  const resetDiagnostics = useCallback(() => {
+    clearRuntimeDiagnostics();
+    Alert.alert("Диагностика", "Лог очищен. Теперь можно начать чистый 5-10 минутный тест.");
+  }, []);
 
   const chartItems = useMemo(() => [...stats].reverse(), [stats]);
   const maxSeconds = Math.max(60, ...chartItems.map((item) => item.total_practice_seconds ?? 0));
@@ -63,6 +78,19 @@ export default function ProfileTabRoute() {
         </View>
 
         {__DEV__ ? <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
+
+        {__DEV__ || HARMONIZER_TEST_MODE ? (
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
+            <AppText variant="sectionTitle">Диагностика ресурсов</AppText>
+            <AppText variant="dialogBody" tone="muted">
+              Для теста очистите лог, 5-10 минут походите по приложению, затем экспортируйте JSON и передайте файл.
+            </AppText>
+            <View style={styles.diagnosticsActions}>
+              <AppButton label="Очистить лог" variant="secondary" onPress={resetDiagnostics} style={styles.smallButton} />
+              <AppButton label="Экспорт JSON" onPress={exportDiagnostics} style={styles.smallButton} />
+            </View>
+          </View>
+        ) : null}
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
           <View style={styles.cardHeaderRow}>
@@ -151,6 +179,11 @@ const styles = StyleSheet.create({
   smallButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  diagnosticsActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
   chart: {
     alignItems: "flex-end",

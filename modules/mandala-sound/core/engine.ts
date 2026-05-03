@@ -1,6 +1,7 @@
 import { Audio } from "expo-av";
 
 import { MANDALA_SOUND_ASSETS } from "@/modules/mandala-sound/core/assets";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type {
   MandalaSoundAssetPreset,
   MandalaSoundBand,
@@ -32,6 +33,7 @@ async function unload(sound: SoundHandle | null): Promise<void> {
 }
 
 export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
+  private readonly diagnosticId = Math.random().toString(36).slice(2, 8);
   private drone: SoundHandle | null = null;
   private textureA: SoundHandle | null = null;
   private textureB: SoundHandle | null = null;
@@ -42,95 +44,146 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
   private lastBinauralVolumes: Partial<Record<MandalaSoundBand, number>> = {};
   private lastEventAtMs = 0;
   private started = false;
+  private updateCount = 0;
+  private updateInFlight = false;
+  private skippedUpdates = 0;
 
   constructor(private readonly assets: MandalaSoundAssetPreset = MANDALA_SOUND_ASSETS) {}
 
   async start(chakra: number): Promise<void> {
     if (this.started) return;
     this.started = true;
+    const startedAt = Date.now();
+    logRuntimeEvent("mandala_sound:start", { id: this.diagnosticId, chakra }, "debug");
 
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      shouldDuckAndroid: true,
-      staysActiveInBackground: false,
-    });
-
-    const selectedDrone = this.assets.drones[chakraIndex(chakra)] ?? this.assets.drones[0];
-    const textureOffset = chakraIndex(chakra) % Math.max(1, this.assets.textures.length);
-    const textureA = this.assets.textures[textureOffset];
-    const textureB = this.assets.textures[(textureOffset + 1) % Math.max(1, this.assets.textures.length)];
-
-    if (selectedDrone) {
-      const { sound } = await Audio.Sound.createAsync(selectedDrone, {
-        isLooping: true,
-        volume: 0,
-        shouldPlay: true,
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: false,
       });
-      this.drone = sound;
-    }
 
-    if (textureA) {
-      const { sound } = await Audio.Sound.createAsync(textureA, {
-        isLooping: true,
-        volume: 0,
-        shouldPlay: true,
+      const selectedDrone = this.assets.drones[chakraIndex(chakra)] ?? this.assets.drones[0];
+      const textureOffset = chakraIndex(chakra) % Math.max(1, this.assets.textures.length);
+      const textureA = this.assets.textures[textureOffset];
+      const textureB = this.assets.textures[(textureOffset + 1) % Math.max(1, this.assets.textures.length)];
+
+      if (selectedDrone) {
+        const { sound } = await Audio.Sound.createAsync(selectedDrone, {
+          isLooping: true,
+          volume: 0,
+          shouldPlay: true,
+        });
+        this.drone = sound;
+      }
+
+      if (textureA) {
+        const { sound } = await Audio.Sound.createAsync(textureA, {
+          isLooping: true,
+          volume: 0,
+          shouldPlay: true,
+        });
+        this.textureA = sound;
+      }
+
+      if (textureB && textureB !== textureA) {
+        const { sound } = await Audio.Sound.createAsync(textureB, {
+          isLooping: true,
+          volume: 0,
+          shouldPlay: true,
+        });
+        this.textureB = sound;
+      }
+
+      await Promise.all(
+        (Object.entries(this.assets.binaural) as [MandalaSoundBand, number][]).map(
+          async ([band, asset]) => {
+            const { sound } = await Audio.Sound.createAsync(asset, {
+              isLooping: true,
+              volume: 0,
+              shouldPlay: true,
+            });
+            this.binaural[band] = sound;
+            this.lastBinauralVolumes[band] = 0;
+          },
+        ),
+      );
+      logRuntimeEvent("mandala_sound:start_ready", {
+        id: this.diagnosticId,
+        durationMs: Date.now() - startedAt,
+        binauralLoops: Object.keys(this.binaural).length,
+        hasDrone: Boolean(this.drone),
+        hasTextureA: Boolean(this.textureA),
+        hasTextureB: Boolean(this.textureB),
       });
-      this.textureA = sound;
+    } catch (error) {
+      logRuntimeEvent(
+        "mandala_sound:start_failed",
+        { id: this.diagnosticId, durationMs: Date.now() - startedAt, message: error instanceof Error ? error.message : String(error) },
+        "warn",
+      );
+      await this.stop();
+      throw error;
     }
-
-    if (textureB && textureB !== textureA) {
-      const { sound } = await Audio.Sound.createAsync(textureB, {
-        isLooping: true,
-        volume: 0,
-        shouldPlay: true,
-      });
-      this.textureB = sound;
-    }
-
-    await Promise.all(
-      (Object.entries(this.assets.binaural) as [MandalaSoundBand, number][]).map(
-        async ([band, asset]) => {
-          const { sound } = await Audio.Sound.createAsync(asset, {
-            isLooping: true,
-            volume: 0,
-            shouldPlay: true,
-          });
-          this.binaural[band] = sound;
-          this.lastBinauralVolumes[band] = 0;
-        },
-      ),
-    );
   }
 
   async update(frame: MandalaSoundSyncFrame): Promise<void> {
     if (!this.started) return;
-
-    await Promise.all([
-      this.setLoopVolume("drone", frame.droneGain),
-      this.setLoopVolume("textureA", frame.textureGain * frame.textureBrightness),
-      this.setLoopVolume("textureB", frame.textureGain * (1 - frame.textureBrightness) * 0.74),
-      ...this.setBinauralVolumes(frame.band, frame.binauralGain),
-    ]);
-
-    if (frame.gongTrigger) {
-      void this.playOneShot(this.assets.gongs[frame.gongTrigger], 0.11);
-    }
-
-    if (
-      this.assets.events.length > 0 &&
-      frame.nowMs - this.lastEventAtMs > EVENT_COOLDOWN_MS &&
-      Math.random() < 0.0025
-    ) {
-      this.lastEventAtMs = frame.nowMs;
-      const event = this.assets.events[Math.floor(Math.random() * this.assets.events.length)];
-      if (event) {
-        void this.playOneShot(event, 0.075);
+    if (this.updateInFlight) {
+      this.skippedUpdates += 1;
+      if (this.skippedUpdates % 10 === 0) {
+        logRuntimeEvent("mandala_sound:update_skipped", {
+          id: this.diagnosticId,
+          skippedUpdates: this.skippedUpdates,
+        }, "warn");
       }
+      return;
+    }
+    this.updateInFlight = true;
+    this.updateCount += 1;
+    try {
+      if (this.updateCount % 20 === 0) {
+        logRuntimeEvent("mandala_sound:update_tick", {
+          id: this.diagnosticId,
+          updateCount: this.updateCount,
+          skippedUpdates: this.skippedUpdates,
+          band: frame.band,
+          droneGain: Math.round(frame.droneGain * 1000) / 1000,
+          binauralGain: Math.round(frame.binauralGain * 1000) / 1000,
+        }, "debug");
+      }
+
+      await Promise.all([
+        this.setLoopVolume("drone", frame.droneGain),
+        this.setLoopVolume("textureA", frame.textureGain * frame.textureBrightness),
+        this.setLoopVolume("textureB", frame.textureGain * (1 - frame.textureBrightness) * 0.74),
+        ...this.setBinauralVolumes(frame.band, frame.binauralGain),
+      ]);
+
+      if (frame.gongTrigger) {
+        void this.playOneShot(this.assets.gongs[frame.gongTrigger], 0.11);
+      }
+
+      if (
+        this.assets.events.length > 0 &&
+        frame.nowMs - this.lastEventAtMs > EVENT_COOLDOWN_MS &&
+        Math.random() < 0.0025
+      ) {
+        this.lastEventAtMs = frame.nowMs;
+        const event = this.assets.events[Math.floor(Math.random() * this.assets.events.length)];
+        if (event) {
+          void this.playOneShot(event, 0.075);
+        }
+      }
+    } finally {
+      this.updateInFlight = false;
     }
   }
 
   async stop(): Promise<void> {
+    const wasStarted = this.started;
+    const startedAt = Date.now();
     this.started = false;
     await Promise.all([
       unload(this.drone),
@@ -146,6 +199,14 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     this.lastTextureAVolume = 0;
     this.lastTextureBVolume = 0;
     this.lastBinauralVolumes = {};
+    this.updateCount = 0;
+    this.updateInFlight = false;
+    this.skippedUpdates = 0;
+    logRuntimeEvent("mandala_sound:stop", {
+      id: this.diagnosticId,
+      wasStarted,
+      durationMs: Date.now() - startedAt,
+    }, "debug");
   }
 
   private async setLoopVolume(

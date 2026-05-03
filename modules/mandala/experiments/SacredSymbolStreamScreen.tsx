@@ -11,6 +11,7 @@ import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { recordPracticeSession, selfRatingFromMood, type PracticeCompletionMood } from "@/services/practiceSessions";
+import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
 const DENSITY_OPTIONS = [
   { label: "Airy", value: 0.18 },
@@ -79,7 +80,7 @@ export function SacredSymbolStreamScreen({
   const [densityBias, setDensityBias] = useState<number>(0.84);
   const [isPaused, setIsPaused] = useState(false);
   const [sessionSeed, setSessionSeed] = useState(1);
-  const isRenderActive = isFocused && appState === "active" && !isPaused && !showRatingDialog;
+  const isRenderActive = isFocused && appState === "active" && !isPaused && !showRatingDialog && !showStopConfirm;
 
   const clearOverlayTimer = useCallback(() => {
     if (overlayHideTimerRef.current) {
@@ -99,9 +100,21 @@ export function SacredSymbolStreamScreen({
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       setAppState(nextState);
+      logRuntimeEvent("meditation:app_state", { nextState }, "debug");
     });
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    logRuntimeEvent("meditation:render_active", {
+      isRenderActive,
+      isFocused,
+      appState,
+      isPaused,
+      showRatingDialog,
+      showStopConfirm,
+    });
+  }, [appState, isFocused, isPaused, isRenderActive, showRatingDialog, showStopConfirm]);
 
   useEffect(() => {
     setOverlayVisible(true);
@@ -158,6 +171,7 @@ export function SacredSymbolStreamScreen({
 
   const handleScreenTap = useCallback(() => {
     if (showRatingDialog || showStopConfirm) return;
+    logRuntimeTap("meditation_screen", { overlayVisible });
     setOverlayVisible((current) => {
       const next = !current;
       if (next) scheduleOverlayHide();
@@ -167,6 +181,7 @@ export function SacredSymbolStreamScreen({
   }, [clearOverlayTimer, scheduleOverlayHide, showRatingDialog, showStopConfirm]);
 
   const requestStop = useCallback(() => {
+    logRuntimeTap("meditation_stop_request");
     clearOverlayTimer();
     setShowStopConfirm(true);
   }, [clearOverlayTimer]);
