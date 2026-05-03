@@ -39,7 +39,7 @@ import { Communicator } from "@/modules/communicator/ui/Communicator";
 1. Клиент: `services/communicator-client.ts` → стрим UTF-8.
 2. Сервер присылает SSE-события `orchestrator_decision`, `chunk`, `complete`.
 3. В `complete.practicePicked` приходит выбранная backend-логикой практика; assistant не выдумывает ID.
-4. Backend route делегирует подбор в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`, а тот использует общий `modules/practices/core/selector.ts`: сервер только загружает Supabase-данные и адаптирует их в selector candidate.
+4. Backend route делегирует подбор в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`, а тот использует общий `_legacy_web/shared_core/selector.ts` (алиас `@shared/selector`): сервер только загружает Supabase-данные и адаптирует их в selector candidate.
 5. Старый endpoint `communicator/v2/select-practice` оставлен как совместимый wrapper поверх того же `choosePractice`, без отдельного алгоритма ранжирования.
 6. Если пользователь отказывается от предложенной карточки, backend удерживает фазу `suggest_practice` и исключает недавно предложенные/завершенные практики из стека.
 

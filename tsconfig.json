@@ -5,6 +5,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@shared/*": [
+        "./_legacy_web/shared_core/*"
       ]
     }
   },

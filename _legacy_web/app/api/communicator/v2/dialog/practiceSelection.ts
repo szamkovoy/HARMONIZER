@@ -1,13 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { PracticeRecommendation } from "../../../../../../modules/practices/core/recommendation";
+import type { PracticeRecommendation } from "@shared/recommendation";
 import {
   recentStackLimitForKind,
   selectPracticeCandidate,
   type PracticeSelectorCandidate,
-} from "../../../../../../modules/practices/core/selector";
-import type { PracticePickMarker } from "../../../_utils/markers";
-import type { MessageRecord } from "./dialogHelpers";
+} from "@shared/selector";
+import type { PracticePickMarker } from "@legacy/app/api/_utils/markers";
+import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
 type PracticeKind = "breath" | "meditation" | "yoga";
 
@@ -78,11 +78,13 @@ export type PracticeSelectionContext = {
 
 function localizedTitle(value: PracticeCandidate["title"], fallback: string): string {
   if (typeof value === "string" && value.trim()) return value.trim();
+  if (!value || typeof value !== "object") return fallback;
   return value?.ru?.trim() || value?.en?.trim() || fallback;
 }
 
 function hasLocalizedText(value: PracticeCandidate["description"]): boolean {
   if (typeof value === "string") return Boolean(value.trim());
+  if (!value || typeof value !== "object") return false;
   return Boolean(value?.ru?.trim() || value?.en?.trim());
 }
 
@@ -260,7 +262,8 @@ function toPracticePickedPayload(
 }
 
 export function publicPracticePickedPayload(practice: PracticePickedPayload, reason?: string | null) {
-  const { stack: _stack, ...payload } = practice;
+  const payload: PracticePickedPayload = { ...practice };
+  delete payload.stack;
   return { ...payload, reason: practice.reason ?? reason };
 }
 

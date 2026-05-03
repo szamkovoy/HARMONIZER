@@ -1,6 +1,6 @@
 import { router, type Href } from "expo-router";
 
-import type { PracticeRecommendationLaunch } from "@/modules/practices/core/recommendation";
+import type { PracticeRecommendationLaunch } from "@shared/recommendation";
 import type { PracticeLaunchParams } from "@/modules/practices/core/types";
 
 type LaunchInput = PracticeLaunchParams | PracticeRecommendationLaunch | null | undefined;
@@ -18,6 +18,7 @@ function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, st
       practiceId: launch.practiceId,
       durationMs: String(launch.durationMs),
       chakra: String(launch.chakra),
+      ...(typeof launch.usePulseSensor === "boolean" ? { usePulseSensor: String(launch.usePulseSensor) } : {}),
     };
   }
 

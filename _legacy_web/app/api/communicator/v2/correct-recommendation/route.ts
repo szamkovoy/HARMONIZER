@@ -1,4 +1,4 @@
-import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
+import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
 

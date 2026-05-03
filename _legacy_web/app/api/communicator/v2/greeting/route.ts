@@ -1,14 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildAddressFormHint } from "../../../_utils/addressForm";
-import { natalProfileFromRow } from "../../../_utils/astro-db";
-import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
-import { buildForecastCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { generateGeminiText, getModelByHint } from "../../../_utils/gemini";
-import { dialogSurfaceModelHint } from "../../../_utils/userModelTier";
-import { reportRouteError } from "../../../_utils/monitoring";
-import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "../../../_utils/orchestrator";
-import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
-import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
+import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
+import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
+import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
+import { buildForecastCompact, buildProfileCompact, logDTOSize } from "@legacy/app/api/_utils/dto";
+import { generateGeminiText, getModelByHint } from "@legacy/app/api/_utils/gemini";
+import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
+import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
+import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "@legacy/app/api/_utils/orchestrator";
+import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
+import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
 

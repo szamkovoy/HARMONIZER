@@ -55,7 +55,7 @@ function eventLogQuery() {
   };
 }
 
-vi.mock("../../../_utils/supabase", () => ({
+vi.mock("@legacy/app/api/_utils/supabase", () => ({
   createServiceSupabase: () => ({
     from: (table: string) => {
       if (table === "practices") return practiceQuery();
@@ -70,7 +70,7 @@ vi.mock("../../../_utils/supabase", () => ({
     Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 }),
 }));
 
-import { POST } from "./route";
+import { POST } from "@legacy/app/api/communicator/v2/select-practice/route";
 
 describe("communicator v2 select-practice wrapper", () => {
   it("returns the shared practicePicked payload with launch params", async () => {

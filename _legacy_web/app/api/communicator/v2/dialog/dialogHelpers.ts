@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
-import type { OrchestratorDecision } from "../../../_utils/orchestrator";
+import type { OrchestratorDecision } from "@legacy/app/api/_utils/orchestrator";
 
 export const MESSAGE_HISTORY_LIMIT = 40;
 export const SESSION_TTL_MS = 2 * 60 * 60 * 1000;

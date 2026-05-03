@@ -1,9 +1,8 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
 
 import { UpgradeDialog, requiredTierFor, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
@@ -41,34 +40,10 @@ function durationMinutes(seconds: number | null): string {
   return `${Math.max(1, Math.round(seconds / 60))} мин`;
 }
 
-function stringRecord(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-  );
-}
-
-function vimeoHtml(videoId: string, audiotrack: string): string {
-  const src = `https://player.vimeo.com/video/${encodeURIComponent(videoId)}?audiotrack=${encodeURIComponent(audiotrack)}`;
-  return `<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
-      iframe { width: 100%; height: 100%; border: 0; display: block; }
-    </style>
-  </head>
-  <body>
-    <iframe src="${src}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
-  </body>
-</html>`;
-}
-
 export default function AsanaPracticeRoute() {
   const theme = useTheme();
   const { canUseFeature } = useAccess();
-  const { authUser, profile } = useAuth();
+  const { authUser } = useAuth();
   const params = useLocalSearchParams<{
     practiceId?: string;
     durationMs?: string;
@@ -127,11 +102,6 @@ export default function AsanaPracticeRoute() {
 
   const practice = metadata?.practice ?? null;
   const parsedParams = paramsRecord(practice?.params);
-  const embed = paramsRecord(parsedParams.vimeo_embed);
-  const embedOrigin = typeof embed.origin === "string" ? embed.origin : "https://zamkovoi.yoga";
-  const tracks = stringRecord(embed.audiotrack_by_locale);
-  const locale = profile?.locale === "en" ? "en" : "ru";
-  const audiotrack = tracks[locale] ?? tracks.ru ?? tracks.en ?? "en";
   const title = practice ? localizedText(practice.title, "Практика асан") : "Практика асан";
   const vimeoId = practice?.video_external_id ?? null;
   const chakraLabel =
@@ -168,8 +138,23 @@ export default function AsanaPracticeRoute() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Закрыть практику"
+        onPress={() => router.back()}
+        style={({ pressed }) => [
+          styles.floatingClose,
+          {
+            backgroundColor: theme.colors.controlButtonBg,
+            opacity: pressed ? 0.72 : 1,
+          },
+        ]}
+        hitSlop={12}
+      >
+        <AppText variant="sectionTitle">×</AppText>
+      </Pressable>
       <ScrollView contentContainerStyle={styles.content}>
         <View
           style={[
@@ -185,7 +170,8 @@ export default function AsanaPracticeRoute() {
             {title}
           </AppText>
           <AppText variant="screenHint" tone="muted">
-            Vimeo открывается во встроенной странице с origin zamkovoi.yoga, чтобы соответствовать настройкам доменов.
+            Локальный Vimeo-плеер временно отключён: текущий dev-client не содержит native WebView-модуль.
+            Следующий шаг — запуск асан через Remote Play на большом экране.
           </AppText>
 
           {loadError ? (
@@ -195,18 +181,11 @@ export default function AsanaPracticeRoute() {
           ) : null}
 
           {vimeoId && canUseFeature("asana_practices") ? (
-            <View style={[styles.playerShell, { borderColor: theme.colors.surfaceBorder }]}>
-              <WebView
-                source={{
-                  html: vimeoHtml(vimeoId, audiotrack),
-                  baseUrl: embedOrigin,
-                }}
-                originWhitelist={[embedOrigin, "https://player.vimeo.com", "https://*.vimeo.com"]}
-                allowsFullscreenVideo
-                allowsInlineMediaPlayback
-                mediaPlaybackRequiresUserAction={false}
-                style={styles.player}
-              />
+            <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
+              <AppText variant="sectionTitle">Видео готово к удалённому запуску</AppText>
+              <AppText variant="dialogBody" tone="muted">
+                Vimeo ID: {vimeoId}
+              </AppText>
             </View>
           ) : null}
 
@@ -215,10 +194,7 @@ export default function AsanaPracticeRoute() {
             <MetaRow label="Vimeo ID" value={vimeoId ?? "уточняется"} />
             <MetaRow label="Длительность" value={practice ? durationMinutes(practice.default_duration_sec) : routeDurationMinutes ? `${routeDurationMinutes} мин` : "уточняется"} />
             <MetaRow label="Чакры" value={chakraLabel} />
-            <MetaRow label="Дата записи" value={typeof parsedParams.recorded_at === "string" ? parsedParams.recorded_at : "не указана"} />
-            <MetaRow label="Качество" value={practice?.rating ? String(practice.rating) : "не указано"} />
-            <MetaRow label="Embed origin" value={embedOrigin} />
-            <MetaRow label="Audio track" value={audiotrack} />
+            {typeof parsedParams.recorded_at === "string" ? <MetaRow label="Дата записи" value={parsedParams.recorded_at} /> : null}
             <MetaRow label="Источник запуска" value={launchSource} />
           </View>
 
@@ -256,6 +232,7 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: "#000000",
   },
   content: {
     padding: 20,
@@ -268,16 +245,26 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
-  playerShell: {
+  floatingClose: {
+    position: "absolute",
+    top: 54,
+    right: 18,
+    zIndex: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerPlaceholder: {
     aspectRatio: 16 / 9,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 16,
-    overflow: "hidden",
     backgroundColor: "#000000",
-  },
-  player: {
-    flex: 1,
-    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 16,
   },
   metaBlock: {
     gap: 8,

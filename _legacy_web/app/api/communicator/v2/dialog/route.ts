@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import informationAxes from "../../../../../data/information_axes.json";
-import { buildAddressFormHint } from "../../../_utils/addressForm";
-import { natalProfileFromRow } from "../../../_utils/astro-db";
-import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../../_utils/authorVoice";
-import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "../../../_utils/dto";
-import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "../../../_utils/gemini";
-import { dialogSurfaceModelHint } from "../../../_utils/userModelTier";
+import informationAxes from "@/data/information_axes.json";
+import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
+import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
+import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
+import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "@legacy/app/api/_utils/dto";
+import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "@legacy/app/api/_utils/gemini";
+import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
 import {
   computeCSI,
   computeETV,
@@ -13,9 +13,9 @@ import {
   detectTTMStage,
   estimateEmotionalValence,
   isReadyForPractice,
-} from "../../../_utils/insightDetection";
-import { parseResponseMarkers, stripResponseMarkers } from "../../../_utils/markers";
-import { reportRouteError } from "../../../_utils/monitoring";
+} from "@legacy/app/api/_utils/insightDetection";
+import { parseResponseMarkers, stripResponseMarkers } from "@legacy/app/api/_utils/markers";
+import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import {
   contextSimilarity,
   estimateDensity,
@@ -27,10 +27,10 @@ import {
   validateOrchestratorDecision,
   type DialogueUseCase,
   type OrchestratorDecision,
-} from "../../../_utils/orchestrator";
-import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
-import { getScenario } from "../../../_utils/scenarios";
-import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
+} from "@legacy/app/api/_utils/orchestrator";
+import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
+import { getScenario } from "@legacy/app/api/_utils/scenarios";
+import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import {
   isConversationExpired,
   lastAssistantDecisions,
@@ -39,13 +39,13 @@ import {
   summarizeConversationIfNeeded,
   type ConversationRecord,
   type MessageRecord,
-} from "./dialogHelpers";
+} from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import {
   choosePractice,
   publicPracticePickedPayload,
   shouldStayInPracticeSuggestion,
   type PracticePickedPayload,
-} from "./practiceSelection";
+} from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 
 export const runtime = "nodejs";
 

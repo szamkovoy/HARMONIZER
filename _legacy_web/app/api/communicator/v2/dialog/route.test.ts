@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isConversationExpired, lastAssistantDecisions, loadHistory, todayLocalDate } from "./dialogHelpers";
+import {
+  isConversationExpired,
+  lastAssistantDecisions,
+  loadHistory,
+  todayLocalDate,
+} from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];

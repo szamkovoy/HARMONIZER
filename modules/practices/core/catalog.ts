@@ -11,7 +11,7 @@ import type {
   PracticeKind,
   PracticeSummary,
 } from "./types";
-import { sortPracticeCandidatesForCatalog } from "./selector";
+import { sortPracticeCandidatesForCatalog } from "@shared/selector";
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type PracticeChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -35,15 +35,16 @@ const STATIC_MEDITATIONS: PracticeSummary[] = [
     kind: "meditation",
     title: "Вспышка",
     subtitle: "Поток сакральных символов",
-    description: "Короткая визуальная медитация для мягкого переключения внимания и настройки на внутренний образ.",
+    description: "Короткая визуальная медитация для мягкого переключения внимания и гармонизации.",
     defaultDurationSec: 5 * 60,
-    durationPolicy: "fixed",
+    minDurationSec: 1 * 60,
+    maxDurationSec: 10 * 60,
+    durationPolicy: "user_selectable",
     chakraIds: [6, 7],
     primaryChakra: 6,
-    quality: 3,
     source: "static",
     params: {
-      duration_policy: "fixed",
+      duration_policy: "user_selectable",
       source: "static_meditation",
     },
     launch: {
@@ -104,12 +105,11 @@ function createBreathPractices(): PracticeSummary[] {
       subtitle,
       description: subtitle ? `${subtitle}. Дыхательная практика с биологической обратной связью.` : undefined,
       defaultDurationSec: BREATH_DEFAULT_DURATION_SEC,
-      minDurationSec: 2 * 60,
-      maxDurationSec: 30 * 60,
+      minDurationSec: 5 * 60,
+      maxDurationSec: 20 * 60,
       durationPolicy: "user_selectable",
       chakraIds: [primaryChakra],
       primaryChakra,
-      quality: 3,
       source: "breath_catalog",
       params: {
         indicatorKind: practice.indicatorKind,
@@ -123,9 +123,17 @@ function createBreathPractices(): PracticeSummary[] {
         practiceId: practice.id,
         durationMs: BREATH_DEFAULT_DURATION_SEC * 1000,
         chakra: primaryChakra,
+        usePulseSensor: true,
       },
     };
   });
+}
+
+function displayYogaTitle(title: string): string {
+  return title
+    .replace(/^Пробуждение/i, "Практика")
+    .replace(/(_\d{4})_и.*$/i, "$1")
+    .trim();
 }
 
 function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]): PracticeSummary | null {
@@ -149,7 +157,7 @@ function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]):
     id: row.id,
     slug: row.slug,
     kind: "yoga",
-    title: localizedText(row.title, row.slug),
+    title: displayYogaTitle(localizedText(row.title, row.slug)),
     description: localizedText(row.description, ""),
     defaultDurationSec,
     minDurationSec: optionalPositiveNumber(row.min_duration_sec),
@@ -157,7 +165,6 @@ function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]):
     durationPolicy,
     chakraIds,
     primaryChakra,
-    quality: optionalPositiveNumber(row.rating),
     recordedAt: optionalString(params.recorded_at),
     source: "supabase",
     video,
@@ -186,9 +193,9 @@ export function filterPractices(practices: PracticeSummary[], filters: PracticeC
 
       const seconds = practice.defaultDurationSec;
       if (!seconds) return practice.durationPolicy === "user_selectable";
-      if (filters.duration === "short") return seconds <= 10 * 60;
-      if (filters.duration === "medium") return seconds > 10 * 60 && seconds <= 25 * 60;
-      return seconds > 25 * 60;
+      if (filters.duration === "short") return seconds <= 30 * 60;
+      if (filters.duration === "medium") return seconds > 30 * 60 && seconds <= 45 * 60;
+      return seconds > 45 * 60;
     }),
   );
 }

@@ -15,7 +15,7 @@
 
 ## Архитектура каталога и ассистента
 
-- `modules/practices/core/selector.ts` не импортирует React Native, Expo, Supabase и Vercel helpers. Это единственное место для инвариантов ранжирования.
+- `_legacy_web/shared_core/selector.ts` не импортирует React Native, Expo, Supabase и Vercel helpers. Импортируйте через алиас `@shared/selector` (Expo и Vercel смотрят на один файл).
 - RN-каталог отвечает за сбор клиентских источников: статическая медитация, `BREATH_PRACTICES`, yoga metadata из Supabase.
 - Vercel route `_legacy_web/app/api/communicator/v2/dialog/route.ts` вызывает server-side адаптер `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`, который загружает `practices`, `practice_chakras`, `practice_sessions` и адаптирует строки в selector candidate.
 - Контракт карточки рекомендации живет в `PracticeRecommendation`; клиентский `PracticePicked` является совместимым алиасом для данных из SSE.

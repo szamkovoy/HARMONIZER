@@ -27,6 +27,7 @@ export type PracticeLaunchParams =
       practiceId: BreathPracticeId;
       durationMs: number;
       chakra: Chakra;
+      usePulseSensor?: boolean;
     }
   | {
       kind: "meditation";

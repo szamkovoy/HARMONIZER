@@ -7,7 +7,7 @@ export {
   selectPracticeCandidate,
   sortPracticeCandidatesForCatalog,
   sortPracticeCandidatesForRecommendation,
-} from "@/modules/practices/core/selector";
+} from "@shared/selector";
 export type {
   PracticeCatalog,
   PracticeCatalogFilters,
@@ -23,10 +23,10 @@ export type {
   PracticeSelectorKind,
   SelectPracticeCandidateInput,
   SelectPracticeCandidateResult,
-} from "@/modules/practices/core/selector";
+} from "@shared/selector";
 export type {
   PracticeRecommendation,
   PracticeRecommendationLaunch,
-} from "@/modules/practices/core/recommendation";
+} from "@shared/recommendation";
 export { PracticeCatalogScreen } from "@/modules/practices/ui/PracticeCatalogScreen";
 export { launchPractice } from "@/modules/practices/ui/launchPractice";

@@ -255,12 +255,14 @@ function CoherenceBreathScreenInner({
   durationMs,
   chakra,
   launchSource,
+  usePulseSensor = true,
 }: {
   locale: BreathLocale;
   initialPracticeId?: BreathPracticeId;
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
   launchSource?: string;
+  usePulseSensor?: boolean;
 }) {
   const theme = useTheme();
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
@@ -748,6 +750,7 @@ function CoherenceBreathScreenInner({
   const overlayHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Диалог подтверждения досрочного выхода из практики (крестик на панели). */
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const autoStartedRef = useRef(false);
 
   /**
    * Переход между окном «Активация пульсометра» и экраном дыхания.
@@ -2193,6 +2196,12 @@ function CoherenceBreathScreenInner({
     [pipeline, clearPpgBannerUi, stopBaselineRamp],
   );
 
+  useEffect(() => {
+    if (autoStartedRef.current || phase !== "idle" || !durationMs) return;
+    autoStartedRef.current = true;
+    beginFromIdle(!usePulseSensor);
+  }, [beginFromIdle, durationMs, phase, usePulseSensor]);
+
   /**
    * TAG_REMOVE_PERF_DIAGNOSTICS
    *
@@ -2769,6 +2778,19 @@ function CoherenceBreathScreenInner({
 
       {phase === "running" && runningUiRevealed ? (
         <View style={styles.runningAbs}>
+          {overlayVisible ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={str.stopConfirmTitle}
+              onPress={handleRequestStop}
+              style={styles.topCloseButton}
+              hitSlop={12}
+            >
+              <AppText variant="sectionTitle" tone="primary" style={styles.topCloseText}>
+                ×
+              </AppText>
+            </Pressable>
+          ) : null}
           <BreathPracticeShell
             isBreathTimingActive={isBreathTimingActive}
             plannedCycle={currentPlan}
@@ -3306,6 +3328,7 @@ function ResultsView(props: {
  *   - `durationMs`  — длительность практики в миллисекундах;
  *   - `chakra`      — чакра 1..7; выбирает цветовой профиль мандалы.
  *   - `launchSource` — источник запуска для статистики и recent stack diagnostics.
+ *   - `usePulseSensor` — если false, практика стартует без активации пульсометра.
  */
 export interface CoherenceBreathScreenProps {
   locale?: BreathLocale;
@@ -3313,6 +3336,7 @@ export interface CoherenceBreathScreenProps {
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
   launchSource?: string;
+  usePulseSensor?: boolean;
 }
 
 export function CoherenceBreathScreen({
@@ -3321,6 +3345,7 @@ export function CoherenceBreathScreen({
   durationMs,
   chakra,
   launchSource,
+  usePulseSensor,
 }: CoherenceBreathScreenProps) {
   return (
     <ThemeProvider value={defaultTheme}>
@@ -3331,6 +3356,7 @@ export function CoherenceBreathScreen({
           durationMs={durationMs}
           chakra={chakra}
           launchSource={launchSource}
+          usePulseSensor={usePulseSensor}
         />
       </BiofeedbackProvider>
     </ThemeProvider>
@@ -3667,6 +3693,24 @@ const styles = StyleSheet.create({
    * над этим баннером, поскольку у неё больший `bottom`).
    */
   runningAbs: { ...StyleSheet.absoluteFillObject },
+  topCloseButton: {
+    position: "absolute",
+    top: 54,
+    right: 18,
+    zIndex: 45,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(18, 24, 40, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(125, 143, 255, 0.24)",
+  },
+  topCloseText: {
+    fontSize: 24,
+    lineHeight: 28,
+  },
   /**
    * Чёрная штора поверх всего. В обычное время прозрачна и не ловит касания. Используется
    * только для fade-to-black-and-back между sensor-UI и practice-UI. zIndex выше, чем у

@@ -16,7 +16,9 @@
     "plugins": [{ "name": "next" }],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
+      "@/*": ["../*", "./*"],
+      "@shared/*": ["./shared_core/*"],
+      "@legacy/*": ["./*"],
       "luxon": ["./node_modules/@types/luxon"],
       "astronomia/*": ["./node_modules/astronomia/*"]
     }

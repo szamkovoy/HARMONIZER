@@ -1,5 +1,5 @@
-import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
-import { choosePractice, publicPracticePickedPayload } from "../dialog/practiceSelection";
+import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
+import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 
 export const runtime = "nodejs";
 

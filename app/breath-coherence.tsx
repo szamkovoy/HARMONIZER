@@ -24,6 +24,7 @@ export default function BreathCoherenceRoute() {
     durationMs?: string;
     chakra?: string;
     launchSource?: string;
+    usePulseSensor?: string;
   }>();
 
   const practiceId = useMemo<BreathPracticeId | undefined>(() => {
@@ -64,6 +65,7 @@ export default function BreathCoherenceRoute() {
         durationMs={durationMs}
         chakra={chakra}
         launchSource={typeof params.launchSource === "string" ? params.launchSource : undefined}
+        usePulseSensor={params.usePulseSensor !== "false"}
       />
     </>
   );

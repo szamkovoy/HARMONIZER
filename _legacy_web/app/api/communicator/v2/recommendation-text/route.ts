@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { generateGeminiText, getModelByHint } from "../../../_utils/gemini";
-import { dialogSurfaceModelHint } from "../../../_utils/userModelTier";
-import { reportRouteError } from "../../../_utils/monitoring";
-import { getActivePrompt, renderPrompt } from "../../../_utils/prompts";
-import { createServiceSupabase, errorResponse, json, requireUserId } from "../../../_utils/supabase";
+import { generateGeminiText, getModelByHint } from "@legacy/app/api/_utils/gemini";
+import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
+import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
+import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
+import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
 

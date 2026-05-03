@@ -5,14 +5,15 @@ import {
   publicPracticePickedPayload,
   shouldStayInPracticeSuggestion,
   type PracticeCandidate,
-} from "./practiceSelection";
-import type { MessageRecord } from "./dialogHelpers";
+} from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
+import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
 function yoga(input: Partial<PracticeCandidate> & Pick<PracticeCandidate, "id">): PracticeCandidate {
+  const { id, ...rest } = input;
   return {
-    id: input.id,
-    slug: input.slug ?? input.id,
-    title: { ru: input.id },
+    id,
+    slug: input.slug ?? id,
+    title: { ru: id },
     description: null,
     kind: "yoga",
     default_duration_sec: 20 * 60,
@@ -22,7 +23,7 @@ function yoga(input: Partial<PracticeCandidate> & Pick<PracticeCandidate, "id">)
     params: {},
     video_external_id: null,
     practice_chakras: [{ chakra_id: 6, weight: 1 }],
-    ...input,
+    ...rest,
   };
 }
 

@@ -2,7 +2,7 @@
  * Публичные типы модуля COMMUNICATOR (контракт интеграции с ASSISTANT и др.).
  */
 
-import type { PracticeRecommendation } from "@/modules/practices/core/recommendation";
+import type { PracticeRecommendation } from "@shared/recommendation";
 
 export type CommunicatorModePolicy = "VOICE" | "TXT" | "VOICE_ONLY" | "TXT_ONLY";
 

@@ -159,11 +159,11 @@ function RootLayoutNav() {
         />
         <Stack.Screen
           name="sacred-symbol-stream"
-          options={{ title: "Sacred Symbol Stream", headerBackTitle: "Back" }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="asana-practice"
-          options={{ title: "Асаны", headerBackTitle: "Back" }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="breath-coherence"

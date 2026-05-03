@@ -21,7 +21,12 @@ out
 /components
 /constants
 /docs
-/modules
+# Keep `modules/practices/**` available to `_legacy_web` API routes (shared core).
+# Ignore other RN-only module trees to keep CLI uploads lean.
+/modules/breath
+/modules/communicator
+/modules/mandala
+/modules/ui
 /plugins
 /scripts
 /services

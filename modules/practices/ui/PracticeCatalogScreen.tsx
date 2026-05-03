@@ -25,12 +25,6 @@ const EMPTY_CATALOG: PracticeCatalog = {
   yoga: [],
 };
 
-const GROUP_HINT: Record<PracticeKind, string> = {
-  meditation: "Визуальные и созерцательные практики для настройки внимания.",
-  breath: "Пранаяма и когерентное дыхание с параметрами запуска.",
-  yoga: "Асаны ранжируются по чакре, длительности, качеству и дате записи.",
-};
-
 const CHAKRA_FILTERS: Array<{ value: Chakra | "any"; label: string }> = [
   { value: "any", label: "Все чакры" },
   { value: 1, label: "1" },
@@ -44,9 +38,9 @@ const CHAKRA_FILTERS: Array<{ value: Chakra | "any"; label: string }> = [
 
 const DURATION_FILTERS: Array<{ value: PracticeDurationBucket; label: string }> = [
   { value: "any", label: "Любая длительность" },
-  { value: "short", label: "до 10 мин" },
-  { value: "medium", label: "10-25 мин" },
-  { value: "long", label: "25+ мин" },
+  { value: "short", label: "20-30 минут" },
+  { value: "medium", label: "30-45 минут" },
+  { value: "long", label: "45-60 минут" },
 ];
 
 function totalCount(catalog: PracticeCatalog): number {
@@ -90,10 +84,13 @@ export function PracticeCatalogScreen() {
   }, [load]);
 
   const catalog = state.catalog ?? EMPTY_CATALOG;
-  const selectedPractices = filterPractices(catalog[selectedKind], {
-    chakra: chakraFilter,
-    duration: durationFilter,
-  });
+  const selectedPractices =
+    selectedKind === "yoga"
+      ? filterPractices(catalog[selectedKind], {
+          chakra: chakraFilter,
+          duration: durationFilter,
+        })
+      : catalog[selectedKind];
   const catalogAllowed = canUseFeature("practice_catalog");
   const asanaAllowed = canUseFeature("asana_practices");
 
@@ -117,7 +114,7 @@ export function PracticeCatalogScreen() {
             Каталог практик
           </AppText>
           <AppText variant="screenHint" tone="muted">
-            Первый виток объединяет медитации, дыхание и асаны в один контракт запуска.
+            Выберите, что вас интересует.
           </AppText>
         </View>
 
@@ -181,45 +178,38 @@ export function PracticeCatalogScreen() {
               })}
             </View>
 
-            <View style={styles.sectionHeader}>
-              <AppText variant="sectionTitle">
-                {PRACTICE_GROUPS.find((group) => group.kind === selectedKind)?.title}
-              </AppText>
-              <AppText variant="dialogBody" tone="muted">
-                {GROUP_HINT[selectedKind]}
-              </AppText>
-            </View>
-
-            <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>
-              <AppText variant="technicalCaption" tone="muted">
-                Фильтры второго витка
-              </AppText>
-              <View style={styles.chipRow}>
-                {CHAKRA_FILTERS.map((item) => (
-                  <FilterChip
-                    key={String(item.value)}
-                    label={item.label}
-                    active={chakraFilter === item.value}
-                    onPress={() => setChakraFilter(item.value)}
-                  />
-                ))}
-              </View>
-              <View style={styles.chipRow}>
-                {DURATION_FILTERS.map((item) => (
-                  <FilterChip
-                    key={item.value}
-                    label={item.label}
-                    active={durationFilter === item.value}
-                    onPress={() => setDurationFilter(item.value)}
-                  />
-                ))}
-              </View>
-              {chakraFilter !== "any" && !isChakra(chakraFilter) ? (
-                <AppText variant="technicalCaption" tone="warning">
-                  Некорректный фильтр чакры будет проигнорирован.
+            {selectedKind === "yoga" ? (
+              <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>
+                <AppText variant="technicalCaption" tone="muted">
+                  Фильтр
                 </AppText>
-              ) : null}
-            </View>
+                <View style={styles.chipRow}>
+                  {CHAKRA_FILTERS.map((item) => (
+                    <FilterChip
+                      key={String(item.value)}
+                      label={item.label}
+                      active={chakraFilter === item.value}
+                      onPress={() => setChakraFilter(item.value)}
+                    />
+                  ))}
+                </View>
+                <View style={styles.chipRow}>
+                  {DURATION_FILTERS.map((item) => (
+                    <FilterChip
+                      key={item.value}
+                      label={item.label}
+                      active={durationFilter === item.value}
+                      onPress={() => setDurationFilter(item.value)}
+                    />
+                  ))}
+                </View>
+                {chakraFilter !== "any" && !isChakra(chakraFilter) ? (
+                  <AppText variant="technicalCaption" tone="warning">
+                    Некорректный фильтр чакры будет проигнорирован.
+                  </AppText>
+                ) : null}
+              </View>
+            ) : null}
 
             <View style={styles.list}>
               {selectedPractices.length ? (
@@ -304,19 +294,17 @@ const styles = StyleSheet.create({
   },
   groupGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
   },
   groupCard: {
-    flexGrow: 1,
-    minWidth: 132,
+    flex: 1,
+    minWidth: 0,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     gap: 4,
-  },
-  sectionHeader: {
-    gap: 6,
+    alignItems: "center",
   },
   filterPanel: {
     borderWidth: StyleSheet.hairlineWidth,

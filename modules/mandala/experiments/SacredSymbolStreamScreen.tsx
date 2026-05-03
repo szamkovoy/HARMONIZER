@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Animated, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 
 import { useAuth } from "@/modules/auth";
 import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
-import { recordPracticeSession } from "@/services/practiceSessions";
+import { AppButton } from "@/modules/ui/AppButton";
+import { AppDialog } from "@/modules/ui/AppDialog";
+import { AppText } from "@/modules/ui/AppText";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
+import { recordPracticeSession, selfRatingFromMood, type PracticeCompletionMood } from "@/services/practiceSessions";
 
 const DENSITY_OPTIONS = [
   { label: "Airy", value: 0.18 },
@@ -16,6 +19,14 @@ const DENSITY_OPTIONS = [
 
 const DEFAULT_DURATION_MS = 5 * 60_000;
 const DEFAULT_CHAKRA = 6;
+const OVERLAY_AUTOHIDE_MS = 4_000;
+
+function formatRemaining(remainingMs: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 
 export function SacredSymbolStreamScreen({
   durationMs = DEFAULT_DURATION_MS,
@@ -30,6 +41,12 @@ export function SacredSymbolStreamScreen({
   const sessionStartedAtRef = useRef(Date.now());
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [completionSaved, setCompletionSaved] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const overlayY = useRef(new Animated.Value(0)).current;
+  const overlayHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState);
@@ -37,7 +54,22 @@ export function SacredSymbolStreamScreen({
   const [densityBias, setDensityBias] = useState<number>(0.84);
   const [isPaused, setIsPaused] = useState(false);
   const [sessionSeed, setSessionSeed] = useState(1);
-  const isRenderActive = isFocused && appState === "active" && !isPaused;
+  const isRenderActive = isFocused && appState === "active" && !isPaused && !showRatingDialog;
+
+  const clearOverlayTimer = useCallback(() => {
+    if (overlayHideTimerRef.current) {
+      clearTimeout(overlayHideTimerRef.current);
+      overlayHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleOverlayHide = useCallback(() => {
+    clearOverlayTimer();
+    overlayHideTimerRef.current = setTimeout(() => {
+      setOverlayVisible(false);
+      overlayHideTimerRef.current = null;
+    }, OVERLAY_AUTOHIDE_MS);
+  }, [clearOverlayTimer]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -46,7 +78,34 @@ export function SacredSymbolStreamScreen({
     return () => subscription.remove();
   }, []);
 
-  const completePractice = useCallback(async () => {
+  useEffect(() => {
+    setOverlayVisible(true);
+    scheduleOverlayHide();
+    return () => clearOverlayTimer();
+  }, [clearOverlayTimer, scheduleOverlayHide]);
+
+  useEffect(() => {
+    Animated.timing(overlayY, {
+      toValue: overlayVisible ? 0 : 220,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [overlayVisible, overlayY]);
+
+  useEffect(() => {
+    if (showRatingDialog || isPaused) return;
+    const id = setInterval(() => {
+      const elapsed = Date.now() - sessionStartedAtRef.current;
+      setElapsedMs(Math.min(durationMs, elapsed));
+      if (elapsed >= durationMs) {
+        setShowRatingDialog(true);
+        setOverlayVisible(false);
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [durationMs, isPaused, showRatingDialog]);
+
+  const completePractice = useCallback(async (mood: PracticeCompletionMood) => {
     if (!authUser?.id || savingCompletion || completionSaved) return;
     setSavingCompletion(true);
     const endedAt = Date.now();
@@ -56,6 +115,7 @@ export function SacredSymbolStreamScreen({
       practiceSlug: "sacred-symbol-stream",
       startedAt: new Date(startedAt).toISOString(),
       endedAt: new Date(endedAt).toISOString(),
+      selfRating: selfRatingFromMood(mood),
       completionPct: 100,
       chakraFocusIds: [chakra],
       metrics: {},
@@ -68,11 +128,29 @@ export function SacredSymbolStreamScreen({
     });
     setCompletionSaved(Boolean(savedId));
     setSavingCompletion(false);
+    router.back();
   }, [authUser?.id, chakra, completionSaved, durationMs, launchSource, savingCompletion]);
 
+  const handleScreenTap = useCallback(() => {
+    if (showRatingDialog || showStopConfirm) return;
+    setOverlayVisible((current) => {
+      const next = !current;
+      if (next) scheduleOverlayHide();
+      else clearOverlayTimer();
+      return next;
+    });
+  }, [clearOverlayTimer, scheduleOverlayHide, showRatingDialog, showStopConfirm]);
+
+  const requestStop = useCallback(() => {
+    clearOverlayTimer();
+    setShowStopConfirm(true);
+  }, [clearOverlayTimer]);
+
+  const remainingMs = Math.max(0, durationMs - elapsedMs);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.screen}>
+    <View style={styles.safeArea}>
+      <Pressable style={styles.screen} onPress={handleScreenTap}>
         <BinduSuccessionFlowCanvas
           isActive={isRenderActive}
           sceneOffset={sceneOffset}
@@ -81,73 +159,114 @@ export function SacredSymbolStreamScreen({
           tubeMode={false}
         />
 
-        <View style={styles.topOverlay}>
+        {overlayVisible ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Завершить практику"
+            onPress={requestStop}
+            style={styles.topClose}
+            hitSlop={12}
+          >
+            <Text style={styles.topCloseText}>×</Text>
+          </Pressable>
+        ) : null}
+
+        <View pointerEvents="none" style={styles.topOverlay}>
           <Text style={styles.eyebrow}>Preserved Variant</Text>
-          <Text style={styles.title}>Sacred Symbol Stream</Text>
+          <Text style={styles.title}>Вспышка</Text>
           <Text style={styles.subtitle}>
-            Зафиксированная высокоскоростная версия с эффектом стремительного потока сакральных символов.
+            Короткая визуальная медитация для мягкого переключения внимания и гармонизации.
           </Text>
         </View>
 
-        <View style={styles.bottomOverlay}>
-          <View style={styles.chipRow}>
-            {DENSITY_OPTIONS.map((option) => {
-              const isActive = Math.abs(option.value - densityBias) < 0.001;
-              return (
-                <Pressable
-                  key={option.label}
-                  onPress={() => setDensityBias(option.value)}
-                  style={[styles.chip, isActive && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+        <Animated.View style={[styles.controlPanel, { transform: [{ translateY: overlayY }] }]}>
+          <View style={styles.panelCard}>
+            <Text style={styles.panelTitle}>Вспышка</Text>
+            <Text style={styles.panelTime}>Осталось {formatRemaining(remainingMs)}</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.min(1, elapsedMs / Math.max(1, durationMs)) * 100}%` }]} />
+            </View>
+            <Pressable onPress={requestStop} style={[styles.button, styles.primaryButton]}>
+              <Text style={styles.primaryButtonText}>Завершить</Text>
+            </Pressable>
+            {HARMONIZER_TEST_MODE ? (
+              <View style={styles.testBlock}>
+                <View style={styles.chipRow}>
+                  {DENSITY_OPTIONS.map((option) => {
+                    const isActive = Math.abs(option.value - densityBias) < 0.001;
+                    return (
+                      <Pressable
+                        key={option.label}
+                        onPress={() => setDensityBias(option.value)}
+                        style={[styles.chip, isActive && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <View style={styles.actionRow}>
+                  <Pressable
+                    onPress={() => {
+                      setSceneOffset(0);
+                      setSessionSeed((current) => current + 1);
+                    }}
+                    style={[styles.button, styles.secondaryButton]}
+                  >
+                    <Text style={styles.secondaryButtonText}>Новая линия</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setSceneOffset((current) => current + 1)}
+                    style={[styles.button, styles.secondaryButton]}
+                  >
+                    <Text style={styles.secondaryButtonText}>Следующая мандала</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setIsPaused((current) => !current)}
+                    style={[styles.button, styles.secondaryButton]}
+                  >
+                    <Text style={styles.secondaryButtonText}>{isPaused ? "Продолжить" : "Пауза"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
+        </Animated.View>
+      </Pressable>
 
-          <View style={styles.actionRow}>
-            <Pressable
+      <AppDialog
+        visible={showStopConfirm}
+        title="Завершить практику?"
+        message="Можно остановиться сейчас и отметить, как вы себя чувствуете после практики."
+        actions={
+          <>
+            <AppButton label="Продолжить" variant="secondary" onPress={() => setShowStopConfirm(false)} />
+            <AppButton
+              label="Завершить"
               onPress={() => {
-                setSceneOffset(0);
-                setSessionSeed((current) => current + 1);
+                setShowStopConfirm(false);
+                setShowRatingDialog(true);
               }}
-              style={[styles.button, styles.secondaryButton]}
-            >
-              <Text style={styles.secondaryButtonText}>Новая линия</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setSceneOffset((current) => current + 1)}
-              style={[styles.button, styles.secondaryButton]}
-            >
-              <Text style={styles.secondaryButtonText}>Следующая мандала</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setIsPaused((current) => !current)}
-              style={[styles.button, styles.primaryButton]}
-            >
-              <Text style={styles.primaryButtonText}>{isPaused ? "Продолжить" : "Пауза"}</Text>
-            </Pressable>
-            <Pressable
-              onPress={completePractice}
-              disabled={!authUser?.id || savingCompletion || completionSaved}
-              style={[styles.button, completionSaved ? styles.savedButton : styles.primaryButton]}
-            >
-              <Text style={styles.primaryButtonText}>
-                {completionSaved ? "Практика сохранена" : savingCompletion ? "Сохраняем..." : "Завершить"}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.back()}
-              style={[styles.button, styles.secondaryButton]}
-            >
-              <Text style={styles.secondaryButtonText}>Назад</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </SafeAreaView>
+            />
+          </>
+        }
+      />
+      <AppDialog
+        visible={showRatingDialog}
+        title="Как вы себя чувствуете?"
+        message="Эта оценка поможет позже лучше подбирать практики."
+        actionsLayout="column"
+        actions={
+          <>
+            <AppButton label="Лучше" onPress={() => void completePractice("better")} disabled={savingCompletion} />
+            <AppButton label="Так же" variant="secondary" onPress={() => void completePractice("same")} disabled={savingCompletion} />
+            <AppButton label="Хуже" variant="secondary" onPress={() => void completePractice("worse")} disabled={savingCompletion} />
+          </>
+        }
+      />
+    </View>
   );
 }
 
@@ -159,6 +278,25 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#000000",
+  },
+  topClose: {
+    position: "absolute",
+    top: 54,
+    right: 18,
+    zIndex: 30,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(18, 24, 40, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(125, 143, 255, 0.24)",
+  },
+  topCloseText: {
+    color: "#ffffff",
+    fontSize: 24,
+    lineHeight: 28,
   },
   topOverlay: {
     position: "absolute",
@@ -185,12 +323,46 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     maxWidth: 420,
   },
-  bottomOverlay: {
+  controlPanel: {
     position: "absolute",
     right: 16,
     bottom: 20,
     left: 16,
+    zIndex: 20,
+  },
+  panelCard: {
+    borderRadius: 22,
+    padding: 16,
+    gap: 10,
+    backgroundColor: "rgba(18, 24, 40, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(125, 143, 255, 0.24)",
+  },
+  panelTitle: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 17,
+    textAlign: "center",
+  },
+  panelTime: {
+    color: "rgba(228, 232, 255, 0.78)",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+    backgroundColor: "rgba(236, 241, 255, 0.18)",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: "#7a8cff",
+  },
+  testBlock: {
     gap: 12,
+    marginTop: 4,
   },
   chipRow: {
     flexDirection: "row",

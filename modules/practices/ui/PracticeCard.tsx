@@ -1,25 +1,13 @@
-import { StyleSheet, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import type { PracticeSummary } from "@/modules/practices/core/types";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
-const KIND_LABEL: Record<PracticeSummary["kind"], string> = {
-  meditation: "Медитация",
-  breath: "Дыхание",
-  yoga: "Асаны",
-};
-
-const CHAKRA_LABEL: Record<number, string> = {
-  1: "Муладхара",
-  2: "Свадхистана",
-  3: "Манипура",
-  4: "Анахата",
-  5: "Вишуддха",
-  6: "Аджна",
-  7: "Сахасрара",
-};
+const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+type SelectField = "duration" | "chakra" | "pulse" | null;
 
 function durationLabel(practice: PracticeSummary): string {
   if (!practice.defaultDurationSec) {
@@ -30,9 +18,14 @@ function durationLabel(practice: PracticeSummary): string {
 }
 
 function chakraLabel(practice: PracticeSummary): string {
-  if (practice.primaryChakra) return CHAKRA_LABEL[practice.primaryChakra] ?? `Чакра ${practice.primaryChakra}`;
-  if (practice.chakraIds.length > 1) return `${practice.chakraIds.length} чакры`;
+  if (practice.chakraIds.length) return practice.chakraIds.map((chakra) => `${chakra} чакра`).join(", ");
   return "чакра уточняется";
+}
+
+function durationOptions(practice: PracticeSummary): number[] {
+  if (practice.kind === "meditation") return Array.from({ length: 10 }, (_, index) => index + 1);
+  if (practice.kind === "breath") return Array.from({ length: 16 }, (_, index) => index + 5);
+  return [];
 }
 
 export function PracticeCard({
@@ -43,8 +36,29 @@ export function PracticeCard({
   onLaunch: (practice: PracticeSummary) => void;
 }) {
   const theme = useTheme();
-  const quality = typeof practice.quality === "number" ? `Качество ${practice.quality.toFixed(1)}` : null;
-  const recordedAt = practice.recordedAt ? `Запись ${practice.recordedAt}` : null;
+  const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
+  const [selectedDurationMin, setSelectedDurationMin] = useState(() => {
+    const fallback = practice.kind === "breath" ? 10 : 5;
+    const minutes = practice.defaultDurationSec ? Math.max(1, Math.round(practice.defaultDurationSec / 60)) : fallback;
+    return selectableDurations.includes(minutes) ? minutes : selectableDurations[0] ?? minutes;
+  });
+  const [selectedChakra, setSelectedChakra] = useState<number>(practice.primaryChakra ?? practice.chakraIds[0] ?? 6);
+  const [usePulseSensor, setUsePulseSensor] = useState(true);
+  const [openField, setOpenField] = useState<SelectField>(null);
+
+  const launchConfiguredPractice = () => {
+    if (practice.kind === "yoga") {
+      onLaunch(practice);
+      return;
+    }
+    const launch = {
+      ...practice.launch,
+      durationMs: selectedDurationMin * 60_000,
+      chakra: selectedChakra,
+      ...(practice.kind === "breath" ? { usePulseSensor } : {}),
+    } as PracticeSummary["launch"];
+    onLaunch({ ...practice, launch });
+  };
 
   return (
     <View
@@ -65,11 +79,6 @@ export function PracticeCard({
             </AppText>
           ) : null}
         </View>
-        <View style={[styles.kindPill, { backgroundColor: theme.colors.controlButtonBg }]}>
-          <AppText variant="technicalCaption" tone="muted">
-            {KIND_LABEL[practice.kind]}
-          </AppText>
-        </View>
       </View>
 
       {practice.description ? (
@@ -78,17 +87,77 @@ export function PracticeCard({
         </AppText>
       ) : null}
 
-      <View style={styles.metaRow}>
-        <MetaPill label={durationLabel(practice)} />
-        <MetaPill label={chakraLabel(practice)} />
-        {quality ? <MetaPill label={quality} /> : null}
-        {recordedAt ? <MetaPill label={recordedAt} /> : null}
-        {practice.video?.externalId ? <MetaPill label="Vimeo metadata" /> : null}
-      </View>
+      {practice.kind === "yoga" ? (
+        <View style={styles.metaRow}>
+          <MetaPill label={durationLabel(practice)} />
+          <MetaPill label={chakraLabel(practice)} />
+        </View>
+      ) : (
+        <View style={styles.options}>
+          <DropdownField
+            label="Длительность"
+            value={`${selectedDurationMin} мин`}
+            open={openField === "duration"}
+            onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
+            options={selectableDurations.map((minutes) => ({
+              key: String(minutes),
+              label: `${minutes} мин`,
+              active: selectedDurationMin === minutes,
+              onPress: () => {
+                setSelectedDurationMin(minutes);
+                setOpenField(null);
+              },
+            }))}
+          />
+          <DropdownField
+            label="Чакра"
+            value={`${selectedChakra} чакра`}
+            open={openField === "chakra"}
+            onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
+            options={CHAKRA_OPTIONS.map((chakra) => ({
+              key: String(chakra),
+              label: `${chakra} чакра`,
+              active: selectedChakra === chakra,
+              onPress: () => {
+                setSelectedChakra(chakra);
+                setOpenField(null);
+              },
+            }))}
+          />
+          {practice.kind === "breath" ? (
+            <DropdownField
+              label="Пульсометр"
+              value={usePulseSensor ? "с пульсометром" : "без пульсометра"}
+              open={openField === "pulse"}
+              onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
+              options={[
+                {
+                  key: "pulse-on",
+                  label: "с пульсометром",
+                  active: usePulseSensor,
+                  onPress: () => {
+                    setUsePulseSensor(true);
+                    setOpenField(null);
+                  },
+                },
+                {
+                  key: "pulse-off",
+                  label: "без пульсометра",
+                  active: !usePulseSensor,
+                  onPress: () => {
+                    setUsePulseSensor(false);
+                    setOpenField(null);
+                  },
+                },
+              ]}
+            />
+          ) : null}
+        </View>
+      )}
 
       <AppButton
-        label={practice.kind === "yoga" ? "Открыть карточку" : "Начать практику"}
-        onPress={() => onLaunch(practice)}
+        label="Начать практику"
+        onPress={launchConfiguredPractice}
         style={styles.button}
       />
     </View>
@@ -114,6 +183,87 @@ function MetaPill({ label }: { label: string }) {
   );
 }
 
+function DropdownField({
+  label,
+  value,
+  open,
+  onToggle,
+  options,
+}: {
+  label: string;
+  value: string;
+  open: boolean;
+  onToggle: () => void;
+  options: Array<{
+    key: string;
+    label: string;
+    active: boolean;
+    onPress: () => void;
+  }>;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.dropdownField}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onToggle}
+        style={({ pressed }) => [
+          styles.dropdownButton,
+          {
+            backgroundColor: theme.colors.controlButtonBg,
+            borderColor: open ? theme.colors.accent : theme.colors.surfaceBorder,
+            opacity: pressed ? 0.82 : 1,
+          },
+        ]}
+      >
+        <View style={styles.dropdownText}>
+          <AppText variant="technicalCaption" tone="muted">
+            {label}
+          </AppText>
+          <AppText variant="buttonLabel">{value}</AppText>
+        </View>
+        <AppText variant="sectionTitle" tone="muted" style={styles.chevron}>
+          {open ? "⌃" : "⌄"}
+        </AppText>
+      </Pressable>
+
+      {open ? (
+        <View
+          style={[
+            styles.dropdownMenu,
+            {
+              backgroundColor: theme.colors.surfaceElevated,
+              borderColor: theme.colors.surfaceBorder,
+            },
+          ]}
+        >
+          {options.map((option) => (
+            <Pressable
+              key={option.key}
+              accessibilityRole="button"
+              onPress={option.onPress}
+              style={({ pressed }) => [
+                styles.dropdownOption,
+                {
+                  backgroundColor: option.active
+                    ? theme.colors.buttonPrimaryBg
+                    : pressed
+                      ? theme.colors.controlButtonPressedBg
+                      : "transparent",
+                },
+              ]}
+            >
+              <AppText variant="statPillLabel" tone={option.active ? "accentOn" : "primary"}>
+                {option.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -131,14 +281,12 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  kindPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 8,
+  },
+  options: {
     gap: 8,
   },
   metaPill: {
@@ -150,5 +298,40 @@ const styles = StyleSheet.create({
   button: {
     alignSelf: "flex-start",
     minWidth: 160,
+  },
+  dropdownField: {
+    gap: 6,
+  },
+  dropdownButton: {
+    minHeight: 54,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dropdownText: {
+    flex: 1,
+    gap: 1,
+  },
+  chevron: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  dropdownMenu: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 6,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  dropdownOption: {
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
 });

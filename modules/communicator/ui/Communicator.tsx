@@ -257,10 +257,13 @@ export function Communicator({
 
   const [uiMode, setUiMode] = useState(resolved.uiMode);
   const canSwitchMode = resolved.canSwitch;
+  const [microphoneFallbackToText, setMicrophoneFallbackToText] = useState(false);
+  const canSwitchInputMode = canSwitchMode || microphoneFallbackToText;
 
   useEffect(() => {
+    if (microphoneFallbackToText) return;
     setUiMode(resolved.uiMode);
-  }, [resolved.uiMode]);
+  }, [microphoneFallbackToText, resolved.uiMode]);
 
   const [messages, setMessages] = useState<CommunicatorHistoryMessage[]>([]);
 
@@ -284,6 +287,8 @@ export function Communicator({
         ? "Не удалось подготовить микрофон. Проверьте, что другое приложение не удерживает запись, и попробуйте ещё раз."
         : err.message;
       if (recorderPrepareError) {
+        setMicrophoneFallbackToText(true);
+        setUiMode("TXT");
         console.warn("[Communicator]", err.message, err.stack ?? "");
       } else {
         console.error("[Communicator]", err.message, err.stack ?? "");
@@ -338,8 +343,8 @@ export function Communicator({
     else if (streamStatus === "thinking") p = "thinking";
     else if (streamStatus === "typing") p = "typing";
     else if (phase === "error") p = "error";
-    return { phase: p, uiMode, canSwitchMode };
-  }, [phase, streamStatus, uiMode, canSwitchMode]);
+    return { phase: p, uiMode, canSwitchMode: canSwitchInputMode };
+  }, [phase, streamStatus, uiMode, canSwitchInputMode]);
 
   useEffect(() => {
     onStateChange?.(sessionState);
@@ -728,6 +733,19 @@ export function Communicator({
     } catch (e) {
       if (generation !== startRecordingGenerationRef.current) return;
       micWarmupRef.current = false;
+      recordingRef.current = null;
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch {
+        /* ignore audio-session reset failures */
+      }
       setPhase("idle");
       setMicPressResetKey((k) => k + 1);
       const err = e instanceof Error ? e : new Error(String(e));
@@ -825,9 +843,9 @@ export function Communicator({
   }, [pendingTranscript, runStream, streamBusy]);
 
   const toggleMode = useCallback(() => {
-    if (!canSwitchMode || isBusy) return;
+    if (!canSwitchInputMode || isBusy) return;
     setUiMode((m) => (m === "VOICE" ? "TXT" : "VOICE"));
-  }, [canSwitchMode, isBusy]);
+  }, [canSwitchInputMode, isBusy]);
 
   const micShowsBusyAsset = isBusy && phase !== "recording";
 
@@ -1106,7 +1124,7 @@ export function Communicator({
             </View>
           )}
 
-          {canSwitchMode && COMMUNICATOR_TEXT_MODE_ENABLED ? (
+          {(COMMUNICATOR_TEXT_MODE_ENABLED || microphoneFallbackToText) && canSwitchInputMode ? (
             <ModeToggle
               targetMode={uiMode === "VOICE" ? "TXT" : "VOICE"}
               onToggle={toggleMode}
