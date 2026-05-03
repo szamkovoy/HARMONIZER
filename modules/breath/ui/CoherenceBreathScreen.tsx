@@ -98,6 +98,7 @@ import {
 import { enqueueCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
 import { useAuth } from "@/modules/auth";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
+import { MandalaSoundProvider, useMandalaSoundSync } from "@/modules/mandala-sound";
 import { BreathOverlayControlPanel } from "@/modules/breath/ui/BreathOverlayControlPanel";
 import { PpgMiniChart } from "@/modules/breath/ui/PpgMiniChart";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -233,6 +234,24 @@ function computeCycleMsForAnalysis(
   const exhaleMs = Math.max(phaseMsForKind("exhale"), 1000);
   const cycleMs = shape.phases.reduce((acc, p) => acc + p.beats * rrMs, 0);
   return { inhaleMs, exhaleMs, cycleMs };
+}
+
+function SyncedBreathBinduMandala({
+  chakraPresetIndex,
+  onRenderCommitted,
+}: {
+  chakraPresetIndex: number;
+  onRenderCommitted?: () => void;
+}) {
+  const soundSync = useMandalaSoundSync();
+  return (
+    <BreathBinduMandala
+      isActive
+      chakraPresetIndex={chakraPresetIndex}
+      onRenderCommitted={onRenderCommitted}
+      externalSync={soundSync}
+    />
+  );
 }
 
 /**
@@ -2778,70 +2797,79 @@ function CoherenceBreathScreenInner({
 
       {phase === "running" && runningUiRevealed ? (
         <View style={styles.runningAbs}>
-          {overlayVisible ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={str.stopConfirmTitle}
-              onPress={handleRequestStop}
-              style={styles.topCloseButton}
-              hitSlop={12}
-            >
-              <AppText variant="sectionTitle" tone="primary" style={styles.topCloseText}>
-                ×
-              </AppText>
-            </Pressable>
-          ) : null}
-          <BreathPracticeShell
-            isBreathTimingActive={isBreathTimingActive}
+          <MandalaSoundProvider
+            practiceKind="breath"
+            durationMs={practiceTotalMs}
+            chakra={chakra ?? 4}
+            isActive={phase === "running" && isBreathTimingActive}
             plannedCycle={currentPlan}
             cycleStartMs={cycleStartMs}
-            onPhaseChange={handlePhaseChange}
-            dimOpacity={dimOpacity}
-            footer={practiceFooter}
-            indicatorKind={practice.indicatorKind}
-            onScreenTap={handleScreenTap}
-            overlay={
-              <BreathOverlayControlPanel
-                visible={overlayVisible}
-                title={str.practiceName[practiceId]}
-                subtitle={str.practiceSanskritName[practiceId]}
-                totalMs={practiceTotalMs}
-                elapsedMs={elapsedMs}
-                minutesShortLabel={str.practiceMinutesShort}
-                beatsDisplay={{
-                  type: "single",
-                  value: baseBeats,
-                  isHighlighted: baseBeats === practice.normalBaseBeats,
-                }}
-                onIncrement={
-                  baseBeats < practice.maxBaseBeats ? handleIncrementBeats : undefined
-                }
-                onDecrement={
-                  baseBeats > practice.minBaseBeats ? handleDecrementBeats : undefined
-                }
-                onRequestClose={handleRequestStop}
-                onInteraction={handleOverlayInteraction}
-                accessibilityLabel={str.baseBeatsAccessibilityLabel}
-              />
-            }
-            center={
-              <View style={styles.centerStack}>
-                <RNAnimated.View style={[styles.mandalaWrap, { opacity: mandalaOpacity }]}>
-                  <BreathBinduMandala
-                    isActive
-                    chakraPresetIndex={mandalaChakraIndex}
-                    onRenderCommitted={handleMandalaRender}
-                  />
-                </RNAnimated.View>
-                <RNAnimated.View
-                  style={[styles.instructionWrap, { opacity: instructionOpacity }]}
-                  pointerEvents="none"
-                >
-                  {centerInstruction}
-                </RNAnimated.View>
-              </View>
-            }
-          />
+            biofeedbackEnabled
+          >
+            {overlayVisible ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={str.stopConfirmTitle}
+                onPress={handleRequestStop}
+                style={styles.topCloseButton}
+                hitSlop={12}
+              >
+                <AppText variant="sectionTitle" tone="primary" style={styles.topCloseText}>
+                  ×
+                </AppText>
+              </Pressable>
+            ) : null}
+            <BreathPracticeShell
+              isBreathTimingActive={isBreathTimingActive}
+              plannedCycle={currentPlan}
+              cycleStartMs={cycleStartMs}
+              onPhaseChange={handlePhaseChange}
+              dimOpacity={dimOpacity}
+              footer={practiceFooter}
+              indicatorKind={practice.indicatorKind}
+              onScreenTap={handleScreenTap}
+              overlay={
+                <BreathOverlayControlPanel
+                  visible={overlayVisible}
+                  title={str.practiceName[practiceId]}
+                  subtitle={str.practiceSanskritName[practiceId]}
+                  totalMs={practiceTotalMs}
+                  elapsedMs={elapsedMs}
+                  minutesShortLabel={str.practiceMinutesShort}
+                  beatsDisplay={{
+                    type: "single",
+                    value: baseBeats,
+                    isHighlighted: baseBeats === practice.normalBaseBeats,
+                  }}
+                  onIncrement={
+                    baseBeats < practice.maxBaseBeats ? handleIncrementBeats : undefined
+                  }
+                  onDecrement={
+                    baseBeats > practice.minBaseBeats ? handleDecrementBeats : undefined
+                  }
+                  onRequestClose={handleRequestStop}
+                  onInteraction={handleOverlayInteraction}
+                  accessibilityLabel={str.baseBeatsAccessibilityLabel}
+                />
+              }
+              center={
+                <View style={styles.centerStack}>
+                  <RNAnimated.View style={[styles.mandalaWrap, { opacity: mandalaOpacity }]}>
+                    <SyncedBreathBinduMandala
+                      chakraPresetIndex={mandalaChakraIndex}
+                      onRenderCommitted={handleMandalaRender}
+                    />
+                  </RNAnimated.View>
+                  <RNAnimated.View
+                    style={[styles.instructionWrap, { opacity: instructionOpacity }]}
+                    pointerEvents="none"
+                  >
+                    {centerInstruction}
+                  </RNAnimated.View>
+                </View>
+              }
+            />
+          </MandalaSoundProvider>
         </View>
       ) : null}
 

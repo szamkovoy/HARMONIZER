@@ -5,6 +5,7 @@ import { router } from "expo-router";
 
 import { useAuth } from "@/modules/auth";
 import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
+import { MandalaSoundProvider, useMandalaSoundSync } from "@/modules/mandala-sound";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
@@ -20,6 +21,30 @@ const DENSITY_OPTIONS = [
 const DEFAULT_DURATION_MS = 5 * 60_000;
 const DEFAULT_CHAKRA = 6;
 const OVERLAY_AUTOHIDE_MS = 4_000;
+
+function SyncedSacredSymbolFlowCanvas({
+  isActive,
+  sceneOffset,
+  densityBias,
+  sessionSeed,
+}: {
+  isActive: boolean;
+  sceneOffset: number;
+  densityBias: number;
+  sessionSeed: number;
+}) {
+  const soundSync = useMandalaSoundSync();
+  return (
+    <BinduSuccessionFlowCanvas
+      isActive={isActive}
+      sceneOffset={sceneOffset}
+      densityBias={densityBias}
+      sessionSeed={sessionSeed}
+      tubeMode={false}
+      externalSync={soundSync}
+    />
+  );
+}
 
 function formatRemaining(remainingMs: number): string {
   const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
@@ -151,13 +176,19 @@ export function SacredSymbolStreamScreen({
   return (
     <View style={styles.safeArea}>
       <Pressable style={styles.screen} onPress={handleScreenTap}>
-        <BinduSuccessionFlowCanvas
+        <MandalaSoundProvider
+          practiceKind="meditation"
+          durationMs={durationMs}
+          chakra={chakra}
           isActive={isRenderActive}
-          sceneOffset={sceneOffset}
-          densityBias={densityBias}
-          sessionSeed={sessionSeed}
-          tubeMode={false}
-        />
+        >
+          <SyncedSacredSymbolFlowCanvas
+            isActive={isRenderActive}
+            sceneOffset={sceneOffset}
+            densityBias={densityBias}
+            sessionSeed={sessionSeed}
+          />
+        </MandalaSoundProvider>
 
         {overlayVisible ? (
           <Pressable

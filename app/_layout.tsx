@@ -15,6 +15,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/components/useColorScheme";
 import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";
+import { RemotePlayProvider } from "@/modules/remote-play";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 
 export { ErrorBoundary } from "expo-router";
@@ -53,10 +54,12 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <UiThemeProvider value={uiTheme}>
         <AuthProvider>
-          <AccessBridge>
-            <AuthSplashBridge fontsLoaded={loaded} />
-            <RootLayoutNav />
-          </AccessBridge>
+          <RemotePlayProvider>
+            <AccessBridge>
+              <AuthSplashBridge fontsLoaded={loaded} />
+              <RootLayoutNav />
+            </AccessBridge>
+          </RemotePlayProvider>
         </AuthProvider>
       </UiThemeProvider>
     </SafeAreaProvider>
@@ -163,6 +166,14 @@ function RootLayoutNav() {
         />
         <Stack.Screen
           name="asana-practice"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="connect-tv"
+          options={{ presentation: "fullScreenModal", headerShown: false }}
+        />
+        <Stack.Screen
+          name="tv-remote"
           options={{ headerShown: false }}
         />
         <Stack.Screen

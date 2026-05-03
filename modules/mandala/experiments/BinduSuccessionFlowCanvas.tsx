@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, View } from "react-native";
 import { Canvas, Fill, Shader, Skia } from "@shopify/react-native-skia";
+import type { MandalaSoundVisualSync } from "@/modules/mandala-sound";
 
 function useAnimationClock(isActive: boolean) {
   const [timeSeconds, setTimeSeconds] = useState(0);
@@ -387,6 +388,8 @@ uniform float densityBias;
 uniform float flowSpeed;
 uniform float inspectMode;
 uniform float tubeMode;
+uniform float externalFlickerHz;
+uniform float externalFlickerIntensity;
 uniform float tubeRingOuterR;
 uniform float tubeRingInnerR;
 uniform float tubeBinduOuterR;
@@ -956,6 +959,8 @@ half4 main(vec2 fragcoord) {
   float breath = 0.5 + 0.5 * sin(motionTime * mix(0.19, 0.03, inspectMode));
   float pulse = pow(0.5 + 0.5 * sin(motionTime * mix(1.22, 0.08, inspectMode)), 2.2);
   float alphaFlicker = 0.5 + 0.5 * sin(motionTime * TAU * mix(8.7, 0.06, inspectMode));
+  float audioFlicker = 0.5 + 0.5 * sin(time * TAU * externalFlickerHz);
+  float audioFlickerGain = mix(1.0, 0.96 + 0.12 * audioFlicker, clamp(externalFlickerIntensity, 0.0, 1.0));
   vec3 color = vec3(0.0);
 
   for (int i = 0; i < ${DEPTH_LAYER_COUNT}; i++) {
@@ -997,6 +1002,7 @@ half4 main(vec2 fragcoord) {
   }
 
   color += vec3(1.0, 0.96, 0.98) * exp(-pow(length(uv) / 0.08, 1.4)) * (0.12 + pulse * 0.16);
+  color *= audioFlickerGain;
   return half4(color, 1.0);
 }
 `;
@@ -1033,6 +1039,7 @@ export interface BinduSuccessionFlowCanvasProps {
   tubeRingInnerR?: number;
   /** Внешний радиус биджи в пространстве сцены; внутри — превью следующей мандалы. Меньше `tubeRingInnerR`. */
   tubeBinduOuterR?: number;
+  externalSync?: MandalaSoundVisualSync;
 }
 
 export function BinduSuccessionFlowCanvas({
@@ -1046,6 +1053,7 @@ export function BinduSuccessionFlowCanvas({
   tubeRingOuterR = 0.88,
   tubeRingInnerR = 0.24,
   tubeBinduOuterR = 0.11,
+  externalSync,
 }: BinduSuccessionFlowCanvasProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const flowShader = useMemo(() => getBinduFlowShader(), []);
@@ -1082,6 +1090,8 @@ export function BinduSuccessionFlowCanvas({
       flowSpeed,
       inspectMode: inspectMode ? 1 : 0,
       tubeMode: tubeMode ? 1 : 0,
+      externalFlickerHz: externalSync?.flickerHz ?? 0,
+      externalFlickerIntensity: externalSync?.flickerIntensity ?? 0,
       tubeRingOuterR,
       tubeRingInnerR,
       tubeBinduOuterR,
@@ -1120,6 +1130,8 @@ export function BinduSuccessionFlowCanvas({
       densityBias,
       flowSpeed,
       inspectMode,
+      externalSync?.flickerHz,
+      externalSync?.flickerIntensity,
       layer5Genome,
       layerGenomes,
       sceneTime,

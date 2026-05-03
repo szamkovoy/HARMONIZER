@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, View } from "react-native";
 import { Canvas, Fill, FillType, Group, Path, Shader, Skia } from "@shopify/react-native-skia";
 import type { SkMatrix, SkPath } from "@shopify/react-native-skia";
+import type { MandalaSoundVisualSync } from "@/modules/mandala-sound";
 
 import {
   DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS,
@@ -1482,6 +1483,9 @@ uniform float cloudOuterBodyAlpha;
 uniform float cloudBodyRingAlpha;
 uniform float cloudCoreAlpha;
 uniform float cloudAlphaCeiling;
+uniform float syncTime;
+uniform float externalFlickerHz;
+uniform float externalFlickerIntensity;
 
 float softCloud(vec2 p, float radius, float softness) {
   float normalized = length(p) / max(radius, 0.001);
@@ -1505,8 +1509,10 @@ half4 main(vec2 fragcoord) {
     cloudColor.xyz * outerBody * cloudOuterBodyWeight +
     haloColor * bodyRing * cloudBodyRingWeight +
     coreColor * plateau * cloudCoreWeight;
+  float flickerWave = 0.5 + 0.5 * sin(syncTime * 6.28318530718 * externalFlickerHz);
+  float flickerGain = mix(1.0, 0.94 + 0.14 * flickerWave, clamp(externalFlickerIntensity, 0.0, 1.0));
   float alpha =
-    clamp((outerBody * cloudOuterBodyAlpha + bodyRing * cloudBodyRingAlpha + plateau * cloudCoreAlpha) * edgeFade * cloudOpacity, 0.0, cloudAlphaCeiling);
+    clamp((outerBody * cloudOuterBodyAlpha + bodyRing * cloudBodyRingAlpha + plateau * cloudCoreAlpha) * edgeFade * cloudOpacity * flickerGain, 0.0, cloudAlphaCeiling);
   return half4(color * edgeFade, alpha);
 }
 `;
@@ -1569,6 +1575,8 @@ export interface BinduSuccessionLabCanvasProps {
    * внутренних алгоритмов. Изменение применяется на лету.
    */
   targetFps?: number;
+  /** Общий audio/visual sync: звук задаёт частоту, облако мягко мерцает в той же фазе. */
+  externalSync?: MandalaSoundVisualSync;
 }
 
 export function BinduSuccessionLabCanvas({
@@ -1585,6 +1593,7 @@ export function BinduSuccessionLabCanvas({
   showMandala = true,
   onRenderCommitted,
   targetFps = DEFAULT_MANDALA_TARGET_FPS,
+  externalSync,
 }: BinduSuccessionLabCanvasProps) {
   if (onRenderCommitted) onRenderCommitted();
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -1874,6 +1883,9 @@ export function BinduSuccessionLabCanvas({
               cloudBodyRingAlpha: cloudDrawData.shape.bodyRingAlpha,
               cloudCoreAlpha: cloudDrawData.shape.coreAlpha,
               cloudAlphaCeiling: cloudDrawData.shape.alphaCeiling,
+              syncTime: timeSeconds,
+              externalFlickerHz: externalSync?.flickerHz ?? 0,
+              externalFlickerIntensity: externalSync?.flickerIntensity ?? 0,
             }}
           />
         </Fill>

@@ -6,6 +6,7 @@ import {
   type ChakraVisualPreset,
 } from "@/modules/mandala/experiments/binduSuccessionVisualPresets";
 import { BinduSuccessionLabCanvas } from "@/modules/mandala/experiments/BinduSuccessionLabCanvas";
+import type { MandalaSoundVisualSync } from "@/modules/mandala-sound";
 
 const CHAKRA3_PRESET = DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS[2]!;
 const TUBE_FLOW_SPEED = 1;
@@ -29,6 +30,8 @@ type Props = {
    * наоборот. Меняется на лету без пересоздания анимационного цикла.
    */
   targetFps?: number;
+  /** Синхронизация облака с аудио-ритмом Mandala Sound. */
+  externalSync?: MandalaSoundVisualSync;
 };
 
 /**
@@ -39,6 +42,7 @@ function BreathBinduMandalaInner({
   chakraPresetIndex = 2,
   onRenderCommitted,
   targetFps,
+  externalSync,
 }: Props) {
   const visualPreset: ChakraVisualPreset =
     DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS[chakraPresetIndex] ?? CHAKRA3_PRESET;
@@ -56,6 +60,7 @@ function BreathBinduMandalaInner({
         showMandala
         onRenderCommitted={onRenderCommitted}
         targetFps={targetFps}
+        externalSync={externalSync}
       />
     </View>
   );
