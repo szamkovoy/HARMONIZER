@@ -231,7 +231,7 @@ const ru: CoherenceBreathStrings = {
   practiceMinutesShort: "минут",
   autoAbortTitle: "Практика остановлена",
   autoAbortMessage:
-    "Слишком долго не удавалось уверенно считывать пульс (вы ушли из приложения, застыл поток с камеры или палец не на сенсоре). Камера отключена. Начните заново или вернитесь на главный экран.",
+    "При переключении в другие приложения прерывается считывание пульса. Но вы можете начать практику сначала.",
   autoAbortStartAgain: "Начать сначала",
   autoAbortExit: "Выйти",
   stopConfirmTitle: "Завершить практику?",
@@ -348,7 +348,7 @@ const en: CoherenceBreathStrings = {
   practiceMinutesShort: "min",
   autoAbortTitle: "Practice stopped",
   autoAbortMessage:
-    "We could not reliably read your pulse for too long (app in background, camera feed stalled, or finger off the sensor). The camera has been turned off. Start again or return to the home screen.",
+    "Switching to other apps interrupts pulse readings. You can start the practice again.",
   autoAbortStartAgain: "Start again",
   autoAbortExit: "Exit",
   stopConfirmTitle: "End practice?",

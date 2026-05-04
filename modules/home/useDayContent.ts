@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/modules/auth";
 import type { DailyForecast } from "@/modules/daily-engine";
+import type { ProductTier } from "@/modules/access/core/tiers";
 import { callMonologue, type MorningRecommendationResponse } from "@/services/aiClient";
 import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communicatorConfig";
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
@@ -26,6 +27,7 @@ export interface UseDayContentResult {
 interface UseDayContentOptions {
   locationErrorMessage?: string;
   accessModeOverride?: AccessMode;
+  accessTierOverride?: ProductTier;
 }
 
 function localDateIso(timezone: string): string {
@@ -166,6 +168,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
       try {
         const nextAccessMode = opts?.accessModeOverride ?? options?.accessModeOverride ?? accessModeFor(profile);
+        const nextAccessTier =
+          opts?.accessTierOverride ??
+          options?.accessTierOverride ??
+          (nextAccessMode === "free" ? "free" : "oracle");
         const forecastDate = localDateIso(userLocation.timezone);
         const userId = profile?.id;
         const scopeKey = dayContentScopeKey(profile);
@@ -182,6 +188,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           const cached = await loadDayContentCache({
             userId,
             accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
             forecastDate,
             scopeKey,
             userLocation,
@@ -224,6 +231,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             void saveDayContentCache({
               userId,
               accessMode: result.accessMode,
+              accessTier: nextAccessTier,
               forecastDate,
               scopeKey,
               userLocation,
@@ -253,6 +261,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             void saveDayContentCache({
               userId,
               accessMode: nextAccessMode,
+              accessTier: nextAccessTier,
               forecastDate,
               scopeKey,
               userLocation,
@@ -287,7 +296,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
       }
     },
-    [options?.accessModeOverride, options?.locationErrorMessage, profile, userLocation],
+    [options?.accessModeOverride, options?.accessTierOverride, options?.locationErrorMessage, profile, userLocation],
   );
 
   useEffect(() => {

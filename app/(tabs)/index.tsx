@@ -443,6 +443,7 @@ export default function HomeScreen() {
   const { forecast, loading, error, refresh, status, accessMode, modelUsed } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     accessModeOverride: accessModeForTier(access.tier),
+    accessTierOverride: access.tier,
   });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);

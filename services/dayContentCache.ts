@@ -1,4 +1,5 @@
 import type { DailyForecast } from "@/modules/daily-engine";
+import type { ProductTier } from "@/modules/access/core/tiers";
 import type { AccessMode } from "@/services/globalContentClient";
 import { DateTime } from "luxon";
 import { Platform } from "react-native";
@@ -21,6 +22,7 @@ interface DayContentCacheEntry extends CachedDayContent {
   version: 1;
   userId: string;
   accessMode: AccessMode;
+  accessTier: ProductTier;
   forecastDate: string;
   scopeKey: string;
   location: UserLocation;
@@ -31,6 +33,7 @@ interface DayContentCacheEntry extends CachedDayContent {
 interface CacheManifestEntry {
   key: string;
   userId: string;
+  accessTier: ProductTier;
   forecastDate: string;
   scopeKey: string;
   expiresAt: string;
@@ -145,8 +148,8 @@ function parseJson<T>(raw: string | null): T | null {
   }
 }
 
-function cacheKey(userId: string, accessMode: AccessMode, forecastDate: string, scopeKey: string): string {
-  return safeStorageKey(`${CACHE_PREFIX}.${userId}.${accessMode}.${forecastDate}.${scopeKey}`) ?? `${CACHE_PREFIX}.invalid`;
+function cacheKey(userId: string, accessMode: AccessMode, accessTier: ProductTier, forecastDate: string, scopeKey: string): string {
+  return safeStorageKey(`${CACHE_PREFIX}.${userId}.${accessMode}.${accessTier}.${forecastDate}.${scopeKey}`) ?? `${CACHE_PREFIX}.invalid`;
 }
 
 function sameLocation(a: UserLocation, b: UserLocation): boolean {
@@ -233,11 +236,12 @@ export async function clearDayContentCache(params: { userId: string; forecastDat
 export async function loadDayContentCache(params: {
   userId: string;
   accessMode: AccessMode;
+  accessTier: ProductTier;
   forecastDate: string;
   scopeKey: string;
   userLocation: UserLocation;
 }): Promise<CachedDayContent | null> {
-  const key = cacheKey(params.userId, params.accessMode, params.forecastDate, params.scopeKey);
+  const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
   const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(await getRaw(key));
   if (!entry) return null;
 
@@ -245,6 +249,7 @@ export async function loadDayContentCache(params: {
     entry.version !== CACHE_VERSION ||
     entry.userId !== params.userId ||
     entry.accessMode !== params.accessMode ||
+    entry.accessTier !== params.accessTier ||
     entry.forecastDate !== params.forecastDate ||
     entry.scopeKey !== params.scopeKey ||
     !sameLocation(entry.location, params.userLocation) ||
@@ -266,6 +271,7 @@ export async function loadDayContentCache(params: {
 export async function saveDayContentCache(params: {
   userId: string;
   accessMode: AccessMode;
+  accessTier: ProductTier;
   forecastDate: string;
   scopeKey: string;
   userLocation: UserLocation;
@@ -277,11 +283,12 @@ export async function saveDayContentCache(params: {
   );
   if (!expiresAt) return;
 
-  const key = cacheKey(params.userId, params.accessMode, params.forecastDate, params.scopeKey);
+  const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
   const entry: DayContentCacheEntry = {
     version: CACHE_VERSION,
     userId: params.userId,
     accessMode: params.accessMode,
+    accessTier: params.accessTier,
     forecastDate: params.forecastDate,
     scopeKey: params.scopeKey,
     location: params.userLocation,
@@ -295,6 +302,7 @@ export async function saveDayContentCache(params: {
   await rememberKey({
     key,
     userId: params.userId,
+    accessTier: params.accessTier,
     forecastDate: params.forecastDate,
     scopeKey: params.scopeKey,
     expiresAt,
