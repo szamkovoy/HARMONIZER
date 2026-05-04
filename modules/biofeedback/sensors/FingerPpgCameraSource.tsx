@@ -249,8 +249,18 @@ function FingerPpgCameraSourceImpl({
    * `isCameraSessionActive` — VisionCamera `<Camera isActive>`. При
    * `silent=true` сессия **остаётся включённой** (см. JSDoc к `silent`), иначе
    * iOS гасит фонарик вместе с остановкой сессии.
+   *
+   * Важно: при жесте «обзор приложений» / частичном свайпе iOS даёт `AppState`
+   * `inactive`, а React Navigation может временно дать `useIsFocused() === false`.
+   * Раньше требовали строго `active` + `focused` — фонарик гас мгновенно, хотя
+   * пользователь ещё не ушёл в другое приложение. Держим сессию в `inactive`,
+   * пока родитель передаёт `isActive`, и разрешаем `inactive` без focus.
+   * В `background` (другое приложение на весь экран) — по-прежнему гасим.
    */
-  const isRenderActive = isFocused && appState === "active" && isActive;
+  const isRenderActive =
+    isActive &&
+    appState !== "background" &&
+    (isFocused || appState === "inactive");
   const isCameraSessionActive = isRenderActive;
   const device = useCameraDevice("back", { physicalDevices: ["wide-angle-camera"] });
   /**

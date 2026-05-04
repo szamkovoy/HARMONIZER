@@ -853,10 +853,15 @@ function CoherenceBreathScreenInner({
     phaseRef.current = phase;
   }, [phase]);
 
+  /** Для gating камеры: ре-рендер при смене AppState (ref одного мало). */
+  const [practiceAppState, setPracticeAppState] = useState(AppState.currentState);
+
   useEffect(() => {
     appStateRef.current = AppState.currentState;
+    setPracticeAppState(AppState.currentState);
     const sub = AppState.addEventListener("change", (next) => {
       appStateRef.current = next;
+      setPracticeAppState(next);
     });
     return () => sub.remove();
   }, []);
@@ -2689,18 +2694,35 @@ function CoherenceBreathScreenInner({
 
   void qcDebugSnapshot;
 
+  /**
+   * Камера/сенсор: не гасим при кратком `inactive` или blur навигации (обзор
+   * приложений, скриншот), пока ОС не в `background`. В фоне родительский
+   * `isActive` всё равно может стать false по политике авто-аборта.
+   */
+  const persistBreathCaptureUnlessOsBackground =
+    breathRouteVisible || practiceAppState !== "background";
   const breathResourcesActive =
-    breathRouteVisible && (phase === "warmup" || phase === "qualityCheck" || phase === "running");
+    persistBreathCaptureUnlessOsBackground &&
+    (phase === "warmup" || phase === "qualityCheck" || phase === "running");
   const cameraActive = breathResourcesActive;
 
   useEffect(() => {
     logRuntimeEvent("breath:resources_active", {
       breathRouteVisible,
+      practiceAppState,
+      persistBreathCaptureUnlessOsBackground,
       phase,
       cameraActive,
       isBreathTimingActive,
     }, "debug");
-  }, [breathRouteVisible, cameraActive, isBreathTimingActive, phase]);
+  }, [
+    breathRouteVisible,
+    practiceAppState,
+    persistBreathCaptureUnlessOsBackground,
+    cameraActive,
+    isBreathTimingActive,
+    phase,
+  ]);
 
   /**
    * Live-метрики в футере практики: ОСОЗНАННО минимальны. Во время практики мы
@@ -3027,7 +3049,11 @@ function CoherenceBreathScreenInner({
             practiceKind="breath"
             durationMs={practiceTotalMs}
             chakra={chakra ?? 4}
-            isActive={breathRouteVisible && phase === "running" && isBreathTimingActive}
+            isActive={
+              persistBreathCaptureUnlessOsBackground &&
+              phase === "running" &&
+              isBreathTimingActive
+            }
             plannedCycle={currentPlan}
             cycleStartMs={cycleStartMs}
             biofeedbackEnabled
