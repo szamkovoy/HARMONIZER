@@ -19,7 +19,11 @@ import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { requireSupabase } from "@/services/supabase";
-import { rewriteAuthNetworkError } from "./authNetworkErrors";
+import {
+  isAuthSessionResultTransientFailure,
+  isTransientAuthConnectivityFailure,
+  rewriteAuthNetworkError,
+} from "./authNetworkErrors";
 import { signInWithApple } from "./sign-in-apple";
 import { signInWithGoogle, signOutGoogle } from "./sign-in-google";
 import type { AuthContextValue, AuthUserRow } from "./types";
@@ -27,7 +31,48 @@ import type { AuthContextValue, AuthUserRow } from "./types";
 const AuthContext = createContext<AuthContextValue | null>(null);
 export { AuthContext };
 
-const INITIAL_SESSION_TIMEOUT_MS = 7000;
+const INITIAL_SESSION_TIMEOUT_MS = 15000;
+const INITIAL_SESSION_MAX_ATTEMPTS = 4;
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Холодный старт: getSession → при истёкшем access token внутри идёт refresh по сети.
+ * Временная сеть / таймаут не должны приводить к очистке SecureStore (это делал
+ * прежний signOut в catch и выбивало пользователя несколько раз в день).
+ */
+async function resolveInitialSession(
+  supabase: ReturnType<typeof requireSupabase>,
+): Promise<Session | null> {
+  for (let attempt = 0; attempt < INITIAL_SESSION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const { data, error } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Supabase getSession timed out after ${INITIAL_SESSION_TIMEOUT_MS}ms`));
+          }, INITIAL_SESSION_TIMEOUT_MS);
+        }),
+      ]);
+      if (data.session) return data.session;
+      if (!error) return null;
+      if (isAuthSessionResultTransientFailure(error) && attempt < INITIAL_SESSION_MAX_ATTEMPTS - 1) {
+        await sleep(700 * (attempt + 1));
+        continue;
+      }
+      return null;
+    } catch (error) {
+      if (isTransientAuthConnectivityFailure(error) && attempt < INITIAL_SESSION_MAX_ATTEMPTS - 1) {
+        await sleep(700 * (attempt + 1));
+        continue;
+      }
+      return null;
+    }
+  }
+  return null;
+}
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -74,6 +119,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Чтобы избежать гонки между onAuthStateChange и initial getSession,
   // держим последний seen user id — и перечитываем профиль только при смене.
   const lastUserIdRef = useRef<string | null>(null);
+  /** Актуальная сессия для AppState без устаревшего замыкания. */
+  const sessionRef = useRef<Session | null>(null);
 
   const syncProfile = useCallback(async (user: User | null) => {
     if (!user) {
@@ -90,6 +137,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setProfileLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     const supabase = requireSupabase();
@@ -115,49 +166,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     };
 
-    const getSessionWithTimeout = Promise.race([
-      supabase.auth.getSession(),
-      new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error(`Supabase getSession timed out after ${INITIAL_SESSION_TIMEOUT_MS}ms`)),
-          INITIAL_SESSION_TIMEOUT_MS,
-        );
-      }),
-    ]);
-
-    // 1) Прочитать сохранённую сессию (SecureStore).
-    getSessionWithTimeout
-      .then(({ data }) => {
-        if (cancelled) return;
-        setSession(data.session);
-        void syncProfile(data.session?.user ?? null)
-          .catch((error: unknown) => {
-            // eslint-disable-next-line no-console
-            console.warn(
-              "[auth] syncProfile after getSession",
-              rewriteAuthNetworkError(error, "profile").message,
-            );
-          })
-          .finally(() => {
-            if (cancelled) return;
-            initialSessionReady = true;
-            setInitializing(false);
+    // 1) Восстановить сессию из SecureStore (с ретраями при сетевых сбоях refresh).
+    void (async () => {
+      const initial = await resolveInitialSession(supabase);
+      if (cancelled) return;
+      setSession(initial);
+      void syncProfile(initial?.user ?? null)
+        .catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[auth] syncProfile after getSession",
+            rewriteAuthNetworkError(error, "profile").message,
+          );
+        })
+        .finally(() => {
+          if (cancelled) return;
+          initialSessionReady = true;
+          setInitializing(false);
+          if (initial) {
             safeStartAutoRefresh();
-          });
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        // На холодном старте сеть может быть ещё недоступна; показываем auth UI,
-        // а не красный экран LogBox с безымянным `Network request failed`.
-        // eslint-disable-next-line no-console
-        console.warn("[auth] getSession failed", rewriteAuthNetworkError(error, "session").message);
-        setSession(null);
-        setProfile(null);
-        initialSessionReady = true;
-        setInitializing(false);
-        safeStopAutoRefresh();
-        void supabase.auth.signOut({ scope: "local" }).catch(() => {});
-      });
+          } else {
+            safeStopAutoRefresh();
+          }
+        });
+    })();
 
     // 2) Подписаться на изменения (логин, логаут, рефреш токена).
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
@@ -176,6 +208,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (cancelled || !initialSessionReady) return;
       if (state === "active") {
         safeStartAutoRefresh();
+        if (!sessionRef.current) {
+          void supabase.auth
+            .getSession()
+            .then(({ data }) => {
+              if (cancelled || !data.session) return;
+              setSession(data.session);
+            })
+            .catch((error: unknown) => {
+              // eslint-disable-next-line no-console
+              console.warn(
+                "[auth] resume getSession",
+                rewriteAuthNetworkError(error, "session").message,
+              );
+            });
+        }
       } else {
         safeStopAutoRefresh();
       }

@@ -1,3 +1,5 @@
+import { isAuthRetryableFetchError } from "@supabase/auth-js";
+
 /**
  * React Native / fetch часто отдают только `TypeError: Network request failed`
  * без URL и без кода — пользователю и разработчику это не помогает.
@@ -14,6 +16,25 @@ export function isLikelyFetchNetworkFailure(error: unknown): boolean {
   if (/Network request failed/i.test(message)) return true;
   if (name === "TypeError" && /Failed to fetch|NetworkError|network/i.test(message)) return true;
   return false;
+}
+
+/** Ошибка при старте / рефреше сессии, после которой токены в SecureStore ещё могут быть валидны. */
+export function isTransientAuthConnectivityFailure(error: unknown): boolean {
+  if (isAuthRetryableFetchError(error)) return true;
+  if (isLikelyFetchNetworkFailure(error)) return true;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+  if (/getSession timed out/i.test(message)) return true;
+  return false;
+}
+
+export function isAuthSessionResultTransientFailure(error: unknown | null | undefined): boolean {
+  if (!error) return false;
+  return isAuthRetryableFetchError(error) || isLikelyFetchNetworkFailure(error);
 }
 
 export function rewriteAuthNetworkError(

@@ -255,12 +255,14 @@ function FingerPpgCameraSourceImpl({
    * Раньше требовали строго `active` + `focused` — фонарик гас мгновенно, хотя
    * пользователь ещё не ушёл в другое приложение. Держим сессию в `inactive`,
    * пока родитель передаёт `isActive`, и разрешаем `inactive` без focus.
-   * В `background` (другое приложение на весь экран) — по-прежнему гасим.
+   * В `background` сессию держим, пока родитель передаёт `isActive` (политика
+   * дыхательной практики: не гасить фонарик сразу при уходе в другое приложение;
+   * авто-стоп — на стороне экрана по таймерам / возврату). Если родитель
+   * снимает `isActive`, камера гаснет в любом AppState.
    */
   const isRenderActive =
     isActive &&
-    appState !== "background" &&
-    (isFocused || appState === "inactive");
+    (isFocused || appState === "inactive" || appState === "background");
   const isCameraSessionActive = isRenderActive;
   const device = useCameraDevice("back", { physicalDevices: ["wide-angle-camera"] });
   /**

@@ -733,6 +733,10 @@ function CoherenceBreathScreenInner({
   const opticalStallAccumMsRef = useRef(0);
   const lastCameraTsForStallRef = useRef<number | null>(null);
   const autoAbortAccumMsRef = useRef(0);
+  /** Нет пальца: накопление по wall-clock (только foreground), мс. */
+  const fingerAbsentWallMsRef = useRef(0);
+  /** Время ухода в `background` во время running (для логики при возврате). */
+  const practiceBackgroundEnteredAtRef = useRef<number | null>(null);
   const sessionAbortHandledRef = useRef(false);
   const applyHardPracticeExitRef = useRef<() => void>(() => {});
   const appStateRef = useRef(AppState.currentState);
@@ -855,16 +859,6 @@ function CoherenceBreathScreenInner({
 
   /** Для gating камеры: ре-рендер при смене AppState (ref одного мало). */
   const [practiceAppState, setPracticeAppState] = useState(AppState.currentState);
-
-  useEffect(() => {
-    appStateRef.current = AppState.currentState;
-    setPracticeAppState(AppState.currentState);
-    const sub = AppState.addEventListener("change", (next) => {
-      appStateRef.current = next;
-      setPracticeAppState(next);
-    });
-    return () => sub.remove();
-  }, []);
 
   /**
    * Блокируем автоматический переход экрана в сон, пока идёт пранаяма.
@@ -1348,6 +1342,8 @@ function CoherenceBreathScreenInner({
     autoAbortAccumMsRef.current = 0;
     opticalStallAccumMsRef.current = 0;
     lastCameraTsForStallRef.current = null;
+    fingerAbsentWallMsRef.current = 0;
+    practiceBackgroundEnteredAtRef.current = null;
   }, [phase]);
 
   // ─── Running: добавляем удары в CoherenceEngine + ведём баннеры качества ─
@@ -1361,8 +1357,8 @@ function CoherenceBreathScreenInner({
     // циклов clearInterval+setInterval, каждый из которых отписывает/подписывает
     // таймер в event loop и создаёт новые closure-объекты для GC.
     const id = setInterval(() => {
-      const now = pipeline.getLastSourceTimestampMs();
-      if (now <= 0) return;
+      const sourceTs = pipeline.getLastSourceTimestampMs();
+      const opticalLive = sourceTs > 0;
       // NB: раньше здесь был `coherenceEngine.appendBeats(canonicalBeats)`
       // на каждые 250 мс. Это дубликат: `BiofeedbackPipeline.pushOpticalSample`
       // сам вызывает `appendBeats` при `mergedChanged`, а других источников
@@ -1370,17 +1366,30 @@ function CoherenceBreathScreenInner({
       // делать 4800 пустых проходов по `canonicalBeats` (~140 элементов
       // каждый) — лишнее давление на JS-поток и GC.
 
-      const lastSample = lastSampleMsRef.current ?? now;
-      const delta = Math.max(0, now - lastSample);
-      const advance = delta > 2 ? delta : 250;
-      lastSampleMsRef.current = now;
+      let now: number;
+      let advance: number;
+      if (opticalLive) {
+        now = sourceTs;
+        const lastSample = lastSampleMsRef.current ?? now;
+        const delta = Math.max(0, now - lastSample);
+        advance = delta > 2 ? delta : 250;
+        lastSampleMsRef.current = now;
 
-      if (lastCameraTsForStallRef.current != null && Math.abs(now - lastCameraTsForStallRef.current) < 1.5) {
-        opticalStallAccumMsRef.current += 250;
+        if (lastCameraTsForStallRef.current != null && Math.abs(now - lastCameraTsForStallRef.current) < 1.5) {
+          opticalStallAccumMsRef.current += 250;
+        } else {
+          opticalStallAccumMsRef.current = 0;
+        }
+        lastCameraTsForStallRef.current = now;
       } else {
+        // После resume / сброса буфера `timestampMs` может быть 0 несколько сотен мс.
+        // Ранний `return` блокировал `fingerAbsentWallMsRef` и авто-аборт («палец убран»).
+        advance = 250;
+        // Пока optical пуст, не крутим stall — иначе за ~2 с + устаревший finger=true → ложный abort.
         opticalStallAccumMsRef.current = 0;
+        lastCameraTsForStallRef.current = null;
+        now = lastSampleMsRef.current ?? 0;
       }
-      lastCameraTsForStallRef.current = now;
 
       const snap = snapshotRef.current;
       const fingerOk = snap.fingerDetected;
@@ -1403,7 +1412,7 @@ function CoherenceBreathScreenInner({
         qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
         badSignal;
 
-      if (sessionStartLogicalMs != null) {
+      if (opticalLive && sessionStartLogicalMs != null) {
         const practiceTotalSec = Math.max(1, Math.round(practiceTotalMs / 1000));
         const sec = Math.min(
           practiceTotalSec - 1,
@@ -1435,14 +1444,24 @@ function CoherenceBreathScreenInner({
       const appStateNow = appStateRef.current;
       const lockTracking = snap.pulseLockState === "tracking";
       const stallHard = opticalStallAccumMsRef.current >= BREATH_OPTICAL_STALL_HARD_MS;
+      const fg = appStateNow === "active" || appStateNow === "inactive";
+      /** В фоне накапливаем только «палец убран»; stall по кадрам в фоне даёт ложные срабатывания. */
+      const fingerWallTick =
+        appStateNow === "active" || appStateNow === "inactive" || appStateNow === "background";
+
+      if (fingerWallTick && !fingerOk) {
+        fingerAbsentWallMsRef.current += 250;
+      } else if (fg && fingerOk) {
+        fingerAbsentWallMsRef.current = 0;
+      }
 
       let abortStress = false;
       if (!hybridEmulated && !useSimulatedPpg && !useEmulatedPulseModeRef.current) {
-        if (appStateNow === "background" && (stallHard || !lockTracking)) {
+        const fingerAbortReady =
+          !fingerOk && fingerAbsentWallMsRef.current >= BREATH_SESSION_SIGNAL_ABORT_MS;
+        if (fingerAbortReady) {
           abortStress = true;
-        } else if (!fingerOk && fingerAbsentAccumMsRef.current >= 3000) {
-          abortStress = true;
-        } else if (fingerOk && stallHard && !lockTracking) {
+        } else if (fg && fingerOk && stallHard && !lockTracking) {
           abortStress = true;
         }
       }
@@ -2143,11 +2162,77 @@ function CoherenceBreathScreenInner({
     opticalStallAccumMsRef.current = 0;
     lastCameraTsForStallRef.current = null;
     autoAbortAccumMsRef.current = 0;
+    fingerAbsentWallMsRef.current = 0;
+    practiceBackgroundEnteredAtRef.current = null;
   }, [clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
 
   useEffect(() => {
     applyHardPracticeExitRef.current = applyHardPracticeExit;
   }, [applyHardPracticeExit]);
+
+  /**
+   * AppState: синхронизация для gating камеры + авто-аборт при возврате из фона,
+   * если в фоне JS-таймеры не крутились, а палец уже не на сенсоре.
+   */
+  useEffect(() => {
+    const syncInit = () => {
+      const s = AppState.currentState;
+      appStateRef.current = s;
+      setPracticeAppState(s);
+    };
+    syncInit();
+
+    const sub = AppState.addEventListener("change", (next) => {
+      const prev = appStateRef.current;
+
+      const hybridEmulated =
+        hybridPhaseRef.current === "emulated" && pipeline.isOpticalPaused();
+      const realPpgRunning =
+        phaseRef.current === "running" &&
+        !useSimulatedPpg &&
+        !useEmulatedPulseModeRef.current &&
+        !hybridEmulated;
+
+      if (prev !== "background" && next === "background" && realPpgRunning) {
+        practiceBackgroundEnteredAtRef.current = Date.now();
+      }
+
+      if (prev === "background" && next === "active") {
+        const t0 = practiceBackgroundEnteredAtRef.current;
+        practiceBackgroundEnteredAtRef.current = null;
+        if (
+          t0 != null &&
+          !sessionAbortHandledRef.current &&
+          phaseRef.current === "running" &&
+          realPpgRunning
+        ) {
+          const snap = snapshotRef.current;
+          if (!snap.fingerDetected) {
+            sessionAbortHandledRef.current = true;
+            logRuntimeEvent(
+              "breath:session_auto_abort",
+              {
+                reason: "resume_from_background_no_finger",
+                backgroundMs: Date.now() - t0,
+                lockState: snap.pulseLockState,
+              },
+              "info",
+            );
+            setTimeout(() => {
+              applyHardPracticeExitRef.current();
+              setPhase("idle");
+              setShowAutoAbortDialog(true);
+            }, 0);
+          }
+        }
+      }
+
+      appStateRef.current = next;
+      setPracticeAppState(next);
+    });
+
+    return () => sub.remove();
+  }, [pipeline]);
 
   const scheduleOverlayHide = useCallback(() => {
     clearOverlayTimer();
@@ -2365,6 +2450,8 @@ function CoherenceBreathScreenInner({
       opticalStallAccumMsRef.current = 0;
       lastCameraTsForStallRef.current = null;
       autoAbortAccumMsRef.current = 0;
+      fingerAbsentWallMsRef.current = 0;
+      practiceBackgroundEnteredAtRef.current = null;
       clearPpgBannerUi();
 
       if (useSimulatedPpg || forceEmulatedPulse) {
@@ -2695,14 +2782,16 @@ function CoherenceBreathScreenInner({
   void qcDebugSnapshot;
 
   /**
-   * Камера/сенсор: не гасим при кратком `inactive` или blur навигации (обзор
-   * приложений, скриншот), пока ОС не в `background`. В фоне родительский
-   * `isActive` всё равно может стать false по политике авто-аборта.
+   * Камера/сенсор: держим захват в `inactive` и `background` (другой пакет на
+   * экране), даже если навигация дала blur — иначе фонарик гас в мультитаскинге.
+   * В `active` без `breathRouteVisible` (теоретический уход с маршрута) — гасим.
    */
-  const persistBreathCaptureUnlessOsBackground =
-    breathRouteVisible || practiceAppState !== "background";
+  const persistBreathCaptureDuringOsTransition =
+    breathRouteVisible ||
+    practiceAppState === "inactive" ||
+    practiceAppState === "background";
   const breathResourcesActive =
-    persistBreathCaptureUnlessOsBackground &&
+    persistBreathCaptureDuringOsTransition &&
     (phase === "warmup" || phase === "qualityCheck" || phase === "running");
   const cameraActive = breathResourcesActive;
 
@@ -2710,7 +2799,7 @@ function CoherenceBreathScreenInner({
     logRuntimeEvent("breath:resources_active", {
       breathRouteVisible,
       practiceAppState,
-      persistBreathCaptureUnlessOsBackground,
+      persistBreathCaptureDuringOsTransition,
       phase,
       cameraActive,
       isBreathTimingActive,
@@ -2718,7 +2807,7 @@ function CoherenceBreathScreenInner({
   }, [
     breathRouteVisible,
     practiceAppState,
-    persistBreathCaptureUnlessOsBackground,
+    persistBreathCaptureDuringOsTransition,
     cameraActive,
     isBreathTimingActive,
     phase,
@@ -3050,7 +3139,7 @@ function CoherenceBreathScreenInner({
             durationMs={practiceTotalMs}
             chakra={chakra ?? 4}
             isActive={
-              persistBreathCaptureUnlessOsBackground &&
+              persistBreathCaptureDuringOsTransition &&
               phase === "running" &&
               isBreathTimingActive
             }
