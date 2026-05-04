@@ -187,6 +187,16 @@ const PPG_SAMPLE_STRIDE = 6;
 const TORCH_LEVEL_RUNNING = 0.35;
 const TORCH_LEVEL_ACTIVATION = 0.35;
 
+/** Дать VisionCamera время поднять сессию до `torch="on"` (см. configureTorch в VC). */
+const TORCH_ARM_DELAY_MS = 450;
+/** После VC-torch не сразу дёргаем нативный `setTorchModeOn(level:)` — избегаем гонки с lock сессии. */
+const TORCH_NATIVE_LEVEL_DELAY_MS = 750;
+/**
+ * Не вызываем `turnOffBackTorch` мгновенно при кратком `isRenderActive=false`:
+ * иначе нативный lock на том же AVCaptureDevice, что у VisionCamera, ломает включение лампы.
+ */
+const TURN_OFF_TORCH_DEBOUNCE_MS = 450;
+
 /**
  * FingerPpgCameraSource намеренно обёрнут в `React.memo`: его родители
  * (`CoherenceBreathScreen`) ре-рендериваются несколько раз в секунду (snapshot
@@ -263,6 +273,8 @@ function FingerPpgCameraSourceImpl({
   const isRenderActive =
     isActive &&
     (isFocused || appState === "inactive" || appState === "background");
+  const isRenderActiveRef = useRef(isRenderActive);
+  isRenderActiveRef.current = isRenderActive;
   const isCameraSessionActive = isRenderActive;
   const device = useCameraDevice("back", { physicalDevices: ["wide-angle-camera"] });
   /**
@@ -305,10 +317,11 @@ function FingerPpgCameraSourceImpl({
   useEffect(() => {
     if (!isCameraSessionActive) {
       setTorchArmed(false);
+      setCameraReady(false);
       return;
     }
     pipeline.setPulseSource("fingerCamera");
-    const t = setTimeout(() => setTorchArmed(true), 250);
+    const t = setTimeout(() => setTorchArmed(true), TORCH_ARM_DELAY_MS);
     return () => clearTimeout(t);
   }, [isCameraSessionActive, cameraReady, pipeline]);
 
@@ -330,7 +343,7 @@ function FingerPpgCameraSourceImpl({
    *
    * Применяем level ПОСЛЕ того как VisionCamera включил torch (через
    * задержку, т.к. VisionCamera использует свой lockForConfiguration):
-   * при 500 мс задержке сессия уже стабильно активна, и наш вызов
+   * при ~750 мс сессия уже стабильно активна, и наш вызов
    * `setTorchModeOn(level:)` поверх проходит.
    *
    * Периодически «подтверждаем» уровень: некоторые прошивки iOS могут
@@ -354,7 +367,7 @@ function FingerPpgCameraSourceImpl({
       if (cancelled) return;
       void setBackTorchLevel(torchLevel);
     };
-    const initialTimer = setTimeout(applyLevel, 500);
+    const initialTimer = setTimeout(applyLevel, TORCH_NATIVE_LEVEL_DELAY_MS);
     const heartbeat = setInterval(applyLevel, 5_000);
     return () => {
       cancelled = true;
@@ -364,13 +377,25 @@ function FingerPpgCameraSourceImpl({
   }, [shouldEnableTorchViaVisionCamera, torchLevel]);
 
   /**
-   * При полном unmount / `isActive=false` принудительно выключаем torch —
-   * защита от «залипшего» фонарика, если последним держателем был
-   * нативный модуль (silent-mode).
+   * При unmount всегда гасим torch (даже если дебаунс «выкл при inactive» не успел).
+   */
+  useEffect(() => {
+    return () => {
+      void turnOffBackTorch();
+    };
+  }, []);
+
+  /**
+   * При длительном `isActive=false` гасим torch с дебаунсом — иначе краткие
+   * мигания `isRenderActive` дают гонку: наш `turnOffBackTorch` + VC `torch="on"`.
    */
   useEffect(() => {
     if (isRenderActive) return;
-    void turnOffBackTorch();
+    const id = setTimeout(() => {
+      if (isRenderActiveRef.current) return;
+      void turnOffBackTorch();
+    }, TURN_OFF_TORCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
   }, [isRenderActive]);
 
   useEffect(() => {
@@ -553,7 +578,7 @@ function FingerPpgCameraSourceImpl({
         //    гладко деградировать без runtime-ошибки.
         // В silent — строго 1 fps (см. `formatTargetFps`); иначе — до effectiveMaxFps.
         fps={silent ? [1, 1] : [1, effectiveMaxFps]}
-        onInitialized={() => setCameraReady(true)}
+        onStarted={() => setCameraReady(true)}
       />
     </View>
   );

@@ -2782,14 +2782,20 @@ function CoherenceBreathScreenInner({
   void qcDebugSnapshot;
 
   /**
-   * Камера/сенсор: держим захват в `inactive` и `background` (другой пакет на
-   * экране), даже если навигация дала blur — иначе фонарик гас в мультитаскинге.
-   * В `active` без `breathRouteVisible` (теоретический уход с маршрута) — гасим.
+   * Камера/сенсор:
+   *  - В `inactive` / `background` держим захват, даже если `useFocusEffect` уже
+   *    дал blur (иначе при уходе в другое приложение гас фонарик).
+   *  - В `active` при кратком `breathRouteVisible === false` (оверлей, порядок
+   *    blur раньше `inactive`) всё равно держим захват, пока идёт warmup/QC/running —
+   *    иначе мигание `<Camera isActive>` и ошибка «Не удалось включить лампу».
+   * Фактическое включение камеры по-прежнему режет `breathResourcesActive` (фазы).
    */
+  const breathSensorPhaseRunning =
+    phase === "warmup" || phase === "qualityCheck" || phase === "running";
   const persistBreathCaptureDuringOsTransition =
     breathRouteVisible ||
-    practiceAppState === "inactive" ||
-    practiceAppState === "background";
+    practiceAppState !== "active" ||
+    breathSensorPhaseRunning;
   const breathResourcesActive =
     persistBreathCaptureDuringOsTransition &&
     (phase === "warmup" || phase === "qualityCheck" || phase === "running");
