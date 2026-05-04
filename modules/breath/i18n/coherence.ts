@@ -100,6 +100,11 @@ export interface CoherenceBreathStrings {
   ppgBiometryPausedMessage: string;
   /** Короткий суффикс длительности на панели управления: «МИН» / «MIN». */
   practiceMinutesShort: string;
+  /** Авто-стоп: практика прервана из-за потери доверия к сигналу / фона. */
+  autoAbortTitle: string;
+  autoAbortMessage: string;
+  autoAbortStartAgain: string;
+  autoAbortExit: string;
   /** Диалог подтверждения досрочного выхода из практики. */
   stopConfirmTitle: string;
   stopConfirmMessage: string;
@@ -224,6 +229,11 @@ const ru: CoherenceBreathStrings = {
   ppgWeakSignalMessage: "Слабый сигнал, пульс не прощупывается",
   ppgBiometryPausedMessage: "Биометрия приостановлена, но продолжайте дыхание.",
   practiceMinutesShort: "минут",
+  autoAbortTitle: "Практика остановлена",
+  autoAbortMessage:
+    "Слишком долго не удавалось уверенно считывать пульс (вы ушли из приложения, застыл поток с камеры или палец не на сенсоре). Камера отключена. Начните заново или вернитесь на главный экран.",
+  autoAbortStartAgain: "Начать сначала",
+  autoAbortExit: "Выйти",
   stopConfirmTitle: "Завершить практику?",
   stopConfirmMessage:
     "Практика будет остановлена, а результаты по текущему отрезку не будут рассчитаны.",
@@ -336,6 +346,11 @@ const en: CoherenceBreathStrings = {
   ppgWeakSignalMessage: "Weak signal, pulse cannot be felt",
   ppgBiometryPausedMessage: "Biometrics paused — keep breathing.",
   practiceMinutesShort: "min",
+  autoAbortTitle: "Practice stopped",
+  autoAbortMessage:
+    "We could not reliably read your pulse for too long (app in background, camera feed stalled, or finger off the sensor). The camera has been turned off. Start again or return to the home screen.",
+  autoAbortStartAgain: "Start again",
+  autoAbortExit: "Exit",
   stopConfirmTitle: "End practice?",
   stopConfirmMessage:
     "The session will be stopped and results for the current run will not be computed.",

@@ -186,7 +186,7 @@ export const STRESS_HOLD_MS = 12_000;
  * Сколько мс после последнего реального удара канал может выдавать **экстраполированные**
  * тики на основе последнего стабильного периода. После — событие `heartbeatLost`.
  */
-export const LIVE_PULSE_EXTRAPOLATION_MAX_MS = 2_000;
+export const LIVE_PULSE_EXTRAPOLATION_MAX_MS = 5_000;
 
 /**
  * Минимальный jitter-фильтр на live: новый удар не публикуется, если он ближе к предыдущему,

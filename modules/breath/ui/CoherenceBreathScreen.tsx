@@ -66,6 +66,10 @@ import {
   type HybridPhase,
 } from "@/modules/breath/core/hybrid-measurement-controller";
 import {
+  BREATH_OPTICAL_STALL_HARD_MS,
+  BREATH_SESSION_SIGNAL_ABORT_MS,
+} from "@/modules/breath/core/breath-session-signal-policy";
+import {
   DEBUG_ACTIVATION_EXPORT_ENABLED,
   PERF_DIAGNOSTICS_ENABLED,
 } from "@/modules/breath/config/debug-flags";
@@ -341,6 +345,10 @@ function CoherenceBreathScreenInner({
   // snapshot-кэш канала оставался заполненным).
   useBiofeedbackChannel("pulseSource");
   const [useEmulatedPulseMode, setUseEmulatedPulseMode] = useState(false);
+  const useEmulatedPulseModeRef = useRef(false);
+  useEffect(() => {
+    useEmulatedPulseModeRef.current = useEmulatedPulseMode;
+  }, [useEmulatedPulseMode]);
   const [phase, setPhase] = useState<Phase>("idle");
   const phaseRef = useRef<Phase>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -721,6 +729,13 @@ function CoherenceBreathScreenInner({
   const qualityBadAccumMsRef = useRef(0);
   const fingerAbsentAccumMsRef = useRef(0);
   const lastSampleMsRef = useRef<number | null>(null);
+  /** `getLastSourceTimestampMs` не продвигается — застой optical (накопление по 250 мс wall). */
+  const opticalStallAccumMsRef = useRef(0);
+  const lastCameraTsForStallRef = useRef<number | null>(null);
+  const autoAbortAccumMsRef = useRef(0);
+  const sessionAbortHandledRef = useRef(false);
+  const applyHardPracticeExitRef = useRef<() => void>(() => {});
+  const appStateRef = useRef(AppState.currentState);
 
   /** Обратный отсчёт окна QC (секунды по времени камеры); `null` — ждём первую метку. */
   const [qcSecondsLeft, setQcSecondsLeft] = useState<number | null>(null);
@@ -728,6 +743,8 @@ function CoherenceBreathScreenInner({
   const [prepSecondsLeft, setPrepSecondsLeft] = useState<number | null>(null);
   /** Показать диалог «QC не прошёл — продолжить без датчика / повторить». */
   const [showQcFailedDialog, setShowQcFailedDialog] = useState(false);
+  /** Практика авто-прервана (потеря доверия к сигналу) — диалог на idle. */
+  const [showAutoAbortDialog, setShowAutoAbortDialog] = useState(false);
   /**
    * TAG_REMOVE_PERF_DIAGNOSTICS
    *
@@ -835,6 +852,14 @@ function CoherenceBreathScreenInner({
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    appStateRef.current = AppState.currentState;
+    const sub = AppState.addEventListener("change", (next) => {
+      appStateRef.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   /**
    * Блокируем автоматический переход экрана в сон, пока идёт пранаяма.
@@ -1312,6 +1337,14 @@ function CoherenceBreathScreenInner({
     return () => clearInterval(id);
   }, [phase]);
 
+  useEffect(() => {
+    if (phase !== "running") return;
+    sessionAbortHandledRef.current = false;
+    autoAbortAccumMsRef.current = 0;
+    opticalStallAccumMsRef.current = 0;
+    lastCameraTsForStallRef.current = null;
+  }, [phase]);
+
   // ─── Running: добавляем удары в CoherenceEngine + ведём баннеры качества ─
 
   useEffect(() => {
@@ -1334,7 +1367,15 @@ function CoherenceBreathScreenInner({
 
       const lastSample = lastSampleMsRef.current ?? now;
       const delta = Math.max(0, now - lastSample);
+      const advance = delta > 2 ? delta : 250;
       lastSampleMsRef.current = now;
+
+      if (lastCameraTsForStallRef.current != null && Math.abs(now - lastCameraTsForStallRef.current) < 1.5) {
+        opticalStallAccumMsRef.current += 250;
+      } else {
+        opticalStallAccumMsRef.current = 0;
+      }
+      lastCameraTsForStallRef.current = now;
 
       const snap = snapshotRef.current;
       const fingerOk = snap.fingerDetected;
@@ -1342,11 +1383,11 @@ function CoherenceBreathScreenInner({
         snap.pulseLockState === "searching" || snap.signalQuality < 0.5;
 
       if (!fingerOk) {
-        fingerAbsentAccumMsRef.current += delta;
+        fingerAbsentAccumMsRef.current += advance;
         qualityBadAccumMsRef.current = 0;
       } else {
         fingerAbsentAccumMsRef.current = 0;
-        if (badSignal) qualityBadAccumMsRef.current += delta;
+        if (badSignal) qualityBadAccumMsRef.current += advance;
         else qualityBadAccumMsRef.current = 0;
       }
       prevFingerDetectedForBannerRef.current = fingerOk;
@@ -1383,6 +1424,53 @@ function CoherenceBreathScreenInner({
         }
       }
       setPpgOverlayMessage((prev) => (prev === desired ? prev : desired));
+
+      const hybridEmulated =
+        hybridPhaseRef.current === "emulated" && pipeline.isOpticalPaused();
+      const appStateNow = appStateRef.current;
+      const lockTracking = snap.pulseLockState === "tracking";
+      const stallHard = opticalStallAccumMsRef.current >= BREATH_OPTICAL_STALL_HARD_MS;
+
+      let abortStress = false;
+      if (!hybridEmulated && !useSimulatedPpg && !useEmulatedPulseModeRef.current) {
+        if (appStateNow === "background" && (stallHard || !lockTracking)) {
+          abortStress = true;
+        } else if (!fingerOk && fingerAbsentAccumMsRef.current >= 3000) {
+          abortStress = true;
+        } else if (fingerOk && stallHard && !lockTracking) {
+          abortStress = true;
+        }
+      }
+
+      if (abortStress) {
+        autoAbortAccumMsRef.current += 250;
+      } else {
+        autoAbortAccumMsRef.current = 0;
+      }
+
+      if (
+        !sessionAbortHandledRef.current &&
+        autoAbortAccumMsRef.current >= BREATH_SESSION_SIGNAL_ABORT_MS &&
+        phaseRef.current === "running"
+      ) {
+        sessionAbortHandledRef.current = true;
+        logRuntimeEvent(
+          "breath:session_auto_abort",
+          {
+            appState: appStateNow,
+            stallMs: opticalStallAccumMsRef.current,
+            fingerOk,
+            lockState: snap.pulseLockState,
+            hybridEmulated,
+          },
+          "info",
+        );
+        setTimeout(() => {
+          applyHardPracticeExitRef.current();
+          setPhase("idle");
+          setShowAutoAbortDialog(true);
+        }, 0);
+      }
     }, 250);
     return () => clearInterval(id);
   }, [
@@ -2008,6 +2096,54 @@ function CoherenceBreathScreenInner({
     }
   }, []);
 
+  /**
+   * Полный сброс пайплайна/гибрида после выхода из running (ручной стоп или авто-аборт).
+   * Не меняет `phase` — вызывающий обязан перевести экран в `idle` / иначе.
+   */
+  const applyHardPracticeExit = useCallback(() => {
+    clearPpgBannerUi();
+    clearOverlayTimer();
+    setOverlayVisible(false);
+    setShowStopConfirm(false);
+    pipeline.softReset();
+    pipeline.getCoherenceEngine().reset();
+    plannerRef.current.reset();
+    pipeline.setOpticalPaused(false);
+    pipeline.setMetricsCapturePaused(false);
+    hybridControllerRef.current.reset();
+    realStartEndedAtMsRef.current = null;
+    realEndStartedAtMsRef.current = null;
+    stopBaselineRamp();
+    hybridPhaseRef.current = "realStart";
+    setCameraSilent(false);
+    setFinalStartAnalysis(null);
+    setFinalEndAnalysis(null);
+    setFinalStartHrv(null);
+    setFinalEndHrv(null);
+    setFinalStartAvgBpm(null);
+    setFinalEndAvgBpm(null);
+    setFinalStartWindowMs(null);
+    setFinalEndWindowMs(null);
+    setSessionStartWallMs(null);
+    setSessionStartLogicalMs(null);
+    setAnalysis(null);
+    setExportDebug(null);
+    setFinalRmssdMs(null);
+    setFinalStressPercent(null);
+    setFinalPulseWasEmulated(false);
+    setElapsedMs(0);
+    setCurrentPlan(null);
+    setCycleStartMs(null);
+    setUseEmulatedPulseMode(false);
+    opticalStallAccumMsRef.current = 0;
+    lastCameraTsForStallRef.current = null;
+    autoAbortAccumMsRef.current = 0;
+  }, [clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
+
+  useEffect(() => {
+    applyHardPracticeExitRef.current = applyHardPracticeExit;
+  }, [applyHardPracticeExit]);
+
   const scheduleOverlayHide = useCallback(() => {
     clearOverlayTimer();
     overlayHideTimerRef.current = setTimeout(() => {
@@ -2219,6 +2355,11 @@ function CoherenceBreathScreenInner({
       setCycleStartMs(null);
       setUseEmulatedPulseMode(forceEmulatedPulse);
       setShowQcFailedDialog(false);
+      setShowAutoAbortDialog(false);
+      sessionAbortHandledRef.current = false;
+      opticalStallAccumMsRef.current = 0;
+      lastCameraTsForStallRef.current = null;
+      autoAbortAccumMsRef.current = 0;
       clearPpgBannerUi();
 
       if (useSimulatedPpg || forceEmulatedPulse) {
@@ -2726,6 +2867,40 @@ function CoherenceBreathScreenInner({
         </View>
       ) : null}
 
+      {phase === "idle" && showAutoAbortDialog ? (
+        <AppDialog
+          visible
+          title={str.autoAbortTitle}
+          message={str.autoAbortMessage}
+          actions={
+            <>
+              <AppButton
+                variant="secondary"
+                label={str.autoAbortExit}
+                onPress={() => {
+                  setShowAutoAbortDialog(false);
+                  try {
+                    router.replace("/");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                style={styles.dialogAction}
+              />
+              <AppButton
+                variant="primary"
+                label={str.autoAbortStartAgain}
+                onPress={() => {
+                  setShowAutoAbortDialog(false);
+                  beginFromIdle(false);
+                }}
+                style={styles.dialogAction}
+              />
+            </>
+          }
+        />
+      ) : null}
+
       {sensorUiMounted ? (
         <View
           style={styles.calib}
@@ -2963,40 +3138,8 @@ function CoherenceBreathScreenInner({
                 variant="primary"
                 label={str.stopConfirmYes}
                 onPress={() => {
-                  setShowStopConfirm(false);
-                  clearOverlayTimer();
-                  setOverlayVisible(false);
-                  pipeline.softReset();
-                  pipeline.getCoherenceEngine().reset();
-                  plannerRef.current.reset();
-                  // Hybrid mode: снимаем паузу / заморозку / silent.
-                  pipeline.setOpticalPaused(false);
-                  pipeline.setMetricsCapturePaused(false);
-                  hybridControllerRef.current.reset();
-                  realStartEndedAtMsRef.current = null;
-                  realEndStartedAtMsRef.current = null;
-                  stopBaselineRamp();
-                  hybridPhaseRef.current = "realStart";
-                  setCameraSilent(false);
-                  setFinalStartAnalysis(null);
-                  setFinalEndAnalysis(null);
-                  setFinalStartHrv(null);
-                  setFinalEndHrv(null);
-                  setFinalStartAvgBpm(null);
-                  setFinalEndAvgBpm(null);
-                  setFinalStartWindowMs(null);
-                  setFinalEndWindowMs(null);
-                  setSessionStartWallMs(null);
-                  setSessionStartLogicalMs(null);
-                  setAnalysis(null);
-                  setExportDebug(null);
-                  setFinalRmssdMs(null);
-                  setFinalStressPercent(null);
-                  setFinalPulseWasEmulated(false);
-                  setElapsedMs(0);
-                  setCurrentPlan(null);
-                  setCycleStartMs(null);
-                  setUseEmulatedPulseMode(false);
+                  applyHardPracticeExit();
+                  setShowAutoAbortDialog(false);
                   setPhase("idle");
                 }}
                 style={styles.dialogAction}
