@@ -1,6 +1,7 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Modal, NativeModules, Pressable, StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Modal, NativeModules, Pressable, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import type { AccessMode } from "@/services/globalContentClient";
@@ -42,7 +43,103 @@ const WAVE_LINE_THICKNESS_PX = 4;
 const NOW_AIR_AT_CURVE_PX = 3;
 /** Воздух у горизонтальной оси (1px на `SKY_AXIS_Y`), не пересекаем линию. */
 const NOW_AIR_AT_AXIS_PX = 2;
-const NOW_BADGE_HEIGHT = 40;
+/** Высота строки «часы + время» у оси (оценка для позиции над/под линией). */
+const AXIS_NOW_ROW_H = 22;
+/** Зазор текста от горизонтальной оси, px. */
+const AXIS_NOW_GAP = 3;
+/** До первого onLayout бейджа — грубая оценка; после измерения используется фактическая ширина. */
+const NOW_BADGE_FALLBACK_W = 72;
+/** Половина «коробки» подписи маркера (колокольчик + время), пиксели — только для разведения текстов. */
+const MARKER_LABEL_HALF_W_PX = 36;
+/** Минимальный зазор между соседними подписями маркеров (край к краю), пиксели. */
+const LABEL_GAP_PX = 10;
+/** Половина ширины колонки маркера (width 64, margin −32) — clamp к краю графика без лишнего поля. */
+const MARKER_COLUMN_HALF_W_PX = 32;
+
+type ChartLabelSlot = { key: string; x: number; halfWidthPx: number };
+
+/**
+ * Единый горизонтальный layout: возвращает labelX как долю ширины (0…1), центр подписи.
+ * Точки на кривой остаются на своих x; смещаются только центры подписей.
+ */
+function layoutLabelCentersPx(width: number, slots: ChartLabelSlot[]): Map<string, number> {
+  const out = new Map<string, number>();
+  if (slots.length === 0) return out;
+  if (!(width > 0)) {
+    slots.forEach((s) => out.set(s.key, s.x));
+    return out;
+  }
+
+  const sorted = [...slots].sort((a, b) => a.x - b.x);
+  const centers = sorted.map((s) => {
+    const ideal = s.x * width;
+    const edge = MARKER_COLUMN_HALF_W_PX;
+    return Math.min(width - edge, Math.max(edge, ideal));
+  });
+
+  const sep = (i: number, j: number) => sorted[i].halfWidthPx + sorted[j].halfWidthPx + LABEL_GAP_PX;
+
+  for (let iter = 0; iter < 14; iter += 1) {
+    for (let i = 1; i < sorted.length; i += 1) {
+      const minC = centers[i - 1] + sep(i - 1, i);
+      if (centers[i] < minC) centers[i] = minC;
+    }
+    for (let i = sorted.length - 2; i >= 0; i -= 1) {
+      const maxC = centers[i + 1] - sep(i, i + 1);
+      if (centers[i] > maxC) centers[i] = maxC;
+    }
+    for (let i = 0; i < sorted.length; i += 1) {
+      const edge = MARKER_COLUMN_HALF_W_PX;
+      centers[i] = Math.min(width - edge, Math.max(edge, centers[i]));
+    }
+  }
+
+  sorted.forEach((s, i) => out.set(s.key, centers[i] / width));
+  return out;
+}
+
+/** Горизонталь `left` точки/пунктира внутри маркера (px): центр точки на x·W, колонка центрирована на labelX·W. */
+function markerPointLeftPx(chartW: number, x: number, labelX: number): number {
+  if (!(chartW > 0)) return 0;
+  return (x - labelX) * chartW + MARKER_COLUMN_HALF_W_PX;
+}
+
+/**
+ * Подпись «сейчас» — идеально у доли now, сдвигается только при пересечении с коробками маркеров.
+ */
+function placeNowLabelCenterX(
+  chartW: number,
+  nowFrac: number,
+  badgeHalfPx: number,
+  markerPoints: Array<{ labelX: number }>,
+): number {
+  if (!(chartW > 0)) return nowFrac * chartW;
+  const loBound = badgeHalfPx;
+  const hiBound = chartW - badgeHalfPx;
+  let c = nowFrac * chartW;
+  c = Math.min(hiBound, Math.max(loBound, c));
+  const intervals = markerPoints.map((p) => ({
+    lo: p.labelX * chartW - MARKER_LABEL_HALF_W_PX,
+    hi: p.labelX * chartW + MARKER_LABEL_HALF_W_PX,
+  }));
+  const g = LABEL_GAP_PX;
+  for (let iter = 0; iter < 18; iter += 1) {
+    let changed = false;
+    for (const it of intervals) {
+      const nLo = c - badgeHalfPx;
+      const nHi = c + badgeHalfPx;
+      if (nHi + g <= it.lo || nLo - g >= it.hi) continue;
+      const pushR = it.hi + g + badgeHalfPx - c;
+      const pushL = it.lo - g - badgeHalfPx - c;
+      c += Math.abs(pushR) <= Math.abs(pushL) ? pushR : pushL;
+      c = Math.min(hiBound, Math.max(loBound, c));
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  return c;
+}
+
 const NOW_DASH_LEN = 2;
 const NOW_DASH_GAP = 4;
 const AXIS_LINE_OPACITY = 0.52;
@@ -85,12 +182,13 @@ function getOptionalNotifications(): NotificationsModule | null {
   }
 }
 
-function timeToDayX(time?: string): { x: number; past: boolean } | null {
+/** Доля суток 0…1 по локальному времени строки (без искусственного сжатия — совпадает с линией «сейчас»). */
+function timeToDayFraction(time?: string): { x: number; past: boolean } | null {
   if (!time) return null;
   const date = new Date(time);
   if (Number.isNaN(date.getTime())) return null;
   const minutes = date.getHours() * 60 + date.getMinutes();
-  const x = Math.max(0.02, Math.min(0.98, minutes / 1440));
+  const x = Math.min(1, Math.max(0, minutes / 1440));
   return { x, past: date.getTime() < Date.now() };
 }
 
@@ -111,28 +209,14 @@ function makeSkyY(riseX: number | null, culminationX: number | null) {
   };
 }
 
-function withReadableLabelSlots<T extends { x: number }>(points: T[]): Array<T & { labelX: number }> {
-  const sorted = points.map((point, index) => ({ ...point, originalIndex: index })).sort((a, b) => a.x - b.x);
-  const minGap = 0.18;
-  let previous = -Infinity;
-  const placed = sorted.map((point) => {
-    const labelX = Math.max(point.x, previous + minGap);
-    previous = labelX;
-    return { ...point, labelX };
-  });
-  const overflow = Math.max(0, (placed.at(-1)?.labelX ?? 0) - 0.96);
-  return placed
-    .map((point) => ({ ...point, labelX: Math.max(0.04, point.labelX - overflow) }))
-    .sort((a, b) => a.originalIndex - b.originalIndex)
-    .map(({ originalIndex, ...point }) => point as T & { labelX: number });
-}
-
 export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMode }: OpportunityWindowsProps) {
   const theme = useTheme();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [enabledReminders, setEnabledReminders] = useState<Record<string, "exact" | "before5">>({});
   const notificationIdsRef = useRef<Record<string, string>>({});
+  const [chartWidth, setChartWidth] = useState(0);
+  const [nowBadgeLayoutW, setNowBadgeLayoutW] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
   const lineColor = PLANET_CHAKRA[planetOfTheDay].color;
@@ -172,12 +256,13 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
   ];
   const displayItems = items.filter((item): item is WindowItem => Boolean(item));
   const activeItems = displayItems.filter((item) => item.time);
-  const risePoint = timeToDayX(windows.sunrise?.time);
-  const culminationPoint = timeToDayX(windows.culmination?.time);
+  const risePoint = timeToDayFraction(windows.sunrise?.time);
+  const culminationPoint = timeToDayFraction(windows.culmination?.time);
   const skyY = useMemo(() => makeSkyY(risePoint?.x ?? null, culminationPoint?.x ?? null), [risePoint?.x, culminationPoint?.x]);
   const currentTimePoint = useMemo(() => {
     const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-    const x = Math.max(0.02, Math.min(0.98, minutes / 1440));
+    // Доля суток без искусственного 0.02–0.98: у полуночи линия «сейчас» у реального правого края графика.
+    const x = Math.min(1, Math.max(0, minutes / 1440));
     return {
       x,
       y: skyY(x),
@@ -193,19 +278,67 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     [theme.colors.textFaint],
   );
   const nowDashYs = useMemo(() => nowLineDashKeys(nowLinePixelHeight), [nowLinePixelHeight]);
-  const nowBadgeTop = currentTimePoint.y < SKY_AXIS_Y ? Math.max(0, currentTimePoint.y - NOW_BADGE_HEIGHT - 4) : Math.min(152 - NOW_BADGE_HEIGHT, currentTimePoint.y + 10);
+  // Подпись «сейчас» у горизонтали: кривая ниже оси → текст над осью; кривая над осью → текст под осью (меньше пересечений с волной).
+  const nowAxisBadgeTop = useMemo(() => {
+    if (yCurve > SKY_AXIS_Y) {
+      return Math.max(2, SKY_AXIS_Y - AXIS_NOW_ROW_H - AXIS_NOW_GAP);
+    }
+    return Math.min(152 - AXIS_NOW_ROW_H - 2, SKY_AXIS_Y + AXIS_NOW_GAP);
+  }, [yCurve]);
+
+  const chartMarkerLabelSlots = useMemo((): ChartLabelSlot[] => {
+    const slots: ChartLabelSlot[] = [];
+    for (const item of activeItems) {
+      const frac = timeToDayFraction(item.time);
+      if (frac) {
+        slots.push({ key: item.key, x: frac.x, halfWidthPx: MARKER_LABEL_HALF_W_PX });
+      }
+    }
+    return slots;
+  }, [activeItems]);
+
+  const chartMarkerLabelXByKey = useMemo(
+    () => layoutLabelCentersPx(chartWidth, chartMarkerLabelSlots),
+    [chartWidth, chartMarkerLabelSlots],
+  );
+
+  const onChartLayout = useCallback((event: LayoutChangeEvent) => {
+    setChartWidth(event.nativeEvent.layout.width);
+  }, []);
+
+  const onNowBadgeLayout = useCallback((event: LayoutChangeEvent) => {
+    const w = event.nativeEvent.layout.width;
+    setNowBadgeLayoutW((prev) => (Math.abs(prev - w) < 0.5 ? prev : w));
+  }, []);
   const chartDots = Array.from({ length: 180 }, (_, index) => {
     const x = index / 179;
     return { x, y: skyY(x) };
   });
-  const chartPoints = withReadableLabelSlots(
-    activeItems
-      .map((item) => {
-        const point = timeToDayX(item.time);
-        return point ? { ...item, ...point, y: skyY(point.x) } : null;
-      })
-      .filter((item): item is WindowItem & { x: number; y: number; past: boolean } => Boolean(item)),
+  const chartPoints = useMemo(
+    () =>
+      activeItems
+        .map((item) => {
+          const frac = timeToDayFraction(item.time);
+          if (!frac) return null;
+          const labelX = chartMarkerLabelXByKey.get(item.key) ?? frac.x;
+          return {
+            ...item,
+            ...frac,
+            y: skyY(frac.x),
+            labelX,
+          };
+        })
+        .filter((item): item is WindowItem & { x: number; y: number; past: boolean; labelX: number } => Boolean(item)),
+    [activeItems, chartMarkerLabelXByKey, skyY],
   );
+
+  const nowBadgeBodyHalfPx = (nowBadgeLayoutW > 0 ? nowBadgeLayoutW : NOW_BADGE_FALLBACK_W) / 2;
+  const nowBadgeCollisionHalfPx = Math.max(nowBadgeBodyHalfPx, 28);
+  const nowLabelCenterPx = useMemo(
+    () => placeNowLabelCenterX(chartWidth, currentTimePoint.x, nowBadgeCollisionHalfPx, chartPoints),
+    [chartWidth, currentTimePoint.x, nowBadgeCollisionHalfPx, chartPoints],
+  );
+  const nowLabelX = chartWidth > 0 ? nowLabelCenterPx / chartWidth : currentTimePoint.x;
 
   async function toggleReminder(item: WindowItem) {
     if (!item.time) return;
@@ -285,7 +418,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
         </AppText>
       </View>
 
-      <View style={styles.chartWrap}>
+      <View style={styles.chartWrap} onLayout={onChartLayout}>
         <View style={[styles.axis, { backgroundColor: gridLineMuted }]} />
         <View
           pointerEvents="none"
@@ -312,19 +445,6 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
               ]}
             />
           ))}
-          <View
-            style={[
-              styles.nowLineBadge,
-              {
-                backgroundColor: "transparent",
-                top: nowBadgeTop - nowLineTop,
-              },
-            ]}
-          >
-            <AppText variant="technicalCaption" tone="muted">
-              {strings.locale === "ru" ? "Сейчас" : "Now"} {currentTimePoint.label}
-            </AppText>
-          </View>
         </View>
         {chartDots.map((dot, index) => (
           <View
@@ -358,7 +478,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
                 styles.dash,
                 {
                   borderColor: theme.colors.surfaceBorder,
-                  left: `${((point.x - point.labelX) * 100) + 50}%`,
+                  left: markerPointLeftPx(chartWidth, point.x, point.labelX),
                   top: Math.min(point.y + 8, 78),
                 },
               ]}
@@ -368,7 +488,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
                 styles.point,
                 {
                   backgroundColor: lineColor,
-                  left: `${((point.x - point.labelX) * 100) + 50}%`,
+                  left: markerPointLeftPx(chartWidth, point.x, point.labelX),
                   top: point.y,
                 },
               ]}
@@ -379,12 +499,32 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
                 size={13}
                 color={enabledReminders[point.key] ? theme.colors.danger : point.past ? theme.colors.textFaint : theme.colors.textPrimary}
               />
-              <AppText variant="technicalCaption" tone={point.past ? "faint" : "primary"} style={styles.markerTime}>
+              <AppText variant="technicalCaption" tone={point.past ? "faint" : "primary"}>
                 {point.time ? strings.formatTime(point.time) : ""}
               </AppText>
             </View>
           </Pressable>
         ))}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.nowLineBadge,
+            styles.nowBadgeRow,
+            {
+              backgroundColor: "transparent",
+              left: `${nowLabelX * 100}%`,
+              marginLeft: -nowBadgeBodyHalfPx,
+              maxWidth: chartWidth > 0 ? chartWidth : undefined,
+              top: nowAxisBadgeTop,
+            },
+          ]}
+          onLayout={onNowBadgeLayout}
+        >
+          <Ionicons name="time-outline" size={12} color={theme.colors.textPrimary} />
+          <AppText variant="technicalCaption" tone="primary">
+            {currentTimePoint.label}
+          </AppText>
+        </View>
       </View>
 
       <View style={styles.windowList}>
@@ -464,12 +604,16 @@ const styles = StyleSheet.create({
   nowLineBadge: {
     alignItems: "center",
     borderRadius: 999,
-    position: "absolute",
-    paddingHorizontal: 8,
+    paddingHorizontal: 2,
     paddingVertical: 3,
-    transform: [{ translateX: -30 }],
-    width: 60,
-    zIndex: 3,
+    position: "absolute",
+    zIndex: 6,
+  },
+  nowBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    justifyContent: "center",
   },
   waveDot: {
     borderRadius: 999,
@@ -507,9 +651,6 @@ const styles = StyleSheet.create({
     gap: 4,
     justifyContent: "center",
     position: "absolute",
-  },
-  markerTime: {
-    fontWeight: "700",
   },
   modalBackdrop: {
     alignItems: "center",
