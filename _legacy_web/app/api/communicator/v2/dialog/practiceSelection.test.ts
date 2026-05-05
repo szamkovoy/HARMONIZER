@@ -123,6 +123,44 @@ describe("choosePractice", () => {
     });
   });
 
+  it("preserves a stored thumbnail from practice params", async () => {
+    const picked = await choosePractice(
+      createDb({
+        practices: [
+          yoga({
+            id: "with-thumb",
+            video_external_id: "vimeo-1",
+            params: {
+              video_thumbnail: {
+                url: "https://i.vimeocdn.com/video/test_295x166.jpg",
+                width: 295,
+                height: 166,
+              },
+            },
+          }),
+        ],
+      }) as never,
+      "user1",
+      null,
+      { forecast: { planet_of_the_day: "Mercury" } },
+      "Хочу асану",
+      [],
+    );
+
+    expect(publicPracticePickedPayload(picked!)).toMatchObject({
+      id: "with-thumb",
+      video: {
+        provider: "vimeo",
+        externalId: "vimeo-1",
+        thumbnail: {
+          url: "https://i.vimeocdn.com/video/test_295x166.jpg",
+          width: 295,
+          height: 166,
+        },
+      },
+    });
+  });
+
   it("can recommend the static meditation when it is not present in Supabase yet", async () => {
     const picked = await choosePractice(
       createDb({

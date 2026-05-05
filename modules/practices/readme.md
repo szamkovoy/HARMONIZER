@@ -45,6 +45,7 @@
 - `default_duration_sec`;
 - `rating` как качество;
 - `params.recorded_at` и `params.duration_policy='fixed'`;
+- `params.video_thumbnail = { url, width, height }` для сохраненного превью без live-запроса к Vimeo;
 - несколько чакр через `practice_chakras`.
 
 ## Сессии и статистика

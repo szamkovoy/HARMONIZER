@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PracticeRecommendation } from "@shared/recommendation";
+import { readPracticeVideoThumbnailFromParams } from "@shared/practiceVideo";
 import {
   recentStackLimitForKind,
   selectPracticeCandidate,
@@ -261,6 +262,7 @@ function toPracticePickedPayload(
       ? {
           provider: "vimeo",
           externalId: practice.video_external_id,
+          thumbnail: readPracticeVideoThumbnailFromParams(params),
         }
       : null,
     stack,

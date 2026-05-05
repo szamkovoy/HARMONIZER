@@ -4,6 +4,7 @@ import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { getSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
+import { readPracticeVideoThumbnailFromParams } from "@shared/practiceVideo";
 
 import type {
   PracticeCatalog,
@@ -157,6 +158,7 @@ function yogaPracticeFromRow(row: YogaCatalogRow): PracticeSummary {
       ? {
           provider: row.video_provider ?? "vimeo",
           externalId: row.video_external_id ?? undefined,
+          thumbnail: readPracticeVideoThumbnailFromParams(params),
         }
       : undefined;
 

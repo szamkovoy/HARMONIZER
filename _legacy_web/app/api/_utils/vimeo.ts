@@ -1,3 +1,4 @@
+import { readPracticeVideoThumbnailFromParams } from "@shared/practiceVideo";
 import type { PracticeRecommendation, PracticeVideoThumbnail } from "@shared/recommendation";
 
 const VIMEO_API_BASE = "https://api.vimeo.com";
@@ -122,6 +123,7 @@ export async function attachThumbnailToPracticeRecommendation<T extends Practice
 ): Promise<T> {
   const video = practice.video;
   if (!video || video.provider !== "vimeo" || !video.externalId) return practice;
+  if (video.thumbnail?.url) return practice;
   const thumbnail = await fetchVimeoThumbnail(video.externalId, targetWidth);
   return {
     ...practice,
@@ -130,4 +132,8 @@ export async function attachThumbnailToPracticeRecommendation<T extends Practice
       thumbnail,
     },
   };
+}
+
+export function readStoredPracticeThumbnail(params: unknown): PracticeVideoThumbnail | null {
+  return readPracticeVideoThumbnailFromParams(params);
 }

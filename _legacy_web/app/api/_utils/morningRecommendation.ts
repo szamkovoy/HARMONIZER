@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import chakraStatesBaseline from "../../../../data/chakra_states_baseline.json";
-import { CONTENT_LENGTHS } from "../../../../config/contentLengths";
-import type { NatalProfile } from "../../../../modules/astro-core";
-import type { DailyForecast } from "../../../../modules/daily-engine";
+import chakraStatesBaseline from "../../../data/chakra_states_baseline.json";
+import { CONTENT_LENGTHS } from "../../../config/contentLengths";
+import type { NatalProfile } from "../../../modules/astro-core";
+import type { DailyForecast } from "../../../modules/daily-engine";
 import { buildAddressFormHint } from "./addressForm";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "./authorVoice";
 import { generateGeminiJson, getModelByHint } from "./gemini";
@@ -144,7 +144,11 @@ export async function ensureMorningRecommendation(params: {
   if (!scenario) {
     throw new Error("Scenario morning_recommendation not found");
   }
-  const prompt = await getActivePrompt(params.db, scenario.monologue_prompt_key);
+  const promptKey = scenario.monologue_prompt_key?.trim();
+  if (!promptKey) {
+    throw new Error("Scenario morning_recommendation has no monologue_prompt_key");
+  }
+  const prompt = await getActivePrompt(params.db, promptKey);
   const expectedModel = getModelByHint(prompt.model_hint);
 
   if (!params.forceRefresh) {
