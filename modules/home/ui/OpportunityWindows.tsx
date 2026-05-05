@@ -1,8 +1,9 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Modal, NativeModules, Pressable, StyleSheet, View } from "react-native";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
+import type { AccessMode } from "@/services/globalContentClient";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
@@ -14,6 +15,7 @@ interface OpportunityWindowsProps {
   planetOfTheDay: Planet;
   windows: Windows;
   strings: HomeStrings;
+  accessMode: AccessMode;
 }
 
 type WindowItem = {
@@ -32,6 +34,47 @@ type NotificationsModule = {
   }) => Promise<string>;
   SchedulableTriggerInputTypes?: { DATE?: string };
 };
+
+const SKY_AXIS_Y = 78;
+/** Высота точек волны (`waveDot`) — `top` совпадает с мат. Y, тело линии уходит вниз на эту величину. */
+const WAVE_LINE_THICKNESS_PX = 4;
+/** Воздух после нижнего края волны / перед верхним краём волны (не наезжаем на жёлтый/синий след). */
+const NOW_AIR_AT_CURVE_PX = 3;
+/** Воздух у горизонтальной оси (1px на `SKY_AXIS_Y`), не пересекаем линию. */
+const NOW_AIR_AT_AXIS_PX = 2;
+const NOW_BADGE_HEIGHT = 40;
+const NOW_DASH_LEN = 2;
+const NOW_DASH_GAP = 4;
+const AXIS_LINE_OPACITY = 0.52;
+
+function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function computeNowLineSpan(yCurve: number, yAxis: number): { top: number; height: number } {
+  if (yCurve < yAxis) {
+    const top = yCurve + WAVE_LINE_THICKNESS_PX + NOW_AIR_AT_CURVE_PX;
+    const bottom = yAxis - NOW_AIR_AT_AXIS_PX;
+    return { top, height: Math.max(0, bottom - top) };
+  }
+  const top = yAxis + 1 + NOW_AIR_AT_AXIS_PX;
+  const bottom = yCurve - NOW_AIR_AT_CURVE_PX;
+  return { top, height: Math.max(0, bottom - top) };
+}
+
+function nowLineDashKeys(heightPx: number): number[] {
+  const keys: number[] = [];
+  for (let y = 0; y < heightPx; y += NOW_DASH_LEN + NOW_DASH_GAP) {
+    keys.push(y);
+  }
+  return keys;
+}
 
 function getOptionalNotifications(): NotificationsModule | null {
   if (!NativeModules.ExpoPushTokenManager) return null;
@@ -56,7 +99,6 @@ function circularDelta(from: number, to: number): number {
 }
 
 function makeSkyY(riseX: number | null, culminationX: number | null) {
-  const axisY = 78;
   const amplitude = 42;
   const period = riseX != null && culminationX != null
     ? Math.max(0.45, Math.min(1.35, circularDelta(riseX, culminationX) * 4))
@@ -65,7 +107,7 @@ function makeSkyY(riseX: number | null, culminationX: number | null) {
 
   return (x: number) => {
     const elapsed = x - phaseRise;
-    return axisY - Math.sin((elapsed / period) * Math.PI * 2) * amplitude;
+    return SKY_AXIS_Y - Math.sin((elapsed / period) * Math.PI * 2) * amplitude;
   };
 }
 
@@ -85,15 +127,23 @@ function withReadableLabelSlots<T extends { x: number }>(points: T[]): Array<T &
     .map(({ originalIndex, ...point }) => point as T & { labelX: number });
 }
 
-export function OpportunityWindows({ planetOfTheDay, windows, strings }: OpportunityWindowsProps) {
+export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMode }: OpportunityWindowsProps) {
   const theme = useTheme();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [enabledReminders, setEnabledReminders] = useState<Record<string, "exact" | "before5">>({});
   const notificationIdsRef = useRef<Record<string, string>>({});
+  const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
   const lineColor = PLANET_CHAKRA[planetOfTheDay].color;
-  const items: WindowItem[] = [
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const items: Array<WindowItem | null> = [
     {
       key: "sunrise",
       title: t.windowTitles.sunrise,
@@ -106,25 +156,44 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings }: Opportu
       time: windows.culmination?.time,
       detail: windows.culmination ? t.culminationDetail(strings.planetLabels[windows.culmination.planet]) : null,
     },
-    {
-      key: "exactAspect",
-      title: t.windowTitles.exactAspect,
-      time: windows.exactAspect?.time,
-      detail: windows.exactAspect
-        ? t.exactAspectDetail(
-            t.aspectLabels[windows.exactAspect.aspectType as AspectType],
-            strings.planetLabels[windows.exactAspect.toNatalPlanet],
-          )
-        : null,
-    },
+    accessMode === "free"
+      ? null
+      : {
+          key: "exactAspect",
+          title: t.windowTitles.exactAspect,
+          time: windows.exactAspect?.time,
+          detail: windows.exactAspect
+            ? t.exactAspectDetail(
+                t.aspectLabels[windows.exactAspect.aspectType as AspectType],
+                strings.planetLabels[windows.exactAspect.toNatalPlanet],
+              )
+            : null,
+        },
   ];
-  const activeItems = items.filter((item) => item.time);
+  const displayItems = items.filter((item): item is WindowItem => Boolean(item));
+  const activeItems = displayItems.filter((item) => item.time);
   const risePoint = timeToDayX(windows.sunrise?.time);
   const culminationPoint = timeToDayX(windows.culmination?.time);
-  const skyY = useMemo(
-    () => makeSkyY(risePoint?.x ?? null, culminationPoint?.x ?? null),
-    [risePoint?.x, culminationPoint?.x],
+  const skyY = useMemo(() => makeSkyY(risePoint?.x ?? null, culminationPoint?.x ?? null), [risePoint?.x, culminationPoint?.x]);
+  const currentTimePoint = useMemo(() => {
+    const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    const x = Math.max(0.02, Math.min(0.98, minutes / 1440));
+    return {
+      x,
+      y: skyY(x),
+      label: strings.formatTime(now.toISOString()),
+    };
+  }, [now, skyY, strings]);
+  const yCurve = currentTimePoint.y;
+  const yAxis = SKY_AXIS_Y;
+  const { top: nowLineTop, height: nowLineHeight } = computeNowLineSpan(yCurve, yAxis);
+  const nowLinePixelHeight = Math.max(1, Math.round(nowLineHeight));
+  const gridLineMuted = useMemo(
+    () => hexToRgba(theme.colors.textFaint, AXIS_LINE_OPACITY),
+    [theme.colors.textFaint],
   );
+  const nowDashYs = useMemo(() => nowLineDashKeys(nowLinePixelHeight), [nowLinePixelHeight]);
+  const nowBadgeTop = currentTimePoint.y < SKY_AXIS_Y ? Math.max(0, currentTimePoint.y - NOW_BADGE_HEIGHT - 4) : Math.min(152 - NOW_BADGE_HEIGHT, currentTimePoint.y + 10);
   const chartDots = Array.from({ length: 180 }, (_, index) => {
     const x = index / 179;
     return { x, y: skyY(x) };
@@ -217,7 +286,46 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings }: Opportu
       </View>
 
       <View style={styles.chartWrap}>
-        <View style={[styles.axis, { backgroundColor: theme.colors.surfaceBorder }]} />
+        <View style={[styles.axis, { backgroundColor: gridLineMuted }]} />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.nowLine,
+            {
+              left: `${currentTimePoint.x * 100}%`,
+              top: nowLineTop,
+              height: nowLinePixelHeight,
+              transform: [{ translateX: -0.5 }],
+            },
+          ]}
+        >
+          {nowDashYs.map((y) => (
+            <View
+              key={y}
+              style={[
+                styles.nowDashSegment,
+                {
+                  backgroundColor: gridLineMuted,
+                  top: y,
+                  height: Math.min(NOW_DASH_LEN, nowLinePixelHeight - y),
+                },
+              ]}
+            />
+          ))}
+          <View
+            style={[
+              styles.nowLineBadge,
+              {
+                backgroundColor: "transparent",
+                top: nowBadgeTop - nowLineTop,
+              },
+            ]}
+          >
+            <AppText variant="technicalCaption" tone="muted">
+              {strings.locale === "ru" ? "Сейчас" : "Now"} {currentTimePoint.label}
+            </AppText>
+          </View>
+        </View>
         {chartDots.map((dot, index) => (
           <View
             key={index}
@@ -280,7 +388,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings }: Opportu
       </View>
 
       <View style={styles.windowList}>
-        {items.map((item) => (
+        {displayItems.map((item) => (
           <View key={item.key} style={styles.windowLine}>
             <AppText variant="statPillLabel">{item.title}</AppText>
             <AppText variant="technicalCaption" tone="muted" style={styles.windowDetail}>
@@ -336,11 +444,32 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   axis: {
-    height: StyleSheet.hairlineWidth,
+    height: 1,
     left: 0,
     position: "absolute",
     right: 0,
     top: 78,
+  },
+  nowLine: {
+    position: "absolute",
+    width: 1,
+    zIndex: 2,
+  },
+  nowDashSegment: {
+    borderRadius: 0.5,
+    left: 0,
+    position: "absolute",
+    width: 1,
+  },
+  nowLineBadge: {
+    alignItems: "center",
+    borderRadius: 999,
+    position: "absolute",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    transform: [{ translateX: -30 }],
+    width: 60,
+    zIndex: 3,
   },
   waveDot: {
     borderRadius: 999,
@@ -361,6 +490,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     height: 12,
     marginLeft: -6,
+    marginTop: -6,
     position: "absolute",
     width: 12,
   },

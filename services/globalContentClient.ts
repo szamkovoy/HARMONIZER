@@ -1,5 +1,5 @@
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
-import { computeWindowsForFreeUser, type FreeUserTopAspect } from "@/modules/daily-engine";
+import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 
@@ -18,7 +18,6 @@ type GlobalTopPetal = {
   chakra_label: string;
   gravity: number;
   tone: "harmonic" | "dissonant" | "ambivalent_strong";
-  main_aspects?: FreeUserTopAspect[];
 };
 
 type GlobalContentResponse = {
@@ -191,10 +190,8 @@ export async function fetchGlobalContent(req: {
   const rankedPlanets = [...(data.top_petals ?? [])]
     .sort((a, b) => (b.gravity ?? 0) - (a.gravity ?? 0))
     .map((petal) => petal.planet);
-  const topAspect = data.top_petals?.[0]?.main_aspects?.[0] ?? null;
   const windowsOfOpportunity = computeWindowsForFreeUser({
     primaryPlanet: data.primary_planet,
-    topAspect,
     userLocation: req.userLocation,
     forecastDate: data.forecast_date,
   });

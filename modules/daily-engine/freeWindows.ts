@@ -3,17 +3,10 @@ import sidereal from "astronomia/sidereal";
 import julian from "astronomia/julian";
 
 import { equatorialForPlanetAt, PLANETS_7 } from "@/modules/astro-core";
-import type { AspectType, DailyForecast, Planet } from "./core/types";
+import type { DailyForecast, Planet } from "./core/types";
 
 const DEG_TO_RAD = Math.PI / 180;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
-
-export type FreeUserTopAspect = {
-  from: Planet;
-  to: Planet;
-  type: AspectType;
-  exact_at?: string | null;
-} | null;
 
 function isPlanet(value: unknown): value is Planet {
   return typeof value === "string" && (PLANETS_7 as readonly string[]).includes(value);
@@ -80,27 +73,15 @@ function computeCulminationTime(planet: Planet, userLocation: { lat: number; lng
 
 export function computeWindowsForFreeUser(params: {
   primaryPlanet: Planet;
-  topAspect: FreeUserTopAspect;
   userLocation: { lat: number; lng: number; timezone: string };
   forecastDate: string;
 }): DailyForecast["windowsOfOpportunity"] {
   const riseTime = computeRiseTime(params.primaryPlanet, params.userLocation, params.forecastDate);
   const culminationTime = computeCulminationTime(params.primaryPlanet, params.userLocation, params.forecastDate);
-  const exactDate = params.topAspect?.exact_at ? new Date(params.topAspect.exact_at) : null;
-  const exactLocal = exactDate && !Number.isNaN(exactDate.getTime())
-    ? DateTime.fromJSDate(exactDate, { zone: "utc" }).setZone(params.userLocation.timezone)
-    : null;
 
   return {
     sunrise: riseTime ? { time: riseTime, planet: params.primaryPlanet } : null,
     culmination: culminationTime ? { time: culminationTime, planet: params.primaryPlanet } : null,
-    exactAspect:
-      params.topAspect && exactLocal?.toISO() && isPlanet(params.topAspect.to)
-        ? {
-            time: exactLocal.toISO()!,
-            aspectType: params.topAspect.type,
-            toNatalPlanet: params.topAspect.to,
-          }
-        : null,
+    exactAspect: null,
   };
 }

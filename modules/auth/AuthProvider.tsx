@@ -31,12 +31,9 @@ import type { AuthContextValue, AuthUserRow } from "./types";
 const AuthContext = createContext<AuthContextValue | null>(null);
 export { AuthContext };
 
-const INITIAL_SESSION_TIMEOUT_MS = 15000;
-const INITIAL_SESSION_MAX_ATTEMPTS = 4;
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((r) => setTimeout(r, ms));
-}
+const INITIAL_SESSION_TIMEOUT_MS = 8000;
+/** Если подписка GoTrue по какой-то причине не отдала первое событие — не держим сплэш вечно. */
+const AUTH_BOOTSTRAP_SAFETY_MS = 25_000;
 
 /**
  * Холодный старт: getSession → при истёкшем access token внутри идёт refresh по сети.
@@ -46,32 +43,23 @@ async function sleep(ms: number): Promise<void> {
 async function resolveInitialSession(
   supabase: ReturnType<typeof requireSupabase>,
 ): Promise<Session | null> {
-  for (let attempt = 0; attempt < INITIAL_SESSION_MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const { data, error } = await Promise.race([
-        supabase.auth.getSession(),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Supabase getSession timed out after ${INITIAL_SESSION_TIMEOUT_MS}ms`));
-          }, INITIAL_SESSION_TIMEOUT_MS);
-        }),
-      ]);
-      if (data.session) return data.session;
-      if (!error) return null;
-      if (isAuthSessionResultTransientFailure(error) && attempt < INITIAL_SESSION_MAX_ATTEMPTS - 1) {
-        await sleep(700 * (attempt + 1));
-        continue;
-      }
-      return null;
-    } catch (error) {
-      if (isTransientAuthConnectivityFailure(error) && attempt < INITIAL_SESSION_MAX_ATTEMPTS - 1) {
-        await sleep(700 * (attempt + 1));
-        continue;
-      }
-      return null;
-    }
+  try {
+    const { data, error } = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Supabase getSession timed out after ${INITIAL_SESSION_TIMEOUT_MS}ms`));
+        }, INITIAL_SESSION_TIMEOUT_MS);
+      }),
+    ]);
+    if (data.session) return data.session;
+    if (!error) return null;
+    if (isAuthSessionResultTransientFailure(error) || isTransientAuthConnectivityFailure(error)) return null;
+    return null;
+  } catch (error) {
+    if (isTransientAuthConnectivityFailure(error)) return null;
+    return null;
   }
-  return null;
 }
 
 interface AuthProviderProps {
@@ -166,32 +154,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     };
 
-    // 1) Восстановить сессию из SecureStore (с ретраями при сетевых сбоях refresh).
+    const finishBootstrapOnce = (next: Session | null) => {
+      if (cancelled || initialSessionReady) return;
+      initialSessionReady = true;
+      setInitializing(false);
+      if (next) {
+        safeStartAutoRefresh();
+      } else {
+        safeStopAutoRefresh();
+      }
+    };
+
+    const safetyTimer = setTimeout(() => {
+      if (cancelled || initialSessionReady) return;
+      // eslint-disable-next-line no-console
+      console.warn("[auth] bootstrap safety timeout: closing splash without Supabase first event");
+      finishBootstrapOnce(null);
+    }, AUTH_BOOTSTRAP_SAFETY_MS);
+
+    // Параллельно подтягиваем сессию; не завершаем bootstrap отсюда и не затираем сессию «null»
+    // при обрыве сети (иначе мигание /sign-in до прихода INITIAL_SESSION).
     void (async () => {
       const initial = await resolveInitialSession(supabase);
       if (cancelled) return;
-      setSession(initial);
-      void syncProfile(initial?.user ?? null)
-        .catch((error: unknown) => {
-          // eslint-disable-next-line no-console
-          console.warn(
-            "[auth] syncProfile after getSession",
-            rewriteAuthNetworkError(error, "profile").message,
-          );
-        })
-        .finally(() => {
-          if (cancelled) return;
-          initialSessionReady = true;
-          setInitializing(false);
-          if (initial) {
-            safeStartAutoRefresh();
-          } else {
-            safeStopAutoRefresh();
-          }
-        });
+      if (initial) {
+        setSession(initial);
+        void syncProfile(initial.user)
+          .catch((error: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[auth] syncProfile after getSession",
+              rewriteAuthNetworkError(error, "profile").message,
+            );
+          });
+      }
     })();
 
-    // 2) Подписаться на изменения (логин, логаут, рефреш токена).
+    // Первый источник истины для cold start — onAuthStateChange (локальное хранилище / INITIAL_SESSION).
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       void syncProfile(next?.user ?? null).catch((error: unknown) => {
@@ -201,27 +200,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
           rewriteAuthNetworkError(error, "profile").message,
         );
       });
+
+      if (!initialSessionReady) {
+        clearTimeout(safetyTimer);
+        finishBootstrapOnce(next);
+        return;
+      }
+
+      if (next) {
+        safeStartAutoRefresh();
+      } else {
+        safeStopAutoRefresh();
+      }
     });
 
-    // 3) Авто-рефреш запускаем только после первичной проверки сессии.
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (cancelled || !initialSessionReady) return;
       if (state === "active") {
-        safeStartAutoRefresh();
-        if (!sessionRef.current) {
-          void supabase.auth
-            .getSession()
-            .then(({ data }) => {
-              if (cancelled || !data.session) return;
-              setSession(data.session);
-            })
-            .catch((error: unknown) => {
-              // eslint-disable-next-line no-console
-              console.warn(
-                "[auth] resume getSession",
-                rewriteAuthNetworkError(error, "session").message,
-              );
-            });
+        if (sessionRef.current) {
+          safeStartAutoRefresh();
+        } else {
+          safeStopAutoRefresh();
         }
       } else {
         safeStopAutoRefresh();
@@ -230,6 +229,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     return () => {
       cancelled = true;
+      clearTimeout(safetyTimer);
       sub.subscription.unsubscribe();
       appStateSub.remove();
       safeStopAutoRefresh();

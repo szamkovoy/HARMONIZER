@@ -144,7 +144,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   }, [profile?.lat, profile?.lon, profile?.tz]);
 
   const refresh = useCallback(
-    async (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode }) => {
+    async (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode; accessTierOverride?: ProductTier }) => {
       abortRef.current?.abort();
       setError(null);
 

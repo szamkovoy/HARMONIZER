@@ -343,11 +343,13 @@ function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => vo
 
 function CommunicatorOverlay({
   forecast,
+  accessMode,
   strings,
   onClose,
   remountKey,
 }: {
   forecast: DailyForecast;
+  accessMode: "free" | "premium" | "trial";
   strings: HomeStrings;
   onClose: () => void;
   remountKey: number;
@@ -410,7 +412,7 @@ function CommunicatorOverlay({
           </Pressable>
         </View>
         <Communicator
-          key={`${forecast.date}-${forecast.planetOfTheDay}-${remountKey}`}
+          key={`${accessMode}-${forecast.date}-${forecast.planetOfTheDay}-${forecast.computedAt}-${remountKey}`}
           systemPrompt={strings.defaultSystemPrompt}
           locale={strings.locale}
           useCase="daily_dialog"
@@ -563,6 +565,7 @@ export default function HomeScreen() {
               planetOfTheDay={forecast.planetOfTheDay}
               windows={forecast.windowsOfOpportunity}
               strings={strings}
+              accessMode={accessMode}
             />
           </>
         ) : null}
@@ -618,6 +621,7 @@ export default function HomeScreen() {
       {communicatorOpen && forecast ? (
         <CommunicatorOverlay
           forecast={forecast}
+          accessMode={accessMode}
           strings={strings}
           remountKey={assistantRemountKey}
           onClose={() => setCommunicatorOpen(false)}

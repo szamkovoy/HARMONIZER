@@ -13,7 +13,6 @@ export { computeActivation, computeImportance, effectiveNatalParams } from "./co
 export { findAspect } from "./core/aspects";
 export { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
 export { computeWindowsForFreeUser } from "./freeWindows";
-export type { FreeUserTopAspect } from "./freeWindows";
 export type {
   ActivationContribution,
   AspectType,
