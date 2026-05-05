@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -30,6 +30,19 @@ function durationOptions(practice: PracticeSummary): number[] {
   return [];
 }
 
+function defaultSelectableDurationMinutes(practice: PracticeSummary, selectable: readonly number[]): number {
+  const fromCatalog = practice.defaultDurationSec ? Math.max(1, Math.round(practice.defaultDurationSec / 60)) : null;
+  const fallback =
+    practice.kind === "breath" ? 10 : practice.kind === "meditation" ? 3 : fromCatalog ?? 5;
+  const candidate = fromCatalog ?? fallback;
+  return selectable.includes(candidate) ? candidate : selectable[0] ?? candidate;
+}
+
+function defaultSelectableChakra(practice: PracticeSummary): number {
+  if (practice.kind === "meditation" || practice.kind === "breath") return 1;
+  return practice.primaryChakra ?? practice.chakraIds[0] ?? 6;
+}
+
 export const PracticeCard = memo(function PracticeCard({
   practice,
   onLaunch,
@@ -49,12 +62,10 @@ export const PracticeCard = memo(function PracticeCard({
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
-  const [selectedDurationMin, setSelectedDurationMin] = useState(() => {
-    const fallback = practice.kind === "breath" ? 10 : 5;
-    const minutes = practice.defaultDurationSec ? Math.max(1, Math.round(practice.defaultDurationSec / 60)) : fallback;
-    return selectableDurations.includes(minutes) ? minutes : selectableDurations[0] ?? minutes;
-  });
-  const [selectedChakra, setSelectedChakra] = useState<number>(practice.primaryChakra ?? practice.chakraIds[0] ?? 6);
+  const [selectedDurationMin, setSelectedDurationMin] = useState(() =>
+    defaultSelectableDurationMinutes(practice, selectableDurations),
+  );
+  const [selectedChakra, setSelectedChakra] = useState<number>(() => defaultSelectableChakra(practice));
   const [usePulseSensor, setUsePulseSensor] = useState(true);
   const [openField, setOpenField] = useState<SelectField>(null);
 
@@ -164,64 +175,69 @@ export const PracticeCard = memo(function PracticeCard({
         </View>
       ) : (
         <View style={styles.options}>
-          <DropdownField
-            label="Длительность"
-            value={`${selectedDurationMin} мин`}
-            open={openField === "duration"}
-            onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
-            options={selectableDurations.map((minutes) => ({
-              key: String(minutes),
-              label: `${minutes} мин`,
-              active: selectedDurationMin === minutes,
-              onPress: () => {
-                setSelectedDurationMin(minutes);
-                setOpenField(null);
-              },
-            }))}
-          />
-          <DropdownField
-            label="Чакра"
-            value={`${selectedChakra} чакра`}
-            open={openField === "chakra"}
-            onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
-            options={CHAKRA_OPTIONS.map((chakra) => ({
-              key: String(chakra),
-              label: `${chakra} чакра`,
-              active: selectedChakra === chakra,
-              onPress: () => {
-                setSelectedChakra(chakra);
-                setOpenField(null);
-              },
-            }))}
-          />
-          {practice.kind === "breath" ? (
+          <View style={styles.selectableMetaRow}>
             <DropdownField
-              label="Пульсометр"
-              value={usePulseSensor ? "с пульсометром" : "без пульсометра"}
-              open={openField === "pulse"}
-              onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
-              options={[
-                {
-                  key: "pulse-on",
-                  label: "с пульсометром",
-                  active: usePulseSensor,
-                  onPress: () => {
-                    setUsePulseSensor(true);
-                    setOpenField(null);
-                  },
+              variant="pill"
+              label="Длительность"
+              value={`${selectedDurationMin} мин`}
+              open={openField === "duration"}
+              onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
+              options={selectableDurations.map((minutes) => ({
+                key: String(minutes),
+                label: `${minutes} мин`,
+                active: selectedDurationMin === minutes,
+                onPress: () => {
+                  setSelectedDurationMin(minutes);
+                  setOpenField(null);
                 },
-                {
-                  key: "pulse-off",
-                  label: "без пульсометра",
-                  active: !usePulseSensor,
-                  onPress: () => {
-                    setUsePulseSensor(false);
-                    setOpenField(null);
-                  },
-                },
-              ]}
+              }))}
             />
-          ) : null}
+            <DropdownField
+              variant="pill"
+              label="Чакра"
+              value={`${selectedChakra} чакра`}
+              open={openField === "chakra"}
+              onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
+              options={CHAKRA_OPTIONS.map((chakra) => ({
+                key: String(chakra),
+                label: `${chakra} чакра`,
+                active: selectedChakra === chakra,
+                onPress: () => {
+                  setSelectedChakra(chakra);
+                  setOpenField(null);
+                },
+              }))}
+            />
+            {practice.kind === "breath" ? (
+              <DropdownField
+                variant="pill"
+                label="Пульсометр"
+                value={usePulseSensor ? "с пульсометром" : "без пульсометра"}
+                open={openField === "pulse"}
+                onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
+                options={[
+                  {
+                    key: "pulse-on",
+                    label: "с пульсометром",
+                    active: usePulseSensor,
+                    onPress: () => {
+                      setUsePulseSensor(true);
+                      setOpenField(null);
+                    },
+                  },
+                  {
+                    key: "pulse-off",
+                    label: "без пульсометра",
+                    active: !usePulseSensor,
+                    onPress: () => {
+                      setUsePulseSensor(false);
+                      setOpenField(null);
+                    },
+                  },
+                ]}
+              />
+            ) : null}
+          </View>
         </View>
       )}
 
@@ -245,6 +261,18 @@ export const PracticeCard = memo(function PracticeCard({
   );
 });
 
+/** Треугольник как в стандартных combobox; один размер для открытого и закрытого состояния. */
+function DropdownCaret({ open, color, compact }: { open: boolean; color: string; compact: boolean }) {
+  return (
+    <Text
+      allowFontScaling={false}
+      style={[compact ? styles.dropdownCaretPill : styles.dropdownCaretField, { color }]}
+    >
+      {open ? "\u25B2" : "\u25BC"}
+    </Text>
+  );
+}
+
 function MetaPill({ label }: { label: string }) {
   const theme = useTheme();
   return (
@@ -265,12 +293,14 @@ function MetaPill({ label }: { label: string }) {
 }
 
 function DropdownField({
+  variant = "field",
   label,
   value,
   open,
   onToggle,
   options,
 }: {
+  variant?: "field" | "pill";
   label: string;
   value: string;
   open: boolean;
@@ -283,13 +313,16 @@ function DropdownField({
   }>;
 }) {
   const theme = useTheme();
+  const pill = variant === "pill";
   return (
-    <View style={styles.dropdownField}>
+    <View style={pill ? styles.dropdownFieldPill : styles.dropdownField}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open }}
         onPress={onToggle}
         style={({ pressed }) => [
-          styles.dropdownButton,
+          pill ? styles.dropdownPillButton : styles.dropdownButton,
           {
             backgroundColor: theme.colors.controlButtonBg,
             borderColor: open ? theme.colors.accent : theme.colors.surfaceBorder,
@@ -297,15 +330,24 @@ function DropdownField({
           },
         ]}
       >
-        <View style={styles.dropdownText}>
-          <AppText variant="technicalCaption" tone="muted">
-            {label}
-          </AppText>
-          <AppText variant="buttonLabel">{value}</AppText>
-        </View>
-        <AppText variant="sectionTitle" tone="muted" style={styles.chevron}>
-          {open ? "⌃" : "⌄"}
-        </AppText>
+        {pill ? (
+          <View style={styles.dropdownPillValueRow}>
+            <AppText variant="technicalCaption" tone="muted" style={styles.dropdownPillValue} numberOfLines={1}>
+              {value}
+            </AppText>
+            <DropdownCaret open={open} color={theme.colors.textMuted} compact />
+          </View>
+        ) : (
+          <View style={styles.dropdownFieldRow}>
+            <View style={styles.dropdownText}>
+              <AppText variant="technicalCaption" tone="muted">
+                {label}
+              </AppText>
+              <AppText variant="buttonLabel">{value}</AppText>
+            </View>
+            <DropdownCaret open={open} color={theme.colors.textMuted} compact={false} />
+          </View>
+        )}
       </Pressable>
 
       {open ? (
@@ -313,8 +355,9 @@ function DropdownField({
           style={[
             styles.dropdownMenu,
             {
-              backgroundColor: theme.colors.surfaceElevated,
               borderColor: theme.colors.surfaceBorder,
+              backgroundColor:
+                theme.scheme === "light" ? "rgba(15, 23, 42, 0.055)" : "rgba(255, 255, 255, 0.07)",
             },
           ]}
         >
@@ -380,6 +423,12 @@ const styles = StyleSheet.create({
   options: {
     gap: 8,
   },
+  selectableMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "flex-start",
+  },
   thumbnailFrame: {
     width: 120,
     height: 68,
@@ -414,6 +463,10 @@ const styles = StyleSheet.create({
   dropdownField: {
     gap: 6,
   },
+  dropdownFieldPill: {
+    gap: 6,
+    maxWidth: "100%",
+  },
   dropdownButton: {
     minHeight: 54,
     borderWidth: StyleSheet.hairlineWidth,
@@ -422,16 +475,56 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+  },
+  dropdownPillButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+  },
+  dropdownPillValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    flexShrink: 1,
+    minWidth: 0,
+    gap: 5,
+  },
+  dropdownPillValue: {
+    flexShrink: 1,
+  },
+  dropdownFieldRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    minWidth: 0,
+  },
+  dropdownCaretPill: {
+    fontSize: 9,
+    lineHeight: 16,
+    fontWeight: "400",
+    includeFontPadding: false,
+    ...Platform.select({
+      android: { textAlignVertical: "center" as const },
+      default: {},
+    }),
+  },
+  dropdownCaretField: {
+    fontSize: 10,
+    lineHeight: 20,
+    fontWeight: "400",
+    includeFontPadding: false,
+    ...Platform.select({
+      android: { textAlignVertical: "center" as const },
+      default: {},
+    }),
   },
   dropdownText: {
     flex: 1,
     gap: 1,
-  },
-  chevron: {
-    fontSize: 18,
-    lineHeight: 20,
   },
   dropdownMenu: {
     borderWidth: StyleSheet.hairlineWidth,

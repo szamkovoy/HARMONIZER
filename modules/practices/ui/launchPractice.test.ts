@@ -50,8 +50,8 @@ describe("launchPractice", () => {
           kind: "meditation",
           route: "/sacred-symbol-stream",
           practiceId: "sacred-symbol-stream",
-          durationMs: 300000,
-          chakra: 6,
+          durationMs: 180_000,
+          chakra: 1,
         },
         { launchSource: "catalog" },
       ),
@@ -61,8 +61,8 @@ describe("launchPractice", () => {
       pathname: "/sacred-symbol-stream",
       params: {
         practiceId: "sacred-symbol-stream",
-        durationMs: "300000",
-        chakra: "6",
+        durationMs: "180000",
+        chakra: "1",
         launchSource: "catalog",
       },
     });

@@ -1,5 +1,5 @@
 import { BREATH_PRACTICES, DEFAULT_CHAKRA, isChakra } from "@/modules/breath";
-import type { Chakra } from "@/modules/breath";
+import type { BreathPracticeId, Chakra } from "@/modules/breath";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { getSupabase } from "@/services/supabase";
@@ -28,6 +28,24 @@ type YogaCatalogRow = Pick<
 const BREATH_DEFAULT_DURATION_SEC = 10 * 60;
 const YOGA_CATALOG_TIMEOUT_MS = 12_000;
 
+/** Короткие описания в каталоге (RU); подзаголовок с санскритом остаётся отдельной строкой. */
+const BREATH_CATALOG_DESCRIPTION_RU: Record<BreathPracticeId, string> = {
+  coherent:
+    "Создаёт глубокий физиологический резонанс между сердцем и мозгом, переводя всю систему в режим максимальной энергоэффективности и эмоциональной неуязвимости.",
+  "nadi-shodhana":
+    "Выполняет тонкую калибровку полушарий мозга, устраняя функциональную асимметрию и делая вашу психику невероятно пластичной и гармоничной.",
+  "surya-bhedana":
+    "Ваша «педаль газа» для мгновенной активации мозга, пробуждения внутренней энергии и быстрого выхода из состояния апатии или утренней заторможенности.",
+  "chandra-bhedana":
+    "Естественный «тормоз» для нервной системы, который напрямую стимулирует парасимпатику, охлаждает эмоции и быстро снимает накопленное за день напряжение.",
+  square:
+    "Эталонная техника спецназа для сохранения абсолютного хладнокровия и контроля в ситуациях высокого давления, удерживающая вас в коридоре максимальной эффективности.",
+  "triangle-up":
+    "Мощная физиологическая перезагрузка, которая через задержку на выдохе буквально выключает очаги тревоги и тренирует фундаментальную устойчивость к стрессовым факторам.",
+  "triangle-down":
+    "Интенсивный клеточный оксигенатор, который за счёт задержки на вдохе «пропитывает» ткани мозга кислородом, возвращая ясность мысли и когнитивную бодрость.",
+};
+
 const BREATH_PRIMARY_CHAKRA: Record<string, Chakra> = {
   coherent: 4,
   "nadi-shodhana": 6,
@@ -46,12 +64,12 @@ const STATIC_MEDITATIONS: PracticeSummary[] = [
     title: "Вспышка",
     subtitle: "Поток сакральных символов",
     description: "Короткая визуальная медитация для мягкого переключения внимания и гармонизации.",
-    defaultDurationSec: 5 * 60,
+    defaultDurationSec: 3 * 60,
     minDurationSec: 1 * 60,
     maxDurationSec: 10 * 60,
     durationPolicy: "user_selectable",
-    chakraIds: [6, 7],
-    primaryChakra: 6,
+    chakraIds: [1, 6, 7],
+    primaryChakra: 1,
     source: "static",
     params: {
       duration_policy: "user_selectable",
@@ -61,8 +79,8 @@ const STATIC_MEDITATIONS: PracticeSummary[] = [
       kind: "meditation",
       route: "/sacred-symbol-stream",
       practiceId: "sacred-symbol-stream",
-      durationMs: 5 * 60_000,
-      chakra: 6,
+      durationMs: 3 * 60_000,
+      chakra: 1,
     },
   },
 ];
@@ -113,7 +131,7 @@ function createBreathPractices(): PracticeSummary[] {
       kind: "breath",
       title,
       subtitle,
-      description: subtitle ? `${subtitle}. Дыхательная практика с биологической обратной связью.` : undefined,
+      description: BREATH_CATALOG_DESCRIPTION_RU[practice.id],
       defaultDurationSec: BREATH_DEFAULT_DURATION_SEC,
       minDurationSec: 5 * 60,
       maxDurationSec: 20 * 60,
