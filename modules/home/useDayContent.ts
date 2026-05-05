@@ -130,7 +130,7 @@ function dayContentScopeKey(
 
 export function useDayContent(options?: UseDayContentOptions): UseDayContentResult {
   const { profile, profileLoading, refreshProfile } = useAuth();
-  const { beginHomeBootstrap, completeHomeBootstrap, setHomeBootstrapPhase } = useAppStartup();
+  const { beginHomeBootstrap, completeHomeBootstrap, setHomeBootstrapPhase, setStartupStep } = useAppStartup();
   const abortRef = useRef<AbortController | null>(null);
   const lastLocalDayRef = useRef<string | null>(null);
   const lastResolvedRequestKeyRef = useRef<string | null>(null);
@@ -171,7 +171,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       setError(null);
 
       if (profileLoading) {
-        beginHomeBootstrap("initializing");
+        beginHomeBootstrap("initializing", "AUTH/wait_profile_refresh");
         return;
       }
 
@@ -205,7 +205,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         !(instantCached && instantCached.freshness === "fresh");
 
       if (shouldBlockSplash) {
-        beginHomeBootstrap("initializing");
+        beginHomeBootstrap("initializing", "HOME/home_overlay_start");
       }
 
       if (needsNatalProfile && options?.hasNatalProfile == null) {
@@ -224,7 +224,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
       let locationForRequest = userLocation;
       if (!locationForRequest && profileId) {
-        setHomeBootstrapPhase("initializing");
+        setHomeBootstrapPhase("initializing", "HOME/gps_acquire_persist");
         setStatus("acquiring_location");
         logRuntimeEvent("day_content:auto_location_attempt", { profileId }, "info");
         const acquired = await acquireAndPersistUserCoordinates(profileId);
@@ -297,6 +297,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
 
         if (!opts?.forceRefresh && userId) {
+          setStartupStep("HOME/day_cache_async_read");
           const cached = await loadDayContentCache({
             userId,
             accessMode: nextAccessMode,
@@ -324,7 +325,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
 
         setStatus("loading");
-        setHomeBootstrapPhase("loading_day");
+        setHomeBootstrapPhase(
+          "loading_day",
+          nextAccessMode === "free" ? "HOME/api_global_free" : "HOME/api_daily_forecast",
+        );
         const requestUrl = nextAccessMode === "free" ? getAiGlobalContentUrl() : getDailyForecastUrl();
         logRuntimeEvent("day_content:request_start", {
           accessMode: nextAccessMode,
@@ -376,6 +380,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           let forecastForUi = result.forecast;
           let modelForUi = result.modelUsed;
           if (!isDayContentComplete(forecastForUi, nextAccessMode)) {
+            setStartupStep("HOME/api_morning_monologue");
             const enriched = await enrichWithMorningContent(forecastForUi, opts?.forceRefresh, controller.signal);
             forecastForUi = enriched.forecast;
             modelForUi = enriched.modelUsed || modelForUi;
@@ -458,6 +463,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       scopeKey,
       trialExpiresAt,
       userLocation,
+      setStartupStep,
     ],
   );
 
