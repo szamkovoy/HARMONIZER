@@ -8,7 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo, type ReactNode } from "react";
-import { ActivityIndicator, View, type GestureResponderEvent } from "react-native";
+import { ActivityIndicator, Platform, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from "@/modules/auth";
 import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
+import { configureLocalNotifications } from "@/services/localNotifications";
 import { logRuntimeEvent, logRuntimeTap, useRuntimeDiagnosticsSampler } from "@/services/runtimeDiagnostics";
 
 export { ErrorBoundary } from "expo-router";
@@ -48,6 +49,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (error) throw error;
   }, [error]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    configureLocalNotifications();
+  }, []);
 
   if (!loaded) return null;
 

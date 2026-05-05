@@ -1,7 +1,16 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Modal, NativeModules, Pressable, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import type { AccessMode } from "@/services/globalContentClient";
@@ -9,6 +18,11 @@ import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import {
+  getExpoNotificationsOrNull,
+  isLocalNotificationSchedulerLinked,
+  OPPORTUNITY_REMINDERS_CHANNEL_ID,
+} from "@/services/localNotifications";
 
 type Windows = DailyForecast["windowsOfOpportunity"];
 
@@ -26,15 +40,24 @@ type WindowItem = {
   detail: string | null;
 };
 
-type NotificationsModule = {
-  requestPermissionsAsync: () => Promise<{ granted: boolean }>;
-  cancelScheduledNotificationAsync: (identifier: string) => Promise<void>;
-  scheduleNotificationAsync: (request: {
-    content: { title: string; body: string; data?: Record<string, unknown> };
-    trigger: { type: string; date: Date };
-  }) => Promise<string>;
-  SchedulableTriggerInputTypes?: { DATE?: string };
-};
+const REMINDER_NOTIFICATION_TITLE_MAX = 80;
+const REMINDER_NOTIFICATION_BODY_MAX = 220;
+
+/** Короткий заголовок уведомления по умолчанию: тип окна + планета из прогноза. */
+function buildDefaultReminderTitle(item: WindowItem, windows: Windows, strings: HomeStrings): string {
+  const wt = strings.opportunityWindows.windowTitles;
+  const pl = strings.planetLabels;
+  if (item.key === "sunrise" && windows.sunrise) {
+    return `${wt.sunrise} ${pl[windows.sunrise.planet]}`.trim();
+  }
+  if (item.key === "culmination" && windows.culmination) {
+    return `${wt.culmination} ${pl[windows.culmination.planet]}`.trim();
+  }
+  if (item.key === "exactAspect" && windows.exactAspect) {
+    return `${wt.exactAspect} ${pl[windows.exactAspect.toNatalPlanet]}`.trim();
+  }
+  return item.title;
+}
 
 const SKY_AXIS_Y = 78;
 /** Высота точек волны (`waveDot`) — `top` совпадает с мат. Y, тело линии уходит вниз на эту величину. */
@@ -173,15 +196,6 @@ function nowLineDashKeys(heightPx: number): number[] {
   return keys;
 }
 
-function getOptionalNotifications(): NotificationsModule | null {
-  if (!NativeModules.ExpoPushTokenManager) return null;
-  try {
-    return require("expo-notifications") as NotificationsModule;
-  } catch {
-    return null;
-  }
-}
-
 /** Доля суток 0…1 по локальному времени строки (без искусственного сжатия — совпадает с линией «сейчас»). */
 function timeToDayFraction(time?: string): { x: number; past: boolean } | null {
   if (!time) return null;
@@ -213,8 +227,11 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
   const theme = useTheme();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
+  const [reminderTitleText, setReminderTitleText] = useState("");
   const [enabledReminders, setEnabledReminders] = useState<Record<string, "exact" | "before5">>({});
   const notificationIdsRef = useRef<Record<string, string>>({});
+  /** Защита от гонки: отмена/сохранение инкрементит эпоху, async-синхронизация не затирает свежие правки. */
+  const reminderSyncEpochRef = useRef(0);
   const [chartWidth, setChartWidth] = useState(0);
   const [nowBadgeLayoutW, setNowBadgeLayoutW] = useState(0);
   const [now, setNow] = useState(() => new Date());
@@ -226,6 +243,59 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     }, 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  /** Синхронизация колокольчиков с ОС и отмена устаревших напоминаний при смене суток/прогноза. */
+  useEffect(() => {
+    if (Platform.OS === "web" || !isLocalNotificationSchedulerLinked()) return;
+    const notificationsApi = getExpoNotificationsOrNull();
+    if (!notificationsApi) return;
+    let cancelled = false;
+    const expectedTimes: Record<WindowItem["key"], string | undefined> = {
+      sunrise: windows.sunrise?.time,
+      culmination: windows.culmination?.time,
+      exactAspect: accessMode === "free" ? undefined : windows.exactAspect?.time,
+    };
+
+    void (async () => {
+      const epochAtStart = reminderSyncEpochRef.current;
+      try {
+        const scheduled = await notificationsApi.getAllScheduledNotificationsAsync();
+        if (cancelled || reminderSyncEpochRef.current !== epochAtStart) return;
+        const nextEnabled: Record<string, "exact" | "before5"> = {};
+        const nextIds: Record<string, string> = {};
+
+        for (const req of scheduled) {
+          const data = req.content.data;
+          if (data?.source !== "home_opportunity_window" || typeof data.key !== "string") continue;
+          const key = data.key as WindowItem["key"];
+          const expected = expectedTimes[key];
+          const storedTime = typeof data.eventTimeIso === "string" ? data.eventTimeIso : undefined;
+          if (!expected || storedTime !== expected) {
+            await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
+            continue;
+          }
+          nextEnabled[key] = data.reminderMode === "before5" ? "before5" : "exact";
+          nextIds[key] = req.identifier;
+        }
+
+        if (!cancelled && reminderSyncEpochRef.current === epochAtStart) {
+          notificationIdsRef.current = nextIds;
+          setEnabledReminders(nextEnabled);
+        }
+      } catch {
+        /* планировщик может быть недоступен в тестовой среде */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    accessMode,
+    windows.sunrise?.time,
+    windows.culmination?.time,
+    windows.exactAspect?.time,
+  ]);
 
   const items: Array<WindowItem | null> = [
     {
@@ -344,11 +414,12 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     if (!item.time) return;
     if (enabledReminders[item.key]) {
       const notificationId = notificationIdsRef.current[item.key];
-      const notifications = getOptionalNotifications();
-      if (notificationId && notifications) {
-        await notifications.cancelScheduledNotificationAsync(notificationId).catch(() => undefined);
+      const notificationsApi = getExpoNotificationsOrNull();
+      if (notificationId && notificationsApi) {
+        await notificationsApi.cancelScheduledNotificationAsync(notificationId).catch(() => undefined);
       }
       delete notificationIdsRef.current[item.key];
+      reminderSyncEpochRef.current += 1;
       setEnabledReminders((prev) => {
         const next = { ...prev };
         delete next[item.key];
@@ -357,6 +428,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
       return;
     }
     setReminderMode("exact");
+    setReminderTitleText(buildDefaultReminderTitle(item, windows, strings));
     setReminderTarget(item);
   }
 
@@ -365,38 +437,71 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     const eventDate = new Date(reminderTarget.time);
     const triggerDate = new Date(eventDate.getTime() - (reminderMode === "before5" ? 5 * 60_000 : 0));
     if (triggerDate.getTime() <= Date.now()) {
-      Alert.alert("Время уже прошло", "Для прошедшего окна уведомление поставить нельзя.");
+      Alert.alert(t.reminderPastTitle, t.reminderPastMessage);
       setReminderTarget(null);
       return;
     }
 
-    const notifications = getOptionalNotifications();
-    if (!notifications) {
-      Alert.alert(
-        "Уведомления пока недоступны",
-        "Текущая сборка приложения запущена без native-модуля уведомлений. После новой dev/release-сборки колокольчики смогут ставить системные уведомления.",
-      );
+    if (!isLocalNotificationSchedulerLinked()) {
+      Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
       return;
     }
 
-    const permissions = await notifications.requestPermissionsAsync();
-    if (!permissions.granted) {
-      Alert.alert("Нужны уведомления", "Разрешите уведомления, чтобы Harmonizer мог напомнить об окне возможностей.");
+    const notificationsApi = getExpoNotificationsOrNull();
+    if (!notificationsApi) {
+      Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
+      return;
+    }
+
+    const permissions = await notificationsApi.requestPermissionsAsync({
+      ios: { allowAlert: true, allowSound: true, allowBadge: false },
+    });
+    const iosOk =
+      permissions.ios?.status === notificationsApi.IosAuthorizationStatus.PROVISIONAL ||
+      permissions.ios?.status === notificationsApi.IosAuthorizationStatus.AUTHORIZED;
+    const allowed = permissions.granted || iosOk;
+    if (!allowed) {
+      Alert.alert(t.reminderNeedPermissionTitle, t.reminderNeedPermissionMessage);
       return;
     }
 
     const previousId = notificationIdsRef.current[reminderTarget.key];
-    if (previousId) await notifications.cancelScheduledNotificationAsync(previousId).catch(() => undefined);
+    if (previousId) await notificationsApi.cancelScheduledNotificationAsync(previousId).catch(() => undefined);
 
-    const notificationId = await notifications.scheduleNotificationAsync({
+    const androidChannelId = Platform.OS === "android" ? OPPORTUNITY_REMINDERS_CHANNEL_ID : undefined;
+
+    const defaultTitle = buildDefaultReminderTitle(reminderTarget, windows, strings);
+    const trimmedTitle = reminderTitleText.trim();
+    const notificationTitle = (trimmedTitle.length > 0 ? trimmedTitle : defaultTitle).slice(
+      0,
+      REMINDER_NOTIFICATION_TITLE_MAX,
+    );
+    const timeStr = strings.formatTime(reminderTarget.time);
+    const opener =
+      reminderMode === "before5" ? `${t.reminderBodyFiveMinPrefix} ${timeStr}` : timeStr;
+    const detailSuffix = reminderTarget.detail ? ` · ${reminderTarget.detail}` : "";
+    const body = `${opener}${detailSuffix}`.replace(/\s+/g, " ").trim().slice(0, REMINDER_NOTIFICATION_BODY_MAX);
+
+    const notificationId = await notificationsApi.scheduleNotificationAsync({
       content: {
-        title: "Окно возможностей",
-        body: `${reminderTarget.title} в ${strings.formatTime(reminderTarget.time)}. ${reminderTarget.detail ?? ""}`.trim(),
-        data: { source: "home_opportunity_window", key: reminderTarget.key },
+        title: notificationTitle,
+        body,
+        data: {
+          source: "home_opportunity_window",
+          key: reminderTarget.key,
+          reminderMode,
+          eventTimeIso: reminderTarget.time,
+          displayTitle: notificationTitle,
+        },
       },
-      trigger: { type: notifications.SchedulableTriggerInputTypes?.DATE ?? "date", date: triggerDate },
+      trigger: {
+        type: notificationsApi.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
+        ...(androidChannelId ? { channelId: androidChannelId } : {}),
+      },
     });
     notificationIdsRef.current[reminderTarget.key] = notificationId;
+    reminderSyncEpochRef.current += 1;
     setEnabledReminders((prev) => ({ ...prev, [reminderTarget.key]: reminderMode }));
     setReminderTarget(null);
   }
@@ -540,24 +645,49 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
       <Modal animationType="fade" transparent visible={Boolean(reminderTarget)} onRequestClose={() => setReminderTarget(null)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="sectionTitle">Уведомить</AppText>
+            <AppText variant="sectionTitle">{t.reminderModalTitle}</AppText>
+            {reminderTarget ? (
+              <View style={styles.modalFieldBlock}>
+                <AppText variant="screenHint">{t.reminderTextLabel}</AppText>
+                <TextInput
+                  value={reminderTitleText}
+                  onChangeText={setReminderTitleText}
+                  placeholder={buildDefaultReminderTitle(reminderTarget, windows, strings)}
+                  placeholderTextColor={theme.colors.textFaint}
+                  maxLength={REMINDER_NOTIFICATION_TITLE_MAX}
+                  multiline={false}
+                  autoCorrect
+                  autoCapitalize="sentences"
+                  style={[
+                    styles.modalTextInput,
+                    {
+                      borderColor: theme.colors.surfaceBorder,
+                      color: theme.colors.textPrimary,
+                      backgroundColor: theme.colors.surface,
+                    },
+                  ]}
+                />
+              </View>
+            ) : null}
             {(["exact", "before5"] as const).map((mode) => (
               <Pressable key={mode} style={styles.radioRow} onPress={() => setReminderMode(mode)}>
                 <View style={[styles.radio, { borderColor: theme.colors.surfaceBorder }]}>
                   {reminderMode === mode ? <View style={[styles.radioDot, { backgroundColor: theme.colors.accent }]} /> : null}
                 </View>
-                <AppText variant="screenHint">{mode === "exact" ? "точно" : "за 5 минут"}</AppText>
+                <AppText variant="screenHint">{mode === "exact" ? t.reminderModeExact : t.reminderModeBefore5}</AppText>
               </Pressable>
             ))}
             <View style={styles.modalActions}>
               <Pressable onPress={() => setReminderTarget(null)} style={styles.modalButton}>
-                <AppText variant="buttonLabel">Отмена</AppText>
+                <AppText variant="buttonLabel">{t.reminderCancel}</AppText>
               </Pressable>
               <Pressable
                 onPress={() => void saveReminder()}
                 style={[styles.modalButton, { backgroundColor: theme.colors.buttonPrimaryBg }]}
               >
-                <AppText variant="buttonLabel" tone="accentOn">Сохранить</AppText>
+                <AppText variant="buttonLabel" tone="accentOn">
+                  {t.reminderSave}
+                </AppText>
               </Pressable>
             </View>
           </View>
@@ -666,6 +796,17 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     padding: 18,
     width: "100%",
+  },
+  modalFieldBlock: {
+    gap: 6,
+  },
+  modalTextInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 16,
+    marginTop: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   radioRow: {
     alignItems: "center",

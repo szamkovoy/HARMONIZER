@@ -55,6 +55,19 @@ export interface HomeStrings {
     sunriseDetail: (planet: string) => string;
     culminationDetail: (planet: string) => string;
     exactAspectDetail: (aspect: string, planet: string) => string;
+    reminderModalTitle: string;
+    reminderTextLabel: string;
+    reminderModeExact: string;
+    reminderModeBefore5: string;
+    reminderSave: string;
+    reminderCancel: string;
+    reminderBodyFiveMinPrefix: string;
+    reminderPastTitle: string;
+    reminderPastMessage: string;
+    reminderNotificationsUnavailableTitle: string;
+    reminderNotificationsUnavailableMessage: string;
+    reminderNeedPermissionTitle: string;
+    reminderNeedPermissionMessage: string;
   };
   recommendation: {
     title: string;
@@ -184,6 +197,20 @@ const ru: HomeStrings = {
     sunriseDetail: (planet) => `${planet} поднимается над горизонтом`,
     culminationDetail: (planet) => `${planet} в максимальной силе`,
     exactAspectDetail: (aspect, planet) => `${aspect} к ${planet}`,
+    reminderModalTitle: "Уведомить",
+    reminderTextLabel: "Текст уведомления",
+    reminderModeExact: "точно в это время",
+    reminderModeBefore5: "за 5 минут до",
+    reminderSave: "Сохранить",
+    reminderCancel: "Отмена",
+    reminderBodyFiveMinPrefix: "За 5 минут до",
+    reminderPastTitle: "Время уже прошло",
+    reminderPastMessage: "Для прошедшего окна уведомление поставить нельзя.",
+    reminderNotificationsUnavailableTitle: "Уведомления пока недоступны",
+    reminderNotificationsUnavailableMessage:
+      "Текущая сборка приложения запущена без native-модуля уведомлений. После новой dev/release-сборки колокольчики смогут ставить системные уведомления.",
+    reminderNeedPermissionTitle: "Нужны уведомления",
+    reminderNeedPermissionMessage: "Разрешите уведомления, чтобы Harmonizer мог напомнить об окне возможностей.",
   },
   recommendation: {
     title: "Рекомендации на день",
@@ -293,6 +320,20 @@ const en: HomeStrings = {
     sunriseDetail: (planet) => `${planet} rises above the horizon`,
     culminationDetail: (planet) => `${planet} is at peak strength`,
     exactAspectDetail: (aspect, planet) => `${aspect} to ${planet}`,
+    reminderModalTitle: "Notify me",
+    reminderTextLabel: "Notification text",
+    reminderModeExact: "at the exact time",
+    reminderModeBefore5: "5 minutes before",
+    reminderSave: "Save",
+    reminderCancel: "Cancel",
+    reminderBodyFiveMinPrefix: "5 minutes before",
+    reminderPastTitle: "That moment has passed",
+    reminderPastMessage: "We can’t schedule a reminder for a window that is already in the past.",
+    reminderNotificationsUnavailableTitle: "Notifications unavailable",
+    reminderNotificationsUnavailableMessage:
+      "This build was compiled without the notifications native module. After a new dev or release build, bells can schedule system notifications.",
+    reminderNeedPermissionTitle: "Notifications needed",
+    reminderNeedPermissionMessage: "Please allow notifications so Harmonizer can remind you about this window.",
   },
   recommendation: {
     title: "Daily recommendation",

@@ -209,7 +209,8 @@ export function buildProfileCompact(natal: NatalLike | null | undefined, calibra
 }
 
 export function responderThemeLabel(planet: string | null | undefined): string {
-  return PLANET_THEME_LABELS_RU[isPlanet(planet ?? "") ? planet : "Sun"];
+  const raw = planet ?? "";
+  return PLANET_THEME_LABELS_RU[isPlanet(raw) ? raw : "Sun"];
 }
 
 export function buildResponderProfileCompact(
