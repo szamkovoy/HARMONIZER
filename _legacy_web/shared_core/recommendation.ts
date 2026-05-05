@@ -5,6 +5,19 @@ export interface PracticeRecommendationLaunch {
   params: Record<string, string>;
 }
 
+export interface PracticeVideoThumbnail {
+  url: string;
+  width: number;
+  height: number;
+}
+
+export interface PracticeRecommendationVideo {
+  provider: string;
+  url?: string | null;
+  externalId?: string | null;
+  thumbnail?: PracticeVideoThumbnail | null;
+}
+
 export interface PracticeRecommendation {
   id: string;
   slug: string;
@@ -18,4 +31,5 @@ export interface PracticeRecommendation {
   launch: PracticeRecommendationLaunch;
   hasDescription: boolean;
   hasInstructionVideo: boolean;
+  video?: PracticeRecommendationVideo | null;
 }

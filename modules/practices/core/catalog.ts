@@ -16,6 +16,13 @@ import { sortPracticeCandidatesForCatalog } from "@shared/selector";
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type PracticeChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
+type YogaCatalogChakraRow = Pick<PracticeChakraRow, "chakra_id" | "is_primary" | "weight">;
+type YogaCatalogRow = Pick<
+  PracticeRow,
+  "id" | "slug" | "title" | "default_duration_sec" | "params" | "rating" | "video_provider" | "video_external_id"
+> & {
+  practice_chakras?: YogaCatalogChakraRow[] | null;
+};
 
 const BREATH_DEFAULT_DURATION_SEC = 10 * 60;
 const YOGA_CATALOG_TIMEOUT_MS = 12_000;
@@ -86,7 +93,7 @@ function durationPolicyFromParams(params: Record<string, unknown>, kind: Practic
   return params.duration_policy === "fixed" || kind === "yoga" ? "fixed" : "user_selectable";
 }
 
-function primaryChakraFor(rows: PracticeChakraRow[]): Chakra | undefined {
+function primaryChakraFor(rows: readonly YogaCatalogChakraRow[]): Chakra | undefined {
   const primary = rows.find((row) => row.is_primary && isChakra(row.chakra_id));
   if (primary && isChakra(primary.chakra_id)) return primary.chakra_id;
   const first = rows.find((row) => isChakra(row.chakra_id));
@@ -138,19 +145,17 @@ function displayYogaTitle(title: string): string {
     .trim();
 }
 
-function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]): PracticeSummary | null {
-  if (row.kind !== "yoga") return null;
-
+function yogaPracticeFromRow(row: YogaCatalogRow): PracticeSummary {
   const params = jsonRecord(row.params);
+  const chakraRows = row.practice_chakras ?? [];
   const chakraIds = chakraRows.map((item) => item.chakra_id).filter(isChakra);
   const primaryChakra = primaryChakraFor(chakraRows);
   const durationPolicy = durationPolicyFromParams(params, "yoga");
   const defaultDurationSec = optionalPositiveNumber(row.default_duration_sec);
   const video =
-    row.video_provider || row.video_url || row.video_external_id
+    row.video_provider || row.video_external_id
       ? {
           provider: row.video_provider ?? "vimeo",
-          url: row.video_url ?? undefined,
           externalId: row.video_external_id ?? undefined,
         }
       : undefined;
@@ -160,13 +165,11 @@ function yogaPracticeFromRow(row: PracticeRow, chakraRows: PracticeChakraRow[]):
     slug: row.slug,
     kind: "yoga",
     title: displayYogaTitle(localizedText(row.title, row.slug)),
-    description: localizedText(row.description, ""),
     defaultDurationSec,
-    minDurationSec: optionalPositiveNumber(row.min_duration_sec),
-    maxDurationSec: optionalPositiveNumber(row.max_duration_sec),
     durationPolicy,
     chakraIds,
     primaryChakra,
+    quality: typeof row.rating === "number" && Number.isFinite(row.rating) ? row.rating : undefined,
     recordedAt: optionalString(params.recorded_at),
     source: "supabase",
     video,
@@ -202,14 +205,6 @@ export function filterPractices(practices: PracticeSummary[], filters: PracticeC
   );
 }
 
-function chunks<T>(values: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let index = 0; index < values.length; index += size) {
-    result.push(values.slice(index, index + size));
-  }
-  return result;
-}
-
 export async function loadYogaPractices(): Promise<PracticeSummary[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
@@ -219,7 +214,7 @@ export async function loadYogaPractices(): Promise<PracticeSummary[]> {
   const { data: practices, error } = await supabase
     .from("practices")
     .select(
-      "id,slug,kind,title,description,default_duration_sec,min_duration_sec,max_duration_sec,params,video_provider,video_url,video_external_id,rating,is_active,version,created_at,updated_at",
+      "id,slug,title,default_duration_sec,params,rating,video_provider,video_external_id,practice_chakras(chakra_id,is_primary,weight)",
     )
     .eq("kind", "yoga")
     .eq("is_active", true)
@@ -234,28 +229,12 @@ export async function loadYogaPractices(): Promise<PracticeSummary[]> {
     return [];
   }
 
-  const ids = practices.map((practice) => practice.id);
-  const chakraRows: PracticeChakraRow[] = [];
-  for (const chunk of chunks(ids, 80)) {
-    const { data } = await supabase
-      .from("practice_chakras")
-      .select("practice_id,chakra_id,is_primary,weight")
-      .in("practice_id", chunk);
-    chakraRows.push(...((data ?? []) as PracticeChakraRow[]));
-  }
-
-  const result = sortPracticesForCatalog(practices
-    .map((practice) =>
-      yogaPracticeFromRow(
-        practice,
-        (chakraRows ?? []).filter((row) => row.practice_id === practice.id),
-      ),
-    )
-    .filter((practice): practice is PracticeSummary => practice !== null));
+  const yogaRows = (practices ?? []) as YogaCatalogRow[];
+  const result = sortPracticesForCatalog(yogaRows.map(yogaPracticeFromRow));
   logRuntimeEvent("practice_catalog:yoga_load_ready", {
     durationMs: Date.now() - startedAt,
     practiceCount: result.length,
-    chakraRows: chakraRows.length,
+    chakraRows: yogaRows.reduce((count, row) => count + (row.practice_chakras?.length ?? 0), 0),
   });
   return result;
 }
@@ -278,12 +257,52 @@ async function withTimeout<T>(
   ]);
 }
 
-export async function loadPracticeCatalog(options?: {
+type LoadPracticeCatalogOptions = {
   onLateYogaPractices?: (practices: PracticeSummary[]) => void;
-}): Promise<PracticeCatalog> {
+};
+
+type LoadPracticeCatalogDeps = {
+  loadYogaPractices?: () => Promise<PracticeSummary[]>;
+};
+
+export async function loadPracticeCatalog(
+  options?: LoadPracticeCatalogOptions,
+  deps?: LoadPracticeCatalogDeps,
+): Promise<PracticeCatalog> {
   const startedAt = Date.now();
   logRuntimeEvent("practice_catalog:load_start", undefined, "debug");
-  const yogaPromise = loadYogaPractices();
+  const meditation = sortPracticesForCatalog(STATIC_MEDITATIONS);
+  const breath = sortPracticesForCatalog(createBreathPractices());
+  const yogaLoader = deps?.loadYogaPractices ?? loadYogaPractices;
+  const yogaPromise = yogaLoader();
+
+  if (options?.onLateYogaPractices) {
+    yogaPromise
+      .then((lateYoga) => {
+        logRuntimeEvent("practice_catalog:yoga_load_late_ready", { yogaCount: lateYoga.length });
+        options.onLateYogaPractices?.(lateYoga);
+      })
+      .catch((error: unknown) => {
+        logRuntimeEvent(
+          "practice_catalog:yoga_load_late_error",
+          { message: error instanceof Error ? error.message : String(error) },
+          "warn",
+        );
+      });
+    logRuntimeEvent("practice_catalog:load_ready", {
+      durationMs: Date.now() - startedAt,
+      meditationCount: meditation.length,
+      breathCount: breath.length,
+      yogaCount: 0,
+      yogaDeferred: true,
+    });
+    return {
+      meditation,
+      breath,
+      yoga: [],
+    };
+  }
+
   const { value: yoga, timedOut } = await withTimeout(
     yogaPromise,
     YOGA_CATALOG_TIMEOUT_MS,
@@ -306,13 +325,13 @@ export async function loadPracticeCatalog(options?: {
   }
   logRuntimeEvent("practice_catalog:load_ready", {
     durationMs: Date.now() - startedAt,
-    meditationCount: STATIC_MEDITATIONS.length,
-    breathCount: BREATH_PRACTICES.length,
+    meditationCount: meditation.length,
+    breathCount: breath.length,
     yogaCount: yoga.length,
   });
   return {
-    meditation: sortPracticesForCatalog(STATIC_MEDITATIONS),
-    breath: sortPracticesForCatalog(createBreathPractices()),
+    meditation,
+    breath,
     yoga,
   };
 }

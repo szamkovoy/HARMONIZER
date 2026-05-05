@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { memo, useEffect, useMemo, useState } from "react";
+import { Image, Pressable, StyleSheet, View } from "react-native";
 
-import type { PracticeSummary } from "@/modules/practices/core/types";
+import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import { fetchPracticeVimeoThumbnail } from "@/services/practice-thumbnails";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 type SelectField = "duration" | "chakra" | "pulse" | null;
@@ -28,20 +30,24 @@ function durationOptions(practice: PracticeSummary): number[] {
   return [];
 }
 
-export function PracticeCard({
+export const PracticeCard = memo(function PracticeCard({
   practice,
   onLaunch,
   onRemotePlay,
   remotePlayConnected = false,
   remotePlayDisabled = false,
+  videoThumbnail,
 }: {
   practice: PracticeSummary;
   onLaunch: (practice: PracticeSummary) => void;
   onRemotePlay?: (practice: PracticeSummary) => void;
   remotePlayConnected?: boolean;
   remotePlayDisabled?: boolean;
+  videoThumbnail?: PracticeVideoThumbnail | null;
 }) {
   const theme = useTheme();
+  const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
+  const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
   const [selectedDurationMin, setSelectedDurationMin] = useState(() => {
     const fallback = practice.kind === "breath" ? 10 : 5;
@@ -51,6 +57,43 @@ export function PracticeCard({
   const [selectedChakra, setSelectedChakra] = useState<number>(practice.primaryChakra ?? practice.chakraIds[0] ?? 6);
   const [usePulseSensor, setUsePulseSensor] = useState(true);
   const [openField, setOpenField] = useState<SelectField>(null);
+
+  useEffect(() => {
+    if (practice.kind !== "yoga") return;
+    const videoId = practice.video?.provider === "vimeo" ? practice.video.externalId?.trim() ?? "" : "";
+    if (!videoId || videoThumbnail?.url || practice.video?.thumbnail?.url) {
+      setFallbackThumbnail(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetchPracticeVimeoThumbnail({
+      videoId,
+      targetWidth: 295,
+      signal: controller.signal,
+    })
+      .then((thumbnail) => {
+        setFallbackThumbnail(thumbnail);
+        logRuntimeEvent("practice_card:yoga_thumbnail_loaded", {
+          practiceId: practice.id,
+          videoId,
+          loaded: Boolean(thumbnail?.url),
+        }, "debug");
+      })
+      .catch((error: unknown) => {
+        setFallbackThumbnail(null);
+        logRuntimeEvent(
+          "practice_card:yoga_thumbnail_error",
+          {
+            practiceId: practice.id,
+            videoId,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          "warn",
+        );
+      });
+    return () => controller.abort();
+  }, [practice.id, practice.kind, practice.video?.externalId, practice.video?.provider, practice.video?.thumbnail?.url, videoThumbnail?.url]);
 
   const launchConfiguredPractice = () => {
     if (practice.kind === "yoga") {
@@ -94,9 +137,30 @@ export function PracticeCard({
       ) : null}
 
       {practice.kind === "yoga" ? (
-        <View style={styles.metaRow}>
-          <MetaPill label={durationLabel(practice)} />
-          <MetaPill label={chakraLabel(practice)} />
+        <View style={styles.yogaPreviewRow}>
+          <View
+            style={[
+              styles.thumbnailFrame,
+              {
+                backgroundColor: theme.colors.controlButtonBg,
+                borderColor: theme.colors.surfaceBorder,
+              },
+            ]}
+          >
+            {yogaThumbnail?.url ? (
+              <Image source={{ uri: yogaThumbnail.url }} style={styles.thumbnailImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.thumbnailPlaceholder}>
+                <AppText variant="technicalCaption" tone="muted">
+                  Видео
+                </AppText>
+              </View>
+            )}
+          </View>
+          <View style={styles.yogaMetaColumn}>
+            <MetaPill label={durationLabel(practice)} />
+            <MetaPill label={chakraLabel(practice)} />
+          </View>
         </View>
       ) : (
         <View style={styles.options}>
@@ -179,7 +243,7 @@ export function PracticeCard({
       </View>
     </View>
   );
-}
+});
 
 function MetaPill({ label }: { label: string }) {
   const theme = useTheme();
@@ -303,8 +367,35 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  yogaPreviewRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  yogaMetaColumn: {
+    flex: 1,
+    gap: 8,
+    alignItems: "flex-start",
+  },
   options: {
     gap: 8,
+  },
+  thumbnailFrame: {
+    width: 120,
+    height: 68,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbnailPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
   },
   metaPill: {
     borderWidth: StyleSheet.hairlineWidth,

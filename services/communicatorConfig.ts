@@ -61,6 +61,10 @@ export function getDailyForecastUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/astro/daily-forecast`;
 }
 
+export function getPracticeVimeoThumbnailsUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/practices/vimeo-thumbnails`;
+}
+
 /** POST: принять/отклонить AI-предложение состояния (Bearer JWT). */
 export function getAiProposalRespondUrl(proposalId: string): string {
   return `${getCommunicatorApiBaseUrl()}/api/proposals/${proposalId}/respond`;

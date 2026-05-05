@@ -83,7 +83,7 @@ describe("choosePractice", () => {
         practices: [
           yoga({ id: "recent-best", rating: 5, params: { recorded_at: "2022-01-01" } }),
           yoga({ id: "offered-best", rating: 5, params: { recorded_at: "2022-01-02" } }),
-          yoga({ id: "fresh-best", rating: 4, params: { recorded_at: "2022-01-03" } }),
+          yoga({ id: "fresh-best", rating: 4, params: { recorded_at: "2022-01-03" }, video_external_id: "v123" }),
           yoga({ id: "wrong-chakra", rating: 5, practice_chakras: [{ chakra_id: 4, weight: 1 }] }),
         ],
         recentSessions: [{ practice_id: "recent-best", practice_slug: "recent-best", practices: { kind: "yoga" } }],
@@ -117,6 +117,9 @@ describe("choosePractice", () => {
     expect(publicPracticePickedPayload(picked!, "потому что сейчас нужен фокус")).toMatchObject({
       id: "fresh-best",
       reason: "потому что сейчас нужен фокус",
+      video: {
+        provider: "vimeo",
+      },
     });
   });
 

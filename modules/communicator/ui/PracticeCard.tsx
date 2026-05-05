@@ -1,9 +1,11 @@
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { useState } from "react";
+import { Image, Modal, Pressable, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
 
 import type { CommunicatorStrings } from "@/modules/communicator/i18n/communicator";
+import type { PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import { fetchPracticeVimeoThumbnail } from "@/services/practice-thumbnails";
 import type { PracticePicked } from "@/services/communicator-client";
 
 const KIND_LABEL: Record<NonNullable<PracticePicked["kind"]>, string> = {
@@ -21,6 +23,11 @@ function durationLabel(practice: PracticePicked): string | null {
   return `${minutes} мин`;
 }
 
+function chakraLabel(practice: PracticePicked): string | null {
+  if (!practice.chakraIds?.length) return null;
+  return practice.chakraIds.map((chakra) => `${chakra} чакра`).join(", ");
+}
+
 export function PracticeCard({
   practice,
   strings,
@@ -32,8 +39,34 @@ export function PracticeCard({
 }) {
   const theme = useTheme();
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const title = practice.name ?? strings.practiceCard.fallbackTitle;
-  const meta = [practice.kind ? KIND_LABEL[practice.kind] : null, durationLabel(practice)].filter(Boolean).join(" · ");
+  const yogaThumbnail = practice.kind === "yoga" ? practice.video?.thumbnail ?? fallbackThumbnail : null;
+  const meta = [
+    practice.kind ? KIND_LABEL[practice.kind] : null,
+    practice.kind === "yoga" ? null : durationLabel(practice),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  useEffect(() => {
+    if (practice.kind !== "yoga") return;
+    const videoId = practice.video?.provider === "vimeo" ? practice.video.externalId?.trim() ?? "" : "";
+    if (!videoId || practice.video?.thumbnail) {
+      setFallbackThumbnail(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetchPracticeVimeoThumbnail({
+      videoId,
+      targetWidth: 295,
+      signal: controller.signal,
+    })
+      .then((thumbnail) => setFallbackThumbnail(thumbnail))
+      .catch(() => setFallbackThumbnail(null));
+    return () => controller.abort();
+  }, [practice.kind, practice.video?.externalId, practice.video?.provider, practice.video?.thumbnail]);
 
   return (
     <View style={styles.row}>
@@ -57,6 +90,45 @@ export function PracticeCard({
         ) : null}
         {practice.reason ? (
           <AppText variant="dialogBody" tone="muted">{practice.reason}</AppText>
+        ) : null}
+        {practice.kind === "yoga" ? (
+          <View style={styles.yogaPreviewRow}>
+            <View
+              style={[
+                styles.thumbnailFrame,
+                {
+                  backgroundColor: theme.colors.controlButtonBg,
+                  borderColor: theme.colors.surfaceBorder,
+                },
+              ]}
+            >
+              {yogaThumbnail?.url ? (
+                <Image source={{ uri: yogaThumbnail.url }} style={styles.thumbnailImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.thumbnailPlaceholder}>
+                  <AppText variant="technicalCaption" tone="muted">
+                    Видео
+                  </AppText>
+                </View>
+              )}
+            </View>
+            <View style={styles.yogaMetaColumn}>
+              {durationLabel(practice) ? (
+                <View style={[styles.metaPill, { borderColor: theme.colors.surfaceBorder }]}>
+                  <AppText variant="technicalCaption" tone="muted">
+                    {durationLabel(practice)}
+                  </AppText>
+                </View>
+              ) : null}
+              {chakraLabel(practice) ? (
+                <View style={[styles.metaPill, { borderColor: theme.colors.surfaceBorder }]}>
+                  <AppText variant="technicalCaption" tone="muted">
+                    {chakraLabel(practice)}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+          </View>
         ) : null}
         {(practice.hasDescription || practice.hasInstructionVideo) ? (
           <View style={styles.metaRow}>
@@ -164,11 +236,38 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  yogaPreviewRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  yogaMetaColumn: {
+    flex: 1,
+    gap: 8,
+    alignItems: "flex-start",
+  },
   metaPill: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  thumbnailFrame: {
+    width: 132,
+    height: 74,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbnailPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
   },
   modalBackdrop: {
     flex: 1,

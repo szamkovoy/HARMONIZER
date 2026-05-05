@@ -70,6 +70,21 @@ vi.mock("@legacy/app/api/_utils/supabase", () => ({
     Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 }),
 }));
 
+vi.mock("@legacy/app/api/_utils/vimeo", () => ({
+  attachThumbnailToPracticeRecommendation: async (practice: Record<string, unknown>) => ({
+    ...practice,
+    video: {
+      provider: "vimeo",
+      externalId: "123",
+      thumbnail: {
+        url: "https://i.vimeocdn.com/video/test_200x150.jpg",
+        width: 200,
+        height: 150,
+      },
+    },
+  }),
+}));
+
 import { POST } from "@legacy/app/api/communicator/v2/select-practice/route";
 
 describe("communicator v2 select-practice wrapper", () => {
@@ -90,6 +105,15 @@ describe("communicator v2 select-practice wrapper", () => {
         id: string;
         name: string;
         reason?: string;
+        video?: {
+          provider: string;
+          externalId?: string;
+          thumbnail?: {
+            url: string;
+            width: number;
+            height: number;
+          };
+        };
         launch?: {
           route: string;
           params: Record<string, string>;
@@ -103,6 +127,15 @@ describe("communicator v2 select-practice wrapper", () => {
       id: "practice-1",
       name: "Практика на Аджну",
       reason: "Нужен ясный фокус.",
+      video: {
+        provider: "vimeo",
+        externalId: "123",
+        thumbnail: {
+          url: "https://i.vimeocdn.com/video/test_200x150.jpg",
+          width: 200,
+          height: 150,
+        },
+      },
       launch: {
         route: "/asana-practice",
         params: {

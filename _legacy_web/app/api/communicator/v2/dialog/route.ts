@@ -31,6 +31,7 @@ import {
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
+import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import {
   isConversationExpired,
   lastAssistantDecisions,
@@ -753,7 +754,10 @@ export async function POST(req: Request) {
           const cleanText = stripResponseMarkers(fullText);
           const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(routeDb, routeUserId, markers.practicePick, context, userMessage, history) : null;
           const finalPracticePublic = finalPractice
-            ? publicPracticePickedPayload(finalPractice, markers.practicePick?.reason)
+            ? await attachThumbnailToPracticeRecommendation(
+                publicPracticePickedPayload(finalPractice, markers.practicePick?.reason),
+                295,
+              )
             : undefined;
 
           if (markers.stateProposals.length) {

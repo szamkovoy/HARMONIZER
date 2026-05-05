@@ -18,6 +18,13 @@ export interface PracticeVideoMetadata {
   provider: "youtube" | "vimeo" | "vk_video" | "rutube" | string;
   url?: string;
   externalId?: string;
+  thumbnail?: PracticeVideoThumbnail | null;
+}
+
+export interface PracticeVideoThumbnail {
+  url: string;
+  width: number;
+  height: number;
 }
 
 export type PracticeLaunchParams =

@@ -1,5 +1,6 @@
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
+import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,10 @@ export async function POST(req: Request) {
       [],
     );
     if (!selected) return json({ error: "No active practices found" }, { status: 404 });
-    const practicePicked = publicPracticePickedPayload(selected, body.reason);
+    const practicePicked = await attachThumbnailToPracticeRecommendation(
+      publicPracticePickedPayload(selected, body.reason),
+      295,
+    );
 
     await db.from("user_event_log").insert({
       user_id: userId,

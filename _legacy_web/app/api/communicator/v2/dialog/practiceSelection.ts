@@ -257,6 +257,12 @@ function toPracticePickedPayload(
     launch: launchForPractice(practice, chakraIds[0] ?? chakraId),
     hasDescription: hasLocalizedText(practice.description),
     hasInstructionVideo: Boolean(params.instruction_video || params.instruction_video_external_id || practice.video_external_id),
+    video: practice.video_external_id
+      ? {
+          provider: "vimeo",
+          externalId: practice.video_external_id,
+        }
+      : null,
     stack,
   };
 }
