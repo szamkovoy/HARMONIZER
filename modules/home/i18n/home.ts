@@ -19,6 +19,10 @@ export interface HomeStrings {
   skeletonText: string;
   locationErrorTitle: string;
   locationErrorMessage: string;
+  birthDataTitle: string;
+  birthDataMessage: string;
+  staleContentTitle: string;
+  staleContentMessage: string;
   forecastErrorTitle: string;
   retryButton: string;
   emptyTimeLabel: string;
@@ -115,7 +119,11 @@ const ru: HomeStrings = {
   skeletonText: "Собираю прогноз дня и окна возможностей...",
   locationErrorTitle: "Нужна геолокация",
   locationErrorMessage:
-    "Для расчёта окон возможностей нужна геолокация. Разрешите её в настройках профиля или пройдите онбординг заново.",
+    "Для расчёта окон возможностей нужна геолокация. Разрешите доступ к геопозиции и попробуйте снова.",
+  birthDataTitle: "Нужна дата рождения",
+  birthDataMessage: "Чтобы построить персональный прогноз дня, введите дату, время и место рождения.",
+  staleContentTitle: "Показываю сохранённый прогноз",
+  staleContentMessage: "Свежие данные сейчас не загрузились, поэтому временно показываю последний сохранённый вариант за этот день.",
   forecastErrorTitle: "Не удалось загрузить прогноз",
   retryButton: "Повторить",
   emptyTimeLabel: "—",
@@ -220,7 +228,11 @@ const en: HomeStrings = {
   skeletonText: "Preparing the daily forecast and opportunity windows...",
   locationErrorTitle: "Location is required",
   locationErrorMessage:
-    "Opportunity windows need your location. Allow it in profile settings or repeat onboarding.",
+    "Opportunity windows need your location. Allow location access and try again.",
+  birthDataTitle: "Birth data is required",
+  birthDataMessage: "Enter your birth date, time, and place to build a personal daily forecast.",
+  staleContentTitle: "Showing saved forecast",
+  staleContentMessage: "Fresh data could not be loaded right now, so the latest saved forecast for today is shown temporarily.",
   forecastErrorTitle: "Could not load forecast",
   retryButton: "Try again",
   emptyTimeLabel: "—",

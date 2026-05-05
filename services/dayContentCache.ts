@@ -1,6 +1,7 @@
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { ProductTier } from "@/modules/access/core/tiers";
 import type { AccessMode } from "@/services/globalContentClient";
+import { isDayContentComplete } from "@/services/dayContentIntegrity";
 import { DateTime } from "luxon";
 import { Platform } from "react-native";
 
@@ -44,6 +45,10 @@ interface CacheManifest {
   entries: CacheManifestEntry[];
 }
 
+export interface CacheLookupResult extends CachedDayContent {
+  freshness: "fresh" | "stale";
+}
+
 type SecureStoreLike = typeof import("expo-secure-store");
 
 const CACHE_VERSION = 1;
@@ -78,10 +83,28 @@ function getSecureStore(): SecureStoreLike | null {
   }
 }
 
+function getWebStorage(): Storage | null {
+  if (Platform.OS !== "web") return null;
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function getRaw(key: string): Promise<string | null> {
   const safeKey = safeStorageKey(key);
   const SecureStore = getSecureStore();
-  if (!safeKey || !SecureStore) return null;
+  if (!safeKey) return null;
+  const webStorage = getWebStorage();
+  if (!SecureStore && webStorage) {
+    try {
+      return webStorage.getItem(safeKey);
+    } catch {
+      return null;
+    }
+  }
+  if (!SecureStore) return null;
 
   try {
     const countRaw = await SecureStore.getItemAsync(chunkCountKey(safeKey));
@@ -98,10 +121,35 @@ async function getRaw(key: string): Promise<string | null> {
   }
 }
 
+function getRawSync(key: string): string | null {
+  const safeKey = safeStorageKey(key);
+  if (!safeKey) return null;
+  if (memoryCache.has(safeKey)) {
+    return JSON.stringify(memoryCache.get(safeKey));
+  }
+  const webStorage = getWebStorage();
+  if (!webStorage) return null;
+  try {
+    return webStorage.getItem(safeKey);
+  } catch {
+    return null;
+  }
+}
+
 async function setRaw(key: string, value: string): Promise<void> {
   const safeKey = safeStorageKey(key);
   const SecureStore = getSecureStore();
-  if (!safeKey || !SecureStore) return;
+  if (!safeKey) return;
+  const webStorage = getWebStorage();
+  if (!SecureStore && webStorage) {
+    try {
+      webStorage.setItem(safeKey, value);
+    } catch {
+      /* A cache write must never block the home screen. */
+    }
+    return;
+  }
+  if (!SecureStore) return;
 
   try {
     await removeRaw(safeKey);
@@ -121,7 +169,17 @@ async function setRaw(key: string, value: string): Promise<void> {
 async function removeRaw(key: string): Promise<void> {
   const safeKey = safeStorageKey(key);
   const SecureStore = getSecureStore();
-  if (!safeKey || !SecureStore) return;
+  if (!safeKey) return;
+  const webStorage = getWebStorage();
+  if (!SecureStore && webStorage) {
+    try {
+      webStorage.removeItem(safeKey);
+    } catch {
+      /* ignore missing/invalid cache keys */
+    }
+    return;
+  }
+  if (!SecureStore) return;
 
   try {
     const countRaw = await SecureStore.getItemAsync(chunkCountKey(safeKey));
@@ -197,7 +255,8 @@ export async function pruneDayContentCache(params: { userId: string; forecastDat
     manifest.entries.map(async (entry) => {
       const expired = new Date(entry.expiresAt).getTime() <= now;
       const otherDayForUser = entry.userId === params.userId && entry.forecastDate !== params.forecastDate;
-      if (expired || otherDayForUser) {
+      const isCurrentUserCurrentDay = entry.userId === params.userId && entry.forecastDate === params.forecastDate;
+      if (otherDayForUser || (expired && !isCurrentUserCurrentDay)) {
         memoryCache.delete(entry.key);
         await removeRaw(entry.key);
       } else {
@@ -240,7 +299,8 @@ export async function loadDayContentCache(params: {
   forecastDate: string;
   scopeKey: string;
   userLocation: UserLocation;
-}): Promise<CachedDayContent | null> {
+  allowStale?: boolean;
+}): Promise<CacheLookupResult | null> {
   const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
   const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(await getRaw(key));
   if (!entry) return null;
@@ -253,7 +313,7 @@ export async function loadDayContentCache(params: {
     entry.forecastDate !== params.forecastDate ||
     entry.scopeKey !== params.scopeKey ||
     !sameLocation(entry.location, params.userLocation) ||
-    !isFresh(entry)
+    !isDayContentComplete(entry.forecast, params.accessMode)
   ) {
     memoryCache.delete(key);
     await removeRaw(key);
@@ -261,10 +321,49 @@ export async function loadDayContentCache(params: {
   }
 
   memoryCache.set(key, entry);
+  const freshness = isFresh(entry) ? "fresh" : "stale";
+  if (freshness === "stale" && !params.allowStale) {
+    return null;
+  }
   return {
     forecast: entry.forecast,
     source: entry.source,
     modelUsed: entry.modelUsed,
+    freshness,
+  };
+}
+
+export function peekDayContentCache(params: {
+  userId: string;
+  accessMode: AccessMode;
+  accessTier: ProductTier;
+  forecastDate: string;
+  scopeKey: string;
+  userLocation: UserLocation;
+  allowStale?: boolean;
+}): CacheLookupResult | null {
+  const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
+  const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(getRawSync(key));
+  if (!entry) return null;
+  if (
+    entry.version !== CACHE_VERSION ||
+    entry.userId !== params.userId ||
+    entry.accessMode !== params.accessMode ||
+    entry.accessTier !== params.accessTier ||
+    entry.forecastDate !== params.forecastDate ||
+    entry.scopeKey !== params.scopeKey ||
+    !sameLocation(entry.location, params.userLocation) ||
+    !isDayContentComplete(entry.forecast, params.accessMode)
+  ) {
+    return null;
+  }
+  const freshness = isFresh(entry) ? "fresh" : "stale";
+  if (freshness === "stale" && !params.allowStale) return null;
+  return {
+    forecast: entry.forecast,
+    source: entry.source,
+    modelUsed: entry.modelUsed,
+    freshness,
   };
 }
 
@@ -277,6 +376,7 @@ export async function saveDayContentCache(params: {
   userLocation: UserLocation;
   content: CachedDayContent;
 }): Promise<void> {
+  if (!isDayContentComplete(params.content.forecast, params.accessMode)) return;
   const expiresAt = earlierIso(
     params.content.forecast.cacheValidUntil,
     endOfLocalForecastDay(params.forecastDate, params.userLocation.timezone),

@@ -19,6 +19,7 @@ export interface DailyForecastRequest {
 export interface DailyForecastResult {
   source: ForecastSource;
   forecast: DailyForecast;
+  modelUsed: string | null;
 }
 
 type ForecastPayload = Partial<DailyForecast> & {
@@ -45,6 +46,7 @@ type DailyForecastResponse = {
   source?: ForecastSource;
   forecast?: ForecastPayload;
   forecastPayload?: ForecastPayload;
+  modelUsed?: string | null;
   error?: unknown;
 };
 
@@ -180,5 +182,6 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
   return {
     source: data.source ?? "computed",
     forecast: normalizeForecast(raw),
+    modelUsed: typeof data.modelUsed === "string" && data.modelUsed.trim() ? data.modelUsed.trim() : null,
   };
 }

@@ -20,7 +20,7 @@ import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -71,9 +71,11 @@ function HomeHeader({
           <AppText variant="screenHint" accessibilityRole="header" style={styles.dateText}>
             {today}
           </AppText>
-          <AppText variant="screenHint" tone="muted">
-            {forecast?.slogan?.trim() || strings.daySlogan(forecast)}
-          </AppText>
+          {forecast?.slogan?.trim() ? (
+            <AppText variant="screenHint" tone="muted">
+              {forecast.slogan.trim()}
+            </AppText>
+          ) : null}
         </View>
       </View>
     </View>
@@ -105,36 +107,18 @@ function AnnouncementBanner() {
   );
 }
 
-function HomeSkeleton({ strings }: { strings: HomeStrings }) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.stateCard,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.surfaceBorder,
-        },
-      ]}
-    >
-      <ActivityIndicator color={theme.colors.accent} />
-      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
-        {strings.skeletonText}
-      </AppText>
-    </View>
-  );
-}
-
 function HomeError({
+  title,
   message,
-  missingLocation,
-  onRetry,
-  strings,
+  tone,
+  actionLabel,
+  onAction,
 }: {
+  title: string;
   message: string;
-  missingLocation: boolean;
-  onRetry: () => void;
-  strings: HomeStrings;
+  tone: "warning" | "danger";
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   const theme = useTheme();
   return (
@@ -143,17 +127,39 @@ function HomeError({
         styles.stateCard,
         {
           backgroundColor: theme.colors.surface,
-          borderColor: missingLocation ? theme.colors.warning : theme.colors.danger,
+          borderColor: tone === "warning" ? theme.colors.warning : theme.colors.danger,
         },
       ]}
     >
-      <AppText variant="sectionTitle" tone={missingLocation ? "warning" : "danger"} style={styles.centerText}>
-        {missingLocation ? strings.locationErrorTitle : strings.forecastErrorTitle}
+      <AppText variant="sectionTitle" tone={tone} style={styles.centerText}>
+        {title}
       </AppText>
       <AppText variant="screenHint" tone="muted" style={styles.centerText}>
         {message}
       </AppText>
-      {!missingLocation ? <AppButton label={strings.retryButton} variant="secondary" onPress={onRetry} /> : null}
+      {actionLabel && onAction ? <AppButton label={actionLabel} variant="secondary" onPress={onAction} /> : null}
+    </View>
+  );
+}
+
+function HomeStaleNotice({ title, message }: { title: string; message: string }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.stateCard,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.warning,
+        },
+      ]}
+    >
+      <AppText variant="sectionTitle" tone="warning" style={styles.centerText}>
+        {title}
+      </AppText>
+      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
+        {message}
+      </AppText>
     </View>
   );
 }
@@ -195,7 +201,7 @@ function DevLinks({ strings, leadingAccessory }: { strings: HomeStrings; leading
 }
 
 function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
-  return <AppButton label="Ввести натальные данные" variant="secondary" onPress={onOpen} />;
+  return <AppButton label="Введите дату рождения" variant="secondary" onPress={onOpen} />;
 }
 
 function FreeTierBanner() {
@@ -438,41 +444,68 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, signOut, signingIn, refreshProfile } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
+  const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const strings = useMemo(
     () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
     [profile?.locale],
   );
-  const { forecast, loading, error, refresh, status, accessMode, modelUsed } = useDayContent({
-    locationErrorMessage: strings.locationErrorMessage,
-    accessModeOverride: accessModeForTier(access.tier),
-    accessTierOverride: access.tier,
-  });
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
   const [assistantRemountKey, setAssistantRemountKey] = useState(0);
   const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
+  const [natalProfileLoading, setNatalProfileLoading] = useState(needsPersonalForecast);
+  const [natalProfileResolved, setNatalProfileResolved] = useState(!needsPersonalForecast);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+  const hasNatalProfile = needsPersonalForecast ? (natalProfileResolved ? Boolean(natalProfile) : null) : true;
+  const { forecast, loading, error, refresh, status, accessMode, modelUsed } = useDayContent({
+    locationErrorMessage: strings.locationErrorMessage,
+    birthDataErrorMessage: strings.birthDataMessage,
+    accessModeOverride: accessModeForTier(access.tier),
+    accessTierOverride: access.tier,
+    natalRequired: needsPersonalForecast,
+    hasNatalProfile,
+  });
+
+  useLayoutEffect(() => {
+    if (!profile?.id || !needsPersonalForecast) {
+      return;
+    }
+    setNatalProfileLoading(true);
+    setNatalProfileResolved(false);
+  }, [needsPersonalForecast, profile?.id]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!profile?.id || !canUseFeature("personal_daily_forecast")) {
+    if (!profile?.id || !needsPersonalForecast) {
       setNatalProfile(null);
+      setNatalProfileLoading(false);
+      setNatalProfileResolved(true);
       return;
     }
+    setNatalProfileLoading(true);
+    setNatalProfileResolved(false);
     fetchActiveNatalProfile()
       .then((value) => {
-        if (!cancelled) setNatalProfile(value);
+        if (!cancelled) {
+          setNatalProfile(value);
+          setNatalProfileLoading(false);
+          setNatalProfileResolved(true);
+        }
       })
-      .catch((error) => {
-        console.warn("[Home] Failed to load active natal profile", error);
-        if (!cancelled) setNatalProfile(null);
+      .catch((loadError) => {
+        console.warn("[Home] Failed to load active natal profile", loadError);
+        if (!cancelled) {
+          setNatalProfile(null);
+          setNatalProfileLoading(false);
+          setNatalProfileResolved(true);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [canUseFeature, profile?.id]);
+  }, [needsPersonalForecast, profile?.id]);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
@@ -532,14 +565,35 @@ export default function HomeScreen() {
         <HomeHeader forecast={forecast} strings={strings} />
         <AnnouncementBanner />
 
-        {loading ? <HomeSkeleton strings={strings} /> : null}
-        {error ? (
+        {status === "need_location" && error ? (
           <HomeError
+            title={strings.locationErrorTitle}
             message={error.message}
-            missingLocation={status === "missing_location"}
-            onRetry={() => void refresh({ forceRefresh: true })}
-            strings={strings}
+            tone="warning"
+            actionLabel={strings.retryButton}
+            onAction={() => void refresh({ forceRefresh: true })}
           />
+        ) : null}
+        {status === "need_birth_data" ? (
+          <HomeError
+            title={strings.birthDataTitle}
+            message={strings.birthDataMessage}
+            tone="warning"
+            actionLabel="Введите дату рождения"
+            onAction={() => setNatalBridgeOpen(true)}
+          />
+        ) : null}
+        {status === "error" && error ? (
+          <HomeError
+            title={strings.forecastErrorTitle}
+            message={error.message}
+            tone="danger"
+            actionLabel={strings.retryButton}
+            onAction={() => void refresh({ forceRefresh: true })}
+          />
+        ) : null}
+        {status === "stale_ready" ? (
+          <HomeStaleNotice title={strings.staleContentTitle} message={strings.staleContentMessage} />
         ) : null}
 
         {forecast ? (
@@ -570,15 +624,17 @@ export default function HomeScreen() {
           </>
         ) : null}
 
-        <NatalBridgeCard
-          onOpen={() => {
-            if (canUseFeature("calibration")) {
-              setNatalBridgeOpen(true);
-            } else {
-              setUpgradeFeature("calibration");
-            }
-          }}
-        />
+        {status !== "need_birth_data" ? (
+          <NatalBridgeCard
+            onOpen={() => {
+              if (canUseFeature("calibration")) {
+                setNatalBridgeOpen(true);
+              } else {
+                setUpgradeFeature("calibration");
+              }
+            }}
+          />
+        ) : null}
         {__DEV__ ? <AccessDevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
         {HARMONIZER_TEST_MODE ? (
           <DevLinks

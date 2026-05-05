@@ -15,6 +15,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/components/useColorScheme";
 import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";
+import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 import { logRuntimeEvent, logRuntimeTap, useRuntimeDiagnosticsSampler } from "@/services/runtimeDiagnostics";
@@ -27,13 +28,12 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-/** Нативный сплэш держим до готовности шрифтов и первичной проверки сессии — меньше «белого экрана». */
-function AuthSplashBridge({ fontsLoaded }: { fontsLoaded: boolean }) {
-  const { initializing } = useAuth();
+/** Нативный сплэш держим до первого рендера JS-оверлея — дальше анимация уже под нашим контролем. */
+function NativeSplashBridge({ fontsLoaded }: { fontsLoaded: boolean }) {
   useEffect(() => {
-    if (!fontsLoaded || initializing) return;
+    if (!fontsLoaded) return;
     void SplashScreen.hideAsync();
-  }, [fontsLoaded, initializing]);
+  }, [fontsLoaded]);
   return null;
 }
 
@@ -55,12 +55,14 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <UiThemeProvider value={uiTheme}>
         <AuthProvider>
-          <RemotePlayProvider>
-            <AccessBridge>
-              <AuthSplashBridge fontsLoaded={loaded} />
-              <RootLayoutNav />
-            </AccessBridge>
-          </RemotePlayProvider>
+          <AppStartupProvider>
+            <RemotePlayProvider>
+              <AccessBridge>
+                <NativeSplashBridge fontsLoaded={loaded} />
+                <RootLayoutNav />
+              </AccessBridge>
+            </RemotePlayProvider>
+          </AppStartupProvider>
         </AuthProvider>
       </UiThemeProvider>
     </SafeAreaProvider>
@@ -118,11 +120,17 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
   const { initializing } = useAuth();
+  const { setHomeRouteActive } = useAppStartup();
   const segments = useSegments();
   useAuthRouteGate();
   useRuntimeDiagnosticsSampler();
 
   const routePath = segments.join("/") || "/";
+  const isHomeRoute = (segments[0] as string | undefined) === "(tabs)" && segments[1] == null;
+
+  useEffect(() => {
+    setHomeRouteActive(isHomeRoute);
+  }, [isHomeRoute, setHomeRouteActive]);
 
   useEffect(() => {
     logRuntimeEvent("screen:route", { routePath });
@@ -146,13 +154,9 @@ function RootLayoutNav() {
       <View
         style={{
           flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
           backgroundColor: theme.colors.screenBg,
         }}
-      >
-        <ActivityIndicator size="large" color={theme.colors.accent} />
-      </View>
+      />
     );
   }
 
