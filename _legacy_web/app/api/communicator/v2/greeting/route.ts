@@ -2,8 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
 import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
-import { buildForecastCompact, buildProfileCompact, logDTOSize } from "@legacy/app/api/_utils/dto";
+import {
+  buildResponderForecastCompact,
+  buildResponderProfileCompact,
+  logDTOSize,
+  responderThemeLabel,
+} from "@legacy/app/api/_utils/dto";
 import { generateGeminiText, getModelByHint } from "@legacy/app/api/_utils/gemini";
+import { sanitizeAssistantText } from "@legacy/app/api/_utils/markers";
 import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "@legacy/app/api/_utils/orchestrator";
@@ -110,8 +116,8 @@ export async function POST(req: Request) {
       loadGreetingContext(db, userId),
     ]);
     const tod = timeOfDayContext(new Date(), userTimezone);
-    const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
-    const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
+    const profileDTO = buildResponderProfileCompact(context.natal, context.calibration, context.user);
+    const forecastDTO = useCase === "daily_dialog" ? buildResponderForecastCompact(context.forecast) : null;
     const todayTone = (context.forecast?.today_planet_state as { todayTone?: string; today_tone?: string } | undefined)?.todayTone
       ?? (context.forecast?.today_planet_state as { today_tone?: string } | undefined)?.today_tone
       ?? "neutral";
@@ -136,7 +142,7 @@ export async function POST(req: Request) {
       local_hour: tod.localHour,
       entry_source: body.entrySource ?? "home",
       entry_source_label: body.entrySource ?? "home",
-      planet_of_day_summary: `${planetOfDay}, tone=${todayTone}`,
+      planet_of_day_summary: responderThemeLabel(planetOfDay),
       today_tone: todayTone,
       address_form_hint: addressFormHint,
       window_time: body.triggerMeta?.window_time ?? "",
@@ -161,13 +167,15 @@ export async function POST(req: Request) {
       maxOutputTokens: responderPrompt.max_output_tokens,
     });
 
+    const cleanText = sanitizeAssistantText(result.text, context.user.locale);
+
     const { data: message, error: messageError } = await db
       .from("messages")
       .insert({
         user_id: userId,
         conversation_id: conversation.id,
         role: "assistant",
-        content: result.text.trim(),
+        content: cleanText,
         content_type: "text",
         meta: {
           use_case: useCase,
@@ -182,7 +190,7 @@ export async function POST(req: Request) {
     return json({
       conversationId: conversation.id,
       messageId: message.id,
-      greetingText: result.text.trim(),
+      greetingText: cleanText,
       decision,
       suggestedOptions: [],
     });

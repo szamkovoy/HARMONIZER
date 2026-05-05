@@ -23,6 +23,16 @@ const PLANET_SHORT_LABELS: Record<Planet, string> = {
   Sun: "vitality",
 };
 
+const PLANET_THEME_LABELS_RU: Record<Planet, string> = {
+  Moon: "опора и безопасность",
+  Venus: "близость и удовольствие",
+  Mars: "воля и действие",
+  Jupiter: "сердце и смысл",
+  Saturn: "самовыражение и границы",
+  Mercury: "ясность и понимание",
+  Sun: "витальность и присутствие",
+};
+
 export const TOKEN_BUDGETS = {
   profileCompact: 350,
   forecastCompact: 200,
@@ -53,6 +63,36 @@ export interface ForecastCompactDTO {
   planet: Planet | string;
   chakra: number;
   shortLabel: string;
+  tone: Tone;
+  H: number;
+  S: number;
+  isAlternativeChoice: boolean;
+  windows: {
+    sunrise?: string;
+    culmination?: string;
+    exactAspect?: string;
+  };
+}
+
+export interface ResponderProfileCompactDTO {
+  name: string;
+  birthDate: string;
+  precisionMode: "precise" | "approximate" | "unknown";
+  centers: Record<
+    number,
+    {
+      theme: string;
+      strength: number;
+      harmony: number;
+      flag?: "weak" | "strong" | "harmonic" | "dissonant";
+    }
+  >;
+  isCalibrated: boolean;
+}
+
+export interface ResponderForecastCompactDTO {
+  date: string;
+  theme: string;
   tone: Tone;
   H: number;
   S: number;
@@ -168,6 +208,45 @@ export function buildProfileCompact(natal: NatalLike | null | undefined, calibra
   };
 }
 
+export function responderThemeLabel(planet: string | null | undefined): string {
+  return PLANET_THEME_LABELS_RU[isPlanet(planet ?? "") ? planet : "Sun"];
+}
+
+export function buildResponderProfileCompact(
+  natal: NatalLike | null | undefined,
+  calibration: CalibrationLike | null,
+  user: UserLike = {},
+): ResponderProfileCompactDTO {
+  const centers: ResponderProfileCompactDTO["centers"] = {};
+
+  for (const planet of PLANETS_7) {
+    const natalPlanet = natal?.planets?.[planet];
+    const strength = calibration?.s_calibrated?.[planet] ?? natalPlanet?.S_initial ?? 0.5;
+    const harmony = calibration?.h_calibrated?.[planet] ?? natalPlanet?.H_initial ?? 0;
+    let flag: ResponderProfileCompactDTO["centers"][number]["flag"];
+
+    if (strength < 0.3) flag = "weak";
+    else if (strength > 0.75) flag = "strong";
+    if (harmony < -0.4) flag = flag ?? "dissonant";
+    else if (harmony > 0.4 && !flag) flag = "harmonic";
+
+    centers[PLANET_TO_CHAKRA[planet]] = {
+      theme: responderThemeLabel(planet),
+      strength: round(strength, 2),
+      harmony: round(harmony, 2),
+      ...(flag ? { flag } : {}),
+    };
+  }
+
+  return {
+    name: user.display_name ?? user.full_name ?? "User",
+    birthDate: user.birth_date?.slice(0, 10) ?? "",
+    precisionMode: natal?.precisionMode ?? natal?.precision_mode ?? "unknown",
+    centers,
+    isCalibrated: Boolean(calibration),
+  };
+}
+
 export function buildForecastCompact(forecast: ForecastLike | null | undefined): ForecastCompactDTO | null {
   if (!forecast) return null;
 
@@ -181,6 +260,31 @@ export function buildForecastCompact(forecast: ForecastLike | null | undefined):
     planet,
     chakra: PLANET_TO_CHAKRA[normalizedPlanet],
     shortLabel: PLANET_SHORT_LABELS[normalizedPlanet],
+    tone: planetState.todayTone ?? "neutral",
+    H: round(planetState.naturalHarmoniousness ?? 0, 2),
+    S: round(forecast.importance?.[planet] ?? 0, 2),
+    isAlternativeChoice: Boolean(forecast.is_alternative_choice ?? forecast.isAlternativeChoice),
+    windows: {
+      sunrise: extractHHMM(windows.sunrise?.time),
+      culmination: extractHHMM(windows.culmination?.time),
+      exactAspect: extractHHMM(windows.exactAspect?.time),
+    },
+  };
+}
+
+export function buildResponderForecastCompact(
+  forecast: ForecastLike | null | undefined,
+): ResponderForecastCompactDTO | null {
+  if (!forecast) return null;
+
+  const planet = String(forecast.planet_of_the_day ?? forecast.planetOfTheDay ?? "Sun");
+  const normalizedPlanet = isPlanet(planet) ? planet : "Sun";
+  const planetState = forecast.today_planet_state ?? forecast.todayPlanetState ?? {};
+  const windows = forecast.windows_of_opportunity ?? forecast.windowsOfOpportunity ?? {};
+
+  return {
+    date: forecast.forecast_date ?? forecast.date ?? "",
+    theme: responderThemeLabel(normalizedPlanet),
     tone: planetState.todayTone ?? "neutral",
     H: round(planetState.naturalHarmoniousness ?? 0, 2),
     S: round(forecast.importance?.[planet] ?? 0, 2),

@@ -3,7 +3,14 @@ import informationAxes from "@/data/information_axes.json";
 import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
 import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
-import { buildForecastCompact, buildHistoryCompact, buildProfileCompact, logDTOSize } from "@legacy/app/api/_utils/dto";
+import {
+  buildHistoryCompact,
+  buildProfileCompact,
+  buildResponderForecastCompact,
+  buildResponderProfileCompact,
+  logDTOSize,
+  responderThemeLabel,
+} from "@legacy/app/api/_utils/dto";
 import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "@legacy/app/api/_utils/gemini";
 import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
 import {
@@ -14,7 +21,7 @@ import {
   estimateEmotionalValence,
   isReadyForPractice,
 } from "@legacy/app/api/_utils/insightDetection";
-import { parseResponseMarkers, stripResponseMarkers } from "@legacy/app/api/_utils/markers";
+import { parseResponseMarkers, sanitizeAssistantText } from "@legacy/app/api/_utils/markers";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import {
   contextSimilarity,
@@ -507,6 +514,7 @@ function phaseVariables(params: {
     ?? (params.context.forecast?.today_planet_state as { today_tone?: string } | undefined)?.today_tone
     ?? "neutral";
   const addressFormHint = buildAddressFormHint(params.context.user.address_form, params.context.user.locale);
+  const themeLabel = responderThemeLabel(planet);
   return {
     time_of_day_greeting: tod.greeting,
     time_of_day: tod.timeOfDay,
@@ -515,7 +523,7 @@ function phaseVariables(params: {
     entry_source_label: params.body.entrySource ?? "home",
     tone: params.decision.responder_hints?.tone ?? tod.tone,
     today_states_options: todayStatesOptions(params.context),
-    planet_of_day_summary: `${planet}, tone=${todayTone}`,
+    planet_of_day_summary: themeLabel,
     today_tone: todayTone,
     user_current_state_summary: params.userMessage,
     user_last_message: params.userMessage,
@@ -523,7 +531,7 @@ function phaseVariables(params: {
     selected_practice: params.selectedPractice ?? {},
     selected_practice_id: params.selectedPractice?.id ?? "",
     deepen_axis: Object.entries(params.decision.information_completeness ?? {}).sort((a, b) => a[1] - b[1])[0]?.[0] ?? "user_state",
-    focus_chakra_label: planet,
+    focus_chakra_label: themeLabel,
     focus_chakra_number: { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 }[planet] ?? 7,
     window_time: (params.body.triggerMeta?.window_time as string | undefined) ?? "",
     address_form_hint: addressFormHint,
@@ -688,8 +696,8 @@ export async function POST(req: Request) {
                 })),
               )
             : "";
-          const profileDTO = buildProfileCompact(context.natal, context.calibration, context.user);
-          const forecastDTO = useCase === "daily_dialog" ? buildForecastCompact(context.forecast) : null;
+          const profileDTO = buildResponderProfileCompact(context.natal, context.calibration, context.user);
+          const forecastDTO = useCase === "daily_dialog" ? buildResponderForecastCompact(context.forecast) : null;
           const historyDTO = buildHistoryCompact(history);
           const authorVoiceBlock = formatAuthorVoiceForPrompt(
             getAuthorVoice(context.user.locale),
@@ -751,7 +759,7 @@ export async function POST(req: Request) {
           }
 
           const markers = parseResponseMarkers(fullText);
-          const cleanText = stripResponseMarkers(fullText);
+          const cleanText = sanitizeAssistantText(fullText, context.user.locale);
           const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(routeDb, routeUserId, markers.practicePick, context, userMessage, history) : null;
           const finalPracticePublic = finalPractice
             ? await attachThumbnailToPracticeRecommendation(

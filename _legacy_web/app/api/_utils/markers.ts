@@ -61,3 +61,23 @@ export function stripResponseMarkers(text: string): string {
     .replace(/[ \t]+\n/g, "\n")
     .trim();
 }
+
+export function sanitizeAssistantText(text: string, locale?: string | null): string {
+  let cleaned = stripResponseMarkers(text);
+
+  if ((locale ?? "").trim().toLowerCase().startsWith("ru") && /[А-Яа-яЁё]/.test(cleaned)) {
+    cleaned = cleaned
+      .replace(/\(\s*[^)\n]*\bhint\b[^)\n]*\)/gi, "")
+      .replace(/^\s*\*\s*Call\s*$/gim, "")
+      .replace(/\(\s*(?:[A-Za-z][A-Za-z'’.,!?;:/-]*\s+){2,}[A-Za-z][A-Za-z'’.,!?;:/-]*\s*\)/g, "");
+  }
+
+  return cleaned
+    .replace(/\n\n,\s*/g, "\n\n")
+    .replace(/[ \t]+,/g, ",")
+    .replace(/([?.!])[ \t]*,/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[^\S\n]{2,}/g, " ")
+    .trim();
+}

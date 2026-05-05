@@ -1,0 +1,18 @@
+import { describe, expect, it } from "vitest";
+import { sanitizeAssistantText } from "./markers";
+
+describe("sanitizeAssistantText", () => {
+  it("removes leaked hint markers from Russian assistant text", () => {
+    const raw = `Не понял. Допустим, в голове отзывается. Что дальше?\n\n(Saturn/Voice hint), или, может, просто тихая нехватка ясности? Наговорите`;
+
+    expect(sanitizeAssistantText(raw, "ru")).toBe(
+      "Не понял. Допустим, в голове отзывается. Что дальше?\n\nили, может, просто тихая нехватка ясности? Наговорите",
+    );
+  });
+
+  it("removes stray English gloss lines from Russian assistant text", () => {
+    const raw = `прячется много шума, заметили?"\n(Sometimes behind silence hides a lot of noise, noticed?)\n* Call`;
+
+    expect(sanitizeAssistantText(raw, "ru")).toBe(`прячется много шума, заметили?"`);
+  });
+});

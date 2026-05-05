@@ -4,8 +4,11 @@ import {
   buildForecastCompact,
   buildHistoryCompact,
   buildProfileCompact,
+  buildResponderForecastCompact,
+  buildResponderProfileCompact,
   buildStatesMapCompact,
   logDTOSize,
+  responderThemeLabel,
 } from "./dto";
 
 const planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
@@ -79,6 +82,20 @@ describe("buildProfileCompact", () => {
   });
 });
 
+describe("buildResponderProfileCompact", () => {
+  it("omits raw planet names and keeps user-facing themes", () => {
+    const dto = buildResponderProfileCompact(mockNatal(), null, { display_name: "Test" });
+
+    expect(dto.name).toBe("Test");
+    expect(dto.centers[5]).toMatchObject({
+      theme: "самовыражение и границы",
+      strength: 0.5,
+      harmony: 0,
+    });
+    expect(JSON.stringify(dto)).not.toContain("\"Saturn\"");
+  });
+});
+
 describe("buildForecastCompact", () => {
   it("excludes raw forecast fields", () => {
     const dto = buildForecastCompact({
@@ -103,6 +120,29 @@ describe("buildForecastCompact", () => {
     });
     expect(dto).not.toHaveProperty("transit_chart");
     expect(dto?.windows.sunrise).toMatch(/^\d{2}:\d{2}$/);
+  });
+});
+
+describe("buildResponderForecastCompact", () => {
+  it("replaces astro labels with user-facing daily theme", () => {
+    const dto = buildResponderForecastCompact({
+      forecast_date: "2026-04-29",
+      planet_of_the_day: "Moon",
+      today_planet_state: { todayTone: "harmonic", naturalHarmoniousness: 0.456 },
+      importance: { Moon: 0.789 },
+      is_alternative_choice: true,
+      windows_of_opportunity: { sunrise: { time: "2026-04-29T03:15:00Z" } },
+    });
+
+    expect(dto).toMatchObject({
+      date: "2026-04-29",
+      theme: "опора и безопасность",
+      tone: "harmonic",
+      H: 0.46,
+      S: 0.79,
+      isAlternativeChoice: true,
+    });
+    expect(JSON.stringify(dto)).not.toContain("\"Moon\"");
   });
 });
 
@@ -174,5 +214,10 @@ describe("buildStatesMapCompact and logDTOSize", () => {
 
     expect(size.chars).toBeGreaterThan(0);
     expect(size.tokens).toBeGreaterThan(0);
+  });
+
+  it("maps planets to user-facing responder themes", () => {
+    expect(responderThemeLabel("Saturn")).toBe("самовыражение и границы");
+    expect(responderThemeLabel("unknown")).toBe("витальность и присутствие");
   });
 });

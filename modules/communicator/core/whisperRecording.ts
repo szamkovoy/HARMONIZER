@@ -20,6 +20,9 @@ export const WHISPER_OPTIMIZED_PRESET: Audio.RecordingOptions = {
     sampleRate: 16000,
     numberOfChannels: 1,
     bitRate: 64000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
   },
   web: {
     mimeType: "audio/webm",

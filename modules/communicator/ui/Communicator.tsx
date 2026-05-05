@@ -1,4 +1,4 @@
-import { Audio, InterruptionModeAndroid } from "expo-av";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
 import {
   useCallback,
@@ -257,13 +257,11 @@ export function Communicator({
 
   const [uiMode, setUiMode] = useState(resolved.uiMode);
   const canSwitchMode = resolved.canSwitch;
-  const [microphoneFallbackToText, setMicrophoneFallbackToText] = useState(false);
-  const canSwitchInputMode = canSwitchMode || microphoneFallbackToText;
+  const canSwitchInputMode = canSwitchMode;
 
   useEffect(() => {
-    if (microphoneFallbackToText) return;
     setUiMode(resolved.uiMode);
-  }, [microphoneFallbackToText, resolved.uiMode]);
+  }, [resolved.uiMode]);
 
   const [messages, setMessages] = useState<CommunicatorHistoryMessage[]>([]);
 
@@ -284,11 +282,9 @@ export function Communicator({
       if (isGeminiJsonError(err)) return;
       const recorderPrepareError = isRecorderPrepareError(err);
       const displayMessage = recorderPrepareError
-        ? "Не удалось подготовить микрофон. Проверьте, что другое приложение не удерживает запись, и попробуйте ещё раз."
+        ? "Не удалось включить запись. Попробуйте ещё раз."
         : err.message;
       if (recorderPrepareError) {
-        setMicrophoneFallbackToText(true);
-        setUiMode("TXT");
         console.warn("[Communicator]", err.message, err.stack ?? "");
       } else {
         console.error("[Communicator]", err.message, err.stack ?? "");
@@ -611,24 +607,46 @@ export function Communicator({
     return () => clearTimeout(h);
   }, [autoSendInitialMessage, runStream, sessionSynced]);
 
+  const resetRecordingAudioMode = useCallback(async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        playThroughEarpieceAndroid: false,
+      });
+    } catch {
+      /* ignore audio-session reset failures */
+    }
+  }, []);
+
   const discardRecording = useCallback(async () => {
     const rec = recordingRef.current;
-    if (!rec) return;
+    if (!rec) {
+      await resetRecordingAudioMode();
+      return;
+    }
     try {
       await rec.stopAndUnloadAsync();
     } catch {
       /* ignore */
+    } finally {
+      await resetRecordingAudioMode();
     }
     recordingRef.current = null;
     setPhase("idle");
-  }, []);
+  }, [resetRecordingAudioMode]);
 
   const cancelMicWarmup = useCallback(() => {
     startRecordingGenerationRef.current += 1;
     micWarmupRef.current = false;
     setPhase("idle");
     setMicPressResetKey((k) => k + 1);
-  }, []);
+    void resetRecordingAudioMode();
+  }, [resetRecordingAudioMode]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
@@ -655,7 +673,8 @@ export function Communicator({
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        staysActiveInBackground: true,
         shouldDuckAndroid: true,
         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
         playThroughEarpieceAndroid: false,
@@ -680,7 +699,7 @@ export function Communicator({
         try {
           await prepareRecordingSession();
           if (generation !== startRecordingGenerationRef.current) return;
-          const created = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: false }));
+          const created = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: true }));
           recording = created.recording;
           break;
         } catch (e) {
@@ -690,6 +709,7 @@ export function Communicator({
               await Audio.setAudioModeAsync({
                 allowsRecordingIOS: false,
                 playsInSilentModeIOS: true,
+                interruptionModeIOS: InterruptionModeIOS.DoNotMix,
                 staysActiveInBackground: false,
                 shouldDuckAndroid: true,
                 interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
@@ -713,6 +733,7 @@ export function Communicator({
         } catch {
           /* ignore */
         }
+        await resetRecordingAudioMode();
         return;
       }
       micWarmupRef.current = false;
@@ -734,24 +755,13 @@ export function Communicator({
       if (generation !== startRecordingGenerationRef.current) return;
       micWarmupRef.current = false;
       recordingRef.current = null;
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch {
-        /* ignore audio-session reset failures */
-      }
+      await resetRecordingAudioMode();
       setPhase("idle");
       setMicPressResetKey((k) => k + 1);
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
-  }, [discardRecording, phase, reportError, streamBusy, strings.microphonePermissionError, uiMode]);
+  }, [discardRecording, phase, reportError, resetRecordingAudioMode, streamBusy, strings.microphonePermissionError, uiMode]);
 
   const stopRecordingAndSend = useCallback(async () => {
     const rec = recordingRef.current;
@@ -764,9 +774,11 @@ export function Communicator({
       await rec.stopAndUnloadAsync();
       uri = rec.getURI() ?? null;
     } catch {
+      await resetRecordingAudioMode();
       setPhase("idle");
       return;
     }
+    await resetRecordingAudioMode();
 
     const durationMs = Date.now() - recordStartRef.current;
     setPhase("idle");
@@ -799,7 +811,7 @@ export function Communicator({
     });
 
     await runStream({ type: "audio", uri });
-  }, [onEmotionSegment, phase, reportError, runStream]);
+  }, [onEmotionSegment, phase, reportError, resetRecordingAudioMode, runStream]);
 
   const onMicPressIn = useCallback(() => {
     if (isBusy) return;
@@ -1124,7 +1136,7 @@ export function Communicator({
             </View>
           )}
 
-          {(COMMUNICATOR_TEXT_MODE_ENABLED || microphoneFallbackToText) && canSwitchInputMode ? (
+          {COMMUNICATOR_TEXT_MODE_ENABLED && canSwitchInputMode ? (
             <ModeToggle
               targetMode={uiMode === "VOICE" ? "TXT" : "VOICE"}
               onToggle={toggleMode}
