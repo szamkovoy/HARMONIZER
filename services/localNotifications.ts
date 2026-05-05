@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from "react-native";
+import { Platform } from "react-native";
 
 /** Канал Android для напоминаний по графику «окна возможностей». */
 export const OPPORTUNITY_REMINDERS_CHANNEL_ID = "opportunity_reminders";
@@ -11,10 +11,6 @@ let notificationsModule: ExpoNotificationsModule | null | undefined;
 function loadExpoNotificationsModule(): ExpoNotificationsModule | null {
   if (notificationsModule !== undefined) return notificationsModule;
   if (Platform.OS === "web") {
-    notificationsModule = null;
-    return null;
-  }
-  if (!(NativeModules as { ExpoNotificationScheduler?: object }).ExpoNotificationScheduler) {
     notificationsModule = null;
     return null;
   }
@@ -59,17 +55,9 @@ export function configureLocalNotifications(): void {
   }
 }
 
-/** Нативный планировщик `expo-notifications` присутствует (после prebuild / dev client). */
-export function isLocalNotificationSchedulerLinked(): boolean {
-  if (Platform.OS === "web") return false;
-  return Boolean(
-    (NativeModules as { ExpoNotificationScheduler?: object }).ExpoNotificationScheduler,
-  );
-}
-
 /**
- * Загружает `expo-notifications` только если в бинаре есть планировщик.
- * Иначе `null` — без исключения при импорте экранов.
+ * Загружает `expo-notifications` при первом вызове.
+ * На старых сборках без нативного слоя — `null` без падения всего бандла.
  */
 export function getExpoNotificationsOrNull(): ExpoNotificationsModule | null {
   return loadExpoNotificationsModule();

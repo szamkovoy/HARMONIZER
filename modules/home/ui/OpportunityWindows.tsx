@@ -18,11 +18,7 @@ import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import {
-  getExpoNotificationsOrNull,
-  isLocalNotificationSchedulerLinked,
-  OPPORTUNITY_REMINDERS_CHANNEL_ID,
-} from "@/services/localNotifications";
+import { getExpoNotificationsOrNull, OPPORTUNITY_REMINDERS_CHANNEL_ID } from "@/services/localNotifications";
 
 type Windows = DailyForecast["windowsOfOpportunity"];
 
@@ -246,7 +242,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
 
   /** Синхронизация колокольчиков с ОС и отмена устаревших напоминаний при смене суток/прогноза. */
   useEffect(() => {
-    if (Platform.OS === "web" || !isLocalNotificationSchedulerLinked()) return;
+    if (Platform.OS === "web") return;
     const notificationsApi = getExpoNotificationsOrNull();
     if (!notificationsApi) return;
     let cancelled = false;
@@ -439,11 +435,6 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     if (triggerDate.getTime() <= Date.now()) {
       Alert.alert(t.reminderPastTitle, t.reminderPastMessage);
       setReminderTarget(null);
-      return;
-    }
-
-    if (!isLocalNotificationSchedulerLinked()) {
-      Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
       return;
     }
 
