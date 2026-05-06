@@ -2,7 +2,7 @@
 
 ## id: 04_workspace/open_questions
 title: Open Questions
-version: 1.3
+version: 1.4
 updated: 2026-05-07
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -21,6 +21,18 @@ code_refs: []
   **Контекст:** основной путь (`modules/daily-engine/computeDailyForecast.ts`) задаёт `cacheValidUntil` через `endOfForecastDateUtc` — конец календарного дня прогноза в timezone пользователя. В `supabase/functions/daily-forecast/index.ts` для fallback-ответа используется `new Date(Date.now() + 24 * 60 * 60 * 1000)`, без привязки к локальному дню; это тот же класс расхождений с timezone-aware срезом кэша, который PATCH_3 адресовал для `/api/calibration/extract` и локальной даты.  
   **Проявление:** краевые случаи около полуночи UTC, неконсистентный TTL кэша в зависимости от того, прошёл ли расчёт через Next.js API или Edge.  
   **Предложение:** parity-fix в Edge (та же формула, что в основном пути) или вынести расчёт `cacheValidUntil` в общий модуль, импортируемый Node и Deno (по духу PATCH_4 для M2). См. также `docs/02_modules/astro/caching_strategy.md`.
+
+## `subscription`
+
+- **users.membership_tier: БД допускает только free/premium, клиент готов к oracle/practitioner/master**  
+  **Контекст:** `profileTier` в `modules/access/core/access.tsx` обрабатывает строки `oracle` / `practitioner` / `master`, но constraint миграции `supabase/migrations/20260501193000_free_tier_global_content.sql` допускает только `check (membership_tier in ('free','premium'))`. Прямая запись `oracle` в БД даст ошибку constraint.  
+  **Проявление:** при выкатке полной модели тарифов (оплата или ручной upgrade) первая запись нового tier упрётся в constraint.  
+  **Действие:** при следующей правке тарифов — либо миграция, расширяющая/снимающая constraint, либо явная политика «multitier только в коде, в БД пока free/premium» с документированным маппингом.
+
+- **Условие «premium ИЛИ (free И trial не истёк)» дублируется в нескольких местах**  
+  **Контекст:** правило эффективного премиум-доступа повторяется в `getEffectiveAccess` / trial-ветке (`modules/access/core/access.tsx`), в `hasPremiumAccess` / `accessModeFor` (`modules/home/useDayContent.ts`, `services/globalContentClient.ts`), в `hasPremiumLlmAccess` (`_legacy_web/app/api/_utils/userModelTier.ts`) и в маршрутах `global-content`, `communicator/v2/dialog`, `greeting`, `recommendation-text`.  
+  **Проявление:** изменение правил (продление trial, льготы) требует синхронных правок в 3–4 местах.  
+  **Действие:** при серьёзной работе с subscription вынести единую функцию уровня `hasEffectivePremium` / `canRunPremiumLlm`, доступную клиенту и серверу; до рефакторинга при правке одной точки проверять остальные.
 
 ## `biofeedback`
 

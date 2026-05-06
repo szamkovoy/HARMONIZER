@@ -1,3 +1,5 @@
+> **Статус:** Исторический план первого витка спирали разработки (май 2026). Часть пунктов воплощена в коде (`modules/access`, `docs/02_modules/practices/`, `docs/02_modules/subscription/`, и т.д.), часть осталась как открытые направления — они отражены в `_proposal.md` и в брифах `docs/tmp_docs/02052026/`.
+
 # Spiral Plan: Day 1-2
 
 Цель этого документа: дать маршрут разработки на ближайшие 1-2 дня так, чтобы двигаться по спирали. На первом витке мы не доводим каждый модуль до идеала, а создаем работающие контракты, экраны-заготовки и точки интеграции. На следующих витках углубляем UX, алгоритмы и данные.
@@ -6,7 +8,7 @@
 
 В каждом новом чате прикладывай:
 
-1. Этот файл, если нужно удерживать общий маршрут.
+1. Этот файл, если нужно удерживать общий маршрут (или актуальный бриф из `docs/planning/` / `docs/tmp_docs/02052026/`).
 2. Один профильный brief из `docs/planning/`, соответствующий текущему пункту.
 3. Скриншоты, ошибки, экспорт JSON или список Vimeo, если задача их требует.
 4. Коротко напиши: "Мы на шаге X, нужно сделать Y, не трогать Z".
@@ -60,7 +62,7 @@ Vercel API проверен по `https://harmonizer-ten.vercel.app/api/ai/globa
 
 ### 3. Тарифы и feature gates
 
-Документ: `docs/planning/access_tiers_navigation_brief.md`
+Документ: `docs/05_archive/old_briefs/access_tiers_navigation_brief.md` (копия также: `docs/tmp_docs/02052026/access_tiers_navigation_brief.md`)
 
 Что сделать на первом витке:
 
@@ -74,7 +76,7 @@ Vercel API проверен по `https://harmonizer-ten.vercel.app/api/ai/globa
 
 ### 4. Нижняя навигация и профиль
 
-Документ: `docs/planning/access_tiers_navigation_brief.md`
+Документ: `docs/05_archive/old_briefs/access_tiers_navigation_brief.md` (копия также: `docs/tmp_docs/02052026/access_tiers_navigation_brief.md`)
 
 Что сделать на первом витке:
 

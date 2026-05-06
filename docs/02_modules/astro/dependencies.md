@@ -1,7 +1,7 @@
 ---
 id: 02_modules/astro/dependencies
 title: Astro Dependencies
-version: 1.1
+version: 1.2
 updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
@@ -25,7 +25,7 @@ code_refs:
   - Клиент: `services/natalProfileClient.ts` — Supabase auth для JWT и `from("user_natal_charts").select(...)` для активной карты.
 
 - **`profile` (данные и UX, без импорта модуля profile в astro-core)**  
-  Сборка `BirthData` (дата, `timeMode`, время, геолокация с IANA timezone) происходит в пользовательских потоках профиля/онбординга (`app/(tabs)/index.tsx`, `app/(tabs)/profile.tsx`); без этих полей серверный `POST /api/astro/natal` не получит контрактное тело.
+  Сборка `BirthData` (дата, `timeMode`, время, геолокация с IANA timezone) происходит в пользовательских потоках профиля/онбординга (`app/(tabs)/index.tsx`, см. `docs/02_modules/profile/spec.md`); без этих полей серверный `POST /api/astro/natal` не получит контрактное тело.
 
 ## 2. От него зависят
 
