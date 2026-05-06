@@ -1,8 +1,8 @@
 ---
 id: 00_index/MAP
 title: Documentation Map
-version: 1.3
-updated: 2026-05-06
+version: 1.5
+updated: 2026-05-07
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communicator/ui/Communicator.tsx]
 ---
@@ -12,7 +12,7 @@ code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communica
 | Модуль | Папка в docs | Точки входа в коде | Зависит от | От него зависят |
 | --- | --- | --- | --- | --- |
 | `profile` | `02_modules/profile/` | `app/(tabs)/profile.tsx`; `app/(tabs)/index.tsx`; `services/natalProfileClient.ts` | `astro`, `practices`, `subscription`, `infra` | `calibration`, `daily_forecast`, `assistant` |
-| `calibration` | `02_modules/calibration/` | `app/calibration.tsx`; `_legacy_web/app/api/calibration/extract/route.ts`; `_legacy_web/app/api/calibration/extract/forecast-cache-date.ts`; `_legacy_web/app/api/calibration/transcribe/route.ts`; `_legacy_web/app/api/_utils/calibration.ts`; `supabase/functions/auto-calibrate/index.ts`; `supabase/functions/auto-calibrate/proposal.ts` | `profile`, `communicator`, `assistant`, `infra` | `assistant` |
+| `calibration` | `02_modules/calibration/` | `app/calibration.tsx`; `_legacy_web/app/api/calibration/extract/route.ts`; `_legacy_web/app/api/calibration/extract/forecast-cache-date.ts`; `_legacy_web/app/api/calibration/transcribe/route.ts`; `_legacy_web/app/api/_utils/calibration.ts`; `supabase/functions/auto-calibrate/index.ts`; `supabase/functions/auto-calibrate/proposal.ts` | `profile`, `astro`, `communicator`, `assistant`, `infra` | `assistant` |
 | `daily_forecast` | `02_modules/daily_forecast/` | `app/(tabs)/index.tsx`; `modules/home/useDayContent.ts`; `services/dailyForecastClient.ts` | `astro`, `profile`, `practices`, `subscription`, `infra` | `assistant` |
 | `assistant` | `02_modules/assistant/` | `_legacy_web/app/api/communicator/v2/dialog/route.ts`; `_legacy_web/app/api/_utils/scenarios.ts`; `_legacy_web/app/api/_utils/prompts.ts`; `supabase/seed.sql` | `astro`, `calibration`, `daily_forecast`, `profile`, `practices`, `subscription`, `infra` | `calibration`, `communicator` |
 | `communicator` | `02_modules/communicator/` | `modules/communicator/ui/Communicator.tsx`; `modules/communicator/ui/PracticeCard.tsx`; `services/communicator-client.ts` | `assistant`, `subscription`, `infra` | `calibration` |
@@ -22,10 +22,10 @@ code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communica
 
 | Модуль | Папка в docs | Точки входа в коде | Зависит от | От него зависят |
 | --- | --- | --- | --- | --- |
-| `astro` | `02_modules/astro/` | `modules/astro-core/index.ts`; `_legacy_web/app/api/astro/daily-forecast/route.ts`; `supabase/functions/daily-forecast/index.ts` | `infra` | `profile`, `daily_forecast`, `assistant` |
+| `astro` | `02_modules/astro/` | `modules/astro-core/index.ts`; `modules/astro-core/computeNatalProfile.ts`; `modules/astro-core/ephemeris.ts`; `_legacy_web/app/api/astro/natal/route.ts`; `_legacy_web/app/api/_utils/astro-db.ts`; `services/natalProfileClient.ts`; `_legacy_web/app/api/astro/daily-forecast/route.ts`; `supabase/functions/daily-forecast/index.ts` | `infra` | `profile`, `daily_forecast`, `calibration`, `assistant` |
 | `bindu` | `02_modules/bindu/` | `modules/mandala/ui/MandalaCanvas.tsx`; `modules/mandala/ui/evolution-registry.ts`; `modules/mandala/experiments/BinduSuccessionLabCanvas.tsx`; `modules/breath/ui/BreathBinduMandala.tsx`; `app/mandala-sandbox.tsx`; `app/bindu-succession-lab.tsx`; `app/sacred-symbol-stream.tsx` | `infra`, `audio` | `practices`, `biofeedback` |
 | `audio` | `02_modules/audio/` | `modules/mandala-sound/index.ts`; `modules/mandala-sound/core/engine.ts`; `modules/mandala-sound/core/sync.ts`; `modules/mandala-sound/core/timeline.ts`; `modules/mandala-sound/ui/MandalaSoundProvider.tsx` | `infra`, `biofeedback`, `practices`, `bindu` | `practices`, `bindu` |
-| `biofeedback` | `02_modules/biofeedback/` | `modules/biofeedback/bus/biofeedback-pipeline.ts`; `modules/biofeedback/core/metrics.ts`; `modules/biofeedback/sensors/FingerPpgCameraSource.tsx`; `modules/breath/ui/CoherenceBreathScreen.tsx` | `infra`, `audio`, `bindu` | `bindu`, `audio`, `practices` |
+| `biofeedback` | `02_modules/biofeedback/` | `modules/biofeedback/bus/biofeedback-pipeline.ts`; `modules/biofeedback/bus/channels.ts`; `modules/biofeedback/bus/biofeedback-provider.tsx`; `modules/biofeedback/core/metrics.ts`; `modules/biofeedback/adapters/MandalaBioFrameAdapter.ts`; `modules/biofeedback/engines/coherence-engine.ts`; `modules/biofeedback/sensors/FingerPpgCameraSource.tsx`; `modules/breath/ui/CoherenceBreathScreen.tsx` | `infra`, `bindu` | `audio`, `bindu`, `practices` |
 | `subscription` | `02_modules/subscription/` | `modules/access/core/access.tsx`; `modules/access/core/features.ts`; `modules/access/core/tiers.ts`; `app/(tabs)/index.tsx` | `infra` | `profile`, `daily_forecast`, `assistant`, `communicator`, `practices`, `webinars`, `author_presence` |
 | `infra` | `02_modules/infra/` | `_legacy_web/app/layout.tsx`; `_legacy_web/next.config.ts`; `_legacy_web/instrumentation.ts`; `_legacy_web/sentry.server.config.ts`; `_legacy_web/app/api/_utils/monitoring.ts`; `_legacy_web/public/manifest.json`; `.vercelignore`; `package.json`; `_legacy_web/package.json`; `sentry.client.config.ts`; `supabase/README.md` | `01_foundation/*` | `astro`, `calibration`, `profile`, `daily_forecast`, `assistant`, `communicator`, `practices`, `bindu`, `audio`, `biofeedback`, `subscription`, `webinars`, `author_presence` |
 | `webinars` | `02_modules/webinars/` | `не реализовано` | `subscription`, `infra` | `—` |

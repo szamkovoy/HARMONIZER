@@ -1,8 +1,8 @@
 ---
 id: 02_modules/audio/dependencies
 title: Audio Dependencies
-version: 1.1
-updated: 2026-05-06
+version: 1.2
+updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
 ---
@@ -16,7 +16,7 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 - `biofeedback`  
   `modules/mandala-sound/ui/MandalaSoundProvider.tsx` подписывается на канал `"beat"` через `useBiofeedbackSubscribe()` из `modules/biofeedback/bus/react.tsx`, чтобы обновлять RR-интервал без лишнего re-render экрана.  
-  `modules/mandala-sound/core/sync.ts` использует `BeatEvent` из `modules/biofeedback/sensors/types.ts` и строит `pulse.phase/confidence/source`, после чего модулирует `droneGain`, `flickerIntensity` и fallback-поведение.
+  `modules/mandala-sound/core/sync.ts` использует `BeatEvent` из `modules/biofeedback/sensors/types.ts` и строит `pulse.phase/confidence/source`, после чего модулирует `droneGain`, `flickerIntensity` и fallback-поведение. Обратная сторона контракта — `docs/02_modules/biofeedback/dependencies.md` (потребитель `audio`).
 
 - `practices`  
   `modules/mandala-sound/core/types.ts` и `modules/mandala-sound/core/sync.ts` зависят от `PlannedCycle` из `modules/breath/core/breath-phase-planner.ts`; для дыхательных сессий это источник истины по фазе вдоха/выдоха.  

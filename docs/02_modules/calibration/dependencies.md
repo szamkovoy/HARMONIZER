@@ -1,16 +1,19 @@
 ---
 id: 02_modules/calibration/dependencies
 title: Calibration Dependencies
-version: 1.1
-updated: 2026-05-06
-depends_on: [01_foundation/architecture, 02_modules/profile/spec, 02_modules/communicator/spec, 02_modules/assistant/spec, 02_modules/infra/spec]
-code_refs: [app/calibration.tsx, _legacy_web/app/api/calibration/extract/route.ts, _legacy_web/app/api/calibration/extract/forecast-cache-date.ts, _legacy_web/app/api/calibration/transcribe/route.ts, _legacy_web/app/api/_utils/calibration.ts, supabase/functions/auto-calibrate/index.ts, supabase/functions/auto-calibrate/proposal.ts, services/communicator-client.ts]
+version: 1.2
+updated: 2026-05-07
+depends_on: [01_foundation/architecture, 02_modules/profile/spec, 02_modules/astro/spec, 02_modules/communicator/spec, 02_modules/assistant/spec, 02_modules/infra/spec]
+code_refs: [app/calibration.tsx, _legacy_web/app/api/calibration/extract/route.ts, _legacy_web/app/api/calibration/extract/forecast-cache-date.ts, _legacy_web/app/api/calibration/transcribe/route.ts, _legacy_web/app/api/_utils/calibration.ts, _legacy_web/app/api/_utils/astro-db.ts, supabase/functions/auto-calibrate/index.ts, supabase/functions/auto-calibrate/proposal.ts, services/communicator-client.ts]
 ---
 
 ## 1. Зависит от
 
 - **`profile`**  
   `extract/route.ts` вызывает `loadActiveNatalProfile(db, userId)` и `getUserTimezone(db, userId)` (натал для расчёта и tz для среза кэша). Без активного натального профиля сценарий extract не сойдётся с продуктовым контрактом.
+
+- **`astro`**  
+  Тот же `loadActiveNatalProfile` возвращает `NatalProfile`; `_legacy_web/app/api/_utils/calibration.ts` (`averageCalibration`) для каждой планеты берёт `natalProfile.planets[planet].S_initial` и `H_initial` как базу для взвешенного смешивания с дельтами извлечения (`AVERAGING_WEIGHTS`). Поля `S_initial`/`H_initial` в таблице `user_natal_charts` не перезаписываются калибровкой.
 
 - **`communicator`**  
   `app/calibration.tsx` импортирует `mimeFromRecordingUri`, `whisperRecordingOptions` из `modules/communicator/core/*` и `transcribeCommunicatorAudio` из `services/communicator-client.ts`, который бьёт в `getCommunicatorV2TranscribeUrl()` (`/api/communicator/v2/transcribe`). Это единственный путь голоса для экрана калибровки.

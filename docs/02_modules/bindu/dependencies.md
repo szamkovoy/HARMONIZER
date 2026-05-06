@@ -1,8 +1,8 @@
 ---
 id: 02_modules/bindu/dependencies
 title: Bindu Dependencies
-version: 1.1
-updated: 2026-05-06
+version: 1.2
+updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/biofeedback/spec]
 code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-registry.ts, modules/mandala/experiments/BinduSuccessionLabCanvas.tsx, modules/breath/ui/BreathBinduMandala.tsx, app/mandala-sandbox.tsx, app/bindu-succession-lab.tsx, app/sacred-symbol-stream.tsx]
 ---
@@ -24,7 +24,7 @@ code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-r
   Поток когерентного дыхания: `app/breath-coherence.tsx` рендерит `CoherenceBreathScreen`, который подключает **`BreathBinduMandala`** → внутри тот же **`BinduSuccessionLabCanvas`**, что и в лаборатории, с пресетом чакры и `externalSync` из `useMandalaSoundSync()`. Практика не импортирует `MandalaCanvas` напрямую; визуальный bindu-контур идёт через слой `breath`.
 
 - **`biofeedback`**  
-  `modules/biofeedback/adapters/MandalaBioFrameAdapter.ts` импортирует тип **`BioSignalFrame`** (и косвенно контракт полей) из `modules/mandala/core/types.ts`, чтобы публиковать в мандалу согласованный снимок с шины. Сам пакет `modules/mandala` **не** импортирует `modules/biofeedback`; связь направлена от адаптера к типам bindu и к будущим/альтернативным потребителям `BioSignalFrame`.
+  `modules/biofeedback/adapters/MandalaBioFrameAdapter.ts` импортирует тип **`BioSignalFrame`** (и косвенно контракт полей) из `modules/mandala/core/types.ts`, чтобы публиковать в мандалу согласованный снимок с шины. Сам пакет `modules/mandala` **не** импортирует `modules/biofeedback`; связь направлена от адаптера к типам bindu и к будущим/альтернативным потребителям `BioSignalFrame`. Парная запись потребителя — `docs/02_modules/biofeedback/dependencies.md`.
 
 - **`audio`** (обратная сторона)  
   См. `02_modules/audio/dependencies.md`: аудиомодуль читает контракт мандалы из `mandala/core` и отдаёт `MandalaSoundVisualSync` канвасам bindu.
