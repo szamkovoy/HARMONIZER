@@ -1,0 +1,13 @@
+---
+id: 02_modules/daily_forecast/dependencies
+title: Daily_forecast Dependencies
+version: 1.0
+updated: 2026-05-06
+depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
+code_refs: [app/(tabs)/index.tsx, modules/home/useDayContent.ts, services/dailyForecastClient.ts]
+---
+
+## TODO: наполнить на этапе миграции.
+
+Здесь будут связи с `astro`, `subscription`, `assistant`, `profile` и server-side forecast pipeline.
+Также сюда войдут зависимости от локального дня, кэширования и day content.
