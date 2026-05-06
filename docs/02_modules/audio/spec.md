@@ -2,7 +2,7 @@
 id: 02_modules/audio/spec
 title: Audio Spec
 version: 1.1
-updated: 2026-05-06
+updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
 ---
@@ -57,3 +57,9 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 - Провайдер жёстко связан с контрактами `bindu` (`buildAudioContract`, `AudioBandTrigger`) и с `PlannedCycle` из дыхательной практики. Это не изолированный движок и любые изменения этих типов меняют поведение `audio`.
 - При перегрузке JS-потока `ExpoMandalaSoundEngine` пропускает overlapping updates вместо очереди. Это защищает практику от накопления лагов, но делает звуковую модуляцию менее точной на слабых устройствах.
 - Отдельной web-адаптации нет: код ориентирован на Expo/RN runtime. Если нативный audio backend отказывает, visual sync продолжает работать, но звук остаётся отключённым.
+## Справочные материалы
+
+- docs/04_reference/audio/ibaa_layered_audio.md
+- docs/04_reference/audio/trance_protocol.md
+
+При следующей сессии разработки в модуле `audio` проверить открытое решение про скорость снижения частоты, см. `docs/04_reference/audio/ibaa_layered_audio.md`, раздел `Открытые решения`.

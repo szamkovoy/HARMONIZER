@@ -2,7 +2,7 @@
 id: docs/_proposal
 title: Финальное предложение по структуре документации
 version: 1.0
-updated: 2026-05-06
+updated: 2026-05-07
 depends_on: [docs/_audit]
 code_refs: [app/_layout.tsx, app/(tabs)/index.tsx, app/(tabs)/profile.tsx, app/asana-practice.tsx, app/calibration.tsx, modules/access/core/access.tsx, modules/access/core/features.ts, modules/astro-core/index.ts, modules/daily-engine/index.ts, modules/communicator/ui/Communicator.tsx, modules/practices/ui/PracticeCatalogScreen.tsx, modules/mandala/ui/MandalaCanvas.tsx, modules/mandala-sound/core/engine.ts, modules/biofeedback/bus/biofeedback-pipeline.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/functions/auto-calibrate/index.ts]
 ---
@@ -208,6 +208,7 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 ### Уточнения по модулям
 
 - `assistant/` и `communicator/` сознательно разделены: первый модуль содержит продуктовый интеллект, второй только UI/voice transport.
+- При миграции `assistant/` учитывать архивный источник: `docs/05_archive/migrated/calibration/calibration_and_orchestrator.md` (раздел про оркестратор и фазы диалога — переехал сюда при миграции calibration).
 - `practices/report.md` покрывает финальный экран с метриками и оценкой состояния; отдельный модуль `report` не нужен.
 - `practices/components.md` должен включать текущие и планируемые компоненты уровня практик: `SmartCalibrationOverlay`, `SeriesProgress`, `MeditationSession` и соседние составные экраны. Сейчас часть из них ещё не выражена отдельными символами в коде и должна быть помечена как planned/current-mapped.
 - `bindu/evolution_lab.md` должен собрать материалы из `bindu_succession_lab.md` и `bindu_succession_visual_spec_v2.md`; по смыслу это частично дублирующие документы одной лабораторной ветки, поэтому рекомендуется единый файл с разделами `runtime experiments` и `visual spec`.

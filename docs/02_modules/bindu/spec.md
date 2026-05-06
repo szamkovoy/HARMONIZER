@@ -2,7 +2,7 @@
 id: 02_modules/bindu/spec
 title: Bindu Spec
 version: 1.1
-updated: 2026-05-06
+updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/biofeedback/spec]
 code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-registry.ts, modules/mandala/experiments/BinduSuccessionLabCanvas.tsx, modules/breath/ui/BreathBinduMandala.tsx, app/mandala-sandbox.tsx, app/bindu-succession-lab.tsx, app/sacred-symbol-stream.tsx]
 ---
@@ -70,3 +70,6 @@ code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-r
 - Два пайплайна (canvas vs succession lab) дублируют идею «мандалы»; перенос фич между ними ручной.
 
 - Полная интеграция живого `BioSignalFrame` из `MandalaBioFrameAdapter` в песочнице не показана — там зафиксирован offline-фрейм; продакшен-дыхание опирается на аудио-синхронизацию и отдельный canvas.
+## Справочные материалы
+
+- docs/04_reference/audio/trance_protocol.md

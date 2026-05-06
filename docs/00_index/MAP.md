@@ -1,7 +1,7 @@
 ---
 id: 00_index/MAP
 title: Documentation Map
-version: 1.2
+version: 1.3
 updated: 2026-05-06
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communicator/ui/Communicator.tsx]
@@ -12,10 +12,10 @@ code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communica
 | Модуль | Папка в docs | Точки входа в коде | Зависит от | От него зависят |
 | --- | --- | --- | --- | --- |
 | `profile` | `02_modules/profile/` | `app/(tabs)/profile.tsx`; `app/(tabs)/index.tsx`; `services/natalProfileClient.ts` | `astro`, `practices`, `subscription`, `infra` | `calibration`, `daily_forecast`, `assistant` |
-| `calibration` | `02_modules/calibration/` | `app/calibration.tsx`; `_legacy_web/app/api/calibration/extract/route.ts`; `supabase/functions/auto-calibrate/index.ts` | `profile`, `assistant`, `infra` | `assistant` |
+| `calibration` | `02_modules/calibration/` | `app/calibration.tsx`; `_legacy_web/app/api/calibration/extract/route.ts`; `_legacy_web/app/api/calibration/extract/forecast-cache-date.ts`; `_legacy_web/app/api/calibration/transcribe/route.ts`; `_legacy_web/app/api/_utils/calibration.ts`; `supabase/functions/auto-calibrate/index.ts`; `supabase/functions/auto-calibrate/proposal.ts` | `profile`, `communicator`, `assistant`, `infra` | `assistant` |
 | `daily_forecast` | `02_modules/daily_forecast/` | `app/(tabs)/index.tsx`; `modules/home/useDayContent.ts`; `services/dailyForecastClient.ts` | `astro`, `profile`, `practices`, `subscription`, `infra` | `assistant` |
 | `assistant` | `02_modules/assistant/` | `_legacy_web/app/api/communicator/v2/dialog/route.ts`; `_legacy_web/app/api/_utils/scenarios.ts`; `_legacy_web/app/api/_utils/prompts.ts`; `supabase/seed.sql` | `astro`, `calibration`, `daily_forecast`, `profile`, `practices`, `subscription`, `infra` | `calibration`, `communicator` |
-| `communicator` | `02_modules/communicator/` | `modules/communicator/ui/Communicator.tsx`; `modules/communicator/ui/PracticeCard.tsx`; `services/communicator-client.ts` | `assistant`, `subscription`, `infra` | `—` |
+| `communicator` | `02_modules/communicator/` | `modules/communicator/ui/Communicator.tsx`; `modules/communicator/ui/PracticeCard.tsx`; `services/communicator-client.ts` | `assistant`, `subscription`, `infra` | `calibration` |
 | `practices` | `02_modules/practices/` | `modules/practices/ui/PracticeCatalogScreen.tsx`; `app/(tabs)/practices.tsx`; `app/asana-practice.tsx`; `app/breath-coherence.tsx`; `services/practiceSessions.ts` | `bindu`, `audio`, `biofeedback`, `subscription`, `infra` | `profile`, `daily_forecast`, `assistant` |
 
 ## Engines & Services
