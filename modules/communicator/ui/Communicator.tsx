@@ -13,6 +13,7 @@ import {
   Animated,
   AppState,
   Image,
+  InteractionManager,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -29,7 +30,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
-import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
+import {
+  communicatorRecordingFallbackOptions,
+  whisperRecordingOptions,
+} from "@/modules/communicator/core/whisperRecording";
 import type {
   CommunicatorHistoryMessage,
   CommunicatorInitialMode,
@@ -124,7 +128,7 @@ export interface CommunicatorProps {
   onStateChange?: (state: CommunicatorSessionState) => void;
 }
 
-type Phase = "idle" | "recording" | "transcribing" | "error";
+type Phase = "idle" | "arming" | "recording" | "transcribing" | "error";
 
 const MIN_VOICE_MS = 450;
 const LOW_TRANSCRIPTION_CONFIDENCE = 0.65;
@@ -312,12 +316,38 @@ export function Communicator({
   const recordStartRef = useRef(0);
   const suppressClickRef = useRef(false);
   const suppressAbortAfterRecordRef = useRef(false);
-  /** true от старта startRecording до момента, пока запись реально не пошла (показ системного окна разрешений) */
+  /** true от старта startRecording до момента, пока запись реально не пошла (в т.ч. показ системного окна разрешений) */
   const micWarmupRef = useRef(false);
+  /** Пока ждём ответ в системном диалоге разрешения микрофона — нельзя отменять warmup по onPressOut (палец уже не на кнопке). */
+  const awaitingMicPermissionRef = useRef(false);
   const startRecordingGenerationRef = useRef(0);
   /** Сброс нативного «залипания» Pressable после отмены / отказа в разрешениях */
   const [micPressResetKey, setMicPressResetKey] = useState(0);
   const voiceLevel = useRef(new Animated.Value(0.1)).current;
+
+  /** Пока нативный рекордер готовится — лёгкая пульсация ауры (фаза `arming`). */
+  useEffect(() => {
+    if (phase !== "arming") return;
+    voiceLevel.setValue(0.14);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(voiceLevel, {
+          toValue: 0.34,
+          duration: 360,
+          useNativeDriver: true,
+        }),
+        Animated.timing(voiceLevel, {
+          toValue: 0.14,
+          duration: 360,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
+  }, [phase, voiceLevel]);
 
   const scrollRef = useRef<ScrollView>(null);
   const [scrollViewH, setScrollViewH] = useState(0);
@@ -334,7 +364,7 @@ export function Communicator({
 
   const sessionState: CommunicatorSessionState = useMemo(() => {
     let p: CommunicatorSessionState["phase"] = "idle";
-    if (phase === "recording") p = "recording";
+    if (phase === "recording" || phase === "arming") p = "recording";
     else if (phase === "transcribing") p = "processing";
     else if (streamStatus === "thinking") p = "thinking";
     else if (streamStatus === "typing") p = "typing";
@@ -346,7 +376,8 @@ export function Communicator({
     onStateChange?.(sessionState);
   }, [sessionState, onStateChange]);
 
-  const isBusy = phase === "recording" || phase === "transcribing" || streamBusy;
+  const isBusy =
+    phase === "arming" || phase === "recording" || phase === "transcribing" || streamBusy;
 
   useEffect(() => {
     const ac = new AbortController();
@@ -661,11 +692,38 @@ export function Communicator({
     return () => sub.remove();
   }, [cancelMicWarmup, discardRecording]);
 
+  /** Запросить доступ к микрофону заранее, чтобы первый жест «удержать» не совпадал с системным диалогом. */
+  useEffect(() => {
+    if (uiMode !== "VOICE") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cur = await Audio.getPermissionsAsync();
+        if (cancelled) return;
+        if (cur.granted) return;
+        await Audio.requestPermissionsAsync();
+      } catch {
+        /* preflight не обязан быть успешным — финальная проверка в startRecording */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uiMode]);
+
   const startRecording = useCallback(async () => {
     if (phase !== "idle" || uiMode !== "VOICE" || streamBusy || micWarmupRef.current || recordingRef.current) return;
     const generation = ++startRecordingGenerationRef.current;
     micWarmupRef.current = true;
+    setPhase("arming");
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const wipeStale = (): boolean => {
+      if (generation === startRecordingGenerationRef.current) return false;
+      micWarmupRef.current = false;
+      setPhase("idle");
+      return true;
+    };
 
     const prepareRecordingSession = async () => {
       await discardRecording();
@@ -679,32 +737,63 @@ export function Communicator({
         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
         playThroughEarpieceAndroid: false,
       });
-      await sleep(Platform.OS === "ios" ? 180 : 80);
+      await sleep(Platform.OS === "ios" ? 140 : 70);
     };
 
     try {
-      const perm = await Audio.requestPermissionsAsync();
-      if (generation !== startRecordingGenerationRef.current) return;
+      awaitingMicPermissionRef.current = true;
+      let perm: Awaited<ReturnType<typeof Audio.requestPermissionsAsync>>;
+      try {
+        perm = await Audio.requestPermissionsAsync();
+      } finally {
+        awaitingMicPermissionRef.current = false;
+      }
+      if (wipeStale()) return;
       if (!perm.granted) {
         micWarmupRef.current = false;
+        setPhase("idle");
         reportError(new Error(strings.microphonePermissionError));
         setMicPressResetKey((k) => k + 1);
         return;
       }
 
+      type RecordingOpts = ReturnType<typeof whisperRecordingOptions>;
+
+      const createStartedRecording = async (
+        options: RecordingOpts,
+        { awaitIdleQueue }: { awaitIdleQueue: boolean },
+      ) => {
+        if (Platform.OS === "ios" && awaitIdleQueue) {
+          await new Promise<void>((resolve) => {
+            InteractionManager.runAfterInteractions(() => resolve());
+          });
+        }
+        const created = await Audio.Recording.createAsync(options);
+        return created.recording;
+      };
+
+      const recordingVariants = [
+        whisperRecordingOptions({ isMeteringEnabled: false }),
+        whisperRecordingOptions({ isMeteringEnabled: true }),
+        communicatorRecordingFallbackOptions(),
+      ] as const;
+
       let recording: Audio.Recording | null = null;
       let lastErr: unknown;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (generation !== startRecordingGenerationRef.current) return;
-        try {
-          await prepareRecordingSession();
-          if (generation !== startRecordingGenerationRef.current) return;
-          const created = await Audio.Recording.createAsync(whisperRecordingOptions({ isMeteringEnabled: true }));
-          recording = created.recording;
-          break;
-        } catch (e) {
-          lastErr = e;
-          if (attempt < 2) {
+      outer: for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (wipeStale()) return;
+        await prepareRecordingSession();
+        if (wipeStale()) return;
+        for (let vi = 0; vi < recordingVariants.length; vi += 1) {
+          if (wipeStale()) return;
+          const variantOptions = recordingVariants[vi];
+          try {
+            recording = await createStartedRecording(variantOptions, {
+              awaitIdleQueue: attempt > 0 || vi > 0,
+            });
+            break outer;
+          } catch (e) {
+            lastErr = e;
             try {
               await Audio.setAudioModeAsync({
                 allowsRecordingIOS: false,
@@ -718,10 +807,15 @@ export function Communicator({
             } catch {
               /* ignore */
             }
-            await sleep(attempt === 0 ? 260 : 420);
+            await sleep(90);
           }
         }
+        if (attempt < 2) {
+          await sleep(attempt === 0 ? 200 : 360);
+        }
       }
+
+      if (wipeStale()) return;
 
       if (!recording) {
         throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "Recording failed"));
@@ -734,6 +828,8 @@ export function Communicator({
           /* ignore */
         }
         await resetRecordingAudioMode();
+        micWarmupRef.current = false;
+        setPhase("idle");
         return;
       }
       micWarmupRef.current = false;
@@ -824,6 +920,9 @@ export function Communicator({
       void stopRecordingAndSend();
       return;
     }
+    if (micWarmupRef.current && awaitingMicPermissionRef.current) {
+      return;
+    }
     if (micWarmupRef.current) {
       cancelMicWarmup();
     }
@@ -859,7 +958,7 @@ export function Communicator({
     setUiMode((m) => (m === "VOICE" ? "TXT" : "VOICE"));
   }, [canSwitchInputMode, isBusy]);
 
-  const micShowsBusyAsset = isBusy && phase !== "recording";
+  const micShowsBusyAsset = isBusy && phase !== "recording" && phase !== "arming";
 
   const turnUserAnchorIdx = streamBusy ? null : getTurnUserAnchorIndex(messages);
   const turnAssistantIdx = streamBusy ? null : getTurnAssistantAnchorIndex(messages);
@@ -1078,13 +1177,13 @@ export function Communicator({
                 onPress={onMicPress}
                 style={styles.micHit}
               >
-                {phase === "recording" ? <RecordingAura level={voiceLevel} /> : null}
+                {phase === "recording" || phase === "arming" ? <RecordingAura level={voiceLevel} /> : null}
                 <Image
                   source={micShowsBusyAsset ? micOff : micOn}
                   style={styles.micImg}
                   resizeMode="contain"
                 />
-                {phase === "recording" ? (
+                {phase === "recording" || phase === "arming" ? (
                   <View style={styles.micDim} />
                 ) : null}
               </Pressable>
