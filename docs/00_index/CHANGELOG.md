@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-06: миграция модуля `bindu`. Источники: `docs/modules/bindu_succession_lab.md`, `docs/modules/bindu_succession_visual_spec_v2.md`, `docs/modules/mandala.md`, `docs/meditation_video_generator_spec.md`, `docs/modules/visual_module_map.md`. Перенесены в архив: `docs/05_archive/migrated/bindu/bindu_succession_lab.md`, `docs/05_archive/migrated/bindu/bindu_succession_visual_spec_v2.md`, `docs/05_archive/migrated/bindu/mandala.md`, `docs/05_archive/migrated/bindu/meditation_video_generator_spec.md`, `docs/05_archive/migrated/bindu/visual_module_map.md`.
 - 2026-05-06: создан `03_rules/migration_protocol.md` как стандарт разовой миграции модуля по референсу `audio`.
 - 2026-05-06: миграция модуля `audio`. Источники: `docs/modules/mandala_sound.md`, `docs/tmp_docs/Мандала/Звук.txt`. Перенесены в архив: `docs/05_archive/migrated/audio/mandala_sound.md`, `docs/05_archive/migrated/audio/Звук.txt`.
 - 2026-05-06: создан скелет новой документации по `_proposal.md`. Старая документация продолжает функционировать параллельно до завершения миграции.

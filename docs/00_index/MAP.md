@@ -1,7 +1,7 @@
 ---
 id: 00_index/MAP
 title: Documentation Map
-version: 1.0
+version: 1.1
 updated: 2026-05-06
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communicator/ui/Communicator.tsx]
@@ -23,7 +23,7 @@ code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communica
 | Модуль | Папка в docs | Точки входа в коде | Зависит от | От него зависят |
 | --- | --- | --- | --- | --- |
 | `astro` | `02_modules/astro/` | `modules/astro-core/index.ts`; `_legacy_web/app/api/astro/daily-forecast/route.ts`; `supabase/functions/daily-forecast/index.ts` | `infra` | `profile`, `daily_forecast`, `assistant` |
-| `bindu` | `02_modules/bindu/` | `modules/mandala/ui/MandalaCanvas.tsx`; `modules/mandala/ui/evolution-registry.ts`; `app/mandala-sandbox.tsx`; `app/bindu-succession-lab.tsx` | `infra`, `audio`, `biofeedback` | `practices` |
+| `bindu` | `02_modules/bindu/` | `modules/mandala/ui/MandalaCanvas.tsx`; `modules/mandala/ui/evolution-registry.ts`; `modules/mandala/experiments/BinduSuccessionLabCanvas.tsx`; `modules/breath/ui/BreathBinduMandala.tsx`; `app/mandala-sandbox.tsx`; `app/bindu-succession-lab.tsx`; `app/sacred-symbol-stream.tsx` | `infra`, `audio` | `practices`, `biofeedback` |
 | `audio` | `02_modules/audio/` | `modules/mandala-sound/index.ts`; `modules/mandala-sound/core/engine.ts`; `modules/mandala-sound/core/sync.ts`; `modules/mandala-sound/core/timeline.ts`; `modules/mandala-sound/ui/MandalaSoundProvider.tsx` | `infra`, `biofeedback`, `practices`, `bindu` | `practices`, `bindu` |
 | `biofeedback` | `02_modules/biofeedback/` | `modules/biofeedback/bus/biofeedback-pipeline.ts`; `modules/biofeedback/core/metrics.ts`; `modules/biofeedback/sensors/FingerPpgCameraSource.tsx`; `modules/breath/ui/CoherenceBreathScreen.tsx` | `infra`, `audio`, `bindu` | `bindu`, `audio`, `practices` |
 | `subscription` | `02_modules/subscription/` | `modules/access/core/access.tsx`; `modules/access/core/features.ts`; `modules/access/core/tiers.ts`; `app/(tabs)/index.tsx` | `infra` | `profile`, `daily_forecast`, `assistant`, `communicator`, `practices`, `webinars`, `author_presence` |

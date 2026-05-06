@@ -1,6 +1,6 @@
 # MANDALA
 
-Единый модуль генератора видео-медитаций для React Native / Expo: `Skia`-визуализация, runtime-состояние в `SharedValues`, `BioSim` для fail-safe анимации и debug-песочница для ручной настройки пресетов. Подробная спецификация: [`docs/meditation_video_generator_spec.md`](../../docs/meditation_video_generator_spec.md).
+Единый модуль генератора видео-медитаций для React Native / Expo: `Skia`-визуализация, runtime-состояние в `SharedValues`, `BioSim` для fail-safe анимации и debug-песочница для ручной настройки пресетов. Каноническая документация модуля (bindu): [`docs/02_modules/bindu/spec.md`](../../docs/02_modules/bindu/spec.md). Историческое ТЗ: [`docs/05_archive/migrated/bindu/meditation_video_generator_spec.md`](../../docs/05_archive/migrated/bindu/meditation_video_generator_spec.md).
 
 ## Назначение
 
@@ -26,7 +26,7 @@
 - `MandalaSessionState` как runtime-слой с данными для `SharedValues`
 - `MandalaCanvas` для `Skia`-рендера
 - `MandalaSandboxScreen` для dev/debug настройки
-- `MandalaAudioContract` как будущий контракт для аудио-модуля следующей фазы
+- `MandalaAudioContract` как контракт для модуля `modules/mandala-sound` (см. `docs/02_modules/audio/spec.md`)
 - `BinduSuccessionLabScreen` как изолированная R&D-лаборатория для поиска более сильной grammar видеомедитации
 
 ## Внешние зависимости
@@ -75,12 +75,12 @@
 
 Подробности и мотивация вынесены в:
 
-- [`docs/modules/bindu_succession_lab.md`](../../docs/modules/bindu_succession_lab.md)
+- [`docs/02_modules/bindu/evolution_lab.md`](../../docs/02_modules/bindu/evolution_lab.md) (архив исходника: `docs/05_archive/migrated/bindu/bindu_succession_lab.md`)
 
 ## План развития
 
 - Подключить `BiofeedbackSensorAdapter` для камеры/PPG без изменения контракта `BioSignalFrame`.
 - Добавить `MandalaTranslator`, который будет переводить психологический запрос в пресет.
-- Реализовать `MandalaAudioEngine` как отдельную фазу поверх уже готового `MandalaAudioContract`.
+- Развивать `modules/mandala-sound` поверх уже используемого `MandalaAudioContract`.
 - Вынести следующие recipe-блоки развития (`Tunnel Bloom`, `Yantra Pulse`, `Fractal Bloom`, `Metatron Portal`) на тот же reusable evolution-layer.
 - Добавить stateful feedback-контур для мягких cellular automata и орнаментального фрактального роста поверх текущего one-pass shader.
