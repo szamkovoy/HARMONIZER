@@ -725,9 +725,7 @@ export function Communicator({
       return true;
     };
 
-    const prepareRecordingSession = async () => {
-      await discardRecording();
-      await Audio.setIsEnabledAsync(true);
+    const applyRecordingAudioMode = async () => {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -737,7 +735,13 @@ export function Communicator({
         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
         playThroughEarpieceAndroid: false,
       });
-      await sleep(Platform.OS === "ios" ? 140 : 70);
+    };
+
+    const prepareRecordingSession = async () => {
+      await discardRecording();
+      await Audio.setIsEnabledAsync(true);
+      await applyRecordingAudioMode();
+      await sleep(Platform.OS === "ios" ? 180 : 70);
     };
 
     try {
@@ -794,20 +798,13 @@ export function Communicator({
             break outer;
           } catch (e) {
             lastErr = e;
+            /* Нельзя оставлять allowsRecordingIOS: false между пресетами — следующий createAsync падает с «Recording not allowed». */
             try {
-              await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
-                playsInSilentModeIOS: true,
-                interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-                staysActiveInBackground: false,
-                shouldDuckAndroid: true,
-                interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-                playThroughEarpieceAndroid: false,
-              });
+              await applyRecordingAudioMode();
             } catch {
               /* ignore */
             }
-            await sleep(90);
+            await sleep(Platform.OS === "ios" ? 110 : 70);
           }
         }
         if (attempt < 2) {
