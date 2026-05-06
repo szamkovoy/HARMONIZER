@@ -24,10 +24,12 @@
 **Что это:** психофизиологические маркеры, привязанные к чакрам/планетам. Это **семантическая карта** пользователя.
 
 **Примеры (Вишуддха / Сатурн):**
+
 - Позитивные: «мастерство», «свобода речи», «творчество», «коммуникабельность»
 - Негативные: «одиночество», «заикание», «непринадлежность», «меня не слышат»
 
 **Как обновляется:**
+
 1. На калибровке — пользователь явно подтверждает или отвергает базовые состояния и добавляет свои.
 2. **ИИ-ассистент дополняет** карту состояний автоматически в фоне: если в диалоге пользователь описывает что-то, семантически близкое к Вишуддхе («не нашёл слов на встрече», «закрылся от коллег»), ассистент может предложить добавить это состояние в `states_map[Saturn]`.
 
@@ -38,11 +40,13 @@
 **Что это:** лингвистические паттерны — конкретные фразы и слова, которыми пользователь сам говорит о состояниях.
 
 **Примеры:**
+
 - «когда меня не слышат на совещании»
 - «как будто в стене»
 - «всё ок, но что-то пресновато» — может быть Венера в дисгармонии
 
 **Как обновляется:**
+
 1. На калибровке — собирается из текста обратной связи.
 2. В диалогах с ассистентом — фразы пользователя сохраняются как авторские паттерны.
 
@@ -139,6 +143,7 @@ CREATE POLICY user_calibrations_select_own ON public.user_calibrations FOR SELEC
 ```
 
 **Поля state-объекта:**
+
 - `id` — стабильный идентификатор (используется при поиске по диалогам).
 - `label` — человекочитаемое название.
 - `source`:
@@ -278,13 +283,15 @@ POST /api/calibration/recalibrate
 ### Безопасность
 
 Все эндпоинты:
+
 1. **Уровень 1:** проверка JWT через `supabase.auth.getUser(token)`. Возвращает `userId` для всей логики.
 2. **Уровень 2:** rate limiting в Redis по `userId`:
-   - `/transcribe`: 30 запросов в час
-   - `/extract`: 5 в сутки
-   - `/portrait`: 5 в сутки
+  - `/transcribe`: 30 запросов в час
+  - `/extract`: 5 в сутки
+  - `/portrait`: 5 в сутки
 
 Реализация rate limit:
+
 ```typescript
 async function checkRateLimit(userId: string, endpoint: string, limit: number, windowSec: number) {
   const key = `rate:${userId}:${endpoint}`;
@@ -319,6 +326,7 @@ async function checkRateLimit(userId: string, endpoint: string, limit: number, w
 ```
 
 Алгоритм:
+
 1. Для каждой планеты выбираем подходящий шаблон по диапазонам S и H.
 2. Случайно из вариантов.
 3. Склеиваем 7 фрагментов через двойной перенос строки.
@@ -354,24 +362,25 @@ async function checkRateLimit(userId: string, endpoint: string, limit: number, w
 1. Frontend записывает аудио (`expo-av` оставляем, как в существующем коде).
 2. Аудио шлётся multipart на `/api/calibration/transcribe`.
 3. Backend проксирует в Groq (модель `whisper-large-v3`):
-   ```typescript
+  ```typescript
    const formData = new FormData();
    formData.append("file", audioBlob, "audio.m4a");
    formData.append("model", "whisper-large-v3");
    formData.append("language", "ru");
    formData.append("response_format", "verbose_json");
-   
+
    const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
      method: "POST",
      headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}` },
      body: formData
    });
-   ```
+  ```
 4. Возвращает `{ text, language, durationSeconds, confidence }`.
 
 ### Confidence
 
 Groq в `verbose_json` возвращает segments с `avg_logprob`. Мы рассчитываем:
+
 ```typescript
 const avgConf = segments.reduce((s, x) => s + Math.exp(x.avg_logprob), 0) / segments.length;
 ```
@@ -696,30 +705,37 @@ if (proposedStates.length > 0) {
 ## Тестовые сценарии
 
 ### Сценарий 1: «Сильно завышающий пользователь»
+
 **Вход:** натальный Saturn = (S: 0.4, H: -0.2). Пользователь: «Я гениальный оратор, у меня нет никаких проблем с самовыражением».
 **Ожидание:** LLM даёт dS=+0.30, dH=+0.30. После усреднения (0.6/0.4): S_cal ≈ 0.52; H_cal ≈ -0.08. Защита сработала.
 
 ### Сценарий 2: «Молчаливый пользователь»
+
 **Вход:** упоминает только Луну и Венеру.
 **Ожидание:** для остальных 5 планет confirmed=false, dS=dH=0, states_map берётся из baseline с пометкой `is_confirmed=false`.
 
 ### Сценарий 3: «Точное попадание базовых состояний»
+
 **Вход:** «Когда меня не слышат на работе, я замолкаю. Это мой главный ад».
 **Ожидание:** Saturn.positive_states/negative_states содержит «меня не слышат» (source: user_confirmed); user_lexicon.phrases содержит «когда меня не слышат на работе» (associated_planet: Saturn) и «это мой главный ад».
 
 ### Сценарий 4: «Повторная калибровка через 60 дней»
+
 **Вход:** previousCalibration version=1; новая запись.
 **Ожидание:** version=2, basedOnVersion=1. Усреднение от натального. user_lexicon наследует старые фразы со сниженной frequency.
 
 ### Сценарий 5: «Сильное противоречие с натальной картой»
+
 **Вход:** натальный Mars (S: 0.85, H: +0.5). Пользователь: «Я полный овощ, ничего не могу довести до конца».
 **Ожидание:** S_cal ≈ 0.73, H_cal ≈ 0.18. Расхождение «карта vs самовосприятие» сохраняется.
 
 ### Сценарий 6: «Auto_aggregated»
+
 **Вход:** ConversationDigest с 12 упоминаниями «не могу заснуть», 5 упоминаниями «всё бесит».
 **Ожидание:** dH(Moon) ≈ -0.20, dH(Mars) ≈ -0.15, lexicon обогащается. Усреднение 50/50.
 
 ### Сценарий 7: «Ai_proposed состояние»
+
 **Вход:** пользователь в нескольких диалогах говорит «мне как будто давит на грудь».
 **Ожидание:** через 3 упоминания создаётся ai_state_proposal, пользователю предлагается подтвердить связку с Анахатой/Юпитером.
 
@@ -747,6 +763,7 @@ interface CalibrationDebug {
 ```
 
 Это позволяет на тестовом стенде увидеть детальный отчёт:
+
 1. Что пользователь сказал (сырой текст).
 2. Как LLM это понял (raw JSON).
 3. Какие дельты предложил по каждой планете.
@@ -779,3 +796,4 @@ interface CalibrationDebug {
 - `@groq-sdk` или fetch к Groq REST API — для транскрипции.
 - `@google/generative-ai` — для Gemini (уже подключено в `_legacy_web`).
 - `redis` (опционально) — для rate limiting.
+
