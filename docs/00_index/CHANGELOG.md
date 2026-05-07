@@ -4,12 +4,13 @@
 
 title: Documentation Changelog
 version: 1.0
-updated: 2026-05-07
+updated: 2026-05-08
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-08: экран **`PracticeCatalogScreen`**: устранены гонки микрозадач с **`onLateYogaPractices`** (в т.ч. **`await Promise.resolve()`** после **`loadPracticeCatalog`**, чтобы не затирать асаны пустым списком). **`docs/02_modules/practices/history.md`**, **`spec.md`**.
 - 2026-05-08: каталог асан на экране «Практики»: для ветки с **`onLateYogaPractices`** в **`modules/practices/core/catalog.ts`** добавлены таймаут 12 с, обработка **`reject`** и повторный колбэк после таймаута при позднем ответе Supabase (раньше возможен «вечный» спиннер). Обновлены **`docs/02_modules/practices/spec.md`**, **`history.md`**.
 - 2026-05-08: pre-push docs-sync: в **`scripts/docs-sync/sync.sh`** для **`cursor-agent`** используется изолированный **`HOME`** под **`.git/cursor-agent-home`** (и однократное копирование **`cli-config.json`**), чтобы не конфликтовать с IDE по **`~/.cursor/cli-config.json.tmp`** (EPERM при push из Cursor).
 - 2026-05-08: исправление обрезанных ответов Gemini: в **`_legacy_web/app/api/_utils/gemini.ts`** для **`gemini-2.5*`** в `generationConfig` — **`thinkingConfig: { thinkingBudget: 0 }`** (thinking не съедает **`maxOutputTokens`** у видимого текста); **`gemini-3*`** без принудительного `thinkingConfig` (глубина по умолчанию API). Ранее в этот же день: merge SSE/`complete`, fallback пустого ответа, пол **`maxOutputTokens`** в **`communicator/v2/dialog`**. Файлы: `gemini.ts`, `Communicator.tsx`, `communicator.ts` (i18n), `dialog/route.ts`, `communicator`/`assistant` `history.md`, `communicator/spec.md`.

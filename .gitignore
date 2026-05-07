@@ -53,6 +53,8 @@ __tmp_ocr/
 
 docs/.sync-logs/
 docs/.sync-failures.log
+docs/.sync-queue/
+
 .git/CURSOR_PUSH_DIFF.txt
 .git/CURSOR_PUSH_STAT.txt
 .git/CURSOR_DOC_SYNC_PROMPT.txt

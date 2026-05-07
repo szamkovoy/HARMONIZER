@@ -80,6 +80,8 @@ export function PracticeCatalogScreen() {
   });
   const loadSeqRef = useRef(0);
   const requestedThumbnailIdsRef = useRef<Set<string>>(new Set());
+  /** Избегаем гонки: `onLateYogaPractices` может отработать в микрозадаче раньше, чем продолжится `load()` после `await`. */
+  const lateYogaSlotRef = useRef<{ resolved: false } | { resolved: true; yoga: PracticeSummary[] }>({ resolved: false });
 
   const load = useCallback(
     async () => {
@@ -88,14 +90,20 @@ export function PracticeCatalogScreen() {
       logRuntimeEvent("practice_catalog:screen_load_start", { seq });
       setState({ status: "loading", catalog: null, error: null });
       setYogaLateLoading(false);
+      lateYogaSlotRef.current = { resolved: false };
       requestedThumbnailIdsRef.current = new Set();
       setYogaThumbnails({});
       try {
+        setYogaLateLoading(true);
         const catalog = await loadPracticeCatalog({
           onLateYogaPractices: (yoga) => {
             if (seq !== loadSeqRef.current) return;
+            lateYogaSlotRef.current = { resolved: true, yoga };
             setYogaLateLoading(false);
             setState((current) => {
+              if (current.status === "loading") {
+                return current;
+              }
               const base = current.catalog ?? EMPTY_CATALOG;
               return {
                 status: "ready",
@@ -106,18 +114,24 @@ export function PracticeCatalogScreen() {
             logRuntimeEvent("practice_catalog:screen_late_yoga_ready", { seq, yogaCount: yoga.length });
           },
         });
+        // Колбэк `onLateYogaPractices` ставится в очередь микрозадач; без yield продолжение `load()`
+        // может выполниться раньше и прочитать `lateYogaSlotRef` до записи → пустой список асан.
+        await Promise.resolve();
         if (seq !== loadSeqRef.current) return;
-        if (catalog.yoga.length === 0) {
-          setYogaLateLoading(true);
-        }
+        const late = lateYogaSlotRef.current;
+        const mergedYoga = late.resolved ? late.yoga : catalog.yoga;
         logRuntimeEvent("practice_catalog:screen_load_ready", {
           seq,
           durationMs: Date.now() - startedAt,
           meditationCount: catalog.meditation.length,
           breathCount: catalog.breath.length,
-          yogaCount: catalog.yoga.length,
+          yogaCount: mergedYoga.length,
+          yogaLateAlready: late.resolved,
         });
-        setState({ status: "ready", catalog, error: null });
+        setState({ status: "ready", catalog: { ...catalog, yoga: mergedYoga }, error: null });
+        if (late.resolved) {
+          setYogaLateLoading(false);
+        }
       } catch (error) {
         if (seq !== loadSeqRef.current) return;
         logRuntimeEvent(
@@ -125,6 +139,7 @@ export function PracticeCatalogScreen() {
           { seq, durationMs: Date.now() - startedAt, message: error instanceof Error ? error.message : String(error) },
           "warn",
         );
+        setYogaLateLoading(false);
         setState({
           status: "error",
           catalog: EMPTY_CATALOG,

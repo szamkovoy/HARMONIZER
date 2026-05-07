@@ -2,7 +2,7 @@
 id: 02_modules/practices/spec
 title: Practices Spec
 version: 1.1
-updated: 2026-05-07
+updated: 2026-05-08
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -44,7 +44,7 @@ code_refs:
 - **Типы:** `PracticeCatalog`, `PracticeCatalogFilters`, `PracticeDurationBucket`, `PracticeDurationPolicy`, `PracticeKind`, `PracticeLaunchParams`, `PracticeSummary`, `PracticeVideoMetadata`, `PracticeSelectorCandidate`, и т.д.; **`PracticeRecommendation`**, **`PracticeRecommendationLaunch`** из `@shared/recommendation`.
 
 - **`PracticeCatalogScreen`**  
-  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`.
+  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`. При отложенной йоге (`onLateYogaPractices`) после `await loadPracticeCatalog` выполняется yield микрозадач (`await Promise.resolve()`), затем в состояние подмешивается йога из слота — иначе продолжение `load()` может прочитать слот до вызова колбэка и зафиксировать пустой список асан.
 
 - **`launchPractice(launch, options?): boolean`**  
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
