@@ -162,7 +162,20 @@ PROMPT_EOF
 # ============================================================
 # 7. Запуск Cursor agent
 # ============================================================
-echo "[docs-sync] Calling cursor-agent (model=auto, mode=write)..."
+# Отдельный HOME только для дочернего cursor-agent: иначе при push из Cursor IDE
+# hook и IDE одновременно пишут ~/.cursor/cli-config.json.tmp → EPERM до любых логов.
+# Глобальный HOME процесса скрипта не меняем.
+AGENT_HOME="$REPO_ROOT/.git/cursor-agent-home"
+mkdir -p "$AGENT_HOME"
+AGENT_CURSOR_DIR="$AGENT_HOME/.cursor"
+mkdir -p "$AGENT_CURSOR_DIR"
+AGENT_CLI_CONFIG="$AGENT_CURSOR_DIR/cli-config.json"
+if [ -n "${HOME:-}" ] && [ ! -f "$AGENT_CLI_CONFIG" ] && [ -f "$HOME/.cursor/cli-config.json" ]; then
+  cp "$HOME/.cursor/cli-config.json" "$AGENT_CLI_CONFIG"
+  echo "[docs-sync] Seeded $AGENT_CLI_CONFIG from user ~/.cursor (isolated HOME first use)."
+fi
+
+echo "[docs-sync] Calling cursor-agent (model=auto, mode=write, HOME=$AGENT_HOME)..."
 
 # Таймаут через perl (timeout не везде есть на macOS)
 TIMEOUT_SEC=300
@@ -189,7 +202,7 @@ perl -e '
   warn "[docs-sync] timeout after ${timeout}s, agent killed\n";
   exit 124;
 ' "$TIMEOUT_SEC" \
-  cursor-agent -p --force --trust --model auto --output-format text "$PROMPT_TEXT"
+  env "HOME=$AGENT_HOME" cursor-agent -p --force --trust --model auto --output-format text "$PROMPT_TEXT"
 AGENT_EXIT=$?
 set -e
 
