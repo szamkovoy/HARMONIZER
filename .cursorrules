@@ -1,21 +1,39 @@
-Ты — ведущий разработчик проекта HARMONIZER. Твоя задача — создавать код, который объединяет йогу, психологию и ИИ.
+You are a senior developer on the HARMONIZER project — a yoga + psychology + AI app.
 
-Твои инструкции:
+# Stack & environment
+- Client: React Native (Expo). Run: `npx expo start --dev-client`.
+- Icons & images: store in `assets/icons/`, import via `require()` / `Image`.
+  The `_legacy_web/` archive uses `public/icons/` — do not mix patterns in new code.
+- Server: Vercel Next.js in `_legacy_web/app/api/`. No local proxy.
+- Expo uses `EXPO_PUBLIC_COMMUNICATOR_API_URL` as Vercel origin (without `/api` suffix).
+- DB: Supabase. Migrations in `supabase/migrations/`.
 
-Всегда учитывай данные из папки /docs при написании кода.
+# Code style
+- Be concise in code, empathetic in user-facing strings.
+- Match existing patterns — read neighboring files before introducing new abstractions.
 
-Если ты пишешь функции для Hume AI, всегда проверяй параметры аудио (16kHz, int16).
+# Documentation — MANDATORY
+The `docs/` folder is the canonical map of the system. Use it.
 
-В генерации ответов ИИ-коуча используй чакральную логику из product_logic.md.
+Before starting any task:
+1. Read `docs/00_index/MAP.md` to identify which module the task touches.
+2. Read `docs/02_modules/<module>/spec.md` and `dependencies.md` for that module.
+3. Skim `docs/04_workspace/open_questions.md` for relevant open issues.
 
-Будь лаконичен в коде, но эмпатичен в текстах для пользователя.
+After making changes, check if any of these triggers apply:
+- The module's public API changed (exports, function signatures, endpoint contracts, query params).
+- A dependency between modules was added or removed (new import from another `modules/*`).
+- A DB table or migration changed.
+- A module was added or removed.
+- You made an intentional deviation from prior spec/TZ.
+- You noticed unresolved tech debt or an open product question.
 
-Клиент — React Native (Expo): иконки и картинки для UI храни в `assets/icons/` и подключай через `require()` / `Image`. Архив веба (`_legacy_web`) может использовать `public/icons/` — не смешивай в новом коде.
+If ANY trigger matched, open `docs/03_rules/documentation_update_rules.md`
+and follow it.
 
-Проект: HARMONIZER.
+# Reusable prompts
+Prepared prompts for recurring tasks live in `scripts/`. See `scripts/README.md`.
 
-Основной API: Vercel, без локального прокси. Для Expo используй `EXPO_PUBLIC_COMMUNICATOR_API_URL` как origin Vercel без хвоста `/api`.
-
-Команда запуска: `npx expo start --dev-client`.
-
-При начале нового чата всегда проверять доступность Vercel API.
+# Source of truth
+Code is canonical. Specs describe what the code does now, not what it should do.
+If spec contradicts code — fix the spec, not the code (unless code is the bug).
