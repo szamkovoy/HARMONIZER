@@ -44,7 +44,7 @@ code_refs:
 - **Типы:** `PracticeCatalog`, `PracticeCatalogFilters`, `PracticeDurationBucket`, `PracticeDurationPolicy`, `PracticeKind`, `PracticeLaunchParams`, `PracticeSummary`, `PracticeVideoMetadata`, `PracticeSelectorCandidate`, и т.д.; **`PracticeRecommendation`**, **`PracticeRecommendationLaunch`** из `@shared/recommendation`.
 
 - **`PracticeCatalogScreen`**  
-  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`. При отложенной йоге (`onLateYogaPractices`) после `await loadPracticeCatalog` выполняется yield микрозадач (`await Promise.resolve()`), затем в состояние подмешивается йога из слота — иначе продолжение `load()` может прочитать слот до вызова колбэка и зафиксировать пустой список асан.
+  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`. При отложенной йоге (`onLateYogaPractices`) после `await loadPracticeCatalog` выполняется yield микрозадач (`await Promise.resolve()`), затем в состояние подмешивается йога из слота; медитации и дыхание кэшируются в ref, чтобы колбэк мог собрать полный каталог до перехода экрана в `ready` (медленный ответ Supabase).
 
 - **`launchPractice(launch, options?): boolean`**  
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
