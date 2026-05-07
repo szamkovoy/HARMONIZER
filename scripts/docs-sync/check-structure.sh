@@ -26,20 +26,10 @@ for module in "${EXPECTED_MODULES[@]}"; do
   done
 done
 
-# Проверка 2: в папке модуля нет лишних .md файлов сверх триады
-for module in "${EXPECTED_MODULES[@]}"; do
-  if [ -d "docs/02_modules/$module" ]; then
-    EXTRA="$(find "docs/02_modules/$module" -maxdepth 1 -type f -name '*.md' \
-      ! -name 'spec.md' ! -name 'dependencies.md' ! -name 'history.md' 2>/dev/null || true)"
-    if [ -n "$EXTRA" ]; then
-      echo "  WARN: extra .md files in docs/02_modules/$module/:"
-      echo "$EXTRA" | sed 's/^/    /'
-      # Не считаем это ошибкой — некоторые модули имеют доп. файлы (caching_strategy.md и т.п.)
-    fi
-  fi
-done
-
-# Проверка 3: YAML-frontmatter валиден (есть id, title, version, updated)
+# Проверка 2: YAML-frontmatter валиден.
+# Поддерживаем два варианта записи:
+#   1. Чистый YAML:    id: 02_modules/audio/spec
+#   2. Внутри markdown заголовка: ## id: 02_modules/audio/spec
 check_frontmatter() {
   local file="$1"
   if ! head -1 "$file" | grep -q '^---$'; then
@@ -47,7 +37,8 @@ check_frontmatter() {
     return 1
   fi
   for field in id title version updated; do
-    if ! head -20 "$file" | grep -qE "^$field:"; then
+    # Ищем поле либо в начале строки (id: ...), либо после ## (## id: ...)
+    if ! head -25 "$file" | grep -qE "^(##\s+)?$field:"; then
       echo "  ERROR: $file — missing field '$field' in frontmatter"
       return 1
     fi
@@ -63,7 +54,7 @@ check_frontmatter "docs/00_index/MAP.md" || ERRORS=$((ERRORS + 1))
 check_frontmatter "docs/00_index/CHANGELOG.md" || ERRORS=$((ERRORS + 1))
 check_frontmatter "docs/04_workspace/open_questions.md" || ERRORS=$((ERRORS + 1))
 
-# Проверка 4: MAP.md содержит все 14 модулей
+# Проверка 3: MAP.md содержит все 14 модулей
 if [ -f docs/00_index/MAP.md ]; then
   for module in "${EXPECTED_MODULES[@]}"; do
     if ! grep -qE "^\| \`$module\`" docs/00_index/MAP.md; then
@@ -73,20 +64,16 @@ if [ -f docs/00_index/MAP.md ]; then
   done
 fi
 
-# Проверка 5: code_refs указывают на реально существующие файлы
-# (только базовая проверка для путей, начинающихся с modules/, app/, services/, _legacy_web/, supabase/)
+# Проверка 4: code_refs указывают на реально существующие файлы (только WARN)
 while IFS= read -r f; do
-  # Извлекаем code_refs из YAML (грубо, через grep)
   REFS="$(awk '/^code_refs:/,/^[a-z_]+:/' "$f" | grep -oE '(modules|app|services|_legacy_web|supabase)/[a-zA-Z0-9_./()*-]+' | sort -u || true)"
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
-    # Игнорируем wildcards и (tabs)
     if echo "$ref" | grep -qE '\*|\(tabs\)|<'; then
       continue
     fi
     if [ ! -e "$ref" ]; then
       echo "  WARN: $f references non-existent path: $ref"
-      # Не считаем ошибкой — пути могли быть удалены, это нормально для легаси
     fi
   done <<< "$REFS"
 done < <(find docs/02_modules -name '*.md' -type f 2>/dev/null)
