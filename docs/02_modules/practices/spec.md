@@ -33,7 +33,7 @@ code_refs:
 ### Пакет `modules/practices` (`index.ts`)
 
 - **`loadPracticeCatalog(options?, deps?): Promise<PracticeCatalog>`**  
-  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. Таймаут загрузки йоги — 12 с (при таймауте йога пустая, догрузка возможна через `onLateYogaPractices`).
+  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. Таймаут загрузки йоги — 12 с. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк вызывается не позже чем через 12 с (при ошибке или таймауте — `[]`), а если ответ Supabase пришёл после таймаута — возможен повторный вызов с фактическим списком асан.
 
 - **`filterPractices(practices, filters): PracticeSummary[]`** / **`sortPracticesForCatalog(practices): PracticeSummary[]`**  
   Фильтр по чакре и «корзине» длительности; сортировка через `@shared/selector`.

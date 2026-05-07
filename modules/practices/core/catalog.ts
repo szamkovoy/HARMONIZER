@@ -297,18 +297,41 @@ export async function loadPracticeCatalog(
   const yogaPromise = yogaLoader();
 
   if (options?.onLateYogaPractices) {
-    yogaPromise
-      .then((lateYoga) => {
-        logRuntimeEvent("practice_catalog:yoga_load_late_ready", { yogaCount: lateYoga.length });
-        options.onLateYogaPractices?.(lateYoga);
-      })
-      .catch((error: unknown) => {
-        logRuntimeEvent(
-          "practice_catalog:yoga_load_late_error",
-          { message: error instanceof Error ? error.message : String(error) },
-          "warn",
-        );
+    const safeYogaPromise = yogaPromise.catch((error: unknown) => {
+      logRuntimeEvent(
+        "practice_catalog:yoga_load_late_error",
+        { message: error instanceof Error ? error.message : String(error) },
+        "warn",
+      );
+      return [] as PracticeSummary[];
+    });
+    const onLateYogaPractices = options.onLateYogaPractices;
+    void (async () => {
+      const { value: yoga, timedOut } = await withTimeout(
+        safeYogaPromise,
+        YOGA_CATALOG_TIMEOUT_MS,
+        [],
+        "practice_catalog:yoga_load",
+      );
+      logRuntimeEvent("practice_catalog:yoga_load_late_ready", {
+        yogaCount: yoga.length,
+        timedOut,
       });
+      onLateYogaPractices(yoga);
+      if (timedOut) {
+        safeYogaPromise
+          .then((finalYoga) => {
+            if (finalYoga.length > 0) {
+              logRuntimeEvent("practice_catalog:yoga_load_late_ready", {
+                yogaCount: finalYoga.length,
+                afterTimeout: true,
+              });
+              onLateYogaPractices(finalYoga);
+            }
+          })
+          .catch(() => {});
+      }
+    })();
     logRuntimeEvent("practice_catalog:load_ready", {
       durationMs: Date.now() - startedAt,
       meditationCount: meditation.length,
@@ -329,20 +352,6 @@ export async function loadPracticeCatalog(
     [],
     "practice_catalog:yoga_load",
   );
-  if (timedOut && options?.onLateYogaPractices) {
-    yogaPromise
-      .then((lateYoga) => {
-        logRuntimeEvent("practice_catalog:yoga_load_late_ready", { yogaCount: lateYoga.length });
-        options.onLateYogaPractices?.(lateYoga);
-      })
-      .catch((error: unknown) => {
-        logRuntimeEvent(
-          "practice_catalog:yoga_load_late_error",
-          { message: error instanceof Error ? error.message : String(error) },
-          "warn",
-        );
-      });
-  }
   logRuntimeEvent("practice_catalog:load_ready", {
     durationMs: Date.now() - startedAt,
     meditationCount: meditation.length,

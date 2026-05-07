@@ -48,6 +48,13 @@ vi.mock("@/services/supabase", () => ({
   getSupabase: vi.fn(() => null),
 }));
 
+/** Дождаться фонового `void (async () => { await withTimeout(...) })()` после `loadPracticeCatalog`. */
+function yieldToDeferredCatalogWork(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
 const YOGA_PRACTICE: PracticeSummary = {
   id: "yoga:test-1",
   slug: "test-1",
@@ -82,10 +89,49 @@ describe("loadPracticeCatalog", () => {
     expect(onLateYogaPractices).not.toHaveBeenCalled();
 
     resolveYoga([YOGA_PRACTICE]);
-    await Promise.resolve();
-    await Promise.resolve();
+    await yieldToDeferredCatalogWork();
 
     expect(onLateYogaPractices).toHaveBeenCalledWith([YOGA_PRACTICE]);
+  });
+
+  it("invokes onLateYogaPractices with [] when yoga loader rejects", async () => {
+    const onLateYogaPractices = vi.fn();
+    await loadPracticeCatalog(
+      { onLateYogaPractices },
+      {
+        loadYogaPractices: async () => {
+          throw new Error("network");
+        },
+      },
+    );
+    await yieldToDeferredCatalogWork();
+    expect(onLateYogaPractices).toHaveBeenCalledWith([]);
+  });
+
+  it("invokes onLateYogaPractices with [] on timeout then updates when yoga resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveYoga!: (value: PracticeSummary[]) => void;
+      const yogaPromise = new Promise<PracticeSummary[]>((resolve) => {
+        resolveYoga = resolve;
+      });
+      const onLateYogaPractices = vi.fn();
+
+      await loadPracticeCatalog({ onLateYogaPractices }, { loadYogaPractices: () => yogaPromise });
+
+      expect(onLateYogaPractices).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(onLateYogaPractices).toHaveBeenCalledWith([]);
+
+      resolveYoga([YOGA_PRACTICE]);
+      vi.useRealTimers();
+      await yieldToDeferredCatalogWork();
+
+      expect(onLateYogaPractices).toHaveBeenLastCalledWith([YOGA_PRACTICE]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("waits for yoga when no late callback is provided", async () => {
