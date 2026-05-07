@@ -101,15 +101,13 @@ async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
 }
 
 /**
- * Gemini 2.5+ / 3.x по умолчанию тратят «мыслительные» токены из того же бюджета, что и видимый текст.
- * Для коротких реплик ассистента это даёт обрывы посреди предложения при умеренном maxOutputTokens.
+ * Gemini 2.5 по умолчанию тратит «мыслительные» токены из того же бюджета, что и видимый текст — обрывы
+ * посреди фразы при умеренном maxOutputTokens. Для 2.5 отключаем thinking; линейка 3.x не трогаем —
+ * остаётся глубина по умолчанию API (ограничение — maxOutputTokens на маршруте).
  * @see https://firebase.google.com/docs/ai-logic/thinking
  */
 function thinkingConfigForDialogModel(modelId: string): Record<string, unknown> | undefined {
   const id = modelId.replace(/^models\//i, "").toLowerCase();
-  if (id.startsWith("gemini-3")) {
-    return { thinkingConfig: { thinkingLevel: "MINIMAL" } };
-  }
   if (id.startsWith("gemini-2.5")) {
     return { thinkingConfig: { thinkingBudget: 0 } };
   }

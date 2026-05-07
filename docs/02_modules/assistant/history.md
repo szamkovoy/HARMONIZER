@@ -11,7 +11,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/migrat
 
 - **2026-05-08:** В **`/api/communicator/v2/dialog`** для стрима ответа респондера задан нижний предел **`maxOutputTokens` = 2048** (поверх значения из `prompts`), чтобы реже обрывать длинные реплики по лимиту вывода модели.
 
-- **2026-05-08:** В **`_legacy_web/app/api/_utils/gemini.ts`** для моделей **`gemini-2.5*`** в `generationConfig` передаётся **`thinkingConfig: { thinkingBudget: 0 }`**, для **`gemini-3*`** — **`thinkingLevel: "MINIMAL"`**, чтобы внутренний thinking не съедал бюджет **`maxOutputTokens`** и не обрывал видимый текст ассистента посреди фразы (известное поведение Gemini 2.5/3).
+- **2026-05-08:** В **`_legacy_web/app/api/_utils/gemini.ts`** для **`gemini-2.5*`** в `generationConfig` передаётся **`thinkingConfig: { thinkingBudget: 0 }`**, чтобы внутренний thinking не съедал бюджет **`maxOutputTokens`** и не обрывал видимый текст посреди фразы. Для **`gemini-3*`** отдельный `thinkingConfig` не задаётся — сохраняется глубина рассуждений по умолчанию API.
 
 - **2026-05:** Зафиксирован канон кода: таблица **`scenarios`** и **`scenario_cache`** применены (миграция `20260501173500_scenarios_architecture.sql`); точки входа **`/api/ai/monologue`** и **`/api/ai/dialog`** (реэкспорт на общий обработчик диалога) — целевая унификация PATCH 12; параллельно сохранён **`/api/communicator/v2/dialog`** для клиентов без `scenario_id`. Исторические тексты PATCH 12 перенесены в `docs/05_archive/migrated/assistant/`.
 

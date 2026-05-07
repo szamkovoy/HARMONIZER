@@ -13,23 +13,52 @@ You are a senior developer on the HARMONIZER project — a yoga + psychology + A
 - Match existing patterns — read neighboring files before introducing new abstractions.
 
 # Documentation — MANDATORY
+
 The `docs/` folder is the canonical map of the system. Use it.
 
-Before starting any task:
-1. Read `docs/00_index/MAP.md` to identify which module the task touches.
-2. Read `docs/02_modules/<module>/spec.md` and `dependencies.md` for that module.
-3. Skim `docs/04_workspace/open_questions.md` for relevant open issues.
+## Before starting any task
 
-After making changes, check if any of these triggers apply:
-- The module's public API changed (exports, function signatures, endpoint contracts, query params).
-- A dependency between modules was added or removed (new import from another `modules/*`).
+1. Read `docs/00_index/MAP.md` and identify ALL modules the task touches —
+   not just the obvious one. If the task involves an interaction between
+   modules (client ↔ server, stream, callback, shared DB table), at least
+   two modules are touched. Be explicit about which.
+
+2. For EACH touched module, read BOTH files of the triad:
+   - `docs/02_modules/<module>/spec.md`
+   - `docs/02_modules/<module>/dependencies.md`
+
+   Do not skip `dependencies.md` even if `spec.md` seems sufficient.
+   The dependencies file describes contracts between modules that the
+   spec does not duplicate.
+
+3. Skim `docs/04_workspace/open_questions.md` for relevant open issues
+   on any of the touched modules.
+
+If at any point during the work you discover the task touches a module
+you did not initially identify, go back and read its triad before
+modifying its code.
+
+## After making changes
+
+Check if any of these triggers apply:
+- The module's public API changed (exports, function signatures,
+  endpoint contracts, query params, SSE event shapes).
+- A dependency between modules was added or removed (new import from
+  another `modules/*`, new API call between client and server).
 - A DB table or migration changed.
 - A module was added or removed.
 - You made an intentional deviation from prior spec/TZ.
 - You noticed unresolved tech debt or an open product question.
 
-If ANY trigger matched, open `docs/03_rules/documentation_update_rules.md`
-and follow it.
+If ANY trigger matched:
+1. Open `docs/03_rules/documentation_update_rules.md` and follow it.
+2. Update `spec.md` of every affected module to reflect the new reality.
+3. Add a dated entry to `history.md` of every affected module
+   describing what changed and why.
+4. Add a one-line entry to `docs/00_index/CHANGELOG.md`.
+5. If something does not fit the current spec or raises a product
+   question, add it to `docs/04_workspace/open_questions.md` instead
+   of forcing it into spec.
 
 # Reusable prompts
 Prepared prompts for recurring tasks live in `scripts/`. See `scripts/README.md`.
