@@ -2,7 +2,7 @@
 
 ## id: 04_workspace/open_questions
 title: Open Questions
-version: 1.5
+version: 1.7
 updated: 2026-05-07
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -10,6 +10,13 @@ code_refs: []
 ## `bindu`
 
 - После переноса источников в `docs/05_archive/migrated/bindu/` в репозитории остаются **устаревшие пути** в инвентарных файлах (например `docs/_audit.md`), где ещё перечислены `docs/meditation_video_generator_spec.md`, `docs/modules/bindu_succession_lab.md`, `docs/modules/visual_module_map.md`. Нужна отдельная правка аудита или ссылка на новый канон `docs/02_modules/bindu/`*, вне scope одной миграции модуля.
+
+## `audio` / `bindu` (пакетные границы)
+
+- **Встречные импорты `mandala-sound` ↔ `modules/mandala`**  
+  **Контекст:** `mandala-sound/core/sync.ts` импортирует `buildAudioContract` и типы из `modules/mandala/core/`; часть файлов в `modules/mandala/experiments/` импортирует `MandalaSoundProvider` / типы из `mandala-sound`. Такт и снижение частот (таймлайн) при этом сосредоточены в `MandalaSoundProvider`, а не в канвасе мандалы.  
+  **Проявление:** жёсткая сцепка релизов двух пакетов; риск неявного цикла при реорганизации barrel-экспортов или выносе кода в общий пакет.  
+  **Действие:** при следующей крупной рефакторизации — либо вынести общий контракт в нейтральный слой (отдельный пакет/файл без UI), либо зафиксировать ADR с правилом «истина в `mandala/core/bio.ts`», допустимым направлением импортов и исключениями для `experiments/`.
 
 ## `infra`
 
@@ -26,6 +33,13 @@ code_refs: []
   **Контекст:** `supabase/functions/_shared/daily-engine-parity.test.ts` сравнивает `effectiveNatalParams`, `computeActivation`, `computeImportance` между `modules/daily-engine` и `_shared/dailyForecast.ts`.  
   **Пробел:** нет автоматической проверки полной цепочки в духе «одинаковый `DailyForecast`» включая `rankPlanets` / `chooseFinalPlanet`, синтетические окна и различия провайдеров транзитов между Next и Edge.  
   **Действие:** при существенных правках M2 расширить golden-fixtures / интеграционный тест или явно принять ручной регрессионный чеклист.
+
+## `daily_forecast`
+
+- **recentPlanetsOfDay не записывается клиентом — серверная логика повторов планеты дня неактивна**  
+  **Контекст:** ТЗ MODULE_2 (см. архив `docs/05_archive/migrated/astrology/`) описывает стек двух последних планет дня для предотвращения повторов 3+ дня подряд. Сервер (`_legacy_web/app/api/astro/daily-forecast/route.ts`) читает `user_settings.preferences.recentPlanetsOfDay`, и `chooseFinalPlanet` использует его для альтернативного выбора. Однако клиент (`useDayContent` → `fetchDailyForecast`) не передаёт `recentPlanetsOfDay` в теле запроса и не записывает в `preferences` после показа дня. Стек на практике всегда пуст; альтернативная ветка `chooseFinalPlanet` по «недавности» не активируется.  
+  **Проявление:** пользователь может три дня подряд получать одну и ту же планету дня (например Сатурн при сильно активном Сатурне в натале), и «альтернативный выбор» с пояснительным текстом не сработает.  
+  **Действие:** при следующей работе с `daily_forecast` — либо реализовать запись стека (после показа forecast записывать в `user_settings`), либо удалить серверную логику стека как мёртвую (если продуктово решено, что повторы — норма). Зафиксировать решение явно.
 
 ## `subscription`
 

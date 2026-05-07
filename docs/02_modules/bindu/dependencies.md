@@ -1,7 +1,7 @@
 ---
 id: 02_modules/bindu/dependencies
 title: Bindu Dependencies
-version: 1.2
+version: 1.3
 updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/biofeedback/spec]
 code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-registry.ts, modules/mandala/experiments/BinduSuccessionLabCanvas.tsx, modules/breath/ui/BreathBinduMandala.tsx, app/mandala-sandbox.tsx, app/bindu-succession-lab.tsx, app/sacred-symbol-stream.tsx]
@@ -14,9 +14,10 @@ code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-r
   `BinduSuccessionLabScreen` использует `expo-file-system/legacy` (`documentDirectory`, `readAsStringAsync`, `writeAsStringAsync`) для локальных override визуальных пресетов.  
   `AppState`, фокус навигации (`useIsFocused`) и Safe Area управляют жизненным циклом рендера и тиков.
 
-- **`audio`** (`modules/mandala-sound`)  
-  `BinduSuccessionLabCanvas` и `BinduSuccessionFlowCanvas` принимают опциональный **`MandalaSoundVisualSync`** (`flickerHz`, `flickerIntensity`, фазы дыхания/пульса в типе) как `externalSync`, чтобы мерцание и ритм совпадали с `MandalaSoundProvider`.  
-  `modules/mandala-sound/core/sync.ts` и типы движка импортируют **`buildAudioContract`**, **`AudioBandTrigger`**, **`MandalaAudioContract`** из `modules/mandala/core/bio.ts` и `modules/mandala/core/types.ts` — звук и визуал делят одну модель целевых частот и триггеров.
+- **`audio`** (`modules/mandala-sound`, в основном **типы** и композиция)  
+  Тип **`MandalaSoundVisualSync`** импортируется в `BinduSuccessionLabCanvas.tsx`, `BinduSuccessionFlowCanvas.tsx` (проп `externalSync`) — без подписки на тики изнутри канваса.  
+  `modules/mandala/experiments/SacredSymbolStreamScreen.tsx` **рантаймом** импортирует `MandalaSoundProvider` и `useMandalaSoundSync()` из `@/modules/mandala-sound` (экспериментальный экран внутри пакета `mandala`).  
+  **Обратное направление кода:** `modules/mandala-sound/core/sync.ts` импортирует **`buildAudioContract`** / типы из **`modules/mandala/core`** — это зафиксировано в `docs/02_modules/audio/dependencies.md` §1 как зависимость **`audio` → bindu (mandala core)**, а не наоборот.
 
 ## 2. От него зависят
 
@@ -26,8 +27,8 @@ code_refs: [modules/mandala/ui/MandalaCanvas.tsx, modules/mandala/ui/evolution-r
 - **`biofeedback`**  
   `modules/biofeedback/adapters/MandalaBioFrameAdapter.ts` импортирует тип **`BioSignalFrame`** (и косвенно контракт полей) из `modules/mandala/core/types.ts`, чтобы публиковать в мандалу согласованный снимок с шины. Сам пакет `modules/mandala` **не** импортирует `modules/biofeedback`; связь направлена от адаптера к типам bindu и к будущим/альтернативным потребителям `BioSignalFrame`. Парная запись потребителя — `docs/02_modules/biofeedback/dependencies.md`.
 
-- **`audio`** (обратная сторона)  
-  См. `02_modules/audio/dependencies.md`: аудиомодуль читает контракт мандалы из `mandala/core` и отдаёт `MandalaSoundVisualSync` канвасам bindu.
+- **`audio`**  
+  `mandala-sound` — потребитель **`modules/mandala/core/bio.ts`** и типов мандалы для одного числового контура (звук + `flickerHz`). Канвасы bindu либо получают готовый `MandalaSoundVisualSync` снаружи, либо монтируют `MandalaSoundProvider` в экспериментах — см. `02_modules/audio/dependencies.md` §1–2.
 
 ## 3. Контрактные точки риска
 

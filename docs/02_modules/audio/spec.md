@@ -1,7 +1,7 @@
 ---
 id: 02_modules/audio/spec
 title: Audio Spec
-version: 1.1
+version: 1.3
 updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
@@ -32,9 +32,9 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 ## 3. Внутренняя архитектура
 
-- `MandalaSoundProvider` управляет жизненным циклом сессии: стартует движок при `isActive`, держит `startedAtMs`, `previousBand`, локальный beat/RR state и раз в `250 ms` собирает новый `MandalaSoundSyncFrame`.
+- `MandalaSoundProvider` — **мастер тактового контура** сессии: при `isActive` стартует движок, держит `startedAtMs`, `previousBand`, локальный beat/RR state и раз в **`CONTROL_TICK_MS` (250 ms)** вызывает `buildMandalaSoundFrame` → обновляет контекст и `ExpoMandalaSoundEngine.update(frame)`; отсюда же берутся `flickerHz` / `flickerIntensity` для мандалы.
 - `core/timeline.ts` переводит прогресс практики в целевой brainwave диапазон. Короткие сессии остаются в `theta`, длинные доходят до `delta`; band определяется порогами `beta/alpha/theta/delta`.
-- `core/sync.ts` собирает sync-кадр: дыхание берётся из `PlannedCycle`, пульс из `BeatEvent` с fallback на LFO, затем через `buildAudioContract()` из Bindu-контракта вычисляются `textureBrightness`, `droneGain`, `textureGain`, `binauralGain`, `flickerHz`, `flickerIntensity` и `gongTrigger`.
+- `core/sync.ts` собирает sync-кадр: дыхание берётся из `PlannedCycle` (тип и план из сценария **дыхательной практики**, код — `modules/breath/core/breath-phase-planner.ts` внутри **practices**), пульс из `BeatEvent` с fallback на LFO, затем через `buildAudioContract()` из Bindu-контракта вычисляются `textureBrightness`, `droneGain`, `textureGain`, `binauralGain`, `flickerHz`, `flickerIntensity` и `gongTrigger`.
 - `ExpoMandalaSoundEngine` не синтезирует звук на лету. Он заранее загружает loops через `expo-av`, держит громкости почти на нуле и на каждом тике обновляет `drone`, две `texture`-дорожки и текущий binaural band; `gongs` и `events` играются как best-effort one-shot.
 - Визуальный слой получает только `MandalaSoundVisualSync` через `useMandalaSoundSync()`. Так дыхательная мандала и `BinduSuccessionFlowCanvas` мерцают в том же диапазоне, что и звук.
 
@@ -54,7 +54,7 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 - Движок основан на `expo-av` volume control, а не на AudioWorklet/JSI DSP. `targetHz` меняется плавно внутри кадра, но binaural audio переключается дискретно по band loops, а не как непрерывный per-ear oscillator.
 - Историческое ТЗ про `70` текстур, `20` событий и live-фильтры не соответствует текущему коду: сейчас в рантайме только `7` drones, `3` textures, `4` binaural loops, `3` gongs и `3` events.
 - Эффект binaural beats практически требует наушников; через динамик телефона каналы смешиваются.
-- Провайдер жёстко связан с контрактами `bindu` (`buildAudioContract`, `AudioBandTrigger`) и с `PlannedCycle` из дыхательной практики. Это не изолированный движок и любые изменения этих типов меняют поведение `audio`.
+- Провайдер жёстко связан с контрактами **`modules/mandala/core`** (`buildAudioContract`, `AudioBandTrigger`) и с типом **`PlannedCycle`** из **`modules/breath/core/breath-phase-planner.ts`** (внутренняя реализация **дыхательной практики** в составе **practices**). Любые изменения этих типов меняют поведение `audio`.
 - При перегрузке JS-потока `ExpoMandalaSoundEngine` пропускает overlapping updates вместо очереди. Это защищает практику от накопления лагов, но делает звуковую модуляцию менее точной на слабых устройствах.
 - Отдельной web-адаптации нет: код ориентирован на Expo/RN runtime. Если нативный audio backend отказывает, visual sync продолжает работать, но звук остаётся отключённым.
 ## Справочные материалы
