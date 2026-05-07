@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
 
 type GenerateJsonOptions = {
   prompt: string;
@@ -100,6 +100,41 @@ async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Gemini 2.5+ / 3.x по умолчанию тратят «мыслительные» токены из того же бюджета, что и видимый текст.
+ * Для коротких реплик ассистента это даёт обрывы посреди предложения при умеренном maxOutputTokens.
+ * @see https://firebase.google.com/docs/ai-logic/thinking
+ */
+function thinkingConfigForDialogModel(modelId: string): Record<string, unknown> | undefined {
+  const id = modelId.replace(/^models\//i, "").toLowerCase();
+  if (id.startsWith("gemini-3")) {
+    return { thinkingConfig: { thinkingLevel: "MINIMAL" } };
+  }
+  if (id.startsWith("gemini-2.5")) {
+    return { thinkingConfig: { thinkingBudget: 0 } };
+  }
+  return undefined;
+}
+
+function buildGenerationConfig(
+  modelId: string,
+  base: {
+    temperature: number;
+    maxOutputTokens: number;
+    responseMimeType?: string;
+    responseSchema?: unknown;
+  },
+): GenerationConfig {
+  const thinking = thinkingConfigForDialogModel(modelId);
+  return {
+    temperature: base.temperature,
+    maxOutputTokens: base.maxOutputTokens,
+    ...(base.responseMimeType ? { responseMimeType: base.responseMimeType } : {}),
+    ...(base.responseSchema != null ? { responseSchema: base.responseSchema as GenerationConfig["responseSchema"] } : {}),
+    ...(thinking ?? {}),
+  } as GenerationConfig;
+}
+
 function normalizeJsonText(text: string): string {
   return text
     .trim()
@@ -190,11 +225,11 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
-        generationConfig: {
+        generationConfig: buildGenerationConfig(modelId, {
           temperature: options.temperature ?? 0.4,
           maxOutputTokens: options.maxOutputTokens ?? 1500,
           responseMimeType: "application/json",
-        },
+        }),
       });
       const result = await withGeminiTimeout(model.generateContent(options.prompt));
       const rawText = result.response.text();
@@ -218,11 +253,11 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
-        generationConfig: {
+        generationConfig: buildGenerationConfig(modelId, {
           temperature: options.temperature ?? 0.7,
           maxOutputTokens: options.maxOutputTokens ?? 400,
           responseMimeType: options.responseMimeType ?? "text/plain",
-        },
+        }),
       });
       const result = await withGeminiTimeout(model.generateContent(options.prompt));
       return { text: result.response.text(), modelUsed: modelId };
@@ -245,11 +280,11 @@ export async function* streamGeminiText(options: GenerateTextOptions): AsyncGene
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
-        generationConfig: {
+        generationConfig: buildGenerationConfig(modelId, {
           temperature: options.temperature ?? 0.7,
           maxOutputTokens: options.maxOutputTokens ?? 400,
           responseMimeType: options.responseMimeType ?? "text/plain",
-        },
+        }),
       });
       const result = await withGeminiTimeout(model.generateContentStream(options.prompt));
       for await (const chunk of result.stream) {

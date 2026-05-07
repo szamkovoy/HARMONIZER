@@ -41,6 +41,8 @@ export interface CommunicatorStrings {
   transcriptionReviewHint: (confidence?: number) => string;
   transcriptionReviewCancel: string;
   transcriptionReviewSend: string;
+  /** Когда сервер/стрим не вернули видимый текст ответа — вместо пустого пузыря */
+  emptyAssistantReplyFallback: string;
   practiceCard: {
     eyebrow: string;
     fallbackTitle: string;
@@ -124,6 +126,8 @@ const ru: CommunicatorStrings = {
       : `Я не уверен, что точно тебя услышал (${Math.round(confidence * 100)}%). Поправь текст, если нужно.`,
   transcriptionReviewCancel: "Отменить",
   transcriptionReviewSend: "Отправить",
+  emptyAssistantReplyFallback:
+    "Я не получил полный текст ответа — связь могла прерваться. Напиши ещё раз коротко, что сейчас важно, и я продолжу.",
   practiceCard: {
     eyebrow: "Практика на сейчас",
     fallbackTitle: "Практика",
@@ -169,6 +173,8 @@ const en: CommunicatorStrings = {
       : `I am not fully sure I heard you correctly (${Math.round(confidence * 100)}%). Edit the text if needed.`,
   transcriptionReviewCancel: "Cancel",
   transcriptionReviewSend: "Send",
+  emptyAssistantReplyFallback:
+    "I did not receive the full reply — the connection may have dropped. Send a short note about what matters now and I will continue.",
   practiceCard: {
     eyebrow: "Practice for now",
     fallbackTitle: "Practice",

@@ -86,6 +86,20 @@ function newMessageId(): string {
   return `m-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+/** Итоговый текст: не подменяем более длинный агрегат SSE более коротким `complete.fullText`. */
+function resolveAssistantReplyText(streamed: string, completeFullText: string | undefined): string {
+  const raw = streamed ?? "";
+  const fin = completeFullText ?? "";
+  const rawT = raw.trim();
+  const finT = fin.trim();
+  if (!rawT && !finT) return "";
+  if (!rawT) return fin.trimEnd();
+  if (!finT) return raw.trimEnd();
+  if (finT.length > rawT.length) return fin.trimEnd();
+  if (rawT.length > finT.length) return raw.trimEnd();
+  return fin.trimEnd();
+}
+
 function ensureIds(
   list: CommunicatorHistoryMessage[] | undefined,
 ): CommunicatorHistoryMessage[] {
@@ -560,10 +574,11 @@ export function Communicator({
 
         const complete = result.complete;
         if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+        const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
         const assistant: CommunicatorHistoryMessage = {
           id: complete?.messageId ?? newMessageId(),
           role: "assistant",
-          content: complete?.fullText || result.assistantText,
+          content: mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback,
           createdAt: Date.now(),
           meta: {
             orchestratorDecision: result.decision,
@@ -607,6 +622,7 @@ export function Communicator({
       systemPrompt,
       triggerMeta,
       useCase,
+      strings.emptyAssistantReplyFallback,
       strings.transcribeLanguage,
     ],
   );

@@ -9,6 +9,8 @@ code_refs: [modules/communicator/ui/Communicator.tsx, services/communicator-clie
 
 ## Decision Log
 
+- **2026-05-08:** Итоговый текст ответа в **`Communicator`** после SSE: сравнение длины агрегата чанков и `complete.fullText`, плюс fallback-строка вместо пустого пузыря; на **`communicator/v2/dialog`** для стрима респондера задан пол `maxOutputTokens` не ниже **2048**, чтобы реже обрывать развёрнутые реплики по лимиту вывода.
+
 - **Не датировано (источник до RN):** Ранний текст «Коммуникатор» описывал стек Next.js, Tailwind и стриминг через клиентский Gemini SDK с разбором `[T]…[/T]` в ответе. Фактическая реализация — **React Native (Expo)**, стриминг ответа ассистента через **SSE с Vercel API**, транскрипция голоса через **`/api/communicator/v2/transcribe`**, а не через прямой SDK в UI. Канон зафиксирован в коде; исходный текст перенесён в `docs/05_archive/migrated/communicator/Коммуникатор.txt`.
 
 - **2026-05:** Условный выбор базового URL диалога в **`sendDialogMessage`**: при наличии `scenario_id` используется `/api/ai/dialog`, иначе `/api/communicator/v2/dialog`. Текущий экран **`Communicator`** на главной не передаёт `scenarioId` в поток — домашний сценарий опирается на v2 URL. Объединение путей на клиенте остаётся предметом раздела `assistant` в open questions.

@@ -746,11 +746,12 @@ export async function POST(req: Request) {
           const responderModel = dialogSurfaceModelHint(responderPrompt.model_hint, context.user);
           let fullText = "";
           let modelUsed = getModelByHint(responderModel);
+          const responderMaxOut = Math.max(responderPrompt.max_output_tokens ?? 800, 2048);
           for await (const chunk of streamGeminiText({
             prompt,
             model: getModelByHint(responderModel),
             temperature: responderPrompt.temperature,
-            maxOutputTokens: responderPrompt.max_output_tokens,
+            maxOutputTokens: responderMaxOut,
           })) {
             modelUsed = chunk.modelUsed;
             if (firstTokenLatencyMs == null) firstTokenLatencyMs = Date.now() - requestStarted;

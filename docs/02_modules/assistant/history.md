@@ -9,6 +9,10 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/migrat
 
 ## Decision Log
 
+- **2026-05-08:** В **`/api/communicator/v2/dialog`** для стрима ответа респондера задан нижний предел **`maxOutputTokens` = 2048** (поверх значения из `prompts`), чтобы реже обрывать длинные реплики по лимиту вывода модели.
+
+- **2026-05-08:** В **`_legacy_web/app/api/_utils/gemini.ts`** для моделей **`gemini-2.5*`** в `generationConfig` передаётся **`thinkingConfig: { thinkingBudget: 0 }`**, для **`gemini-3*`** — **`thinkingLevel: "MINIMAL"`**, чтобы внутренний thinking не съедал бюджет **`maxOutputTokens`** и не обрывал видимый текст ассистента посреди фразы (известное поведение Gemini 2.5/3).
+
 - **2026-05:** Зафиксирован канон кода: таблица **`scenarios`** и **`scenario_cache`** применены (миграция `20260501173500_scenarios_architecture.sql`); точки входа **`/api/ai/monologue`** и **`/api/ai/dialog`** (реэкспорт на общий обработчик диалога) — целевая унификация PATCH 12; параллельно сохранён **`/api/communicator/v2/dialog`** для клиентов без `scenario_id`. Исторические тексты PATCH 12 перенесены в `docs/05_archive/migrated/assistant/`.
 
 - **2026-05:** Расхождение с линейным описанием MODULE_4 «калибровка только через оркестратор»: в проде одновременно (а) голосовой диалог **`use_case = calibration`** с фазами из **`dialogue_phases`** и промптами **`phase_*`**, (б) пайплайн **`/api/calibration/extract`** с усреднением состояния (`calibration` модуль). Оба пути используют общие данные профиля; закрытие Product по голосу может идти через фазу **`acknowledge_and_close`** без повторного вызова extract в том же turn — см. сценарии в приложении.
