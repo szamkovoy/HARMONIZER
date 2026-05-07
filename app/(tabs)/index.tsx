@@ -15,13 +15,29 @@ import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
+import {
+  buildOpportunityAlarmStyleContent,
+  getExpoNotificationsOrNull,
+  OPPORTUNITY_REMINDERS_CHANNEL_ID,
+} from "@/services/localNotifications";
 import { createNatalProfile, fetchActiveNatalProfile } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const MOSCOW_BIRTH_LOCATION: BirthData["location"] = {
@@ -159,6 +175,79 @@ function HomeStaleNotice({ title, message }: { title: string; message: string })
       </AppText>
       <AppText variant="screenHint" tone="muted" style={styles.centerText}>
         {message}
+      </AppText>
+    </View>
+  );
+}
+
+/** Только __DEV__: проверка `expo-notifications` без ожидания окна возможностей. */
+function DevLocalNotificationTestButton() {
+  const theme = useTheme();
+  if (Platform.OS === "web") return null;
+
+  const scheduleProbe = useCallback(async () => {
+    const Notifications = getExpoNotificationsOrNull();
+    if (!Notifications) {
+      Alert.alert("Dev", "В сборке нет expo-notifications (нужен dev/release build с нативным модулем).");
+      return;
+    }
+    const perms = await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowSound: true, allowBadge: false },
+    });
+    const iosOk =
+      perms.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL ||
+      perms.ios?.status === Notifications.IosAuthorizationStatus.AUTHORIZED;
+    if (!perms.granted && !iosOk) {
+      Alert.alert("Dev", "Нет разрешения на уведомления.");
+      return;
+    }
+    const when = new Date(Date.now() + 20_000);
+    const androidChannelId = Platform.OS === "android" ? OPPORTUNITY_REMINDERS_CHANNEL_ID : undefined;
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: buildOpportunityAlarmStyleContent({
+          title: "Harmonizer · dev",
+          body: `Тестовое уведомление (~20 с, ${when.toLocaleTimeString()})`,
+          data: { source: "dev_local_notification_probe" },
+        }),
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: when,
+          ...(androidChannelId ? { channelId: androidChannelId } : {}),
+        },
+      });
+      Alert.alert("Dev", "Запланировано. Через ~20 с должен появиться системный алерт со звуком (приложение можно свернуть).", [
+        { text: "OK" },
+        {
+          text: "Показать ID",
+          onPress: () => Alert.alert("Dev", `Идентификатор запланированного уведомления:\n\n${id}`),
+        },
+      ]);
+    } catch (e) {
+      Alert.alert("Dev", errorMessage(e, "Не удалось запланировать."));
+    }
+  }, []);
+
+  return (
+    <View style={{ alignSelf: "stretch", gap: 6, marginTop: 4 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Запланировать тестовое уведомление через 20 секунд"
+        onPress={() => void scheduleProbe()}
+        style={({ pressed }) => [
+          styles.devPill,
+          {
+            alignSelf: "center",
+            borderColor: theme.colors.accent,
+            backgroundColor: theme.colors.controlButtonBg,
+            opacity: pressed ? 0.75 : 1,
+          },
+        ]}
+      >
+        <AppText variant="technicalCaption">Тест уведомления (~20 с)</AppText>
+      </Pressable>
+      <AppText variant="technicalCaption" tone="muted" style={{ textAlign: "center" }}>
+        Только в dev-сборке. Не связано с окнами возможностей.
       </AppText>
     </View>
   );
@@ -667,6 +756,7 @@ export default function HomeScreen() {
             }
           />
         ) : null}
+        {__DEV__ ? <DevLocalNotificationTestButton /> : null}
         <AppButton
           label={signingIn ? strings.signingOutButton : strings.signOutButton}
           variant="secondary"

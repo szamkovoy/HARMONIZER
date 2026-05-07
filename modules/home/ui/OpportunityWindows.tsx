@@ -19,7 +19,11 @@ import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { getExpoNotificationsOrNull, OPPORTUNITY_REMINDERS_CHANNEL_ID } from "@/services/localNotifications";
+import {
+  buildOpportunityAlarmStyleContent,
+  getExpoNotificationsOrNull,
+  OPPORTUNITY_REMINDERS_CHANNEL_ID,
+} from "@/services/localNotifications";
 
 type Windows = DailyForecast["windowsOfOpportunity"];
 
@@ -119,7 +123,11 @@ function getDateTriggerFireMs(trigger: unknown): number | null {
 
 type OpportunityReminderMeta = { triggerAtMs: number; eventAtMs: number };
 
-/** Напоминание считается отработанным: наступило время срабатывания в ОС или прошло время самого окна. */
+/**
+ * Напоминание считается отработанным: время DATE-триггера или момента окна уже прошли.
+ * Всегда сверяем с `eventIsoFallback` из текущего прогноза: если нативный триггер распарсился неверно,
+ * «залипший» красный колокольчик всё равно сбросится, когда окно по данным графика уже в прошлом.
+ */
 function isOpportunityReminderConsumed(
   nowMs: number,
   meta: OpportunityReminderMeta | undefined,
@@ -128,12 +136,12 @@ function isOpportunityReminderConsumed(
   if (meta) {
     if (meta.triggerAtMs <= nowMs) return true;
     if (meta.eventAtMs <= nowMs) return true;
-    return false;
   }
-  if (!eventIsoFallback) return false;
-  const ev = Date.parse(eventIsoFallback);
-  if (Number.isNaN(ev)) return false;
-  return ev <= nowMs;
+  if (eventIsoFallback) {
+    const ev = Date.parse(eventIsoFallback);
+    if (!Number.isNaN(ev) && ev <= nowMs) return true;
+  }
+  return false;
 }
 
 type ChartLabelSlot = { key: string; x: number; halfWidthPx: number };
@@ -279,10 +287,16 @@ export function OpportunityWindows({
   const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
   const lineColor = PLANET_CHAKRA[planetOfTheDay].color;
+  const enabledReminderKeysSig = useMemo(
+    () => Object.keys(enabledReminders).sort().join(","),
+    [enabledReminders],
+  );
   useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 30_000);
+    const hasActiveReminder = enabledReminderKeysSig.length > 0;
+    const tickMs = hasActiveReminder ? 15_000 : 30_000;
+    const tick = () => setNow(new Date());
+    tick();
+    const timer = setInterval(tick, tickMs);
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") setNow(new Date());
     });
@@ -290,7 +304,7 @@ export function OpportunityWindows({
       clearInterval(timer);
       sub.remove();
     };
-  }, []);
+  }, [enabledReminderKeysSig]);
 
   /** Синхронизация колокольчиков с ОС и отмена устаревших напоминаний при смене суток/прогноза. */
   useEffect(() => {
@@ -410,6 +424,7 @@ export function OpportunityWindows({
     })();
   }, [
     now,
+    enabledReminders,
     accessMode,
     forecastDate,
     windows.sunrise?.time,
@@ -598,7 +613,7 @@ export function OpportunityWindows({
     const body = `${opener}${detailSuffix}`.replace(/\s+/g, " ").trim().slice(0, REMINDER_NOTIFICATION_BODY_MAX);
 
     const notificationId = await notificationsApi.scheduleNotificationAsync({
-      content: {
+      content: buildOpportunityAlarmStyleContent({
         title: notificationTitle,
         body,
         data: {
@@ -609,7 +624,7 @@ export function OpportunityWindows({
           eventTimeIso: reminderTarget.time,
           displayTitle: notificationTitle,
         },
-      },
+      }),
       trigger: {
         type: notificationsApi.SchedulableTriggerInputTypes.DATE,
         date: triggerDate,
@@ -685,16 +700,18 @@ export function OpportunityWindows({
             ]}
           />
         ))}
-        {chartPoints.map((point) => (
+        {chartPoints.map((point) => {
+          const reminderUiOn = Boolean(enabledReminders[point.key]) && !point.past;
+          return (
           <Pressable
             key={point.key}
-            disabled={point.past}
+            disabled={point.past && !enabledReminders[point.key]}
             onPress={() => void toggleReminder(point)}
             style={[
               styles.marker,
               {
                 left: `${point.labelX * 100}%`,
-                opacity: point.past ? 0.45 : 1,
+                opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
               },
             ]}
           >
@@ -720,16 +737,23 @@ export function OpportunityWindows({
             />
             <View style={styles.markerLabel}>
               <FontAwesome
-                name={enabledReminders[point.key] ? "bell" : "bell-o"}
+                name={reminderUiOn ? "bell" : "bell-o"}
                 size={13}
-                color={enabledReminders[point.key] ? theme.colors.danger : point.past ? theme.colors.textFaint : theme.colors.textPrimary}
+                color={
+                  reminderUiOn
+                    ? theme.colors.danger
+                    : point.past
+                      ? theme.colors.textFaint
+                      : theme.colors.textPrimary
+                }
               />
               <AppText variant="technicalCaption" tone={point.past ? "faint" : "primary"}>
                 {point.time ? strings.formatTime(point.time) : ""}
               </AppText>
             </View>
           </Pressable>
-        ))}
+          );
+        })}
         <View
           pointerEvents="none"
           style={[

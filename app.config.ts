@@ -63,6 +63,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         NSLocationWhenInUseUsageDescription:
           "Harmonizer использует геолокацию для точного расчёта астрономических окон возможностей — восходов/заходов Солнца, Луны и планет в вашем месте.",
       },
+      entitlements: {
+        ...((base.ios as { entitlements?: Record<string, boolean> } | undefined)?.entitlements ?? {}),
+        ...((config.ios as { entitlements?: Record<string, boolean> } | undefined)?.entitlements ?? {}),
+        /** Локальные уведомления с `interruptionLevel: timeSensitive` (напоминания о окнах). */
+        "com.apple.developer.usernotifications.time-sensitive": true,
+      },
     },
     plugins: [
       ...(base.plugins ?? []),
