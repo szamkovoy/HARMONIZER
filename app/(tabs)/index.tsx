@@ -617,6 +617,7 @@ export default function HomeScreen() {
             />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}
+              forecastDate={forecast.date}
               windows={forecast.windowsOfOpportunity}
               strings={strings}
               accessMode={accessMode}

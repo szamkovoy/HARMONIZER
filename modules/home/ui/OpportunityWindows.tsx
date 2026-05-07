@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  AppState,
   Modal,
   Platform,
   Pressable,
@@ -24,6 +25,8 @@ type Windows = DailyForecast["windowsOfOpportunity"];
 
 interface OpportunityWindowsProps {
   planetOfTheDay: Planet;
+  /** Локальная дата прогноза (`YYYY-MM-DD`) — для согласования напоминаний после перезапуска. */
+  forecastDate: string;
   windows: Windows;
   strings: HomeStrings;
   accessMode: AccessMode;
@@ -72,8 +75,66 @@ const NOW_BADGE_FALLBACK_W = 72;
 const MARKER_LABEL_HALF_W_PX = 36;
 /** Минимальный зазор между соседними подписями маркеров (край к краю), пиксели. */
 const LABEL_GAP_PX = 10;
-/** Половина ширины колонки маркера (width 64, margin −32) — clamp к краю графика без лишнего поля. */
+/**
+ * Половина ширины колонки маркера (64px, margin −32): минимальный clamp центра к краю chartWrap,
+ * чтобы колонка не обрезалась — без дополнительных «декоративных» отступов. То же для восхода, зенита и exactAspect.
+ */
 const MARKER_COLUMN_HALF_W_PX = 32;
+
+/**
+ * После перезапуска окна пересчитываются/подтягиваются из кэша — ISO одного и того же момента
+ * может чуть отличаться (мс, формат смещения). Строгое `===` ложно отменяло OS-напоминание и сбрасывало колокольчик.
+ */
+const REMINDER_EVENT_TIME_MATCH_MS = 120_000;
+
+function coerceDataString(value: unknown): string | undefined {
+  if (typeof value === "string" && value.length > 0) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+function opportunityWindowEventTimesMatch(stored: string | undefined, expected: string | undefined): boolean {
+  if (!stored || !expected) return false;
+  if (stored === expected) return true;
+  const a = Date.parse(stored);
+  const b = Date.parse(expected);
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  return Math.abs(a - b) <= REMINDER_EVENT_TIME_MATCH_MS;
+}
+
+/** Расписание expo-notifications для DATE-триггера при чтении из `getAllScheduledNotificationsAsync`. */
+function getDateTriggerFireMs(trigger: unknown): number | null {
+  if (trigger == null || typeof trigger !== "object") return null;
+  const o = trigger as Record<string, unknown>;
+  if (String(o.type).toLowerCase() !== "date") return null;
+  const raw = o.date;
+  if (raw instanceof Date) return raw.getTime();
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const p = Date.parse(raw);
+    return Number.isNaN(p) ? null : p;
+  }
+  return null;
+}
+
+type OpportunityReminderMeta = { triggerAtMs: number; eventAtMs: number };
+
+/** Напоминание считается отработанным: наступило время срабатывания в ОС или прошло время самого окна. */
+function isOpportunityReminderConsumed(
+  nowMs: number,
+  meta: OpportunityReminderMeta | undefined,
+  eventIsoFallback: string | undefined,
+): boolean {
+  if (meta) {
+    if (meta.triggerAtMs <= nowMs) return true;
+    if (meta.eventAtMs <= nowMs) return true;
+    return false;
+  }
+  if (!eventIsoFallback) return false;
+  const ev = Date.parse(eventIsoFallback);
+  if (Number.isNaN(ev)) return false;
+  return ev <= nowMs;
+}
 
 type ChartLabelSlot = { key: string; x: number; halfWidthPx: number };
 
@@ -124,39 +185,14 @@ function markerPointLeftPx(chartW: number, x: number, labelX: number): number {
 }
 
 /**
- * Подпись «сейчас» — идеально у доли now, сдвигается только при пересечении с коробками маркеров.
+ * Центр подписи «сейчас» по X: совпадает с долей текущего времени (пунктир), только clamp к краям chartWrap
+ * по половине ширины бейджа (без учёта текстов окон внизу — другой вертикальный уровень).
  */
-function placeNowLabelCenterX(
-  chartW: number,
-  nowFrac: number,
-  badgeHalfPx: number,
-  markerPoints: Array<{ labelX: number }>,
-): number {
+function clampNowLabelCenterX(chartW: number, nowFrac: number, badgeHalfPx: number): number {
   if (!(chartW > 0)) return nowFrac * chartW;
-  const loBound = badgeHalfPx;
-  const hiBound = chartW - badgeHalfPx;
-  let c = nowFrac * chartW;
-  c = Math.min(hiBound, Math.max(loBound, c));
-  const intervals = markerPoints.map((p) => ({
-    lo: p.labelX * chartW - MARKER_LABEL_HALF_W_PX,
-    hi: p.labelX * chartW + MARKER_LABEL_HALF_W_PX,
-  }));
-  const g = LABEL_GAP_PX;
-  for (let iter = 0; iter < 18; iter += 1) {
-    let changed = false;
-    for (const it of intervals) {
-      const nLo = c - badgeHalfPx;
-      const nHi = c + badgeHalfPx;
-      if (nHi + g <= it.lo || nLo - g >= it.hi) continue;
-      const pushR = it.hi + g + badgeHalfPx - c;
-      const pushL = it.lo - g - badgeHalfPx - c;
-      c += Math.abs(pushR) <= Math.abs(pushL) ? pushR : pushL;
-      c = Math.min(hiBound, Math.max(loBound, c));
-      changed = true;
-    }
-    if (!changed) break;
-  }
-  return c;
+  const half = Math.max(badgeHalfPx, 1);
+  const c = nowFrac * chartW;
+  return Math.min(chartW - half, Math.max(half, c));
 }
 
 const NOW_DASH_LEN = 2;
@@ -219,13 +255,23 @@ function makeSkyY(riseX: number | null, culminationX: number | null) {
   };
 }
 
-export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMode }: OpportunityWindowsProps) {
+export function OpportunityWindows({
+  planetOfTheDay,
+  forecastDate,
+  windows,
+  strings,
+  accessMode,
+}: OpportunityWindowsProps) {
   const theme = useTheme();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [reminderTitleText, setReminderTitleText] = useState("");
   const [enabledReminders, setEnabledReminders] = useState<Record<string, "exact" | "before5">>({});
   const notificationIdsRef = useRef<Record<string, string>>({});
+  /** Время DATE-триггера и момента окна — чтобы сбрасывать колокольчик без опроса ОС каждую секунду. */
+  const reminderMetaRef = useRef<Record<string, OpportunityReminderMeta>>({});
+  const enabledRemindersRef = useRef(enabledReminders);
+  enabledRemindersRef.current = enabledReminders;
   /** Защита от гонки: отмена/сохранение инкрементит эпоху, async-синхронизация не затирает свежие правки. */
   const reminderSyncEpochRef = useRef(0);
   const [chartWidth, setChartWidth] = useState(0);
@@ -237,7 +283,13 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     const timer = setInterval(() => {
       setNow(new Date());
     }, 30_000);
-    return () => clearInterval(timer);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") setNow(new Date());
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
   }, []);
 
   /** Синхронизация колокольчиков с ОС и отмена устаревших напоминаний при смене суток/прогноза. */
@@ -259,23 +311,46 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
         if (cancelled || reminderSyncEpochRef.current !== epochAtStart) return;
         const nextEnabled: Record<string, "exact" | "before5"> = {};
         const nextIds: Record<string, string> = {};
+        const nextMeta: Record<string, OpportunityReminderMeta> = {};
+        const nowMs = Date.now();
 
         for (const req of scheduled) {
-          const data = req.content.data;
+          const data = req.content.data as Record<string, unknown> | undefined;
           if (data?.source !== "home_opportunity_window" || typeof data.key !== "string") continue;
           const key = data.key as WindowItem["key"];
           const expected = expectedTimes[key];
-          const storedTime = typeof data.eventTimeIso === "string" ? data.eventTimeIso : undefined;
-          if (!expected || storedTime !== expected) {
+          const storedDay = coerceDataString(data.forecastDate);
+          if (storedDay && storedDay !== forecastDate) {
+            await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
+            continue;
+          }
+          const storedTime = coerceDataString(data.eventTimeIso);
+          if (!storedTime || !expected || !opportunityWindowEventTimesMatch(storedTime, expected)) {
+            await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
+            continue;
+          }
+          const eventMs = Date.parse(storedTime);
+          if (Number.isNaN(eventMs)) {
+            await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
+            continue;
+          }
+          const fireMs = getDateTriggerFireMs(req.trigger);
+          const meta: OpportunityReminderMeta = {
+            triggerAtMs: fireMs ?? eventMs,
+            eventAtMs: eventMs,
+          };
+          if (isOpportunityReminderConsumed(nowMs, meta, expected)) {
             await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
             continue;
           }
           nextEnabled[key] = data.reminderMode === "before5" ? "before5" : "exact";
           nextIds[key] = req.identifier;
+          nextMeta[key] = meta;
         }
 
         if (!cancelled && reminderSyncEpochRef.current === epochAtStart) {
           notificationIdsRef.current = nextIds;
+          reminderMetaRef.current = nextMeta;
           setEnabledReminders(nextEnabled);
         }
       } catch {
@@ -288,6 +363,55 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
     };
   }, [
     accessMode,
+    forecastDate,
+    windows.sunrise?.time,
+    windows.culmination?.time,
+    windows.exactAspect?.time,
+  ]);
+
+  /**
+   * Сброс красного колокольчика после наступления времени срабатывания или времени окна
+   * (в т.ч. если телефон был выключен и локальное напоминание не показалось).
+   */
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const notificationsApi = getExpoNotificationsOrNull();
+    if (!notificationsApi) return;
+    const expectedTimes: Record<WindowItem["key"], string | undefined> = {
+      sunrise: windows.sunrise?.time,
+      culmination: windows.culmination?.time,
+      exactAspect: accessMode === "free" ? undefined : windows.exactAspect?.time,
+    };
+
+    void (async () => {
+      const nowMs = Date.now();
+      const enabled = enabledRemindersRef.current;
+      const keys = Object.keys(enabled) as WindowItem["key"][];
+      if (keys.length === 0) return;
+
+      const keysToRemove: WindowItem["key"][] = [];
+      for (const key of keys) {
+        const meta = reminderMetaRef.current[key];
+        const eventIso = expectedTimes[key];
+        if (!isOpportunityReminderConsumed(nowMs, meta, eventIso)) continue;
+        const id = notificationIdsRef.current[key];
+        if (id) await notificationsApi.cancelScheduledNotificationAsync(id).catch(() => undefined);
+        delete notificationIdsRef.current[key];
+        delete reminderMetaRef.current[key];
+        keysToRemove.push(key);
+      }
+
+      if (keysToRemove.length === 0) return;
+      setEnabledReminders((prev) => {
+        const next = { ...prev };
+        for (const key of keysToRemove) delete next[key];
+        return next;
+      });
+    })();
+  }, [
+    now,
+    accessMode,
+    forecastDate,
     windows.sunrise?.time,
     windows.culmination?.time,
     windows.exactAspect?.time,
@@ -399,10 +523,9 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
   );
 
   const nowBadgeBodyHalfPx = (nowBadgeLayoutW > 0 ? nowBadgeLayoutW : NOW_BADGE_FALLBACK_W) / 2;
-  const nowBadgeCollisionHalfPx = Math.max(nowBadgeBodyHalfPx, 28);
   const nowLabelCenterPx = useMemo(
-    () => placeNowLabelCenterX(chartWidth, currentTimePoint.x, nowBadgeCollisionHalfPx, chartPoints),
-    [chartWidth, currentTimePoint.x, nowBadgeCollisionHalfPx, chartPoints],
+    () => clampNowLabelCenterX(chartWidth, currentTimePoint.x, nowBadgeBodyHalfPx),
+    [chartWidth, currentTimePoint.x, nowBadgeBodyHalfPx],
   );
   const nowLabelX = chartWidth > 0 ? nowLabelCenterPx / chartWidth : currentTimePoint.x;
 
@@ -415,6 +538,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
         await notificationsApi.cancelScheduledNotificationAsync(notificationId).catch(() => undefined);
       }
       delete notificationIdsRef.current[item.key];
+      delete reminderMetaRef.current[item.key];
       reminderSyncEpochRef.current += 1;
       setEnabledReminders((prev) => {
         const next = { ...prev };
@@ -481,6 +605,7 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
           source: "home_opportunity_window",
           key: reminderTarget.key,
           reminderMode,
+          forecastDate,
           eventTimeIso: reminderTarget.time,
           displayTitle: notificationTitle,
         },
@@ -492,6 +617,10 @@ export function OpportunityWindows({ planetOfTheDay, windows, strings, accessMod
       },
     });
     notificationIdsRef.current[reminderTarget.key] = notificationId;
+    reminderMetaRef.current[reminderTarget.key] = {
+      triggerAtMs: triggerDate.getTime(),
+      eventAtMs: eventDate.getTime(),
+    };
     reminderSyncEpochRef.current += 1;
     setEnabledReminders((prev) => ({ ...prev, [reminderTarget.key]: reminderMode }));
     setReminderTarget(null);
