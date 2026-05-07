@@ -1,7 +1,7 @@
 ---
 id: 00_index/MAP
 title: Documentation Map
-version: 1.11
+version: 1.12
 updated: 2026-05-07
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communicator/ui/Communicator.tsx]
@@ -16,7 +16,7 @@ code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communica
 | `daily_forecast` | `02_modules/daily_forecast/` | `app/(tabs)/index.tsx`; `modules/home/useDayContent.ts`; `modules/home/ui/ChakraFlower.tsx`; `services/dailyForecastClient.ts`; `services/dayContentCache.ts`; `services/globalContentClient.ts`; `modules/daily-engine/index.ts`; `modules/daily-engine/computeDailyForecast.ts`; `_legacy_web/app/api/astro/daily-forecast/route.ts`; `supabase/functions/daily-forecast/index.ts`; `supabase/functions/precompute-daily-forecasts/index.ts` | `astro`, `calibration`, `profile`, `subscription`, `infra` | `assistant`, `practices` |
 | `assistant` | `02_modules/assistant/` | `_legacy_web/app/api/communicator/v2/dialog/route.ts`; `_legacy_web/app/api/_utils/scenarios.ts`; `_legacy_web/app/api/_utils/prompts.ts`; `supabase/seed.sql` | `astro`, `calibration`, `daily_forecast`, `profile`, `practices`, `subscription`, `infra` | `calibration`, `communicator` |
 | `communicator` | `02_modules/communicator/` | `modules/communicator/ui/Communicator.tsx`; `modules/communicator/ui/PracticeCard.tsx`; `services/communicator-client.ts` | `assistant`, `subscription`, `infra` | `calibration` |
-| `practices` | `02_modules/practices/` | `modules/practices/ui/PracticeCatalogScreen.tsx`; `app/(tabs)/practices.tsx`; `app/asana-practice.tsx`; `app/breath-coherence.tsx`; `services/practiceSessions.ts` | `daily_forecast`, `bindu`, `audio`, `biofeedback`, `subscription`, `infra` | `profile`, `assistant`, `audio` |
+| `practices` | `02_modules/practices/` | `modules/practices/core/catalog.ts`; `modules/practices/ui/PracticeCatalogScreen.tsx`; `modules/practices/ui/launchPractice.ts`; `modules/breath/ui/CoherenceBreathScreen.tsx`; `modules/mandala/experiments/SacredSymbolStreamScreen.tsx`; `app/(tabs)/practices.tsx`; `app/breath-coherence.tsx`; `app/sacred-symbol-stream.tsx`; `app/asana-practice.tsx`; `app/(tabs)/index.tsx` (запуск из ассистента); `services/practiceSessions.ts`; `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` | `daily_forecast`, `bindu`, `audio`, `biofeedback`, `subscription`, `infra` | `profile`, `assistant`, `audio` |
 
 ## Engines & Services
 

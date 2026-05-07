@@ -1,18 +1,144 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.0
+version: 1.1
 updated: 2026-05-07
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
-code_refs: [modules/practices/ui/PracticeCatalogScreen.tsx, app/(tabs)/practices.tsx, app/asana-practice.tsx, app/breath-coherence.tsx, services/practiceSessions.ts]
+code_refs:
+  [
+    modules/practices/index.ts,
+    modules/practices/core/catalog.ts,
+    modules/practices/core/types.ts,
+    modules/practices/ui/PracticeCatalogScreen.tsx,
+    modules/practices/ui/launchPractice.ts,
+    modules/breath/index.ts,
+    modules/breath/ui/CoherenceBreathScreen.tsx,
+    modules/mandala/experiments/SacredSymbolStreamScreen.tsx,
+    app/(tabs)/practices.tsx,
+    app/breath-coherence.tsx,
+    app/sacred-symbol-stream.tsx,
+    app/asana-practice.tsx,
+    app/(tabs)/index.tsx,
+    services/practiceSessions.ts,
+    _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts,
+  ]
 ---
 
-## TODO: наполнить на этапе миграции.
+## 1. Назначение
 
-Здесь будет общая архитектура каталога, запуска, выполнения и завершения практик.
-Файл опишет общие контракты для медитаций, дыхания и асан.
+Модуль **practices** объединяет каталог практик в приложении (медитация, дыхание, асаны из БД), единый способ **запуска** по маршрутам Expo Router и **запись сессий** в Supabase для статистики и контекста ассистента. Рантайм-дыхание и синхронизация звука с фазами вынесены в **`modules/breath/`** (внутренний движок подсценария дыхания; в `MAP.md` не выделяется отдельным модулем).
+
+## 2. Публичный контракт
+
+### Пакет `modules/practices` (`index.ts`)
+
+- **`loadPracticeCatalog(options?, deps?): Promise<PracticeCatalog>`**  
+  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. Таймаут загрузки йоги — 12 с (при таймауте йога пустая, догрузка возможна через `onLateYogaPractices`).
+
+- **`filterPractices(practices, filters): PracticeSummary[]`** / **`sortPracticesForCatalog(practices): PracticeSummary[]`**  
+  Фильтр по чакре и «корзине» длительности; сортировка через `@shared/selector`.
+
+- **`practiceDurationDistance`**, **`practiceQuality`**, **`practiceRecordedAtMs`**, **`recentStackLimitForKind`**, **`selectPracticeCandidate`**, **`sortPracticeCandidatesForCatalog`**, **`sortPracticeCandidatesForRecommendation`**  
+  Реэкспорт из `@shared/selector` для каталога и для серверного выбора практики (см. `practiceSelection.ts`).
+
+- **Типы:** `PracticeCatalog`, `PracticeCatalogFilters`, `PracticeDurationBucket`, `PracticeDurationPolicy`, `PracticeKind`, `PracticeLaunchParams`, `PracticeSummary`, `PracticeVideoMetadata`, `PracticeSelectorCandidate`, и т.д.; **`PracticeRecommendation`**, **`PracticeRecommendationLaunch`** из `@shared/recommendation`.
+
+- **`PracticeCatalogScreen`**  
+  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`.
+
+- **`launchPractice(launch, options?): boolean`**  
+  Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
+
+### Сервис `services/practiceSessions.ts`
+
+- **`recordPracticeSession(input): Promise<string | null>`**  
+  Вставка в `practice_sessions`. Поля, которыми пользуются экраны: `user_id`, `practice_id` (опционально), `practice_slug`, `practice_version`, `started_at`, `ended_at`, `self_rating`, `completion_pct`, `metrics` (jsonb), `chakra_focus_ids`, `context` (jsonb).
+
+- **`loadDailyPracticeStats(userId, limit?): Promise<DailyPracticeStat[]>`**  
+  Чтение `user_daily_stats`: `user_id`, `local_date`, `total_practice_seconds`, `practice_count`, `chakras_touched`, `updated_at`.
+
+- **`selfRatingFromMood(mood)`** — маппинг настроения на `self_rating`.
+
+### Роуты приложения (контракт query-параметров)
+
+- **`app/breath-coherence.tsx`** → `CoherenceBreathScreen`: `practiceId` (`BreathPracticeId`), `durationMs`, `chakra` (1–7), `launchSource`, `usePulseSensor` (`"false"` отключает сценарий с пульсометром; иначе по умолчанию включено).
+
+- **`app/sacred-symbol-stream.tsx`** → `SacredSymbolStreamScreen`: `durationMs`, `chakra`, `launchSource`. Параметр **`practiceId` из каталога не читается** (в каталоге одна медитация).
+
+- **`app/asana-practice.tsx`**: `practiceId` (UUID строки практики), опционально `durationMs`, `chakra`, `launchSource`.
+
+### Дыхательный движок `modules/breath` (исполнение, не barrel `practices`)
+
+- **`CoherenceBreathScreen`** (пропсы см. компонент): мандала + звук + опционально PPG; по завершении пишет **`metrics`** из исхода дыхания (`outcomeToCommunicatorPayload`) в `practice_sessions`.
+
+- Экспортируемые типы/константы для каталога и роутов: **`BreathPracticeId`**, **`Chakra`**, **`BREATH_PRACTICES`**, **`isChakra`**, и т.д. (`modules/breath/index.ts`).
+
+### Интеграция с ассистентом (реализовано в коде)
+
+- Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID).
+- Клиент: **`Communicator`** SSE `complete.practicePicked` → **`PracticeCard`** → колбэк **`onPracticePicked`**; на главном экране **`launchPracticeFromAssistant`** в `app/(tabs)/index.tsx` вызывает `launchPractice` с `launchSource: 'assistant'`.  
+  Автоматизированных E2E-тестов полного диалога в репозитории нет — это ограничение процесса QA, не отсутствие кода.
+
+## 3. Внутренняя архитектура
+
+```text
+modules/practices/
+  core/types.ts          — доменные типы каталога и launch
+  core/catalog.ts        — сбор PracticeCatalog (static + breath + Supabase yoga)
+  ui/PracticeCatalogScreen.tsx, PracticeCard.tsx
+  ui/launchPractice.ts    — router.push с params
+
+modules/breath/         — дыхательный подсценарий (фазы, PPG, итоговые метрики)
+  core/breath-phase-planner.ts — PlannedCycle для mandala-sound
+  ui/CoherenceBreathScreen.tsx, BreathBinduMandala.tsx, …
+
+modules/mandala/experiments/SacredSymbolStreamScreen.tsx — медитация «Вспышка»
+
+app/(tabs)/practices.tsx → PracticeCatalogScreen
+app/breath-coherence.tsx  → CoherenceBreathScreen
+app/sacred-symbol-stream.tsx → SacredSymbolStreamScreen
+app/asana-practice.tsx    — метаданные асаны + завершение без плеера
+
+services/practiceSessions.ts — Supabase insert/select
+```
+
+- **`audio`**: `MandalaSoundProvider` на экранах медитации и дыхания; такт дыхания задаётся планировщиком фаз в **`modules/breath`** (`PlannedCycle`), см. `docs/02_modules/audio/dependencies.md`.
+
+- **`bindu`**: визуал мандалы / сукцессия на медитации и дыхании.
+
+- **`biofeedback`**: только в **`CoherenceBreathScreen`** (камера / эмуляция); **`SacredSymbolStreamScreen`** не подключает пайплайн PPG и сохраняет **`metrics: {}`**.
+
+## 4. Конфигурация и параметры
+
+- **Виды практик в UI:** `PRACTICE_GROUPS` — «Медитации», «Дыхание», «Асаны»; в БД для асан используется **`kind = 'yoga'`** (соглашение: в продукте «Асаны», в схеме — `yoga`).
+
+- **Медитация:** одна статическая карточка, slug `sacred-symbol-stream`; дефолт длительности в **`catalog.ts`** для launch — 3 мин; экран **`SacredSymbolStreamScreen`** при отсутствии params использует **5 мин** — расхождение зафиксировано в `history.md`.
+
+- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания каталога RU захардкожены в `catalog.ts`.
+
+- **Йога:** выборка активных строк `practices` + связи `practice_chakras`; превью по `readPracticeVideoThumbnailFromParams` из `params`.
+
+- **Сессии и контекст:** в `context` JSON кладутся продуктовые поля (`source`, `launch_source`, `practice_kind`, для асан — `vimeo_id` и т.д.) для аналитики и ассистента.
+
+## 5. Известные ограничения
+
+- **Vimeo на экране асан:** вместо плеера — заглушка с текстом о том, что локальный WebView в текущем dev-client недоступен; отображаются метаданные и **Vimeo ID**. Завершение практики и запись сессии работают.
+
+- **Медитация:** нет записи биометрических метрик в `practice_sessions.metrics` (в отличие от дыхания).
+
+- **`user_practice_preferences`:** триггер в БД обновляет строки при вставке/обновлении `practice_sessions` с **непустым `practice_id`**; клиент передаёт **`practice_id` только для асан**; дыхание и медитация пишут в основном **`practice_slug`** без UUID — предпочтения по UUID-практикам для них триггером не ведутся.
+
+- Полная схема БД и RLS: **`supabase/migrations/20260423080000_init.sql`** (`practices`, `practice_chakras`, `practice_sessions`, `user_daily_stats`), **`supabase/migrations/20260429051600_calibration_dialogue_orchestrator.sql`** (`user_practice_preferences` и триггеры).
+
 ## Справочные материалы
 
-- docs/04_reference/breathing_techniques/coherent_breathing.md
-- docs/04_reference/breathing_techniques/channel_breathing.md
-- docs/04_reference/breathing_techniques/rhythmic_breathing.md
+Методика и метрики не дублируются здесь; см.:
+
+- `docs/04_reference/breathing_techniques/coherent_breathing.md`
+- `docs/04_reference/breathing_techniques/channel_breathing.md`
+- `docs/04_reference/breathing_techniques/rhythmic_breathing.md`
+- `docs/04_reference/biometrics/rmssd.md`
+- `docs/04_reference/biometrics/stress_index_baevsky.md`
+- `docs/04_reference/biometrics/rsa.md`
+- `docs/04_reference/biometrics/entry_time.md`
+- `docs/04_reference/biometrics/coherent_breathing.pdf` (ресурс в том же каталоге)

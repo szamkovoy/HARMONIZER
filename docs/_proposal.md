@@ -77,12 +77,6 @@ docs/
       history.md
     practices/
       spec.md
-      breathing.md
-      meditation.md
-      asanas.md
-      report.md
-      analytics.md
-      components.md
       dependencies.md
       history.md
     bindu/
@@ -196,7 +190,7 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 | `daily_forecast/` | Формирование главного экрана, дневного прогноза и рекомендаций | `app/(tabs)/index.tsx`, `modules/home/useDayContent.ts`, `modules/home/ui/*`, `services/dayContentCache.ts`, `services/dailyForecastClient.ts` | `spec.md`, `dependencies.md`, `history.md` |
 | `assistant/` | Оркестрация AI-диалога, сценарии примерно на 5 сообщений, выбор практики, связь с прогнозом | `_legacy_web/app/api/communicator/v2/dialog/route.ts`, `_legacy_web/app/api/_utils/scenarios.ts`, `_legacy_web/app/api/_utils/prompts.ts`, `supabase/seed.sql` | `spec.md`, `prompts_and_models.md`, `dependencies.md`, `history.md` |
 | `communicator/` | UI голосового чата: запись, распознавание, воспроизведение, SSE/UI-состояние; без продуктовой логики ассистента | `modules/communicator/ui/Communicator.tsx`, `modules/communicator/ui/*`, `services/communicator-client.ts` | `spec.md`, `dependencies.md`, `history.md` |
-| `practices/` | Каталог, запуск, выполнение, отчёт и будущая аналитика практик | `modules/practices/*`, `app/(tabs)/practices.tsx`, `app/asana-practice.tsx`, `app/breath-coherence.tsx`, `services/practiceSessions.ts` | `spec.md`, `breathing.md`, `meditation.md`, `asanas.md`, `report.md`, `analytics.md`, `components.md`, `dependencies.md`, `history.md` |
+| `practices/` | Каталог, запуск, выполнение, отчёт и будущая аналитика практик | `modules/practices/*`, `app/(tabs)/practices.tsx`, `app/asana-practice.tsx`, `app/breath-coherence.tsx`, `services/practiceSessions.ts` | `spec.md`, `dependencies.md`, `history.md` |
 | `bindu/` | Активный движок визуализации мандалы; используется в дыхании и медитации | `modules/mandala/ui/MandalaCanvas.tsx`, `modules/mandala/ui/evolution-registry.ts`, `modules/mandala/ui/lotus-bloom-evolution-shader.ts`, `app/mandala-sandbox.tsx`, `app/sacred-symbol-stream.tsx`, `app/bindu-succession-lab.tsx` | `spec.md`, `evolution_lab.md`, `dependencies.md`, `history.md` |
 | `audio/` | `AudioMixer`, `ToneEngine`, бинауральные ритмы, слои звука для практик | `modules/mandala-sound/core/engine.ts`, `modules/mandala-sound/core/timeline.ts`, `modules/mandala-sound/core/sync.ts`, `modules/mandala-sound/ui/MandalaSoundProvider.tsx` | `spec.md`, `dependencies.md`, `history.md` |
 | `biofeedback/` | PPG с фонарика, HRV/RMSSD/RSA/stress/coherence, синхронизация дыхания с пульсом, сбор метрик | `modules/biofeedback/bus/biofeedback-pipeline.ts`, `modules/biofeedback/core/metrics.ts`, `modules/biofeedback/engines/*`, `modules/biofeedback/sensors/FingerPpgCameraSource.tsx`, `modules/breath/ui/CoherenceBreathScreen.tsx` | `spec.md`, `metrics.md`, `analytics_collection.md`, `dependencies.md`, `history.md`, `roadmap.md` |
@@ -209,8 +203,7 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 
 - `assistant/` и `communicator/` сознательно разделены: первый модуль содержит продуктовый интеллект, второй только UI/voice transport.
 - При миграции `assistant/` учитывать архивный источник: `docs/05_archive/migrated/calibration/calibration_and_orchestrator.md` (раздел про оркестратор и фазы диалога — переехал сюда при миграции calibration).
-- `practices/report.md` покрывает финальный экран с метриками и оценкой состояния; отдельный модуль `report` не нужен.
-- `practices/components.md` должен включать текущие и планируемые компоненты уровня практик: `SmartCalibrationOverlay`, `SeriesProgress`, `MeditationSession` и соседние составные экраны. Сейчас часть из них ещё не выражена отдельными символами в коде и должна быть помечена как planned/current-mapped.
+- Модуль `practices/`: каноническая триада `spec.md` + `dependencies.md` + `history.md` (`docs/03_rules/migration_protocol.md`). Итоговые метрики дыхания, экраны медитации/асан и ограничения (в т.ч. planned UI вроде `SmartCalibrationOverlay` / `SeriesProgress`) описываются в `spec.md` (§3–5); отдельного модуля `report` нет.
 - `bindu/evolution_lab.md` должен собрать материалы из `bindu_succession_lab.md` и `bindu_succession_visual_spec_v2.md`; по смыслу это частично дублирующие документы одной лабораторной ветки, поэтому рекомендуется единый файл с разделами `runtime experiments` и `visual spec`.
 - `biofeedback/` включает то, что владелец называет `breath-coherence-timeline`: в текущем коде это не отдельный символ, а таймлайновый слой дыхательной сессии, собираемый из планировщика фаз дыхания, pulse/HRV snapshots и экспортного контура результатов. Это нужно описывать как часть `spec.md` и `metrics.md`, а не выделять в отдельный модуль.
 - `infra/pwa.md` нужен не как описание основного клиента, а как описание остаточного web-shell/PWA-контура и ограничений: мобильный клиент основной, PWA вторична и исторична.
@@ -264,12 +257,12 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 | `docs/android-adaptation-notes.md` | `02_modules/biofeedback/history.md` + `02_modules/infra/history.md` | частично; Android notes не отдельный модуль |
 | `docs/biofeedback-architecture.md` | `02_modules/biofeedback/spec.md` | канонизировать по текущему pipeline |
 | `docs/biofeedback-parity-contract.md` | `02_modules/biofeedback/metrics.md` | полезные инварианты включить в metrics |
-| `docs/breath-coherence-pipeline.md` | `02_modules/practices/breathing.md` + `02_modules/biofeedback/spec.md` | разделить UX-поток и метрический движок |
+| `docs/breath-coherence-pipeline.md` | `02_modules/practices/spec.md` + `02_modules/biofeedback/spec.md` | разделить UX-поток и метрический движок |
 | `docs/design-tokens.md` | `03_rules/ui_kit.md` | перенести как часть UI kit |
 | `docs/documentation_standard.md` | `03_rules/documentation.md` | переписать под новую систему |
 | `docs/hrv-rmssd-stress-algorithms.md` | `05_archive/historical_specs/hrv-rmssd-stress-algorithms.md` | вывести из активного слоя |
 | `docs/hume_integration.md` | `01_foundation/integrations.md` + `03_rules/media_and_assets.md` | оставить только актуальный Hume contract |
-| `docs/meditation_video_generator_spec.md` | `02_modules/bindu/spec.md` + `02_modules/practices/meditation.md` + `05_archive/lotus_experiment/meditation_video_generator_spec.md` | active часть про Bindu сохранить, Lotus-фрагменты архивировать |
+| `docs/meditation_video_generator_spec.md` | `02_modules/bindu/spec.md` + `02_modules/practices/spec.md` + `05_archive/lotus_experiment/meditation_video_generator_spec.md` | active часть про Bindu сохранить, Lotus-фрагменты архивировать |
 | `docs/product_logic.md` | `01_foundation/product_model.md` | переписать по текущему продукту |
 | `docs/roadmap.md` | `04_workspace/research.md` + `04_workspace/current.md` | развести текущее и гипотезы |
 | `docs/system_structure.md` | `01_foundation/repository_structure.md` | переписать под актуальный код |
@@ -304,14 +297,14 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 | `docs/planning/assistant_practice_recommendation_brief.md` | `02_modules/assistant/history.md` + `02_modules/practices/history.md` + `05_archive/old_briefs/assistant_practice_recommendation_brief.md` | разнести по `assistant` и `practices` |
 | `docs/planning/practices_module_brief.md` | `02_modules/practices/spec.md` + `05_archive/old_briefs/practices_module_brief.md` | актуализировать по коду |
 | `docs/planning/spiral_day1_day2_plan.md` | `05_archive/old_briefs/spiral_day1_day2_plan.md` | исторический план |
-| `docs/planning/vimeo_asanas_import_brief.md` | `02_modules/practices/asanas.md` + `05_archive/old_briefs/vimeo_asanas_import_brief.md` | активная часть в `asanas.md` |
+| `docs/planning/vimeo_asanas_import_brief.md` | `02_modules/practices/spec.md` + `05_archive/old_briefs/vimeo_asanas_import_brief.md` | активная часть в `spec.md` |
 
 ### `docs/remote-play/`
 
 | Текущий файл | Куда переносить | Решение |
 | --- | --- | --- |
-| `docs/remote-play/README.md` | `02_modules/practices/asanas.md` + `02_modules/infra/pwa.md` | Remote Play важен для выполнения асан и web-shell |
-| `docs/remote-play/wordpress-snippet.html` | `05_archive/research_assets/remote_play/wordpress-snippet.html` + ссылка из `02_modules/practices/asanas.md` | reference asset, не канон |
+| `docs/remote-play/README.md` | `02_modules/practices/spec.md` + `02_modules/infra/pwa.md` | Remote Play важен для выполнения асан и web-shell |
+| `docs/remote-play/wordpress-snippet.html` | `05_archive/research_assets/remote_play/wordpress-snippet.html` + ссылка из `02_modules/practices/spec.md` | reference asset, не канон |
 
 ### `docs/tmp_docs/02052026/`
 
@@ -430,13 +423,13 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 
 Чек-лист:
 
-1. Начать с `02_modules/practices/breathing.md`: описать новый паттерн, цель, входные параметры, ограничения.
+1. Начать с `02_modules/practices/spec.md` (дыхательный подсценарий, §3–4): описать новый паттерн, цель, входные параметры, ограничения.
 2. Проверить `02_modules/biofeedback/dependencies.md`: нужна ли синхронизация по пульсу, какие метрики обязательны.
 3. Проверить `02_modules/audio/dependencies.md`: нужен ли новый звуковой слой или новая схема микса.
 4. Проверить `02_modules/bindu/dependencies.md`: нужен ли отдельный визуальный preset или достаточно существующего.
 5. Обновить каталог и launch-логику в `practices`.
 6. Если практика доступна не всем тарифам, обновить `subscription/spec.md` и `subscription/dependencies.md`.
-7. Если практика меняет итоговый отчёт, обновить `practices/report.md`.
+7. Если практика меняет итоговый отчёт или метрики завершения, обновить `practices/spec.md` и при необходимости `practices/history.md`.
 8. Если это экспериментальная практика, зафиксировать это в `practices/history.md` и `04_workspace/research.md`.
 
 ### 3. Изменение логики access control / тарифов
@@ -468,7 +461,7 @@ astro | 02_modules/astro/ | modules/astro-core/index.ts; _legacy_web/app/api/ast
 3. Если движок пока исследовательский:
    - гипотезу сначала писать в `04_workspace/research.md`;
    - после решения о внедрении переносить в `bindu/`.
-4. Проверить интеграцию с `practices/meditation.md` и `practices/breathing.md`.
+4. Проверить интеграцию с медитацией и дыханием в `02_modules/practices/spec.md` (и связанными экранами в `modules/mandala`, `modules/breath`).
 5. Если движок требует нового sound/biofeedback coupling, обновить `audio/` и `biofeedback/`.
 6. Если движок происходит из Lotus/CA-ветки, архивную связь отметить в `bindu/history.md`, но не возвращать Lotus в активную архитектуру.
 

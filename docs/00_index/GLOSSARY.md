@@ -1,8 +1,8 @@
 ---
 id: 00_index/GLOSSARY
 title: Project Glossary
-version: 1.0
-updated: 2026-05-06
+version: 1.1
+updated: 2026-05-07
 depends_on: [01_foundation/product_model, 00_index/MAP]
 code_refs: [docs/_proposal.md, docs/_audit.md]
 ---
@@ -131,7 +131,7 @@ UI-оболочка голосового чата: запись, распозн�
 
 ### MeditationSession
 
-Составной planned/current-mapped концепт экрана или контейнера для исполнения медитации. В скелете документации фиксируется как часть `practices/components.md`.
+Составной planned/current-mapped концепт экрана или контейнера для исполнения медитации. В актуальной структуре модуля `practices` описание runtime сведено в `docs/02_modules/practices/spec.md` (разделы «Внутренняя архитектура» и «Конфигурация и параметры»).
 
 ### i18n
 

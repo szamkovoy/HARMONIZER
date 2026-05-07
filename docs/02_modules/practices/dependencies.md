@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.3
+version: 1.4
 updated: 2026-05-07
 depends_on:
   [
@@ -12,43 +12,60 @@ depends_on:
     02_modules/bindu/spec,
     02_modules/daily_forecast/spec,
   ]
-code_refs: [modules/practices/ui/PracticeCatalogScreen.tsx, app/(tabs)/practices.tsx, app/asana-practice.tsx, app/breath-coherence.tsx, services/practiceSessions.ts]
+code_refs:
+  [
+    modules/practices/ui/PracticeCatalogScreen.tsx,
+    modules/practices/core/catalog.ts,
+    app/(tabs)/practices.tsx,
+    app/(tabs)/index.tsx,
+    app/asana-practice.tsx,
+    app/breath-coherence.tsx,
+    app/sacred-symbol-stream.tsx,
+    modules/mandala/experiments/SacredSymbolStreamScreen.tsx,
+    modules/breath/ui/CoherenceBreathScreen.tsx,
+    services/practiceSessions.ts,
+  ]
 ---
 
 ## 1. Зависит от
 
 - **`subscription`**  
-  `app/(tabs)/_layout.tsx` — таб «Практики» с `href: null`, если нет `practice_catalog`; `modules/practices/ui/PracticeCatalogScreen.tsx`, `app/asana-practice.tsx` — `canUseFeature` / `UpgradeDialog` для каталога, асан и связанных фич. Парная запись: `docs/02_modules/subscription/dependencies.md` §2.
+  `app/(tabs)/_layout.tsx` — таб «Практики» с `href: null`, если нет `practice_catalog`; `modules/practices/ui/PracticeCatalogScreen.tsx`, `app/asana-practice.tsx` — `canUseFeature` / `UpgradeDialog` для каталога, асан (`asana_practices`) и связанных фич. Парная запись: `docs/02_modules/subscription/dependencies.md` §2.
 
-- **`daily_forecast` (контекст дня на главном экране)**  
-  `app/(tabs)/index.tsx` — `launchPractice` и карта `planetChakra` от `forecast.planetOfTheDay` через `useDayContent`. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
+- **`daily_forecast`**  
+  Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` **`forecast`** (дата, `planetOfTheDay`, тон, окна) в `triggerMeta` и текст приветствия; после ответа API с `practicePicked` вызывается **`launchPracticeFromAssistant`**. Серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
 
 - **`biofeedback`**  
-  `app/breath-coherence.tsx` → `CoherenceBreathScreen` — полный PPG/pipeline. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.
+  `app/breath-coherence.tsx` → **`CoherenceBreathScreen`** — PPG / pipeline и запись **`metrics`** в `practice_sessions`. Медитация **`SacredSymbolStreamScreen`** biofeedback не использует. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.
 
 - **`audio`**  
-  `CoherenceBreathScreen` монтирует `MandalaSoundProvider`; план фаз (`PlannedCycle`) — из **`modules/breath/core/breath-phase-planner.ts`** как часть дыхательного подсценария **practices** (см. `docs/02_modules/audio/dependencies.md` §1).
+  `CoherenceBreathScreen` и `SacredSymbolStreamScreen` монтируют **`MandalaSoundProvider`**; план фаз (`PlannedCycle`) — из **`modules/breath/core/breath-phase-planner.ts`** (подсценарий practices). Парная запись: `docs/02_modules/audio/dependencies.md` §1.
 
 - **`bindu`**  
-  `BreathBinduMandala` и визуальные ветки практик используют mandala/bindu-контур. Парная запись: `docs/02_modules/bindu/dependencies.md` §2.
+  `BreathBinduMandala`, `BinduSuccessionFlowCanvas` и визуальные ветки практик. Парная запись: `docs/02_modules/bindu/dependencies.md` §2.
 
 - **`infra`**  
-  Expo/React Native, навигация на экраны практик, Supabase для `practice_sessions` через `practiceSessions.ts`.
+  Expo Router, Supabase-клиент для каталога асан и для **`services/practiceSessions.ts`** (`practice_sessions`, `user_daily_stats`).
 
 ## 2. От него зависят
 
 - **`audio`**  
-  В графе документации **`audio` зависит от `practices`**: дыхательный сценарий монтирует звук (`app/breath-coherence.tsx` → `CoherenceBreathScreen` → `MandalaSoundProvider`). В репозитории **`PlannedCycle`** подтягивается в `mandala-sound` **импортом из `modules/breath/core/breath-phase-planner.ts`** — это внутренняя реализация подсценария practices, не отдельный модуль в `MAP.md`. Парная запись: `docs/02_modules/audio/dependencies.md` §1 и §2.
+  Дыхательный сценарий монтирует звук из practices-потока (`breath-coherence` → `CoherenceBreathScreen` → `MandalaSoundProvider`). **`PlannedCycle`** импортируется в `mandala-sound` из **`modules/breath`**. Парная запись: `docs/02_modules/audio/dependencies.md` §1 и §2.
 
 - **`profile`**  
-  `app/(tabs)/profile.tsx` при `canUseFeature("stats")` вызывает `loadDailyPracticeStats` из `services/practiceSessions.ts`. Парная запись: `docs/02_modules/profile/dependencies.md` §1.
+  `app/(tabs)/profile.tsx` при `canUseFeature("stats")` вызывает **`loadDailyPracticeStats`** из `services/practiceSessions.ts`. Парная запись: `docs/02_modules/profile/dependencies.md` §1.
 
-- **`assistant` (сервер / промпты)**  
-  Контекст практик и каталога подмешивается в сценарии ответчика (`MAP.md`, модуль `assistant`). Детальный контракт — при миграции `assistant` по `docs/03_rules/migration_protocol.md`.
+- **`assistant`**  
+  Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts`, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и запускает **`launchPractice`**. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
 
 ## 3. Контрактные точки риска
 
-- **`practice_sessions` и схема записи** — смена колонок или правил записи ломает статистику профиля и отчёты без миграции.
-- **Согласованность `FeatureKey` с `subscription`** — новый gate в каталоге требует строки в `TIER_FEATURES` и обхода UI-табов.
+- **`practice_sessions`**: смена имён/типов колонок, `metrics` или `context` ломает профиль, ассистент и серверные запросы истории (`practiceSelection.ts` читает `practice_id` / `practice_slug` / join на `practices.kind`).
 
-Полный обзор связей с `assistant`, отчётами и остальными потребителями — при отдельной миграции модуля `practices` по `docs/03_rules/migration_protocol.md`.
+- **`FeatureKey`** (`practice_catalog`, `asana_practices`, `stats`) должна оставаться согласованной с `modules/access` и серверными проверками.
+
+- **`PracticeLaunchParams` vs query**: несовпадение имён параметров роутов (`practiceId`, `durationMs`, `chakra`, `usePulseSensor`) ломает диплинки из каталога и из ассистента.
+
+- **Два источника дефолта длительности медитации** (каталог vs экран) — риск UX при смешанных входах; см. `history.md`.
+
+- **`user_practice_preferences`**: логика триггера завязана на непустой **`practice_id`**; поведение для дыхания/медитации без UUID легко забыть при изменении записи сессий.

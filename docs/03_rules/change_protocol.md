@@ -2,7 +2,7 @@
 id: 03_rules/change_protocol
 title: Change Protocol Rules
 version: 1.0
-updated: 2026-05-06
+updated: 2026-05-07
 depends_on: [00_index/MAP, 02_modules/subscription/spec]
 code_refs: [docs/_proposal.md]
 ---
@@ -34,13 +34,13 @@ code_refs: [docs/_proposal.md]
 
 Чек-лист:
 
-1. Начать с `02_modules/practices/breathing.md`: описать новый паттерн, цель, входные параметры, ограничения.
+1. Начать с `02_modules/practices/spec.md` (дыхательный подсценарий, §3–4): описать новый паттерн, цель, входные параметры, ограничения.
 2. Проверить `02_modules/biofeedback/dependencies.md`: нужна ли синхронизация по пульсу, какие метрики обязательны.
 3. Проверить `02_modules/audio/dependencies.md`: нужен ли новый звуковой слой или новая схема микса.
 4. Проверить `02_modules/bindu/dependencies.md`: нужен ли отдельный визуальный preset или достаточно существующего.
 5. Обновить каталог и launch-логику в `practices`.
 6. Если практика доступна не всем тарифам, обновить `subscription/spec.md` и `subscription/dependencies.md`.
-7. Если практика меняет итоговый отчёт, обновить `practices/report.md`.
+7. Если практика меняет итоговый отчёт или метрики завершения, обновить `practices/spec.md` и при необходимости `practices/history.md`.
 8. Если это экспериментальная практика, зафиксировать это в `practices/history.md` и `04_workspace/research.md`.
 
 ### 3. Изменение логики access control / тарифов
@@ -72,7 +72,7 @@ code_refs: [docs/_proposal.md]
 3. Если движок пока исследовательский:
    - гипотезу сначала писать в `04_workspace/research.md`;
    - после решения о внедрении переносить в `bindu/`.
-4. Проверить интеграцию с `practices/meditation.md` и `practices/breathing.md`.
+4. Проверить интеграцию с медитацией и дыханием в `02_modules/practices/spec.md` (и связанными экранами в `modules/mandala`, `modules/breath`).
 5. Если движок требует нового sound/biofeedback coupling, обновить `audio/` и `biofeedback/`.
 6. Если движок происходит из Lotus/CA-ветки, архивную связь отметить в `bindu/history.md`, но не возвращать Lotus в активную архитектуру.
 
