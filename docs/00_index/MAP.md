@@ -1,7 +1,7 @@
 ---
 id: 00_index/MAP
 title: Documentation Map
-version: 1.7
+version: 1.8
 updated: 2026-05-07
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communicator/ui/Communicator.tsx]
@@ -12,8 +12,8 @@ code_refs: [app/(tabs)/index.tsx, modules/astro-core/index.ts, modules/communica
 | Модуль | Папка в docs | Точки входа в коде | Зависит от | От него зависят |
 | --- | --- | --- | --- | --- |
 | `profile` | `02_modules/profile/` | `modules/auth/AuthProvider.tsx`; `modules/auth/useAuth.ts`; `modules/auth/types.ts`; `app/_layout.tsx`; `app/(tabs)/profile.tsx`; `app/(tabs)/index.tsx`; `app/onboarding.tsx`; `services/natalProfileClient.ts`; `services/practiceSessions.ts`; `modules/location/acquireAndPersistUserCoordinates.ts` | `astro`, `practices`, `subscription`, `infra` | `calibration`, `daily_forecast`, `assistant` |
-| `calibration` | `02_modules/calibration/` | `app/calibration.tsx`; `_legacy_web/app/api/calibration/extract/route.ts`; `_legacy_web/app/api/calibration/extract/forecast-cache-date.ts`; `_legacy_web/app/api/calibration/transcribe/route.ts`; `_legacy_web/app/api/_utils/calibration.ts`; `supabase/functions/auto-calibrate/index.ts`; `supabase/functions/auto-calibrate/proposal.ts` | `profile`, `astro`, `communicator`, `assistant`, `infra` | `assistant` |
-| `daily_forecast` | `02_modules/daily_forecast/` | `app/(tabs)/index.tsx`; `modules/home/useDayContent.ts`; `services/dailyForecastClient.ts` | `astro`, `profile`, `practices`, `subscription`, `infra` | `assistant` |
+| `calibration` | `02_modules/calibration/` | `app/calibration.tsx`; `_legacy_web/app/api/calibration/extract/route.ts`; `_legacy_web/app/api/calibration/extract/forecast-cache-date.ts`; `_legacy_web/app/api/calibration/transcribe/route.ts`; `_legacy_web/app/api/_utils/calibration.ts`; `supabase/functions/auto-calibrate/index.ts`; `supabase/functions/auto-calibrate/proposal.ts` | `profile`, `astro`, `communicator`, `assistant`, `infra` | `assistant`, `daily_forecast` |
+| `daily_forecast` | `02_modules/daily_forecast/` | `app/(tabs)/index.tsx`; `modules/home/useDayContent.ts`; `modules/home/ui/ChakraFlower.tsx`; `services/dailyForecastClient.ts`; `services/dayContentCache.ts`; `services/globalContentClient.ts`; `modules/daily-engine/index.ts`; `_legacy_web/app/api/astro/daily-forecast/route.ts`; `supabase/functions/daily-forecast/index.ts`; `supabase/functions/precompute-daily-forecasts/index.ts` | `astro`, `calibration`, `profile`, `practices`, `subscription`, `infra` | `assistant` |
 | `assistant` | `02_modules/assistant/` | `_legacy_web/app/api/communicator/v2/dialog/route.ts`; `_legacy_web/app/api/_utils/scenarios.ts`; `_legacy_web/app/api/_utils/prompts.ts`; `supabase/seed.sql` | `astro`, `calibration`, `daily_forecast`, `profile`, `practices`, `subscription`, `infra` | `calibration`, `communicator` |
 | `communicator` | `02_modules/communicator/` | `modules/communicator/ui/Communicator.tsx`; `modules/communicator/ui/PracticeCard.tsx`; `services/communicator-client.ts` | `assistant`, `subscription`, `infra` | `calibration` |
 | `practices` | `02_modules/practices/` | `modules/practices/ui/PracticeCatalogScreen.tsx`; `app/(tabs)/practices.tsx`; `app/asana-practice.tsx`; `app/breath-coherence.tsx`; `services/practiceSessions.ts` | `bindu`, `audio`, `biofeedback`, `subscription`, `infra` | `profile`, `daily_forecast`, `assistant` |
