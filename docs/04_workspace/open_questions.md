@@ -3,10 +3,20 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.9
+version: 1.10
 updated: 2026-05-07
 depends_on: [00_index/CHANGELOG]
 code_refs: []
+
+## `assistant`
+
+- **Два URL одного диалога и условный выбор на клиенте**  
+**Контекст:** `sendDialogMessage` (`services/communicator-client.ts`) использует `getAiDialogUrl()` только если передан **`scenario_id`**; иначе запрос идёт на **`/api/communicator/v2/dialog`** (помечен deprecated в логах сервера). Реализация совпадает через реэкспорт, но продолжается техдолг по единому каноническому пути и по обязательной передаче `scenario_id` для всех новых клиентов.  
+**Действие:** при рефакторинге communicator — всегда бить в `/api/ai/dialog` или явно документировать исключения.
+
+- **Тема дня для практики vs топ-3 для утреннего монолога**  
+**Контекст:** `morning_recommendation` собирает три лепестка по **`ranked_planets` / importance** (`topPetals`), а **`choosePractice`** в `practiceSelection.ts` берёт чакру из **`planet_of_the_day`**. Это сознательное расхождение или временная асимметрия продукта — в коде не сведено.  
+**Действие:** решение заказчика: выровнять выбор чакры для стека практик с топ-1 лепестком, либо зафиксировать продуктовую модель «утро про три темы, практика про планету дня».
 
 ## `bindu`
 
