@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Image, StyleSheet, View } from "react-native";
 
+import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
 import { AppText } from "@/modules/ui/AppText";
 
@@ -236,7 +237,7 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
       <View style={styles.centerStage}>
         <View style={styles.logoShell}>
           <Animated.View style={[styles.logoClip, { opacity: logoOpacity }]}>
-            <Image source={require("@/assets/images/splash-icon.png")} style={styles.logoImage} resizeMode="contain" />
+            <Image source={splashImage} style={styles.logoImage} resizeMode="contain" />
             <Animated.View
               pointerEvents="none"
               style={[

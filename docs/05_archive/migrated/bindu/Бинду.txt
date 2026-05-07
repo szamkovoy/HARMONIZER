@@ -1,0 +1,28 @@
+BINDU параметры
+
+ЦВЕТА
+- bindu -> Eye Seeds -> кружки золотой #FAC757
+- ring1 -> Lotus Petals Belt -> розово-малиновый #FF668F
+- ring2 -> сетка -> светло-циановый #66E6FF
+- ring3 -> члены -> фиолетовый #A87AFF
+- ring4 -> кривая линия-> мятно-зелёный #70FFAD
+- ring5 -> Rosette Window Chain ->  кружки с палочками янтарно-оранжевый #FFA852
+- ring6 -> Scallop Lace -> холодный голубой #57C2FF
+
+ВРАЩЕНИЕ
+- bindu = -0.3
+- ring1 = 0.3
+- ring2 = 0
+- ring3 = 0.2
+- ring4 = 0.1
+- ring5 = -0.2
+- ring6 = 0
+
+ШИРИНЫ
+- bindu = 9%
+- ring1 = 18%
+- ring2 = 12%
+- ring3 = 20%
+- ring4 = 6%
+- ring5 = 17%
+- ring6 = 24%
