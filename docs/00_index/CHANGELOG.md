@@ -10,6 +10,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-08: pre-push docs-sync: cursor-agent аутентифицируется через CURSOR_API_KEY из .env.local; устраняет EPERM при push изнутри Cursor IDE.
+- 2026-05-08: откат docs-sync к синхронному режиму через изолированный HOME (схема с очередью отменена как требующая ручного запуска).
 - 2026-05-08: экран **`PracticeCatalogScreen`**: гонки **`onLateYogaPractices`** / микрозадачи (**`await Promise.resolve()`**), срез медитация+дыхание в ref и отложенная йога (колбэк при **`loading`** больше не отбрасывается). **`docs/02_modules/practices/history.md`**, **`spec.md`**.
 - 2026-05-08: каталог асан на экране «Практики»: для ветки с **`onLateYogaPractices`** в **`modules/practices/core/catalog.ts`** добавлены таймаут 12 с, обработка **`reject`** и повторный колбэк после таймаута при позднем ответе Supabase (раньше возможен «вечный» спиннер). Обновлены **`docs/02_modules/practices/spec.md`**, **`history.md`**.
 - 2026-05-08: pre-push docs-sync: в **`scripts/docs-sync/sync.sh`** для **`cursor-agent`** используется изолированный **`HOME`** под **`.git/cursor-agent-home`** (и однократное копирование **`cli-config.json`**), чтобы не конфликтовать с IDE по **`~/.cursor/cli-config.json.tmp`** (EPERM при push из Cursor).

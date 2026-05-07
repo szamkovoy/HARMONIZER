@@ -82,6 +82,10 @@ export function PracticeCatalogScreen() {
   const requestedThumbnailIdsRef = useRef<Set<string>>(new Set());
   /** Избегаем гонки: `onLateYogaPractices` может отработать в микрозадаче раньше, чем продолжится `load()` после `await`. */
   const lateYogaSlotRef = useRef<{ resolved: false } | { resolved: true; yoga: PracticeSummary[] }>({ resolved: false });
+  /** Медитации+дыхание из последнего `loadPracticeCatalog` — чтобы колбэк йоги мог собрать каталог до `status: ready`. */
+  const catalogMeditationBreathRef = useRef<Pick<PracticeCatalog, "meditation" | "breath"> | null>(null);
+  /** Йога пришла до того, как ref среза успели записать (редкий порядок микрозадач). */
+  const pendingLateYogaRef = useRef<PracticeSummary[] | null>(null);
 
   const load = useCallback(
     async () => {
@@ -91,6 +95,8 @@ export function PracticeCatalogScreen() {
       setState({ status: "loading", catalog: null, error: null });
       setYogaLateLoading(false);
       lateYogaSlotRef.current = { resolved: false };
+      catalogMeditationBreathRef.current = null;
+      pendingLateYogaRef.current = null;
       requestedThumbnailIdsRef.current = new Set();
       setYogaThumbnails({});
       try {
@@ -100,20 +106,44 @@ export function PracticeCatalogScreen() {
             if (seq !== loadSeqRef.current) return;
             lateYogaSlotRef.current = { resolved: true, yoga };
             setYogaLateLoading(false);
-            setState((current) => {
-              if (current.status === "loading") {
-                return current;
-              }
-              const base = current.catalog ?? EMPTY_CATALOG;
-              return {
-                status: "ready",
-                catalog: { ...base, yoga },
-                error: null,
-              };
+            const mb = catalogMeditationBreathRef.current;
+            if (!mb) {
+              pendingLateYogaRef.current = yoga;
+              logRuntimeEvent(
+                "practice_catalog:screen_late_yoga_pending_mb",
+                { seq, yogaCount: yoga.length },
+                "debug",
+              );
+              return;
+            }
+            pendingLateYogaRef.current = null;
+            setState({
+              status: "ready",
+              catalog: { ...mb, yoga },
+              error: null,
             });
             logRuntimeEvent("practice_catalog:screen_late_yoga_ready", { seq, yogaCount: yoga.length });
           },
         });
+        catalogMeditationBreathRef.current = {
+          meditation: catalog.meditation,
+          breath: catalog.breath,
+        };
+        const pendingYoga = pendingLateYogaRef.current;
+        if (pendingYoga !== null) {
+          pendingLateYogaRef.current = null;
+          lateYogaSlotRef.current = { resolved: true, yoga: pendingYoga };
+          setYogaLateLoading(false);
+          setState({
+            status: "ready",
+            catalog: { ...catalogMeditationBreathRef.current, yoga: pendingYoga },
+            error: null,
+          });
+          logRuntimeEvent("practice_catalog:screen_late_yoga_flushed_pending", {
+            seq,
+            yogaCount: pendingYoga.length,
+          });
+        }
         // Колбэк `onLateYogaPractices` ставится в очередь микрозадач; без yield продолжение `load()`
         // может выполниться раньше и прочитать `lateYogaSlotRef` до записи → пустой список асан.
         await Promise.resolve();
