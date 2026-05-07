@@ -50,3 +50,9 @@ yarn-error.*
 .tmp_ocr/
 __tmp_ocr/
 .vercel
+
+docs/.sync-logs/
+docs/.sync-failures.log
+.git/CURSOR_PUSH_DIFF.txt
+.git/CURSOR_PUSH_STAT.txt
+.git/CURSOR_DOC_SYNC_PROMPT.txt
