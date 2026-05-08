@@ -17,6 +17,12 @@ if [ "${HARMONIZER_SKIP_DOC_SYNC:-0}" = "1" ]; then
   exit 0
 fi
 
+if [ "${HARMONIZER_IN_DOC_SYNC:-0}" = "1" ]; then
+  echo "[docs-sync] Skipped (recursion guard)"
+  exit 0
+fi
+export HARMONIZER_IN_DOC_SYNC=1
+
 # ============================================================
 # 1. Подготовка
 # ============================================================
