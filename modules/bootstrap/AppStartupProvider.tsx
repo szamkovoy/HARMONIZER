@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Image, StyleSheet, View } from "react-native";
+import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from "react-native";
 
 import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
@@ -141,6 +141,7 @@ function useSplashProgress(visible: boolean, progress: Animated.Value) {
 }
 
 function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: "ru" | "en" }) {
+  const { width: winW, height: winH } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
   const logoBreath = useRef(new Animated.Value(0)).current;
@@ -224,7 +225,7 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
 
   const shimmerTranslate = shimmer.interpolate({
     inputRange: [0, 1],
-    outputRange: [-140, 140],
+    outputRange: [-winW * 0.85, winW * 0.85],
   });
 
   const shimmerOpacity = shimmer.interpolate({
@@ -234,23 +235,23 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
 
   return (
     <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.overlay, { opacity }]}>
-      <View style={styles.centerStage}>
-        <View style={styles.logoShell}>
-          <Animated.View style={[styles.logoClip, { opacity: logoOpacity }]}>
-            <Image source={splashImage} style={styles.logoImage} resizeMode="contain" />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.shimmerStripe,
-                {
-                  opacity: shimmerOpacity,
-                  transform: [{ translateX: shimmerTranslate }, { rotate: "18deg" }],
-                },
-              ]}
-            />
-          </Animated.View>
-        </View>
-      </View>
+      {/* Полный кадр как expo.splash (resizeMode: cover) — без смены композиции при hide native splash */}
+      <Animated.View style={[styles.splashImageWrap, { opacity: logoOpacity }]}>
+        <Image source={splashImage} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.shimmerStripe,
+            {
+              top: winH * -0.12,
+              width: winW * 0.42,
+              height: winH * 1.35,
+              opacity: shimmerOpacity,
+              transform: [{ translateX: shimmerTranslate }, { rotate: "18deg" }],
+            },
+          ]}
+        />
+      </Animated.View>
 
       <View style={styles.bottomStage}>
         <View style={styles.track}>
@@ -354,43 +355,20 @@ export function useAppStartup(): AppStartupContextValue {
   return value;
 }
 
-const LOGO_SIZE = 268;
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
   overlay: {
     backgroundColor: "#FFFFFF",
-    justifyContent: "center",
   },
-  centerStage: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    paddingBottom: 56,
-  },
-  logoShell: {
-    marginTop: -52,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoClip: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
+  splashImageWrap: {
+    ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoImage: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
   },
   shimmerStripe: {
     position: "absolute",
-    width: LOGO_SIZE * 0.38,
-    height: LOGO_SIZE * 1.35,
+    alignSelf: "center",
     backgroundColor: "rgba(17, 182, 183, 0.22)",
   },
   bottomStage: {
@@ -398,6 +376,7 @@ const styles = StyleSheet.create({
     left: 28,
     right: 28,
     bottom: 48,
+    zIndex: 2,
     alignItems: "center",
     gap: 8,
   },
