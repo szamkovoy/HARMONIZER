@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-08: docs-sync перенесён на GitHub Actions; локальный post-commit оставлен как fallback.
 - 2026-05-08: docs-sync переведён с pre-push на post-commit hook.
 - 2026-05-08: pre-push docs-sync: cursor-agent аутентифицируется через CURSOR_API_KEY из .env.local; устраняет EPERM при push изнутри Cursor IDE.
 - 2026-05-08: откат docs-sync к синхронному режиму через изолированный HOME (схема с очередью отменена как требующая ручного запуска).

@@ -168,20 +168,23 @@ PROMPT_EOF
 # ============================================================
 # 7. Запуск Cursor agent
 # ============================================================
-# CURSOR_API_KEY для headless cursor-agent (избегает конфликта cli-config с IDE при push из Cursor).
-ENV_LOCAL="$REPO_ROOT/.env.local"
-if [ -f "$ENV_LOCAL" ]; then
-  _kline="$(grep -E '^[[:space:]]*CURSOR_API_KEY=' "$ENV_LOCAL" 2>/dev/null | head -n1 || true)"
-  if [ -n "$_kline" ]; then
-    _kval="${_kline#*=}"
-    _kval="${_kval#\"}"; _kval="${_kval%\"}"
-    _kval="${_kval#\'}"; _kval="${_kval%\'}"
-    export CURSOR_API_KEY="$_kval"
+# CURSOR_API_KEY для headless cursor-agent: сначала переменная окружения (CI/GitHub Actions),
+# иначе — .env.local (локальная разработка / post-commit).
+if [ -z "${CURSOR_API_KEY:-}" ]; then
+  ENV_LOCAL="$REPO_ROOT/.env.local"
+  if [ -f "$ENV_LOCAL" ]; then
+    _kline="$(grep -E '^[[:space:]]*CURSOR_API_KEY=' "$ENV_LOCAL" 2>/dev/null | head -n1 || true)"
+    if [ -n "$_kline" ]; then
+      _kval="${_kline#*=}"
+      _kval="${_kval#\"}"; _kval="${_kval%\"}"
+      _kval="${_kval#\'}"; _kval="${_kval%\'}"
+      export CURSOR_API_KEY="$_kval"
+    fi
+    unset _kline _kval
   fi
-  unset _kline _kval
 fi
 if [ -z "${CURSOR_API_KEY:-}" ]; then
-  echo "[docs-sync] WARN: CURSOR_API_KEY not found in .env.local. Cursor-agent may fail in headless mode."
+  echo "[docs-sync] WARN: CURSOR_API_KEY is unset (not in environment and not in .env.local). Cursor-agent may fail in headless mode."
 fi
 
 echo "[docs-sync] Calling cursor-agent (model=auto, mode=write, auth=API_KEY)..."
