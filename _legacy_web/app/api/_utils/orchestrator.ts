@@ -20,12 +20,18 @@ export type OrchestratorDecision = {
   information_completeness: Record<string, number>;
   information_density: number;
   user_signals: UserSignal[];
+  /** Classifier output from orchestrator JSON (optional for older decisions / cache). */
+  user_register?: string;
   should_close: boolean;
   close_reason?: "goal_reached" | "soft_cap_hit" | "user_disengaged" | null;
   responder_hints?: {
     tone?: "warm" | "neutral" | "energising" | "calming";
     use_user_phrases?: string[];
     avoid_topics?: string[];
+    preferred_register?: string;
+    astrology_budget?: "can_use" | "save_for_later";
+    chakra_budget?: "can_use" | "save_for_later";
+    length_hint?: "short" | "medium" | "long";
   };
   insight_metrics?: {
     csi: number;
@@ -190,8 +196,45 @@ export function shouldForceFreshDecision(decisions: OrchestratorDecision[]): boo
   return lastTwo.length === 2 && lastTwo.every((decision) => decision.decision_source === "cache_reused");
 }
 
+function normalizeBudget(value: unknown): "can_use" | "save_for_later" | undefined {
+  return value === "can_use" || value === "save_for_later" ? value : undefined;
+}
+
+function normalizeLengthHint(value: unknown): "short" | "medium" | "long" | undefined {
+  return value === "short" || value === "medium" || value === "long" ? value : undefined;
+}
+
+function normalizeResponderHintsFromRaw(rawHints: unknown): OrchestratorDecision["responder_hints"] {
+  const hints = typeof rawHints === "object" && rawHints !== null ? (rawHints as Record<string, unknown>) : {};
+  const tone =
+    hints.tone === "warm" || hints.tone === "neutral" || hints.tone === "energising" || hints.tone === "calming"
+      ? hints.tone
+      : "neutral";
+  const use_user_phrases = Array.isArray(hints.use_user_phrases)
+    ? (hints.use_user_phrases as unknown[]).map(String).filter(Boolean)
+    : [];
+  const avoid_topics = Array.isArray(hints.avoid_topics)
+    ? (hints.avoid_topics as unknown[]).map(String).filter(Boolean)
+    : [];
+  const preferred_register = typeof hints.preferred_register === "string" ? hints.preferred_register : undefined;
+  const astrology_budget = normalizeBudget(hints.astrology_budget);
+  const chakra_budget = normalizeBudget(hints.chakra_budget);
+  const length_hint = normalizeLengthHint(hints.length_hint);
+  return {
+    tone,
+    use_user_phrases,
+    avoid_topics,
+    preferred_register,
+    astrology_budget,
+    chakra_budget,
+    length_hint,
+  };
+}
+
 export function validateOrchestratorDecision(value: unknown, fallbackPhase: string): OrchestratorDecision {
   const raw = typeof value === "object" && value !== null ? (value as Partial<OrchestratorDecision>) : {};
+  const user_register =
+    typeof raw.user_register === "string" && raw.user_register.trim() ? raw.user_register.trim() : undefined;
   return {
     next_phase: typeof raw.next_phase === "string" ? raw.next_phase : fallbackPhase,
     reasoning: typeof raw.reasoning === "string" ? raw.reasoning : "Fallback: invalid orchestrator output.",
@@ -201,9 +244,10 @@ export function validateOrchestratorDecision(value: unknown, fallbackPhase: stri
         : {},
     information_density: typeof raw.information_density === "number" ? raw.information_density : 0,
     user_signals: Array.isArray(raw.user_signals) ? (raw.user_signals as UserSignal[]) : [],
+    user_register,
     should_close: Boolean(raw.should_close),
     close_reason: raw.close_reason ?? null,
-    responder_hints: raw.responder_hints ?? { tone: "neutral", use_user_phrases: [], avoid_topics: [] },
+    responder_hints: normalizeResponderHintsFromRaw(raw.responder_hints),
     insight_metrics: raw.insight_metrics,
     decision_source: raw.decision_source,
     cache_similarity: raw.cache_similarity,

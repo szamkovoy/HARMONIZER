@@ -57,3 +57,6 @@ docs/.sync-failures.log
 .git/CURSOR_PUSH_DIFF.txt
 .git/CURSOR_PUSH_STAT.txt
 .git/CURSOR_DOC_SYNC_PROMPT.txt
+
+# Локальные JSON-бэкапы таблиц (см. supabase/backups/README.md)
+supabase/backups/*.json

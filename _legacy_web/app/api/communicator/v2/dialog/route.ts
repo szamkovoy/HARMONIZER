@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "@/data/information_axes.json";
+import { detectExplicitSignals } from "@/app/api/_utils/explicitSignals";
+import { getSoftCap, type SoftCapTier } from "@/app/api/_utils/softCap";
 import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
 import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
@@ -119,8 +121,142 @@ async function resolveDialogueScenario(
 }
 
 function axesFor(useCase: DialogueUseCase) {
-  const data = informationAxes as unknown as Record<string, { axes: Record<string, unknown>; soft_cap: number }>;
+  const data = informationAxes as unknown as Record<
+    string,
+    { axes: Record<string, unknown>; soft_cap: number; completion_threshold?: number }
+  >;
   return data[useCase] ?? { axes: {}, soft_cap: useCase === "calibration" ? 4 : 6 };
+}
+
+function resolveSoftCapTier(user: {
+  membership_tier?: string | null;
+  trial_expires_at?: string | null;
+}): SoftCapTier {
+  if (user.membership_tier === "premium") return "premium";
+  if (user.trial_expires_at && new Date(user.trial_expires_at) > new Date()) return "trial";
+  return "free";
+}
+
+function detectAstrologyMention(text: string): boolean {
+  const markers = [
+    "солнц",
+    "лун",
+    "марс",
+    "венер",
+    "юпитер",
+    "сатурн",
+    "меркур",
+    "транзит",
+    "аспект",
+    "квадрат",
+    "трин",
+    "секстиль",
+    "оппозиц",
+    "соединен",
+    "гороскоп",
+    "знак зодиак",
+    "стихи",
+  ];
+  const lower = text.toLowerCase();
+  return markers.some((m) => lower.includes(m));
+}
+
+function detectChakraMention(text: string): boolean {
+  const markers = [
+    "чакр",
+    "муладхар",
+    "свадхистхан",
+    "манипур",
+    "анахат",
+    "вишуддх",
+    "аджн",
+    "сахасрар",
+  ];
+  const lower = text.toLowerCase();
+  return markers.some((m) => lower.includes(m));
+}
+
+type DialogTurnMetrics = {
+  recent_phases: string;
+  recent_registers: string;
+  astrology_used_turns_ago: number;
+  chakra_used_turns_ago: number;
+};
+
+function phaseFromAssistantMessage(message: MessageRecord): string {
+  const meta = message.meta ?? {};
+  const responder = meta.responder as { phase_used?: unknown } | undefined;
+  if (typeof responder?.phase_used === "string" && responder.phase_used.trim()) return responder.phase_used.trim();
+  const od = meta.orchestrator_decision as { next_phase?: unknown } | undefined;
+  if (typeof od?.next_phase === "string" && od.next_phase.trim()) return od.next_phase.trim();
+  return "unknown";
+}
+
+function registerFromAssistantMessage(message: MessageRecord): string {
+  const od = message.meta?.orchestrator_decision as { user_register?: unknown } | undefined;
+  if (typeof od?.user_register === "string" && od.user_register.trim()) return od.user_register.trim();
+  return "unknown";
+}
+
+function buildDialogTurnMetrics(history: MessageRecord[]): DialogTurnMetrics {
+  const assistants = history.filter((m) => m.role === "assistant");
+  const last4 = assistants.slice(-4);
+  const recent_phases = last4.map(phaseFromAssistantMessage).join(", ");
+  const recent_registers = last4.map(registerFromAssistantMessage).join(", ");
+  const newestFirst = [...assistants].reverse();
+  let astrology_used_turns_ago = 999;
+  let chakra_used_turns_ago = 999;
+  for (let i = 0; i < newestFirst.length; i++) {
+    const text = String(newestFirst[i].content ?? newestFirst[i].transcript ?? "");
+    if (astrology_used_turns_ago === 999 && detectAstrologyMention(text)) astrology_used_turns_ago = i;
+    if (chakra_used_turns_ago === 999 && detectChakraMention(text)) chakra_used_turns_ago = i;
+    if (astrology_used_turns_ago !== 999 && chakra_used_turns_ago !== 999) break;
+  }
+  return { recent_phases, recent_registers, astrology_used_turns_ago, chakra_used_turns_ago };
+}
+
+function userMessageLengthHint(userMessage: string): string {
+  const words = userMessage.trim().split(/\s+/).filter(Boolean).length;
+  if (words < 6) return "короткое (1-5 слов)";
+  if (words <= 30) return "среднее";
+  return "развёрнутое (несколько тем)";
+}
+
+function inferredAstrologyBudget(turnsAgo: number): "can_use" | "save_for_later" {
+  return turnsAgo >= 5 ? "can_use" : "save_for_later";
+}
+
+function inferredChakraBudget(decision: OrchestratorDecision, turnsAgo: number): "can_use" | "save_for_later" {
+  const p = decision.next_phase;
+  const ok = p === "suggest_practice" || p === "ask_practice_intent" || p === "confirm_and_close";
+  if (!ok) return "save_for_later";
+  return turnsAgo >= 5 ? "can_use" : "save_for_later";
+}
+
+function formatAstrologyBudgetHint(budget: "can_use" | "save_for_later", turnsAgo: number): string {
+  if (budget === "can_use") return "можно использовать";
+  if (turnsAgo >= 999) return "не сейчас, давно не использовалось в репликах ассистента";
+  return `не сейчас, использовалось ${turnsAgo} ходов назад`;
+}
+
+function formatChakraBudgetHint(budget: "can_use" | "save_for_later", turnsAgo: number): string {
+  if (budget === "can_use") return "можно использовать";
+  if (turnsAgo >= 999) return "не сейчас, давно не использовалось в репликах ассистента";
+  return `не сейчас, использовалось ${turnsAgo} ходов назад`;
+}
+
+function formatOrchestratorHints(decision: OrchestratorDecision): string {
+  const h = decision.responder_hints;
+  const lines = [
+    `Тон: ${h?.tone ?? "neutral"}`,
+    `Фразы пользователя для реюза: ${(h?.use_user_phrases ?? []).join("; ") || "—"}`,
+    `Избегать тем: ${(h?.avoid_topics ?? []).join("; ") || "—"}`,
+    `Предпочтительный регистр ответа: ${h?.preferred_register ?? "—"}`,
+    `Ориентир длины: ${h?.length_hint ?? "—"}`,
+    `Бюджет астрологии (классификатор): ${h?.astrology_budget ?? "—"}`,
+    `Бюджет чакр (классификатор): ${h?.chakra_budget ?? "—"}`,
+  ];
+  return lines.join("\n");
 }
 
 function conversationTriggerMeta(body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body, useCase: DialogueUseCase) {
@@ -369,9 +505,13 @@ async function buildDecision(params: {
   history: MessageRecord[];
   phases: PhaseRecord[];
   context: Awaited<ReturnType<typeof loadContext>>;
+  turnMetrics: DialogTurnMetrics;
 }): Promise<{ decision: OrchestratorDecision; orchestratorLatencyMs: number }> {
   const started = Date.now();
-  const axes = axesFor(params.useCase);
+  const axesJson = axesFor(params.useCase);
+  const tier = resolveSoftCapTier(params.context.user);
+  const softCap = getSoftCap(params.useCase, tier);
+  const informationAxesPayload = { ...axesJson, soft_cap: softCap };
   const iterationNumber = params.history.filter((message) => message.role === "user").length + 1;
   const insightMetrics = buildInsightMetrics(params.history, params.userMessage, params.context.user.locale);
   const blockedPhases = blockedPhasesForInsight(insightMetrics, params.useCase);
@@ -432,6 +572,8 @@ async function buildDecision(params: {
   const prompt = await getActivePrompt(params.db, "orchestrator_decision");
   const profileDTO = buildProfileCompact(params.context.natal, params.context.calibration, params.context.user);
   const historyDTO = buildHistoryCompact(params.history);
+  const language = (params.context.user.locale ?? "ru").slice(0, 2);
+  const explicitSignals = detectExplicitSignals(params.userMessage, language);
   const profileSize = logDTOSize("dialog.orchestrator.profile", profileDTO, 350);
   const historySize = logDTOSize("dialog.orchestrator.history", historyDTO, 1500);
   await logPromptSize(params.db, params.userId, {
@@ -444,17 +586,22 @@ async function buildDecision(params: {
   const renderedPrompt = renderPrompt(prompt.template, {
       use_case: params.useCase,
       available_phases: params.phases.map((phase) => `- ${phase.phase_id}: ${phase.description ?? ""}`).join("\n"),
-      information_axes: axes,
+      information_axes: informationAxesPayload,
       blocked_phases: blockedPhases.join(", ") || "none",
       insight_metrics_json: insightMetrics,
       ttm_hint: ttmHint(insightMetrics),
       etv_hint: etvHint(insightMetrics.etv),
       insight_hint: insightHint(insightMetrics),
+      explicit_signals_json: JSON.stringify(explicitSignals),
       time_of_day: tod.timeOfDay,
       local_hour: tod.localHour,
       time_of_day_hint: tod,
       iteration_number: iterationNumber,
-      soft_cap: axes.soft_cap,
+      soft_cap: softCap,
+      recent_phases: params.turnMetrics.recent_phases,
+      recent_registers: params.turnMetrics.recent_registers,
+      astrology_used_turns_ago: params.turnMetrics.astrology_used_turns_ago,
+      chakra_used_turns_ago: params.turnMetrics.chakra_used_turns_ago,
       user_profile_summary: profileDTO,
       conversation_history: historyDTO,
       user_message: params.userMessage,
@@ -633,6 +780,7 @@ export async function POST(req: Request) {
     ]);
 
     endpointStage = "orchestrator";
+    const turnMetrics = buildDialogTurnMetrics(history);
     const { decision, orchestratorLatencyMs } = await buildDecision({
       db,
       userId,
@@ -644,6 +792,7 @@ export async function POST(req: Request) {
       history,
       phases,
       context,
+      turnMetrics,
     });
     if (body.triggerMeta?.clientGreetingShown === true && decision.next_phase === "contextual_greeting") {
       decision.next_phase = useCase === "daily_dialog" ? "offer_insight" : "deepen_specific_chakra";
@@ -728,6 +877,10 @@ export async function POST(req: Request) {
               selectedPractice: practiceCandidate ? publicPracticePickedPayload(practiceCandidate) : null,
             }),
           );
+          const astrologyBudget =
+            decision.responder_hints?.astrology_budget ?? inferredAstrologyBudget(turnMetrics.astrology_used_turns_ago);
+          const chakraBudget =
+            decision.responder_hints?.chakra_budget ?? inferredChakraBudget(decision, turnMetrics.chakra_used_turns_ago);
           const prompt = renderPrompt(responderPrompt.template, {
             author_voice_block: authorVoiceBlock,
             current_phase: phase.phase_id,
@@ -741,6 +894,14 @@ export async function POST(req: Request) {
             daily_context: forecastDTO,
             daily_background: dailyBackground,
             history: historyDTO,
+            conversation_history: historyDTO,
+            user_last_message: userMessage,
+            user_message_length_hint: userMessageLengthHint(userMessage),
+            user_register_hint: decision.user_register ?? "unknown",
+            astrology_budget_hint: formatAstrologyBudgetHint(astrologyBudget, turnMetrics.astrology_used_turns_ago),
+            chakra_budget_hint: formatChakraBudgetHint(chakraBudget, turnMetrics.chakra_used_turns_ago),
+            orchestrator_hints: formatOrchestratorHints(decision),
+            user_locale: (context.user.locale ?? "ru").slice(0, 2),
           });
 
           const responderModel = dialogSurfaceModelHint(responderPrompt.model_hint, context.user);
