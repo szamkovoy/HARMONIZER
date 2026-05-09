@@ -31,6 +31,7 @@ Required Vercel environment variables:
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.
 - `AI_MODEL_PREMIUM` - concrete Gemini model for `premium` prompt/scenario tier.
+- `AI_MODEL_STANDARD_FALLBACK` / `AI_MODEL_PREMIUM_FALLBACK` - one automatic retry per request on 503/429-style overload (`gemini.ts`).
 - `GEMINI_TIMEOUT_MS=90000` - Gemini request timeout for production.
 - `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
 - `SENTRY_DSN=https://fa0cbb049716d242310a11464f1684e2@o4511304250884096.ingest.de.sentry.io/4511304290533456` - Sentry project DSN for backend error monitoring.

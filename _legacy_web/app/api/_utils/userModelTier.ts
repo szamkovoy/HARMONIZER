@@ -17,6 +17,7 @@ export function hasPremiumLlmAccess(user: UserModelAccessRow | null | undefined)
  * Поверхностные ответы ассистента (greeting, responder stream, коррекции текста):
  * для платного/триала — всегда tier `premium` → `AI_MODEL_PREMIUM` из env.
  * Оркестратор (JSON) остаётся на hint из БД (обычно standard).
+ * Резолв id модели и резерв при 503/429 — в `getModelByHint` (`_legacy_web/app/api/_utils/gemini.ts`), не здесь.
  */
 export function dialogSurfaceModelHint(
   promptHint: string | null | undefined,

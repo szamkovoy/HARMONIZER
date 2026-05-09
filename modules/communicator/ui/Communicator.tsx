@@ -195,6 +195,26 @@ function isRecorderPrepareError(error: Error): boolean {
   return /prepare.*recorder|recorder not prepared|prepareToRecord/i.test(error.message);
 }
 
+/** Не показывать сырой стектрейс/англ. текст SDK при перегрузке или после исчерпания fallback на сервере. */
+function userFacingAssistantNetworkMessage(err: Error): string {
+  const m = err.message;
+  if (/Сервис временно недоступен/.test(m)) return m;
+  if (
+    /\b503\b/i.test(m) ||
+    /service unavailable/i.test(m) ||
+    /high demand/i.test(m) ||
+    /\b429\b/i.test(m) ||
+    /rate_limit_exceeded/i.test(m) ||
+    /GoogleGenerativeAI/i.test(m) ||
+    /resource exhausted/i.test(m) ||
+    /overloaded/i.test(m) ||
+    /\bUNAVAILABLE\b/i.test(m)
+  ) {
+    return "Сервис временно недоступен, попробуйте через минуту.";
+  }
+  return m;
+}
+
 function tierLabelFromProfile(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): string {
   if (!profile) return COMMUNICATOR_MODEL_LABEL;
   if (profile.membership_tier === "premium") return "premium";
@@ -206,7 +226,7 @@ function tierLabelFromProfile(profile: { membership_tier?: string | null; trial_
 
 function ModelBadge({ model, accessTier }: { model?: string; accessTier: string }) {
   const theme = useTheme();
-  if (!HARMONIZER_TEST_MODE) return null;
+  if (!__DEV__) return null;
   return (
     <View style={[styles.modelBadge, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.controlButtonBg }]}>
       <AppText variant="technicalCaption" tone="muted">
@@ -301,7 +321,7 @@ export function Communicator({
       const recorderPrepareError = isRecorderPrepareError(err);
       const displayMessage = recorderPrepareError
         ? "Не удалось включить запись. Попробуйте ещё раз."
-        : err.message;
+        : userFacingAssistantNetworkMessage(err);
       if (recorderPrepareError) {
         console.warn("[Communicator]", err.message, err.stack ?? "");
       } else {

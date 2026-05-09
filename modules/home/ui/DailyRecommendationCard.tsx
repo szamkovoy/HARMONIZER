@@ -8,7 +8,6 @@ import { getForecastRecommendation } from "@/modules/home/i18n/home";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { PLANET_CHAKRA } from "../planetChakra";
 import { ModalLongExplanation } from "./ModalLongExplanation";
@@ -69,7 +68,7 @@ export function DailyRecommendationCard({
           </View>
         </View>
         <AppText variant="screenHint">{text}</AppText>
-        {HARMONIZER_TEST_MODE ? (
+        {__DEV__ ? (
           <AppText variant="technicalCaption" tone="muted">
             model: {modelUsed ?? "unknown"} · {accessMode}
           </AppText>

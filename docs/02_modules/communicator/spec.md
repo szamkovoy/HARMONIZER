@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-09
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -94,6 +94,8 @@ code_refs:
 | `sendDialogMessage` body | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`. |
 | Константы UI | `MIN_VOICE_MS` (450), `LOW_TRANSCRIPTION_CONFIDENCE` (0.65), лимит текста 8000 символов. |
 | Режим текста | `COMMUNICATOR_TEXT_MODE_ENABLED` — если выключен, только голос без переключателя. |
+| Дебаг | Подпись `model: …` у бейджа ассистента — только в **`__DEV__`** (не в production-сборке). |
+| Ошибки сети / LLM | Текст перегрузки Gemini (503/429 и т.п.) в `Alert` нормализуется к короткому русскому сообщению, без сырого стектрейса SDK. |
 
 Из **`complete`** (`DialogCompleteEvent`) в UI и метаданные сообщения попадают как минимум:
 

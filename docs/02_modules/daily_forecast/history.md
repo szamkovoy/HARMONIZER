@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-09:** В **`DailyRecommendationCard`** строка отладки **`model: …`** под рекомендацией показывается только в **`__DEV__`** (раньше зависела от **`EXPO_PUBLIC_HARMONIZER_TEST_MODE`**).
 
 - **2026-05:** Канонический TTL персонального прогноза на основном пути расчёта привязан к **концу локального календарного дня** (`endOfForecastDateUtc` в `computeDailyForecast.ts`), а не к фиксированным 24 часам от момента ответа. Исторический PATCH по кэшу и локальному дню заархивирован: `docs/05_archive/migrated/daily_forecast/PATCH_3_forecast_cache_timezone.md`. Остаётся зазор с частью Edge-fallback (см. `open_questions.md`).
 

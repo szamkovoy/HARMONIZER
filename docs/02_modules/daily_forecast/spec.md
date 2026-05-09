@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 1.2
-updated: 2026-05-07
+version: 1.3
+updated: 2026-05-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -39,6 +39,7 @@ code_refs:
   - Локальный календарный день: `Intl` + `forecastDate` в IANA-зоне из профиля/геолокации.
   - Free: `fetchGlobalContent` + URL из `getAiGlobalContentUrl()`; premium/trial: `fetchDailyForecast` + `getDailyForecastUrl()` (Vercel `/api/astro/daily-forecast` или Supabase Function — определяется `communicatorConfig`).
   - Неполный ответ персонального режима: дообогащение через `callMonologue("morning_recommendation", …)` (`services/aiClient.ts`).
+  - **`DailyRecommendationCard`**: строка отладки `model: … · accessMode` под рекомендацией показывается только при **`__DEV__`** (не в production).
 
 ### Сервисы транспорта и кэша
 

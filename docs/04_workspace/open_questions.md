@@ -3,7 +3,7 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.15
+version: 1.16
 updated: 2026-05-09
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -35,10 +35,7 @@ code_refs: []
 - **Тема дня для практики vs топ-3 для утреннего монолога**  
 **Контекст:** `morning_recommendation` собирает три лепестка по `**ranked_planets` / importance** (`topPetals`), а `**choosePractice`** в `practiceSelection.ts` берёт чакру из `**planet_of_the_day**`. Это сознательное расхождение или временная асимметрия продукта — в коде не сведено.  
 **Действие:** решение заказчика: выровнять выбор чакры для стека практик с топ-1 лепестком, либо зафиксировать продуктовую модель «утро про три темы, практика про планету дня».
-- **`author_voice.json` (v2 в данных) и тип `AuthorVoiceProfile` в `_legacy_web/app/api/_utils/authorVoice.ts`**  
-**Контекст:** в `_legacy_web/data/author_voice.json` появились поля вроде **`usage_note`** и лексикона с **`openers_neutral` / `openers_observational`**, убраны блоки, на которые всё ещё опирается код (`**structural_patterns**`, **`somatic_language`**, единый ключ **`openers`** в `preferred_lexicon`).  
-**Проявление:** при вызове `getAuthorVoice` / `formatAuthorVoiceForPrompt` возможны обращения к `undefined` у массивов/строк или неверная подстановка голоса автора в промпты монолога и респондера.  
-**Действие:** обновить сборку текста и типы в `authorVoice.ts` под актуальный JSON (включая блок про `usage_note` при необходимости) либо временно выровнять структуру JSON под текущий код.
+
 ## `bindu`
 
 - После переноса источников в `docs/05_archive/migrated/bindu/` в репозитории остаются **устаревшие пути** в инвентарных файлах (например `docs/_audit.md`), где ещё перечислены `docs/meditation_video_generator_spec.md`, `docs/modules/bindu_succession_lab.md`, `docs/modules/visual_module_map.md`. Нужна отдельная правка аудита или ссылка на новый канон `docs/02_modules/bindu/`*, вне scope одной миграции модуля.

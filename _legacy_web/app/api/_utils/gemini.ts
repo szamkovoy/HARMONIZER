@@ -58,9 +58,35 @@ function resolvePublishedGeminiModelId(modelId: string): string {
   return INFORMAL_GEMINI_MODEL_IDS[lower] ?? trimmed;
 }
 
-export function getModelByHint(hint: string | null | undefined): string {
+/** Резолв основной premium-модели из env (без рекурсии в `getModelByHint`). */
+function resolvePrimaryPremiumModelId(): string | null {
+  const model = process.env.AI_MODEL_PREMIUM?.trim();
+  if (!model) return null;
+  return resolvePublishedGeminiModelId(model);
+}
+
+/**
+ * Подсказка tier из промпта или явное имя модели → id для Gemini API.
+ * При `options.fallback === true` — резервная модель из `AI_MODEL_*_FALLBACK` (см. `.env.example`).
+ */
+export function getModelByHint(hint: string | null | undefined, options?: { fallback?: boolean }): string {
   const rawHint = hint?.trim() ?? "";
   const tier = rawHint.toLowerCase();
+
+  if (options?.fallback) {
+    const premiumPrimary = resolvePrimaryPremiumModelId();
+    const usePremium =
+      tier === "premium" ||
+      (tier.startsWith("gemini-") && premiumPrimary != null && resolvePublishedGeminiModelId(rawHint) === premiumPrimary);
+    const model = usePremium ? process.env.AI_MODEL_PREMIUM_FALLBACK?.trim() : process.env.AI_MODEL_STANDARD_FALLBACK?.trim();
+    if (!model) {
+      throw new Error(
+        usePremium ? "Missing AI_MODEL_PREMIUM_FALLBACK environment variable" : "Missing AI_MODEL_STANDARD_FALLBACK environment variable",
+      );
+    }
+    return resolvePublishedGeminiModelId(model);
+  }
+
   if (tier.startsWith("gemini-")) {
     return resolvePublishedGeminiModelId(rawHint);
   }
@@ -73,10 +99,81 @@ export function getModelByHint(hint: string | null | undefined): string {
   return resolvePublishedGeminiModelId(model);
 }
 
-function modelChain(preferred?: string | null, fallbackModels?: readonly string[]): string[] {
+function overloadTierForPrimaryModel(primary: string): "standard" | "premium" {
+  const premiumPrimary = resolvePrimaryPremiumModelId();
+  if (premiumPrimary != null && primary === premiumPrimary) return "premium";
+  return "standard";
+}
+
+function isRetryableGeminiOverloadMessage(message: string): boolean {
+  return (
+    /\b503\b/i.test(message) ||
+    /service unavailable/i.test(message) ||
+    /high demand/i.test(message) ||
+    /\b429\b/i.test(message) ||
+    /rate_limit_exceeded/i.test(message) ||
+    /not\s*found/i.test(message) ||
+    /\b404\b/.test(message) ||
+    /\bNOT_FOUND\b/.test(message) ||
+    /\bUNAVAILABLE\b/i.test(message) ||
+    /overloaded/i.test(message) ||
+    /resource exhausted/i.test(message)
+  );
+}
+
+function overloadReasonSnippet(message: string): string {
+  const m = message.trim();
+  const status = m.match(/\b(429|503)\b/)?.[1];
+  if (status) return status;
+  if (/high demand/i.test(m)) return "high demand";
+  if (/RATE_LIMIT_EXCEEDED/i.test(m)) return "RATE_LIMIT_EXCEEDED";
+  if (/Service Unavailable/i.test(m)) return "Service Unavailable";
+  return "overload";
+}
+
+function geminiUserFacingUnavailableMessage(): string {
+  return "Сервис временно недоступен, попробуйте через минуту";
+}
+
+function isOverloadLikeForPublicMessage(message: string): boolean {
+  return (
+    /\b503\b/i.test(message) ||
+    /service unavailable/i.test(message) ||
+    /high demand/i.test(message) ||
+    /\b429\b/i.test(message) ||
+    /rate_limit_exceeded/i.test(message) ||
+    /\bUNAVAILABLE\b/i.test(message) ||
+    /overloaded/i.test(message) ||
+    /resource exhausted/i.test(message)
+  );
+}
+
+function throwFinalGeminiError(lastError: unknown): never {
+  const msg = lastError instanceof Error ? lastError.message : String(lastError);
+  if (isOverloadLikeForPublicMessage(msg)) {
+    throw new Error(geminiUserFacingUnavailableMessage());
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function geminiAttemptModelChain(preferred?: string | null, extraFallbacks?: readonly string[]): string[] {
   const primary = preferred?.trim() || getModelByHint("standard");
-  const fallbacks = fallbackModels?.length ? fallbackModels : [];
-  return [primary, ...fallbacks.filter((model) => model !== primary)];
+  const tier = overloadTierForPrimaryModel(primary);
+  let envFallback: string | undefined;
+  try {
+    const fb = getModelByHint(tier, { fallback: true });
+    if (fb !== primary) envFallback = fb;
+  } catch {
+    /* резервные модели в env не заданы — цепочка только из primary */
+  }
+  const tail = [...(envFallback ? [envFallback] : []), ...(extraFallbacks ?? [])];
+  const out: string[] = [];
+  for (const id of [primary, ...tail]) {
+    const trimmed = id?.trim();
+    if (!trimmed) continue;
+    if (!out.includes(trimmed)) out.push(trimmed);
+  }
+  return out;
 }
 
 function timeoutMs(): number {
@@ -217,8 +314,10 @@ export function extractJson(text: string): unknown {
 export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promise<{ json: T; rawText: string; modelUsed: string }> {
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
+  const chain = geminiAttemptModelChain(options.model, options.fallbackModels);
 
-  for (const modelId of modelChain(options.model, options.fallbackModels)) {
+  for (let i = 0; i < chain.length; i += 1) {
+    const modelId = chain[i]!;
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
@@ -234,19 +333,27 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = /404|429|503|not\s*found|NOT_FOUND|UNAVAILABLE|overloaded|Resource exhausted/i.test(message);
+      const retryable = isRetryableGeminiOverloadMessage(message);
       if (!retryable) break;
+      const next = chain[i + 1];
+      if (next) {
+        const reason = overloadReasonSnippet(message);
+        console.warn(`[GEMINI FALLBACK] Primary model ${modelId} returned ${reason}, retrying with ${next}`);
+      }
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Gemini generation failed");
+  if (lastError === undefined) throw new Error("Gemini generation failed");
+  throwFinalGeminiError(lastError);
 }
 
 export async function generateGeminiText(options: GenerateTextOptions): Promise<{ text: string; modelUsed: string }> {
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
+  const chain = geminiAttemptModelChain(options.model, options.fallbackModels);
 
-  for (const modelId of modelChain(options.model, options.fallbackModels)) {
+  for (let i = 0; i < chain.length; i += 1) {
+    const modelId = chain[i]!;
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
@@ -261,19 +368,27 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = /404|429|503|not\s*found|NOT_FOUND|UNAVAILABLE|overloaded|Resource exhausted/i.test(message);
+      const retryable = isRetryableGeminiOverloadMessage(message);
       if (!retryable) break;
+      const next = chain[i + 1];
+      if (next) {
+        const reason = overloadReasonSnippet(message);
+        console.warn(`[GEMINI FALLBACK] Primary model ${modelId} returned ${reason}, retrying with ${next}`);
+      }
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Gemini generation failed");
+  if (lastError === undefined) throw new Error("Gemini generation failed");
+  throwFinalGeminiError(lastError);
 }
 
 export async function* streamGeminiText(options: GenerateTextOptions): AsyncGenerator<{ text: string; modelUsed: string }> {
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
+  const chain = geminiAttemptModelChain(options.model, options.fallbackModels);
 
-  for (const modelId of modelChain(options.model, options.fallbackModels)) {
+  for (let i = 0; i < chain.length; i += 1) {
+    const modelId = chain[i]!;
     try {
       const model = genAI.getGenerativeModel({
         model: modelId,
@@ -292,10 +407,16 @@ export async function* streamGeminiText(options: GenerateTextOptions): AsyncGene
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = /404|429|503|not\s*found|NOT_FOUND|UNAVAILABLE|overloaded|Resource exhausted/i.test(message);
+      const retryable = isRetryableGeminiOverloadMessage(message);
       if (!retryable) break;
+      const next = chain[i + 1];
+      if (next) {
+        const reason = overloadReasonSnippet(message);
+        console.warn(`[GEMINI FALLBACK] Primary model ${modelId} returned ${reason}, retrying with ${next}`);
+      }
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Gemini streaming failed");
+  if (lastError === undefined) throw new Error("Gemini streaming failed");
+  throwFinalGeminiError(lastError);
 }

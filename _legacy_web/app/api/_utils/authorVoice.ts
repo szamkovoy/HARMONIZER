@@ -4,9 +4,10 @@ type SupportedLanguage = "ru" | "en";
 
 export interface AuthorVoiceProfile {
   archetype: string;
-  structural_patterns: string[];
+  usage_note: string;
   preferred_lexicon: {
-    openers: string[];
+    openers_neutral: string[];
+    openers_observational: string[];
     transition_phrases: string[];
     state_words: string[];
     metaphor_seeds: string[];
@@ -14,7 +15,6 @@ export interface AuthorVoiceProfile {
   };
   forbidden: string[];
   rhythm_rules: string[];
-  somatic_language: string[];
   core_value: string;
   few_shot_examples: Array<{
     user_says: string;
@@ -23,6 +23,19 @@ export interface AuthorVoiceProfile {
     why: string;
   }>;
 }
+
+type AuthorVoiceJson = {
+  version: number;
+  archetype: Record<SupportedLanguage, string>;
+  usage_note: Record<SupportedLanguage, string>;
+  preferred_lexicon: Record<SupportedLanguage, AuthorVoiceProfile["preferred_lexicon"]>;
+  forbidden: Record<SupportedLanguage, string[]>;
+  rhythm_rules: Record<SupportedLanguage, string[]>;
+  core_value: Record<SupportedLanguage, string>;
+  few_shot_examples: AuthorVoiceProfile["few_shot_examples"];
+};
+
+const data = authorVoiceData as AuthorVoiceJson;
 
 function normalizeLanguage(language: string | null | undefined): SupportedLanguage {
   const normalized = language?.trim().toLowerCase() ?? "";
@@ -34,14 +47,13 @@ export function getAuthorVoice(language: string | null | undefined): AuthorVoice
   const lang = normalizeLanguage(language);
 
   return {
-    archetype: authorVoiceData.archetype[lang],
-    structural_patterns: authorVoiceData.structural_patterns[lang],
-    preferred_lexicon: authorVoiceData.preferred_lexicon[lang],
-    forbidden: authorVoiceData.forbidden[lang],
-    rhythm_rules: authorVoiceData.rhythm_rules[lang],
-    somatic_language: authorVoiceData.somatic_language[lang],
-    core_value: authorVoiceData.core_value[lang],
-    few_shot_examples: authorVoiceData.few_shot_examples,
+    archetype: data.archetype[lang],
+    usage_note: data.usage_note[lang],
+    preferred_lexicon: data.preferred_lexicon[lang],
+    forbidden: data.forbidden[lang],
+    rhythm_rules: data.rhythm_rules[lang],
+    core_value: data.core_value[lang],
+    few_shot_examples: data.few_shot_examples,
   };
 }
 
@@ -62,14 +74,15 @@ export function formatAuthorVoiceForPrompt(voice: AuthorVoiceProfile, addressFor
 === АРХЕТИП ===
 ${voice.archetype}
 
+=== ПРИМЕЧАНИЕ К ПРОФИЛЮ ===
+${voice.usage_note}
+
 === ЦЕННОСТЬ В ОСНОВЕ ===
 ${voice.core_value}
 
-=== СТРУКТУРНЫЕ ПАТТЕРНЫ РЕЧИ ===
-${voice.structural_patterns.map((pattern) => `• ${pattern}`).join("\n")}
-
 === ЛЮБИМЫЕ ОБОРОТЫ ===
-Зачины: ${voice.preferred_lexicon.openers.join(", ")}
+Зачины (нейтральные): ${voice.preferred_lexicon.openers_neutral.join(", ")}
+Зачины (наблюдательные): ${voice.preferred_lexicon.openers_observational.join(", ")}
 Переходы: ${voice.preferred_lexicon.transition_phrases.join(", ")}
 Слова состояний: ${voice.preferred_lexicon.state_words.join(", ")}
 Семена метафор: ${voice.preferred_lexicon.metaphor_seeds.join(", ")}
@@ -77,9 +90,6 @@ ${voice.structural_patterns.map((pattern) => `• ${pattern}`).join("\n")}
 
 === РИТМ ===
 ${voice.rhythm_rules.map((rule) => `• ${rule}`).join("\n")}
-
-=== ТЕЛЕСНЫЙ ЯЗЫК ===
-${voice.somatic_language.map((item) => `• ${item}`).join("\n")}
 
 === ЗАПРЕЩЕНО ===
 ${voice.forbidden.map((item) => `❌ ${item}`).join("\n")}

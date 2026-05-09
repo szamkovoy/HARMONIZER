@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/spec
 title: Assistant Spec
-version: 1.3
+version: 1.5
 updated: 2026-05-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/scenarios.ts, _legacy_web/app/api/_utils/prompts.ts, _legacy_web/app/api/_utils/orchestrator.ts, _legacy_web/app/api/_utils/insightDetection.ts, _legacy_web/app/api/_utils/authorVoice.ts, _legacy_web/app/api/_utils/topPetals.ts, _legacy_web/app/api/_utils/mathLevelBuilder.ts, _legacy_web/app/api/_utils/userModelTier.ts, _legacy_web/app/api/_utils/scenarioCache.ts, _legacy_web/app/api/_utils/explicitSignals.ts, _legacy_web/app/api/_utils/softCap.ts, _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts, _legacy_web/config/contentLengths.ts, services/aiClient.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260509120000_dialog_quality_v4.sql]
@@ -68,7 +68,7 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 | **`orchestrator.ts`** | Эвристики времени суток, bypass первого хода, similarity-кеш решений, валидация JSON решения. |
 | **`insightDetection.ts`** | CSI, детектор «инсайта», TTM-стадия по маркерам, валентность, ETV. |
 | **`practiceSelection.ts`** | Загрузка практик из БД, фильтры по намерению пользователя, **`recentStackLimitForKind`**, маркер **`[PRACTICE_PICK: …]`**, статический fallback медитации «Вспышка». |
-| **`authorVoice.ts` + `data/author_voice.json`** | Профиль голоса для подстановки в респондер и монологи. |
+| **`authorVoice.ts` + `data/author_voice.json` (v2)** | Профиль голоса: `archetype`, `usage_note`, `preferred_lexicon` (в т.ч. `openers_neutral` / `openers_observational`), `forbidden`, `rhythm_rules`, `core_value`, `few_shot_examples`; подстановка в респондер и монологи через **`formatAuthorVoiceForPrompt`**. |
 | **`topPetals.ts` / `mathLevelBuilder.ts`** | Сбор топ-планет из прогноза и сборка **`math_level`** для утреннего монолога (формулы активации импортируют `daily-engine`). |
 | **`userModelTier.ts`** | `dialogSurfaceModelHint` — для платного доступа поверхностный поток на `"premium"`, иначе подсказка из промпта / `"standard"`. |
 | **`scenarioCache.ts`** | Ключ кеша по стратегии сценария. |
@@ -82,7 +82,7 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 - **`_legacy_web/config/contentLengths.ts`** — целевые длины слогана, короткого и длинного текста, портрета.
 - **Переменные окружения (диалог):** `DIALOG_GREETING_BYPASS_ENABLED`, `DIALOG_DECISION_CACHE_ENABLED`, `DIALOG_DECISION_CACHE_MIN_ITERATION`, `DIALOG_DECISION_CACHE_THRESHOLD` — bypass первого хода и кеш решений оркестратора.
 - **Переменные окружения (soft cap, читает `softCap.ts`):** `DIALOG_SOFT_CAP_CALIBRATION`; для сценария `daily_dialog` — `DIALOG_SOFT_CAP_DAILY_FREE`, `DIALOG_SOFT_CAP_DAILY_TRIAL`, `DIALOG_SOFT_CAP_DAILY_PREMIUM`. При невалидном или пустом значении — fallback из `information_axes.json` (`calibration.soft_cap` / `daily_dialog.soft_cap`).
-- **Gemini:** модели через **`getModelByHint`** из `model_hint` промпта; оркестратор обычно остаётся на подсказке промпта (`standard`), респондер для премиум-пользователя принудительно **`premium`** поверх `dialogSurfaceModelHint`.
+- **Gemini:** модели через **`getModelByHint`** из `model_hint` промпта; опционально **`getModelByHint(..., { fallback: true })`** читает `AI_MODEL_STANDARD_FALLBACK` / `AI_MODEL_PREMIUM_FALLBACK`. Вызовы `generateGeminiJson` / `generateGeminiText` / `streamGeminiText` автоматически повторяют запрос на резервной модели при 503/429 и аналогах перегрузки (один шаг на запрос, без уведомления пользователя); при повторном сбое клиенту отдаётся короткое сообщение «Сервис временно недоступен…». Оркестратор обычно остаётся на подсказке промпта (`standard`), респондер для премиум-пользователя принудительно **`premium`** поверх `dialogSurfaceModelHint`.
 - **БД:** сиды и миграции задают строки `prompts`, `dialogue_phases`, `scenarios` (в т.ч. PATCH по фазам и монологам). Миграция **`20260509120000_dialog_quality_v4.sql`** переключает активные версии **`responder_main`**, **`orchestrator_decision`** и ряда **`phase_*`** для `daily_dialog`. Тексты промптов в каноне — в БД и миграциях, не дублировать в документе.
 
 ## 5. Известные ограничения
