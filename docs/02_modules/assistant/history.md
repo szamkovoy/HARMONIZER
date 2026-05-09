@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql]
 ---
 
 ## Decision Log
+
+- **2026-05-09:** Добавлены утилиты **`_legacy_web/app/api/_utils/explicitSignals.ts`** (разбор фраз из **`dialog_signals.json`**) и **`softCap.ts`** (лимиты **`getSoftCap`** по сценарию и тарифу через env и **`information_axes.json`**). Вызовы из маршрута диалога в том же изменении не показаны — статус интеграции см. **`docs/04_workspace/open_questions.md`** (раздел `assistant`).
 
 - **2026-05-08:** В **`/api/communicator/v2/dialog`** для стрима ответа респондера задан нижний предел **`maxOutputTokens` = 2048** (поверх значения из `prompts`), чтобы реже обрывать длинные реплики по лимиту вывода модели.
 
