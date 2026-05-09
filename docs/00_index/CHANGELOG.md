@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 1.4
+version: 1.5
 updated: 2026-05-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-09: pre-push diff (**`gemini.ts`**, **`authorVoice.ts`**, клиент): в **`docs/02_modules/assistant/spec.md`** уточнены цепочка моделей (primary→env fallback→`fallbackModels`), условия повтора (в т.ч. **404**/NOT_FOUND), лог **`[GEMINI FALLBACK]`**, разделение финального сообщения пользователю vs проброс ошибки; в профиле автора — поля **`assistant_should_NOT_say`** в **`few_shot_examples`**; в **`code_refs`** — **`gemini.ts`**. Запись в **`docs/02_modules/assistant/history.md`**.
 - 2026-05-09: pre-push diff: диалог v2 — интеграция **`explicitSignals`** / **`softCap`**, метрики ходов, расширение **`OrchestratorDecision`** и рендера **`responder_main`**; миграция **`20260509120000_dialog_quality_v4.sql`**. Обновлены **`docs/02_modules/assistant/spec.md`**, **`history.md`**, **`dependencies.md`**, **`docs/00_index/MAP.md`**; из **`docs/04_workspace/open_questions.md`** удалён устаревший пункт про отсутствие вызова **`detectExplicitSignals`** из маршрута.
 - 2026-05-09: **`authorVoice.ts`** и тесты приведены к **`author_voice.json` v2** (`usage_note`, два массива зачинов, без `structural_patterns` / `somatic_language`); пункт рассинхрона убран из **`docs/04_workspace/open_questions.md`**.
 - 2026-05-09: **`gemini.ts`**: env **`AI_MODEL_STANDARD_FALLBACK`** / **`AI_MODEL_PREMIUM_FALLBACK`**, автоповтор при перегрузке Gemini, человекочитаемая ошибка после исчерпания попыток; **`Communicator`** / **`DailyRecommendationCard`**: отладочная подпись модели только в **`__DEV__`**, нормализация текста ошибки перегрузки в **`Alert`**. Обновлены **`docs/02_modules/{assistant,communicator,daily_forecast,infra}`**, **`.env.example`**, **`DEPLOY.md`**.
