@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
-# dgfdgfdgdfgdfg
 type GenerateJsonOptions = {
   prompt: string;
   model?: string | null;
