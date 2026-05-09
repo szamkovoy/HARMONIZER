@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 1.0
-updated: 2026-05-08
+version: 1.1
+updated: 2026-05-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-09: pre-push diff: обновления `_legacy_web/data/author_voice.json`, `chakra_states_baseline.json`, новый `dialog_signals.json`, косметика `gemini.ts` — в **`docs/04_workspace/open_questions.md`** (раздел `assistant`) зафиксированы рассинхрон голоса автора с `authorVoice.ts` и отсутствие потребителей у `dialog_signals.json`.
 - 2026-05-08: docs-sync перенесён на GitHub Actions; локальный post-commit оставлен как fallback.
 - 2026-05-08: docs-sync переведён с pre-push на post-commit hook.
 - 2026-05-08: pre-push docs-sync: cursor-agent аутентифицируется через CURSOR_API_KEY из .env.local; устраняет EPERM при push изнутри Cursor IDE.
