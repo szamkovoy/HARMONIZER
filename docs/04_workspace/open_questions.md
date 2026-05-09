@@ -3,7 +3,7 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.14
+version: 1.15
 updated: 2026-05-09
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -39,11 +39,6 @@ code_refs: []
 **Контекст:** в `_legacy_web/data/author_voice.json` появились поля вроде **`usage_note`** и лексикона с **`openers_neutral` / `openers_observational`**, убраны блоки, на которые всё ещё опирается код (`**structural_patterns**`, **`somatic_language`**, единый ключ **`openers`** в `preferred_lexicon`).  
 **Проявление:** при вызове `getAuthorVoice` / `formatAuthorVoiceForPrompt` возможны обращения к `undefined` у массивов/строк или неверная подстановка голоса автора в промпты монолога и респондера.  
 **Действие:** обновить сборку текста и типы в `authorVoice.ts` под актуальный JSON (включая блок про `usage_note` при необходимости) либо временно выровнять структуру JSON под текущий код.
-- **`explicitSignals.ts` импортирует `dialog_signals.json`, но вызов не интегрирован в маршрут диалога**  
-**Контекст:** **`_legacy_web/app/api/_utils/explicitSignals.ts`** импортирует **`_legacy_web/data/dialog_signals.json`** и экспортирует **`detectExplicitSignals`**; по репозиторию нет вызовов этой функции из **`dialog/route.ts`**, оркестратора или смежных утилит решения.  
-**Проявление:** лексика сигналов пока не влияет на решение оркестратора и промпты до явного подключения.  
-**Действие:** вызвать **`detectExplicitSignals`** в контур диалога (промпт / эвристики / метаданные сообщения) либо не использовать до готовности.
-
 ## `bindu`
 
 - После переноса источников в `docs/05_archive/migrated/bindu/` в репозитории остаются **устаревшие пути** в инвентарных файлах (например `docs/_audit.md`), где ещё перечислены `docs/meditation_video_generator_spec.md`, `docs/modules/bindu_succession_lab.md`, `docs/modules/visual_module_map.md`. Нужна отдельная правка аудита или ссылка на новый канон `docs/02_modules/bindu/`*, вне scope одной миграции модуля.

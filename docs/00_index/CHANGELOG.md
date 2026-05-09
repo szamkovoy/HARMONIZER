@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 1.2
+version: 1.3
 updated: 2026-05-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-09: pre-push diff: диалог v2 — интеграция **`explicitSignals`** / **`softCap`**, метрики ходов, расширение **`OrchestratorDecision`** и рендера **`responder_main`**; миграция **`20260509120000_dialog_quality_v4.sql`**. Обновлены **`docs/02_modules/assistant/spec.md`**, **`history.md`**, **`dependencies.md`**, **`docs/00_index/MAP.md`**; из **`docs/04_workspace/open_questions.md`** удалён устаревший пункт про отсутствие вызова **`detectExplicitSignals`** из маршрута.
 - 2026-05-09: pre-push diff: новые **`_legacy_web/app/api/_utils/explicitSignals.ts`** и **`softCap.ts`** — обновлены **`docs/02_modules/assistant/spec.md`** (архитектура, env soft cap), **`history.md`**, **`docs/00_index/MAP.md`**; в **`docs/04_workspace/open_questions.md`** уточнён пункт про **`dialog_signals.json`** (есть импорт в утилите, нет вызова из маршрута диалога).
 - 2026-05-09: pre-push diff: обновления `_legacy_web/data/author_voice.json`, `chakra_states_baseline.json`, новый `dialog_signals.json`, косметика `gemini.ts` — в **`docs/04_workspace/open_questions.md`** (раздел `assistant`) зафиксированы рассинхрон голоса автора с `authorVoice.ts` и отсутствие потребителей у `dialog_signals.json`.
 - 2026-05-08: docs-sync перенесён на GitHub Actions; локальный post-commit оставлен как fallback.

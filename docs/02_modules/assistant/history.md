@@ -1,15 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 1.2
+version: 1.3
 updated: 2026-05-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql]
+code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260509120000_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
-- **2026-05-09:** Добавлены утилиты **`_legacy_web/app/api/_utils/explicitSignals.ts`** (разбор фраз из **`dialog_signals.json`**) и **`softCap.ts`** (лимиты **`getSoftCap`** по сценарию и тарифу через env и **`information_axes.json`**). Вызовы из маршрута диалога в том же изменении не показаны — статус интеграции см. **`docs/04_workspace/open_questions.md`** (раздел `assistant`).
+- **2026-05-09:** Добавлены утилиты **`explicitSignals.ts`** / **`softCap.ts`**; в **`communicator/v2/dialog`** интегрированы **`detectExplicitSignals`** (подстановка **`explicit_signals_json`** в оркестратор), **`getSoftCap`** в payload осей и в промпт, метрики ходов для оркестратора и бюджетов астрологии/чакр, расширенный рендер **`responder_main`**. В **`orchestrator.ts`**: поле **`user_register`**, расширенные **`responder_hints`**, нормализация подсказок из сырого JSON. Миграция **`20260509120000_dialog_quality_v4.sql`** — новые активные версии **`responder_main`**, **`orchestrator_decision`**, **`phase_collect_state`**, **`phase_deepen_inquiry`**, **`phase_offer_insight`**, **`phase_contextual_greeting`**.
 
 - **2026-05-08:** В **`/api/communicator/v2/dialog`** для стрима ответа респондера задан нижний предел **`maxOutputTokens` = 2048** (поверх значения из `prompts`), чтобы реже обрывать длинные реплики по лимиту вывода модели.
 
