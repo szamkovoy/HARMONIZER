@@ -160,13 +160,14 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
           toValue: 1,
           duration: 7200,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          /* opacity родителя + Image.cover: при true на iOS/Fabric возможен неверный scale (виден лишь край). */
+          useNativeDriver: false,
         }),
         Animated.timing(logoBreath, {
           toValue: 0,
           duration: 7200,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
     );
@@ -235,9 +236,18 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
 
   return (
     <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.overlay, { opacity }]}>
-      {/* Полный кадр как expo.splash (resizeMode: cover) — без смены композиции при hide native splash */}
-      <Animated.View style={[styles.splashImageWrap, { opacity: logoOpacity }]}>
-        <Image source={splashImage} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+      {/* Полный кадр как expo.splash (resizeMode: cover): явные размеры экрана — надёжнее, чем absoluteFill для cover */}
+      <Animated.View
+        style={[
+          styles.splashImageWrap,
+          {
+            width: winW,
+            height: winH,
+            opacity: logoOpacity,
+          },
+        ]}
+      >
+        <Image source={splashImage} style={{ width: winW, height: winH }} resizeMode="cover" />
         <Animated.View
           pointerEvents="none"
           style={[
@@ -363,7 +373,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   splashImageWrap: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    left: 0,
+    top: 0,
     overflow: "hidden",
   },
   shimmerStripe: {
