@@ -6,7 +6,6 @@ import planetChakraMap from "@/data/planet_chakra_map.json";
 import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS } from "@legacy/app/api/_utils/dialogArcOrchestrator";
 import { getMaxDialogLength } from "@legacy/app/api/_utils/dialogConfig";
 import {
-  ensureDialogCache,
   generateGeminiText,
   getModelByHint,
   streamGeminiText,
@@ -47,6 +46,7 @@ type Body = {
   triggerMeta?: Record<string, unknown>;
   userMessage?: string;
   userTimezone?: string;
+  initiateDialog?: boolean;
 };
 
 type Planet = keyof typeof chakraStatesBaseline;
@@ -486,8 +486,9 @@ export async function POST(req: Request) {
     warnDeprecatedDialogRoute(req);
     userId = await requireUserId(req);
     const body = (await req.json()) as Body;
-    const userMessage = String(body.userMessage ?? "").trim();
-    if (!userMessage) return json({ error: "userMessage is required" }, { status: 400 });
+    const isInitiate = Boolean(body.initiateDialog);
+    const userMessage = isInitiate ? "" : String(body.userMessage ?? "").trim();
+    if (!isInitiate && !userMessage) return json({ error: "userMessage is required" }, { status: 400 });
 
     db = createServiceSupabase();
     const { useCase, scenarioId } = await resolveDialogueScenario(db, body);
@@ -520,18 +521,35 @@ export async function POST(req: Request) {
     const turnDecision = decideTurnMode(history, iteration, maxDialogLength);
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
 
-    await db.from("messages").insert({
-      user_id: userId,
-      conversation_id: conversation.id,
-      role: "user",
-      content: userMessage,
-      content_type: "text",
-      meta: { use_case: useCase, scenario_id: scenarioId },
-    });
+    console.log("[DIALOG_V3_DIAG]", JSON.stringify({
+      conversationId: conversation.id,
+      isInitiate,
+      historyLength: history.length,
+      iteration,
+      maxDialogLength,
+      turnMode: turnDecision.mode,
+      turnModelTier: turnDecision.modelTier,
+      promptKey: systemPromptRecord.prompt_key,
+      promptVersion: systemPromptRecord.version,
+      systemInstructionFirst200: systemPromptData.systemInstruction.slice(0, 200),
+      userMessage: isInitiate ? "(none)" : userMessage.slice(0, 100),
+    }));
+
+    if (!isInitiate) {
+      await db.from("messages").insert({
+        user_id: userId,
+        conversation_id: conversation.id,
+        role: "user",
+        content: userMessage,
+        content_type: "text",
+        meta: { use_case: useCase, scenario_id: scenarioId },
+      });
+    }
 
     const baseHistory = mapHistoryToGemini(history);
-    const userContent: GeminiContent = { role: "user", parts: [{ text: userMessage }] };
-    const prefixContents = [...baseHistory, userContent];
+    const prefixContents = isInitiate
+      ? [...baseHistory]
+      : [...baseHistory, { role: "user", parts: [{ text: userMessage }] } as GeminiContent];
     const routeDb = db;
     const routeUserId = userId;
     const encoder = new TextEncoder();
@@ -546,12 +564,6 @@ export async function POST(req: Request) {
           const requestedModel = turnDecision.modelTier === "premium" ? premiumModel : standardModel;
           const initialInstruction: GeminiContent = { role: "user", parts: [{ text: turnDecision.instruction }] };
           const initialContents = [...prefixContents, initialInstruction];
-          const initialCache = await ensureDialogCache(
-            conversation.id,
-            systemPromptData.systemInstruction,
-            prefixContents,
-            requestedModel,
-          );
 
           let fullText = "";
           let modelIdUsed = requestedModel;
@@ -561,10 +573,10 @@ export async function POST(req: Request) {
           let validation: ValidationResult | null = null;
 
           if (turnDecision.modelTier === "premium") {
+            console.log(`[PREMIUM_CALL] turnMode=${turnDecision.mode} iteration=${iteration} historyLen=${history.length} systemPromptLen=${systemPromptData.systemInstruction.length} promptKey=${systemPromptRecord.prompt_key}`);
             for await (const chunk of streamGeminiText({
               systemInstruction: systemPromptData.systemInstruction,
               contents: initialContents,
-              cachedContent: initialCache ?? undefined,
               model: requestedModel,
               temperature: 0.85,
               maxOutputTokens: 1500,
@@ -573,16 +585,23 @@ export async function POST(req: Request) {
               fullText += chunk.text;
               controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
             }
+            console.log("[DIALOG_V3_DIAG] premium stream done, fullText.length=", fullText.length);
           } else {
+            console.log("[DIALOG_V3_DIAG] standard path: generating with model", requestedModel);
             const standardResponse = await generateGeminiText({
               systemInstruction: systemPromptData.systemInstruction,
               contents: initialContents,
-              cachedContent: initialCache ?? undefined,
               model: requestedModel,
               temperature: 0.85,
               maxOutputTokens: 1500,
             });
             modelIdUsed = standardResponse.modelUsed;
+            console.log("[DIALOG_V3_DIAG] standard response:", JSON.stringify({
+              modelUsed: standardResponse.modelUsed,
+              textLength: standardResponse.text.length,
+              first200: standardResponse.text.slice(0, 200),
+              hasReadyMarker: containsReadyMarker(standardResponse.text),
+            }));
             if (!containsReadyMarker(standardResponse.text)) {
               fullText = standardResponse.text;
             } else {
@@ -594,17 +613,9 @@ export async function POST(req: Request) {
               responseMode = validation.confident ? "final_recommendation" : "final_recommendation_with_validation_warning";
               modelTierUsed = "premium";
               const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
-              const premiumContents = [...prefixContents, finalInstruction];
-              const premiumCache = await ensureDialogCache(
-                conversation.id,
-                systemPromptData.systemInstruction,
-                prefixContents,
-                premiumModel,
-              );
               for await (const chunk of streamGeminiText({
                 systemInstruction: systemPromptData.systemInstruction,
-                contents: premiumContents,
-                cachedContent: premiumCache ?? undefined,
+                contents: [...prefixContents, finalInstruction],
                 model: premiumModel,
                 temperature: 0.85,
                 maxOutputTokens: 1500,
@@ -616,8 +627,15 @@ export async function POST(req: Request) {
             }
           }
 
+          console.log("[DIALOG_V3_DIAG] before sanitize:", JSON.stringify({
+            fullTextLength: fullText.length,
+            fullTextFirst200: fullText.slice(0, 200),
+            readyMarkerTriggered,
+            modelTierUsed,
+          }));
           const markers = parseResponseMarkers(fullText);
           const cleanText = sanitizeAssistantText(fullText, context.user.locale);
+          console.log("[DIALOG_V3_DIAG] after sanitize: cleanText.length=", cleanText.length);
           const finalPracticePublic = await resolvePracticePublic(
             routeDb,
             routeUserId,
@@ -688,6 +706,7 @@ export async function POST(req: Request) {
           );
           controller.close();
         } catch (error) {
+          console.error("[DIALOG_V3_DIAG] STREAM ERROR:", error instanceof Error ? error.message : String(error), error instanceof Error ? error.stack : "");
           await reportRouteError(error, {
             db: routeDb,
             userId: routeUserId,

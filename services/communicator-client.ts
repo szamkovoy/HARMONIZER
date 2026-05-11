@@ -54,6 +54,7 @@ export interface SendDialogMessageParams {
   triggerMeta?: Record<string, unknown>;
   userMessage: string;
   userTimezone: string;
+  initiateDialog?: boolean;
   signal?: AbortSignal;
   onOrchestratorDecision?: (decision: OrchestratorDecision) => void;
   onChunk?: (text: string) => void;
@@ -262,8 +263,9 @@ export async function sendDialogMessage(params: SendDialogMessageParams): Promis
         useCase: params.useCase,
         entrySource: params.entrySource,
         triggerMeta: params.triggerMeta ?? {},
-        userMessage: params.userMessage,
+        userMessage: params.initiateDialog ? undefined : params.userMessage,
         userTimezone: params.userTimezone,
+        ...(params.initiateDialog ? { initiateDialog: true } : {}),
       }),
       signal: params.signal,
     });

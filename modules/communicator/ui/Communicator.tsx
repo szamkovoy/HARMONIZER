@@ -89,18 +89,15 @@ function newMessageId(): string {
   return `m-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-/** Итоговый текст: не подменяем более длинный агрегат SSE более коротким `complete.fullText`. */
+/**
+ * Итоговый текст: `complete.fullText` приходит уже sanitized (без маркеров),
+ * поэтому он авторитетнее агрегата SSE-чанков (raw, содержит маркеры).
+ * Используем SSE-агрегат только если `complete.fullText` пуст.
+ */
 function resolveAssistantReplyText(streamed: string, completeFullText: string | undefined): string {
-  const raw = streamed ?? "";
-  const fin = completeFullText ?? "";
-  const rawT = raw.trim();
-  const finT = fin.trim();
-  if (!rawT && !finT) return "";
-  if (!rawT) return fin.trimEnd();
-  if (!finT) return raw.trimEnd();
-  if (finT.length > rawT.length) return fin.trimEnd();
-  if (rawT.length > finT.length) return raw.trimEnd();
-  return fin.trimEnd();
+  const fin = (completeFullText ?? "").trim();
+  if (fin) return fin;
+  return (streamed ?? "").trim();
 }
 
 function ensureIds(
@@ -111,6 +108,32 @@ function ensureIds(
     ...m,
     id: m.id || newMessageId(),
   }));
+}
+
+/**
+ * Server stores meta in snake_case (turn_mode, model_used, model_id),
+ * but in-session messages use camelCase (turnMode, modelTier, modelUsed).
+ * This normalizes both conventions into the camelCase shape the client expects.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
+  if (!raw) return undefined;
+  const insightMetrics = raw.insightMetrics ?? raw.insight_metrics;
+  return {
+    turnMode: raw.turnMode ?? raw.turn_mode,
+    modelTier: raw.modelTier ?? raw.model_used,
+    modelUsed: raw.modelUsed ?? raw.model_id,
+    iteration: raw.iteration,
+    insightMetrics,
+    csi: raw.csi ?? insightMetrics?.csi,
+    practicePicked: raw.practicePicked ?? raw.practice_picked,
+    readyMarkerTriggered: raw.readyMarkerTriggered ?? raw.ready_marker_triggered,
+    validation: raw.validation,
+    shouldClose: raw.shouldClose ?? raw.should_close,
+    recommendationCorrected: raw.recommendationCorrected ?? raw.recommendation_corrected,
+    orchestratorDecision: raw.orchestratorDecision ?? raw.orchestrator_decision,
+    isAutoTrigger: raw.isAutoTrigger ?? raw.is_auto_trigger,
+  };
 }
 
 function parseIntParam(value: string | undefined): number | undefined {
@@ -437,7 +460,6 @@ export function Communicator({
   conversationId,
   history,
   memoryWindow,
-  autoSendInitialMessage,
   onEmotionSegment,
   onMessage,
   onPracticePicked,
@@ -592,7 +614,7 @@ export function Communicator({
                   role: message.role,
                   content: message.content,
                   createdAt: message.createdAt,
-                  meta: message.meta,
+                  meta: normalizeMessageMeta(message.meta),
                 })),
                 memoryWindow,
               ),
@@ -825,25 +847,82 @@ export function Communicator({
   }, [abortChatStream, onAbort, resetChatStream]);
 
   /**
-   * Автоматическая отправка первого сообщения при монтировании компонента.
-   * См. проп `autoSendInitialMessage`. Ref-guard защищает от повторной
-   * отправки при StrictMode-двойном ране эффекта или при смене пропа —
-   * «первое» должно остаться ровно одним.
+   * Initiate dialog: when the session is new (empty), request the
+   * orchestrator's opening message from the server without sending
+   * any user-message. The server receives `initiateDialog: true` and
+   * generates opening using dialog_system_v3 context alone.
    */
-  const autoSendFiredRef = useRef(false);
+  const initiateFiredRef = useRef(false);
   useEffect(() => {
-    if (autoSendFiredRef.current) return;
+    if (initiateFiredRef.current) return;
     if (!sessionSynced) return;
-    const text = autoSendInitialMessage?.trim();
-    if (!text) return;
-    autoSendFiredRef.current = true;
-    // Небольшая задержка: даём UI смонтироваться, чтобы пользователь видел,
-    // как сообщение появляется «естественно», а не мгновенно
-    const h = setTimeout(() => {
-      void runStream({ type: "text", text });
-    }, 120);
+    if (messages.length > 0) return;
+    initiateFiredRef.current = true;
+
+    const doInitiate = async () => {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const result = await runChatStream({
+          conversationId: activeConversationId,
+          useCase,
+          entrySource,
+          triggerMeta: {
+            systemPrompt,
+            ...(triggerMeta ?? {}),
+          },
+          userMessage: "__initiate__",
+          userTimezone: timezone,
+          initiateDialog: true,
+        });
+        if (result == null) return;
+        const complete = result.complete;
+        if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+        const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
+        const assistant: CommunicatorHistoryMessage = {
+          id: complete?.messageId ?? newMessageId(),
+          role: "assistant",
+          content: mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback,
+          createdAt: Date.now(),
+          meta: {
+            orchestratorDecision: result.decision,
+            turnMode: complete?.turnMode,
+            modelTier: complete?.modelTier,
+            modelUsed: complete?.modelUsed,
+            iteration: complete?.iteration,
+            readyMarkerTriggered: complete?.readyMarkerTriggered,
+            validation: complete?.validation,
+            insightMetrics: complete?.insightMetrics,
+            csi: complete?.insightMetrics?.csi,
+            practicePicked: complete?.practicePicked,
+            shouldClose: complete?.shouldClose,
+            recommendationCorrected: complete?.recommendationCorrected,
+          },
+        };
+        setMessages([assistant]);
+        onMessage?.(assistant);
+        resetChatStream();
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        reportError(err);
+      }
+    };
+
+    const h = setTimeout(() => void doInitiate(), 120);
     return () => clearTimeout(h);
-  }, [autoSendInitialMessage, runStream, sessionSynced]);
+  }, [
+    sessionSynced,
+    messages.length,
+    activeConversationId,
+    entrySource,
+    onMessage,
+    reportError,
+    resetChatStream,
+    runChatStream,
+    systemPrompt,
+    triggerMeta,
+    useCase,
+    strings.emptyAssistantReplyFallback,
+  ]);
 
   const resetRecordingAudioMode = useCallback(async () => {
     try {
@@ -1253,6 +1332,7 @@ export function Communicator({
             ? (message.meta?.insightMetrics as { etv: number }).etv
             : null,
           model_used: typeof message.meta?.modelTier === "string" ? message.meta.modelTier : null,
+          model_id: typeof message.meta?.modelUsed === "string" ? message.meta.modelUsed : null,
           iteration: typeof message.meta?.iteration === "number" ? message.meta.iteration : null,
           latency_ms: null,
           complete_text_chars: message.content.length,

@@ -1,7 +1,6 @@
 import { useAuth } from "@/modules/auth";
 import { DevTierSwitch as AccessDevTierSwitch, UpgradeDialog, accessModeForTier, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
-import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/types";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
@@ -428,32 +427,6 @@ function CommunicatorOverlay({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const initialAssistantMessage = useMemo<CommunicatorHistoryMessage>(() => {
-    const hour = new Date().getHours();
-    const greeting = hour >= 5 && hour < 11 ? "Доброе утро" : hour >= 11 && hour < 17 ? "Добрый день" : hour >= 17 && hour < 22 ? "Добрый вечер" : "Доброй ночи";
-    const headline = forecast.slogan?.trim() || strings.daySlogan(forecast);
-    const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
-    const recommendation = forecast.recommendationShortText?.trim();
-    return {
-      id: `daily-opening-${forecast.date}-${forecast.planetOfTheDay}`,
-      role: "assistant",
-      createdAt: Date.now(),
-      content: recommendation
-        ? `${greeting}. Сегодняшний фокус: «${headline}». Тон дня ${tone}; рекомендация уже есть, а здесь можно перевести её в живую ситуацию, без технического языка. Где это сейчас сильнее отзывается — в теле, в голове или в разговоре, который назревает?`
-        : `${greeting}. Сегодняшний фокус: «${headline}». Давай разберём его через живую ситуацию. Где сейчас больше всего напряжения — в теле, в голове или в общении?`,
-      meta: {
-        orchestratorDecision: {
-          next_phase: "contextual_greeting",
-          reasoning: "Client-side opening based on daily forecast context.",
-          information_completeness: {},
-          information_density: 0,
-          user_signals: [],
-          should_close: false,
-          decision_source: "bypass_greeting",
-        },
-      },
-    };
-  }, [forecast, strings]);
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={styles.overlayRoot}>
@@ -504,7 +477,6 @@ function CommunicatorOverlay({
                   : "смешанная",
             windowsOfOpportunity: forecast.windowsOfOpportunity,
           }}
-          history={[initialAssistantMessage]}
           memoryWindow={24}
           onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onClose)}
         />
