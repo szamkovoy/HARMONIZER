@@ -5,6 +5,7 @@ import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/typ
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
+import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useDayContent } from "@/modules/home/useDayContent";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
@@ -410,30 +411,6 @@ function NatalBridgeModal({
 
 function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => void) {
   onClose();
-  if (launchPractice(practice.launch, { launchSource: "assistant" })) return;
-  if (practice.kind === "breath") {
-    launchPractice({
-      route: "/breath-coherence",
-      params: {
-        practiceId: practice.slug ?? practice.id,
-        durationMs: String((practice.durationSec ?? 600) * 1000),
-        chakra: String(practice.chakraIds?.[0] ?? 4),
-      },
-    }, { launchSource: "assistant" });
-    return;
-  }
-  if (practice.kind === "yoga") {
-    launchPractice({
-      route: "/asana-practice",
-      params: {
-        practiceId: practice.id,
-        ...(practice.durationSec ? { durationMs: String(practice.durationSec * 1000) } : {}),
-        ...(practice.chakraIds?.[0] ? { chakra: String(practice.chakraIds[0]) } : {}),
-      },
-    }, { launchSource: "assistant" });
-    return;
-  }
-  launchPractice({ route: "/sacred-symbol-stream", params: {} }, { launchSource: "assistant" });
 }
 
 function CommunicatorOverlay({
@@ -516,7 +493,15 @@ function CommunicatorOverlay({
             clientGreetingShown: true,
             forecastDate: forecast.date,
             planetOfTheDay: forecast.planetOfTheDay,
+            chakraLabel: PLANET_CHAKRA[forecast.planetOfTheDay].chakraName,
             todayTone: forecast.todayPlanetState.todayTone,
+            harmoniousnessValue: forecast.todayPlanetState.naturalHarmoniousness,
+            harmoniousnessLabel:
+              forecast.todayPlanetState.naturalHarmoniousness > 0.3
+                ? "гармоничная"
+                : forecast.todayPlanetState.naturalHarmoniousness < -0.3
+                  ? "дисгармоничная"
+                  : "смешанная",
             windowsOfOpportunity: forecast.windowsOfOpportunity,
           }}
           history={[initialAssistantMessage]}

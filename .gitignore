@@ -38,6 +38,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+# выгрузки `vercel env pull` (часто содержат секреты / OIDC)
+.env.vercel*
 
 # typescript
 *.tsbuildinfo

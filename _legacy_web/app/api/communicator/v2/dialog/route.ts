@@ -1,63 +1,42 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import informationAxes from "@/data/information_axes.json";
-import { getSoftCap, type SoftCapTier } from "@/app/api/_utils/softCap";
-import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
-import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
-import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
+import { DateTime } from "luxon";
+
+import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
+import planetChakraMap from "@/data/planet_chakra_map.json";
+import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS } from "@legacy/app/api/_utils/dialogArcOrchestrator";
+import { getMaxDialogLength } from "@legacy/app/api/_utils/dialogConfig";
 import {
-  buildHistoryCompact,
-  buildProfileCompact,
-  buildResponderForecastCompact,
-  buildResponderProfileCompact,
-  logDTOSize,
-  responderThemeLabel,
-} from "@legacy/app/api/_utils/dto";
-import { GeminiJsonParseError, generateGeminiJson, getModelByHint, streamGeminiText } from "@legacy/app/api/_utils/gemini";
-import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
+  ensureDialogCache,
+  generateGeminiText,
+  getModelByHint,
+  streamGeminiText,
+  type GeminiContent,
+} from "@legacy/app/api/_utils/gemini";
+import { computeCSI, computeETV, detectTTMStage, estimateEmotionalValence } from "@legacy/app/api/_utils/insightDetection";
 import {
-  computeCSI,
-  computeETV,
-  detectInsightMoment,
-  detectTTMStage,
-  estimateEmotionalValence,
-  isReadyForPractice,
-} from "@legacy/app/api/_utils/insightDetection";
-import { parseResponseMarkers, sanitizeAssistantText } from "@legacy/app/api/_utils/markers";
+  containsReadyMarker,
+  parseResponseMarkers,
+  sanitizeAssistantText,
+  validateHistoryHasDurationAndType,
+  type ValidationResult,
+} from "@legacy/app/api/_utils/markers";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
-import {
-  contextSimilarity,
-  estimateDensity,
-  greetingBypassDecision,
-  quickSignalDetection,
-  shouldForceFreshDecision,
-  TERMINAL_PHASES,
-  timeOfDayContext,
-  validateOrchestratorDecision,
-  type DialogueUseCase,
-  type OrchestratorDecision,
-} from "@legacy/app/api/_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import {
   isConversationExpired,
-  lastAssistantDecisions,
-  loadDayBackground,
   loadHistory,
   summarizeConversationIfNeeded,
   type ConversationRecord,
   type MessageRecord,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
-import {
-  choosePractice,
-  publicPracticePickedPayload,
-  shouldStayInPracticeSuggestion,
-  type PracticePickedPayload,
-} from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
+import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 
 export const runtime = "nodejs";
 
+type DialogueUseCase = "calibration" | "daily_dialog";
 type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
 
 type Body = {
@@ -70,16 +49,17 @@ type Body = {
   userTimezone?: string;
 };
 
-type PhaseRecord = {
-  phase_id: string;
-  prompt_key: string;
-  is_terminal: boolean;
-  is_silent: boolean;
-  description: string | null;
-  display_order: number | null;
-};
-
-const PRACTICE_STACK_PHASES = new Set(["suggest_practice", "ask_practice_intent"]);
+type Planet = keyof typeof chakraStatesBaseline;
+type ChakraBaseline = (typeof chakraStatesBaseline)[Planet];
+type PlanetMeta = (typeof planetChakraMap)["planets"][Planet];
+type LoadedContext = Awaited<ReturnType<typeof loadContext>>;
+type ResponseMode =
+  | "opening"
+  | "inquiry"
+  | "forced_final"
+  | "post_recommendation"
+  | "final_recommendation"
+  | "final_recommendation_with_validation_warning";
 
 function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -92,7 +72,7 @@ function warnDeprecatedDialogRoute(req: Request): void {
 }
 
 function assertUseCase(useCase: unknown): DialogueUseCase {
-  return typeof useCase === "string" && useCase.trim() ? useCase.trim() : "daily_dialog";
+  return useCase === "calibration" ? "calibration" : "daily_dialog";
 }
 
 async function resolveDialogueScenario(
@@ -116,152 +96,112 @@ async function resolveDialogueScenario(
   if (!scenario.dialogue_use_case) {
     throw new Response(JSON.stringify({ error: "Scenario has no dialogue_use_case configured" }), { status: 500 });
   }
-  return { useCase: scenario.dialogue_use_case, scenarioId: scenario.id };
+  return { useCase: assertUseCase(scenario.dialogue_use_case), scenarioId: scenario.id };
 }
 
-function axesFor(useCase: DialogueUseCase) {
-  const data = informationAxes as unknown as Record<
-    string,
-    { axes: Record<string, unknown>; soft_cap: number; completion_threshold?: number }
-  >;
-  return data[useCase] ?? { axes: {}, soft_cap: useCase === "calibration" ? 4 : 6 };
+function planetMeta(planet: Planet): PlanetMeta {
+  return planetChakraMap.planets[planet];
 }
 
-function resolveSoftCapTier(user: {
-  membership_tier?: string | null;
-  trial_expires_at?: string | null;
-}): SoftCapTier {
-  if (user.membership_tier === "premium") return "premium";
-  if (user.trial_expires_at && new Date(user.trial_expires_at) > new Date()) return "trial";
-  return "free";
+function normalizePlanet(value: unknown): Planet {
+  return (typeof value === "string" && value in chakraStatesBaseline ? value : "Sun") as Planet;
 }
 
-function detectAstrologyMention(text: string): boolean {
-  const markers = [
-    "солнц",
-    "лун",
-    "марс",
-    "венер",
-    "юпитер",
-    "сатурн",
-    "меркур",
-    "транзит",
-    "аспект",
-    "квадрат",
-    "трин",
-    "секстиль",
-    "оппозиц",
-    "соединен",
-    "гороскоп",
-    "знак зодиак",
-    "стихи",
-  ];
-  const lower = text.toLowerCase();
-  return markers.some((m) => lower.includes(m));
+function forecastHarmoniousness(forecast: LoadedContext["forecast"]): number {
+  const planetState = (forecast?.today_planet_state ?? forecast?.todayPlanetState ?? {}) as {
+    naturalHarmoniousness?: unknown;
+    natural_harmoniousness?: unknown;
+  };
+  const value = typeof planetState.naturalHarmoniousness === "number"
+    ? planetState.naturalHarmoniousness
+    : typeof planetState.natural_harmoniousness === "number"
+      ? planetState.natural_harmoniousness
+      : 0;
+  return Number.isFinite(value) ? value : 0;
 }
 
-function detectChakraMention(text: string): boolean {
-  const markers = [
-    "чакр",
-    "муладхар",
-    "свадхистхан",
-    "манипур",
-    "анахат",
-    "вишуддх",
-    "аджн",
-    "сахасрар",
-  ];
-  const lower = text.toLowerCase();
-  return markers.some((m) => lower.includes(m));
+function harmoniousnessLabel(value: number): "гармоничная" | "дисгармоничная" | "смешанная" {
+  if (value > 0.3) return "гармоничная";
+  if (value < -0.3) return "дисгармоничная";
+  return "смешанная";
 }
 
-type DialogTurnMetrics = {
-  recent_phases: string;
-  recent_registers: string;
-  astrology_used_turns_ago: number;
-  chakra_used_turns_ago: number;
-};
-
-function phaseFromAssistantMessage(message: MessageRecord): string {
-  const meta = message.meta ?? {};
-  const responder = meta.responder as { phase_used?: unknown } | undefined;
-  if (typeof responder?.phase_used === "string" && responder.phase_used.trim()) return responder.phase_used.trim();
-  const od = meta.orchestrator_decision as { next_phase?: unknown } | undefined;
-  if (typeof od?.next_phase === "string" && od.next_phase.trim()) return od.next_phase.trim();
-  return "unknown";
+function timeOfDayForHour(hour: number): string {
+  if (hour >= 5 && hour < 12) return "утро";
+  if (hour >= 12 && hour < 17) return "день";
+  if (hour >= 17 && hour < 22) return "вечер";
+  return "ночь";
 }
 
-function registerFromAssistantMessage(message: MessageRecord): string {
-  const od = message.meta?.orchestrator_decision as { user_register?: unknown } | undefined;
-  if (typeof od?.user_register === "string" && od.user_register.trim()) return od.user_register.trim();
-  return "unknown";
-}
-
-function buildDialogTurnMetrics(history: MessageRecord[]): DialogTurnMetrics {
-  const assistants = history.filter((m) => m.role === "assistant");
-  const last4 = assistants.slice(-4);
-  const recent_phases = last4.map(phaseFromAssistantMessage).join(", ");
-  const recent_registers = last4.map(registerFromAssistantMessage).join(", ");
-  const newestFirst = [...assistants].reverse();
-  let astrology_used_turns_ago = 999;
-  let chakra_used_turns_ago = 999;
-  for (let i = 0; i < newestFirst.length; i++) {
-    const text = String(newestFirst[i].content ?? newestFirst[i].transcript ?? "");
-    if (astrology_used_turns_ago === 999 && detectAstrologyMention(text)) astrology_used_turns_ago = i;
-    if (chakra_used_turns_ago === 999 && detectChakraMention(text)) chakra_used_turns_ago = i;
-    if (astrology_used_turns_ago !== 999 && chakra_used_turns_ago !== 999) break;
-  }
-  return { recent_phases, recent_registers, astrology_used_turns_ago, chakra_used_turns_ago };
-}
-
-function userMessageLengthHint(userMessage: string): string {
-  const words = userMessage.trim().split(/\s+/).filter(Boolean).length;
-  if (words < 6) return "короткое (1-5 слов)";
-  if (words <= 30) return "среднее";
-  return "развёрнутое (несколько тем)";
-}
-
-function inferredAstrologyBudget(turnsAgo: number): "can_use" | "save_for_later" {
-  return turnsAgo >= 5 ? "can_use" : "save_for_later";
-}
-
-function inferredChakraBudget(decision: OrchestratorDecision, turnsAgo: number): "can_use" | "save_for_later" {
-  const p = decision.next_phase;
-  const ok = p === "suggest_practice" || p === "ask_practice_intent" || p === "confirm_and_close";
-  if (!ok) return "save_for_later";
-  return turnsAgo >= 5 ? "can_use" : "save_for_later";
-}
-
-function formatAstrologyBudgetHint(budget: "can_use" | "save_for_later", turnsAgo: number): string {
-  if (budget === "can_use") return "можно использовать";
-  if (turnsAgo >= 999) return "не сейчас, давно не использовалось в репликах ассистента";
-  return `не сейчас, использовалось ${turnsAgo} ходов назад`;
-}
-
-function formatChakraBudgetHint(budget: "can_use" | "save_for_later", turnsAgo: number): string {
-  if (budget === "can_use") return "можно использовать";
-  if (turnsAgo >= 999) return "не сейчас, давно не использовалось в репликах ассистента";
-  return `не сейчас, использовалось ${turnsAgo} ходов назад`;
-}
-
-function formatOrchestratorHints(decision: OrchestratorDecision): string {
-  const h = decision.responder_hints;
-  const lines = [
-    `Тон: ${h?.tone ?? "neutral"}`,
-    `Фразы пользователя для реюза: ${(h?.use_user_phrases ?? []).join("; ") || "—"}`,
-    `Избегать тем: ${(h?.avoid_topics ?? []).join("; ") || "—"}`,
-    `Предпочтительный регистр ответа: ${h?.preferred_register ?? "—"}`,
-    `Ориентир длины: ${h?.length_hint ?? "—"}`,
-    `Бюджет астрологии (классификатор): ${h?.astrology_budget ?? "—"}`,
-    `Бюджет чакр (классификатор): ${h?.chakra_budget ?? "—"}`,
-  ];
-  return lines.join("\n");
-}
-
-function conversationTriggerMeta(body: Required<Pick<Body, "entrySource" | "triggerMeta">> & Body, useCase: DialogueUseCase) {
+function formatLocalDate(dt: DateTime, locale: string): { dayOfWeek: string; date: string } {
   return {
-    ...(body.triggerMeta ?? {}),
-    use_case: useCase,
+    dayOfWeek: dt.setLocale(locale).toFormat("cccc"),
+    date: dt.setLocale(locale).toFormat("d LLLL"),
+  };
+}
+
+function listOrFallback(items: readonly string[] | undefined, fallback: string): string {
+  return items && items.length ? items.join(", ") : fallback;
+}
+
+function joinLines(items: readonly string[] | undefined): string {
+  return items && items.length ? items.join("\n") : "";
+}
+
+function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">): string {
+  return String(message.content ?? message.transcript ?? "").trim();
+}
+
+function countAssistantTurns(history: MessageRecord[]): number {
+  return history.filter((message) => message.role === "assistant").length;
+}
+
+function mapHistoryToGemini(history: MessageRecord[]): GeminiContent[] {
+  return history
+    .map((message) => {
+      const text = textFromMessage(message);
+      if (!text) return null;
+      return {
+        role: message.role === "assistant" ? "model" : "user",
+        parts: [{ text }],
+      } satisfies GeminiContent;
+    })
+    .filter((item): item is GeminiContent => Boolean(item));
+}
+
+function turnDecisionEvent(mode: ResponseMode, modelTier: "premium" | "standard") {
+  const phaseMap: Record<ResponseMode, string> = {
+    opening: "contextual_greeting",
+    inquiry: "deepen_inquiry",
+    forced_final: "suggest_practice",
+    post_recommendation: "confirm_and_close",
+    final_recommendation: "suggest_practice",
+    final_recommendation_with_validation_warning: "suggest_practice",
+  };
+  return {
+    mode,
+    modelTier,
+    next_phase: phaseMap[mode],
+  };
+}
+
+function buildInsightMetrics(history: MessageRecord[], userMessage: string, locale?: string | null) {
+  const language = (locale ?? "ru").slice(0, 2);
+  const previousUserMessages = history
+    .filter((message) => message.role === "user")
+    .map((message) => textFromMessage(message))
+    .filter(Boolean);
+  const recentMessages = [...previousUserMessages, userMessage].slice(-5);
+  const csiTrend = recentMessages.map((message) => computeCSI(message, language));
+  const valenceTrend = recentMessages.map((message) => estimateEmotionalValence(message, language));
+  const ttm = detectTTMStage(recentMessages, language);
+  return {
+    csi: csiTrend.at(-1) ?? 0,
+    csi_trend: csiTrend,
+    ttm_stage: ttm.stage,
+    ttm_confidence: ttm.confidence,
+    etv: computeETV(valenceTrend),
+    valence_trend: valenceTrend,
   };
 }
 
@@ -280,7 +220,8 @@ async function createConversation(
       scenario_id: scenarioId,
       entry_source: body.entrySource,
       trigger_meta: {
-        ...conversationTriggerMeta(body, useCase),
+        ...(body.triggerMeta ?? {}),
+        use_case: useCase,
         ...extraMeta,
       },
     })
@@ -322,26 +263,8 @@ async function loadConversation(
   return createConversation(db, userId, body, useCase, scenarioId);
 }
 
-async function loadPhases(db: SupabaseClient, useCase: DialogueUseCase): Promise<PhaseRecord[]> {
-  const { data, error } = await db
-    .from("dialogue_phases")
-    .select("phase_id,prompt_key,is_terminal,is_silent,description,display_order")
-    .eq("use_case", useCase)
-    .eq("is_active", true)
-    .order("display_order", { ascending: true });
-  if (error) throw error;
-  if (!data?.length) throw new Response(JSON.stringify({ error: `No dialogue phases for ${useCase}` }), { status: 500 });
-  return data as PhaseRecord[];
-}
-
 async function loadContext(db: SupabaseClient, userId: string) {
-  const [calibrationResult, forecastResult, natalResult, userResult] = await Promise.all([
-    db
-      .from("user_calibrations")
-      .select("version,states_map,user_lexicon,s_calibrated,h_calibrated,last_calibration_date")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .maybeSingle(),
+  const [forecastResult, userResult] = await Promise.all([
     db
       .from("user_daily_forecasts")
       .select("*")
@@ -350,29 +273,18 @@ async function loadContext(db: SupabaseClient, userId: string) {
       .limit(1)
       .maybeSingle(),
     db
-      .from("user_natal_charts")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .maybeSingle(),
-    db
       .from("users")
-      .select("display_name,birth_date,locale,address_form,tz,membership_tier,trial_expires_at")
+      .select("display_name,locale,address_form,tz,membership_tier,trial_expires_at")
       .eq("id", userId)
       .maybeSingle(),
   ]);
-  if (calibrationResult.error) throw calibrationResult.error;
   if (forecastResult.error) throw forecastResult.error;
-  if (natalResult.error) throw natalResult.error;
   if (userResult.error) throw userResult.error;
   return {
-    calibration: calibrationResult.data as Record<string, unknown> | null,
     forecast: forecastResult.data as Record<string, unknown> | null,
-    natal: natalResult.data ? natalProfileFromRow(natalResult.data as never) : null,
     user:
       (userResult.data as {
         display_name?: string | null;
-        birth_date?: string | null;
         locale?: string | null;
         address_form?: string | null;
         tz?: string | null;
@@ -382,305 +294,123 @@ async function loadContext(db: SupabaseClient, userId: string) {
   };
 }
 
-function lastUserMessage(history: MessageRecord[]): string | null {
-  const message = [...history].reverse().find((item) => item.role === "user");
-  return message?.content ?? message?.transcript ?? null;
-}
-
-function relevantUserPhrases(context: Awaited<ReturnType<typeof loadContext>>): string[] {
-  const calibration = context.calibration;
+function buildDialogSystemInstruction(
+  promptTemplate: string,
+  context: LoadedContext,
+  userTimezone: string,
+): {
+  systemInstruction: string;
+  planet: Planet;
+  chakraLabel: string;
+  harmoniousnessValue: number;
+  harmoniousnessLabel: "гармоничная" | "дисгармоничная" | "смешанная";
+} {
   const forecast = context.forecast;
-  const planet = String(forecast?.planet_of_the_day ?? "");
-  const phrases = Array.isArray((calibration?.user_lexicon as { phrases?: unknown[] } | undefined)?.phrases)
-    ? ((calibration?.user_lexicon as { phrases: Array<{ text?: string }> }).phrases ?? [])
-        .filter((phrase) => !planet || (phrase as { associated_planet?: string }).associated_planet === planet)
-        .slice(0, 5)
-        .map((phrase) => phrase.text)
-        .filter(Boolean)
-    : [];
-  return phrases as string[];
-}
+  if (!forecast) {
+    throw new Response(JSON.stringify({ error: "Daily forecast not found" }), { status: 404 });
+  }
 
-function todayStatesOptions(context: Awaited<ReturnType<typeof loadContext>>): string {
-  const planet = String(context.forecast?.planet_of_the_day ?? "Sun");
-  const statesMap = context.calibration?.states_map as Record<string, { positive_states?: Array<{ label?: string }>; negative_states?: Array<{ label?: string }> }> | undefined;
-  const states = statesMap?.[planet];
-  const labels = [...(states?.positive_states ?? []), ...(states?.negative_states ?? [])]
-    .map((item) => item.label)
-    .filter(Boolean)
-    .slice(0, 6);
-  return labels.join(", ");
-}
-
-async function logPromptSize(db: SupabaseClient, userId: string, payload: Record<string, unknown>) {
-  const { error } = await db.from("user_event_log").insert({
-    user_id: userId,
-    kind: "llm_prompt_size",
-    payload,
-  });
-  if (error) console.warn("[dialog] Failed to log prompt size", error);
-}
-
-function isGeminiJsonParseError(error: unknown): error is GeminiJsonParseError {
-  return (
-    error instanceof GeminiJsonParseError ||
-    (error instanceof Error &&
-      (error.name === "GeminiJsonParseError" || /Gemini response is not valid JSON/i.test(error.message)))
-  );
-}
-
-function userMessageText(message: MessageRecord): string {
-  return String(message.content ?? message.transcript ?? "").trim();
-}
-
-function buildInsightMetrics(history: MessageRecord[], userMessage: string, locale?: string | null): NonNullable<OrchestratorDecision["insight_metrics"]> {
-  const language = (locale ?? "ru").slice(0, 2);
-  const previousUserMessages = history.filter((message) => message.role === "user").map(userMessageText).filter(Boolean);
-  const recentMessages = [...previousUserMessages, userMessage].slice(-5);
-  const csiTrend = recentMessages.map((message) => computeCSI(message, language));
-  const insight = detectInsightMoment(csiTrend);
-  const valenceTrend = recentMessages.map((message) => estimateEmotionalValence(message, language));
-  const ttm = detectTTMStage(recentMessages, language);
-  const readiness = isReadyForPractice(ttm.stage);
+  const locale = context.user.locale?.startsWith("en") ? "en" : "ru";
+  const now = DateTime.now().setZone(userTimezone || "UTC");
+  const formatted = formatLocalDate(now, locale);
+  const planet = normalizePlanet(forecast.planet_of_the_day);
+  const chakraData = chakraStatesBaseline[planet] as ChakraBaseline;
+  const chakraMeta = planetMeta(planet);
+  const harmoniousnessValue = forecastHarmoniousness(forecast);
+  const harmoniousnessLabelValue = harmoniousnessLabel(harmoniousnessValue);
 
   return {
-    csi: csiTrend.at(-1) ?? 0,
-    csi_trend: csiTrend,
-    insight_detected: insight.detected,
-    insight_confidence: insight.confidence,
-    ttm_stage: ttm.stage,
-    ttm_confidence: ttm.confidence,
-    ready_for_practice: readiness.ready,
-    readiness_reason: readiness.reason,
-    etv: computeETV(valenceTrend),
-    valence_trend: valenceTrend,
+    systemInstruction: renderPrompt(
+      promptTemplate,
+      {
+        day_of_week: formatted.dayOfWeek,
+        date: formatted.date,
+        time_of_day: timeOfDayForHour(now.hour),
+        local_hour: now.hour,
+        chakra_label: chakraMeta.chakra_name_ru,
+        planet,
+        harmoniousness_label: harmoniousnessLabelValue,
+        harmoniousness_value: Number(harmoniousnessValue.toFixed(2)),
+        harmonic_states_pool: (chakraData.harmonicStates ?? []).slice(0, 12).join(", "),
+        dissonant_states_pool: (chakraData.dissonantStates ?? []).slice(0, 12).join(", "),
+        body_zones: listOrFallback(chakraData.body_zones, ""),
+        endocrine: listOrFallback(chakraData.endocrine, "не выделена специфическая железа"),
+        hormones: listOrFallback(chakraData.hormones, ""),
+        nervous_system: listOrFallback(chakraData.nervous_system, ""),
+        lexical_psychological: joinLines(chakraData.lexical_registers.psychological),
+        lexical_somatic: joinLines(chakraData.lexical_registers.somatic),
+        lexical_neurophysiological: joinLines(chakraData.lexical_registers.neurophysiological),
+        lexical_pragmatic: joinLines(chakraData.lexical_registers.pragmatic),
+        address_form: context.user.address_form === "informal" ? "ты" : "вы",
+        historical_context: "",
+        user_self_description: "",
+      },
+    ),
+    planet,
+    chakraLabel: chakraMeta.chakra_name_ru,
+    harmoniousnessValue,
+    harmoniousnessLabel: harmoniousnessLabelValue,
   };
 }
 
-function blockedPhasesForInsight(metrics: NonNullable<OrchestratorDecision["insight_metrics"]>, useCase: DialogueUseCase): string[] {
-  if (useCase !== "daily_dialog" || metrics.ready_for_practice) return [];
-  return ["ask_practice_intent", "suggest_practice"];
+async function maybeApplyRecommendationCorrection(
+  db: SupabaseClient,
+  forecastId: string | undefined,
+  forecast: LoadedContext["forecast"],
+  recommendationCorrection: { short_text?: string; windows_correction?: string } | null,
+) {
+  if (!recommendationCorrection || !forecastId) return;
+  await db
+    .from("user_daily_forecasts")
+    .update({
+      recommendation_short_text: recommendationCorrection.short_text ?? forecast?.recommendation_short_text,
+      is_corrected_via_dialog: true,
+      corrected_at: new Date().toISOString(),
+    })
+    .eq("id", forecastId);
 }
 
-function etvHint(etv: number): string {
-  if (etv > 0.6) return "high (пользователь раскачивается, копай глубже)";
-  if (etv < 0.3) return "low (стабилен, можно к практике при готовности)";
-  return "moderate";
+async function resolvePracticePublic(
+  db: SupabaseClient,
+  userId: string,
+  marker: ReturnType<typeof parseResponseMarkers>["practicePick"],
+  context: LoadedContext,
+  userMessage: string,
+  history: MessageRecord[],
+) {
+  if (!marker) return null;
+  const picked = await choosePractice(db, userId, marker, context, userMessage, history);
+  if (!picked) return null;
+  return attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
 }
 
-function ttmHint(metrics: NonNullable<OrchestratorDecision["insight_metrics"]>): string {
-  return `Стадия готовности: ${metrics.ttm_stage}. ${
-    metrics.ready_for_practice ? "Готов к практике." : `НЕ ГОТОВ к практике (${metrics.readiness_reason}).`
-  }`;
-}
-
-function insightHint(metrics: NonNullable<OrchestratorDecision["insight_metrics"]>): string {
-  return metrics.insight_detected
-    ? `Инсайт детектирован (CSI=${(metrics.insight_confidence ?? 0).toFixed(2)}). Можно закреплять или переходить к практике, если TTM позволяет.`
-    : "Инсайт не детектирован.";
-}
-
-function enforceInsightPhaseGuards(decision: OrchestratorDecision, metrics: NonNullable<OrchestratorDecision["insight_metrics"]>, useCase: DialogueUseCase): OrchestratorDecision {
-  if (useCase !== "daily_dialog" || metrics.ready_for_practice) return decision;
-  if (decision.next_phase !== "ask_practice_intent" && decision.next_phase !== "suggest_practice") return decision;
-
-  return {
-    ...decision,
-    next_phase: metrics.ttm_stage === "preconcept" ? "deepen_inquiry" : "offer_insight",
-    reasoning: `${decision.reasoning} Insight Engine guard: ${metrics.ttm_stage} blocks practice (${metrics.readiness_reason}).`,
-    should_close: false,
-    close_reason: null,
-  };
-}
-
-async function buildDecision(params: {
+async function persistAssistantMessage(params: {
   db: SupabaseClient;
   userId: string;
+  conversationId: string;
   useCase: DialogueUseCase;
-  userTimezone: string;
-  conversationIdWasNull: boolean;
-  clientGreetingShown: boolean;
-  userMessage: string;
-  history: MessageRecord[];
-  phases: PhaseRecord[];
-  context: Awaited<ReturnType<typeof loadContext>>;
-  turnMetrics: DialogTurnMetrics;
-}): Promise<{ decision: OrchestratorDecision; orchestratorLatencyMs: number }> {
-  const started = Date.now();
-  const axesJson = axesFor(params.useCase);
-  const tier = resolveSoftCapTier(params.context.user);
-  const softCap = getSoftCap(params.useCase, tier);
-  const informationAxesPayload = { ...axesJson, soft_cap: softCap };
-  const iterationNumber = params.history.filter((message) => message.role === "user").length + 1;
-  const insightMetrics = buildInsightMetrics(params.history, params.userMessage, params.context.user.locale);
-  const blockedPhases = blockedPhasesForInsight(insightMetrics, params.useCase);
-  const greetingBypassEnabled = process.env.DIALOG_GREETING_BYPASS_ENABLED !== "false";
-  if (greetingBypassEnabled && !params.clientGreetingShown && (params.conversationIdWasNull || params.history.length === 0)) {
-    return {
-      decision: {
-        ...greetingBypassDecision(
-          params.useCase,
-          params.userTimezone,
-          params.conversationIdWasNull ? "null_conversation_id" : "no_history",
-          params.phases[0]?.phase_id,
-        ),
-        reasoning: "Bypass: первый ход диалога, фаза детерминирована.",
-        insight_metrics: insightMetrics,
-      },
-      orchestratorLatencyMs: 0,
-    };
-  }
-
-  const previousDecisions = lastAssistantDecisions(params.history);
-  const previousDecision = previousDecisions.at(-1);
-  const cacheEnabled = process.env.DIALOG_DECISION_CACHE_ENABLED !== "false";
-  const minIteration = Number(process.env.DIALOG_DECISION_CACHE_MIN_ITERATION ?? 3);
-  const threshold = Number(process.env.DIALOG_DECISION_CACHE_THRESHOLD ?? 0.8);
-  if (
-    cacheEnabled &&
-    iterationNumber >= minIteration &&
-    previousDecision &&
-    !TERMINAL_PHASES.has(previousDecision.next_phase) &&
-    !shouldForceFreshDecision(previousDecisions)
-  ) {
-    const similarity = contextSimilarity(params.userMessage, lastUserMessage(params.history), previousDecision, params.context.user.locale);
-    if (similarity > threshold) {
-      const reusedDecision = enforceInsightPhaseGuards(
-        {
-          ...previousDecision,
-          reasoning: `Reused: similarity ${similarity.toFixed(2)} > ${threshold} threshold at iter ${iterationNumber}`,
-          information_density: estimateDensity(params.userMessage),
-          user_signals: quickSignalDetection(params.userMessage, params.context.user.locale),
-          insight_metrics: insightMetrics,
-          decision_source: "cache_reused",
-          cache_similarity: similarity,
-          bypass_reason: undefined,
-        },
-        insightMetrics,
-        params.useCase,
-      );
-      return {
-        decision: reusedDecision,
-        orchestratorLatencyMs: 0,
-      };
-    }
-  }
-
-  const fallbackPhase = params.useCase === "calibration" ? "deepen_specific_chakra" : "collect_state";
-  const tod = timeOfDayContext(new Date(), params.userTimezone);
-  const prompt = await getActivePrompt(params.db, "orchestrator_decision");
-  const profileDTO = buildProfileCompact(params.context.natal, params.context.calibration, params.context.user);
-  const historyDTO = buildHistoryCompact(params.history);
-  const profileSize = logDTOSize("dialog.orchestrator.profile", profileDTO, 350);
-  const historySize = logDTOSize("dialog.orchestrator.history", historyDTO, 1500);
-  await logPromptSize(params.db, params.userId, {
-    endpoint: "communicator/v2/dialog",
-    stage: "orchestrator",
-    profile_tokens: profileSize.tokens,
-    history_tokens: historySize.tokens,
-    total_tokens: profileSize.tokens + historySize.tokens,
-  });
-  const renderedPrompt = renderPrompt(prompt.template, {
-      use_case: params.useCase,
-      available_phases: params.phases.map((phase) => `- ${phase.phase_id}: ${phase.description ?? ""}`).join("\n"),
-      information_axes: informationAxesPayload,
-      blocked_phases: blockedPhases.join(", ") || "none",
-      insight_metrics_json: insightMetrics,
-      ttm_hint: ttmHint(insightMetrics),
-      etv_hint: etvHint(insightMetrics.etv),
-      insight_hint: insightHint(insightMetrics),
-      explicit_signals_json: "[]",
-      time_of_day: tod.timeOfDay,
-      local_hour: tod.localHour,
-      time_of_day_hint: tod,
-      iteration_number: iterationNumber,
-      soft_cap: softCap,
-      recent_phases: params.turnMetrics.recent_phases,
-      recent_registers: params.turnMetrics.recent_registers,
-      astrology_used_turns_ago: params.turnMetrics.astrology_used_turns_ago,
-      chakra_used_turns_ago: params.turnMetrics.chakra_used_turns_ago,
-      user_profile_summary: profileDTO,
-      conversation_history: historyDTO,
-      user_message: params.userMessage,
-  });
-
-  let decision: OrchestratorDecision;
-  try {
-    const result = await generateGeminiJson<unknown>({
-      prompt: renderedPrompt,
-      model: getModelByHint(prompt.model_hint),
-      temperature: prompt.temperature,
-      maxOutputTokens: prompt.max_output_tokens,
-    });
-    decision = validateOrchestratorDecision(result.json, fallbackPhase);
-  } catch (error) {
-    if (!isGeminiJsonParseError(error)) throw error;
-    const rawText = error instanceof GeminiJsonParseError ? error.rawText : "";
-    await logPromptSize(params.db, params.userId, {
-      endpoint: "communicator/v2/dialog",
-      stage: "orchestrator_json_recovery",
-      parse_error: error.message,
-      raw_preview: rawText.slice(0, 500),
-    });
-    decision = validateOrchestratorDecision(
-      {
-        next_phase: fallbackPhase,
-        reasoning: "Fallback: orchestrator returned invalid JSON, continuing with a safe phase.",
-        information_completeness: {},
-        information_density: estimateDensity(params.userMessage),
-        user_signals: quickSignalDetection(params.userMessage, params.context.user.locale),
-        insight_metrics: insightMetrics,
-        should_close: false,
-        close_reason: null,
-        responder_hints: { tone: tod.tone, use_user_phrases: [], avoid_topics: [] },
-      },
-      fallbackPhase,
-    );
-  }
-  return {
-    decision: enforceInsightPhaseGuards({ ...decision, insight_metrics: insightMetrics, decision_source: "fresh" }, insightMetrics, params.useCase),
-    orchestratorLatencyMs: Date.now() - started,
-  };
-}
-
-function phaseVariables(params: {
-  body: Body;
-  context: Awaited<ReturnType<typeof loadContext>>;
-  decision: OrchestratorDecision;
-  userMessage: string;
-  timezone: string;
-  practicesList: string;
-  selectedPractice: Omit<PracticePickedPayload, "stack"> | null;
+  scenarioId: string | null;
+  text: string;
+  meta: Record<string, unknown>;
 }) {
-  const tod = timeOfDayContext(new Date(), params.timezone);
-  const planet = String(params.context.forecast?.planet_of_the_day ?? "Sun");
-  const todayTone = (params.context.forecast?.today_planet_state as { todayTone?: string; today_tone?: string } | undefined)?.todayTone
-    ?? (params.context.forecast?.today_planet_state as { today_tone?: string } | undefined)?.today_tone
-    ?? "neutral";
-  const addressFormHint = buildAddressFormHint(params.context.user.address_form, params.context.user.locale);
-  const themeLabel = responderThemeLabel(planet);
-  return {
-    time_of_day_greeting: tod.greeting,
-    time_of_day: tod.timeOfDay,
-    local_hour: tod.localHour,
-    entry_source: params.body.entrySource ?? "home",
-    entry_source_label: params.body.entrySource ?? "home",
-    tone: params.decision.responder_hints?.tone ?? tod.tone,
-    today_states_options: todayStatesOptions(params.context),
-    planet_of_day_summary: themeLabel,
-    today_tone: todayTone,
-    user_current_state_summary: params.userMessage,
-    user_last_message: params.userMessage,
-    filtered_practices_list: params.practicesList,
-    selected_practice: params.selectedPractice ?? {},
-    selected_practice_id: params.selectedPractice?.id ?? "",
-    deepen_axis: Object.entries(params.decision.information_completeness ?? {}).sort((a, b) => a[1] - b[1])[0]?.[0] ?? "user_state",
-    focus_chakra_label: themeLabel,
-    focus_chakra_number: { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 }[planet] ?? 7,
-    window_time: (params.body.triggerMeta?.window_time as string | undefined) ?? "",
-    address_form_hint: addressFormHint,
-    user_key_phrases_from_dialog: relevantUserPhrases(params.context).join(", "),
-  };
+  const { data, error } = await params.db
+    .from("messages")
+    .insert({
+      user_id: params.userId,
+      conversation_id: params.conversationId,
+      role: "assistant",
+      content: params.text,
+      content_type: "text",
+      meta: {
+        use_case: params.useCase,
+        scenario_id: params.scenarioId,
+        ...params.meta,
+      },
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
 }
 
 export async function GET(req: Request) {
@@ -693,7 +423,7 @@ export async function GET(req: Request) {
     db = createServiceSupabase();
     const { useCase, scenarioId } = await resolveDialogueScenario(db, {
       scenario_id: url.searchParams.get("scenario_id") ?? undefined,
-      useCase: url.searchParams.get("useCase") ?? undefined,
+      useCase: assertUseCase(url.searchParams.get("useCase") ?? undefined),
     });
     const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
 
@@ -754,7 +484,6 @@ export async function POST(req: Request) {
   let endpointStage = "request";
   try {
     warnDeprecatedDialogRoute(req);
-    const requestStarted = Date.now();
     userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     const userMessage = String(body.userMessage ?? "").trim();
@@ -762,47 +491,34 @@ export async function POST(req: Request) {
 
     db = createServiceSupabase();
     const { useCase, scenarioId } = await resolveDialogueScenario(db, body);
-    const conversationIdWasNull = !body.conversationId;
-    endpointStage = "load_context";
-    const [context, phases] = await Promise.all([loadContext(db, userId), loadPhases(db, useCase)]);
-    const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
-    const conversation = await loadConversation(db, userId, {
-      ...body,
-      entrySource: body.entrySource ?? "home",
-      triggerMeta: body.triggerMeta ?? {},
-    }, useCase, scenarioId, userTimezone);
-    const [history, dailyBackground] = await Promise.all([
-      loadHistory(db, userId, conversation.id),
-      loadDayBackground(db, userId, userTimezone),
-    ]);
+    if (useCase !== "daily_dialog") {
+      return json({ error: "dialog v3 is implemented only for daily_dialog" }, { status: 400 });
+    }
 
-    endpointStage = "orchestrator";
-    const turnMetrics = buildDialogTurnMetrics(history);
-    const { decision, orchestratorLatencyMs } = await buildDecision({
+    endpointStage = "load_context";
+    const [context, systemPromptRecord] = await Promise.all([
+      loadContext(db, userId),
+      getActivePrompt(db, "dialog_system_v3"),
+    ]);
+    const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
+    const conversation = await loadConversation(
       db,
       userId,
+      {
+        ...body,
+        entrySource: body.entrySource ?? "home",
+        triggerMeta: body.triggerMeta ?? {},
+      },
       useCase,
+      scenarioId,
       userTimezone,
-      conversationIdWasNull,
-      clientGreetingShown: body.triggerMeta?.clientGreetingShown === true,
-      userMessage,
-      history,
-      phases,
-      context,
-      turnMetrics,
-    });
-    if (body.triggerMeta?.clientGreetingShown === true && decision.next_phase === "contextual_greeting") {
-      decision.next_phase = useCase === "daily_dialog" ? "offer_insight" : "deepen_specific_chakra";
-      decision.reasoning = "Client greeting was already shown; answering the user's message instead of greeting again.";
-    }
-    if (shouldStayInPracticeSuggestion({ useCase, history, userMessage })) {
-      decision.next_phase = "suggest_practice";
-      decision.reasoning = `${decision.reasoning} User reacted to the last practice offer; staying in suggest_practice and rotating the practice stack.`;
-      decision.should_close = false;
-      decision.close_reason = null;
-    }
-    const phase = phases.find((item) => item.phase_id === decision.next_phase) ?? phases[0];
-    decision.next_phase = phase.phase_id;
+    );
+    const history = await loadHistory(db, userId, conversation.id);
+    const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, userTimezone);
+    const iteration = countAssistantTurns(history) + 1;
+    const maxDialogLength = getMaxDialogLength();
+    const turnDecision = decideTurnMode(history, iteration, maxDialogLength);
+    const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
 
     await db.from("messages").insert({
       user_id: userId,
@@ -813,193 +529,157 @@ export async function POST(req: Request) {
       meta: { use_case: useCase, scenario_id: scenarioId },
     });
 
+    const baseHistory = mapHistoryToGemini(history);
+    const userContent: GeminiContent = { role: "user", parts: [{ text: userMessage }] };
+    const prefixContents = [...baseHistory, userContent];
     const routeDb = db;
     const routeUserId = userId;
     const encoder = new TextEncoder();
+
     const stream = new ReadableStream({
       async start(controller) {
-        let firstTokenLatencyMs: number | null = null;
         try {
-          controller.enqueue(encoder.encode(sse("orchestrator_decision", decision)));
-          if (phase.is_silent) {
-            controller.enqueue(
-              encoder.encode(sse("complete", { conversationId: conversation.id, fullText: "", shouldClose: false })),
-            );
-            controller.close();
-            return;
-          }
+          controller.enqueue(encoder.encode(sse("orchestrator_decision", turnDecisionEvent(turnDecision.mode, turnDecision.modelTier))));
 
-          const phasePrompt = await getActivePrompt(routeDb, phase.prompt_key);
-          const responderPrompt = await getActivePrompt(routeDb, "responder_main");
-          const practiceCandidate = PRACTICE_STACK_PHASES.has(phase.phase_id) ? await choosePractice(routeDb, routeUserId, null, context, userMessage, history) : null;
-          const practicesList = practiceCandidate
-            ? JSON.stringify(
-                (practiceCandidate.stack ?? []).map((practice) => ({
-                  id: practice.id,
-                  title: typeof practice.title === "string" ? practice.title : practice.title?.ru ?? practice.title?.en ?? practice.slug,
-                  kind: practice.kind,
-                  durationSec: practice.default_duration_sec,
-                })),
-              )
-            : "";
-          const profileDTO = buildResponderProfileCompact(context.natal, context.calibration, context.user);
-          const forecastDTO = useCase === "daily_dialog" ? buildResponderForecastCompact(context.forecast) : null;
-          const historyDTO = buildHistoryCompact(history);
-          const authorVoiceBlock = formatAuthorVoiceForPrompt(
-            getAuthorVoice(context.user.locale),
-            context.user.address_form === "informal" ? "ty" : "vy",
+          const standardModel = getModelByHint("standard");
+          const premiumModel = getModelByHint("premium");
+          const requestedModel = turnDecision.modelTier === "premium" ? premiumModel : standardModel;
+          const initialInstruction: GeminiContent = { role: "user", parts: [{ text: turnDecision.instruction }] };
+          const initialContents = [...prefixContents, initialInstruction];
+          const initialCache = await ensureDialogCache(
+            conversation.id,
+            systemPromptData.systemInstruction,
+            prefixContents,
+            requestedModel,
           );
-          const profileSize = logDTOSize("dialog.responder.profile", profileDTO, 350);
-          const forecastSize = logDTOSize("dialog.responder.forecast", forecastDTO, 200);
-          const historySize = logDTOSize("dialog.responder.history", historyDTO, 1500);
-          await logPromptSize(routeDb, routeUserId, {
-            endpoint: "communicator/v2/dialog",
-            stage: "responder",
-            phase: phase.phase_id,
-            profile_tokens: profileSize.tokens,
-            forecast_tokens: forecastSize.tokens,
-            history_tokens: historySize.tokens,
-            practices_tokens: logDTOSize("dialog.responder.practices", practicesList, 250).tokens,
-            total_tokens: profileSize.tokens + forecastSize.tokens + historySize.tokens,
-          });
-          const renderedPhase = renderPrompt(
-            phasePrompt.template,
-            phaseVariables({
-              body,
-              context,
-              decision,
-              userMessage,
-              timezone: userTimezone,
-              practicesList,
-              selectedPractice: practiceCandidate ? publicPracticePickedPayload(practiceCandidate) : null,
-            }),
-          );
-          const astrologyBudget =
-            decision.responder_hints?.astrology_budget ?? inferredAstrologyBudget(turnMetrics.astrology_used_turns_ago);
-          const chakraBudget =
-            decision.responder_hints?.chakra_budget ?? inferredChakraBudget(decision, turnMetrics.chakra_used_turns_ago);
-          const prompt = renderPrompt(responderPrompt.template, {
-            author_voice_block: authorVoiceBlock,
-            current_phase: phase.phase_id,
-            phase_instruction: renderedPhase,
-            tone: decision.responder_hints?.tone ?? "neutral",
-            style_markers: (context.calibration?.user_lexicon as { style_markers?: unknown } | undefined)?.style_markers ?? {},
-            user_phrases: relevantUserPhrases(context),
-            use_user_phrases: decision.responder_hints?.use_user_phrases ?? [],
-            avoid_topics: decision.responder_hints?.avoid_topics ?? [],
-            user_profile_summary: profileDTO,
-            daily_context: forecastDTO,
-            daily_background: dailyBackground,
-            history: historyDTO,
-            conversation_history: historyDTO,
-            user_last_message: userMessage,
-            user_message_length_hint: userMessageLengthHint(userMessage),
-            user_register_hint: decision.user_register ?? "unknown",
-            astrology_budget_hint: formatAstrologyBudgetHint(astrologyBudget, turnMetrics.astrology_used_turns_ago),
-            chakra_budget_hint: formatChakraBudgetHint(chakraBudget, turnMetrics.chakra_used_turns_ago),
-            orchestrator_hints: formatOrchestratorHints(decision),
-            user_locale: (context.user.locale ?? "ru").slice(0, 2),
-          });
 
-          const responderModel = dialogSurfaceModelHint(responderPrompt.model_hint, context.user);
           let fullText = "";
-          let modelUsed = getModelByHint(responderModel);
-          const responderMaxOut = Math.max(responderPrompt.max_output_tokens ?? 800, 2048);
-          for await (const chunk of streamGeminiText({
-            prompt,
-            model: getModelByHint(responderModel),
-            temperature: responderPrompt.temperature,
-            maxOutputTokens: responderMaxOut,
-          })) {
-            modelUsed = chunk.modelUsed;
-            if (firstTokenLatencyMs == null) firstTokenLatencyMs = Date.now() - requestStarted;
-            fullText += chunk.text;
-            controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed })));
+          let modelIdUsed = requestedModel;
+          let modelTierUsed: "premium" | "standard" = turnDecision.modelTier;
+          let responseMode: ResponseMode = turnDecision.mode;
+          let readyMarkerTriggered = false;
+          let validation: ValidationResult | null = null;
+
+          if (turnDecision.modelTier === "premium") {
+            for await (const chunk of streamGeminiText({
+              systemInstruction: systemPromptData.systemInstruction,
+              contents: initialContents,
+              cachedContent: initialCache ?? undefined,
+              model: requestedModel,
+              temperature: 0.85,
+              maxOutputTokens: 1500,
+            })) {
+              modelIdUsed = chunk.modelUsed;
+              fullText += chunk.text;
+              controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
+            }
+          } else {
+            const standardResponse = await generateGeminiText({
+              systemInstruction: systemPromptData.systemInstruction,
+              contents: initialContents,
+              cachedContent: initialCache ?? undefined,
+              model: requestedModel,
+              temperature: 0.85,
+              maxOutputTokens: 1500,
+            });
+            modelIdUsed = standardResponse.modelUsed;
+            if (!containsReadyMarker(standardResponse.text)) {
+              fullText = standardResponse.text;
+            } else {
+              readyMarkerTriggered = true;
+              validation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
+              const finalInstructionText = validation.confident
+                ? ORCHESTRATOR_INSTRUCTIONS.final_recommendation
+                : ORCHESTRATOR_INSTRUCTIONS.final_recommendation_with_validation_warning;
+              responseMode = validation.confident ? "final_recommendation" : "final_recommendation_with_validation_warning";
+              modelTierUsed = "premium";
+              const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
+              const premiumContents = [...prefixContents, finalInstruction];
+              const premiumCache = await ensureDialogCache(
+                conversation.id,
+                systemPromptData.systemInstruction,
+                prefixContents,
+                premiumModel,
+              );
+              for await (const chunk of streamGeminiText({
+                systemInstruction: systemPromptData.systemInstruction,
+                contents: premiumContents,
+                cachedContent: premiumCache ?? undefined,
+                model: premiumModel,
+                temperature: 0.85,
+                maxOutputTokens: 1500,
+              })) {
+                modelIdUsed = chunk.modelUsed;
+                fullText += chunk.text;
+                controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
+              }
+            }
           }
 
           const markers = parseResponseMarkers(fullText);
           const cleanText = sanitizeAssistantText(fullText, context.user.locale);
-          const finalPractice = phase.phase_id === "suggest_practice" ? await choosePractice(routeDb, routeUserId, markers.practicePick, context, userMessage, history) : null;
-          const finalPracticePublic = finalPractice
-            ? await attachThumbnailToPracticeRecommendation(
-                publicPracticePickedPayload(finalPractice, markers.practicePick?.reason),
-                295,
-              )
-            : undefined;
+          const finalPracticePublic = await resolvePracticePublic(
+            routeDb,
+            routeUserId,
+            markers.practicePick,
+            context,
+            userMessage,
+            history,
+          );
 
-          if (markers.stateProposals.length) {
-            const stateProposalExpiresAt = new Date();
-            stateProposalExpiresAt.setUTCDate(stateProposalExpiresAt.getUTCDate() + 30);
-            const expiresAtIso = stateProposalExpiresAt.toISOString();
-            await routeDb.from("ai_state_proposals").insert(
-              markers.stateProposals.map((proposal) => ({
-                ...proposal,
-                user_id: routeUserId,
-                conversation_id: conversation.id,
-                expires_at: expiresAtIso,
-              })),
-            );
-          }
-          if (markers.recommendationCorrection && context.forecast?.id) {
-            await routeDb
-              .from("user_daily_forecasts")
-              .update({
-                recommendation_short_text: markers.recommendationCorrection.short_text ?? context.forecast.recommendation_short_text,
-                is_corrected_via_dialog: true,
-                corrected_at: new Date().toISOString(),
-              })
-              .eq("id", context.forecast.id);
+          if (!readyMarkerTriggered && turnDecision.modelTier === "standard" && cleanText) {
+            controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed: modelIdUsed })));
           }
 
-          const shouldClose = phase.is_terminal || decision.should_close;
-          const { data: assistantMessage, error: messageError } = await routeDb
-            .from("messages")
-            .insert({
-              user_id: routeUserId,
-              conversation_id: conversation.id,
-              role: "assistant",
-              content: cleanText,
-              content_type: "text",
-              meta: {
-                use_case: useCase,
-                scenario_id: scenarioId,
-                orchestrator_decision: decision,
-                responder: {
-                  phase_used: phase.phase_id,
-                  extracted_states: markers.stateProposals.map((proposal) => proposal.proposed_label),
-                  ai_state_proposals: markers.stateProposals,
-                  model_used: modelUsed,
-                },
-                practice_picked: finalPracticePublic,
-              },
-            })
-            .select("id")
-            .single();
-          if (messageError) throw messageError;
+          await maybeApplyRecommendationCorrection(
+            routeDb,
+            typeof context.forecast?.id === "string" ? context.forecast.id : undefined,
+            context.forecast,
+            markers.recommendationCorrection,
+          );
 
-          if (shouldClose) await routeDb.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
-          await routeDb.from("user_event_log").insert({
-            user_id: routeUserId,
-            kind: "dialog_turn",
-            payload: {
-              conversation_id: conversation.id,
-              decision_source: decision.decision_source,
-              phase: phase.phase_id,
-              orchestrator_latency_ms: orchestratorLatencyMs,
-              first_token_latency_ms: firstTokenLatencyMs,
-              cache_similarity: decision.cache_similarity ?? null,
-            },
+          const shouldClose = responseMode === "forced_final";
+          const assistantMeta = {
+            turn_mode: responseMode,
+            model_used: modelTierUsed,
+            model_id: modelIdUsed,
+            iteration,
+            ready_marker_triggered: readyMarkerTriggered,
+            validation,
+            practicePicked: finalPracticePublic,
+            practice_picked: finalPracticePublic,
+            recommendationCorrected: markers.recommendationCorrection,
+            insight_metrics: insightMetrics,
+          };
+          const messageId = await persistAssistantMessage({
+            db: routeDb,
+            userId: routeUserId,
+            conversationId: conversation.id,
+            useCase,
+            scenarioId,
+            text: cleanText,
+            meta: assistantMeta,
           });
+
+          if (shouldClose) {
+            await routeDb.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
+          }
 
           controller.enqueue(
             encoder.encode(
               sse("complete", {
                 conversationId: conversation.id,
-                messageId: assistantMessage.id,
+                messageId,
                 fullText: cleanText,
                 shouldClose,
-                modelUsed,
-                practicePicked: finalPracticePublic,
+                modelUsed: modelIdUsed,
+                modelTier: modelTierUsed,
+                turnMode: responseMode,
+                iteration,
+                readyMarkerTriggered,
+                validation,
+                insightMetrics,
+                practicePicked: finalPracticePublic ?? undefined,
                 recommendationCorrected: markers.recommendationCorrection
                   ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
                   : undefined,
@@ -1015,8 +695,8 @@ export async function POST(req: Request) {
             stage: "responder_stream",
             payload: {
               conversation_id: conversation.id,
-              phase: phase.phase_id,
-              use_case: useCase,
+              iteration,
+              turn_mode: turnDecision.mode,
             },
           });
           controller.error(error);

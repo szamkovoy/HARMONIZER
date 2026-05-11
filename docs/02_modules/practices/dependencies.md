@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.4
-updated: 2026-05-07
+version: 1.5
+updated: 2026-05-11
 depends_on:
   [
     01_foundation/product_model,
@@ -33,7 +33,7 @@ code_refs:
   `app/(tabs)/_layout.tsx` — таб «Практики» с `href: null`, если нет `practice_catalog`; `modules/practices/ui/PracticeCatalogScreen.tsx`, `app/asana-practice.tsx` — `canUseFeature` / `UpgradeDialog` для каталога, асан (`asana_practices`) и связанных фич. Парная запись: `docs/02_modules/subscription/dependencies.md` §2.
 
 - **`daily_forecast`**  
-  Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` **`forecast`** (дата, `planetOfTheDay`, тон, окна) в `triggerMeta` и текст приветствия; после ответа API с `practicePicked` вызывается **`launchPracticeFromAssistant`**. Серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
+  Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` forecast-метаданные дня; серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня и вернуть coherent breathing на чакру дня. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
 
 - **`biofeedback`**  
   `app/breath-coherence.tsx` → **`CoherenceBreathScreen`** — PPG / pipeline и запись **`metrics`** в `practice_sessions`. Медитация **`SacredSymbolStreamScreen`** biofeedback не использует. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.
@@ -56,7 +56,7 @@ code_refs:
   `app/(tabs)/profile.tsx` при `canUseFeature("stats")` вызывает **`loadDailyPracticeStats`** из `services/practiceSessions.ts`. Парная запись: `docs/02_modules/profile/dependencies.md` §1.
 
 - **`assistant`**  
-  Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts`, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и запускает **`launchPractice`**. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
+  Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts`, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и использует общий `PracticeCard` + `launchPractice`. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
 
 ## 3. Контрактные точки риска
 
@@ -65,6 +65,7 @@ code_refs:
 - **`FeatureKey`** (`practice_catalog`, `asana_practices`, `stats`) должна оставаться согласованной с `modules/access` и серверными проверками.
 
 - **`PracticeLaunchParams` vs query**: несовпадение имён параметров роутов (`practiceId`, `durationMs`, `chakra`, `usePulseSensor`) ломает диплинки из каталога и из ассистента.
+- **Общий `PracticeCard`**: любое сужение пропсов/типов `PracticeSummary`, `PracticeLaunchParams`, `PracticeVideoMetadata` теперь одновременно затрагивает каталог и communicator.
 
 - **Два источника дефолта длительности медитации** (каталог vs экран) — риск UX при смешанных входах; см. `history.md`.
 

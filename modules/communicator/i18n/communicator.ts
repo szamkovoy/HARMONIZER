@@ -13,7 +13,13 @@ type PhaseId =
   | "offer_insight"
   | "ask_practice_intent"
   | "suggest_practice"
-  | "confirm_and_close";
+  | "confirm_and_close"
+  | "opening"
+  | "inquiry"
+  | "forced_final"
+  | "post_recommendation"
+  | "final_recommendation"
+  | "final_recommendation_with_validation_warning";
 
 export interface CommunicatorStrings {
   locale: CommunicatorLocale;
@@ -71,6 +77,12 @@ const ruPhaseLabels: CommunicatorStrings["phaseLabels"] = {
   ask_practice_intent: "выбор практики",
   suggest_practice: "практика",
   confirm_and_close: "завершение",
+  opening: "первый отклик",
+  inquiry: "уточнение",
+  forced_final: "финальная рекомендация",
+  post_recommendation: "после рекомендации",
+  final_recommendation: "финальная рекомендация",
+  final_recommendation_with_validation_warning: "финальная рекомендация",
 };
 
 const enPhaseLabels: CommunicatorStrings["phaseLabels"] = {
@@ -85,6 +97,12 @@ const enPhaseLabels: CommunicatorStrings["phaseLabels"] = {
   ask_practice_intent: "practice intent",
   suggest_practice: "practice",
   confirm_and_close: "closing",
+  opening: "opening",
+  inquiry: "clarifying",
+  forced_final: "final recommendation",
+  post_recommendation: "after recommendation",
+  final_recommendation: "final recommendation",
+  final_recommendation_with_validation_warning: "final recommendation",
 };
 
 function phaseLabelFor(
@@ -92,7 +110,7 @@ function phaseLabelFor(
   labels: CommunicatorStrings["phaseLabels"],
   fallback: (phaseId: string) => string,
 ): string | undefined {
-  const phase = decision?.next_phase;
+  const phase = decision?.mode ?? decision?.next_phase;
   if (!phase) return undefined;
   return labels[phase as PhaseId] ?? fallback(phase);
 }

@@ -1,17 +1,41 @@
+import { createHash } from "node:crypto";
+
 import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
-type GenerateJsonOptions = {
-  prompt: string;
+
+export interface GeminiContent {
+  role: "user" | "model";
+  parts: { text: string }[];
+}
+
+type GeminiBaseRequest = {
   model?: string | null;
   fallbackModels?: readonly string[];
   temperature?: number | null;
   maxOutputTokens?: number | null;
-};
-
-type GenerateTextOptions = GenerateJsonOptions & {
   responseMimeType?: "text/plain" | "application/json";
 };
 
+type GeminiLegacyPromptRequest = GeminiBaseRequest & {
+  prompt: string;
+};
+
+export interface GeminiStructuredRequest extends GeminiBaseRequest {
+  systemInstruction?: string;
+  contents: GeminiContent[];
+  cachedContent?: string;
+}
+
+type GenerateJsonOptions = GeminiLegacyPromptRequest | GeminiStructuredRequest;
+type GenerateTextOptions = GenerateJsonOptions;
+
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DIALOG_CACHE_TTL_SEC = 600;
+const DEFAULT_CACHE_MIN_TOKENS = 32_768;
+const MODEL_CACHE_MIN_TOKENS: Record<string, number> = {
+  "gemini-3-flash-preview": 1024,
+  "gemini-2.5-flash": 1024,
+};
+const dialogCacheStore = new Map<string, { name: string; expiresAt: number }>();
 
 /** Разрешить только при явном ALLOW_LEGACY_GEMINI_MODELS=true — иначе используется ровно значение из env. */
 const LEGACY_MODEL_UPGRADES: Record<string, string> = {
@@ -58,31 +82,24 @@ function resolvePublishedGeminiModelId(modelId: string): string {
   return INFORMAL_GEMINI_MODEL_IDS[lower] ?? trimmed;
 }
 
-/** Резолв основной premium-модели из env (без рекурсии в `getModelByHint`). */
-function resolvePrimaryPremiumModelId(): string | null {
-  const model = process.env.AI_MODEL_PREMIUM?.trim();
+function resolveEnvModelId(name: "AI_MODEL_STANDARD" | "AI_MODEL_PREMIUM" | "AI_MODEL_FALLBACK"): string | null {
+  const model = process.env[name]?.trim();
   if (!model) return null;
   return resolvePublishedGeminiModelId(model);
 }
 
 /**
  * Подсказка tier из промпта или явное имя модели → id для Gemini API.
- * При `options.fallback === true` — резервная модель из `AI_MODEL_*_FALLBACK` (см. `.env.example`).
+ * При `options.fallback === true` — резервная модель из `AI_MODEL_FALLBACK`.
  */
 export function getModelByHint(hint: string | null | undefined, options?: { fallback?: boolean }): string {
   const rawHint = hint?.trim() ?? "";
   const tier = rawHint.toLowerCase();
 
   if (options?.fallback) {
-    const premiumPrimary = resolvePrimaryPremiumModelId();
-    const usePremium =
-      tier === "premium" ||
-      (tier.startsWith("gemini-") && premiumPrimary != null && resolvePublishedGeminiModelId(rawHint) === premiumPrimary);
-    const model = usePremium ? process.env.AI_MODEL_PREMIUM_FALLBACK?.trim() : process.env.AI_MODEL_STANDARD_FALLBACK?.trim();
+    const model = process.env.AI_MODEL_FALLBACK?.trim();
     if (!model) {
-      throw new Error(
-        usePremium ? "Missing AI_MODEL_PREMIUM_FALLBACK environment variable" : "Missing AI_MODEL_STANDARD_FALLBACK environment variable",
-      );
+      throw new Error("Missing AI_MODEL_FALLBACK environment variable");
     }
     return resolvePublishedGeminiModelId(model);
   }
@@ -99,12 +116,6 @@ export function getModelByHint(hint: string | null | undefined, options?: { fall
   return resolvePublishedGeminiModelId(model);
 }
 
-function overloadTierForPrimaryModel(primary: string): "standard" | "premium" {
-  const premiumPrimary = resolvePrimaryPremiumModelId();
-  if (premiumPrimary != null && primary === premiumPrimary) return "premium";
-  return "standard";
-}
-
 function isRetryableGeminiOverloadMessage(message: string): boolean {
   return (
     /\b503\b/i.test(message) ||
@@ -112,12 +123,11 @@ function isRetryableGeminiOverloadMessage(message: string): boolean {
     /high demand/i.test(message) ||
     /\b429\b/i.test(message) ||
     /rate_limit_exceeded/i.test(message) ||
-    /not\s*found/i.test(message) ||
-    /\b404\b/.test(message) ||
-    /\bNOT_FOUND\b/.test(message) ||
     /\bUNAVAILABLE\b/i.test(message) ||
     /overloaded/i.test(message) ||
-    /resource exhausted/i.test(message)
+    /resource exhausted/i.test(message) ||
+    /timed out/i.test(message) ||
+    /timeout/i.test(message)
   );
 }
 
@@ -158,15 +168,21 @@ function throwFinalGeminiError(lastError: unknown): never {
 
 function geminiAttemptModelChain(preferred?: string | null, extraFallbacks?: readonly string[]): string[] {
   const primary = preferred?.trim() || getModelByHint("standard");
-  const tier = overloadTierForPrimaryModel(primary);
-  let envFallback: string | undefined;
-  try {
-    const fb = getModelByHint(tier, { fallback: true });
-    if (fb !== primary) envFallback = fb;
-  } catch {
-    /* резервные модели в env не заданы — цепочка только из primary */
+  const standard = resolveEnvModelId("AI_MODEL_STANDARD");
+  const premium = resolveEnvModelId("AI_MODEL_PREMIUM");
+  const fallback = resolveEnvModelId("AI_MODEL_FALLBACK");
+  const tail: string[] = [];
+
+  if (premium != null && primary === premium) {
+    if (standard != null && standard !== premium) tail.push(standard);
+    if (fallback != null && fallback !== primary && fallback !== standard) tail.push(fallback);
+  } else if (standard != null && primary === standard) {
+    if (fallback != null && fallback !== primary) tail.push(fallback);
+  } else if (fallback != null && fallback !== primary) {
+    tail.push(fallback);
   }
-  const tail = [...(envFallback ? [envFallback] : []), ...(extraFallbacks ?? [])];
+
+  tail.push(...(extraFallbacks ?? []));
   const out: string[] = [];
   for (const id of [primary, ...tail]) {
     const trimmed = id?.trim();
@@ -196,12 +212,6 @@ async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-/**
- * Gemini 2.5 по умолчанию тратит «мыслительные» токены из того же бюджета, что и видимый текст — обрывы
- * посреди фразы при умеренном maxOutputTokens. Для 2.5 отключаем thinking; линейка 3.x не трогаем —
- * остаётся глубина по умолчанию API (ограничение — maxOutputTokens на маршруте).
- * @see https://firebase.google.com/docs/ai-logic/thinking
- */
 function thinkingConfigForDialogModel(modelId: string): Record<string, unknown> | undefined {
   const id = modelId.replace(/^models\//i, "").toLowerCase();
   if (id.startsWith("gemini-2.5")) {
@@ -227,6 +237,144 @@ function buildGenerationConfig(
     ...(base.responseSchema != null ? { responseSchema: base.responseSchema as GenerationConfig["responseSchema"] } : {}),
     ...(thinking ?? {}),
   } as GenerationConfig;
+}
+
+function toStructuredRequest(options: GenerateTextOptions): GeminiStructuredRequest {
+  if ("contents" in options) {
+    return {
+      systemInstruction: options.systemInstruction,
+      contents: options.contents,
+      model: options.model,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+      responseMimeType: options.responseMimeType,
+      cachedContent: options.cachedContent,
+      fallbackModels: options.fallbackModels,
+    };
+  }
+
+  return {
+    contents: [{ role: "user", parts: [{ text: options.prompt }] }],
+    model: options.model,
+    temperature: options.temperature,
+    maxOutputTokens: options.maxOutputTokens,
+    responseMimeType: options.responseMimeType,
+    fallbackModels: options.fallbackModels,
+  };
+}
+
+function systemInstructionPayload(text: string | undefined): { parts: Array<{ text: string }> } | undefined {
+  const trimmed = text?.trim();
+  return trimmed ? { parts: [{ text: trimmed }] } : undefined;
+}
+
+function buildRequestBody(modelId: string, request: GeminiStructuredRequest, responseMimeType: "text/plain" | "application/json") {
+  return {
+    contents: request.contents,
+    ...(systemInstructionPayload(request.systemInstruction)
+      ? { systemInstruction: systemInstructionPayload(request.systemInstruction) }
+      : {}),
+    generationConfig: buildGenerationConfig(modelId, {
+      temperature: request.temperature ?? (responseMimeType === "application/json" ? 0.4 : 0.7),
+      maxOutputTokens: request.maxOutputTokens ?? (responseMimeType === "application/json" ? 1500 : 400),
+      responseMimeType: request.responseMimeType ?? responseMimeType,
+    }),
+    ...(request.cachedContent ? { cachedContent: request.cachedContent } : {}),
+  };
+}
+
+function pruneExpiredDialogCaches(now = Date.now()): void {
+  for (const [key, entry] of dialogCacheStore.entries()) {
+    if (entry.expiresAt <= now) dialogCacheStore.delete(key);
+  }
+}
+
+function estimatedTokenCount(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function cacheThresholdForModel(modelId: string): number {
+  const normalized = modelId.replace(/^models\//i, "").toLowerCase();
+  return MODEL_CACHE_MIN_TOKENS[normalized] ?? DEFAULT_CACHE_MIN_TOKENS;
+}
+
+function cacheablePrefixText(systemInstruction: string, contents: GeminiContent[]): string {
+  return [systemInstruction, ...contents.flatMap((content) => content.parts.map((part) => part.text))].join("\n");
+}
+
+function dialogCacheKey(conversationId: string, historyHash: string): string {
+  return `dialog_cache:${conversationId}:${historyHash}`;
+}
+
+function modelResourceName(modelId: string): string {
+  return modelId.startsWith("models/") ? modelId : `models/${modelId}`;
+}
+
+export function getExplicitCacheMinTokens(modelId: string): number {
+  return cacheThresholdForModel(modelId);
+}
+
+export async function ensureDialogCache(
+  conversationId: string,
+  systemInstruction: string,
+  history: GeminiContent[],
+  model: string,
+): Promise<string | null> {
+  const trimmedSystemInstruction = systemInstruction.trim();
+  const cacheableHistory = history.filter((item) => item.parts.some((part) => part.text.trim().length > 0));
+  if (!conversationId || !trimmedSystemInstruction || cacheableHistory.length === 0) return null;
+
+  const prefixText = cacheablePrefixText(trimmedSystemInstruction, cacheableHistory);
+  const estimatedTokens = estimatedTokenCount(prefixText);
+  const minTokens = cacheThresholdForModel(model);
+  if (estimatedTokens < minTokens) return null;
+
+  pruneExpiredDialogCaches();
+  const historyHash = createHash("sha256")
+    .update(JSON.stringify({ model, systemInstruction: trimmedSystemInstruction, history: cacheableHistory }))
+    .digest("hex");
+  const key = dialogCacheKey(conversationId, historyHash);
+  const now = Date.now();
+  const cached = dialogCacheStore.get(key);
+  if (cached && cached.expiresAt > now) return cached.name;
+
+  try {
+    const response = await withGeminiTimeout(
+      fetch(`https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${encodeURIComponent(getApiKey())}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelResourceName(model),
+          systemInstruction: { parts: [{ text: trimmedSystemInstruction }] },
+          contents: cacheableHistory,
+          ttl: `${DIALOG_CACHE_TTL_SEC}s`,
+        }),
+      }),
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => response.statusText);
+      if (response.status === 400 || response.status === 404) return null;
+      console.warn(`[GEMINI CACHE] Failed to create cache (${response.status}): ${text.slice(0, 280)}`);
+      return null;
+    }
+
+    const json = (await response.json().catch(() => null)) as { name?: unknown } | null;
+    const name = typeof json?.name === "string" && json.name.trim() ? json.name.trim() : null;
+    if (!name) return null;
+
+    dialogCacheStore.set(key, {
+      name,
+      expiresAt: now + DIALOG_CACHE_TTL_SEC * 1000,
+    });
+    return name;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isRetryableGeminiOverloadMessage(message)) return null;
+    console.warn(`[GEMINI CACHE] Cache create failed: ${message}`);
+    return null;
+  }
 }
 
 function normalizeJsonText(text: string): string {
@@ -314,20 +462,16 @@ export function extractJson(text: string): unknown {
 export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promise<{ json: T; rawText: string; modelUsed: string }> {
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
-  const chain = geminiAttemptModelChain(options.model, options.fallbackModels);
+  const request = toStructuredRequest(options);
+  const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
     try {
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        generationConfig: buildGenerationConfig(modelId, {
-          temperature: options.temperature ?? 0.4,
-          maxOutputTokens: options.maxOutputTokens ?? 1500,
-          responseMimeType: "application/json",
-        }),
-      });
-      const result = await withGeminiTimeout(model.generateContent(options.prompt));
+      const model = genAI.getGenerativeModel({ model: modelId });
+      const result = await withGeminiTimeout(
+        model.generateContent(buildRequestBody(modelId, request, "application/json") as never),
+      );
       const rawText = result.response.text();
       return { json: extractJson(rawText) as T, rawText, modelUsed: modelId };
     } catch (error) {
@@ -350,20 +494,16 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
 export async function generateGeminiText(options: GenerateTextOptions): Promise<{ text: string; modelUsed: string }> {
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
-  const chain = geminiAttemptModelChain(options.model, options.fallbackModels);
+  const request = toStructuredRequest(options);
+  const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
     try {
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        generationConfig: buildGenerationConfig(modelId, {
-          temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxOutputTokens ?? 400,
-          responseMimeType: options.responseMimeType ?? "text/plain",
-        }),
-      });
-      const result = await withGeminiTimeout(model.generateContent(options.prompt));
+      const model = genAI.getGenerativeModel({ model: modelId });
+      const result = await withGeminiTimeout(
+        model.generateContent(buildRequestBody(modelId, request, "text/plain") as never),
+      );
       return { text: result.response.text(), modelUsed: modelId };
     } catch (error) {
       lastError = error;
@@ -385,20 +525,16 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
 export async function* streamGeminiText(options: GenerateTextOptions): AsyncGenerator<{ text: string; modelUsed: string }> {
   const genAI = new GoogleGenerativeAI(getApiKey());
   let lastError: unknown;
-  const chain = geminiAttemptModelChain(options.model, options.fallbackModels);
+  const request = toStructuredRequest(options);
+  const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
     try {
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        generationConfig: buildGenerationConfig(modelId, {
-          temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxOutputTokens ?? 400,
-          responseMimeType: options.responseMimeType ?? "text/plain",
-        }),
-      });
-      const result = await withGeminiTimeout(model.generateContentStream(options.prompt));
+      const model = genAI.getGenerativeModel({ model: modelId });
+      const result = await withGeminiTimeout(
+        model.generateContentStream(buildRequestBody(modelId, request, "text/plain") as never),
+      );
       for await (const chunk of result.stream) {
         const text = chunk.text();
         if (text) yield { text, modelUsed: modelId };

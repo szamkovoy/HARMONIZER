@@ -1,15 +1,15 @@
 ---
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 1.2
-updated: 2026-05-09
+version: 1.3
+updated: 2026-05-11
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
-    modules/communicator/ui/PracticeCard.tsx,
     modules/communicator/api/communicator-stream.ts,
     modules/communicator/ui/useCommunicatorStream.ts,
+    modules/practices/ui/PracticeCard.tsx,
     services/communicator-client.ts,
     services/communicatorConfig.ts,
   ]
@@ -17,7 +17,7 @@ code_refs:
 
 ## 1. Назначение
 
-Модуль **communicator** — клиентский слой диалога с ассистентом: UI чата (голос и текст), локальное состояние сессии, разбор SSE-ответа сервера и карточка предложенной практики. Серверные промпты, оркестратор и выбор практики описаны в `docs/02_modules/assistant/`; здесь зафиксировано только то, что выполняет приложение Expo.
+Модуль **communicator** — клиентский слой диалога с ассистентом: UI чата (голос и текст), локальное состояние сессии, разбор SSE-ответа сервера, dev-export диалога и карточка предложенной практики. Серверные промпты, structured Gemini request, оркестратор и выбор практики описаны в `docs/02_modules/assistant/`; здесь зафиксировано только то, что выполняет приложение Expo.
 
 ## 2. Публичный контракт
 
@@ -36,12 +36,11 @@ code_refs:
   - `history?: CommunicatorHistoryMessage[]`, `memoryWindow?: number` — начальная история и ограничение числа последних пар для синхронизации/отображения (`sliceHistoryForWindow`).
   - `autoSendInitialMessage?: string` — один раз после успешной `fetchDialogSession` отправляет текст как пользователя (см. ref-guard в коде).
   - `onMessage?: (msg: CommunicatorHistoryMessage) => void`
-  - `onPracticePicked?: (practice: PracticePicked) => void` — вызывается из **`PracticeCard`** при нажатии «Начать», не при получении SSE.
+  - `onPracticePicked?: (practice: PracticePicked) => void` — вызывается после локального `launchPractice(...)`, не при получении SSE.
   - `onError`, `onAbort`, `onStateChange`, `onEmotionSegment` — см. `CommunicatorProps` в коде.
   - `locale`, `initialMode`, `mode` — локаль строк и политика VOICE/TXT (часть режимов завязана на флаг `COMMUNICATOR_TEXT_MODE_ENABLED` в `modules/ui/testMode`).
 
-- **`PracticeCard`** (`modules/communicator/ui/PracticeCard.tsx`)  
-  `export function PracticeCard(props: { practice: PracticePicked; strings: CommunicatorStrings; onPress?: (practice: PracticePicked) => void })`
+- Локальной карточки практики в `communicator` больше нет: используется общий **`modules/practices/ui/PracticeCard.tsx`** через адаптацию `PracticePicked → PracticeSummary`.
 
 ### Типы модуля (`modules/communicator/core/types.ts`)
 
@@ -80,8 +79,9 @@ code_refs:
 
 1. **Жизненный цикл сессии** — `Communicator` монтируется → `fetchDialogSession` подтягивает `conversationId` и сообщения с сервера (или подставляет `history` из пропсов) → пользователь вводит текст или записывает голос.
 2. **Голос** — `expo-av` `Audio.Recording` с пресетами из `core/whisperRecording.ts` (16 kHz mono AAC как основной путь, fallback 44.1 kHz) → файл читается как base64 → **`transcribeCommunicatorAudio`** → текст попадает в тот же путь, что и ручной ввод. При низкой уверенности распознавания показывается экран правки текста (`pendingTranscript`).
-3. **Стрим ответа** — `runCommunicatorStream` → `sendDialogMessage` парсит SSE-блоки (`parseSseBlock`) и для событий `orchestrator_decision`, `chunk`, `complete` обновляет состояние. Во время стрима показывается «печатающий» пузырь; после завершения текст сообщения ассистента берётся как **более длинный** из пары «агрегат по `chunk`» и `complete.fullText` (чтобы не заменять полный стрим более коротким финальным payload); при полном отсутствии текста подставляется `emptyAssistantReplyFallback` из i18n. При наличии `practicePicked` в `complete` под ответом рендерится **`PracticeCard`**.
-4. **Карточка практики** — только отображение и кнопка; запуск практики выполняет колбэк родителя (на главном экране — через `launchPractice` / маршруты практик).
+3. **Стрим ответа** — `runCommunicatorStream` → `sendDialogMessage` парсит SSE-блоки (`parseSseBlock`) и для событий `orchestrator_decision`, `chunk`, `complete` обновляет состояние. После перехода на dialog v3 статус остаётся **thinking** до первого видимого текста; пустой assistant bubble больше не появляется только из-за раннего `orchestrator_decision`. После завершения текст сообщения ассистента берётся как **более длинный** из пары «агрегат по `chunk`» и `complete.fullText`; при полном отсутствии текста подставляется `emptyAssistantReplyFallback` из i18n.
+4. **Карточка практики** — `Communicator` рендерит общий `modules/practices/ui/PracticeCard.tsx`, переводя серверный `PracticePicked` в `PracticeSummary`. Для breath/meditation пользователь может переопределить duration/chakra перед запуском; затем вызывается `launchPractice(..., { launchSource: 'assistant' })`.
+5. **Dev export** — в `__DEV__` показывается кнопка `Export dialog to JSON`, которая собирает `day_context` из `triggerMeta` и метаданные сообщений (`turnMode`, `modelTier`, `validation`, `insightMetrics`) и отдаёт их через RN `Share`.
 
 События SSE обрабатываются в `handleSseEvent` (`services/communicator-client.ts`): для `complete` в состояние попадает весь объект **`DialogCompleteEvent`**.
 
@@ -94,14 +94,14 @@ code_refs:
 | `sendDialogMessage` body | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`. |
 | Константы UI | `MIN_VOICE_MS` (450), `LOW_TRANSCRIPTION_CONFIDENCE` (0.65), лимит текста 8000 символов. |
 | Режим текста | `COMMUNICATOR_TEXT_MODE_ENABLED` — если выключен, только голос без переключателя. |
-| Дебаг | Подпись `model: …` у бейджа ассистента — только в **`__DEV__`** (не в production-сборке). |
+| Дебаг | Подпись `model: …` у бейджа ассистента и кнопка `Export dialog to JSON` — только в **`__DEV__`**. |
 | Ошибки сети / LLM | Текст перегрузки Gemini (503/429 и т.п.) в `Alert` нормализуется к короткому русскому сообщению, без сырого стектрейса SDK. |
 
 Из **`complete`** (`DialogCompleteEvent`) в UI и метаданные сообщения попадают как минимум:
 
-- `fullText`, `shouldClose`, `modelUsed`
+- `fullText`, `shouldClose`, `modelUsed`, `modelTier`, `turnMode`, `iteration`, `readyMarkerTriggered`, `validation`, `insightMetrics`
 - `messageId`, `conversationId` — обновление id сообщения и активной беседы
-- `practicePicked` → `meta.practicePicked` и **`PracticeCard`**
+- `practicePicked` → `meta.practicePicked` и общий `PracticeCard`
 - `recommendationCorrected` → `meta.recommendationCorrected`
 
 Поля **`chunk`**: JSON с `text` и опционально `modelUsed`.

@@ -129,8 +129,8 @@ export function PracticeCatalogScreen() {
           meditation: catalog.meditation,
           breath: catalog.breath,
         };
-        const pendingYoga = pendingLateYogaRef.current;
-        if (pendingYoga !== null) {
+        if (pendingLateYogaRef.current !== null) {
+          const pendingYoga = pendingLateYogaRef.current as PracticeSummary[];
           pendingLateYogaRef.current = null;
           lateYogaSlotRef.current = { resolved: true, yoga: pendingYoga };
           setYogaLateLoading(false);

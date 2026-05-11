@@ -1,16 +1,16 @@
 ---
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-11
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
-    modules/communicator/ui/PracticeCard.tsx,
     services/communicator-client.ts,
     app/(tabs)/index.tsx,
     app/calibration.tsx,
+    modules/practices/ui/PracticeCard.tsx,
   ]
 ---
 
@@ -27,7 +27,7 @@ code_refs:
 
 - **`practices`**  
   `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
-  `modules/communicator/ui/PracticeCard.tsx` — типы превью видео из `modules/practices/core/types`, загрузка превью Vimeo через `services/practice-thumbnails.ts` (`fetchPracticeVimeoThumbnail`).
+  `modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams` и `launchPractice(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI.
 
 - **`subscription`** (интеграция на точке входа, не внутри `modules/communicator/*`)  
   `app/(tabs)/index.tsx` — перед открытием оверлея ассистента проверяется `canUseFeature("assistant_dialog")`; при отказе показывается `UpgradeDialog`. Сам компонент `Communicator` модуль доступа не импортирует.
@@ -38,10 +38,10 @@ code_refs:
   `app/calibration.tsx` — `transcribeCommunicatorAudio`, `extractCalibration` из `services/communicator-client.ts` (тот же транспорт и авторизация, что и у диалога). UI диалога ассистента не переиспользуется.
 
 - **`practices`** (потребление DTO и запуск)  
-  Карточка использует контракт рекомендации; на главном экране `launchPracticeFromAssistant` (`app/(tabs)/index.tsx`) маппит `PracticePicked` на маршруты практик (`launchPractice`).
+  Карточка использует общий UI каталога; запуск теперь делает сам `Communicator` через `launchPractice(...)`, а `app/(tabs)/index.tsx` больше не содержит отдельный `launchPracticeFromAssistant`.
 
 - **Приложение (home)**  
-  `app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal`, передаёт прогноз дня в `triggerMeta`, начальное сообщение ассистента в `history`, `onPracticePicked` → закрытие оверлея и запуск практики.
+  `app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal`, передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` теперь нужен только для побочных UX-эффектов вроде закрытия оверлея.
 
 - **`modules/breath`** (опциональная очередь)  
   `modules/breath/ui/CoherenceBreathScreen.tsx` вызывает `enqueueCommunicatorGreeting` из `modules/communicator/core/pending-greeting.ts` перед переходом на главный экран. Потребление очереди на стороне home не зафиксировано в коде главного экрана — см. `docs/04_workspace/open_questions.md` (раздел `communicator`).
@@ -49,6 +49,6 @@ code_refs:
 ## 3. Контрактные точки риска
 
 - **Имена SSE-событий** — клиент ожидает ровно `orchestrator_decision`, `chunk`, `complete`; рассинхрон с сервером сломает стрим без явной ошибки.
-- **`PracticePicked`** — расширение/сужение полей на сервере ломает `PracticeCard` и `launchPracticeFromAssistant` (маршруты, slug vs id).
+- **`PracticePicked`** — расширение/сужение полей на сервере ломает адаптер `PracticePicked → PracticeSummary` и параметры `launchPractice` (маршруты, slug vs id, chakra/duration override).
 - **`triggerMeta.systemPrompt`** — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - **`fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.

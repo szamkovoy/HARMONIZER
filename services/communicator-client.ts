@@ -4,24 +4,11 @@ import type { PracticeRecommendation } from "@/modules/practices";
 
 export type DialogueUseCase = "calibration" | "daily_dialog";
 export type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
-export type DialogueDecisionSource = "fresh" | "bypass_greeting" | "cache_reused";
 
 export interface OrchestratorDecision {
-  next_phase: string;
-  reasoning: string;
-  information_completeness: Record<string, number>;
-  information_density: number;
-  user_signals: string[];
-  should_close: boolean;
-  close_reason?: "goal_reached" | "soft_cap_hit" | "user_disengaged" | null;
-  responder_hints?: {
-    tone?: "warm" | "neutral" | "energising" | "calming";
-    use_user_phrases?: string[];
-    avoid_topics?: string[];
-  };
-  decision_source?: DialogueDecisionSource;
-  cache_similarity?: number;
-  bypass_reason?: string;
+  mode?: string;
+  modelTier?: "premium" | "standard";
+  next_phase?: string;
 }
 
 export type PracticePicked = Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">;
@@ -38,6 +25,23 @@ export interface DialogCompleteEvent {
   fullText: string;
   shouldClose: boolean;
   modelUsed?: string;
+  modelTier?: "premium" | "standard";
+  turnMode?: string;
+  iteration?: number;
+  readyMarkerTriggered?: boolean;
+  validation?: {
+    confident: boolean;
+    hasDuration: boolean;
+    hasType: boolean;
+  } | null;
+  insightMetrics?: {
+    csi?: number;
+    csi_trend?: number[];
+    ttm_stage?: string;
+    ttm_confidence?: number;
+    etv?: number;
+    valence_trend?: number[];
+  };
   practicePicked?: PracticePicked;
   recommendationCorrected?: RecommendationCorrected;
 }

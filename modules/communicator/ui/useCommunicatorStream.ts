@@ -44,11 +44,10 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
           signal: ac.signal,
           onOrchestratorDecision: (nextDecision) => {
             setDecision(nextDecision);
-            setStatus("typing");
             req.onOrchestratorDecision?.(nextDecision);
           },
           onChunk: ({ assistantText: nextText, decision: nextDecision, complete: nextComplete }) => {
-            setStatus("typing");
+            if (nextText || nextComplete?.fullText) setStatus("typing");
             setAssistantText(nextText);
             setDecision(nextDecision);
             setComplete(nextComplete);
