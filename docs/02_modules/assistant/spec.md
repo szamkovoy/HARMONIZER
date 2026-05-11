@@ -1,10 +1,10 @@
 ---
 id: 02_modules/assistant/spec
 title: Assistant Spec
-version: 1.6
+version: 1.7
 updated: 2026-05-11
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/scenarios.ts, _legacy_web/app/api/_utils/prompts.ts, _legacy_web/app/api/_utils/orchestrator.ts, _legacy_web/app/api/_utils/insightDetection.ts, _legacy_web/app/api/_utils/authorVoice.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/topPetals.ts, _legacy_web/app/api/_utils/mathLevelBuilder.ts, _legacy_web/app/api/_utils/userModelTier.ts, _legacy_web/app/api/_utils/scenarioCache.ts, _legacy_web/app/api/_utils/explicitSignals.ts, _legacy_web/app/api/_utils/softCap.ts, _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts, _legacy_web/config/contentLengths.ts, services/aiClient.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
+code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/scenarios.ts, _legacy_web/app/api/_utils/prompts.ts, _legacy_web/app/api/_utils/orchestrator.ts, _legacy_web/app/api/_utils/insightDetection.ts, _legacy_web/app/api/_utils/authorVoice.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/topPetals.ts, _legacy_web/app/api/_utils/mathLevelBuilder.ts, _legacy_web/app/api/_utils/userModelTier.ts, _legacy_web/app/api/_utils/scenarioCache.ts, _legacy_web/app/api/_utils/softCap.ts, _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts, _legacy_web/config/contentLengths.ts, services/aiClient.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## 1. Назначение
@@ -37,7 +37,7 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 - Тело: `scenario_id?`, `conversationId?`, `useCase?` (`daily_dialog` \| `calibration` \| …), `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`.
 - Резолв сценария: при переданном **`scenario_id`** строка **`scenarios`** должна иметь `scenario_type = dialogue` и `dialogue_use_case`; иначе используются **`useCase`** и дефолты (`daily_dialog` / `calibration`).
 - Загрузка фаз: **`dialogue_phases`** по `use_case`.
-- **`buildDecision`**: метрики инсайта (`buildInsightMetrics`), обход приветствия (`greetingBypassDecision`), при необходимости переиспользование решения оркестратора (`contextSimilarity`, `shouldForceFreshDecision`), метрики последних ходов (`buildDialogTurnMetrics`: последние фазы/регистры ассистента, «давность» упоминаний астрологии/чакр в тексте ассистента), **`detectExplicitSignals`** по последнему сообщению пользователя → **`explicit_signals_json`** в шаблон оркестратора; ось **`information_axes`** для промпта дополняется **`soft_cap`** из **`getSoftCap(useCase, tier)`** (тариф из `users.membership_tier` / `trial_expires_at`), затем промпт **`orchestrator_decision`** → JSON **`OrchestratorDecision`** (`validateOrchestratorDecision`, нормализация **`responder_hints`**). Insight-guard для `daily_dialog` переопределяет фазы практики при неготовности TTM (`enforceInsightPhaseGuards`).
+- **`buildDecision`**: метрики инсайта (`buildInsightMetrics`), обход приветствия (`greetingBypassDecision`), при необходимости переиспользование решения оркестратора (`contextSimilarity`, `shouldForceFreshDecision`), метрики последних ходов (`buildDialogTurnMetrics`: последние фазы/регистры ассистента, «давность» упоминаний астрологии/чакр в тексте ассистента); в шаблон оркестратора передаётся **`explicit_signals_json: "[]"`** (временная заглушка до **`dialog_v3_unified_prompt`**, без словарного детектора и без **`data/dialog_signals.json`**); ось **`information_axes`** для промпта дополняется **`soft_cap`** из **`getSoftCap(useCase, tier)`** (тариф из `users.membership_tier` / `trial_expires_at`), затем промпт **`orchestrator_decision`** → JSON **`OrchestratorDecision`** (`validateOrchestratorDecision`, нормализация **`responder_hints`**). Insight-guard для `daily_dialog` переопределяет фазы практики при неготовности TTM (`enforceInsightPhaseGuards`).
 - Ответ: **SSE** — событие `orchestrator_decision`, затем поток `chunk`, затем `complete` с `conversationId`, `messageId`, текстом, `practicePicked`, коррекцией рекомендации и т.д.
 - Для каждой фазы: активный промпт по **`prompt_key`** фазы + общий **`responder_main`** (активная версия в БД), потоковый текст (`streamGeminiText`), модель поверхности через **`dialogSurfaceModelHint`**. В рендер **`responder_main`** дополнительно подставляются, среди прочего, **`conversation_history`**, **`user_last_message`**, **`user_message_length_hint`**, **`user_register_hint`** (из **`user_register`** решения), **`astrology_budget_hint`** / **`chakra_budget_hint`** (из **`responder_hints`** решения или эвристик по метрикам ходов), **`orchestrator_hints`**, **`user_locale`**.
 - В **`suggest_practice`**: серверный выбор практики **`choosePractice`** (игнорируя галлюцинацию id по возможности и подставляя стек из каталога).
@@ -72,7 +72,6 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 | **`topPetals.ts` / `mathLevelBuilder.ts`** | Сбор топ-планет из прогноза и сборка **`math_level`** для утреннего монолога (формулы активации импортируют `daily-engine`). |
 | **`userModelTier.ts`** | `dialogSurfaceModelHint` — для платного доступа поверхностный поток на `"premium"`, иначе подсказка из промпта / `"standard"`. |
 | **`scenarioCache.ts`** | Ключ кеша по стратегии сценария. |
-| **`explicitSignals.ts` + `data/dialog_signals.json`** | `detectExplicitSignals` — матчинг явных сигналов пользователя по локализованным фразам (`ru` / `en`). |
 | **`softCap.ts` + `data/information_axes.json`** | `getSoftCap(useCase, tier)` — числовой soft cap для сценария и тарифа; источник — env, при отсутствии валидного значения — slice JSON (`calibration` / `daily_dialog`). |
 
 Персистенция диалога: **`conversations`**, **`messages`**; в **`messages.meta** сохраняются `orchestrator_decision`, ответ респондера, **`practice_picked`**, предложения состояний. **`user_event_log`** фиксирует `decision_source`, латентности, similarity.
@@ -87,6 +86,7 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 
 ## 5. Известные ограничения
 
+- Слот **`explicit_signals_json`** в рендере оркестратора сейчас всегда **`"[]"`** (нет словарного детектора явных сигналов) до миграции **`dialog_v3_unified_prompt`**.
 - Два URL диалога (**`/api/ai/dialog`** и **`/api/communicator/v2/dialog`**): клиент без `scenario_id` всё ещё использует старый путь (`services/communicator-client.ts`).
 - Выбор практики в **`choosePractice`** привязывает чакру к **`planet_of_the_day`**, тогда как утренний монолог опирается на топ-3 по importance — возможен продуктовый разрыв темы дня vs стека практики (зафиксировано в `history.md`).
 - **`TERMINAL_PHASES`** в коде включает **`suggest_practice`** — влияет на кеш решений и может расходиться с устной моделью «терминальность только закрытие».

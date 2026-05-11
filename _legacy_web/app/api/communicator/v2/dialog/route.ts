@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import informationAxes from "@/data/information_axes.json";
-import { detectExplicitSignals } from "@/app/api/_utils/explicitSignals";
 import { getSoftCap, type SoftCapTier } from "@/app/api/_utils/softCap";
 import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
 import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
@@ -572,8 +571,6 @@ async function buildDecision(params: {
   const prompt = await getActivePrompt(params.db, "orchestrator_decision");
   const profileDTO = buildProfileCompact(params.context.natal, params.context.calibration, params.context.user);
   const historyDTO = buildHistoryCompact(params.history);
-  const language = (params.context.user.locale ?? "ru").slice(0, 2);
-  const explicitSignals = detectExplicitSignals(params.userMessage, language);
   const profileSize = logDTOSize("dialog.orchestrator.profile", profileDTO, 350);
   const historySize = logDTOSize("dialog.orchestrator.history", historyDTO, 1500);
   await logPromptSize(params.db, params.userId, {
@@ -592,7 +589,7 @@ async function buildDecision(params: {
       ttm_hint: ttmHint(insightMetrics),
       etv_hint: etvHint(insightMetrics.etv),
       insight_hint: insightHint(insightMetrics),
-      explicit_signals_json: JSON.stringify(explicitSignals),
+      explicit_signals_json: "[]",
       time_of_day: tod.timeOfDay,
       local_hour: tod.localHour,
       time_of_day_hint: tod,

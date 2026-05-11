@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.2
-updated: 2026-05-09
+version: 1.3
+updated: 2026-05-11
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
 ---
@@ -38,6 +38,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## 3. Контрактные точки риска
 
+- **`explicit_signals_json`** в промпте оркестратора сейчас всегда **`"[]"`** (нет словарного детектора); промпт в БД может всё ещё ожидать непустой JSON — согласованность с **`dialog_v3_unified_prompt`** на стороне владельца модуля.
 - **Форма DTO оркестратора и событий SSE** — изменение полей **`OrchestratorDecision`** или обязательных ключей в JSON событий ломает **`communicator-client`** и клиентские типы; добавление **опциональных** полей (например **`user_register`**, расширение **`responder_hints`**) обычно обратимо совместимо, если клиент не делает строгий парсинг без `unknown` ключей.
 - **`prompt_key` в `dialogue_phases`** и активная версия **`responder_main`** / фаз — рассинхрон ведёт к 500 на `getActivePrompt`.
 - **`scenarios`**: неверный `cache_strategy` или отсутствие строки сценария — 404/500 на monologue.

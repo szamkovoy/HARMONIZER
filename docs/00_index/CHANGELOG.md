@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 1.6
+version: 1.7
 updated: 2026-05-11
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-11: удалены **`explicitSignals.ts`** и **`dialog_signals.json`**; в **`dialog/route.ts`** слот **`explicit_signals_json`** для оркестратора — литерал **`"[]"`** до **`dialog_v3_unified_prompt`**; сужены маркеры в **`insightDetection.ts`**. Обновлены **`docs/02_modules/assistant/{spec,history,dependencies}.md`**, **`docs/00_index/MAP.md`**, **`CHANGELOG.md`**.
 - 2026-05-11: удалён файл миграции **`supabase/migrations/20260509120000_dialog_quality_v4.sql`** из репозитория (откат в БД — **`20260511140000_revert_dialog_quality_v4.sql`**). Обновлены **`docs/02_modules/assistant/{spec,history}.md`**, **`docs/00_index/MAP.md`**, **`CHANGELOG.md`**.
 - 2026-05-09: pre-push diff (**`gemini.ts`**, **`authorVoice.ts`**, клиент): в **`docs/02_modules/assistant/spec.md`** уточнены цепочка моделей (primary→env fallback→`fallbackModels`), условия повтора (в т.ч. **404**/NOT_FOUND), лог **`[GEMINI FALLBACK]`**, разделение финального сообщения пользователю vs проброс ошибки; в профиле автора — поля **`assistant_should_NOT_say`** в **`few_shot_examples`**; в **`code_refs`** — **`gemini.ts`**. Запись в **`docs/02_modules/assistant/history.md`**.
 - 2026-05-09: pre-push diff: диалог v2 — интеграция **`explicitSignals`** / **`softCap`**, метрики ходов, расширение **`OrchestratorDecision`** и рендера **`responder_main`**; миграция **`20260509120000_dialog_quality_v4.sql`**. Обновлены **`docs/02_modules/assistant/spec.md`**, **`history.md`**, **`dependencies.md`**, **`docs/00_index/MAP.md`**; из **`docs/04_workspace/open_questions.md`** удалён устаревший пункт про отсутствие вызова **`detectExplicitSignals`** из маршрута.
