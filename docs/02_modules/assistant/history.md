@@ -2,13 +2,14 @@
 id: 02_modules/assistant/history
 title: Assistant History
 version: 1.4
-updated: 2026-05-09
+updated: 2026-05-11
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260509120000_dialog_quality_v4.sql]
+code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-05-11:** Из репозитория удалён файл миграции **`20260509120000_dialog_quality_v4.sql`** (откат промптов в БД — **`20260511140000_revert_dialog_quality_v4.sql`**); обновлены **`code_refs`** в **`spec.md`**, **`history.md`**, **`MAP.md`**, запись в **`CHANGELOG.md`**.
 - **2026-05-09:** Уточнён **`docs/02_modules/assistant/spec.md`** под фактический **`gemini.ts`**: порядок цепочки моделей, повтор при **404**/NOT_FOUND, лог **`[GEMINI FALLBACK]`**, финальное сообщение только для «перегрузочных» ошибок; в таблице **`authorVoice`** — поле **`assistant_should_NOT_say`** в **`few_shot_examples`**; в **`code_refs`** добавлен **`gemini.ts`**.
 - **2026-05-09:** Добавлены утилиты **`explicitSignals.ts`** / **`softCap.ts`**; в **`communicator/v2/dialog`** интегрированы **`detectExplicitSignals`** (подстановка **`explicit_signals_json`** в оркестратор), **`getSoftCap`** в payload осей и в промпт, метрики ходов для оркестратора и бюджетов астрологии/чакр, расширенный рендер **`responder_main`**. В **`orchestrator.ts`**: поле **`user_register`**, расширенные **`responder_hints`**, нормализация подсказок из сырого JSON. Миграция **`20260509120000_dialog_quality_v4.sql`** — новые активные версии **`responder_main`**, **`orchestrator_decision`**, **`phase_collect_state`**, **`phase_deepen_inquiry`**, **`phase_offer_insight`**, **`phase_contextual_greeting`**.
 - **2026-05-09:** **`_legacy_web/app/api/_utils/authorVoice.ts`** и **`authorVoice.test.ts`** синхронизированы с **`data/author_voice.json` v2**: **`AuthorVoiceProfile`** — **`usage_note`**, **`openers_neutral` / `openers_observational`**, удалены **`structural_patterns`** и **`somatic_language`**; **`formatAuthorVoiceForPrompt`** выводит примечание к профилю и две группы зачинов.
