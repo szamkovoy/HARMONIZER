@@ -4,8 +4,9 @@
  * Обязанности:
  *   • Подписаться на изменения session в Supabase (`onAuthStateChange`) и
  *     отдавать свежее состояние потребителям через React Context.
- *   • При старте приложения — прочитать сохранённую сессию из SecureStore
- *     (`getSession()`). Пока идёт проверка, `initializing = true` — гейт в
+ *   • При старте приложения — дождаться первого события `onAuthStateChange`
+ *     (SDK сам читает SecureStore и рефрешит токен). Пока идёт проверка,
+ *     `initializing = true` — гейт в
  *     `app/_layout.tsx` показывает сплэш.
  *   • Синхронизировать профиль `public.users` (авто-создаётся серверным
  *     триггером `on_auth_user_created`; мы дожидаемся появления и тянем
@@ -19,11 +20,7 @@ import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { requireSupabase } from "@/services/supabase";
-import {
-  isAuthSessionResultTransientFailure,
-  isTransientAuthConnectivityFailure,
-  rewriteAuthNetworkError,
-} from "./authNetworkErrors";
+import { rewriteAuthNetworkError } from "./authNetworkErrors";
 import { signInWithApple } from "./sign-in-apple";
 import { signInWithGoogle, signOutGoogle } from "./sign-in-google";
 import type { AuthContextValue, AuthUserRow } from "./types";
@@ -31,37 +28,9 @@ import type { AuthContextValue, AuthUserRow } from "./types";
 const AuthContext = createContext<AuthContextValue | null>(null);
 export { AuthContext };
 
-const INITIAL_SESSION_TIMEOUT_MS = 8000;
 const PROFILE_FETCH_TIMEOUT_MS = 10_000;
 /** Если подписка GoTrue по какой-то причине не отдала первое событие — не держим сплэш вечно. */
 const AUTH_BOOTSTRAP_SAFETY_MS = 25_000;
-
-/**
- * Холодный старт: getSession → при истёкшем access token внутри идёт refresh по сети.
- * Временная сеть / таймаут не должны приводить к очистке SecureStore (это делал
- * прежний signOut в catch и выбивало пользователя несколько раз в день).
- */
-async function resolveInitialSession(
-  supabase: ReturnType<typeof requireSupabase>,
-): Promise<Session | null> {
-  try {
-    const { data, error } = await Promise.race([
-      supabase.auth.getSession(),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error(`Supabase getSession timed out after ${INITIAL_SESSION_TIMEOUT_MS}ms`));
-        }, INITIAL_SESSION_TIMEOUT_MS);
-      }),
-    ]);
-    if (data.session) return data.session;
-    if (!error) return null;
-    if (isAuthSessionResultTransientFailure(error) || isTransientAuthConnectivityFailure(error)) return null;
-    return null;
-  } catch (error) {
-    if (isTransientAuthConnectivityFailure(error)) return null;
-    return null;
-  }
-}
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -117,8 +86,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [initializing, setInitializing] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
 
-  // Чтобы избежать гонки между onAuthStateChange и initial getSession,
-  // держим последний seen user id — и перечитываем профиль только при смене.
+  // Держим последний seen user id — перечитываем профиль только при смене.
   const lastUserIdRef = useRef<string | null>(null);
   /** Актуальная сессия для AppState без устаревшего замыкания. */
   const sessionRef = useRef<Session | null>(null);
@@ -182,28 +150,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (cancelled || initialSessionReady) return;
       // eslint-disable-next-line no-console
       console.warn("[auth] bootstrap safety timeout: closing splash without Supabase first event");
-      finishBootstrapOnce(null);
+      finishBootstrapOnce(sessionRef.current);
     }, AUTH_BOOTSTRAP_SAFETY_MS);
 
-    // Параллельно подтягиваем сессию; не завершаем bootstrap отсюда и не затираем сессию «null»
-    // при обрыве сети (иначе мигание /sign-in до прихода INITIAL_SESSION).
-    void (async () => {
-      const initial = await resolveInitialSession(supabase);
-      if (cancelled) return;
-      if (initial) {
-        setSession(initial);
-        void syncProfile(initial.user)
-          .catch((error: unknown) => {
-            // eslint-disable-next-line no-console
-            console.warn(
-              "[auth] syncProfile after getSession",
-              rewriteAuthNetworkError(error, "profile").message,
-            );
-          });
-      }
-    })();
-
-    // Первый источник истины для cold start — onAuthStateChange (локальное хранилище / INITIAL_SESSION).
+    // Единственный источник для cold start — onAuthStateChange: SDK сам читает
+    // хранилище и, при необходимости, рефрешит токен. Не вызываем getSession()
+    // параллельно: это захватывает внутренний lock SDK и блокирует INITIAL_SESSION,
+    // если сеть медленная (см. AUTH_FETCH_TIMEOUT_MS в supabase.ts).
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       void syncProfile(next?.user ?? null).catch((error: unknown) => {

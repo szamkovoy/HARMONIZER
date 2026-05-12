@@ -204,6 +204,14 @@ function requestMethod(input: SupabaseFetchInput, init?: RequestInit): string {
   return "GET";
 }
 
+/**
+ * Auth token refresh can hang on iOS cold start (Wi-Fi waking, DNS delay, etc.)
+ * and block the Supabase SDK's internal session lock, preventing
+ * onAuthStateChange from emitting INITIAL_SESSION. Aborting the fetch lets the
+ * SDK treat the failure as transient and fall back to the stored session.
+ */
+const AUTH_FETCH_TIMEOUT_MS = 15_000;
+
 async function loggedSupabaseFetch(
   input: URL | RequestInfo,
   init?: RequestInit,
@@ -211,6 +219,14 @@ async function loggedSupabaseFetch(
   const url = requestUrl(input as SupabaseFetchInput);
   const method = requestMethod(input as SupabaseFetchInput, init);
   const startedAt = Date.now();
+
+  let abortTimer: ReturnType<typeof setTimeout> | undefined;
+  if (url.includes("/auth/v1/token") && !init?.signal) {
+    const controller = new AbortController();
+    abortTimer = setTimeout(() => controller.abort(), AUTH_FETCH_TIMEOUT_MS);
+    init = { ...init, signal: controller.signal };
+  }
+
   logRuntimeEvent("supabase:request_start", { method, url }, "debug");
   if (__DEV__) {
     // eslint-disable-next-line no-console
@@ -235,6 +251,8 @@ async function loggedSupabaseFetch(
       console.warn("[supabase] fetch failed", method, url, error instanceof Error ? error.message : String(error));
     }
     throw error;
+  } finally {
+    if (abortTimer !== undefined) clearTimeout(abortTimer);
   }
 }
 
