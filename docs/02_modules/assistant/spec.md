@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/spec
 title: Assistant Spec
-version: 1.8
-updated: 2026-05-11
+version: 1.9
+updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/scenarios.ts, _legacy_web/app/api/_utils/prompts.ts, _legacy_web/app/api/_utils/dialogArcOrchestrator.ts, _legacy_web/app/api/_utils/dialogConfig.ts, _legacy_web/app/api/_utils/insightDetection.ts, _legacy_web/app/api/_utils/authorVoice.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/topPetals.ts, _legacy_web/app/api/_utils/mathLevelBuilder.ts, _legacy_web/app/api/_utils/userModelTier.ts, _legacy_web/app/api/_utils/scenarioCache.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts, _legacy_web/config/contentLengths.ts, services/aiClient.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql, supabase/migrations/20260511161000_dialog_system_v3.sql]
 ---
@@ -42,6 +42,7 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 - Ответ: **SSE** — событие `orchestrator_decision`, затем `chunk`, затем `complete`. UI остаётся в состоянии thinking до появления первого видимого текста; при стандартном буферном ходе сервер отправляет `chunk` только после полной готовности текста.
 - Маркеры ответа: **`[READY_FOR_RECOMMENDATION]`**, **`[PRACTICE_PICK: id="..." duration_min="..." chakra="..." reason="..."]`**, **`[CORRECT_RECOMMENDATION: ...]`**. Сервер вырезает их из видимого текста, но использует для эскалации, выбора практики и коррекции `user_daily_forecasts`. Поля `duration_min` и `chakra` обязательны в инструкции модели; парсер извлекает их опционально (если отсутствуют — `null`).
 - Практика выбирается сервером через **`choosePractice`** независимо от старых phase-условий; marker `id="default"` резолвится в когерентное дыхание на 10 минут с чакрой дня. Если `markerId` из маркера не найден в каталоге, пишется лог `[PRACTICE_SELECTOR] marker_id_not_found`, в `meta.practicePicked` добавляется `markerIdResolved: false`.
+- После санитизации премиум-ответа сервер проверяет, что видимый текст не пуст; если `cleanText` оказался пустым (маркер без текста, полностью вырезанный контент и т.п.), бросается ошибка с логом **`[PREMIUM_EMPTY_RESPONSE]`** (включая `iteration`, `turn_mode`, `model_tier`, `raw_length`, первые 200 символов сырого ответа) — клиент получит ошибку вместо пустого пузыря.
 - В **`messages.meta`** сохраняются `turn_mode`, `model_used` (`standard` / `premium`), `model_id`, `iteration`, `ready_marker_triggered`, `validation`, `practice_picked` (включая `overrides: { durationMin, chakraIndex }` и `markerIdResolved`), `recommendationCorrected`, `insight_metrics`.
 
 **`GET /api/ai/dialog`** / **`GET /api/communicator/v2/dialog`** — синхронизация сессии (история сообщений за окно ~2 ч).

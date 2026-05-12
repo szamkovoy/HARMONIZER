@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 1.3
-updated: 2026-05-11
+version: 1.4
+updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -77,7 +77,7 @@ code_refs:
 
 ## 3. Внутренняя архитектура
 
-1. **Жизненный цикл сессии** — `Communicator` монтируется → `fetchDialogSession` подтягивает `conversationId` и сообщения с сервера (или подставляет `history` из пропсов) → пользователь вводит текст или записывает голос.
+1. **Жизненный цикл сессии** — `Communicator` монтируется → `fetchDialogSession` подтягивает `conversationId` и сообщения с сервера (или подставляет `history` из пропсов); при восстановлении истории фильтруются assistant-сообщения с пустым `content` (защита от серверных артефактов) → пользователь вводит текст или записывает голос.
 2. **Голос** — `expo-av` `Audio.Recording` с пресетами из `core/whisperRecording.ts` (16 kHz mono AAC как основной путь, fallback 44.1 kHz) → файл читается как base64 → **`transcribeCommunicatorAudio`** → текст попадает в тот же путь, что и ручной ввод. При низкой уверенности распознавания показывается экран правки текста (`pendingTranscript`).
 3. **Стрим ответа** — `runCommunicatorStream` → `sendDialogMessage` парсит SSE-блоки (`parseSseBlock`) и для событий `orchestrator_decision`, `chunk`, `complete` обновляет состояние. После перехода на dialog v3 статус остаётся **thinking** до первого видимого текста; пустой assistant bubble больше не появляется только из-за раннего `orchestrator_decision`. После завершения текст сообщения ассистента берётся как **более длинный** из пары «агрегат по `chunk`» и `complete.fullText`; при полном отсутствии текста подставляется `emptyAssistantReplyFallback` из i18n.
 4. **Карточка практики** — `Communicator` рендерит общий `modules/practices/ui/PracticeCard.tsx`, переводя серверный `PracticePicked` в `PracticeSummary`. Для breath/meditation пользователь может переопределить duration/chakra перед запуском; затем вызывается `launchPractice(..., { launchSource: 'assistant' })`.
@@ -101,7 +101,7 @@ code_refs:
 
 - `fullText`, `shouldClose`, `modelUsed`, `modelTier`, `turnMode`, `iteration`, `readyMarkerTriggered`, `validation`, `insightMetrics`
 - `messageId`, `conversationId` — обновление id сообщения и активной беседы
-- `practicePicked` → `meta.practicePicked` и общий `PracticeCard`
+- `practicePicked` → `meta.practicePicked` и общий `PracticeCard`; может содержать `overrides: { durationMin, chakraIndex }` (из маркера модели) и `markerIdResolved: false` (если model-generated id не найден в каталоге); `Communicator` прокидывает `overrides` в `PracticeCard` через `overrideDurationMinutes` / `overrideChakraIndex`
 - `recommendationCorrected` → `meta.recommendationCorrected`
 
 Поля **`chunk`**: JSON с `text` и опционально `modelUsed`.
