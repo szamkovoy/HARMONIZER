@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-12: Cold start `AuthProvider` упрощён — удалён параллельный `getSession()` / `resolveInitialSession()`; единственный источник сессии — `onAuthStateChange`; в `services/supabase.ts` добавлен 15 с abort для auth token refresh. Обновлены **`docs/02_modules/profile/{spec,history}.md`**.
 - 2026-05-12: `loadOpportunityWindowsExplanation` разделён на free/paid пути — free получает упрощённый текст без транзитной планеты и точного аспекта. Обновлены **`docs/02_modules/daily_forecast/{spec,history}.md`**.
 - 2026-05-12: doc-sync дополнение: `daily_forecast/spec.md` дополнен описанием `opportunityWindowsExplanation.ts` и трёхуровневой валидации (`isBaseForecastValid`/`isDayContentReadyForHome`/`isDayContentComplete`), `daily_forecast/history.md` — запись о help-модале; `profile/{spec,history}.md` — таймаут `fetchProfile` 10 с; `astro/{spec,history}.md` — bump frontmatter.
 - 2026-05-12: ускорен startup главной: `daily-forecast/route.ts` больше не блокирует первый рендер синхронным `morning_recommendation`, `useDayContent` догружает вторичные AI-тексты в фоне, `OpportunityWindows` получил lazy help-modal, а global free precompute (`precompute-global-recommendations`) переведён на rolling window `yesterday/today/tomorrow` с hourly cron. Обновлены **`docs/02_modules/{daily_forecast,infra}/{spec,history}.md`**, **`supabase/README.md`**, **`DEPLOY.md`**.

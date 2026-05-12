@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.2
+version: 1.3
 updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx]
 ---
 
 ## Decision Log
+
+- **2026-05-12:** Cold start `AuthProvider` упрощён: удалены `resolveInitialSession()` и параллельный `getSession()`. Единственный источник сессии при холодном старте — `onAuthStateChange` (SDK сам читает SecureStore / рефрешит токен). Причина: параллельный `getSession()` захватывал внутренний lock SDK и блокировал событие `INITIAL_SESSION` при медленной сети, вызывая зависание splash. Безопасный таймаут (`AUTH_BOOTSTRAP_SAFETY_MS`) теперь передаёт `sessionRef.current` (а не `null`), чтобы не терять уже полученную сессию. В `services/supabase.ts` добавлен `AUTH_FETCH_TIMEOUT_MS` (15 с) — abort для `/auth/v1/token` fetch, чтобы зависший refresh не блокировал SDK бесконечно.
 
 - **2026-05-12:** `fetchProfile` в `AuthProvider` получил таймаут `10s` через `AbortController` + PostgREST `.abortSignal(...)`. Причина: холодный Supabase мог задерживать ответ `users` на десятки секунд, блокируя splash-screen и downstream `useDayContent`. При таймауте логируется явное предупреждение; профиль считается `null`, и приложение продолжает с graceful degradation.
 
