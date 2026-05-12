@@ -329,7 +329,7 @@ export async function choosePractice(
   if (isDefaultPracticeMarker(marker)) {
     return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true, chakraId, preferredDurationMin };
   }
-  const preferredKind = inferPreferredPracticeKind(userMessage);
+  const preferredKind = inferPreferredPracticeKind(allUserText);
 
   let query = db
     .from("practices")
