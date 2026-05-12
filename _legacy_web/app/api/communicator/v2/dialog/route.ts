@@ -640,7 +640,33 @@ export async function POST(req: Request) {
             readyMarkerTriggered,
             modelTierUsed,
           }));
-          const markers = parseResponseMarkers(fullText);
+          let markers = parseResponseMarkers(fullText);
+
+          const isFinalMode = responseMode === "final_recommendation"
+            || responseMode === "final_recommendation_with_validation_warning"
+            || responseMode === "forced_final";
+          if (!markers.practicePick && isFinalMode) {
+            console.warn("[DIALOG_V3_DIAG] marker missing after premium — retry call");
+            const retryInstruction: GeminiContent = { role: "user", parts: [{ text:
+              `Ты только что написал финальную рекомендацию, но забыл маркер. Выведи ТОЛЬКО одну строку — технический маркер [PRACTICE_PICK: id="..." duration_min="..." chakra="..." reason="..."] на основе рекомендации выше. Ничего больше не пиши.`
+            }] };
+            const retryContents = [...prefixContents, { role: "model", parts: [{ text: fullText }] } as GeminiContent, retryInstruction];
+            const retryResponse = await generateGeminiText({
+              systemInstruction: systemPromptData.systemInstruction,
+              contents: retryContents,
+              model: premiumModel,
+              temperature: 0.3,
+              maxOutputTokens: 200,
+            });
+            const retryMarkers = parseResponseMarkers(retryResponse.text);
+            if (retryMarkers.practicePick) {
+              markers = { ...markers, practicePick: retryMarkers.practicePick };
+              console.log("[DIALOG_V3_DIAG] marker recovered via retry:", retryMarkers.practicePick.id);
+            } else {
+              console.warn("[DIALOG_V3_DIAG] retry also failed to produce marker");
+            }
+          }
+
           const cleanText = sanitizeAssistantText(fullText, context.user.locale);
           console.log("[DIALOG_V3_DIAG] after sanitize: cleanText.length=", cleanText.length);
 
