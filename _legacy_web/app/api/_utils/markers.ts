@@ -8,6 +8,8 @@ export type StateProposalMarker = {
 export type PracticePickMarker = {
   id: string;
   reason?: string;
+  durationMin?: number | null;
+  chakra?: number | null;
 };
 
 export type RecommendationCorrectionMarker = {
@@ -47,7 +49,18 @@ export function parseResponseMarkers(text: string): {
 
   const practiceRaw = text.match(/\[PRACTICE_PICK:\s*([^\]]+)\]/i)?.[1] ?? "";
   const practiceId = attr(practiceRaw, "id");
-  const practicePick = practiceId ? { id: practiceId, reason: attr(practiceRaw, "reason") } : null;
+  const rawDuration = attr(practiceRaw, "duration_min");
+  const rawChakra = attr(practiceRaw, "chakra");
+  const parsedDuration = rawDuration ? Number(rawDuration) : NaN;
+  const parsedChakra = rawChakra ? Number(rawChakra) : NaN;
+  const practicePick = practiceId
+    ? {
+        id: practiceId,
+        reason: attr(practiceRaw, "reason"),
+        durationMin: Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : null,
+        chakra: Number.isInteger(parsedChakra) && parsedChakra >= 1 && parsedChakra <= 7 ? parsedChakra : null,
+      }
+    : null;
 
   const correctionRaw = text.match(/\[CORRECT_RECOMMENDATION:\s*([^\]]+)\]/i)?.[1] ?? "";
   const recommendationCorrection = correctionRaw
@@ -106,7 +119,11 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
   ];
 
   const NUMBER_WORDS = [
-    "пять", "десять", "пятнадцать", "двадцать",
+    "один", "одну", "одна",
+    "два", "две", "пару",
+    "три", "четыре",
+    "пять", "шесть", "семь", "восемь", "девять",
+    "десять", "пятнадцать", "двадцать",
     "тридцать", "сорок", "пятьдесят", "полтора",
   ];
 

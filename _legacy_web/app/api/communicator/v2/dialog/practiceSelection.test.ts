@@ -104,8 +104,8 @@ describe("choosePractice", () => {
       ],
     );
 
-    expect(picked?.id).toBe("fresh-best");
-    expect(picked?.launch).toEqual({
+    expect(picked?.picked?.id).toBe("fresh-best");
+    expect(picked?.picked?.launch).toEqual({
       route: "/asana-practice",
       params: {
         practiceId: "fresh-best",
@@ -114,7 +114,7 @@ describe("choosePractice", () => {
         launchSource: "assistant",
       },
     });
-    expect(publicPracticePickedPayload(picked!, "потому что сейчас нужен фокус")).toMatchObject({
+    expect(publicPracticePickedPayload(picked!.picked!, "потому что сейчас нужен фокус")).toMatchObject({
       id: "fresh-best",
       reason: "потому что сейчас нужен фокус",
       video: {
@@ -147,7 +147,7 @@ describe("choosePractice", () => {
       [],
     );
 
-    expect(publicPracticePickedPayload(picked!)).toMatchObject({
+    expect(publicPracticePickedPayload(picked!.picked!)).toMatchObject({
       id: "with-thumb",
       video: {
         provider: "vimeo",
@@ -173,7 +173,7 @@ describe("choosePractice", () => {
       [],
     );
 
-    expect(picked).toMatchObject({
+    expect(picked?.picked).toMatchObject({
       id: "meditation:sacred-symbol-stream",
       slug: "sacred-symbol-stream",
       name: "Вспышка",
@@ -207,7 +207,7 @@ describe("choosePractice", () => {
       [],
     );
 
-    expect(picked?.id).toBe("meditation:sacred-symbol-stream");
+    expect(picked?.picked?.id).toBe("meditation:sacred-symbol-stream");
   });
 });
 

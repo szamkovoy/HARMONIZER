@@ -303,6 +303,11 @@ function isDefaultPracticeMarker(marker: PracticePickMarker | null): boolean {
   return marker?.id === "default" || reason.includes("hard_cap_reached") || reason.includes("default_fallback");
 }
 
+export interface ChoosePracticeResult {
+  picked: PracticePickedPayload;
+  markerIdResolved: boolean | undefined;
+}
+
 export async function choosePractice(
   db: SupabaseClient,
   userId: string,
@@ -310,11 +315,11 @@ export async function choosePractice(
   context: PracticeSelectionContext,
   userMessage: string,
   history: MessageRecord[],
-): Promise<PracticePickedPayload | null> {
+): Promise<ChoosePracticeResult | { picked: null; markerIdResolved: undefined }> {
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
   const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
   if (isDefaultPracticeMarker(marker)) {
-    return toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]);
+    return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true };
   }
   const preferredKind = inferPreferredPracticeKind(userMessage);
   const preferredDurationSec = inferPreferredDurationSec(userMessage);
@@ -345,11 +350,20 @@ export async function choosePractice(
     recentIds,
     markerId: marker?.id,
   });
-  if (!selection) return null;
-  return toPracticePickedPayload(
-    selection.picked.raw,
-    marker?.reason,
-    chakraId,
-    selection.stack.map((practice) => practice.raw),
-  );
+  if (!selection) return { picked: null, markerIdResolved: undefined };
+
+  const markerIdResolved = selection.markerIdResolved;
+  if (markerIdResolved === false) {
+    console.warn(`[PRACTICE_SELECTOR] marker_id_not_found id=${marker?.id}`);
+  }
+
+  return {
+    picked: toPracticePickedPayload(
+      selection.picked.raw,
+      marker?.reason,
+      chakraId,
+      selection.stack.map((practice) => practice.raw),
+    ),
+    markerIdResolved,
+  };
 }

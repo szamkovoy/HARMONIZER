@@ -25,6 +25,7 @@ export interface SelectPracticeCandidateResult<T extends PracticeSelectorCandida
   stack: T[];
   baseStack: T[];
   excludedRecentCount: number;
+  markerIdResolved: boolean | undefined;
 }
 
 const DEFAULT_QUALITY = 3;
@@ -149,10 +150,12 @@ export function selectPracticeCandidate<T extends PracticeSelectorCandidate>(
   const picked = markerPick ?? stack[0];
 
   if (!picked) return null;
+  const markerIdResolved = input.markerId ? Boolean(markerPick) : undefined;
   return {
     picked,
     stack,
     baseStack,
     excludedRecentCount: baseStack.length - freshStack.length,
+    markerIdResolved,
   };
 }
