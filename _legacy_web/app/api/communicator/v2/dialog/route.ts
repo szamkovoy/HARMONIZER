@@ -625,7 +625,7 @@ export async function POST(req: Request) {
                 contents: [...prefixContents, finalInstruction],
                 model: premiumModel,
                 temperature: 0.85,
-                maxOutputTokens: 1500,
+                maxOutputTokens: 3000,
               })) {
                 modelIdUsed = chunk.modelUsed;
                 fullText += chunk.text;
