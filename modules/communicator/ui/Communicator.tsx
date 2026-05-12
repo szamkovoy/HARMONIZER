@@ -132,7 +132,6 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     shouldClose: raw.shouldClose ?? raw.should_close,
     recommendationCorrected: raw.recommendationCorrected ?? raw.recommendation_corrected,
     orchestratorDecision: raw.orchestratorDecision ?? raw.orchestrator_decision,
-    isAutoTrigger: raw.isAutoTrigger ?? raw.is_auto_trigger,
   };
 }
 

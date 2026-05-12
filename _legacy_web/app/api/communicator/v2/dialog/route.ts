@@ -531,7 +531,7 @@ export async function POST(req: Request) {
       turnModelTier: turnDecision.modelTier,
       promptKey: systemPromptRecord.prompt_key,
       promptVersion: systemPromptRecord.version,
-      systemInstructionFirst200: systemPromptData.systemInstruction.slice(0, 200),
+      systemPromptLen: systemPromptData.systemInstruction.length,
       userMessage: isInitiate ? "(none)" : userMessage.slice(0, 100),
     }));
 

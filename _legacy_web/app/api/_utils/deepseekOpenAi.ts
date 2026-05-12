@@ -38,7 +38,11 @@ export function structuredContentsToOpenAiMessages(
   return messages;
 }
 
+let _diagLogDone = false;
+
 function diagLog(label: string, body: Record<string, unknown>, startMs: number): void {
+  if (_diagLogDone) return;
+  _diagLogDone = true;
   const { messages, ...rest } = body;
   const msgSummary = Array.isArray(messages)
     ? messages.map((m: Record<string, unknown>) => ({
