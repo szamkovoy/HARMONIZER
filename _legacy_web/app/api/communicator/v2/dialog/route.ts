@@ -643,6 +643,20 @@ export async function POST(req: Request) {
           const markers = parseResponseMarkers(fullText);
           const cleanText = sanitizeAssistantText(fullText, context.user.locale);
           console.log("[DIALOG_V3_DIAG] after sanitize: cleanText.length=", cleanText.length);
+
+          if (!cleanText) {
+            console.warn("[PREMIUM_EMPTY_RESPONSE]", JSON.stringify({
+              iteration,
+              turn_mode: responseMode,
+              model_tier: modelTierUsed,
+              model_id: modelIdUsed,
+              raw_length: fullText.length,
+              raw_first_200: fullText.slice(0, 200),
+              had_practice_marker: Boolean(markers.practicePick),
+            }));
+            throw new Error("Premium model returned empty text after sanitization");
+          }
+
           const finalPracticePublic = await resolvePracticePublic(
             routeDb,
             routeUserId,

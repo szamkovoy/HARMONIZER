@@ -604,11 +604,14 @@ export function Communicator({
       .then((session) => {
         if (ac.signal.aborted) return;
         setActiveConversationId(session.conversationId);
-        if (session.messages.length > 0) {
+        const validMessages = session.messages.filter(
+          (m) => !(m.role === "assistant" && !m.content?.trim()),
+        );
+        if (validMessages.length > 0) {
           setMessages(
             ensureIds(
               sliceHistoryForWindow(
-                session.messages.map((message) => ({
+                validMessages.map((message) => ({
                   id: message.id,
                   role: message.role,
                   content: message.content,
