@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 1.4
+version: 1.5
 updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs: [modules/communicator/ui/Communicator.tsx, services/communicator-client.ts]
@@ -9,6 +9,7 @@ code_refs: [modules/communicator/ui/Communicator.tsx, services/communicator-clie
 
 ## Decision Log
 
+- **2026-05-12:** Удалены временные диагностические блоки «DEBUG BOLT» из `Communicator.tsx` (два `View` с инлайн-стилями, показывавшие `turn_mode`, `practicePicked`, `model`, `chars` для финальных рекомендаций). Удалён неиспользуемый импорт `Text` из `react-native`. Tech debt закрыт (был зафиксирован в `open_questions.md`).
 - **2026-05-12:** При восстановлении истории сессии `Communicator.tsx` фильтрует assistant-сообщения с пустым `content` (защита от артефактов, возникающих при пустом ответе модели на сервере). `practicePicked` из SSE `complete` теперь может содержать `overrides` (`durationMin`, `chakraIndex`) и `markerIdResolved`; `Communicator` прокидывает `overrides` в `PracticeCard` через новые пропсы `overrideDurationMinutes` / `overrideChakraIndex`.
 - **2026-05-11:** Клиент синхронизирован с dialog v3: `services/communicator-client.ts` и `modules/communicator/i18n/communicator.ts` принимают новые поля `turnMode` / `modelTier` / `validation` / `insightMetrics`; `useCommunicatorStream.ts` не переводит статус в `typing` на пустых чанках. В `Communicator.tsx` добавлен dev-export диалога в JSON через RN `Share`, а локальная `modules/communicator/ui/PracticeCard.tsx` удалена: communicator теперь использует общий `modules/practices/ui/PracticeCard.tsx` с override duration/chakra и прямым `launchPractice(..., { launchSource: 'assistant' })`.
 - **2026-05-09:** Бейдж **`model:`** и **`Alert`** при ошибках стрима: перегрузка Gemini (503/429 и т.п.) показывается коротким русским текстом; отладочная подпись модели — только при **`__DEV__`**.

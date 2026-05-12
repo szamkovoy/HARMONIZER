@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 1.4
+version: 1.5
 updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -101,7 +101,7 @@ code_refs:
 
 - `fullText`, `shouldClose`, `modelUsed`, `modelTier`, `turnMode`, `iteration`, `readyMarkerTriggered`, `validation`, `insightMetrics`
 - `messageId`, `conversationId` — обновление id сообщения и активной беседы
-- `practicePicked` → `meta.practicePicked` и общий `PracticeCard`; может содержать `overrides: { durationMin, chakraIndex }` (из маркера модели) и `markerIdResolved: false` (если model-generated id не найден в каталоге); `Communicator` прокидывает `overrides` в `PracticeCard` через `overrideDurationMinutes` / `overrideChakraIndex`
+- `practicePicked` → `meta.practicePicked` и общий `PracticeCard`; **всегда** содержит `overrides: { durationMin, chakraIndex }` (с fallback-цепочкой на сервере: marker → inferred → planet_of_the_day/null) и опционально `markerIdResolved: false` (если model-generated id не найден в каталоге); `Communicator` прокидывает `overrides` в `PracticeCard` через `overrideDurationMinutes` / `overrideChakraIndex`
 - `recommendationCorrected` → `meta.recommendationCorrected`
 
 Поля **`chunk`**: JSON с `text` и опционально `modelUsed`.
