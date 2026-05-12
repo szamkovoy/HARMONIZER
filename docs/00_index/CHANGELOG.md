@@ -3,14 +3,13 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 1.9
+version: 1.8
 updated: 2026-05-12
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
-- 2026-05-12: `choosePractice` использует полную историю user-сообщений для inference предпочтений; в `route.ts` добавлен auto-fallback (`effectivePracticePick`) при отсутствии маркера `[PRACTICE_PICK]` в финальных режимах диалога. Обновлены **`docs/02_modules/assistant/{spec,history}.md`**.
 - 2026-05-12: В **`dialog/route.ts`** добавлена защита от пустого ответа premium-модели после санитизации (лог `[PREMIUM_EMPTY_RESPONSE]`, ошибка вместо пустого пузыря); в **`Communicator.tsx`** на восстановлении сессии фильтруются assistant-сообщения с пустым `content`; `practicePicked` в SSE `complete` прокидывает `overrides` и `markerIdResolved` через `PracticeCard`. Обновлены **`docs/02_modules/{assistant/spec,communicator/spec,communicator/history}.md`**.
 - 2026-05-12: `[PRACTICE_PICK]` маркер расширен полями `duration_min` и `chakra`; overrides прокидываются через `meta.practicePicked.overrides` в SSE и в `PracticeCard`; в `selector.ts` добавлен `markerIdResolved` флаг для видимости невалидных model-generated id.
 - 2026-05-11: daily dialog переведён на v3: в **`_legacy_web/app/api/_utils/gemini.ts`** добавлены structured Gemini request и best-effort explicit context caching, удалены soft-cap артефакты (**`softCap.ts`**, **`information_axes.json`**, env `DIALOG_SOFT_CAP_*`), добавлены **`dialogArcOrchestrator.ts`**, **`dialogConfig.ts`**, миграция **`20260511161000_dialog_system_v3.sql`** и общий `PracticeCard` для communicator/catalog. Обновлены **`docs/02_modules/{assistant,communicator,practices,infra}/{spec,dependencies,history}.md`**, **`docs/00_index/MAP.md`**, **`docs/04_workspace/open_questions.md`**.

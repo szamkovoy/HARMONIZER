@@ -625,7 +625,7 @@ export async function POST(req: Request) {
                 contents: [...prefixContents, finalInstruction],
                 model: premiumModel,
                 temperature: 0.85,
-                maxOutputTokens: 3000,
+                maxOutputTokens: 1500,
               })) {
                 modelIdUsed = chunk.modelUsed;
                 fullText += chunk.text;
@@ -657,32 +657,10 @@ export async function POST(req: Request) {
             throw new Error("Premium model returned empty text after sanitization");
           }
 
-          const isFinalMode = responseMode === "final_recommendation"
-            || responseMode === "final_recommendation_with_validation_warning"
-            || responseMode === "forced_final";
-          let effectivePracticePick = markers.practicePick;
-          if (!effectivePracticePick && isFinalMode) {
-            console.warn("[DIALOG_V3_DIAG] PRACTICE_PICK marker missing in", responseMode, "— auto-fallback");
-            const allUserText = [
-              ...history.filter((m) => m.role === "user").map((m) => typeof m.content === "string" ? m.content : ""),
-              userMessage,
-            ].join("\n");
-            const durationMatch = allUserText.match(/(\d{1,2})\s*(мин|minute|min)/i);
-            const durationMin = durationMatch ? Number.parseInt(durationMatch[1], 10) : null;
-            const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
-            const chakra = planetToChakra[String(context.forecast?.planet_of_the_day ?? "")] ?? null;
-            effectivePracticePick = {
-              id: "auto-fallback",
-              reason: "auto-fallback: model omitted PRACTICE_PICK marker",
-              durationMin: durationMin && durationMin > 0 ? durationMin : null,
-              chakra: chakra && chakra >= 1 && chakra <= 7 ? chakra : null,
-            };
-          }
-
           const finalPracticePublic = await resolvePracticePublic(
             routeDb,
             routeUserId,
-            effectivePracticePick,
+            markers.practicePick,
             context,
             userMessage,
             history,
