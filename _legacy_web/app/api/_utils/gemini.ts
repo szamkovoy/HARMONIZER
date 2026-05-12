@@ -2,6 +2,13 @@ import { createHash } from "node:crypto";
 
 import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
 
+import {
+  generateDeepSeekChatJson,
+  generateDeepSeekChatText,
+  isDeepSeekModelId,
+  streamDeepSeekChatText,
+} from "@legacy/app/api/_utils/deepseekOpenAi";
+
 export interface GeminiContent {
   role: "user" | "model";
   parts: { text: string }[];
@@ -29,6 +36,7 @@ type GenerateJsonOptions = GeminiLegacyPromptRequest | GeminiStructuredRequest;
 type GenerateTextOptions = GenerateJsonOptions;
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_DEEPSEEK_TIMEOUT_MS = 60_000;
 const DIALOG_CACHE_TTL_SEC = 600;
 const DEFAULT_CACHE_MIN_TOKENS = 32_768;
 const MODEL_CACHE_MIN_TOKENS: Record<string, number> = {
@@ -101,11 +109,16 @@ export function getModelByHint(hint: string | null | undefined, options?: { fall
     if (!model) {
       throw new Error("Missing AI_MODEL_FALLBACK environment variable");
     }
+    const fb = model.toLowerCase();
+    if (fb.startsWith("deepseek-")) return model;
     return resolvePublishedGeminiModelId(model);
   }
 
   if (tier.startsWith("gemini-")) {
     return resolvePublishedGeminiModelId(rawHint);
+  }
+  if (tier.startsWith("deepseek-")) {
+    return rawHint.trim();
   }
   const model = tier === "premium" ? process.env.AI_MODEL_PREMIUM?.trim() : process.env.AI_MODEL_STANDARD?.trim();
   if (!model) {
@@ -113,7 +126,25 @@ export function getModelByHint(hint: string | null | undefined, options?: { fall
       tier === "premium" ? "Missing AI_MODEL_PREMIUM environment variable" : "Missing AI_MODEL_STANDARD environment variable",
     );
   }
+  const ml = model.toLowerCase();
+  if (ml.startsWith("deepseek-")) return model;
   return resolvePublishedGeminiModelId(model);
+}
+
+function httpStatusFromUnknown(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "status" in error) {
+    const s = (error as { status: unknown }).status;
+    return typeof s === "number" && Number.isFinite(s) ? s : undefined;
+  }
+  return undefined;
+}
+
+/** Перегрузка / rate limit: и по тексту ошибки Gemini, и по HTTP-статусу OpenAI-совместимых клиентов (DeepSeek). */
+function isRetryableLlmError(error: unknown): boolean {
+  const status = httpStatusFromUnknown(error);
+  if (status === 429 || status === 503 || status === 502) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return isRetryableGeminiOverloadMessage(message);
 }
 
 function isRetryableGeminiOverloadMessage(message: string): boolean {
@@ -197,8 +228,12 @@ function timeoutMs(): number {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
 }
 
-async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
-  const ms = timeoutMs();
+function deepseekTimeoutMs(): number {
+  const value = Number(process.env.DEEPSEEK_TIMEOUT_MS ?? DEFAULT_DEEPSEEK_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_DEEPSEEK_TIMEOUT_MS;
+}
+
+async function withLlmTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -210,6 +245,14 @@ async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+async function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
+  return withLlmTimeout(promise, timeoutMs());
+}
+
+async function withDeepSeekTimeout<T>(promise: Promise<T>): Promise<T> {
+  return withLlmTimeout(promise, deepseekTimeoutMs());
 }
 
 function thinkingConfigForDialogModel(modelId: string): Record<string, unknown> | undefined {
@@ -269,9 +312,10 @@ function systemInstructionPayload(text: string | undefined): { parts: Array<{ te
 }
 
 function buildRequestBody(modelId: string, request: GeminiStructuredRequest, responseMimeType: "text/plain" | "application/json") {
+  const useCache = Boolean(request.cachedContent);
   return {
     contents: request.contents,
-    ...(systemInstructionPayload(request.systemInstruction)
+    ...(!useCache && systemInstructionPayload(request.systemInstruction)
       ? { systemInstruction: systemInstructionPayload(request.systemInstruction) }
       : {}),
     generationConfig: buildGenerationConfig(modelId, {
@@ -279,7 +323,7 @@ function buildRequestBody(modelId: string, request: GeminiStructuredRequest, res
       maxOutputTokens: request.maxOutputTokens ?? (responseMimeType === "application/json" ? 1500 : 400),
       responseMimeType: request.responseMimeType ?? responseMimeType,
     }),
-    ...(request.cachedContent ? { cachedContent: request.cachedContent } : {}),
+    ...(useCache ? { cachedContent: request.cachedContent } : {}),
   };
 }
 
@@ -460,29 +504,46 @@ export function extractJson(text: string): unknown {
 }
 
 export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promise<{ json: T; rawText: string; modelUsed: string }> {
-  const genAI = new GoogleGenerativeAI(getApiKey());
+  let genAI: GoogleGenerativeAI | null = null;
+  const geminiClient = () => {
+    if (!genAI) genAI = new GoogleGenerativeAI(getApiKey());
+    return genAI;
+  };
   let lastError: unknown;
   const request = toStructuredRequest(options);
   const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
+    const effectiveRequest = i === 0 ? request : { ...request, cachedContent: undefined };
     try {
-      const model = genAI.getGenerativeModel({ model: modelId });
+      if (isDeepSeekModelId(modelId)) {
+        const { rawText, modelUsed } = await withDeepSeekTimeout(
+          generateDeepSeekChatJson({
+            model: modelId,
+            systemInstruction: effectiveRequest.systemInstruction,
+            contents: effectiveRequest.contents,
+            temperature: effectiveRequest.temperature,
+            maxOutputTokens: effectiveRequest.maxOutputTokens,
+          }),
+        );
+        return { json: extractJson(rawText) as T, rawText, modelUsed };
+      }
+      const model = geminiClient().getGenerativeModel({ model: modelId });
       const result = await withGeminiTimeout(
-        model.generateContent(buildRequestBody(modelId, request, "application/json") as never),
+        model.generateContent(buildRequestBody(modelId, effectiveRequest, "application/json") as never),
       );
       const rawText = result.response.text();
       return { json: extractJson(rawText) as T, rawText, modelUsed: modelId };
     } catch (error) {
       lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      const retryable = isRetryableGeminiOverloadMessage(message);
+      const retryable = isRetryableLlmError(error);
       if (!retryable) break;
       const next = chain[i + 1];
       if (next) {
-        const reason = overloadReasonSnippet(message);
-        console.warn(`[GEMINI FALLBACK] Primary model ${modelId} returned ${reason}, retrying with ${next}`);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const reason = overloadReasonSnippet(errMsg);
+        console.warn(`[LLM FALLBACK] ${modelId} failed (${reason}): ${errMsg.slice(0, 200)}. Retrying with ${next}`);
       }
     }
   }
@@ -492,28 +553,44 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
 }
 
 export async function generateGeminiText(options: GenerateTextOptions): Promise<{ text: string; modelUsed: string }> {
-  const genAI = new GoogleGenerativeAI(getApiKey());
+  let genAI: GoogleGenerativeAI | null = null;
+  const geminiClient = () => {
+    if (!genAI) genAI = new GoogleGenerativeAI(getApiKey());
+    return genAI;
+  };
   let lastError: unknown;
   const request = toStructuredRequest(options);
   const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
+    const effectiveRequest = i === 0 ? request : { ...request, cachedContent: undefined };
     try {
-      const model = genAI.getGenerativeModel({ model: modelId });
+      if (isDeepSeekModelId(modelId)) {
+        return await withDeepSeekTimeout(
+          generateDeepSeekChatText({
+            model: modelId,
+            systemInstruction: effectiveRequest.systemInstruction,
+            contents: effectiveRequest.contents,
+            temperature: effectiveRequest.temperature,
+            maxOutputTokens: effectiveRequest.maxOutputTokens,
+          }),
+        );
+      }
+      const model = geminiClient().getGenerativeModel({ model: modelId });
       const result = await withGeminiTimeout(
-        model.generateContent(buildRequestBody(modelId, request, "text/plain") as never),
+        model.generateContent(buildRequestBody(modelId, effectiveRequest, "text/plain") as never),
       );
       return { text: result.response.text(), modelUsed: modelId };
     } catch (error) {
       lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      const retryable = isRetryableGeminiOverloadMessage(message);
+      const retryable = isRetryableLlmError(error);
       if (!retryable) break;
       const next = chain[i + 1];
       if (next) {
-        const reason = overloadReasonSnippet(message);
-        console.warn(`[GEMINI FALLBACK] Primary model ${modelId} returned ${reason}, retrying with ${next}`);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const reason = overloadReasonSnippet(errMsg);
+        console.warn(`[LLM FALLBACK] ${modelId} failed (${reason}): ${errMsg.slice(0, 200)}. Retrying with ${next}`);
       }
     }
   }
@@ -523,17 +600,34 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
 }
 
 export async function* streamGeminiText(options: GenerateTextOptions): AsyncGenerator<{ text: string; modelUsed: string }> {
-  const genAI = new GoogleGenerativeAI(getApiKey());
+  let genAI: GoogleGenerativeAI | null = null;
+  const geminiClient = () => {
+    if (!genAI) genAI = new GoogleGenerativeAI(getApiKey());
+    return genAI;
+  };
   let lastError: unknown;
   const request = toStructuredRequest(options);
   const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
+    const effectiveRequest = i === 0 ? request : { ...request, cachedContent: undefined };
     try {
-      const model = genAI.getGenerativeModel({ model: modelId });
+      if (isDeepSeekModelId(modelId)) {
+        for await (const item of streamDeepSeekChatText({
+          model: modelId,
+          systemInstruction: effectiveRequest.systemInstruction,
+          contents: effectiveRequest.contents,
+          temperature: effectiveRequest.temperature,
+          maxOutputTokens: effectiveRequest.maxOutputTokens,
+        })) {
+          yield item;
+        }
+        return;
+      }
+      const model = geminiClient().getGenerativeModel({ model: modelId });
       const result = await withGeminiTimeout(
-        model.generateContentStream(buildRequestBody(modelId, request, "text/plain") as never),
+        model.generateContentStream(buildRequestBody(modelId, effectiveRequest, "text/plain") as never),
       );
       for await (const chunk of result.stream) {
         const text = chunk.text();
@@ -542,13 +636,13 @@ export async function* streamGeminiText(options: GenerateTextOptions): AsyncGene
       return;
     } catch (error) {
       lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      const retryable = isRetryableGeminiOverloadMessage(message);
+      const retryable = isRetryableLlmError(error);
       if (!retryable) break;
       const next = chain[i + 1];
       if (next) {
-        const reason = overloadReasonSnippet(message);
-        console.warn(`[GEMINI FALLBACK] Primary model ${modelId} returned ${reason}, retrying with ${next}`);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const reason = overloadReasonSnippet(errMsg);
+        console.warn(`[LLM FALLBACK] ${modelId} failed (${reason}): ${errMsg.slice(0, 200)}. Retrying with ${next}`);
       }
     }
   }
