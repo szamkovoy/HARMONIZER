@@ -648,7 +648,7 @@ export async function POST(req: Request) {
           if (!markers.practicePick && isFinalMode) {
             console.warn("[DIALOG_V3_DIAG] marker missing after premium — retry call");
             const retryInstruction: GeminiContent = { role: "user", parts: [{ text:
-              `Ты только что написал финальную рекомендацию, но забыл маркер. Выведи ТОЛЬКО одну строку — технический маркер [PRACTICE_PICK: id="..." duration_min="..." chakra="..." reason="..."] на основе рекомендации выше. Ничего больше не пиши.`
+              `Ты только что написал финальную рекомендацию, но забыл маркер. Выведи ТОЛЬКО одну строку — технический маркер [PRACTICE_PICK: id="..." reason="..."] на основе рекомендации выше. Ничего больше не пиши.`
             }] };
             const retryContents = [...prefixContents, { role: "model", parts: [{ text: fullText }] } as GeminiContent, retryInstruction];
             const retryResponse = await generateGeminiText({
