@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 1.6
+version: 1.7
 updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
@@ -9,6 +9,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-05-12:** В `dialog/route.ts` значение **`maxOutputTokens`** для основных вызовов standard и premium моделей увеличено с 1500 до **2500** (ранее документированный пол 2048 был промежуточным); добавлены диагностические поля `fullTextLast200` и `hasPracticeMarker` в лог `[DIALOG_V3_DIAG]`.
 - **2026-05-12:** Маркер `[PRACTICE_PICK]` перемещён с конца финальной рекомендации на **первую строку** ответа в инструкциях `final_recommendation`, `final_recommendation_with_validation_warning`, `forced_final` (`dialogArcOrchestrator.ts`). В `dialog/route.ts` добавлен retry-вызов Gemini при отсутствии маркера после premium-ответа в финальных режимах (`temperature: 0.3`, `maxOutputTokens: 200`).
 - **2026-05-12:** В `[PRACTICE_PICK]` маркер добавлены обязательные поля `duration_min` и `chakra`; парсер (`markers.ts`) извлекает их и прокидывает через `choosePractice` → `meta.practicePicked.overrides` → SSE `complete` → фронт `PracticeCard`. В `selector.ts` добавлен `markerIdResolved: boolean | undefined` — `false` когда model-generated id не найден в каталоге (лог `[PRACTICE_SELECTOR] marker_id_not_found`). `PracticeCard.tsx` принимает `overrideDurationMinutes` / `overrideChakraIndex` и отображает их вместо каталожных значений.
 - **2026-05-11:** Daily dialog переведён на v3: в **`communicator/v2/dialog/route.ts`** удалена фазовая оркестрация через `dialogue_phases` / `orchestrator_decision`, вместо неё используются единый prompt **`dialog_system_v3`** из БД, rule-based **`dialogArcOrchestrator.ts`**, structured Gemini request (`systemInstruction` + `contents`) и двухступенчатая схема **standard → premium** по маркеру **`[READY_FOR_RECOMMENDATION]`**. В **`gemini.ts`** добавлены structured-вызовы, `AI_MODEL_FALLBACK`, `ensureDialogCache(...)` для explicit context caching и обратная совместимость со строковым `prompt`. Удалены **`softCap.ts`** и **`data/information_axes.json`**; добавлен **`dialogConfig.ts`** (`MAX_DIALOG_LENGTH`). В **`practiceSelection.ts`** default marker резолвится в coherent breathing 10 мин на чакру дня. Добавлена миграция **`20260511161000_dialog_system_v3.sql`**.

@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-12: `maxOutputTokens` для standard/premium вызовов в `dialog/route.ts` увеличен с 1500 до 2500; в `Communicator.tsx` добавлены временные DEBUG BOLT диагностические блоки (tech debt, зафиксирован в `open_questions.md`). Обновлены **`docs/02_modules/assistant/history.md`**, **`docs/04_workspace/open_questions.md`**.
 - 2026-05-12: Маркер `[PRACTICE_PICK]` перемещён на первую строку финальной рекомендации в инструкциях оркестратора; добавлен retry-вызов Gemini для восстановления маркера при его отсутствии в premium-ответе. Обновлены **`docs/02_modules/assistant/{spec,history}.md`**.
 - 2026-05-12: В **`dialog/route.ts`** добавлена защита от пустого ответа premium-модели после санитизации (лог `[PREMIUM_EMPTY_RESPONSE]`, ошибка вместо пустого пузыря); в **`Communicator.tsx`** на восстановлении сессии фильтруются assistant-сообщения с пустым `content`; `practicePicked` в SSE `complete` прокидывает `overrides` и `markerIdResolved` через `PracticeCard`. Обновлены **`docs/02_modules/{assistant/spec,communicator/spec,communicator/history}.md`**.
 - 2026-05-12: `[PRACTICE_PICK]` маркер расширен полями `duration_min` и `chakra`; overrides прокидываются через `meta.practicePicked.overrides` в SSE и в `PracticeCard`; в `selector.ts` добавлен `markerIdResolved` флаг для видимости невалидных model-generated id.

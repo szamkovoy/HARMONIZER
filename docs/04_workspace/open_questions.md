@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.17
-updated: 2026-05-11
+version: 1.18
+updated: 2026-05-12
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -22,6 +22,10 @@ code_refs: []
 **Контекст:** `modules/breath/ui/CoherenceBreathScreen.tsx` вызывает `enqueueCommunicatorGreeting()` и затем `router.replace("/")`, ожидая, что главный экран смонтирует `Communicator` с `autoSendInitialMessage` / переопределением `systemPrompt` из очереди. В `app/(tabs)/index.tsx` нет вызова `consumeCommunicatorGreeting()` и передачи результата в `<Communicator />`.  
 **Проявление:** сценарий «Обсудить результаты» из дыхания не запускает автоматическую отправку первого сообщения в ассистенте.  
 **Действие:** либо на home при открытии/монтировании оверлея читать очередь и прокидывать в `Communicator`, либо убрать/заменить мёртвый путь.
+- **DEBUG BOLT — временные диагностические блоки в `Communicator.tsx`**  
+**Контекст:** в `modules/communicator/ui/Communicator.tsx` добавлены два `View`-блока с пометкой «DEBUG BOLT», которые показывают `turn_mode`, `practicePicked`, `model`, `chars` для сообщений с финальной рекомендацией. Блоки используют инлайн-стили и жёстко закодированные цвета (`#ffe0e0`, `#e0ffe0`).  
+**Проявление:** отладочный UI виден всем пользователям (не защищён `__DEV__`-гейтом), загромождает чат в production-сборке.  
+**Действие:** удалить оба блока «DEBUG BOLT» после завершения отладки маркера `[PRACTICE_PICK]`; при необходимости оставить диагностику — перенести под `__DEV__`-флаг.
 - **Хрупкость разбора SSE на клиенте**  
 **Контекст:** `parseSseBlock` / `handleSseEvent` в `services/communicator-client.ts` завязаны на фиксированные имена событий и JSON-форму полей.  
 **Проявление:** несовпадение с сервером (имя события, вложенность `data`) даст тихую потерю чанков или пустой ответ.  
