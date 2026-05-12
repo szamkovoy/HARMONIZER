@@ -88,44 +88,86 @@ export function stripReadyMarker(text: string): string {
   return text.replace(/\[\s*ready_for_recommendation\s*\]/gi, "").trim();
 }
 
+export type PracticeKindInferred = "breath" | "meditation" | "yoga";
+
 export interface ValidationResult {
   confident: boolean;
   hasDuration: boolean;
   hasType: boolean;
+  durationSec: number | null;
+  practiceKind: PracticeKindInferred | null;
+}
+
+const DURATION_NUMBER_UNITS = ["минут", "час"];
+
+const DURATION_PHRASES: Array<{ phrase: string; sec: number }> = [
+  { phrase: "полчаса", sec: 30 * 60 },
+  { phrase: "пол часа", sec: 30 * 60 },
+  { phrase: "пол-часа", sec: 30 * 60 },
+  { phrase: "четверть часа", sec: 15 * 60 },
+];
+
+const DURATION_PHRASES_NO_VALUE = [
+  "не ограничен", "не лимитирован", "не лимит",
+  "всё утро", "весь вечер", "весь день", "целый день",
+  "любое время", "сколько угодно", "без ограничений",
+  "всё время", "все время", "хоть сколько",
+  "сколько нужно", "много времени",
+];
+
+const NUMBER_WORD_MAP: Record<string, number> = {
+  "один": 1, "одну": 1, "одна": 1,
+  "два": 2, "две": 2, "пару": 2,
+  "три": 3, "четыре": 4,
+  "пять": 5, "шесть": 6, "семь": 7, "восемь": 8, "девять": 9,
+  "десять": 10, "пятнадцать": 15, "двадцать": 20,
+  "тридцать": 30, "сорок": 40, "пятьдесят": 50, "полтора": 1.5,
+};
+
+const TYPE_BREATH = ["дыхан", "дыхательн", "пранаям", "подыш", "дыш"];
+const TYPE_MEDITATION = ["медитац", "помедитировать", "посидеть", "успокоиться"];
+const TYPE_YOGA = ["асан", "йог"];
+
+function inferDurationSecFromText(text: string): number | null {
+  for (const entry of DURATION_PHRASES) {
+    if (text.includes(entry.phrase)) return entry.sec;
+  }
+
+  const digitMatch = text.match(/(\d{1,3})\s*(минут|мин\b|час)/i);
+  if (digitMatch) {
+    const num = Number.parseInt(digitMatch[1] ?? "", 10);
+    if (Number.isFinite(num) && num > 0) {
+      return /час/i.test(digitMatch[2] ?? "") ? num * 3600 : num * 60;
+    }
+  }
+
+  if (!digitMatch && /(?:^|\s)час(?:\s|$|ик|а|ов)/i.test(text)) return 3600;
+
+  for (const [word, num] of Object.entries(NUMBER_WORD_MAP)) {
+    for (const unit of DURATION_NUMBER_UNITS) {
+      if (text.includes(word) && text.includes(unit)) {
+        return /час/.test(unit) ? num * 3600 : num * 60;
+      }
+    }
+  }
+
+  return null;
+}
+
+function inferKindFromText(text: string): PracticeKindInferred | null {
+  if (TYPE_BREATH.some((k) => text.includes(k))) return "breath";
+  if (TYPE_MEDITATION.some((k) => text.includes(k))) return "meditation";
+  if (TYPE_YOGA.some((k) => text.includes(k))) return "yoga";
+  return null;
 }
 
 export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): ValidationResult {
-  const userText = messages
+  const userMessages = messages
     .filter((m) => m.role === "user")
-    .map((m) => m.content ?? "")
-    .join(" ")
-    .toLowerCase();
+    .map((m) => (m.content ?? "").toLowerCase());
+  const userText = userMessages.join(" ");
 
-  const DURATION_NUMBER_UNITS = ["минут", "час"];
-
-  const DURATION_PHRASES = [
-    "полчаса", "пол часа", "пол-часа", "четверть часа",
-    "не ограничен", "не лимитирован", "не лимит",
-    "всё утро", "весь вечер", "весь день", "целый день",
-    "любое время", "сколько угодно", "без ограничений",
-    "всё время", "все время", "хоть сколько",
-    "сколько нужно", "много времени",
-  ];
-
-  const TYPE_KEYWORDS = [
-    "асан", "йог",
-    "дыхан", "дыхательн", "пранаям",
-    "медитац", "помедитировать", "посидеть", "успокоиться",
-  ];
-
-  const NUMBER_WORDS = [
-    "один", "одну", "одна",
-    "два", "две", "пару",
-    "три", "четыре",
-    "пять", "шесть", "семь", "восемь", "девять",
-    "десять", "пятнадцать", "двадцать",
-    "тридцать", "сорок", "пятьдесят", "полтора",
-  ];
+  const NUMBER_WORDS = Object.keys(NUMBER_WORD_MAP);
 
   const hasNumber =
     /\d+/.test(userText) ||
@@ -133,14 +175,29 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
 
   const hasDuration =
     (hasNumber && DURATION_NUMBER_UNITS.some((u) => userText.includes(u)))
-    || DURATION_PHRASES.some((p) => userText.includes(p));
+    || DURATION_PHRASES.some((p) => userText.includes(p.phrase))
+    || DURATION_PHRASES_NO_VALUE.some((p) => userText.includes(p));
 
-  const hasType = TYPE_KEYWORDS.some((k) => userText.includes(k));
+  const hasType =
+    TYPE_BREATH.some((k) => userText.includes(k))
+    || TYPE_MEDITATION.some((k) => userText.includes(k))
+    || TYPE_YOGA.some((k) => userText.includes(k));
+
+  let durationSec: number | null = null;
+  let practiceKind: PracticeKindInferred | null = null;
+  for (const msg of userMessages) {
+    const d = inferDurationSecFromText(msg);
+    if (d !== null) durationSec = d;
+    const k = inferKindFromText(msg);
+    if (k !== null) practiceKind = k;
+  }
 
   return {
     confident: hasDuration && hasType,
     hasDuration,
     hasType,
+    durationSec,
+    practiceKind,
   };
 }
 

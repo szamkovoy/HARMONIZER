@@ -7,10 +7,10 @@ import {
   selectPracticeCandidate,
   type PracticeSelectorCandidate,
 } from "@shared/selector";
-import type { PracticePickMarker } from "@legacy/app/api/_utils/markers";
+import { type PracticePickMarker, type PracticeKindInferred, validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
-type PracticeKind = "breath" | "meditation" | "yoga";
+type PracticeKind = PracticeKindInferred;
 
 export type PracticeCandidate = {
   id: string;
@@ -112,20 +112,6 @@ function hasLocalizedText(value: PracticeCandidate["description"]): boolean {
   return Boolean(value?.ru?.trim() || value?.en?.trim());
 }
 
-function inferPreferredPracticeKind(text: string): PracticeKind | null {
-  const lower = text.toLocaleLowerCase("ru");
-  if (/(дыхан|пранаям|breath|pranayama)/i.test(lower)) return "breath";
-  if (/(медитац|вспышк|символ|meditat|symbol)/i.test(lower)) return "meditation";
-  if (/(асан|йог|yoga|asana)/i.test(lower)) return "yoga";
-  return null;
-}
-
-function inferPreferredDurationSec(text: string): number | null {
-  const match = text.match(/(\d{1,2})\s*(мин|minute|min)/i);
-  if (!match) return null;
-  const minutes = Number.parseInt(match[1] ?? "", 10);
-  return Number.isFinite(minutes) && minutes > 0 ? minutes * 60 : null;
-}
 
 function practiceMetaId(message: MessageRecord): string | null {
   const meta = message.meta as { practicePicked?: { id?: unknown }; practice_picked?: { id?: unknown } } | null;
@@ -320,16 +306,16 @@ export async function choosePractice(
 ): Promise<ChoosePracticeResult | { picked: null; markerIdResolved: undefined; chakraId: number; preferredDurationMin: number | null }> {
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
   const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
-  const allUserText = [
-    ...history.filter((m) => m.role === "user").map((m) => m.content),
-    userMessage,
-  ].join(" ");
-  const preferredDurationSec = inferPreferredDurationSec(allUserText);
+  const validation = validateHistoryHasDurationAndType([
+    ...history.filter((m) => m.role === "user"),
+    { role: "user" as const, content: userMessage },
+  ]);
+  const preferredDurationSec = validation.durationSec;
   const preferredDurationMin = preferredDurationSec ? Math.round(preferredDurationSec / 60) : null;
   if (isDefaultPracticeMarker(marker)) {
     return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true, chakraId, preferredDurationMin };
   }
-  const preferredKind = inferPreferredPracticeKind(allUserText);
+  const preferredKind = validation.practiceKind;
 
   let query = db
     .from("practices")
