@@ -381,7 +381,7 @@ async function resolvePracticePublic(
   if (!marker) return null;
   const { picked, markerIdResolved } = await choosePractice(db, userId, marker, context, userMessage, history);
   if (!picked) return null;
-  const publicPayload = attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
+  const publicPayload = await attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
   const overrides: { durationMin?: number; chakraIndex?: number } = {};
   if (marker.durationMin) overrides.durationMin = marker.durationMin;
   if (marker.chakra) overrides.chakraIndex = marker.chakra;
