@@ -586,7 +586,7 @@ export async function POST(req: Request) {
               contents: initialContents,
               model: requestedModel,
               temperature: 0.85,
-              maxOutputTokens: 1500,
+              maxOutputTokens: 2500,
             })) {
               modelIdUsed = chunk.modelUsed;
               fullText += chunk.text;
@@ -625,7 +625,7 @@ export async function POST(req: Request) {
                 contents: [...prefixContents, finalInstruction],
                 model: premiumModel,
                 temperature: 0.85,
-                maxOutputTokens: 1500,
+                maxOutputTokens: 2500,
               })) {
                 modelIdUsed = chunk.modelUsed;
                 fullText += chunk.text;
@@ -637,6 +637,8 @@ export async function POST(req: Request) {
           console.log("[DIALOG_V3_DIAG] before sanitize:", JSON.stringify({
             fullTextLength: fullText.length,
             fullTextFirst200: fullText.slice(0, 200),
+            fullTextLast200: fullText.slice(-200),
+            hasPracticeMarker: /\[PRACTICE_PICK:/i.test(fullText),
             readyMarkerTriggered,
             modelTierUsed,
           }));
