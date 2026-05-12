@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-12: Консолидация вывода длительности/типа практики: `inferPreferredDurationSec` / `inferPreferredPracticeKind` удалены из `practiceSelection.ts`, `validateHistoryHasDurationAndType` (`markers.ts`) расширен полями `durationSec` и `practiceKind` (тип `PracticeKindInferred`). Обновлены **`docs/02_modules/assistant/{spec,history}.md`**.
 - 2026-05-12: `choosePractice` расширен полями `chakraId` / `preferredDurationMin`; `inferPreferredDurationSec` обрабатывает полную историю диалога; `overrides` в ответе практики теперь безусловно присутствует с fallback-цепочкой (marker → inferred → planet_of_the_day/null); удалены DEBUG BOLT блоки из `Communicator.tsx` (tech debt закрыт). Обновлены **`docs/02_modules/{assistant,communicator}/{spec,history}.md`**, **`docs/04_workspace/open_questions.md`**.
 - 2026-05-12: `maxOutputTokens` для standard/premium вызовов в `dialog/route.ts` увеличен с 1500 до 2500; в `Communicator.tsx` добавлены временные DEBUG BOLT диагностические блоки (tech debt, зафиксирован в `open_questions.md`). Обновлены **`docs/02_modules/assistant/history.md`**, **`docs/04_workspace/open_questions.md`**.
 - 2026-05-12: Маркер `[PRACTICE_PICK]` перемещён на первую строку финальной рекомендации в инструкциях оркестратора; добавлен retry-вызов Gemini для восстановления маркера при его отсутствии в premium-ответе. Обновлены **`docs/02_modules/assistant/{spec,history}.md`**.
