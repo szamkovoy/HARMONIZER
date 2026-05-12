@@ -319,7 +319,7 @@ export async function choosePractice(
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
   const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
   if (isDefaultPracticeMarker(marker)) {
-    return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: undefined };
+    return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true };
   }
   const preferredKind = inferPreferredPracticeKind(userMessage);
   const preferredDurationSec = inferPreferredDurationSec(userMessage);
