@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     const db = createServiceSupabase();
-    const selected = await choosePractice(
+    const { picked: selected } = await choosePractice(
       db,
       userId,
       body.practiceId ? { id: body.practiceId, reason: body.reason } : null,

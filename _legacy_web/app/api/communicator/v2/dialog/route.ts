@@ -379,9 +379,17 @@ async function resolvePracticePublic(
   history: MessageRecord[],
 ) {
   if (!marker) return null;
-  const picked = await choosePractice(db, userId, marker, context, userMessage, history);
+  const { picked, markerIdResolved } = await choosePractice(db, userId, marker, context, userMessage, history);
   if (!picked) return null;
-  return attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
+  const publicPayload = attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
+  const overrides: { durationMin?: number; chakraIndex?: number } = {};
+  if (marker.durationMin) overrides.durationMin = marker.durationMin;
+  if (marker.chakra) overrides.chakraIndex = marker.chakra;
+  return {
+    ...publicPayload,
+    ...(Object.keys(overrides).length ? { overrides } : {}),
+    ...(markerIdResolved === false ? { markerIdResolved: false } : {}),
+  };
 }
 
 async function persistAssistantMessage(params: {

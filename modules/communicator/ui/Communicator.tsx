@@ -1388,11 +1388,14 @@ export function Communicator({
                   {m.meta?.practicePicked ? (() => {
                     const practice = m.meta.practicePicked as PracticePicked;
                     const summary = practiceToSummary(practice);
+                    const overrides = (practice as PracticePicked & { overrides?: { durationMin?: number; chakraIndex?: number } }).overrides;
                     return summary ? (
                       <View style={styles.practiceCardWrap}>
                         <SharedPracticeCard
                           practice={summary}
                           onLaunch={(configured) => handlePracticeLaunch(practice, configured)}
+                          overrideDurationMinutes={overrides?.durationMin}
+                          overrideChakraIndex={overrides?.chakraIndex}
                         />
                       </View>
                     ) : null;

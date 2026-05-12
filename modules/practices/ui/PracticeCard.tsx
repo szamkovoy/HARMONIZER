@@ -50,6 +50,8 @@ export const PracticeCard = memo(function PracticeCard({
   remotePlayConnected = false,
   remotePlayDisabled = false,
   videoThumbnail,
+  overrideDurationMinutes,
+  overrideChakraIndex,
 }: {
   practice: PracticeSummary;
   onLaunch: (practice: PracticeSummary) => void;
@@ -57,15 +59,19 @@ export const PracticeCard = memo(function PracticeCard({
   remotePlayConnected?: boolean;
   remotePlayDisabled?: boolean;
   videoThumbnail?: PracticeVideoThumbnail | null;
+  overrideDurationMinutes?: number;
+  overrideChakraIndex?: number;
 }) {
   const theme = useTheme();
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
   const [selectedDurationMin, setSelectedDurationMin] = useState(() =>
-    defaultSelectableDurationMinutes(practice, selectableDurations),
+    overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations),
   );
-  const [selectedChakra, setSelectedChakra] = useState<number>(() => defaultSelectableChakra(practice));
+  const [selectedChakra, setSelectedChakra] = useState<number>(() =>
+    overrideChakraIndex ?? defaultSelectableChakra(practice),
+  );
   const [usePulseSensor, setUsePulseSensor] = useState(true);
   const [openField, setOpenField] = useState<SelectField>(null);
 
@@ -169,8 +175,8 @@ export const PracticeCard = memo(function PracticeCard({
             )}
           </View>
           <View style={styles.yogaMetaColumn}>
-            <MetaPill label={durationLabel(practice)} />
-            <MetaPill label={chakraLabel(practice)} />
+            <MetaPill label={overrideDurationMinutes ? `${overrideDurationMinutes} мин` : durationLabel(practice)} />
+            <MetaPill label={overrideChakraIndex ? `${overrideChakraIndex} чакра` : chakraLabel(practice)} />
           </View>
         </View>
       ) : (
