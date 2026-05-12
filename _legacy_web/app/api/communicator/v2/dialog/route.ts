@@ -379,15 +379,15 @@ async function resolvePracticePublic(
   history: MessageRecord[],
 ) {
   if (!marker) return null;
-  const { picked, markerIdResolved } = await choosePractice(db, userId, marker, context, userMessage, history);
+  const { picked, markerIdResolved, chakraId, preferredDurationMin } = await choosePractice(db, userId, marker, context, userMessage, history);
   if (!picked) return null;
   const publicPayload = await attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
-  const overrides: { durationMin?: number; chakraIndex?: number } = {};
-  if (marker.durationMin) overrides.durationMin = marker.durationMin;
-  if (marker.chakra) overrides.chakraIndex = marker.chakra;
+  const overrides: { durationMin?: number | null; chakraIndex?: number } = {};
+  overrides.durationMin = marker.durationMin ?? preferredDurationMin ?? null;
+  overrides.chakraIndex = marker.chakra ?? chakraId;
   return {
     ...publicPayload,
-    ...(Object.keys(overrides).length ? { overrides } : {}),
+    overrides,
     ...(markerIdResolved === false ? { markerIdResolved: false } : {}),
   };
 }
@@ -637,8 +637,6 @@ export async function POST(req: Request) {
           console.log("[DIALOG_V3_DIAG] before sanitize:", JSON.stringify({
             fullTextLength: fullText.length,
             fullTextFirst200: fullText.slice(0, 200),
-            fullTextLast200: fullText.slice(-200),
-            hasPracticeMarker: /\[PRACTICE_PICK:/i.test(fullText),
             readyMarkerTriggered,
             modelTierUsed,
           }));

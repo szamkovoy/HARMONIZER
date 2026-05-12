@@ -306,6 +306,8 @@ function isDefaultPracticeMarker(marker: PracticePickMarker | null): boolean {
 export interface ChoosePracticeResult {
   picked: PracticePickedPayload;
   markerIdResolved: boolean | undefined;
+  chakraId: number;
+  preferredDurationMin: number | null;
 }
 
 export async function choosePractice(
@@ -315,14 +317,19 @@ export async function choosePractice(
   context: PracticeSelectionContext,
   userMessage: string,
   history: MessageRecord[],
-): Promise<ChoosePracticeResult | { picked: null; markerIdResolved: undefined }> {
+): Promise<ChoosePracticeResult | { picked: null; markerIdResolved: undefined; chakraId: number; preferredDurationMin: number | null }> {
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
   const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
+  const allUserText = [
+    ...history.filter((m) => m.role === "user").map((m) => m.content),
+    userMessage,
+  ].join(" ");
+  const preferredDurationSec = inferPreferredDurationSec(allUserText);
+  const preferredDurationMin = preferredDurationSec ? Math.round(preferredDurationSec / 60) : null;
   if (isDefaultPracticeMarker(marker)) {
-    return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true };
+    return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true, chakraId, preferredDurationMin };
   }
   const preferredKind = inferPreferredPracticeKind(userMessage);
-  const preferredDurationSec = inferPreferredDurationSec(userMessage);
 
   let query = db
     .from("practices")
@@ -350,7 +357,7 @@ export async function choosePractice(
     recentIds,
     markerId: marker?.id,
   });
-  if (!selection) return { picked: null, markerIdResolved: undefined };
+  if (!selection) return { picked: null, markerIdResolved: undefined, chakraId, preferredDurationMin };
 
   const markerIdResolved = selection.markerIdResolved;
   if (markerIdResolved === false) {
@@ -365,5 +372,7 @@ export async function choosePractice(
       selection.stack.map((practice) => practice.raw),
     ),
     markerIdResolved,
+    chakraId,
+    preferredDurationMin,
   };
 }

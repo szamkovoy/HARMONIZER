@@ -23,7 +23,6 @@ import {
   Share,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -1389,20 +1388,6 @@ export function Communicator({
                     isStreaming={false}
                     phaseLabel={messagePhaseLabel(m)}
                   />
-                  {/* DEBUG BOLT: diagnostic block */}
-                  {(() => {
-                    const tm = (m.meta?.turnMode ?? m.meta?.turn_mode) as string | undefined;
-                    if (tm === "final_recommendation" || tm === "final_recommendation_with_validation_warning" || tm === "forced_final") {
-                      return (
-                        <View style={{ backgroundColor: "#ffe0e0", padding: 8, marginVertical: 4, borderRadius: 6 }}>
-                          <Text style={{ fontSize: 11, color: "#900" }}>
-                            {"DEBUG BEFORE: turn_mode=" + tm + " | practicePicked=" + (m.meta?.practicePicked ? "YES" : "NULL")}
-                          </Text>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })()}
                   {m.meta?.practicePicked ? (() => {
                     const practice = m.meta.practicePicked as PracticePicked;
                     const summary = practiceToSummary(practice);
@@ -1418,20 +1403,6 @@ export function Communicator({
                       </View>
                     ) : null;
                   })() : null}
-                  {/* DEBUG BOLT: after card position */}
-                  {(() => {
-                    const tm = (m.meta?.turnMode ?? m.meta?.turn_mode) as string | undefined;
-                    if (tm === "final_recommendation" || tm === "final_recommendation_with_validation_warning" || tm === "forced_final") {
-                      return (
-                        <View style={{ backgroundColor: "#e0ffe0", padding: 8, marginVertical: 4, borderRadius: 6 }}>
-                          <Text style={{ fontSize: 11, color: "#060" }}>
-                            {"DEBUG AFTER: model=" + String(m.meta?.modelUsed ?? m.meta?.model_id ?? "?") + " | chars=" + String(m.meta?.complete_text_chars ?? m.content?.length ?? "?")}
-                          </Text>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })()}
                 </View>
               ),
             )}
