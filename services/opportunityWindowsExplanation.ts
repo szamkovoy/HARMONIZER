@@ -62,14 +62,14 @@ function buildFreeExplanation(
       : null,
     culminationTime
       ? ru
-        ? `Кульминация: ${culminationTime} — ${planet} достигает максимальной силы.`
-        : `Culmination: ${culminationTime} — ${planet} reaches peak strength.`
+        ? `Кульминация: ${culminationTime} — ${planet} в наивысшей точке суточного пути.`
+        : `Culmination: ${culminationTime} — ${planet} at the highest point of its daily path.`
       : null,
   ].filter(Boolean);
 
   const closing = ru
-    ? "Времена пересчитаны под вашу текущую локацию и часовой пояс."
-    : "Times are adjusted to your current location and timezone.";
+    ? "Это ключевые моменты времени именно в вашей локации. Используйте их для духовных практик, аффирмаций, постановки намерения, медитации и т.п."
+    : "These are key moments specifically for your location. Use them for spiritual practices, affirmations, setting intentions, meditation, etc.";
 
   return [opening, ...timingLines, closing].join("\n\n");
 }
@@ -91,9 +91,9 @@ function buildPaidExplanation(
 
   const opening = ru
     ? [
-        `В этом графике опорной натальной планетой дня является ${natalPlanet}.`,
+        `Опорной натальной планетой сегодня является ${natalPlanet}.`,
         transitPlanet
-          ? `На линии окна возможностей показано движение транзитной планеты ${transitPlanet}: именно она даёт основной импульс сегодняшнему сюжету.`
+          ? `На линии окна возможностей показано движение транзитной планеты ${transitPlanet}. Именно ${transitPlanet} сегодня включает ${natalPlanet} и даёт основной импульс сюжету дня.`
           : "Сегодня график показывает общее окно возможностей без отдельной явно выраженной транзитной планеты.",
       ]
     : [
@@ -111,19 +111,19 @@ function buildPaidExplanation(
       : null,
     culminationTime
       ? ru
-        ? `Кульминация: ${culminationTime}${transitPlanet ? ` — ${transitPlanet} достигает максимальной силы.` : "."}`
-        : `Culmination: ${culminationTime}${transitPlanet ? ` — ${transitPlanet} reaches peak strength.` : "."}`
+        ? `Кульминация: ${culminationTime}${transitPlanet ? ` — ${transitPlanet} в наивысшей точке суточного пути.` : "."}`
+        : `Culmination: ${culminationTime}${transitPlanet ? ` — ${transitPlanet} at the highest point of its daily path.` : "."}`
       : null,
-    exactAspectTime && exactAspectLbl && exactAspectNatal
+    exactAspectTime && exactAspectLbl && transitPlanet && exactAspectNatal
       ? ru
-        ? `Точный аспект: ${exactAspectTime} — ${exactAspectLbl} транзитной планеты к натальной планете ${exactAspectNatal}.`
-        : `Exact aspect: ${exactAspectTime} — ${exactAspectLbl} from the transit planet to natal ${exactAspectNatal}.`
+        ? `Точный аспект: ${exactAspectTime} — ${exactAspectLbl} ${transitPlanet} к ${exactAspectNatal}.`
+        : `Exact aspect: ${exactAspectTime} — ${exactAspectLbl} of ${transitPlanet} to ${exactAspectNatal}.`
       : null,
   ].filter(Boolean);
 
   const closing = ru
-    ? "Эти времена уже пересчитаны под вашу текущую локацию и часовой пояс, поэтому они подходят для проверки графика и для практического планирования дня."
-    : "These times are already adjusted to your current location and timezone, so they can be used both to verify the graph and to plan the day in practice.";
+    ? "Это ключевые моменты времени именно в вашей локации. Используйте их для духовных практик, аффирмаций, постановки намерения, медитации и т.п."
+    : "These are key moments specifically for your location. Use them for spiritual practices, affirmations, setting intentions, meditation, etc.";
 
   return [...opening, ...timingLines, closing].join("\n\n");
 }
