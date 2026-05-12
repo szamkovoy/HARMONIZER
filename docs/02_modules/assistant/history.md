@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 1.5
-updated: 2026-05-11
+version: 1.6
+updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-05-12:** В `choosePractice` предпочтения пользователя (kind, duration) теперь извлекаются из **всех** user-сообщений истории + текущего ввода, а не только из последнего сообщения — повышает точность, когда пользователь упоминал длительность или тип ранее в диалоге. В `route.ts` добавлен auto-fallback: если в финальных режимах (`final_recommendation` / `final_recommendation_with_validation_warning` / `forced_final`) модель не вернула маркер `[PRACTICE_PICK]`, сервер создаёт синтетический pick (`id: "auto-fallback"`, duration из regex, chakra из `planet_of_the_day`) вместо передачи `null` в `resolvePracticePublic`.
 - **2026-05-12:** В `[PRACTICE_PICK]` маркер добавлены обязательные поля `duration_min` и `chakra`; парсер (`markers.ts`) извлекает их и прокидывает через `choosePractice` → `meta.practicePicked.overrides` → SSE `complete` → фронт `PracticeCard`. В `selector.ts` добавлен `markerIdResolved: boolean | undefined` — `false` когда model-generated id не найден в каталоге (лог `[PRACTICE_SELECTOR] marker_id_not_found`). `PracticeCard.tsx` принимает `overrideDurationMinutes` / `overrideChakraIndex` и отображает их вместо каталожных значений.
 - **2026-05-11:** Daily dialog переведён на v3: в **`communicator/v2/dialog/route.ts`** удалена фазовая оркестрация через `dialogue_phases` / `orchestrator_decision`, вместо неё используются единый prompt **`dialog_system_v3`** из БД, rule-based **`dialogArcOrchestrator.ts`**, structured Gemini request (`systemInstruction` + `contents`) и двухступенчатая схема **standard → premium** по маркеру **`[READY_FOR_RECOMMENDATION]`**. В **`gemini.ts`** добавлены structured-вызовы, `AI_MODEL_FALLBACK`, `ensureDialogCache(...)` для explicit context caching и обратная совместимость со строковым `prompt`. Удалены **`softCap.ts`** и **`data/information_axes.json`**; добавлен **`dialogConfig.ts`** (`MAX_DIALOG_LENGTH`). В **`practiceSelection.ts`** default marker резолвится в coherent breathing 10 мин на чакру дня. Добавлена миграция **`20260511161000_dialog_system_v3.sql`**.
 - **2026-05-11:** Удалены **`_legacy_web/app/api/_utils/explicitSignals.ts`** и **`_legacy_web/data/dialog_signals.json`**; в **`communicator/v2/dialog/route.ts`** убраны импорт и вызов **`detectExplicitSignals`**, в шаблон оркестратора передаётся **`explicit_signals_json: "[]"`** до **`dialog_v3_unified_prompt`**. В **`insightDetection.ts`** сужены списки **`COGNITIVE_WORDS_RU`** и **`PREPARATION_MARKERS_RU`**. Обновлены **`spec.md`**, **`history.md`**, **`MAP.md`**, **`CHANGELOG.md`**, **`dependencies.md`**.
