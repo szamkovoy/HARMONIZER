@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 1.5
+version: 1.6
 updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -50,7 +50,7 @@ code_refs:
 - `fetchGlobalContent` (`services/globalContentClient.ts`) — собирает `DailyForecast`-совместимый объект для free-режима (в т.ч. `computeWindowsForFreeUser` из `daily-engine`); клиентский transport защищён общим таймаутом `15s`, который распространяется и на fallback-чтение `global_daily_content` через Supabase SDK.
 - `loadDayContentCache` / `saveDayContentCache` / `peekDayContentCache` / `pruneDayContentCache` / `clearDayContentCache` (`services/dayContentCache.ts`) — локальный кэш дня (SecureStore / web storage + manifest), ключ: user + `accessMode` + `accessTier` + `forecastDate` + `scopeKey` + координаты.
 - Валидация полноты прогноза (`services/dayContentIntegrity.ts`): `isBaseForecastValid` — минимальный набор полей для рендера; `isDayContentReadyForHome` — достаточен ли forecast для показа home (для paid-режима разрешает базовый слой без вторичных текстов); `isDayContentCacheable` — можно ли сохранить в локальный кэш (alias `isDayContentReadyForHome`); `isDayContentComplete` — полная проверка, включая `slogan`, `recommendationShortText`, `recommendationLongText`, `mathLevel`.
-- `loadOpportunityWindowsExplanation` (`services/opportunityWindowsExplanation.ts`) — формирует человекочитаемый текст, объясняющий чарт окна возможностей (натальная планета дня, транзитная планета, времена восхода/кульминации/точного аспекта); используется help-модалом в `OpportunityWindows`.
+- `loadOpportunityWindowsExplanation` (`services/opportunityWindowsExplanation.ts`) — формирует человекочитаемый текст, объясняющий чарт окна возможностей; используется help-модалом в `OpportunityWindows`. Ветвление по `accessMode`: **free** — упрощённый текст (планета дня, восход, кульминация, без транзитной планеты и точного аспекта); **paid** — полный текст (натальная планета дня, транзитная планета, восход/кульминация/точный аспект с подписями).
 
 ### Серверные эндпоинты (персональный прогноз)
 

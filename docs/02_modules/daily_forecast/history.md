@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 1.4
+version: 1.5
 updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-12:** `loadOpportunityWindowsExplanation` разделён на два пути по `accessMode`: free-пользователи получают упрощённый текст (только планета дня, восход, кульминация), paid — полный (натальная + транзитная планета, все окна включая точный аспект). Ранее один путь обслуживал оба режима с разной closing-фразой; теперь контент принципиально отличается.
 
 - **2026-05-12:** Персональный `home` перестал ждать полного `morning_recommendation` до первого рендера. `daily-forecast/route.ts` теперь отдаёт быстрый базовый forecast без синхронного `ensureMorningRecommendation`, а клиентский `useDayContent` открывает экран по валидному base-слою и догружает `slogan` / short / long / `mathLevel` в фоне с последующей перезаписью day-cache. Это сознательный компромисс в пользу старта без стриминга и без смены визуального дизайна главной.
 
