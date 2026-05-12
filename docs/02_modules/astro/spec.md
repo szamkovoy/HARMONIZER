@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/spec
 title: Astro Spec
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [

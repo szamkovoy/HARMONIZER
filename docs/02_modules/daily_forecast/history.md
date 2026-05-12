@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 1.3
+version: 1.4
 updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -18,6 +18,8 @@ code_refs:
 - **2026-05-12:** Персональный `home` перестал ждать полного `morning_recommendation` до первого рендера. `daily-forecast/route.ts` теперь отдаёт быстрый базовый forecast без синхронного `ensureMorningRecommendation`, а клиентский `useDayContent` открывает экран по валидному base-слою и догружает `slogan` / short / long / `mathLevel` в фоне с последующей перезаписью day-cache. Это сознательный компромисс в пользу старта без стриминга и без смены визуального дизайна главной.
 
 - **2026-05-12:** Free precompute глобального контента усилен: `precompute-global-recommendations` держит rolling window `yesterday/today/tomorrow`, refresh-ит строки при смене модели или пустом тексте и переводится отдельной миграцией на ежечасный cron. Цель — чтобы глобальный прогноз почти всегда уже существовал к моменту первого открытия приложения.
+
+- **2026-05-12:** `OpportunityWindows` получил help-кнопку и модальное окно с пояснением графика; текст пояснения формируется новым сервисом `services/opportunityWindowsExplanation.ts` на основе натальной/транзитной планеты и окон. Валидация полноты forecast разделена на три уровня: `isBaseForecastValid` (минимум), `isDayContentReadyForHome` (достаточно для первого рендера home), `isDayContentComplete` (полная, с AI-текстами).
 
 - **2026-05-12:** Контракт `windowsOfOpportunity.exactAspect` расширен полем `transitPlanet`, чтобы UI и отладочные объяснения могли явно показывать не только натальную планету аспекта, но и транзитную планету, чьё движение рисуется в окне возможностей.
 

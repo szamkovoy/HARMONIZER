@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/history
 title: Astro History
-version: 1.2
-updated: 2026-05-07
+version: 1.3
+updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [

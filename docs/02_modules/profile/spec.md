@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -37,7 +37,7 @@ code_refs:
 
 ## 3. Внутренняя архитектура
 
-- **Источник строки `users`:** при событиях `supabase.auth.onAuthStateChange` и после холодного `getSession()` вызывается **`syncProfile`**, который делает `from("users").select("*").eq("id", userId).maybeSingle()`. Строка создаётся на стороне БД триггером на нового пользователя (`handle_new_auth_user`, см. миграции Supabase — задокументировано в комментариях `AuthProvider`).
+- **Источник строки `users`:** при событиях `supabase.auth.onAuthStateChange` и после холодного `getSession()` вызывается **`syncProfile`**, который делает `from("users").select("*").eq("id", userId).maybeSingle()`. Сетевой запрос защищён таймаутом `PROFILE_FETCH_TIMEOUT_MS` (10 с) через `AbortController` + `.abortSignal(...)`, чтобы зависший PostgREST не блокировал сплэш-скрин бесконечно. Строка создаётся на стороне БД триггером на нового пользователя (`handle_new_auth_user`, см. миграции Supabase — задокументировано в комментариях `AuthProvider`).
 - **Корневой layout:** `app/_layout.tsx` оборачивает дерево в `AuthProvider`, затем `AccessBridge` передаёт **`profile`** в `AccessProvider` (`modules/access`) для подписочных gate.
 - **Редактирование натальных / BirthData:** основной UX на **`app/(tabs)/index.tsx`** (`NatalBridgeModal` / `createNatalProfile` → `POST /api/astro/natal`). Сервер (`_legacy_web/app/api/astro/natal/route.ts`) обновляет `users.birth_*`, `lat`/`lon`/`tz` при необходимости, пересобирает `user_natal_charts`, **удаляет** `user_daily_forecasts` с текущей локальной даты и далее.
 - **Онбординг:** `app/onboarding.tsx` пишет в `users` поля `tz`, `lat`, `lon`, `location_name`, `onboarded_at` и вызывает `refreshProfile()`.

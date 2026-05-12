@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-12
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx]
 ---
 
 ## Decision Log
+
+- **2026-05-12:** `fetchProfile` в `AuthProvider` получил таймаут `10s` через `AbortController` + PostgREST `.abortSignal(...)`. Причина: холодный Supabase мог задерживать ответ `users` на десятки секунд, блокируя splash-screen и downstream `useDayContent`. При таймауте логируется явное предупреждение; профиль считается `null`, и приложение продолжает с graceful degradation.
 
 - **2026-05:** Зафиксирован разделённый контур: **Supabase Auth** (`session`) и расширенная строка **`public.users`** подтягиваются в `AuthProvider` через `select("*")` после `onAuthStateChange` / cold `getSession`; cold-start не очищает сессию при транзиентных сетевых ошибках (`resolveInitialSession`), чтобы не выбивать пользователя.
 
