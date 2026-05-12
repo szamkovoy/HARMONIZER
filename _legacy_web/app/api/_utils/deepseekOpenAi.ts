@@ -38,23 +38,20 @@ export function structuredContentsToOpenAiMessages(
   return messages;
 }
 
-// TEMPORARY: full diagnostic logging for premium-call testing (remove after stable)
 function diagLog(label: string, body: Record<string, unknown>, startMs: number): void {
   const { messages, ...rest } = body;
-  const msgFull = Array.isArray(messages)
+  const msgSummary = Array.isArray(messages)
     ? messages.map((m: Record<string, unknown>) => ({
         role: m.role,
-        content: m.content,
+        contentLen: typeof m.content === "string" ? m.content.length : 0,
       }))
     : [];
   console.log(`[DEEPSEEK_DIAG] ${label}`, JSON.stringify({
     model: rest.model,
     temperature: rest.temperature,
     max_tokens: rest.max_tokens,
-    thinking: rest.thinking,
-    stream: rest.stream,
-    messagesCount: msgFull.length,
-    messages: msgFull,
+    messagesCount: msgSummary.length,
+    messages: msgSummary,
     elapsedMs: Date.now() - startMs,
   }));
 }
@@ -63,7 +60,7 @@ function diagLogResponse(label: string, text: string, startMs: number): void {
   console.log(`[DEEPSEEK_DIAG] ${label} response`, JSON.stringify({
     elapsedMs: Date.now() - startMs,
     textLen: text.length,
-    fullText: text,
+    preview: text.slice(0, 300),
   }));
 }
 
@@ -115,7 +112,6 @@ export async function* streamDeepSeekChatText(params: {
   const modelUsed = params.model;
   let firstChunk = true;
   let totalLen = 0;
-  let collectedText = "";
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content;
     if (typeof delta === "string" && delta.length > 0) {
@@ -124,11 +120,10 @@ export async function* streamDeepSeekChatText(params: {
         firstChunk = false;
       }
       totalLen += delta.length;
-      collectedText += delta;
       yield { text: delta, modelUsed };
     }
   }
-  console.log(`[DEEPSEEK_DIAG] streamText done`, JSON.stringify({ totalLen, elapsedMs: Date.now() - startMs, fullText: collectedText }));
+  console.log(`[DEEPSEEK_DIAG] streamText done totalLen=${totalLen} elapsedMs=${Date.now() - startMs}`);
 }
 
 export async function generateDeepSeekChatJson(params: {

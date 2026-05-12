@@ -573,7 +573,6 @@ export async function POST(req: Request) {
           let validation: ValidationResult | null = null;
 
           if (turnDecision.modelTier === "premium") {
-            console.log(`[PREMIUM_CALL] turnMode=${turnDecision.mode} iteration=${iteration} historyLen=${history.length} systemPromptLen=${systemPromptData.systemInstruction.length} promptKey=${systemPromptRecord.prompt_key}`);
             for await (const chunk of streamGeminiText({
               systemInstruction: systemPromptData.systemInstruction,
               contents: initialContents,
