@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 1.3
-updated: 2026-05-09
+version: 1.4
+updated: 2026-05-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -29,7 +29,7 @@ code_refs:
 ### Клиентские типы (реэкспорт из `modules/daily-engine`)
 
 - `DailyEngineInput` — вход движка: `natalProfile`, `calibration | null`, `forecastDate`, `userLocation`, `recentPlanetsOfDay`.
-- `DailyForecast` — результат: `date`, `importance`, `activation`, `rankedPlanets`, `planetOfTheDay`, `isAlternativeChoice`, `alternativeReasonText?`, `todayPlanetState`, `windowsOfOpportunity`, `transitChart`, `computedAt`, `cacheValidUntil`, опционально `recommendationShortText`, `recommendationLongText`, `slogan`, `mathLevel`, `isGlobal?`.
+- `DailyForecast` — результат: `date`, `importance`, `activation`, `rankedPlanets`, `planetOfTheDay`, `isAlternativeChoice`, `alternativeReasonText?`, `todayPlanetState`, `windowsOfOpportunity`, `transitChart`, `computedAt`, `cacheValidUntil`, опционально `recommendationShortText`, `recommendationLongText`, `slogan`, `mathLevel`, `isGlobal?`. Для `windowsOfOpportunity.exactAspect` контракт включает `time`, `aspectType`, `toNatalPlanet`, `transitPlanet`.
 - Вспомогательные типы: `Planet`, `TodayTone`, `CalibrationLike`, `TransitChart`, и др. из `modules/daily-engine/core/types.ts`.
 
 ### Хук и состояние главного экрана
@@ -38,18 +38,19 @@ code_refs:
   - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, `refresh(opts?)`.
   - Локальный календарный день: `Intl` + `forecastDate` в IANA-зоне из профиля/геолокации.
   - Free: `fetchGlobalContent` + URL из `getAiGlobalContentUrl()`; premium/trial: `fetchDailyForecast` + `getDailyForecastUrl()` (Vercel `/api/astro/daily-forecast` или Supabase Function — определяется `communicatorConfig`).
-  - Неполный ответ персонального режима: дообогащение через `callMonologue("morning_recommendation", …)` (`services/aiClient.ts`).
+  - Перед первым `refresh()` главный экран (`app/(tabs)/index.tsx`) для персонального режима запрашивает активный натал через `fetchActiveNatalProfileCached(profile.id)`, чтобы `hasNatalProfile` мог разрешиться из локального кэша и не блокировал ранний `peek/loadDayContentCache`.
+  - Персональный режим больше не держит первый рендер до полной LLM-генерации: если базовый `DailyForecast` валиден, home может открыться сразу; вторичный слой (`slogan`, `recommendationShortText`, `recommendationLongText`, `mathLevel`) догружается в фоне через `callMonologue("morning_recommendation", …)` и затем перезаписывает клиентский day-cache.
   - **`DailyRecommendationCard`**: строка отладки `model: … · accessMode` под рекомендацией показывается только при **`__DEV__`** (не в production).
 
 ### Сервисы транспорта и кэша
 
-- `fetchDailyForecast(req: DailyForecastRequest): Promise<DailyForecastResult>` (`services/dailyForecastClient.ts`) — POST с JWT; тело: `forecastDate?`, `userLocation`, `recentPlanetsOfDay?`, `forceRefresh?`; нормализация snake_case ↔ camelCase.
-- `fetchGlobalContent` (`services/globalContentClient.ts`) — собирает `DailyForecast`-совместимый объект для free-режима (в т.ч. `computeWindowsForFreeUser` из `daily-engine`).
+- `fetchDailyForecast(req: DailyForecastRequest): Promise<DailyForecastResult>` (`services/dailyForecastClient.ts`) — POST с JWT; тело: `forecastDate?`, `userLocation`, `recentPlanetsOfDay?`, `forceRefresh?`; нормализация snake_case ↔ camelCase. Контракт допускает быстрый базовый payload без полного набора AI-текстов.
+- `fetchGlobalContent` (`services/globalContentClient.ts`) — собирает `DailyForecast`-совместимый объект для free-режима (в т.ч. `computeWindowsForFreeUser` из `daily-engine`); клиентский transport защищён общим таймаутом `15s`, который распространяется и на fallback-чтение `global_daily_content` через Supabase SDK.
 - `loadDayContentCache` / `saveDayContentCache` / `peekDayContentCache` / `pruneDayContentCache` / `clearDayContentCache` (`services/dayContentCache.ts`) — локальный кэш дня (SecureStore / web storage + manifest), ключ: user + `accessMode` + `accessTier` + `forecastDate` + `scopeKey` + координаты.
 
 ### Серверные эндпоинты (персональный прогноз)
 
-- `POST _legacy_web/app/api/astro/daily-forecast/route.ts` — Node: кэш `user_daily_forecasts`, загрузка натала, активной калибровки, `recentPlanetsOfDay`, расчёт через `computeDailyForecastWithAstronomia`, upsert строки прогноза, `ensureMorningRecommendation`.
+- `POST _legacy_web/app/api/astro/daily-forecast/route.ts` — Node: кэш `user_daily_forecasts`, загрузка натала, активной калибровки, `recentPlanetsOfDay`, расчёт через `computeDailyForecastWithAstronomia`, upsert строки прогноза; быстрый ответ не ждёт `ensureMorningRecommendation`, а возвращает базовый forecast и, если они уже лежат в строке/клиентском кэше, приклеивает сохранённые recommendation-поля.
 - `POST supabase/functions/daily-forecast/index.ts` — Edge-аналог (общий расчётный слой в `supabase/functions/_shared/dailyForecast.ts`).
 - Фоновый контур: `supabase/functions/precompute-daily-forecasts/index.ts` — предрасчёт для пользователей с сохранёнными координатами.
 
@@ -57,7 +58,7 @@ code_refs:
 
 1. **Движок (чистая математика + адаптер эфемерид):** `modules/daily-engine` — `computeDailyForecast` / `computeDailyForecastFromTransits`, активация и важность через `effectiveNatalParams` (при `calibration == null` используются только `S_initial` / `H_initial` из натала), ранжирование и `chooseFinalPlanet`, опционально окна через `TransitProvider.computeWindowsOfOpportunity`. `cacheValidUntil` в основном пути: конец локального календарного дня прогноза (`endOfForecastDateUtc` в `computeDailyForecast.ts`).
 2. **Сервер:** загрузка `NatalProfile`, `CalibrationLike | null` из `user_calibrations`, чтение `recentPlanetsOfDay` из `user_settings.preferences`, запись/чтение `user_daily_forecasts`. Инвалидация строк прогноза при успешной калибровке — см. `docs/02_modules/calibration/dependencies.md` и `docs/02_modules/astro/caching_strategy.md`.
-3. **Клиент:** `useDayContent` orchestrates профиль → геолокация → кэш → HTTP; главный экран (`app/(tabs)/index.tsx`) рендерит карточки и `ChakraFlower`, маппинг планета → чакра — `modules/home/planetChakra.ts` + `data/planet_chakra_map.json`.
+3. **Клиент:** `useDayContent` orchestrates профиль → геолокация → кэш → HTTP; главный экран (`app/(tabs)/index.tsx`) рендерит карточки и `ChakraFlower`, маппинг планета → чакра — `modules/home/planetChakra.ts` + `data/planet_chakra_map.json`. Для paid-пути базовый forecast теперь считается достаточным для первого paint, а вторичные тексты и math-level hydrates отдельным фоновым проходом.
 
 Стратегия серверного и клиентского кэша, таблицы и TTL описаны **краткой ссылкой** в `docs/02_modules/astro/caching_strategy.md` (без дублирования содержимого здесь).
 
@@ -67,7 +68,7 @@ code_refs:
 - **`scopeKey` дня:** отпечаток birth-полей для ключа кэша персонального режима; для free — литерал `"global"`.
 - **`recentPlanetsOfDay`:** до двух планет `[день−1, день−2]` в `user_settings.preferences`; сервер подставляет из БД, если клиент не передал массив в теле запроса. Текущий клиентский путь `useDayContent` → `fetchDailyForecast` **не передаёт** `recentPlanetsOfDay`, поэтому на практике используется только то, что уже лежит в `preferences` (если пусто — в движок уходит пустой список и альтернативная логика `chooseFinalPlanet` не активируется по «недавности»).
 - **`precisionMode` натала:** влияет на демпфирование лунных вкладов в активации (`approximate` / `unknown`) — детали в reference, не здесь.
-- **Таймаут HTTP:** `DAILY_FORECAST_TIMEOUT_MS` в `dailyForecastClient.ts`.
+- **Таймауты транспорта:** `DAILY_FORECAST_TIMEOUT_MS` в `dailyForecastClient.ts`; для free-ветки `GLOBAL_CONTENT_TIMEOUT_MS` в `globalContentClient.ts` ограничивает и HTTP-запрос к `global-content`, и fallback-read из `global_daily_content`.
 
 ## 5. Известные ограничения
 

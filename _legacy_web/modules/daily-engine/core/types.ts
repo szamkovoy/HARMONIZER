@@ -58,7 +58,7 @@ export interface DailyForecast {
   windowsOfOpportunity: {
     sunrise: { time: string; planet: Planet } | null;
     culmination: { time: string; planet: Planet } | null;
-    exactAspect: { time: string; aspectType: AspectType; toNatalPlanet: Planet } | null;
+    exactAspect: { time: string; aspectType: AspectType; toNatalPlanet: Planet; transitPlanet: Planet } | null;
   };
   transitChart: TransitChart;
   computedAt: string;

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.3
-updated: 2026-05-11
+version: 1.4
+updated: 2026-05-12
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -36,7 +36,9 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 **Supabase**
 
-- `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `cleanup-expired-proposals`), правило «не править старые миграции — только новые файлы».
+- `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `precompute-global-recommendations`, `cleanup-expired-proposals`), правило «не править старые миграции — только новые файлы».
+- `supabase/config.toml` — локальные флаги edge-функций; для cron-style вызовов `verify_jwt = false` фиксируется и для `precompute-global-recommendations`.
+- `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания.
 
 **PWA-остаток**
 
@@ -48,6 +50,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **Сборка API:** Next компилирует маршруты `app/api/*`; общая логика практик может тянуть типы/данные из `modules/practices/**`, что отражено в `.vercelignore`.
 - **Наблюдаемость:** серверная цепочка Sentry стартует из instrumentation → `sentry.server.config`; ошибки маршрутов централизованно пробрасываются в Sentry и в Supabase `user_event_log` через `monitoring.ts`.
 - **Данные:** версионируемая схема и edge-функции живут в `supabase/`; продакшен-изменения проходят через новые SQL-миграции, как зафиксировано в README.
+- **Cron-контур free day content:** global free-прогноз подогревается отдельной edge-функцией `precompute-global-recommendations`; расписание хранится вне клиента и может дублироваться как pg_cron invoke + Scheduled Functions runbook, но канон по коду — новые миграции и `DEPLOY.md`.
 
 ## 4. Конфигурация и параметры
 
@@ -59,6 +62,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 | Sentry build plugin | `org`, `project`, `tunnelRoute: "/monitoring"` | `withSentryConfig` в `next.config.ts` |
 | Web manifest | `name`, `icons`, `theme_color`, `display` | `_legacy_web/public/manifest.json` |
 | Supabase CLI | `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`, секреты функций | локально `.env.local`; в облаке — Dashboard / secrets |
+| Supabase cron / Edge | `CRON_SECRET`, `verify_jwt = false` для cron-функций, расписание `precompute-global-recommendations` | `DEPLOY.md`, `supabase/config.toml`, SQL-миграции `pg_cron_*` |
 | Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, язык, prompt, `temperature: 0`, `verbose_json` | `_legacy_web/app/api/_utils/whisperTranscription.ts` (не файл MAP, но серверный runtime рядом с API) |
 | Gemini (Vercel API) | `GEMINI_API_KEY`, `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`, `MAX_DIALOG_LENGTH`, опционально `GEMINI_TIMEOUT_MS`, `ALLOW_LEGACY_GEMINI_MODELS` | Vercel env + `_legacy_web/app/api/_utils/gemini.ts`, `_legacy_web/app/api/_utils/dialogConfig.ts` |
 

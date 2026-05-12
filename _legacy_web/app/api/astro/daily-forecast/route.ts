@@ -2,13 +2,11 @@ import {
   computeDailyForecastWithAstronomia,
   type CalibrationLike,
   type DailyEngineInput,
-  type DailyForecast,
   type Planet,
 } from "../../../../modules/daily-engine";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
 import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
-import { ensureMorningRecommendation } from "../../_utils/morningRecommendation";
 
 // Запись в user_daily_forecasts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
@@ -65,35 +63,17 @@ async function cachedForecast(
   return data ?? null;
 }
 
-async function persistRecommendation(
-  db: ReturnType<typeof createServiceSupabase>,
-  forecastId: string | null,
-  payload: { shortText: string; longText: string },
-) {
-  if (!forecastId) return;
-  const { error } = await db
-    .from("user_daily_forecasts")
-    .update({
-      recommendation_short_text: payload.shortText,
-      recommendation_long_text: payload.longText,
-    })
-    .eq("id", forecastId);
-  if (error) throw error;
-}
-
-function mergeRecommendation(params: {
-  forecast: Record<string, unknown>;
-  recommendation: Awaited<ReturnType<typeof ensureMorningRecommendation>>;
-}) {
+function mergeStoredContent(forecast: Record<string, unknown>) {
   return {
-    ...params.forecast,
-    recommendationShortText: params.recommendation.short_text,
-    recommendationLongText: params.recommendation.long_explanation,
-    recommendation_short_text: params.recommendation.short_text,
-    recommendation_long_text: params.recommendation.long_explanation,
-    slogan: params.recommendation.slogan,
-    mathLevel: params.recommendation.math_level,
-    math_level: params.recommendation.math_level,
+    ...forecast,
+    recommendationShortText:
+      typeof forecast.recommendation_short_text === "string" ? forecast.recommendation_short_text : undefined,
+    recommendationLongText:
+      typeof forecast.recommendation_long_text === "string" ? forecast.recommendation_long_text : undefined,
+    contentPhase:
+      typeof forecast.recommendation_short_text === "string" && forecast.recommendation_short_text.trim()
+        ? "secondary_ready"
+        : "base_ready",
   };
 }
 
@@ -111,35 +91,11 @@ export async function POST(req: Request) {
     if (!body.forceRefresh) {
       const cached = await cachedForecast(db, userId, forecastDate);
       if (cached) {
-        const [{ profile: natalProfile }, calibration] = await Promise.all([
-          loadActiveNatalProfile(db, userId),
-          loadActiveCalibration(db, userId),
-        ]);
-        const recommendation = await ensureMorningRecommendation({
-          db,
-          userId,
-          forecast: cached as DailyForecast,
-          natalProfile,
-          calibration,
-          forceRefresh: false,
-        });
-        const forecastRow = {
-          ...(cached as Record<string, unknown>),
-          recommendation_short_text: recommendation.short_text,
-          recommendation_long_text: recommendation.long_explanation,
-        };
-        await persistRecommendation(db, (cached as { id?: string } | null)?.id ?? null, {
-          shortText: recommendation.short_text,
-          longText: recommendation.long_explanation,
-        });
         return json({
           source: "cache",
-          forecast: forecastRow,
-          forecastPayload: mergeRecommendation({
-            forecast: forecastRow,
-            recommendation,
-          }),
-          modelUsed: recommendation.modelUsed,
+          forecast: cached,
+          forecastPayload: mergeStoredContent(cached as Record<string, unknown>),
+          modelUsed: null,
         });
       }
     }
@@ -166,32 +122,11 @@ export async function POST(req: Request) {
       .select("*")
       .single();
     if (error) throw error;
-    const recommendation = await ensureMorningRecommendation({
-      db,
-      userId,
-      forecast,
-      natalProfile,
-      calibration,
-      forceRefresh: body.forceRefresh,
-    });
-    await persistRecommendation(db, (data as { id?: string } | null)?.id ?? null, {
-      shortText: recommendation.short_text,
-      longText: recommendation.long_explanation,
-    });
-    const forecastRow = {
-      ...(data as Record<string, unknown>),
-      recommendation_short_text: recommendation.short_text,
-      recommendation_long_text: recommendation.long_explanation,
-    };
-
     return json({
       source: "computed",
-      forecast: forecastRow,
-      forecastPayload: mergeRecommendation({
-        forecast: forecast as unknown as Record<string, unknown>,
-        recommendation,
-      }),
-      modelUsed: recommendation.modelUsed,
+      forecast: data,
+      forecastPayload: mergeStoredContent(forecast as unknown as Record<string, unknown>),
+      modelUsed: null,
     });
   } catch (error) {
     return errorResponse(error);

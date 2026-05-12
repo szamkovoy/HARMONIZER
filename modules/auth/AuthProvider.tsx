@@ -32,6 +32,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export { AuthContext };
 
 const INITIAL_SESSION_TIMEOUT_MS = 8000;
+const PROFILE_FETCH_TIMEOUT_MS = 10_000;
 /** Если подписка GoTrue по какой-то причине не отдала первое событие — не держим сплэш вечно. */
 const AUTH_BOOTSTRAP_SAFETY_MS = 25_000;
 
@@ -78,11 +79,14 @@ async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
   const supabase = requireSupabase();
   // eslint-disable-next-line no-console
   console.log("[auth] fetchProfile url", getProfileRequestUrl(userId));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PROFILE_FETCH_TIMEOUT_MS);
   try {
     const { data, error } = await supabase
       .from("users")
       .select("*")
       .eq("id", userId)
+      .abortSignal(controller.signal)
       .maybeSingle();
     if (error) {
       // eslint-disable-next-line no-console
@@ -92,8 +96,17 @@ async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
     return data;
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.warn("[auth] fetchProfile network error", error instanceof Error ? error.message : String(error));
+    console.warn(
+      "[auth] fetchProfile network error",
+      controller.signal.aborted
+        ? `Supabase users fetch timed out after ${Math.round(PROFILE_FETCH_TIMEOUT_MS / 1000)}s`
+        : error instanceof Error
+          ? error.message
+          : String(error),
+    );
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

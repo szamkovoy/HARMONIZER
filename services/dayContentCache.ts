@@ -1,7 +1,7 @@
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { ProductTier } from "@/modules/access/core/tiers";
 import type { AccessMode } from "@/services/globalContentClient";
-import { isDayContentComplete } from "@/services/dayContentIntegrity";
+import { isDayContentCacheable } from "@/services/dayContentIntegrity";
 import { DateTime } from "luxon";
 import { Platform } from "react-native";
 
@@ -313,7 +313,7 @@ export async function loadDayContentCache(params: {
     entry.forecastDate !== params.forecastDate ||
     entry.scopeKey !== params.scopeKey ||
     !sameLocation(entry.location, params.userLocation) ||
-    !isDayContentComplete(entry.forecast, params.accessMode)
+    !isDayContentCacheable(entry.forecast, params.accessMode)
   ) {
     memoryCache.delete(key);
     await removeRaw(key);
@@ -353,7 +353,7 @@ export function peekDayContentCache(params: {
     entry.forecastDate !== params.forecastDate ||
     entry.scopeKey !== params.scopeKey ||
     !sameLocation(entry.location, params.userLocation) ||
-    !isDayContentComplete(entry.forecast, params.accessMode)
+    !isDayContentCacheable(entry.forecast, params.accessMode)
   ) {
     return null;
   }
@@ -376,7 +376,7 @@ export async function saveDayContentCache(params: {
   userLocation: UserLocation;
   content: CachedDayContent;
 }): Promise<void> {
-  if (!isDayContentComplete(params.content.forecast, params.accessMode)) return;
+  if (!isDayContentCacheable(params.content.forecast, params.accessMode)) return;
   const expiresAt = earlierIso(
     params.content.forecast.cacheValidUntil,
     endOfLocalForecastDay(params.forecastDate, params.userLocation.timezone),

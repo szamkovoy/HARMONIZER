@@ -13,12 +13,14 @@ Functions to deploy:
 
 - `auto-calibrate`
 - `precompute-daily-forecasts`
+- `precompute-global-recommendations`
 - `cleanup-expired-proposals`
 
 Recommended schedules:
 
 - `auto-calibrate`: `0 3 * * *`
 - `precompute-daily-forecasts`: `0 * * * *`
+- `precompute-global-recommendations`: `0 * * * *`
 - `cleanup-expired-proposals`: `0 4 * * 0`
 
 ## Next.js Backend (`_legacy_web`)
@@ -79,6 +81,7 @@ supabase db execute --file supabase/seed.sql
 
 - `npm test` passes.
 - Supabase Edge Functions are deployed with the secrets above.
+- `precompute-global-recommendations` can be triggered manually with `curl -X POST "$SUPABASE_URL/functions/v1/precompute-global-recommendations" -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" -d '{}'` and returns `ok: true`.
 - `user_event_log` receives `llm_prompt_size` events from `communicator/v2/dialog`, `calibration/extract`, `greeting`, and `auto-calibrate`.
 - A manual calibration returns `ultraMode.enabledUntil` and writes `preferences.ultraModeUntil` in `user_settings`.
 

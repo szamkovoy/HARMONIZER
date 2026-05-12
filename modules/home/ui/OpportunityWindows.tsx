@@ -2,6 +2,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   AppState,
   Modal,
@@ -24,6 +25,7 @@ import {
   getExpoNotificationsOrNull,
   OPPORTUNITY_REMINDERS_CHANNEL_ID,
 } from "@/services/localNotifications";
+import { loadOpportunityWindowsExplanation } from "@/services/opportunityWindowsExplanation";
 
 type Windows = DailyForecast["windowsOfOpportunity"];
 
@@ -275,6 +277,9 @@ export function OpportunityWindows({
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [reminderTitleText, setReminderTitleText] = useState("");
   const [enabledReminders, setEnabledReminders] = useState<Record<string, "exact" | "before5">>({});
+  const [helpVisible, setHelpVisible] = useState(false);
+  const [helpLoading, setHelpLoading] = useState(false);
+  const [helpText, setHelpText] = useState<string | null>(null);
   const notificationIdsRef = useRef<Record<string, string>>({});
   /** Время DATE-триггера и момента окна — чтобы сбрасывать колокольчик без опроса ОС каждую секунду. */
   const reminderMetaRef = useRef<Record<string, OpportunityReminderMeta>>({});
@@ -641,6 +646,35 @@ export function OpportunityWindows({
     setReminderTarget(null);
   }
 
+  useEffect(() => {
+    if (!helpVisible || helpText) return;
+    let cancelled = false;
+    setHelpLoading(true);
+    void loadOpportunityWindowsExplanation({
+      accessMode,
+      planetOfTheDay,
+      windows,
+      strings,
+    })
+      .then((text) => {
+        if (!cancelled) {
+          setHelpText(text);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setHelpLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessMode, helpText, helpVisible, planetOfTheDay, strings, windows]);
+
+  useEffect(() => {
+    setHelpText(null);
+  }, [accessMode, planetOfTheDay, windows]);
+
   return (
     <View
       style={[
@@ -651,11 +685,28 @@ export function OpportunityWindows({
         },
       ]}
     >
-      <View style={styles.header}>
-        <AppText variant="sectionTitle">{t.title}</AppText>
-        <AppText variant="technicalCaption" tone="muted">
-          {t.subtitle(strings.planetLabels[planetOfTheDay])}
-        </AppText>
+      <View style={styles.headerRow}>
+        <View style={styles.header}>
+          <AppText variant="sectionTitle">{t.title}</AppText>
+          <AppText variant="technicalCaption" tone="muted">
+            {t.subtitle(strings.planetLabels[planetOfTheDay])}
+          </AppText>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.helpButtonAccessibilityLabel}
+          onPress={() => setHelpVisible(true)}
+          style={({ pressed }) => [
+            styles.helpButton,
+            {
+              borderColor: theme.colors.surfaceBorder,
+              backgroundColor: theme.colors.controlButtonBg,
+              opacity: pressed ? 0.72 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="help-circle-outline" size={18} color={theme.colors.textPrimary} />
+        </Pressable>
       </View>
 
       <View style={styles.chartWrap} onLayout={onChartLayout}>
@@ -837,6 +888,28 @@ export function OpportunityWindows({
           </View>
         </View>
       </Modal>
+      <Modal animationType="fade" transparent visible={helpVisible} onRequestClose={() => setHelpVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+            <AppText variant="sectionTitle">{t.helpModalTitle}</AppText>
+            {helpLoading ? (
+              <View style={styles.helpLoading}>
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <AppText variant="screenHint" tone="muted">
+                  {t.helpLoading}
+                </AppText>
+              </View>
+            ) : (
+              <AppText variant="screenHint">{helpText ?? t.emptyDetail}</AppText>
+            )}
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setHelpVisible(false)} style={styles.modalButton}>
+                <AppText variant="buttonLabel">{strings.closeButton}</AppText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -850,6 +923,20 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: 4,
+  },
+  headerRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  helpButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
   },
   chartWrap: {
     height: 152,
@@ -981,6 +1068,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  helpLoading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
   },
   windowList: {
     gap: 8,

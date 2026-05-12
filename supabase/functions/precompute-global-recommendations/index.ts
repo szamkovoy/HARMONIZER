@@ -20,6 +20,20 @@ function calcExpiresAt(forecastDateUtc: string): string {
   return date.toISOString();
 }
 
+function hasRequiredText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function contentNeedsRefresh(existing: any, expectedModel: string): boolean {
+  if (!existing) return true;
+  const existingModel = typeof existing.llm_model === "string" ? existing.llm_model.trim() : "";
+  if (!existingModel || existingModel !== expectedModel) return true;
+  if (!hasRequiredText(existing.slogan)) return true;
+  if (!hasRequiredText(existing.short_text)) return true;
+  if (!hasRequiredText(existing.long_explanation)) return true;
+  return false;
+}
+
 function renderTemplate(template: string, variables: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
     const value = variables[key];
@@ -60,15 +74,6 @@ async function generateGeminiJson(params: {
 }
 
 async function generateForDate(db: any, date: string) {
-  const { data: existing, error: existingError } = await db
-    .from("global_daily_content")
-    .select("forecast_date_utc")
-    .eq("forecast_date_utc", date)
-    .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing) return { date, status: "already_exists" };
-
-  const forecast = computeGlobalDailyForecast(date);
   const { data: prompt, error: promptError } = await db
     .from("prompts")
     .select("template,model_hint,temperature,max_output_tokens")
@@ -76,7 +81,19 @@ async function generateForDate(db: any, date: string) {
     .eq("is_active", true)
     .single();
   if (promptError) throw promptError;
+  const expectedModel = resolveGeminiModelIdFromTierEnv(prompt.model_hint);
 
+  const { data: existing, error: existingError } = await db
+    .from("global_daily_content")
+    .select("forecast_date_utc,llm_model,slogan,short_text,long_explanation")
+    .eq("forecast_date_utc", date)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing && !contentNeedsRefresh(existing, expectedModel)) {
+    return { date, status: "already_exists" };
+  }
+
+  const forecast = computeGlobalDailyForecast(date);
   const llm = await generateGeminiJson({
     prompt: renderTemplate(prompt.template, {
       top_petals_json: JSON.stringify(forecast.top_petals, null, 2),
@@ -87,7 +104,7 @@ async function generateForDate(db: any, date: string) {
     maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
   });
 
-  const { error: insertError } = await db.from("global_daily_content").insert({
+  const { error: insertError } = await db.from("global_daily_content").upsert({
     forecast_date_utc: date,
     planet_positions: forecast.planet_positions,
     primary_planet: forecast.primary_planet,
@@ -102,10 +119,12 @@ async function generateForDate(db: any, date: string) {
     llm_tokens_used: llm.tokensUsed,
     llm_model: llm.model,
     expires_at_utc: calcExpiresAt(date),
+  }, {
+    onConflict: "forecast_date_utc",
   });
   if (insertError) throw insertError;
 
-  return { date, status: "generated" };
+  return { date, status: existing ? "refreshed" : "generated" };
 }
 
 Deno.serve(async (req) => {
@@ -116,7 +135,7 @@ Deno.serve(async (req) => {
   try {
     const db = createServiceClient();
     const now = new Date();
-    const dates = [isoDate(now), isoDate(addDays(now, 1))];
+    const dates = [isoDate(addDays(now, -1)), isoDate(now), isoDate(addDays(now, 1))];
     const results = [];
 
     for (const date of dates) {

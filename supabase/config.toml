@@ -381,6 +381,9 @@ verify_jwt = false
 [functions.precompute-daily-forecasts]
 verify_jwt = false
 
+[functions.precompute-global-recommendations]
+verify_jwt = false
+
 [functions.cleanup-expired-proposals]
 verify_jwt = false
 

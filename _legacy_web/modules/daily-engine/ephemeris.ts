@@ -174,6 +174,7 @@ export class AstronomiaTransitProvider implements TransitProvider {
             time: exactAspectTime,
             aspectType: context.mainAspect.type,
             toNatalPlanet: context.planetOfTheDay,
+            transitPlanet: context.mainTransitPlanet,
           }
         : null,
     };

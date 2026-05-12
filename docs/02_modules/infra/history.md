@@ -1,13 +1,17 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.3
-updated: 2026-05-11
+version: 1.4
+updated: 2026-05-12
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
 
 ## Decision Log
+
+- **2026-05-12:** Для cold-start Supabase сознательно не добавлялся high-frequency keep-warm/ping job. Текущий приоритет зафиксирован как `cache-first + precompute + timeouts`: локальный кэш натала, частичный кэш дня, hourly global precompute, timebox на `global-content` и `fetchProfile`. Если после этого холодные задержки останутся заметными, keep-warm рассматривается как операционная мера поверх уже ускоренного контура, а не как базовая архитектура.
+
+- **2026-05-12:** Контур free precompute для `global_daily_content` доведён до самостоятельного infra-path: `precompute-global-recommendations` теперь поддерживает rolling window `yesterday/today/tomorrow`, а новая SQL-миграция переводит invoke `public.invoke_precompute_global_recommendations()` на ежечасный cron вместо разового полуночного запуска. Параллельно `supabase/config.toml`, `supabase/README.md` и `DEPLOY.md` синхронизированы с этим сценарием как с поддерживаемым серверным контуром.
 
 - **2026-05-11:** Infra-контракт для dialog v3 обновлён: Gemini env сведены к `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, единому `AI_MODEL_FALLBACK` и `MAX_DIALOG_LENGTH`; soft-cap env удалены. В `supabase/migrations` добавлен `20260511161000_dialog_system_v3.sql`, а в `_legacy_web/app/api/_utils/gemini.ts` появился explicit context caching с in-memory TTL map как временным storage cache names между вызовами одного инстанса.
 - **2026-05-09:** В **`docs/02_modules/infra/spec.md`** задокументированы серверные переменные **`AI_MODEL_*`** и **`AI_MODEL_*_FALLBACK`** для Gemini на Vercel (реализация в **`_legacy_web/app/api/_utils/gemini.ts`**).

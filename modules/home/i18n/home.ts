@@ -68,6 +68,9 @@ export interface HomeStrings {
     reminderNotificationsUnavailableMessage: string;
     reminderNeedPermissionTitle: string;
     reminderNeedPermissionMessage: string;
+    helpButtonAccessibilityLabel: string;
+    helpModalTitle: string;
+    helpLoading: string;
   };
   recommendation: {
     title: string;
@@ -211,6 +214,9 @@ const ru: HomeStrings = {
       "Текущая сборка приложения запущена без native-модуля уведомлений. После новой dev/release-сборки колокольчики смогут ставить системные уведомления.",
     reminderNeedPermissionTitle: "Нужны уведомления",
     reminderNeedPermissionMessage: "Разрешите уведомления, чтобы Harmonizer мог напомнить об окне возможностей.",
+    helpButtonAccessibilityLabel: "Пояснение к графику окна возможностей",
+    helpModalTitle: "Как читать это окно",
+    helpLoading: "Собираю пояснение...",
   },
   recommendation: {
     title: "Рекомендации на день",
@@ -334,6 +340,9 @@ const en: HomeStrings = {
       "This build was compiled without the notifications native module. After a new dev or release build, bells can schedule system notifications.",
     reminderNeedPermissionTitle: "Notifications needed",
     reminderNeedPermissionMessage: "Please allow notifications so Harmonizer can remind you about this window.",
+    helpButtonAccessibilityLabel: "Explain the opportunity window chart",
+    helpModalTitle: "How to read this window",
+    helpLoading: "Preparing the explanation...",
   },
   recommendation: {
     title: "Daily recommendation",

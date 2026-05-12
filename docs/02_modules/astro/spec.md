@@ -101,13 +101,14 @@ export interface NatalProfile {
 **Клиентский контракт сохранения натала**
 
 - `services/natalProfileClient.ts`: `createNatalProfile(birthData, signal?)` — `POST` на `getAstroNatalUrl()` (Vercel `_legacy_web/app/api/astro/natal`) с телом `{ birthData }` и JWT Supabase; ответ содержит `profile: NatalProfile` и опционально `natalChart` (строка БД).
-- `fetchActiveNatalProfile()` — чтение активной строки из `user_natal_charts` через клиентский Supabase SDK и сборка `NatalProfile` (включая восстановление `houseCusps` для `precise` при наличии `ascendant_longitude`).
+- `fetchActiveNatalProfile()` — чтение активной строки из `user_natal_charts` через клиентский Supabase SDK и сборка `NatalProfile` (включая восстановление `houseCusps` для `precise` при наличии `ascendant_longitude`); клиентский запрос защищён таймаутом `10s` через `AbortController` + PostgREST `.abortSignal(...)`.
+- `fetchActiveNatalProfileCached(userId)` — mobile/web helper для быстрого старта: сначала пытается вернуть локальный кэш `expo-secure-store` / `localStorage` по ключу `harmonizer.natalProfile.v1.{userId}`, затем best-effort обновляет его из сети в фоне; при отсутствии кэша ждёт сетевой fetch.
 
 ## 3. Внутренняя архитектура
 
 - **Расчёт при сохранении:** мобильный клиент не считает эфемериды сам. Он отправляет `BirthData` на серверный маршрут `POST /api/astro/natal`, который в Node вызывает `computeNatalProfileWithAstronomia`, затем пишет результат в `user_natal_charts` (service role), деактивирует предыдущую активную версию, обновляет поля рождения в `users` и инвалидирует кэш `user_daily_forecasts` с текущей локальной даты (`todayLocalDate`).
 - **Библиотека ядра:** вся астрологическая математика (дома, достоинства, гармоничность, нормализация `S_initial`/`H_initial`) живёт в `modules/astro-core` и общая для сервера и тестов; эфемериды инжектируются через `EphemerisProvider`, единственная продакшен-реализация — `AstronomiaEphemerisProvider` в `ephemeris.ts`.
-- **Потребление кэша:** `_legacy_web/app/api/_utils/astro-db.ts` (`natalProfileFromRow`, `loadActiveNatalProfile`) и зеркальная логика в `natalProfileClient.ts` приводят строку БД к типу `NatalProfile`. Дневной прогноз (Next.js и Supabase Edge) и ассистент загружают тот же срез полей.
+- **Потребление кэша:** `_legacy_web/app/api/_utils/astro-db.ts` (`natalProfileFromRow`, `loadActiveNatalProfile`) и зеркальная логика в `natalProfileClient.ts` приводят строку БД к типу `NatalProfile`. На клиенте `fetchActiveNatalProfileCached` хранит последнюю активную карту локально и обновляет запись после успешного `createNatalProfile`. Дневной прогноз (Next.js и Supabase Edge) и ассистент загружают тот же срез полей.
 - **Связь с прогнозом:** модуль `daily_forecast` импортирует типы и использует `natalProfile.planets` в движке активации и важности; см. `modules/daily-engine/core/activation.ts`.
 
 ## 4. Конфигурация и параметры

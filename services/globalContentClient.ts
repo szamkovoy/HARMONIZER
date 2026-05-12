@@ -38,6 +38,8 @@ type GlobalContentResponse = {
   error?: unknown;
 };
 
+const GLOBAL_CONTENT_TIMEOUT_MS = 15_000;
+
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
@@ -115,24 +117,31 @@ function localDateIso(timezone: string): string {
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
-async function fetchGlobalContentDirect(timezone: string): Promise<GlobalContentResponse> {
+function timeoutError(timeoutMs: number): Error {
+  return new Error(`Global content request timed out after ${Math.round(timeoutMs / 1000)}s.`);
+}
+
+async function fetchGlobalContentDirect(timezone: string, signal?: AbortSignal): Promise<GlobalContentResponse> {
   const localDate = localDateIso(timezone);
   const db = requireSupabase();
-  const { data, error } = await db
-    .from("global_daily_content")
-    .select("*")
-    .eq("forecast_date_utc", localDate)
-    .maybeSingle();
+  let primaryQuery = db.from("global_daily_content").select("*").eq("forecast_date_utc", localDate);
+  if (signal) {
+    primaryQuery = primaryQuery.abortSignal(signal);
+  }
+  const { data, error } = await primaryQuery.maybeSingle();
   if (error) throw error;
 
   const content = data as Record<string, unknown> | null;
   if (!content) {
-    const { data: fallback, error: fallbackError } = await db
+    let fallbackQuery = db
       .from("global_daily_content")
       .select("*")
       .order("forecast_date_utc", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    if (signal) {
+      fallbackQuery = fallbackQuery.abortSignal(signal);
+    }
+    const { data: fallback, error: fallbackError } = await fallbackQuery.maybeSingle();
     if (fallbackError) throw fallbackError;
     if (!fallback) throw new Error("No global content available");
     return globalResponseFromRow(fallback as Record<string, unknown>, true);
@@ -164,22 +173,34 @@ export async function fetchGlobalContent(req: {
   signal?: AbortSignal;
 }): Promise<GlobalContentResult> {
   const token = await getAccessToken();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GLOBAL_CONTENT_TIMEOUT_MS);
+  req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
   let data: GlobalContentResponse;
   try {
-    const res = await fetch(getAiGlobalContentUrl(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: "{}",
-      signal: req.signal,
-    });
-    if (!res.ok) throw await readError(res);
-    data = (await res.json()) as GlobalContentResponse;
+    try {
+      const res = await fetch(getAiGlobalContentUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: "{}",
+        signal: controller.signal,
+      });
+      if (!res.ok) throw await readError(res);
+      data = (await res.json()) as GlobalContentResponse;
+    } catch (error) {
+      if (req.signal?.aborted) throw error;
+      if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
+      data = await fetchGlobalContentDirect(req.userLocation.timezone, controller.signal);
+    }
   } catch (error) {
     if (req.signal?.aborted) throw error;
-    data = await fetchGlobalContentDirect(req.userLocation.timezone);
+    if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
   if (data.error) throw new Error(typeof data.error === "string" ? data.error : "Global content request failed");
 

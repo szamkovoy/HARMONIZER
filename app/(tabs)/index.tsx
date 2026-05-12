@@ -20,7 +20,7 @@ import {
   getExpoNotificationsOrNull,
   OPPORTUNITY_REMINDERS_CHANNEL_ID,
 } from "@/services/localNotifications";
-import { createNatalProfile, fetchActiveNatalProfile } from "@/services/natalProfileClient";
+import { createNatalProfile, fetchActiveNatalProfileCached } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
@@ -532,7 +532,7 @@ export default function HomeScreen() {
     }
     setNatalProfileLoading(true);
     setNatalProfileResolved(false);
-    fetchActiveNatalProfile()
+    fetchActiveNatalProfileCached(profile.id)
       .then((value) => {
         if (!cancelled) {
           setNatalProfile(value);

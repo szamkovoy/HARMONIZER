@@ -22,6 +22,22 @@ export function isBaseForecastValid(forecast: DailyForecast | null | undefined):
   );
 }
 
+export function isDayContentReadyForHome(
+  forecast: DailyForecast | null | undefined,
+  accessMode: AccessMode,
+): forecast is DailyForecast {
+  if (!isBaseForecastValid(forecast)) return false;
+  if (accessMode === "free") return isDayContentComplete(forecast, accessMode);
+  return true;
+}
+
+export function isDayContentCacheable(
+  forecast: DailyForecast | null | undefined,
+  accessMode: AccessMode,
+): forecast is DailyForecast {
+  return isDayContentReadyForHome(forecast, accessMode);
+}
+
 export function isDayContentComplete(
   forecast: DailyForecast | null | undefined,
   accessMode: AccessMode,

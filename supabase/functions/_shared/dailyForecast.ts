@@ -566,6 +566,7 @@ export function computeDailyForecast(input: {
             time: exactAspectTime,
             aspectType: mainContribution.aspect.type,
             toNatalPlanet: choice.planetOfTheDay,
+            transitPlanet: mainContribution.transitPlanet,
           }
         : null,
     };

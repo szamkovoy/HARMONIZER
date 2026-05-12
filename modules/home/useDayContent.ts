@@ -9,7 +9,7 @@ import { callMonologue, type MorningRecommendationResponse } from "@/services/ai
 import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communicatorConfig";
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
 import { clearDayContentCache, loadDayContentCache, peekDayContentCache, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
-import { isDayContentComplete } from "@/services/dayContentIntegrity";
+import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome } from "@/services/dayContentIntegrity";
 import { acquireAndPersistUserCoordinates } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
@@ -43,6 +43,19 @@ interface UseDayContentOptions {
   accessTierOverride?: ProductTier;
   natalRequired?: boolean;
   hasNatalProfile?: boolean | null;
+}
+
+interface DayContentCacheContext {
+  userId: string;
+  accessMode: AccessMode;
+  accessTier: ProductTier;
+  forecastDate: string;
+  scopeKey: string;
+  userLocation: {
+    lat: number;
+    lng: number;
+    timezone: string;
+  };
 }
 
 function localDateIso(timezone: string): string {
@@ -132,6 +145,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const { profile, profileLoading, refreshProfile } = useAuth();
   const { beginHomeBootstrap, completeHomeBootstrap, setHomeBootstrapPhase, setStartupStep } = useAppStartup();
   const abortRef = useRef<AbortController | null>(null);
+  const secondaryContentAbortRef = useRef<AbortController | null>(null);
+  const lastHydratedForecastKeyRef = useRef<string | null>(null);
+  const latestCacheContextRef = useRef<DayContentCacheContext | null>(null);
   const lastLocalDayRef = useRef<string | null>(null);
   const lastResolvedRequestKeyRef = useRef<string | null>(null);
 
@@ -168,6 +184,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const refresh = useCallback(
     async (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode; accessTierOverride?: ProductTier }) => {
       abortRef.current?.abort();
+      secondaryContentAbortRef.current?.abort();
       setError(null);
 
       if (profileLoading) {
@@ -216,6 +233,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setForecast(null);
         setSource(null);
         setModelUsed(null);
+        latestCacheContextRef.current = null;
         setStatus("need_birth_data");
         setError(err);
         completeHomeBootstrap();
@@ -244,6 +262,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setForecast(null);
         setSource(null);
         setModelUsed(null);
+        latestCacheContextRef.current = null;
         setStatus("need_location");
         setError(err);
         completeHomeBootstrap();
@@ -262,6 +281,14 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             })
           : null;
       if (resolvedInstantCache?.freshness === "fresh") {
+        latestCacheContextRef.current = {
+          userId: profileId!,
+          accessMode: nextAccessMode,
+          accessTier: nextAccessTier,
+          forecastDate: localDateIso(locationForRequest.timezone),
+          scopeKey: contentScopeKey,
+          userLocation: locationForRequest,
+        };
         setAccessMode(nextAccessMode);
         setForecast(resolvedInstantCache.forecast);
         setSource(resolvedInstantCache.source);
@@ -282,9 +309,11 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       abortRef.current = controller;
       let staleCache: Awaited<ReturnType<typeof loadDayContentCache>> | null = null;
       let resolvedRequestKey = requestKey;
+      let resolvedForecastDate = provisionalForecastDate;
 
       try {
         const forecastDate = localDateIso(locationForRequest.timezone);
+        resolvedForecastDate = forecastDate;
         const userId = profileId;
         resolvedRequestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, forecastDate, contentScopeKey].join("|");
         lastLocalDayRef.current = forecastDate;
@@ -310,6 +339,14 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (controller.signal.aborted) return;
           if (cached) {
             if (cached.freshness === "fresh") {
+              latestCacheContextRef.current = {
+                userId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate,
+                scopeKey: contentScopeKey,
+                userLocation: locationForRequest,
+              };
               setForecast(cached.forecast);
               setSource(cached.source);
               setModelUsed(cached.modelUsed);
@@ -347,6 +384,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (!isDayContentComplete(result.forecast, "free")) {
             throw new Error("Global day content is incomplete.");
           }
+          latestCacheContextRef.current = userId
+            ? {
+                userId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate,
+                scopeKey: contentScopeKey,
+                userLocation: locationForRequest,
+              }
+            : null;
           setForecast(result.forecast);
           setSource("global");
           setModelUsed(result.modelUsed);
@@ -379,15 +426,19 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           });
           let forecastForUi = result.forecast;
           let modelForUi = result.modelUsed;
-          if (!isDayContentComplete(forecastForUi, nextAccessMode)) {
-            setStartupStep("HOME/api_morning_monologue");
-            const enriched = await enrichWithMorningContent(forecastForUi, opts?.forceRefresh, controller.signal);
-            forecastForUi = enriched.forecast;
-            modelForUi = enriched.modelUsed || modelForUi;
-          }
-          if (!isDayContentComplete(forecastForUi, nextAccessMode)) {
+          if (!isDayContentReadyForHome(forecastForUi, nextAccessMode)) {
             throw new Error("Personal day content is incomplete.");
           }
+          latestCacheContextRef.current = userId
+            ? {
+                userId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate,
+                scopeKey: contentScopeKey,
+                userLocation: locationForRequest,
+              }
+            : null;
           setForecast(forecastForUi);
           setSource(result.source);
           setModelUsed(modelForUi);
@@ -427,6 +478,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         );
         const err = toError(e);
         if (staleCache) {
+          latestCacheContextRef.current = profileId
+            ? {
+                userId: profileId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate: resolvedForecastDate,
+                scopeKey: contentScopeKey,
+                userLocation: locationForRequest,
+              }
+            : null;
           setForecast(staleCache.forecast);
           setSource(staleCache.source);
           setModelUsed(staleCache.modelUsed);
@@ -439,6 +500,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setForecast(null);
         setSource(null);
         setModelUsed(null);
+        latestCacheContextRef.current = null;
         setError(err);
         setStatus("error");
         completeHomeBootstrap();
@@ -477,6 +539,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     });
     return () => {
       abortRef.current?.abort();
+      secondaryContentAbortRef.current?.abort();
     };
   }, [refresh, profileLoading]);
 
@@ -491,6 +554,82 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     });
     return () => sub.remove();
   }, [profileTimezone, refresh, userLocation?.timezone]);
+
+  useEffect(() => {
+    if (!forecast || accessMode === "free") return;
+    if (status !== "ready" && status !== "stale_ready") return;
+    const forecastForHydration: DailyForecast = forecast;
+    const needsSecondaryContent =
+      !forecastForHydration.slogan?.trim() ||
+      !forecastForHydration.recommendationShortText?.trim() ||
+      !forecastForHydration.recommendationLongText?.trim() ||
+      !forecastForHydration.mathLevel?.markdown?.trim();
+    if (!needsSecondaryContent) return;
+    const cacheContext = latestCacheContextRef.current;
+    if (!cacheContext) return;
+    const hydrationKey = [
+      cacheContext.userId,
+      cacheContext.forecastDate,
+      forecastForHydration.date,
+      forecastForHydration.computedAt,
+      accessMode,
+    ].join("|");
+    if (lastHydratedForecastKeyRef.current === hydrationKey) return;
+    lastHydratedForecastKeyRef.current = hydrationKey;
+
+    secondaryContentAbortRef.current?.abort();
+    const controller = new AbortController();
+    secondaryContentAbortRef.current = controller;
+
+    void (async () => {
+      try {
+        setStartupStep("HOME/api_morning_monologue");
+        const enriched = await enrichWithMorningContent(forecastForHydration, false, controller.signal);
+        if (controller.signal.aborted || !isBaseForecastValid(enriched.forecast)) return;
+        setForecast((current) => {
+          if (!current) return current;
+          if (current.date !== forecastForHydration.date || current.computedAt !== forecastForHydration.computedAt) {
+            return current;
+          }
+          return enriched.forecast;
+        });
+        if (enriched.modelUsed) {
+          setModelUsed(enriched.modelUsed);
+        }
+        await saveDayContentCache({
+          userId: cacheContext.userId,
+          accessMode: cacheContext.accessMode,
+          accessTier: cacheContext.accessTier,
+          forecastDate: cacheContext.forecastDate,
+          scopeKey: cacheContext.scopeKey,
+          userLocation: cacheContext.userLocation,
+          content: {
+            forecast: enriched.forecast,
+            source: source ?? "computed",
+            modelUsed: enriched.modelUsed || modelUsed,
+          },
+        });
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        logRuntimeEvent(
+          "day_content:secondary_content_error",
+          { message: e instanceof Error ? e.message : String(e) },
+          "warn",
+        );
+      } finally {
+        if (secondaryContentAbortRef.current === controller) {
+          secondaryContentAbortRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      controller.abort();
+      if (secondaryContentAbortRef.current === controller) {
+        secondaryContentAbortRef.current = null;
+      }
+    };
+  }, [accessMode, forecast, modelUsed, setStartupStep, source, status]);
 
   return {
     forecast,
