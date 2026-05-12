@@ -31,18 +31,65 @@ function transitPlanetForGraph(params: OpportunityWindowsExplanationParams): Pla
 export async function loadOpportunityWindowsExplanation(
   params: OpportunityWindowsExplanationParams,
 ): Promise<string> {
-  const natalPlanet = params.strings.planetLabels[params.planetOfTheDay];
+  const planetLabel = params.strings.planetLabels[params.planetOfTheDay];
+  const isFree = params.accessMode === "free";
+  const ru = params.strings.locale === "ru";
+
+  if (isFree) {
+    return buildFreeExplanation(params, planetLabel, ru);
+  }
+
+  return buildPaidExplanation(params, planetLabel, ru);
+}
+
+function buildFreeExplanation(
+  params: OpportunityWindowsExplanationParams,
+  planet: string,
+  ru: boolean,
+): string {
+  const sunriseTime = formatTime(params.strings, params.windows.sunrise?.time);
+  const culminationTime = formatTime(params.strings, params.windows.culmination?.time);
+
+  const opening = ru
+    ? `Сильнейшая планета дня — ${planet}. На графике показано, когда именно ${planet} поднимается над горизонтом и достигает зенита в вашем местоположении.`
+    : `The strongest planet of the day is ${planet}. The graph shows when ${planet} rises and reaches its zenith at your location.`;
+
+  const timingLines = [
+    sunriseTime
+      ? ru
+        ? `Восход: ${sunriseTime} — ${planet} поднимается над горизонтом.`
+        : `Rise: ${sunriseTime} — ${planet} rises above the horizon.`
+      : null,
+    culminationTime
+      ? ru
+        ? `Кульминация: ${culminationTime} — ${planet} достигает максимальной силы.`
+        : `Culmination: ${culminationTime} — ${planet} reaches peak strength.`
+      : null,
+  ].filter(Boolean);
+
+  const closing = ru
+    ? "Времена пересчитаны под вашу текущую локацию и часовой пояс."
+    : "Times are adjusted to your current location and timezone.";
+
+  return [opening, ...timingLines, closing].join("\n\n");
+}
+
+function buildPaidExplanation(
+  params: OpportunityWindowsExplanationParams,
+  natalPlanet: string,
+  ru: boolean,
+): string {
   const transitPlanetKey = transitPlanetForGraph(params);
   const transitPlanet = transitPlanetKey ? params.strings.planetLabels[transitPlanetKey] : null;
   const sunriseTime = formatTime(params.strings, params.windows.sunrise?.time);
   const culminationTime = formatTime(params.strings, params.windows.culmination?.time);
   const exactAspectTime = formatTime(params.strings, params.windows.exactAspect?.time);
-  const exactAspectLabel = aspectLabel(params.strings, params.windows.exactAspect?.aspectType);
+  const exactAspectLbl = aspectLabel(params.strings, params.windows.exactAspect?.aspectType);
   const exactAspectNatal = params.windows.exactAspect
     ? params.strings.planetLabels[params.windows.exactAspect.toNatalPlanet]
     : null;
 
-  const opening = params.strings.locale === "ru"
+  const opening = ru
     ? [
         `В этом графике опорной натальной планетой дня является ${natalPlanet}.`,
         transitPlanet
@@ -58,29 +105,25 @@ export async function loadOpportunityWindowsExplanation(
 
   const timingLines = [
     sunriseTime
-      ? params.strings.locale === "ru"
+      ? ru
         ? `Восход: ${sunriseTime}${transitPlanet ? ` — ${transitPlanet} поднимается над горизонтом.` : "."}`
         : `Rise: ${sunriseTime}${transitPlanet ? ` — ${transitPlanet} rises above the horizon.` : "."}`
       : null,
     culminationTime
-      ? params.strings.locale === "ru"
+      ? ru
         ? `Кульминация: ${culminationTime}${transitPlanet ? ` — ${transitPlanet} достигает максимальной силы.` : "."}`
         : `Culmination: ${culminationTime}${transitPlanet ? ` — ${transitPlanet} reaches peak strength.` : "."}`
       : null,
-    exactAspectTime && exactAspectLabel && exactAspectNatal
-      ? params.strings.locale === "ru"
-        ? `Точный аспект: ${exactAspectTime} — ${exactAspectLabel} транзитной планеты к натальной планете ${exactAspectNatal}.`
-        : `Exact aspect: ${exactAspectTime} — ${exactAspectLabel} from the transit planet to natal ${exactAspectNatal}.`
+    exactAspectTime && exactAspectLbl && exactAspectNatal
+      ? ru
+        ? `Точный аспект: ${exactAspectTime} — ${exactAspectLbl} транзитной планеты к натальной планете ${exactAspectNatal}.`
+        : `Exact aspect: ${exactAspectTime} — ${exactAspectLbl} from the transit planet to natal ${exactAspectNatal}.`
       : null,
   ].filter(Boolean);
 
-  const closing = params.strings.locale === "ru"
-    ? params.accessMode === "free"
-      ? "Для бесплатного режима акцент сделан на универсальной теме дня; времена уже учтены по вашей текущей локации и часовому поясу."
-      : "Эти времена уже пересчитаны под вашу текущую локацию и часовой пояс, поэтому они подходят для проверки графика и для практического планирования дня."
-    : params.accessMode === "free"
-      ? "For the free tier, the graph follows the shared theme of the day; all times are already adjusted to your current location and timezone."
-      : "These times are already adjusted to your current location and timezone, so they can be used both to verify the graph and to plan the day in practice.";
+  const closing = ru
+    ? "Эти времена уже пересчитаны под вашу текущую локацию и часовой пояс, поэтому они подходят для проверки графика и для практического планирования дня."
+    : "These times are already adjusted to your current location and timezone, so they can be used both to verify the graph and to plan the day in practice.";
 
   return [...opening, ...timingLines, closing].join("\n\n");
 }
