@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.1
-updated: 2026-05-08
+version: 1.2
+updated: 2026-05-11
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -49,6 +49,9 @@ code_refs:
 - **`launchPractice(launch, options?): boolean`**  
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
 
+- **`PracticeCard`** (`modules/practices/ui/PracticeCard.tsx`)  
+  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах.
+
 ### Сервис `services/practiceSessions.ts`
 
 - **`recordPracticeSession(input): Promise<string | null>`**  
@@ -76,15 +79,15 @@ code_refs:
 ### Интеграция с ассистентом (реализовано в коде)
 
 - Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID).
-- Клиент: **`Communicator`** SSE `complete.practicePicked` → **`PracticeCard`** → колбэк **`onPracticePicked`**; на главном экране **`launchPracticeFromAssistant`** в `app/(tabs)/index.tsx` вызывает `launchPractice` с `launchSource: 'assistant'`.  
+- Клиент: **`Communicator`** SSE `complete.practicePicked` → общий **`modules/practices/ui/PracticeCard.tsx`** → `launchPractice` с `launchSource: 'assistant'`; отдельного `launchPracticeFromAssistant` на home больше нет.  
   Автоматизированных E2E-тестов полного диалога в репозитории нет — это ограничение процесса QA, не отсутствие кода.
 
 ## 3. Внутренняя архитектура
 
 ```text
 modules/practices/
-  core/types.ts          — доменные типы каталога и launch
-  core/catalog.ts        — сбор PracticeCatalog (static + breath + Supabase yoga)
+  core/types.ts           — доменные типы каталога и launch
+  core/catalog.ts         — сбор PracticeCatalog (static + breath + Supabase yoga)
   ui/PracticeCatalogScreen.tsx, PracticeCard.tsx
   ui/launchPractice.ts    — router.push с params
 
@@ -115,6 +118,8 @@ services/practiceSessions.ts — Supabase insert/select
 - **Медитация:** одна статическая карточка, slug `sacred-symbol-stream`; дефолт длительности в **`catalog.ts`** для launch — 3 мин; экран **`SacredSymbolStreamScreen`** при отсутствии params использует **5 мин** — расхождение зафиксировано в `history.md`.
 
 - **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания каталога RU захардкожены в `catalog.ts`.
+
+- **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`.
 
 - **Йога:** выборка активных строк `practices` + связи `practice_chakras`; превью по `readPracticeVideoThumbnailFromParams` из `params`.
 

@@ -20,6 +20,7 @@ import {
   NativeSyntheticEvent,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -53,11 +54,13 @@ import { useAuth } from "@/modules/auth";
 import { AppText } from "@/modules/ui/AppText";
 import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
+import type { PracticeLaunchParams, PracticeSummary } from "@/modules/practices/core/types";
+import { launchPractice } from "@/modules/practices/ui/launchPractice";
+import { PracticeCard as SharedPracticeCard } from "@/modules/practices/ui/PracticeCard";
 
 import { AssistantBubble } from "./AssistantBubble";
 import { DecodingDots } from "./DecodingDots";
 import { ModeToggle } from "./ModeToggle";
-import { PracticeCard } from "./PracticeCard";
 import { ScrollDownHint } from "./ScrollDownHint";
 import { UserBubble } from "./UserBubble";
 import { useCommunicatorStream } from "./useCommunicatorStream";
@@ -86,18 +89,15 @@ function newMessageId(): string {
   return `m-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-/** Итоговый текст: не подменяем более длинный агрегат SSE более коротким `complete.fullText`. */
+/**
+ * Итоговый текст: `complete.fullText` приходит уже sanitized (без маркеров),
+ * поэтому он авторитетнее агрегата SSE-чанков (raw, содержит маркеры).
+ * Используем SSE-агрегат только если `complete.fullText` пуст.
+ */
 function resolveAssistantReplyText(streamed: string, completeFullText: string | undefined): string {
-  const raw = streamed ?? "";
-  const fin = completeFullText ?? "";
-  const rawT = raw.trim();
-  const finT = fin.trim();
-  if (!rawT && !finT) return "";
-  if (!rawT) return fin.trimEnd();
-  if (!finT) return raw.trimEnd();
-  if (finT.length > rawT.length) return fin.trimEnd();
-  if (rawT.length > finT.length) return raw.trimEnd();
-  return fin.trimEnd();
+  const fin = (completeFullText ?? "").trim();
+  if (fin) return fin;
+  return (streamed ?? "").trim();
 }
 
 function ensureIds(
@@ -108,6 +108,192 @@ function ensureIds(
     ...m,
     id: m.id || newMessageId(),
   }));
+}
+
+/**
+ * Server stores meta in snake_case (turn_mode, model_used, model_id),
+ * but in-session messages use camelCase (turnMode, modelTier, modelUsed).
+ * This normalizes both conventions into the camelCase shape the client expects.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
+  if (!raw) return undefined;
+  const insightMetrics = raw.insightMetrics ?? raw.insight_metrics;
+  return {
+    turnMode: raw.turnMode ?? raw.turn_mode,
+    modelTier: raw.modelTier ?? raw.model_used,
+    modelUsed: raw.modelUsed ?? raw.model_id,
+    iteration: raw.iteration,
+    insightMetrics,
+    csi: raw.csi ?? insightMetrics?.csi,
+    practicePicked: raw.practicePicked ?? raw.practice_picked,
+    readyMarkerTriggered: raw.readyMarkerTriggered ?? raw.ready_marker_triggered,
+    validation: raw.validation,
+    shouldClose: raw.shouldClose ?? raw.should_close,
+    recommendationCorrected: raw.recommendationCorrected ?? raw.recommendation_corrected,
+    orchestratorDecision: raw.orchestratorDecision ?? raw.orchestrator_decision,
+    isAutoTrigger: raw.isAutoTrigger ?? raw.is_auto_trigger,
+  };
+}
+
+function parseIntParam(value: string | undefined): number | undefined {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizePracticeVideo(video: PracticePicked["video"]): PracticeSummary["video"] | undefined {
+  if (!video) return undefined;
+  return {
+    provider: video.provider,
+    url: video.url ?? undefined,
+    externalId: video.externalId ?? undefined,
+    thumbnail: video.thumbnail ?? null,
+  };
+}
+
+function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
+  const launchParams = practice.launch?.params ?? {};
+  const durationMs = parseIntParam(launchParams.durationMs);
+  const chakra = parseIntParam(launchParams.chakra);
+  const baseChakra = practice.chakraIds?.[0] ?? chakra;
+  const slug = practice.slug ?? practice.id;
+
+  if (practice.kind === "breath") {
+    return {
+      id: practice.id,
+      slug,
+      kind: "breath",
+      title: practice.name ?? slug,
+      description: practice.reason ?? undefined,
+      defaultDurationSec: practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
+      minDurationSec: practice.minDurationSec ?? undefined,
+      maxDurationSec: practice.maxDurationSec ?? undefined,
+      durationPolicy:
+        practice.minDurationSec != null && practice.maxDurationSec != null && practice.minDurationSec !== practice.maxDurationSec
+          ? "user_selectable"
+          : "fixed",
+      chakraIds: (practice.chakraIds ?? []).filter((value): value is number => Number.isInteger(value)) as PracticeSummary["chakraIds"],
+      primaryChakra: typeof baseChakra === "number" ? (baseChakra as PracticeSummary["primaryChakra"]) : undefined,
+      source: "breath_catalog",
+      video: normalizePracticeVideo(practice.video),
+      launch: {
+        kind: "breath",
+        route: "/breath-coherence",
+        practiceId: (launchParams.practiceId ?? slug) as never,
+        durationMs: durationMs ?? (practice.durationSec ?? 600) * 1000,
+        chakra: (chakra ?? baseChakra ?? 4) as NonNullable<PracticeLaunchParams["chakra"]>,
+        usePulseSensor: launchParams.usePulseSensor !== "false",
+      },
+    };
+  }
+
+  if (practice.kind === "meditation") {
+    return {
+      id: practice.id,
+      slug,
+      kind: "meditation",
+      title: practice.name ?? slug,
+      description: practice.reason ?? undefined,
+      defaultDurationSec: practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
+      minDurationSec: practice.minDurationSec ?? undefined,
+      maxDurationSec: practice.maxDurationSec ?? undefined,
+      durationPolicy:
+        practice.minDurationSec != null && practice.maxDurationSec != null && practice.minDurationSec !== practice.maxDurationSec
+          ? "user_selectable"
+          : "fixed",
+      chakraIds: (practice.chakraIds ?? []).filter((value): value is number => Number.isInteger(value)) as PracticeSummary["chakraIds"],
+      primaryChakra: typeof baseChakra === "number" ? (baseChakra as PracticeSummary["primaryChakra"]) : undefined,
+      source: "static",
+      video: normalizePracticeVideo(practice.video),
+      launch: {
+        kind: "meditation",
+        route: "/sacred-symbol-stream",
+        practiceId: launchParams.practiceId ?? slug,
+        durationMs: durationMs ?? (practice.durationSec ? practice.durationSec * 1000 : undefined),
+        chakra: typeof (chakra ?? baseChakra) === "number"
+          ? ((chakra ?? baseChakra) as PracticeLaunchParams["chakra"])
+          : undefined,
+      },
+    };
+  }
+
+  if (practice.kind === "yoga") {
+    return {
+      id: practice.id,
+      slug,
+      kind: "yoga",
+      title: practice.name ?? slug,
+      description: practice.reason ?? undefined,
+      defaultDurationSec: practice.durationSec ?? undefined,
+      minDurationSec: practice.minDurationSec ?? undefined,
+      maxDurationSec: practice.maxDurationSec ?? undefined,
+      durationPolicy: "fixed",
+      chakraIds: (practice.chakraIds ?? []).filter((value): value is number => Number.isInteger(value)) as PracticeSummary["chakraIds"],
+      primaryChakra: typeof baseChakra === "number" ? (baseChakra as PracticeSummary["primaryChakra"]) : undefined,
+      source: "supabase",
+      video: normalizePracticeVideo(practice.video),
+      launch: {
+        kind: "yoga",
+        route: "/asana-practice",
+        practiceId: launchParams.practiceId ?? practice.id,
+        durationMs: durationMs ?? (practice.durationSec ? practice.durationSec * 1000 : undefined),
+        chakra: typeof (chakra ?? baseChakra) === "number"
+          ? ((chakra ?? baseChakra) as PracticeLaunchParams["chakra"])
+          : undefined,
+      },
+    };
+  }
+
+  return null;
+}
+
+function summaryToPractice(practice: PracticePicked, configured: PracticeSummary): PracticePicked {
+  if (configured.launch.kind === "breath") {
+    return {
+      ...practice,
+      durationSec: Math.round(configured.launch.durationMs / 1000),
+      chakraIds: [configured.launch.chakra],
+      launch: {
+        route: configured.launch.route,
+        params: {
+          practiceId: configured.launch.practiceId,
+          durationMs: String(configured.launch.durationMs),
+          chakra: String(configured.launch.chakra),
+          ...(typeof configured.launch.usePulseSensor === "boolean"
+            ? { usePulseSensor: String(configured.launch.usePulseSensor) }
+            : {}),
+        },
+      },
+    };
+  }
+
+  if (configured.launch.kind === "meditation") {
+    return {
+      ...practice,
+      durationSec: configured.launch.durationMs ? Math.round(configured.launch.durationMs / 1000) : practice.durationSec,
+      chakraIds: configured.launch.chakra ? [configured.launch.chakra] : practice.chakraIds,
+      launch: {
+        route: configured.launch.route,
+        params: {
+          practiceId: configured.launch.practiceId,
+          ...(configured.launch.durationMs ? { durationMs: String(configured.launch.durationMs) } : {}),
+          ...(configured.launch.chakra ? { chakra: String(configured.launch.chakra) } : {}),
+        },
+      },
+    };
+  }
+
+  return {
+    ...practice,
+    launch: {
+      route: configured.launch.route,
+      params: {
+        practiceId: configured.launch.practiceId,
+        ...(configured.launch.durationMs ? { durationMs: String(configured.launch.durationMs) } : {}),
+        ...(configured.launch.chakra ? { chakra: String(configured.launch.chakra) } : {}),
+      },
+    },
+  };
 }
 
 export interface CommunicatorProps {
@@ -274,7 +460,6 @@ export function Communicator({
   conversationId,
   history,
   memoryWindow,
-  autoSendInitialMessage,
   onEmotionSegment,
   onMessage,
   onPracticePicked,
@@ -429,7 +614,7 @@ export function Communicator({
                   role: message.role,
                   content: message.content,
                   createdAt: message.createdAt,
-                  meta: message.meta,
+                  meta: normalizeMessageMeta(message.meta),
                 })),
                 memoryWindow,
               ),
@@ -602,6 +787,14 @@ export function Communicator({
           createdAt: Date.now(),
           meta: {
             orchestratorDecision: result.decision,
+            turnMode: complete?.turnMode,
+            modelTier: complete?.modelTier,
+            modelUsed: complete?.modelUsed,
+            iteration: complete?.iteration,
+            readyMarkerTriggered: complete?.readyMarkerTriggered,
+            validation: complete?.validation,
+            insightMetrics: complete?.insightMetrics,
+            csi: complete?.insightMetrics?.csi,
             practicePicked: complete?.practicePicked,
             shouldClose: complete?.shouldClose,
             recommendationCorrected: complete?.recommendationCorrected,
@@ -654,25 +847,82 @@ export function Communicator({
   }, [abortChatStream, onAbort, resetChatStream]);
 
   /**
-   * Автоматическая отправка первого сообщения при монтировании компонента.
-   * См. проп `autoSendInitialMessage`. Ref-guard защищает от повторной
-   * отправки при StrictMode-двойном ране эффекта или при смене пропа —
-   * «первое» должно остаться ровно одним.
+   * Initiate dialog: when the session is new (empty), request the
+   * orchestrator's opening message from the server without sending
+   * any user-message. The server receives `initiateDialog: true` and
+   * generates opening using dialog_system_v3 context alone.
    */
-  const autoSendFiredRef = useRef(false);
+  const initiateFiredRef = useRef(false);
   useEffect(() => {
-    if (autoSendFiredRef.current) return;
+    if (initiateFiredRef.current) return;
     if (!sessionSynced) return;
-    const text = autoSendInitialMessage?.trim();
-    if (!text) return;
-    autoSendFiredRef.current = true;
-    // Небольшая задержка: даём UI смонтироваться, чтобы пользователь видел,
-    // как сообщение появляется «естественно», а не мгновенно
-    const h = setTimeout(() => {
-      void runStream({ type: "text", text });
-    }, 120);
+    if (messages.length > 0) return;
+    initiateFiredRef.current = true;
+
+    const doInitiate = async () => {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const result = await runChatStream({
+          conversationId: activeConversationId,
+          useCase,
+          entrySource,
+          triggerMeta: {
+            systemPrompt,
+            ...(triggerMeta ?? {}),
+          },
+          userMessage: "__initiate__",
+          userTimezone: timezone,
+          initiateDialog: true,
+        });
+        if (result == null) return;
+        const complete = result.complete;
+        if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+        const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
+        const assistant: CommunicatorHistoryMessage = {
+          id: complete?.messageId ?? newMessageId(),
+          role: "assistant",
+          content: mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback,
+          createdAt: Date.now(),
+          meta: {
+            orchestratorDecision: result.decision,
+            turnMode: complete?.turnMode,
+            modelTier: complete?.modelTier,
+            modelUsed: complete?.modelUsed,
+            iteration: complete?.iteration,
+            readyMarkerTriggered: complete?.readyMarkerTriggered,
+            validation: complete?.validation,
+            insightMetrics: complete?.insightMetrics,
+            csi: complete?.insightMetrics?.csi,
+            practicePicked: complete?.practicePicked,
+            shouldClose: complete?.shouldClose,
+            recommendationCorrected: complete?.recommendationCorrected,
+          },
+        };
+        setMessages([assistant]);
+        onMessage?.(assistant);
+        resetChatStream();
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        reportError(err);
+      }
+    };
+
+    const h = setTimeout(() => void doInitiate(), 120);
     return () => clearTimeout(h);
-  }, [autoSendInitialMessage, runStream, sessionSynced]);
+  }, [
+    sessionSynced,
+    messages.length,
+    activeConversationId,
+    entrySource,
+    onMessage,
+    reportError,
+    resetChatStream,
+    runChatStream,
+    systemPrompt,
+    triggerMeta,
+    useCase,
+    strings.emptyAssistantReplyFallback,
+  ]);
 
   const resetRecordingAudioMode = useCallback(async () => {
     try {
@@ -1029,11 +1279,73 @@ export function Communicator({
 
   const messagePhaseLabel = useCallback(
     (message: CommunicatorHistoryMessage): string | undefined => {
-      const decisionMeta = message.meta?.orchestratorDecision as OrchestratorDecision | null | undefined;
+      const decisionMeta = {
+        mode: typeof message.meta?.turnMode === "string" ? message.meta.turnMode : undefined,
+        next_phase:
+          typeof (message.meta?.orchestratorDecision as OrchestratorDecision | null | undefined)?.next_phase === "string"
+            ? (message.meta?.orchestratorDecision as OrchestratorDecision).next_phase
+            : undefined,
+      } as OrchestratorDecision;
       return strings.phaseLabelFor(decisionMeta ?? null);
     },
     [strings],
   );
+
+  const handlePracticeLaunch = useCallback(
+    (practice: PracticePicked, configured: PracticeSummary) => {
+      launchPractice(configured.launch, { launchSource: "assistant" });
+      onPracticePicked?.(summaryToPractice(practice, configured));
+    },
+    [onPracticePicked],
+  );
+
+  const exportDialogJson = useCallback(async () => {
+    const forecastDate = typeof triggerMeta?.forecastDate === "string" ? triggerMeta.forecastDate : new Date().toISOString().slice(0, 10);
+    const forecastDt = new Date(`${forecastDate}T12:00:00`);
+    const dayContext = {
+      day_of_week: forecastDt.toLocaleDateString(strings.locale === "en" ? "en-US" : "ru-RU", { weekday: "long" }),
+      date: forecastDate,
+      chakra_label: typeof triggerMeta?.chakraLabel === "string" ? triggerMeta.chakraLabel : null,
+      planet: typeof triggerMeta?.planetOfTheDay === "string" ? triggerMeta.planetOfTheDay : null,
+      harmoniousness_value:
+        typeof triggerMeta?.harmoniousnessValue === "number" ? triggerMeta.harmoniousnessValue : null,
+      harmoniousness_label:
+        typeof triggerMeta?.harmoniousnessLabel === "string" ? triggerMeta.harmoniousnessLabel : null,
+    };
+    const payload = {
+      day_context: dayContext,
+      messages: messages.map((message) => ({
+        role: message.role,
+        text: message.content,
+        timestamp: message.createdAt ?? null,
+        meta: {
+          turn_mode: typeof message.meta?.turnMode === "string" ? message.meta.turnMode : null,
+          csi: typeof message.meta?.csi === "number"
+            ? message.meta.csi
+            : typeof (message.meta?.insightMetrics as { csi?: unknown } | undefined)?.csi === "number"
+              ? (message.meta?.insightMetrics as { csi: number }).csi
+              : null,
+          ttm_stage: typeof (message.meta?.insightMetrics as { ttm_stage?: unknown } | undefined)?.ttm_stage === "string"
+            ? (message.meta?.insightMetrics as { ttm_stage: string }).ttm_stage
+            : null,
+          etv: typeof (message.meta?.insightMetrics as { etv?: unknown } | undefined)?.etv === "number"
+            ? (message.meta?.insightMetrics as { etv: number }).etv
+            : null,
+          model_used: typeof message.meta?.modelTier === "string" ? message.meta.modelTier : null,
+          model_id: typeof message.meta?.modelUsed === "string" ? message.meta.modelUsed : null,
+          iteration: typeof message.meta?.iteration === "number" ? message.meta.iteration : null,
+          latency_ms: null,
+          complete_text_chars: message.content.length,
+          prompt_tokens: null,
+          completion_tokens: null,
+        },
+      })),
+    };
+    await Share.share({
+      title: "dialog-export.json",
+      message: JSON.stringify(payload, null, 2),
+    });
+  }, [messages, strings.locale, triggerMeta]);
 
   return (
     <KeyboardAvoidingView
@@ -1074,13 +1386,18 @@ export function Communicator({
                     isStreaming={false}
                     phaseLabel={messagePhaseLabel(m)}
                   />
-                  {m.meta?.practicePicked ? (
-                    <PracticeCard
-                      practice={m.meta.practicePicked}
-                      strings={strings}
-                      onPress={onPracticePicked}
-                    />
-                  ) : null}
+                  {m.meta?.practicePicked ? (() => {
+                    const practice = m.meta.practicePicked as PracticePicked;
+                    const summary = practiceToSummary(practice);
+                    return summary ? (
+                      <View style={styles.practiceCardWrap}>
+                        <SharedPracticeCard
+                          practice={summary}
+                          onLaunch={(configured) => handlePracticeLaunch(practice, configured)}
+                        />
+                      </View>
+                    ) : null;
+                  })() : null}
                 </View>
               ),
             )}
@@ -1122,6 +1439,17 @@ export function Communicator({
           },
         ]}
       >
+        {__DEV__ ? (
+          <View style={styles.debugActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void exportDialogJson()}
+              style={[styles.debugButton, { borderColor: borderColor, backgroundColor: theme.colors.surfaceElevated }]}
+            >
+              <AppText variant="technicalCaption" tone="muted">Export dialog to JSON</AppText>
+            </Pressable>
+          </View>
+        ) : null}
         {pendingTranscript != null ? (
           <View
             style={[
@@ -1307,6 +1635,19 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
+  debugActions: {
+    maxWidth: 560,
+    width: "100%",
+    alignSelf: "center",
+    marginBottom: 8,
+    alignItems: "flex-start",
+  },
+  debugButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
   transcriptReview: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 18,
@@ -1375,6 +1716,11 @@ const styles = StyleSheet.create({
     maxWidth: "92%",
     paddingHorizontal: 16,
     paddingVertical: 10,
+  },
+  practiceCardWrap: {
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
   micHit: {
     width: 72,

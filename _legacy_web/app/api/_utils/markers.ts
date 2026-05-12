@@ -15,6 +15,11 @@ export type RecommendationCorrectionMarker = {
   windows_correction?: string;
 };
 
+type MarkerMessage = {
+  role: "user" | "assistant" | "system";
+  content?: string | null;
+};
+
 function attr(source: string, name: string): string | undefined {
   const match = source.match(new RegExp(`${name}\\s*=\\s*["“”']([^"“”']+)["“”']`, "i"));
   return match?.[1]?.trim();
@@ -62,8 +67,68 @@ export function stripResponseMarkers(text: string): string {
     .trim();
 }
 
+export function containsReadyMarker(text: string): boolean {
+  return /\[\s*ready_for_recommendation\s*\]/i.test(text);
+}
+
+export function stripReadyMarker(text: string): string {
+  return text.replace(/\[\s*ready_for_recommendation\s*\]/gi, "").trim();
+}
+
+export interface ValidationResult {
+  confident: boolean;
+  hasDuration: boolean;
+  hasType: boolean;
+}
+
+export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): ValidationResult {
+  const userText = messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.content ?? "")
+    .join(" ")
+    .toLowerCase();
+
+  const DURATION_NUMBER_UNITS = ["минут", "час"];
+
+  const DURATION_PHRASES = [
+    "полчаса", "пол часа", "пол-часа", "четверть часа",
+    "не ограничен", "не лимитирован", "не лимит",
+    "всё утро", "весь вечер", "весь день", "целый день",
+    "любое время", "сколько угодно", "без ограничений",
+    "всё время", "все время", "хоть сколько",
+    "сколько нужно", "много времени",
+  ];
+
+  const TYPE_KEYWORDS = [
+    "асан", "йог",
+    "дыхан", "дыхательн", "пранаям",
+    "медитац", "помедитировать", "посидеть", "успокоиться",
+  ];
+
+  const NUMBER_WORDS = [
+    "пять", "десять", "пятнадцать", "двадцать",
+    "тридцать", "сорок", "пятьдесят", "полтора",
+  ];
+
+  const hasNumber =
+    /\d+/.test(userText) ||
+    NUMBER_WORDS.some((w) => userText.includes(w));
+
+  const hasDuration =
+    (hasNumber && DURATION_NUMBER_UNITS.some((u) => userText.includes(u)))
+    || DURATION_PHRASES.some((p) => userText.includes(p));
+
+  const hasType = TYPE_KEYWORDS.some((k) => userText.includes(k));
+
+  return {
+    confident: hasDuration && hasType,
+    hasDuration,
+    hasType,
+  };
+}
+
 export function sanitizeAssistantText(text: string, locale?: string | null): string {
-  let cleaned = stripResponseMarkers(text);
+  let cleaned = stripReadyMarker(stripResponseMarkers(text));
 
   if ((locale ?? "").trim().toLowerCase().startsWith("ru") && /[А-Яа-яЁё]/.test(cleaned)) {
     cleaned = cleaned

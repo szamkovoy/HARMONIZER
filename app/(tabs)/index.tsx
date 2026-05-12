@@ -1,10 +1,10 @@
 import { useAuth } from "@/modules/auth";
 import { DevTierSwitch as AccessDevTierSwitch, UpgradeDialog, accessModeForTier, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
-import type { CommunicatorHistoryMessage } from "@/modules/communicator/core/types";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
+import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useDayContent } from "@/modules/home/useDayContent";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
@@ -410,30 +410,6 @@ function NatalBridgeModal({
 
 function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => void) {
   onClose();
-  if (launchPractice(practice.launch, { launchSource: "assistant" })) return;
-  if (practice.kind === "breath") {
-    launchPractice({
-      route: "/breath-coherence",
-      params: {
-        practiceId: practice.slug ?? practice.id,
-        durationMs: String((practice.durationSec ?? 600) * 1000),
-        chakra: String(practice.chakraIds?.[0] ?? 4),
-      },
-    }, { launchSource: "assistant" });
-    return;
-  }
-  if (practice.kind === "yoga") {
-    launchPractice({
-      route: "/asana-practice",
-      params: {
-        practiceId: practice.id,
-        ...(practice.durationSec ? { durationMs: String(practice.durationSec * 1000) } : {}),
-        ...(practice.chakraIds?.[0] ? { chakra: String(practice.chakraIds[0]) } : {}),
-      },
-    }, { launchSource: "assistant" });
-    return;
-  }
-  launchPractice({ route: "/sacred-symbol-stream", params: {} }, { launchSource: "assistant" });
 }
 
 function CommunicatorOverlay({
@@ -451,32 +427,6 @@ function CommunicatorOverlay({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const initialAssistantMessage = useMemo<CommunicatorHistoryMessage>(() => {
-    const hour = new Date().getHours();
-    const greeting = hour >= 5 && hour < 11 ? "Доброе утро" : hour >= 11 && hour < 17 ? "Добрый день" : hour >= 17 && hour < 22 ? "Добрый вечер" : "Доброй ночи";
-    const headline = forecast.slogan?.trim() || strings.daySlogan(forecast);
-    const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
-    const recommendation = forecast.recommendationShortText?.trim();
-    return {
-      id: `daily-opening-${forecast.date}-${forecast.planetOfTheDay}`,
-      role: "assistant",
-      createdAt: Date.now(),
-      content: recommendation
-        ? `${greeting}. Сегодняшний фокус: «${headline}». Тон дня ${tone}; рекомендация уже есть, а здесь можно перевести её в живую ситуацию, без технического языка. Где это сейчас сильнее отзывается — в теле, в голове или в разговоре, который назревает?`
-        : `${greeting}. Сегодняшний фокус: «${headline}». Давай разберём его через живую ситуацию. Где сейчас больше всего напряжения — в теле, в голове или в общении?`,
-      meta: {
-        orchestratorDecision: {
-          next_phase: "contextual_greeting",
-          reasoning: "Client-side opening based on daily forecast context.",
-          information_completeness: {},
-          information_density: 0,
-          user_signals: [],
-          should_close: false,
-          decision_source: "bypass_greeting",
-        },
-      },
-    };
-  }, [forecast, strings]);
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={styles.overlayRoot}>
@@ -516,10 +466,17 @@ function CommunicatorOverlay({
             clientGreetingShown: true,
             forecastDate: forecast.date,
             planetOfTheDay: forecast.planetOfTheDay,
+            chakraLabel: PLANET_CHAKRA[forecast.planetOfTheDay].chakraName,
             todayTone: forecast.todayPlanetState.todayTone,
+            harmoniousnessValue: forecast.todayPlanetState.naturalHarmoniousness,
+            harmoniousnessLabel:
+              forecast.todayPlanetState.naturalHarmoniousness > 0.3
+                ? "гармоничная"
+                : forecast.todayPlanetState.naturalHarmoniousness < -0.3
+                  ? "дисгармоничная"
+                  : "смешанная",
             windowsOfOpportunity: forecast.windowsOfOpportunity,
           }}
-          history={[initialAssistantMessage]}
           memoryWindow={24}
           onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onClose)}
         />

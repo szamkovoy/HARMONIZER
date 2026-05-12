@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.16
-updated: 2026-05-09
+version: 1.17
+updated: 2026-05-11
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -35,6 +35,10 @@ code_refs: []
 - **Тема дня для практики vs топ-3 для утреннего монолога**  
 **Контекст:** `morning_recommendation` собирает три лепестка по `**ranked_planets` / importance** (`topPetals`), а `**choosePractice`** в `practiceSelection.ts` берёт чакру из `**planet_of_the_day**`. Это сознательное расхождение или временная асимметрия продукта — в коде не сведено.  
 **Действие:** решение заказчика: выровнять выбор чакры для стека практик с топ-1 лепестком, либо зафиксировать продуктовую модель «утро про три темы, практика про планету дня».
+- **Explicit dialog cache остаётся process-local**  
+**Контекст:** в dialog v3 `ensureDialogCache(...)` в `_legacy_web/app/api/_utils/gemini.ts` хранит `cache.name` в in-memory TTL map; внешнего Redis/KV в проекте не найдено.  
+**Проявление:** на одном инстансе Vercel возможны cache hit по одному `conversationId + historyHash`, но между cold start / разными инстансами reuse не гарантирован; реальная экономия токенов может плавать.  
+**Действие:** при следующем заходе в infra/assistant решить, нужен ли shared cache store (Redis/KV) или текущий best-effort режим достаточно хорош для v3.
 
 ## `bindu`
 
@@ -50,6 +54,10 @@ code_refs: []
 ## `infra`
 
 - Файлы `docs/tmp_docs/29042026/PATCH_5_RLS_tightening.md` и `PATCH_11_whisper_quality.md` перенесены в `docs/05_archive/migrated/infra/`. В `docs/_audit.md` и в `docs/tmp_docs/29042026/00_OPTIMIZATION_PLAN.md` остаются ссылки на старые пути — обновить при следующем проходе аудита или архивации всей серии `29042026`.
+- **Локальный запуск Supabase CLI не подтверждён в этом workspace**  
+**Контекст:** при попытке применить миграцию `20260511161000_dialog_system_v3.sql` локально команды `npx supabase status` / `npx supabase db push --local` повторно завершались ошибкой ещё на стадии `npx`-подтягивания CLI.  
+**Проявление:** код и SQL уже в репозитории, но локальная проверка prompt-миграции в dockerized Supabase не завершена.  
+**Действие:** при следующем инфраструктурном проходе решить проблему с локальным `supabase` CLI или перейти на заранее установленный бинарь/CI-путь для проверки миграций.
 
 ## `astro` / `daily_forecast` (cache parity)
 

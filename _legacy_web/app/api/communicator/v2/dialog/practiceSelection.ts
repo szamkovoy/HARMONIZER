@@ -57,6 +57,29 @@ const STATIC_MEDITATION: PracticeCandidate = {
   ],
 };
 
+const STATIC_COHERENT_BREATH: PracticeCandidate = {
+  id: "breath:coherent",
+  slug: "coherent",
+  kind: "breath",
+  title: {
+    ru: "Когерентное дыхание",
+    en: "Coherent breathing",
+  },
+  description: {
+    ru: "Мягкая дыхательная практика для быстрого выравнивания ритма и возврата к спокойной собранности.",
+    en: "A gentle breath practice for quickly restoring rhythm and calm focus.",
+  },
+  default_duration_sec: 10 * 60,
+  min_duration_sec: 5 * 60,
+  max_duration_sec: 20 * 60,
+  rating: 5,
+  params: {
+    duration_policy: "user_selectable",
+    source: "assistant_default_breath",
+  },
+  practice_chakras: [],
+};
+
 const BREATH_PRACTICE_SLUGS = new Set([
   "coherent",
   "nadi-shodhana",
@@ -275,6 +298,11 @@ export function publicPracticePickedPayload(practice: PracticePickedPayload, rea
   return { ...payload, reason: practice.reason ?? reason };
 }
 
+function isDefaultPracticeMarker(marker: PracticePickMarker | null): boolean {
+  const reason = marker?.reason?.toLowerCase() ?? "";
+  return marker?.id === "default" || reason.includes("hard_cap_reached") || reason.includes("default_fallback");
+}
+
 export async function choosePractice(
   db: SupabaseClient,
   userId: string,
@@ -285,6 +313,9 @@ export async function choosePractice(
 ): Promise<PracticePickedPayload | null> {
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
   const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
+  if (isDefaultPracticeMarker(marker)) {
+    return toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]);
+  }
   const preferredKind = inferPreferredPracticeKind(userMessage);
   const preferredDurationSec = inferPreferredDurationSec(userMessage);
 

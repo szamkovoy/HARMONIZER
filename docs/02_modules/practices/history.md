@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.1
-updated: 2026-05-08
+version: 1.2
+updated: 2026-05-11
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-11:** `modules/practices/ui/PracticeCard.tsx` стал единым компонентом для каталога и коммуникатора. Assistant-launch больше не идёт через отдельный `launchPracticeFromAssistant` на home: `Communicator.tsx` сам адаптирует `PracticePicked` в `PracticeSummary`, даёт пользователю override duration/chakra и вызывает `launchPractice(..., { launchSource: 'assistant' })`. На сервере default assistant marker теперь явно резолвится в coherent breathing 10 мин на чакру дня.
 - **2026-05-08 (второй проход):** **`PracticeCatalogScreen` + отложенная йога.** (1) Колбэк мог отработать **раньше** продолжения `load()` — сброс **`yogaLateLoading`** и перезапись **`setState`** пустым `yoga` из возврата каталога. (2) Чаще наоборот: продолжение **`load()`** шло **раньше** микрозадачи с **`onLateYogaPractices`**, слот **`lateYogaSlotRef`** оставался пустым → в UI «нет асан» при живых данных. Исправления: слот **`lateYogaSlotRef`**, **`mergedYoga`**, **`yogaLateLoading`** до ожидания, после **`await loadPracticeCatalog`** — **`await Promise.resolve()`**, чтобы слисть очередь микрозадач перед чтением слота. (3) При **медленном** Supabase колбэк мог прийти, пока экран ещё в **`loading`**: ранний **`return current`** в **`setState`** отбрасывал асаны, затем основной поток фиксировал **`ready`** с пустой йогой. Сейчас: **`catalogMeditationBreathRef`** + **`pendingLateYogaRef`**, колбэк всегда собирает **`{ meditation, breath, yoga }`** из ref среза (или откладывает до записи среза). Код: `modules/practices/ui/PracticeCatalogScreen.tsx`.
 
 - **2026-05-08:** **`loadPracticeCatalog` + `onLateYogaPractices`.** Ранее колбэк вешался на «сырой» промис йоги без таймаута и без вызова при `reject` — экран «Практики» мог бесконечно показывать отложенную загрузку асан. Сейчас для этой ветки используется тот же **`withTimeout` (12 с)**, ошибка мапится в пустой список, при срабатывании таймаута после фактического ответа возможен второй вызов колбэка с данными. Код: `modules/practices/core/catalog.ts`.

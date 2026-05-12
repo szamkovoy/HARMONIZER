@@ -3,14 +3,12 @@ import { extractJson, getModelByHint } from "./gemini";
 
 const originalStandard = process.env.AI_MODEL_STANDARD;
 const originalPremium = process.env.AI_MODEL_PREMIUM;
-const originalStandardFb = process.env.AI_MODEL_STANDARD_FALLBACK;
-const originalPremiumFb = process.env.AI_MODEL_PREMIUM_FALLBACK;
+const originalFallback = process.env.AI_MODEL_FALLBACK;
 
 afterEach(() => {
   process.env.AI_MODEL_STANDARD = originalStandard;
   process.env.AI_MODEL_PREMIUM = originalPremium;
-  process.env.AI_MODEL_STANDARD_FALLBACK = originalStandardFb;
-  process.env.AI_MODEL_PREMIUM_FALLBACK = originalPremiumFb;
+  process.env.AI_MODEL_FALLBACK = originalFallback;
 });
 
 describe("getModelByHint", () => {
@@ -47,8 +45,7 @@ describe("getModelByHint", () => {
   it("maps standard and premium fallback hints to FALLBACK env vars", () => {
     process.env.AI_MODEL_STANDARD = "gemini-3.1-flash";
     process.env.AI_MODEL_PREMIUM = "gemini-3.1-pro";
-    process.env.AI_MODEL_STANDARD_FALLBACK = "gemini-2.5-flash";
-    process.env.AI_MODEL_PREMIUM_FALLBACK = "gemini-2.5-flash";
+    process.env.AI_MODEL_FALLBACK = "gemini-2.5-flash";
     expect(getModelByHint("standard", { fallback: true })).toBe("gemini-2.5-flash");
     expect(getModelByHint("premium", { fallback: true })).toBe("gemini-2.5-flash");
   });

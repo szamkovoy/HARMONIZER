@@ -31,7 +31,8 @@ Required Vercel environment variables:
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.
 - `AI_MODEL_PREMIUM` - concrete Gemini model for `premium` prompt/scenario tier.
-- `AI_MODEL_STANDARD_FALLBACK` / `AI_MODEL_PREMIUM_FALLBACK` - one automatic retry per request on 503/429-style overload (`gemini.ts`).
+- `AI_MODEL_FALLBACK` - shared retry model for 503/429/timeout-style overloads (`gemini.ts`).
+- `MAX_DIALOG_LENGTH=9` - hard stop for daily dialog v3 before forced final recommendation.
 - `GEMINI_TIMEOUT_MS=90000` - Gemini request timeout for production.
 - `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
 - `SENTRY_DSN=https://fa0cbb049716d242310a11464f1684e2@o4511304250884096.ingest.de.sentry.io/4511304290533456` - Sentry project DSN for backend error monitoring.
@@ -39,10 +40,7 @@ Required Vercel environment variables:
 Optional environment variables:
 
 - `SENTRY_TRACES_SAMPLE_RATE` - Sentry traces sample rate, defaults to `0.05`.
-- `DIALOG_GREETING_BYPASS_ENABLED` - defaults to enabled unless set to `false`.
-- `DIALOG_DECISION_CACHE_ENABLED` - defaults to enabled unless set to `false`.
-- `DIALOG_DECISION_CACHE_MIN_ITERATION` - defaults to `3`.
-- `DIALOG_DECISION_CACHE_THRESHOLD` - defaults to `0.8`.
+- `ALLOW_LEGACY_GEMINI_MODELS=true` - rewrites legacy `gemini-1.5-*` ids to `2.5` during migration.
 
 ## Mobile Client
 
