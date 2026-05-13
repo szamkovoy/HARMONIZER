@@ -211,6 +211,14 @@ function withStaticPracticeFallbacks(
   return [...practices, STATIC_MEDITATION];
 }
 
+/** Статические практики ассистента для резолва `[PRACTICE_PICK]` по полному каталогу (все kind). */
+function mergeStaticPracticesForMarkerLookup(practices: PracticeCandidate[]): PracticeCandidate[] {
+  const out = [...practices];
+  if (!out.some((practice) => practice.slug === STATIC_MEDITATION.slug)) out.push(STATIC_MEDITATION);
+  if (!out.some((practice) => practice.slug === STATIC_COHERENT_BREATH.slug)) out.push(STATIC_COHERENT_BREATH);
+  return out;
+}
+
 function launchForPractice(practice: PracticeCandidate, chakraId: number): PracticePickedPayload["launch"] {
   if (practice.kind === "breath") {
     return {
@@ -316,6 +324,7 @@ export async function choosePractice(
     return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true, chakraId, preferredDurationMin };
   }
   const preferredKind = validation.practiceKind;
+  const hasExplicitMarker = Boolean(marker?.id) && !isDefaultPracticeMarker(marker);
 
   let query = db
     .from("practices")
@@ -323,12 +332,31 @@ export async function choosePractice(
     .eq("is_active", true)
     .order("rating", { ascending: false, nullsFirst: false })
     .limit(200);
-  if (preferredKind) query = query.eq("kind", preferredKind);
+  if (!hasExplicitMarker && preferredKind) query = query.eq("kind", preferredKind);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  const all = withStaticPracticeFallbacks((data ?? []) as PracticeCandidate[], preferredKind);
+  let rawRows = (data ?? []) as PracticeCandidate[];
+
+  if (hasExplicitMarker && marker) {
+    const markerPool = mergeStaticPracticesForMarkerLookup(rawRows);
+    const markerHit = markerPool
+      .map(selectablePractice)
+      .find((row) => row.id === marker.id || row.slug === marker.id);
+    if (markerHit) {
+      return {
+        picked: toPracticePickedPayload(markerHit.raw, marker.reason, chakraId, [markerHit.raw]),
+        markerIdResolved: true,
+        chakraId,
+        preferredDurationMin,
+      };
+    }
+    console.warn(`[PRACTICE_SELECTOR] marker_id_not_in_catalog id=${marker.id} — fallback to inferred kind`);
+    rawRows = preferredKind ? rawRows.filter((row) => row.kind === preferredKind) : rawRows;
+  }
+
+  const all = withStaticPracticeFallbacks(rawRows, preferredKind);
   const activePracticeCount = preferredKind ? all.length : 0;
   const recentLimit = recentStackLimitForKind(preferredKind, activePracticeCount);
   const recentIds = [

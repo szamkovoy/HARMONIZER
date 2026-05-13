@@ -27,6 +27,24 @@ function yoga(input: Partial<PracticeCandidate> & Pick<PracticeCandidate, "id">)
   };
 }
 
+function breath(input: Partial<PracticeCandidate> & Pick<PracticeCandidate, "id" | "slug">): PracticeCandidate {
+  return {
+    id: input.id,
+    slug: input.slug,
+    title: { ru: input.slug },
+    description: null,
+    kind: "breath",
+    default_duration_sec: 10 * 60,
+    min_duration_sec: 5 * 60,
+    max_duration_sec: 20 * 60,
+    rating: 5,
+    params: {},
+    video_external_id: null,
+    practice_chakras: [],
+    ...input,
+  };
+}
+
 function createPracticeQuery(practices: PracticeCandidate[]) {
   const filters: Record<string, unknown> = {};
   const query = {
@@ -189,6 +207,40 @@ describe("choosePractice", () => {
         },
       },
     });
+  });
+
+  it("resolves explicit marker id against full catalog when inferred user kind disagrees with model pick", async () => {
+    const picked = await choosePractice(
+      createDb({
+        practices: [
+          breath({ id: "uuid-coh", slug: "coherent" }),
+          yoga({ id: "uuid-yoga", slug: "triangle-pose" }),
+          {
+            id: "uuid-med",
+            slug: "body-scan",
+            kind: "meditation",
+            title: { ru: "скан" },
+            description: null,
+            default_duration_sec: 10 * 60,
+            min_duration_sec: null,
+            max_duration_sec: null,
+            rating: 4,
+            params: {},
+            video_external_id: null,
+            practice_chakras: [{ chakra_id: 1, weight: 1 }],
+          },
+        ],
+      }) as never,
+      "user1",
+      { id: "coherent", reason: "дыхание", durationMin: 15, chakra: 2 },
+      { forecast: { planet_of_the_day: "Venus" } },
+      "В плане асан или дыхания или медитации я бы предпочел дыхание 15 минут",
+      [],
+    );
+
+    expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBe(true);
+    expect(picked && "picked" in picked ? picked.picked?.slug : null).toBe("coherent");
+    expect(picked && "picked" in picked ? picked.picked?.kind : null).toBe("breath");
   });
 
   it("does not let slug-only breath sessions exhaust the meditation recent stack", async () => {

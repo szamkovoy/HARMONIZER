@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.6
-updated: 2026-05-13
+version: 2.8
+updated: 2026-05-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
+code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-05-14:** **`practiceSelection.ts`** / **`choosePractice`** — для не-`default` маркера `[PRACTICE_PICK]` сначала резолвится **`id` / `slug`** по **полному** активному каталогу (все `kind`) плюс статические «Вспышка» и когерентное дыхание; раньше запрос к БД сразу фильтровался по **`practiceKind`** из **`validateHistoryHasDurationAndType`** (только реплики пользователя), из-за чего id дыхания из маркера премиум-модели исчезал из выборки и подставлялась другая практика. Откат дублирующей эвристики **`inferExplicitKindChoice`** в **`markers.ts`** (она не нужна при каноническом маркере). Лог при промахе id: **`[PRACTICE_SELECTOR] marker_id_not_in_catalog`**. Тест **`practiceSelection.test.ts`**. Обновлены **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-13:** Миграция **`20260513224500_dialog_system_v3_polish_pack_a_fix.sql`**: активный `dialog_system_v3` **v3** — секция **«ЕСЛИ ПОЛЬЗОВАТЕЛЬ ОТКАЗЫВАЕТСЯ ОТ ПРАКТИКИ»** вынесена на верхний уровень (после «КАК ТЫ ПОНИМАЕШЬ…», до «ЕСЛИ ПОЛЬЗОВАТЕЛЬ ИЗМЕНИЛ КОНТЕКСТ ДНЯ»); v2 деактивируется. **`prompts-reference.md` v1.3**, **`spec.md` v2.9**, **`CHANGELOG.md`**.
 - **2026-05-13:** Пакет «А» (`_legacy_web/packet_a`): миграция **`20260513223000_dialog_system_v3_polish_pack_a.sql`** (активный `dialog_system_v3` v2 — день недели, чакра, тональный окрас `{{tonal_register}}`, отказ от практики); **`dialogTonalRegisters.ts`**; обновлены **`ORCHESTRATOR_INSTRUCTIONS`** и **`route.ts`** (`tonal_register`, `expandOrchestratorInstruction`, `[DIALOG_V3_DEBUG_PROMPT]` при dev/флагах). Справочник **`prompts-reference.md` v1.2**, **`spec.md` v2.8**, **`CHANGELOG.md`**.
 - **2026-05-13:** В **`prompts-reference.md`** восстановлен корректный YAML-frontmatter и выровнена markdown-таблица §3; **version 1.1**.
