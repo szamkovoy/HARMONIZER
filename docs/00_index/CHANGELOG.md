@@ -3,14 +3,16 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.2
+version: 2.3
 updated: 2026-05-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-14: `assistant` — режим оркестратора **`fast_track_final`** (первое сообщение пользователя уже с длительностью и типом): сразу **premium** + `streamGeminiText`, без standard-хода и без `[READY_FOR_RECOMMENDATION]`; `decideTurnMode(..., pendingUserContent?)`. Код: **`dialogArcOrchestrator.ts`**, **`communicator/v2/dialog/route.ts`**; подпись фазы в **`modules/communicator/i18n/communicator.ts`**. Документация: **`docs/02_modules/assistant/{prompts-reference,spec,history}.md`**, **`docs/02_modules/communicator/history.md`**.
 - 2026-05-14: `assistant` — **`practiceSelection.ts` / `choosePractice`**: явный `[PRACTICE_PICK]` (не `default`) сначала резолвится по **полному** каталогу практик, чтобы карточка совпадала с выбором премиум-модели; эвристика `practiceKind` из реплик пользователя больше **не** отфильтровывает id из маркера (раньше это давало «Вспышку» при тексте про дыхание). Лог **`marker_id_not_in_catalog`** при промахе id. Тест **`practiceSelection.test.ts`**. **`docs/02_modules/assistant/{spec,history}.md`**, **`docs/02_modules/practices/{spec,history}.md`**.
+- 2026-05-14: `profile` / auth dev UX — **`supabase-auth-console-filter.ts`**, **`authNetworkErrors.ts`**: LogBox больше не краснеет на ожидаемом abort refresh (15 с) и на **`AuthRetryableFetchError`** от auth-js; уточнён детектор abort (Hermes / стек auth-js) + **`LogBox.ignoreLogs`**. **`docs/02_modules/profile/{spec,history}.md`**.
 - 2026-05-13: pre-push doc-sync — в **`docs/00_index/MAP.md`** в точках входа модуля **`assistant`** добавлены **`dialogTonalRegisters.ts`** и миграции **`20260513223000_dialog_system_v3_polish_pack_a.sql`** / **`20260513224500_dialog_system_v3_polish_pack_a_fix.sql`** (соответствие diff кода).
 - 2026-05-13: `assistant` — **`20260513224500_dialog_system_v3_polish_pack_a_fix.sql`**: `dialog_system_v3` v3, секция отказа от практики перенесена в шаблоне; **`prompts-reference.md` v1.3**, **`spec.md`**, **`history.md`**.
 - 2026-05-13: `assistant` — пакет «А» для daily dialog v3: миграция **`supabase/migrations/20260513223000_dialog_system_v3_polish_pack_a.sql`** (новый активный `dialog_system_v3` v2), **`dialogTonalRegisters.ts`**, правки **`dialogArcOrchestrator.ts`** / **`communicator/v2/dialog/route.ts`** (`{{tonal_register}}`, подстановка плейсхолдеров в финальные инструкции, `[DIALOG_V3_DEBUG_PROMPT]`). Документация: **`docs/02_modules/assistant/{prompts-reference.md,spec,history}.md`**.

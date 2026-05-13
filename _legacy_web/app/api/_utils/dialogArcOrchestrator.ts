@@ -1,6 +1,10 @@
+import { validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
+
 type Message = {
   role: "user" | "assistant" | "system";
   meta?: Record<string, unknown> | null;
+  content?: string | null;
+  transcript?: string | null;
 };
 
 export const ORCHESTRATOR_INSTRUCTIONS = {
@@ -10,6 +14,13 @@ export const ORCHESTRATOR_INSTRUCTIONS = {
 В этом же сообщении задай прямой вопрос про практику. Формулировка должна быть конкретной и понятной, без поэтических метафор. Хороший пример: «Сколько у вас сейчас времени на практику и что бы хотелось — асаны, дыхание или медитацию?». Допустимы варианты: «Сколько минут есть для практики и какой тип ближе — асаны, дыхание, медитация?». Недопустимо: «окно на короткую паузу или сессия?», «короткий выдох или полная сессия?», «пять минут присесть или развернуться?» — это слишком метафорично для первого вопроса.
 
 Всё в одном естественном сообщении, не в трёх вопросах подряд. Один лёгкий открытый вопрос про жизнь + один конкретный про практику.]`,
+  fast_track_final: `[Инструкция оркестратора: пользователь в самом первом сообщении уже назвал длительность и тип практики, и ничего больше о себе не рассказал. Это деловой режим: разговор не нужен, нужна практика.
+
+ПЕРВОЕ — выведи на отдельной строке технический маркер: [PRACTICE_PICK: id="..." reason="..."]. Маркер невидим для пользователя, обрабатывается системой. Пиши его ДО текста ответа.
+
+Затем выдай очень короткий текстовый ответ — одно-два предложения, не больше. Пример: «Сегодня активна {{chakra_label}} — она хорошо поддерживает развитие. По вашему запросу подобрал практику ниже». Допустимы вариации, но смысл сохраняй: упомянуть активную чакру одной фразой и подвести к карточке.
+
+Запрещено: расписывать блоки зеркала, тем, штриха глубины, мостика. Запрещено задавать уточняющие вопросы. Запрещено пропускать маркер [PRACTICE_PICK]. Длина текстовой части — не больше 250 символов.]`,
   inquiry: `[Инструкция оркестратора:
 это уточняющий ход. Слушай пользователя, иди за его языком. Если он что-то сказал о себе — поддержи коротко и иди вглубь, а не отзеркаливай поверхностно. Один-два штриха: что услышал, что в этом важно. Не пересказывай его же слова другими словами — это создаёт ощущение пустоты.
 
@@ -70,10 +81,12 @@ export const ORCHESTRATOR_INSTRUCTIONS = {
 } as const;
 
 export interface ArcDecision {
-  mode: "opening" | "inquiry" | "forced_final" | "post_recommendation";
+  mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "post_recommendation";
   modelTier: "premium" | "standard";
   instruction: string;
 }
+
+export type OrchestratorMode = ArcDecision["mode"];
 
 function hasPracticePicked(message: Message): boolean {
   const practicePicked = (message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null)?.practicePicked
@@ -81,10 +94,22 @@ function hasPracticePicked(message: Message): boolean {
   return practicePicked != null;
 }
 
+/** Текст единственного «первого» сообщения пользователя в сессии для fast_track (строго одна пользовательская реплика до первого ответа ассистента). */
+function soleFirstUserMessageText(history: Message[], pendingUserContent: string | null | undefined): string {
+  const users = history.filter((m) => m.role === "user");
+  const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
+  if (users.length === 0 && pendingTrim) return pendingTrim;
+  if (users.length === 1 && !pendingTrim) {
+    return String(users[0].content ?? users[0].transcript ?? "").trim();
+  }
+  return "";
+}
+
 export function decideTurnMode(
   history: Message[],
   iteration: number,
   maxDialogLength: number,
+  pendingUserContent?: string | null,
 ): ArcDecision {
   if (history.some((message) => message.role === "assistant" && hasPracticePicked(message))) {
     return {
@@ -103,6 +128,17 @@ export function decideTurnMode(
   }
 
   if (iteration === 1) {
+    const userText = soleFirstUserMessageText(history, pendingUserContent);
+    if (userText) {
+      const fastTrackValidation = validateHistoryHasDurationAndType([{ role: "user", content: userText }]);
+      if (fastTrackValidation.confident) {
+        return {
+          mode: "fast_track_final",
+          modelTier: "premium",
+          instruction: ORCHESTRATOR_INSTRUCTIONS.fast_track_final,
+        };
+      }
+    }
     return {
       mode: "opening",
       modelTier: "standard",

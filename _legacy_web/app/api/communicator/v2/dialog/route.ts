@@ -59,6 +59,7 @@ type ResponseMode =
   | "opening"
   | "inquiry"
   | "forced_final"
+  | "fast_track_final"
   | "post_recommendation"
   | "final_recommendation"
   | "final_recommendation_with_validation_warning";
@@ -203,6 +204,7 @@ function turnDecisionEvent(mode: ResponseMode, modelTier: "premium" | "standard"
     opening: "contextual_greeting",
     inquiry: "deepen_inquiry",
     forced_final: "suggest_practice",
+    fast_track_final: "suggest_practice",
     post_recommendation: "confirm_and_close",
     final_recommendation: "suggest_practice",
     final_recommendation_with_validation_warning: "suggest_practice",
@@ -571,7 +573,7 @@ export async function POST(req: Request) {
     const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, userTimezone);
     const iteration = countAssistantTurns(history) + 1;
     const maxDialogLength = getMaxDialogLength();
-    const turnDecision = decideTurnMode(history, iteration, maxDialogLength);
+    const turnDecision = decideTurnMode(history, iteration, maxDialogLength, isInitiate ? null : userMessage);
     const orchestratorPlaceholders = {
       chakraLabel: systemPromptData.chakraLabel,
       harmoniousnessValue: systemPromptData.harmoniousnessValue,
@@ -706,7 +708,8 @@ export async function POST(req: Request) {
 
           const isFinalMode = responseMode === "final_recommendation"
             || responseMode === "final_recommendation_with_validation_warning"
-            || responseMode === "forced_final";
+            || responseMode === "forced_final"
+            || responseMode === "fast_track_final";
           if (!markers.practicePick && isFinalMode) {
             console.warn("[DIALOG_V3_DIAG] marker missing after premium — retry call");
             const retryInstruction: GeminiContent = { role: "user", parts: [{ text:

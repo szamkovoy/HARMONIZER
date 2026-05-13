@@ -17,6 +17,7 @@ type PhaseId =
   | "opening"
   | "inquiry"
   | "forced_final"
+  | "fast_track_final"
   | "post_recommendation"
   | "final_recommendation"
   | "final_recommendation_with_validation_warning";
@@ -82,6 +83,7 @@ const ruPhaseLabels: CommunicatorStrings["phaseLabels"] = {
   opening: "первый отклик",
   inquiry: "уточнение",
   forced_final: "финальная рекомендация",
+  fast_track_final: "практика сразу",
   post_recommendation: "после рекомендации",
   final_recommendation: "финальная рекомендация",
   final_recommendation_with_validation_warning: "финальная рекомендация",
@@ -102,6 +104,7 @@ const enPhaseLabels: CommunicatorStrings["phaseLabels"] = {
   opening: "opening",
   inquiry: "clarifying",
   forced_final: "final recommendation",
+  fast_track_final: "direct practice",
   post_recommendation: "after recommendation",
   final_recommendation: "final recommendation",
   final_recommendation_with_validation_warning: "final recommendation",
