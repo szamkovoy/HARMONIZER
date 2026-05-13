@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.0
+version: 2.1
 updated: 2026-05-13
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-13: pre-push diff — **`markers.ts`** (`inferDurationSecFromText`, `inferKindFromText`, экспорт **`stripDialogScaffoldMarkdown`**), **`practiceCardSummary.ts`**, **`dialog/route.ts`** (yoga без **`overrides`** в payload), клиент **`Communicator.tsx`** / **`UserBubble`** / **`types.ts`** / **`communicator.ts`**. Документация: уточнены **`docs/02_modules/assistant/{spec,history}.md`**, **`docs/02_modules/communicator/{spec,history}.md`**, **`CHANGELOG.md`**.
 - 2026-05-13: `communicator` + сервер `assistant` — клиент **`dialogTextCleanup.ts`** (`stripDialogScaffoldMarkdown`), **`Communicator` / `UserBubble` / `AssistantBubble`** (голосовой якорь **`scrollToIndex`**, **`FlashList`**, восстановление пустого SSE через **`fetchDialogSession`**); **`markers.ts`** / **`practiceCardSummary.ts`** / **`dialog/route.ts`** + тесты. Документация: **`docs/02_modules/communicator/{spec,dependencies,history}.md`**.
 - 2026-05-13: `assistant` — **`prompts-reference.md`**: исправлен YAML-frontmatter (случайная поломка `## ]`); таблица переменных §3 выровнена по ширине колонок; **version 1.1**.
 - 2026-05-13: `assistant` — справочник дословных промптов и инструкций v3: **`docs/02_modules/assistant/prompts-reference.md`** (шаблон `dialog_system_v3`, `ORCHESTRATOR_INSTRUCTIONS`, переменные `renderPrompt`); cross-link в **`spec.md`**; путь в **`MAP.md`**; конвейер **`scripts/docs-sync/sync.sh`** + правило в **`documentation_update_rules.md`**.

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.0
+version: 2.1
 updated: 2026-05-13
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -17,6 +17,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-13:** Отложенный коммит финального ответа — только при непустом **`mergedText`**, без ветки «восстановлено из **`fetchDialogSession`** при пустом SSE», и длине после strip > **14**; иначе сообщение в **`messages`** сразу. **`suppressStreamAnchorScroll`** сбрасывается при **`streamBusy`**: true → false. Публичный контракт: **`voiceTranscribing`**, **`voiceUserBubblePending`**, экспорт **`stripDialogScaffoldMarkdown`** (`dialogTextCleanup.ts`). **`spec.md`** / **`CHANGELOG.md`**.
 - **2026-05-13:** Голос: **`scrollToIndex`** (~24% сверху) — **`voiceAnchorTick`**, **`communicatorListDataRef`**, задержка после layout **`FlashList`**, до **8** повторов по **`Promise`** (без **`scrollToEnd`** при ошибке); **`lastVoiceLayoutScrollTickRef`** только после успеха. **`onContentSizeChange`** без **`scrollToEnd`**, пока задан **`voiceUserAnchorMessageIdRef`**. Текст: **`stripDialogScaffoldMarkdown`** — удаление **целиком** `**…**` (не разворачивание). Карточка йоги без **`overrides`**; «три четверти часа» в **`markers`**. Обновлены **`spec.md`**, **`dependencies.md`**, **`CHANGELOG.md`**.
 - **2026-05-13:** Пустой ответ после SSE больше **не** откладывает показ длинного fallback на **60 с** (fallback считался «длинным» и попадал в отложенный коммит). Добавлены: **одна** попытка восстановить текст из **`fetchDialogSession`** (~700 ms), если агрегат стрима пуст, а сервер уже успел сохранить реплику; **`stripDialogScaffoldMarkdown`** (`dialogTextCleanup.ts`) — убирает из видимого текста «служебные» `---` и `**…**` (дублирует серверную очистку в `markers.ts`); то же применяется в **`resolveAssistantReplyText`**, **`AssistantBubble`** и цели **`pendingRevealGoal`**. Текст карточки практики без хвоста «Рядом с вашим запросом» — см. **`practiceCardSummary.ts`** в модуле `assistant`.
 - **2026-05-13:** Убраны подписи фазы оркестратора над текстом в **`AssistantBubble`** (ранее `phaseLabel` / «первый отклик», «уточнение» и т.д.). После **`transcribeCommunicatorAudio`** добавлен отсев известных **галлюцинаций Whisper** на почти пустом аудио (`transcriptionGuard.ts` — например строки про субтитры); такие результаты не попадают в чат. Обновлены **`docs/02_modules/communicator/{spec,history,dependencies}.md`**.
