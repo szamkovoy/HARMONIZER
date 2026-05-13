@@ -123,8 +123,15 @@ cat > "$PROMPT_FILE" <<'PROMPT_EOF'
 ## Жёсткие ограничения
 
 - Изменяй файлы ТОЛЬКО внутри папки docs/. Никаких других файлов трогать НЕЛЬЗЯ.
-- НЕ создавай новые файлы в docs/02_modules/<module>/ сверх триады
-  (spec.md / dependencies.md / history.md).
+- НЕ создавай новые произвольные .md в docs/02_modules/<module>/ сверх триады
+  (spec.md / dependencies.md / history.md), кроме уже существующих одобренных
+  вспомогательных файлов (см. docs/03_rules/documentation_update_rules.md, принцип «Минимализм»).
+- Если в diff затронуты `supabase/migrations/*dialog_system_v3*.sql`,
+  `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts` или функция
+  `buildDialogSystemInstruction` (блок `renderPrompt`) в
+  `_legacy_web/app/api/communicator/v2/dialog/route.ts`, и существует файл
+  `docs/02_modules/assistant/prompts-reference.md` — обнови в нём дословные
+  разделы 1–3 в соответствии с кодом/миграцией (без пересказа). Если файла нет — не создавай.
 - НЕ переписывай файлы целиком — только точечные правки в затронутые разделы.
 - НЕ выдумывай содержимое: если в diff недостаточно информации для уверенной
   правки конкретного раздела spec.md — НЕ трогай этот раздел. Лучше пропустить,
