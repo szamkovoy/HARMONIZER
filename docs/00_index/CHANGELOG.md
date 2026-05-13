@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-14: `profile` / routing — атомарное завершение auth bootstrap (`session` + `initializing`), debounce первого `INITIAL_SESSION` с пустой сессией, задержка редиректа на `/sign-in` при кратковременном `session === null` после входа. Код: **`modules/auth/AuthProvider.tsx`**, **`app/_layout.tsx`**. Обновлены **`docs/02_modules/profile/{spec,history}.md`**.
 - 2026-05-14: `communicator` — `FlashList` для истории, построчный стрим с Reanimated (`StreamingAssistantLines`), якорный `scrollToIndex` при старте ответа, без автоскролла в конец пока `streamBusy`; удалён `useStreamReveal`. Код: **`Communicator.tsx`**, **`StreamingAssistantLines.tsx`**, **`package.json`**. Обновлены **`docs/02_modules/communicator/{spec,history,dependencies}.md`**.
 - 2026-05-13: `communicator` — SSE диалога на native через `XMLHttpRequest` (инкрементальный поток вместо буферизующего `fetch`); UI стрима и `useCommunicatorStream`/`Communicator` доработаны для побуквенного отображения. Обновлены **`docs/02_modules/communicator/{spec,history,dependencies}.md`**.
 - 2026-05-12: Cold start `AuthProvider` упрощён — удалён параллельный `getSession()` / `resolveInitialSession()`; единственный источник сессии — `onAuthStateChange`; в `services/supabase.ts` добавлен 15 с abort для auth token refresh. Обновлены **`docs/02_modules/profile/{spec,history}.md`**.

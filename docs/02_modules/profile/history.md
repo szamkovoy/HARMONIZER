@@ -2,12 +2,14 @@
 id: 02_modules/profile/history
 title: Profile History
 version: 1.3
-updated: 2026-05-12
+updated: 2026-05-13
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx]
 ---
 
 ## Decision Log
+
+- **2026-05-13:** Устранение краткой вспышки `/sign-in` у уже залогиненного пользователя: в `AuthProvider` **`session` и `initializing` коммитятся одним обновлением состояния** при завершении bootstrap (React 19 больше не может «разъединить» два `setState`). Если первое событие — `INITIAL_SESSION` с `session === null`, завершение bootstrap **откладывается на ~1,2 с** (`INITIAL_SESSION_NULL_DEBOUNCE_MS`): иногда SDK отдаёт пустую сессию и сразу второй колбэк с валидной. В `app/_layout.tsx` (`useAuthRouteGate`) редирект на `/sign-in` при `session === null`, если пользователь **уже имел сессию в этом JS-рантайме**, откладывается на **~0,5 с** — переживаются кратковременные `null` от refresh/SDK без показа экрана входа.
 
 - **2026-05-12:** Cold start `AuthProvider` упрощён: удалены `resolveInitialSession()` и параллельный `getSession()`. Единственный источник сессии при холодном старте — `onAuthStateChange` (SDK сам читает SecureStore / рефрешит токен). Причина: параллельный `getSession()` захватывал внутренний lock SDK и блокировал событие `INITIAL_SESSION` при медленной сети, вызывая зависание splash. Безопасный таймаут (`AUTH_BOOTSTRAP_SAFETY_MS`) теперь передаёт `sessionRef.current` (а не `null`), чтобы не терять уже полученную сессию. В `services/supabase.ts` добавлен `AUTH_FETCH_TIMEOUT_MS` (15 с) — abort для `/auth/v1/token` fetch, чтобы зависший refresh не блокировал SDK бесконечно.
 

@@ -31,6 +31,12 @@ export { AuthContext };
 const PROFILE_FETCH_TIMEOUT_MS = 10_000;
 /** Если подписка GoTrue по какой-то причине не отдала первое событие — не держим сплэш вечно. */
 const AUTH_BOOTSTRAP_SAFETY_MS = 25_000;
+/**
+ * Редко SDK отдаёт INITIAL_SESSION с session=null, а через мгновение — второе
+ * событие с реальной сессией. Не завершаем bootstrap сразу, чтобы не мигнул
+ * /sign-in и не сработал гейт с «ложным выходом».
+ */
+const INITIAL_SESSION_NULL_DEBOUNCE_MS = 1_200;
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -80,10 +86,14 @@ async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [session, setSession] = useState<Session | null>(null);
+  /** Одно обновление: гейт в `_layout` никогда не увидит `initializing=false` при устаревшем session. */
+  const [authCore, setAuthCore] = useState<{ session: Session | null; initializing: boolean }>({
+    session: null,
+    initializing: true,
+  });
+  const { session, initializing } = authCore;
   const [profile, setProfile] = useState<AuthUserRow | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [initializing, setInitializing] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
 
   // Держим последний seen user id — перечитываем профиль только при смене.
@@ -115,6 +125,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const supabase = requireSupabase();
     let cancelled = false;
     let initialSessionReady = false;
+    let debounceInitialNullTimer: ReturnType<typeof setTimeout> | null = null;
+    let safetyTimerId: ReturnType<typeof setTimeout> | undefined;
 
     const safeStartAutoRefresh = () => {
       void supabase.auth.startAutoRefresh().catch((error: unknown) => {
@@ -135,30 +147,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     };
 
-    const finishBootstrapOnce = (next: Session | null) => {
+    const completeBootstrap = (next: Session | null) => {
       if (cancelled || initialSessionReady) return;
       initialSessionReady = true;
-      setInitializing(false);
-      if (next) {
-        safeStartAutoRefresh();
-      } else {
-        safeStopAutoRefresh();
+      if (debounceInitialNullTimer) {
+        clearTimeout(debounceInitialNullTimer);
+        debounceInitialNullTimer = null;
       }
-    };
-
-    const safetyTimer = setTimeout(() => {
-      if (cancelled || initialSessionReady) return;
-      // eslint-disable-next-line no-console
-      console.warn("[auth] bootstrap safety timeout: closing splash without Supabase first event");
-      finishBootstrapOnce(sessionRef.current);
-    }, AUTH_BOOTSTRAP_SAFETY_MS);
-
-    // Единственный источник для cold start — onAuthStateChange: SDK сам читает
-    // хранилище и, при необходимости, рефрешит токен. Не вызываем getSession()
-    // параллельно: это захватывает внутренний lock SDK и блокирует INITIAL_SESSION,
-    // если сеть медленная (см. AUTH_FETCH_TIMEOUT_MS в supabase.ts).
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
+      if (safetyTimerId !== undefined) {
+        clearTimeout(safetyTimerId);
+        safetyTimerId = undefined;
+      }
+      sessionRef.current = next;
+      setAuthCore({ session: next, initializing: false });
       void syncProfile(next?.user ?? null).catch((error: unknown) => {
         // eslint-disable-next-line no-console
         console.warn(
@@ -166,12 +167,60 @@ export function AuthProvider({ children }: AuthProviderProps) {
           rewriteAuthNetworkError(error, "profile").message,
         );
       });
+      if (next) {
+        safeStartAutoRefresh();
+      } else {
+        safeStopAutoRefresh();
+      }
+    };
 
+    safetyTimerId = setTimeout(() => {
+      if (cancelled || initialSessionReady) return;
+      if (debounceInitialNullTimer) {
+        clearTimeout(debounceInitialNullTimer);
+        debounceInitialNullTimer = null;
+      }
+      // eslint-disable-next-line no-console
+      console.warn("[auth] bootstrap safety timeout: closing splash without Supabase first event");
+      completeBootstrap(sessionRef.current);
+    }, AUTH_BOOTSTRAP_SAFETY_MS);
+
+    // Единственный источник для cold start — onAuthStateChange: SDK сам читает
+    // хранилище и, при необходимости, рефрешит токен. Не вызываем getSession()
+    // параллельно: это захватывает внутренний lock SDK и блокирует INITIAL_SESSION,
+    // если сеть медленная (см. AUTH_FETCH_TIMEOUT_MS в supabase.ts).
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       if (!initialSessionReady) {
-        clearTimeout(safetyTimer);
-        finishBootstrapOnce(next);
+        if (next) {
+          completeBootstrap(next);
+          return;
+        }
+        if (event === "INITIAL_SESSION") {
+          if (debounceInitialNullTimer) clearTimeout(debounceInitialNullTimer);
+          debounceInitialNullTimer = setTimeout(() => {
+            debounceInitialNullTimer = null;
+            if (cancelled || initialSessionReady) return;
+            completeBootstrap(null);
+          }, INITIAL_SESSION_NULL_DEBOUNCE_MS);
+          return;
+        }
+        if (debounceInitialNullTimer) {
+          clearTimeout(debounceInitialNullTimer);
+          debounceInitialNullTimer = null;
+        }
+        completeBootstrap(null);
         return;
       }
+
+      sessionRef.current = next;
+      setAuthCore((prev) => ({ ...prev, session: next }));
+      void syncProfile(next?.user ?? null).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[auth] syncProfile onAuthStateChange",
+          rewriteAuthNetworkError(error, "profile").message,
+        );
+      });
 
       if (next) {
         safeStartAutoRefresh();
@@ -195,7 +244,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     return () => {
       cancelled = true;
-      clearTimeout(safetyTimer);
+      if (debounceInitialNullTimer) {
+        clearTimeout(debounceInitialNullTimer);
+        debounceInitialNullTimer = null;
+      }
+      if (safetyTimerId !== undefined) clearTimeout(safetyTimerId);
       sub.subscription.unsubscribe();
       appStateSub.remove();
       safeStopAutoRefresh();

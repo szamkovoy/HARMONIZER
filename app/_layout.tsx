@@ -7,7 +7,7 @@ import {
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { ActivityIndicator, Platform, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
@@ -91,12 +91,26 @@ function AccessBridge({ children }: { children: ReactNode }) {
  * понимаем, где сейчас пользователь, и НЕ перенаправляем, если он уже на
  * нужном экране (иначе будет бесконечный цикл).
  */
+/** Не редиректить на /sign-in сразу при кратковременном session=null после того как пользователь уже был залогинен (refresh / transient SDK). */
+const SIGN_IN_AFTER_NULL_SESSION_MS = 500;
+
 function useAuthRouteGate() {
   const { session, profile, profileLoading, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const everHadSessionRef = useRef(false);
+  const signInDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (session) everHadSessionRef.current = true;
+  }, [session]);
+
+  useEffect(() => {
+    if (signInDelayTimerRef.current) {
+      clearTimeout(signInDelayTimerRef.current);
+      signInDelayTimerRef.current = null;
+    }
+
     if (initializing) return;
     // Пока тянем profile после смены session — не принимаем решений про
     // onboarding, иначе возвращающийся пользователь мигнёт на /onboarding.
@@ -109,8 +123,22 @@ function useAuthRouteGate() {
     // typed-routes ещё не знает про новые файлы до первого `expo start`,
     // поэтому кастуем через Href — после регена типов каст можно убрать.
     if (!session) {
-      if (!isOnAuth) router.replace("/sign-in" as Href);
-      return;
+      if (!isOnAuth) {
+        if (everHadSessionRef.current) {
+          signInDelayTimerRef.current = setTimeout(() => {
+            signInDelayTimerRef.current = null;
+            router.replace("/sign-in" as Href);
+          }, SIGN_IN_AFTER_NULL_SESSION_MS);
+        } else {
+          router.replace("/sign-in" as Href);
+        }
+      }
+      return () => {
+        if (signInDelayTimerRef.current) {
+          clearTimeout(signInDelayTimerRef.current);
+          signInDelayTimerRef.current = null;
+        }
+      };
     }
     if (profile && !profile.onboarded_at) {
       if (!isOnOnboarding) router.replace("/onboarding" as Href);
@@ -119,6 +147,7 @@ function useAuthRouteGate() {
     if (isOnAuth || isOnOnboarding) {
       router.replace("/");
     }
+    return undefined;
   }, [initializing, session, profileLoading, profile?.onboarded_at, segments, router]);
 }
 
