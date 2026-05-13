@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.0
+version: 1.1
 updated: 2026-05-13
 depends_on: [02_modules/assistant/spec]
 code_refs:
@@ -319,29 +319,31 @@ code_refs:
 
 Подстановка выполняется в `buildDialogSystemInstruction` → `renderPrompt(promptTemplate, { ... })` в `_legacy_web/app/api/communicator/v2/dialog/route.ts`.
 
-| Переменная | Кратко | Источник в коде |
-| --- | --- | --- |
-| `{{day_of_week}}` | День недели в локали пользователя | `formatLocalDate(now, locale).dayOfWeek`; `now = DateTime.now().setZone(userTimezone` с fallback на строку `"UTC"` при пустом значении, см. `route.ts`; `locale` из `context.user.locale` (`ru` / не-`en` → `ru`) |
-| `{{date}}` | Дата в локали пользователя | `formatLocalDate(now, locale).date` |
-| `{{time_of_day}}` | Ярлык времени суток по часу | `timeOfDayForHour(now.hour)` |
-| `{{local_hour}}` | Час 0–23 в зоне пользователя | `now.hour` |
-| `{{chakra_label}}` | Название активной чакры на русском | `chakraMeta.chakra_name_ru`, где `chakraMeta = planetMeta(planet)` |
-| `{{planet}}` | Планета дня (нормализованный ключ) | `normalizePlanet(forecast.planet_of_the_day)` из последней строки `user_daily_forecasts` (`loadContext`) |
-| `{{harmoniousness_label}}` | Метка гармоничности на русском | `harmoniousnessLabel(harmoniousnessValue)`; `harmoniousnessValue = forecastHarmoniousness(forecast)` |
-| `{{harmoniousness_value}}` | Числовая гармоничность | `Number(harmoniousnessValue.toFixed(2))` |
-| `{{harmonic_states_pool}}` | Пул «гармоничных» состояний для чакры | массив `harmonicStates` у `chakraStatesBaseline[planet]`, при отсутствии — пустой массив; `.slice(0, 12).join(", ")` |
-| `{{dissonant_states_pool}}` | Пул диссонантных состояний | то же для `dissonantStates` |
-| `{{body_zones}}` | Телесные зоны | `listOrFallback(chakraData.body_zones, "")` |
-| `{{endocrine}}` | Эндокринные железы (строка) | `listOrFallback(chakraData.endocrine, "не выделена специфическая железа")` |
-| `{{hormones}}` | Гормоны (строка) | `listOrFallback(chakraData.hormones, "")` |
-| `{{nervous_system}}` | Нервная система (строка) | `listOrFallback(chakraData.nervous_system, "")` |
-| `{{lexical_psychological}}` | Психологический лексический пул | `joinLines(chakraData.lexical_registers.psychological)` |
-| `{{lexical_somatic}}` | Соматический лексический пул | `joinLines(chakraData.lexical_registers.somatic)` |
-| `{{lexical_neurophysiological}}` | Нейрофизиологические опоры формулировок | `joinLines(chakraData.lexical_registers.neurophysiological)` |
-| `{{lexical_pragmatic}}` | Прагматичные вопросы | `joinLines(chakraData.lexical_registers.pragmatic)` |
-| `{{address_form}}` | Обращение на «ты»/«вы» | `context.user.address_form === "informal" ? "ты" : "вы"` (поле `users.address_form` из `loadContext`) |
-| `{{historical_context}}` | История прошлых дней | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется) |
-| `{{user_self_description}}` | Самоописание из портрета | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется) |
+
+| Переменная                       | Кратко                                  | Источник в коде                                                                                                                                                                                                   |
+| -------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{{day_of_week}}`                | День недели в локали пользователя       | `formatLocalDate(now, locale).dayOfWeek`; `now = DateTime.now().setZone(userTimezone` с fallback на строку `"UTC"` при пустом значении, см. `route.ts`; `locale` из `context.user.locale` (`ru` / не-`en` → `ru`) |
+| `{{date}}`                       | Дата в локали пользователя              | `formatLocalDate(now, locale).date`                                                                                                                                                                               |
+| `{{time_of_day}}`                | Ярлык времени суток по часу             | `timeOfDayForHour(now.hour)`                                                                                                                                                                                      |
+| `{{local_hour}}`                 | Час 0–23 в зоне пользователя            | `now.hour`                                                                                                                                                                                                        |
+| `{{chakra_label}}`               | Название активной чакры на русском      | `chakraMeta.chakra_name_ru`, где `chakraMeta = planetMeta(planet)`                                                                                                                                                |
+| `{{planet}}`                     | Планета дня (нормализованный ключ)      | `normalizePlanet(forecast.planet_of_the_day)` из последней строки `user_daily_forecasts` (`loadContext`)                                                                                                          |
+| `{{harmoniousness_label}}`       | Метка гармоничности на русском          | `harmoniousnessLabel(harmoniousnessValue)`; `harmoniousnessValue = forecastHarmoniousness(forecast)`                                                                                                              |
+| `{{harmoniousness_value}}`       | Числовая гармоничность                  | `Number(harmoniousnessValue.toFixed(2))`                                                                                                                                                                          |
+| `{{harmonic_states_pool}}`       | Пул «гармоничных» состояний для чакры   | массив `harmonicStates` у `chakraStatesBaseline[planet]`, при отсутствии — пустой массив; `.slice(0, 12).join(", ")`                                                                                              |
+| `{{dissonant_states_pool}}`      | Пул диссонантных состояний              | то же для `dissonantStates`                                                                                                                                                                                       |
+| `{{body_zones}}`                 | Телесные зоны                           | `listOrFallback(chakraData.body_zones, "")`                                                                                                                                                                       |
+| `{{endocrine}}`                  | Эндокринные железы (строка)             | `listOrFallback(chakraData.endocrine, "не выделена специфическая железа")`                                                                                                                                        |
+| `{{hormones}}`                   | Гормоны (строка)                        | `listOrFallback(chakraData.hormones, "")`                                                                                                                                                                         |
+| `{{nervous_system}}`             | Нервная система (строка)                | `listOrFallback(chakraData.nervous_system, "")`                                                                                                                                                                   |
+| `{{lexical_psychological}}`      | Психологический лексический пул         | `joinLines(chakraData.lexical_registers.psychological)`                                                                                                                                                           |
+| `{{lexical_somatic}}`            | Соматический лексический пул            | `joinLines(chakraData.lexical_registers.somatic)`                                                                                                                                                                 |
+| `{{lexical_neurophysiological}}` | Нейрофизиологические опоры формулировок | `joinLines(chakraData.lexical_registers.neurophysiological)`                                                                                                                                                      |
+| `{{lexical_pragmatic}}`          | Прагматичные вопросы                    | `joinLines(chakraData.lexical_registers.pragmatic)`                                                                                                                                                               |
+| `{{address_form}}`               | Обращение на «ты»/«вы»                  | `context.user.address_form === "informal" ? "ты" : "вы"` (поле `users.address_form` из `loadContext`)                                                                                                             |
+| `{{historical_context}}`         | История прошлых дней                    | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется)                                                                                                                                           |
+| `{{user_self_description}}`      | Самоописание из портрета                | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется)                                                                                                                                           |
+
 
 Здесь `chakraData = chakraStatesBaseline[planet]`, `forecast` и `context` — аргументы и замыкание `buildDialogSystemInstruction`.
 
@@ -352,3 +354,4 @@ code_refs:
 - **Список переменных и подстановки** — любое новое `{{имя}}` в шаблоне БД требует одновременной правки объекта в `renderPrompt` внутри `buildDialogSystemInstruction` в `route.ts` и строки в §3 этого файла.
 - **Поведение эскалации standard → premium** — логика ветвления в `route.ts` (маркер `[READY_FOR_RECOMMENDATION]`, `validateHistoryHasDurationAndType`); не путать с текстами `ORCHESTRATOR_INSTRUCTIONS`.
 - **Retry-текст при отсутствии `[PRACTICE_PICK]`** — инлайн-строка в `route.ts`, не входит в `ORCHESTRATOR_INSTRUCTIONS`; при правке не забыть описание в `spec.md`, при необходимости — отдельную строку в справочнике вне §2.
+
