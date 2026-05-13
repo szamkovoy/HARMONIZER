@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.3
-updated: 2026-05-13
+version: 1.4
+updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx]
 ---
 
 ## Decision Log
+
+- **2026-05-14:** После срабатывания таймаута refresh в `services/supabase.ts` RN показывал красный LogBox на `AbortError` / `AuthRetryableFetchError: Aborted` — auth-js логирует их через `console.error`, а существующий фильтр понижал только «сетевые» TypeError. Добавлены **`isLikelyAuthJsFetchAbort`** и явное понижение для **`isAuthRetryableFetchError`** в `services/supabase-auth-console-filter.ts`; transient-классификация в **`modules/auth/authNetworkErrors.ts`** расширена на abort из polyfill. **Дополнение:** детектор abort учитывает стек `@supabase/auth-js` без обязательного `fetch.umd.js` (Hermes), **`LogBox.ignoreLogs(/AbortError:\s*Aborted/i)`**, и понижение любого аргумента с `name === "AbortError"` и сообщением «Aborted» (обрезанный стек).
 
 - **2026-05-13:** Устранение краткой вспышки `/sign-in` у уже залогиненного пользователя: в `AuthProvider` **`session` и `initializing` коммитятся одним обновлением состояния** при завершении bootstrap (React 19 больше не может «разъединить» два `setState`). Если первое событие — `INITIAL_SESSION` с `session === null`, завершение bootstrap **откладывается на ~1,2 с** (`INITIAL_SESSION_NULL_DEBOUNCE_MS`): иногда SDK отдаёт пустую сессию и сразу второй колбэк с валидной. В `app/_layout.tsx` (`useAuthRouteGate`) редирект на `/sign-in` при `session === null`, если пользователь **уже имел сессию в этом JS-рантайме**, откладывается на **~0,5 с** — переживаются кратковременные `null` от refresh/SDK без показа экрана входа.
 

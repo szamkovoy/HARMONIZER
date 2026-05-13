@@ -8,7 +8,11 @@
  */
 import { LogBox, Platform } from "react-native";
 
-import { isLikelyFetchNetworkFailure } from "@/modules/auth/authNetworkErrors";
+import {
+  isLikelyAuthJsFetchAbort,
+  isLikelyFetchNetworkFailure,
+} from "@/modules/auth/authNetworkErrors";
+import { isAuthRetryableFetchError } from "@supabase/auth-js";
 
 const SUPABASE_AUTH_TICK =
   "Auto refresh tick failed with error. This is likely a transient error.";
@@ -36,7 +40,21 @@ function isBareRnFetchNetworkTypeErrorLog(args: unknown[]): boolean {
   return /fetch\.umd\.js|whatwg-fetch/i.test(st);
 }
 
+/** Сообщение DOMException/полифилла при AbortController — совпадает с таймаутом в `supabase.ts`. */
+function isBareAbortAbortedArg(arg: unknown): boolean {
+  if (arg == null || typeof arg !== "object") return false;
+  const o = arg as { name?: unknown; message?: unknown };
+  return (
+    o.name === "AbortError" &&
+    typeof o.message === "string" &&
+    /^aborted$/i.test(o.message.trim())
+  );
+}
+
 function shouldDemoteToWarn(args: unknown[]): boolean {
+  if (args.some((a) => isAuthRetryableFetchError(a))) return true;
+  if (args.some((a) => isLikelyAuthJsFetchAbort(a))) return true;
+  if (args.some((a) => isBareAbortAbortedArg(a))) return true;
   const joined = argsText(args);
   if (joined.includes(SUPABASE_AUTH_TICK)) return true;
   if (isBareRnFetchNetworkTypeErrorLog(args)) return true;
@@ -48,13 +66,18 @@ function shouldDemoteToWarn(args: unknown[]): boolean {
     joined.includes("@supabase/auth-js") ||
     /AuthRetryableFetchError|CustomAuthError/.test(joined);
   if (!fromSupabaseAuth) return false;
-  return args.some((a) => isLikelyFetchNetworkFailure(a));
+  return args.some((a) => isLikelyFetchNetworkFailure(a) || isAuthRetryableFetchError(a));
 }
 
 export function installSupabaseAuthConsoleFilter(): void {
   if (!__DEV__ || Platform.OS === "web") return;
 
-  LogBox.ignoreLogs([SUPABASE_AUTH_TICK, /Auto refresh tick failed with error/i]);
+  LogBox.ignoreLogs([
+    SUPABASE_AUTH_TICK,
+    /Auto refresh tick failed with error/i,
+    /** RN/Hermes: иногда `console.error` получает только строку вида `[AbortError: Aborted]`. */
+    /AbortError:\s*Aborted/i,
+  ]);
 
   const g = globalThis as { __harmonizerSupabaseAuthConsoleFilter?: boolean };
   if (g.__harmonizerSupabaseAuthConsoleFilter) return;
