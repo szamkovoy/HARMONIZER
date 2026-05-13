@@ -31,6 +31,7 @@ import {
   type ConversationRecord,
   type MessageRecord,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
+import { buildPracticeCardSummary } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 
 export const runtime = "nodejs";
@@ -381,7 +382,17 @@ async function resolvePracticePublic(
   if (!marker) return null;
   const { picked, markerIdResolved, chakraId, preferredDurationMin } = await choosePractice(db, userId, marker, context, userMessage, history);
   if (!picked) return null;
-  const publicPayload = await attachThumbnailToPracticeRecommendation(publicPracticePickedPayload(picked, marker.reason), 295);
+  const cardReason = buildPracticeCardSummary({
+    kind: picked.kind,
+    slug: picked.slug,
+    chakraIds: picked.chakraIds ?? [],
+    locale: context.user.locale,
+    userMessage,
+  });
+  const publicPayload = await attachThumbnailToPracticeRecommendation(
+    publicPracticePickedPayload({ ...picked, reason: null }, cardReason),
+    295,
+  );
   const overrides: { durationMin?: number | null; chakraIndex?: number } = {};
   overrides.durationMin = marker.durationMin ?? preferredDurationMin ?? null;
   overrides.chakraIndex = marker.chakra ?? chakraId;

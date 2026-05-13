@@ -1,12 +1,14 @@
 ---
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.2
-updated: 2026-05-14
+version: 1.3
+updated: 2026-05-13
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
+    modules/communicator/ui/AssistantBubble.tsx,
+    modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/ui/StreamingAssistantLines.tsx,
     services/communicator-client.ts,
     app/(tabs)/index.tsx,

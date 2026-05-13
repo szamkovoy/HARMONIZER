@@ -29,6 +29,7 @@ import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flas
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
+import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
 import {
@@ -49,7 +50,6 @@ import {
   type DialogueUseCase,
   type PracticePicked,
 } from "@/services/communicator-client";
-import type { OrchestratorDecision } from "@/services/communicator-client";
 import { useAuth } from "@/modules/auth";
 import { AppText } from "@/modules/ui/AppText";
 import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -772,6 +772,9 @@ export function Communicator({
           });
           userMessageText = transcript.text.trim();
           setPhase("idle");
+          if (isSpuriousTranscription(userMessageText)) {
+            return;
+          }
           if (userMessageText && transcript.confidence != null && transcript.confidence < LOW_TRANSCRIPTION_CONFIDENCE) {
             setPendingTranscript(userMessageText);
             setPendingTranscriptConfidence(transcript.confidence);
@@ -1328,20 +1331,6 @@ export function Communicator({
   const borderColor = theme.colors.surfaceBorder;
   const footerBg = theme.colors.surface;
 
-  const messagePhaseLabel = useCallback(
-    (message: CommunicatorHistoryMessage): string | undefined => {
-      const decisionMeta = {
-        mode: typeof message.meta?.turnMode === "string" ? message.meta.turnMode : undefined,
-        next_phase:
-          typeof (message.meta?.orchestratorDecision as OrchestratorDecision | null | undefined)?.next_phase === "string"
-            ? (message.meta?.orchestratorDecision as OrchestratorDecision).next_phase
-            : undefined,
-      } as OrchestratorDecision;
-      return strings.phaseLabelFor(decisionMeta ?? null);
-    },
-    [strings],
-  );
-
   const handlePracticeLaunch = useCallback(
     (practice: PracticePicked, configured: PracticeSummary) => {
       launchPractice(configured.launch, { launchSource: "assistant" });
@@ -1363,11 +1352,7 @@ export function Communicator({
         const m = item.message;
         return (
           <View>
-            <AssistantBubble
-              text={m.content}
-              isStreaming={false}
-              phaseLabel={messagePhaseLabel(m)}
-            />
+            <AssistantBubble text={m.content} isStreaming={false} />
             {m.meta?.practicePicked ? (() => {
               const practice = m.meta.practicePicked as PracticePicked;
               const summary = practiceToSummary(practice);
@@ -1397,15 +1382,7 @@ export function Communicator({
         </View>
       );
     },
-    [
-      handlePracticeLaunch,
-      messagePhaseLabel,
-      onStreamFullyRevealed,
-      pendingRevealGoal,
-      streamStatus,
-      strings,
-      strippedStreamTarget,
-    ],
+    [handlePracticeLaunch, onStreamFullyRevealed, pendingRevealGoal, streamStatus, strippedStreamTarget],
   );
 
   const streamAnchorIndex = streamBusy ? communicatorListData.length - 1 : -1;

@@ -1,12 +1,14 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 1.5
-updated: 2026-05-14
+version: 1.6
+updated: 2026-05-13
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
+    modules/communicator/ui/AssistantBubble.tsx,
+    modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/ui/StreamingAssistantLines.tsx,
     services/communicator-client.ts,
   ]
@@ -14,6 +16,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-13:** Убраны подписи фазы оркестратора над текстом в **`AssistantBubble`** (ранее `phaseLabel` / «первый отклик», «уточнение» и т.д.). После **`transcribeCommunicatorAudio`** добавлен отсев известных **галлюцинаций Whisper** на почти пустом аудио (`transcriptionGuard.ts` — например строки про субтитры); такие результаты не попадают в чат. Обновлены **`docs/02_modules/communicator/{spec,history,dependencies}.md`**.
 - **2026-05-14 (5):** Список диалога переведён на **`FlashList`** (`@shopify/flash-list`); стрим-ответ — **`StreamingAssistantLines`**: построчно по `\n` с **`FadeIn`** (Reanimated), до текста — **`ActivityIndicator`** вместо точек; отложенный коммит в историю по **`pendingRevealGoal`** + таймер 300 ms в компоненте (вместо удалённого **`useStreamReveal`**). **Скролл:** при старте стрима **`scrollToIndex`** с `viewPosition ≈ 0.3` (якорь верха пузыря); пока `streamBusy` — **нет** авто-`scrollToEnd` при росте контента; карточка практики остаётся в той же ячейке финального assistant-сообщения (как и раньше). Зависимость **`@shopify/flash-list@2.0.3`** в корневом `package.json`.
 - **2026-05-14 (4):** Исправление артефакта «2–3 буквы и сразу весь текст»: после успешного `runChatStream` длинный ответ **не** сразу попадает в `messages` и **не** вызывает `resetChatStream()` — сообщение держится в ref до **завершения догона отображения** (в **(5)** — совпадение stripped-текста с `pendingRevealGoal` и колбэк из `StreamingAssistantLines`; ранее использовался побуквенный **`useStreamReveal`**), плюс таймаут **60 с**. Короткие реплики (после strip, порог **14** символов) коммитятся сразу. Тот же паттерн для **`initiateDialog`**. Удалён дублирующий вызов хука в `Communicator.tsx` (нарушение порядка хуков).
 - **2026-05-14 (3):** Откат UX «пузырь с Думаю + курсор до текста» — снова **ThinkingIndicator** (точки) до первого символа ответа. В стрим-пузыре **нет** `phaseLabel`; курсор **▍** только когда уже есть текст (`AssistantBubble`). **useStreamReveal:** первые ~220 символов по **1** за тик, тик **62 ms**; дальше шаги 2–4 для длинных ответов. `sendDialogMessage` использует **`XMLHttpRequest`** с инкрементальным `responseText` и `onprogress` / `LOADING` — иначе RN **`fetch`** часто отдаёт весь SSE одним куском в конце, и побуквенный UI невозможен. **Web** по-прежнему `fetch` + `ReadableStream`. В **`Communicator`** пузырь с ответом показывается при любом непустом `stripStreamingMarkers(assistantText)`, а не только при `streamStatus === "typing"`. В **`useCommunicatorStream`** убран синхронный `setStatus("idle")` в конце успешного `run` — в `idle` переводит только **`resetChatStream()`**, чтобы последний кадр стрима не схлопывался с завершением запроса. Сохранены **`useStreamReveal`**, скролл и **`stripStreamingMarkers`** (см. также запись ниже).

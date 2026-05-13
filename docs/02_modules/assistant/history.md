@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 1.9
-updated: 2026-05-12
+version: 2.0
+updated: 2026-05-13
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
+code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-05-13:** В **`dialog/route.ts`** (`resolvePracticePublic`) текст **`reason`** в `practice_picked` для клиента формируется **`practiceCardSummary.ts`**: 1–2 предложения по правилам `kind` (йога — имена чакр из `chakraIds` + акцент на теле; медитация — общий смысл; дыхание — slug-ключи семи практик, строки ru/en в коде). Длинный `reason` из маркера `[PRACTICE_PICK]` в карточку не передаётся. Тесты: **`practiceCardSummary.test.ts`**. Обновлены **`docs/02_modules/assistant/{spec,history}.md`**, **`CHANGELOG.md`**.
 - **2026-05-12:** Логика вывода длительности и типа практики консолидирована: локальные `inferPreferredDurationSec` / `inferPreferredPracticeKind` удалены из `practiceSelection.ts`; `validateHistoryHasDurationAndType` в `markers.ts` расширен полями `durationSec: number | null` и `practiceKind: PracticeKindInferred | null` (новый экспортируемый тип `PracticeKindInferred`). `choosePractice` теперь использует единый `validateHistoryHasDurationAndType` вместо собственных инферов. Расширен набор русских фраз и числительных для распознавания.
 - **2026-05-12:** В `practiceSelection.ts` интерфейс **`ChoosePracticeResult`** расширен полями `chakraId` и `preferredDurationMin`; **`inferPreferredDurationSec`** теперь обрабатывает **всю** историю сообщений пользователя (конкатенация `history` + текущее сообщение), а не только текущий ввод. В `route.ts` объект **`overrides`** в ответе `resolvePracticePublic` теперь безусловно присутствует с fallback-цепочкой: `durationMin` = marker → inferred → null, `chakraIndex` = marker → planet_of_the_day. Удалены диагностические поля `fullTextLast200` и `hasPracticeMarker` из лога `[DIALOG_V3_DIAG]`.
 - **2026-05-12:** В `dialog/route.ts` значение **`maxOutputTokens`** для основных вызовов standard и premium моделей увеличено с 1500 до **2500** (ранее документированный пол 2048 был промежуточным); добавлены диагностические поля `fullTextLast200` и `hasPracticeMarker` в лог `[DIALOG_V3_DIAG]`.
