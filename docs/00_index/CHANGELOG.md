@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.1
+version: 2.2
 updated: 2026-05-13
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-13: pre-push doc-sync — в **`docs/00_index/MAP.md`** в точках входа модуля **`assistant`** добавлены **`dialogTonalRegisters.ts`** и миграции **`20260513223000_dialog_system_v3_polish_pack_a.sql`** / **`20260513224500_dialog_system_v3_polish_pack_a_fix.sql`** (соответствие diff кода).
 - 2026-05-13: `assistant` — **`20260513224500_dialog_system_v3_polish_pack_a_fix.sql`**: `dialog_system_v3` v3, секция отказа от практики перенесена в шаблоне; **`prompts-reference.md` v1.3**, **`spec.md`**, **`history.md`**.
 - 2026-05-13: `assistant` — пакет «А» для daily dialog v3: миграция **`supabase/migrations/20260513223000_dialog_system_v3_polish_pack_a.sql`** (новый активный `dialog_system_v3` v2), **`dialogTonalRegisters.ts`**, правки **`dialogArcOrchestrator.ts`** / **`communicator/v2/dialog/route.ts`** (`{{tonal_register}}`, подстановка плейсхолдеров в финальные инструкции, `[DIALOG_V3_DEBUG_PROMPT]`). Документация: **`docs/02_modules/assistant/{prompts-reference.md,spec,history}.md`**.
 - 2026-05-13: pre-push diff — **`markers.ts`** (`inferDurationSecFromText`, `inferKindFromText`, экспорт **`stripDialogScaffoldMarkdown`**), **`practiceCardSummary.ts`**, **`dialog/route.ts`** (yoga без **`overrides`** в payload), клиент **`Communicator.tsx`** / **`UserBubble`** / **`types.ts`** / **`communicator.ts`**. Документация: уточнены **`docs/02_modules/assistant/{spec,history}.md`**, **`docs/02_modules/communicator/{spec,history}.md`**, **`CHANGELOG.md`**.
