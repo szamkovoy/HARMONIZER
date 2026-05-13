@@ -5,6 +5,7 @@ import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
 import planetChakraMap from "@/data/planet_chakra_map.json";
 import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS } from "@legacy/app/api/_utils/dialogArcOrchestrator";
 import { getMaxDialogLength } from "@legacy/app/api/_utils/dialogConfig";
+import { tonalRegisterForPlanet } from "@legacy/app/api/_utils/dialogTonalRegisters";
 import {
   generateGeminiText,
   getModelByHint,
@@ -106,6 +107,33 @@ function planetMeta(planet: Planet): PlanetMeta {
 
 function normalizePlanet(value: unknown): Planet {
   return (typeof value === "string" && value in chakraStatesBaseline ? value : "Sun") as Planet;
+}
+
+function shouldEmitDialogV3DebugPrompt(req: Request): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  if (process.env.DEBUG_DIALOG_PROMPT === "1") return true;
+  const h = req.headers.get("x-debug-prompt");
+  if (h === "1") return true;
+  try {
+    return new URL(req.url).searchParams.get("debug") === "prompt";
+  } catch {
+    return false;
+  }
+}
+
+function expandOrchestratorInstruction(
+  instruction: string,
+  data: {
+    chakraLabel: string;
+    harmoniousnessValue: number;
+    harmoniousnessLabel: string;
+  },
+) {
+  return renderPrompt(instruction, {
+    chakra_label: data.chakraLabel,
+    harmoniousness_value: data.harmoniousnessValue,
+    harmoniousness_label: data.harmoniousnessLabel,
+  });
 }
 
 function forecastHarmoniousness(forecast: LoadedContext["forecast"]): number {
@@ -343,6 +371,7 @@ function buildDialogSystemInstruction(
         lexical_neurophysiological: joinLines(chakraData.lexical_registers.neurophysiological),
         lexical_pragmatic: joinLines(chakraData.lexical_registers.pragmatic),
         address_form: context.user.address_form === "informal" ? "ты" : "вы",
+        tonal_register: tonalRegisterForPlanet(planet),
         historical_context: "",
         user_self_description: "",
       },
@@ -543,6 +572,13 @@ export async function POST(req: Request) {
     const iteration = countAssistantTurns(history) + 1;
     const maxDialogLength = getMaxDialogLength();
     const turnDecision = decideTurnMode(history, iteration, maxDialogLength);
+    const orchestratorPlaceholders = {
+      chakraLabel: systemPromptData.chakraLabel,
+      harmoniousnessValue: systemPromptData.harmoniousnessValue,
+      harmoniousnessLabel: systemPromptData.harmoniousnessLabel,
+    };
+    const expandedTurnInstruction = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
+    const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
 
     console.log("[DIALOG_V3_DIAG]", JSON.stringify({
@@ -586,8 +622,15 @@ export async function POST(req: Request) {
           const standardModel = getModelByHint("standard");
           const premiumModel = getModelByHint("premium");
           const requestedModel = turnDecision.modelTier === "premium" ? premiumModel : standardModel;
-          const initialInstruction: GeminiContent = { role: "user", parts: [{ text: turnDecision.instruction }] };
+          const initialInstruction: GeminiContent = { role: "user", parts: [{ text: expandedTurnInstruction }] };
           const initialContents = [...prefixContents, initialInstruction];
+
+          if (emitDebugPromptLog) {
+            console.log("[DIALOG_V3_DEBUG_PROMPT]", JSON.stringify({
+              systemInstruction: systemPromptData.systemInstruction,
+              contents: initialContents,
+            }));
+          }
 
           let fullText = "";
           let modelIdUsed = requestedModel;
@@ -630,9 +673,12 @@ export async function POST(req: Request) {
             } else {
               readyMarkerTriggered = true;
               validation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
-              const finalInstructionText = validation.confident
-                ? ORCHESTRATOR_INSTRUCTIONS.final_recommendation
-                : ORCHESTRATOR_INSTRUCTIONS.final_recommendation_with_validation_warning;
+              const finalInstructionText = expandOrchestratorInstruction(
+                validation.confident
+                  ? ORCHESTRATOR_INSTRUCTIONS.final_recommendation
+                  : ORCHESTRATOR_INSTRUCTIONS.final_recommendation_with_validation_warning,
+                orchestratorPlaceholders,
+              );
               responseMode = validation.confident ? "final_recommendation" : "final_recommendation_with_validation_warning";
               modelTierUsed = "premium";
               const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
