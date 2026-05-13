@@ -4,12 +4,14 @@
 
 title: Documentation Changelog
 version: 2.0
-updated: 2026-05-12
+updated: 2026-05-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-14: `communicator` — `FlashList` для истории, построчный стрим с Reanimated (`StreamingAssistantLines`), якорный `scrollToIndex` при старте ответа, без автоскролла в конец пока `streamBusy`; удалён `useStreamReveal`. Код: **`Communicator.tsx`**, **`StreamingAssistantLines.tsx`**, **`package.json`**. Обновлены **`docs/02_modules/communicator/{spec,history,dependencies}.md`**.
+- 2026-05-13: `communicator` — SSE диалога на native через `XMLHttpRequest` (инкрементальный поток вместо буферизующего `fetch`); UI стрима и `useCommunicatorStream`/`Communicator` доработаны для побуквенного отображения. Обновлены **`docs/02_modules/communicator/{spec,history,dependencies}.md`**.
 - 2026-05-12: Cold start `AuthProvider` упрощён — удалён параллельный `getSession()` / `resolveInitialSession()`; единственный источник сессии — `onAuthStateChange`; в `services/supabase.ts` добавлен 15 с abort для auth token refresh. Обновлены **`docs/02_modules/profile/{spec,history}.md`**.
 - 2026-05-12: `loadOpportunityWindowsExplanation` разделён на free/paid пути — free получает упрощённый текст без транзитной планеты и точного аспекта. Обновлены **`docs/02_modules/daily_forecast/{spec,history}.md`**.
 - 2026-05-12: doc-sync дополнение: `daily_forecast/spec.md` дополнен описанием `opportunityWindowsExplanation.ts` и трёхуровневой валидации (`isBaseForecastValid`/`isDayContentReadyForHome`/`isDayContentComplete`), `daily_forecast/history.md` — запись о help-модале; `profile/{spec,history}.md` — таймаут `fetchProfile` 10 с; `astro/{spec,history}.md` — bump frontmatter.

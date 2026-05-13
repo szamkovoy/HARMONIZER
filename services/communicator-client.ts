@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { getAiDialogUrl, getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 import type { PracticeRecommendation } from "@/modules/practices";
@@ -204,6 +206,159 @@ function handleSseEvent(
   }
 }
 
+function buildDialogPostBody(params: SendDialogMessageParams): Record<string, unknown> {
+  return {
+    scenario_id: params.scenarioId,
+    conversationId: params.conversationId,
+    useCase: params.useCase,
+    entrySource: params.entrySource,
+    triggerMeta: params.triggerMeta ?? {},
+    userMessage: params.initiateDialog ? undefined : params.userMessage,
+    userTimezone: params.userTimezone,
+    ...(params.initiateDialog ? { initiateDialog: true } : {}),
+  };
+}
+
+function readErrorFromXhr(xhr: XMLHttpRequest): Error {
+  const ct = xhr.getResponseHeader("content-type") ?? "";
+  const text = xhr.responseText ?? "";
+  if (ct.includes("application/json")) {
+    try {
+      const data = JSON.parse(text) as { error?: string } | null;
+      return new Error(data?.error ?? `HTTP ${xhr.status}`);
+    } catch {
+      /* fall through */
+    }
+  }
+  if (text.includes("DEPLOYMENT_NOT_FOUND")) {
+    return new Error(
+      `Vercel deployment is not available for EXPO_PUBLIC_COMMUNICATOR_API_URL (${xhr.status}). Обновите backend origin или запустите локальный _legacy_web API.`,
+    );
+  }
+  const looksLikeHtml = text.trimStart().startsWith("<!") || /<html[\s>]/i.test(text);
+  if (looksLikeHtml) {
+    return new Error(`Сервер вернул HTML вместо API (${xhr.status}). Проверьте EXPO_PUBLIC_COMMUNICATOR_API_URL.`);
+  }
+  return new Error(text.slice(0, 280) || `HTTP ${xhr.status}`);
+}
+
+/**
+ * React Native `fetch` often buffers the whole SSE body until the stream closes.
+ * `XMLHttpRequest` exposes `responseText` incrementally on iOS/Android so chunk
+ * callbacks fire while the model is still generating.
+ */
+function readSseResponseWithXHR(
+  url: string,
+  token: string,
+  params: SendDialogMessageParams,
+): Promise<SendDialogMessageResult> {
+  const state: SendDialogMessageResult = { decision: null, fullText: "", complete: null };
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let carry = "";
+    let seen = 0;
+    let settled = false;
+
+    const cleanup = () => {
+      params.signal?.removeEventListener("abort", onAbort);
+    };
+
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    const clearPoll = () => {
+      if (pollId != null) {
+        clearInterval(pollId);
+        pollId = null;
+      }
+    };
+
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearPoll();
+      cleanup();
+      fn();
+    };
+
+    const drain = () => {
+      const rt = xhr.responseText;
+      if (rt.length <= seen) return;
+      carry += rt.slice(seen);
+      seen = rt.length;
+      const blocks = carry.split(/\r?\n\r?\n/);
+      carry = blocks.pop() ?? "";
+      for (const block of blocks) {
+        const ev = parseSseBlock(block);
+        if (ev) handleSseEvent(ev, params, state);
+      }
+    };
+
+    const onAbort = () => {
+      try {
+        xhr.abort();
+      } catch {
+        /* ignore */
+      }
+    };
+    params.signal?.addEventListener("abort", onAbort);
+
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Accept", "text/event-stream");
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    xhr.onprogress = () => {
+      if (xhr.status >= 200 && xhr.status < 300) drain();
+    };
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === XMLHttpRequest.LOADING && xhr.status >= 200 && xhr.status < 300) {
+        drain();
+      }
+    };
+
+    xhr.onload = () => {
+      if (params.signal?.aborted) {
+        settle(() => reject(Object.assign(new Error("Aborted"), { name: "AbortError" })));
+        return;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        settle(() => reject(readErrorFromXhr(xhr)));
+        return;
+      }
+      settle(() => {
+        drain();
+        const last = parseSseBlock(carry);
+        if (last) handleSseEvent(last, params, state);
+        carry = "";
+        resolve(state);
+      });
+    };
+
+    xhr.onerror = () => {
+      settle(() => reject(networkError(url, new Error("Network request failed"))));
+    };
+
+    xhr.onabort = () => {
+      settle(() => reject(Object.assign(new Error("Aborted"), { name: "AbortError" })));
+    };
+
+    try {
+      xhr.send(JSON.stringify(buildDialogPostBody(params)));
+      // iOS often omits `onprogress` for long-poll SSE; poll `responseText` growth.
+      pollId = setInterval(() => {
+        if (settled) return;
+        if (xhr.readyState < XMLHttpRequest.LOADING) return;
+        if (xhr.status && (xhr.status < 200 || xhr.status >= 300)) return;
+        drain();
+      }, 24);
+    } catch (e) {
+      clearPoll();
+      settle(() => reject(networkError(url, e)));
+    }
+  });
+}
+
 async function readSseResponse(res: Response, params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
   const state: SendDialogMessageResult = { decision: null, fullText: "", complete: null };
 
@@ -249,6 +404,11 @@ async function readSseResponse(res: Response, params: SendDialogMessageParams): 
 export async function sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
   const token = await getAccessToken();
   const url = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
+
+  if (Platform.OS !== "web") {
+    return readSseResponseWithXHR(url, token, params);
+  }
+
   let res: Response;
   try {
     res = await fetch(url, {
@@ -257,16 +417,7 @@ export async function sendDialogMessage(params: SendDialogMessageParams): Promis
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        scenario_id: params.scenarioId,
-        conversationId: params.conversationId,
-        useCase: params.useCase,
-        entrySource: params.entrySource,
-        triggerMeta: params.triggerMeta ?? {},
-        userMessage: params.initiateDialog ? undefined : params.userMessage,
-        userTimezone: params.userTimezone,
-        ...(params.initiateDialog ? { initiateDialog: true } : {}),
-      }),
+      body: JSON.stringify(buildDialogPostBody(params)),
       signal: params.signal,
     });
   } catch (error) {

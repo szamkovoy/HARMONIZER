@@ -2,11 +2,12 @@
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
 version: 1.2
-updated: 2026-05-11
+updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
+    modules/communicator/ui/StreamingAssistantLines.tsx,
     services/communicator-client.ts,
     app/(tabs)/index.tsx,
     app/calibration.tsx,
@@ -16,11 +17,8 @@ code_refs:
 
 ## 1. Зависит от
 
-- **`assistant`** (контракт API, не импорт модулей)  
-  `services/communicator-client.ts` — POST диалога и SSE (`sendDialogMessage`), GET сессии (`fetchDialogSession`). Поведение эндпоинтов и формат событий описаны в `docs/02_modules/assistant/`.
-
 - **`infra`**  
-  `requireSupabase()` для Bearer JWT; `services/communicatorConfig.ts` — базовый URL (`EXPO_PUBLIC_COMMUNICATOR_API_URL`), сбор путей `/api/communicator/v2/dialog`, `/api/communicator/v2/transcribe`, `/api/ai/dialog` и др.
+  `requireSupabase()` для Bearer JWT; `services/communicatorConfig.ts` — базовый URL (`EXPO_PUBLIC_COMMUNICATOR_API_URL`), сбор путей `/api/communicator/v2/dialog`, `/api/communicator/v2/transcribe`, `/api/ai/dialog` и др. В корневом **`package.json`** клиента — **`@shopify/flash-list`** для списка сообщений в `Communicator.tsx` (виртуализация, `scrollToIndex` к якорю стрима).
 
 - **`profile`** (через auth)  
   `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`), не для гейтинга функций.
@@ -52,3 +50,4 @@ code_refs:
 - **`PracticePicked`** — расширение/сужение полей на сервере ломает адаптер `PracticePicked → PracticeSummary` и параметры `launchPractice` (маршруты, slug vs id, chakra/duration override).
 - **`triggerMeta.systemPrompt`** — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - **`fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.
+- **Транспорт SSE на native** — `sendDialogMessage` не использует `fetch` для тела диалога на iOS/Android (часто буферизует весь ответ до конца); там **`XMLHttpRequest`**. Парсер блоков (`parseSseBlock` / `handleSseEvent`) общий с web.

@@ -2,11 +2,12 @@
 id: 02_modules/communicator/spec
 title: Communicator Spec
 version: 1.5
-updated: 2026-05-12
+updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
+    modules/communicator/ui/StreamingAssistantLines.tsx,
     modules/communicator/api/communicator-stream.ts,
     modules/communicator/ui/useCommunicatorStream.ts,
     modules/practices/ui/PracticeCard.tsx,
@@ -66,7 +67,7 @@ code_refs:
 
 Экспортируемые функции и типы, с которыми работают UI и другие экраны:
 
-- `sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult>` — POST с телом JSON, ответ читается как **SSE** (см. ниже).
+- `sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult>` — POST с телом JSON, ответ читается как **SSE**: на **web** — `fetch` + потоковое чтение `body`, на **iOS/Android** — **`XMLHttpRequest`** с инкрементальным `responseText` (иначе RN часто отдаёт весь поток одним куском в конце).
 - `fetchDialogSession({ useCase, entrySource, scenarioId?, signal? })` — GET синхронизации сессии; при ошибке «нет эндпоинта» для старых серверов возвращается пустая сессия с `reset: true`.
 - `transcribeCommunicatorAudio(req)` — POST на `/api/communicator/v2/transcribe` (тело `{ audio: { mimeType, base64 }, language }`).
 - `extractCalibration(req)` — используется экраном калибровки, не `Communicator.tsx`.
@@ -79,7 +80,8 @@ code_refs:
 
 1. **Жизненный цикл сессии** — `Communicator` монтируется → `fetchDialogSession` подтягивает `conversationId` и сообщения с сервера (или подставляет `history` из пропсов); при восстановлении истории фильтруются assistant-сообщения с пустым `content` (защита от серверных артефактов) → пользователь вводит текст или записывает голос.
 2. **Голос** — `expo-av` `Audio.Recording` с пресетами из `core/whisperRecording.ts` (16 kHz mono AAC как основной путь, fallback 44.1 kHz) → файл читается как base64 → **`transcribeCommunicatorAudio`** → текст попадает в тот же путь, что и ручной ввод. При низкой уверенности распознавания показывается экран правки текста (`pendingTranscript`).
-3. **Стрим ответа** — `runCommunicatorStream` → `sendDialogMessage` парсит SSE-блоки (`parseSseBlock`) и для событий `orchestrator_decision`, `chunk`, `complete` обновляет состояние. После перехода на dialog v3 статус остаётся **thinking** до первого видимого текста; пустой assistant bubble больше не появляется только из-за раннего `orchestrator_decision`. После завершения текст сообщения ассистента берётся как **более длинный** из пары «агрегат по `chunk`» и `complete.fullText`; при полном отсутствии текста подставляется `emptyAssistantReplyFallback` из i18n.
+3. **Стрим ответа** — `runCommunicatorStream` → `sendDialogMessage` парсит SSE-блоки (`parseSseBlock`) и для событий `orchestrator_decision`, `chunk`, `complete` обновляет состояние. На нативных платформах чанки чаще приходят по мере генерации (**XHR** + polling `responseText`). Список сообщений — **`@shopify/flash-list` (`FlashList`)**; активный стрим — последняя строка данных `kind: "stream"`. Пока текста нет — в пузыре **`ActivityIndicator`**; с первого символа после `stripStreamingMarkers` — **`StreamingAssistantLines`**: строки по `\n` с лёгким **`FadeIn`** (`react-native-reanimated`), последний незавершённый сегмент обновляется по мере чанков; курсор **▍** при `streamStatus === "typing"` и непустом хвосте. **Добавление финального сообщения в `messages` и `resetChatStream()` откладываются** до совпадения stripped-текста с целевой строкой (`pendingRevealGoal`) + короткая задержка в компоненте, иначе карточка практики и финальный пузырь «съедали» бы анимацию. Очень короткие ответы (порог после `stripStreamingMarkers`) коммитятся сразу; таймаут принудительного коммита **60 с**. При `complete` итог — `complete.fullText` (sanitized); иначе агрегат SSE после `stripStreamingMarkers`; пусто — `emptyAssistantReplyFallback`.
+   **Скролл:** при старте стрима выполняется **`scrollToIndex`** к строке стрима с `viewPosition ≈ 0.3`, чтобы верх пузыря оказался в верхней трети вьюпорта («статичный якорь»). Пока `streamBusy`, **автоскролл в конец при росте контента отключён** (пользователь читает без «погони» за низом). Вне стрима при росте контента и если пользователь не ушёл вверх — как раньше догон вниз через `onContentSizeChange` + `scrollToEnd`; кнопка «Scroll Down» при ручном скролле вверх.
 4. **Карточка практики** — `Communicator` рендерит общий `modules/practices/ui/PracticeCard.tsx`, переводя серверный `PracticePicked` в `PracticeSummary`. Для breath/meditation пользователь может переопределить duration/chakra перед запуском; затем вызывается `launchPractice(..., { launchSource: 'assistant' })`.
 5. **Dev export** — в `__DEV__` показывается кнопка `Export dialog to JSON`, которая собирает `day_context` из `triggerMeta` и метаданные сообщений (`turnMode`, `modelTier`, `validation`, `insightMetrics`) и отдаёт их через RN `Share`.
 

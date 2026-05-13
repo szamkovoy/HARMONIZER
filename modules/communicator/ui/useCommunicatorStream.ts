@@ -64,7 +64,6 @@ export function useCommunicatorStream(options?: { onError?: (err: Error) => void
         setDecision(result.decision);
         setComplete(result.complete);
         setModelUsed(result.modelUsed ?? result.complete?.modelUsed);
-        setStatus("idle");
         return result;
       } catch (e: unknown) {
         const aborted =

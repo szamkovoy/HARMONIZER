@@ -21,11 +21,11 @@ import {
   Platform,
   Pressable,
   Share,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
+import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
@@ -59,9 +59,9 @@ import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { PracticeCard as SharedPracticeCard } from "@/modules/practices/ui/PracticeCard";
 
 import { AssistantBubble } from "./AssistantBubble";
-import { DecodingDots } from "./DecodingDots";
 import { ModeToggle } from "./ModeToggle";
 import { ScrollDownHint } from "./ScrollDownHint";
+import { StreamingAssistantLines } from "./StreamingAssistantLines";
 import { UserBubble } from "./UserBubble";
 import { useCommunicatorStream } from "./useCommunicatorStream";
 
@@ -89,6 +89,36 @@ function newMessageId(): string {
   return `m-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+type PendingAssistantCommit =
+  | { mode: "append"; message: CommunicatorHistoryMessage }
+  | { mode: "replaceInitiate"; message: CommunicatorHistoryMessage };
+
+type CommunicatorListRow =
+  | { kind: "user"; id: string; message: CommunicatorHistoryMessage }
+  | { kind: "assistant"; id: string; message: CommunicatorHistoryMessage }
+  | { kind: "stream"; id: "__stream__" };
+
+/** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
+const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
+
+const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION):[^\]]*\]/gi;
+const READY_MARKER_RE = /\[\s*ready_for_recommendation\s*\]/gi;
+const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
+
+/**
+ * Strip LLM-internal markers from partially-streamed text so the user
+ * never sees raw `[PRACTICE_PICK: ...]` etc. in the chat bubble.
+ * Also handles an incomplete trailing marker that hasn't closed yet.
+ */
+function stripStreamingMarkers(text: string): string {
+  return text
+    .replace(MARKER_RE, "")
+    .replace(READY_MARKER_RE, "")
+    .replace(TRAILING_OPEN_MARKER_RE, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
 /**
  * Итоговый текст: `complete.fullText` приходит уже sanitized (без маркеров),
  * поэтому он авторитетнее агрегата SSE-чанков (raw, содержит маркеры).
@@ -97,7 +127,7 @@ function newMessageId(): string {
 function resolveAssistantReplyText(streamed: string, completeFullText: string | undefined): string {
   const fin = (completeFullText ?? "").trim();
   if (fin) return fin;
-  return (streamed ?? "").trim();
+  return stripStreamingMarkers((streamed ?? "").trim());
 }
 
 function ensureIds(
@@ -332,46 +362,6 @@ type Phase = "idle" | "arming" | "recording" | "transcribing" | "error";
 const MIN_VOICE_MS = 450;
 const LOW_TRANSCRIPTION_CONFIDENCE = 0.65;
 
-function getTurnUserAnchorIndex(
-  list: CommunicatorHistoryMessage[],
-): number | null {
-  const n = list.length;
-  if (n < 1) return null;
-  if (list[n - 1].role === "assistant" && n >= 2 && list[n - 2].role === "user") {
-    return n - 2;
-  }
-  if (list[n - 1].role === "user") return n - 1;
-  return null;
-}
-
-function getTurnAssistantAnchorIndex(
-  list: CommunicatorHistoryMessage[],
-): number | null {
-  const n = list.length;
-  if (n < 1) return null;
-  if (list[n - 1].role === "assistant") return n - 1;
-  return null;
-}
-
-function ThinkingIndicator() {
-  const theme = useTheme();
-  return (
-    <View style={styles.assistantStatusRow}>
-      <View
-        style={[
-          styles.assistantStatusBubble,
-          {
-            backgroundColor: theme.colors.surfaceElevated,
-            borderColor: theme.colors.surfaceBorder,
-          },
-        ]}
-      >
-        <DecodingDots />
-      </View>
-    </View>
-  );
-}
-
 function isGeminiJsonError(error: Error): boolean {
   return /Gemini response is not valid JSON/i.test(error.message);
 }
@@ -486,6 +476,7 @@ export function Communicator({
   }, [resolved.uiMode]);
 
   const [messages, setMessages] = useState<CommunicatorHistoryMessage[]>([]);
+  const [pendingRevealGoal, setPendingRevealGoal] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId ?? null);
@@ -567,17 +558,17 @@ export function Communicator({
     };
   }, [phase, voiceLevel]);
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<FlashListRef<CommunicatorListRow> | null>(null);
   const [scrollViewH, setScrollViewH] = useState(0);
   const [contentH, setContentH] = useState(0);
   const [scrollY, setScrollY] = useState(0);
-  const [anchorY, setAnchorY] = useState<number | null>(null);
-  const [tailBottom, setTailBottom] = useState<number | null>(null);
 
   const programmaticScrollRef = useRef(false);
   const scrollHintDismissedRef = useRef(true);
   const streamScrollUserAdjustedRef = useRef(false);
   const prevStreamBusyRef = useRef(false);
+  const prevContentHRef = useRef(0);
+  const userHasScrolledUpRef = useRef(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const sessionState: CommunicatorSessionState = useMemo(() => {
@@ -648,49 +639,30 @@ export function Communicator({
     setShowScrollDown(gap > 56);
   }, [contentH, scrollY, scrollViewH]);
 
-  const alignTurnAnchorToTop = useCallback(() => {
-    if (anchorY == null || !scrollRef.current) return;
-    programmaticScrollRef.current = true;
-    const maxScroll = Math.max(0, contentH - scrollViewH);
-    let target = anchorY;
-    if (tailBottom != null && scrollViewH > 0) {
-      const bottomAlign = tailBottom - scrollViewH;
-      if (bottomAlign > 0) {
-        target = Math.min(anchorY, bottomAlign);
-      }
-    }
-    target = Math.min(Math.max(0, target), maxScroll);
-    scrollRef.current.scrollTo({ y: target, animated: false });
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        programmaticScrollRef.current = false;
-        updateScrollDownFlag();
-      });
-    });
-  }, [anchorY, contentH, scrollViewH, tailBottom, updateScrollDownFlag]);
+  const streamBusyRef = useRef(false);
+  useEffect(() => {
+    streamBusyRef.current = streamBusy;
+  }, [streamBusy]);
 
   useLayoutEffect(() => {
     const prev = prevStreamBusyRef.current;
     if (streamBusy && !prev) {
+      userHasScrolledUpRef.current = false;
       scrollHintDismissedRef.current = false;
       streamScrollUserAdjustedRef.current = false;
     }
-    if (prev && !streamBusy) {
-      requestAnimationFrame(() => alignTurnAnchorToTop());
-    }
     prevStreamBusyRef.current = streamBusy;
-  }, [streamBusy, messages, alignTurnAnchorToTop]);
+  }, [streamBusy]);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = e.nativeEvent.contentOffset.y;
       setScrollY(y);
       if (!programmaticScrollRef.current) {
+        const gap = contentH - y - scrollViewH;
+        userHasScrolledUpRef.current = gap > 80;
         scrollHintDismissedRef.current = true;
         if (streamBusy) streamScrollUserAdjustedRef.current = true;
-      }
-      if (!programmaticScrollRef.current) {
-        const gap = contentH - y - scrollViewH;
         if (scrollHintDismissedRef.current) {
           setShowScrollDown(false);
         } else {
@@ -703,26 +675,82 @@ export function Communicator({
 
   useEffect(() => {
     if (!streamBusy) return;
-    requestAnimationFrame(() => {
-      if (!streamScrollUserAdjustedRef.current) {
-        alignTurnAnchorToTop();
-      } else {
-        updateScrollDownFlag();
-      }
-    });
+    if (streamScrollUserAdjustedRef.current) {
+      updateScrollDownFlag();
+    }
   }, [
     assistantText,
     streamBusy,
-    alignTurnAnchorToTop,
     updateScrollDownFlag,
   ]);
 
   const scrollToBottom = useCallback(() => {
-    const maxScroll = Math.max(0, contentH - scrollViewH);
-    scrollRef.current?.scrollTo({ y: maxScroll, animated: true });
+    userHasScrolledUpRef.current = false;
+    scrollRef.current?.scrollToEnd({ animated: true });
     scrollHintDismissedRef.current = true;
     setShowScrollDown(false);
-  }, [contentH, scrollViewH]);
+  }, []);
+
+  const pendingAssistantCommitRef = useRef<PendingAssistantCommit | null>(null);
+  const deferredRevealForceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDeferredRevealForceTimer = useCallback(() => {
+    if (deferredRevealForceTimerRef.current != null) {
+      clearTimeout(deferredRevealForceTimerRef.current);
+      deferredRevealForceTimerRef.current = null;
+    }
+  }, []);
+
+  const flushPendingAssistantCommit = useCallback(() => {
+    const p = pendingAssistantCommitRef.current;
+    pendingAssistantCommitRef.current = null;
+    clearDeferredRevealForceTimer();
+    setPendingRevealGoal(null);
+    if (!p) return;
+    if (p.mode === "append") {
+      setMessages((prev) => [...prev, p.message]);
+    } else {
+      setMessages([p.message]);
+    }
+    onMessage?.(p.message);
+    resetChatStream();
+  }, [clearDeferredRevealForceTimer, onMessage, resetChatStream]);
+
+  const scheduleDeferredAssistantCommit = useCallback(
+    (p: PendingAssistantCommit) => {
+      setPendingRevealGoal(stripStreamingMarkers(p.message.content));
+      pendingAssistantCommitRef.current = p;
+      clearDeferredRevealForceTimer();
+      deferredRevealForceTimerRef.current = setTimeout(() => {
+        deferredRevealForceTimerRef.current = null;
+        flushPendingAssistantCommit();
+      }, 60_000);
+    },
+    [clearDeferredRevealForceTimer, flushPendingAssistantCommit],
+  );
+
+  const onStreamFullyRevealed = useCallback(() => {
+    if (!pendingAssistantCommitRef.current) return;
+    flushPendingAssistantCommit();
+  }, [flushPendingAssistantCommit]);
+
+  const strippedStreamTarget = useMemo(
+    () => stripStreamingMarkers(assistantText),
+    [assistantText],
+  );
+
+  const communicatorListData = useMemo((): CommunicatorListRow[] => {
+    const rows: CommunicatorListRow[] = [];
+    for (const m of messages) {
+      rows.push(
+        m.role === "user"
+          ? { kind: "user", id: m.id, message: m }
+          : { kind: "assistant", id: m.id, message: m },
+      );
+    }
+    if (streamBusy) rows.push({ kind: "stream", id: "__stream__" });
+    return rows;
+  }, [messages, streamBusy]);
 
   const runStream = useCallback(
     async (input: { type: "text"; text: string } | { type: "audio"; uri: string }) => {
@@ -753,6 +781,11 @@ export function Communicator({
 
         if (!userMessageText) return;
 
+        if (pendingAssistantCommitRef.current) {
+          flushPendingAssistantCommit();
+        }
+
+        userHasScrolledUpRef.current = false;
         const userMessage: CommunicatorHistoryMessage = {
           id: newMessageId(),
           role: "user",
@@ -802,9 +835,17 @@ export function Communicator({
             recommendationCorrected: complete?.recommendationCorrected,
           },
         };
-        setMessages((prev) => [...prev, assistant]);
-        onMessage?.(assistant);
-        resetChatStream();
+        const textForLen =
+          mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback;
+        const strippedLen = stripStreamingMarkers(textForLen).length;
+        if (strippedLen <= SHORT_ASSISTANT_DEFER_THRESHOLD) {
+          setPendingRevealGoal(null);
+          setMessages((prev) => [...prev, assistant]);
+          onMessage?.(assistant);
+          resetChatStream();
+        } else {
+          scheduleDeferredAssistantCommit({ mode: "append", message: assistant });
+        }
       } catch (e) {
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
@@ -820,6 +861,7 @@ export function Communicator({
           };
           setMessages((prev) => [...prev, fallback]);
           onMessage?.(fallback);
+          setPendingRevealGoal(null);
           resetChatStream();
           return;
         }
@@ -829,11 +871,12 @@ export function Communicator({
     [
       activeConversationId,
       entrySource,
+      flushPendingAssistantCommit,
       onMessage,
-      onPracticePicked,
       reportError,
       resetChatStream,
       runChatStream,
+      scheduleDeferredAssistantCommit,
       systemPrompt,
       triggerMeta,
       useCase,
@@ -844,9 +887,14 @@ export function Communicator({
 
   const abortRequest = useCallback(() => {
     abortChatStream();
-    resetChatStream();
+    if (pendingAssistantCommitRef.current) {
+      flushPendingAssistantCommit();
+    } else {
+      setPendingRevealGoal(null);
+      resetChatStream();
+    }
     onAbort?.();
-  }, [abortChatStream, onAbort, resetChatStream]);
+  }, [abortChatStream, flushPendingAssistantCommit, onAbort, resetChatStream]);
 
   /**
    * Initiate dialog: when the session is new (empty), request the
@@ -900,9 +948,17 @@ export function Communicator({
             recommendationCorrected: complete?.recommendationCorrected,
           },
         };
-        setMessages([assistant]);
-        onMessage?.(assistant);
-        resetChatStream();
+        const textForLen =
+          mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback;
+        const strippedLen = stripStreamingMarkers(textForLen).length;
+        if (strippedLen <= SHORT_ASSISTANT_DEFER_THRESHOLD) {
+          setPendingRevealGoal(null);
+          setMessages([assistant]);
+          onMessage?.(assistant);
+          resetChatStream();
+        } else {
+          scheduleDeferredAssistantCommit({ mode: "replaceInitiate", message: assistant });
+        }
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
         reportError(err);
@@ -920,6 +976,7 @@ export function Communicator({
     reportError,
     resetChatStream,
     runChatStream,
+    scheduleDeferredAssistantCommit,
     systemPrompt,
     triggerMeta,
     useCase,
@@ -1245,25 +1302,24 @@ export function Communicator({
 
   const micShowsBusyAsset = isBusy && phase !== "recording" && phase !== "arming";
 
-  const turnUserAnchorIdx = streamBusy ? null : getTurnUserAnchorIndex(messages);
-  const turnAssistantIdx = streamBusy ? null : getTurnAssistantAnchorIndex(messages);
-
-  const onAnchorLayout = useCallback((e: LayoutChangeEvent) => {
-    setAnchorY(e.nativeEvent.layout.y);
-  }, []);
-
-  const onTailLayout = useCallback((e: LayoutChangeEvent) => {
-    const { y, height } = e.nativeEvent.layout;
-    setTailBottom(y + height);
-  }, []);
-
   const onScrollViewLayout = useCallback((e: LayoutChangeEvent) => {
     setScrollViewH(e.nativeEvent.layout.height);
   }, []);
 
   const onContentSizeChange = useCallback(
     (_w: number, h: number) => {
+      const prevH = prevContentHRef.current;
+      prevContentHRef.current = h;
       setContentH(h);
+
+      if (!streamBusyRef.current && !userHasScrolledUpRef.current && h > prevH) {
+        programmaticScrollRef.current = true;
+        scrollRef.current?.scrollToEnd({ animated: false });
+        requestAnimationFrame(() => {
+          programmaticScrollRef.current = false;
+        });
+      }
+
       updateScrollDownFlag();
     },
     [updateScrollDownFlag],
@@ -1271,13 +1327,6 @@ export function Communicator({
 
   const borderColor = theme.colors.surfaceBorder;
   const footerBg = theme.colors.surface;
-  const currentPhaseLabel = strings.phaseLabelFor(decision);
-  const pendingStatus =
-    streamStatus === "thinking"
-      ? strings.thinkingStatus
-      : streamStatus === "typing"
-        ? strings.typingStatus(currentPhaseLabel)
-        : undefined;
 
   const messagePhaseLabel = useCallback(
     (message: CommunicatorHistoryMessage): string | undefined => {
@@ -1300,6 +1349,86 @@ export function Communicator({
     },
     [onPracticePicked],
   );
+
+  const renderCommunicatorItem = useCallback<ListRenderItem<CommunicatorListRow>>(
+    ({ item }) => {
+      if (item.kind === "user") {
+        return (
+          <View>
+            <UserBubble text={item.message.content} isStreaming={false} strings={strings} />
+          </View>
+        );
+      }
+      if (item.kind === "assistant") {
+        const m = item.message;
+        return (
+          <View>
+            <AssistantBubble
+              text={m.content}
+              isStreaming={false}
+              phaseLabel={messagePhaseLabel(m)}
+            />
+            {m.meta?.practicePicked ? (() => {
+              const practice = m.meta.practicePicked as PracticePicked;
+              const summary = practiceToSummary(practice);
+              const overrides = (practice as PracticePicked & { overrides?: { durationMin?: number; chakraIndex?: number } }).overrides;
+              return summary ? (
+                <View style={styles.practiceCardWrap}>
+                  <SharedPracticeCard
+                    practice={summary}
+                    onLaunch={(configured) => handlePracticeLaunch(practice, configured)}
+                    overrideDurationMinutes={overrides?.durationMin}
+                    overrideChakraIndex={overrides?.chakraIndex}
+                  />
+                </View>
+              ) : null;
+            })() : null}
+          </View>
+        );
+      }
+      return (
+        <View>
+          <StreamingAssistantLines
+            stripTarget={strippedStreamTarget}
+            isStreamingTyping={streamStatus === "typing"}
+            revealGoal={pendingRevealGoal}
+            onRevealComplete={onStreamFullyRevealed}
+          />
+        </View>
+      );
+    },
+    [
+      handlePracticeLaunch,
+      messagePhaseLabel,
+      onStreamFullyRevealed,
+      pendingRevealGoal,
+      streamStatus,
+      strings,
+      strippedStreamTarget,
+    ],
+  );
+
+  const streamAnchorIndex = streamBusy ? communicatorListData.length - 1 : -1;
+
+  useLayoutEffect(() => {
+    if (streamAnchorIndex < 0) return;
+    const row = communicatorListData[streamAnchorIndex];
+    if (!row || row.kind !== "stream") return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        try {
+          scrollRef.current?.scrollToIndex({
+            index: streamAnchorIndex,
+            animated: true,
+            viewPosition: 0.3,
+          });
+        } catch {
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [communicatorListData, streamAnchorIndex, streamBusy, messages.length]);
 
   const exportDialogJson = useCallback(async () => {
     const forecastDate = typeof triggerMeta?.forecastDate === "string" ? triggerMeta.forecastDate : new Date().toISOString().slice(0, 10);
@@ -1356,8 +1485,18 @@ export function Communicator({
       keyboardVerticalOffset={insets.bottom + 8}
     >
       <View style={styles.flex}>
-        <ScrollView
+        <FlashList
           ref={scrollRef}
+          data={communicatorListData}
+          renderItem={renderCommunicatorItem}
+          keyExtractor={(item) => (item.kind === "stream" ? "__stream__" : item.id)}
+          getItemType={(item) => item.kind}
+          drawDistance={280}
+          extraData={{
+            strip: strippedStreamTarget,
+            typing: streamStatus,
+            goal: pendingRevealGoal,
+          }}
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
@@ -1368,66 +1507,7 @@ export function Communicator({
           onLayout={onScrollViewLayout}
           onContentSizeChange={onContentSizeChange}
           keyboardShouldPersistTaps="handled"
-        >
-          <View>
-            {messages.map((m, i) =>
-              m.role === "user" ? (
-                <View
-                  key={m.id}
-                  onLayout={turnUserAnchorIdx === i ? onAnchorLayout : undefined}
-                >
-                  <UserBubble text={m.content} isStreaming={false} strings={strings} />
-                </View>
-              ) : (
-                <View
-                  key={m.id}
-                  onLayout={turnAssistantIdx === i ? onTailLayout : undefined}
-                >
-                  <AssistantBubble
-                    text={m.content}
-                    isStreaming={false}
-                    phaseLabel={messagePhaseLabel(m)}
-                  />
-                  {m.meta?.practicePicked ? (() => {
-                    const practice = m.meta.practicePicked as PracticePicked;
-                    const summary = practiceToSummary(practice);
-                    const overrides = (practice as PracticePicked & { overrides?: { durationMin?: number; chakraIndex?: number } }).overrides;
-                    return summary ? (
-                      <View style={styles.practiceCardWrap}>
-                        <SharedPracticeCard
-                          practice={summary}
-                          onLaunch={(configured) => handlePracticeLaunch(practice, configured)}
-                          overrideDurationMinutes={overrides?.durationMin}
-                          overrideChakraIndex={overrides?.chakraIndex}
-                        />
-                      </View>
-                    ) : null;
-                  })() : null}
-                </View>
-              ),
-            )}
-
-            {!sessionSynced ? (
-              <View key="session-sync-pending" onLayout={onTailLayout}>
-                <ThinkingIndicator />
-              </View>
-            ) : null}
-
-            {streamBusy && (
-              <View key="pending-assistant" onLayout={onTailLayout}>
-                {streamStatus === "thinking" ? (
-                  <ThinkingIndicator />
-                ) : (
-                  <AssistantBubble
-                    text={assistantText}
-                    isStreaming={streamStatus === "typing"}
-                    phaseLabel={pendingStatus}
-                  />
-                )}
-              </View>
-            )}
-          </View>
-        </ScrollView>
+        />
 
         <ScrollDownHint visible={showScrollDown} onPress={scrollToBottom} strings={strings} />
       </View>
@@ -1704,23 +1784,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 3,
-  },
-  assistantStatusRow: {
-    width: "100%",
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    alignItems: "flex-start",
-  },
-  assistantStatusBubble: {
-    alignItems: "center",
-    borderRadius: 20,
-    borderBottomLeftRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: "row",
-    gap: 2,
-    maxWidth: "92%",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
   },
   practiceCardWrap: {
     width: "100%",
