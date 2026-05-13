@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   View,
@@ -14,10 +15,13 @@ const COLLAPSE_LEN = 220;
 export function UserBubble({
   text,
   isStreaming,
+  voicePending,
   strings,
 }: {
   text: string;
   isStreaming: boolean;
+  /** Пузырь «идёт расшифровка» до появления текста — только индикатор */
+  voicePending?: boolean;
   strings: CommunicatorStrings;
 }) {
   const theme = useTheme();
@@ -30,6 +34,26 @@ export function UserBubble({
   useEffect(() => {
     if (!long) setExpanded(false);
   }, [text, long]);
+
+  if (voicePending) {
+    return (
+      <View style={styles.row}>
+        <View
+          style={[
+            styles.bubble,
+            styles.pendingBubble,
+            {
+              backgroundColor: theme.colors.controlButtonBg,
+            },
+          ]}
+          accessibilityRole="progressbar"
+          accessibilityLabel={strings.voiceUserBubblePending}
+        >
+          <ActivityIndicator size="small" color={theme.colors.textMuted} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.row}>
@@ -62,6 +86,12 @@ export function UserBubble({
 }
 
 const styles = StyleSheet.create({
+  pendingBubble: {
+    minWidth: 52,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   row: {
     width: "100%",
     paddingHorizontal: 12,

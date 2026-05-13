@@ -128,9 +128,40 @@ const TYPE_BREATH = ["дыхан", "дыхательн", "пранаям", "по
 const TYPE_MEDITATION = ["медитац", "помедитировать", "посидеть", "успокоиться"];
 const TYPE_YOGA = ["асан", "йог"];
 
+/** «Подышать или через тело» — не выбор только дыхания; не перетираем ранее сказанное «йога/асаны». */
+function isBreathVersusOtherParallelOffer(lower: string): boolean {
+  const hasBreathCue = /(?:дыхан|дыхательн|пранаям|подышат)/.test(lower);
+  // JS `\b` is ASCII-only for «word» chars — Cyrillic «тело» / «или» never get boundaries; use explicit delimiters.
+  const hasBodyViaTelo = /(?:через\s+)?тел(?:о|а|ом|е)?(?:\s|$|[,.!?…])/i.test(lower);
+  const hasOtherCue =
+    hasBodyViaTelo || /асан/.test(lower) || /йог/.test(lower) || /медитац/.test(lower);
+  if (!hasBreathCue || !hasOtherCue) return false;
+  return /(?:^|[\s,.;:!?()])или(?:$|[\s,.;:!?()])/i.test(lower);
+}
+
 function inferDurationSecFromText(text: string): number | null {
   for (const entry of DURATION_PHRASES) {
     if (text.includes(entry.phrase)) return entry.sec;
+  }
+
+  // «Три четверти часа» = 45 мин (без \b — JS \b не считает кириллицу «словом»).
+  if (/три\s+четверт[иь]\s*час/i.test(text)) return 45 * 60;
+
+  const rangeMinutPrefix = text.match(/(?:^|\s)минут\s+(\d{1,2})\s*[-–]\s*(\d{1,2})(?:\s|$|хот|[,.])/i);
+  if (rangeMinutPrefix) {
+    const a = Number.parseInt(rangeMinutPrefix[1] ?? "", 10);
+    const b = Number.parseInt(rangeMinutPrefix[2] ?? "", 10);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
+      return Math.round((a + b) / 2) * 60;
+    }
+  }
+  const rangeWithUnit = text.match(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(минут|мин\b)/i);
+  if (rangeWithUnit) {
+    const a = Number.parseInt(rangeWithUnit[1] ?? "", 10);
+    const b = Number.parseInt(rangeWithUnit[2] ?? "", 10);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
+      return Math.round((a + b) / 2) * 60;
+    }
   }
 
   const digitMatch = text.match(/(\d{1,3})\s*(минут|мин\b|час)/i);
@@ -145,9 +176,9 @@ function inferDurationSecFromText(text: string): number | null {
 
   for (const [word, num] of Object.entries(NUMBER_WORD_MAP)) {
     for (const unit of DURATION_NUMBER_UNITS) {
-      if (text.includes(word) && text.includes(unit)) {
-        return /час/.test(unit) ? num * 3600 : num * 60;
-      }
+      if (!text.includes(word) || !text.includes(unit)) continue;
+      if (/час/.test(unit) && word === "три" && /\bчетверт/i.test(text)) continue;
+      return /час/.test(unit) ? num * 3600 : num * 60;
     }
   }
 
@@ -155,9 +186,11 @@ function inferDurationSecFromText(text: string): number | null {
 }
 
 function inferKindFromText(text: string): PracticeKindInferred | null {
-  if (TYPE_BREATH.some((k) => text.includes(k))) return "breath";
-  if (TYPE_MEDITATION.some((k) => text.includes(k))) return "meditation";
-  if (TYPE_YOGA.some((k) => text.includes(k))) return "yoga";
+  const lower = text.toLowerCase();
+  if (TYPE_MEDITATION.some((k) => lower.includes(k))) return "meditation";
+  if (TYPE_YOGA.some((k) => lower.includes(k))) return "yoga";
+  if (isBreathVersusOtherParallelOffer(lower)) return null;
+  if (TYPE_BREATH.some((k) => lower.includes(k))) return "breath";
   return null;
 }
 
@@ -201,6 +234,19 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
   };
 }
 
+/** Убирает «служебную» разметку диалога: `---` и целиком блоки `**…**` (заголовки секций модель кладёт туда — без разворачивания в текст). */
+export function stripDialogScaffoldMarkdown(text: string): string {
+  let t = text.replace(/\r\n/g, "\n");
+  t = t.replace(/^\s*-{3,}\s*$/gm, "");
+  for (let i = 0; i < 16; i++) {
+    const prev = t;
+    t = t.replace(/\*\*[^*]+\*\*/g, "");
+    if (t === prev) break;
+  }
+  t = t.replace(/\n{3,}/g, "\n\n");
+  return t.trim();
+}
+
 export function sanitizeAssistantText(text: string, locale?: string | null): string {
   let cleaned = stripReadyMarker(stripResponseMarkers(text));
 
@@ -210,6 +256,8 @@ export function sanitizeAssistantText(text: string, locale?: string | null): str
       .replace(/^\s*\*\s*Call\s*$/gim, "")
       .replace(/\(\s*(?:[A-Za-z][A-Za-z'’.,!?;:/-]*\s+){2,}[A-Za-z][A-Za-z'’.,!?;:/-]*\s*\)/g, "");
   }
+
+  cleaned = stripDialogScaffoldMarkdown(cleaned);
 
   return cleaned
     .replace(/\n\n,\s*/g, "\n\n")

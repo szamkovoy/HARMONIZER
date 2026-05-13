@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeAssistantText, validateHistoryHasDurationAndType } from "./markers";
+import { sanitizeAssistantText, stripDialogScaffoldMarkdown, validateHistoryHasDurationAndType } from "./markers";
+
+describe("stripDialogScaffoldMarkdown", () => {
+  it("removes horizontal rules and entire **…** blocks (not unwrapping)", () => {
+    const raw =
+      "---\n\n**Зеркало**\n\nТекст зеркала.\n\n**Темы**\n\nДальше.\n\nШея (то, о чём вы упомянули через боль) и плечи.";
+    const out = stripDialogScaffoldMarkdown(raw);
+    expect(out).toBe("Текст зеркала.\n\nДальше.\n\nШея (то, о чём вы упомянули через боль) и плечи.");
+  });
+
+  it("removes long **…** section titles", () => {
+    const raw = "**Главная тема через призму чакры дня**\n\nАбзац.\n\n**Штрих глубины**\n\nКонец.";
+    expect(stripDialogScaffoldMarkdown(raw)).toBe("Абзац.\n\nКонец.");
+  });
+});
 
 describe("sanitizeAssistantText", () => {
   it("removes leaked hint markers from Russian assistant text", () => {
@@ -15,9 +29,25 @@ describe("sanitizeAssistantText", () => {
 
     expect(sanitizeAssistantText(raw, "ru")).toBe(`прячется много шума, заметили?"`);
   });
+
+  it("removes markdown scaffold: --- and entire **…** blocks", () => {
+    const raw = "---\n\n**Зеркало**\n\nАбзац.\n\n**Темы**\n\nЕщё.";
+    const out = sanitizeAssistantText(raw, "ru");
+    expect(out).not.toContain("---");
+    expect(out).not.toContain("**");
+    expect(out).not.toContain("Зеркало");
+    expect(out).toContain("Абзац");
+  });
 });
 
 describe("validateHistoryHasDurationAndType", () => {
+  it("parses «три четверти часа» as 45 minutes, not three hours", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "У меня три четверти часа, хочу асаны" },
+    ]);
+    expect(result.durationSec).toBe(45 * 60);
+  });
+
   it("recognises word-form duration 'две минуты' + type 'медитацию'", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "буквально две минуты медитацию" },
@@ -108,5 +138,21 @@ describe("validateHistoryHasDurationAndType", () => {
     ]);
     expect(result.durationSec).toBe(900);
     expect(result.practiceKind).toBe("meditation");
+  });
+
+  it("does not treat 'подышать или через тело' as exclusive breath (keeps yoga from earlier message)", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content: "хочу практику йоги для разговора с шефом",
+      },
+      {
+        role: "user",
+        content: "мне все равно подышать или через тело. посоветуй что лучше",
+      },
+      { role: "user", content: "минут 15-20 хотелось бы." },
+    ]);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.durationSec).toBe(1080);
   });
 });

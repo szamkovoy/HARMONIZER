@@ -15,6 +15,8 @@ export interface CommunicatorHistoryMessage {
   createdAt?: number;
   meta?: Record<string, unknown> & {
     practicePicked?: Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">;
+    /** Временная строка в списке: ждём расшифровку Whisper */
+    voiceTranscribing?: boolean;
   };
 }
 

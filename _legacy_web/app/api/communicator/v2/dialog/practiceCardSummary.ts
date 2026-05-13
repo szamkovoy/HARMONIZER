@@ -70,14 +70,6 @@ function chakraLine(ids: readonly number[], locale: "ru" | "en"): string {
   return unique.map((id) => map[id] ?? String(id)).join(locale === "en" ? ", " : " и ");
 }
 
-function userRef(userMessage: string, locale: "ru" | "en"): string {
-  const s = userMessage.replace(/\s+/g, " ").trim();
-  if (!s) return locale === "en" ? "what you shared" : "том, что вы написали";
-  const max = 100;
-  const cut = s.length > max ? `${s.slice(0, max)}…` : s;
-  return cut;
-}
-
 export function buildPracticeCardSummary(params: {
   kind: PracticeKindForCard;
   slug: string;
@@ -85,32 +77,26 @@ export function buildPracticeCardSummary(params: {
   locale: string | null | undefined;
   userMessage: string;
 }): string {
+  void params.userMessage;
   const locale: "ru" | "en" = params.locale?.toLowerCase().startsWith("en") ? "en" : "ru";
-  const ref = userRef(params.userMessage, locale);
   const ch = chakraLine(params.chakraIds, locale);
 
   if (params.kind === "yoga") {
     if (locale === "en") {
-      return `This asana sequence focuses on ${ch}—gentle work through the body tends to hold longer than a single conversation. It connects with ${ref}.`;
+      return `This asana sequence focuses on ${ch}—gentle work through the body tends to hold longer than a single conversation.`;
     }
-    return `Эта серия асан опирается на зону ${ch}: через тело вы возвращаете устойчивость — эффект обычно глубже, чем от одного разговора. Рядом с тем, о чём вы написали: «${ref}».`;
+    return `Эта серия асан опирается на зону ${ch}: через тело вы возвращаете устойчивость — эффект обычно глубже, чем от одного разговора.`;
   }
 
   if (params.kind === "meditation") {
     if (locale === "en") {
-      return `A short meditation shifts attention inward—calm, imagery, and balance for the mind. It can hold what matters in: ${ref}.`;
+      return `A short meditation shifts attention inward—calm, imagery, and balance for the mind.`;
     }
-    return `Короткая медитация — спокойная работа с вниманием и образом, без давления на результат. Может мягко поддержать то, что вы переживаете в теме: «${ref}».`;
+    return `Короткая медитация — спокойная работа с вниманием и образом, без давления на результат.`;
   }
 
   const slug = params.slug.trim();
-  const breath =
-    locale === "en"
-      ? BREATH_CARD_EN[slug] ?? BREATH_CARD_EN.coherent
-      : BREATH_CARD_RU[slug] ?? BREATH_CARD_RU.coherent;
-
-  if (locale === "en") {
-    return `${breath} It meets you where you are with: ${ref}.`;
-  }
-  return `${breath} Рядом с вашим запросом: «${ref}».`;
+  return locale === "en"
+    ? BREATH_CARD_EN[slug] ?? BREATH_CARD_EN.coherent
+    : BREATH_CARD_RU[slug] ?? BREATH_CARD_RU.coherent;
 }

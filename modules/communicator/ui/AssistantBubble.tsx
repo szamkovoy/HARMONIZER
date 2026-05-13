@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { AppText } from "@/modules/ui/AppText";
+import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import { useTheme } from "@/modules/ui/theme";
 
 export function AssistantBubble({
@@ -11,7 +12,7 @@ export function AssistantBubble({
   isStreaming: boolean;
 }) {
   const theme = useTheme();
-  const display = text.trimStart();
+  const display = stripDialogScaffoldMarkdown(text.trimStart());
 
   return (
     <View style={styles.row}>

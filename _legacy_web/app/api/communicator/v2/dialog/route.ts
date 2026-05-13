@@ -393,12 +393,17 @@ async function resolvePracticePublic(
     publicPracticePickedPayload({ ...picked, reason: null }, cardReason),
     295,
   );
-  const overrides: { durationMin?: number | null; chakraIndex?: number } = {};
-  overrides.durationMin = marker.durationMin ?? preferredDurationMin ?? null;
-  overrides.chakraIndex = marker.chakra ?? chakraId;
+  // Йога/асаны: длительность и чакра задаются каталогом; не подмешиваем диалоговые preferred/marker.
+  const isYoga = picked.kind === "yoga";
+  const overrides: { durationMin?: number | null; chakraIndex?: number } | undefined = isYoga
+    ? undefined
+    : {
+        durationMin: marker.durationMin ?? preferredDurationMin ?? null,
+        chakraIndex: marker.chakra ?? chakraId,
+      };
   return {
     ...publicPayload,
-    overrides,
+    ...(overrides ? { overrides } : {}),
     ...(markerIdResolved === false ? { markerIdResolved: false } : {}),
   };
 }

@@ -29,6 +29,7 @@ import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flas
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
+import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
@@ -101,6 +102,9 @@ type CommunicatorListRow =
 /** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
 const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
 
+/** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
+const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
+
 const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION):[^\]]*\]/gi;
 const READY_MARKER_RE = /\[\s*ready_for_recommendation\s*\]/gi;
 const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
@@ -125,9 +129,9 @@ function stripStreamingMarkers(text: string): string {
  * Используем SSE-агрегат только если `complete.fullText` пуст.
  */
 function resolveAssistantReplyText(streamed: string, completeFullText: string | undefined): string {
-  const fin = (completeFullText ?? "").trim();
+  const fin = stripDialogScaffoldMarkdown((completeFullText ?? "").trim());
   if (fin) return fin;
-  return stripStreamingMarkers((streamed ?? "").trim());
+  return stripDialogScaffoldMarkdown(stripStreamingMarkers((streamed ?? "").trim()));
 }
 
 function ensureIds(
@@ -170,6 +174,24 @@ function parseIntParam(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/** Убирает устаревший хвост из `reason` (старые ответы API / кэш сессии). */
+function stripLegacyPracticeCardReason(reason: string | null | undefined): string | undefined {
+  if (reason == null || !reason.trim()) return reason ?? undefined;
+  const tails = [
+    "Рядом с тем, о чём вы написали:",
+    "Рядом с вашим запросом:",
+    "It meets you where you are with:",
+    "It connects with",
+  ];
+  let t = reason.trim();
+  for (const head of tails) {
+    const i = t.indexOf(head);
+    if (i >= 0) t = t.slice(0, i).trim();
+  }
+  const out = t.replace(/[.,…\s]+$/g, "").trim();
+  return out || undefined;
+}
+
 function normalizePracticeVideo(video: PracticePicked["video"]): PracticeSummary["video"] | undefined {
   if (!video) return undefined;
   return {
@@ -193,7 +215,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
       slug,
       kind: "breath",
       title: practice.name ?? slug,
-      description: practice.reason ?? undefined,
+      description: stripLegacyPracticeCardReason(practice.reason) ?? undefined,
       defaultDurationSec: practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
       minDurationSec: practice.minDurationSec ?? undefined,
       maxDurationSec: practice.maxDurationSec ?? undefined,
@@ -222,7 +244,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
       slug,
       kind: "meditation",
       title: practice.name ?? slug,
-      description: practice.reason ?? undefined,
+      description: stripLegacyPracticeCardReason(practice.reason) ?? undefined,
       defaultDurationSec: practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
       minDurationSec: practice.minDurationSec ?? undefined,
       maxDurationSec: practice.maxDurationSec ?? undefined,
@@ -252,7 +274,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
       slug,
       kind: "yoga",
       title: practice.name ?? slug,
-      description: practice.reason ?? undefined,
+      description: stripLegacyPracticeCardReason(practice.reason) ?? undefined,
       defaultDurationSec: practice.durationSec ?? undefined,
       minDurationSec: practice.minDurationSec ?? undefined,
       maxDurationSec: practice.maxDurationSec ?? undefined,
@@ -484,6 +506,10 @@ export function Communicator({
   const [txtDraft, setTxtDraft] = useState("");
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
+  /** Инкремент для привязки скролла к голосовому пузырю после добавления/замены текста */
+  const [voiceAnchorTick, setVoiceAnchorTick] = useState(0);
+  /** После голоса не дёргаем авто-якорь к строке стрима ассистента — окно остаётся на месте */
+  const [suppressStreamAnchorScroll, setSuppressStreamAnchorScroll] = useState(false);
   const initialHistoryRef = useRef<CommunicatorHistoryMessage[]>(ensureIds(sliceHistoryForWindow(history, memoryWindow)));
 
   useEffect(() => {
@@ -522,6 +548,13 @@ export function Communicator({
   } = useCommunicatorStream({ onError: reportError });
 
   const recordingRef = useRef<Audio.Recording | null>(null);
+  /** Плейсхолдер-пузырь пользователя на время расшифровки голоса; сбрасывается при ошибке до замены на текст */
+  const voicePendingMessageIdRef = useRef<string | null>(null);
+  /** Якорь скролла к последнему голосовому сообщению (id строки в `messages`) */
+  const voiceUserAnchorMessageIdRef = useRef<string | null>(null);
+  /** Не дублировать scrollToIndex на каждый чанк стрима при том же `voiceAnchorTick`. */
+  const lastVoiceLayoutScrollTickRef = useRef(-1);
+  const prevStreamBusyForScrollRef = useRef(false);
   const recordStartRef = useRef(0);
   const suppressClickRef = useRef(false);
   const suppressAbortAfterRecordRef = useRef(false);
@@ -584,6 +617,16 @@ export function Communicator({
   useEffect(() => {
     onStateChange?.(sessionState);
   }, [sessionState, onStateChange]);
+
+  useEffect(() => {
+    if (streamBusy) {
+      voiceUserAnchorMessageIdRef.current = null;
+    }
+    if (prevStreamBusyForScrollRef.current && !streamBusy) {
+      setSuppressStreamAnchorScroll(false);
+    }
+    prevStreamBusyForScrollRef.current = streamBusy;
+  }, [streamBusy]);
 
   const isBusy =
     phase === "arming" || phase === "recording" || phase === "transcribing" || streamBusy;
@@ -718,7 +761,7 @@ export function Communicator({
 
   const scheduleDeferredAssistantCommit = useCallback(
     (p: PendingAssistantCommit) => {
-      setPendingRevealGoal(stripStreamingMarkers(p.message.content));
+      setPendingRevealGoal(stripDialogScaffoldMarkdown(stripStreamingMarkers(p.message.content)));
       pendingAssistantCommitRef.current = p;
       clearDeferredRevealForceTimer();
       deferredRevealForceTimerRef.current = setTimeout(() => {
@@ -735,7 +778,7 @@ export function Communicator({
   }, [flushPendingAssistantCommit]);
 
   const strippedStreamTarget = useMemo(
-    () => stripStreamingMarkers(assistantText),
+    () => stripDialogScaffoldMarkdown(stripStreamingMarkers(assistantText)),
     [assistantText],
   );
 
@@ -752,34 +795,90 @@ export function Communicator({
     return rows;
   }, [messages, streamBusy]);
 
+  const communicatorListDataRef = useRef(communicatorListData);
+  communicatorListDataRef.current = communicatorListData;
+
   const runStream = useCallback(
     async (input: { type: "text"; text: string } | { type: "audio"; uri: string }) => {
+      let voiceUserAlreadyCommitted = false;
       try {
         let userMessageText = "";
 
         if (input.type === "text") {
+          setSuppressStreamAnchorScroll(false);
           userMessageText = input.text.trim();
         } else {
-          const mime = mimeFromRecordingUri(input.uri);
-          const base64 = await readAsStringAsync(input.uri, {
-            encoding: "base64",
-          });
-          setPhase("transcribing");
-          const transcript = await transcribeCommunicatorAudio({
-            mimeType: mime,
-            base64,
-            language: strings.transcribeLanguage,
-          });
-          userMessageText = transcript.text.trim();
-          setPhase("idle");
-          if (isSpuriousTranscription(userMessageText)) {
+          const pendingVoiceId = newMessageId();
+          voicePendingMessageIdRef.current = pendingVoiceId;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: pendingVoiceId,
+              role: "user",
+              content: "",
+              createdAt: Date.now(),
+              meta: { voiceTranscribing: true },
+            },
+          ]);
+          voiceUserAnchorMessageIdRef.current = pendingVoiceId;
+          setVoiceAnchorTick((n) => n + 1);
+
+          const clearVoicePlaceholder = () => {
+            voicePendingMessageIdRef.current = null;
+            voiceUserAnchorMessageIdRef.current = null;
+            setMessages((prev) => prev.filter((m) => m.id !== pendingVoiceId));
+          };
+
+          try {
+            const mime = mimeFromRecordingUri(input.uri);
+            const base64 = await readAsStringAsync(input.uri, {
+              encoding: "base64",
+            });
+            setPhase("transcribing");
+            const transcript = await transcribeCommunicatorAudio({
+              mimeType: mime,
+              base64,
+              language: strings.transcribeLanguage,
+            });
+            userMessageText = transcript.text.trim();
+            setPhase("idle");
+            if (isSpuriousTranscription(userMessageText)) {
+              clearVoicePlaceholder();
+              return;
+            }
+            if (
+              userMessageText &&
+              transcript.confidence != null &&
+              transcript.confidence < LOW_TRANSCRIPTION_CONFIDENCE
+            ) {
+              clearVoicePlaceholder();
+              setPendingTranscript(userMessageText);
+              setPendingTranscriptConfidence(transcript.confidence);
+              return;
+            }
+          } catch (transcribeErr) {
+            clearVoicePlaceholder();
+            setPhase("idle");
+            throw transcribeErr;
+          }
+
+          if (!userMessageText) {
+            clearVoicePlaceholder();
             return;
           }
-          if (userMessageText && transcript.confidence != null && transcript.confidence < LOW_TRANSCRIPTION_CONFIDENCE) {
-            setPendingTranscript(userMessageText);
-            setPendingTranscriptConfidence(transcript.confidence);
-            return;
-          }
+
+          const userVoiceMessage: CommunicatorHistoryMessage = {
+            id: pendingVoiceId,
+            role: "user",
+            content: userMessageText,
+            createdAt: Date.now(),
+          };
+          setMessages((prev) => prev.map((m) => (m.id === pendingVoiceId ? userVoiceMessage : m)));
+          voicePendingMessageIdRef.current = null;
+          voiceUserAnchorMessageIdRef.current = pendingVoiceId;
+          setVoiceAnchorTick((n) => n + 1);
+          onMessage?.(userVoiceMessage);
+          voiceUserAlreadyCommitted = true;
         }
 
         if (!userMessageText) return;
@@ -789,14 +888,20 @@ export function Communicator({
         }
 
         userHasScrolledUpRef.current = false;
-        const userMessage: CommunicatorHistoryMessage = {
-          id: newMessageId(),
-          role: "user",
-          content: userMessageText,
-          createdAt: Date.now(),
-        };
-        setMessages((prev) => [...prev, userMessage]);
-        onMessage?.(userMessage);
+        if (!voiceUserAlreadyCommitted) {
+          const userMessage: CommunicatorHistoryMessage = {
+            id: newMessageId(),
+            role: "user",
+            content: userMessageText,
+            createdAt: Date.now(),
+          };
+          setMessages((prev) => [...prev, userMessage]);
+          onMessage?.(userMessage);
+        }
+
+        if (voiceUserAlreadyCommitted) {
+          setSuppressStreamAnchorScroll(true);
+        }
 
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
         const result = await runChatStream({
@@ -818,10 +923,30 @@ export function Communicator({
         const complete = result.complete;
         if (complete?.conversationId) setActiveConversationId(complete.conversationId);
         const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
+
+        let recoveredFromSession = false;
+        let finalText = mergedText;
+        if (!finalText) {
+          await new Promise((r) => setTimeout(r, 700));
+          try {
+            const sync = await fetchDialogSession({ useCase, entrySource });
+            const last = sync.messages[sync.messages.length - 1];
+            if (last?.role === "assistant") {
+              const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+              if (recovered) {
+                finalText = recovered;
+                recoveredFromSession = true;
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
         const assistant: CommunicatorHistoryMessage = {
           id: complete?.messageId ?? newMessageId(),
           role: "assistant",
-          content: mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback,
+          content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
           createdAt: Date.now(),
           meta: {
             orchestratorDecision: result.decision,
@@ -838,10 +963,16 @@ export function Communicator({
             recommendationCorrected: complete?.recommendationCorrected,
           },
         };
-        const textForLen =
-          mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback;
-        const strippedLen = stripStreamingMarkers(textForLen).length;
-        if (strippedLen <= SHORT_ASSISTANT_DEFER_THRESHOLD) {
+        const contentLenSource =
+          finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
+        const strippedLen = stripDialogScaffoldMarkdown(
+          stripStreamingMarkers(contentLenSource),
+        ).length;
+        const deferAllowed =
+          !recoveredFromSession &&
+          mergedText.trim().length > 0 &&
+          strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
+        if (!deferAllowed) {
           setPendingRevealGoal(null);
           setMessages((prev) => [...prev, assistant]);
           onMessage?.(assistant);
@@ -850,6 +981,11 @@ export function Communicator({
           scheduleDeferredAssistantCommit({ mode: "append", message: assistant });
         }
       } catch (e) {
+        const vPid = voicePendingMessageIdRef.current;
+        if (vPid) {
+          voicePendingMessageIdRef.current = null;
+          setMessages((prev) => prev.filter((m) => m.id !== vPid));
+        }
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
         const err = e instanceof Error ? e : new Error(String(e));
@@ -874,6 +1010,7 @@ export function Communicator({
     [
       activeConversationId,
       entrySource,
+      fetchDialogSession,
       flushPendingAssistantCommit,
       onMessage,
       reportError,
@@ -931,10 +1068,30 @@ export function Communicator({
         const complete = result.complete;
         if (complete?.conversationId) setActiveConversationId(complete.conversationId);
         const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
+
+        let recoveredFromSession = false;
+        let finalText = mergedText;
+        if (!finalText) {
+          await new Promise((r) => setTimeout(r, 700));
+          try {
+            const sync = await fetchDialogSession({ useCase, entrySource });
+            const last = sync.messages[sync.messages.length - 1];
+            if (last?.role === "assistant") {
+              const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+              if (recovered) {
+                finalText = recovered;
+                recoveredFromSession = true;
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
         const assistant: CommunicatorHistoryMessage = {
           id: complete?.messageId ?? newMessageId(),
           role: "assistant",
-          content: mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback,
+          content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
           createdAt: Date.now(),
           meta: {
             orchestratorDecision: result.decision,
@@ -951,10 +1108,16 @@ export function Communicator({
             recommendationCorrected: complete?.recommendationCorrected,
           },
         };
-        const textForLen =
-          mergedText.length > 0 ? mergedText : strings.emptyAssistantReplyFallback;
-        const strippedLen = stripStreamingMarkers(textForLen).length;
-        if (strippedLen <= SHORT_ASSISTANT_DEFER_THRESHOLD) {
+        const contentLenSource =
+          finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
+        const strippedLen = stripDialogScaffoldMarkdown(
+          stripStreamingMarkers(contentLenSource),
+        ).length;
+        const deferAllowed =
+          !recoveredFromSession &&
+          mergedText.trim().length > 0 &&
+          strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
+        if (!deferAllowed) {
           setPendingRevealGoal(null);
           setMessages([assistant]);
           onMessage?.(assistant);
@@ -975,6 +1138,7 @@ export function Communicator({
     messages.length,
     activeConversationId,
     entrySource,
+    fetchDialogSession,
     onMessage,
     reportError,
     resetChatStream,
@@ -1316,6 +1480,10 @@ export function Communicator({
       setContentH(h);
 
       if (!streamBusyRef.current && !userHasScrolledUpRef.current && h > prevH) {
+        if (voiceUserAnchorMessageIdRef.current != null) {
+          updateScrollDownFlag();
+          return;
+        }
         programmaticScrollRef.current = true;
         scrollRef.current?.scrollToEnd({ animated: false });
         requestAnimationFrame(() => {
@@ -1342,9 +1510,15 @@ export function Communicator({
   const renderCommunicatorItem = useCallback<ListRenderItem<CommunicatorListRow>>(
     ({ item }) => {
       if (item.kind === "user") {
+        const pendingVoice = Boolean(item.message.meta?.voiceTranscribing);
         return (
           <View>
-            <UserBubble text={item.message.content} isStreaming={false} strings={strings} />
+            <UserBubble
+              text={item.message.content}
+              isStreaming={false}
+              voicePending={pendingVoice}
+              strings={strings}
+            />
           </View>
         );
       }
@@ -1356,14 +1530,15 @@ export function Communicator({
             {m.meta?.practicePicked ? (() => {
               const practice = m.meta.practicePicked as PracticePicked;
               const summary = practiceToSummary(practice);
-              const overrides = (practice as PracticePicked & { overrides?: { durationMin?: number; chakraIndex?: number } }).overrides;
+              const rawOverrides = (practice as PracticePicked & { overrides?: { durationMin?: number; chakraIndex?: number } }).overrides;
+              const useDialogOverrides = summary && summary.kind !== "yoga";
               return summary ? (
                 <View style={styles.practiceCardWrap}>
                   <SharedPracticeCard
                     practice={summary}
                     onLaunch={(configured) => handlePracticeLaunch(practice, configured)}
-                    overrideDurationMinutes={overrides?.durationMin}
-                    overrideChakraIndex={overrides?.chakraIndex}
+                    overrideDurationMinutes={useDialogOverrides ? rawOverrides?.durationMin : undefined}
+                    overrideChakraIndex={useDialogOverrides ? rawOverrides?.chakraIndex : undefined}
                   />
                 </View>
               ) : null;
@@ -1382,12 +1557,65 @@ export function Communicator({
         </View>
       );
     },
-    [handlePracticeLaunch, onStreamFullyRevealed, pendingRevealGoal, streamStatus, strippedStreamTarget],
+    [handlePracticeLaunch, onStreamFullyRevealed, pendingRevealGoal, streamStatus, strippedStreamTarget, strings],
   );
 
   const streamAnchorIndex = streamBusy ? communicatorListData.length - 1 : -1;
 
   useLayoutEffect(() => {
+    if (voiceAnchorTick === lastVoiceLayoutScrollTickRef.current) return;
+    const anchorId = voiceUserAnchorMessageIdRef.current;
+    if (!anchorId) return;
+    const voiceUserIndex = communicatorListData.findIndex(
+      (r) => r.kind === "user" && r.message.id === anchorId,
+    );
+    if (voiceUserIndex < 0) return;
+
+    let cancelled = false;
+    const maxAttempts = 8;
+    const tickAtStart = voiceAnchorTick;
+
+    const attemptScroll = (attempt: number) => {
+      if (cancelled) return;
+      if (attempt >= maxAttempts) {
+        lastVoiceLayoutScrollTickRef.current = tickAtStart;
+        return;
+      }
+      const list = scrollRef.current;
+      const rows = communicatorListDataRef.current;
+      const idx = rows.findIndex((r) => r.kind === "user" && r.message.id === anchorId);
+      if (idx < 0 || !list) {
+        setTimeout(() => attemptScroll(attempt + 1), 45 + attempt * 35);
+        return;
+      }
+      void list
+        .scrollToIndex({
+          index: idx,
+          animated: true,
+          viewPosition: VOICE_USER_SCROLL_VIEW_POSITION,
+        })
+        .then(() => {
+          if (!cancelled) lastVoiceLayoutScrollTickRef.current = tickAtStart;
+        })
+        .catch(() => {
+          setTimeout(() => attemptScroll(attempt + 1), 45 + attempt * 35);
+        });
+    };
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(() => attemptScroll(0), 32);
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [communicatorListData, voiceAnchorTick]);
+
+  useLayoutEffect(() => {
+    if (suppressStreamAnchorScroll) return;
     if (streamAnchorIndex < 0) return;
     const row = communicatorListData[streamAnchorIndex];
     if (!row || row.kind !== "stream") return;
@@ -1405,7 +1633,7 @@ export function Communicator({
       });
     });
     return () => cancelAnimationFrame(id);
-  }, [communicatorListData, streamAnchorIndex, streamBusy, messages.length]);
+  }, [communicatorListData, streamAnchorIndex, streamBusy, messages.length, suppressStreamAnchorScroll]);
 
   const exportDialogJson = useCallback(async () => {
     const forecastDate = typeof triggerMeta?.forecastDate === "string" ? triggerMeta.forecastDate : new Date().toISOString().slice(0, 10);
@@ -1473,6 +1701,7 @@ export function Communicator({
             strip: strippedStreamTarget,
             typing: streamStatus,
             goal: pendingRevealGoal,
+            voiceTick: voiceAnchorTick,
           }}
           style={styles.scroll}
           contentContainerStyle={[

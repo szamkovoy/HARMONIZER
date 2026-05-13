@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-13: `communicator` + сервер `assistant` — клиент **`dialogTextCleanup.ts`** (`stripDialogScaffoldMarkdown`), **`Communicator` / `UserBubble` / `AssistantBubble`** (голосовой якорь **`scrollToIndex`**, **`FlashList`**, восстановление пустого SSE через **`fetchDialogSession`**); **`markers.ts`** / **`practiceCardSummary.ts`** / **`dialog/route.ts`** + тесты. Документация: **`docs/02_modules/communicator/{spec,dependencies,history}.md`**.
 - 2026-05-13: `assistant` — **`prompts-reference.md`**: исправлен YAML-frontmatter (случайная поломка `## ]`); таблица переменных §3 выровнена по ширине колонок; **version 1.1**.
 - 2026-05-13: `assistant` — справочник дословных промптов и инструкций v3: **`docs/02_modules/assistant/prompts-reference.md`** (шаблон `dialog_system_v3`, `ORCHESTRATOR_INSTRUCTIONS`, переменные `renderPrompt`); cross-link в **`spec.md`**; путь в **`MAP.md`**; конвейер **`scripts/docs-sync/sync.sh`** + правило в **`documentation_update_rules.md`**.
 - 2026-05-13: `communicator` + `assistant` — голос: **`scrollToIndex`** с задержкой под layout **`FlashList`**, **`communicatorListDataRef`**, повторы по **`Promise`** (до 8, без `scrollToEnd` при ошибке); **`stripDialogScaffoldMarkdown`** / **`markers`** — удаляется **целиком** содержимое `**…**` (не список слов). Ранее в этот день: якорь по **`voiceAnchorTick`**, йога без **`overrides`**, «три четверти часа» в **`markers`**. Документация: **`docs/02_modules/{communicator,assistant}/{spec,history,dependencies}.md`**, **`CHANGELOG.md`**.

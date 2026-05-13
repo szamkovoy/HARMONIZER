@@ -25,7 +25,7 @@ describe("buildPracticeCardSummary", () => {
       userMessage: "усталость",
     });
     expect(s).toContain("медитац");
-    expect(s).toContain("усталость");
+    expect(s).not.toContain("«усталость»");
   });
 
   it("breath: uses slug-specific blurb (coherent, ru)", () => {
@@ -37,7 +37,7 @@ describe("buildPracticeCardSummary", () => {
       userMessage: "тревога",
     });
     expect(s).toContain("Когерентное");
-    expect(s).toContain("тревога");
+    expect(s).not.toMatch(/Рядом с вашим|запросом/i);
   });
 
   it("breath: falls back for unknown slug (en)", () => {

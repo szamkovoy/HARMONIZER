@@ -49,6 +49,8 @@ export interface CommunicatorStrings {
   transcriptionReviewSend: string;
   /** Когда сервер/стрим не вернули видимый текст ответа — вместо пустого пузыря */
   emptyAssistantReplyFallback: string;
+  /** В пузыре пользователя на время расшифровки голоса (до текста) */
+  voiceUserBubblePending: string;
   practiceCard: {
     eyebrow: string;
     fallbackTitle: string;
@@ -146,6 +148,7 @@ const ru: CommunicatorStrings = {
   transcriptionReviewSend: "Отправить",
   emptyAssistantReplyFallback:
     "Я не получил полный текст ответа — связь могла прерваться. Напиши ещё раз коротко, что сейчас важно, и я продолжу.",
+  voiceUserBubblePending: "Расшифровываю голос…",
   practiceCard: {
     eyebrow: "Практика на сейчас",
     fallbackTitle: "Практика",
@@ -193,6 +196,7 @@ const en: CommunicatorStrings = {
   transcriptionReviewSend: "Send",
   emptyAssistantReplyFallback:
     "I did not receive the full reply — the connection may have dropped. Send a short note about what matters now and I will continue.",
+  voiceUserBubblePending: "Transcribing your voice…",
   practiceCard: {
     eyebrow: "Practice for now",
     fallbackTitle: "Practice",
