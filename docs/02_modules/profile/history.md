@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.5
+version: 1.6
 updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
-code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
+code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-05-14:** Cold start: при транзиентной сети GoTrue мог отдать `INITIAL_SESSION` с `session === null` или задержать событие, а safety-таймаут вызывал `completeBootstrap(sessionRef.current)` — на первом кадре `sessionRef` всегда `null`, из‑за чего залогиненный пользователь ошибочно попадал на `/sign-in`. Добавлены **`readPersistedAuthSessionFromStorage` / `computeSupabaseAuthStorageKey`** в `services/supabase.ts` (чтение JSON сессии из того же SecureStore без lock) и **`recoverAuthSessionFromPersistedStorageWithRetries`** (`modules/auth/bootstrapRecoverSession.ts`): перед завершением bootstrap с «пустой» сессией SDK выполняется `auth.initialize()` + несколько попыток **`auth.setSession`** по токенам с диска, чтобы синхронизировать in-memory клиент Supabase. **`AUTH_BOOTSTRAP_SAFETY_MS`** увеличен до 35 с. Код: **`modules/auth/AuthProvider.tsx`**.
 
 - **2026-05-14:** Вкладка **`app/(tabs)/profile.tsx`**: кнопка **«Обновить профиль»** снова ведёт в продуктовый поток смены натала — **`NatalBirthDataModal`** + `createNatalProfile` (как на главном), gate по **`canUseFeature("calibration")`**, после сохранения **`markHomeDayContentBlockingReload({ forceRefresh: true })`** и алерт с переходом на калибровку/главную. Ранее кнопка вызывала только **`refreshProfile()`** без UI, из-за чего воспринималась как «не нажимается» / «ничего не происходит». Параллельно на главном: **`useFocusEffect`** потребляет флаг blocking-reload; загрузка активного натала на Home дополнительно зависит от **`profile.birth_date` / `profile.birth_time`**, чтобы текст/мат. уровень не залипали после смены даты.
 

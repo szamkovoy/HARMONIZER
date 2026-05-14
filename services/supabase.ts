@@ -18,9 +18,10 @@ import "./supabase-auth-console-filter";
  *
  * См. `modules/auth/AuthProvider.tsx` — там подписка на AppState, чтобы
  * автоматически рефрешить токен при возвращении приложения из фона.
+ * Для escape hatch при сбое cold-start refresh: `readPersistedAuthSessionFromStorage()`.
  */
 import "react-native-url-polyfill/auto";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session, SupabaseClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import type { Database } from "./supabase-types";
 import { logRuntimeEvent } from "./runtimeDiagnostics";
@@ -182,6 +183,45 @@ function createAuthStorageAdapter(): SupabaseAuthStorage {
 }
 
 const authStorageAdapter = createAuthStorageAdapter();
+
+/** Ключ хранения сессии GoTrue — как в `@supabase/supabase-js` (`sb-<ref>-auth-token`). */
+export function computeSupabaseAuthStorageKey(supabaseUrl: string): string | null {
+  try {
+    const trimmed = supabaseUrl.trim();
+    if (!trimmed) return null;
+    const ref = new URL(trimmed).hostname.split(".")[0];
+    if (!ref) return null;
+    return `sb-${ref}-auth-token`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Читает JSON сессии из того же адаптера, что и singleton-клиент, без захвата lock GoTrue.
+ * Используется только как escape hatch, когда refresh на старте упал, а в SecureStore сессия ещё есть.
+ */
+export async function readPersistedAuthSessionFromStorage(): Promise<Session | null> {
+  if (!EXPO_SB_URL) return null;
+  const key = computeSupabaseAuthStorageKey(EXPO_SB_URL);
+  if (!key) return null;
+  const raw = await authStorageAdapter.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const candidate = parsed as Partial<Session> & { user?: { id?: unknown } };
+    if (typeof candidate.access_token !== "string" || typeof candidate.refresh_token !== "string") {
+      return null;
+    }
+    if (!candidate.user || typeof candidate.user !== "object" || typeof candidate.user.id !== "string") {
+      return null;
+    }
+    return parsed as Session;
+  } catch {
+    return null;
+  }
+}
 
 type SupabaseFetchInput = string | URL | Request;
 

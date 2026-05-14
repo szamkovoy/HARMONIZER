@@ -7,7 +7,9 @@
  *   • При старте приложения — дождаться первого события `onAuthStateChange`
  *     (SDK сам читает SecureStore и рефрешит токен). Пока идёт проверка,
  *     `initializing = true` — гейт в
- *     `app/_layout.tsx` показывает сплэш.
+ *     `app/_layout.tsx` показывает сплэш. Если SDK отдал `null` из‑за
+ *     транзиентной сети при refresh, но в SecureStore сессия ещё есть,
+ *     выполняется восстановление через `setSession` (см. `bootstrapRecoverSession.ts`).
  *   • Синхронизировать профиль `public.users` (авто-создаётся серверным
  *     триггером `on_auth_user_created`; мы дожидаемся появления и тянем
  *     строку).
@@ -20,6 +22,7 @@ import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { requireSupabase } from "@/services/supabase";
+import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
 import { rewriteAuthNetworkError } from "./authNetworkErrors";
 import { signInWithApple } from "./sign-in-apple";
 import { signInWithGoogle, signOutGoogle } from "./sign-in-google";
@@ -30,7 +33,7 @@ export { AuthContext };
 
 const PROFILE_FETCH_TIMEOUT_MS = 10_000;
 /** Если подписка GoTrue по какой-то причине не отдала первое событие — не держим сплэш вечно. */
-const AUTH_BOOTSTRAP_SAFETY_MS = 25_000;
+const AUTH_BOOTSTRAP_SAFETY_MS = 35_000;
 /**
  * Редко SDK отдаёт INITIAL_SESSION с session=null, а через мгновение — второе
  * событие с реальной сессией. Не завершаем bootstrap сразу, чтобы не мигнул
@@ -174,6 +177,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
+    /**
+     * SDK может отдать `session === null` при транзиентном refresh (RN «Network request failed»),
+     * хотя в SecureStore ещё лежит валидная сессия. `sessionRef` на cold start до первого commit всегда null,
+     * поэтому safety-таймаут не должен полагаться на него — читаем диск и синхронизируем через `setSession`.
+     */
+    const finalizeBootstrapFromSdkSession = (sdkSession: Session | null) => {
+      void (async () => {
+        let resolved: Session | null = sdkSession;
+        if (!resolved) {
+          resolved = await recoverAuthSessionFromPersistedStorageWithRetries();
+        }
+        if (cancelled || initialSessionReady) return;
+        completeBootstrap(resolved);
+      })();
+    };
+
     safetyTimerId = setTimeout(() => {
       if (cancelled || initialSessionReady) return;
       if (debounceInitialNullTimer) {
@@ -182,7 +201,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       // eslint-disable-next-line no-console
       console.warn("[auth] bootstrap safety timeout: closing splash without Supabase first event");
-      completeBootstrap(sessionRef.current);
+      finalizeBootstrapFromSdkSession(null);
     }, AUTH_BOOTSTRAP_SAFETY_MS);
 
     // Единственный источник для cold start — onAuthStateChange: SDK сам читает
@@ -200,7 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           debounceInitialNullTimer = setTimeout(() => {
             debounceInitialNullTimer = null;
             if (cancelled || initialSessionReady) return;
-            completeBootstrap(null);
+            finalizeBootstrapFromSdkSession(null);
           }, INITIAL_SESSION_NULL_DEBOUNCE_MS);
           return;
         }
@@ -208,7 +227,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           clearTimeout(debounceInitialNullTimer);
           debounceInitialNullTimer = null;
         }
-        completeBootstrap(null);
+        finalizeBootstrapFromSdkSession(null);
         return;
       }
 

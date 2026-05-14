@@ -1,12 +1,13 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.6
+version: 1.7
 updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
     modules/auth/AuthProvider.tsx,
+    modules/auth/bootstrapRecoverSession.ts,
     modules/auth/useAuth.ts,
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
@@ -14,6 +15,7 @@ code_refs:
     modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
     app/_layout.tsx,
+    services/supabase.ts,
     services/natalProfileClient.ts,
     services/homeDayContentReloadRequest.ts,
     services/practiceSessions.ts,
@@ -39,7 +41,7 @@ code_refs:
 
 ## 3. Внутренняя архитектура
 
-- **Источник строки `users`:** при событиях `supabase.auth.onAuthStateChange` вызывается **`syncProfile`**, который делает `from("users").select("*").eq("id", userId).maybeSingle()`. Сетевой запрос защищён таймаутом `PROFILE_FETCH_TIMEOUT_MS` (10 с) через `AbortController` + `.abortSignal(...)`, чтобы зависший PostgREST не блокировал сплэш-скрин бесконечно. Строка создаётся на стороне БД триггером на нового пользователя (`handle_new_auth_user`, см. миграции Supabase — задокументировано в комментариях `AuthProvider`). Cold start полностью полагается на `onAuthStateChange` (SDK сам читает SecureStore и рефрешит токен); отдельный вызов `getSession()` удалён, чтобы не захватывать внутренний lock SDK и не блокировать событие `INITIAL_SESSION` при медленной сети. Таймаут auth token refresh (15 с) реализован в `services/supabase.ts` через `AbortController` на `/auth/v1/token`. В **`__DEV__`** `services/supabase-auth-console-filter.ts` понижает до `console.warn` типичные транзиенты auth-js: **`AuthRetryableFetchError`** и **`AbortError: Aborted`** из RN `whatwg-fetch` при этом abort (чтобы не засорять LogBox красным оверлеем). Завершение cold start: **`session` и `initializing` обновляются одним `setState`**, чтобы гейт в `app/_layout.tsx` не видел кадр с «уже не сплэш, но session ещё null»; при первом `INITIAL_SESSION` с `session === null` bootstrap завершается с задержкой ~1,2 с, чтобы поймать редкий второй колбэк с реальной сессией. Редирект на `/sign-in` при `session === null` после того как сессия уже была в этом рантайме, откладывается на ~0,5 с, чтобы пережить кратковременный `null` от SDK/refresh без мигания экрана входа.
+- **Источник строки `users`:** при событиях `supabase.auth.onAuthStateChange` вызывается **`syncProfile`**, который делает `from("users").select("*").eq("id", userId).maybeSingle()`. Сетевой запрос защищён таймаутом `PROFILE_FETCH_TIMEOUT_MS` (10 с) через `AbortController` + `.abortSignal(...)`, чтобы зависший PostgREST не блокировал сплэш-скрин бесконечно. Строка создаётся на стороне БД триггером на нового пользователя (`handle_new_auth_user`, см. миграции Supabase — задокументировано в комментариях `AuthProvider`). Cold start полностью полагается на `onAuthStateChange` (SDK сам читает SecureStore и рефрешит токен); отдельный вызов `getSession()` удалён, чтобы не захватывать внутренний lock SDK и не блокировать событие `INITIAL_SESSION` при медленной сети. Таймаут auth token refresh (15 с) реализован в `services/supabase.ts` через `AbortController` на `/auth/v1/token`. В **`__DEV__`** `services/supabase-auth-console-filter.ts` понижает до `console.warn` типичные транзиенты auth-js: **`AuthRetryableFetchError`** и **`AbortError: Aborted`** из RN `whatwg-fetch` при этом abort (чтобы не засорять LogBox красным оверлеем). Завершение cold start: **`session` и `initializing` обновляются одним `setState`**, чтобы гейт в `app/_layout.tsx` не видел кадр с «уже не сплэш, но session ещё null»; при первом `INITIAL_SESSION` с `session === null` bootstrap завершается с задержкой ~1,2 с, чтобы поймать редкий второй колбэк с реальной сессией. Если после этого SDK всё ещё даёт «пусто», но в SecureStore осталась сессия GoTrue (транзиентный `Network request failed` на refresh), **`readPersistedAuthSessionFromStorage`** в `services/supabase.ts` читает JSON без lock, а **`recoverAuthSessionFromPersistedStorageWithRetries`** (`modules/auth/bootstrapRecoverSession.ts`) синхронизирует клиент через `auth.setSession` с несколькими попытками — иначе пользователь ошибочно попадал бы на `/sign-in`. Safety bootstrap (`AUTH_BOOTSTRAP_SAFETY_MS`, сейчас 35 с) использует тот же путь, а не `sessionRef` (на cold start он до первого commit всегда `null`). Редирект на `/sign-in` при `session === null` после того как сессия уже была в этом рантайме, откладывается на ~0,5 с, чтобы пережить кратковременный `null` от SDK/refresh без мигания экрана входа.
 - **Корневой layout:** `app/_layout.tsx` оборачивает дерево в `AuthProvider`, затем `AccessBridge` передаёт **`profile`** в `AccessProvider` (`modules/access`) для подписочных gate.
 - **Редактирование натальных / BirthData:** **`app/(tabs)/index.tsx`** и **`app/(tabs)/profile.tsx`** — общий UI **`NatalBirthDataModal`** + `createNatalProfile` → `POST /api/astro/natal`. Сервер (`_legacy_web/app/api/astro/natal/route.ts`) обновляет `users.birth_*`, `lat`/`lon`/`tz` при необходимости, пересобирает `user_natal_charts`, **удаляет** `user_daily_forecasts` с текущей локальной даты и далее.
 - **Онбординг:** `app/onboarding.tsx` пишет в `users` поля `tz`, `lat`, `lon`, `location_name`, `onboarded_at` и вызывает `refreshProfile()`.

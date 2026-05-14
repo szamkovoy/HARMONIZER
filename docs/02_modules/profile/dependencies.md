@@ -7,6 +7,7 @@ depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_module
 code_refs:
   [
     modules/auth/AuthProvider.tsx,
+    modules/auth/bootstrapRecoverSession.ts,
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
     app/(tabs)/index.tsx,

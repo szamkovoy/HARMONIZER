@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.5
+version: 2.6
 updated: 2026-05-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-14: `profile` / auth cold start — при `INITIAL_SESSION === null` или safety-таймауте без события SDK восстановление сессии из SecureStore и **`auth.setSession`** с повтором (`modules/auth/bootstrapRecoverSession.ts`, `services/supabase.ts`, `modules/auth/AuthProvider.tsx`); safety 35 с; исправление ложного `/sign-in` после транзиентного `Network request failed` на refresh. **`docs/02_modules/profile/{spec,history}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-14: `daily_forecast` + `profile` — уточнён публичный контракт в **`spec.md`**: экспорт **`DayContentRefreshOptions`**, детали **`NatalBirthDataModal`** (`initialDate`/`initialTime`, **`NATAL_BRIDGE_DEFAULT_LOCATION`**), на профиле после сохранения — **`Alert`** + **`router.push("/calibration")`** / **`router.replace("/")`**.
 - 2026-05-14: `daily_forecast` — после **`refresh({ forceRefresh })` / `blockingReload`** персонального дня **`useDayContent`** снова вызывает **`morning_recommendation`** с **`forceRefresh`** даже при уже заполненных текстовых полях в forecast (исправление «старые рекомендации после смены натала»). Код: **`modules/home/useDayContent.ts`**. **`docs/02_modules/daily_forecast/{spec,history}.md`**.
 - 2026-05-14: `profile` + `daily_forecast` — вкладка **`app/(tabs)/profile.tsx`**: «Обновить профиль» открывает **`NatalBirthDataModal`** и **`createNatalProfile`** (как главный), после сохранения — **`markHomeDayContentBlockingReload`** / **`consumeHomeDayContentBlockingReload`** и **`useDayContent.refresh({ blockingReload })`** на фокусе Home (`useFocusEffect`). Хук **`modules/home/useDayContent.ts`**: опция **`blockingReload`**. **`modules/home/ui/NatalBirthDataModal.tsx`**, **`services/homeDayContentReloadRequest.ts`**. Документация: **`docs/02_modules/{profile,daily_forecast}/{spec,dependencies,history}.md`**.
