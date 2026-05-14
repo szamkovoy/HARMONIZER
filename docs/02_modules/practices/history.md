@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.3
-updated: 2026-05-14
+version: 1.5
+updated: 2026-05-15
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-15:** Недавние практики для ассистента: нормализация к **`id`** каталога (`resolvePracticeKeyToCatalogId`), селектор сравнивает только по **`id`**; классификация дыхания по сессиям — по slug из каталога `breath`, без отдельного списка slug в коде. **`spec.md`**, **`assistant/history.md`**, **`CHANGELOG.md`**.
+- **2026-05-15:** Серверный **`choosePractice`**: явный `[PRACTICE_PICK]` больше не обходит **`selectPracticeCandidate`** — окно недавних предложений/сессий того же `kind` применяется и при валидном id в каталоге (исправление повторов дыхания подряд). См. **`assistant/history.md`**.
 - **2026-05-14:** Документирован контракт сервера: в **`practiceSelection.ts`** для не-`default` **`[PRACTICE_PICK]`** сначала резолвится **`id` / `slug`** по полному активному каталогу — карточка в приложении совпадает с выбором премиум-модели. **`spec.md`** (§2 интеграция с ассистентом).
 - **2026-05-11:** `modules/practices/ui/PracticeCard.tsx` стал единым компонентом для каталога и коммуникатора. Assistant-launch больше не идёт через отдельный `launchPracticeFromAssistant` на home: `Communicator.tsx` сам адаптирует `PracticePicked` в `PracticeSummary`, даёт пользователю override duration/chakra и вызывает `launchPractice(..., { launchSource: 'assistant' })`. На сервере default assistant marker теперь явно резолвится в coherent breathing 10 мин на чакру дня.
 - **2026-05-08 (второй проход):** **`PracticeCatalogScreen` + отложенная йога.** (1) Колбэк мог отработать **раньше** продолжения `load()` — сброс **`yogaLateLoading`** и перезапись **`setState`** пустым `yoga` из возврата каталога. (2) Чаще наоборот: продолжение **`load()`** шло **раньше** микрозадачи с **`onLateYogaPractices`**, слот **`lateYogaSlotRef`** оставался пустым → в UI «нет асан» при живых данных. Исправления: слот **`lateYogaSlotRef`**, **`mergedYoga`**, **`yogaLateLoading`** до ожидания, после **`await loadPracticeCatalog`** — **`await Promise.resolve()`**, чтобы слисть очередь микрозадач перед чтением слота. (3) При **медленном** Supabase колбэк мог прийти, пока экран ещё в **`loading`**: ранний **`return current`** в **`setState`** отбрасывал асаны, затем основной поток фиксировал **`ready`** с пустой йогой. Сейчас: **`catalogMeditationBreathRef`** + **`pendingLateYogaRef`**, колбэк всегда собирает **`{ meditation, breath, yoga }`** из ref среза (или откладывает до записи среза). Код: `modules/practices/ui/PracticeCatalogScreen.tsx`.

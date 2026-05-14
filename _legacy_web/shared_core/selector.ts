@@ -15,7 +15,9 @@ export interface SelectPracticeCandidateInput<T extends PracticeSelectorCandidat
   preferredKind?: PracticeSelectorKind | null;
   chakraId?: number | null;
   targetDurationSec?: number | null;
+  /** Canonical `practice.id` values only (caller resolves slug / legacy hints against the catalog). */
   recentIds?: Iterable<string>;
+  /** Canonical `practice.id` for the model marker (caller resolves slug vs id). */
   markerId?: string | null;
   yogaDurationTolerance?: number;
 }
@@ -137,16 +139,14 @@ export function selectPracticeCandidate<T extends PracticeSelectorCandidate>(
       : [];
   const baseStack = durationWindow.length ? durationWindow : chakraPool;
   const recentIds = new Set(input.recentIds ?? []);
-  const freshStack = baseStack.filter((practice) => !recentIds.has(practice.id) && !recentIds.has(practice.slug));
+  const freshStack = baseStack.filter((practice) => !recentIds.has(practice.id));
   const durationFirst = input.preferredKind === "yoga" && Boolean(input.targetDurationSec) && durationWindow.length === 0;
   const stack = sortPracticeCandidatesForRecommendation(
     freshStack.length ? freshStack : baseStack,
     input.targetDurationSec,
     durationFirst,
   );
-  const markerPick = input.markerId
-    ? stack.find((practice) => practice.id === input.markerId || practice.slug === input.markerId)
-    : undefined;
+  const markerPick = input.markerId ? stack.find((practice) => practice.id === input.markerId) : undefined;
   const picked = markerPick ?? stack[0];
 
   if (!picked) return null;

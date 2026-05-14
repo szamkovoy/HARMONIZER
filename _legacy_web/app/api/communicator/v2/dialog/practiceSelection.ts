@@ -80,16 +80,6 @@ const STATIC_COHERENT_BREATH: PracticeCandidate = {
   practice_chakras: [],
 };
 
-const BREATH_PRACTICE_SLUGS = new Set([
-  "coherent",
-  "nadi-shodhana",
-  "surya-bhedana",
-  "chandra-bhedana",
-  "square",
-  "triangle-up",
-  "triangle-down",
-]);
-
 export type PracticePickedPayload = PracticeRecommendation & {
   stack?: PracticeCandidate[];
 };
@@ -117,6 +107,14 @@ function practiceMetaId(message: MessageRecord): string | null {
   const meta = message.meta as { practicePicked?: { id?: unknown }; practice_picked?: { id?: unknown } } | null;
   const id = meta?.practicePicked?.id ?? meta?.practice_picked?.id;
   return typeof id === "string" && id.trim() ? id : null;
+}
+
+/** Map `practice_id`, `practice_slug`, or message meta hint to the catalog row's canonical `id`. */
+export function resolvePracticeKeyToCatalogId(hint: string, catalog: PracticeCandidate[]): string | null {
+  const t = hint.trim();
+  if (!t) return null;
+  const row = catalog.find((p) => p.id === t || p.slug === t);
+  return row?.id ?? null;
 }
 
 function recentOfferedPracticeIds(history: MessageRecord[]): string[] {
@@ -152,6 +150,7 @@ async function recentCompletedPracticeIds(
   userId: string,
   preferredKind: PracticeKind | null,
   limit: number,
+  catalog: PracticeCandidate[],
 ): Promise<string[]> {
   const { data, error } = await db
     .from("practice_sessions")
@@ -165,18 +164,29 @@ async function recentCompletedPracticeIds(
     return [];
   }
 
+  const breathSlugs = new Set(catalog.filter((p) => p.kind === "breath").map((p) => p.slug));
+
   function inferredKind(item: { practice_slug: string; practices?: { kind?: string } | null }): string | null {
     if (item.practices?.kind) return item.practices.kind;
-    if (BREATH_PRACTICE_SLUGS.has(item.practice_slug)) return "breath";
+    if (breathSlugs.has(item.practice_slug)) return "breath";
     if (item.practice_slug === STATIC_MEDITATION.slug) return "meditation";
     return null;
   }
 
-  return ((data ?? []) as Array<{ practice_id: string | null; practice_slug: string; practices?: { kind?: string } | null }>)
-    .filter((item) => !preferredKind || inferredKind(item) === preferredKind)
-    .map((item) => item.practice_id ?? item.practice_slug)
-    .filter(Boolean)
-    .slice(0, limit);
+  const filtered = ((data ?? []) as Array<{ practice_id: string | null; practice_slug: string; practices?: { kind?: string } | null }>)
+    .filter((item) => !preferredKind || inferredKind(item) === preferredKind);
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of filtered) {
+    if (out.length >= limit) break;
+    const hint = item.practice_id ?? item.practice_slug;
+    const canon = resolvePracticeKeyToCatalogId(String(hint), catalog);
+    if (!canon || seen.has(canon)) continue;
+    seen.add(canon);
+    out.push(canon);
+  }
+  return out;
 }
 
 function selectablePractice(practice: PracticeCandidate): SelectablePracticeCandidate {
@@ -339,37 +349,40 @@ export async function choosePractice(
 
   let rawRows = (data ?? []) as PracticeCandidate[];
 
+  let selectionPreferredKind = preferredKind;
   if (hasExplicitMarker && marker) {
     const markerPool = mergeStaticPracticesForMarkerLookup(rawRows);
     const markerHit = markerPool
       .map(selectablePractice)
       .find((row) => row.id === marker.id || row.slug === marker.id);
-    if (markerHit) {
-      return {
-        picked: toPracticePickedPayload(markerHit.raw, marker.reason, chakraId, [markerHit.raw]),
-        markerIdResolved: true,
-        chakraId,
-        preferredDurationMin,
-      };
+    if (!markerHit) {
+      console.warn(`[PRACTICE_SELECTOR] marker_id_not_in_catalog id=${marker.id} — fallback to inferred kind`);
+      rawRows = preferredKind ? rawRows.filter((row) => row.kind === preferredKind) : rawRows;
+    } else if (!preferredKind || markerHit.raw.kind !== preferredKind) {
+      // Model `[PRACTICE_PICK]` can disagree with `validateHistoryHasDurationAndType` (e.g. user lists several kinds).
+      // Rank/repeat window must follow the marker practice's kind, same as the former full-catalog early return.
+      selectionPreferredKind = markerHit.raw.kind;
     }
-    console.warn(`[PRACTICE_SELECTOR] marker_id_not_in_catalog id=${marker.id} — fallback to inferred kind`);
-    rawRows = preferredKind ? rawRows.filter((row) => row.kind === preferredKind) : rawRows;
   }
 
-  const all = withStaticPracticeFallbacks(rawRows, preferredKind);
-  const activePracticeCount = preferredKind ? all.length : 0;
-  const recentLimit = recentStackLimitForKind(preferredKind, activePracticeCount);
-  const recentIds = [
-    ...(await recentCompletedPracticeIds(db, userId, preferredKind, recentLimit)),
-    ...recentOfferedPracticeIds(history),
-  ];
+  const all = withStaticPracticeFallbacks(rawRows, selectionPreferredKind);
+  const activePracticeCount = selectionPreferredKind
+    ? all.filter((row) => row.kind === selectionPreferredKind).length
+    : all.length;
+  const recentLimit = recentStackLimitForKind(selectionPreferredKind, activePracticeCount);
+  const recentCompletedCanon = await recentCompletedPracticeIds(db, userId, selectionPreferredKind, recentLimit, all);
+  const recentOfferedCanon = recentOfferedPracticeIds(history)
+    .map((hint) => resolvePracticeKeyToCatalogId(hint, all))
+    .filter((id): id is string => Boolean(id));
+  const recentIds = [...recentCompletedCanon, ...recentOfferedCanon];
+  const markerCatalogId = marker?.id ? resolvePracticeKeyToCatalogId(marker.id, all) ?? undefined : undefined;
   const selection = selectPracticeCandidate({
     candidates: all.map(selectablePractice),
-    preferredKind,
+    preferredKind: selectionPreferredKind,
     chakraId,
     targetDurationSec: preferredDurationSec,
     recentIds,
-    markerId: marker?.id,
+    markerId: markerCatalogId,
   });
   if (!selection) return { picked: null, markerIdResolved: undefined, chakraId, preferredDurationMin };
 

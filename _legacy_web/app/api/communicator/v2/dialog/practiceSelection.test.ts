@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   choosePractice,
   publicPracticePickedPayload,
+  resolvePracticeKeyToCatalogId,
   shouldStayInPracticeSuggestion,
   type PracticeCandidate,
 } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
@@ -94,7 +95,38 @@ function createDb(params: {
   };
 }
 
+describe("resolvePracticeKeyToCatalogId", () => {
+  it("maps slug or id hint to the catalog row id", () => {
+    const catalog: PracticeCandidate[] = [
+      breath({ id: "uuid-99", slug: "square", practice_chakras: [{ chakra_id: 1, weight: 1 }] }),
+    ];
+    expect(resolvePracticeKeyToCatalogId("square", catalog)).toBe("uuid-99");
+    expect(resolvePracticeKeyToCatalogId("uuid-99", catalog)).toBe("uuid-99");
+    expect(resolvePracticeKeyToCatalogId("unknown", catalog)).toBe(null);
+  });
+});
+
 describe("choosePractice", () => {
+  it("maps slug-only completed sessions to catalog ids for exclusion", async () => {
+    const catalog: PracticeCandidate[] = [
+      breath({ id: "breath-uuid-a", slug: "br-a", practice_chakras: [{ chakra_id: 2, weight: 1 }] }),
+      breath({ id: "breath-uuid-b", slug: "br-b", practice_chakras: [{ chakra_id: 2, weight: 1 }] }),
+    ];
+    const picked = await choosePractice(
+      createDb({
+        practices: catalog,
+        recentSessions: [{ practice_id: null, practice_slug: "br-a", practices: { kind: "breath" } }],
+      }) as never,
+      "user1",
+      { id: "br-a", reason: "дыхание", durationMin: 10, chakra: 2 },
+      { forecast: { planet_of_the_day: "Venus" } },
+      "Дыхание 10 минут",
+      [],
+    );
+    expect(picked && "picked" in picked ? picked.picked?.id : null).toBe("breath-uuid-b");
+    expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBe(false);
+  });
+
   it("uses Supabase data, recent sessions and offered history to return a launchable recommendation", async () => {
     const picked = await choosePractice(
       createDb({
@@ -241,6 +273,37 @@ describe("choosePractice", () => {
     expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBe(true);
     expect(picked && "picked" in picked ? picked.picked?.slug : null).toBe("coherent");
     expect(picked && "picked" in picked ? picked.picked?.kind : null).toBe("breath");
+  });
+
+  it("ignores explicit marker when that breath was just offered — picks another breath from the fresh stack", async () => {
+    const seven = [0, 1, 2, 3, 4, 5, 6].map((i) =>
+      breath({
+        id: `breath-id-${i}`,
+        slug: `br-${i}`,
+        practice_chakras: [{ chakra_id: 2, weight: 1 }],
+      }),
+    );
+    const picked = await choosePractice(
+      createDb({ practices: seven }) as never,
+      "user1",
+      { id: "br-0", reason: "дыхание", durationMin: 15, chakra: 2 },
+      { forecast: { planet_of_the_day: "Venus" } },
+      "Дыхание 15 минут, вторая чакра",
+      [
+        {
+          id: "m-prev",
+          role: "assistant",
+          content: "Предыдущее предложение",
+          transcript: null,
+          meta: { practice_picked: { id: "breath-id-0" } },
+          created_at: null,
+        } satisfies MessageRecord,
+      ],
+    );
+
+    expect(picked && "picked" in picked ? picked.picked?.id : null).toBe("breath-id-1");
+    expect(picked && "picked" in picked ? picked.picked?.kind : null).toBe("breath");
+    expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBe(false);
   });
 
   it("does not let slug-only breath sessions exhaust the meditation recent stack", async () => {

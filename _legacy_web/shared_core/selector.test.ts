@@ -52,6 +52,21 @@ describe("practice selector", () => {
     expect(result?.excludedRecentCount).toBe(1);
   });
 
+  it("does not treat slug strings in recentIds as ids — caller must pass canonical catalog ids", () => {
+    const result = selectPracticeCandidate({
+      candidates: [
+        { id: "uuid-a", slug: "slug-a", kind: "yoga", defaultDurationSec: 20 * 60, chakraIds: [6] },
+        { id: "uuid-b", slug: "slug-b", kind: "yoga", defaultDurationSec: 20 * 60, chakraIds: [6] },
+      ],
+      preferredKind: "yoga",
+      chakraId: 6,
+      targetDurationSec: 20 * 60,
+      recentIds: ["slug-a"],
+    });
+    expect(result?.picked.id).toBe("uuid-a");
+    expect(result?.excludedRecentCount).toBe(0);
+  });
+
   it("falls back to recent practices only when the whole matching stack is exhausted", () => {
     const result = selectPracticeCandidate({
       candidates: [candidate({ id: "recent-only", quality: 5 })],
