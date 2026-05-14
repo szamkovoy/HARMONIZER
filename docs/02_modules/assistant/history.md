@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.12
-updated: 2026-05-15
+version: 2.13
+updated: 2026-05-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-05-14 (doc-sync):** Уточнён публичный контракт в **`spec.md`**: явный `id` маркера только после **`.trim()`**; в результате **`choosePractice`** для логов — **`markerCatalogPracticeKind`**; в **`resolvePracticePublic`** — запасные минуты до клипа из **`durationSec`** выбранной практики либо **10**/**3**; раздельно описаны JSON логов **`[PRACTICE_CARD_MISMATCH]`** на сервере и в **`PracticeCard`** (`**source: "practice_card_client_sync"**`). **`dependencies.md`** — импорт **`route.ts`** → **`assistantSelectableDurations.ts`**. **`MAP.md`**, **`CHANGELOG.md`**.
 - **2026-05-15 (третий):** Карточка практики в диалоге: **`resolvePracticePublic`** — единый источник **`overrides.durationMin`** с историей при **`confident`**, клип к шагам каталога (`**assistantSelectableDurations.ts**`), диагностика **`[PRACTICE_CARD_MISMATCH]`**; **`choosePractice`** — при конфликте типа маркер vs уверенная история сбрасывается id маркера (`historyKindConflictResolved`). Клиент **`PracticeCard`** — клип override. Тесты **`practiceSelection.test.ts`**. **`spec.md`**, **`practices/{spec,history}.md`**, **`CHANGELOG.md`**.
 - **2026-05-15 (второй):** Окно недавних практик для `**selectPracticeCandidate**` — только **канонические `id`** строк каталога: подсказки из `practice_sessions` и `practice_picked` нормализуются через `**resolvePracticeKeyToCatalogId**`; убран хардкод `BREATH_PRACTICE_SLUGS` — классификация дыхания по slug опирается на строки `kind: breath` в загруженном каталоге. В `**selector.ts**` недавность сравнивается только с `practice.id`. Тесты **`practiceSelection.test.ts`**, **`selector.test.ts`**. **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-15:** **`practiceSelection.ts` / `choosePractice`** — убран ранний `return` при успешном резолве `[PRACTICE_PICK]` по каталогу: иначе **не** применялись `recentOfferedPracticeIds` + `selectPracticeCandidate`, и модель могла дважды подряд предложить ту же дыхательную практику при неизменном маркере. Теперь маркер сопоставляется с кандидатами **после** исключения недавних id (как для завершённых сессий). При расхождении `practiceKind` из эвристики и `kind` практики из маркера окно недавних и пул кандидатов берутся по **типу из маркера** (как при прежнем резолве «карточка = маркер»). Тест **`practiceSelection.test.ts`**. **`spec.md`**, **`CHANGELOG.md`**.
