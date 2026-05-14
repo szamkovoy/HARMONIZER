@@ -155,6 +155,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const abortRef = useRef<AbortController | null>(null);
   const secondaryContentAbortRef = useRef<AbortController | null>(null);
   const lastHydratedForecastKeyRef = useRef<string | null>(null);
+  /** После `refresh({ forceRefresh/blockingReload })` пересчитать LLM-слой дня, даже если в forecast уже есть старые тексты. */
+  const pendingMorningMonologueForceRef = useRef(false);
   const latestCacheContextRef = useRef<DayContentCacheContext | null>(null);
   const lastLocalDayRef = useRef<string | null>(null);
   const lastResolvedRequestKeyRef = useRef<string | null>(null);
@@ -438,6 +440,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (!isDayContentReadyForHome(forecastForUi, nextAccessMode)) {
             throw new Error("Personal day content is incomplete.");
           }
+          if ((opts?.forceRefresh || opts?.blockingReload) && userId) {
+            pendingMorningMonologueForceRef.current = true;
+            lastHydratedForecastKeyRef.current = null;
+          }
           latestCacheContextRef.current = userId
             ? {
                 userId,
@@ -568,7 +574,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     if (!forecast || accessMode === "free") return;
     if (status !== "ready" && status !== "stale_ready") return;
     const forecastForHydration: DailyForecast = forecast;
+    const forceMorningRefresh = pendingMorningMonologueForceRef.current;
     const needsSecondaryContent =
+      forceMorningRefresh ||
       !forecastForHydration.slogan?.trim() ||
       !forecastForHydration.recommendationShortText?.trim() ||
       !forecastForHydration.recommendationLongText?.trim() ||
@@ -583,8 +591,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       forecastForHydration.computedAt,
       accessMode,
     ].join("|");
-    if (lastHydratedForecastKeyRef.current === hydrationKey) return;
-    lastHydratedForecastKeyRef.current = hydrationKey;
+    if (lastHydratedForecastKeyRef.current === hydrationKey && !forceMorningRefresh) return;
+    if (!forceMorningRefresh) {
+      lastHydratedForecastKeyRef.current = hydrationKey;
+    }
 
     secondaryContentAbortRef.current?.abort();
     const controller = new AbortController();
@@ -593,7 +603,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     void (async () => {
       try {
         setStartupStep("HOME/api_morning_monologue");
-        const enriched = await enrichWithMorningContent(forecastForHydration, false, controller.signal);
+        const enriched = await enrichWithMorningContent(forecastForHydration, forceMorningRefresh, controller.signal);
         if (controller.signal.aborted || !isBaseForecastValid(enriched.forecast)) return;
         setForecast((current) => {
           if (!current) return current;
@@ -604,6 +614,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         });
         if (enriched.modelUsed) {
           setModelUsed(enriched.modelUsed);
+        }
+        if (forceMorningRefresh) {
+          pendingMorningMonologueForceRef.current = false;
+          lastHydratedForecastKeyRef.current = hydrationKey;
         }
         await saveDayContentCache({
           userId: cacheContext.userId,
@@ -620,6 +634,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         });
       } catch (e) {
         if (controller.signal.aborted) return;
+        if (forceMorningRefresh) {
+          pendingMorningMonologueForceRef.current = false;
+        }
         logRuntimeEvent(
           "day_content:secondary_content_error",
           { message: e instanceof Error ? e.message : String(e) },
