@@ -25,6 +25,14 @@ type DayContentStatus =
   | "error";
 type DayContentSource = DailyForecastResult["source"] | "global";
 
+export type DayContentRefreshOptions = {
+  forceRefresh?: boolean;
+  accessModeOverride?: AccessMode;
+  accessTierOverride?: ProductTier;
+  /** Показать стартовый оверлей до готовности дня (после смены натальных данных с другого экрана). */
+  blockingReload?: boolean;
+};
+
 export interface UseDayContentResult {
   forecast: DailyForecast | null;
   accessMode: AccessMode;
@@ -33,7 +41,7 @@ export interface UseDayContentResult {
   status: DayContentStatus;
   loading: boolean;
   error: Error | null;
-  refresh: (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode }) => Promise<void>;
+  refresh: (opts?: DayContentRefreshOptions) => Promise<void>;
 }
 
 interface UseDayContentOptions {
@@ -182,7 +190,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   );
 
   const refresh = useCallback(
-    async (opts?: { forceRefresh?: boolean; accessModeOverride?: AccessMode; accessTierOverride?: ProductTier }) => {
+    async (opts?: DayContentRefreshOptions) => {
       abortRef.current?.abort();
       secondaryContentAbortRef.current?.abort();
       setError(null);
@@ -217,9 +225,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             })
           : null;
       const shouldBlockSplash =
-        !opts?.forceRefresh &&
-        (lastResolvedRequestKeyRef.current !== requestKey || !forecast) &&
-        !(instantCached && instantCached.freshness === "fresh");
+        Boolean(opts?.blockingReload) ||
+        (!opts?.forceRefresh &&
+          (lastResolvedRequestKeyRef.current !== requestKey || !forecast) &&
+          !(instantCached && instantCached.freshness === "fresh"));
 
       if (shouldBlockSplash) {
         beginHomeBootstrap("initializing", "HOME/home_overlay_start");

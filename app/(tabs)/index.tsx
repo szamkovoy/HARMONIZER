@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/modules/auth";
 import { DevTierSwitch as AccessDevTierSwitch, UpgradeDialog, accessModeForTier, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
@@ -6,6 +7,7 @@ import type { DailyForecast } from "@/modules/daily-engine";
 import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useDayContent } from "@/modules/home/useDayContent";
+import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
@@ -20,6 +22,7 @@ import {
   getExpoNotificationsOrNull,
   OPPORTUNITY_REMINDERS_CHANNEL_ID,
 } from "@/services/localNotifications";
+import { consumeHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile, fetchActiveNatalProfileCached } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
@@ -35,16 +38,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const MOSCOW_BIRTH_LOCATION: BirthData["location"] = {
-  lat: 55.7558,
-  lng: 37.6173,
-  timezone: "Europe/Moscow",
-};
 
 function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
   if (value instanceof Error && value.message.trim()) return value.message;
@@ -313,101 +309,6 @@ function FreeTierBanner() {
   );
 }
 
-function NatalBridgeModal({
-  visible,
-  saving,
-  onClose,
-  onSubmit,
-}: {
-  visible: boolean;
-  saving: boolean;
-  onClose: () => void;
-  onSubmit: (birthData: BirthData) => Promise<void>;
-}) {
-  const insets = useSafeAreaInsets();
-  const theme = useTheme();
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-
-  const submit = useCallback(() => {
-    const normalizedDate = date.trim();
-    const normalizedTime = time.trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
-      Alert.alert("Проверьте дату", "Введите дату в формате YYYY-MM-DD.");
-      return;
-    }
-    if (!/^\d{2}:\d{2}$/.test(normalizedTime)) {
-      Alert.alert("Проверьте время", "Введите время в формате HH:MM.");
-      return;
-    }
-
-    void onSubmit({
-      date: normalizedDate,
-      time: normalizedTime,
-      timeMode: "precise",
-      location: MOSCOW_BIRTH_LOCATION,
-    });
-  }, [date, onSubmit, time]);
-
-  return (
-    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View
-          style={[
-            styles.modalCard,
-            {
-              backgroundColor: theme.colors.screenBg,
-              borderColor: theme.colors.surfaceBorder,
-              paddingBottom: insets.bottom + 18,
-            },
-          ]}
-        >
-          <AppText variant="sectionTitle">Натальные данные</AppText>
-          <AppText variant="screenHint" tone="muted">
-            Это временный технический ввод для M1. Место рождения пока фиксировано: Москва, Europe/Moscow.
-          </AppText>
-          <TextInput
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={theme.colors.textFaint}
-            autoCapitalize="none"
-            keyboardType="numbers-and-punctuation"
-            editable={!saving}
-            style={[
-              styles.input,
-              {
-                borderColor: theme.colors.surfaceBorder,
-                color: theme.colors.textPrimary,
-              },
-            ]}
-          />
-          <TextInput
-            value={time}
-            onChangeText={setTime}
-            placeholder="HH:MM"
-            placeholderTextColor={theme.colors.textFaint}
-            autoCapitalize="none"
-            keyboardType="numbers-and-punctuation"
-            editable={!saving}
-            style={[
-              styles.input,
-              {
-                borderColor: theme.colors.surfaceBorder,
-                color: theme.colors.textPrimary,
-              },
-            ]}
-          />
-          <View style={styles.modalActions}>
-            <AppButton label="Отмена" variant="secondary" onPress={onClose} disabled={saving} />
-            <AppButton label={saving ? "Сохраняю..." : "Сохранить"} onPress={submit} disabled={saving} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => void) {
   onClose();
 }
@@ -505,7 +406,7 @@ export default function HomeScreen() {
   const [natalProfileResolved, setNatalProfileResolved] = useState(!needsPersonalForecast);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const hasNatalProfile = needsPersonalForecast ? (natalProfileResolved ? Boolean(natalProfile) : null) : true;
-  const { forecast, loading, error, refresh, status, accessMode, modelUsed } = useDayContent({
+  const { forecast, error, refresh, status, accessMode, modelUsed } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     birthDataErrorMessage: strings.birthDataMessage,
     accessModeOverride: accessModeForTier(access.tier),
@@ -520,7 +421,7 @@ export default function HomeScreen() {
     }
     setNatalProfileLoading(true);
     setNatalProfileResolved(false);
-  }, [needsPersonalForecast, profile?.id]);
+  }, [needsPersonalForecast, profile?.id, profile?.birth_date, profile?.birth_time]);
 
   useEffect(() => {
     let cancelled = false;
@@ -551,7 +452,18 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [needsPersonalForecast, profile?.id]);
+  }, [needsPersonalForecast, profile?.id, profile?.birth_date, profile?.birth_time]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const pending = consumeHomeDayContentBlockingReload();
+      if (!pending) return;
+      void refresh({
+        forceRefresh: pending.forceRefresh,
+        blockingReload: true,
+      });
+    }, [refresh]),
+  );
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
@@ -731,9 +643,11 @@ export default function HomeScreen() {
           onClose={() => setCommunicatorOpen(false)}
         />
       ) : null}
-      <NatalBridgeModal
+      <NatalBirthDataModal
         visible={natalBridgeOpen}
         saving={natalSaving}
+        initialDate={profile?.birth_date}
+        initialTime={profile?.birth_time}
         onClose={() => setNatalBridgeOpen(false)}
         onSubmit={onSaveNatalBridge}
       />
@@ -857,30 +771,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 7,
-  },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  modalCard: {
-    borderTopWidth: 1,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    gap: 14,
-    padding: 18,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 16,
-    fontSize: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "flex-end",
   },
   overlayRoot: {
     flex: 1,

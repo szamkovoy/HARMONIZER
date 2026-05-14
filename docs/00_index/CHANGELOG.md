@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.3
+version: 2.4
 updated: 2026-05-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-14: `profile` + `daily_forecast` — вкладка **`app/(tabs)/profile.tsx`**: «Обновить профиль» открывает **`NatalBirthDataModal`** и **`createNatalProfile`** (как главный), после сохранения — **`markHomeDayContentBlockingReload`** / **`consumeHomeDayContentBlockingReload`** и **`useDayContent.refresh({ blockingReload })`** на фокусе Home (`useFocusEffect`). Хук **`modules/home/useDayContent.ts`**: опция **`blockingReload`**. **`modules/home/ui/NatalBirthDataModal.tsx`**, **`services/homeDayContentReloadRequest.ts`**. Документация: **`docs/02_modules/{profile,daily_forecast}/{spec,dependencies,history}.md`**.
 - 2026-05-14: `assistant` — режим оркестратора **`fast_track_final`** (первое сообщение пользователя уже с длительностью и типом): сразу **premium** + `streamGeminiText`, без standard-хода и без `[READY_FOR_RECOMMENDATION]`; `decideTurnMode(..., pendingUserContent?)`. Код: **`dialogArcOrchestrator.ts`**, **`communicator/v2/dialog/route.ts`**; подпись фазы в **`modules/communicator/i18n/communicator.ts`**. Документация: **`docs/02_modules/assistant/{prompts-reference,spec,history}.md`**, **`docs/02_modules/communicator/history.md`**.
 - 2026-05-14: `assistant` — **`practiceSelection.ts` / `choosePractice`**: явный `[PRACTICE_PICK]` (не `default`) сначала резолвится по **полному** каталогу практик, чтобы карточка совпадала с выбором премиум-модели; эвристика `practiceKind` из реплик пользователя больше **не** отфильтровывает id из маркера (раньше это давало «Вспышку» при тексте про дыхание). Лог **`marker_id_not_in_catalog`** при промахе id. Тест **`practiceSelection.test.ts`**. **`docs/02_modules/assistant/{spec,history}.md`**, **`docs/02_modules/practices/{spec,history}.md`**.
 - 2026-05-14: `profile` / auth dev UX — **`supabase-auth-console-filter.ts`**, **`authNetworkErrors.ts`**: LogBox больше не краснеет на ожидаемом abort refresh (15 с) и на **`AuthRetryableFetchError`** от auth-js; уточнён детектор abort (Hermes / стек auth-js) + **`LogBox.ignoreLogs`**. **`docs/02_modules/profile/{spec,history}.md`**.

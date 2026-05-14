@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 1.2
-updated: 2026-05-07
+version: 1.3
+updated: 2026-05-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -10,6 +10,7 @@ code_refs:
     modules/home/useDayContent.ts,
     services/dailyForecastClient.ts,
     services/dayContentCache.ts,
+    services/homeDayContentReloadRequest.ts,
     services/globalContentClient.ts,
     modules/daily-engine/index.ts,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
@@ -29,7 +30,8 @@ code_refs:
 
 - **`profile`**  
   - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey`, режима доступа и автодозапроса геолокации (`acquireAndPersistUserCoordinates`).  
-  - `recentPlanetsOfDay` читается сервером из `user_settings.preferences` (см. `loadRecentPlanets` в `daily-forecast/route.ts`).
+  - `recentPlanetsOfDay` читается сервером из `user_settings.preferences` (см. `loadRecentPlanets` в `daily-forecast/route.ts`).  
+  - После смены натала с **`app/(tabs)/profile.tsx`** главный экран может запросить **`refresh` с `blockingReload`** через **`consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`) при фокусе таба Home.
 
 - **`subscription`**  
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.

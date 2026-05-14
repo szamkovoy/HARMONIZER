@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.4
+version: 1.5
 updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
-code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx]
+code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-05-14:** Вкладка **`app/(tabs)/profile.tsx`**: кнопка **«Обновить профиль»** снова ведёт в продуктовый поток смены натала — **`NatalBirthDataModal`** + `createNatalProfile` (как на главном), gate по **`canUseFeature("calibration")`**, после сохранения **`markHomeDayContentBlockingReload({ forceRefresh: true })`** и алерт с переходом на калибровку/главную. Ранее кнопка вызывала только **`refreshProfile()`** без UI, из-за чего воспринималась как «не нажимается» / «ничего не происходит». Параллельно на главном: **`useFocusEffect`** потребляет флаг blocking-reload; загрузка активного натала на Home дополнительно зависит от **`profile.birth_date` / `profile.birth_time`**, чтобы текст/мат. уровень не залипали после смены даты.
 
 - **2026-05-14:** После срабатывания таймаута refresh в `services/supabase.ts` RN показывал красный LogBox на `AbortError` / `AuthRetryableFetchError: Aborted` — auth-js логирует их через `console.error`, а существующий фильтр понижал только «сетевые» TypeError. Добавлены **`isLikelyAuthJsFetchAbort`** и явное понижение для **`isAuthRetryableFetchError`** в `services/supabase-auth-console-filter.ts`; transient-классификация в **`modules/auth/authNetworkErrors.ts`** расширена на abort из polyfill. **Дополнение:** детектор abort учитывает стек `@supabase/auth-js` без обязательного `fetch.umd.js` (Hermes), **`LogBox.ignoreLogs(/AbortError:\s*Aborted/i)`**, и понижение любого аргумента с `name === "AbortError"` и сообщением «Aborted» (обрезанный стек).
 
@@ -23,4 +25,4 @@ code_refs: [modules/auth/AuthProvider.tsx, app/onboarding.tsx, app/(tabs)/profil
 
 - **Не датировано (MASTER_README / архитектурный снимок):** В `docs/tmp_docs/29042026/MASTER_README.md` продукт описан как связка astro-core → daily-engine → calibration → assistant с общим `UserContext` (натал, калибровка, прогноз, история практик). Текущая реализация профиля как **хаба данных** совпадает по духу (одна строка `users` + связанные таблицы), но **отдельного типа `UserContext` в одном объекте на клиенте нет** — данные разнесены по `useAuth().profile`, отдельным fetch натала и кэшам главного экрана.
 
-- **2026-05:** Экран `app/(tabs)/profile.tsx` намеренно минимален: доступ, dev-tier, диагностика, статистика практик; расширенный редактор BirthData отложен (карточка-заглушка), основной ввод — через главный экран (`NatalBridge`).
+- **2026-05:** Экран `app/(tabs)/profile.tsx` остаётся лёгким по набору карточек (доступ, диагностика, статистика); **редактор даты/времени рождения** добавлен в 2026-05-14 (см. запись выше), расширенные настройки вне натала — в карточке «Скоро здесь».

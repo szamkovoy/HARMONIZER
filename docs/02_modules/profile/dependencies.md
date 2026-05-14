@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -10,8 +10,10 @@ code_refs:
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
     app/(tabs)/index.tsx,
+    modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
     services/natalProfileClient.ts,
+    services/homeDayContentReloadRequest.ts,
     services/practiceSessions.ts,
     modules/location/acquireAndPersistUserCoordinates.ts,
   ]
@@ -26,7 +28,10 @@ code_refs:
   `app/_layout.tsx` передаёт `profile` в `AccessProvider`; `app/(tabs)/profile.tsx` и главный экран используют `useAccess()` для отображения тарифа, `DevTierSwitch` и `canUseFeature("stats")`. Продуктовая семантика тарифов — в `docs/02_modules/subscription/spec.md`.
 
 - **`astro` (данные и сценарии)**  
-  `services/natalProfileClient.ts` и модалка на `app/(tabs)/index.tsx` завязаны на типы `BirthData` / `NatalProfile` из `modules/astro-core` и API `POST /api/astro/natal`. Поля `birth_*` и связанный активный натал определяют персональный прогноз и downstream assistant/calibration.
+  `services/natalProfileClient.ts`, **`modules/home/ui/NatalBirthDataModal.tsx`** (общий с главным) и экраны `app/(tabs)/index.tsx` / `app/(tabs)/profile.tsx` завязаны на типы `BirthData` / `NatalProfile` из `modules/astro-core` и API `POST /api/astro/natal`. Поля `birth_*` и связанный активный натал определяют персональный прогноз и downstream assistant/calibration.
+
+- **`daily_forecast` (синхронизация главного после смены натала с профиля)**  
+  После успешного `createNatalProfile` с вкладки профиля вызывается **`markHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); при следующем фокусе **`app/(tabs)/index.tsx`** потребляется флаг и **`useDayContent.refresh`** выполняется с **`blockingReload`** + при необходимости **`forceRefresh`**, чтобы главный экран дождался обновлённого дня под новый `scopeKey`.
 
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица завершённых сессий). Запись сессий выполняется из flow практик, не из таба профиля.
@@ -34,7 +39,7 @@ code_refs:
 ## 2. От него зависят
 
 - **`daily_forecast`**  
-  `useDayContent` и главный экран читают `profile` из `useAuth()` (tz, координаты, birth fields, tier) для выбора режима контента и scope кэша.
+  `useDayContent` и главный экран читают `profile` из `useAuth()` (tz, координаты, birth fields, tier) для выбора режима контента и scope кэша; смена birth с профиля инициирует отложенный **`blockingReload`** главного через `homeDayContentReloadRequest` (см. §1).
 
 - **`subscription`**  
   Тот же объект `profile` — вход `AccessProvider`; без актуальных `membership_tier` / `trial_expires_at` ломается вся матрица gate.

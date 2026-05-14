@@ -1,16 +1,40 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
-import { DevTierSwitch, TIER_LABELS, useAccess } from "@/modules/access";
+import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
+import type { BirthData } from "@/modules/astro-core";
+import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { loadDailyPracticeStats, type DailyPracticeStat } from "@/services/practiceSessions";
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
+import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
+import { createNatalProfile } from "@/services/natalProfileClient";
+
+function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
+  if (value instanceof Error && value.message.trim()) return value.message;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    const error = value as { message?: unknown; error?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const message = [error.message, error.error, error.details, error.hint, error.code]
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+    if (message) return message;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
 
 export default function ProfileTabRoute() {
   const theme = useTheme();
@@ -18,9 +42,18 @@ export default function ProfileTabRoute() {
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
-  const refresh = useCallback(() => {
-    void refreshProfile();
-  }, [refreshProfile]);
+  const [natalModalOpen, setNatalModalOpen] = useState(false);
+  const [natalSaving, setNatalSaving] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+
+  const openBirthEditor = useCallback(() => {
+    logRuntimeTap("profile_open_birth_editor");
+    if (canUseFeature("calibration")) {
+      setNatalModalOpen(true);
+    } else {
+      setUpgradeFeature("calibration");
+    }
+  }, [canUseFeature]);
 
   const loadStats = useCallback(async () => {
     logRuntimeTap("profile_load_stats", { canUseStats: canUseFeature("stats") });
@@ -49,6 +82,43 @@ export default function ProfileTabRoute() {
     Alert.alert("Диагностика", "Лог очищен. Теперь можно начать чистый 5-10 минутный тест.");
   }, []);
 
+  const onSaveNatal = useCallback(
+    async (birthData: BirthData) => {
+      setNatalSaving(true);
+      try {
+        await createNatalProfile(birthData);
+        await refreshProfile();
+        markHomeDayContentBlockingReload({ forceRefresh: true });
+        setNatalModalOpen(false);
+        Alert.alert(
+          "Готово",
+          "Натальный профиль обновлён. На главном экране подтянутся новый прогноз и рекомендации на день. При желании можно пройти калибровку голосом.",
+          [
+            { text: "Остаться", style: "cancel" },
+            {
+              text: "К калибровке",
+              onPress: () => {
+                router.push("/calibration");
+              },
+            },
+            {
+              text: "На главную",
+              onPress: () => {
+                router.replace("/");
+              },
+            },
+          ],
+        );
+      } catch (error) {
+        const message = errorMessage(error, "Не удалось сохранить натальные данные.");
+        Alert.alert("Ошибка сохранения", message);
+      } finally {
+        setNatalSaving(false);
+      }
+    },
+    [refreshProfile],
+  );
+
   const chartItems = useMemo(() => [...stats].reverse(), [stats]);
   const maxSeconds = Math.max(60, ...chartItems.map((item) => item.total_practice_seconds ?? 0));
 
@@ -74,7 +144,10 @@ export default function ProfileTabRoute() {
           <AppText variant="technicalCaption" tone="muted">
             profile tier: {profile?.membership_tier ?? "unknown"} · trial: {profile?.trial_expires_at ?? "нет"}
           </AppText>
-          <AppButton label="Обновить профиль" variant="secondary" onPress={refresh} />
+          <AppButton label="Обновить профиль" variant="secondary" onPress={openBirthEditor} />
+          <AppText variant="technicalCaption" tone="muted">
+            Дата и время рождения (натальная карта). На главной экран обновится после сохранения.
+          </AppText>
         </View>
 
         {__DEV__ ? <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
@@ -142,10 +215,27 @@ export default function ProfileTabRoute() {
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">Скоро здесь</AppText>
           <AppText variant="dialogBody" tone="muted">
-            Палитра и настройки натальных данных появятся на следующих витках.
+            Расширенные настройки профиля и внешний вид — на следующих витках.
           </AppText>
         </View>
       </ScrollView>
+
+      <NatalBirthDataModal
+        visible={natalModalOpen}
+        saving={natalSaving}
+        initialDate={profile?.birth_date}
+        initialTime={profile?.birth_time}
+        onClose={() => setNatalModalOpen(false)}
+        onSubmit={onSaveNatal}
+      />
+      {upgradeFeature ? (
+        <UpgradeDialog
+          visible
+          feature={upgradeFeature}
+          requiredTier={requiredTierFor(upgradeFeature)}
+          onClose={() => setUpgradeFeature(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

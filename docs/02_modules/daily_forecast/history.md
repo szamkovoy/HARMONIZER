@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 1.5
-updated: 2026-05-12
+version: 1.6
+updated: 2026-05-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-14:** `useDayContent.refresh` принимает **`blockingReload`**: при `true` стартовый оверлей (`AppStartupProvider.beginHomeBootstrap`) показывается даже при `forceRefresh`, чтобы после смены натала с **`app/(tabs)/profile.tsx`** главный таб дождался нового дня под обновлённый `scopeKey`. Флаги переноса: **`markHomeDayContentBlockingReload` / `consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); потребление на фокусе Home — **`useFocusEffect`** в `app/(tabs)/index.tsx`. Общая модалка ввода даты/времени — **`modules/home/ui/NatalBirthDataModal.tsx`**.
 
 - **2026-05-12:** `loadOpportunityWindowsExplanation` разделён на два пути по `accessMode`: free-пользователи получают упрощённый текст (только планета дня, восход, кульминация), paid — полный (натальная + транзитная планета, все окна включая точный аспект). Ранее один путь обслуживал оба режима с разной closing-фразой; теперь контент принципиально отличается.
 

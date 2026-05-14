@@ -1,13 +1,15 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 1.6
-updated: 2026-05-12
+version: 1.7
+updated: 2026-05-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
     app/(tabs)/index.tsx,
     modules/home/useDayContent.ts,
+    modules/home/ui/NatalBirthDataModal.tsx,
+    services/homeDayContentReloadRequest.ts,
     modules/home/ui/ChakraFlower.tsx,
     services/dailyForecastClient.ts,
     services/dayContentCache.ts,
@@ -37,7 +39,7 @@ code_refs:
 ### Хук и состояние главного экрана
 
 - `useDayContent(options?)` → `UseDayContentResult` (`modules/home/useDayContent.ts`):
-  - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, `refresh(opts?)`.
+  - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, `refresh(opts?)`. Опции **`refresh`**: `forceRefresh`, `accessModeOverride`, `accessTierOverride`, **`blockingReload`** (показ стартового оверлея до готовности дня — после смены натала с другого экрана, см. `services/homeDayContentReloadRequest.ts` + фокус главного в `app/(tabs)/index.tsx`).
   - Локальный календарный день: `Intl` + `forecastDate` в IANA-зоне из профиля/геолокации.
   - Free: `fetchGlobalContent` + URL из `getAiGlobalContentUrl()`; premium/trial: `fetchDailyForecast` + `getDailyForecastUrl()` (Vercel `/api/astro/daily-forecast` или Supabase Function — определяется `communicatorConfig`).
   - Перед первым `refresh()` главный экран (`app/(tabs)/index.tsx`) для персонального режима запрашивает активный натал через `fetchActiveNatalProfileCached(profile.id)`, чтобы `hasNatalProfile` мог разрешиться из локального кэша и не блокировал ранний `peek/loadDayContentCache`.

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.4
+version: 1.5
 updated: 2026-05-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
@@ -11,9 +11,11 @@ code_refs:
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
     app/(tabs)/index.tsx,
+    modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
     app/_layout.tsx,
     services/natalProfileClient.ts,
+    services/homeDayContentReloadRequest.ts,
     services/practiceSessions.ts,
     modules/location/acquireAndPersistUserCoordinates.ts,
     _legacy_web/app/api/astro/natal/route.ts,
@@ -39,17 +41,17 @@ code_refs:
 
 - **Источник строки `users`:** при событиях `supabase.auth.onAuthStateChange` вызывается **`syncProfile`**, который делает `from("users").select("*").eq("id", userId).maybeSingle()`. Сетевой запрос защищён таймаутом `PROFILE_FETCH_TIMEOUT_MS` (10 с) через `AbortController` + `.abortSignal(...)`, чтобы зависший PostgREST не блокировал сплэш-скрин бесконечно. Строка создаётся на стороне БД триггером на нового пользователя (`handle_new_auth_user`, см. миграции Supabase — задокументировано в комментариях `AuthProvider`). Cold start полностью полагается на `onAuthStateChange` (SDK сам читает SecureStore и рефрешит токен); отдельный вызов `getSession()` удалён, чтобы не захватывать внутренний lock SDK и не блокировать событие `INITIAL_SESSION` при медленной сети. Таймаут auth token refresh (15 с) реализован в `services/supabase.ts` через `AbortController` на `/auth/v1/token`. В **`__DEV__`** `services/supabase-auth-console-filter.ts` понижает до `console.warn` типичные транзиенты auth-js: **`AuthRetryableFetchError`** и **`AbortError: Aborted`** из RN `whatwg-fetch` при этом abort (чтобы не засорять LogBox красным оверлеем). Завершение cold start: **`session` и `initializing` обновляются одним `setState`**, чтобы гейт в `app/_layout.tsx` не видел кадр с «уже не сплэш, но session ещё null»; при первом `INITIAL_SESSION` с `session === null` bootstrap завершается с задержкой ~1,2 с, чтобы поймать редкий второй колбэк с реальной сессией. Редирект на `/sign-in` при `session === null` после того как сессия уже была в этом рантайме, откладывается на ~0,5 с, чтобы пережить кратковременный `null` от SDK/refresh без мигания экрана входа.
 - **Корневой layout:** `app/_layout.tsx` оборачивает дерево в `AuthProvider`, затем `AccessBridge` передаёт **`profile`** в `AccessProvider` (`modules/access`) для подписочных gate.
-- **Редактирование натальных / BirthData:** основной UX на **`app/(tabs)/index.tsx`** (`NatalBridgeModal` / `createNatalProfile` → `POST /api/astro/natal`). Сервер (`_legacy_web/app/api/astro/natal/route.ts`) обновляет `users.birth_*`, `lat`/`lon`/`tz` при необходимости, пересобирает `user_natal_charts`, **удаляет** `user_daily_forecasts` с текущей локальной даты и далее.
+- **Редактирование натальных / BirthData:** **`app/(tabs)/index.tsx`** и **`app/(tabs)/profile.tsx`** — общий UI **`NatalBirthDataModal`** + `createNatalProfile` → `POST /api/astro/natal`. Сервер (`_legacy_web/app/api/astro/natal/route.ts`) обновляет `users.birth_*`, `lat`/`lon`/`tz` при необходимости, пересобирает `user_natal_charts`, **удаляет** `user_daily_forecasts` с текущей локальной даты и далее.
 - **Онбординг:** `app/onboarding.tsx` пишет в `users` поля `tz`, `lat`, `lon`, `location_name`, `onboarded_at` и вызывает `refreshProfile()`.
 - **Геолокация для прогноза:** `modules/location/acquireAndPersistUserCoordinates.ts` обновляет `lat`, `lon`, `tz`, опционально `location_name` без смены birth-полей.
 
 ## 4. UI: `app/(tabs)/profile.tsx`
 
-- Карточка **«Текущий доступ»:** `access` из `useAccess()`, сырые `profile.membership_tier` и `trial_expires_at`, кнопка **«Обновить профиль»** → `refreshProfile()`.
+- Карточка **«Текущий доступ»:** `access` из `useAccess()`, сырые `profile.membership_tier` и `trial_expires_at`, кнопка **«Обновить профиль»** → модальное окно **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты/времени рождения и **`createNatalProfile`** (как на главном). Доступ к редактированию по фиче **`calibration`** (`useAccess().canUseFeature("calibration")`); иначе **`UpgradeDialog`**. После успешного сохранения: **`refreshProfile()`**, **`markHomeDayContentBlockingReload({ forceRefresh: true })`** (`services/homeDayContentReloadRequest.ts`) — при следующем фокусе главного таба `useDayContent.refresh` выполняется с **`blockingReload`** и показывает стартовый оверлей до готовности дня.
 - В **`__DEV__`:** `DevTierSwitch` для эффективного тарифа (см. `subscription`).
 - **Статистика практик:** при `canUseFeature("stats")` — загрузка `loadDailyPracticeStats` из `services/practiceSessions.ts` (14 дней); иначе текст про тариф Практик/Мастер.
 - **`HARMONIZER_TEST_MODE` / `__DEV__`:** блок диагностики (`runtimeDiagnostics`).
-- Заглушка **«Скоро здесь»** для расширенного редактирования натальных данных в UI профиля (сейчас ввод birth data — на главном через `NatalBridge`).
+- Заглушка **«Скоро здесь»** — расширенные настройки профиля (не birth-редактор; birth — см. кнопку выше).
 
 ## 5. Конфигурация и параметры
 
@@ -68,7 +70,7 @@ code_refs:
 - **Смена BirthData через натальный API** инвалидирует активные строки **`user_natal_charts`** (старые версии деактивируются) и **часть кэша прогноза** (`user_daily_forecasts` с даты ≥ сегодня в tz пользователя) — см. `natal/route.ts`.
 - **Смена текущих координат / tz** (онбординг, `acquireAndPersistUserCoordinates`) меняет вводные для расчёта локального дня и геозависимых веток без автоматического пересчёта натала; персональный прогноз должен перезапрашиваться через существующие refresh-потоки главного экрана.
 - **Поле `profile` не кэшируется** между приложениями иначе как через Supabase: после внешних изменений строки в БД нужен **`refreshProfile`** (или пере-login).
-- Расширенное редактирование профиля в UI таба **ещё не реализовано** (см. карточку «Скоро здесь»).
+- Расширенное редактирование профиля (имя, аватар, палитра и т.п.) в UI таба **ещё не реализовано** (см. карточку «Скоро здесь»).
 
 ## Справочные материалы
 
