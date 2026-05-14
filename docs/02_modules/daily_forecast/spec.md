@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 1.7
+version: 1.8
 updated: 2026-05-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -39,7 +39,8 @@ code_refs:
 ### Хук и состояние главного экрана
 
 - `useDayContent(options?)` → `UseDayContentResult` (`modules/home/useDayContent.ts`):
-  - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, `refresh(opts?)`. Опции **`refresh`**: `forceRefresh`, `accessModeOverride`, `accessTierOverride`, **`blockingReload`** (показ стартового оверлея до готовности дня — после смены натала с другого экрана, см. `services/homeDayContentReloadRequest.ts` + фокус главного в `app/(tabs)/index.tsx`).
+  - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, `refresh(opts?)`. Опции **`refresh`** типизированы экспортом **`DayContentRefreshOptions`**: `forceRefresh?`, `accessModeOverride?`, `accessTierOverride?`, **`blockingReload?`** (при `true` — стартовый оверлей до готовности дня после смены натала с другого экрана; см. `services/homeDayContentReloadRequest.ts` + **`useFocusEffect`** на главном в `app/(tabs)/index.tsx`).
+  - **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты **`YYYY-MM-DD`** и времени **`HH:MM`**; опционально **`initialDate` / `initialTime`**; при сабмите — **`timeMode: "precise"`**, **`location`** = экспорт **`NATAL_BRIDGE_DEFAULT_LOCATION`** (M1: Москва, `Europe/Moscow`).
   - Локальный календарный день: `Intl` + `forecastDate` в IANA-зоне из профиля/геолокации.
   - Free: `fetchGlobalContent` + URL из `getAiGlobalContentUrl()`; premium/trial: `fetchDailyForecast` + `getDailyForecastUrl()` (Vercel `/api/astro/daily-forecast` или Supabase Function — определяется `communicatorConfig`).
   - Перед первым `refresh()` главный экран (`app/(tabs)/index.tsx`) для персонального режима запрашивает активный натал через `fetchActiveNatalProfileCached(profile.id)`, чтобы `hasNatalProfile` мог разрешиться из локального кэша и не блокировал ранний `peek/loadDayContentCache`.
