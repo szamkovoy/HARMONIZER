@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
+import { clipDurationMinutesToSelectableMinutes } from "@/modules/practices/core/assistantSelectableDurations";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -66,14 +67,37 @@ export const PracticeCard = memo(function PracticeCard({
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
-  const [selectedDurationMin, setSelectedDurationMin] = useState(() =>
-    overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations),
-  );
+  const [selectedDurationMin, setSelectedDurationMin] = useState(() => {
+    const raw = overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations);
+    return clipDurationMinutesToSelectableMinutes(raw, selectableDurations).value;
+  });
   const [selectedChakra, setSelectedChakra] = useState<number>(() =>
     overrideChakraIndex ?? defaultSelectableChakra(practice),
   );
   const [usePulseSensor, setUsePulseSensor] = useState(true);
   const [openField, setOpenField] = useState<SelectField>(null);
+
+  useEffect(() => {
+    if (practice.kind === "yoga" || !selectableDurations.length) return;
+    const raw = overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations);
+    const { value, clipped } = clipDurationMinutesToSelectableMinutes(raw, selectableDurations);
+    if (clipped) {
+      console.log(
+        `[PRACTICE_CARD_MISMATCH] ${JSON.stringify({
+          markerDuration: overrideDurationMinutes ?? null,
+          historyDuration: null,
+          markerKind: null,
+          historyKind: null,
+          finalDuration: value,
+          finalKind: practice.kind,
+          conversationId: null,
+          durationClipped: true,
+          source: "practice_card_client_sync",
+        })}`,
+      );
+    }
+    setSelectedDurationMin(value);
+  }, [overrideDurationMinutes, practice.defaultDurationSec, practice.id, practice.kind, selectableDurations]);
 
   useEffect(() => {
     if (practice.kind !== "yoga") return;

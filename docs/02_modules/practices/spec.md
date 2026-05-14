@@ -1,13 +1,13 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.5
+version: 1.6
 updated: 2026-05-15
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
     modules/practices/index.ts,
-    modules/practices/core/catalog.ts,
+    modules/practices/core/assistantSelectableDurations.ts,
     modules/practices/core/types.ts,
     modules/practices/ui/PracticeCatalogScreen.tsx,
     modules/practices/ui/launchPractice.ts,
@@ -50,7 +50,11 @@ code_refs:
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
 
 - **`PracticeCard`** (`modules/practices/ui/PracticeCard.tsx`)  
-  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах.
+  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах. Значение `overrideDurationMinutes` **клипится** к списку допустимых минут (`**assistantSelectableDurations.ts**`, синхронно с сервером для дыхания 5–20 и медитации 1–10); при клипе — `console.log` с тегом **`[PRACTICE_CARD_MISMATCH]`** (поля как на сервере, `conversationId` может быть `null`).
+
+### Утилита `modules/practices/core/assistantSelectableDurations.ts`
+
+- Общие для клиента и сервера (импорт из `_legacy_web` через `@/modules/...`): **`selectableDurationMinutesForPracticeCard`**, **`clipDurationMinutesToSelectableMinutes`**, константа **`PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN`** (2) для логов расхождения маркера с историей в `resolvePracticePublic`.
 
 ### Сервис `services/practiceSessions.ts`
 

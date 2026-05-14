@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.5
+version: 1.6
 updated: 2026-05-15
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-15 (карточка ассистента):** **`assistantSelectableDurations.ts`** — общий список минут для дыхания (5–20) и медитации (1–10) + **`clipDurationMinutesToSelectableMinutes`**. Сервер: **`resolvePracticePublic`** — приоритет **`overrides.durationMin`** у **`validateHistoryHasDurationAndType` при `confident`**, иначе маркер; клип; лог **`[PRACTICE_CARD_MISMATCH]`**. Клиент: **`PracticeCard`** клипит `overrideDurationMinutes` и синхронизирует состояние в **`useEffect`**. **`choosePractice`**: при `confident` и конфликте типа маркер vs история — сброс id маркера, поле **`historyKindConflictResolved`**. Тесты **`practiceSelection.test.ts`**. **`assistant/spec.md`**, **`communicator` по ссылке на карточку**, **`CHANGELOG.md`**.
 - **2026-05-15:** Недавние практики для ассистента: нормализация к **`id`** каталога (`resolvePracticeKeyToCatalogId`), селектор сравнивает только по **`id`**; классификация дыхания по сессиям — по slug из каталога `breath`, без отдельного списка slug в коде. **`spec.md`**, **`assistant/history.md`**, **`CHANGELOG.md`**.
 - **2026-05-15:** Серверный **`choosePractice`**: явный `[PRACTICE_PICK]` больше не обходит **`selectPracticeCandidate`** — окно недавних предложений/сессий того же `kind` применяется и при валидном id в каталоге (исправление повторов дыхания подряд). См. **`assistant/history.md`**.
 - **2026-05-14:** Документирован контракт сервера: в **`practiceSelection.ts`** для не-`default` **`[PRACTICE_PICK]`** сначала резолвится **`id` / `slug`** по полному активному каталогу — карточка в приложении совпадает с выбором премиум-модели. **`spec.md`** (§2 интеграция с ассистентом).

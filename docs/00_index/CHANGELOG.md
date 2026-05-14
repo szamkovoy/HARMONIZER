@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.7
+version: 2.8
 updated: 2026-05-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-15: `assistant` + `practices` — карточка практики в диалоге: **`resolvePracticePublic`** (`route.ts`) — `overrides.durationMin` из **`validateHistoryHasDurationAndType`** при **`confident`** (маркер только если история без уверенной длительности), клип к 5–20 / 1–10 мин через **`modules/practices/core/assistantSelectableDurations.ts`**, лог **`[PRACTICE_CARD_MISMATCH]`**; **`choosePractice`** — при **`confident`** и расхождении **`kind`** маркера с историей сброс id маркера + **`historyKindConflictResolved`**. **`PracticeCard`** — клип **`overrideDurationMinutes`**. Тесты **`practiceSelection.test.ts`**. **`docs/02_modules/{assistant,practices}/{spec,history}.md`**, **`CHANGELOG.md`**.
 - 2026-05-15: `assistant` + `practices` — **`choosePractice`** / **`selectPracticeCandidate`**: явный `[PRACTICE_PICK]` не обходит окно недавних предложений/сессий; недавние ключи нормализуются к **`id`** каталога (`resolvePracticeKeyToCatalogId`); селектор исключает только по **`id`**; классификация дыхания по `practice_slug` в сессиях — по slug строк `breath` из загруженного каталога (удалён хардкод списка slug); при расхождении эвристики типа и `kind` маркера окно недавних по типу маркера. Тесты **`practiceSelection.test.ts`**, **`selector.test.ts`**. **`docs/02_modules/{assistant,practices}/{spec,history}.md`**.
 - 2026-05-14: `profile` / auth cold start — при `INITIAL_SESSION === null` или safety-таймауте без события SDK восстановление сессии из SecureStore и **`auth.setSession`** с повтором (`modules/auth/bootstrapRecoverSession.ts`, `services/supabase.ts`, `modules/auth/AuthProvider.tsx`); safety 35 с; исправление ложного `/sign-in` после транзиентного `Network request failed` на refresh. **`docs/02_modules/profile/{spec,history}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-14: `daily_forecast` + `profile` — уточнён публичный контракт в **`spec.md`**: экспорт **`DayContentRefreshOptions`**, детали **`NatalBirthDataModal`** (`initialDate`/`initialTime`, **`NATAL_BRIDGE_DEFAULT_LOCATION`**), на профиле после сохранения — **`Alert`** + **`router.push("/calibration")`** / **`router.replace("/")`**.

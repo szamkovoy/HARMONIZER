@@ -34,6 +34,11 @@ import {
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { buildPracticeCardSummary } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
+import {
+  clipDurationMinutesToSelectableMinutes,
+  PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN,
+  selectableDurationMinutesForPracticeCard,
+} from "@/modules/practices/core/assistantSelectableDurations";
 
 export const runtime = "nodejs";
 
@@ -409,10 +414,83 @@ async function resolvePracticePublic(
   context: LoadedContext,
   userMessage: string,
   history: MessageRecord[],
+  conversationId: string,
 ) {
   if (!marker) return null;
-  const { picked, markerIdResolved, chakraId, preferredDurationMin } = await choosePractice(db, userId, marker, context, userMessage, history);
-  if (!picked) return null;
+
+  const validation = validateHistoryHasDurationAndType([
+    ...history.filter((m) => m.role === "user"),
+    { role: "user" as const, content: userMessage },
+  ]);
+
+  const choose = await choosePractice(db, userId, marker, context, userMessage, history);
+  if (!choose.picked) return null;
+
+  const {
+    picked,
+    markerIdResolved,
+    chakraId,
+    preferredDurationMin,
+    markerCatalogPracticeKind,
+    historyKindConflictResolved,
+  } = choose;
+
+  const historyDurationMin =
+    validation.confident && validation.durationSec != null ? Math.round(validation.durationSec / 60) : null;
+  const markerDurationMin = marker.durationMin ?? null;
+
+  let rawMinutes: number | null = null;
+  if (validation.confident && validation.durationSec != null) {
+    rawMinutes = Math.round(validation.durationSec / 60);
+  } else {
+    rawMinutes = markerDurationMin ?? preferredDurationMin;
+  }
+
+  const durationMismatchExceededThreshold =
+    validation.confident &&
+    markerDurationMin != null &&
+    historyDurationMin != null &&
+    Math.abs(markerDurationMin - historyDurationMin) > PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN;
+
+  const isYoga = picked.kind === "yoga";
+  const selectable = !isYoga ? selectableDurationMinutesForPracticeCard(picked.kind) : [];
+
+  let preClip = rawMinutes;
+  if (preClip == null && !isYoga && selectable.length) {
+    preClip = picked.durationSec
+      ? Math.max(1, Math.round(picked.durationSec / 60))
+      : picked.kind === "breath"
+        ? 10
+        : 3;
+  }
+
+  let finalDurationMin: number | null = preClip;
+  let durationClipped = false;
+  if (!isYoga && selectable.length && preClip != null) {
+    const clip = clipDurationMinutesToSelectableMinutes(preClip, selectable);
+    finalDurationMin = clip.value;
+    durationClipped = clip.clipped;
+  }
+
+  const historyKindConflict = Boolean(historyKindConflictResolved);
+
+  if (durationClipped || durationMismatchExceededThreshold || historyKindConflict) {
+    console.log(
+      `[PRACTICE_CARD_MISMATCH] ${JSON.stringify({
+        markerDuration: markerDurationMin,
+        historyDuration: historyDurationMin,
+        markerKind: markerCatalogPracticeKind ?? null,
+        historyKind: validation.practiceKind ?? null,
+        finalDuration: finalDurationMin,
+        finalKind: picked.kind,
+        conversationId,
+        durationClipped,
+        durationMismatchExceededThreshold,
+        historyKindConflictResolved: historyKindConflict,
+      })}`,
+    );
+  }
+
   const cardReason = buildPracticeCardSummary({
     kind: picked.kind,
     slug: picked.slug,
@@ -425,11 +503,10 @@ async function resolvePracticePublic(
     295,
   );
   // Йога/асаны: длительность и чакра задаются каталогом; не подмешиваем диалоговые preferred/marker.
-  const isYoga = picked.kind === "yoga";
   const overrides: { durationMin?: number | null; chakraIndex?: number } | undefined = isYoga
     ? undefined
     : {
-        durationMin: marker.durationMin ?? preferredDurationMin ?? null,
+        durationMin: finalDurationMin,
         chakraIndex: marker.chakra ?? chakraId,
       };
   return {
@@ -755,6 +832,7 @@ export async function POST(req: Request) {
             context,
             userMessage,
             history,
+            conversation.id,
           );
 
           if (!readyMarkerTriggered && turnDecision.modelTier === "standard" && cleanText) {

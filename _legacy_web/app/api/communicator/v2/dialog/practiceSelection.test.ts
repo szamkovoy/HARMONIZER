@@ -241,7 +241,7 @@ describe("choosePractice", () => {
     });
   });
 
-  it("resolves explicit marker id against full catalog when inferred user kind disagrees with model pick", async () => {
+  it("resolves explicit marker id against full catalog when inferred user kind matches breath", async () => {
     const picked = await choosePractice(
       createDb({
         practices: [
@@ -266,13 +266,46 @@ describe("choosePractice", () => {
       "user1",
       { id: "coherent", reason: "дыхание", durationMin: 15, chakra: 2 },
       { forecast: { planet_of_the_day: "Venus" } },
-      "В плане асан или дыхания или медитации я бы предпочел дыхание 15 минут",
+      "Дыхание 15 минут, вторая чакра",
       [],
     );
 
     expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBe(true);
     expect(picked && "picked" in picked ? picked.picked?.slug : null).toBe("coherent");
     expect(picked && "picked" in picked ? picked.picked?.kind : null).toBe("breath");
+  });
+
+  it("drops explicit marker id when confident history kind contradicts marker practice kind", async () => {
+    const picked = await choosePractice(
+      createDb({
+        practices: [
+          breath({ id: "uuid-coh", slug: "coherent" }),
+          {
+            id: "uuid-med",
+            slug: "body-scan",
+            kind: "meditation",
+            title: { ru: "скан" },
+            description: null,
+            default_duration_sec: 10 * 60,
+            min_duration_sec: null,
+            max_duration_sec: null,
+            rating: 4,
+            params: {},
+            video_external_id: null,
+            practice_chakras: [{ chakra_id: 1, weight: 1 }],
+          },
+        ],
+      }) as never,
+      "user1",
+      { id: "coherent", reason: "дыхание", durationMin: 10, chakra: 2 },
+      { forecast: { planet_of_the_day: "Venus" } },
+      "Медитация 10 минут",
+      [],
+    );
+
+    expect(picked && "picked" in picked ? picked.picked?.kind : null).toBe("meditation");
+    expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBeUndefined();
+    expect(picked && "picked" in picked ? picked.historyKindConflictResolved : null).toBe(true);
   });
 
   it("ignores explicit marker when that breath was just offered — picks another breath from the fresh stack", async () => {

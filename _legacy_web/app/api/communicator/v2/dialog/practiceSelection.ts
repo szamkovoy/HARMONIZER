@@ -312,6 +312,10 @@ export interface ChoosePracticeResult {
   markerIdResolved: boolean | undefined;
   chakraId: number;
   preferredDurationMin: number | null;
+  /** Kind практики, на которую указывал маркер до любых правок (если id резолвился в каталог). */
+  markerCatalogPracticeKind?: PracticeKind | null;
+  /** История уверенно задала тип, а маркер указывал на другой kind — id маркера сброшен, выбор по истории. */
+  historyKindConflictResolved?: boolean;
 }
 
 export async function choosePractice(
@@ -330,11 +334,19 @@ export async function choosePractice(
   ]);
   const preferredDurationSec = validation.durationSec;
   const preferredDurationMin = preferredDurationSec ? Math.round(preferredDurationSec / 60) : null;
-  if (isDefaultPracticeMarker(marker)) {
-    return { picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, marker?.reason, chakraId, [STATIC_COHERENT_BREATH]), markerIdResolved: true, chakraId, preferredDurationMin };
+  const workingMarker: PracticePickMarker | null = marker ? { ...marker } : null;
+  if (isDefaultPracticeMarker(workingMarker)) {
+    return {
+      picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, workingMarker?.reason, chakraId, [STATIC_COHERENT_BREATH]),
+      markerIdResolved: true,
+      chakraId,
+      preferredDurationMin,
+      markerCatalogPracticeKind: "breath",
+      historyKindConflictResolved: false,
+    };
   }
   const preferredKind = validation.practiceKind;
-  const hasExplicitMarker = Boolean(marker?.id) && !isDefaultPracticeMarker(marker);
+  const hasExplicitMarker = Boolean(workingMarker?.id?.trim()) && !isDefaultPracticeMarker(workingMarker);
 
   let query = db
     .from("practices")
@@ -350,18 +362,25 @@ export async function choosePractice(
   let rawRows = (data ?? []) as PracticeCandidate[];
 
   let selectionPreferredKind = preferredKind;
-  if (hasExplicitMarker && marker) {
+  let markerCatalogPracticeKind: PracticeKind | null = null;
+  let historyKindConflictResolved = false;
+  if (hasExplicitMarker && workingMarker) {
     const markerPool = mergeStaticPracticesForMarkerLookup(rawRows);
     const markerHit = markerPool
       .map(selectablePractice)
-      .find((row) => row.id === marker.id || row.slug === marker.id);
+      .find((row) => row.id === workingMarker.id || row.slug === workingMarker.id);
     if (!markerHit) {
-      console.warn(`[PRACTICE_SELECTOR] marker_id_not_in_catalog id=${marker.id} — fallback to inferred kind`);
+      console.warn(`[PRACTICE_SELECTOR] marker_id_not_in_catalog id=${workingMarker.id} — fallback to inferred kind`);
       rawRows = preferredKind ? rawRows.filter((row) => row.kind === preferredKind) : rawRows;
-    } else if (!preferredKind || markerHit.raw.kind !== preferredKind) {
-      // Model `[PRACTICE_PICK]` can disagree with `validateHistoryHasDurationAndType` (e.g. user lists several kinds).
-      // Rank/repeat window must follow the marker practice's kind, same as the former full-catalog early return.
-      selectionPreferredKind = markerHit.raw.kind;
+    } else {
+      markerCatalogPracticeKind = markerHit.raw.kind;
+      if (validation.confident && preferredKind && markerHit.raw.kind !== preferredKind) {
+        historyKindConflictResolved = true;
+        workingMarker.id = "";
+        selectionPreferredKind = preferredKind;
+      } else if (!preferredKind || markerHit.raw.kind !== preferredKind) {
+        selectionPreferredKind = markerHit.raw.kind;
+      }
     }
   }
 
@@ -375,14 +394,17 @@ export async function choosePractice(
     .map((hint) => resolvePracticeKeyToCatalogId(hint, all))
     .filter((id): id is string => Boolean(id));
   const recentIds = [...recentCompletedCanon, ...recentOfferedCanon];
-  const markerCatalogId = marker?.id ? resolvePracticeKeyToCatalogId(marker.id, all) ?? undefined : undefined;
+  const markerIdForSelection =
+    workingMarker?.id?.trim() && !isDefaultPracticeMarker(workingMarker)
+      ? resolvePracticeKeyToCatalogId(workingMarker.id.trim(), all) ?? undefined
+      : undefined;
   const selection = selectPracticeCandidate({
     candidates: all.map(selectablePractice),
     preferredKind: selectionPreferredKind,
     chakraId,
     targetDurationSec: preferredDurationSec,
     recentIds,
-    markerId: markerCatalogId,
+    markerId: markerIdForSelection,
   });
   if (!selection) return { picked: null, markerIdResolved: undefined, chakraId, preferredDurationMin };
 
@@ -394,12 +416,14 @@ export async function choosePractice(
   return {
     picked: toPracticePickedPayload(
       selection.picked.raw,
-      marker?.reason,
+      workingMarker?.reason ?? marker?.reason,
       chakraId,
       selection.stack.map((practice) => practice.raw),
     ),
     markerIdResolved,
     chakraId,
     preferredDurationMin,
+    markerCatalogPracticeKind,
+    historyKindConflictResolved,
   };
 }

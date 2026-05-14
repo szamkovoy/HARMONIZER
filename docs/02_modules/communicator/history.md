@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.2
-updated: 2026-05-14
+version: 2.3
+updated: 2026-05-15
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -17,6 +17,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-15:** **`PracticeCard`** — клип `overrideDurationMinutes` к шагам каталога (общий модуль **`assistantSelectableDurations.ts`** с сервером); при клипе — `console.log` **`[PRACTICE_CARD_MISMATCH]`**. **`spec.md`**.
 - **2026-05-14:** В **`i18n/communicator.ts`** добавлены `PhaseId` / подписи статуса для серверного `turnMode` **`fast_track_final`** (диалог v3: сразу практика при первом сообщении с длительностью и типом). Контракт SSE не менялся (строка `turnMode` как и раньше). **`CHANGELOG.md`**.
 - **2026-05-13:** Отложенный коммит финального ответа — только при непустом **`mergedText`**, без ветки «восстановлено из **`fetchDialogSession`** при пустом SSE», и длине после strip > **14**; иначе сообщение в **`messages`** сразу. **`suppressStreamAnchorScroll`** сбрасывается при **`streamBusy`**: true → false. Публичный контракт: **`voiceTranscribing`**, **`voiceUserBubblePending`**, экспорт **`stripDialogScaffoldMarkdown`** (`dialogTextCleanup.ts`). **`spec.md`** / **`CHANGELOG.md`**.
 - **2026-05-13:** Голос: **`scrollToIndex`** (~24% сверху) — **`voiceAnchorTick`**, **`communicatorListDataRef`**, задержка после layout **`FlashList`**, до **8** повторов по **`Promise`** (без **`scrollToEnd`** при ошибке); **`lastVoiceLayoutScrollTickRef`** только после успеха. **`onContentSizeChange`** без **`scrollToEnd`**, пока задан **`voiceUserAnchorMessageIdRef`**. Текст: **`stripDialogScaffoldMarkdown`** — удаление **целиком** `**…**` (не разворачивание). Карточка йоги без **`overrides`**; «три четверти часа» в **`markers`**. Обновлены **`spec.md`**, **`dependencies.md`**, **`CHANGELOG.md`**.
