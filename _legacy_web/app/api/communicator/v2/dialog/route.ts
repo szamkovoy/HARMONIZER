@@ -32,7 +32,10 @@ import {
   type ConversationRecord,
   type MessageRecord,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
-import { buildPracticeCardSummary } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
+import {
+  buildPracticeCardSummary,
+  normalizeModelPracticeCardBlurb,
+} from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 import {
   clipDurationMinutesToSelectableMinutes,
@@ -68,6 +71,17 @@ type ResponseMode =
   | "post_recommendation"
   | "final_recommendation"
   | "final_recommendation_with_validation_warning";
+
+const CHAKRA_LABEL_ACCUSATIVE_RU: Record<string, string> = {
+  "Муладхара": "Муладхару",
+  "Свадхистхана": "Свадхистхану",
+  "Манипура": "Манипуру",
+  "Анахата": "Анахату",
+  "Вишуддха": "Вишудху",
+  "Вишудха": "Вишудху",
+  "Аджна": "Аджну",
+  "Сахасрара": "Сахасрару",
+};
 
 function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -115,6 +129,10 @@ function normalizePlanet(value: unknown): Planet {
   return (typeof value === "string" && value in chakraStatesBaseline ? value : "Sun") as Planet;
 }
 
+function chakraLabelAccusative(label: string): string {
+  return CHAKRA_LABEL_ACCUSATIVE_RU[label] ?? "";
+}
+
 function shouldEmitDialogV3DebugPrompt(req: Request): boolean {
   if (process.env.NODE_ENV !== "production") return true;
   if (process.env.DEBUG_DIALOG_PROMPT === "1") return true;
@@ -131,6 +149,7 @@ function expandOrchestratorInstruction(
   instruction: string,
   data: {
     chakraLabel: string;
+    chakraLabelAccusative: string;
     harmoniousnessValue: number;
     harmoniousnessLabel: string;
     practiceRefusalCheck: string;
@@ -138,6 +157,7 @@ function expandOrchestratorInstruction(
 ) {
   return renderPrompt(instruction, {
     chakra_label: data.chakraLabel,
+    chakra_label_accusative: data.chakraLabelAccusative,
     harmoniousness_value: data.harmoniousnessValue,
     harmoniousness_label: data.harmoniousnessLabel,
     practice_refusal_check: data.practiceRefusalCheck,
@@ -340,6 +360,7 @@ function buildDialogSystemInstruction(
   systemInstruction: string;
   planet: Planet;
   chakraLabel: string;
+  chakraLabelAccusative: string;
   harmoniousnessValue: number;
   harmoniousnessLabel: "гармоничная" | "дисгармоничная" | "смешанная";
 } {
@@ -387,6 +408,7 @@ function buildDialogSystemInstruction(
     ),
     planet,
     chakraLabel: chakraMeta.chakra_name_ru,
+    chakraLabelAccusative: chakraLabelAccusative(chakraMeta.chakra_name_ru),
     harmoniousnessValue,
     harmoniousnessLabel: harmoniousnessLabelValue,
   };
@@ -493,15 +515,21 @@ async function resolvePracticePublic(
     );
   }
 
+  const canUseMarkerCardBlurb =
+    Boolean(marker.cardBlurb)
+    && !historyKindConflictResolved
+    && (marker.id === "default" || markerIdResolved === true);
+  const cardBlurb = canUseMarkerCardBlurb ? normalizeModelPracticeCardBlurb(marker.cardBlurb) : null;
   const cardReason = buildPracticeCardSummary({
     kind: picked.kind,
     slug: picked.slug,
     chakraIds: picked.chakraIds ?? [],
     locale: context.user.locale,
     userMessage,
+    modelCardBlurb: cardBlurb,
   });
   const publicPayload = await attachThumbnailToPracticeRecommendation(
-    publicPracticePickedPayload({ ...picked, reason: null }, cardReason),
+    publicPracticePickedPayload({ ...picked, reason: cardReason, card_blurb: cardBlurb }, cardReason),
     295,
   );
   // Йога/асаны: длительность и чакра задаются каталогом; не подмешиваем диалоговые preferred/marker.
@@ -662,6 +690,7 @@ export async function POST(req: Request) {
     );
     const orchestratorPlaceholders = {
       chakraLabel: systemPromptData.chakraLabel,
+      chakraLabelAccusative: systemPromptData.chakraLabelAccusative,
       harmoniousnessValue: systemPromptData.harmoniousnessValue,
       harmoniousnessLabel: systemPromptData.harmoniousnessLabel,
       practiceRefusalCheck: turnDecision.instructionVariables?.practice_refusal_check ?? "",
@@ -799,7 +828,7 @@ export async function POST(req: Request) {
           if (!markers.practicePick && isFinalMode) {
             console.warn("[DIALOG_V3_DIAG] marker missing after premium — retry call");
             const retryInstruction: GeminiContent = { role: "user", parts: [{ text:
-              `Ты только что написал финальную рекомендацию, но забыл маркер. Выведи ТОЛЬКО одну строку — технический маркер [PRACTICE_PICK: id="..." reason="..."] на основе рекомендации выше. Ничего больше не пиши.`
+              `Ты только что написал финальную рекомендацию, но забыл маркер. Выведи ТОЛЬКО одну строку — технический маркер [PRACTICE_PICK: id="..." reason="..." card_blurb="..."] на основе рекомендации выше. В card_blurb дай связный текст карточки практики; не используй двойные кавычки внутри значения. Ничего больше не пиши.`
             }] };
             const retryContents = [...prefixContents, { role: "model", parts: [{ text: fullText }] } as GeminiContent, retryInstruction];
             const retryResponse = await generateGeminiText({

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeAssistantText, stripDialogScaffoldMarkdown, validateHistoryHasDurationAndType } from "./markers";
+import {
+  parseResponseMarkers,
+  sanitizeAssistantText,
+  stripDialogScaffoldMarkdown,
+  validateHistoryHasDurationAndType,
+} from "./markers";
 
 describe("stripDialogScaffoldMarkdown", () => {
   it("removes horizontal rules and entire **…** blocks (not unwrapping)", () => {
@@ -170,5 +175,31 @@ describe("validateHistoryHasDurationAndType", () => {
     ]);
     expect(result.practiceKind).toBe("yoga");
     expect(result.durationSec).toBe(1080);
+  });
+});
+
+describe("parseResponseMarkers", () => {
+  it("extracts card_blurb from PRACTICE_PICK marker", () => {
+    const parsed = parseResponseMarkers(
+      `[PRACTICE_PICK: id="breath:coherent" reason="ok" duration_min="10" chakra="4" card_blurb="Когерентное дыхание мягко выравнивает внутренний ритм и помогает вернуть опору в напряжённый день. Выполняя эту практику, удерживайте внимание на ясности, устойчивости и внутренней тишине. Если вы владеете пранаямой, дышите через Анахату."]\nТекст ответа`,
+    );
+
+    expect(parsed.practicePick?.id).toBe("breath:coherent");
+    expect(parsed.practicePick?.cardBlurb).toContain("удерживайте внимание");
+    expect(parsed.practicePick?.durationMin).toBe(10);
+    expect(parsed.practicePick?.chakra).toBe(4);
+  });
+
+  it("returns null card_blurb when field is absent", () => {
+    const parsed = parseResponseMarkers(`[PRACTICE_PICK: id="default" reason="fallback"]`);
+    expect(parsed.practicePick?.cardBlurb).toBeNull();
+  });
+
+  it("predictably parses card_blurb with nested double quotes without throwing", () => {
+    const parsed = parseResponseMarkers(
+      `[PRACTICE_PICK: id="breath:coherent" reason="ok" card_blurb="Текст с "двойными" кавычками внутри"]`,
+    );
+    expect(parsed.practicePick?.id).toBe("breath:coherent");
+    expect(parsed.practicePick?.cardBlurb).toBe(`Текст с "двойными" кавычками внутри`);
   });
 });

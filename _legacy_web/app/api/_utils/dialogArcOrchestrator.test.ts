@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { decideTurnMode } from "./dialogArcOrchestrator";
+import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS } from "./dialogArcOrchestrator";
 
 describe("decideTurnMode", () => {
+  it("requires card_blurb in final recommendation instructions", () => {
+    expect(ORCHESTRATOR_INSTRUCTIONS.final_recommendation).toContain('card_blurb="..."');
+    expect(ORCHESTRATOR_INSTRUCTIONS.fast_track_final).toContain("{{chakra_label_accusative}}");
+  });
+
   it("uses fast_track_final for an explicit first user request", () => {
     const decision = decideTurnMode([], 1, 9, "дыхание 15 минут");
 

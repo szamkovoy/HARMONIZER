@@ -24,6 +24,7 @@ export interface PracticeRecommendation {
   name: string;
   kind: PracticeSelectorKind;
   reason?: string | null;
+  card_blurb?: string | null;
   durationSec: number | null;
   minDurationSec: number | null;
   maxDurationSec: number | null;

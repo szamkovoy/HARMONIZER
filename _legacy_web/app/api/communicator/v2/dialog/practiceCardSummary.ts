@@ -1,12 +1,14 @@
 /**
- * Короткий текст для карточки практики в UI (1–2 предложения).
- * Не дублирует длинный therapist-style `reason` из маркера модели — тот остаётся
- * только внутри диалога; в карточку кладём структурированное краткое описание.
+ * Текст для карточки практики в UI.
+ * Приоритет: валидированный model-generated `card_blurb` -> server fallback.
  *
  * Локали: ru / en. Дальше мультиязычие — вынести строки в JSON/i18n или params в БД.
  */
 
 export type PracticeKindForCard = "breath" | "meditation" | "yoga";
+
+const MODEL_CARD_BLURB_MIN_LENGTH = 100;
+const MODEL_CARD_BLURB_MAX_LENGTH = 700;
 
 const CHAKRA_NAME_RU: Record<number, string> = {
   1: "Муладхара",
@@ -70,14 +72,35 @@ function chakraLine(ids: readonly number[], locale: "ru" | "en"): string {
   return unique.map((id) => map[id] ?? String(id)).join(locale === "en" ? ", " : " и ");
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function hasUnsafeCardBlurbMarkup(value: string): boolean {
+  return /<[^>]+>/.test(value) || /\[(?:STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|READY_FOR_RECOMMENDATION)\b/i.test(value);
+}
+
+export function normalizeModelPracticeCardBlurb(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) return null;
+  if (normalized.length < MODEL_CARD_BLURB_MIN_LENGTH || normalized.length > MODEL_CARD_BLURB_MAX_LENGTH) return null;
+  if (hasUnsafeCardBlurbMarkup(normalized)) return null;
+  return normalized;
+}
+
 export function buildPracticeCardSummary(params: {
   kind: PracticeKindForCard;
   slug: string;
   chakraIds: readonly number[];
   locale: string | null | undefined;
   userMessage: string;
+  modelCardBlurb?: string | null;
 }): string {
   void params.userMessage;
+  const modelCardBlurb = normalizeModelPracticeCardBlurb(params.modelCardBlurb);
+  if (modelCardBlurb) return modelCardBlurb;
+
   const locale: "ru" | "en" = params.locale?.toLowerCase().startsWith("en") ? "en" : "ru";
   const ch = chakraLine(params.chakraIds, locale);
 

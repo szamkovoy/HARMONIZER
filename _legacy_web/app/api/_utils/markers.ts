@@ -10,6 +10,7 @@ export type PracticePickMarker = {
   reason?: string;
   durationMin?: number | null;
   chakra?: number | null;
+  cardBlurb?: string | null;
 };
 
 export type RecommendationCorrectionMarker = {
@@ -22,9 +23,103 @@ type MarkerMessage = {
   content?: string | null;
 };
 
-function attr(source: string, name: string): string | undefined {
-  const match = source.match(new RegExp(`${name}\\s*=\\s*["“”']([^"“”']+)["“”']`, "i"));
-  return match?.[1]?.trim();
+type ParsedMarker = {
+  name: "STATE_PROPOSAL" | "PRACTICE_PICK" | "CORRECT_RECOMMENDATION";
+  body: string;
+  start: number;
+  end: number;
+};
+
+function closingQuoteFor(openingQuote: string): string {
+  if (openingQuote === "«") return "»";
+  if (openingQuote === "“") return "”";
+  return openingQuote;
+}
+
+function isAttributeBoundary(source: string, index: number): boolean {
+  let cursor = index;
+  while (cursor < source.length && /\s/.test(source[cursor] ?? "")) cursor += 1;
+  if (cursor >= source.length || source[cursor] === ",") return true;
+  return /^[A-Za-z_][A-Za-z0-9_]*\s*=/.test(source.slice(cursor));
+}
+
+function parseMarkerAttributes(source: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  let cursor = 0;
+  while (cursor < source.length) {
+    while (cursor < source.length && /[\s,]/.test(source[cursor] ?? "")) cursor += 1;
+    if (cursor >= source.length) break;
+
+    const keyMatch = /^[A-Za-z_][A-Za-z0-9_]*/.exec(source.slice(cursor));
+    if (!keyMatch) {
+      cursor += 1;
+      continue;
+    }
+    const key = keyMatch[0];
+    cursor += key.length;
+
+    while (cursor < source.length && /\s/.test(source[cursor] ?? "")) cursor += 1;
+    if (source[cursor] !== "=") continue;
+    cursor += 1;
+
+    while (cursor < source.length && /\s/.test(source[cursor] ?? "")) cursor += 1;
+    const openingQuote = source[cursor];
+    if (!openingQuote || ![`"`, `'`, "«", "“"].includes(openingQuote)) continue;
+    const closingQuote = closingQuoteFor(openingQuote);
+    cursor += 1;
+
+    const valueStart = cursor;
+    let valueEnd = -1;
+    while (cursor < source.length) {
+      if (source[cursor] === closingQuote && isAttributeBoundary(source, cursor + 1)) {
+        valueEnd = cursor;
+        cursor += 1;
+        break;
+      }
+      cursor += 1;
+    }
+    if (valueEnd === -1) break;
+    attrs[key.toLowerCase()] = source.slice(valueStart, valueEnd).trim();
+  }
+  return attrs;
+}
+
+function findMarkerEnd(text: string, startIndex: number): number {
+  let closingQuote: string | null = null;
+  for (let index = startIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (closingQuote) {
+      if (char === closingQuote) closingQuote = null;
+      continue;
+    }
+    if (char === `"` || char === `'` || char === "«" || char === "“") {
+      closingQuote = closingQuoteFor(char);
+      continue;
+    }
+    if (char === "]") return index;
+  }
+  return -1;
+}
+
+function parseMarkers(text: string): ParsedMarker[] {
+  const markers: ParsedMarker[] = [];
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION):/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const name = match[1]?.toUpperCase() as ParsedMarker["name"] | undefined;
+    if (!name) continue;
+    const bodyStart = match.index + match[0].length;
+    const bodyEnd = findMarkerEnd(text, bodyStart);
+    if (bodyEnd === -1) continue;
+    markers.push({
+      name,
+      body: text.slice(bodyStart, bodyEnd),
+      start: match.index,
+      end: bodyEnd + 1,
+    });
+    pattern.lastIndex = bodyEnd + 1;
+  }
+  return markers;
 }
 
 export function parseResponseMarkers(text: string): {
@@ -32,41 +127,43 @@ export function parseResponseMarkers(text: string): {
   practicePick: PracticePickMarker | null;
   recommendationCorrection: RecommendationCorrectionMarker | null;
 } {
+  const parsedMarkers = parseMarkers(text);
   const stateProposals: StateProposalMarker[] = [];
-  for (const match of text.matchAll(/\[STATE_PROPOSAL:\s*([^\]]+)\]/gi)) {
-    const raw = match[1] ?? "";
-    const planet = attr(raw, "planet");
-    const label = attr(raw, "label");
-    const polarity = attr(raw, "polarity");
+  for (const marker of parsedMarkers.filter((item) => item.name === "STATE_PROPOSAL")) {
+    const attrs = parseMarkerAttributes(marker.body);
+    const planet = attrs.planet?.trim();
+    const label = attrs.label?.trim();
+    const polarity = attrs.polarity?.trim();
     if (!planet || !label || (polarity !== "positive" && polarity !== "negative")) continue;
     stateProposals.push({
       proposed_planet: planet,
       proposed_label: label,
       proposed_polarity: polarity,
-      trigger_phrase: attr(raw, "trigger_phrase") ?? null,
+      trigger_phrase: attrs.trigger_phrase?.trim() ?? null,
     });
   }
 
-  const practiceRaw = text.match(/\[PRACTICE_PICK:\s*([^\]]+)\]/i)?.[1] ?? "";
-  const practiceId = attr(practiceRaw, "id");
-  const rawDuration = attr(practiceRaw, "duration_min");
-  const rawChakra = attr(practiceRaw, "chakra");
+  const practiceAttrs = parseMarkerAttributes(parsedMarkers.find((item) => item.name === "PRACTICE_PICK")?.body ?? "");
+  const practiceId = practiceAttrs.id?.trim();
+  const rawDuration = practiceAttrs.duration_min?.trim();
+  const rawChakra = practiceAttrs.chakra?.trim();
   const parsedDuration = rawDuration ? Number(rawDuration) : NaN;
   const parsedChakra = rawChakra ? Number(rawChakra) : NaN;
   const practicePick = practiceId
     ? {
         id: practiceId,
-        reason: attr(practiceRaw, "reason"),
+        reason: practiceAttrs.reason?.trim(),
         durationMin: Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : null,
         chakra: Number.isInteger(parsedChakra) && parsedChakra >= 1 && parsedChakra <= 7 ? parsedChakra : null,
+        cardBlurb: practiceAttrs.card_blurb?.trim() || null,
       }
     : null;
 
-  const correctionRaw = text.match(/\[CORRECT_RECOMMENDATION:\s*([^\]]+)\]/i)?.[1] ?? "";
-  const recommendationCorrection = correctionRaw
+  const correctionAttrs = parseMarkerAttributes(parsedMarkers.find((item) => item.name === "CORRECT_RECOMMENDATION")?.body ?? "");
+  const recommendationCorrection = Object.keys(correctionAttrs).length
     ? {
-        short_text: attr(correctionRaw, "short_text"),
-        windows_correction: attr(correctionRaw, "windows_correction"),
+        short_text: correctionAttrs.short_text?.trim(),
+        windows_correction: correctionAttrs.windows_correction?.trim(),
       }
     : null;
 
@@ -74,10 +171,17 @@ export function parseResponseMarkers(text: string): {
 }
 
 export function stripResponseMarkers(text: string): string {
-  return text
-    .replace(/\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION):[^\]]+\]/gi, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .trim();
+  const markers = parseMarkers(text);
+  if (!markers.length) return text.replace(/[ \t]+\n/g, "\n").trim();
+
+  let out = "";
+  let cursor = 0;
+  for (const marker of markers) {
+    out += text.slice(cursor, marker.start);
+    cursor = marker.end;
+  }
+  out += text.slice(cursor);
+  return out.replace(/[ \t]+\n/g, "\n").trim();
 }
 
 export function containsReadyMarker(text: string): boolean {

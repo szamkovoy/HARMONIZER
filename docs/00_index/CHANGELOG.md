@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.11
+version: 2.12
 updated: 2026-05-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-15: `assistant` + `communicator` — `[PRACTICE_PICK]` расширен полем `card_blurb`; финальные и `fast_track_final` инструкции daily dialog v3 требуют model-generated текст карточки в том же premium-вызове, `route.ts` подставляет `{{chakra_label_accusative}}`, валидирует `card_blurb` и использует его только когда итоговая практика совпала с маркером; клиент `Communicator` предпочитает `practicePicked.card_blurb` с fallback на `reason`. Обновлены **`docs/02_modules/{assistant,communicator}/{spec,history}.md`**, **`docs/02_modules/assistant/prompts-reference.md`**.
 - 2026-05-15: pre-push doc-sync — diff миграции **`20260515030000_dialog_system_v3_pack_b.sql`**: в **`docs/00_index/MAP.md`** добавлена точка входа для строки модуля **`assistant`**; в **`docs/02_modules/infra/{dependencies,history}.md`** уточнено, что `dialog_system_v3` в **`public.prompts`** эволюционирует цепочкой миграций (ссылка на **`assistant`**). **`CHANGELOG.md`**.
 - 2026-05-15: `assistant` — пакет `B` для daily dialog v3: `fast_track_final` срабатывает и на первой содержательной реплике пользователя после `opening`, добавлен dev-лог **`[FAST_TRACK_DIAG]`**, `inquiry` получил подстановку `{{practice_refusal_check}}` после двух подряд незакрытых вопросов о практике. Новая миграция **`supabase/migrations/20260515030000_dialog_system_v3_pack_b.sql`** активирует `dialog_system_v3` v4 (антизатягивание после готовности, явный отказ от практики, запрет расписывать технику). Обновлены **`docs/02_modules/assistant/{prompts-reference,spec,history}.md`**.
 - 2026-05-14: pre-push doc-sync — diff `practiceSelection.ts` / `route.ts` / `assistantSelectableDurations.ts` / `PracticeCard.tsx`: в **`assistant/spec.md`** уточнены **`.trim()`** у `id` маркера, поле **`markerCatalogPracticeKind`**, цепочка минут до клипа (каталог / 10 / 3), разделение серверного и клиентского лога **`[PRACTICE_CARD_MISMATCH]`** (`**source: "practice_card_client_sync"**`); **`practices/spec.md`** — клиентский лог карточки; **`MAP.md`** — точка входа **`assistantSelectableDurations.ts`**; **`assistant`/`practices` `dependencies.md`** — явный импорт **`route.ts`** ↔ **`assistantSelectableDurations.ts`**; **`{assistant,practices}/history.md`**. **`CHANGELOG.md`**.
