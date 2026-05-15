@@ -20,13 +20,15 @@ export const ORCHESTRATOR_INSTRUCTIONS = {
 
 Затем выдай очень короткий текстовый ответ — одно-два предложения, не больше. Пример: «Сегодня активна {{chakra_label}} — она хорошо поддерживает развитие. По вашему запросу подобрал практику ниже». Допустимы вариации, но смысл сохраняй: упомянуть активную чакру одной фразой и подвести к карточке.
 
-Запрещено: расписывать блоки зеркала, тем, штриха глубины, мостика. Запрещено задавать уточняющие вопросы. Запрещено пропускать маркер [PRACTICE_PICK]. Длина текстовой части — не больше 250 символов.]`,
+Запрещено: расписывать блоки зеркала, тем, штриха глубины, мостика. Запрещено задавать уточняющие вопросы. Запрещено пропускать маркер [PRACTICE_PICK]. Длина текстовой части — не больше 250 символов. Не описывай технику выполнения практики — она будет в карточке.]`,
   inquiry: `[Инструкция оркестратора:
 это уточняющий ход. Слушай пользователя, иди за его языком. Если он что-то сказал о себе — поддержи коротко и иди вглубь, а не отзеркаливай поверхностно. Один-два штриха: что услышал, что в этом важно. Не пересказывай его же слова другими словами — это создаёт ощущение пустоты.
 
 Мягко уточни то, чего ещё не хватает из трёх вещей (КОНТЕКСТ, ДЛИТЕЛЬНОСТЬ, ТИП). Один вопрос за ход. Если повторяешь вопрос про длительность или тип — переформулируй принципиально иначе, не дословно.
 
-Если ты уже дважды уточнял длительность и тип, а пользователь оба раза не ответил на эти вопросы — в этом ходу следуй разделу «ЕСЛИ ПОЛЬЗОВАТЕЛЬ ОТКАЗЫВАЕТСЯ ОТ ПРАКТИКИ» в системном промпте: задай прямой вопрос о том, нужна ли практика вообще.
+{{practice_refusal_check}}
+
+Если в этом ходу ты упоминаешь, что нужно определиться с практикой — обязательно задай конкретный вопрос про длительность и тип прямо в этом же сообщении, не откладывай его на потом и не оставляй фразу-анонс без самого вопроса.
 
 Если все три вещи собраны и согласованы — выведи только маркер [READY_FOR_RECOMMENDATION], без видимого текста.
 
@@ -59,7 +61,7 @@ export const ORCHESTRATOR_INSTRUCTIONS = {
 
 Длина ответа определяется глубиной разговора. Если пользователь рассказал много и глубоко — финал развёрнутый, 1500–2500 символов. Если рассказал мало или поверхностно — финал короче, 600–1200 символов. Не растягивай ответ ради объёма. Не повторяй то, что уже сказал в уточняющих ходах.
 
-Запрещено: пропускать маркер [PRACTICE_PICK], пропускать блок 3 (главная тема через призму чакры) и блок 5 (мостик и практика). Блоки 1, 2, 4 могут сжиматься или опускаться по логике разговора.]`,
+Запрещено: пропускать маркер [PRACTICE_PICK], пропускать блок 3 (главная тема через призму чакры) и блок 5 (мостик и практика). Блоки 1, 2, 4 могут сжиматься или опускаться по логике разговора. Не описывай технику выполнения практики — она будет в карточке.]`,
   final_recommendation_with_validation_warning: `[Инструкция оркестратора: standard-модель сигнализировала готовность, но автоматический валидатор не нашёл явных признаков длительности или типа в истории.
 
 Если ты можешь дать рекомендацию с разумным дефолтом (когерентное дыхание 10 минут на активную чакру дня) — давай. Если нет (длительность или тип критичны для рекомендации) — мягко уточни недостающее прямо в тексте, НЕ выдавая маркер [PRACTICE_PICK].
@@ -72,7 +74,7 @@ export const ORCHESTRATOR_INSTRUCTIONS = {
 
 ПЕРВОЕ — выведи на отдельной строке маркер: [PRACTICE_PICK: id="default" reason="..."]. Маркер невидим для пользователя.
 
-Затем следуй структуре из \`final_recommendation\` (блоки 1–5). Если контекста почти нет — блоки 1 и 2 пропусти, переходи сразу к блоку 3 (главная тема через призму чакры) и блоку 5 (мостик к практике). Не выдумывай за пользователя то, чего он не сказал.]`,
+Затем следуй структуре из \`final_recommendation\` (блоки 1–5). Если контекста почти нет — блоки 1 и 2 пропусти, переходи сразу к блоку 3 (главная тема через призму чакры) и блоку 5 (мостик к практике). Не выдумывай за пользователя то, чего он не сказал. Не описывай технику выполнения практики — она будет в карточке.]`,
   post_recommendation: `[Инструкция
 оркестратора: практика уже выбрана в предыдущем ходу. Веди
 себя кратко по правилам из системного промпта (раздел «если
@@ -84,9 +86,14 @@ export interface ArcDecision {
   mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "post_recommendation";
   modelTier: "premium" | "standard";
   instruction: string;
+  instructionVariables?: {
+    practice_refusal_check?: string;
+  };
 }
 
 export type OrchestratorMode = ArcDecision["mode"];
+
+const PRACTICE_REFUSAL_CHECK_INSTRUCTION = `ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже дважды не ответил на вопрос о длительности и типе практики. В этом ходу не повторяй обычный уточняющий вопрос. Вместо этого прямо спроси, нужна ли практика вообще: «Возможно, сейчас вам не до практики — нет времени или просто не хочется? Если нужна — скажите длительность и тип. Если нет — так и скажите, я не буду настаивать». Адаптируй формулировку под обращение, смысл сохрани.`;
 
 function hasPracticePicked(message: Message): boolean {
   const practicePicked = (message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null)?.practicePicked
@@ -94,15 +101,65 @@ function hasPracticePicked(message: Message): boolean {
   return practicePicked != null;
 }
 
-/** Текст единственного «первого» сообщения пользователя в сессии для fast_track (строго одна пользовательская реплика до первого ответа ассистента). */
+function textFromMessage(message: Message): string {
+  return String(message.content ?? message.transcript ?? "").trim();
+}
+
+function turnModeFromMessageMeta(message: Message): OrchestratorMode | null {
+  const meta = message.meta as { turn_mode?: unknown; turnMode?: unknown } | null | undefined;
+  const raw = meta?.turn_mode ?? meta?.turnMode;
+  return raw === "opening"
+    || raw === "inquiry"
+    || raw === "forced_final"
+    || raw === "fast_track_final"
+    || raw === "post_recommendation"
+    ? raw
+    : null;
+}
+
+/** Текст единственного «первого» сообщения пользователя для fast_track, включая ответ после автоприветствия. */
 function soleFirstUserMessageText(history: Message[], pendingUserContent: string | null | undefined): string {
   const users = history.filter((m) => m.role === "user");
+  const assistants = history.filter((m) => m.role === "assistant");
   const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
-  if (users.length === 0 && pendingTrim) return pendingTrim;
-  if (users.length === 1 && !pendingTrim) {
-    return String(users[0].content ?? users[0].transcript ?? "").trim();
+
+  // Прямой первый запрос пользователя без initiate либо первый ответ пользователя после opening.
+  if (pendingTrim && users.length === 0 && assistants.length <= 1) {
+    return pendingTrim;
+  }
+
+  // Редкий путь: первая реплика уже в истории, но ответа ассистента ещё не было.
+  if (!pendingTrim && users.length === 1 && assistants.length === 0) {
+    return textFromMessage(users[0]!);
   }
   return "";
+}
+
+function countConsecutiveUnresolvedPracticePrompts(
+  history: Message[],
+  pendingUserContent: string | null | undefined,
+): number {
+  const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
+  const validation = validateHistoryHasDurationAndType([
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => ({ role: "user" as const, content: textFromMessage(message) })),
+    ...(pendingTrim ? [{ role: "user" as const, content: pendingTrim }] : []),
+  ]);
+  if (validation.confident) return 0;
+
+  let count = 0;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index];
+    if (message?.role !== "assistant") continue;
+    const turnMode = turnModeFromMessageMeta(message);
+    if (turnMode === "opening" || turnMode === "inquiry") {
+      count += 1;
+      continue;
+    }
+    break;
+  }
+  return count;
 }
 
 export function decideTurnMode(
@@ -110,6 +167,7 @@ export function decideTurnMode(
   iteration: number,
   maxDialogLength: number,
   pendingUserContent?: string | null,
+  emitFastTrackDiagnostics = false,
 ): ArcDecision {
   if (history.some((message) => message.role === "assistant" && hasPracticePicked(message))) {
     return {
@@ -127,18 +185,29 @@ export function decideTurnMode(
     };
   }
 
-  if (iteration === 1) {
-    const userText = soleFirstUserMessageText(history, pendingUserContent);
-    if (userText) {
-      const fastTrackValidation = validateHistoryHasDurationAndType([{ role: "user", content: userText }]);
-      if (fastTrackValidation.confident) {
-        return {
-          mode: "fast_track_final",
-          modelTier: "premium",
-          instruction: ORCHESTRATOR_INSTRUCTIONS.fast_track_final,
-        };
-      }
+  const userText = soleFirstUserMessageText(history, pendingUserContent);
+  if (userText) {
+    const fastTrackValidation = validateHistoryHasDurationAndType([{ role: "user", content: userText }]);
+    const chosenMode = fastTrackValidation.confident ? "fast_track_final" : iteration === 1 ? "opening" : "inquiry";
+    if (emitFastTrackDiagnostics) {
+      console.log(`[FAST_TRACK_DIAG] ${JSON.stringify({
+        firstUserMessageText: userText,
+        confident: fastTrackValidation.confident,
+        hasDuration: fastTrackValidation.hasDuration,
+        hasType: fastTrackValidation.hasType,
+        chosenMode,
+      })}`);
     }
+    if (fastTrackValidation.confident) {
+      return {
+        mode: "fast_track_final",
+        modelTier: "premium",
+        instruction: ORCHESTRATOR_INSTRUCTIONS.fast_track_final,
+      };
+    }
+  }
+
+  if (iteration === 1) {
     return {
       mode: "opening",
       modelTier: "standard",
@@ -146,9 +215,15 @@ export function decideTurnMode(
     };
   }
 
+  const unresolvedPracticePromptCount = countConsecutiveUnresolvedPracticePrompts(history, pendingUserContent);
+
   return {
     mode: "inquiry",
     modelTier: "standard",
     instruction: ORCHESTRATOR_INSTRUCTIONS.inquiry,
+    instructionVariables: {
+      practice_refusal_check:
+        unresolvedPracticePromptCount >= 2 ? PRACTICE_REFUSAL_CHECK_INSTRUCTION : "",
+    },
   };
 }

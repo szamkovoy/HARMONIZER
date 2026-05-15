@@ -133,12 +133,14 @@ function expandOrchestratorInstruction(
     chakraLabel: string;
     harmoniousnessValue: number;
     harmoniousnessLabel: string;
+    practiceRefusalCheck: string;
   },
 ) {
   return renderPrompt(instruction, {
     chakra_label: data.chakraLabel,
     harmoniousness_value: data.harmoniousnessValue,
     harmoniousness_label: data.harmoniousnessLabel,
+    practice_refusal_check: data.practiceRefusalCheck,
   });
 }
 
@@ -650,14 +652,21 @@ export async function POST(req: Request) {
     const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, userTimezone);
     const iteration = countAssistantTurns(history) + 1;
     const maxDialogLength = getMaxDialogLength();
-    const turnDecision = decideTurnMode(history, iteration, maxDialogLength, isInitiate ? null : userMessage);
+    const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
+    const turnDecision = decideTurnMode(
+      history,
+      iteration,
+      maxDialogLength,
+      isInitiate ? null : userMessage,
+      emitDebugPromptLog,
+    );
     const orchestratorPlaceholders = {
       chakraLabel: systemPromptData.chakraLabel,
       harmoniousnessValue: systemPromptData.harmoniousnessValue,
       harmoniousnessLabel: systemPromptData.harmoniousnessLabel,
+      practiceRefusalCheck: turnDecision.instructionVariables?.practice_refusal_check ?? "",
     };
     const expandedTurnInstruction = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
-    const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
 
     console.log("[DIALOG_V3_DIAG]", JSON.stringify({

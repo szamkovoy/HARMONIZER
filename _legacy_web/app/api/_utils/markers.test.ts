@@ -73,6 +73,22 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.confident).toBe(true);
   });
 
+  it("recognises explicit first-message practice requests from packet B", () => {
+    const samples = [
+      "Я хочу выполнить дыхание в течение 15 минут",
+      "дыхание 15 минут",
+      "Просто предложи мне практику асан 25 минут",
+      "Я хочу выполнить асаны 25 минут",
+    ];
+
+    for (const sample of samples) {
+      const result = validateHistoryHasDurationAndType([{ role: "user", content: sample }]);
+      expect(result.hasDuration, sample).toBe(true);
+      expect(result.hasType, sample).toBe(true);
+      expect(result.confident, sample).toBe(true);
+    }
+  });
+
   it("extracts durationSec and practiceKind: 'две минуты медитацию'", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "буквально две минуты медитацию" },

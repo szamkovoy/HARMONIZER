@@ -1,0 +1,73 @@
+import { describe, expect, it } from "vitest";
+
+import { decideTurnMode } from "./dialogArcOrchestrator";
+
+describe("decideTurnMode", () => {
+  it("uses fast_track_final for an explicit first user request", () => {
+    const decision = decideTurnMode([], 1, 9, "дыхание 15 минут");
+
+    expect(decision.mode).toBe("fast_track_final");
+    expect(decision.modelTier).toBe("premium");
+  });
+
+  it("uses fast_track_final for the first substantive user reply after opening", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Добрый вечер. Что у вас сегодня происходит и сколько времени есть на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Я хочу выполнить дыхание в течение 15 минут",
+    );
+
+    expect(decision.mode).toBe("fast_track_final");
+    expect(decision.modelTier).toBe("premium");
+  });
+
+  it("stays in inquiry when the first user reply after opening is not yet confident", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Добрый вечер. Что у вас сегодня происходит и сколько времени есть на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Хочется что-то спокойное, день тяжелый",
+    );
+
+    expect(decision.mode).toBe("inquiry");
+    expect(decision.instructionVariables?.practice_refusal_check ?? "").toBe("");
+  });
+
+  it("adds practice_refusal_check after two unresolved opening/inquiry turns", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Добрый вечер. Что у вас сегодня происходит и сколько времени есть на практику?",
+          meta: { turn_mode: "opening" },
+        },
+        { role: "user", content: "Сложный день, устал после встреч" },
+        {
+          role: "assistant",
+          content: "Похоже, день напряженный. Сколько минут есть и что ближе: дыхание, медитация или асаны?",
+          meta: { turn_mode: "inquiry" },
+        },
+        { role: "user", content: "Да, я все еще перевариваю разговор с начальником" },
+      ],
+      3,
+      9,
+      "И все это не отпускает",
+    );
+
+    expect(decision.mode).toBe("inquiry");
+    expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("пользователь уже дважды не ответил");
+  });
+});
