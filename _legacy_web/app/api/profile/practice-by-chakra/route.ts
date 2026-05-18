@@ -1,5 +1,5 @@
+import { buildChakraLegend } from "@legacy/app/api/_utils/planetChakraLegend";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
-import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 
 export const runtime = "nodejs";
 
@@ -7,17 +7,6 @@ function clampDays(value: string | null): number {
   const parsed = Number.parseInt(value ?? "", 10);
   if (!Number.isFinite(parsed)) return 30;
   return Math.max(7, Math.min(365, parsed));
-}
-
-function chakraLegend() {
-  return Object.values(PLANET_CHAKRA)
-    .sort((a, b) => a.chakraNumber - b.chakraNumber)
-    .map((item) => ({
-      chakra: item.chakraNumber,
-      label: item.chakraName,
-      shortLabel: item.label,
-      color: item.color,
-    }));
 }
 
 export async function GET(req: Request) {
@@ -48,7 +37,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const chakraStats = chakraLegend().map((chakra) => ({
+    const chakraStats = buildChakraLegend().map((chakra) => ({
       ...chakra,
       durationSec: Math.round(totals.get(chakra.chakra) ?? 0),
     }));
