@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.7
-updated: 2026-05-15
+version: 2.8
+updated: 2026-05-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -62,6 +62,7 @@ code_refs:
 ### Очистка видимого текста ассистента (`modules/communicator/core/dialogTextCleanup.ts`)
 
 - **`stripDialogScaffoldMarkdown(text): string`** — экспорт; зеркалит серверный одноимённый helper в `_legacy_web/app/api/_utils/markers.ts`.
+- **`stripStreamingMarkers`** в `Communicator.tsx` — локальный regex `MARKER_RE` вырезает из видимого стрима `[STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS:…]` и `[PLAN_TOMORROW]` до применения `stripDialogScaffoldMarkdown`.
 
 ### Поток чата без прямого импорта `sendDialogMessage` в UI
 

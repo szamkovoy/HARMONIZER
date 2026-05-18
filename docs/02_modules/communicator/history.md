@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.4
-updated: 2026-05-15
+version: 2.5
+updated: 2026-05-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -17,6 +17,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-18:** `Communicator.tsx` — `MARKER_RE` расширен на v5 invisible markers (`PLANNED_EVENT`, `SUMMARIZE_EVENT`, `MATRIX_CELLS`, `[PLAN_TOMORROW]`), чтобы они не мелькали в стриме до серверной санитизации. **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-15:** `PracticePicked` / карточка практики — клиент теперь предпочитает `**practicePicked.card_blurb**` как текст описания карточки, а `**reason**` оставляет как fallback для legacy-сессий и серверного резервного режима. SSE-форма не изменилась, DTO только расширен опциональным полем. **`spec.md`** / **`CHANGELOG.md`**.
 - **2026-05-15:** **`PracticeCard`** — клип `overrideDurationMinutes` к шагам каталога (общий модуль **`assistantSelectableDurations.ts`** с сервером); при клипе — `console.log` **`[PRACTICE_CARD_MISMATCH]`**. **`spec.md`**.
 - **2026-05-14:** В **`i18n/communicator.ts`** добавлены `PhaseId` / подписи статуса для серверного `turnMode` **`fast_track_final`** (диалог v3: сразу практика при первом сообщении с длительностью и типом). Контракт SSE не менялся (строка `turnMode` как и раньше). **`CHANGELOG.md`**.

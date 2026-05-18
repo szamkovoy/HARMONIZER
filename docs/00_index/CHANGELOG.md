@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.14
-updated: 2026-05-17
+version: 2.15
+updated: 2026-05-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-18: pre-push doc-sync — HARMONIZER v2 push: активация `dialog_system_v3` v5 (`20260519030000_dialog_system_v3_v5_activate.sql`), life-matrix foundation и profile reports уже в коде; синхронизированы **`docs/02_modules/assistant/{prompts-reference,spec,history,dependencies}.md`**, **`docs/02_modules/communicator/{spec,history}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-17: deploy-readiness fix for `assistant` — миграция **`20260516150000_dialog_system_v3_v5.sql`** больше только подготавливает запись `dialog_system_v3` v5 и оставляет её `is_active=false`; активной должна оставаться v4 до ручной вычитки владельцем. Уточнены **`docs/02_modules/assistant/{spec,history}.md`**.
 - 2026-05-16: HARMONIZER v2 doc-sync — `assistant` переведён в документации на двухфазный daily dialog v5 (`summarizing/planning`, `planned_events`, `daily_matrices`, `day_target_chakra`, новые markers и time parser); `daily_forecast` зафиксировал поля `user_daily_forecasts.day_target_*`; `profile` — новые server-backed reports (`life matrix`, `range trend`, `practice-by-chakra`); `subscription` — расширенный смысл gate `stats`. В `open_questions.md` добавлены хвосты про locale-aware chakra baseline и отсутствие отдельного cleanup job для `planned_events`.
 - 2026-05-15: `assistant` + `communicator` — `[PRACTICE_PICK]` расширен полем `card_blurb`; финальные и `fast_track_final` инструкции daily dialog v3 требуют model-generated текст карточки в том же premium-вызове, `route.ts` подставляет `{{chakra_label_accusative}}`, валидирует `card_blurb` и использует его только когда итоговая практика совпала с маркером; клиент `Communicator` предпочитает `practicePicked.card_blurb` с fallback на `reason`. Обновлены **`docs/02_modules/{assistant,communicator}/{spec,history}.md`**, **`docs/02_modules/assistant/prompts-reference.md`**.
