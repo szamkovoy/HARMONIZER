@@ -33,7 +33,7 @@ describe("decideTurnMode", () => {
     expect(decision.modelTier).toBe("premium");
   });
 
-  it("stays in inquiry when the first user reply after opening is not yet confident", () => {
+  it("asks about practice refusal after the first unresolved opening reply by default", () => {
     const decision = decideTurnMode(
       [
         {
@@ -48,7 +48,7 @@ describe("decideTurnMode", () => {
     );
 
     expect(decision.mode).toBe("inquiry");
-    expect(decision.instructionVariables?.practice_refusal_check ?? "").toBe("");
+    expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("пользователь уже дважды не ответил");
   });
 
   it("adds practice_refusal_check after two unresolved opening/inquiry turns", () => {

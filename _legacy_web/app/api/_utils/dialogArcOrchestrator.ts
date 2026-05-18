@@ -1,4 +1,5 @@
 import { validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
+import { getPracticeRefusalThreshold } from "@legacy/app/api/_utils/dialogConfig";
 
 type Message = {
   role: "user" | "assistant" | "system";
@@ -242,7 +243,7 @@ export function decideTurnMode(
     instruction: ORCHESTRATOR_INSTRUCTIONS.inquiry,
     instructionVariables: {
       practice_refusal_check:
-        unresolvedPracticePromptCount >= 2 ? PRACTICE_REFUSAL_CHECK_INSTRUCTION : "",
+        unresolvedPracticePromptCount >= getPracticeRefusalThreshold() ? PRACTICE_REFUSAL_CHECK_INSTRUCTION : "",
     },
   };
 }

@@ -202,4 +202,29 @@ describe("parseResponseMarkers", () => {
     expect(parsed.practicePick?.id).toBe("breath:coherent");
     expect(parsed.practicePick?.cardBlurb).toBe(`Текст с "двойными" кавычками внутри`);
   });
+
+  it("parses planning and summarizing markers for life matrix flow", () => {
+    const parsed = parseResponseMarkers(
+      [
+        `[PLANNED_EVENT: desc="Разговор с руководителем" time="завтра утром" time_norm="tomorrow morning" cells="3:5:0.7;6:5:0.3" snippets="встреча с начальником;надо собраться"]`,
+        `[SUMMARIZE_EVENT: ref="1" outcome="прошло спокойнее, чем ожидалось" outcome_cells="3:5:0.4;2:4:0.6"]`,
+        `[MATRIX_CELLS: 3:5:0.4;2:4:0.6]`,
+        `[PLAN_TOMORROW]`,
+      ].join("\n"),
+    );
+
+    expect(parsed.planTomorrow).toBe(true);
+    expect(parsed.plannedEvents).toHaveLength(1);
+    expect(parsed.plannedEvents[0]?.desc).toBe("Разговор с руководителем");
+    expect(parsed.plannedEvents[0]?.cells).toEqual([
+      { sphere: 3, chakra: 5, weight: 1 },
+      { sphere: 6, chakra: 5, weight: 1 },
+    ]);
+    expect(parsed.summarizeEvents).toHaveLength(1);
+    expect(parsed.summarizeEvents[0]?.ref).toBe("1");
+    expect(parsed.matrixCells).toEqual([
+      { sphere: 3, chakra: 5, weight: 1 },
+      { sphere: 2, chakra: 4, weight: 1 },
+    ]);
+  });
 });

@@ -87,6 +87,7 @@ export type PracticePickedPayload = PracticeRecommendation & {
 export type PracticeSelectionContext = {
   forecast?: {
     planet_of_the_day?: unknown;
+    day_target_chakra?: unknown;
   } | null;
 };
 
@@ -327,7 +328,10 @@ export async function choosePractice(
   history: MessageRecord[],
 ): Promise<ChoosePracticeResult | { picked: null; markerIdResolved: undefined; chakraId: number; preferredDurationMin: number | null }> {
   const planetToChakra: Record<string, number> = { Moon: 1, Venus: 2, Mars: 3, Jupiter: 4, Saturn: 5, Mercury: 6, Sun: 7 };
-  const chakraId = planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
+  const fixedTarget = Number(context.forecast?.day_target_chakra);
+  const chakraId = Number.isInteger(fixedTarget) && fixedTarget >= 1 && fixedTarget <= 7
+    ? fixedTarget
+    : planetToChakra[String(context.forecast?.planet_of_the_day ?? "Sun")] ?? 7;
   const validation = validateHistoryHasDurationAndType([
     ...history.filter((m) => m.role === "user"),
     { role: "user" as const, content: userMessage },

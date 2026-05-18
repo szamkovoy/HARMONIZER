@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-16
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs:
   [
@@ -40,7 +40,7 @@ code_refs:
   `modules/home/useDayContent.ts` — параллельно вычисляет `AccessMode` из сырых полей профиля для запросов к `global-content` и персональному прогнозу (должен оставаться согласован с правилами trial в `getEffectiveAccess`).
 
 - **`profile`**  
-  `app/(tabs)/profile.tsx` — отображение `access.label`, `TIER_LABELS[access.tier]`, сырых `membership_tier` / `trial_expires_at`; `canUseFeature("stats")` открывает блок статистики практик; в `__DEV__` рендерится `DevTierSwitch`.
+  `app/(tabs)/profile.tsx` — отображение `access.label`, `TIER_LABELS[access.tier]`, сырых `membership_tier` / `trial_expires_at`; `canUseFeature("stats")` открывает блок статистики практик и новые HARMONIZER v2 reports; в `__DEV__` рендерится `DevTierSwitch`.
 
 - **`assistant` (сервер)**  
   `_legacy_web/app/api/communicator/v2/dialog/route.ts` — выборка `membership_tier`, `trial_expires_at` для DTO и связки с `_legacy_web/app/api/_utils/userModelTier.ts` (`dialogSurfaceModelHint` / премиум-модели).
@@ -64,5 +64,6 @@ code_refs:
 
 - **Синхронизация трёх слоёв:** `getEffectiveAccess` + дубли `hasPremiumAccess` / `hasPremiumLlmAccess` + ответы `global-content` (`has_premium_access`). Расхождение даёт неверный режим прогноза или модель LLM.
 - **Изменение `FeatureKey` или `TIER_FEATURES`** — ломает все вызовы `canUseFeature` и тексты `UpgradeDialog`; нужна проходка по `app/(tabs)/*`, `modules/practices/*`, `app/asana-practice.tsx`.
+- **Ключ `stats` стал шире по смыслу** — теперь он гейтит и server-backed reports профиля, так что ошибки в `TIER_FEATURES` затронут не только локальную статистику практик, но и life matrix / range trend.
 - **Смена `ProductTier` или порядка в `TIER_ORDER`** — влияет на `accessModeForTier` и на сравнения `tierAtLeast` у будущих потребителей.
 - **Кэш дня** (`services/dayContentCache.ts`) ключует по `accessTier`; смена правил tier без инвалидации может показывать старый персональный/global контент до принудительного refresh.

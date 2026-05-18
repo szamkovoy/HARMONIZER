@@ -1,14 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-05-16
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
 
+- **2026-05-16:** Feature gate `stats` стал единым входом не только для старой клиентской статистики практик, но и для новых HARMONIZER v2 reports на профиле (`life matrix`, `range trend`, `practice-by-chakra`). Изменений в матрице тарифов не потребовалось: доступ остался на текущем effective tier без расширения SQL-схемы `membership_tier`.
 - **2026-05:** Введены поля `users.membership_tier` (`free`/`premium`) и `trial_expires_at` с индексами; зафиксирована семантика трёхдневного trial для free и общего контента для free tier — см. миграцию `supabase/migrations/20260501193000_free_tier_global_content.sql` и реализацию клиентского/серверного разветвления в `modules/home/useDayContent.ts`, `_legacy_web/app/api/ai/global-content/route.ts`.
 
 - **2026-05:** Клиентский слой `modules/access` введён как единая точка для четырёх продуктовых тарифов (`ProductTier`), матрицы `TIER_FEATURES` и API `useAccess` / `canUseFeature`; `premium` из БД маппится в эффективный `oracle`, активный trial поднимает эффективный уровень до `master` для матрицы фич. Это опережает полную смену схемы БД (см. `docs/04_reference/product/tier_model.md`).

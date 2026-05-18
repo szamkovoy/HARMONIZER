@@ -265,35 +265,47 @@ export type Database = {
       }
       conversation_summaries: {
         Row: {
+          branch: string | null
           chakras_mentioned: number[] | null
           conversation_id: string
           generated_at: string | null
           id: string
           key_topics: Json | null
+          matrix_cells: Json | null
+          phase_time: string | null
           plans: Json | null
           practices_mentioned: string[] | null
+          related_event_ids: string[] | null
           summary_text: string
           user_id: string
         }
         Insert: {
+          branch?: string | null
           chakras_mentioned?: number[] | null
           conversation_id: string
           generated_at?: string | null
           id?: string
           key_topics?: Json | null
+          matrix_cells?: Json | null
+          phase_time?: string | null
           plans?: Json | null
           practices_mentioned?: string[] | null
+          related_event_ids?: string[] | null
           summary_text: string
           user_id: string
         }
         Update: {
+          branch?: string | null
           chakras_mentioned?: number[] | null
           conversation_id?: string
           generated_at?: string | null
           id?: string
           key_topics?: Json | null
+          matrix_cells?: Json | null
+          phase_time?: string | null
           plans?: Json | null
           practices_mentioned?: string[] | null
+          related_event_ids?: string[] | null
           summary_text?: string
           user_id?: string
         }
@@ -390,6 +402,50 @@ export type Database = {
           slogan_template?: Json
         }
         Relationships: []
+      }
+      daily_matrices: {
+        Row: {
+          created_at: string
+          events_count: number
+          id: string
+          local_date: string
+          matrix: Json
+          range_metric: number | null
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          events_count?: number
+          id?: string
+          local_date: string
+          matrix?: Json
+          range_metric?: number | null
+          source: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          events_count?: number
+          id?: string
+          local_date?: string
+          matrix?: Json
+          range_metric?: number | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_matrices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dialogue_phases: {
         Row: {
@@ -703,6 +759,81 @@ export type Database = {
           },
           {
             foreignKeyName: "practice_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planned_events: {
+        Row: {
+          cells: Json
+          context_snippets: Json
+          conversation_id: string | null
+          created_at: string
+          description: string
+          expected_at: string
+          id: string
+          outcome_cells: Json | null
+          outcome_text: string | null
+          planned_at: string
+          planned_local_date: string
+          status: string
+          summarized_at: string | null
+          time_phrase_raw: string | null
+          time_resolution: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cells?: Json
+          context_snippets?: Json
+          conversation_id?: string | null
+          created_at?: string
+          description: string
+          expected_at: string
+          id?: string
+          outcome_cells?: Json | null
+          outcome_text?: string | null
+          planned_at?: string
+          planned_local_date: string
+          status?: string
+          summarized_at?: string | null
+          time_phrase_raw?: string | null
+          time_resolution: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cells?: Json
+          context_snippets?: Json
+          conversation_id?: string | null
+          created_at?: string
+          description?: string
+          expected_at?: string
+          id?: string
+          outcome_cells?: Json | null
+          outcome_text?: string | null
+          planned_at?: string
+          planned_local_date?: string
+          status?: string
+          summarized_at?: string | null
+          time_phrase_raw?: string | null
+          time_resolution?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planned_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planned_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -1171,6 +1302,9 @@ export type Database = {
           cache_valid_until: string
           computed_at: string
           corrected_at: string | null
+          day_target_chakra: number | null
+          day_target_fixed_at: string | null
+          day_target_reason: string | null
           forecast_date: string
           id: string
           importance: Json
@@ -1192,6 +1326,9 @@ export type Database = {
           cache_valid_until: string
           computed_at?: string
           corrected_at?: string | null
+          day_target_chakra?: number | null
+          day_target_fixed_at?: string | null
+          day_target_reason?: string | null
           forecast_date: string
           id?: string
           importance: Json
@@ -1213,6 +1350,9 @@ export type Database = {
           cache_valid_until?: string
           computed_at?: string
           corrected_at?: string | null
+          day_target_chakra?: number | null
+          day_target_fixed_at?: string | null
+          day_target_reason?: string | null
           forecast_date?: string
           id?: string
           importance?: Json

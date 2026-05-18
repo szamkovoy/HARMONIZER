@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 1.7
-updated: 2026-05-14
+version: 1.8
+updated: 2026-05-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-16:** В `user_daily_forecasts` добавлены `day_target_chakra`, `day_target_reason`, `day_target_fixed_at` (миграция **`20260516132000_life_matrix_foundation.sql`**). Сервер daily dialog теперь выбирает и фиксирует целевую чакру дня из top-3 планет с фильтром по накопленной life matrix; это даёт единый pinned target для диалога и downstream выбора практики, но не меняет сам вычислительный контракт `DailyForecast`.
 - **2026-05-14 (доп.):** После **`refresh({ forceRefresh })` / `blockingReload`** для персонального дня клиент помечает **`pendingMorningMonologueForce`**: фоновый проход `morning_recommendation` выполняется с **`forceRefresh: true`** даже если базовый forecast уже содержит заполненные recommendation-поля — иначе после смены натала обновлялись числа/цветок, а тексты рекомендаций оставались от прежнего кэша сценария.
 
 - **2026-05-14:** `useDayContent.refresh` принимает **`blockingReload`**: при `true` стартовый оверлей (`AppStartupProvider.beginHomeBootstrap`) показывается даже при `forceRefresh`, чтобы после смены натала с **`app/(tabs)/profile.tsx`** главный таб дождался нового дня под обновлённый `scopeKey`. Флаги переноса: **`markHomeDayContentBlockingReload` / `consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); потребление на фокусе Home — **`useFocusEffect`** в `app/(tabs)/index.tsx`. Общая модалка ввода даты/времени — **`modules/home/ui/NatalBirthDataModal.tsx`**.

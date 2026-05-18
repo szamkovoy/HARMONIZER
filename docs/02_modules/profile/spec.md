@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.7
-updated: 2026-05-14
+version: 1.8
+updated: 2026-05-16
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -12,6 +12,7 @@ code_refs:
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
     app/(tabs)/index.tsx,
+    modules/profile/ui/ProfileReports.tsx,
     modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
     app/_layout.tsx,
@@ -19,14 +20,17 @@ code_refs:
     services/natalProfileClient.ts,
     services/homeDayContentReloadRequest.ts,
     services/practiceSessions.ts,
+    services/profileReports.ts,
     modules/location/acquireAndPersistUserCoordinates.ts,
     _legacy_web/app/api/astro/natal/route.ts,
+    _legacy_web/app/api/profile/life-matrix/route.ts,
+    _legacy_web/app/api/profile/practice-by-chakra/route.ts,
   ]
 ---
 
 ## 1. Назначение
 
-Модуль **profile** в рантайме — это совокупность **данных пользователя из `public.users`**, синхронизируемых с Supabase Auth, и **экранов**, где эти данные отображаются или инициируют downstream-действия (натал, геолокация, тариф, статистика практик). Каноническая загрузка и обновление строки профиля сосредоточены в **`modules/auth/AuthProvider.tsx`**; вкладка **`app/(tabs)/profile.tsx`** даёт минимальный UI поверх `useAuth()` и `useAccess()`.
+Модуль **profile** в рантайме — это совокупность **данных пользователя из `public.users`**, синхронизируемых с Supabase Auth, и **экранов**, где эти данные отображаются или инициируют downstream-действия (натал, геолокация, тариф, статистика практик, life-matrix reports). Каноническая загрузка и обновление строки профиля сосредоточены в **`modules/auth/AuthProvider.tsx`**; вкладка **`app/(tabs)/profile.tsx`** даёт UI поверх `useAuth()` и `useAccess()` и теперь дополнительно запрашивает серверные отчёты по матрице дня и практикам.
 
 ## 2. Публичный контракт
 
@@ -52,6 +56,10 @@ code_refs:
 - Карточка **«Текущий доступ»:** `access` из `useAccess()`, сырые `profile.membership_tier` и `trial_expires_at`, кнопка **«Обновить профиль»** → модальное окно **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты/времени рождения и **`createNatalProfile`** (как на главном); при открытии в поля подставляются **`initialDate` / `initialTime`** из **`profile.birth_date` / `profile.birth_time`** (если есть). Доступ к редактированию по фиче **`calibration`** (`useAccess().canUseFeature("calibration")`); иначе **`UpgradeDialog`**. После успешного сохранения: **`refreshProfile()`**, **`markHomeDayContentBlockingReload({ forceRefresh: true })`** (`services/homeDayContentReloadRequest.ts`) — при следующем фокусе главного таба `useDayContent.refresh` выполняется с **`blockingReload`** и показывает стартовый оверлей до готовности дня; **`Alert`** с переходом **`router.push("/calibration")`** или **`router.replace("/")`**.
 - В **`__DEV__`:** `DevTierSwitch` для эффективного тарифа (см. `subscription`).
 - **Статистика практик:** при `canUseFeature("stats")` — загрузка `loadDailyPracticeStats` из `services/practiceSessions.ts` (14 дней); иначе текст про тариф Практик/Мастер.
+- **Отчёты HARMONIZER v2:** `modules/profile/ui/ProfileReports.tsx` с единым interval switcher `7 / 30 / 90` дней. Два backend endpoint-а:
+  - `GET /api/profile/life-matrix?days=N` — агрегирует `daily_matrices`, отдаёт `rawMatrix`, `visualMatrix`, range-trend и легенды чакр/сфер;
+  - `GET /api/profile/practice-by-chakra?days=N` — суммирует завершённые `practice_sessions` по `chakra_focus_ids` и длительности.
+  Клиентский transport: `services/profileReports.ts` (Bearer JWT, тот же Vercel backend origin). Gate тот же, что у `stats`.
 - **`HARMONIZER_TEST_MODE` / `__DEV__`:** блок диагностики (`runtimeDiagnostics`).
 - Заглушка **«Скоро здесь»** — расширенные настройки профиля (не birth-редактор; birth — см. кнопку выше).
 
@@ -62,10 +70,11 @@ code_refs:
 
 ## 6. Интеграции
 
-- **`subscription`:** тариф и trial читаются из `profile`; эффективный tier и `canUseFeature` — через `AccessProvider`. Подробности модели тарифов не дублируются здесь — см. **`docs/02_modules/subscription/spec.md`** и справочник по ссылке ниже.
+- **`subscription`:** тариф и trial читаются из `profile`; эффективный tier и `canUseFeature` — через `AccessProvider`. Ключ `stats` теперь открывает не только старую bar-chart статистику, но и server-backed отчёты HARMONIZER v2.
 - **`astro`:** персональный прогноз и натал зависят от полей профиля и результата `createNatalProfile`; клиентский контракт BirthData/`NatalProfile` — `modules/astro-core`, вызовы в `services/natalProfileClient.ts`.
 - **`practices`:** экран профиля читает статистику завершённых сессий через **`practice_sessions`** (сервис `practiceSessions`), без записи новых сессий с этого экрана.
 - **`communicator` / `assistant`:** не импортируют экран профиля; серверные маршруты сами выбирают `users` и натал для диалога. Обновление профиля после смены birth data на клиенте косвенно влияет на последующие запросы диалога после `refreshProfile`.
+- **`assistant`:** profile reports читают `daily_matrices`, которые наполняются daily dialog-ом, и используют ту же легенду чакр/сфер через backend helpers.
 
 ## 7. Известные ограничения и инварианты
 

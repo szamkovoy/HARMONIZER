@@ -105,7 +105,7 @@ const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
 const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
 
-const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION):[^\]]*\]/gi;
+const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS):[^\]]*\]|\[\s*PLAN_TOMORROW\s*\]/gi;
 const READY_MARKER_RE = /\[\s*ready_for_recommendation\s*\]/gi;
 const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
 

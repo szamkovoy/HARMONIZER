@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 1.3
-updated: 2026-05-14
+version: 1.4
+updated: 2026-05-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -42,7 +42,7 @@ code_refs:
 ## 2. От него зависят
 
 - **`assistant` (сервер)**  
-  - `_legacy_web/app/api/communicator/v2/dialog/route.ts`, `v2/greeting/route.ts`, `v2/recommendation-text/route.ts`, `v2/correct-recommendation/route.ts` читают `user_daily_forecasts` (планета дня, тексты, важность, окна) для контекста ответов.  
+  - `_legacy_web/app/api/communicator/v2/dialog/route.ts`, `v2/greeting/route.ts`, `v2/recommendation-text/route.ts`, `v2/correct-recommendation/route.ts` читают `user_daily_forecasts` (планета дня, тексты, важность, окна) для контекста ответов. Начиная с HARMONIZER v2 daily dialog также пишет обратно `day_target_chakra`, `day_target_reason`, `day_target_fixed_at`.
   - UI-модуль `communicator` напрямую типы прогноза **не** импортирует; связь идёт через сервер и общий UX главного экрана.
 
 - **`practices`**  
@@ -51,6 +51,7 @@ code_refs:
 ## 3. Контрактные точки риска
 
 - **Симметрия полей `DailyForecast` и snake_case в БД** — любое переименование ломает `normalizeForecast` и SQL mapping (`dailyForecastToInsert`).
+- **Новый серверный контракт `day_target_*`** — home и assistant уже начинают жить на этих полях; их удаление/переименование без синхронной правки dialog-route даст тихий разрыв между прогнозом дня и daily dialog.
 - **`cacheValidUntil` vs клиентский `expiresAt` в `dayContentCache`** — оба должны оставаться согласованы с локальным концом дня; расхождение Node/Edge см. open questions.
 - **Пустой `recentPlanetsOfDay` на мобильном пути** — смена поведения `chooseFinalPlanet` неочевидна для QA без заполненных preferences.
 - **Дубли формул Node/Deno** — правки только в одной копии дадут расхождение; опора на `daily-engine-parity.test.ts` + ручная осторожность вне покрытия теста.

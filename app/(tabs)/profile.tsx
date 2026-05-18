@@ -12,6 +12,7 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
+import { ProfileReports } from "@/modules/profile/ui/ProfileReports";
 import { loadDailyPracticeStats, type DailyPracticeStat } from "@/services/practiceSessions";
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
@@ -211,6 +212,8 @@ export default function ProfileTabRoute() {
             </AppText>
           )}
         </View>
+
+        <ProfileReports enabled={canUseFeature("stats")} onUpgrade={() => setUpgradeFeature("stats")} />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">Скоро здесь</AppText>

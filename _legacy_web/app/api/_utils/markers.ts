@@ -1,3 +1,5 @@
+import { parseCompactCells, type MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+
 export type StateProposalMarker = {
   proposed_planet: string;
   proposed_label: string;
@@ -18,13 +20,33 @@ export type RecommendationCorrectionMarker = {
   windows_correction?: string;
 };
 
+export type PlannedEventMarker = {
+  desc: string;
+  time: string | null;
+  timeNorm: string | null;
+  cells: MatrixCell[];
+  snippets: string[];
+};
+
+export type SummarizeEventMarker = {
+  ref: string;
+  outcome: string | null;
+  outcomeCells: MatrixCell[];
+};
+
 type MarkerMessage = {
   role: "user" | "assistant" | "system";
   content?: string | null;
 };
 
 type ParsedMarker = {
-  name: "STATE_PROPOSAL" | "PRACTICE_PICK" | "CORRECT_RECOMMENDATION";
+  name:
+    | "STATE_PROPOSAL"
+    | "PRACTICE_PICK"
+    | "CORRECT_RECOMMENDATION"
+    | "PLANNED_EVENT"
+    | "SUMMARIZE_EVENT"
+    | "MATRIX_CELLS";
   body: string;
   start: number;
   end: number;
@@ -103,7 +125,7 @@ function findMarkerEnd(text: string, startIndex: number): number {
 
 function parseMarkers(text: string): ParsedMarker[] {
   const markers: ParsedMarker[] = [];
-  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION):/gi;
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS):/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
     const name = match[1]?.toUpperCase() as ParsedMarker["name"] | undefined;
@@ -126,6 +148,10 @@ export function parseResponseMarkers(text: string): {
   stateProposals: StateProposalMarker[];
   practicePick: PracticePickMarker | null;
   recommendationCorrection: RecommendationCorrectionMarker | null;
+  plannedEvents: PlannedEventMarker[];
+  summarizeEvents: SummarizeEventMarker[];
+  planTomorrow: boolean;
+  matrixCells: MatrixCell[];
 } {
   const parsedMarkers = parseMarkers(text);
   const stateProposals: StateProposalMarker[] = [];
@@ -167,12 +193,51 @@ export function parseResponseMarkers(text: string): {
       }
     : null;
 
-  return { stateProposals, practicePick, recommendationCorrection };
+  const plannedEvents = parsedMarkers
+    .filter((item) => item.name === "PLANNED_EVENT")
+    .map((marker) => {
+      const attrs = parseMarkerAttributes(marker.body);
+      const desc = attrs.desc?.trim();
+      if (!desc) return null;
+      return {
+        desc,
+        time: attrs.time?.trim() || null,
+        timeNorm: attrs.time_norm?.trim() || null,
+        cells: parseCompactCells(attrs.cells),
+        snippets: (attrs.snippets ?? "")
+          .split(";")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      } satisfies PlannedEventMarker;
+    })
+    .filter((item): item is PlannedEventMarker => Boolean(item));
+
+  const summarizeEvents = parsedMarkers
+    .filter((item) => item.name === "SUMMARIZE_EVENT")
+    .map((marker) => {
+      const attrs = parseMarkerAttributes(marker.body);
+      const ref = attrs.ref?.trim();
+      if (!ref) return null;
+      return {
+        ref,
+        outcome: attrs.outcome?.trim() || null,
+        outcomeCells: parseCompactCells(attrs.outcome_cells),
+      } satisfies SummarizeEventMarker;
+    })
+    .filter((item): item is SummarizeEventMarker => Boolean(item));
+
+  const matrixCells = parsedMarkers
+    .filter((item) => item.name === "MATRIX_CELLS")
+    .flatMap((marker) => parseCompactCells(marker.body.trim()));
+
+  const planTomorrow = /\[\s*PLAN_TOMORROW\s*\]/i.test(text);
+
+  return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, planTomorrow, matrixCells };
 }
 
 export function stripResponseMarkers(text: string): string {
   const markers = parseMarkers(text);
-  if (!markers.length) return text.replace(/[ \t]+\n/g, "\n").trim();
+  if (!markers.length) return text.replace(/\[\s*PLAN_TOMORROW\s*\]/gi, "").replace(/[ \t]+\n/g, "\n").trim();
 
   let out = "";
   let cursor = 0;
@@ -181,7 +246,7 @@ export function stripResponseMarkers(text: string): string {
     cursor = marker.end;
   }
   out += text.slice(cursor);
-  return out.replace(/[ \t]+\n/g, "\n").trim();
+  return out.replace(/\[\s*PLAN_TOMORROW\s*\]/gi, "").replace(/[ \t]+\n/g, "\n").trim();
 }
 
 export function containsReadyMarker(text: string): boolean {

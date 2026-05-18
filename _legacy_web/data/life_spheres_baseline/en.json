@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "slug": "body_health",
+    "title": "Body and health",
+    "prompt_hint": "sleep, energy, food, physical state, recovery, symptoms, bodily comfort"
+  },
+  {
+    "id": 2,
+    "slug": "relationships",
+    "title": "Relationships and closeness",
+    "prompt_hint": "partner, family, children, friends, support, conflict, distance, trust"
+  },
+  {
+    "id": 3,
+    "slug": "work_money",
+    "title": "Work and money",
+    "prompt_hint": "work, career, tasks, deadlines, income, expenses, stability, results"
+  },
+  {
+    "id": 4,
+    "slug": "home_daily_life",
+    "title": "Home and daily life",
+    "prompt_hint": "home, commute, schedule, chores, routine, space, day organization"
+  },
+  {
+    "id": 5,
+    "slug": "creativity_expression",
+    "title": "Creativity and expression",
+    "prompt_hint": "ideas, voice, speaking, writing, creativity, content, visibility, style"
+  },
+  {
+    "id": 6,
+    "slug": "learning_growth",
+    "title": "Learning and growth",
+    "prompt_hint": "learning, insights, decisions, strategy, skill, choice, understanding, focus"
+  },
+  {
+    "id": 7,
+    "slug": "meaning_service",
+    "title": "Meaning and contribution",
+    "prompt_hint": "values, purpose, service, faith, larger meaning, direction, contribution"
+  }
+]

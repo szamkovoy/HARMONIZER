@@ -65,6 +65,14 @@ export function getPracticeVimeoThumbnailsUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/practices/vimeo-thumbnails`;
 }
 
+export function getProfileLifeMatrixUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/profile/life-matrix`;
+}
+
+export function getProfilePracticeByChakraUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/profile/practice-by-chakra`;
+}
+
 /** POST: принять/отклонить AI-предложение состояния (Bearer JWT). */
 export function getAiProposalRespondUrl(proposalId: string): string {
   return `${getCommunicatorApiBaseUrl()}/api/proposals/${proposalId}/respond`;

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.2
-updated: 2026-05-14
+version: 1.3
+updated: 2026-05-16
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -26,7 +26,7 @@ code_refs:
   Supabase (`public.users`, RLS, триггер на `auth.users`), клиент `services/supabase.ts` / типы `services/supabase-types.ts`. Без валидной конфигурации проекта и миграций строка профиля не создаётся и не обновляется.
 
 - **`subscription`**  
-  `app/_layout.tsx` передаёт `profile` в `AccessProvider`; `app/(tabs)/profile.tsx` и главный экран используют `useAccess()` для отображения тарифа, `DevTierSwitch` и `canUseFeature("stats")`. Продуктовая семантика тарифов — в `docs/02_modules/subscription/spec.md`.
+  `app/_layout.tsx` передаёт `profile` в `AccessProvider`; `app/(tabs)/profile.tsx` и главный экран используют `useAccess()` для отображения тарифа, `DevTierSwitch` и `canUseFeature("stats")`. Новый блок `ProfileReports` на профиле тоже гейтится этим ключом. Продуктовая семантика тарифов — в `docs/02_modules/subscription/spec.md`.
 
 - **`astro` (данные и сценарии)**  
   `services/natalProfileClient.ts`, **`modules/home/ui/NatalBirthDataModal.tsx`** (общий с главным) и экраны `app/(tabs)/index.tsx` / `app/(tabs)/profile.tsx` завязаны на типы `BirthData` / `NatalProfile` из `modules/astro-core` и API `POST /api/astro/natal`. Поля `birth_*` и связанный активный натал определяют персональный прогноз и downstream assistant/calibration.
@@ -36,6 +36,8 @@ code_refs:
 
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица завершённых сессий). Запись сессий выполняется из flow практик, не из таба профиля.
+- **`assistant` (новые отчёты HARMONIZER v2)**  
+  Profile reports через backend routes читают `daily_matrices` и используют агрегаты, построенные daily dialog-ом (`planned_events` -> `daily_matrices`), а также server helper-ы легенды чакр/сфер.
 
 ## 2. От него зависят
 
@@ -50,6 +52,8 @@ code_refs:
 
 - **`calibration`**, **`assistant`**, **`communicator` (косвенно)**  
   Серверные маршруты загружают строку пользователя и натал независимо от UI профиля; клиентский профиль должен быть согласован после локальных изменений через `refreshProfile()`.
+- **`assistant` (прямой потребитель отчётов)**  
+  `_legacy_web/app/api/profile/life-matrix/route.ts` и `practice-by-chakra/route.ts` теперь отдают profile-specific агрегаты поверх артефактов ассистента; это новая парная связь `profile` -> `assistant`.
 
 - **`practices`**  
   Статистика на экране профиля — потребитель `practice_sessions` по `user_id`. Парная пометка добавлена в `docs/02_modules/practices/dependencies.md`.

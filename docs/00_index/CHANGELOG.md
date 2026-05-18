@@ -3,13 +3,15 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.12
-updated: 2026-05-15
+version: 2.14
+updated: 2026-05-17
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-17: deploy-readiness fix for `assistant` — миграция **`20260516150000_dialog_system_v3_v5.sql`** больше только подготавливает запись `dialog_system_v3` v5 и оставляет её `is_active=false`; активной должна оставаться v4 до ручной вычитки владельцем. Уточнены **`docs/02_modules/assistant/{spec,history}.md`**.
+- 2026-05-16: HARMONIZER v2 doc-sync — `assistant` переведён в документации на двухфазный daily dialog v5 (`summarizing/planning`, `planned_events`, `daily_matrices`, `day_target_chakra`, новые markers и time parser); `daily_forecast` зафиксировал поля `user_daily_forecasts.day_target_*`; `profile` — новые server-backed reports (`life matrix`, `range trend`, `practice-by-chakra`); `subscription` — расширенный смысл gate `stats`. В `open_questions.md` добавлены хвосты про locale-aware chakra baseline и отсутствие отдельного cleanup job для `planned_events`.
 - 2026-05-15: `assistant` + `communicator` — `[PRACTICE_PICK]` расширен полем `card_blurb`; финальные и `fast_track_final` инструкции daily dialog v3 требуют model-generated текст карточки в том же premium-вызове, `route.ts` подставляет `{{chakra_label_accusative}}`, валидирует `card_blurb` и использует его только когда итоговая практика совпала с маркером; клиент `Communicator` предпочитает `practicePicked.card_blurb` с fallback на `reason`. Обновлены **`docs/02_modules/{assistant,communicator}/{spec,history}.md`**, **`docs/02_modules/assistant/prompts-reference.md`**.
 - 2026-05-15: pre-push doc-sync — diff миграции **`20260515030000_dialog_system_v3_pack_b.sql`**: в **`docs/00_index/MAP.md`** добавлена точка входа для строки модуля **`assistant`**; в **`docs/02_modules/infra/{dependencies,history}.md`** уточнено, что `dialog_system_v3` в **`public.prompts`** эволюционирует цепочкой миграций (ссылка на **`assistant`**). **`CHANGELOG.md`**.
 - 2026-05-15: `assistant` — пакет `B` для daily dialog v3: `fast_track_final` срабатывает и на первой содержательной реплике пользователя после `opening`, добавлен dev-лог **`[FAST_TRACK_DIAG]`**, `inquiry` получил подстановку `{{practice_refusal_check}}` после двух подряд незакрытых вопросов о практике. Новая миграция **`supabase/migrations/20260515030000_dialog_system_v3_pack_b.sql`** активирует `dialog_system_v3` v4 (антизатягивание после готовности, явный отказ от практики, запрет расписывать технику). Обновлены **`docs/02_modules/assistant/{prompts-reference,spec,history}.md`**.

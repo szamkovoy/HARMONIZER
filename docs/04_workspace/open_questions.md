@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.19
-updated: 2026-05-12
+version: 1.21
+updated: 2026-05-19
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -29,6 +29,10 @@ code_refs: []
 
 ## `assistant`
 
+- **Locale-aware baseline применён только для новых life spheres, не для chakra states**  
+**Контекст:** HARMONIZER v2 добавил `_legacy_web/data/life_spheres_baseline/{ru,en}.json` и loader `lifeSpheresBaseline.ts`, но существующий `_legacy_web/data/chakra_states_baseline.json` остаётся единым файлом без locale-dispatch.  
+**Проявление:** новый prompt v5 уже может быть локализован по сферам жизни, тогда как chakra-state baseline по-прежнему монолитный и не следует новому паттерну.  
+**Действие:** при следующей работе с ассистентом/локализацией решить, нужно ли переводить `chakra_states_baseline` на тот же `ru/en + loader` шаблон или оставить его intentionally single-source.
 - **Два URL одного диалога и условный выбор на клиенте**  
 **Контекст:** `sendDialogMessage` (`services/communicator-client.ts`) использует `getAiDialogUrl()` только если передан `**scenario_id`**; иначе запрос идёт на `**/api/communicator/v2/dialog**` (помечен deprecated в логах сервера). Реализация совпадает через реэкспорт, но продолжается техдолг по единому каноническому пути и по обязательной передаче `scenario_id` для всех новых клиентов.  
 **Действие:** при рефакторинге communicator — всегда бить в `/api/ai/dialog` или явно документировать исключения.
@@ -39,6 +43,10 @@ code_refs: []
 **Контекст:** в dialog v3 `ensureDialogCache(...)` в `_legacy_web/app/api/_utils/gemini.ts` хранит `cache.name` в in-memory TTL map; внешнего Redis/KV в проекте не найдено.  
 **Проявление:** на одном инстансе Vercel возможны cache hit по одному `conversationId + historyHash`, но между cold start / разными инстансами reuse не гарантирован; реальная экономия токенов может плавать.  
 **Действие:** при следующем заходе в infra/assistant решить, нужен ли shared cache store (Redis/KV) или текущий best-effort режим достаточно хорош для v3.
+- **Для `planned_events` нет отдельного cleanup job вне интерактивного dialog path**  
+**Контекст:** HARMONIZER v2 протухшие запланированные события сейчас закрывает через `expireStalePlannedEvents()` во время загрузки day-context для очередного диалога. Отдельного cron/worker, который чистит хвосты без входа пользователя в чат, нет.  
+**Проявление:** пользователь, который перестал открывать ассистента, может оставить stale `planned_events` до следующего dialog request; отчёты и вспомогательные выборки должны учитывать это best-effort поведение.  
+**Действие:** при следующем инфраструктурном проходе решить, нужен ли scheduled cleanup / background rebuild для `planned_events` и `daily_matrices`.
 
 ## `bindu`
 
@@ -117,4 +125,5 @@ code_refs: []
 
 ## Общее
 
+- **Техдолг тестов (не блокер):** `npx tsc --noEmit` в `_legacy_web` даёт 3 ошибки в `app/api/communicator/v2/dialog/practiceSelection.test.ts` (TS2783 ×2 строки 33–34, TS2339 строка 308). Ошибки ПРЕДсуществующие (не регресс HARMONIZER v2 / патча C.4), только в тест-файле, `next build` их фильтрует (runTypeCheck игнорирует `*.test.ts`), в прод-бандл не попадают. Безопасно для продакшена. Чистый фикс — ~3 строки в тесте (деструктуризация input в `breath()`; сужение типа на строке 308). Сделать при ближайшей уборке тестов.
 - На момент создания скелета дополнительных записей не требовалось; новые вопросы добавлять сюда по мере миграции остальных модулей.

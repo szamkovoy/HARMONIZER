@@ -4,8 +4,10 @@ import { DateTime } from "luxon";
 import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
 import planetChakraMap from "@/data/planet_chakra_map.json";
 import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS } from "@legacy/app/api/_utils/dialogArcOrchestrator";
-import { getMaxDialogLength } from "@legacy/app/api/_utils/dialogConfig";
+import { effectiveDialogMax, chooseDialogBranches, type DialogBranch } from "@legacy/app/api/_utils/dialogBranching";
 import { tonalRegisterForPlanet } from "@legacy/app/api/_utils/dialogTonalRegisters";
+import { formatLifeSpheresBaselineForPrompt } from "@legacy/app/api/_utils/lifeSpheresBaseline";
+import { normalizeCells } from "@legacy/app/api/_utils/lifeMatrix";
 import {
   generateGeminiText,
   getModelByHint,
@@ -20,6 +22,7 @@ import {
   validateHistoryHasDurationAndType,
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
+import { parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
@@ -36,6 +39,13 @@ import {
   buildPracticeCardSummary,
   normalizeModelPracticeCardBlurb,
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
+import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
+import {
+  mergeUserProfileMemory,
+  upsertConversationSummary,
+  upsertDailyMatrixForDate,
+  type PlannedEventRow,
+} from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 import {
   clipDurationMinutesToSelectableMinutes,
@@ -321,41 +331,14 @@ async function loadConversation(
   return createConversation(db, userId, body, useCase, scenarioId);
 }
 
-async function loadContext(db: SupabaseClient, userId: string) {
-  const [forecastResult, userResult] = await Promise.all([
-    db
-      .from("user_daily_forecasts")
-      .select("*")
-      .eq("user_id", userId)
-      .order("forecast_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    db
-      .from("users")
-      .select("display_name,locale,address_form,tz,membership_tier,trial_expires_at")
-      .eq("id", userId)
-      .maybeSingle(),
-  ]);
-  if (forecastResult.error) throw forecastResult.error;
-  if (userResult.error) throw userResult.error;
-  return {
-    forecast: forecastResult.data as Record<string, unknown> | null,
-    user:
-      (userResult.data as {
-        display_name?: string | null;
-        locale?: string | null;
-        address_form?: string | null;
-        tz?: string | null;
-        membership_tier?: string | null;
-        trial_expires_at?: string | null;
-      } | null) ?? {},
-  };
+async function loadContext(db: SupabaseClient, userId: string, timezoneHint?: string) {
+  return loadDialogDailyContext(db, userId, timezoneHint);
 }
 
 function buildDialogSystemInstruction(
   promptTemplate: string,
   context: LoadedContext,
-  userTimezone: string,
+  branches: DialogBranch[],
 ): {
   systemInstruction: string;
   planet: Planet;
@@ -370,7 +353,7 @@ function buildDialogSystemInstruction(
   }
 
   const locale = context.user.locale?.startsWith("en") ? "en" : "ru";
-  const now = DateTime.now().setZone(userTimezone || "UTC");
+  const now = context.nowLocal;
   const formatted = formatLocalDate(now, locale);
   const planet = normalizePlanet(forecast.planet_of_the_day);
   const chakraData = chakraStatesBaseline[planet] as ChakraBaseline;
@@ -386,6 +369,14 @@ function buildDialogSystemInstruction(
         date: formatted.date,
         time_of_day: timeOfDayForHour(now.hour),
         local_hour: now.hour,
+        phase_time: context.phaseTime,
+        branches: branches.join(",") || "none",
+        due_events: formatDueEvents(context.dueEvents),
+        matrix_ready: context.matrixReady ? "true" : "false",
+        target_chakra: String(context.targetChakra.chakraNumber),
+        target_explain: context.targetChakra.explain,
+        top3_planets: formatTop3Planets(context.top3Planets),
+        life_spheres_baseline: formatLifeSpheresBaselineForPrompt(context.user.locale),
         chakra_label: chakraMeta.chakra_name_ru,
         planet,
         harmoniousness_label: harmoniousnessLabelValue,
@@ -412,6 +403,28 @@ function buildDialogSystemInstruction(
     harmoniousnessValue,
     harmoniousnessLabel: harmoniousnessLabelValue,
   };
+}
+
+function formatDueEvents(events: LoadedContext["dueEvents"]): string {
+  if (!events.length) return "none";
+  return events
+    .slice(0, 5)
+    .map((event, index) => `${index + 1}. ${event.description} @ ${event.expected_at}`)
+    .join("\n");
+}
+
+function formatTop3Planets(top3: LoadedContext["top3Planets"]): string {
+  if (!top3.length) return "none";
+  return top3
+    .map((petal, index) => `${index + 1}. ${petal.planet} -> chakra ${petal.chakra_number}; H=${petal.harmoniousness}; S=${petal.strength}`)
+    .join("\n");
+}
+
+function hoursSince(iso: string | null, nowLocal: DateTime): number | null {
+  if (!iso) return null;
+  const then = DateTime.fromISO(iso, { zone: nowLocal.zoneName ?? "UTC" });
+  if (!then.isValid) return null;
+  return nowLocal.diff(then, "hours").hours;
 }
 
 async function maybeApplyRecommendationCorrection(
@@ -546,6 +559,120 @@ async function resolvePracticePublic(
   };
 }
 
+function branchLabel(branches: DialogBranch[]): "planning" | "summarizing" | "both" | "free" | "none" {
+  const hasSummarizing = branches.includes("summarizing");
+  const hasPlanning = branches.includes("planning");
+  if (hasSummarizing && hasPlanning) return "both";
+  if (hasSummarizing) return "summarizing";
+  if (hasPlanning) return "planning";
+  return "free";
+}
+
+function resolveSummarizedEvent(ref: string, dueEvents: PlannedEventRow[]): PlannedEventRow | null {
+  const normalizedRef = ref.trim().toLowerCase();
+  if (!normalizedRef) return null;
+  const direct = dueEvents.find((event) => event.id === ref.trim());
+  if (direct) return direct;
+
+  const index = Number.parseInt(normalizedRef, 10);
+  if (Number.isInteger(index) && index >= 1 && index <= dueEvents.length) {
+    return dueEvents[index - 1] ?? null;
+  }
+
+  return dueEvents.find((event) => event.description.toLowerCase().includes(normalizedRef)) ?? null;
+}
+
+async function persistDialogArtifacts(params: {
+  db: SupabaseClient;
+  userId: string;
+  conversationId: string;
+  context: LoadedContext;
+  branches: DialogBranch[];
+  markers: ReturnType<typeof parseResponseMarkers>;
+  assistantText: string;
+  finalPracticePublic: Awaited<ReturnType<typeof resolvePracticePublic>> | null;
+}) {
+  const nowIso = params.context.nowLocal.toUTC().toISO() ?? new Date().toISOString();
+  const timezone = params.context.user.tz ?? "UTC";
+  const locale = params.context.user.locale ?? "ru";
+  const effectiveBranches = [...new Set([...params.branches, ...(params.markers.planTomorrow ? ["planning" as const] : [])])];
+  const relatedEventIds: string[] = [];
+  const affectedDates = new Set<string>();
+  const inferredCells = normalizeCells([
+    ...params.markers.matrixCells,
+    ...params.markers.plannedEvents.flatMap((event) => event.cells),
+    ...params.markers.summarizeEvents.flatMap((event) => event.outcomeCells),
+  ]);
+
+  for (const event of params.markers.plannedEvents) {
+    const parsedTime = parseEventTime({
+      phrase: event.timeNorm ?? event.time ?? event.desc,
+      nowLocal: params.context.nowLocal,
+      tz: timezone,
+      locale,
+    });
+
+    const insertPayload = {
+      user_id: params.userId,
+      conversation_id: params.conversationId,
+      planned_at: nowIso,
+      planned_local_date: parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
+      expected_at: parsedTime.expectedUtc,
+      time_phrase_raw: event.time ?? event.timeNorm,
+      time_resolution: parsedTime.resolution,
+      description: event.desc,
+      context_snippets: event.snippets,
+      cells: event.cells,
+      status: "planned",
+    };
+    const { data, error } = await params.db.from("planned_events").insert(insertPayload).select("id,planned_local_date").single();
+    if (error) throw error;
+    if (data?.id) relatedEventIds.push(data.id as string);
+    if (data?.planned_local_date) affectedDates.add(String(data.planned_local_date));
+  }
+
+  for (const summary of params.markers.summarizeEvents) {
+    const resolved = resolveSummarizedEvent(summary.ref, params.context.dueEvents);
+    if (!resolved) continue;
+    const { error } = await params.db
+      .from("planned_events")
+      .update({
+        status: "summarized",
+        summarized_at: nowIso,
+        outcome_cells: summary.outcomeCells,
+        outcome_text: summary.outcome,
+      })
+      .eq("id", resolved.id);
+    if (error) throw error;
+    relatedEventIds.push(resolved.id);
+    affectedDates.add(resolved.planned_local_date);
+  }
+
+  for (const localDate of affectedDates) {
+    await upsertDailyMatrixForDate(params.db, params.userId, localDate, nowIso);
+  }
+
+  await upsertConversationSummary(params.db, {
+    userId: params.userId,
+    conversationId: params.conversationId,
+    summaryText: params.assistantText,
+    branch: branchLabel(effectiveBranches),
+    phaseTime: params.context.phaseTime,
+    relatedEventIds,
+    matrixCells: inferredCells,
+  });
+
+  await mergeUserProfileMemory(params.db, params.userId, {
+    currentGoals: params.markers.plannedEvents.map((event) => event.desc),
+    lastPracticeFocusChakras: inferredCells.map((cell) => cell.chakra),
+    recentPractices: params.finalPracticePublic?.id
+      ? [{ id: params.finalPracticePublic.id, kind: params.finalPracticePublic.kind ?? null, created_at: nowIso }]
+      : [],
+  });
+
+  return { effectiveBranches, relatedEventIds, inferredCells };
+}
+
 async function persistAssistantMessage(params: {
   db: SupabaseClient;
   userId: string;
@@ -660,7 +787,7 @@ export async function POST(req: Request) {
 
     endpointStage = "load_context";
     const [context, systemPromptRecord] = await Promise.all([
-      loadContext(db, userId),
+      loadContext(db, userId, body.userTimezone),
       getActivePrompt(db, "dialog_system_v3"),
     ]);
     const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
@@ -677,9 +804,16 @@ export async function POST(req: Request) {
       userTimezone,
     );
     const history = await loadHistory(db, userId, conversation.id);
-    const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, userTimezone);
+    const branches = chooseDialogBranches({
+      phaseTime: context.phaseTime,
+      dueEventsCount: context.dueEvents.length,
+      userMessage,
+      hoursSinceLastPlanning: hoursSince(context.lastPlanningAt, context.nowLocal),
+      planTomorrowMarker: false,
+    });
+    const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, branches);
     const iteration = countAssistantTurns(history) + 1;
-    const maxDialogLength = getMaxDialogLength();
+    const maxDialogLength = effectiveDialogMax(branches);
     const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
     const turnDecision = decideTurnMode(
       history,
@@ -701,6 +835,7 @@ export async function POST(req: Request) {
     console.log("[DIALOG_V3_DIAG]", JSON.stringify({
       conversationId: conversation.id,
       isInitiate,
+      branches,
       historyLength: history.length,
       iteration,
       maxDialogLength,
@@ -884,6 +1019,17 @@ export async function POST(req: Request) {
             markers.recommendationCorrection,
           );
 
+          const artifactResult = await persistDialogArtifacts({
+            db: routeDb,
+            userId: routeUserId,
+            conversationId: conversation.id,
+            context,
+            branches,
+            markers,
+            assistantText: cleanText,
+            finalPracticePublic,
+          });
+
           const shouldClose = responseMode === "forced_final";
           const assistantMeta = {
             turn_mode: responseMode,
@@ -895,6 +1041,11 @@ export async function POST(req: Request) {
             practicePicked: finalPracticePublic,
             practice_picked: finalPracticePublic,
             recommendationCorrected: markers.recommendationCorrection,
+            dialog_branches: artifactResult.effectiveBranches,
+            target_chakra: context.targetChakra,
+            phase_time: context.phaseTime,
+            related_event_ids: artifactResult.relatedEventIds,
+            matrix_cells: artifactResult.inferredCells,
             insight_metrics: insightMetrics,
           };
           const messageId = await persistAssistantMessage({
@@ -923,6 +1074,9 @@ export async function POST(req: Request) {
                 turnMode: responseMode,
                 iteration,
                 readyMarkerTriggered,
+                branches: artifactResult.effectiveBranches,
+                targetChakra: context.targetChakra,
+                phaseTime: context.phaseTime,
                 validation,
                 insightMetrics,
                 practicePicked: finalPracticePublic ?? undefined,
