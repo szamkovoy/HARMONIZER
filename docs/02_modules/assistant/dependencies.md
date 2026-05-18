@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.7
+version: 1.8
 updated: 2026-05-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
@@ -16,7 +16,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`profile`**
   - **`users`**: `locale`, **`address_form`**, `tz`, `membership_tier`, `trial_expires_at`, `lat`, `lon` для локального времени, обращения, выбора модели и фиксации day-context.
 - **`communicator` / `profile` (новый серверный потребитель)**
-  - Экран профиля читает агрегаты `daily_matrices` и practice-by-chakra через новые backend routes, которые переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`).
+  - Экран профиля читает агрегаты `daily_matrices` и practice-by-chakra через новые backend routes, которые переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр для этих routes — **`planetChakraLegend.ts`** (`buildChakraLegend()`, JSON `planet_chakra_map.json` на сервере), не `modules/home/planetChakra`.
 - **`practices`**
   - Таблица **`practices`**, связь **`practice_chakras`** в **`practiceSelection.ts`**; сессии **`practice_sessions`** для недавних ID в **`recentCompletedPracticeIds`**; клиентские маршруты запуска задаются в **`launchForPractice`** (асана / дыхание / «Вспышка»). **`_legacy_web/app/api/communicator/v2/dialog/route.ts`** (`**resolvePracticePublic**`) импортирует **`modules/practices/core/assistantSelectableDurations.ts`** для тех же шагов длительности карточки, что и **`PracticeCard`** на клиенте.
 - **`infra`**
@@ -28,7 +28,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
   - **`services/communicator-client.ts`**: `sendDialogMessage` / `fetchDialogSession` вызывают **`getAiDialogUrl()`** при наличии **`scenario_id`**, иначе **`getCommunicatorV2DialogUrl()`** — тот же обработчик диалога на сервере.
   - UI чата не содержит LLM-логики; только вызов API и отображение SSE.
 - **`profile`**
-  - `app/(tabs)/profile.tsx` и backend routes `api/profile/*` читают артефакты ассистента (`daily_matrices`, `planned_events`-derived range, chakra legend) для heatmap, range-trend и practice-by-chakra.
+  - `app/(tabs)/profile.tsx` и backend routes `api/profile/*` читают артефакты ассистента (`daily_matrices`, `planned_events`-derived range) и server helpers для матрицы/сфер; chakra legend в отчётах — `buildChakraLegend()` (`planetChakraLegend.ts`).
 - **`daily_forecast`**
   - **`modules/home/useDayContent.ts`** вызывает **`callMonologue`** (`services/aiClient.ts`) для сценария **`morning_recommendation`** и **`fetchGlobalContent`** для free-tier контента; домашний экран смешивает forecast API и ассистента.
   - Коррекция текста рекомендации из диалога обновляет **`user_daily_forecasts`** в `dialog/route.ts` при маркере **`CORRECT_RECOMMENDATION`**.

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.3
-updated: 2026-05-16
+version: 1.4
+updated: 2026-05-18
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -37,7 +37,7 @@ code_refs:
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица завершённых сессий). Запись сессий выполняется из flow практик, не из таба профиля.
 - **`assistant` (новые отчёты HARMONIZER v2)**  
-  Profile reports через backend routes читают `daily_matrices` и используют агрегаты, построенные daily dialog-ом (`planned_events` -> `daily_matrices`), а также server helper-ы легенды чакр/сфер.
+  Profile reports через backend routes читают `daily_matrices` и агрегаты daily dialog (`planned_events` → `daily_matrices`), а также server helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр в `life-matrix` / `practice-by-chakra` — **`buildChakraLegend()`** (`_legacy_web/app/api/_utils/planetChakraLegend.ts`, `_legacy_web/data/planet_chakra_map.json`), без импорта клиентского `modules/home/planetChakra`.
 
 ## 2. От него зависят
 

@@ -1,14 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.7
-updated: 2026-05-16
+version: 1.8
+updated: 2026-05-18
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
 
+- **2026-05-18:** Profile API routes `life-matrix` и `practice-by-chakra` больше не импортируют клиентский `modules/home/planetChakra`; легенда чакр вынесена в **`buildChakraLegend()`** (`_legacy_web/app/api/_utils/planetChakraLegend.ts`, данные `_legacy_web/data/planet_chakra_map.json`) — Vercel-safe, контракт поля `chakras` без изменений.
 - **2026-05-16:** На вкладке профиля добавлен блок `ProfileReports` для HARMONIZER v2: общий interval switcher `7 / 30 / 90`, heatmap `life matrix`, line chart `range trend` и donut `practice-by-chakra`. Данные приходят не напрямую из Supabase SDK, а через новые backend routes `GET /api/profile/life-matrix` и `GET /api/profile/practice-by-chakra` (`services/profileReports.ts`, Bearer JWT). Gate остаётся на ключе `stats`, без изменения тарифной модели.
 - **2026-05-14:** Cold start: при транзиентной сети GoTrue мог отдать `INITIAL_SESSION` с `session === null` или задержать событие, а safety-таймаут вызывал `completeBootstrap(sessionRef.current)` — на первом кадре `sessionRef` всегда `null`, из‑за чего залогиненный пользователь ошибочно попадал на `/sign-in`. Добавлены **`readPersistedAuthSessionFromStorage` / `computeSupabaseAuthStorageKey`** в `services/supabase.ts` (чтение JSON сессии из того же SecureStore без lock) и **`recoverAuthSessionFromPersistedStorageWithRetries`** (`modules/auth/bootstrapRecoverSession.ts`): перед завершением bootstrap с «пустой» сессией SDK выполняется `auth.initialize()` + несколько попыток **`auth.setSession`** по токенам с диска, чтобы синхронизировать in-memory клиент Supabase. **`AUTH_BOOTSTRAP_SAFETY_MS`** увеличен до 35 с. Код: **`modules/auth/AuthProvider.tsx`**.
 

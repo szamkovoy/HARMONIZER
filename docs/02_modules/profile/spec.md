@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.8
-updated: 2026-05-16
+version: 1.9
+updated: 2026-05-18
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -25,6 +25,7 @@ code_refs:
     _legacy_web/app/api/astro/natal/route.ts,
     _legacy_web/app/api/profile/life-matrix/route.ts,
     _legacy_web/app/api/profile/practice-by-chakra/route.ts,
+    _legacy_web/app/api/_utils/planetChakraLegend.ts,
   ]
 ---
 
@@ -57,8 +58,8 @@ code_refs:
 - В **`__DEV__`:** `DevTierSwitch` для эффективного тарифа (см. `subscription`).
 - **Статистика практик:** при `canUseFeature("stats")` — загрузка `loadDailyPracticeStats` из `services/practiceSessions.ts` (14 дней); иначе текст про тариф Практик/Мастер.
 - **Отчёты HARMONIZER v2:** `modules/profile/ui/ProfileReports.tsx` с единым interval switcher `7 / 30 / 90` дней. Два backend endpoint-а:
-  - `GET /api/profile/life-matrix?days=N` — агрегирует `daily_matrices`, отдаёт `rawMatrix`, `visualMatrix`, range-trend и легенды чакр/сфер;
-  - `GET /api/profile/practice-by-chakra?days=N` — суммирует завершённые `practice_sessions` по `chakra_focus_ids` и длительности.
+  - `GET /api/profile/life-matrix?days=N` — агрегирует `daily_matrices`, отдаёт `rawMatrix`, `visualMatrix`, range-trend, легенду сфер (`lifeSpheresBaseline`) и чакр (`buildChakraLegend()` из `_legacy_web/app/api/_utils/planetChakraLegend.ts`, источник `_legacy_web/data/planet_chakra_map.json`);
+  - `GET /api/profile/practice-by-chakra?days=N` — суммирует завершённые `practice_sessions` по `chakra_focus_ids` и длительности; поле `chakras` использует ту же легенду (`buildChakraLegend()`).
   Клиентский transport: `services/profileReports.ts` (Bearer JWT, тот же Vercel backend origin). Gate тот же, что у `stats`.
 - **`HARMONIZER_TEST_MODE` / `__DEV__`:** блок диагностики (`runtimeDiagnostics`).
 - Заглушка **«Скоро здесь»** — расширенные настройки профиля (не birth-редактор; birth — см. кнопку выше).
@@ -74,7 +75,7 @@ code_refs:
 - **`astro`:** персональный прогноз и натал зависят от полей профиля и результата `createNatalProfile`; клиентский контракт BirthData/`NatalProfile` — `modules/astro-core`, вызовы в `services/natalProfileClient.ts`.
 - **`practices`:** экран профиля читает статистику завершённых сессий через **`practice_sessions`** (сервис `practiceSessions`), без записи новых сессий с этого экрана.
 - **`communicator` / `assistant`:** не импортируют экран профиля; серверные маршруты сами выбирают `users` и натал для диалога. Обновление профиля после смены birth data на клиенте косвенно влияет на последующие запросы диалога после `refreshProfile`.
-- **`assistant`:** profile reports читают `daily_matrices`, которые наполняются daily dialog-ом, и используют ту же легенду чакр/сфер через backend helpers.
+- **`assistant`:** profile reports читают `daily_matrices` (daily dialog) и helpers ассистента для матрицы/сфер (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`); легенда чакр — отдельный server util **`planetChakraLegend.ts`**, без импорта клиентского `modules/home/planetChakra`.
 
 ## 7. Известные ограничения и инварианты
 
