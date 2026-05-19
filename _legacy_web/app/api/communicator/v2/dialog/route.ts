@@ -51,7 +51,7 @@ import {
   clipDurationMinutesToSelectableMinutes,
   PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN,
   selectableDurationMinutesForPracticeCard,
-} from "@/modules/practices/core/assistantSelectableDurations";
+} from "@shared/assistantSelectableDurations";
 
 export const runtime = "nodejs";
 
