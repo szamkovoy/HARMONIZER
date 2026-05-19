@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.7
-updated: 2026-05-14
+version: 1.8
+updated: 2026-05-19
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -54,7 +54,8 @@ code_refs:
 
 ### Утилита `modules/practices/core/assistantSelectableDurations.ts`
 
-- Общие для клиента и сервера (импорт из `_legacy_web` через `@/modules/...`): **`selectableDurationMinutesForPracticeCard`**, **`clipDurationMinutesToSelectableMinutes`**, константа **`PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN`** (2) для логов расхождения маркера с историей в `resolvePracticePublic`.
+- Канонический клиентский модуль: **`selectableDurationMinutesForPracticeCard`**, **`clipDurationMinutesToSelectableMinutes`**, константа **`PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN`** (2) для логов расхождения маркера с историей в `resolvePracticePublic`.
+- Для Vercel-only deploy (`_legacy_web`): копия в **`_legacy_web/shared_core/assistantSelectableDurations.ts`** (импорт **`@shared/assistantSelectableDurations`** из **`route.ts`**); содержимое должно оставаться синхронным с клиентским файлом (как у **`@shared/selector`**).
 
 ### Сервис `services/practiceSessions.ts`
 

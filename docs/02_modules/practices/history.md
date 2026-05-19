@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.7
-updated: 2026-05-14
+version: 1.8
+updated: 2026-05-19
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-19 (pre-push doc-sync):** Серверный **`route.ts`** импортирует шаги длительности карточки через **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`** для Vercel-only deploy); клиентский канонический файл без изменения контракта. **`spec.md`**, **`dependencies.md`**, **`assistant/dependencies.md`**, **`MAP.md`**, **`CHANGELOG.md`**.
 - **2026-05-14 (doc-sync):** **`spec.md`** — лог **`[PRACTICE_CARD_MISMATCH]`** в **`PracticeCard`**: добавлено поле **`source: "practice_card_client_sync"`**; **`dependencies.md`** — явная связь **`route.ts`** ↔ **`assistantSelectableDurations.ts`**; **`MAP.md`**, **`CHANGELOG.md`**.
 - **2026-05-15 (карточка ассистента):** **`assistantSelectableDurations.ts`** — общий список минут для дыхания (5–20) и медитации (1–10) + **`clipDurationMinutesToSelectableMinutes`**. Сервер: **`resolvePracticePublic`** — приоритет **`overrides.durationMin`** у **`validateHistoryHasDurationAndType` при `confident`**, иначе маркер; клип; лог **`[PRACTICE_CARD_MISMATCH]`**. Клиент: **`PracticeCard`** клипит `overrideDurationMinutes` и синхронизирует состояние в **`useEffect`**. **`choosePractice`**: при `confident` и конфликте типа маркер vs история — сброс id маркера, поле **`historyKindConflictResolved`**. Тесты **`practiceSelection.test.ts`**. **`assistant/spec.md`**, **`communicator` по ссылке на карточку**, **`CHANGELOG.md`**.
 - **2026-05-15:** Недавние практики для ассистента: нормализация к **`id`** каталога (`resolvePracticeKeyToCatalogId`), селектор сравнивает только по **`id`**; классификация дыхания по сессиям — по slug из каталога `breath`, без отдельного списка slug в коде. **`spec.md`**, **`assistant/history.md`**, **`CHANGELOG.md`**.

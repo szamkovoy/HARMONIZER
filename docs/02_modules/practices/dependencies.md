@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.6
-updated: 2026-05-14
+version: 1.7
+updated: 2026-05-19
 depends_on:
   [
     01_foundation/product_model,
@@ -56,7 +56,7 @@ code_refs:
   `app/(tabs)/profile.tsx` при `canUseFeature("stats")` вызывает **`loadDailyPracticeStats`** из `services/practiceSessions.ts`. Парная запись: `docs/02_modules/profile/dependencies.md` §1.
 
 - **`assistant`**  
-  Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts`, **`route.ts`** с импортом **`assistantSelectableDurations.ts`** для карточки, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и использует общий `PracticeCard` + `launchPractice`. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
+  Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts`, **`route.ts`** с импортом **`@shared/assistantSelectableDurations`** — `_legacy_web/shared_core/assistantSelectableDurations.ts`, копия клиентского **`assistantSelectableDurations.ts`** — для карточки, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и использует общий `PracticeCard` + `launchPractice`. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
 
 ## 3. Контрактные точки риска
 
