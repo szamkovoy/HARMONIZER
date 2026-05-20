@@ -1,60 +1,53 @@
 export type ProfileLocale = "ru" | "en";
 
 export interface ProfileReportStrings {
-  reportsTitle: string;
-  reportsHint: string;
   lifeMatrixTitle: string;
   rangeTrendTitle: string;
+  rangeTrendHint: string;
   practiceByChakraTitle: string;
   practiceStatsTitle: string;
   spheresLegendPrefix: string;
-  groupedTrendPrefix: string;
-  groupedTrendEmpty: string;
-  practicePieEmpty: string;
+  practicesNotDone: string;
+  matrixNotReady: string;
   reportsLoading: string;
   reportsUpgradeHint: string;
   openTiersButton: string;
   statsUpgradeHint: string;
   statsLoading: string;
-  statsEmpty: string;
 }
 
 const ru: ProfileReportStrings = {
-  reportsTitle: "Отчёты",
-  reportsHint: "Матрица прожитого дня, толщина линии жизни и распределение практик по чакрам.",
   lifeMatrixTitle: "Матрица состояний",
   rangeTrendTitle: "Толщина линии жизни",
+  rangeTrendHint:
+    "Каждая точка — это срез по 5 дням с подытоженным планом. Линия покажет, расширяется ли толщина вашей жизни со временем.",
   practiceByChakraTitle: "Практики по чакрам",
   practiceStatsTitle: "Статистика практик",
   spheresLegendPrefix: "Сферы:",
-  groupedTrendPrefix: "Сгруппированный ряд:",
-  groupedTrendEmpty: "пока пусто",
-  practicePieEmpty: "За выбранный интервал пока нет завершённых практик с фокусом по чакрам.",
+  practicesNotDone: "Практики не выполнялись",
+  matrixNotReady: "Отчёт появится после 5 дней планирований и действий",
   reportsLoading: "Загружаем отчёты...",
   reportsUpgradeHint: "Отчёты доступны на тарифах Практик и Мастер.",
   openTiersButton: "Открыть тарифы",
   statsUpgradeHint: "Статистика доступна на тарифах Практик и Мастер.",
   statsLoading: "Загружаем статистику...",
-  statsEmpty: "Пока нет сохраненных завершенных практик.",
 };
 
 const en: ProfileReportStrings = {
-  reportsTitle: "Reports",
-  reportsHint: "Daily state matrix, life-line thickness, and practice distribution by chakras.",
   lifeMatrixTitle: "State Matrix",
   rangeTrendTitle: "Life Line Thickness",
+  rangeTrendHint:
+    "Each point summarizes five days with a completed plan. The line shows whether the thickness of your life is expanding over time.",
   practiceByChakraTitle: "Practices by Chakra",
   practiceStatsTitle: "Practice Statistics",
   spheresLegendPrefix: "Spheres:",
-  groupedTrendPrefix: "Grouped series:",
-  groupedTrendEmpty: "empty for now",
-  practicePieEmpty: "No completed chakra-focused practices in the selected interval yet.",
+  practicesNotDone: "No practices completed",
+  matrixNotReady: "The report will appear after 5 days of planning and action",
   reportsLoading: "Loading reports...",
   reportsUpgradeHint: "Reports are available on Practitioner and Master tiers.",
   openTiersButton: "View tiers",
   statsUpgradeHint: "Statistics are available on Practitioner and Master tiers.",
   statsLoading: "Loading statistics...",
-  statsEmpty: "No saved completed practices yet.",
 };
 
 export function getProfileReportStrings(locale: ProfileLocale = "ru"): ProfileReportStrings {

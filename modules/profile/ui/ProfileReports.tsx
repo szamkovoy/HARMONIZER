@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import Svg, { Circle, Path, Polyline } from "react-native-svg";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
 import { getProfileReportStrings } from "@/modules/profile/i18n/profile";
 import { PeriodSelector } from "@/modules/profile/ui/PeriodSelector";
+import { ProfileEmptyState } from "@/modules/profile/ui/ProfileEmptyState";
+import { ProfileReportCard } from "@/modules/profile/ui/ProfileReportCard";
+import { RangeTrendChart } from "@/modules/profile/ui/RangeTrendChart";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -52,14 +55,13 @@ function donutPath(cx: number, cy: number, outerRadius: number, innerRadius: num
   ].join(" ");
 }
 
-function HeatmapCard(props: { report: LifeMatrixReport; title: string; spheresLegendPrefix: string }) {
+function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefix: string }) {
   const theme = useTheme();
   const rowLegend = props.report.chakras;
   const colLegend = props.report.spheres;
 
   return (
-    <View style={styles.sectionCard}>
-      <AppText variant="sectionTitle">{props.title}</AppText>
+    <View style={styles.heatmapBlock}>
       <View style={styles.heatmapHeader}>
         <View style={styles.heatmapAxisSpacer} />
         {colLegend.map((sphere) => (
@@ -97,176 +99,41 @@ function HeatmapCard(props: { report: LifeMatrixReport; title: string; spheresLe
   );
 }
 
-function TrendCard(props: {
-  report: LifeMatrixReport;
-  title: string;
-  groupedTrendPrefix: string;
-  groupedTrendEmpty: string;
-}) {
-  const theme = useTheme();
-  const values = props.report.trend.map((item) => item.rangeMetric).filter((item): item is number => item != null);
-  const width = 320;
-  const height = 120;
-  const padding = 10;
-  const min = values.length ? Math.min(...values) : 0;
-  const max = values.length ? Math.max(...values) : 1;
-  const span = Math.max(0.0001, max - min);
-  const points = props.report.trend
-    .map((item, index) => {
-      if (item.rangeMetric == null) return null;
-      const x = padding + (index * (width - padding * 2)) / Math.max(1, props.report.trend.length - 1);
-      const y = height - padding - ((item.rangeMetric - min) / span) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <View style={styles.sectionCard}>
-      <AppText variant="sectionTitle">{props.title}</AppText>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-        <Path
-          d={`M ${padding} ${height - padding} L ${width - padding} ${height - padding}`}
-          stroke={theme.colors.surfaceBorder}
-          strokeWidth={1}
-        />
-        {points ? <Polyline points={points} fill="none" stroke={theme.colors.accent} strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" /> : null}
-      </Svg>
-      <AppText variant="technicalCaption" tone="muted">
-        {props.groupedTrendPrefix}{" "}
-        {props.report.groupedTrend.map((item) => item.toFixed(2)).join(" · ") || props.groupedTrendEmpty}
-      </AppText>
-    </View>
-  );
-}
-
-function PracticePieCard(props: { report: PracticeByChakraReport; title: string; emptyMessage: string }) {
-  const theme = useTheme();
-  const total = Math.max(0, props.report.totalDurationSec);
-  const sortedStats = [...props.report.chakraStats].sort((a, b) => {
-    if (a.durationSec > 0 && b.durationSec === 0) return -1;
-    if (a.durationSec === 0 && b.durationSec > 0) return 1;
-    if (a.durationSec !== b.durationSec) return b.durationSec - a.durationSec;
-    return a.chakra - b.chakra;
-  });
-  let angle = 0;
-
-  return (
-    <View style={styles.sectionCard}>
-      <AppText variant="sectionTitle">{props.title}</AppText>
-      {total > 0 ? (
-        <Svg width="100%" height={180} viewBox="0 0 220 180">
-          {sortedStats
-            .filter((item) => item.durationSec > 0)
-            .map((item) => {
-              const startAngle = angle;
-              angle += (item.durationSec / total) * 360;
-              return (
-                <Path
-                  key={item.chakra}
-                  d={donutPath(110, 90, 72, 42, startAngle, angle)}
-                  fill={item.color}
-                  stroke={theme.colors.screenBg}
-                  strokeWidth={2}
-                />
-              );
-            })}
-          <Circle cx={110} cy={90} r={28} fill={theme.colors.surface} />
-        </Svg>
-      ) : null}
-      <View style={styles.legendList}>
-        {sortedStats.map((item) => {
-          const isZero = item.durationSec <= 0;
-          return (
-            <View key={item.chakra} style={styles.legendRow}>
-              <View
-                style={[
-                  styles.legendSwatch,
-                  {
-                    backgroundColor: isZero ? theme.colors.surfaceBorder : item.color,
-                  },
-                ]}
-              />
-              <AppText variant="technicalCaption" tone={isZero ? "faint" : undefined} style={styles.legendLabel}>
-                {item.label}
-              </AppText>
-              <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"}>
-                {formatDurationClock(item.durationSec)}
-              </AppText>
-            </View>
-          );
-        })}
-      </View>
-      {total <= 0 ? (
-        <AppText variant="dialogBody" tone="muted">
-          {props.emptyMessage}
-        </AppText>
-      ) : null}
-    </View>
-  );
-}
-
-function LifeMatrixBlock(props: { enabled: boolean; strings: ReturnType<typeof getProfileReportStrings> }) {
-  const [periodDays, setPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
+export function useLifeMatrixReport(enabled: boolean) {
   const [report, setReport] = useState<LifeMatrixReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadReport = useCallback(async () => {
-    if (!props.enabled) {
+    if (!enabled) {
       setReport(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      setReport(await loadLifeMatrixReport(periodDays));
+      setReport(await loadLifeMatrixReport());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить отчёт.");
     } finally {
       setLoading(false);
     }
-  }, [periodDays, props.enabled]);
+  }, [enabled]);
 
   useEffect(() => {
     void loadReport();
   }, [loadReport]);
 
-  if (!props.enabled) return null;
-
-  return (
-    <View style={styles.block}>
-      <PeriodSelector value={periodDays} onChange={setPeriodDays} />
-      {loading ? (
-        <AppText variant="dialogBody" tone="muted">
-          {props.strings.reportsLoading}
-        </AppText>
-      ) : null}
-      {error ? (
-        <AppText variant="dialogBody" tone="muted">
-          {error}
-        </AppText>
-      ) : null}
-      {report && !loading && !error ? (
-        <>
-          <HeatmapCard report={report} title={props.strings.lifeMatrixTitle} spheresLegendPrefix={props.strings.spheresLegendPrefix} />
-          <TrendCard
-            report={report}
-            title={props.strings.rangeTrendTitle}
-            groupedTrendPrefix={props.strings.groupedTrendPrefix}
-            groupedTrendEmpty={props.strings.groupedTrendEmpty}
-          />
-        </>
-      ) : null}
-    </View>
-  );
+  return { report, loading, error };
 }
 
-function PracticeByChakraBlock(props: { enabled: boolean; strings: ReturnType<typeof getProfileReportStrings> }) {
+export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade: () => void; locale?: "ru" | "en" }) {
+  const strings = getProfileReportStrings(props.locale ?? "ru");
   const [periodDays, setPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [report, setReport] = useState<PracticeByChakraReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const theme = useTheme();
 
   const loadReport = useCallback(async () => {
     if (!props.enabled) {
@@ -288,14 +155,36 @@ function PracticeByChakraBlock(props: { enabled: boolean; strings: ReturnType<ty
     void loadReport();
   }, [loadReport]);
 
-  if (!props.enabled) return null;
+  if (!props.enabled) {
+    return (
+      <ProfileReportCard title={strings.practiceByChakraTitle}>
+        <AppText variant="dialogBody" tone="muted">
+          {strings.reportsUpgradeHint}
+        </AppText>
+        <AppButton label={strings.openTiersButton} onPress={props.onUpgrade} />
+      </ProfileReportCard>
+    );
+  }
+
+  const sortedStats = report
+    ? [...report.chakraStats].sort((a, b) => {
+        if (a.durationSec > 0 && b.durationSec === 0) return -1;
+        if (a.durationSec === 0 && b.durationSec > 0) return 1;
+        if (a.durationSec !== b.durationSec) return b.durationSec - a.durationSec;
+        return a.chakra - b.chakra;
+      })
+    : [];
+  const total = Math.max(0, report?.totalDurationSec ?? 0);
+  let angle = 0;
 
   return (
-    <View style={styles.block}>
-      <PeriodSelector value={periodDays} onChange={setPeriodDays} />
+    <ProfileReportCard
+      title={strings.practiceByChakraTitle}
+      periodSelector={<PeriodSelector value={periodDays} onChange={setPeriodDays} />}
+    >
       {loading ? (
         <AppText variant="dialogBody" tone="muted">
-          {props.strings.reportsLoading}
+          {strings.reportsLoading}
         </AppText>
       ) : null}
       {error ? (
@@ -303,40 +192,147 @@ function PracticeByChakraBlock(props: { enabled: boolean; strings: ReturnType<ty
           {error}
         </AppText>
       ) : null}
-      {report && !loading && !error ? (
-        <PracticePieCard report={report} title={props.strings.practiceByChakraTitle} emptyMessage={props.strings.practicePieEmpty} />
+      {!loading && !error && report ? (
+        total > 0 ? (
+          <>
+            <Svg width="100%" height={180} viewBox="0 0 220 180">
+              {sortedStats
+                .filter((item) => item.durationSec > 0)
+                .map((item) => {
+                  const startAngle = angle;
+                  angle += (item.durationSec / total) * 360;
+                  return (
+                    <Path
+                      key={item.chakra}
+                      d={donutPath(110, 90, 72, 42, startAngle, angle)}
+                      fill={item.color}
+                      stroke={theme.colors.screenBg}
+                      strokeWidth={2}
+                    />
+                  );
+                })}
+              <Circle cx={110} cy={90} r={28} fill={theme.colors.surface} />
+            </Svg>
+            <View style={styles.legendList}>
+              {sortedStats.map((item) => {
+                const isZero = item.durationSec <= 0;
+                return (
+                  <View key={item.chakra} style={styles.legendRow}>
+                    <View
+                      style={[
+                        styles.legendSwatch,
+                        { backgroundColor: isZero ? theme.colors.surfaceBorder : item.color },
+                      ]}
+                    />
+                    <AppText variant="technicalCaption" tone={isZero ? "faint" : undefined} style={styles.legendLabel}>
+                      {item.label}
+                    </AppText>
+                    <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"}>
+                      {formatDurationClock(item.durationSec)}
+                    </AppText>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        ) : (
+          <ProfileEmptyState message={strings.practicesNotDone} />
+        )
       ) : null}
-    </View>
+    </ProfileReportCard>
   );
 }
 
-export function ProfileReports(props: { enabled: boolean; onUpgrade: () => void; locale?: "ru" | "en" }) {
-  const theme = useTheme();
+export function LifeMatrixReportCard(props: {
+  enabled: boolean;
+  onUpgrade: () => void;
+  report: LifeMatrixReport | null;
+  loading: boolean;
+  error: string | null;
+  locale?: "ru" | "en";
+}) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
 
-  return (
-    <View style={[styles.wrapper, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
-      <View style={styles.headerCopy}>
-        <AppText variant="sectionTitle">{strings.reportsTitle}</AppText>
+  if (!props.enabled) {
+    return (
+      <ProfileReportCard title={strings.lifeMatrixTitle}>
         <AppText variant="dialogBody" tone="muted">
-          {strings.reportsHint}
+          {strings.reportsUpgradeHint}
         </AppText>
-      </View>
+        <AppButton label={strings.openTiersButton} onPress={props.onUpgrade} />
+      </ProfileReportCard>
+    );
+  }
 
-      {!props.enabled ? (
-        <View style={styles.sectionCard}>
-          <AppText variant="dialogBody" tone="muted">
-            {strings.reportsUpgradeHint}
-          </AppText>
-          <AppButton label={strings.openTiersButton} onPress={props.onUpgrade} />
-        </View>
-      ) : (
-        <>
-          <LifeMatrixBlock enabled={props.enabled} strings={strings} />
-          <PracticeByChakraBlock enabled={props.enabled} strings={strings} />
-        </>
-      )}
-    </View>
+  const showMatrix = props.report?.matrixReady ?? false;
+
+  return (
+    <ProfileReportCard title={strings.lifeMatrixTitle}>
+      {props.loading ? (
+        <AppText variant="dialogBody" tone="muted">
+          {strings.reportsLoading}
+        </AppText>
+      ) : null}
+      {props.error ? (
+        <AppText variant="dialogBody" tone="muted">
+          {props.error}
+        </AppText>
+      ) : null}
+      {!props.loading && !props.error && props.report ? (
+        showMatrix ? (
+          <LifeMatrixHeatmap report={props.report} spheresLegendPrefix={strings.spheresLegendPrefix} />
+        ) : (
+          <ProfileEmptyState message={strings.matrixNotReady} />
+        )
+      ) : null}
+    </ProfileReportCard>
+  );
+}
+
+export function RangeTrendReportCard(props: {
+  enabled: boolean;
+  onUpgrade: () => void;
+  report: LifeMatrixReport | null;
+  loading: boolean;
+  error: string | null;
+  locale?: "ru" | "en";
+}) {
+  const strings = getProfileReportStrings(props.locale ?? "ru");
+
+  if (!props.enabled) {
+    return (
+      <ProfileReportCard title={strings.rangeTrendTitle} subtitle={strings.rangeTrendHint}>
+        <AppText variant="dialogBody" tone="muted">
+          {strings.reportsUpgradeHint}
+        </AppText>
+        <AppButton label={strings.openTiersButton} onPress={props.onUpgrade} />
+      </ProfileReportCard>
+    );
+  }
+
+  const trendReady = (props.report?.activeDaysCount ?? 0) >= 5;
+  const trendPoints = props.report?.calendarTrend ?? [];
+
+  return (
+    <ProfileReportCard title={strings.rangeTrendTitle} subtitle={strings.rangeTrendHint}>
+      {props.loading ? (
+        <AppText variant="dialogBody" tone="muted">
+          {strings.reportsLoading}
+        </AppText>
+      ) : null}
+      {props.error ? (
+        <AppText variant="dialogBody" tone="muted">
+          {props.error}
+        </AppText>
+      ) : null}
+      {!props.loading && !props.error && props.report ? (
+        trendReady && trendPoints.length > 0 ? (
+          <RangeTrendChart points={trendPoints} />
+        ) : (
+          <ProfileEmptyState message={strings.matrixNotReady} />
+        )
+      ) : null}
+    </ProfileReportCard>
   );
 }
 
@@ -344,19 +340,7 @@ const HEATMAP_LABEL_WIDTH = 108;
 const HEATMAP_CELL_SIZE = 18;
 
 const styles = StyleSheet.create({
-  wrapper: {
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 16,
-    padding: 16,
-  },
-  headerCopy: {
-    gap: 6,
-  },
-  block: {
-    gap: 12,
-  },
-  sectionCard: {
+  heatmapBlock: {
     gap: 10,
   },
   heatmapHeader: {

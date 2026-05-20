@@ -1,50 +1,57 @@
 import { getLifeMatrixLogSmoothingK, getRangeGroupSize } from "@legacy/app/api/_utils/dialogConfig";
-import { groupRangeTrend, logSmoothedVisMatrix, sumMatrices, type DenseMatrix } from "@legacy/app/api/_utils/lifeMatrix";
+import {
+  buildCalendarRangeTrend,
+  isMatrixReady,
+  logSmoothedVisMatrix,
+  sumMatrices,
+  uniqueSortedDates,
+  type DenseMatrix,
+} from "@legacy/app/api/_utils/lifeMatrix";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 import { buildChakraLegend } from "@legacy/app/api/_utils/planetChakraLegend";
 import { getLifeSpheresBaseline } from "@legacy/app/api/_utils/lifeSpheresBaseline";
 
 export const runtime = "nodejs";
 
-function clampDays(value: string | null): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-  if (!Number.isFinite(parsed)) return 30;
-  return Math.max(7, Math.min(365, parsed));
-}
-
 export async function GET(req: Request) {
-  let db = null;
-  let userId: string | null = null;
   try {
-    userId = await requireUserId(req);
-    db = createServiceSupabase();
-    const url = new URL(req.url);
-    const days = clampDays(url.searchParams.get("days"));
-    const fromDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const userId = await requireUserId(req);
+    const db = createServiceSupabase();
 
-    const { data, error } = await db
-      .from("daily_matrices")
-      .select("local_date,matrix,range_metric,source,events_count")
+    const { data: activeDayRows, error: activeDaysError } = await db
+      .from("planned_events")
+      .select("planned_local_date")
       .eq("user_id", userId)
-      .gte("local_date", fromDate)
-      .order("local_date", { ascending: true });
-    if (error) throw error;
+      .eq("status", "summarized");
+    if (activeDaysError) throw activeDaysError;
 
-    const rows = (data ?? []) as Array<{
-      local_date: string;
-      matrix: DenseMatrix;
-      range_metric: number | null;
-      source: "summary" | "plan";
-      events_count: number;
-    }>;
+    const activeDates = uniqueSortedDates(
+      ((activeDayRows ?? []) as Array<{ planned_local_date: string }>).map((row) => row.planned_local_date),
+    );
 
-    const rawMatrix = rows.length ? sumMatrices(rows.map((row) => row.matrix)) : Array.from({ length: 7 }, () => Array.from({ length: 7 }, () => 0));
+    let matrixRows: Array<{ local_date: string; matrix: DenseMatrix }> = [];
+    if (activeDates.length > 0) {
+      const { data, error } = await db
+        .from("daily_matrices")
+        .select("local_date,matrix")
+        .eq("user_id", userId)
+        .in("local_date", activeDates)
+        .order("local_date", { ascending: true });
+      if (error) throw error;
+      matrixRows = (data ?? []) as Array<{ local_date: string; matrix: DenseMatrix }>;
+    }
+
+    const matrixByDate = new Map(matrixRows.map((row) => [row.local_date, row.matrix]));
+    const aggregatedMatrices = matrixRows.map((row) => row.matrix);
+    const rawMatrix = aggregatedMatrices.length
+      ? sumMatrices(aggregatedMatrices)
+      : Array.from({ length: 7 }, () => Array.from({ length: 7 }, () => 0));
     const visualMatrix = logSmoothedVisMatrix(rawMatrix, getLifeMatrixLogSmoothingK());
+    const calendarTrend = buildCalendarRangeTrend(activeDates, matrixByDate, getRangeGroupSize());
 
     return json({
-      intervalDays: days,
-      matrixReady: rows.length >= 5,
-      daysCovered: rows.length,
+      activeDaysCount: activeDates.length,
+      matrixReady: isMatrixReady(activeDates.length),
       chakras: buildChakraLegend(),
       spheres: getLifeSpheresBaseline("ru").map((item) => ({
         id: item.id,
@@ -53,13 +60,7 @@ export async function GET(req: Request) {
       })),
       rawMatrix,
       visualMatrix,
-      trend: rows.map((row) => ({
-        localDate: row.local_date,
-        rangeMetric: row.range_metric,
-        source: row.source,
-        eventsCount: row.events_count,
-      })),
-      groupedTrend: groupRangeTrend(rows.map((row) => row.range_metric), getRangeGroupSize()),
+      calendarTrend,
     });
   } catch (error) {
     return errorResponse(error);

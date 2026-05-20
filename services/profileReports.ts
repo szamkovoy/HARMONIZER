@@ -2,15 +2,13 @@ import { getProfileLifeMatrixUrl, getProfilePracticeByChakraUrl } from "@/servic
 import { requireSupabase } from "@/services/supabase";
 
 export type LifeMatrixReport = {
-  intervalDays: number;
+  activeDaysCount: number;
   matrixReady: boolean;
-  daysCovered: number;
   chakras: Array<{ chakra: number; label: string; shortLabel: string; color: string }>;
   spheres: Array<{ id: number; slug: string; title: string }>;
   rawMatrix: number[][];
   visualMatrix: number[][];
-  trend: Array<{ localDate: string; rangeMetric: number | null; source: "summary" | "plan"; eventsCount: number }>;
-  groupedTrend: number[];
+  calendarTrend: Array<{ localDate: string; rangeMetric: number }>;
 };
 
 export type PracticeByChakraReport = {
@@ -41,8 +39,8 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function loadLifeMatrixReport(days: number): Promise<LifeMatrixReport> {
-  return fetchJson<LifeMatrixReport>(`${getProfileLifeMatrixUrl()}?days=${days}`);
+export async function loadLifeMatrixReport(): Promise<LifeMatrixReport> {
+  return fetchJson<LifeMatrixReport>(getProfileLifeMatrixUrl());
 }
 
 export async function loadPracticeByChakraReport(days: number): Promise<PracticeByChakraReport> {

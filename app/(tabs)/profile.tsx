@@ -14,8 +14,15 @@ import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
 import { getProfileReportStrings } from "@/modules/profile/i18n/profile";
+import { ProfileEmptyState } from "@/modules/profile/ui/ProfileEmptyState";
+import { ProfileReportCard } from "@/modules/profile/ui/ProfileReportCard";
+import {
+  LifeMatrixReportCard,
+  PracticeByChakraReportCard,
+  RangeTrendReportCard,
+  useLifeMatrixReport,
+} from "@/modules/profile/ui/ProfileReports";
 import { PeriodSelector } from "@/modules/profile/ui/PeriodSelector";
-import { ProfileReports } from "@/modules/profile/ui/ProfileReports";
 import { loadDailyPracticeStats, type DailyPracticeStat } from "@/services/practiceSessions";
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
@@ -49,6 +56,7 @@ export default function ProfileTabRoute() {
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const statsEnabled = canUseFeature("stats");
+  const lifeMatrix = useLifeMatrixReport(statsEnabled);
   const [natalModalOpen, setNatalModalOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
@@ -172,11 +180,16 @@ export default function ProfileTabRoute() {
           </View>
         ) : null}
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">{reportStrings.practiceStatsTitle}</AppText>
-          {statsEnabled ? <PeriodSelector value={statsPeriodDays} onChange={setStatsPeriodDays} /> : null}
+        <ProfileReportCard
+          title={reportStrings.practiceStatsTitle}
+          periodSelector={statsEnabled ? <PeriodSelector value={statsPeriodDays} onChange={setStatsPeriodDays} /> : undefined}
+        >
           {statsEnabled ? (
-            chartItems.length ? (
+            statsLoading ? (
+              <AppText variant="dialogBody" tone="muted">
+                {reportStrings.statsLoading}
+              </AppText>
+            ) : chartItems.length ? (
               <View style={styles.chart}>
                 {chartItems.map((item) => {
                   const seconds = item.total_practice_seconds ?? 0;
@@ -206,18 +219,30 @@ export default function ProfileTabRoute() {
                 })}
               </View>
             ) : (
-              <AppText variant="dialogBody" tone="muted">
-                {statsLoading ? reportStrings.statsLoading : reportStrings.statsEmpty}
-              </AppText>
+              <ProfileEmptyState message={reportStrings.practicesNotDone} />
             )
           ) : (
             <AppText variant="dialogBody" tone="muted">
               {reportStrings.statsUpgradeHint}
             </AppText>
           )}
-        </View>
+        </ProfileReportCard>
 
-        <ProfileReports enabled={canUseFeature("stats")} onUpgrade={() => setUpgradeFeature("stats")} />
+        <PracticeByChakraReportCard enabled={statsEnabled} onUpgrade={() => setUpgradeFeature("stats")} />
+        <LifeMatrixReportCard
+          enabled={statsEnabled}
+          onUpgrade={() => setUpgradeFeature("stats")}
+          report={lifeMatrix.report}
+          loading={lifeMatrix.loading}
+          error={lifeMatrix.error}
+        />
+        <RangeTrendReportCard
+          enabled={statsEnabled}
+          onUpgrade={() => setUpgradeFeature("stats")}
+          report={lifeMatrix.report}
+          loading={lifeMatrix.loading}
+          error={lifeMatrix.error}
+        />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">Скоро здесь</AppText>

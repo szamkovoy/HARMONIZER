@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { chooseTargetChakra, LIFE_MATRIX_SIZE, type DenseMatrix } from "./lifeMatrix";
+import {
+  buildCalendarRangeTrend,
+  chooseTargetChakra,
+  computeRangeMetric,
+  LIFE_MATRIX_SIZE,
+  sumMatrices,
+  type DenseMatrix,
+} from "./lifeMatrix";
 import type { PetalData } from "./topPetals";
 
 function petal(chakra: number, strength: number, planet = `P${chakra}`): PetalData {
@@ -66,5 +73,46 @@ describe("chooseTargetChakra", () => {
       reason: "matrix_filtered_by_strength",
     });
     expect(result.explain).toContain("перекоса относительно равновесия нет");
+  });
+});
+
+describe("buildCalendarRangeTrend", () => {
+  function matrixWithSignal(chakra: number): DenseMatrix {
+    const matrix = Array.from({ length: LIFE_MATRIX_SIZE }, () =>
+      Array.from({ length: LIFE_MATRIX_SIZE }, () => 0),
+    );
+    matrix[chakra - 1]![0] = 1;
+    return matrix;
+  }
+
+  it("returns one point after five active days at the last day of the block", () => {
+    const activeDates = ["2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-10"];
+    const matrixByDate = new Map(
+      activeDates.slice(0, 5).map((date, index) => [date, matrixWithSignal((index % 7) + 1)]),
+    );
+
+    const trend = buildCalendarRangeTrend(activeDates, matrixByDate, 5);
+
+    expect(trend).toHaveLength(1);
+    expect(trend[0]?.localDate).toBe("2026-05-05");
+    expect(typeof trend[0]?.rangeMetric).toBe("number");
+  });
+
+  it("skips incomplete trailing block", () => {
+    const activeDates = ["2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06"];
+    const matrixByDate = new Map(activeDates.map((date) => [date, matrixWithSignal(3)]));
+
+    expect(buildCalendarRangeTrend(activeDates, matrixByDate, 5)).toHaveLength(1);
+  });
+
+  it("computes range metric on aggregated matrix, not averaged daily metrics", () => {
+    const activeDates = ["2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05"];
+    const matrixByDate = new Map(activeDates.map((date) => [date, matrixWithSignal(1)]));
+    const aggregatedMetric = computeRangeMetric(
+      sumMatrices(activeDates.map((date) => matrixByDate.get(date)!)),
+    );
+    const trend = buildCalendarRangeTrend(activeDates, matrixByDate, 5);
+
+    expect(trend[0]?.rangeMetric).toBe(aggregatedMetric);
   });
 });

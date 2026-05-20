@@ -224,3 +224,32 @@ export function groupRangeTrend(values: Array<number | null>, groupSize = RANGE_
   }
   return out;
 }
+
+export type CalendarTrendPoint = {
+  localDate: string;
+  rangeMetric: number;
+};
+
+/** Groups sorted active calendar days into blocks of `groupSize` and computes range_metric on summed matrices. */
+export function buildCalendarRangeTrend(
+  activeDatesAsc: string[],
+  matrixByDate: Map<string, DenseMatrix>,
+  groupSize = RANGE_GROUP_SIZE_DEFAULT,
+): CalendarTrendPoint[] {
+  const out: CalendarTrendPoint[] = [];
+  for (let index = 0; index + groupSize <= activeDatesAsc.length; index += groupSize) {
+    const blockDates = activeDatesAsc.slice(index, index + groupSize);
+    const matrices = blockDates
+      .map((date) => matrixByDate.get(date))
+      .filter((matrix): matrix is DenseMatrix => Boolean(matrix));
+    if (matrices.length < groupSize) continue;
+    const rangeMetric = computeRangeMetric(sumMatrices(matrices));
+    if (rangeMetric == null) continue;
+    out.push({ localDate: blockDates[groupSize - 1]!, rangeMetric });
+  }
+  return out;
+}
+
+export function uniqueSortedDates(dates: string[]): string[] {
+  return [...new Set(dates.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
