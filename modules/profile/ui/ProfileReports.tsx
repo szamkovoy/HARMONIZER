@@ -301,7 +301,7 @@ export function RangeTrendReportCard(props: {
 
   if (!props.enabled) {
     return (
-      <ProfileReportCard title={strings.rangeTrendTitle} subtitle={strings.rangeTrendHint}>
+      <ProfileReportCard title={strings.rangeTrendTitle}>
         <AppText variant="dialogBody" tone="muted">
           {strings.reportsUpgradeHint}
         </AppText>
@@ -312,9 +312,11 @@ export function RangeTrendReportCard(props: {
 
   const trendReady = (props.report?.activeDaysCount ?? 0) >= 5;
   const trendPoints = props.report?.calendarTrend ?? [];
+  const showTrendHint =
+    !props.loading && !props.error && Boolean(props.report) && trendReady && trendPoints.length > 0;
 
   return (
-    <ProfileReportCard title={strings.rangeTrendTitle} subtitle={strings.rangeTrendHint}>
+    <ProfileReportCard title={strings.rangeTrendTitle} subtitle={showTrendHint ? strings.rangeTrendHint : undefined}>
       {props.loading ? (
         <AppText variant="dialogBody" tone="muted">
           {strings.reportsLoading}
