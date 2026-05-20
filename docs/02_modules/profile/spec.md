@@ -1,7 +1,7 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.10
+version: 1.11
 updated: 2026-05-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,8 +14,12 @@ code_refs:
     app/(tabs)/index.tsx,
     modules/profile/core/periodPresets.ts,
     modules/profile/i18n/profile.ts,
+    modules/profile/core/rangeTrendChart.ts,
     modules/profile/ui/PeriodSelector.tsx,
+    modules/profile/ui/ProfileEmptyState.tsx,
+    modules/profile/ui/ProfileReportCard.tsx,
     modules/profile/ui/ProfileReports.tsx,
+    modules/profile/ui/RangeTrendChart.tsx,
     modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
     app/_layout.tsx,
@@ -50,7 +54,9 @@ code_refs:
 - **`core/periodPresets.ts`:** `PERIOD_PRESETS` (`7d` / `30d` / `90d`), `DEFAULT_PERIOD_DAYS` (= 7), типы `PeriodPreset`, `PeriodPresetId`.
 - **`i18n/profile.ts`:** `getProfileReportStrings(locale?: "ru" | "en")` → `ProfileReportStrings`.
 - **`ui/PeriodSelector.tsx`:** `PeriodSelector({ value: number; onChange: (days: number) => void; presets?: readonly PeriodPreset[] })`.
-- **`ui/ProfileReports.tsx`:** `ProfileReports({ enabled: boolean; onUpgrade: () => void; locale?: "ru" | "en" })`.
+- **`services/profileReports.ts`:** типы `LifeMatrixReport` (`activeDaysCount`, `matrixReady`, `calendarTrend`, …), `PracticeByChakraReport`; `loadLifeMatrixReport()` без query `days`; `loadPracticeByChakraReport(days)`.
+- **`ui/ProfileReports.tsx`:** `useLifeMatrixReport(enabled)`, `PracticeByChakraReportCard`, `LifeMatrixReportCard`, `RangeTrendReportCard` (без единого `ProfileReports`-обёртки).
+- **`ui/ProfileReportCard.tsx`**, **`ProfileEmptyState.tsx`**, **`RangeTrendChart.tsx`**, **`core/rangeTrendChart.ts`:** карточки отчётов, пустые состояния, ось/кривая `calendarTrend`.
 
 ## 3. Внутренняя архитектура
 

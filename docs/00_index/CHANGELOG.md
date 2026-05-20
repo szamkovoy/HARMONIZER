@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.18
-updated: 2026-05-21
+version: 2.19
+updated: 2026-05-20
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-20: pre-push doc-sync — profile: публичный контракт §2 (`loadLifeMatrixReport` без `days`, экспорты `*ReportCard` / `useLifeMatrixReport`), `dependencies` (поток `planned_events` → `calendarTrend`), точки входа в MAP. **`docs/02_modules/profile/{spec,dependencies}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-21: profile UX blocks — 4 карточки, селекторы только у stats/chakra-pie, life-matrix all-time + calendar trend по 5 активным дням, единые empty states. **`docs/02_modules/profile/{spec,history}.md`**, **`_legacy_web/app/api/profile/life-matrix/route.ts`**, **`lifeMatrix.ts`**.
 - 2026-05-20: pre-push doc-sync — profile: публичный контракт `modules/profile` (`periodPresets`, `PeriodSelector`, i18n, `ProfileReports.locale`), decision log, точки входа в MAP (push: независимые периоды отчётов, дефолт 7д). **`docs/02_modules/profile/{spec,history}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-21: profile reports UX patch — `PeriodSelector`, `periodPresets.ts`, `profile/i18n`, локализованные заголовки, независимые периоды, легенда 7 чакр, layout heatmap; диагностика `practice_sessions` и dev-перегрева. **`docs/02_modules/profile/{spec,history}.md`**, **`docs/04_workspace/open_questions.md`**.

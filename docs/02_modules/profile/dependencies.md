@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.4
-updated: 2026-05-18
+version: 1.5
+updated: 2026-05-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -26,7 +26,7 @@ code_refs:
   Supabase (`public.users`, RLS, триггер на `auth.users`), клиент `services/supabase.ts` / типы `services/supabase-types.ts`. Без валидной конфигурации проекта и миграций строка профиля не создаётся и не обновляется.
 
 - **`subscription`**  
-  `app/_layout.tsx` передаёт `profile` в `AccessProvider`; `app/(tabs)/profile.tsx` и главный экран используют `useAccess()` для отображения тарифа, `DevTierSwitch` и `canUseFeature("stats")`. Новый блок `ProfileReports` на профиле тоже гейтится этим ключом. Продуктовая семантика тарифов — в `docs/02_modules/subscription/spec.md`.
+  `app/_layout.tsx` передаёт `profile` в `AccessProvider`; `app/(tabs)/profile.tsx` и главный экран используют `useAccess()` для отображения тарифа, `DevTierSwitch` и `canUseFeature("stats")`. Карточки отчётов на профиле (`ProfileReportCard` / `*ReportCard`) гейтятся тем же ключом `stats`. Продуктовая семантика тарифов — в `docs/02_modules/subscription/spec.md`.
 
 - **`astro` (данные и сценарии)**  
   `services/natalProfileClient.ts`, **`modules/home/ui/NatalBirthDataModal.tsx`** (общий с главным) и экраны `app/(tabs)/index.tsx` / `app/(tabs)/profile.tsx` завязаны на типы `BirthData` / `NatalProfile` из `modules/astro-core` и API `POST /api/astro/natal`. Поля `birth_*` и связанный активный натал определяют персональный прогноз и downstream assistant/calibration.
@@ -37,7 +37,7 @@ code_refs:
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица завершённых сессий). Запись сессий выполняется из flow практик, не из таба профиля.
 - **`assistant` (новые отчёты HARMONIZER v2)**  
-  Profile reports через backend routes читают `daily_matrices` и агрегаты daily dialog (`planned_events` → `daily_matrices`), а также server helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр в `life-matrix` / `practice-by-chakra` — **`buildChakraLegend()`** (`_legacy_web/app/api/_utils/planetChakraLegend.ts`, `_legacy_web/data/planet_chakra_map.json`), без импорта клиентского `modules/home/planetChakra`.
+  Profile reports через backend routes: `life-matrix` сначала собирает активные дни из `planned_events` (`status = summarized`, `planned_local_date`), затем подтягивает `daily_matrices` по этим датам и строит `calendarTrend` через `buildCalendarRangeTrend` (`lifeMatrix.ts`, размер блока — `getRangeGroupSize()` из `dialogConfig.ts`); `practice-by-chakra` — завершённые `practice_sessions`. Легенда чакр — **`buildChakraLegend()`** (`planetChakraLegend.ts`), без импорта клиентского `modules/home/planetChakra`.
 
 ## 2. От него зависят
 
