@@ -4,12 +4,13 @@
 
 title: Documentation Changelog
 version: 2.17
-updated: 2026-05-19
+updated: 2026-05-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: profile reports UX patch — `PeriodSelector`, `periodPresets.ts`, `profile/i18n`, локализованные заголовки, независимые периоды, легенда 7 чакр, layout heatmap; диагностика `practice_sessions` и dev-перегрева. **`docs/02_modules/profile/{spec,history}.md`**, **`docs/04_workspace/open_questions.md`**.
 - 2026-05-19: pre-push doc-sync — `route.ts` импортирует шаги длительности карточки из `@shared/assistantSelectableDurations` (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия клиентского модуля). Обновлены **`docs/02_modules/{assistant,practices}/{dependencies,spec,history}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-18: pre-push doc-sync — profile reports: легенда чакр на сервере через `planetChakraLegend.ts` / `planet_chakra_map.json` вместо импорта `modules/home/planetChakra`. Обновлены **`docs/02_modules/profile/{spec,dependencies,history}.md`**, **`docs/02_modules/assistant/dependencies.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-18: pre-push doc-sync — HARMONIZER v2 push: активация `dialog_system_v3` v5 (`20260519030000_dialog_system_v3_v5_activate.sql`), life-matrix foundation и profile reports уже в коде; синхронизированы **`docs/02_modules/assistant/{prompts-reference,spec,history,dependencies}.md`**, **`docs/02_modules/communicator/{spec,history}.md`**, **`docs/00_index/MAP.md`**.

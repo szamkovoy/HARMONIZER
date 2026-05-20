@@ -2,7 +2,7 @@
 id: 02_modules/profile/spec
 title: Profile Spec
 version: 1.9
-updated: 2026-05-18
+updated: 2026-05-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -56,8 +56,8 @@ code_refs:
 
 - Карточка **«Текущий доступ»:** `access` из `useAccess()`, сырые `profile.membership_tier` и `trial_expires_at`, кнопка **«Обновить профиль»** → модальное окно **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты/времени рождения и **`createNatalProfile`** (как на главном); при открытии в поля подставляются **`initialDate` / `initialTime`** из **`profile.birth_date` / `profile.birth_time`** (если есть). Доступ к редактированию по фиче **`calibration`** (`useAccess().canUseFeature("calibration")`); иначе **`UpgradeDialog`**. После успешного сохранения: **`refreshProfile()`**, **`markHomeDayContentBlockingReload({ forceRefresh: true })`** (`services/homeDayContentReloadRequest.ts`) — при следующем фокусе главного таба `useDayContent.refresh` выполняется с **`blockingReload`** и показывает стартовый оверлей до готовности дня; **`Alert`** с переходом **`router.push("/calibration")`** или **`router.replace("/")`**.
 - В **`__DEV__`:** `DevTierSwitch` для эффективного тарифа (см. `subscription`).
-- **Статистика практик:** при `canUseFeature("stats")` — загрузка `loadDailyPracticeStats` из `services/practiceSessions.ts` (14 дней); иначе текст про тариф Практик/Мастер.
-- **Отчёты HARMONIZER v2:** `modules/profile/ui/ProfileReports.tsx` с единым interval switcher `7 / 30 / 90` дней. Два backend endpoint-а:
+- **Статистика практик:** при `canUseFeature("stats")` — `loadDailyPracticeStats` из `services/practiceSessions.ts`; период задаёт **`PeriodSelector`** + `modules/profile/core/periodPresets.ts` (дефолт **7 дней**), авто-перезагрузка при смене периода; кнопки «Обновить» нет.
+- **Отчёты HARMONIZER v2:** `modules/profile/ui/ProfileReports.tsx` — три независимых блока с собственным **`PeriodSelector`** (дефолт **7 дней**): «Статистика практик» (в `profile.tsx`), «Матрица состояний» + «Толщина линии жизни» (общий fetch life-matrix), «Практики по чакрам». Локализация заголовков — `modules/profile/i18n/profile.ts`. Пресеты периода — `modules/profile/core/periodPresets.ts` (заготовка под 180д/1г/всё). Круговая диаграмма: все 7 чакр в легенде (нулевые — серый swatch, `0:00`). Два backend endpoint-а:
   - `GET /api/profile/life-matrix?days=N` — агрегирует `daily_matrices`, отдаёт `rawMatrix`, `visualMatrix`, range-trend, легенду сфер (`lifeSpheresBaseline`) и чакр (`buildChakraLegend()` из `_legacy_web/app/api/_utils/planetChakraLegend.ts`, источник `_legacy_web/data/planet_chakra_map.json`);
   - `GET /api/profile/practice-by-chakra?days=N` — суммирует завершённые `practice_sessions` по `chakra_focus_ids` и длительности; поле `chakras` использует ту же легенду (`buildChakraLegend()`).
   Клиентский transport: `services/profileReports.ts` (Bearer JWT, тот же Vercel backend origin). Gate тот же, что у `stats`.

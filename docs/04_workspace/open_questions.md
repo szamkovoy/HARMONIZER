@@ -4,7 +4,7 @@
 
 title: Open Questions
 version: 1.21
-updated: 2026-05-19
+updated: 2026-05-21
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -95,6 +95,17 @@ code_refs: []
 **Контекст:** правило эффективного премиум-доступа повторяется в `getEffectiveAccess` / trial-ветке (`modules/access/core/access.tsx`), в `hasPremiumAccess` / `accessModeFor` (`modules/home/useDayContent.ts`, `services/globalContentClient.ts`), в `hasPremiumLlmAccess` (`_legacy_web/app/api/_utils/userModelTier.ts`) и в маршрутах `global-content`, `communicator/v2/dialog`, `greeting`, `recommendation-text`.  
 **Проявление:** изменение правил (продление trial, льготы) требует синхронных правок в 3–4 местах.  
 **Действие:** при серьёзной работе с subscription вынести единую функцию уровня `hasEffectivePremium` / `canRunPremiumLlm`, доступную клиенту и серверу; до рефакторинга при правке одной точки проверять остальные.
+
+## `profile`
+
+- **`practice_sessions` — запись при завершении (решено 2026-05-21)**  
+**Контекст:** `recordPracticeSession` вызывается при **завершении** сессии (асана — «Завершить практику», дыхание — выбор настроения после таймера, медитация — `completePractice`). Запись **не** создаётся при рекомендации ассистентом или при открытии карточки без завершения.  
+**Решение владельца:** модель «только завершённые практики попадают в отчёт» **устраивает**, менять на insert при «Начать практику» **не нужно**.  
+**Инвариант:** отчёт `practice-by-chakra` и `user_daily_stats` отражают только сессии с `ended_at IS NOT NULL`.
+- **Перегрев iPhone на экране профиля в dev-client**  
+**Контекст:** владелец (iPhone 14, `expo start --dev-client -c`, тариф «Мастер») сообщил сильный нагрев при открытии профиля и переключении селекторов периода (2026-05-21). Статический аудит `ProfileReports.tsx` / `profile.tsx`: бесконечных `useEffect`, polling, `setInterval`, SVG-анимаций не найдено; каждый селектор вызывает один fetch на смену периода.  
+**Проявление:** возможный baseline dev-режима (Metro, LogBox, React dev overhead) без воспроизведения на Release-сборке.  
+**Действие:** владельцу сравнить тот же сценарий на `expo run:ios --configuration Release`; при сохранении перегрева в prod — профилировать React DevTools / Instruments.
 
 ## `practices`
 

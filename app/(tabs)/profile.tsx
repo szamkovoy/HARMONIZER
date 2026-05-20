@@ -12,6 +12,9 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
+import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
+import { getProfileReportStrings } from "@/modules/profile/i18n/profile";
+import { PeriodSelector } from "@/modules/profile/ui/PeriodSelector";
 import { ProfileReports } from "@/modules/profile/ui/ProfileReports";
 import { loadDailyPracticeStats, type DailyPracticeStat } from "@/services/practiceSessions";
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
@@ -41,8 +44,11 @@ export default function ProfileTabRoute() {
   const theme = useTheme();
   const { authUser, profile, refreshProfile } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
+  const reportStrings = getProfileReportStrings("ru");
+  const [statsPeriodDays, setStatsPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
+  const statsEnabled = canUseFeature("stats");
   const [natalModalOpen, setNatalModalOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
@@ -57,15 +63,15 @@ export default function ProfileTabRoute() {
   }, [canUseFeature]);
 
   const loadStats = useCallback(async () => {
-    logRuntimeTap("profile_load_stats", { canUseStats: canUseFeature("stats") });
-    if (!authUser?.id || !canUseFeature("stats")) {
+    logRuntimeTap("profile_load_stats", { canUseStats: statsEnabled, periodDays: statsPeriodDays });
+    if (!authUser?.id || !statsEnabled) {
       setStats([]);
       return;
     }
     setStatsLoading(true);
-    setStats(await loadDailyPracticeStats(authUser.id, 14));
+    setStats(await loadDailyPracticeStats(authUser.id, statsPeriodDays));
     setStatsLoading(false);
-  }, [authUser?.id, canUseFeature]);
+  }, [authUser?.id, statsEnabled, statsPeriodDays]);
 
   useEffect(() => {
     void loadStats();
@@ -167,11 +173,9 @@ export default function ProfileTabRoute() {
         ) : null}
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
-          <View style={styles.cardHeaderRow}>
-            <AppText variant="sectionTitle">Статистика практик</AppText>
-            <AppButton label="Обновить" variant="secondary" onPress={loadStats} disabled={statsLoading} style={styles.smallButton} />
-          </View>
-          {canUseFeature("stats") ? (
+          <AppText variant="sectionTitle">{reportStrings.practiceStatsTitle}</AppText>
+          {statsEnabled ? <PeriodSelector value={statsPeriodDays} onChange={setStatsPeriodDays} /> : null}
+          {statsEnabled ? (
             chartItems.length ? (
               <View style={styles.chart}>
                 {chartItems.map((item) => {
@@ -203,12 +207,12 @@ export default function ProfileTabRoute() {
               </View>
             ) : (
               <AppText variant="dialogBody" tone="muted">
-                {statsLoading ? "Загружаем статистику..." : "Пока нет сохраненных завершенных практик."}
+                {statsLoading ? reportStrings.statsLoading : reportStrings.statsEmpty}
               </AppText>
             )
           ) : (
             <AppText variant="dialogBody" tone="muted">
-              Статистика доступна на тарифах Практик и Мастер.
+              {reportStrings.statsUpgradeHint}
             </AppText>
           )}
         </View>
