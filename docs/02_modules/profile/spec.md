@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.9
-updated: 2026-05-21
+version: 1.10
+updated: 2026-05-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -12,6 +12,9 @@ code_refs:
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
     app/(tabs)/index.tsx,
+    modules/profile/core/periodPresets.ts,
+    modules/profile/i18n/profile.ts,
+    modules/profile/ui/PeriodSelector.tsx,
     modules/profile/ui/ProfileReports.tsx,
     modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
@@ -42,7 +45,12 @@ code_refs:
   - **`signInWithApple`**, **`signInWithGoogle`**, **`signOut`**.
   - **`refreshProfile()`** — повторный `select * from users` для текущего `session.user` (нужно после операций, меняющих строку в БД, например после `createNatalProfile` или онбординга).
 
-Прямого отдельного пакета `modules/profile` нет: **публичный контракт профиля = типы и методы `modules/auth` + сервисы**, которые пишут в `users` или связанные таблицы.
+**Данные профиля** — типы и методы **`modules/auth`** + сервисы, которые пишут в `users` или связанные таблицы. **UI отчётов и пресетов периода** — клиентский слой **`modules/profile/*`** (не путать с `useAuth().profile`):
+
+- **`core/periodPresets.ts`:** `PERIOD_PRESETS` (`7d` / `30d` / `90d`), `DEFAULT_PERIOD_DAYS` (= 7), типы `PeriodPreset`, `PeriodPresetId`.
+- **`i18n/profile.ts`:** `getProfileReportStrings(locale?: "ru" | "en")` → `ProfileReportStrings`.
+- **`ui/PeriodSelector.tsx`:** `PeriodSelector({ value: number; onChange: (days: number) => void; presets?: readonly PeriodPreset[] })`.
+- **`ui/ProfileReports.tsx`:** `ProfileReports({ enabled: boolean; onUpgrade: () => void; locale?: "ru" | "en" })`.
 
 ## 3. Внутренняя архитектура
 
