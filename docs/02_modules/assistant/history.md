@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.19
+version: 2.20
 updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
@@ -9,6 +9,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-05-21:** pre-push doc-sync — `prompts-reference.md` §1 (зеркало v6 inactive), §2 (`practice_declined`, `PRACTICE_REFUSAL_CHECK_INSTRUCTION`), §3; `spec.md` — режим `practice_declined`, GET `debugExport`, `dialogDebugExport.ts`; `MAP.md`.
 - **2026-05-21:** v6 (inactive) усилен: диапазоны 1–5 / 5–20 / >20, переспрос при конфликте + фиксация «Тогда {тип}, {N} мин» после «да»; отказ на сессию («не сейчас» = не нужна); оркестратор `practice_declined` + `userDeclinedPracticeInHistory`; test mode — `sessionResumeTtlMs` сжат только для GET sync (reopen), `sessionTtlMs` 2ч для POST внутри диалога.
 - **2026-05-21:** Режим тестирования временных интервалов диалога: `_legacy_web/app/api/_utils/testMode.ts` (`hoursToMs`, `forcedPhaseOrNull`, `logTestModeStartupWarning`); обёртки в `dialogBranching.ts` (4ч anti-replan, `phaseTimeFor`), `lifeMatrixPersistence.ts` (36ч окно `planned_events`), `dialogHelpers.ts` / `route.ts` (2ч TTL). Env: `TEST_MODE_FAST_INTERVALS`, `TEST_MODE_TIME_DIVISOR`, `TEST_MODE_FORCE_PHASE`. Справочник `docs/04_reference/test_mode.md`, тесты `testMode.test.ts`.
 - **2026-05-19 (pre-push doc-sync):** **`route.ts`** — импорт шагов длительности карточки из **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия клиентского модуля для Vercel-only deploy) вместо прямого `@/modules/practices/core/...`. **`dependencies.md`**, **`practices/spec.md`**, **`MAP.md`**, **`CHANGELOG.md`**.

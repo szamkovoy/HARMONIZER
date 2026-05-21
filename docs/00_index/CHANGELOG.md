@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: pre-push doc-sync — daily dialog v6 (inactive): `practice_declined`, отказ на сессию, debug export; `prompts-reference.md` §1–3, `assistant/spec.md`, `communicator/spec.md`, `MAP.md`, `assistant/history.md`.
 - 2026-05-21: `communicator` — pre-push doc-sync: salvage частичного SSE, XHR onerror на iOS, transcribe 12s + `useNetworkRetry`, recovery сессии при ошибке стрима, UX `timeout`; **`docs/02_modules/communicator/{spec,dependencies,history}.md`**.
 - 2026-05-21: `assistant` — v6 (inactive): согласование тип/длительность с фиксацией после «да»; отказ от практики на сессию; оркестратор `practice_declined`; test mode: сжатый TTL только при GET resume, не между репликами.
 - 2026-05-21: `communicator` — голос: удержание URI до ответа, transcribe 3×10s, Retry без перезаписи; `voiceTurnPipeline.ts`, `Communicator.tsx`.

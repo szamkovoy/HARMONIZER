@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.9
+version: 2.10
 updated: 2026-05-21
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -87,7 +87,7 @@ code_refs:
 Экспортируемые функции и типы, с которыми работают UI и другие экраны:
 
 - `sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult>` — POST с телом JSON, ответ читается как **SSE**: на **web** — `fetch` + потоковое чтение `body`, на **iOS/Android** — `**XMLHttpRequest**` с инкрементальным `responseText` (иначе RN часто отдаёт весь поток одним куском в конце).
-- `fetchDialogSession({ useCase, entrySource, scenarioId?, signal? })` — GET синхронизации сессии; при ошибке «нет эндпоинта» для старых серверов возвращается пустая сессия с `reset: true`.
+- `fetchDialogSession({ useCase, entrySource, scenarioId?, debugExport?, signal? })` — GET синхронизации сессии; опционально `debugExport: true` → query `debugExport=1` и поле `dialogStateAfter` в ответе при серверном test/debug режиме; при ошибке «нет эндпоинта» для старых серверов возвращается пустая сессия с `reset: true`.
 - `transcribeCommunicatorAudio(req, options?: { useNetworkRetry?: boolean })` — POST на `/api/communicator/v2/transcribe` (тело `{ audio: { mimeType, base64 }, language }`); таймаут одной попытки **12 с** (`TRANSCRIBE_TIMEOUT_MS`). По умолчанию — `withTransientNetworkRetry`; голосовой пайплайн передаёт `useNetworkRetry: false` (повторы на уровне `transcribeVoiceRecording`).
 - `extractCalibration(req)` — используется экраном калибровки, не `Communicator.tsx`.
 
@@ -125,6 +125,7 @@ code_refs:
 Из `**complete**` (`DialogCompleteEvent`) в UI и метаданные сообщения попадают как минимум:
 
 - `fullText`, `shouldClose`, `modelUsed`, `modelTier`, `turnMode`, `iteration`, `readyMarkerTriggered`, `validation`, `insightMetrics`
+- `debugExport` → `meta.debug` в истории (при серверном test/debug режиме)
 - `messageId`, `conversationId` — обновление id сообщения и активной беседы
 - `practicePicked` → `meta.practicePicked` и общий `PracticeCard`; для **дыхания/медитации** в DTO может быть `**overrides: { durationMin, chakraIndex }**` (`durationMin` после приоритета истории при `confident` и клипа на сервере; см. `assistant/spec.md`); для **йоги** сервер `**overrides`** не присылает — `Communicator` не прокидывает override-пропсы в `PracticeCard`. Опционально `markerIdResolved: false` (если model-generated id не найден в каталоге). Поле `**card_blurb**` — валидированный model-generated текст карточки; `**reason**` остаётся эффективным текстом карточки для UI и legacy-кэша.
 - `recommendationCorrected` → `meta.recommendationCorrected`
