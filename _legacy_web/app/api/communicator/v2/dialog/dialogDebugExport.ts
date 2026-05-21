@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { forcedPhaseOrNull } from "@legacy/app/api/_utils/testMode";
+import { forcedPhaseOrNull, promptLocalHour } from "@legacy/app/api/_utils/testMode";
 import { extractRawMarkersForDebug } from "@legacy/app/api/_utils/markers";
 import type { DialogBranch } from "@legacy/app/api/_utils/dialogBranching";
 import type { DialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
@@ -18,6 +18,8 @@ export type TurnDebugExport = {
   raw_markers: ReturnType<typeof extractRawMarkersForDebug>;
   phase_time_used: "morning" | "day" | "evening";
   phase_time_source: "forced" | "real_local_hour";
+  local_hour_used: number;
+  local_hour_source: "forced" | "real_local_hour";
   matrix_ready: boolean;
   target_chakra: { chakraNumber: number; reason: string };
   branches_active: DialogBranch[];
@@ -59,6 +61,8 @@ export function buildTurnDebugExport(params: {
     raw_markers: extractRawMarkersForDebug(rawAssistantText),
     phase_time_used: context.phaseTime,
     phase_time_source: forcedPhaseOrNull() ? "forced" : "real_local_hour",
+    local_hour_used: promptLocalHour(context.nowLocal.hour),
+    local_hour_source: forcedPhaseOrNull() ? "forced" : "real_local_hour",
     matrix_ready: context.matrixReady,
     target_chakra: {
       chakraNumber: context.targetChakra.chakraNumber,

@@ -26,7 +26,7 @@ import { parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
-import { isDebugDialogExportEnabled, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
+import { isDebugDialogExportEnabled, promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import { buildDialogStateAfter, buildTurnDebugExport } from "@legacy/app/api/communicator/v2/dialog/dialogDebugExport";
@@ -359,6 +359,7 @@ function buildDialogSystemInstruction(
 
   const locale = context.user.locale?.startsWith("en") ? "en" : "ru";
   const now = context.nowLocal;
+  const promptHour = promptLocalHour(now.hour);
   const formatted = formatLocalDate(now, locale);
   const planet = normalizePlanet(forecast.planet_of_the_day);
   const chakraData = chakraStatesBaseline[planet] as ChakraBaseline;
@@ -372,8 +373,8 @@ function buildDialogSystemInstruction(
       {
         day_of_week: formatted.dayOfWeek,
         date: formatted.date,
-        time_of_day: timeOfDayForHour(now.hour),
-        local_hour: now.hour,
+        time_of_day: timeOfDayForHour(promptHour),
+        local_hour: promptHour,
         phase_time: context.phaseTime,
         branches: branches.join(",") || "none",
         due_events: formatDueEvents(context.dueEvents),

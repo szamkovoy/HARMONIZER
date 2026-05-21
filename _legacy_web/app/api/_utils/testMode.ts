@@ -49,6 +49,19 @@ export function forcedPhaseOrNull(): "morning" | "day" | "evening" | null {
   return null;
 }
 
+/** Representative local hour sent to the dialog prompt when a phase is forced. */
+export function representativeLocalHourForPhase(phase: "morning" | "day" | "evening"): number {
+  if (phase === "morning") return 9;
+  if (phase === "day") return 14;
+  return 19;
+}
+
+/** Hour for {{local_hour}} / {{time_of_day}} in dialog prompts; aligns greeting with forced phase. */
+export function promptLocalHour(realLocalHour: number): number {
+  const forced = forcedPhaseOrNull();
+  return forced ? representativeLocalHourForPhase(forced) : realLocalHour;
+}
+
 export function getTimeDivisor(): number {
   return TIME_DIVISOR;
 }

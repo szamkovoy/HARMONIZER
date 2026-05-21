@@ -57,4 +57,16 @@ describe("testMode", () => {
     const { phaseTimeFor } = await import("./dialogBranching");
     expect(phaseTimeFor(DateTime.fromISO("2026-05-21T10:00:00", { zone: "UTC" }))).toBe("evening");
   });
+
+  it("promptLocalHour uses representative hour when phase is forced", async () => {
+    process.env.TEST_MODE_FORCE_PHASE = "morning";
+    const { promptLocalHour } = await loadTestMode();
+    expect(promptLocalHour(22)).toBe(9);
+  });
+
+  it("promptLocalHour keeps real hour when phase is not forced", async () => {
+    delete process.env.TEST_MODE_FORCE_PHASE;
+    const { promptLocalHour } = await loadTestMode();
+    expect(promptLocalHour(22)).toBe(22);
+  });
 });
