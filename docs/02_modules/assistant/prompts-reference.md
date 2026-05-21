@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.9
+version: 1.10
 updated: 2026-05-21
 depends_on: [02_modules/assistant/spec]
 code_refs:
@@ -13,6 +13,7 @@ code_refs:
     supabase/migrations/20260513224500_dialog_system_v3_polish_pack_a_fix.sql,
     supabase/migrations/20260513223000_dialog_system_v3_polish_pack_a.sql,
     _legacy_web/app/api/_utils/dialogArcOrchestrator.ts,
+    _legacy_web/app/api/_utils/dialogOpeningHints.ts,
     _legacy_web/app/api/_utils/dialogTonalRegisters.ts,
     _legacy_web/app/api/communicator/v2/dialog/route.ts,
   ]
@@ -207,7 +208,7 @@ MATRIX EXTRACTION
 
 ## 2. Инструкции оркестратора (`ORCHESTRATOR_INSTRUCTIONS`) (`ORCHESTRATOR_INSTRUCTIONS`)
 
-Источник: `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`. Тексты ниже — дословно из значений константы (без пересказа). Отдельные строки retry для восстановления маркера (`route.ts`, не часть этой константы) здесь не приводятся. Плейсхолдеры `{{chakra_label}}`, `{{chakra_label_accusative}}`, `{{harmoniousness_value}}`, `{{harmoniousness_label}}`, `{{catalog_reconciliation}}`, `{{practice_refusal_check}}` подставляются в `route.ts` функцией `expandOrchestratorInstruction` (`renderPrompt`) перед вызовом Gemini.
+Источник: `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`. Тексты ниже — дословно из значений константы (без пересказа). Отдельные строки retry для восстановления маркера (`route.ts`, не часть этой константы) здесь не приводятся. Плейсхолдеры `{{chakra_label}}`, `{{chakra_label_accusative}}`, `{{harmoniousness_value}}`, `{{harmoniousness_label}}`, `{{catalog_reconciliation}}`, `{{practice_refusal_check}}`, `{{opening_day_question}}` подставляются в `route.ts` функцией `expandOrchestratorInstruction` (`renderPrompt`) перед вызовом Gemini.
 
 ### `opening`
 
@@ -215,7 +216,9 @@ MATRIX EXTRACTION
 
 ```text
 [Инструкция оркестратора:
-это первый ход разговора. Поздоровайся естественно, с учётом времени суток. Сделай короткий мост от темы дня к разговору — не пересказывай дневную рекомендацию, возьми один живой нерв из темы дня. Пригласи пользователя рассказать, что у него сегодня происходит — что волнует, какие планы, что важного.
+это первый ход разговора. Поздоровайся естественно, с учётом времени суток. Сделай короткий мост от темы дня к разговору — не пересказывай дневную рекомендацию, возьми один живой нерв из темы дня.
+
+{{opening_day_question}}
 
 В этом же сообщении задай прямой вопрос про практику. Формулировка должна быть конкретной и понятной, без поэтических метафор. Хороший пример: «Сколько у вас сейчас времени на практику и что бы хотелось — асаны, дыхание или медитацию?». Допустимы варианты: «Сколько минут есть для практики и какой тип ближе — асаны, дыхание, медитация?». Недопустимо: «окно на короткую паузу или сессия?», «короткий выдох или полная сессия?», «пять минут присесть или развернуться?» — это слишком метафорично для первого вопроса.
 
@@ -449,7 +452,7 @@ MATRIX EXTRACTION
 - **Текст системного промпта** — строка `template` для `prompt_key = 'dialog_system_v3'` в `public.prompts`: правка через новую миграцию (или админский SQL), затем `supabase db push` локально и тот же порядок на продакшене; этот файл — зеркало для диффа в git, его нужно обновить дословно после изменения шаблона в миграции/БД.
 - **Тексты инструкций оркестратора** — константа `ORCHESTRATOR_INSTRUCTIONS` в `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`: обычный commit в репозитории; при изменении синхронизируйте §2 здесь.
 - **Список переменных и подстановки** — любое новое `{{имя}}` в шаблоне БД или в `ORCHESTRATOR_INSTRUCTIONS` требует одновременной правки объекта в `renderPrompt` внутри `buildDialogSystemInstruction` / `expandOrchestratorInstruction` в `route.ts` и строки в §3 этого файла; тональные строки по планете — в `dialogTonalRegisters.ts`.
-- **Поведение эскалации standard → premium** — логика ветвления в `route.ts` (маркер `[READY_FOR_RECOMMENDATION]`, `validateHistoryHasDurationAndType`); не путать с текстами `ORCHESTRATOR_INSTRUCTIONS`.
+- **Поведение эскалации standard → premium** — логика ветвления в `route.ts` (маркер `[READY_FOR_RECOMMENDATION]`, `validateHistoryHasDurationAndType`, при `inquiry` без маркера но с `confident` — `shouldServerEscalateToFinalRecommendation` → premium `final_recommendation`); не путать с текстами `ORCHESTRATOR_INSTRUCTIONS`.
 - **Полный лог промпта в dev** — `console.log` с тегом `[DIALOG_V3_DEBUG_PROMPT]` (JSON: `systemInstruction`, `contents`) только если `NODE_ENV !== "production"`, или query `?debug=prompt`, или заголовок `X-Debug-Prompt: 1`, или `DEBUG_DIALOG_PROMPT=1`; в продакшене без флага полный промпт не логируется.
 - **Retry-текст при отсутствии `[PRACTICE_PICK]`** — инлайн-строка в `route.ts`, не входит в `ORCHESTRATOR_INSTRUCTIONS`; при правке не забыть описание в `spec.md`, при необходимости — отдельную строку в справочнике вне §2.
 
