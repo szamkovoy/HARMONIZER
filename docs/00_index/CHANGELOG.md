@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.20
+version: 2.21
 updated: 2026-05-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: `communicator` — pre-push doc-sync: salvage частичного SSE, XHR onerror на iOS, transcribe 12s + `useNetworkRetry`, recovery сессии при ошибке стрима, UX `timeout`; **`docs/02_modules/communicator/{spec,dependencies,history}.md`**.
 - 2026-05-21: `communicator` — голос: удержание URI до ответа, transcribe 3×10s, Retry без перезаписи; `voiceTurnPipeline.ts`, `Communicator.tsx`.
 - 2026-05-21: client — localized network error UX (ru/en), hidden retries, Retry in Communicator; `userFacingErrors`, `modules/ui/i18n/userErrors.ts`.
 - 2026-05-21: pre-push doc-sync — dialog test mode (`testMode.ts`): `assistant` spec/history/dependencies, `infra` instrumentation, `MAP.md`; справочник `docs/04_reference/test_mode.md`.
