@@ -408,7 +408,7 @@ export default function HomeScreen() {
   const [natalProfileResolved, setNatalProfileResolved] = useState(!needsPersonalForecast);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const hasNatalProfile = needsPersonalForecast ? (natalProfileResolved ? Boolean(natalProfile) : null) : true;
-  const { forecast, error, refresh, status, accessMode, modelUsed } = useDayContent({
+  const { forecast, error, refresh, status, accessMode, modelUsed, userLocation } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     birthDataErrorMessage: strings.birthDataMessage,
     accessModeOverride: accessModeForTier(access.tier),
@@ -588,6 +588,7 @@ export default function HomeScreen() {
               windows={forecast.windowsOfOpportunity}
               strings={strings}
               accessMode={accessMode}
+              userLocation={userLocation}
             />
           </>
         ) : null}

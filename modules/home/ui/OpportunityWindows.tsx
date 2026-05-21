@@ -15,6 +15,7 @@ import {
 } from "react-native";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
+import { interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
 import type { AccessMode } from "@/services/globalContentClient";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
@@ -36,6 +37,7 @@ interface OpportunityWindowsProps {
   windows: Windows;
   strings: HomeStrings;
   accessMode: AccessMode;
+  userLocation: { lat: number; lng: number; timezone: string } | null;
 }
 
 type WindowItem = {
@@ -65,6 +67,8 @@ function buildDefaultReminderTitle(item: WindowItem, windows: Windows, strings: 
 }
 
 const SKY_AXIS_Y = 78;
+/** Вертикальный масштаб: горизонт = ось, пик кульминации укладывается в эту амплитуду. */
+const CHART_ALTITUDE_AMPLITUDE_PX = 42;
 /** Высота точек волны (`waveDot`) — `top` совпадает с мат. Y, тело линии уходит вниз на эту величину. */
 const WAVE_LINE_THICKNESS_PX = 4;
 /** Воздух после нижнего края волны / перед верхним краём волны (не наезжаем на жёлтый/синий след). */
@@ -289,47 +293,47 @@ function nowLineDashKeys(heightPx: number): number[] {
   return keys;
 }
 
-/** Доля суток 0…1 по локальному времени строки (без искусственного сжатия — совпадает с линией «сейчас»). */
-function timeToDayFraction(time?: string): { x: number; past: boolean } | null {
+/** Доля суток 0…1 в IANA-зоне пользователя (полночь → следующая полночь). */
+function timeToDayFraction(
+  time: string | undefined,
+  timezone: string,
+): { x: number; past: boolean } | null {
   if (!time) return null;
   const date = new Date(time);
   if (Number.isNaN(date.getTime())) return null;
-  const minutes = date.getHours() * 60 + date.getMinutes();
-  const x = Math.min(1, Math.max(0, minutes / 1440));
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const hour = Number(byType.hour);
+  const minute = Number(byType.minute);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  const x = Math.min(1, Math.max(0, (hour * 60 + minute) / 1440));
   return { x, past: date.getTime() < Date.now() };
 }
 
-function circularDelta(from: number, to: number): number {
-  return to >= from ? to - from : to + 1 - from;
-}
-
-function circularSignedDelta(from: number, to: number): number {
-  const delta = ((to - from + 0.5) % 1 + 1) % 1 - 0.5;
-  return delta === -0.5 ? 0.5 : delta;
-}
-
-function makeSkyY(riseX: number | null, culminationX: number | null) {
-  const amplitude = 42;
-
-  return (x: number) => {
-    if (riseX != null && culminationX != null) {
-      const riseToCulmination = circularDelta(riseX, culminationX);
-      if (riseToCulmination > 0.0001) {
-        const elapsed = circularDelta(riseX, x);
-        const period = riseToCulmination * 4;
-        return SKY_AXIS_Y - Math.sin((elapsed / period) * Math.PI * 2) * amplitude;
-      }
-    }
-
-    if (culminationX != null) {
-      const phase = circularSignedDelta(culminationX, x);
-      return SKY_AXIS_Y - Math.cos(phase * Math.PI * 2) * amplitude;
-    }
-
-    const fallbackRise = riseX ?? 0.25;
-    const elapsed = circularDelta(fallbackRise, x);
-    return SKY_AXIS_Y - Math.sin(elapsed * Math.PI * 2) * amplitude;
-  };
+function buildDiurnalChartModel(params: {
+  planet: Planet;
+  forecastDate: string;
+  userLocation: { lat: number; lng: number; timezone: string };
+}) {
+  const samples = samplePlanetAltitudeForDay({
+    planet: params.planet,
+    forecastDate: params.forecastDate,
+    userLocation: params.userLocation,
+    steps: 96,
+  });
+  const maxAbs = Math.max(...samples.map((sample) => Math.abs(sample.altitude)), 0.08);
+  const scale = CHART_ALTITUDE_AMPLITUDE_PX / maxAbs;
+  const skyY = (x: number) => SKY_AXIS_Y - interpolateDiurnalAltitude(samples, x) * scale;
+  const chartDots = samples.map((sample) => ({
+    x: sample.x,
+    y: skyY(sample.x),
+  }));
+  return { skyY, chartDots };
 }
 
 export function OpportunityWindows({
@@ -338,6 +342,7 @@ export function OpportunityWindows({
   windows,
   strings,
   accessMode,
+  userLocation,
 }: OpportunityWindowsProps) {
   const theme = useTheme();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
@@ -525,19 +530,41 @@ export function OpportunityWindows({
   ];
   const displayItems = items.filter((item): item is WindowItem => Boolean(item));
   const activeItems = displayItems.filter((item) => item.time);
-  const risePoint = timeToDayFraction(windows.sunrise?.time);
-  const culminationPoint = timeToDayFraction(windows.culmination?.time);
-  const skyY = useMemo(() => makeSkyY(risePoint?.x ?? null, culminationPoint?.x ?? null), [risePoint?.x, culminationPoint?.x]);
+  const chartTimezone = userLocation?.timezone ?? "UTC";
+  const graphPlanet = windows.sunrise?.planet ?? windows.culmination?.planet ?? planetOfTheDay;
+  const diurnalChart = useMemo(() => {
+    if (!userLocation) return null;
+    return buildDiurnalChartModel({
+      planet: graphPlanet,
+      forecastDate,
+      userLocation,
+    });
+  }, [forecastDate, graphPlanet, userLocation]);
+  const skyY = diurnalChart?.skyY ?? (() => SKY_AXIS_Y);
+  const chartDots = diurnalChart?.chartDots ?? [];
   const currentTimePoint = useMemo(() => {
-    const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-    // Доля суток без искусственного 0.02–0.98: у полуночи линия «сейчас» у реального правого края графика.
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: chartTimezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const hour = Number(byType.hour);
+    const minute = Number(byType.minute);
+    const second = Number(byType.second);
+    const minutes =
+      (Number.isFinite(hour) ? hour : 0) * 60 +
+      (Number.isFinite(minute) ? minute : 0) +
+      (Number.isFinite(second) ? second : 0) / 60;
     const x = Math.min(1, Math.max(0, minutes / 1440));
     return {
       x,
       y: skyY(x),
       label: strings.formatTime(now.toISOString()),
     };
-  }, [now, skyY, strings]);
+  }, [chartTimezone, now, skyY, strings]);
   const yCurve = currentTimePoint.y;
   const yAxis = SKY_AXIS_Y;
   const { top: nowLineTop, height: nowLineHeight } = computeNowLineSpan(yCurve, yAxis);
@@ -558,7 +585,7 @@ export function OpportunityWindows({
   const chartMarkerLabelSlots = useMemo((): ChartLabelSlot[] => {
     const slots: ChartLabelSlot[] = [];
     for (const item of activeItems) {
-      const frac = timeToDayFraction(item.time);
+      const frac = timeToDayFraction(item.time, chartTimezone);
       if (frac) {
         const measuredWidth = markerLabelWidths[item.key];
         const timeLabel = item.time ? strings.formatTime(item.time) : "";
@@ -574,7 +601,7 @@ export function OpportunityWindows({
       }
     }
     return slots;
-  }, [activeItems, markerLabelWidths, strings]);
+  }, [activeItems, chartTimezone, markerLabelWidths, strings]);
 
   const chartMarkerLabelXByKey = useMemo(
     () => layoutLabelCentersPx(chartWidth, chartMarkerLabelSlots),
@@ -595,19 +622,11 @@ export function OpportunityWindows({
       return { ...prev, [key]: width };
     });
   }, []);
-  const chartDots = useMemo(
-    () =>
-      Array.from({ length: 180 }, (_, index) => {
-        const x = index / 179;
-        return { x, y: skyY(x) };
-      }),
-    [skyY],
-  );
   const chartPoints = useMemo(
     () =>
       activeItems
         .map((item) => {
-          const frac = timeToDayFraction(item.time);
+          const frac = timeToDayFraction(item.time, chartTimezone);
           if (!frac) return null;
           const labelX = chartMarkerLabelXByKey.get(item.key) ?? frac.x;
           return {
@@ -631,7 +650,7 @@ export function OpportunityWindows({
             labelHalfWidthPx: number;
           } => Boolean(item),
         ),
-    [activeItems, chartMarkerLabelXByKey, markerLabelWidths, skyY, strings],
+    [activeItems, chartMarkerLabelXByKey, chartTimezone, markerLabelWidths, skyY, strings],
   );
 
   const nowBadgeBodyHalfPx = (nowBadgeLayoutW > 0 ? nowBadgeLayoutW : NOW_BADGE_FALLBACK_W) / 2;

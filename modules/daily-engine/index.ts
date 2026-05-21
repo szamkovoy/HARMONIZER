@@ -13,6 +13,12 @@ export { computeActivation, computeImportance, effectiveNatalParams } from "./co
 export { findAspect } from "./core/aspects";
 export { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
 export { computeWindowsForFreeUser } from "./freeWindows";
+export {
+  interpolateDiurnalAltitude,
+  planetAltitudeAt,
+  samplePlanetAltitudeForDay,
+} from "./planetDiurnalCurve";
+export type { DiurnalAltitudeSample } from "./planetDiurnalCurve";
 export type {
   ActivationContribution,
   AspectType,

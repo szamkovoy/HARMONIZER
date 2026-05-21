@@ -33,6 +33,12 @@ export type DayContentRefreshOptions = {
   blockingReload?: boolean;
 };
 
+export type DayContentUserLocation = {
+  lat: number;
+  lng: number;
+  timezone: string;
+};
+
 export interface UseDayContentResult {
   forecast: DailyForecast | null;
   accessMode: AccessMode;
@@ -41,6 +47,7 @@ export interface UseDayContentResult {
   status: DayContentStatus;
   loading: boolean;
   error: Error | null;
+  userLocation: DayContentUserLocation | null;
   refresh: (opts?: DayContentRefreshOptions) => Promise<void>;
 }
 
@@ -665,6 +672,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     status,
     loading: status === "loading" || status === "acquiring_location",
     error,
+    userLocation,
     refresh,
   };
 }
