@@ -372,6 +372,61 @@ export interface ValidationResult {
   hasType: boolean;
   durationSec: number | null;
   practiceKind: PracticeKindInferred | null;
+  /** True when duration minutes fit the v6 catalog range for the named practice kind. */
+  catalogConsistent: boolean;
+}
+
+/** v6 dialog prompt catalog ranges (minutes). */
+export function catalogDurationRangeForKind(kind: PracticeKindInferred): { min: number; max: number } {
+  if (kind === "meditation") return { min: 1, max: 5 };
+  if (kind === "breath") return { min: 6, max: 20 };
+  return { min: 21, max: 480 };
+}
+
+export function isCatalogConsistentDurationAndKind(durationMin: number, kind: PracticeKindInferred): boolean {
+  if (!Number.isFinite(durationMin)) return false;
+  const range = catalogDurationRangeForKind(kind);
+  const rounded = Math.max(1, Math.round(durationMin));
+  return rounded >= range.min && rounded <= range.max;
+}
+
+/** Infer practice kind from duration alone (v6 duration-only heuristic). */
+export function catalogKindForDurationMin(durationMin: number): PracticeKindInferred | null {
+  const rounded = Math.max(1, Math.round(durationMin));
+  if (rounded >= 1 && rounded <= 5) return "meditation";
+  if (rounded >= 6 && rounded <= 20) return "breath";
+  if (rounded >= 21) return "yoga";
+  return null;
+}
+
+const CATALOG_KIND_LABELS_RU: Record<PracticeKindInferred, string> = {
+  meditation: "медитация",
+  breath: "дыхательная практика",
+  yoga: "асаны",
+};
+
+/** Orchestrator add-on when user named type + duration that conflict with v6 catalog ranges. */
+export function buildCatalogReconciliationInstruction(result: ValidationResult): string {
+  if (!result.hasDuration || !result.hasType || result.catalogConsistent) return "";
+  const durationMin = result.durationSec != null ? Math.round(result.durationSec / 60) : null;
+  const kind = result.practiceKind;
+  if (durationMin == null || kind == null) return "";
+
+  const range = catalogDurationRangeForKind(kind);
+  const kindLabel = CATALOG_KIND_LABELS_RU[kind];
+  const altKind = catalogKindForDurationMin(durationMin);
+  const altLabel = altKind ? CATALOG_KIND_LABELS_RU[altKind] : "другой тип практики";
+
+  return `ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже назвал тип и длительность практики, но они не согласованы с каталогом приложения: ${kindLabel} — ${range.min}–${range.max} мин, запрошено ${durationMin} мин.
+
+НЕ спрашивай, нужна ли практика вообще — пользователь уже попросил. НЕ выводи [READY_FOR_RECOMMENDATION] и [PRACTICE_PICK].
+
+Одним коротким вопросом предложи выбор: сократить ${kindLabel} до ${range.max} мин или выбрать ${altLabel} на ${durationMin} мин. Сформулируй своими словами, смысл сохрани.`;
+}
+
+/** User answered the practice question (type + duration named), even if catalog ranges conflict. */
+export function userAnsweredPracticeRequest(result: ValidationResult): boolean {
+  return result.hasDuration && result.hasType;
 }
 
 const DURATION_NUMBER_UNITS = ["минут", "час"];
@@ -519,12 +574,19 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
     if (k !== null) practiceKind = k;
   }
 
+  const durationMin = durationSec != null ? Math.round(durationSec / 60) : null;
+  const catalogConsistent =
+    durationMin != null
+    && practiceKind != null
+    && isCatalogConsistentDurationAndKind(durationMin, practiceKind);
+
   return {
-    confident: hasDuration && hasType,
+    confident: hasDuration && hasType && catalogConsistent,
     hasDuration,
     hasType,
     durationSec,
     practiceKind,
+    catalogConsistent,
   };
 }
 

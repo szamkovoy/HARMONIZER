@@ -1,4 +1,4 @@
-import { userDeclinedPracticeInHistory, validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
+import { buildCatalogReconciliationInstruction, userAnsweredPracticeRequest, userDeclinedPracticeInHistory, validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
 import { getPracticeRefusalThreshold } from "@legacy/app/api/_utils/dialogConfig";
 
 type Message = {
@@ -39,6 +39,8 @@ ${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
 это уточняющий ход. Слушай пользователя, иди за его языком. Если он что-то сказал о себе — поддержи коротко и иди вглубь, а не отзеркаливай поверхностно. Один-два штриха: что услышал, что в этом важно. Не пересказывай его же слова другими словами — это создаёт ощущение пустоты.
 
 Мягко уточни то, чего ещё не хватает из трёх вещей (КОНТЕКСТ, ДЛИТЕЛЬНОСТЬ, ТИП). Один вопрос за ход. Если повторяешь вопрос про длительность или тип — переформулируй принципиально иначе, не дословно.
+
+{{catalog_reconciliation}}
 
 {{practice_refusal_check}}
 
@@ -108,6 +110,7 @@ export interface ArcDecision {
   instruction: string;
   instructionVariables?: {
     practice_refusal_check?: string;
+    catalog_reconciliation?: string;
   };
 }
 
@@ -187,7 +190,7 @@ function countConsecutiveUnresolvedPracticePrompts(
       .map((message) => ({ role: "user" as const, content: textFromMessage(message) })),
     ...(pendingTrim ? [{ role: "user" as const, content: pendingTrim }] : []),
   ]);
-  if (validation.confident) return 0;
+  if (validation.confident || userAnsweredPracticeRequest(validation)) return 0;
 
   let count = 0;
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -265,14 +268,26 @@ export function decideTurnMode(
   }
 
   const unresolvedPracticePromptCount = countConsecutiveUnresolvedPracticePrompts(history, pendingUserContent);
+  const pendingValidation = validateHistoryHasDurationAndType([
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => ({ role: "user" as const, content: textFromMessage(message) })),
+    ...(typeof pendingUserContent === "string" && pendingUserContent.trim()
+      ? [{ role: "user" as const, content: pendingUserContent.trim() }]
+      : []),
+  ]);
 
   return {
     mode: "inquiry",
     modelTier: "standard",
     instruction: ORCHESTRATOR_INSTRUCTIONS.inquiry,
     instructionVariables: {
+      catalog_reconciliation: buildCatalogReconciliationInstruction(pendingValidation),
       practice_refusal_check:
-        unresolvedPracticePromptCount >= getPracticeRefusalThreshold() ? PRACTICE_REFUSAL_CHECK_INSTRUCTION : "",
+        !userAnsweredPracticeRequest(pendingValidation)
+        && unresolvedPracticePromptCount >= getPracticeRefusalThreshold()
+          ? PRACTICE_REFUSAL_CHECK_INSTRUCTION
+          : "",
     },
   };
 }

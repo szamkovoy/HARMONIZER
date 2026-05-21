@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCatalogReconciliationInstruction,
   parseResponseMarkers,
   sanitizeAssistantText,
   stripDialogScaffoldMarkdown,
+  userAnsweredPracticeRequest,
   userDeclinedPracticeInHistory,
   validateHistoryHasDurationAndType,
 } from "./markers";
@@ -70,13 +72,56 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.hasDuration).toBe(true);
   });
 
-  it("recognises digit duration '15 минут' + type 'йогу'", () => {
+  it("recognises digit duration '15 минут' + type 'йогу' as catalog conflict", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "15 минут йогу" },
     ]);
     expect(result.hasDuration).toBe(true);
     expect(result.hasType).toBe(true);
+    expect(result.catalogConsistent).toBe(false);
+    expect(result.confident).toBe(false);
+  });
+
+  it("rejects meditation 15 minutes as catalog conflict", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content: "Сегодня планирую покрасить лодку. А сейчас я бы хотел выполнить медитацию 15 минут.",
+      },
+    ]);
+    expect(result.hasDuration).toBe(true);
+    expect(result.hasType).toBe(true);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.durationSec).toBe(900);
+    expect(result.catalogConsistent).toBe(false);
+    expect(result.confident).toBe(false);
+  });
+
+  it("accepts breath 15 minutes as catalog-consistent", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "дыхание 15 минут" },
+    ]);
+    expect(result.catalogConsistent).toBe(true);
     expect(result.confident).toBe(true);
+  });
+
+  it("treats explicit type+duration as answered even when catalog conflicts", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "медитация 15 минут" },
+    ]);
+    expect(userAnsweredPracticeRequest(result)).toBe(true);
+    expect(result.confident).toBe(false);
+  });
+
+  it("builds catalog reconciliation instruction for meditation 15 minutes", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "медитация 15 минут" },
+    ]);
+    const instruction = buildCatalogReconciliationInstruction(result);
+    expect(instruction).toContain("15 мин");
+    expect(instruction).toContain("медитация");
+    expect(instruction).toContain("дыхательная практика");
+    expect(instruction).not.toContain("не до практики");
   });
 
   it("recognises explicit first-message practice requests from packet B", () => {
@@ -111,12 +156,14 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.practiceKind).toBe("yoga");
   });
 
-  it("extracts durationSec from 'полчаса' and practiceKind 'подышать'", () => {
+  it("extracts durationSec from 'полчаса' and practiceKind 'подышать' without confident (30m > breath max)", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "полчаса подышать" },
     ]);
     expect(result.durationSec).toBe(1800);
     expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(false);
+    expect(result.confident).toBe(false);
   });
 
   it("extracts durationSec from 'пять минут'", () => {

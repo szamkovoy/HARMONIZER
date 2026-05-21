@@ -938,6 +938,12 @@ export function Communicator({
                   fullText: recovered,
                   shouldClose: false,
                   messageId: last.id,
+                  practicePicked: normalizeMessageMeta(last.meta)?.practicePicked,
+                  turnMode: normalizeMessageMeta(last.meta)?.turnMode,
+                  modelTier: normalizeMessageMeta(last.meta)?.modelTier,
+                  modelUsed: normalizeMessageMeta(last.meta)?.modelUsed,
+                  iteration: normalizeMessageMeta(last.meta)?.iteration,
+                  debugExport: normalizeMessageMeta(last.meta)?.debug,
                 },
               });
               return;

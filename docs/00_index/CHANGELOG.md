@@ -10,6 +10,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: `assistant` — оркестратор: `catalog_reconciliation` при конфликте тип/минуты; `resolvePracticePublic` без маркера при `confident`; refusal-check только если тип/минуты не названы.
+- 2026-05-21: `assistant` — `validateHistoryHasDurationAndType`: `confident` только при согласованных тип/минуты (v6).
 - 2026-05-21: pre-push doc-sync — `promptLocalHour` в `buildDialogSystemInstruction`; `prompts-reference.md` §3, `assistant/spec.md` (testMode, debug export).
 - 2026-05-21: `assistant` — `TEST_MODE_FORCE_PHASE` подменяет `local_hour`/`time_of_day` в промпте (9/14/19), не только `phaseTime`.
 - 2026-05-21: pre-push doc-sync — daily dialog v6 (inactive): `practice_declined`, отказ на сессию, debug export; `prompts-reference.md` §1–3, `assistant/spec.md`, `communicator/spec.md`, `MAP.md`, `assistant/history.md`.

@@ -167,6 +167,7 @@ function expandOrchestratorInstruction(
     harmoniousnessValue: number;
     harmoniousnessLabel: string;
     practiceRefusalCheck: string;
+    catalogReconciliation: string;
   },
 ) {
   return renderPrompt(instruction, {
@@ -175,6 +176,7 @@ function expandOrchestratorInstruction(
     harmoniousness_value: data.harmoniousnessValue,
     harmoniousness_label: data.harmoniousnessLabel,
     practice_refusal_check: data.practiceRefusalCheck,
+    catalog_reconciliation: data.catalogReconciliation,
   });
 }
 
@@ -459,12 +461,12 @@ async function resolvePracticePublic(
   history: MessageRecord[],
   conversationId: string,
 ) {
-  if (!marker) return null;
-
   const validation = validateHistoryHasDurationAndType([
     ...history.filter((m) => m.role === "user"),
     { role: "user" as const, content: userMessage },
   ]);
+
+  if (!marker && !validation.confident) return null;
 
   const choose = await choosePractice(db, userId, marker, context, userMessage, history);
   if (!choose.picked) return null;
@@ -480,7 +482,7 @@ async function resolvePracticePublic(
 
   const historyDurationMin =
     validation.confident && validation.durationSec != null ? Math.round(validation.durationSec / 60) : null;
-  const markerDurationMin = marker.durationMin ?? null;
+  const markerDurationMin = marker?.durationMin ?? null;
 
   let rawMinutes: number | null = null;
   if (validation.confident && validation.durationSec != null) {
@@ -535,10 +537,10 @@ async function resolvePracticePublic(
   }
 
   const canUseMarkerCardBlurb =
-    Boolean(marker.cardBlurb)
+    Boolean(marker?.cardBlurb)
     && !historyKindConflictResolved
-    && (marker.id === "default" || markerIdResolved === true);
-  const cardBlurb = canUseMarkerCardBlurb ? normalizeModelPracticeCardBlurb(marker.cardBlurb) : null;
+    && (marker?.id === "default" || markerIdResolved === true);
+  const cardBlurb = canUseMarkerCardBlurb ? normalizeModelPracticeCardBlurb(marker!.cardBlurb) : null;
   const cardReason = buildPracticeCardSummary({
     kind: picked.kind,
     slug: picked.slug,
@@ -556,7 +558,7 @@ async function resolvePracticePublic(
     ? undefined
     : {
         durationMin: finalDurationMin,
-        chakraIndex: marker.chakra ?? chakraId,
+        chakraIndex: marker?.chakra ?? chakraId,
       };
   return {
     ...publicPayload,
@@ -846,6 +848,7 @@ export async function POST(req: Request) {
       harmoniousnessValue: systemPromptData.harmoniousnessValue,
       harmoniousnessLabel: systemPromptData.harmoniousnessLabel,
       practiceRefusalCheck: turnDecision.instructionVariables?.practice_refusal_check ?? "",
+      catalogReconciliation: turnDecision.instructionVariables?.catalog_reconciliation ?? "",
     };
     const expandedTurnInstruction = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);

@@ -207,7 +207,7 @@ MATRIX EXTRACTION
 
 ## 2. Инструкции оркестратора (`ORCHESTRATOR_INSTRUCTIONS`) (`ORCHESTRATOR_INSTRUCTIONS`)
 
-Источник: `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`. Тексты ниже — дословно из значений константы (без пересказа). Отдельные строки retry для восстановления маркера (`route.ts`, не часть этой константы) здесь не приводятся. Плейсхолдеры `{{chakra_label}}`, `{{chakra_label_accusative}}`, `{{harmoniousness_value}}`, `{{harmoniousness_label}}`, `{{practice_refusal_check}}` подставляются в `route.ts` функцией `expandOrchestratorInstruction` (`renderPrompt`) перед вызовом Gemini.
+Источник: `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`. Тексты ниже — дословно из значений константы (без пересказа). Отдельные строки retry для восстановления маркера (`route.ts`, не часть этой константы) здесь не приводятся. Плейсхолдеры `{{chakra_label}}`, `{{chakra_label_accusative}}`, `{{harmoniousness_value}}`, `{{harmoniousness_label}}`, `{{catalog_reconciliation}}`, `{{practice_refusal_check}}` подставляются в `route.ts` функцией `expandOrchestratorInstruction` (`renderPrompt`) перед вызовом Gemini.
 
 ### `opening`
 
@@ -257,6 +257,8 @@ MATRIX EXTRACTION
 
 Мягко уточни то, чего ещё не хватает из трёх вещей (КОНТЕКСТ, ДЛИТЕЛЬНОСТЬ, ТИП). Один вопрос за ход. Если повторяешь вопрос про длительность или тип — переформулируй принципиально иначе, не дословно.
 
+{{catalog_reconciliation}}
+
 {{practice_refusal_check}}
 
 Если в этом ходу ты упоминаешь, что нужно определиться с практикой — обязательно задай конкретный вопрос про длительность и тип прямо в этом же сообщении, не откладывай его на потом и не оставляй фразу-анонс без самого вопроса.
@@ -266,11 +268,13 @@ MATRIX EXTRACTION
 Если пользователь явно просит практику без разговора — сразу выясняй длительность и тип, не настаивай на разговоре.]
 ```
 
-Подстановка `{{practice_refusal_check}}` (не часть `ORCHESTRATOR_INSTRUCTIONS`, константа `PRACTICE_REFUSAL_CHECK_INSTRUCTION` в `dialogArcOrchestrator.ts`):
+Подстановка `{{practice_refusal_check}}` (не часть `ORCHESTRATOR_INSTRUCTIONS`, константа `PRACTICE_REFUSAL_CHECK_INSTRUCTION` в `dialogArcOrchestrator.ts`) — **только если пользователь ещё не назвал и тип, и длительность** (`userAnsweredPracticeRequest` ложно):
 
 ```text
 ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже не ответил на вопрос о длительности и типе практики (но явного отказа от практики ещё не было). В этом ходу не повторяй обычный уточняющий вопрос. Вместо этого прямо спроси, нужна ли практика вообще: «Возможно, сейчас вам не до практики — нет времени или просто не хочется? Если нужна — скажите длительность и тип. Если нет — так и скажите, я не буду настаивать». Адаптируй формулировку под обращение, смысл сохрани.
 ```
+
+Подстановка `{{catalog_reconciliation}}` — `buildCatalogReconciliationInstruction` в `markers.ts`, когда тип и длительность названы, но не согласованы с диапазонами v6 (медитация 1–5, дыхание 6–20, асаны >20). Пример: «медитация 15 мин» → переспрос «5 мин медитация или 15 мин дыхание»; refusal-check в этом ходу **не** подставляется.
 
 ### `practice_declined`
 
@@ -431,7 +435,8 @@ MATRIX EXTRACTION
 | `{{lexical_pragmatic}}`          | Прагматичные вопросы                    | `joinLines(chakraData.lexical_registers.pragmatic)`                                                                                                                                                               |
 | `{{address_form}}`               | Обращение на «ты»/«вы»                  | `context.user.address_form === "informal" ? "ты" : "вы"` (поле `users.address_form` из `loadDialogDailyContext`)                                                                                                  |
 | `{{tonal_register}}`             | Тональный окрас дня (текст по планете) | `tonalRegisterForPlanet(planet)` в `route.ts`; словарь `DIALOG_TONAL_REGISTERS` в `_legacy_web/app/api/_utils/dialogTonalRegisters.ts` (ключи `Sun`, `Moon`, … как у `normalizePlanet`); неизвестная планета → `""` |
-| `{{practice_refusal_check}}`     | Одноходовый флаг для `inquiry`         | `decideTurnMode(...)` в `dialogArcOrchestrator.ts`: когда `unresolvedPracticePromptCount >= getPracticeRefusalThreshold()` (env `PRACTICE_REFUSAL_THRESHOLD`, дефолт **1**) и `userDeclinedPracticeInHistory(...)` **ложно** — подставляется `PRACTICE_REFUSAL_CHECK_INSTRUCTION` (текст в §2 под `inquiry`); иначе пустая строка |
+| `{{practice_refusal_check}}`     | Одноходовый флаг для `inquiry`         | `decideTurnMode(...)` в `dialogArcOrchestrator.ts`: когда `unresolvedPracticePromptCount >= getPracticeRefusalThreshold()` (env `PRACTICE_REFUSAL_THRESHOLD`, дефолт **1**), `userDeclinedPracticeInHistory(...)` **ложно** и `userAnsweredPracticeRequest(...)` **ложно** — подставляется `PRACTICE_REFUSAL_CHECK_INSTRUCTION` (текст в §2 под `inquiry`); иначе пустая строка |
+| `{{catalog_reconciliation}}`   | Переспрос при конфликте тип/минуты     | `buildCatalogReconciliationInstruction` в `markers.ts`, когда тип и длительность названы, но `catalogConsistent === false`; refusal-check в том же ходу не подставляется |
 | `{{historical_context}}`         | История прошлых дней                    | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется)                                                                                                                                           |
 | `{{user_self_description}}`      | Самоописание из портрета                | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется)                                                                                                                                           |
 

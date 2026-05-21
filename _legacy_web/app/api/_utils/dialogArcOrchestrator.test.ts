@@ -8,6 +8,27 @@ describe("decideTurnMode", () => {
     expect(ORCHESTRATOR_INSTRUCTIONS.fast_track_final).toContain("{{chakra_label_accusative}}");
   });
 
+  it("uses inquiry after opening when meditation duration conflicts with catalog", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Доброе утро. Сколько минут есть на практику и что ближе — асаны, дыхание или медитация?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Сегодня планирую покрасить лодку. А сейчас я бы хотел выполнить медитацию 15 минут.",
+    );
+
+    expect(decision.mode).toBe("inquiry");
+    expect(decision.modelTier).toBe("standard");
+    expect(decision.instructionVariables?.practice_refusal_check ?? "").toBe("");
+    expect(decision.instructionVariables?.catalog_reconciliation ?? "").toContain("15 мин");
+    expect(decision.instructionVariables?.catalog_reconciliation ?? "").toContain("дыхательная практика");
+  });
+
   it("uses fast_track_final for an explicit first user request", () => {
     const decision = decideTurnMode([], 1, 9, "дыхание 15 минут");
 
