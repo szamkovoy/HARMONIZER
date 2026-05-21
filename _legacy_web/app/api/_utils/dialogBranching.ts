@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 
 import { getBothMaxDialogLength, getPlanningMaxDialogLength, getSummarizingMaxDialogLength } from "./dialogConfig";
+import { forcedPhaseOrNull, hoursToMs } from "./testMode";
 
 export type PhaseTime = "morning" | "day" | "evening";
 export type DialogBranch = "summarizing" | "planning";
@@ -12,6 +13,9 @@ export interface DueEventSummary {
 }
 
 export function phaseTimeFor(nowLocal: DateTime): PhaseTime {
+  const forced = forcedPhaseOrNull();
+  if (forced) return forced;
+
   const hour = nowLocal.hour;
   if (hour >= 4 && hour < 12) return "morning";
   if (hour >= 12 && hour < 18) return "day";
@@ -31,7 +35,10 @@ export function chooseDialogBranches(params: {
     branches.push("summarizing");
   }
 
-  const plannedRecently = params.hoursSinceLastPlanning != null && params.hoursSinceLastPlanning < 4;
+  const planningAntireplanMs = hoursToMs(4);
+  const plannedRecently =
+    params.hoursSinceLastPlanning != null &&
+    params.hoursSinceLastPlanning * 60 * 60 * 1000 < planningAntireplanMs;
   if (params.phaseTime === "morning" || params.phaseTime === "day") {
     if (!(plannedRecently && params.dueEventsCount === 0)) {
       branches.push("planning");

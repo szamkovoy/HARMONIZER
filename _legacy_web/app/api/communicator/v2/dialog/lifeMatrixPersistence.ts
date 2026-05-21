@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildDailyMatrix, computeRangeMetric, normalizeCells, parseCompactCells, type DailyMatrixSource, type MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+import { hoursToMs } from "@legacy/app/api/_utils/testMode";
 
 const PLANNED_EVENT_EXPIRY_HOURS = 36;
+const PLANNED_EVENT_EXPIRY_MS = hoursToMs(PLANNED_EVENT_EXPIRY_HOURS);
 
 export type PlannedEventRow = {
   id: string;
@@ -36,7 +38,7 @@ function mergeUniqueStrings(existing: string[], incoming: string[]): string[] {
 }
 
 export async function expireStalePlannedEvents(db: SupabaseClient, userId: string, nowIso: string): Promise<string[]> {
-  const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
+  const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_MS).toISOString();
   const { data, error } = await db
     .from("planned_events")
     .update({ status: "expired", updated_at: nowIso })
@@ -49,7 +51,7 @@ export async function expireStalePlannedEvents(db: SupabaseClient, userId: strin
 }
 
 export async function loadDuePlannedEvents(db: SupabaseClient, userId: string, nowIso: string): Promise<PlannedEventRow[]> {
-  const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
+  const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_MS).toISOString();
   const { data, error } = await db
     .from("planned_events")
     .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text")

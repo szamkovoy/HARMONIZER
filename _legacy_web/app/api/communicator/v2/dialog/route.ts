@@ -26,6 +26,7 @@ import { parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
+import { hoursToMs } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import {
@@ -735,7 +736,7 @@ export async function GET(req: Request) {
     });
     if (!conversation) return json({ conversationId: null, messages: [], reset: true });
 
-    const cutoffMs = Date.now() - 2 * 60 * 60 * 1000;
+    const cutoffMs = Date.now() - hoursToMs(2);
     const history = (await loadHistory(db, userId, conversation.id)).filter((message) => {
       const createdMs = Date.parse(message.created_at ?? "");
       return Number.isFinite(createdMs) && createdMs >= cutoffMs;

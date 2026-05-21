@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: assistant — env-driven test mode for dialog time thresholds (`testMode.ts`, `docs/04_reference/test_mode.md`).
 - 2026-05-20: pre-push doc-sync — profile: публичный контракт §2 (`loadLifeMatrixReport` без `days`, экспорты `*ReportCard` / `useLifeMatrixReport`), `dependencies` (поток `planned_events` → `calendarTrend`), точки входа в MAP. **`docs/02_modules/profile/{spec,dependencies}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-21: profile UX blocks — 4 карточки, селекторы только у stats/chakra-pie, life-matrix all-time + calendar trend по 5 активным дням, единые empty states. **`docs/02_modules/profile/{spec,history}.md`**, **`_legacy_web/app/api/profile/life-matrix/route.ts`**, **`lifeMatrix.ts`**.
 - 2026-05-20: pre-push doc-sync — profile: публичный контракт `modules/profile` (`periodPresets`, `PeriodSelector`, i18n, `ProfileReports.locale`), decision log, точки входа в MAP (push: независимые периоды отчётов, дефолт 7д). **`docs/02_modules/profile/{spec,history}.md`**, **`docs/00_index/MAP.md`**.
