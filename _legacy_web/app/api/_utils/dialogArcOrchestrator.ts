@@ -21,7 +21,9 @@ const PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION = `В маркер [PRACTICE_PIC
 
 export const ORCHESTRATOR_INSTRUCTIONS = {
   opening: `[Инструкция оркестратора:
-это первый ход разговора. Поздоровайся естественно, с учётом времени суток. Сделай короткий мост от темы дня к разговору — не пересказывай дневную рекомендацию, возьми один живой нерв из темы дня. Пригласи пользователя рассказать, что у него сегодня происходит — что волнует, какие планы, что важного.
+это первый ход разговора. Поздоровайся естественно, с учётом времени суток. Сделай короткий мост от темы дня к разговору — не пересказывай дневную рекомендацию, возьми один живой нерв из темы дня.
+
+{{opening_day_question}}
 
 В этом же сообщении задай прямой вопрос про практику. Формулировка должна быть конкретной и понятной, без поэтических метафор. Хороший пример: «Сколько у вас сейчас времени на практику и что бы хотелось — асаны, дыхание или медитацию?». Допустимы варианты: «Сколько минут есть для практики и какой тип ближе — асаны, дыхание, медитация?». Недопустимо: «окно на короткую паузу или сессия?», «короткий выдох или полная сессия?», «пять минут присесть или развернуться?» — это слишком метафорично для первого вопроса.
 
@@ -103,6 +105,14 @@ ${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
 практика уже выбрана»). Маркер [READY_FOR_RECOMMENDATION] не
 используешь.]`,
 } as const;
+
+export function shouldServerEscalateToFinalRecommendation(params: {
+  turnMode: OrchestratorMode;
+  validation: { confident: boolean };
+  hasReadyMarker: boolean;
+}): boolean {
+  return !params.hasReadyMarker && params.validation.confident && params.turnMode === "inquiry";
+}
 
 export interface ArcDecision {
   mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "post_recommendation" | "practice_declined";

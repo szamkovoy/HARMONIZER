@@ -3,8 +3,9 @@ import { DateTime } from "luxon";
 
 import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
 import planetChakraMap from "@/data/planet_chakra_map.json";
-import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS } from "@legacy/app/api/_utils/dialogArcOrchestrator";
+import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS, shouldServerEscalateToFinalRecommendation } from "@legacy/app/api/_utils/dialogArcOrchestrator";
 import { effectiveDialogMax, chooseDialogBranches, type DialogBranch } from "@legacy/app/api/_utils/dialogBranching";
+import { openingDayQuestionForContext } from "@legacy/app/api/_utils/dialogOpeningHints";
 import { tonalRegisterForPlanet } from "@legacy/app/api/_utils/dialogTonalRegisters";
 import { formatLifeSpheresBaselineForPrompt } from "@legacy/app/api/_utils/lifeSpheresBaseline";
 import { normalizeCells } from "@legacy/app/api/_utils/lifeMatrix";
@@ -168,6 +169,7 @@ function expandOrchestratorInstruction(
     harmoniousnessLabel: string;
     practiceRefusalCheck: string;
     catalogReconciliation: string;
+    openingDayQuestion: string;
   },
 ) {
   return renderPrompt(instruction, {
@@ -177,6 +179,7 @@ function expandOrchestratorInstruction(
     harmoniousness_label: data.harmoniousnessLabel,
     practice_refusal_check: data.practiceRefusalCheck,
     catalog_reconciliation: data.catalogReconciliation,
+    opening_day_question: data.openingDayQuestion,
   });
 }
 
@@ -824,15 +827,16 @@ export async function POST(req: Request) {
       userTimezone,
     );
     const history = await loadHistory(db, userId, conversation.id);
+    const iteration = countAssistantTurns(history) + 1;
     const branches = chooseDialogBranches({
       phaseTime: context.phaseTime,
       dueEventsCount: context.dueEvents.length,
       userMessage,
       hoursSinceLastPlanning: hoursSince(context.lastPlanningAt, context.nowLocal),
       planTomorrowMarker: false,
+      forcePlanningOnOpening: iteration === 1,
     });
     const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, branches);
-    const iteration = countAssistantTurns(history) + 1;
     const maxDialogLength = effectiveDialogMax(branches);
     const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
     const turnDecision = decideTurnMode(
@@ -849,6 +853,7 @@ export async function POST(req: Request) {
       harmoniousnessLabel: systemPromptData.harmoniousnessLabel,
       practiceRefusalCheck: turnDecision.instructionVariables?.practice_refusal_check ?? "",
       catalogReconciliation: turnDecision.instructionVariables?.catalog_reconciliation ?? "",
+      openingDayQuestion: openingDayQuestionForContext(context.phaseTime, branches),
     };
     const expandedTurnInstruction = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
@@ -941,11 +946,40 @@ export async function POST(req: Request) {
               first200: standardResponse.text.slice(0, 200),
               hasReadyMarker: containsReadyMarker(standardResponse.text),
             }));
+            const turnValidation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
             if (!containsReadyMarker(standardResponse.text)) {
-              fullText = standardResponse.text;
+              if (shouldServerEscalateToFinalRecommendation({
+                turnMode: turnDecision.mode,
+                validation: turnValidation,
+                hasReadyMarker: false,
+              })) {
+                console.log("[DIALOG_V3_DIAG] server-side ready escalation (confident inquiry without READY marker)");
+                readyMarkerTriggered = true;
+                validation = turnValidation;
+                const finalInstructionText = expandOrchestratorInstruction(
+                  ORCHESTRATOR_INSTRUCTIONS.final_recommendation,
+                  orchestratorPlaceholders,
+                );
+                responseMode = "final_recommendation";
+                modelTierUsed = "premium";
+                const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
+                for await (const chunk of streamGeminiText({
+                  systemInstruction: systemPromptData.systemInstruction,
+                  contents: [...prefixContents, finalInstruction],
+                  model: premiumModel,
+                  temperature: 0.85,
+                  maxOutputTokens: 2500,
+                })) {
+                  modelIdUsed = chunk.modelUsed;
+                  fullText += chunk.text;
+                  controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
+                }
+              } else {
+                fullText = standardResponse.text;
+              }
             } else {
               readyMarkerTriggered = true;
-              validation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
+              validation = turnValidation;
               const finalInstructionText = expandOrchestratorInstruction(
                 validation.confident
                   ? ORCHESTRATOR_INSTRUCTIONS.final_recommendation

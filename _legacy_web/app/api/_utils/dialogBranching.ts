@@ -28,6 +28,8 @@ export function chooseDialogBranches(params: {
   userMessage: string;
   hoursSinceLastPlanning: number | null;
   planTomorrowMarker: boolean;
+  /** Opening turn of a new dialog: keep planning in morning/day even if anti-replan window is active. */
+  forcePlanningOnOpening?: boolean;
 }): DialogBranch[] {
   const branches: DialogBranch[] = [];
 
@@ -40,7 +42,7 @@ export function chooseDialogBranches(params: {
     params.hoursSinceLastPlanning != null &&
     params.hoursSinceLastPlanning * 60 * 60 * 1000 < planningAntireplanMs;
   if (params.phaseTime === "morning" || params.phaseTime === "day") {
-    if (!(plannedRecently && params.dueEventsCount === 0)) {
+    if (params.forcePlanningOnOpening || !(plannedRecently && params.dueEventsCount === 0)) {
       branches.push("planning");
     }
     return branches;

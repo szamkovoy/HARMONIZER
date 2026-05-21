@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: `assistant` — server-side ready escalation при confident inquiry; opening hints по ветке/фазе; planning на opening несмотря на anti-replan.
 - 2026-05-21: pre-push doc-sync — `communicator`: при salvage через `fetchDialogSession` в `complete` копируются `practicePicked` и метаданные оркестратора из `meta`; `assistant/spec.md` — `{{catalog_reconciliation}}` в списке плейсхолдеров `expandOrchestratorInstruction`.
 - 2026-05-21: `assistant` — оркестратор: `catalog_reconciliation` при конфликте тип/минуты; `resolvePracticePublic` без маркера при `confident`; refusal-check только если тип/минуты не названы.
 - 2026-05-21: `assistant` — `validateHistoryHasDurationAndType`: `confident` только при согласованных тип/минуты (v6).

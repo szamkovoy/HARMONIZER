@@ -9,6 +9,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-05-21:** Карточка практики: server-side ready escalation — при `inquiry` + `validation.confident` без `[READY_FOR_RECOMMENDATION]` автоматический premium `final_recommendation`; opening: `forcePlanningOnOpening` + `openingDayQuestionForContext` по ветке/фазе.
 - **2026-05-21:** Оркестратор: `userAnsweredPracticeRequest` отделяет «ответил про тип/минуты» от `confident`; при конфликте каталога — `catalog_reconciliation` (не `practice_refusal_check`); `resolvePracticePublic` выбирает практику по истории без маркера модели при `confident`.
 - **2026-05-21:** `validateHistoryHasDurationAndType` — `confident` требует согласованности тип/длительность по диапазонам v6 (медитация 1–5, дыхание 6–20, асаны >20); конфликт («медитация 15 мин») больше не включает `fast_track_final`.
 - **2026-05-21:** pre-push doc-sync — `prompts-reference.md` §1 (зеркало v6 inactive), §2 (`practice_declined`, `PRACTICE_REFUSAL_CHECK_INSTRUCTION`), §3; `spec.md` — режим `practice_declined`, GET `debugExport`, `dialogDebugExport.ts`; `MAP.md`.
