@@ -1,3 +1,4 @@
+declare module "astronomia/base";
 declare module "astronomia/julian";
 declare module "astronomia/solar";
 declare module "astronomia/moonposition";
