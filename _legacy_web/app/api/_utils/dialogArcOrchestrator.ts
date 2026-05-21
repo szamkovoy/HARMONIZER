@@ -1,4 +1,4 @@
-import { validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
+import { userDeclinedPracticeInHistory, validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
 import { getPracticeRefusalThreshold } from "@legacy/app/api/_utils/dialogConfig";
 
 type Message = {
@@ -103,7 +103,7 @@ ${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
 } as const;
 
 export interface ArcDecision {
-  mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "post_recommendation";
+  mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "post_recommendation" | "practice_declined";
   modelTier: "premium" | "standard";
   instruction: string;
   instructionVariables?: {
@@ -113,7 +113,16 @@ export interface ArcDecision {
 
 export type OrchestratorMode = ArcDecision["mode"];
 
-const PRACTICE_REFUSAL_CHECK_INSTRUCTION = `ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже дважды не ответил на вопрос о длительности и типе практики. В этом ходу не повторяй обычный уточняющий вопрос. Вместо этого прямо спроси, нужна ли практика вообще: «Возможно, сейчас вам не до практики — нет времени или просто не хочется? Если нужна — скажите длительность и тип. Если нет — так и скажите, я не буду настаивать». Адаптируй формулировку под обращение, смысл сохрани.`;
+const PRACTICE_REFUSAL_CHECK_INSTRUCTION = `ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже не ответил на вопрос о длительности и типе практики (но явного отказа от практики ещё не было). В этом ходу не повторяй обычный уточняющий вопрос. Вместо этого прямо спроси, нужна ли практика вообще: «Возможно, сейчас вам не до практики — нет времени или просто не хочется? Если нужна — скажите длительность и тип. Если нет — так и скажите, я не буду настаивать». Адаптируй формулировку под обращение, смысл сохрани.`;
+
+const PRACTICE_DECLINED_SESSION_INSTRUCTION = `[Инструкция оркестратора:
+пользователь уже ясно отказался от практики на эту сессию (в том числе «не сейчас», «некогда», «не хочу асаны/медитацию/дыхание», «никакую практику»).
+
+Не спрашивай про длительность, тип или «может другой формат». Не выводи [PRACTICE_PICK] и [READY_FOR_RECOMMENDATION]. Не уточняй «совсем или не сейчас» — отказ уже принят.
+
+Поддержи коротко то, что пользователь сказал о дне. Если активны ветки summarizing или planning — мягко продолжай по ним. Иначе один живой вопрос про день или планы, без практики.
+
+Через 1–2 таких хода мягко закрой разговор одной фразой.]`;
 
 function hasPracticePicked(message: Message): boolean {
   const practicePicked = (message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null)?.practicePicked
@@ -155,10 +164,22 @@ function soleFirstUserMessageText(history: Message[], pendingUserContent: string
   return "";
 }
 
+function userTextsFromHistory(history: Message[], pendingUserContent?: string | null): string[] {
+  const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
+  return [
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => textFromMessage(message)),
+    ...(pendingTrim ? [pendingTrim] : []),
+  ];
+}
+
 function countConsecutiveUnresolvedPracticePrompts(
   history: Message[],
   pendingUserContent: string | null | undefined,
 ): number {
+  if (userDeclinedPracticeInHistory(userTextsFromHistory(history, pendingUserContent))) return 0;
+
   const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
   const validation = validateHistoryHasDurationAndType([
     ...history
@@ -202,6 +223,14 @@ export function decideTurnMode(
       mode: "forced_final",
       modelTier: "premium",
       instruction: ORCHESTRATOR_INSTRUCTIONS.forced_final,
+    };
+  }
+
+  if (userDeclinedPracticeInHistory(userTextsFromHistory(history, pendingUserContent))) {
+    return {
+      mode: "practice_declined",
+      modelTier: "standard",
+      instruction: PRACTICE_DECLINED_SESSION_INSTRUCTION,
     };
   }
 

@@ -26,12 +26,14 @@ import { parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
-import { hoursToMs } from "@legacy/app/api/_utils/testMode";
+import { isDebugDialogExportEnabled, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
+import { buildDialogStateAfter, buildTurnDebugExport } from "@legacy/app/api/communicator/v2/dialog/dialogDebugExport";
 import {
   isConversationExpired,
   loadHistory,
+  SESSION_TTL_MS,
   summarizeConversationIfNeeded,
   type ConversationRecord,
   type MessageRecord,
@@ -80,6 +82,7 @@ type ResponseMode =
   | "forced_final"
   | "fast_track_final"
   | "post_recommendation"
+  | "practice_declined"
   | "final_recommendation"
   | "final_recommendation_with_validation_warning";
 
@@ -244,6 +247,7 @@ function turnDecisionEvent(mode: ResponseMode, modelTier: "premium" | "standard"
     forced_final: "suggest_practice",
     fast_track_final: "suggest_practice",
     post_recommendation: "confirm_and_close",
+    practice_declined: "confirm_and_close",
     final_recommendation: "suggest_practice",
     final_recommendation_with_validation_warning: "suggest_practice",
   };
@@ -729,18 +733,28 @@ export async function GET(req: Request) {
       .limit(10);
     if (error) throw error;
 
+    const resumeTtlMs = sessionResumeTtlMs();
     const conversation = ((data ?? []) as ConversationRecord[]).find((item) => {
       const metaUseCase = typeof item.trigger_meta?.use_case === "string" ? item.trigger_meta.use_case : null;
       const scenarioMatches = !scenarioId || item.scenario_id === scenarioId || (!item.scenario_id && metaUseCase === useCase);
-      return scenarioMatches && (!metaUseCase || metaUseCase === useCase) && !isConversationExpired(item, userTimezone);
+      return (
+        scenarioMatches
+        && (!metaUseCase || metaUseCase === useCase)
+        && !isConversationExpired(item, userTimezone, new Date(), resumeTtlMs)
+      );
     });
     if (!conversation) return json({ conversationId: null, messages: [], reset: true });
 
-    const cutoffMs = Date.now() - hoursToMs(2);
+    const cutoffMs = Date.now() - resumeTtlMs;
     const history = (await loadHistory(db, userId, conversation.id)).filter((message) => {
       const createdMs = Date.parse(message.created_at ?? "");
       return Number.isFinite(createdMs) && createdMs >= cutoffMs;
     });
+    const debugExportEnabled = isDebugDialogExportEnabled();
+    const dialogStateAfter =
+      debugExportEnabled && url.searchParams.get("debugExport") === "1"
+        ? await buildDialogStateAfter(db, userId, conversation.id, context)
+        : undefined;
     return json({
       conversationId: conversation.id,
       messages: history.map((message) => ({
@@ -756,6 +770,8 @@ export async function GET(req: Request) {
         },
       })),
       reset: history.length === 0,
+      ...(debugExportEnabled ? { debugExportEnabled: true } : {}),
+      ...(dialogStateAfter ? { dialogStateAfter } : {}),
     });
   } catch (error) {
     await reportRouteError(error, {
@@ -1032,6 +1048,15 @@ export async function POST(req: Request) {
           });
 
           const shouldClose = responseMode === "forced_final";
+          const debugExport =
+            isDebugDialogExportEnabled()
+              ? buildTurnDebugExport({
+                  rawAssistantText: fullText,
+                  context,
+                  branches,
+                  practicePublic: finalPracticePublic,
+                })
+              : undefined;
           const assistantMeta = {
             turn_mode: responseMode,
             model_used: modelTierUsed,
@@ -1048,6 +1073,7 @@ export async function POST(req: Request) {
             related_event_ids: artifactResult.relatedEventIds,
             matrix_cells: artifactResult.inferredCells,
             insight_metrics: insightMetrics,
+            ...(debugExport ? { debug: debugExport } : {}),
           };
           const messageId = await persistAssistantMessage({
             db: routeDb,
@@ -1084,6 +1110,7 @@ export async function POST(req: Request) {
                 recommendationCorrected: markers.recommendationCorrection
                   ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
                   : undefined,
+                debugExport,
               }),
             ),
           );

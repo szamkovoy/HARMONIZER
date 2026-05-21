@@ -21,7 +21,7 @@ export type PlannedEventRow = {
   outcome_text: string | null;
 };
 
-function asMatrixCells(value: unknown): MatrixCell[] {
+export function asMatrixCells(value: unknown): MatrixCell[] {
   if (typeof value === "string") return parseCompactCells(value);
   if (!Array.isArray(value)) return [];
   return normalizeCells(

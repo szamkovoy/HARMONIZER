@@ -235,6 +235,113 @@ export function parseResponseMarkers(text: string): {
   return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, planTomorrow, matrixCells };
 }
 
+export type DebugRawMarker = {
+  type: string;
+  raw: string;
+  parsed?: unknown;
+  parse_error?: string;
+};
+
+function parseDebugMarkerBody(type: string, body: string): { parsed?: unknown; parse_error?: string } {
+  try {
+    switch (type) {
+      case "MATRIX_CELLS":
+        return { parsed: parseCompactCells(body.trim()) };
+      case "PLANNED_EVENT": {
+        const attrs = parseMarkerAttributes(body);
+        const desc = attrs.desc?.trim();
+        if (!desc) return { parse_error: "missing desc" };
+        return {
+          parsed: {
+            desc,
+            time: attrs.time?.trim() || null,
+            time_norm: attrs.time_norm?.trim() || null,
+            cells: parseCompactCells(attrs.cells),
+            snippets: (attrs.snippets ?? "")
+              .split(";")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          },
+        };
+      }
+      case "SUMMARIZE_EVENT": {
+        const attrs = parseMarkerAttributes(body);
+        const ref = attrs.ref?.trim();
+        if (!ref) return { parse_error: "missing ref" };
+        return {
+          parsed: {
+            ref,
+            outcome: attrs.outcome?.trim() || null,
+            outcome_cells: parseCompactCells(attrs.outcome_cells),
+          },
+        };
+      }
+      case "PRACTICE_PICK": {
+        const attrs = parseMarkerAttributes(body);
+        const id = attrs.id?.trim();
+        if (!id) return { parse_error: "missing id" };
+        const rawDuration = attrs.duration_min?.trim();
+        const rawChakra = attrs.chakra?.trim();
+        const parsedDuration = rawDuration ? Number(rawDuration) : NaN;
+        const parsedChakra = rawChakra ? Number(rawChakra) : NaN;
+        return {
+          parsed: {
+            id,
+            reason: attrs.reason?.trim() || null,
+            duration_min: Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : null,
+            chakra: Number.isInteger(parsedChakra) && parsedChakra >= 1 && parsedChakra <= 7 ? parsedChakra : null,
+            card_blurb: attrs.card_blurb?.trim() || null,
+          },
+        };
+      }
+      case "CORRECT_RECOMMENDATION": {
+        const attrs = parseMarkerAttributes(body);
+        return {
+          parsed: {
+            short_text: attrs.short_text?.trim() || null,
+            windows_correction: attrs.windows_correction?.trim() || null,
+          },
+        };
+      }
+      case "STATE_PROPOSAL": {
+        const attrs = parseMarkerAttributes(body);
+        return { parsed: attrs };
+      }
+      default:
+        return { parsed: body.trim() || null };
+    }
+  } catch (error) {
+    return { parse_error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Extracts all invisible markers from raw model output for debug dialog export. */
+export function extractRawMarkersForDebug(text: string): DebugRawMarker[] {
+  const out: DebugRawMarker[] = [];
+  const parsedMarkers = parseMarkers(text);
+  for (const marker of parsedMarkers) {
+    const raw = text.slice(marker.start, marker.end);
+    const { parsed, parse_error } = parseDebugMarkerBody(marker.name, marker.body);
+    out.push({
+      type: marker.name,
+      raw,
+      ...(parse_error ? { parse_error } : { parsed }),
+    });
+  }
+
+  const readyMatch = /\[\s*READY_FOR_RECOMMENDATION\s*\]/i.exec(text);
+  if (readyMatch) {
+    out.push({ type: "READY_FOR_RECOMMENDATION", raw: readyMatch[0], parsed: true });
+  }
+
+  const planTomorrowMatch = /\[\s*PLAN_TOMORROW\s*\]/i.exec(text);
+  if (planTomorrowMatch) {
+    out.push({ type: "PLAN_TOMORROW", raw: planTomorrowMatch[0], parsed: true });
+  }
+
+  return out;
+}
+
 export function stripResponseMarkers(text: string): string {
   const markers = parseMarkers(text);
   if (!markers.length) return text.replace(/\[\s*PLAN_TOMORROW\s*\]/gi, "").replace(/[ \t]+\n/g, "\n").trim();
@@ -361,6 +468,24 @@ function inferKindFromText(text: string): PracticeKindInferred | null {
   if (isBreathVersusOtherParallelOffer(lower)) return null;
   if (TYPE_BREATH.some((k) => lower.includes(k))) return "breath";
   return null;
+}
+
+const PRACTICE_DECLINE_PATTERNS: RegExp[] = [
+  /практик\w*[\s\S]{0,56}(?:не\s+(?:хоч|буд)|не\s+нужн|не\s+буду)/i,
+  /(?:не\s+(?:хоч|буд)|не\s+буду|не\s+нужн)[\s\S]{0,56}практик/i,
+  /никак\w*\s+практик/i,
+  /практик\w*\s+совсем\s+не\s+нужн/i,
+  /(?:не\s+хоч|не\s+буд)\w*\s+(?:сейчас\s+)?(?:выполнять\s+)?(?:асан|медитац|дыхан|пранаям|йог)/i,
+  /(?:некогда|не\s+сейчас)\b/i,
+  /(?:no|not)\s+(?:time|now)\s+(?:for\s+)?practice/i,
+  /(?:don['’]t|do not)\s+want\s+(?:any\s+)?practice/i,
+];
+
+/** True when user clearly declined any practice for this session (not merely one type). */
+export function userDeclinedPracticeInHistory(userTexts: string[]): boolean {
+  const combined = userTexts.map((t) => t.trim()).filter(Boolean).join("\n").toLowerCase();
+  if (!combined) return false;
+  return PRACTICE_DECLINE_PATTERNS.some((pattern) => pattern.test(combined));
 }
 
 export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): ValidationResult {

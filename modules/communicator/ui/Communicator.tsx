@@ -172,6 +172,7 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     shouldClose: raw.shouldClose ?? raw.should_close,
     recommendationCorrected: raw.recommendationCorrected ?? raw.recommendation_corrected,
     orchestratorDecision: raw.orchestratorDecision ?? raw.orchestrator_decision,
+    debug: raw.debug,
   };
 }
 
@@ -854,6 +855,7 @@ export function Communicator({
           practicePicked: complete?.practicePicked,
           shouldClose: complete?.shouldClose,
           recommendationCorrected: complete?.recommendationCorrected,
+          debug: complete?.debugExport,
         },
       };
       const contentLenSource =
@@ -1721,13 +1723,22 @@ export function Communicator({
       harmoniousness_label:
         typeof triggerMeta?.harmoniousnessLabel === "string" ? triggerMeta.harmoniousnessLabel : null,
     };
+    const hasDebugExport = messages.some(
+      (message) => message.role === "assistant" && message.meta?.debug != null,
+    );
+    let dialogStateAfter: Record<string, unknown> | undefined;
+    if (hasDebugExport) {
+      try {
+        const sync = await fetchDialogSession({ useCase, entrySource, debugExport: true });
+        dialogStateAfter = sync.dialogStateAfter;
+      } catch {
+        /* export still works without server snapshot */
+      }
+    }
     const payload = {
       day_context: dayContext,
-      messages: messages.map((message) => ({
-        role: message.role,
-        text: message.content,
-        timestamp: message.createdAt ?? null,
-        meta: {
+      messages: messages.map((message) => {
+        const baseMeta = {
           turn_mode: typeof message.meta?.turnMode === "string" ? message.meta.turnMode : null,
           csi: typeof message.meta?.csi === "number"
             ? message.meta.csi
@@ -1747,14 +1758,23 @@ export function Communicator({
           complete_text_chars: message.content.length,
           prompt_tokens: null,
           completion_tokens: null,
-        },
-      })),
+        };
+        const debug = message.role === "assistant" && message.meta?.debug != null ? message.meta.debug : undefined;
+        return {
+          role: message.role,
+          text: message.content,
+          timestamp: message.createdAt ?? null,
+          meta: baseMeta,
+          ...(debug != null ? { debug } : {}),
+        };
+      }),
+      ...(dialogStateAfter ? { dialog_state_after: dialogStateAfter } : {}),
     };
     await Share.share({
       title: "dialog-export.json",
       message: JSON.stringify(payload, null, 2),
     });
-  }, [messages, strings.locale, triggerMeta]);
+  }, [entrySource, messages, strings.locale, triggerMeta, useCase]);
 
   return (
     <KeyboardAvoidingView

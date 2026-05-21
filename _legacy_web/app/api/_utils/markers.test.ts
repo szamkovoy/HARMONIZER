@@ -3,6 +3,7 @@ import {
   parseResponseMarkers,
   sanitizeAssistantText,
   stripDialogScaffoldMarkdown,
+  userDeclinedPracticeInHistory,
   validateHistoryHasDurationAndType,
 } from "./markers";
 
@@ -175,6 +176,19 @@ describe("validateHistoryHasDurationAndType", () => {
     ]);
     expect(result.practiceKind).toBe("yoga");
     expect(result.durationSec).toBe(1080);
+  });
+});
+
+describe("userDeclinedPracticeInHistory", () => {
+  it("detects explicit session refusal phrases from dialog test 4", () => {
+    expect(userDeclinedPracticeInHistory(["Практику выполнять я не хочу"])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["не хочу выполнять сейчас никакую практику"])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Никакую практику не хочу выполнять."])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Да, практика совсем не нужна"])).toBe(true);
+  });
+
+  it("does not treat unresolved day talk as refusal", () => {
+    expect(userDeclinedPracticeInHistory(["Сложный день, устал после встреч"])).toBe(false);
   });
 });
 

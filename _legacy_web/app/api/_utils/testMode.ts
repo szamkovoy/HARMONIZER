@@ -21,6 +21,24 @@ export function hoursToMs(hours: number): number {
   return TEST_MODE_ON ? Math.round(base / TIME_DIVISOR) : base;
 }
 
+/** Active in-dialog TTL: always real 2h so pauses between user replies never reset history. */
+export function sessionTtlMs(): number {
+  return 2 * 60 * 60 * 1000;
+}
+
+/**
+ * Session resume TTL (GET sync / picking open conversation after app reopen).
+ * In test mode uses compressed 2h → seconds so a short real pause simulates «long gap» and starts a fresh dialog.
+ */
+export function sessionResumeTtlMs(): number {
+  return TEST_MODE_ON ? hoursToMs(2) : sessionTtlMs();
+}
+
+/** Extended dialog export (debug blocks in message meta + dialog_state_after) — test mode or explicit server flag. */
+export function isDebugDialogExportEnabled(): boolean {
+  return TEST_MODE_ON || process.env.DEBUG_DIALOG_EXPORT === "1";
+}
+
 export function hoursToSec(hours: number): number {
   return Math.round(hoursToMs(hours) / 1000);
 }

@@ -31,6 +31,14 @@ describe("testMode", () => {
     expect(hoursToMs(4)).toBe(24_000);
   });
 
+  it("sessionTtlMs stays at real 2h even in test mode", async () => {
+    process.env.TEST_MODE_FAST_INTERVALS = "1";
+    process.env.TEST_MODE_TIME_DIVISOR = "600";
+    const { sessionTtlMs, sessionResumeTtlMs } = await loadTestMode();
+    expect(sessionTtlMs()).toBe(2 * 60 * 60 * 1000);
+    expect(sessionResumeTtlMs()).toBe(12_000);
+  });
+
   it("forcedPhaseOrNull returns evening override", async () => {
     process.env.TEST_MODE_FORCE_PHASE = "evening";
     const { forcedPhaseOrNull } = await loadTestMode();

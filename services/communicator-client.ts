@@ -48,6 +48,7 @@ export interface DialogCompleteEvent {
   };
   practicePicked?: PracticePicked;
   recommendationCorrected?: RecommendationCorrected;
+  debugExport?: Record<string, unknown>;
 }
 
 export interface SendDialogMessageParams {
@@ -77,6 +78,8 @@ export interface DialogSessionResponse {
   conversationId: string | null;
   messages: DialogSessionMessage[];
   reset: boolean;
+  debugExportEnabled?: boolean;
+  dialogStateAfter?: Record<string, unknown>;
 }
 
 export interface SendDialogMessageResult {
@@ -452,6 +455,7 @@ export async function fetchDialogSession(params: {
   scenarioId?: string;
   useCase: DialogueUseCase;
   entrySource: DialogueEntrySource;
+  debugExport?: boolean;
   signal?: AbortSignal;
 }): Promise<DialogSessionResponse> {
   return withTransientNetworkRetry(
@@ -463,6 +467,7 @@ export async function fetchDialogSession(params: {
         entrySource: params.entrySource,
       });
       if (params.scenarioId) query.set("scenario_id", params.scenarioId);
+      if (params.debugExport) query.set("debugExport", "1");
       const url = `${baseUrl}?${query.toString()}`;
       let res: Response;
       try {

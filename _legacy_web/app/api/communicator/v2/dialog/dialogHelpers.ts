@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
 import type { OrchestratorDecision } from "@legacy/app/api/_utils/orchestrator";
-import { hoursToMs } from "@legacy/app/api/_utils/testMode";
+import { sessionTtlMs } from "@legacy/app/api/_utils/testMode";
 
 export const MESSAGE_HISTORY_LIMIT = 40;
-export const SESSION_TTL_MS = hoursToMs(2);
+/** Real 2h — not compressed by TEST_MODE_FAST_INTERVALS (see testMode.sessionTtlMs). */
+export const SESSION_TTL_MS = sessionTtlMs();
 
 export type MessageRecord = {
   id: string;
@@ -40,6 +41,7 @@ export function isConversationExpired(
   conversation: Pick<ConversationRecord, "started_at" | "last_message_at">,
   timezone: string,
   now: Date = new Date(),
+  idleTtlMs: number = SESSION_TTL_MS,
 ): boolean {
   const localStartedDate = localDateForIso(conversation.started_at, timezone);
   if (localStartedDate !== todayLocalDate(timezone, now)) return true;
@@ -48,7 +50,7 @@ export function isConversationExpired(
   if (!lastMessageAt) return true;
   const lastMessageMs = Date.parse(lastMessageAt);
   if (!Number.isFinite(lastMessageMs)) return true;
-  return now.getTime() - lastMessageMs > SESSION_TTL_MS;
+  return now.getTime() - lastMessageMs > idleTtlMs;
 }
 
 export async function loadHistory(

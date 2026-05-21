@@ -48,7 +48,7 @@ describe("decideTurnMode", () => {
     );
 
     expect(decision.mode).toBe("inquiry");
-    expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("пользователь уже дважды не ответил");
+    expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("явного отказа");
   });
 
   it("adds practice_refusal_check after two unresolved opening/inquiry turns", () => {
@@ -73,6 +73,24 @@ describe("decideTurnMode", () => {
     );
 
     expect(decision.mode).toBe("inquiry");
-    expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("пользователь уже дважды не ответил");
+    expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("явного отказа");
+  });
+
+  it("uses practice_declined after an explicit refusal", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Сколько времени на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Практику выполнять я не хочу",
+    );
+
+    expect(decision.mode).toBe("practice_declined");
+    expect(decision.instruction).toContain("отказался от практики");
   });
 });

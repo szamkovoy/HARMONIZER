@@ -1,7 +1,7 @@
 ---
 id: 04_reference/test_mode
 title: Dialog Test Mode (Time Intervals)
-version: 1.0
+version: 1.1
 updated: 2026-05-21
 depends_on: [02_modules/assistant/spec]
 code_refs: [_legacy_web/app/api/_utils/testMode.ts]
@@ -13,9 +13,10 @@ Env-флаги для отладки логики фаз без реальных
 
 | Переменная | Значение | Эффект |
 |------------|----------|--------|
-| `TEST_MODE_FAST_INTERVALS` | `1` | Сжимает пороги: anti-replan 4ч, окно подытоживания 36ч, TTL conversation 2ч |
+| `TEST_MODE_FAST_INTERVALS` | `1` | Сжимает пороги: anti-replan 4ч, окно подытоживания 36ч. **Внутри активного диалога** (POST с `conversationId`) TTL паузы между репликами — **реальные 2ч** (`sessionTtlMs`). **При возобновлении сессии** (GET sync после reopen приложения) — сжатый `sessionResumeTtlMs()` (~12 с при divisor 600), чтобы короткая пауза симулировала «прошло много времени» и начинался новый диалог. |
 | `TEST_MODE_TIME_DIVISOR` | число (дефолт `600`) | Делитель: `600` ≈ 1 час → 6 секунд |
 | `TEST_MODE_FORCE_PHASE` | `morning` \| `day` \| `evening` | Принудительная фаза дня; `local_hour` остаётся реальным |
+| `DEBUG_DIALOG_EXPORT` | `1` | Расширенная отладочная выгрузка диалога (блок `debug` в meta + `dialog_state_after` в GET) без включения сжатия интервалов |
 
 **Боевой режим:** флаги не заданы или `TEST_MODE_FAST_INTERVALS` ≠ `'1'`. Поведение как до патча.
 
