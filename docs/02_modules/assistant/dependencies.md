@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.9
-updated: 2026-05-19
+version: 1.10
+updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
 ---
@@ -21,6 +21,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
   - Таблица **`practices`**, связь **`practice_chakras`** в **`practiceSelection.ts`**; сессии **`practice_sessions`** для недавних ID в **`recentCompletedPracticeIds`**; клиентские маршруты запуска задаются в **`launchForPractice`** (асана / дыхание / «Вспышка»). **`_legacy_web/app/api/communicator/v2/dialog/route.ts`** (`**resolvePracticePublic**`) импортирует **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`**) для тех же шагов длительности карточки, что и **`PracticeCard`** на клиенте.
 - **`infra`**
   - Next.js API routes, **`gemini`**, мониторинг ошибок маршрутов, переменные окружения на Vercel. Для v3 explicit context caching пока доступен только in-memory store без внешнего Redis.
+  - Опциональные серверные `TEST_MODE_*` (см. `docs/04_reference/test_mode.md`); при `NEXT_RUNTIME === "nodejs"` **`instrumentation.ts`** вызывает **`logTestModeStartupWarning`** из **`testMode.ts`**.
 
 ## 2. От него зависят
 

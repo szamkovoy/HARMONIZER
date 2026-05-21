@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.5
-updated: 2026-05-15
+version: 1.6
+updated: 2026-05-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
 
 ## Decision Log
+
+- **2026-05-21:** `instrumentation.ts` при старте Node вызывает `logTestModeStartupWarning` из `testMode.ts` до загрузки Sentry — диагностика активного `TEST_MODE_FAST_INTERVALS` без влияния на клиент Expo.
 
 - **2026-05-15:** В **`dependencies.md`** §1 (Supabase) уточнено, что строка **`dialog_system_v3`** в **`public.prompts`** поддерживается цепочкой миграций (не только `20260511161000_dialog_system_v3.sql`), со ссылкой на модуль **`assistant`** для актуальной версии. **`MAP.md`** — в точках входа **`assistant`** добавлена миграция **`20260515030000_dialog_system_v3_pack_b.sql`**.
 
