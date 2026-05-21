@@ -303,16 +303,32 @@ function circularDelta(from: number, to: number): number {
   return to >= from ? to - from : to + 1 - from;
 }
 
+function circularSignedDelta(from: number, to: number): number {
+  const delta = ((to - from + 0.5) % 1 + 1) % 1 - 0.5;
+  return delta === -0.5 ? 0.5 : delta;
+}
+
 function makeSkyY(riseX: number | null, culminationX: number | null) {
   const amplitude = 42;
-  const period = riseX != null && culminationX != null
-    ? Math.max(0.45, Math.min(1.35, circularDelta(riseX, culminationX) * 4))
-    : 1;
-  const phaseRise = riseX ?? ((culminationX ?? 0.35) - period / 4 + 1) % 1;
 
   return (x: number) => {
-    const elapsed = x - phaseRise;
-    return SKY_AXIS_Y - Math.sin((elapsed / period) * Math.PI * 2) * amplitude;
+    if (riseX != null && culminationX != null) {
+      const riseToCulmination = circularDelta(riseX, culminationX);
+      if (riseToCulmination > 0.0001) {
+        const elapsed = circularDelta(riseX, x);
+        const period = riseToCulmination * 4;
+        return SKY_AXIS_Y - Math.sin((elapsed / period) * Math.PI * 2) * amplitude;
+      }
+    }
+
+    if (culminationX != null) {
+      const phase = circularSignedDelta(culminationX, x);
+      return SKY_AXIS_Y - Math.cos(phase * Math.PI * 2) * amplitude;
+    }
+
+    const fallbackRise = riseX ?? 0.25;
+    const elapsed = circularDelta(fallbackRise, x);
+    return SKY_AXIS_Y - Math.sin(elapsed * Math.PI * 2) * amplitude;
   };
 }
 
@@ -344,24 +360,15 @@ export function OpportunityWindows({
   const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
   const lineColor = PLANET_CHAKRA[planetOfTheDay].color;
-  const enabledReminderKeysSig = useMemo(
-    () => Object.keys(enabledReminders).sort().join(","),
-    [enabledReminders],
-  );
   useEffect(() => {
-    const hasActiveReminder = enabledReminderKeysSig.length > 0;
-    const tickMs = hasActiveReminder ? 15_000 : 30_000;
-    const tick = () => setNow(new Date());
-    tick();
-    const timer = setInterval(tick, tickMs);
+    setNow(new Date());
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") setNow(new Date());
     });
     return () => {
-      clearInterval(timer);
       sub.remove();
     };
-  }, [enabledReminderKeysSig]);
+  }, []);
 
   /** Синхронизация колокольчиков с ОС и отмена устаревших напоминаний при смене суток/прогноза. */
   useEffect(() => {
@@ -588,10 +595,14 @@ export function OpportunityWindows({
       return { ...prev, [key]: width };
     });
   }, []);
-  const chartDots = Array.from({ length: 180 }, (_, index) => {
-    const x = index / 179;
-    return { x, y: skyY(x) };
-  });
+  const chartDots = useMemo(
+    () =>
+      Array.from({ length: 180 }, (_, index) => {
+        const x = index / 179;
+        return { x, y: skyY(x) };
+      }),
+    [skyY],
+  );
   const chartPoints = useMemo(
     () =>
       activeItems

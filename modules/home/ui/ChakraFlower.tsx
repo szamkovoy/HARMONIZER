@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -41,31 +40,11 @@ function hexToRgba(hex: string, opacity: number): string {
 
 export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
   const theme = useTheme();
-  const pulse = useRef(new Animated.Value(0.82)).current;
   const center = 124;
   const startAngle = 360 / PLANET_ORDER.length;
   const { importance, planetOfTheDay } = forecast;
   const todayTone = forecast.todayPlanetState.todayTone;
   const selectedMeta = PLANET_CHAKRA[planetOfTheDay];
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1600,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0.82,
-          duration: 1600,
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
 
   return (
     <View
@@ -110,17 +89,14 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
                   ]}
                 >
                   {isSelected ? (
-                    <Animated.View
+                    <View
                       style={[
                         styles.petalGlow,
                         {
                           backgroundColor: meta.color,
                           height: length + 30,
                           left: center - (width + 20) / 2,
-                          opacity: pulse.interpolate({
-                            inputRange: [0.82, 1],
-                            outputRange: [selectedGlowOpacity(todayTone) * 0.62, selectedGlowOpacity(todayTone)],
-                          }),
+                          opacity: selectedGlowOpacity(todayTone),
                           top: center - length - 8,
                           width: width + 20,
                         },

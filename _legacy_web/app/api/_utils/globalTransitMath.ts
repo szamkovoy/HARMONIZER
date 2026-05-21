@@ -2,6 +2,7 @@
  * Транзитная «математика дня» без натальной карты (PATCH 14).
  * Держите в синхроне с `supabase/functions/_shared/dailyForecast.ts` (computeGlobalDailyForecast / buildGlobalMathLevel).
  */
+import base from "astronomia/base";
 import julian from "astronomia/julian";
 import solar from "astronomia/solar";
 import moonposition from "astronomia/moonposition";
@@ -88,7 +89,7 @@ function equatorialForPlanetAt(planet: string, date: Date) {
   const jde = toJde(date);
 
   if (planet === "Sun") {
-    const lon = solar.apparentLongitude(jde);
+    const lon = solar.apparentLongitude(base.J2000Century(jde));
     const epsilon = nutation.meanObliquity(jde) + nutation.nutation(jde)[1];
     const eq = new coord.Ecliptic(lon, 0).toEquatorial(epsilon);
     return { ra: eq.ra, dec: eq.dec };
@@ -110,7 +111,7 @@ function equatorialForPlanetAt(planet: string, date: Date) {
 function eclipticLongitudeForPlanetAt(planet: string, date: Date): number {
   const jde = toJde(date);
 
-  if (planet === "Sun") return normalizeLongitude(solar.apparentLongitude(jde) * RAD_TO_DEG);
+  if (planet === "Sun") return normalizeLongitude(solar.apparentLongitude(base.J2000Century(jde)) * RAD_TO_DEG);
   if (planet === "Moon") return normalizeLongitude(moonposition.position(jde).lon * RAD_TO_DEG);
 
   const eq = equatorialForPlanetAt(planet, date);

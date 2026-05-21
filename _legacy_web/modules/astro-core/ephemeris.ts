@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import base from "astronomia/base";
 import julian from "astronomia/julian";
 import solar from "astronomia/solar";
 import moonposition from "astronomia/moonposition";
@@ -68,7 +69,7 @@ export function equatorialForPlanetAt(planet: Planet, date: Date): EquatorialPos
   const jde = toJde(date);
 
   if (planet === "Sun") {
-    const lon = solar.apparentLongitude(jde);
+    const lon = solar.apparentLongitude(base.J2000Century(jde));
     const epsilon = nutation.meanObliquity(jde) + nutation.nutation(jde)[1];
     const eq = new coord.Ecliptic(lon, 0).toEquatorial(epsilon);
     return { ra: eq.ra, dec: eq.dec };
@@ -91,7 +92,7 @@ export function eclipticLongitudeForPlanetAt(planet: Planet, date: Date): number
   const jde = toJde(date);
 
   if (planet === "Sun") {
-    return normalizeLongitude(solar.apparentLongitude(jde) * RAD_TO_DEG);
+    return normalizeLongitude(solar.apparentLongitude(base.J2000Century(jde)) * RAD_TO_DEG);
   }
 
   if (planet === "Moon") {
