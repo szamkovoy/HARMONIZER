@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.8
+version: 1.9
 updated: 2026-05-21
 depends_on: [02_modules/assistant/spec]
 code_refs:
@@ -404,8 +404,8 @@ MATRIX EXTRACTION
 | -------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `{{day_of_week}}`                | День недели в локали пользователя       | `formatLocalDate(now, locale).dayOfWeek`; `now = context.nowLocal` из `loadDialogDailyContext`; `locale` из `context.user.locale` (`ru` / не-`en` → `ru`) |
 | `{{date}}`                       | Дата в локали пользователя              | `formatLocalDate(now, locale).date`                                                                                                                                                                               |
-| `{{time_of_day}}`                | Ярлык времени суток по часу             | `timeOfDayForHour(now.hour)`                                                                                                                                                                                      |
-| `{{local_hour}}`                 | Час 0–23 в зоне пользователя            | `now.hour`                                                                                                                                                                                                        |
+| `{{time_of_day}}`                | Ярлык времени суток по часу             | `timeOfDayForHour(promptHour)`; `promptHour = promptLocalHour(now.hour)` из `testMode.ts` (при `TEST_MODE_FORCE_PHASE` — 9 / 14 / 19)                                                                                                                                          |
+| `{{local_hour}}`                 | Час 0–23 в зоне пользователя            | `promptLocalHour(now.hour)` (при принудительной фазе — представительный час, иначе `now.hour`)                                                                                                                                                                                    |
 | `{{phase_time}}`                 | Фаза дня (`morning` / `day` / `evening`) | `context.phaseTime` из `dialogDailyContext.ts` (`phaseTimeFor`)                                                                                                                                                  |
 | `{{branches}}`                   | Активные ветки хода (`summarizing`, `planning`) | `chooseDialogBranches(...).join(",")` или `"none"` в `route.ts`                                                                                                                                          |
 | `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents)` — до 5 строк `description @ expected_at` или `none`                                                                                                                          |

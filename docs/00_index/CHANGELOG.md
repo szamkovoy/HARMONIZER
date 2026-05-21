@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.21
+version: 2.22
 updated: 2026-05-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: pre-push doc-sync — `promptLocalHour` в `buildDialogSystemInstruction`; `prompts-reference.md` §3, `assistant/spec.md` (testMode, debug export).
 - 2026-05-21: `assistant` — `TEST_MODE_FORCE_PHASE` подменяет `local_hour`/`time_of_day` в промпте (9/14/19), не только `phaseTime`.
 - 2026-05-21: pre-push doc-sync — daily dialog v6 (inactive): `practice_declined`, отказ на сессию, debug export; `prompts-reference.md` §1–3, `assistant/spec.md`, `communicator/spec.md`, `MAP.md`, `assistant/history.md`.
 - 2026-05-21: `communicator` — pre-push doc-sync: salvage частичного SSE, XHR onerror на iOS, transcribe 12s + `useNetworkRetry`, recovery сессии при ошибке стрима, UX `timeout`; **`docs/02_modules/communicator/{spec,dependencies,history}.md`**.
