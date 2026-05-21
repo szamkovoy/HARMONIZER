@@ -1,5 +1,7 @@
 import { getProfileLifeMatrixUrl, getProfilePracticeByChakraUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
 export type LifeMatrixReport = {
   activeDaysCount: number;
@@ -26,17 +28,24 @@ async function getAccessToken(): Promise<string> {
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const accessToken = await getAccessToken();
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  return withTransientNetworkRetry(async () => {
+    const accessToken = await getAccessToken();
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    } catch (error) {
+      throw wrapConnectivityFailure(error, "profile-reports");
+    }
+    if (!res.ok) {
+      const message = await res.text().catch(() => `HTTP ${res.status}`);
+      throw new Error(message || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
   });
-  if (!res.ok) {
-    const message = await res.text().catch(() => `HTTP ${res.status}`);
-    throw new Error(message || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function loadLifeMatrixReport(): Promise<LifeMatrixReport> {

@@ -3,7 +3,7 @@
 id: 02_modules/communicator/spec
 title: Communicator Spec
 version: 2.8
-updated: 2026-05-18
+updated: 2026-05-21
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -58,6 +58,12 @@ code_refs:
 ### Локализация (`modules/communicator/i18n/communicator.ts`)
 
 - `getCommunicatorStrings(locale)`, тип `CommunicatorStrings` (в т.ч. **`voiceUserBubblePending`** — строка для доступности плейсхолдера голоса).
+
+### Ошибки сети и UX (`services/userFacingErrors.ts`, `modules/ui/i18n/userErrors.ts`)
+
+- Транзиентные `Network request failed` в API-клиентах: до **2** скрытых повторов (`withTransientNetworkRetry`), затем Alert с текстом из **`getUserErrorStrings(locale)`** (ru/en) — без URL в UI.
+- **`Communicator`**: кнопки **Повторить** / **Закрыть** при сетевых и 503/429 ошибках; повтор вызывает последний `initiateDialog` или `submitDialogTurn` без дублирования пузыря пользователя.
+- Технические детали — только в `console` через `logErrorForDevelopers`.
 
 ### Очистка видимого текста ассистента (`modules/communicator/core/dialogTextCleanup.ts`)
 

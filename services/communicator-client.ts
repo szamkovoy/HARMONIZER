@@ -2,6 +2,8 @@ import { Platform } from "react-native";
 
 import { getAiDialogUrl, getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 import type { PracticeRecommendation } from "@/modules/practices";
 
 export type DialogueUseCase = "calibration" | "daily_dialog";
@@ -173,11 +175,6 @@ function safeJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
 }
 
-function networkError(url: string, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  return new Error(`Communicator network error for ${url}: ${message}`);
-}
-
 function handleSseEvent(
   event: SseEvent,
   params: SendDialogMessageParams,
@@ -336,7 +333,7 @@ function readSseResponseWithXHR(
     };
 
     xhr.onerror = () => {
-      settle(() => reject(networkError(url, new Error("Network request failed"))));
+      settle(() => reject(wrapConnectivityFailure(new Error("Network request failed"), "communicator-dialog")));
     };
 
     xhr.onabort = () => {
@@ -354,7 +351,7 @@ function readSseResponseWithXHR(
       }, 24);
     } catch (e) {
       clearPoll();
-      settle(() => reject(networkError(url, e)));
+      settle(() => reject(wrapConnectivityFailure(e, "communicator-dialog")));
     }
   });
 }
@@ -402,30 +399,35 @@ async function readSseResponse(res: Response, params: SendDialogMessageParams): 
 }
 
 export async function sendDialogMessage(params: SendDialogMessageParams): Promise<SendDialogMessageResult> {
-  const token = await getAccessToken();
-  const url = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
+  return withTransientNetworkRetry(
+    async () => {
+      const token = await getAccessToken();
+      const url = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
 
-  if (Platform.OS !== "web") {
-    return readSseResponseWithXHR(url, token, params);
-  }
+      if (Platform.OS !== "web") {
+        return readSseResponseWithXHR(url, token, params);
+      }
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(buildDialogPostBody(params)),
-      signal: params.signal,
-    });
-  } catch (error) {
-    throw networkError(url, error);
-  }
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(buildDialogPostBody(params)),
+          signal: params.signal,
+        });
+      } catch (error) {
+        throw wrapConnectivityFailure(error, "communicator-dialog");
+      }
 
-  if (!res.ok) throw await readError(res);
-  return readSseResponse(res, params);
+      if (!res.ok) throw await readError(res);
+      return readSseResponse(res, params);
+    },
+    { signal: params.signal },
+  );
 }
 
 export async function fetchDialogSession(params: {
@@ -434,34 +436,39 @@ export async function fetchDialogSession(params: {
   entrySource: DialogueEntrySource;
   signal?: AbortSignal;
 }): Promise<DialogSessionResponse> {
-  const token = await getAccessToken();
-  const baseUrl = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
-  const query = new URLSearchParams({
-    useCase: params.useCase,
-    entrySource: params.entrySource,
-  });
-  if (params.scenarioId) query.set("scenario_id", params.scenarioId);
-  const url = `${baseUrl}?${query.toString()}`;
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      signal: params.signal,
-    });
-  } catch (error) {
-    throw networkError(url, error);
-  }
-  if (!res.ok) {
-    const error = await readError(res);
-    if (isMissingSessionSyncEndpoint(error)) {
-      return { conversationId: null, messages: [], reset: true };
-    }
-    throw error;
-  }
-  return (await res.json()) as DialogSessionResponse;
+  return withTransientNetworkRetry(
+    async () => {
+      const token = await getAccessToken();
+      const baseUrl = params.scenarioId ? getAiDialogUrl() : getCommunicatorV2DialogUrl();
+      const query = new URLSearchParams({
+        useCase: params.useCase,
+        entrySource: params.entrySource,
+      });
+      if (params.scenarioId) query.set("scenario_id", params.scenarioId);
+      const url = `${baseUrl}?${query.toString()}`;
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          signal: params.signal,
+        });
+      } catch (error) {
+        throw wrapConnectivityFailure(error, "communicator-session");
+      }
+      if (!res.ok) {
+        const error = await readError(res);
+        if (isMissingSessionSyncEndpoint(error)) {
+          return { conversationId: null, messages: [], reset: true };
+        }
+        throw error;
+      }
+      return (await res.json()) as DialogSessionResponse;
+    },
+    { signal: params.signal },
+  );
 }
 
 export async function transcribeCommunicatorAudio(req: TranscribeAudioRequest): Promise<TranscribeAudioResponse> {
@@ -482,7 +489,7 @@ export async function transcribeCommunicatorAudio(req: TranscribeAudioRequest): 
       signal: req.signal,
     });
   } catch (error) {
-    throw networkError(url, error);
+    throw wrapConnectivityFailure(error, "communicator-transcribe");
   }
   if (!res.ok) throw await readError(res);
   return (await res.json()) as TranscribeAudioResponse;
@@ -508,7 +515,7 @@ export async function extractCalibration(req: CalibrationExtractRequest, signal?
       signal,
     });
   } catch (error) {
-    throw networkError(url, error);
+    throw wrapConnectivityFailure(error, "calibration-extract");
   }
   if (!res.ok) throw await readError(res);
   return (await res.json()) as CalibrationExtractResponse;

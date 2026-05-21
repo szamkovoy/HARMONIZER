@@ -42,6 +42,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { resolveUserFacingAlert } from "@/services/userFacingErrors";
+
 function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
   if (value instanceof Error && value.message.trim()) return value.message;
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -414,6 +416,13 @@ export default function HomeScreen() {
     natalRequired: needsPersonalForecast,
     hasNatalProfile,
   });
+  const forecastErrorAlert = useMemo(
+    () =>
+      error
+        ? resolveUserFacingAlert(error, strings.locale, { genericTitle: strings.forecastErrorTitle })
+        : null,
+    [error, strings.forecastErrorTitle, strings.locale],
+  );
 
   useLayoutEffect(() => {
     if (!profile?.id || !needsPersonalForecast) {
@@ -541,10 +550,10 @@ export default function HomeScreen() {
             onAction={() => setNatalBridgeOpen(true)}
           />
         ) : null}
-        {status === "error" && error ? (
+        {status === "error" && error && forecastErrorAlert ? (
           <HomeError
-            title={strings.forecastErrorTitle}
-            message={error.message}
+            title={forecastErrorAlert.title}
+            message={forecastErrorAlert.message}
             tone="danger"
             actionLabel={strings.retryButton}
             onAction={() => void refresh({ forceRefresh: true })}

@@ -32,6 +32,8 @@ import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
+import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
+import { logErrorForDevelopers, resolveUserFacingAlert } from "@/services/userFacingErrors";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
 import {
   communicatorRecordingFallbackOptions,
@@ -392,26 +394,6 @@ function isRecorderPrepareError(error: Error): boolean {
   return /prepare.*recorder|recorder not prepared|prepareToRecord/i.test(error.message);
 }
 
-/** Не показывать сырой стектрейс/англ. текст SDK при перегрузке или после исчерпания fallback на сервере. */
-function userFacingAssistantNetworkMessage(err: Error): string {
-  const m = err.message;
-  if (/Сервис временно недоступен/.test(m)) return m;
-  if (
-    /\b503\b/i.test(m) ||
-    /service unavailable/i.test(m) ||
-    /high demand/i.test(m) ||
-    /\b429\b/i.test(m) ||
-    /rate_limit_exceeded/i.test(m) ||
-    /GoogleGenerativeAI/i.test(m) ||
-    /resource exhausted/i.test(m) ||
-    /overloaded/i.test(m) ||
-    /\bUNAVAILABLE\b/i.test(m)
-  ) {
-    return "Сервис временно недоступен, попробуйте через минуту.";
-  }
-  return m;
-}
-
 function tierLabelFromProfile(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): string {
   if (!profile) return COMMUNICATOR_MODEL_LABEL;
   if (profile.membership_tier === "premium") return "premium";
@@ -516,24 +498,39 @@ export function Communicator({
     initialHistoryRef.current = ensureIds(sliceHistoryForWindow(history, memoryWindow));
   }, [history, memoryWindow]);
 
+  const retryHandlerRef = useRef<(() => void) | null>(null);
+
   const reportError = useCallback(
     (err: Error) => {
       if (isGeminiJsonError(err)) return;
       const recorderPrepareError = isRecorderPrepareError(err);
-      const displayMessage = recorderPrepareError
-        ? "Не удалось включить запись. Попробуйте ещё раз."
-        : userFacingAssistantNetworkMessage(err);
       if (recorderPrepareError) {
         console.warn("[Communicator]", err.message, err.stack ?? "");
-      } else {
-        console.error("[Communicator]", err.message, err.stack ?? "");
+        onError?.(err);
+        Alert.alert(strings.sendErrorTitle, strings.recorderPrepareErrorMessage, [
+          { text: strings.alertOk },
+        ]);
+        return;
       }
+      logErrorForDevelopers("Communicator", err);
       onError?.(err);
-      Alert.alert(strings.sendErrorTitle, displayMessage, [
-        { text: strings.alertOk },
-      ]);
+      const copy = resolveUserFacingAlert(err, strings.locale, { genericTitle: strings.sendErrorTitle });
+      const userErrors = getUserErrorStrings(strings.locale);
+      const buttons: { text: string; style?: "cancel"; onPress?: () => void }[] = [
+        { text: userErrors.dismissButton, style: "cancel" },
+      ];
+      if (copy.retryable && retryHandlerRef.current) {
+        buttons.unshift({
+          text: userErrors.retryButton,
+          onPress: () => {
+            const retry = retryHandlerRef.current;
+            if (retry) retry();
+          },
+        });
+      }
+      Alert.alert(copy.title, copy.message, buttons);
     },
-    [onError, strings.alertOk, strings.sendErrorTitle],
+    [onError, strings.alertOk, strings.locale, strings.recorderPrepareErrorMessage, strings.sendErrorTitle],
   );
 
   const {
@@ -798,6 +795,110 @@ export function Communicator({
   const communicatorListDataRef = useRef(communicatorListData);
   communicatorListDataRef.current = communicatorListData;
 
+  const submitDialogTurn = useCallback(
+    async (userMessageText: string, voiceUserAlreadyCommitted: boolean) => {
+      retryHandlerRef.current = () => {
+        void submitDialogTurn(userMessageText, voiceUserAlreadyCommitted);
+      };
+      if (voiceUserAlreadyCommitted) {
+        setSuppressStreamAnchorScroll(true);
+      }
+
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const result = await runChatStream({
+        conversationId: activeConversationId,
+        useCase,
+        entrySource,
+        triggerMeta: {
+          systemPrompt,
+          ...(triggerMeta ?? {}),
+        },
+        userMessage: userMessageText,
+        userTimezone: timezone,
+      });
+
+      if (result == null) {
+        return;
+      }
+
+      const complete = result.complete;
+      if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+      const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
+
+      let recoveredFromSession = false;
+      let finalText = mergedText;
+      if (!finalText) {
+        await new Promise((r) => setTimeout(r, 700));
+        try {
+          const sync = await fetchDialogSession({ useCase, entrySource });
+          const last = sync.messages[sync.messages.length - 1];
+          if (last?.role === "assistant") {
+            const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+            if (recovered) {
+              finalText = recovered;
+              recoveredFromSession = true;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      const assistant: CommunicatorHistoryMessage = {
+        id: complete?.messageId ?? newMessageId(),
+        role: "assistant",
+        content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
+        createdAt: Date.now(),
+        meta: {
+          orchestratorDecision: result.decision,
+          turnMode: complete?.turnMode,
+          modelTier: complete?.modelTier,
+          modelUsed: complete?.modelUsed,
+          iteration: complete?.iteration,
+          readyMarkerTriggered: complete?.readyMarkerTriggered,
+          validation: complete?.validation,
+          insightMetrics: complete?.insightMetrics,
+          csi: complete?.insightMetrics?.csi,
+          practicePicked: complete?.practicePicked,
+          shouldClose: complete?.shouldClose,
+          recommendationCorrected: complete?.recommendationCorrected,
+        },
+      };
+      const contentLenSource =
+        finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
+      const strippedLen = stripDialogScaffoldMarkdown(
+        stripStreamingMarkers(contentLenSource),
+      ).length;
+      const deferAllowed =
+        !recoveredFromSession &&
+        mergedText.trim().length > 0 &&
+        strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
+      if (!deferAllowed) {
+        setPendingRevealGoal(null);
+        setMessages((prev) => [...prev, assistant]);
+        onMessage?.(assistant);
+        resetChatStream();
+        retryHandlerRef.current = null;
+      } else {
+        scheduleDeferredAssistantCommit({ mode: "append", message: assistant });
+        retryHandlerRef.current = null;
+      }
+    },
+    [
+      activeConversationId,
+      entrySource,
+      fetchDialogSession,
+      onMessage,
+      resetChatStream,
+      runChatStream,
+      scheduleDeferredAssistantCommit,
+      systemPrompt,
+      triggerMeta,
+      useCase,
+      strings.emptyAssistantReplyFallback,
+    ],
+  );
+
   const runStream = useCallback(
     async (input: { type: "text"; text: string } | { type: "audio"; uri: string }) => {
       let voiceUserAlreadyCommitted = false;
@@ -899,87 +1000,7 @@ export function Communicator({
           onMessage?.(userMessage);
         }
 
-        if (voiceUserAlreadyCommitted) {
-          setSuppressStreamAnchorScroll(true);
-        }
-
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-        const result = await runChatStream({
-          conversationId: activeConversationId,
-          useCase,
-          entrySource,
-          triggerMeta: {
-            systemPrompt,
-            ...(triggerMeta ?? {}),
-          },
-          userMessage: userMessageText,
-          userTimezone: timezone,
-        });
-
-        if (result == null) {
-          return;
-        }
-
-        const complete = result.complete;
-        if (complete?.conversationId) setActiveConversationId(complete.conversationId);
-        const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
-
-        let recoveredFromSession = false;
-        let finalText = mergedText;
-        if (!finalText) {
-          await new Promise((r) => setTimeout(r, 700));
-          try {
-            const sync = await fetchDialogSession({ useCase, entrySource });
-            const last = sync.messages[sync.messages.length - 1];
-            if (last?.role === "assistant") {
-              const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
-              if (recovered) {
-                finalText = recovered;
-                recoveredFromSession = true;
-              }
-            }
-          } catch {
-            /* ignore */
-          }
-        }
-
-        const assistant: CommunicatorHistoryMessage = {
-          id: complete?.messageId ?? newMessageId(),
-          role: "assistant",
-          content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
-          createdAt: Date.now(),
-          meta: {
-            orchestratorDecision: result.decision,
-            turnMode: complete?.turnMode,
-            modelTier: complete?.modelTier,
-            modelUsed: complete?.modelUsed,
-            iteration: complete?.iteration,
-            readyMarkerTriggered: complete?.readyMarkerTriggered,
-            validation: complete?.validation,
-            insightMetrics: complete?.insightMetrics,
-            csi: complete?.insightMetrics?.csi,
-            practicePicked: complete?.practicePicked,
-            shouldClose: complete?.shouldClose,
-            recommendationCorrected: complete?.recommendationCorrected,
-          },
-        };
-        const contentLenSource =
-          finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
-        const strippedLen = stripDialogScaffoldMarkdown(
-          stripStreamingMarkers(contentLenSource),
-        ).length;
-        const deferAllowed =
-          !recoveredFromSession &&
-          mergedText.trim().length > 0 &&
-          strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
-        if (!deferAllowed) {
-          setPendingRevealGoal(null);
-          setMessages((prev) => [...prev, assistant]);
-          onMessage?.(assistant);
-          resetChatStream();
-        } else {
-          scheduleDeferredAssistantCommit({ mode: "append", message: assistant });
-        }
+        await submitDialogTurn(userMessageText, voiceUserAlreadyCommitted);
       } catch (e) {
         const vPid = voicePendingMessageIdRef.current;
         if (vPid) {
@@ -1015,12 +1036,11 @@ export function Communicator({
       onMessage,
       reportError,
       resetChatStream,
-      runChatStream,
       scheduleDeferredAssistantCommit,
+      submitDialogTurn,
       systemPrompt,
       triggerMeta,
       useCase,
-      strings.emptyAssistantReplyFallback,
       strings.transcribeLanguage,
     ],
   );
@@ -1043,102 +1063,95 @@ export function Communicator({
    * generates opening using dialog_system_v3 context alone.
    */
   const initiateFiredRef = useRef(false);
-  useEffect(() => {
-    if (initiateFiredRef.current) return;
-    if (!sessionSynced) return;
-    if (messages.length > 0) return;
-    initiateFiredRef.current = true;
 
-    const doInitiate = async () => {
-      try {
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-        const result = await runChatStream({
-          conversationId: activeConversationId,
-          useCase,
-          entrySource,
-          triggerMeta: {
-            systemPrompt,
-            ...(triggerMeta ?? {}),
-          },
-          userMessage: "__initiate__",
-          userTimezone: timezone,
-          initiateDialog: true,
-        });
-        if (result == null) return;
-        const complete = result.complete;
-        if (complete?.conversationId) setActiveConversationId(complete.conversationId);
-        const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
-
-        let recoveredFromSession = false;
-        let finalText = mergedText;
-        if (!finalText) {
-          await new Promise((r) => setTimeout(r, 700));
-          try {
-            const sync = await fetchDialogSession({ useCase, entrySource });
-            const last = sync.messages[sync.messages.length - 1];
-            if (last?.role === "assistant") {
-              const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
-              if (recovered) {
-                finalText = recovered;
-                recoveredFromSession = true;
-              }
-            }
-          } catch {
-            /* ignore */
-          }
-        }
-
-        const assistant: CommunicatorHistoryMessage = {
-          id: complete?.messageId ?? newMessageId(),
-          role: "assistant",
-          content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
-          createdAt: Date.now(),
-          meta: {
-            orchestratorDecision: result.decision,
-            turnMode: complete?.turnMode,
-            modelTier: complete?.modelTier,
-            modelUsed: complete?.modelUsed,
-            iteration: complete?.iteration,
-            readyMarkerTriggered: complete?.readyMarkerTriggered,
-            validation: complete?.validation,
-            insightMetrics: complete?.insightMetrics,
-            csi: complete?.insightMetrics?.csi,
-            practicePicked: complete?.practicePicked,
-            shouldClose: complete?.shouldClose,
-            recommendationCorrected: complete?.recommendationCorrected,
-          },
-        };
-        const contentLenSource =
-          finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
-        const strippedLen = stripDialogScaffoldMarkdown(
-          stripStreamingMarkers(contentLenSource),
-        ).length;
-        const deferAllowed =
-          !recoveredFromSession &&
-          mergedText.trim().length > 0 &&
-          strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
-        if (!deferAllowed) {
-          setPendingRevealGoal(null);
-          setMessages([assistant]);
-          onMessage?.(assistant);
-          resetChatStream();
-        } else {
-          scheduleDeferredAssistantCommit({ mode: "replaceInitiate", message: assistant });
-        }
-      } catch (e) {
-        const err = e instanceof Error ? e : new Error(String(e));
-        reportError(err);
-      }
+  const performInitiateDialog = useCallback(async () => {
+    retryHandlerRef.current = () => {
+      void performInitiateDialog();
     };
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const result = await runChatStream({
+        conversationId: activeConversationId,
+        useCase,
+        entrySource,
+        triggerMeta: {
+          systemPrompt,
+          ...(triggerMeta ?? {}),
+        },
+        userMessage: "__initiate__",
+        userTimezone: timezone,
+        initiateDialog: true,
+      });
+      if (result == null) return;
+      const complete = result.complete;
+      if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+      const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
 
-    const h = setTimeout(() => void doInitiate(), 120);
-    return () => clearTimeout(h);
+      let recoveredFromSession = false;
+      let finalText = mergedText;
+      if (!finalText) {
+        await new Promise((r) => setTimeout(r, 700));
+        try {
+          const sync = await fetchDialogSession({ useCase, entrySource });
+          const last = sync.messages[sync.messages.length - 1];
+          if (last?.role === "assistant") {
+            const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+            if (recovered) {
+              finalText = recovered;
+              recoveredFromSession = true;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      const assistant: CommunicatorHistoryMessage = {
+        id: complete?.messageId ?? newMessageId(),
+        role: "assistant",
+        content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
+        createdAt: Date.now(),
+        meta: {
+          orchestratorDecision: result.decision,
+          turnMode: complete?.turnMode,
+          modelTier: complete?.modelTier,
+          modelUsed: complete?.modelUsed,
+          iteration: complete?.iteration,
+          readyMarkerTriggered: complete?.readyMarkerTriggered,
+          validation: complete?.validation,
+          insightMetrics: complete?.insightMetrics,
+          csi: complete?.insightMetrics?.csi,
+          practicePicked: complete?.practicePicked,
+          shouldClose: complete?.shouldClose,
+          recommendationCorrected: complete?.recommendationCorrected,
+        },
+      };
+      const contentLenSource =
+        finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
+      const strippedLen = stripDialogScaffoldMarkdown(
+        stripStreamingMarkers(contentLenSource),
+      ).length;
+      const deferAllowed =
+        !recoveredFromSession &&
+        mergedText.trim().length > 0 &&
+        strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
+      if (!deferAllowed) {
+        setPendingRevealGoal(null);
+        setMessages([assistant]);
+        onMessage?.(assistant);
+        resetChatStream();
+        retryHandlerRef.current = null;
+      } else {
+        scheduleDeferredAssistantCommit({ mode: "replaceInitiate", message: assistant });
+        retryHandlerRef.current = null;
+      }
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      reportError(err);
+    }
   }, [
-    sessionSynced,
-    messages.length,
     activeConversationId,
     entrySource,
-    fetchDialogSession,
     onMessage,
     reportError,
     resetChatStream,
@@ -1149,6 +1162,15 @@ export function Communicator({
     useCase,
     strings.emptyAssistantReplyFallback,
   ]);
+
+  useEffect(() => {
+    if (initiateFiredRef.current) return;
+    if (!sessionSynced) return;
+    if (messages.length > 0) return;
+    initiateFiredRef.current = true;
+    const h = setTimeout(() => void performInitiateDialog(), 120);
+    return () => clearTimeout(h);
+  }, [sessionSynced, messages.length, performInitiateDialog]);
 
   const resetRecordingAudioMode = useCallback(async () => {
     try {

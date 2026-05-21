@@ -1,6 +1,8 @@
 import type { DailyForecast, Planet } from "@/modules/daily-engine";
 import { getDailyForecastUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
 type ForecastSource = "cache" | "computed";
 
@@ -93,11 +95,6 @@ function errorMessage(value: unknown, fallback = "Unknown error"): string {
   return fallback;
 }
 
-function networkError(url: string, error: unknown): Error {
-  const message = errorMessage(error, "Network request failed");
-  return new Error(`Daily forecast network error for ${url}: ${message}`);
-}
-
 function required<T>(value: T | null | undefined, label: string): T {
   if (value == null) throw new Error(`DailyForecast: missing ${label}`);
   return value;
@@ -134,54 +131,59 @@ function normalizeForecast(raw: ForecastPayload): DailyForecast {
 }
 
 export async function fetchDailyForecast(req: DailyForecastRequest): Promise<DailyForecastResult> {
-  const token = await getAccessToken();
-  const url = getDailyForecastUrl();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DAILY_FORECAST_TIMEOUT_MS);
-  req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-  /** Supabase Functions gateway ожидает `apikey` вместе с JWT пользователя. */
-  if (url.includes("/functions/v1/")) {
-    const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
-    if (anon) headers.apikey = anon;
-  }
+  return withTransientNetworkRetry(
+    async () => {
+      const token = await getAccessToken();
+      const url = getDailyForecastUrl();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), DAILY_FORECAST_TIMEOUT_MS);
+      req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      /** Supabase Functions gateway ожидает `apikey` вместе с JWT пользователя. */
+      if (url.includes("/functions/v1/")) {
+        const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+        if (anon) headers.apikey = anon;
+      }
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        forecastDate: req.forecastDate,
-        userLocation: req.userLocation,
-        recentPlanetsOfDay: req.recentPlanetsOfDay,
-        forceRefresh: req.forceRefresh,
-      }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (controller.signal.aborted && !req.signal?.aborted) {
-      throw new Error(`Daily forecast request timed out after ${Math.round(DAILY_FORECAST_TIMEOUT_MS / 1000)}s.`);
-    }
-    throw networkError(url, error);
-  } finally {
-    clearTimeout(timeoutId);
-  }
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            forecastDate: req.forecastDate,
+            userLocation: req.userLocation,
+            recentPlanetsOfDay: req.recentPlanetsOfDay,
+            forceRefresh: req.forceRefresh,
+          }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted && !req.signal?.aborted) {
+          throw new Error(`Daily forecast request timed out after ${Math.round(DAILY_FORECAST_TIMEOUT_MS / 1000)}s.`);
+        }
+        throw wrapConnectivityFailure(error, "daily-forecast");
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
-  if (!res.ok) throw await readError(res);
-  const data = (await res.json()) as DailyForecastResponse;
-  if (data.error) throw new Error(errorMessage(data.error, "DailyForecast: server returned an error"));
-  const raw = data.forecastPayload
-    ? { ...(data.forecast ?? {}), ...data.forecastPayload }
-    : data.forecast;
-  if (!raw) throw new Error("DailyForecast: empty response");
+      if (!res.ok) throw await readError(res);
+      const data = (await res.json()) as DailyForecastResponse;
+      if (data.error) throw new Error(errorMessage(data.error, "DailyForecast: server returned an error"));
+      const raw = data.forecastPayload
+        ? { ...(data.forecast ?? {}), ...data.forecastPayload }
+        : data.forecast;
+      if (!raw) throw new Error("DailyForecast: empty response");
 
-  return {
-    source: data.source ?? "computed",
-    forecast: normalizeForecast(raw),
-    modelUsed: typeof data.modelUsed === "string" && data.modelUsed.trim() ? data.modelUsed.trim() : null,
-  };
+      return {
+        source: data.source ?? "computed",
+        forecast: normalizeForecast(raw),
+        modelUsed: typeof data.modelUsed === "string" && data.modelUsed.trim() ? data.modelUsed.trim() : null,
+      };
+    },
+    { signal: req.signal },
+  );
 }

@@ -7,7 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
+import { useAuth } from "@/modules/auth";
+import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { extractCalibration, transcribeCommunicatorAudio } from "@/services/communicator-client";
+import { resolveUserFacingAlert } from "@/services/userFacingErrors";
 
 type CalibrationPhase = "idle" | "recording" | "transcribing" | "editing" | "extracting" | "complete" | "error";
 
@@ -35,6 +38,8 @@ function phaseLabel(phase: CalibrationPhase): string {
 
 export default function CalibrationScreen() {
   const insets = useSafeAreaInsets();
+  const { profile } = useAuth();
+  const locale = profile?.locale === "en" ? "en" : "ru";
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -44,10 +49,17 @@ export default function CalibrationScreen() {
   const [transcriptionConfidence, setTranscriptionConfidence] = useState<number | undefined>(undefined);
   const [summary, setSummary] = useState<string | null>(null);
 
-  const reportError = useCallback((err: Error) => {
-    setPhase("error");
-    Alert.alert("Калибровка не завершена", err.message);
-  }, []);
+  const reportError = useCallback(
+    (err: Error) => {
+      setPhase("error");
+      const copy = resolveUserFacingAlert(err, locale, {
+        genericTitle: locale === "en" ? "Calibration not completed" : "Калибровка не завершена",
+      });
+      const userErrors = getUserErrorStrings(locale);
+      Alert.alert(copy.title, copy.message, [{ text: userErrors.dismissButton }]);
+    },
+    [locale],
+  );
 
   const startRecording = useCallback(async () => {
     if (phase === "recording" || phase === "extracting") return;

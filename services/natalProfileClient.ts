@@ -1,6 +1,8 @@
 import { ZODIAC_SIGNS, type BirthData, type NatalProfile } from "@/modules/astro-core";
 import { getAstroNatalUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 import { Platform } from "react-native";
 
 export interface CreateNatalProfileResult {
@@ -239,11 +241,6 @@ async function readError(res: Response): Promise<Error> {
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
 }
 
-function networkError(url: string, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  return new Error(`Natal profile network error for ${url}: ${message}`);
-}
-
 function houseCusps(row: NatalChartRow): number[] | undefined {
   if (row.precision_mode !== "precise" || row.ascendant_longitude == null) return undefined;
   const house1Cusp = Math.floor(row.ascendant_longitude / 30) * 30;
@@ -272,27 +269,32 @@ function natalProfileFromRow(row: NatalChartRow): NatalProfile {
 }
 
 export async function createNatalProfile(birthData: BirthData, signal?: AbortSignal): Promise<CreateNatalProfileResult> {
-  const { accessToken, userId } = await getAuthContext();
-  const url = getAstroNatalUrl();
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ birthData }),
-      signal,
-    });
-  } catch (error) {
-    throw networkError(url, error);
-  }
+  return withTransientNetworkRetry(
+    async () => {
+      const { accessToken, userId } = await getAuthContext();
+      const url = getAstroNatalUrl();
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ birthData }),
+          signal,
+        });
+      } catch (error) {
+        throw wrapConnectivityFailure(error, "natal-profile");
+      }
 
-  if (!res.ok) throw await readError(res);
-  const result = (await res.json()) as CreateNatalProfileResult;
-  await saveCachedNatalProfile(userId, result.profile ?? null);
-  return result;
+      if (!res.ok) throw await readError(res);
+      const result = (await res.json()) as CreateNatalProfileResult;
+      await saveCachedNatalProfile(userId, result.profile ?? null);
+      return result;
+    },
+    { signal },
+  );
 }
 
 async function fetchActiveNatalProfileFromNetwork(userId: string, signal?: AbortSignal): Promise<NatalProfile | null> {

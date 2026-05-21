@@ -2,6 +2,8 @@ import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
 export type AccessMode = "premium" | "trial" | "free";
 
@@ -172,6 +174,16 @@ export async function fetchGlobalContent(req: {
   userLocation: { lat: number; lng: number; timezone: string };
   signal?: AbortSignal;
 }): Promise<GlobalContentResult> {
+  return withTransientNetworkRetry(
+    async () => fetchGlobalContentOnce(req),
+    { signal: req.signal },
+  );
+}
+
+async function fetchGlobalContentOnce(req: {
+  userLocation: { lat: number; lng: number; timezone: string };
+  signal?: AbortSignal;
+}): Promise<GlobalContentResult> {
   const token = await getAccessToken();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), GLOBAL_CONTENT_TIMEOUT_MS);
@@ -198,7 +210,7 @@ export async function fetchGlobalContent(req: {
   } catch (error) {
     if (req.signal?.aborted) throw error;
     if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
-    throw error;
+    throw wrapConnectivityFailure(error, "global-content");
   } finally {
     clearTimeout(timeoutId);
   }

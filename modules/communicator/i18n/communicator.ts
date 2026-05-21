@@ -27,6 +27,7 @@ export interface CommunicatorStrings {
   authRequiredError: string;
   sendErrorTitle: string;
   alertOk: string;
+  recorderPrepareErrorMessage: string;
   microphonePermissionError: string;
   transcribingStatus: string;
   thinkingStatus: string;
@@ -125,6 +126,7 @@ const ru: CommunicatorStrings = {
   authRequiredError: "Нужна авторизация Supabase для запроса к ассистенту.",
   sendErrorTitle: "Не удалось отправить сообщение",
   alertOk: "OK",
+  recorderPrepareErrorMessage: "Не удалось включить запись. Попробуйте ещё раз.",
   microphonePermissionError: "Нет доступа к микрофону",
   transcribingStatus: "Расшифровка",
   thinkingStatus: "Думаю",
@@ -173,6 +175,7 @@ const en: CommunicatorStrings = {
   authRequiredError: "Supabase authorization is required to contact the assistant.",
   sendErrorTitle: "Could not send message",
   alertOk: "OK",
+  recorderPrepareErrorMessage: "Could not start recording. Please try again.",
   microphonePermissionError: "Microphone access is not available",
   transcribingStatus: "Transcribing",
   thinkingStatus: "Thinking",

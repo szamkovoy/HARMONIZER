@@ -1,5 +1,7 @@
 import { getAiMonologueUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
+import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
 export type MonologueResponse<T extends Record<string, unknown> = Record<string, unknown>> = T & {
   cached?: boolean;
@@ -52,19 +54,29 @@ export async function callMonologue<T extends Record<string, unknown> = Record<s
   variables: Record<string, unknown> = {},
   signal?: AbortSignal,
 ): Promise<MonologueResponse<T>> {
-  const token = await getAccessToken();
-  const res = await fetch(getAiMonologueUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+  return withTransientNetworkRetry(
+    async () => {
+      const token = await getAccessToken();
+      let res: Response;
+      try {
+        res = await fetch(getAiMonologueUrl(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            scenario_id: scenarioId,
+            variables,
+          }),
+          signal,
+        });
+      } catch (error) {
+        throw wrapConnectivityFailure(error, "ai-monologue");
+      }
+      if (!res.ok) throw await readError(res);
+      return (await res.json()) as MonologueResponse<T>;
     },
-    body: JSON.stringify({
-      scenario_id: scenarioId,
-      variables,
-    }),
-    signal,
-  });
-  if (!res.ok) throw await readError(res);
-  return (await res.json()) as MonologueResponse<T>;
+    { signal },
+  );
 }
