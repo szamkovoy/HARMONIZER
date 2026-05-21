@@ -1,7 +1,7 @@
 import { isLikelyFetchNetworkFailure } from "@/modules/auth/authNetworkErrors";
 import { getUserErrorStrings, type AppLocale, type UserErrorStrings } from "@/modules/ui/i18n/userErrors";
 
-export type UserFacingErrorKind = "network" | "service_busy" | "auth" | "generic";
+export type UserFacingErrorKind = "network" | "service_busy" | "auth" | "timeout" | "generic";
 
 export type UserFacingErrorContext = {
   /** Заголовок для generic-ошибок, если не задан — из общих строк. */
@@ -56,6 +56,10 @@ function isServiceBusyMessage(message: string): boolean {
   );
 }
 
+function isTimeoutMessage(message: string): boolean {
+  return /timed out|timeout|занял слишком много|took too long/i.test(message);
+}
+
 function isAuthRequiredMessage(message: string): boolean {
   return (
     /Нужна авторизация/i.test(message) ||
@@ -73,6 +77,7 @@ export function classifyUserFacingError(error: unknown): UserFacingErrorKind {
   if (isLikelyFetchNetworkFailure(error) || isLegacyClientNetworkMessage(message)) return "network";
   if (isServiceBusyMessage(message)) return "service_busy";
   if (isAuthRequiredMessage(message)) return "auth";
+  if (isTimeoutMessage(message)) return "timeout";
   return "generic";
 }
 
@@ -124,6 +129,13 @@ export function resolveUserFacingAlert(
         title: strings.authRequiredTitle,
         message: strings.authRequiredMessage,
         retryable: false,
+      };
+    case "timeout":
+      return {
+        kind,
+        title: strings.timeoutTitle,
+        message: strings.timeoutMessage,
+        retryable: true,
       };
     default:
       return {

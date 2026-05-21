@@ -7,6 +7,7 @@ depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
+    modules/communicator/core/voiceTurnPipeline.ts,
     modules/communicator/ui/AssistantBubble.tsx,
     modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/core/dialogTextCleanup.ts,
@@ -16,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-21:** Голосовой пайплайн с таймаутом и повтором: `modules/communicator/core/voiceTurnPipeline.ts` (удержание URI, до 3×10 с на transcribe, удаление файла после успеха); `processVoiceFromUri` в `Communicator.tsx`; `transcribeCommunicatorAudio` — опция `useNetworkRetry: false` для голоса. Строки `voiceTranscribeFailedBubble`. **`spec.md`**, **`CHANGELOG.md`**.
 
 - **2026-05-21:** Пользовательские сетевые ошибки: `modules/ui/i18n/userErrors.ts`, `services/userFacingErrors.ts`, `withTransientNetworkRetry`; Alert с Повторить/Закрыть в `Communicator`; без URL в сообщениях; главный экран и калибровка через `resolveUserFacingAlert`.
 

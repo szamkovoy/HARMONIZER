@@ -10,6 +10,8 @@ export interface UserErrorStrings {
   authRequiredMessage: string;
   genericTitle: string;
   genericMessage: string;
+  timeoutTitle: string;
+  timeoutMessage: string;
   retryButton: string;
   dismissButton: string;
 }
@@ -24,6 +26,8 @@ const ru: UserErrorStrings = {
   authRequiredMessage: "Сессия истекла. Закройте и откройте приложение или войдите заново.",
   genericTitle: "Что-то пошло не так",
   genericMessage: "Не удалось выполнить запрос. Попробуйте ещё раз чуть позже.",
+  timeoutTitle: "Ответ занимает слишком много времени",
+  timeoutMessage: "Сервер не успел ответить. Попробуйте ещё раз или отправьте короче.",
   retryButton: "Повторить",
   dismissButton: "Закрыть",
 };
@@ -38,6 +42,8 @@ const en: UserErrorStrings = {
   authRequiredMessage: "Your session expired. Reopen the app or sign in again.",
   genericTitle: "Something went wrong",
   genericMessage: "The request could not be completed. Please try again in a moment.",
+  timeoutTitle: "This is taking too long",
+  timeoutMessage: "The server did not respond in time. Try again or send a shorter message.",
   retryButton: "Try again",
   dismissButton: "Close",
 };

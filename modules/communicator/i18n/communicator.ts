@@ -53,6 +53,7 @@ export interface CommunicatorStrings {
   emptyAssistantReplyFallback: string;
   /** В пузыре пользователя на время расшифровки голоса (до текста) */
   voiceUserBubblePending: string;
+  voiceTranscribeFailedBubble: string;
   practiceCard: {
     eyebrow: string;
     fallbackTitle: string;
@@ -154,6 +155,7 @@ const ru: CommunicatorStrings = {
   emptyAssistantReplyFallback:
     "Я не получил полный текст ответа — связь могла прерваться. Напиши ещё раз коротко, что сейчас важно, и я продолжу.",
   voiceUserBubblePending: "Расшифровываю голос…",
+  voiceTranscribeFailedBubble: "Не удалось расшифровать. Нажмите «Повторить».",
   practiceCard: {
     eyebrow: "Практика на сейчас",
     fallbackTitle: "Практика",
@@ -203,6 +205,7 @@ const en: CommunicatorStrings = {
   emptyAssistantReplyFallback:
     "I did not receive the full reply — the connection may have dropped. Send a short note about what matters now and I will continue.",
   voiceUserBubblePending: "Transcribing your voice…",
+  voiceTranscribeFailedBubble: "Could not transcribe. Tap Retry.",
   practiceCard: {
     eyebrow: "Practice for now",
     fallbackTitle: "Practice",

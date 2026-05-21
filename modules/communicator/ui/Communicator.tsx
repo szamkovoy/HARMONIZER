@@ -29,6 +29,11 @@ import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flas
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
+import {
+  deleteVoiceRecordingFile,
+  transcribeVoiceRecording,
+  type RetainedVoiceRecording,
+} from "@/modules/communicator/core/voiceTurnPipeline";
 import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
@@ -48,7 +53,6 @@ import type {
 } from "@/modules/communicator/core/types";
 import {
   fetchDialogSession,
-  transcribeCommunicatorAudio,
   type DialogueEntrySource,
   type DialogueUseCase,
   type PracticePicked,
@@ -542,11 +546,13 @@ export function Communicator({
     abort: abortChatStream,
     reset: resetChatStream,
     isBusy: streamBusy,
-  } = useCommunicatorStream({ onError: reportError });
+  } = useCommunicatorStream();
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   /** Плейсхолдер-пузырь пользователя на время расшифровки голоса; сбрасывается при ошибке до замены на текст */
   const voicePendingMessageIdRef = useRef<string | null>(null);
+  /** URI записи до успешного ответа ассистента — для повторной отправки и удаления после успеха */
+  const retainedVoiceRef = useRef<RetainedVoiceRecording | null>(null);
   /** Якорь скролла к последнему голосовому сообщению (id строки в `messages`) */
   const voiceUserAnchorMessageIdRef = useRef<string | null>(null);
   /** Не дублировать scrollToIndex на каждый чанк стрима при том же `voiceAnchorTick`. */
@@ -756,6 +762,13 @@ export function Communicator({
     resetChatStream();
   }, [clearDeferredRevealForceTimer, onMessage, resetChatStream]);
 
+  const clearRetainedVoice = useCallback(async () => {
+    const snap = retainedVoiceRef.current;
+    retainedVoiceRef.current = null;
+    voicePendingMessageIdRef.current = null;
+    if (snap?.uri) await deleteVoiceRecordingFile(snap.uri);
+  }, []);
+
   const scheduleDeferredAssistantCommit = useCallback(
     (p: PendingAssistantCommit) => {
       setPendingRevealGoal(stripDialogScaffoldMarkdown(stripStreamingMarkers(p.message.content)));
@@ -795,32 +808,11 @@ export function Communicator({
   const communicatorListDataRef = useRef(communicatorListData);
   communicatorListDataRef.current = communicatorListData;
 
-  const submitDialogTurn = useCallback(
-    async (userMessageText: string, voiceUserAlreadyCommitted: boolean) => {
-      retryHandlerRef.current = () => {
-        void submitDialogTurn(userMessageText, voiceUserAlreadyCommitted);
-      };
-      if (voiceUserAlreadyCommitted) {
-        setSuppressStreamAnchorScroll(true);
-      }
-
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      const result = await runChatStream({
-        conversationId: activeConversationId,
-        useCase,
-        entrySource,
-        triggerMeta: {
-          systemPrompt,
-          ...(triggerMeta ?? {}),
-        },
-        userMessage: userMessageText,
-        userTimezone: timezone,
-      });
-
-      if (result == null) {
-        return;
-      }
-
+  const commitAssistantTurn = useCallback(
+    async (
+      result: NonNullable<Awaited<ReturnType<typeof runChatStream>>>,
+      options?: { replaceAll?: boolean },
+    ) => {
       const complete = result.complete;
       if (complete?.conversationId) setActiveConversationId(complete.conversationId);
       const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
@@ -875,137 +867,219 @@ export function Communicator({
         strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
       if (!deferAllowed) {
         setPendingRevealGoal(null);
-        setMessages((prev) => [...prev, assistant]);
+        if (options?.replaceAll) {
+          setMessages([assistant]);
+        } else {
+          setMessages((prev) => [...prev, assistant]);
+        }
         onMessage?.(assistant);
         resetChatStream();
         retryHandlerRef.current = null;
+        void clearRetainedVoice();
       } else {
-        scheduleDeferredAssistantCommit({ mode: "append", message: assistant });
+        scheduleDeferredAssistantCommit({
+          mode: options?.replaceAll ? "replaceInitiate" : "append",
+          message: assistant,
+        });
         retryHandlerRef.current = null;
+        void clearRetainedVoice();
       }
     },
     [
-      activeConversationId,
+      clearRetainedVoice,
       entrySource,
       fetchDialogSession,
       onMessage,
       resetChatStream,
-      runChatStream,
       scheduleDeferredAssistantCommit,
-      systemPrompt,
-      triggerMeta,
       useCase,
       strings.emptyAssistantReplyFallback,
     ],
   );
 
-  const runStream = useCallback(
-    async (input: { type: "text"; text: string } | { type: "audio"; uri: string }) => {
-      let voiceUserAlreadyCommitted = false;
+  const submitDialogTurn = useCallback(
+    async (userMessageText: string, voiceUserAlreadyCommitted: boolean) => {
+      retryHandlerRef.current = () => {
+        void submitDialogTurn(userMessageText, voiceUserAlreadyCommitted);
+      };
+      if (voiceUserAlreadyCommitted) {
+        setSuppressStreamAnchorScroll(true);
+      }
+
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       try {
-        let userMessageText = "";
-
-        if (input.type === "text") {
-          setSuppressStreamAnchorScroll(false);
-          userMessageText = input.text.trim();
-        } else {
-          const pendingVoiceId = newMessageId();
-          voicePendingMessageIdRef.current = pendingVoiceId;
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: pendingVoiceId,
-              role: "user",
-              content: "",
-              createdAt: Date.now(),
-              meta: { voiceTranscribing: true },
-            },
-          ]);
-          voiceUserAnchorMessageIdRef.current = pendingVoiceId;
-          setVoiceAnchorTick((n) => n + 1);
-
-          const clearVoicePlaceholder = () => {
-            voicePendingMessageIdRef.current = null;
-            voiceUserAnchorMessageIdRef.current = null;
-            setMessages((prev) => prev.filter((m) => m.id !== pendingVoiceId));
-          };
-
-          try {
-            const mime = mimeFromRecordingUri(input.uri);
-            const base64 = await readAsStringAsync(input.uri, {
-              encoding: "base64",
-            });
-            setPhase("transcribing");
-            const transcript = await transcribeCommunicatorAudio({
-              mimeType: mime,
-              base64,
-              language: strings.transcribeLanguage,
-            });
-            userMessageText = transcript.text.trim();
-            setPhase("idle");
-            if (isSpuriousTranscription(userMessageText)) {
-              clearVoicePlaceholder();
+        const result = await runChatStream({
+          conversationId: activeConversationId,
+          useCase,
+          entrySource,
+          triggerMeta: {
+            systemPrompt,
+            ...(triggerMeta ?? {}),
+          },
+          userMessage: userMessageText,
+          userTimezone: timezone,
+        });
+        if (result == null) return;
+        await commitAssistantTurn(result);
+      } catch (error) {
+        try {
+          await new Promise((r) => setTimeout(r, 700));
+          const sync = await fetchDialogSession({ useCase, entrySource });
+          const last = sync.messages[sync.messages.length - 1];
+          if (last?.role === "assistant") {
+            const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+            if (recovered) {
+              await commitAssistantTurn({
+                assistantText: recovered,
+                decision: null,
+                complete: {
+                  fullText: recovered,
+                  shouldClose: false,
+                  messageId: last.id,
+                },
+              });
               return;
             }
-            if (
-              userMessageText &&
-              transcript.confidence != null &&
-              transcript.confidence < LOW_TRANSCRIPTION_CONFIDENCE
-            ) {
-              clearVoicePlaceholder();
-              setPendingTranscript(userMessageText);
-              setPendingTranscriptConfidence(transcript.confidence);
-              return;
-            }
-          } catch (transcribeErr) {
-            clearVoicePlaceholder();
-            setPhase("idle");
-            throw transcribeErr;
           }
+        } catch {
+          /* ignore session salvage */
+        }
+        throw error;
+      }
+    },
+    [
+      activeConversationId,
+      commitAssistantTurn,
+      entrySource,
+      fetchDialogSession,
+      runChatStream,
+      systemPrompt,
+      triggerMeta,
+      useCase,
+    ],
+  );
 
-          if (!userMessageText) {
-            clearVoicePlaceholder();
-            return;
-          }
+  const processVoiceFromUri = useCallback(
+    async (uri: string, durationMs: number) => {
+      const existing = retainedVoiceRef.current;
+      let pendingVoiceId = existing?.uri === uri ? existing.pendingVoiceId : undefined;
 
-          const userVoiceMessage: CommunicatorHistoryMessage = {
-            id: pendingVoiceId,
+      if (!pendingVoiceId) {
+        pendingVoiceId = newMessageId();
+        voicePendingMessageIdRef.current = pendingVoiceId;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: pendingVoiceId!,
             role: "user",
-            content: userMessageText,
+            content: "",
             createdAt: Date.now(),
-          };
-          setMessages((prev) => prev.map((m) => (m.id === pendingVoiceId ? userVoiceMessage : m)));
-          voicePendingMessageIdRef.current = null;
-          voiceUserAnchorMessageIdRef.current = pendingVoiceId;
-          setVoiceAnchorTick((n) => n + 1);
-          onMessage?.(userVoiceMessage);
-          voiceUserAlreadyCommitted = true;
+            meta: { voiceTranscribing: true },
+          },
+        ]);
+        voiceUserAnchorMessageIdRef.current = pendingVoiceId;
+        setVoiceAnchorTick((n) => n + 1);
+      } else {
+        voicePendingMessageIdRef.current = pendingVoiceId;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingVoiceId
+              ? { ...m, content: "", meta: { voiceTranscribing: true }, createdAt: Date.now() }
+              : m,
+          ),
+        );
+        setVoiceAnchorTick((n) => n + 1);
+      }
+
+      retainedVoiceRef.current = { uri, durationMs, pendingVoiceId };
+      retryHandlerRef.current = () => {
+        void processVoiceFromUri(uri, durationMs);
+      };
+
+      const clearVoicePlaceholder = () => {
+        voicePendingMessageIdRef.current = null;
+        voiceUserAnchorMessageIdRef.current = null;
+        setMessages((prev) => prev.filter((m) => m.id !== pendingVoiceId));
+      };
+
+      try {
+        const mime = mimeFromRecordingUri(uri);
+        const base64 = await readAsStringAsync(uri, { encoding: "base64" });
+        onEmotionSegment?.({ mimeType: mime, base64, durationMs });
+
+        setPhase("transcribing");
+        const transcript = await transcribeVoiceRecording({
+          uri,
+          language: strings.transcribeLanguage,
+        });
+        const userMessageText = transcript.text.trim();
+        setPhase("idle");
+
+        if (isSpuriousTranscription(userMessageText)) {
+          clearVoicePlaceholder();
+          await clearRetainedVoice();
+          return;
+        }
+        if (
+          userMessageText &&
+          transcript.confidence != null &&
+          transcript.confidence < LOW_TRANSCRIPTION_CONFIDENCE
+        ) {
+          clearVoicePlaceholder();
+          await clearRetainedVoice();
+          setPendingTranscript(userMessageText);
+          setPendingTranscriptConfidence(transcript.confidence);
+          return;
         }
 
-        if (!userMessageText) return;
+        if (!userMessageText) {
+          clearVoicePlaceholder();
+          await clearRetainedVoice();
+          return;
+        }
+
+        retainedVoiceRef.current = {
+          uri,
+          durationMs,
+          transcribedText: userMessageText,
+          pendingVoiceId,
+        };
+
+        const userVoiceMessage: CommunicatorHistoryMessage = {
+          id: pendingVoiceId!,
+          role: "user",
+          content: userMessageText,
+          createdAt: Date.now(),
+        };
+        setMessages((prev) => prev.map((m) => (m.id === pendingVoiceId ? userVoiceMessage : m)));
+        voicePendingMessageIdRef.current = null;
+        voiceUserAnchorMessageIdRef.current = pendingVoiceId;
+        setVoiceAnchorTick((n) => n + 1);
+        onMessage?.(userVoiceMessage);
 
         if (pendingAssistantCommitRef.current) {
           flushPendingAssistantCommit();
         }
-
         userHasScrolledUpRef.current = false;
-        if (!voiceUserAlreadyCommitted) {
-          const userMessage: CommunicatorHistoryMessage = {
-            id: newMessageId(),
-            role: "user",
-            content: userMessageText,
-            createdAt: Date.now(),
-          };
-          setMessages((prev) => [...prev, userMessage]);
-          onMessage?.(userMessage);
-        }
+        setSuppressStreamAnchorScroll(true);
 
-        await submitDialogTurn(userMessageText, voiceUserAlreadyCommitted);
+        await submitDialogTurn(userMessageText, true);
       } catch (e) {
-        const vPid = voicePendingMessageIdRef.current;
-        if (vPid) {
+        setPhase("idle");
+        const retained = retainedVoiceRef.current;
+        if (pendingVoiceId && !retained?.transcribedText) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === pendingVoiceId
+                ? {
+                    ...m,
+                    meta: { voiceTranscribing: false },
+                    content: strings.voiceTranscribeFailedBubble,
+                  }
+                : m,
+            ),
+          );
           voicePendingMessageIdRef.current = null;
-          setMessages((prev) => prev.filter((m) => m.id !== vPid));
         }
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
@@ -1029,19 +1103,68 @@ export function Communicator({
       }
     },
     [
-      activeConversationId,
-      entrySource,
-      fetchDialogSession,
+      clearRetainedVoice,
+      flushPendingAssistantCommit,
+      onEmotionSegment,
+      onMessage,
+      reportError,
+      resetChatStream,
+      strings.transcribeLanguage,
+      strings.voiceTranscribeFailedBubble,
+      submitDialogTurn,
+    ],
+  );
+
+  const runStream = useCallback(
+    async (input: { type: "text"; text: string }) => {
+      try {
+        setSuppressStreamAnchorScroll(false);
+        const userMessageText = input.text.trim();
+        if (!userMessageText) return;
+
+        if (pendingAssistantCommitRef.current) {
+          flushPendingAssistantCommit();
+        }
+
+        userHasScrolledUpRef.current = false;
+        const userMessage: CommunicatorHistoryMessage = {
+          id: newMessageId(),
+          role: "user",
+          content: userMessageText,
+          createdAt: Date.now(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+        onMessage?.(userMessage);
+
+        await submitDialogTurn(userMessageText, false);
+      } catch (e) {
+        setPhase("error");
+        setTimeout(() => setPhase("idle"), 400);
+        const err = e instanceof Error ? e : new Error(String(e));
+        if (isGeminiJsonError(err)) {
+          const fallback: CommunicatorHistoryMessage = {
+            id: newMessageId(),
+            role: "assistant",
+            content:
+              "Я услышал вопрос, но сейчас не смог корректно разобрать ответ сервера. Если коротко: выбери один главный фокус дня, не распыляйся, и начни с практики на 5-10 минут, которая возвращает тело в спокойный ритм. Напиши ещё раз, что именно у тебя сегодня впереди, и я помогу привязать рекомендацию к ситуации.",
+            createdAt: Date.now(),
+            meta: { shouldClose: false },
+          };
+          setMessages((prev) => [...prev, fallback]);
+          onMessage?.(fallback);
+          setPendingRevealGoal(null);
+          resetChatStream();
+          return;
+        }
+        reportError(err);
+      }
+    },
+    [
       flushPendingAssistantCommit,
       onMessage,
       reportError,
       resetChatStream,
-      scheduleDeferredAssistantCommit,
       submitDialogTurn,
-      systemPrompt,
-      triggerMeta,
-      useCase,
-      strings.transcribeLanguage,
     ],
   );
 
@@ -1083,84 +1206,20 @@ export function Communicator({
         initiateDialog: true,
       });
       if (result == null) return;
-      const complete = result.complete;
-      if (complete?.conversationId) setActiveConversationId(complete.conversationId);
-      const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
-
-      let recoveredFromSession = false;
-      let finalText = mergedText;
-      if (!finalText) {
-        await new Promise((r) => setTimeout(r, 700));
-        try {
-          const sync = await fetchDialogSession({ useCase, entrySource });
-          const last = sync.messages[sync.messages.length - 1];
-          if (last?.role === "assistant") {
-            const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
-            if (recovered) {
-              finalText = recovered;
-              recoveredFromSession = true;
-            }
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-
-      const assistant: CommunicatorHistoryMessage = {
-        id: complete?.messageId ?? newMessageId(),
-        role: "assistant",
-        content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
-        createdAt: Date.now(),
-        meta: {
-          orchestratorDecision: result.decision,
-          turnMode: complete?.turnMode,
-          modelTier: complete?.modelTier,
-          modelUsed: complete?.modelUsed,
-          iteration: complete?.iteration,
-          readyMarkerTriggered: complete?.readyMarkerTriggered,
-          validation: complete?.validation,
-          insightMetrics: complete?.insightMetrics,
-          csi: complete?.insightMetrics?.csi,
-          practicePicked: complete?.practicePicked,
-          shouldClose: complete?.shouldClose,
-          recommendationCorrected: complete?.recommendationCorrected,
-        },
-      };
-      const contentLenSource =
-        finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
-      const strippedLen = stripDialogScaffoldMarkdown(
-        stripStreamingMarkers(contentLenSource),
-      ).length;
-      const deferAllowed =
-        !recoveredFromSession &&
-        mergedText.trim().length > 0 &&
-        strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
-      if (!deferAllowed) {
-        setPendingRevealGoal(null);
-        setMessages([assistant]);
-        onMessage?.(assistant);
-        resetChatStream();
-        retryHandlerRef.current = null;
-      } else {
-        scheduleDeferredAssistantCommit({ mode: "replaceInitiate", message: assistant });
-        retryHandlerRef.current = null;
-      }
+      await commitAssistantTurn(result, { replaceAll: true });
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
   }, [
     activeConversationId,
+    commitAssistantTurn,
     entrySource,
-    onMessage,
     reportError,
-    resetChatStream,
     runChatStream,
-    scheduleDeferredAssistantCommit,
     systemPrompt,
     triggerMeta,
     useCase,
-    strings.emptyAssistantReplyFallback,
   ]);
 
   useEffect(() => {
@@ -1419,26 +1478,18 @@ export function Communicator({
 
     if (!uri) return;
 
-    let base64: string;
     try {
       const info = await getInfoAsync(uri);
       const size = info.exists && !info.isDirectory ? info.size : 0;
       if (size < 16 || durationMs < MIN_VOICE_MS) return;
-      base64 = await readAsStringAsync(uri, { encoding: "base64" });
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
       return;
     }
-    const mime = mimeFromRecordingUri(uri);
-    onEmotionSegment?.({
-      mimeType: mime,
-      base64,
-      durationMs,
-    });
 
-    await runStream({ type: "audio", uri });
-  }, [onEmotionSegment, phase, reportError, resetRecordingAudioMode, runStream]);
+    await processVoiceFromUri(uri, durationMs);
+  }, [phase, processVoiceFromUri, reportError, resetRecordingAudioMode]);
 
   const onMicPressIn = useCallback(() => {
     if (isBusy) return;

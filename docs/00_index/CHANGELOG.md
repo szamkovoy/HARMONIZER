@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: `communicator` — голос: удержание URI до ответа, transcribe 3×10s, Retry без перезаписи; `voiceTurnPipeline.ts`, `Communicator.tsx`.
 - 2026-05-21: client — localized network error UX (ru/en), hidden retries, Retry in Communicator; `userFacingErrors`, `modules/ui/i18n/userErrors.ts`.
 - 2026-05-21: pre-push doc-sync — dialog test mode (`testMode.ts`): `assistant` spec/history/dependencies, `infra` instrumentation, `MAP.md`; справочник `docs/04_reference/test_mode.md`.
 - 2026-05-20: pre-push doc-sync — profile: публичный контракт §2 (`loadLifeMatrixReport` без `days`, экспорты `*ReportCard` / `useLifeMatrixReport`), `dependencies` (поток `planned_events` → `calendarTrend`), точки входа в MAP. **`docs/02_modules/profile/{spec,dependencies}.md`**, **`docs/00_index/MAP.md`**.

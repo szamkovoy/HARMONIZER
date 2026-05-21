@@ -290,6 +290,16 @@ function readSseResponseWithXHR(
       }
     };
 
+    const finalizeStream = () => {
+      drain();
+      const last = parseSseBlock(carry);
+      if (last) handleSseEvent(last, params, state);
+      carry = "";
+    };
+
+    const hasSuccessfulStreamPayload = () =>
+      state.complete != null || state.fullText.trim().length > 0;
+
     const onAbort = () => {
       try {
         xhr.abort();
@@ -324,16 +334,24 @@ function readSseResponseWithXHR(
         return;
       }
       settle(() => {
-        drain();
-        const last = parseSseBlock(carry);
-        if (last) handleSseEvent(last, params, state);
-        carry = "";
+        finalizeStream();
         resolve(state);
       });
     };
 
     xhr.onerror = () => {
-      settle(() => reject(wrapConnectivityFailure(new Error("Network request failed"), "communicator-dialog")));
+      settle(() => {
+        finalizeStream();
+        // iOS/React Native: onerror may fire when the SSE socket closes even after a full body was received.
+        if (
+          (xhr.status >= 200 && xhr.status < 300 && hasSuccessfulStreamPayload()) ||
+          hasSuccessfulStreamPayload()
+        ) {
+          resolve(state);
+          return;
+        }
+        reject(wrapConnectivityFailure(new Error("Network request failed"), "communicator-dialog"));
+      });
     };
 
     xhr.onabort = () => {
@@ -471,28 +489,49 @@ export async function fetchDialogSession(params: {
   );
 }
 
-export async function transcribeCommunicatorAudio(req: TranscribeAudioRequest): Promise<TranscribeAudioResponse> {
-  const token = await getAccessToken();
-  const url = getCommunicatorV2TranscribeUrl();
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        audio: { mimeType: req.mimeType, base64: req.base64 },
-        language: req.language ?? "ru",
-      }),
-      signal: req.signal,
-    });
-  } catch (error) {
-    throw wrapConnectivityFailure(error, "communicator-transcribe");
+const TRANSCRIBE_TIMEOUT_MS = 12_000;
+
+export async function transcribeCommunicatorAudio(
+  req: TranscribeAudioRequest,
+  options?: { useNetworkRetry?: boolean },
+): Promise<TranscribeAudioResponse> {
+  const runOnce = async () => {
+    const token = await getAccessToken();
+    const url = getCommunicatorV2TranscribeUrl();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TRANSCRIBE_TIMEOUT_MS);
+    req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          audio: { mimeType: req.mimeType, base64: req.base64 },
+          language: req.language ?? "ru",
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted && !req.signal?.aborted) {
+        throw new Error(`Transcription timed out after ${Math.round(TRANSCRIBE_TIMEOUT_MS / 1000)}s`);
+      }
+      throw wrapConnectivityFailure(error, "communicator-transcribe");
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!res.ok) throw await readError(res);
+    return (await res.json()) as TranscribeAudioResponse;
+  };
+
+  if (options?.useNetworkRetry === false) {
+    return runOnce();
   }
-  if (!res.ok) throw await readError(res);
-  return (await res.json()) as TranscribeAudioResponse;
+
+  return withTransientNetworkRetry(runOnce, { signal: req.signal });
 }
 
 export async function extractCalibration(req: CalibrationExtractRequest, signal?: AbortSignal): Promise<CalibrationExtractResponse> {
