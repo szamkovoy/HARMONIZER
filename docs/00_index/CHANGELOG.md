@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.25
+version: 2.26
 updated: 2026-05-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: pre-push doc-sync — `daily_forecast`: `planetDiurnalCurve`, экспорты суточной криваты, `useDayContent.userLocation`, график `OpportunityWindows` на реальной высоте планеты; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**, **`docs/00_index/MAP.md`**.
 - 2026-05-21: pre-push doc-sync — `astro`/`daily_forecast`: `J2000Century` для `solar.apparentLongitude`, регрессии `solar-ephemeris` и `windows-of-opportunity`; home UI (`ChakraFlower`, `OpportunityWindows`). **`docs/02_modules/{astro,daily_forecast}/{spec,history}.md`**.
 - 2026-05-21: pre-push doc-sync — `assistant`: `prompts-reference.md` §2 `opening` + `{{opening_day_question}}`; `spec.md` — server-side ready escalation, `dialogOpeningHints`, `forcePlanningOnOpening`.
 - 2026-05-21: `assistant` — server-side ready escalation при confident inquiry; opening hints по ветке/фазе; planning на opening несмотря на anti-replan.

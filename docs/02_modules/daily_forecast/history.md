@@ -1,12 +1,15 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 1.9
+version: 2.0
 updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
     modules/daily-engine/computeDailyForecast.ts,
+    modules/daily-engine/planetDiurnalCurve.ts,
+    modules/home/ui/OpportunityWindows.tsx,
+    modules/home/useDayContent.ts,
     supabase/functions/daily-forecast/index.ts,
     supabase/functions/_shared/daily-engine-parity.test.ts,
     services/dayContentCache.ts,
@@ -15,7 +18,9 @@ code_refs:
 
 ## Decision Log
 
-- **2026-05-21:** Home UI: `ChakraFlower` — свечение выбранного лепестка без `Animated`‑пульса; `OpportunityWindows` — дуга «неба» строится от восхода к кульминации на круговой шкале (`makeSkyY`), маркер «сейчас» обновляется при монтировании и при `AppState` → `active` (без периодического `setInterval`), точки графика мемоизированы по `skyY`.
+- **2026-05-21:** `planetDiurnalCurve.ts` — общий расчёт высоты планеты над горизонтом (`planetAltitudeAt`, `samplePlanetAltitudeForDay`, `interpolateDiurnalAltitude`); `freeWindows` и график `OpportunityWindows` используют его вместо локальной/синусоидальной аппроксимации. `useDayContent` отдаёт `userLocation` на home → `OpportunityWindows`; ось графика и маркеры — доля суток в `userLocation.timezone`. Регрессия `planet-diurnal-curve.test.ts`.
+
+- **2026-05-21:** Home UI: `ChakraFlower` — свечение выбранного лепестка без `Animated`‑пульса; `OpportunityWindows` — маркер «сейчас» обновляется при монтировании и при `AppState` → `active` (без периодического `setInterval`). *(Волна «неба» на круговой шкале `makeSkyY` заменена суточной кривой из `daily-engine` — см. запись выше.)*
 
 - **2026-05-21:** Окна возможностей для Солнца зависят от исправления эфемерид в `astro` (`J2000Century` для `apparentLongitude`); добавлена регрессия `modules/daily-engine/windows-of-opportunity.test.ts` (Москва, восход 03–07, кульминация 11–15 локально).
 

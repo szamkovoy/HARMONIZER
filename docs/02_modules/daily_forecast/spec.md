@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.0
+version: 2.1
 updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -16,6 +16,9 @@ code_refs:
     services/globalContentClient.ts,
     modules/daily-engine/index.ts,
     modules/daily-engine/computeDailyForecast.ts,
+    modules/daily-engine/planetDiurnalCurve.ts,
+    modules/daily-engine/freeWindows.ts,
+    modules/home/ui/OpportunityWindows.tsx,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
     supabase/functions/daily-forecast/index.ts,
     supabase/functions/precompute-daily-forecasts/index.ts,
@@ -35,11 +38,12 @@ code_refs:
 - `DailyEngineInput` — вход движка: `natalProfile`, `calibration | null`, `forecastDate`, `userLocation`, `recentPlanetsOfDay`.
 - `DailyForecast` — результат: `date`, `importance`, `activation`, `rankedPlanets`, `planetOfTheDay`, `isAlternativeChoice`, `alternativeReasonText?`, `todayPlanetState`, `windowsOfOpportunity`, `transitChart`, `computedAt`, `cacheValidUntil`, опционально `recommendationShortText`, `recommendationLongText`, `slogan`, `mathLevel`, `isGlobal?`. Для `windowsOfOpportunity.exactAspect` контракт включает `time`, `aspectType`, `toNatalPlanet`, `transitPlanet`. На уровне БД строка `user_daily_forecasts` теперь дополнительно хранит `day_target_chakra`, `day_target_reason`, `day_target_fixed_at`, которые фиксируются сервером daily dialog на локальный день.
 - Вспомогательные типы: `Planet`, `TodayTone`, `CalibrationLike`, `TransitChart`, и др. из `modules/daily-engine/core/types.ts`.
+- Суточная кривая высоты планеты (клиент/UI): `planetAltitudeAt`, `samplePlanetAltitudeForDay`, `interpolateDiurnalAltitude`, тип `DiurnalAltitudeSample` — `modules/daily-engine/planetDiurnalCurve.ts`, реэкспорт из `modules/daily-engine/index.ts`; `computeWindowsForFreeUser` (`freeWindows.ts`) использует `planetAltitudeAt` для восхода/кульминации.
 
 ### Хук и состояние главного экрана
 
 - `useDayContent(options?)` → `UseDayContentResult` (`modules/home/useDayContent.ts`):
-  - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, `refresh(opts?)`. Опции **`refresh`** типизированы экспортом **`DayContentRefreshOptions`**: `forceRefresh?`, `accessModeOverride?`, `accessTierOverride?`, **`blockingReload?`** (при `true` — стартовый оверлей до готовности дня после смены натала с другого экрана; см. `services/homeDayContentReloadRequest.ts` + **`useFocusEffect`** на главном в `app/(tabs)/index.tsx`).
+  - `forecast: DailyForecast | null`, `accessMode`, `modelUsed`, `source` (`"cache" | "computed" | "global"`), `status`, `loading`, `error`, **`userLocation: DayContentUserLocation | null`** (`{ lat, lng, timezone }` из профиля при наличии координат), `refresh(opts?)`. Экспорт типа **`DayContentUserLocation`**. Опции **`refresh`** типизированы экспортом **`DayContentRefreshOptions`**: `forceRefresh?`, `accessModeOverride?`, `accessTierOverride?`, **`blockingReload?`** (при `true` — стартовый оверлей до готовности дня после смены натала с другого экрана; см. `services/homeDayContentReloadRequest.ts` + **`useFocusEffect`** на главном в `app/(tabs)/index.tsx`).
   - **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты **`YYYY-MM-DD`** и времени **`HH:MM`**; опционально **`initialDate` / `initialTime`**; при сабмите — **`timeMode: "precise"`**, **`location`** = экспорт **`NATAL_BRIDGE_DEFAULT_LOCATION`** (M1: Москва, `Europe/Moscow`).
   - Локальный календарный день: `Intl` + `forecastDate` в IANA-зоне из профиля/геолокации.
   - Free: `fetchGlobalContent` + URL из `getAiGlobalContentUrl()`; premium/trial: `fetchDailyForecast` + `getDailyForecastUrl()` (Vercel `/api/astro/daily-forecast` или Supabase Function — определяется `communicatorConfig`).
@@ -65,7 +69,7 @@ code_refs:
 
 1. **Движок (чистая математика + адаптер эфемерид):** `modules/daily-engine` — `computeDailyForecast` / `computeDailyForecastFromTransits`, активация и важность через `effectiveNatalParams` (при `calibration == null` используются только `S_initial` / `H_initial` из натала), ранжирование и `chooseFinalPlanet`, опционально окна через `TransitProvider.computeWindowsOfOpportunity`. `cacheValidUntil` в основном пути: конец локального календарного дня прогноза (`endOfForecastDateUtc` в `computeDailyForecast.ts`).
 2. **Сервер:** загрузка `NatalProfile`, `CalibrationLike | null` из `user_calibrations`, чтение `recentPlanetsOfDay` из `user_settings.preferences`, запись/чтение `user_daily_forecasts`. Для HARMONIZER v2 эта же строка теперь получает `day_target_*` из ассистента; home и profile читают её без отдельной таблицы-прокладки. Инвалидация строк прогноза при успешной калибровке — см. `docs/02_modules/calibration/dependencies.md` и `docs/02_modules/astro/caching_strategy.md`.
-3. **Клиент:** `useDayContent` orchestrates профиль → геолокация → кэш → HTTP; главный экран (`app/(tabs)/index.tsx`) рендерит карточки и `ChakraFlower`, маппинг планета → чакра — `modules/home/planetChakra.ts` + `data/planet_chakra_map.json`. Для paid-пути базовый forecast теперь считается достаточным для первого paint, а вторичные тексты и math-level hydrates отдельным фоновым проходом.
+3. **Клиент:** `useDayContent` orchestrates профиль → геолокация → кэш → HTTP; главный экран (`app/(tabs)/index.tsx`) рендерит карточки и `ChakraFlower`, маппинг планета → чакра — `modules/home/planetChakra.ts` + `data/planet_chakra_map.json`. **`OpportunityWindows`** строит волну «неба» из `samplePlanetAltitudeForDay` + `interpolateDiurnalAltitude` (планета графика — из `windows.sunrise`/`culmination` или `planetOfTheDay`); доля суток 0…1 и линия «сейчас» — в IANA-зоне `userLocation.timezone` (проброс `userLocation` с главного экрана). Для paid-пути базовый forecast теперь считается достаточным для первого paint, а вторичные тексты и math-level hydrates отдельным фоновым проходом.
 
 Стратегия серверного и клиентского кэша, таблицы и TTL описаны **краткой ссылкой** в `docs/02_modules/astro/caching_strategy.md` (без дублирования содержимого здесь).
 
@@ -83,7 +87,7 @@ code_refs:
 - **`day_target_chakra` vs `windowsOfOpportunity`:** day-target уже фиксируется в `user_daily_forecasts`, но полный пересчёт `windows_of_opportunity` под новую цель дня пока не автоматизирован отдельным серверным шагом; home продолжает использовать текущие поля строки как есть.
 - **Дублирование реализации M2:** формулы поддерживаются в Node (`modules/daily-engine`) и в Deno (`supabase/functions/_shared/dailyForecast.ts`); есть **частичный** parity-тест (см. ниже и open questions).
 - **Parity-тест:** `supabase/functions/_shared/daily-engine-parity.test.ts` сравнивает Node и Deno для `effectiveNatalParams`, `computeActivation`, `computeImportance` (включая ветки `precisionMode`); не покрывает целиком `chooseFinalPlanet`, ранжирование после изменений в одной ветке без зеркала, ни полный `computeDailyForecast` с реальными окнами.
-- **Регрессии окон и Солнца (клиент/Node):** `modules/astro-core/solar-ephemeris.test.ts` (гладкость долготы Солнца на 10‑минутных шагах); `modules/daily-engine/windows-of-opportunity.test.ts` (восход/кульминация для `primaryPlanet: "Sun"` в `Europe/Moscow` — утренние часы).
+- **Регрессии окон и Солнца (клиент/Node):** `modules/astro-core/solar-ephemeris.test.ts` (гладкость долготы Солнца на 10‑минутных шагах); `modules/daily-engine/windows-of-opportunity.test.ts` (восход/кульминация для `primaryPlanet: "Sun"` в `Europe/Moscow` — утренние часы); `modules/daily-engine/planet-diurnal-curve.test.ts` (непрерывность суточной криваты Солнца для графика home).
 
 ## Справочные материалы
 

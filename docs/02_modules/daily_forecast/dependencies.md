@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 1.4
-updated: 2026-05-16
+version: 1.5
+updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -13,6 +13,9 @@ code_refs:
     services/homeDayContentReloadRequest.ts,
     services/globalContentClient.ts,
     modules/daily-engine/index.ts,
+    modules/daily-engine/planetDiurnalCurve.ts,
+    modules/daily-engine/freeWindows.ts,
+    modules/home/ui/OpportunityWindows.tsx,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
     supabase/functions/daily-forecast/index.ts,
   ]
@@ -23,6 +26,7 @@ code_refs:
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  
   - Серверные маршруты прогноза используют `loadActiveNatalProfile` / те же структуры, что и модуль `astro`.
+  - **Клиентский UI home → daily-engine:** `modules/home/ui/OpportunityWindows.tsx` импортирует `samplePlanetAltitudeForDay`, `interpolateDiurnalAltitude` из `modules/daily-engine`; `freeWindows.ts` делит `planetAltitudeAt` с `planetDiurnalCurve.ts`.
 
 - **`calibration` (данные на сервере, не импорт модуля на клиенте)**  
   - `_legacy_web/app/api/astro/daily-forecast/route.ts` и Edge `daily-forecast` читают активную строку `user_calibrations` и передают `CalibrationLike | null` в движок; `effectiveNatalParams` при `null` оставляет `S_initial`/`H_initial`.  
