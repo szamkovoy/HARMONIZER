@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.0
+version: 2.1
 updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-21:** `OpportunityWindows` — суточная кривая через `react-native-svg` `Polyline` (вместо точек `waveDot`); цвет линии и штриха «сейчас» по `graphPlanet`; при расхождении `graphPlanet` и `planetOfTheDay` — подпись `graphTrack` в `modules/home/i18n/home.ts`.
 
 - **2026-05-21:** `planetDiurnalCurve.ts` — общий расчёт высоты планеты над горизонтом (`planetAltitudeAt`, `samplePlanetAltitudeForDay`, `interpolateDiurnalAltitude`); `freeWindows` и график `OpportunityWindows` используют его вместо локальной/синусоидальной аппроксимации. `useDayContent` отдаёт `userLocation` на home → `OpportunityWindows`; ось графика и маркеры — доля суток в `userLocation.timezone`. Регрессия `planet-diurnal-curve.test.ts`.
 
