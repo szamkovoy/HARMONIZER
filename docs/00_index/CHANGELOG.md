@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.22
+version: 2.23
 updated: 2026-05-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: pre-push doc-sync — `communicator`: при salvage через `fetchDialogSession` в `complete` копируются `practicePicked` и метаданные оркестратора из `meta`; `assistant/spec.md` — `{{catalog_reconciliation}}` в списке плейсхолдеров `expandOrchestratorInstruction`.
 - 2026-05-21: `assistant` — оркестратор: `catalog_reconciliation` при конфликте тип/минуты; `resolvePracticePublic` без маркера при `confident`; refusal-check только если тип/минуты не названы.
 - 2026-05-21: `assistant` — `validateHistoryHasDurationAndType`: `confident` только при согласованных тип/минуты (v6).
 - 2026-05-21: pre-push doc-sync — `promptLocalHour` в `buildDialogSystemInstruction`; `prompts-reference.md` §3, `assistant/spec.md` (testMode, debug export).

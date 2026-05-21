@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.7
+version: 2.8
 updated: 2026-05-21
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-21:** Восстановление после обрыва SSE: `submitDialogTurn` при salvage через `fetchDialogSession` передаёт в `commitAssistantTurn` синтетический `complete` с `practicePicked`, `turnMode`, `modelTier`, `modelUsed`, `iteration`, `debugExport` из `meta` последнего assistant-сообщения (не только `fullText`). **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** Надёжность стрима и transcribe: `useCommunicatorStream` — salvaged-чанк при частичном SSE; `sendDialogMessage` (XHR) — resolve при `onerror`, если payload уже полный; `transcribeCommunicatorAudio` — 12 с на попытку, опция `useNetworkRetry`; `submitDialogTurn` — `fetchDialogSession` при исключении стрима; `userFacingErrors` — kind `timeout`. **`spec.md`**, **`dependencies.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** pre-push doc-sync — `spec.md` §2: `fetchDialogSession({ debugExport })`, `DialogCompleteEvent.debugExport` → `meta.debug`.
 - **2026-05-21:** Dev-export диалога расширен при серверном test/debug режиме: блок `debug` в assistant-сообщениях и `dialog_state_after` в конце JSON (`exportDialogJson`, `fetchDialogSession?debugExport=1`). **`spec.md`**, **`CHANGELOG.md`**.
