@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/spec
 title: Astro Spec
-version: 1.2
-updated: 2026-05-12
+version: 1.3
+updated: 2026-05-21
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -113,7 +113,7 @@ export interface NatalProfile {
 
 ## 4. Конфигурация и параметры
 
-- **Эфемериды:** npm-пакет `astronomia` (см. импорты в `ephemeris.ts`). Версия для трассировки зашита константой `EPHEMERIS_LIB_VERSION = "astronomia@4.2.0"`; она попадает в `ChartPositions.ephemerisLibVersion` и далее в `NatalProfile` и колонку `ephemeris_lib_version` в БД.
+- **Эфемериды:** npm-пакет `astronomia` (см. импорты в `ephemeris.ts`). Версия для трассировки зашита константой `EPHEMERIS_LIB_VERSION = "astronomia@4.2.0"`; она попадает в `ChartPositions.ephemerisLibVersion` и далее в `NatalProfile` и колонку `ephemeris_lib_version` в БД. Долгота Солнца: `solar.apparentLongitude(base.J2000Century(jde))` (не сырой JDE) — та же формула в зеркалах `modules/astro-core/ephemeris.ts`, `_legacy_web/modules/astro-core/ephemeris.ts`, `supabase/functions/_shared/dailyForecast.ts`, `_legacy_web/app/api/_utils/globalTransitMath.ts`.
 - **Режимы точности `timeMode`:**
   - **`precise`** — локальные дата и время из `birthData`, считается асцендент и куспиды whole sign от асцендента; `houseSystem`: `whole_sign_asc`; массив `houseCusps` присутствует в профиле.
   - **`approximate`** — для эфемерид используется то же локальное время, что передал клиент (валидируется наличие `time`); `houseSystem`: `whole_sign_asc`; `houseCusps` в профиле **не** заполняются (см. `wholeSignCusps` в `computeNatalProfile.ts`). Балл домов в акцидентальном достоинстве умножается на `0.7` (`accidentalDignity.ts`). В транзитном движке при активации участия Луны применяется дополнительный множитель `0.7` (`activation.ts`).

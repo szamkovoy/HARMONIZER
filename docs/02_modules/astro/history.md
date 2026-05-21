@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/history
 title: Astro History
-version: 1.3
-updated: 2026-05-12
+version: 1.4
+updated: 2026-05-21
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-21:** Исправлен вызов `solar.apparentLongitude`: вместо сырого JDE передаётся `base.J2000Century(jde)` во всех копиях эфемерид (`modules/astro-core/ephemeris.ts`, `_legacy_web/modules/astro-core/ephemeris.ts`, `supabase/functions/_shared/dailyForecast.ts`, `_legacy_web/app/api/_utils/globalTransitMath.ts`). До правки долгота Солнца «прыгала» на коротких интервалах и смещала восход/кульминацию в окнах возможностей; регрессия — `modules/astro-core/solar-ephemeris.test.ts`.
 
 - **2026-05-12:** Для ускорения повторных запусков мобильного приложения активный натал начали кэшировать локально в `expo-secure-store` / `localStorage` (`fetchActiveNatalProfileCached(userId)` в `services/natalProfileClient.ts`). Причина: натальная карта практически неизменна, а холодный Supabase-read мог блокировать старт главного экрана дольше, чем уже существующий кэш дневного контента. Параллельно клиентский fetch активного натала получил таймаут `10s`, чтобы зависший PostgREST не держал UI бесконечно.
 

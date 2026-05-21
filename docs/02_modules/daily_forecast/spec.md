@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 1.9
-updated: 2026-05-16
+version: 2.0
+updated: 2026-05-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -83,6 +83,7 @@ code_refs:
 - **`day_target_chakra` vs `windowsOfOpportunity`:** day-target уже фиксируется в `user_daily_forecasts`, но полный пересчёт `windows_of_opportunity` под новую цель дня пока не автоматизирован отдельным серверным шагом; home продолжает использовать текущие поля строки как есть.
 - **Дублирование реализации M2:** формулы поддерживаются в Node (`modules/daily-engine`) и в Deno (`supabase/functions/_shared/dailyForecast.ts`); есть **частичный** parity-тест (см. ниже и open questions).
 - **Parity-тест:** `supabase/functions/_shared/daily-engine-parity.test.ts` сравнивает Node и Deno для `effectiveNatalParams`, `computeActivation`, `computeImportance` (включая ветки `precisionMode`); не покрывает целиком `chooseFinalPlanet`, ранжирование после изменений в одной ветке без зеркала, ни полный `computeDailyForecast` с реальными окнами.
+- **Регрессии окон и Солнца (клиент/Node):** `modules/astro-core/solar-ephemeris.test.ts` (гладкость долготы Солнца на 10‑минутных шагах); `modules/daily-engine/windows-of-opportunity.test.ts` (восход/кульминация для `primaryPlanet: "Sun"` в `Europe/Moscow` — утренние часы).
 
 ## Справочные материалы
 
