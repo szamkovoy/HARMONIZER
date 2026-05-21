@@ -13,6 +13,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
+import Svg, { Polyline } from "react-native-svg";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import { interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
@@ -71,6 +72,7 @@ const SKY_AXIS_Y = 78;
 const CHART_ALTITUDE_AMPLITUDE_PX = 42;
 /** Высота точек волны (`waveDot`) — `top` совпадает с мат. Y, тело линии уходит вниз на эту величину. */
 const WAVE_LINE_THICKNESS_PX = 4;
+const CHART_VIEW_HEIGHT = 152;
 /** Воздух после нижнего края волны / перед верхним краём волны (не наезжаем на жёлтый/синий след). */
 const NOW_AIR_AT_CURVE_PX = 3;
 /** Воздух у горизонтальной оси (1px на `SKY_AXIS_Y`), не пересекаем линию. */
@@ -364,7 +366,9 @@ export function OpportunityWindows({
   const [nowBadgeLayoutW, setNowBadgeLayoutW] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
-  const lineColor = PLANET_CHAKRA[planetOfTheDay].color;
+  const graphPlanet = windows.sunrise?.planet ?? windows.culmination?.planet ?? planetOfTheDay;
+  const lineColor = PLANET_CHAKRA[graphPlanet].color;
+  const nowLineColor = useMemo(() => hexToRgba(lineColor, 0.58), [lineColor]);
   useEffect(() => {
     setNow(new Date());
     const sub = AppState.addEventListener("change", (state) => {
@@ -531,7 +535,6 @@ export function OpportunityWindows({
   const displayItems = items.filter((item): item is WindowItem => Boolean(item));
   const activeItems = displayItems.filter((item) => item.time);
   const chartTimezone = userLocation?.timezone ?? "UTC";
-  const graphPlanet = windows.sunrise?.planet ?? windows.culmination?.planet ?? planetOfTheDay;
   const diurnalChart = useMemo(() => {
     if (!userLocation) return null;
     return buildDiurnalChartModel({
@@ -542,6 +545,15 @@ export function OpportunityWindows({
   }, [forecastDate, graphPlanet, userLocation]);
   const skyY = diurnalChart?.skyY ?? (() => SKY_AXIS_Y);
   const chartDots = diurnalChart?.chartDots ?? [];
+  const chartPolylinePoints = useMemo(() => {
+    if (chartWidth <= 0 || chartDots.length < 2) return "";
+    return chartDots
+      .map((dot) => {
+        const y = dot.y + WAVE_LINE_THICKNESS_PX / 2;
+        return `${dot.x * chartWidth},${y}`;
+      })
+      .join(" ");
+  }, [chartDots, chartWidth]);
   const currentTimePoint = useMemo(() => {
     const parts = new Intl.DateTimeFormat("en-GB", {
       timeZone: chartTimezone,
@@ -802,6 +814,11 @@ export function OpportunityWindows({
           <AppText variant="technicalCaption" tone="muted">
             {t.subtitle(strings.planetLabels[planetOfTheDay])}
           </AppText>
+          {graphPlanet !== planetOfTheDay ? (
+            <AppText variant="technicalCaption" tone="muted">
+              {t.graphTrack(strings.planetLabels[graphPlanet])}
+            </AppText>
+          ) : null}
         </View>
         <Pressable
           accessibilityRole="button"
@@ -840,7 +857,7 @@ export function OpportunityWindows({
               style={[
                 styles.nowDashSegment,
                 {
-                  backgroundColor: gridLineMuted,
+                  backgroundColor: nowLineColor,
                   top: y,
                   height: Math.min(NOW_DASH_LEN, nowLinePixelHeight - y),
                 },
@@ -848,20 +865,24 @@ export function OpportunityWindows({
             />
           ))}
         </View>
-        {chartDots.map((dot, index) => (
-          <View
-            key={index}
-            style={[
-              styles.waveDot,
-              {
-                backgroundColor: lineColor,
-                left: `${dot.x * 100}%`,
-                opacity: 0.18 + index / chartDots.length * 0.24,
-                top: dot.y,
-              },
-            ]}
-          />
-        ))}
+        {chartPolylinePoints ? (
+          <Svg
+            pointerEvents="none"
+            width={chartWidth}
+            height={CHART_VIEW_HEIGHT}
+            style={styles.chartSvg}
+          >
+            <Polyline
+              points={chartPolylinePoints}
+              fill="none"
+              stroke={lineColor}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.88}
+            />
+          </Svg>
+        ) : null}
         {chartPoints.map((point) => {
           const reminderUiOn = Boolean(enabledReminders[point.key]) && !point.past;
           return (
@@ -1063,10 +1084,15 @@ const styles = StyleSheet.create({
     width: 34,
   },
   chartWrap: {
-    height: 152,
+    height: CHART_VIEW_HEIGHT,
     justifyContent: "center",
     overflow: "hidden",
     position: "relative",
+  },
+  chartSvg: {
+    left: 0,
+    position: "absolute",
+    top: 0,
   },
   axis: {
     height: 1,
@@ -1099,13 +1125,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     justifyContent: "center",
-  },
-  waveDot: {
-    borderRadius: 999,
-    height: 4,
-    marginLeft: -2,
-    position: "absolute",
-    width: 4,
   },
   markerHitbox: {
     alignItems: "center",

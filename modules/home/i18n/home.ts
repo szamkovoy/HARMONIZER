@@ -49,6 +49,8 @@ export interface HomeStrings {
   opportunityWindows: {
     title: string;
     subtitle: (planet: string) => string;
+    /** Платный тариф: движение транзитной планеты может отличаться от планеты дня. */
+    graphTrack: (planet: string) => string;
     emptyDetail: string;
     windowTitles: Record<"sunrise" | "culmination" | "exactAspect", string>;
     aspectLabels: Record<AspectType, string>;
@@ -184,6 +186,7 @@ const ru: HomeStrings = {
   opportunityWindows: {
     title: "Окно возможностей",
     subtitle: (planet) => `Главная тема: ${planet}`,
+    graphTrack: (planet) => `На графике: ${planet}`,
     emptyDetail: "Сегодня без точного окна",
     windowTitles: {
       sunrise: "Восход",
@@ -310,6 +313,7 @@ const en: HomeStrings = {
   opportunityWindows: {
     title: "Opportunity windows",
     subtitle: (planet) => `Main theme: ${planet}`,
+    graphTrack: (planet) => `Chart: ${planet}`,
     emptyDetail: "No exact window today",
     windowTitles: {
       sunrise: "Rise",
