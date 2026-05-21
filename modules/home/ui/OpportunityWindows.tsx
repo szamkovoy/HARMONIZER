@@ -13,7 +13,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
-import Svg, { Polyline } from "react-native-svg";
+import Svg, { Line, Polyline } from "react-native-svg";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import { interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
@@ -262,8 +262,6 @@ function clampNowLabelCenterX(chartW: number, nowFrac: number, badgeHalfPx: numb
   return Math.min(chartW - half, Math.max(half, c));
 }
 
-const NOW_DASH_LEN = 2;
-const NOW_DASH_GAP = 4;
 const AXIS_LINE_OPACITY = 0.52;
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -285,14 +283,6 @@ function computeNowLineSpan(yCurve: number, yAxis: number): { top: number; heigh
   const top = yAxis + 1 + NOW_AIR_AT_AXIS_PX;
   const bottom = yCurve - NOW_AIR_AT_CURVE_PX;
   return { top, height: Math.max(0, bottom - top) };
-}
-
-function nowLineDashKeys(heightPx: number): number[] {
-  const keys: number[] = [];
-  for (let y = 0; y < heightPx; y += NOW_DASH_LEN + NOW_DASH_GAP) {
-    keys.push(y);
-  }
-  return keys;
 }
 
 /** Доля суток 0…1 в IANA-зоне пользователя (полночь → следующая полночь). */
@@ -368,7 +358,10 @@ export function OpportunityWindows({
   const t = strings.opportunityWindows;
   const graphPlanet = windows.sunrise?.planet ?? windows.culmination?.planet ?? planetOfTheDay;
   const lineColor = PLANET_CHAKRA[graphPlanet].color;
-  const nowLineColor = useMemo(() => hexToRgba(lineColor, 0.58), [lineColor]);
+  const nowLineColor = useMemo(
+    () => hexToRgba(theme.colors.textPrimary, 0.28),
+    [theme.colors.textPrimary],
+  );
   useEffect(() => {
     setNow(new Date());
     const sub = AppState.addEventListener("change", (state) => {
@@ -585,7 +578,6 @@ export function OpportunityWindows({
     () => hexToRgba(theme.colors.textFaint, AXIS_LINE_OPACITY),
     [theme.colors.textFaint],
   );
-  const nowDashYs = useMemo(() => nowLineDashKeys(nowLinePixelHeight), [nowLinePixelHeight]);
   // Подпись «сейчас» у горизонтали: кривая ниже оси → текст над осью; кривая над осью → текст под осью (меньше пересечений с волной).
   const nowAxisBadgeTop = useMemo(() => {
     if (yCurve > SKY_AXIS_Y) {
@@ -839,32 +831,6 @@ export function OpportunityWindows({
 
       <View style={styles.chartWrap} onLayout={onChartLayout}>
         <View style={[styles.axis, { backgroundColor: gridLineMuted }]} />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.nowLine,
-            {
-              left: `${currentTimePoint.x * 100}%`,
-              top: nowLineTop,
-              height: nowLinePixelHeight,
-              transform: [{ translateX: -0.5 }],
-            },
-          ]}
-        >
-          {nowDashYs.map((y) => (
-            <View
-              key={y}
-              style={[
-                styles.nowDashSegment,
-                {
-                  backgroundColor: nowLineColor,
-                  top: y,
-                  height: Math.min(NOW_DASH_LEN, nowLinePixelHeight - y),
-                },
-              ]}
-            />
-          ))}
-        </View>
         {chartPolylinePoints ? (
           <Svg
             pointerEvents="none"
@@ -872,6 +838,18 @@ export function OpportunityWindows({
             height={CHART_VIEW_HEIGHT}
             style={styles.chartSvg}
           >
+            {chartWidth > 0 && nowLinePixelHeight > 0 ? (
+              <Line
+                x1={currentTimePoint.x * chartWidth}
+                y1={nowLineTop}
+                x2={currentTimePoint.x * chartWidth}
+                y2={nowLineTop + nowLinePixelHeight}
+                stroke={nowLineColor}
+                strokeWidth={1}
+                strokeDasharray="2 4"
+                strokeLinecap="round"
+              />
+            ) : null}
             <Polyline
               points={chartPolylinePoints}
               fill="none"
@@ -1100,17 +1078,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 0,
     top: 78,
-  },
-  nowLine: {
-    position: "absolute",
-    width: 1,
-    zIndex: 2,
-  },
-  nowDashSegment: {
-    borderRadius: 0.5,
-    left: 0,
-    position: "absolute",
-    width: 1,
   },
   nowLineBadge: {
     alignItems: "center",
