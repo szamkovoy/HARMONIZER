@@ -44,6 +44,20 @@ describe("dialogTurnHydration", () => {
     })).toBe(true);
   });
 
+  it("matches session assistant after server-side sanitation removes stray English hints", () => {
+    expect(sessionAssistantMatchesTurn({
+      currentText: "Сегодня важна ясность (practice hint for internal use).\n\nПопробуйте практику ниже.",
+      sessionText: "Сегодня важна ясность.\n\nПопробуйте практику ниже.",
+    })).toBe(true);
+  });
+
+  it("matches session assistant after server-side punctuation cleanup", () => {
+    expect(sessionAssistantMatchesTurn({
+      currentText: "Это хороший момент , чтобы замедлиться.\n\n, Практика ниже.",
+      sessionText: "Это хороший момент, чтобы замедлиться.\n\nПрактика ниже.",
+    })).toBe(true);
+  });
+
   it("merges missing complete metadata from session sync", () => {
     expect(mergeCompleteWithSession({
       complete: {

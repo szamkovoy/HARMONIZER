@@ -1,3 +1,4 @@
+import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import type { DialogCompleteEvent, PracticePicked, RecommendationCorrected } from "@/services/communicator-client";
 
 export type SessionAssistantTurnMeta = {
@@ -25,6 +26,21 @@ export function needsAssistantTurnHydration(complete: DialogCompleteEvent | null
   return false;
 }
 
+function normalizeHydrationComparableText(text: string): string {
+  return stripDialogScaffoldMarkdown(text)
+    .replace(/\(\s*[^)\n]*\bhint\b[^)\n]*\)/gi, "")
+    .replace(/^\s*\*\s*Call\s*$/gim, "")
+    .replace(/\(\s*(?:[A-Za-z][A-Za-z'’.,!?;:/-]*\s+){2,}[A-Za-z][A-Za-z'’.,!?;:/-]*\s*\)/g, "")
+    .replace(/\n\n,\s*/g, "\n\n")
+    .replace(/[ \t]+,/g, ",")
+    .replace(/[ \t]+([?.!])/g, "$1")
+    .replace(/([?.!])[ \t]*,/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[^\S\n]{2,}/g, " ")
+    .trim();
+}
+
 export function sessionAssistantMatchesTurn(params: {
   currentText: string;
   currentMessageId?: string;
@@ -37,7 +53,13 @@ export function sessionAssistantMatchesTurn(params: {
   if (!sessionText) return false;
   if (!currentText) return true;
   if (params.currentMessageId && params.sessionMessageId && params.currentMessageId === params.sessionMessageId) return true;
-  return currentText === sessionText;
+  if (currentText === sessionText) return true;
+
+  const normalizedCurrent = normalizeHydrationComparableText(currentText);
+  const normalizedSession = normalizeHydrationComparableText(sessionText);
+
+  if (!normalizedCurrent || !normalizedSession) return false;
+  return normalizedCurrent === normalizedSession;
 }
 
 export function mergeCompleteWithSession(params: {

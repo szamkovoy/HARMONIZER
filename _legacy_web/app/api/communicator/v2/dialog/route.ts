@@ -1100,6 +1100,46 @@ export async function POST(req: Request) {
             controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed: modelIdUsed })));
           }
 
+          const shouldClose = responseMode === "forced_final";
+          const effectiveBranches = [...new Set([...branches, ...(markers.planTomorrow ? ["planning" as const] : [])])];
+          const debugExport =
+            isDebugDialogExportEnabled()
+              ? buildTurnDebugExport({
+                  rawAssistantText: fullText,
+                  context,
+                  branches,
+                  practicePublic: finalPracticePublic,
+                })
+              : undefined;
+
+          // Ship the final payload to the client before slower persistence steps.
+          // Native XHR can surface a transient onerror during the post-processing gap;
+          // the UI still needs `practicePicked` immediately to render the practice card.
+          controller.enqueue(
+            encoder.encode(
+              sse("complete", {
+                conversationId: conversation.id,
+                fullText: cleanText,
+                shouldClose,
+                modelUsed: modelIdUsed,
+                modelTier: modelTierUsed,
+                turnMode: responseMode,
+                iteration,
+                readyMarkerTriggered,
+                branches: effectiveBranches,
+                targetChakra: context.targetChakra,
+                phaseTime: context.phaseTime,
+                validation,
+                insightMetrics,
+                practicePicked: finalPracticePublic ?? undefined,
+                recommendationCorrected: markers.recommendationCorrection
+                  ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
+                  : undefined,
+                debugExport,
+              }),
+            ),
+          );
+
           await maybeApplyRecommendationCorrection(
             routeDb,
             typeof context.forecast?.id === "string" ? context.forecast.id : undefined,
@@ -1118,16 +1158,6 @@ export async function POST(req: Request) {
             finalPracticePublic,
           });
 
-          const shouldClose = responseMode === "forced_final";
-          const debugExport =
-            isDebugDialogExportEnabled()
-              ? buildTurnDebugExport({
-                  rawAssistantText: fullText,
-                  context,
-                  branches,
-                  practicePublic: finalPracticePublic,
-                })
-              : undefined;
           const assistantMeta = {
             turn_mode: responseMode,
             model_used: modelTierUsed,
@@ -1146,7 +1176,7 @@ export async function POST(req: Request) {
             insight_metrics: insightMetrics,
             ...(debugExport ? { debug: debugExport } : {}),
           };
-          const messageId = await persistAssistantMessage({
+          await persistAssistantMessage({
             db: routeDb,
             userId: routeUserId,
             conversationId: conversation.id,
@@ -1159,32 +1189,6 @@ export async function POST(req: Request) {
           if (shouldClose) {
             await routeDb.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
           }
-
-          controller.enqueue(
-            encoder.encode(
-              sse("complete", {
-                conversationId: conversation.id,
-                messageId,
-                fullText: cleanText,
-                shouldClose,
-                modelUsed: modelIdUsed,
-                modelTier: modelTierUsed,
-                turnMode: responseMode,
-                iteration,
-                readyMarkerTriggered,
-                branches: artifactResult.effectiveBranches,
-                targetChakra: context.targetChakra,
-                phaseTime: context.phaseTime,
-                validation,
-                insightMetrics,
-                practicePicked: finalPracticePublic ?? undefined,
-                recommendationCorrected: markers.recommendationCorrection
-                  ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
-                  : undefined,
-                debugExport,
-              }),
-            ),
-          );
           controller.close();
         } catch (error) {
           console.error("[DIALOG_V3_DIAG] STREAM ERROR:", error instanceof Error ? error.message : String(error), error instanceof Error ? error.stack : "");

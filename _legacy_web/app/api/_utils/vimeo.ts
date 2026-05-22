@@ -124,14 +124,23 @@ export async function attachThumbnailToPracticeRecommendation<T extends Practice
   const video = practice.video;
   if (!video || video.provider !== "vimeo" || !video.externalId) return practice;
   if (video.thumbnail?.url) return practice;
-  const thumbnail = await fetchVimeoThumbnail(video.externalId, targetWidth);
-  return {
-    ...practice,
-    video: {
-      ...video,
-      thumbnail,
-    },
-  };
+  try {
+    const thumbnail = await fetchVimeoThumbnail(video.externalId, targetWidth);
+    return {
+      ...practice,
+      video: {
+        ...video,
+        thumbnail,
+      },
+    };
+  } catch (error) {
+    console.warn(
+      "[vimeo] attach thumbnail skipped",
+      video.externalId,
+      error instanceof Error ? error.message : String(error),
+    );
+    return practice;
+  }
 }
 
 export function readStoredPracticeThumbnail(params: unknown): PracticeVideoThumbnail | null {

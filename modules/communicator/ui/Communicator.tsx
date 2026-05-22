@@ -854,22 +854,34 @@ export function Communicator({
 
   const communicatorListDataRef = useRef(communicatorListData);
   communicatorListDataRef.current = communicatorListData;
+  const lastHydrationDebugRef = useRef<Record<string, unknown> | null>(null);
 
   const hydrateAssistantTurnFromSession = useCallback(
     async (params: {
       currentText: string;
       currentComplete?: DialogCompleteEvent | null;
     }): Promise<{ text: string; complete: DialogCompleteEvent } | null> => {
+      const errors: string[] = [];
+      let attempts = 0;
+      let lastSyncConversationId: string | null = null;
+      let lastRole: string | null = null;
+      let lastRecoveredTextLength = 0;
+      let lastMismatch = false;
+
       for (const delayMs of SESSION_HYDRATION_RETRY_DELAYS_MS) {
         await new Promise((r) => setTimeout(r, delayMs));
+        attempts += 1;
         try {
           const sync = await fetchDialogSession({ useCase, entrySource });
+          lastSyncConversationId = sync.conversationId;
           if (sync.conversationId && !params.currentComplete?.conversationId) {
             setActiveConversationId(sync.conversationId);
           }
           const last = sync.messages[sync.messages.length - 1];
+          lastRole = last?.role ?? null;
           if (last?.role !== "assistant") continue;
           const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+          lastRecoveredTextLength = recovered.length;
           if (!recovered) continue;
           const matches = sessionAssistantMatchesTurn({
             currentText: params.currentText,
@@ -877,15 +889,36 @@ export function Communicator({
             sessionText: recovered,
             sessionMessageId: last.id,
           });
-          if (!matches) continue;
+          if (!matches) {
+            lastMismatch = true;
+            continue;
+          }
+          lastHydrationDebugRef.current = {
+            attempts,
+            matched: true,
+            syncConversationId: lastSyncConversationId,
+            lastRole,
+            lastRecoveredTextLength,
+            hadCurrentComplete: Boolean(params.currentComplete),
+          };
           return {
             text: recovered,
             complete: completeFromSessionMessage(last, recovered, params.currentComplete),
           };
-        } catch {
-          /* ignore transient session-sync errors during hydration */
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : String(error));
         }
       }
+      lastHydrationDebugRef.current = {
+        attempts,
+        matched: false,
+        syncConversationId: lastSyncConversationId,
+        lastRole,
+        lastRecoveredTextLength,
+        mismatchAfterFetch: lastMismatch,
+        hadCurrentComplete: Boolean(params.currentComplete),
+        errors,
+      };
       return null;
     },
     [entrySource, fetchDialogSession, useCase],
@@ -896,6 +929,7 @@ export function Communicator({
       result: NonNullable<Awaited<ReturnType<typeof runChatStream>>>,
       options?: { replaceAll?: boolean },
     ) => {
+      lastHydrationDebugRef.current = null;
       const complete = result.complete;
       if (complete?.conversationId) setActiveConversationId(complete.conversationId);
       const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
@@ -914,6 +948,11 @@ export function Communicator({
           hydratedComplete = hydrated.complete;
         }
       }
+      const clientHydrationDebug = lastHydrationDebugRef.current;
+      const mergedDebug =
+        hydratedComplete?.debugExport && clientHydrationDebug
+          ? { ...hydratedComplete.debugExport, clientHydration: clientHydrationDebug }
+          : hydratedComplete?.debugExport ?? (clientHydrationDebug ? { clientHydration: clientHydrationDebug } : undefined);
 
       const assistant: CommunicatorHistoryMessage = {
         id: hydratedComplete?.messageId ?? newMessageId(),
@@ -936,7 +975,7 @@ export function Communicator({
           targetChakra: hydratedComplete?.targetChakra,
           shouldClose: hydratedComplete?.shouldClose,
           recommendationCorrected: hydratedComplete?.recommendationCorrected,
-          debug: hydratedComplete?.debugExport,
+          debug: mergedDebug,
         },
       };
       const contentLenSource =
