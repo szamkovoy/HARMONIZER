@@ -546,6 +546,7 @@ export function Communicator({
     run: runChatStream,
     abort: abortChatStream,
     reset: resetChatStream,
+    syncDisplayText: syncChatStreamDisplayText,
     isBusy: streamBusy,
   } = useCommunicatorStream();
 
@@ -866,7 +867,8 @@ export function Communicator({
       const deferAllowed =
         !recoveredFromSession &&
         mergedText.trim().length > 0 &&
-        strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD;
+        strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD &&
+        !complete?.practicePicked;
       if (!deferAllowed) {
         setPendingRevealGoal(null);
         if (options?.replaceAll) {
@@ -879,6 +881,7 @@ export function Communicator({
         retryHandlerRef.current = null;
         void clearRetainedVoice();
       } else {
+        syncChatStreamDisplayText(finalText);
         scheduleDeferredAssistantCommit({
           mode: options?.replaceAll ? "replaceInitiate" : "append",
           message: assistant,
@@ -894,6 +897,7 @@ export function Communicator({
       onMessage,
       resetChatStream,
       scheduleDeferredAssistantCommit,
+      syncChatStreamDisplayText,
       useCase,
       strings.emptyAssistantReplyFallback,
     ],

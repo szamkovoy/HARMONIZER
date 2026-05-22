@@ -184,6 +184,21 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.practiceKind).toBe("breath");
   });
 
+  it("confirms 21 min asanas after catalog reconciliation (dialog 489E)", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "Сегодня планируется важная встреча. Но что касается практик, я бы предпочел 15 минут асан.",
+      },
+      { role: "user", content: "Прошу 21 минуту асан." },
+    ]);
+    expect(result.durationSec).toBe(21 * 60);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("returns null for durationSec/practiceKind when not mentioned", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "привет, как дела" },

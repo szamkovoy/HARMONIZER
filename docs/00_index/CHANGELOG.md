@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-21: `communicator` — карточка практики: немедленный commit при `complete.practicePicked`; `syncDisplayText` перед deferred reveal (fix stripTarget vs revealGoal).
 - 2026-05-21: pre-push doc-sync — `OpportunityWindows`: штрих «сейчас» — `Svg` `Line` (`strokeDasharray`), цвет `theme.colors.textPrimary`; кривая по чакре `graphPlanet`; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**.
 - 2026-05-21: pre-push doc-sync — `OpportunityWindows`: SVG-полилиния, цвет по `graphPlanet`, подпись `graphTrack` при расхождении с планетой дня; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**.
 - 2026-05-21: pre-push doc-sync — `daily_forecast`: `planetDiurnalCurve`, экспорты суточной криваты, `useDayContent.userLocation`, график `OpportunityWindows` на реальной высоте планеты; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**, **`docs/00_index/MAP.md`**.

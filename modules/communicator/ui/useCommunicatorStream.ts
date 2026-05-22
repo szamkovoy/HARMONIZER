@@ -26,6 +26,11 @@ export function useCommunicatorStream() {
     setStatus("idle");
   }, []);
 
+  /** Align live stream display with sanitized `complete.fullText` before deferred commit reveal. */
+  const syncDisplayText = useCallback((text: string) => {
+    setAssistantText(text);
+  }, []);
+
   const abort = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -124,6 +129,7 @@ export function useCommunicatorStream() {
     run,
     abort,
     reset,
+    syncDisplayText,
     isBusy,
   };
 }

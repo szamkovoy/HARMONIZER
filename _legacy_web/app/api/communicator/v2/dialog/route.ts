@@ -1063,6 +1063,26 @@ export async function POST(req: Request) {
             conversation.id,
           );
 
+          if (
+            isFinalMode
+            && !finalPracticePublic
+          ) {
+            const pickValidation = validateHistoryHasDurationAndType([
+              ...history.filter((m) => m.role === "user"),
+              { role: "user" as const, content: userMessage },
+            ]);
+            console.warn(
+              "[DIALOG_V3_DIAG] finalPracticePublic null in final mode",
+              JSON.stringify({
+                responseMode,
+                confident: pickValidation.confident,
+                practiceKind: pickValidation.practiceKind,
+                durationSec: pickValidation.durationSec,
+                hasPracticeMarker: Boolean(markers.practicePick),
+              }),
+            );
+          }
+
           if (!readyMarkerTriggered && turnDecision.modelTier === "standard" && cleanText) {
             controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed: modelIdUsed })));
           }

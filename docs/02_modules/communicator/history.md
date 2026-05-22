@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-21:** Карточка практики после финальной premium-рекомендации: отложенный коммит больше не блокирует flush, когда в `complete` есть `practicePicked`; перед defer `syncDisplayText(finalText)` выравнивает стрим с sanitized `complete.fullText` (иначе `stripTarget` ≠ `revealGoal` и карточка не попадала в `messages` до 60 с). **`Communicator.tsx`**, **`useCommunicatorStream.ts`**, **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** Восстановление после обрыва SSE: `submitDialogTurn` при salvage через `fetchDialogSession` передаёт в `commitAssistantTurn` синтетический `complete` с `practicePicked`, `turnMode`, `modelTier`, `modelUsed`, `iteration`, `debugExport` из `meta` последнего assistant-сообщения (не только `fullText`). **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** Надёжность стрима и transcribe: `useCommunicatorStream` — salvaged-чанк при частичном SSE; `sendDialogMessage` (XHR) — resolve при `onerror`, если payload уже полный; `transcribeCommunicatorAudio` — 12 с на попытку, опция `useNetworkRetry`; `submitDialogTurn` — `fetchDialogSession` при исключении стрима; `userFacingErrors` — kind `timeout`. **`spec.md`**, **`dependencies.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** pre-push doc-sync — `spec.md` §2: `fetchDialogSession({ debugExport })`, `DialogCompleteEvent.debugExport` → `meta.debug`.
