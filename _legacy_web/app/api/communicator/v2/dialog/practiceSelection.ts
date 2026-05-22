@@ -392,6 +392,17 @@ export async function choosePractice(
   const activePracticeCount = selectionPreferredKind
     ? all.filter((row) => row.kind === selectionPreferredKind).length
     : all.length;
+  if (selectionPreferredKind && activePracticeCount === 0) {
+    console.warn(
+      `[PRACTICE_SELECTOR_EMPTY_CATALOG] ${JSON.stringify({
+        preferredKind: selectionPreferredKind,
+        chakraId,
+        preferredDurationMin,
+        hasExplicitMarker,
+        markerId: workingMarker?.id ?? null,
+      })}`,
+    );
+  }
   const recentLimit = recentStackLimitForKind(selectionPreferredKind, activePracticeCount);
   const recentCompletedCanon = await recentCompletedPracticeIds(db, userId, selectionPreferredKind, recentLimit, all);
   const recentOfferedCanon = recentOfferedPracticeIds(history)
@@ -410,7 +421,20 @@ export async function choosePractice(
     recentIds,
     markerId: markerIdForSelection,
   });
-  if (!selection) return { picked: null, markerIdResolved: undefined, chakraId, preferredDurationMin };
+  if (!selection) {
+    console.warn(
+      `[PRACTICE_SELECTOR_EMPTY_RESULT] ${JSON.stringify({
+        preferredKind: selectionPreferredKind,
+        chakraId,
+        preferredDurationMin,
+        candidateCount: all.length,
+        activePracticeCount,
+        recentIdsCount: recentIds.length,
+        markerIdForSelection: markerIdForSelection ?? null,
+      })}`,
+    );
+    return { picked: null, markerIdResolved: undefined, chakraId, preferredDurationMin };
+  }
 
   const markerIdResolved = selection.markerIdResolved;
   if (markerIdResolved === false) {

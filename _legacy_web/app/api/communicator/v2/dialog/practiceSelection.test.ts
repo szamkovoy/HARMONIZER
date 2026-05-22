@@ -299,7 +299,7 @@ describe("choosePractice", () => {
       "user1",
       { id: "coherent", reason: "дыхание", durationMin: 10, chakra: 2 },
       { forecast: { planet_of_the_day: "Venus" } },
-      "Медитация 10 минут",
+      "Медитация 5 минут",
       [],
     );
 

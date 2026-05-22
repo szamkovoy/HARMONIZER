@@ -10,6 +10,7 @@ code_refs:
     modules/communicator/core/voiceTurnPipeline.ts,
     modules/communicator/ui/AssistantBubble.tsx,
     modules/communicator/core/transcriptionGuard.ts,
+    modules/communicator/core/dialogTurnHydration.ts,
     modules/communicator/core/dialogTextCleanup.ts,
     modules/communicator/ui/StreamingAssistantLines.tsx,
     services/communicator-client.ts,
@@ -18,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-22:** Финальный assistant-turn теперь восстанавливает `complete`-метаданные не только в `catch`, но и на success-path: если текст уже есть, а `complete` отсутствует или неполон, `Communicator.tsx` добирает последнюю assistant-реплику через `fetchDialogSession`, сверяет её с локальным текстом и гидрирует `turnMode`, `modelTier`, `modelUsed`, `iteration`, `practicePicked`, `recommendationCorrected`, `debug`. Это устраняет кейс «короткий финальный текст виден, а карточки/метаданных нет». Добавлен pure helper `core/dialogTurnHydration.ts` и unit-тест `dialogTurnHydration.test.ts`.
 - **2026-05-21:** Карточка практики после финальной premium-рекомендации: отложенный коммит больше не блокирует flush, когда в `complete` есть `practicePicked`; перед defer `syncDisplayText(finalText)` выравнивает стрим с sanitized `complete.fullText` (иначе `stripTarget` ≠ `revealGoal` и карточка не попадала в `messages` до 60 с). **`Communicator.tsx`**, **`useCommunicatorStream.ts`**, **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** Восстановление после обрыва SSE: `submitDialogTurn` при salvage через `fetchDialogSession` передаёт в `commitAssistantTurn` синтетический `complete` с `practicePicked`, `turnMode`, `modelTier`, `modelUsed`, `iteration`, `debugExport` из `meta` последнего assistant-сообщения (не только `fullText`). **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** Надёжность стрима и transcribe: `useCommunicatorStream` — salvaged-чанк при частичном SSE; `sendDialogMessage` (XHR) — resolve при `onerror`, если payload уже полный; `transcribeCommunicatorAudio` — 12 с на попытку, опция `useNetworkRetry`; `submitDialogTurn` — `fetchDialogSession` при исключении стрима; `userFacingErrors` — kind `timeout`. **`spec.md`**, **`dependencies.md`**, **`CHANGELOG.md`**.

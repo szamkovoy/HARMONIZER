@@ -472,7 +472,20 @@ async function resolvePracticePublic(
   if (!marker && !validation.confident) return null;
 
   const choose = await choosePractice(db, userId, marker, context, userMessage, history);
-  if (!choose.picked) return null;
+  if (!choose.picked) {
+    console.warn(
+      "[DIALOG_V3_DIAG] choosePractice returned null",
+      JSON.stringify({
+        conversationId,
+        confident: validation.confident,
+        practiceKind: validation.practiceKind,
+        durationSec: validation.durationSec,
+        hasMarker: Boolean(marker),
+        markerId: marker?.id ?? null,
+      }),
+    );
+    return null;
+  }
 
   const {
     picked,
@@ -1026,7 +1039,7 @@ export async function POST(req: Request) {
               contents: retryContents,
               model: premiumModel,
               temperature: 0.3,
-              maxOutputTokens: 200,
+              maxOutputTokens: 320,
             });
             const retryMarkers = parseResponseMarkers(retryResponse.text);
             if (retryMarkers.practicePick) {

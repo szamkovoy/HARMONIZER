@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-22: `assistant` + `communicator` — `fast_track_final` только для practice-only первой реплики; success-path hydration `complete`/`practicePicked` из session sync; диагностика empty final practice pick и retry `[PRACTICE_PICK]` увеличен до 320 токенов.
 - 2026-05-21: `communicator` — карточка практики: немедленный commit при `complete.practicePicked`; `syncDisplayText` перед deferred reveal (fix stripTarget vs revealGoal).
 - 2026-05-21: pre-push doc-sync — `OpportunityWindows`: штрих «сейчас» — `Svg` `Line` (`strokeDasharray`), цвет `theme.colors.textPrimary`; кривая по чакре `graphPlanet`; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**.
 - 2026-05-21: pre-push doc-sync — `OpportunityWindows`: SVG-полилиния, цвет по `graphPlanet`, подпись `graphTrack` при расхождении с планетой дня; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**.

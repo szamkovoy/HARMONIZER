@@ -177,6 +177,113 @@ function soleFirstUserMessageText(history: Message[], pendingUserContent: string
   return "";
 }
 
+const PRACTICE_ONLY_FILLER_PHRASES = [
+  "в течение",
+  "прямо сейчас",
+  "на сейчас",
+  "у меня",
+  "пожалуйста",
+  "наверное",
+  "наверно",
+  "примерно",
+  "пол часа",
+  "четверть часа",
+  "пару минут",
+  "практику",
+  "практика",
+  "дыхательную практику",
+  "дыхательную",
+  "медитация",
+  "медитацию",
+  "медитации",
+  "дыхание",
+  "асаны",
+  "асану",
+  "йога",
+  "йогу",
+  "йоги",
+  "минута",
+  "минуты",
+  "минуту",
+  "минут",
+  "мин",
+  "часов",
+  "часа",
+  "час",
+  "полчаса",
+  "я",
+  "мне",
+  "мой",
+  "мою",
+  "моя",
+  "моё",
+  "мы",
+  "нам",
+  "наш",
+  "нашу",
+  "хочу",
+  "хотел",
+  "хотела",
+  "хотелось",
+  "предпочел",
+  "предпочла",
+  "предпочёл",
+  "прошу",
+  "нужна",
+  "нужно",
+  "нужен",
+  "подберите",
+  "подбери",
+  "предложи",
+  "посоветуй",
+  "сделать",
+  "выполнить",
+  "взять",
+  "выбрать",
+  "подобрать",
+  "просто",
+  "около",
+  "гдето",
+  "где то",
+  "и",
+  "а",
+  "но",
+  "ну",
+  "же",
+  "вот",
+  "бы",
+];
+
+function residualNonPracticeText(text: string): string {
+  let cleaned = text
+    .toLowerCase()
+    .replace(/[0-9]+/g, " ")
+    .replace(/[.,!?;:()[\]{}"'`«»/\\-]+/g, " ");
+
+  for (const phrase of PRACTICE_ONLY_FILLER_PHRASES) {
+    cleaned = cleaned.replaceAll(phrase, " ");
+  }
+
+  return cleaned
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPracticeOnlyFirstTurn(
+  text: string,
+  validation: ReturnType<typeof validateHistoryHasDurationAndType>,
+): boolean {
+  if (!validation.confident) return false;
+
+  const residual = residualNonPracticeText(text);
+  if (!residual) return true;
+
+  // Short leftovers like "сейчас" or "для меня" are harmless; longer residue means user brought real life context.
+  const residualWords = residual.split(/\s+/).filter(Boolean);
+  const residualChars = residual.replace(/\s+/g, "").length;
+  return residualWords.length <= 3 && residualChars <= 18;
+}
+
 function userTextsFromHistory(history: Message[], pendingUserContent?: string | null): string[] {
   const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
   return [
@@ -250,17 +357,19 @@ export function decideTurnMode(
   const userText = soleFirstUserMessageText(history, pendingUserContent);
   if (userText) {
     const fastTrackValidation = validateHistoryHasDurationAndType([{ role: "user", content: userText }]);
-    const chosenMode = fastTrackValidation.confident ? "fast_track_final" : iteration === 1 ? "opening" : "inquiry";
+    const practiceOnlyFirstTurn = isPracticeOnlyFirstTurn(userText, fastTrackValidation);
+    const chosenMode = practiceOnlyFirstTurn ? "fast_track_final" : iteration === 1 ? "opening" : "inquiry";
     if (emitFastTrackDiagnostics) {
       console.log(`[FAST_TRACK_DIAG] ${JSON.stringify({
         firstUserMessageText: userText,
         confident: fastTrackValidation.confident,
         hasDuration: fastTrackValidation.hasDuration,
         hasType: fastTrackValidation.hasType,
+        practiceOnlyFirstTurn,
         chosenMode,
       })}`);
     }
-    if (fastTrackValidation.confident) {
+    if (practiceOnlyFirstTurn) {
       return {
         mode: "fast_track_final",
         modelTier: "premium",

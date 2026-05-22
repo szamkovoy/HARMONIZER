@@ -54,6 +54,42 @@ describe("decideTurnMode", () => {
     expect(decision.modelTier).toBe("premium");
   });
 
+  it("does not fast-track a rich first reply that also includes practice", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Доброе утро. Что у вас сегодня на повестке и сколько минут есть на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Сегодня предстоит важный разговор с клиентом, от которого зависит доход на ближайшее время. И практику я бы хотел выполнить 35 минут асаны.",
+    );
+
+    expect(decision.mode).toBe("inquiry");
+    expect(decision.modelTier).toBe("standard");
+  });
+
+  it("does not fast-track a first reply with business context and half-hour asanas", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Доброе утро. Что у вас сегодня на повестке и сколько минут есть на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Сегодня будет важный разговор с клиентом. От этого разговора зависит доход на ближайшие несколько месяцев. И, возможно, я бы предпочел выполнить асаны примерно полчаса.",
+    );
+
+    expect(decision.mode).toBe("inquiry");
+    expect(decision.modelTier).toBe("standard");
+  });
+
   it("asks about practice refusal after the first unresolved opening reply by default", () => {
     const decision = decideTurnMode(
       [

@@ -35,6 +35,12 @@ import {
   type RetainedVoiceRecording,
 } from "@/modules/communicator/core/voiceTurnPipeline";
 import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
+import {
+  mergeCompleteWithSession,
+  needsAssistantTurnHydration,
+  sessionAssistantMatchesTurn,
+  type SessionAssistantTurnMeta,
+} from "@/modules/communicator/core/dialogTurnHydration";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
@@ -53,6 +59,8 @@ import type {
 } from "@/modules/communicator/core/types";
 import {
   fetchDialogSession,
+  type DialogCompleteEvent,
+  type DialogSessionMessage,
   type DialogueEntrySource,
   type DialogueUseCase,
   type PracticePicked,
@@ -174,6 +182,20 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     orchestratorDecision: raw.orchestratorDecision ?? raw.orchestrator_decision,
     debug: raw.debug,
   };
+}
+
+function completeFromSessionMessage(
+  message: DialogSessionMessage,
+  recoveredText: string,
+  currentComplete?: DialogCompleteEvent | null,
+): DialogCompleteEvent {
+  const normalizedMeta = normalizeMessageMeta(message.meta) as SessionAssistantTurnMeta | undefined;
+  return mergeCompleteWithSession({
+    complete: currentComplete,
+    sessionMeta: normalizedMeta,
+    sessionText: recoveredText,
+    sessionMessageId: message.id,
+  });
 }
 
 function parseIntParam(value: string | undefined): number | undefined {
@@ -821,16 +843,25 @@ export function Communicator({
 
       let recoveredFromSession = false;
       let finalText = mergedText;
-      if (!finalText) {
+      let hydratedComplete = complete;
+      if (!finalText || needsAssistantTurnHydration(complete)) {
         await new Promise((r) => setTimeout(r, 700));
         try {
           const sync = await fetchDialogSession({ useCase, entrySource });
+          if (sync.conversationId && !complete?.conversationId) setActiveConversationId(sync.conversationId);
           const last = sync.messages[sync.messages.length - 1];
           if (last?.role === "assistant") {
             const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
-            if (recovered) {
+            const matches = sessionAssistantMatchesTurn({
+              currentText: finalText || mergedText,
+              currentMessageId: complete?.messageId,
+              sessionText: recovered,
+              sessionMessageId: last.id,
+            });
+            if (matches && recovered) {
               finalText = recovered;
-              recoveredFromSession = true;
+              recoveredFromSession = recoveredFromSession || !mergedText;
+              hydratedComplete = completeFromSessionMessage(last, recovered, hydratedComplete);
             }
           }
         } catch {
@@ -839,24 +870,24 @@ export function Communicator({
       }
 
       const assistant: CommunicatorHistoryMessage = {
-        id: complete?.messageId ?? newMessageId(),
+        id: hydratedComplete?.messageId ?? newMessageId(),
         role: "assistant",
         content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
         createdAt: Date.now(),
         meta: {
           orchestratorDecision: result.decision,
-          turnMode: complete?.turnMode,
-          modelTier: complete?.modelTier,
-          modelUsed: complete?.modelUsed,
-          iteration: complete?.iteration,
-          readyMarkerTriggered: complete?.readyMarkerTriggered,
-          validation: complete?.validation,
-          insightMetrics: complete?.insightMetrics,
-          csi: complete?.insightMetrics?.csi,
-          practicePicked: complete?.practicePicked,
-          shouldClose: complete?.shouldClose,
-          recommendationCorrected: complete?.recommendationCorrected,
-          debug: complete?.debugExport,
+          turnMode: hydratedComplete?.turnMode,
+          modelTier: hydratedComplete?.modelTier,
+          modelUsed: hydratedComplete?.modelUsed,
+          iteration: hydratedComplete?.iteration,
+          readyMarkerTriggered: hydratedComplete?.readyMarkerTriggered,
+          validation: hydratedComplete?.validation,
+          insightMetrics: hydratedComplete?.insightMetrics,
+          csi: hydratedComplete?.insightMetrics?.csi,
+          practicePicked: hydratedComplete?.practicePicked,
+          shouldClose: hydratedComplete?.shouldClose,
+          recommendationCorrected: hydratedComplete?.recommendationCorrected,
+          debug: hydratedComplete?.debugExport,
         },
       };
       const contentLenSource =
@@ -868,7 +899,7 @@ export function Communicator({
         !recoveredFromSession &&
         mergedText.trim().length > 0 &&
         strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD &&
-        !complete?.practicePicked;
+        !hydratedComplete?.practicePicked;
       if (!deferAllowed) {
         setPendingRevealGoal(null);
         if (options?.replaceAll) {
@@ -938,17 +969,7 @@ export function Communicator({
               await commitAssistantTurn({
                 assistantText: recovered,
                 decision: null,
-                complete: {
-                  fullText: recovered,
-                  shouldClose: false,
-                  messageId: last.id,
-                  practicePicked: normalizeMessageMeta(last.meta)?.practicePicked,
-                  turnMode: normalizeMessageMeta(last.meta)?.turnMode,
-                  modelTier: normalizeMessageMeta(last.meta)?.modelTier,
-                  modelUsed: normalizeMessageMeta(last.meta)?.modelUsed,
-                  iteration: normalizeMessageMeta(last.meta)?.iteration,
-                  debugExport: normalizeMessageMeta(last.meta)?.debug,
-                },
+                complete: completeFromSessionMessage(last, recovered),
               });
               return;
             }

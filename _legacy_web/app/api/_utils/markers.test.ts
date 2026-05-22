@@ -166,6 +166,20 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.confident).toBe(false);
   });
 
+  it("treats context + 'полчаса асан' as confident yoga for the final path", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "Сегодня будет важный разговор с клиентом. От этого разговора зависит доход на ближайшие несколько месяцев. И, возможно, я бы предпочел выполнить асаны примерно полчаса.",
+      },
+    ]);
+    expect(result.durationSec).toBe(1800);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("extracts durationSec from 'пять минут'", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "пять минут пранаяму" },
