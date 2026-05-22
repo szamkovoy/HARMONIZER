@@ -2,7 +2,7 @@
 id: 02_modules/assistant/history
 title: Assistant History
 version: 2.20
-updated: 2026-05-21
+updated: 2026-05-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---

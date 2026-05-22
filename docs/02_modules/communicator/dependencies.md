@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.6
-updated: 2026-05-21
+version: 1.7
+updated: 2026-05-22
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -17,13 +17,14 @@ code_refs:
     app/calibration.tsx,
     modules/practices/ui/PracticeCard.tsx,
     modules/communicator/core/dialogTextCleanup.ts,
+    modules/communicator/core/dialogTurnHydration.ts,
   ]
 ---
 
 ## 1. Зависит от
 
 - `**infra**`  
-`requireSupabase()` для Bearer JWT; `services/communicatorConfig.ts` — базовый URL (`EXPO_PUBLIC_COMMUNICATOR_API_URL`), сбор путей `/api/communicator/v2/dialog`, `/api/communicator/v2/transcribe`, `/api/ai/dialog` и др. В корневом `**package.json**` клиента — `**@shopify/flash-list**` для списка сообщений в `Communicator.tsx` (виртуализация, `scrollToIndex` к якорю стрима). `**modules/communicator/core/dialogTextCleanup.ts**` — нормализация видимого текста ассистента (убирает утечки `---` и **целиком** блоки `**…`**); дублирует контракт серверного `stripDialogScaffoldMarkdown` в `markers.ts`. `**modules/communicator/core/voiceTurnPipeline.ts**` — bounded transcribe/retry и удаление временного файла записи; `Communicator.tsx` импортирует его вместо прямого `transcribeCommunicatorAudio` в UI.
+`requireSupabase()` для Bearer JWT; `services/communicatorConfig.ts` — базовый URL (`EXPO_PUBLIC_COMMUNICATOR_API_URL`), сбор путей `/api/communicator/v2/dialog`, `/api/communicator/v2/transcribe`, `/api/ai/dialog` и др. В корневом `**package.json**` клиента — `**@shopify/flash-list**` для списка сообщений в `Communicator.tsx` (виртуализация, `scrollToIndex` к якорю стрима). `**modules/communicator/core/dialogTextCleanup.ts**` — нормализация видимого текста ассистента (убирает утечки `---` и **целиком** блоки `**…`**); дублирует контракт серверного `stripDialogScaffoldMarkdown` в `markers.ts`. `**modules/communicator/core/dialogTurnHydration.ts**` — pure helpers для дополнения `DialogCompleteEvent` из `fetchDialogSession` (`needsAssistantTurnHydration`, `sessionAssistantMatchesTurn`, `mergeCompleteWithSession`); используется в `Communicator.tsx` при неполном SSE `complete`. `**modules/communicator/core/voiceTurnPipeline.ts**` — bounded transcribe/retry и удаление временного файла записи; `Communicator.tsx` импортирует его вместо прямого `transcribeCommunicatorAudio` в UI.
 - `**modules/ui**` (i18n ошибок)  
 `modules/ui/i18n/userErrors.ts` — строки Alert, в т.ч. **`timeoutTitle`** / **`timeoutMessage`**; потребляется через `services/userFacingErrors.ts` в `Communicator` и на других экранах.
 - `**profile**` (через auth)  

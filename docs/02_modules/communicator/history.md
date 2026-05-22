@@ -2,7 +2,7 @@
 id: 02_modules/communicator/history
 title: Communicator History
 version: 2.8
-updated: 2026-05-21
+updated: 2026-05-22
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [

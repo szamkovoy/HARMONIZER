@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.11
-updated: 2026-05-21
+version: 2.12
+updated: 2026-05-22
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -77,6 +77,16 @@ code_refs:
 
 - **`stripDialogScaffoldMarkdown(text): string`** — экспорт; зеркалит серверный одноимённый helper в `_legacy_web/app/api/_utils/markers.ts`.
 - **`stripStreamingMarkers`** в `Communicator.tsx` — локальный regex `MARKER_RE` вырезает из видимого стрима `[STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS:…]` и `[PLAN_TOMORROW]` до применения `stripDialogScaffoldMarkdown`.
+
+### Гидрация `complete` из session sync (`modules/communicator/core/dialogTurnHydration.ts`)
+
+- **`isFinalLikeTurnMode(turnMode)`** — `fast_track_final`, `final_recommendation`, `final_recommendation_with_validation_warning`, `forced_final`.
+- **`needsAssistantTurnHydration(complete)`** — `true`, если `complete` отсутствует, в нём нет `turnMode` / `modelTier` / `modelUsed` / `iteration`, либо режим final-like без `practicePicked`.
+- **`sessionAssistantMatchesTurn({ currentText, currentMessageId?, sessionText, sessionMessageId? })`** — совпадение по `messageId` или по trimmed-тексту (пустой `currentText` считается совпадающим).
+- **`mergeCompleteWithSession({ complete, sessionMeta, sessionText, sessionMessageId? })`** → `DialogCompleteEvent` — дополняет пропущенные поля из `meta` последнего assistant-сообщения сессии.
+- Тип **`SessionAssistantTurnMeta`** — подмножество полей `complete` / `meta` для merge.
+
+`Communicator.tsx` вызывает эти helpers в `commitAssistantTurn` на success-path (когда текст есть, а `complete` неполон) и при восстановлении после обрыва SSE.
 
 ### Поток чата без прямого импорта `sendDialogMessage` в UI
 
