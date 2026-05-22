@@ -15,8 +15,10 @@ import {
 } from "react-native";
 import Svg, { Line, Polyline } from "react-native-svg";
 
+import { DateTime } from "luxon";
+
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
-import { interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
+import { dayFractionFromIso, interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
 import type { AccessMode } from "@/services/globalContentClient";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
@@ -70,9 +72,9 @@ function buildDefaultReminderTitle(item: WindowItem, windows: Windows, strings: 
 const SKY_AXIS_Y = 78;
 /** Вертикальный масштаб: горизонт = ось, пик кульминации укладывается в эту амплитуду. */
 const CHART_ALTITUDE_AMPLITUDE_PX = 42;
-/** Высота точек волны (`waveDot`) — `top` совпадает с мат. Y, тело линии уходит вниз на эту величину. */
-const WAVE_LINE_THICKNESS_PX = 4;
 const CHART_VIEW_HEIGHT = 152;
+/** Толщина линии графика (`Polyline` strokeWidth) — для отступа пунктира «сейчас». */
+const WAVE_LINE_THICKNESS_PX = 3;
 /** Воздух после нижнего края волны / перед верхним краём волны (не наезжаем на жёлтый/синий след). */
 const NOW_AIR_AT_CURVE_PX = 3;
 /** Воздух у горизонтальной оси (1px на `SKY_AXIS_Y`), не пересекаем линию. */
@@ -285,26 +287,16 @@ function computeNowLineSpan(yCurve: number, yAxis: number): { top: number; heigh
   return { top, height: Math.max(0, bottom - top) };
 }
 
-/** Доля суток 0…1 в IANA-зоне пользователя (полночь → следующая полночь). */
+/** Доля суток 0…1 в IANA-зоне (та же шкала, что у `samplePlanetAltitudeForDay`). */
 function timeToDayFraction(
   time: string | undefined,
   timezone: string,
 ): { x: number; past: boolean } | null {
   if (!time) return null;
-  const date = new Date(time);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(date);
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const hour = Number(byType.hour);
-  const minute = Number(byType.minute);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
-  const x = Math.min(1, Math.max(0, (hour * 60 + minute) / 1440));
-  return { x, past: date.getTime() < Date.now() };
+  const x = dayFractionFromIso(time, timezone);
+  if (x == null) return null;
+  const eventMs = DateTime.fromISO(time, { zone: timezone }).toMillis();
+  return { x, past: !Number.isNaN(eventMs) && eventMs < Date.now() };
 }
 
 function buildDiurnalChartModel(params: {
@@ -541,10 +533,7 @@ export function OpportunityWindows({
   const chartPolylinePoints = useMemo(() => {
     if (chartWidth <= 0 || chartDots.length < 2) return "";
     return chartDots
-      .map((dot) => {
-        const y = dot.y + WAVE_LINE_THICKNESS_PX / 2;
-        return `${dot.x * chartWidth},${y}`;
-      })
+      .map((dot) => `${dot.x * chartWidth},${dot.y}`)
       .join(" ");
   }, [chartDots, chartWidth]);
   const currentTimePoint = useMemo(() => {

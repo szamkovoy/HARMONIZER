@@ -14,6 +14,8 @@ export { findAspect } from "./core/aspects";
 export { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
 export { computeWindowsForFreeUser } from "./freeWindows";
 export {
+  computeDiurnalWindowTimes,
+  dayFractionFromIso,
   interpolateDiurnalAltitude,
   planetAltitudeAt,
   samplePlanetAltitudeForDay,

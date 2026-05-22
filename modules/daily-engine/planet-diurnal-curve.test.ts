@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "./planetDiurnalCurve";
+import {
+  computeDiurnalWindowTimes,
+  dayFractionFromIso,
+  findSunriseDayFraction,
+  interpolateDiurnalAltitude,
+  samplePlanetAltitudeForDay,
+} from "./planetDiurnalCurve";
 
 describe("planetDiurnalCurve", () => {
   it("forms a continuous full-day cycle for the Sun in Moscow", () => {
@@ -24,5 +30,18 @@ describe("planetDiurnalCurve", () => {
     expect(maxAltitude).toBeGreaterThan(0.3);
     expect(interpolateDiurnalAltitude(samples, 0)).toBeCloseTo(samples[0].altitude, 5);
     expect(interpolateDiurnalAltitude(samples, 1)).toBeCloseTo(samples[samples.length - 1].altitude, 5);
+  });
+
+  it("places sunrise on the horizon at the same x as the chart", () => {
+    const location = { lat: 55.7558, lng: 37.6173, timezone: "Europe/Moscow" };
+    const forecastDate = "2026-05-22";
+    const samples = samplePlanetAltitudeForDay({ planet: "Jupiter", forecastDate, userLocation: location, steps: 96 });
+    const riseX = findSunriseDayFraction(samples);
+    expect(riseX).not.toBeNull();
+    expect(interpolateDiurnalAltitude(samples, riseX!)).toBeCloseTo(0, 3);
+
+    const { sunrise } = computeDiurnalWindowTimes({ planet: "Jupiter", forecastDate, userLocation: location });
+    expect(sunrise).toBeTruthy();
+    expect(dayFractionFromIso(sunrise!, location.timezone)).toBeCloseTo(riseX!, 4);
   });
 });

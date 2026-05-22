@@ -1,14 +1,11 @@
 import { DateTime } from "luxon";
-import sidereal from "astronomia/sidereal";
-import julian from "astronomia/julian";
 import { ASPECT_EXACT_ANGLE } from "./core/constants";
 import { angularDistance } from "./core/aspects";
 import { computeDailyForecast, type TransitProvider } from "./computeDailyForecast";
 import type { DailyEngineInput, DailyForecast, Planet, TransitChart, WindowComputationContext } from "./core/types";
-import { PLANETS_7, eclipticLongitudeForPlanetAt, equatorialForPlanetAt, positionForPlanetAt } from "../astro-core";
+import { PLANETS_7, eclipticLongitudeForPlanetAt, positionForPlanetAt } from "../astro-core";
+import { computeDiurnalWindowTimes } from "./planetDiurnalCurve";
 
-const DEG_TO_RAD = Math.PI / 180;
-const RAD_TO_DEG = 180 / Math.PI;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 function localReferenceDate(input: DailyEngineInput): Date {
@@ -27,62 +24,6 @@ function localDayBounds(input: DailyEngineInput): { start: Date; end: Date } {
     start: start.toUTC().toJSDate(),
     end: start.plus({ days: 1 }).toUTC().toJSDate(),
   };
-}
-
-function toJulianDay(date: Date): number {
-  return new julian.Calendar(date).toJD();
-}
-
-function altitudeAt(planet: Planet, date: Date, lat: number, lng: number): number {
-  const eq = equatorialForPlanetAt(planet, date);
-  const theta = (sidereal.apparent(toJulianDay(date)) / 240) * DEG_TO_RAD;
-  const localSidereal = theta + lng * DEG_TO_RAD;
-  const hourAngle = localSidereal - eq.ra;
-  const phi = lat * DEG_TO_RAD;
-
-  return Math.asin(Math.sin(phi) * Math.sin(eq.dec) + Math.cos(phi) * Math.cos(eq.dec) * Math.cos(hourAngle));
-}
-
-function interpolateCrossing(a: { t: number; altitude: number }, b: { t: number; altitude: number }): Date {
-  const ratio = Math.abs(a.altitude) / (Math.abs(a.altitude) + Math.abs(b.altitude));
-  return new Date(a.t + (b.t - a.t) * ratio);
-}
-
-function computeRiseTime(input: DailyEngineInput, planet: Planet): string | null {
-  const { start, end } = localDayBounds(input);
-  let previous = {
-    t: start.getTime(),
-    altitude: altitudeAt(planet, start, input.userLocation.lat, input.userLocation.lng),
-  };
-
-  for (let t = previous.t + TEN_MINUTES_MS; t <= end.getTime(); t += TEN_MINUTES_MS) {
-    const current = {
-      t,
-      altitude: altitudeAt(planet, new Date(t), input.userLocation.lat, input.userLocation.lng),
-    };
-
-    if (previous.altitude < 0 && current.altitude >= 0) {
-      return DateTime.fromJSDate(interpolateCrossing(previous, current), { zone: "utc" })
-        .setZone(input.userLocation.timezone)
-        .toISO();
-    }
-    previous = current;
-  }
-
-  return null;
-}
-
-function computeCulminationTime(input: DailyEngineInput, planet: Planet): string | null {
-  const { start, end } = localDayBounds(input);
-  let best: { t: number; altitude: number } | null = null;
-
-  for (let t = start.getTime(); t <= end.getTime(); t += TEN_MINUTES_MS) {
-    const altitude = altitudeAt(planet, new Date(t), input.userLocation.lat, input.userLocation.lng);
-    if (!best || altitude > best.altitude) best = { t, altitude };
-  }
-
-  if (!best || best.altitude < 0) return null;
-  return DateTime.fromMillis(best.t, { zone: "utc" }).setZone(input.userLocation.timezone).toISO();
 }
 
 function exactAspectOrbAt(params: {
@@ -162,8 +103,11 @@ export class AstronomiaTransitProvider implements TransitProvider {
     input: DailyEngineInput,
     context: WindowComputationContext,
   ): DailyForecast["windowsOfOpportunity"] {
-    const riseTime = computeRiseTime(input, context.mainTransitPlanet);
-    const culminationTime = computeCulminationTime(input, context.mainTransitPlanet);
+    const { sunrise: riseTime, culmination: culminationTime } = computeDiurnalWindowTimes({
+      planet: context.mainTransitPlanet,
+      forecastDate: input.forecastDate,
+      userLocation: input.userLocation,
+    });
     const exactAspectTime = computeExactAspectTime(input, context);
 
     return {

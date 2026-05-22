@@ -1,59 +1,9 @@
-import { DateTime } from "luxon";
-
 import { PLANETS_7 } from "@/modules/astro-core";
 import type { DailyForecast, Planet } from "./core/types";
-import { planetAltitudeAt } from "./planetDiurnalCurve";
-
-const TEN_MINUTES_MS = 10 * 60 * 1000;
+import { computeDiurnalWindowTimes } from "./planetDiurnalCurve";
 
 function isPlanet(value: unknown): value is Planet {
   return typeof value === "string" && (PLANETS_7 as readonly string[]).includes(value);
-}
-
-function localDayBounds(forecastDate: string, timezone: string): { start: Date; end: Date } {
-  const start = DateTime.fromISO(forecastDate, { zone: timezone }).startOf("day");
-  return {
-    start: start.toUTC().toJSDate(),
-    end: start.plus({ days: 1 }).toUTC().toJSDate(),
-  };
-}
-
-function interpolateCrossing(a: { t: number; altitude: number }, b: { t: number; altitude: number }): Date {
-  const ratio = Math.abs(a.altitude) / (Math.abs(a.altitude) + Math.abs(b.altitude));
-  return new Date(a.t + (b.t - a.t) * ratio);
-}
-
-function computeRiseTime(planet: Planet, userLocation: { lat: number; lng: number; timezone: string }, forecastDate: string): string | null {
-  const { start, end } = localDayBounds(forecastDate, userLocation.timezone);
-  let previous = {
-    t: start.getTime(),
-    altitude: planetAltitudeAt(planet, start, userLocation.lat, userLocation.lng),
-  };
-
-  for (let t = previous.t + TEN_MINUTES_MS; t <= end.getTime(); t += TEN_MINUTES_MS) {
-    const current = {
-      t,
-      altitude: planetAltitudeAt(planet, new Date(t), userLocation.lat, userLocation.lng),
-    };
-    if (previous.altitude < 0 && current.altitude >= 0) {
-      return DateTime.fromJSDate(interpolateCrossing(previous, current), { zone: "utc" })
-        .setZone(userLocation.timezone)
-        .toISO();
-    }
-    previous = current;
-  }
-  return null;
-}
-
-function computeCulminationTime(planet: Planet, userLocation: { lat: number; lng: number; timezone: string }, forecastDate: string): string | null {
-  const { start, end } = localDayBounds(forecastDate, userLocation.timezone);
-  let best: { t: number; altitude: number } | null = null;
-  for (let t = start.getTime(); t <= end.getTime(); t += TEN_MINUTES_MS) {
-    const altitude = planetAltitudeAt(planet, new Date(t), userLocation.lat, userLocation.lng);
-    if (!best || altitude > best.altitude) best = { t, altitude };
-  }
-  if (!best || best.altitude < 0) return null;
-  return DateTime.fromMillis(best.t, { zone: "utc" }).setZone(userLocation.timezone).toISO();
 }
 
 export function computeWindowsForFreeUser(params: {
@@ -61,8 +11,11 @@ export function computeWindowsForFreeUser(params: {
   userLocation: { lat: number; lng: number; timezone: string };
   forecastDate: string;
 }): DailyForecast["windowsOfOpportunity"] {
-  const riseTime = computeRiseTime(params.primaryPlanet, params.userLocation, params.forecastDate);
-  const culminationTime = computeCulminationTime(params.primaryPlanet, params.userLocation, params.forecastDate);
+  const { sunrise: riseTime, culmination: culminationTime } = computeDiurnalWindowTimes({
+    planet: params.primaryPlanet,
+    forecastDate: params.forecastDate,
+    userLocation: params.userLocation,
+  });
 
   return {
     sunrise: riseTime ? { time: riseTime, planet: params.primaryPlanet } : null,
