@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.29
+version: 2.30
 updated: 2026-05-22
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-22: pre-push doc-sync — `daily_forecast`: `computeDiurnalWindowTimes` / `dayFractionFromIso`, единая дискретизация окон восхода/кульминации и графика home; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**.
 - 2026-05-22: `assistant` — найден и закрыт crash после финального текста без карточки: сервер нормализует legacy `time_resolution = "daypart"` в `daypart_default` перед insert в `planned_events`; `monitoring.ts` сериализует object-errors в JSON вместо `"[object Object]"`.
 - 2026-05-22: `assistant` + `communicator` — opening первого хода теперь без чакр/астро-лексики и с явной привязкой `summarizing` к событию; `Communicator` получил многократную session hydration финального `complete` и более подробный dialog export (`conversation`, `practice_picked`, `branches_active`, `phase_time`, `target_chakra`).
 - 2026-05-22: pre-push doc-sync — `assistant/spec.md` (retry `[PRACTICE_PICK]` `maxOutputTokens` 320, логи селектора), `communicator` (`dialogTurnHydration` в spec/dependencies).
