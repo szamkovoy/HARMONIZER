@@ -47,6 +47,9 @@ export interface DialogCompleteEvent {
     valence_trend?: number[];
   };
   practicePicked?: PracticePicked;
+  branches?: string[];
+  phaseTime?: string;
+  targetChakra?: { chakraNumber?: number; reason?: string } | null;
   recommendationCorrected?: RecommendationCorrected;
   debugExport?: Record<string, unknown>;
 }

@@ -115,6 +115,7 @@ type CommunicatorListRow =
 
 /** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
 const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
+const SESSION_HYDRATION_RETRY_DELAYS_MS = [700, 1400, 2600] as const;
 
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
 const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
@@ -180,6 +181,9 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     shouldClose: raw.shouldClose ?? raw.should_close,
     recommendationCorrected: raw.recommendationCorrected ?? raw.recommendation_corrected,
     orchestratorDecision: raw.orchestratorDecision ?? raw.orchestrator_decision,
+    branches: raw.branches ?? raw.dialog_branches,
+    phaseTime: raw.phaseTime ?? raw.phase_time,
+    targetChakra: raw.targetChakra ?? raw.target_chakra,
     debug: raw.debug,
   };
 }
@@ -190,12 +194,31 @@ function completeFromSessionMessage(
   currentComplete?: DialogCompleteEvent | null,
 ): DialogCompleteEvent {
   const normalizedMeta = normalizeMessageMeta(message.meta) as SessionAssistantTurnMeta | undefined;
-  return mergeCompleteWithSession({
+  const merged = mergeCompleteWithSession({
     complete: currentComplete,
     sessionMeta: normalizedMeta,
     sessionText: recoveredText,
     sessionMessageId: message.id,
   });
+  return {
+    ...merged,
+    branches:
+      Array.isArray((message.meta as { branches?: unknown } | undefined)?.branches)
+        ? ((message.meta as { branches?: string[] }).branches)
+        : Array.isArray((message.meta as { dialog_branches?: unknown } | undefined)?.dialog_branches)
+          ? ((message.meta as { dialog_branches?: string[] }).dialog_branches)
+          : merged.branches,
+    phaseTime:
+      typeof (message.meta as { phaseTime?: unknown } | undefined)?.phaseTime === "string"
+        ? ((message.meta as { phaseTime: string }).phaseTime)
+        : typeof (message.meta as { phase_time?: unknown } | undefined)?.phase_time === "string"
+          ? ((message.meta as { phase_time: string }).phase_time)
+          : merged.phaseTime,
+    targetChakra:
+      ((message.meta as { targetChakra?: unknown; target_chakra?: unknown } | undefined)?.targetChakra as DialogCompleteEvent["targetChakra"])
+      ?? ((message.meta as { target_chakra?: unknown } | undefined)?.target_chakra as DialogCompleteEvent["targetChakra"])
+      ?? merged.targetChakra,
+  };
 }
 
 function parseIntParam(value: string | undefined): number | undefined {
@@ -832,6 +855,42 @@ export function Communicator({
   const communicatorListDataRef = useRef(communicatorListData);
   communicatorListDataRef.current = communicatorListData;
 
+  const hydrateAssistantTurnFromSession = useCallback(
+    async (params: {
+      currentText: string;
+      currentComplete?: DialogCompleteEvent | null;
+    }): Promise<{ text: string; complete: DialogCompleteEvent } | null> => {
+      for (const delayMs of SESSION_HYDRATION_RETRY_DELAYS_MS) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        try {
+          const sync = await fetchDialogSession({ useCase, entrySource });
+          if (sync.conversationId && !params.currentComplete?.conversationId) {
+            setActiveConversationId(sync.conversationId);
+          }
+          const last = sync.messages[sync.messages.length - 1];
+          if (last?.role !== "assistant") continue;
+          const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
+          if (!recovered) continue;
+          const matches = sessionAssistantMatchesTurn({
+            currentText: params.currentText,
+            currentMessageId: params.currentComplete?.messageId,
+            sessionText: recovered,
+            sessionMessageId: last.id,
+          });
+          if (!matches) continue;
+          return {
+            text: recovered,
+            complete: completeFromSessionMessage(last, recovered, params.currentComplete),
+          };
+        } catch {
+          /* ignore transient session-sync errors during hydration */
+        }
+      }
+      return null;
+    },
+    [entrySource, fetchDialogSession, useCase],
+  );
+
   const commitAssistantTurn = useCallback(
     async (
       result: NonNullable<Awaited<ReturnType<typeof runChatStream>>>,
@@ -845,27 +904,14 @@ export function Communicator({
       let finalText = mergedText;
       let hydratedComplete = complete;
       if (!finalText || needsAssistantTurnHydration(complete)) {
-        await new Promise((r) => setTimeout(r, 700));
-        try {
-          const sync = await fetchDialogSession({ useCase, entrySource });
-          if (sync.conversationId && !complete?.conversationId) setActiveConversationId(sync.conversationId);
-          const last = sync.messages[sync.messages.length - 1];
-          if (last?.role === "assistant") {
-            const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
-            const matches = sessionAssistantMatchesTurn({
-              currentText: finalText || mergedText,
-              currentMessageId: complete?.messageId,
-              sessionText: recovered,
-              sessionMessageId: last.id,
-            });
-            if (matches && recovered) {
-              finalText = recovered;
-              recoveredFromSession = recoveredFromSession || !mergedText;
-              hydratedComplete = completeFromSessionMessage(last, recovered, hydratedComplete);
-            }
-          }
-        } catch {
-          /* ignore */
+        const hydrated = await hydrateAssistantTurnFromSession({
+          currentText: finalText || mergedText,
+          currentComplete: hydratedComplete,
+        });
+        if (hydrated) {
+          finalText = hydrated.text;
+          recoveredFromSession = recoveredFromSession || !mergedText;
+          hydratedComplete = hydrated.complete;
         }
       }
 
@@ -885,6 +931,9 @@ export function Communicator({
           insightMetrics: hydratedComplete?.insightMetrics,
           csi: hydratedComplete?.insightMetrics?.csi,
           practicePicked: hydratedComplete?.practicePicked,
+          branches: hydratedComplete?.branches,
+          phaseTime: hydratedComplete?.phaseTime,
+          targetChakra: hydratedComplete?.targetChakra,
           shouldClose: hydratedComplete?.shouldClose,
           recommendationCorrected: hydratedComplete?.recommendationCorrected,
           debug: hydratedComplete?.debugExport,
@@ -924,7 +973,7 @@ export function Communicator({
     [
       clearRetainedVoice,
       entrySource,
-      fetchDialogSession,
+      hydrateAssistantTurnFromSession,
       onMessage,
       resetChatStream,
       scheduleDeferredAssistantCommit,
@@ -960,19 +1009,17 @@ export function Communicator({
         await commitAssistantTurn(result);
       } catch (error) {
         try {
-          await new Promise((r) => setTimeout(r, 700));
-          const sync = await fetchDialogSession({ useCase, entrySource });
-          const last = sync.messages[sync.messages.length - 1];
-          if (last?.role === "assistant") {
-            const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
-            if (recovered) {
-              await commitAssistantTurn({
-                assistantText: recovered,
-                decision: null,
-                complete: completeFromSessionMessage(last, recovered),
-              });
-              return;
-            }
+          const hydrated = await hydrateAssistantTurnFromSession({
+            currentText: "",
+            currentComplete: null,
+          });
+          if (hydrated) {
+            await commitAssistantTurn({
+              assistantText: hydrated.text,
+              decision: null,
+              complete: hydrated.complete,
+            });
+            return;
           }
         } catch {
           /* ignore session salvage */
@@ -984,7 +1031,7 @@ export function Communicator({
       activeConversationId,
       commitAssistantTurn,
       entrySource,
-      fetchDialogSession,
+      hydrateAssistantTurnFromSession,
       runChatStream,
       systemPrompt,
       triggerMeta,
@@ -1767,8 +1814,25 @@ export function Communicator({
       }
     }
     const payload = {
+      conversation: {
+        conversation_id: activeConversationId,
+        use_case: useCase,
+        entry_source: entrySource,
+        debug_export_enabled: hasDebugExport,
+      },
       day_context: dayContext,
       messages: messages.map((message) => {
+        const practicePicked =
+          message.meta?.practicePicked && typeof message.meta.practicePicked === "object"
+            ? message.meta.practicePicked
+            : null;
+        const branches = Array.isArray(message.meta?.branches)
+          ? message.meta.branches.filter((value): value is string => typeof value === "string")
+          : null;
+        const targetChakra =
+          message.meta?.targetChakra && typeof message.meta.targetChakra === "object"
+            ? message.meta.targetChakra
+            : null;
         const baseMeta = {
           turn_mode: typeof message.meta?.turnMode === "string" ? message.meta.turnMode : null,
           csi: typeof message.meta?.csi === "number"
@@ -1789,6 +1853,21 @@ export function Communicator({
           complete_text_chars: message.content.length,
           prompt_tokens: null,
           completion_tokens: null,
+          ready_marker_triggered: typeof message.meta?.readyMarkerTriggered === "boolean"
+            ? message.meta.readyMarkerTriggered
+            : null,
+          validation:
+            message.meta?.validation && typeof message.meta.validation === "object"
+              ? message.meta.validation
+              : null,
+          practice_picked: practicePicked,
+          branches_active: branches,
+          phase_time: typeof message.meta?.phaseTime === "string" ? message.meta.phaseTime : null,
+          target_chakra: targetChakra,
+          recommendation_corrected:
+            message.meta?.recommendationCorrected && typeof message.meta.recommendationCorrected === "object"
+              ? message.meta.recommendationCorrected
+              : null,
         };
         const debug = message.role === "assistant" && message.meta?.debug != null ? message.meta.debug : undefined;
         return {
@@ -1805,7 +1884,7 @@ export function Communicator({
       title: "dialog-export.json",
       message: JSON.stringify(payload, null, 2),
     });
-  }, [entrySource, messages, strings.locale, triggerMeta, useCase]);
+  }, [activeConversationId, entrySource, messages, strings.locale, triggerMeta, useCase]);
 
   return (
     <KeyboardAvoidingView

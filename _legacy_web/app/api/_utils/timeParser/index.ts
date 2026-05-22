@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 import { DEFAULT_DAYPART_HOURS, PAST_EVENT_GRACE_MINUTES, PAST_EVENT_REWRITE_MINUTES } from "./config";
 import { enTimeResolver } from "./resolvers/en";
 import { ruTimeResolver } from "./resolvers/ru";
-import type { ParseEventTimeInput, ParseEventTimeResult, ResolverResult } from "./types";
+import type { ParseEventTimeInput, ParseEventTimeResult, ResolverResult, TimeResolution } from "./types";
 
 function fallbackLocal(nowLocal: DateTime): DateTime {
   let candidate = nowLocal.set({
@@ -22,9 +22,19 @@ function normalizeLocale(locale: string | null | undefined): string {
   return locale?.trim().toLowerCase() ?? "ru";
 }
 
+/**
+ * Defensive normalization for persisted DB enum/check values.
+ * Older deploys wrote `daypart`; the DB contract expects `daypart_default`.
+ */
+export function canonicalizeTimeResolution(value: string | null | undefined): TimeResolution {
+  if (value === "explicit") return "explicit";
+  if (value === "daypart_default" || value === "daypart") return "daypart_default";
+  return "fallback_default";
+}
+
 function finalize(nowLocal: DateTime, parsed: ResolverResult | null): ParseEventTimeResult {
   let expectedLocal = parsed?.expectedLocal ?? fallbackLocal(nowLocal);
-  const resolution = parsed?.resolution ?? "fallback_default";
+  const resolution = canonicalizeTimeResolution(parsed?.resolution ?? "fallback_default");
   const matchedPhrase = parsed?.matchedPhrase ?? null;
 
   if (

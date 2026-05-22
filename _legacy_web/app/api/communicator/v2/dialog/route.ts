@@ -23,7 +23,7 @@ import {
   validateHistoryHasDurationAndType,
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
-import { parseEventTime } from "@legacy/app/api/_utils/timeParser";
+import { canonicalizeTimeResolution, parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
@@ -643,7 +643,7 @@ async function persistDialogArtifacts(params: {
       planned_local_date: parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
       expected_at: parsedTime.expectedUtc,
       time_phrase_raw: event.time ?? event.timeNorm,
-      time_resolution: parsedTime.resolution,
+      time_resolution: canonicalizeTimeResolution(parsedTime.resolution),
       description: event.desc,
       context_snippets: event.snippets,
       cells: event.cells,

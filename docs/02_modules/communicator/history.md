@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.8
+version: 2.9
 updated: 2026-05-22
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-22:** Финальный assistant-turn теперь делает несколько попыток session hydration (backoff ~0.7/1.4/2.6 s), если `complete` отсутствует или неполон на финальном ходе. Это закрывает регресс, когда текст уже виден, а `practicePicked`/ветки/`debug` ещё не доехали и карточка практики не рендерилась. Одновременно dev-export расширен: в JSON теперь есть блок `conversation` и по каждому сообщению сохраняются `practice_picked`, `branches_active`, `phase_time`, `target_chakra`, `validation`.
 - **2026-05-22:** Финальный assistant-turn теперь восстанавливает `complete`-метаданные не только в `catch`, но и на success-path: если текст уже есть, а `complete` отсутствует или неполон, `Communicator.tsx` добирает последнюю assistant-реплику через `fetchDialogSession`, сверяет её с локальным текстом и гидрирует `turnMode`, `modelTier`, `modelUsed`, `iteration`, `practicePicked`, `recommendationCorrected`, `debug`. Это устраняет кейс «короткий финальный текст виден, а карточки/метаданных нет». Добавлен pure helper `core/dialogTurnHydration.ts` и unit-тест `dialogTurnHydration.test.ts`.
 - **2026-05-21:** Карточка практики после финальной premium-рекомендации: отложенный коммит больше не блокирует flush, когда в `complete` есть `practicePicked`; перед defer `syncDisplayText(finalText)` выравнивает стрим с sanitized `complete.fullText` (иначе `stripTarget` ≠ `revealGoal` и карточка не попадала в `messages` до 60 с). **`Communicator.tsx`**, **`useCommunicatorStream.ts`**, **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-21:** Восстановление после обрыва SSE: `submitDialogTurn` при salvage через `fetchDialogSession` передаёт в `commitAssistantTurn` синтетический `complete` с `practicePicked`, `turnMode`, `modelTier`, `modelUsed`, `iteration`, `debugExport` из `meta` последнего assistant-сообщения (не только `fullText`). **`spec.md`**, **`CHANGELOG.md`**.

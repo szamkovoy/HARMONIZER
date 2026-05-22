@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.20
+version: 2.21
 updated: 2026-05-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-05-22:** Исправлен продовый crash после финального текста без карточки практики: ветка `planning` могла дойти до `persistDialogArtifacts()` и попытаться вставить `planned_events.time_resolution = "daypart"`, тогда как БД принимает только `explicit | daypart_default | fallback_default`. В `timeParser/index.ts` добавлена защитная `canonicalizeTimeResolution(...)`, а `route.ts` нормализует значение перед insert. Дополнительно `monitoring.ts` теперь сериализует plain-object ошибки в читаемый JSON вместо `"[object Object]"`.
+- **2026-05-22:** Opening-инструкция daily dialog ужесточена: первый ход теперь должен звучать как простое человеческое приветствие без чакр/планет/астрологии и без поэтических метафор; `openingDayQuestionForContext` для `summarizing` привязывает вопрос к событию, которое пора подытожить, а не к абстрактному «как день». `prompts-reference.md` синхронизирован с кодом.
 - **2026-05-22:** `fast_track_final` больше не включается на любую первую реплику с согласованными типом и минутами. В `dialogArcOrchestrator.ts` добавлен `isPracticeOnlyFirstTurn(...)`: короткий premium-ответ остаётся только для действительно practice-only запроса, а богатая первая реплика про день + практику идёт через `inquiry` → `final_recommendation`. В `route.ts` усилена диагностика финального выбора практики (`choosePractice returned null`, пустой каталог/результат селектора в `practiceSelection.ts`) и увеличен лимит retry на восстановление `[PRACTICE_PICK]` с 200 до 320 токенов. Зафиксировано, что `matrix_ready=false` не блокирует daily dialog: target chakra падает в `astro_primary`. Тесты: `dialogArcOrchestrator.test.ts`, `markers.test.ts`, `practiceSelection.test.ts`, `route.test.ts`.
 - **2026-05-21:** Карточка практики: server-side ready escalation — при `inquiry` + `validation.confident` без `[READY_FOR_RECOMMENDATION]` автоматический premium `final_recommendation`; opening: `forcePlanningOnOpening` + `openingDayQuestionForContext` по ветке/фазе.
 - **2026-05-21:** Оркестратор: `userAnsweredPracticeRequest` отделяет «ответил про тип/минуты» от `confident`; при конфликте каталога — `catalog_reconciliation` (не `practice_refusal_check`); `resolvePracticePublic` выбирает практику по истории без маркера модели при `confident`.

@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
-import { parseEventTime } from "./index";
+import { canonicalizeTimeResolution, parseEventTime } from "./index";
 
 type Case = {
   phrase: string;
@@ -104,5 +104,12 @@ describe("parseEventTime", () => {
     expect(result.matchedPhrase).toBeNull();
     expect(result.resolution).toBe("fallback_default");
     expect(result.expectedLocal.toFormat("yyyy-MM-dd HH:mm")).toBe("2026-05-16 18:00");
+  });
+
+  it("canonicalizes legacy daypart resolution to db-safe value", () => {
+    expect(canonicalizeTimeResolution("daypart")).toBe("daypart_default");
+    expect(canonicalizeTimeResolution("daypart_default")).toBe("daypart_default");
+    expect(canonicalizeTimeResolution("explicit")).toBe("explicit");
+    expect(canonicalizeTimeResolution("unknown")).toBe("fallback_default");
   });
 });
