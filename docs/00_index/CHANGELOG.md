@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-25: `assistant` — inquiry больше не растягивает planning-кейс, если timed-событие уже названо и практика задана валидно: `route.ts` умеет сразу эскалировать в финальную рекомендацию из history, `dialogArcOrchestrator.ts` запрещает добирать сферу/подтекст события и точную минуту внутри допустимого диапазона.
 - 2026-05-25: pre-push doc-sync — SSE split `complete` / `turn_artifacts`, `DialogTurnArtifactsEvent` + `onTurnArtifacts`; lean-storage hydration при пустом server `content`; `communicator/spec.md`, `communicator/dependencies.md`, `assistant/dependencies.md`.
 - 2026-05-25: pre-push doc-sync — `communicator/spec.md` + `dependencies.md` (`dialogExportMerge`, расширенный `DialogCompleteEvent`); `assistant/spec.md` + `dependencies.md` (`complete.messageId`, `matrixCells`).
 - 2026-05-25: `communicator` + `assistant` — restore early SSE `complete` for practice card; `turn_artifacts` after persist for planning meta; lean-storage session hydration from server meta.

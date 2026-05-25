@@ -1016,6 +1016,9 @@ export async function POST(req: Request) {
             locale: context.user.locale ?? "ru",
           })
         : [];
+    const inferredPlanningArtifactsFromHistory = branches.includes("planning")
+      ? filterNewPlannedEvents(buildInferredPlannedEvents(), openPlannedEventsForConversation)
+      : [];
     const augmentPlannedMarkers = (markers: ReturnType<typeof parseResponseMarkers>) => ({
       ...markers,
       plannedEvents: filterNewPlannedEvents(
@@ -1042,6 +1045,15 @@ export async function POST(req: Request) {
     };
     const expandedTurnInstruction = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
+    const pendingTurnValidation = validateHistoryHasDurationAndType([
+      ...history.filter((message) => message.role === "user"),
+      ...(isInitiate ? [] : [{ role: "user" as const, content: userMessage }]),
+    ]);
+    const historyBranchArtifactsSatisfied =
+      (!branches.includes("planning")
+        || inferredPlanningArtifactsFromHistory.length > 0
+        || openPlannedEventsForConversation.length > 0)
+      && !branches.includes("summarizing");
 
     console.log("[DIALOG_V3_DIAG]", JSON.stringify({
       conversationId: conversation.id,
@@ -1116,6 +1128,35 @@ export async function POST(req: Request) {
             }
             console.log("[DIALOG_V3_DIAG] premium stream done, fullText.length=", fullText.length);
           } else {
+            const canBypassInquiryToFinalBeforeStandard = shouldServerEscalateToFinalRecommendation({
+              turnMode: turnDecision.mode,
+              validation: pendingTurnValidation,
+              hasReadyMarker: false,
+              hasRequiredBranchArtifacts: historyBranchArtifactsSatisfied,
+            });
+            if (canBypassInquiryToFinalBeforeStandard) {
+              console.log("[DIALOG_V3_DIAG] bypassing standard inquiry and escalating directly from history");
+              readyMarkerTriggered = true;
+              validation = pendingTurnValidation;
+              const finalInstructionText = expandOrchestratorInstruction(
+                ORCHESTRATOR_INSTRUCTIONS.final_recommendation,
+                orchestratorPlaceholders,
+              );
+              responseMode = "final_recommendation";
+              modelTierUsed = "premium";
+              const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
+              for await (const chunk of streamGeminiText({
+                systemInstruction: systemPromptData.systemInstruction,
+                contents: [...prefixContents, finalInstruction],
+                model: premiumModel,
+                temperature: 0.85,
+                maxOutputTokens: 2500,
+              })) {
+                modelIdUsed = chunk.modelUsed;
+                fullText += chunk.text;
+                controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
+              }
+            } else {
             console.log("[DIALOG_V3_DIAG] standard path: generating with model", requestedModel);
             const standardResponse = await generateGeminiText({
               systemInstruction: systemPromptData.systemInstruction,
@@ -1131,7 +1172,7 @@ export async function POST(req: Request) {
               first200: standardResponse.text.slice(0, 200),
               hasReadyMarker: containsReadyMarker(standardResponse.text),
             }));
-            const turnValidation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
+            const turnValidation = pendingTurnValidation;
             const standardMarkers = augmentPlannedMarkers(parseResponseMarkers(standardResponse.text));
             const branchArtifactsSatisfied = hasRequiredBranchArtifacts(
               branches,
@@ -1208,6 +1249,7 @@ export async function POST(req: Request) {
                 controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
               }
               }
+            }
             }
           }
 

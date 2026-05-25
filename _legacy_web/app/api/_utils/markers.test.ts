@@ -105,6 +105,20 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.confident).toBe(true);
   });
 
+  it("accepts a catalog-safe breath duration range in a planning sentence", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "Добрый день! Прекрасный день! Через полчаса у меня начнется вебинар, поэтому я готов выполнить короткую практику дыхания 10-15 минут буквально.",
+      },
+    ]);
+    expect(result.durationSec).toBe(13 * 60);
+    expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("treats explicit type+duration as answered even when catalog conflicts", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "медитация 15 минут" },

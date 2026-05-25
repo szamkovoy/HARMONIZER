@@ -8,6 +8,11 @@ describe("decideTurnMode", () => {
     expect(ORCHESTRATOR_INSTRUCTIONS.fast_track_final).toContain("{{chakra_label_accusative}}");
   });
 
+  it("keeps planning inquiry focused and does not require exact minutes inside a valid range", () => {
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("НЕ уточняй сферу жизни");
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("Не проси выбрать точное число внутри диапазона");
+  });
+
   it("uses inquiry after opening when meditation duration conflicts with catalog", () => {
     const decision = decideTurnMode(
       [
