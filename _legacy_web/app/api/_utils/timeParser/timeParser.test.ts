@@ -74,6 +74,7 @@ describe("parseEventTime", () => {
     { phrase: "в 9 утра", now: "2026-05-16T16:00:00", expected: "2026-05-16 16:15", resolution: "explicit" },
     { phrase: "с двух до четырех", now: "2026-05-16T16:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
     { phrase: "завтра в 7 вечера", now: "2026-05-16T09:00:00", expected: "2026-05-17 19:00", resolution: "explicit" },
+    { phrase: "В 7 вечера хочу пойти в магазин", now: "2026-05-25T09:00:00", expected: "2026-05-25 19:00", resolution: "explicit" },
     { phrase: "2026-05-17T15:30:00", now: "2026-05-16T09:00:00", expected: "2026-05-17 15:30", resolution: "explicit", locale: "en" },
     { phrase: "3:45 pm", now: "2026-05-16T09:00:00", expected: "2026-05-16 15:45", resolution: "explicit", locale: "en" },
     { phrase: "sometime later", now: "2026-05-16T21:00:00", expected: "2026-05-17 16:00", resolution: "fallback_default", locale: "en" },

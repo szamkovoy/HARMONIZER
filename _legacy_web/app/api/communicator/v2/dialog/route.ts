@@ -1307,6 +1307,31 @@ export async function POST(req: Request) {
                 })
               : undefined;
 
+          const completePayload = {
+            conversationId: conversation.id,
+            fullText: cleanText,
+            shouldClose,
+            modelUsed: modelIdUsed,
+            modelTier: modelTierUsed,
+            turnMode: responseMode,
+            iteration,
+            readyMarkerTriggered,
+            branches: effectiveBranches,
+            targetChakra: context.targetChakra,
+            phaseTime: context.phaseTime,
+            validation,
+            insightMetrics,
+            practicePicked: isFinalMode ? (finalPracticePublic ?? undefined) : undefined,
+            recommendationCorrected: markers.recommendationCorrection
+              ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
+              : undefined,
+            debugExport,
+          };
+
+          // Ship UI-critical fields before DB persistence so native XHR still receives
+          // practicePicked even if the connection closes during slower artifact writes.
+          controller.enqueue(encoder.encode(sse("complete", completePayload)));
+
           await maybeApplyRecommendationCorrection(
             routeDb,
             typeof context.forecast?.id === "string" ? context.forecast.id : undefined,
@@ -1356,30 +1381,12 @@ export async function POST(req: Request) {
 
           controller.enqueue(
             encoder.encode(
-              sse("complete", {
-                conversationId: conversation.id,
+              sse("turn_artifacts", {
                 messageId: assistantMessageId,
-                fullText: cleanText,
-                shouldClose,
-                modelUsed: modelIdUsed,
-                modelTier: modelTierUsed,
-                turnMode: responseMode,
-                iteration,
-                readyMarkerTriggered,
-                branches: effectiveBranches,
-                targetChakra: context.targetChakra,
-                phaseTime: context.phaseTime,
-                validation,
-                insightMetrics,
-                practicePicked: isFinalMode ? (finalPracticePublic ?? undefined) : undefined,
-                recommendationCorrected: markers.recommendationCorrection
-                  ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
-                  : undefined,
                 planningPersistence: artifactResult.planningPersistence,
                 relatedEventIds: artifactResult.relatedEventIds,
                 skippedPlannedEvents: artifactResult.skippedPlannedEvents,
                 matrixCells: artifactResult.inferredCells,
-                debugExport,
               }),
             ),
           );

@@ -62,6 +62,14 @@ export interface DialogCompleteEvent {
   debugExport?: Record<string, unknown>;
 }
 
+export type DialogTurnArtifactsEvent = {
+  messageId: string;
+  planningPersistence?: DialogCompleteEvent["planningPersistence"];
+  relatedEventIds?: string[];
+  skippedPlannedEvents?: unknown[];
+  matrixCells?: unknown[];
+};
+
 export type DialogTurnHistoryItem = {
   role: "user" | "assistant";
   content: string;
@@ -82,6 +90,7 @@ export interface SendDialogMessageParams {
   onOrchestratorDecision?: (decision: OrchestratorDecision) => void;
   onChunk?: (text: string) => void;
   onComplete?: (event: DialogCompleteEvent) => void;
+  onTurnArtifacts?: (event: DialogTurnArtifactsEvent) => void;
 }
 
 export interface DialogSessionMessage {
@@ -221,6 +230,19 @@ function handleSseEvent(
     if (!state.fullText && complete.fullText) state.fullText = complete.fullText;
     if (complete.modelUsed) state.modelUsed = complete.modelUsed;
     params.onComplete?.(complete);
+    return;
+  }
+  if (event.event === "turn_artifacts") {
+    const artifacts = safeJson<DialogTurnArtifactsEvent>(event.data);
+    state.complete = {
+      ...(state.complete ?? { fullText: state.fullText, shouldClose: false }),
+      messageId: artifacts.messageId ?? state.complete?.messageId,
+      planningPersistence: artifacts.planningPersistence ?? state.complete?.planningPersistence,
+      relatedEventIds: artifacts.relatedEventIds ?? state.complete?.relatedEventIds,
+      skippedPlannedEvents: artifacts.skippedPlannedEvents ?? state.complete?.skippedPlannedEvents,
+      matrixCells: artifacts.matrixCells ?? state.complete?.matrixCells,
+    };
+    params.onTurnArtifacts?.(artifacts);
   }
 }
 

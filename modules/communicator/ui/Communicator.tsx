@@ -41,6 +41,7 @@ import {
   type ExportMessageSnapshot,
 } from "@/modules/communicator/core/dialogExportMerge";
 import {
+  isFinalLikeTurnMode,
   mergeCompleteWithSession,
   needsAssistantTurnHydration,
   sessionAssistantMatchesTurn,
@@ -1005,7 +1006,28 @@ export function Communicator({
           if (last?.role !== "assistant") continue;
           const recovered = stripDialogScaffoldMarkdown(String(last.content ?? "").trim());
           lastRecoveredTextLength = recovered.length;
-          if (!recovered) continue;
+          const sessionMeta = normalizeMessageMeta(last.meta) as SessionAssistantTurnMeta | undefined;
+          if (!recovered) {
+            if (
+              sessionMeta?.practicePicked
+              && isFinalLikeTurnMode(sessionMeta.turnMode)
+              && params.currentText.trim().length > 0
+            ) {
+              lastHydrationDebugRef.current = {
+                attempts,
+                matched: true,
+                syncConversationId: lastSyncConversationId,
+                lastRole,
+                lastRecoveredTextLength,
+                hadCurrentComplete: Boolean(params.currentComplete),
+              };
+              return {
+                text: params.currentText,
+                complete: completeFromSessionMessage(last, params.currentText, params.currentComplete),
+              };
+            }
+            continue;
+          }
           const matches = sessionAssistantMatchesTurn({
             currentText: params.currentText,
             currentMessageId: params.currentComplete?.messageId,
