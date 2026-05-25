@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.33
-updated: 2026-05-23
+version: 2.34
+updated: 2026-05-25
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-25: `assistant` + `communicator` + `profile` — daily dialog перестал хранить тексты на сервере: клиент держит current-day local session cache, backend пишет только служебные `messages.meta`, live `planned_events`, `daily_matrices` и новый snapshot-слой `profile_report_snapshots`; профильные отчёты читаются из snapshot с fallback rebuild из day-rollups.
 - 2026-05-23: `assistant` + `communicator` — dev-export и `dialog_state_after` расширены для QA planning/summarizing: per-turn `planning_persistence`, snapshot планов на старт/конец диалога.
 - 2026-05-23: `assistant` — финальные premium-ответы daily dialog больше не должны задавать пользователю дополнительных вопросов после выбора практики; `final_recommendation`, `final_recommendation_with_validation_warning` и `forced_final` явно завершает ход, если под ним уже показывается карточка практики.
 - 2026-05-23: `assistant` — после повторных QA-диалогов `markers.ts` дополнительно усилен: длительность теперь привязывается к упоминанию именно выбранного типа практики, refusal распознаёт `не до практик` / `нет времени выполнять асаны, пранаяму` / `не нужно предлагать практику`, а parser понимает `2,5`, `2.5` и `3/4 часа`.

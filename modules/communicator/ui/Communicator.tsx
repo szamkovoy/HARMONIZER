@@ -58,6 +58,7 @@ import type {
   EmotionSegmentPayload,
 } from "@/modules/communicator/core/types";
 import {
+  buildClientTurnHistory,
   fetchDialogSession,
   type DialogCompleteEvent,
   type DialogSessionMessage,
@@ -65,6 +66,11 @@ import {
   type DialogueUseCase,
   type PracticePicked,
 } from "@/services/communicator-client";
+import {
+  clearDialogSessionCache,
+  loadDialogSessionCache,
+  saveDialogSessionCache,
+} from "@/services/dialogSessionCache";
 import { useAuth } from "@/modules/auth";
 import { AppText } from "@/modules/ui/AppText";
 import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -586,7 +592,8 @@ export function Communicator({
 }: CommunicatorProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const { profile } = useAuth();
+  const { profile, profileLoading } = useAuth();
+  const localDialogUserId = profile?.id ?? null;
   const modelAccessTier = useMemo(() => tierLabelFromProfile(profile), [profile]);
   const strings = useMemo(() => getCommunicatorStrings(locale ?? "ru"), [locale]);
 
@@ -604,6 +611,8 @@ export function Communicator({
   }, [resolved.uiMode]);
 
   const [messages, setMessages] = useState<CommunicatorHistoryMessage[]>([]);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const [pendingRevealGoal, setPendingRevealGoal] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
@@ -756,46 +765,93 @@ export function Communicator({
     phase === "arming" || phase === "recording" || phase === "transcribing" || streamBusy;
 
   useEffect(() => {
-    const ac = new AbortController();
+    if (profileLoading) return;
+    let cancelled = false;
     setSessionSynced(false);
-    void fetchDialogSession({ useCase, entrySource, signal: ac.signal })
-      .then((session) => {
-        if (ac.signal.aborted) return;
-        setActiveConversationId(session.conversationId);
-        const validMessages = session.messages.filter(
-          (m) => !(m.role === "assistant" && !m.content?.trim()),
-        );
-        if (validMessages.length > 0) {
-          setMessages(
-            ensureIds(
-              sliceHistoryForWindow(
-                validMessages.map((message) => ({
-                  id: message.id,
-                  role: message.role,
-                  content: message.content,
-                  createdAt: message.createdAt,
-                  meta: normalizeMessageMeta(message.meta),
-                })),
-                memoryWindow,
-              ),
-            ),
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+    void (async () => {
+      try {
+        if (localDialogUserId) {
+          const cached = await loadDialogSessionCache({
+            userId: localDialogUserId,
+            useCase,
+            entrySource,
+            timeZone: timezone,
+          });
+          if (cancelled) return;
+          const validMessages = (cached?.messages ?? []).filter(
+            (m) => !(m.role === "assistant" && !m.content?.trim()),
           );
-        } else {
-          const seed = initialHistoryRef.current;
-          setMessages(seed.length ? [...seed] : []);
+          if (validMessages.length > 0) {
+            setActiveConversationId(cached?.conversationId ?? conversationId ?? null);
+            setMessages(
+              ensureIds(
+                sliceHistoryForWindow(
+                  validMessages.map((message) => ({
+                    id: message.id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: message.createdAt,
+                    meta: normalizeMessageMeta(message.meta),
+                  })),
+                  memoryWindow,
+                ),
+              ),
+            );
+            setSessionSynced(true);
+            return;
+          }
         }
-      })
-      .catch((error) => {
-        if (ac.signal.aborted) return;
+
+        const seed = initialHistoryRef.current;
+        setMessages(seed.length ? [...seed] : []);
+        setActiveConversationId(conversationId ?? null);
+      } catch (error) {
+        if (cancelled) return;
         reportError(error instanceof Error ? error : new Error(String(error)));
         setMessages(initialHistoryRef.current);
         setActiveConversationId(conversationId ?? null);
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setSessionSynced(true);
+      } finally {
+        if (!cancelled) setSessionSynced(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, entrySource, localDialogUserId, memoryWindow, profileLoading, reportError, useCase]);
+
+  useEffect(() => {
+    if (!sessionSynced || !localDialogUserId) return;
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+    const shouldClear = messages.length === 0 || latestAssistant?.meta?.shouldClose === true;
+    if (shouldClear) {
+      void clearDialogSessionCache({
+        userId: localDialogUserId,
+        useCase,
+        entrySource,
+        timeZone: timezone,
       });
-    return () => ac.abort();
-  }, [conversationId, entrySource, memoryWindow, reportError, useCase]);
+      return;
+    }
+
+    void saveDialogSessionCache({
+      userId: localDialogUserId,
+      useCase,
+      entrySource,
+      timeZone: timezone,
+      conversationId: activeConversationId,
+      messages: messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+        meta: message.meta,
+      })),
+    });
+  }, [activeConversationId, entrySource, localDialogUserId, messages, sessionSynced, useCase]);
 
   const updateScrollDownFlag = useCallback(() => {
     if (scrollHintDismissedRef.current) {
@@ -946,7 +1002,11 @@ export function Communicator({
         await new Promise((r) => setTimeout(r, delayMs));
         attempts += 1;
         try {
-          const sync = await fetchDialogSession({ useCase, entrySource });
+          const sync = await fetchDialogSession({
+            useCase,
+            entrySource,
+            conversationId: activeConversationId ?? undefined,
+          });
           lastSyncConversationId = sync.conversationId;
           if (sync.conversationId && !params.currentComplete?.conversationId) {
             setActiveConversationId(sync.conversationId);
@@ -995,7 +1055,7 @@ export function Communicator({
       };
       return null;
     },
-    [entrySource, fetchDialogSession, useCase],
+    [activeConversationId, entrySource, fetchDialogSession, useCase],
   );
 
   const commitAssistantTurn = useCallback(
@@ -1117,6 +1177,11 @@ export function Communicator({
           },
           userMessage: userMessageText,
           userTimezone: timezone,
+          turnHistory: buildClientTurnHistory(
+            messagesRef.current,
+            userMessageText,
+            voiceUserAlreadyCommitted,
+          ),
         });
         if (result == null) return;
         await commitAssistantTurn(result);
@@ -1397,6 +1462,7 @@ export function Communicator({
         userMessage: "__initiate__",
         userTimezone: timezone,
         initiateDialog: true,
+        turnHistory: [],
       });
       if (result == null) return;
       await commitAssistantTurn(result, { replaceAll: true });

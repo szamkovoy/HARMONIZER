@@ -447,6 +447,47 @@ export type Database = {
           },
         ]
       }
+      profile_report_snapshots: {
+        Row: {
+          active_days_count: number
+          cumulative_matrix: Json
+          last_rolled_date: string | null
+          life_line_points: Json
+          snapshot_version: number
+          updated_at: string
+          user_id: string
+          visual_matrix: Json
+        }
+        Insert: {
+          active_days_count?: number
+          cumulative_matrix?: Json
+          last_rolled_date?: string | null
+          life_line_points?: Json
+          snapshot_version?: number
+          updated_at?: string
+          user_id: string
+          visual_matrix?: Json
+        }
+        Update: {
+          active_days_count?: number
+          cumulative_matrix?: Json
+          last_rolled_date?: string | null
+          life_line_points?: Json
+          snapshot_version?: number
+          updated_at?: string
+          user_id?: string
+          visual_matrix?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_report_snapshots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dialogue_phases: {
         Row: {
           description: string | null

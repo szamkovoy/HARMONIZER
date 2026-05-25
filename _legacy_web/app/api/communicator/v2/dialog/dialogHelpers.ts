@@ -5,6 +5,56 @@ import type { OrchestratorDecision } from "@legacy/app/api/_utils/orchestrator";
 import { sessionTtlMs } from "@legacy/app/api/_utils/testMode";
 
 export const MESSAGE_HISTORY_LIMIT = 40;
+
+export type TurnHistoryItem = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export function resolveTurnHistory(
+  clientHistory: TurnHistoryItem[] | undefined,
+  dbHistory: MessageRecord[],
+): MessageRecord[] {
+  if (clientHistory?.length) {
+    return clientHistory.map((item, index) => ({
+      id: `client-${index}`,
+      role: item.role,
+      content: item.content,
+      transcript: null,
+      meta: null,
+      created_at: null,
+    }));
+  }
+  return dbHistory;
+}
+
+export async function purgeConversationMessages(
+  db: SupabaseClient,
+  userId: string,
+  conversationId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("messages")
+    .delete()
+    .eq("user_id", userId)
+    .eq("conversation_id", conversationId);
+  if (error) throw error;
+}
+
+export async function closeConversation(
+  db: SupabaseClient,
+  userId: string,
+  conversationId: string,
+): Promise<void> {
+  const endedAt = new Date().toISOString();
+  const { error: endError } = await db
+    .from("conversations")
+    .update({ ended_at: endedAt })
+    .eq("id", conversationId)
+    .eq("user_id", userId);
+  if (endError) throw endError;
+  await purgeConversationMessages(db, userId, conversationId);
+}
 /** Real 2h — not compressed by TEST_MODE_FAST_INTERVALS (see testMode.sessionTtlMs). */
 export const SESSION_TTL_MS = sessionTtlMs();
 
@@ -91,30 +141,7 @@ export async function summarizeConversationIfNeeded(
     .maybeSingle();
   if (existingError) throw existingError;
   if (existing?.summary_text) return String(existing.summary_text);
-
-  const history = await loadHistory(db, userId, conversationId, 20);
-  const lines = history
-    .filter((message) => message.role === "user" || message.role === "assistant")
-    .map((message) => {
-      const text = String(message.content ?? message.transcript ?? "").trim();
-      if (!text) return null;
-      return `${message.role === "user" ? "Пользователь" : "Ассистент"}: ${text}`;
-    })
-    .filter(Boolean) as string[];
-  if (!lines.length) return null;
-
-  const summary = lines.slice(-12).join("\n").slice(0, 3000);
-  const { error } = await db.from("conversation_summaries").upsert({
-    user_id: userId,
-    conversation_id: conversationId,
-    summary_text: summary,
-    key_topics: [],
-    chakras_mentioned: [],
-    practices_mentioned: [],
-    plans: [],
-  });
-  if (error) throw error;
-  return summary;
+  return null;
 }
 
 export async function loadDayBackground(
@@ -134,8 +161,9 @@ export async function loadDayBackground(
     .limit(5);
   if (error) throw error;
   return (data ?? [])
-    .map((item, index) => `Фрагмент ${index + 1}: ${String(item.summary_text ?? "").trim()}`)
-    .filter((line) => line.length > 12)
+    .map((item) => String(item.summary_text ?? "").trim())
+    .filter((line) => line.length > 12 && !line.startsWith("["))
+    .map((line, index) => `Фрагмент ${index + 1}: ${line}`)
     .join("\n\n")
     .slice(0, 4000);
 }

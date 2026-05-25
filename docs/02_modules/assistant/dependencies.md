@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.10
-updated: 2026-05-21
+version: 1.11
+updated: 2026-05-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
 ---
@@ -16,7 +16,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`profile`**
   - **`users`**: `locale`, **`address_form`**, `tz`, `membership_tier`, `trial_expires_at`, `lat`, `lon` для локального времени, обращения, выбора модели и фиксации day-context.
 - **`communicator` / `profile` (новый серверный потребитель)**
-  - Экран профиля читает агрегаты `daily_matrices` и practice-by-chakra через новые backend routes, которые переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр для этих routes — **`planetChakraLegend.ts`** (`buildChakraLegend()`, JSON `planet_chakra_map.json` на сервере), не `modules/home/planetChakra`.
+  - Экран профиля читает быстрый snapshot `profile_report_snapshots` с fallback rebuild из `daily_matrices`, а practice-by-chakra — через отдельный route. Оба profile-route переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр для этих routes — **`planetChakraLegend.ts`** (`buildChakraLegend()`, JSON `planet_chakra_map.json` на сервере), не `modules/home/planetChakra`.
 - **`practices`**
   - Таблица **`practices`**, связь **`practice_chakras`** в **`practiceSelection.ts`**; сессии **`practice_sessions`** для недавних ID в **`recentCompletedPracticeIds`**; клиентские маршруты запуска задаются в **`launchForPractice`** (асана / дыхание / «Вспышка»). **`_legacy_web/app/api/communicator/v2/dialog/route.ts`** (`**resolvePracticePublic**`) импортирует **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`**) для тех же шагов длительности карточки, что и **`PracticeCard`** на клиенте.
 - **`infra`**
@@ -38,7 +38,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 - **Форма SSE-событий** — `communicator-client` по-прежнему ждёт `orchestrator_decision`, `chunk`, `complete`; смена имён событий или ключей (`practicePicked`, `turnMode`, `validation`) ломает UI тихо.
 - **`dialog_system_v3`** — маршрут daily dialog v3 теперь жёстко зависит от наличия активного prompt в `public.prompts`; отсутствие строки даёт 500 на `getActivePrompt`.
-- **`planned_events` / `daily_matrices`** — новые таблицы стали частью публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции теперь ломает не только диалог, но и отчёты профиля.
+- **`planned_events` / `daily_matrices` / `profile_report_snapshots`** — этот trio теперь часть публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции ломает и live planning/summarizing, и профильные отчёты.
 - **`scenarios`**: неверный `cache_strategy` или отсутствие строки сценария — 404/500 на monologue.
 - **`buildTopPetals` / `ranked_planets`**: смена формата прогноза без обновления утреннего пайплайна ломает монолог **`morning_recommendation`**.
 - **`recentStackLimitForKind`** и триггер **`user_practice_preferences`** — влияют на разнообразие предложений; см. **`open_questions`** и **`practices`**.

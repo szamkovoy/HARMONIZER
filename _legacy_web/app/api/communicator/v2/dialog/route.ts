@@ -32,12 +32,16 @@ import { createServiceSupabase, errorResponse, json, requireUserId } from "@lega
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import { buildDialogStateAfter, buildTurnDebugExport, capturePlanningSnapshotIfNeeded, type PlanningPersistenceTurn } from "@legacy/app/api/communicator/v2/dialog/dialogDebugExport";
 import {
+  closeConversation,
   isConversationExpired,
   loadHistory,
+  MESSAGE_HISTORY_LIMIT,
+  resolveTurnHistory,
   SESSION_TTL_MS,
   summarizeConversationIfNeeded,
   type ConversationRecord,
   type MessageRecord,
+  type TurnHistoryItem,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import {
   buildPracticeCardSummary,
@@ -46,7 +50,8 @@ import {
 import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
   asMatrixCells,
-  mergeUserProfileMemory,
+  mergeSummarizedEventIntoDailyMatrix,
+  rebuildProfileReportSnapshot,
   upsertConversationSummary,
   upsertDailyMatrixForDate,
   type PlannedEventRow,
@@ -72,6 +77,7 @@ type Body = {
   userMessage?: string;
   userTimezone?: string;
   initiateDialog?: boolean;
+  turnHistory?: TurnHistoryItem[];
 };
 
 type Planet = keyof typeof chakraStatesBaseline;
@@ -229,6 +235,20 @@ function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">)
   return String(message.content ?? message.transcript ?? "").trim();
 }
 
+function normalizeTurnHistory(raw: unknown): TurnHistoryItem[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const items = raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const role = (item as { role?: unknown }).role;
+      const content = String((item as { content?: unknown }).content ?? "").trim();
+      if ((role !== "user" && role !== "assistant") || !content) return null;
+      return { role, content: content.slice(0, 8000) } satisfies TurnHistoryItem;
+    })
+    .filter((item): item is TurnHistoryItem => Boolean(item));
+  return items.length ? items.slice(-MESSAGE_HISTORY_LIMIT) : undefined;
+}
+
 function countAssistantTurns(history: MessageRecord[]): number {
   return history.filter((message) => message.role === "assistant").length;
 }
@@ -331,7 +351,7 @@ async function loadConversation(
     if (!isConversationExpired(conversation, timezone)) return conversation;
 
     const summary = await summarizeConversationIfNeeded(db, userId, conversation.id);
-    await db.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
+    await closeConversation(db, userId, conversation.id);
     return createConversation(db, userId, body, useCase, scenarioId, {
       reset_reason: "session_expired",
       previous_conversation_id: conversation.id,
@@ -635,14 +655,13 @@ async function persistDialogArtifacts(params: {
   branches: DialogBranch[];
   markers: ReturnType<typeof parseResponseMarkers>;
   assistantText: string;
-  finalPracticePublic: Awaited<ReturnType<typeof resolvePracticePublic>> | null;
 }) {
   const nowIso = params.context.nowLocal.toUTC().toISO() ?? new Date().toISOString();
   const timezone = params.context.user.tz ?? "UTC";
   const locale = params.context.user.locale ?? "ru";
   const effectiveBranches = [...new Set([...params.branches, ...(params.markers.planTomorrow ? ["planning" as const] : [])])];
   const relatedEventIds: string[] = [];
-  const affectedDates = new Set<string>();
+  const plannedDatesToRefresh = new Set<string>();
   const skippedPlannedEvents: PlanningPersistenceTurn["skipped"] = [];
   const insertedPlannedEvents: PlanningPersistenceTurn["inserted"] = [];
   const summarizedPlannedEvents: PlanningPersistenceTurn["summarized"] = [];
@@ -704,24 +723,26 @@ async function persistDialogArtifacts(params: {
         cells: asMatrixCells(data.cells ?? event.cells),
       });
     }
-    if (data?.planned_local_date) affectedDates.add(String(data.planned_local_date));
+    if (data?.planned_local_date) plannedDatesToRefresh.add(String(data.planned_local_date));
   }
 
   for (const summary of params.markers.summarizeEvents) {
     const resolved = resolveSummarizedEvent(summary.ref, params.context.dueEvents);
     if (!resolved) continue;
-    const { error } = await params.db
+    await mergeSummarizedEventIntoDailyMatrix(
+      params.db,
+      params.userId,
+      resolved.planned_local_date,
+      summary.outcomeCells,
+      nowIso,
+    );
+    const { error: deleteError } = await params.db
       .from("planned_events")
-      .update({
-        status: "summarized",
-        summarized_at: nowIso,
-        outcome_cells: summary.outcomeCells,
-        outcome_text: summary.outcome,
-      })
+      .delete()
+      .eq("user_id", params.userId)
       .eq("id", resolved.id);
-    if (error) throw error;
+    if (deleteError) throw deleteError;
     relatedEventIds.push(resolved.id);
-    affectedDates.add(resolved.planned_local_date);
     summarizedPlannedEvents.push({
       id: resolved.id,
       conversation_id: null,
@@ -741,27 +762,26 @@ async function persistDialogArtifacts(params: {
     });
   }
 
-  for (const localDate of affectedDates) {
+  for (const localDate of plannedDatesToRefresh) {
     await upsertDailyMatrixForDate(params.db, params.userId, localDate, nowIso);
   }
 
-  await upsertConversationSummary(params.db, {
-    userId: params.userId,
-    conversationId: params.conversationId,
-    summaryText: params.assistantText,
-    branch: branchLabel(effectiveBranches),
-    phaseTime: params.context.phaseTime,
-    relatedEventIds,
-    matrixCells: inferredCells,
-  });
+  if (params.markers.summarizeEvents.length > 0) {
+    await rebuildProfileReportSnapshot(params.db, params.userId, nowIso);
+  }
 
-  await mergeUserProfileMemory(params.db, params.userId, {
-    currentGoals: params.markers.plannedEvents.map((event) => event.desc),
-    lastPracticeFocusChakras: inferredCells.map((cell) => cell.chakra),
-    recentPractices: params.finalPracticePublic?.id
-      ? [{ id: params.finalPracticePublic.id, kind: params.finalPracticePublic.kind ?? null, created_at: nowIso }]
-      : [],
-  });
+  const branch = branchLabel(effectiveBranches);
+  if (branch !== "free" && branch !== "none") {
+    await upsertConversationSummary(params.db, {
+      userId: params.userId,
+      conversationId: params.conversationId,
+      summaryText: params.assistantText,
+      branch,
+      phaseTime: params.context.phaseTime,
+      relatedEventIds,
+      matrixCells: inferredCells,
+    });
+  }
 
   return {
     effectiveBranches,
@@ -791,7 +811,7 @@ async function persistAssistantMessage(params: {
       user_id: params.userId,
       conversation_id: params.conversationId,
       role: "assistant",
-      content: params.text,
+      content: null,
       content_type: "text",
       meta: {
         use_case: params.useCase,
@@ -944,7 +964,10 @@ export async function POST(req: Request) {
       scenarioId,
       userTimezone,
     );
-    const history = await loadHistory(db, userId, conversation.id);
+    const history = resolveTurnHistory(
+      normalizeTurnHistory(body.turnHistory),
+      await loadHistory(db, userId, conversation.id),
+    );
     if (history.length === 0) {
       await capturePlanningSnapshotIfNeeded(
         db,
@@ -1005,7 +1028,7 @@ export async function POST(req: Request) {
         user_id: userId,
         conversation_id: conversation.id,
         role: "user",
-        content: userMessage,
+        content: null,
         content_type: "text",
         meta: { use_case: useCase, scenario_id: scenarioId },
       });
@@ -1288,7 +1311,6 @@ export async function POST(req: Request) {
             branches,
             markers,
             assistantText: cleanText,
-            finalPracticePublic,
           });
 
           const assistantMeta = {
@@ -1322,7 +1344,7 @@ export async function POST(req: Request) {
           });
 
           if (shouldClose) {
-            await routeDb.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversation.id);
+            await closeConversation(routeDb, routeUserId, conversation.id);
           }
           controller.close();
         } catch (error) {

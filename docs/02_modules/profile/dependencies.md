@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.5
-updated: 2026-05-20
+version: 1.6
+updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -36,8 +36,8 @@ code_refs:
 
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица завершённых сессий). Запись сессий выполняется из flow практик, не из таба профиля.
-- **`assistant` (новые отчёты HARMONIZER v2)**  
-  Profile reports через backend routes: `life-matrix` сначала собирает активные дни из `planned_events` (`status = summarized`, `planned_local_date`), затем подтягивает `daily_matrices` по этим датам и строит `calendarTrend` через `buildCalendarRangeTrend` (`lifeMatrix.ts`, размер блока — `getRangeGroupSize()` из `dialogConfig.ts`); `practice-by-chakra` — завершённые `practice_sessions`. Легенда чакр — **`buildChakraLegend()`** (`planetChakraLegend.ts`), без импорта клиентского `modules/home/planetChakra`.
+- **`assistant` (новые отчёты HARMONIZER v2)**
+  Profile reports через backend routes: `life-matrix` сначала читает `profile_report_snapshots`, а при miss/version-mismatch пересобирает его из compact day-rollup слоя `daily_matrices`; `practice-by-chakra` — завершённые `practice_sessions`. Легенда чакр — **`buildChakraLegend()`** (`planetChakraLegend.ts`), без импорта клиентского `modules/home/planetChakra`.
 
 ## 2. От него зависят
 

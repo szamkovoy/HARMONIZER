@@ -54,6 +54,11 @@ export interface DialogCompleteEvent {
   debugExport?: Record<string, unknown>;
 }
 
+export type DialogTurnHistoryItem = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export interface SendDialogMessageParams {
   scenarioId?: string;
   conversationId: string | null;
@@ -62,6 +67,8 @@ export interface SendDialogMessageParams {
   triggerMeta?: Record<string, unknown>;
   userMessage: string;
   userTimezone: string;
+  /** Client-side transcript for the active session; server does not persist message text in DB. */
+  turnHistory?: DialogTurnHistoryItem[];
   initiateDialog?: boolean;
   signal?: AbortSignal;
   onOrchestratorDecision?: (decision: OrchestratorDecision) => void;
@@ -218,8 +225,33 @@ function buildDialogPostBody(params: SendDialogMessageParams): Record<string, un
     triggerMeta: params.triggerMeta ?? {},
     userMessage: params.initiateDialog ? undefined : params.userMessage,
     userTimezone: params.userTimezone,
+    ...(params.turnHistory?.length ? { turnHistory: params.turnHistory } : {}),
     ...(params.initiateDialog ? { initiateDialog: true } : {}),
   };
+}
+
+export const DIALOG_TURN_HISTORY_LIMIT = 40;
+
+export function buildClientTurnHistory(
+  messages: Array<{ role: string; content: string }>,
+  pendingUserText = "",
+  voiceUserAlreadyCommitted = false,
+): DialogTurnHistoryItem[] {
+  const items: DialogTurnHistoryItem[] = messages
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .map((message) => ({
+      role: message.role as "user" | "assistant",
+      content: message.content.trim(),
+    }))
+    .filter((message) => message.content.length > 0);
+  const trimmedPending = pendingUserText.trim();
+  if (trimmedPending && !voiceUserAlreadyCommitted) {
+    const last = items[items.length - 1];
+    if (!(last?.role === "user" && last.content === trimmedPending)) {
+      items.push({ role: "user", content: trimmedPending });
+    }
+  }
+  return items.slice(-DIALOG_TURN_HISTORY_LIMIT);
 }
 
 function readErrorFromXhr(xhr: XMLHttpRequest): Error {

@@ -1,14 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.9
-updated: 2026-05-21
+version: 1.10
+updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
 
+- **2026-05-25:** `life-matrix` больше не тянет исторические `planned_events` для сборки профиля. Отчёт теперь читается из `profile_report_snapshots`, которые сервер обновляет при подытоживании и при необходимости rebuild-ит из `daily_matrices`. Это делает оба профильных отчёта (`Матрица состояний`, `Толщина линии жизни`) быстрыми на чтении и независимыми от хранения старых текстов/планов.
 - **2026-05-21 (блоки UX):** Страница профиля — 4 независимые карточки (статистика → практики по чакрам → матрица → толщина). Селектор периода только у первых двух. `life-matrix` API: активные дни из `planned_events` (`summarized` / `planned_local_date`), `calendarTrend` по блокам 5 дней, без query `days`. Единые пустые состояния (`ProfileEmptyState`). Sanity: unit-тест `buildCalendarRangeTrend` (6 активных дней → 1 точка на 5-й дате).
 - **2026-05-20:** Profile reports UX: `PeriodSelector` + `periodPresets` (дефолт **7 дней**), i18n `getProfileReportStrings`; `ProfileReports` разбит на `LifeMatrixBlock` и `PracticeByChakraBlock` с **независимым** периодом; bar-chart статистики на вкладке тоже через `PeriodSelector` (раньше hardcoded 14д); длительности в легенде pie — `mm:ss`; heatmap — константы layout; легенда pie показывает все 7 чакр (нулевые — серый swatch). Код: `modules/profile/*`, `app/(tabs)/profile.tsx`.
 - **2026-05-21:** Владелец подтвердил: `practice_sessions` остаются **только при завершении** практики — insert при «Начать» не нужен. Запись в `open_questions.md` обновлена с «открытый вопрос» на «решено».

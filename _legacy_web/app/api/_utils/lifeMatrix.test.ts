@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildLifeMatrixReportSnapshot,
   buildCalendarRangeTrend,
   chooseTargetChakra,
   computeRangeMetric,
@@ -114,5 +115,33 @@ describe("buildCalendarRangeTrend", () => {
     const trend = buildCalendarRangeTrend(activeDates, matrixByDate, 5);
 
     expect(trend[0]?.rangeMetric).toBe(aggregatedMetric);
+  });
+});
+
+describe("buildLifeMatrixReportSnapshot", () => {
+  function matrixWithSignal(chakra: number): DenseMatrix {
+    const matrix = Array.from({ length: LIFE_MATRIX_SIZE }, () =>
+      Array.from({ length: LIFE_MATRIX_SIZE }, () => 0),
+    );
+    matrix[chakra - 1]![0] = 1;
+    return matrix;
+  }
+
+  it("builds aggregate matrix and trend from compact daily rows", () => {
+    const rows = [
+      { localDate: "2026-05-01", matrix: matrixWithSignal(1) },
+      { localDate: "2026-05-02", matrix: matrixWithSignal(2) },
+      { localDate: "2026-05-03", matrix: matrixWithSignal(3) },
+      { localDate: "2026-05-04", matrix: matrixWithSignal(4) },
+      { localDate: "2026-05-05", matrix: matrixWithSignal(5) },
+    ];
+
+    const snapshot = buildLifeMatrixReportSnapshot(rows, { groupSize: 5, smoothingK: 50 });
+
+    expect(snapshot.activeDaysCount).toBe(5);
+    expect(snapshot.lastRolledDate).toBe("2026-05-05");
+    expect(snapshot.calendarTrend).toHaveLength(1);
+    expect(snapshot.rawMatrix).toEqual(sumMatrices(rows.map((row) => row.matrix)));
+    expect(snapshot.visualMatrix.flat().some((value) => value > 0)).toBe(true);
   });
 });

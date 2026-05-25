@@ -230,6 +230,19 @@ export type CalendarTrendPoint = {
   rangeMetric: number;
 };
 
+export type DailyMatrixSnapshotRow = {
+  localDate: string;
+  matrix: DenseMatrix;
+};
+
+export type LifeMatrixReportSnapshot = {
+  activeDaysCount: number;
+  rawMatrix: DenseMatrix;
+  visualMatrix: DenseMatrix;
+  calendarTrend: CalendarTrendPoint[];
+  lastRolledDate: string | null;
+};
+
 /** Groups sorted active calendar days into blocks of `groupSize` and computes range_metric on summed matrices. */
 export function buildCalendarRangeTrend(
   activeDatesAsc: string[],
@@ -252,4 +265,27 @@ export function buildCalendarRangeTrend(
 
 export function uniqueSortedDates(dates: string[]): string[] {
   return [...new Set(dates.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+export function buildLifeMatrixReportSnapshot(
+  rows: DailyMatrixSnapshotRow[],
+  options?: {
+    groupSize?: number;
+    smoothingK?: number;
+  },
+): LifeMatrixReportSnapshot {
+  const activeDates = uniqueSortedDates(rows.map((row) => row.localDate));
+  const matrixByDate = new Map(rows.map((row) => [row.localDate, row.matrix]));
+  const aggregatedMatrices = activeDates
+    .map((date) => matrixByDate.get(date))
+    .filter((matrix): matrix is DenseMatrix => Boolean(matrix));
+  const rawMatrix = aggregatedMatrices.length ? sumMatrices(aggregatedMatrices) : emptyMatrix();
+
+  return {
+    activeDaysCount: activeDates.length,
+    rawMatrix,
+    visualMatrix: logSmoothedVisMatrix(rawMatrix, options?.smoothingK ?? LIFE_MATRIX_LOG_SMOOTHING_K_DEFAULT),
+    calendarTrend: buildCalendarRangeTrend(activeDates, matrixByDate, options?.groupSize ?? RANGE_GROUP_SIZE_DEFAULT),
+    lastRolledDate: activeDates.at(-1) ?? null,
+  };
 }
