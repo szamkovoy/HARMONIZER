@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.18
+version: 2.19
 updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-25:** Документация: §3.1 «Хранение и сброс daily dialog» в `spec.md`, индекс в `MAP.md` для поиска в новых чатах; `daily_forecast/spec.md` — кнопка «Обновить» и `clearHomeDailyDialogCache`.
 - **2026-05-25:** Mount `fetchDialogSession` больше не передаёт `conversationId` из local cache (только проп `Communicator`); dev-сброс дня на home вызывает `clearHomeDailyDialogCache`. Согласовано с GET: закрытая/протухшая беседа без `debugExport` → `reset`. **`Communicator.tsx`**, **`index.tsx`**, **`dialogSessionCache.ts`**, **`spec.md`**, **`dependencies.md`**.
 - **2026-05-25:** При монтировании `Communicator` снова вызывает `fetchDialogSession` (с `AbortController`) параллельно с local cache: server `reset` очищает cache и сбрасывает `initiateFiredRef`; при совпадении `conversationId` приоритет у cache, иначе — сообщения GET, иначе seed из пропсов. **`Communicator.tsx`**, **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-25:** `dependencies.md` дополнен контрактом `turnHistory` + `dialogSessionCache` (ключ `profile.id`, лимит 40, риск рассинхрона с сервером); `spec.md` — `buildClientTurnHistory` в публичном транспорте.

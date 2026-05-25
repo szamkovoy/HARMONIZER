@@ -176,6 +176,18 @@ function parseRelative(text: string, nowLocal: DateTime): ResolverResult | null 
       hasExplicitFutureDate: false,
     };
   }
+  const minutesMatch = text.match(/через\s+(\d{1,3})\s+минут(?:у|ы|а|)?/);
+  if (minutesMatch) {
+    const minutes = Number.parseInt(minutesMatch[1] ?? "", 10);
+    if (Number.isFinite(minutes) && minutes > 0 && minutes <= 240) {
+      return {
+        expectedLocal: nowLocal.plus({ minutes }).startOf("minute"),
+        resolution: "explicit",
+        matchedPhrase: minutesMatch[0] ?? null,
+        hasExplicitFutureDate: false,
+      };
+    }
+  }
   if (/через\s+пару\s+час(ов|а)?/.test(text)) {
     return {
       expectedLocal: nowLocal.plus({ hours: 2 }).startOf("minute"),

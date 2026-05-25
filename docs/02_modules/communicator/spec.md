@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.21
+version: 2.22
 updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -121,6 +121,27 @@ code_refs:
 Готовые реплики ассистента в списке истории рендерятся `**AssistantBubble**` без служебной строки фазы оркестратора (ранее `phaseLabel` из `turnMode`).
 
 События SSE обрабатываются в `handleSseEvent` (`services/communicator-client.ts`): для `complete` в состояние попадает весь объект `**DialogCompleteEvent**`.
+
+## 3.1. Хранение и сброс daily dialog
+
+**Ключевые слова для поиска в репозитории и docs:** `dialogSessionCache`, `turnHistory`, `clearHomeDailyDialogCache`, `lean dialog storage`, `local session cache`, `profile_report_snapshots` (серверные отчёты — модуль `assistant` / `profile`).
+
+| Слой | Что хранится | Где |
+| --- | --- | --- |
+| **Устройство (канон текста)** | До 40 последних сообщений ленты, `conversationId`, ключ по локальному календарному дню | `services/dialogSessionCache.ts` — SecureStore (native) / `localStorage` (web); ключ `harmonizer.dialog.session.{userId}.{useCase}.{entrySource}` |
+| **POST на сервер** | Контекст ходов для LLM | `buildClientTurnHistory` → поле `turnHistory` (лимит 40); сервер предпочитает его над пустым `messages.content` |
+| **Сервер (не текст)** | `messages.meta`, live `planned_events`, rollup `daily_matrices`, snapshot `profile_report_snapshots` | `docs/02_modules/assistant/spec.md` |
+| **GET sync** | Проверка `reset`, гидрация `complete`, dev-export | `fetchDialogSession`; на mount **без** `conversationId` из local cache (только проп `Communicator`) |
+
+**Восстановление после перезапуска приложения:** local cache (если тот же день и `conversationId` совпал с сервером) → иначе сообщения GET → иначе seed из пропсов. Серверный `reset: true` или отсутствие `conversationId` **очищает** local cache.
+
+**Сброс диалога:**
+
+1. **Кнопка «Обновить»** на главном (`HARMONIZER_TEST_MODE`, `app/(tabs)/index.tsx`) — `clearHomeDailyDialogCache(authUser.id)` **до** `postGlobalContentDevReset()` (сервер закрывает open `home`-беседы и сбрасывает кэши дня), затем `assistantRemountKey++` для чистого `Communicator`.
+2. **Закрытый диалог** (`shouldClose` в meta) — `clearDialogSessionCache` при sync.
+3. **Протухшая / закрытая беседа** — GET без `debugExport` → `reset: true` → клиент очищает cache (см. `assistant/spec.md` GET).
+
+Сводная таблица модулей: `docs/00_index/MAP.md` § «Где искать: хранение daily dialog».
 
 ## 4. Конфигурация и параметры
 

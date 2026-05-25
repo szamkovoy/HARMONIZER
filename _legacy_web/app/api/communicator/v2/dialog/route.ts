@@ -51,11 +51,17 @@ import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/d
 import {
   asMatrixCells,
   mergeSummarizedEventIntoDailyMatrix,
+  loadOpenPlannedEventsForConversation,
   rebuildProfileReportSnapshot,
   upsertConversationSummary,
   upsertDailyMatrixForDate,
   type PlannedEventRow,
 } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import {
+  filterNewPlannedEvents,
+  inferPlannedEventsFromUserHistory,
+  mergePlannedEventMarkers,
+} from "@legacy/app/api/_utils/plannedEventInference";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
 import {
   clipDurationMinutesToSelectableMinutes,
@@ -630,8 +636,9 @@ function resolveSummarizedEvent(ref: string, dueEvents: PlannedEventRow[]): Plan
 function hasRequiredBranchArtifacts(
   branches: DialogBranch[],
   markers: ReturnType<typeof parseResponseMarkers>,
+  openPlannedEventCount = 0,
 ): boolean {
-  if (branches.includes("planning") && markers.plannedEvents.length === 0) return false;
+  if (branches.includes("planning") && markers.plannedEvents.length === 0 && openPlannedEventCount === 0) return false;
   if (branches.includes("summarizing") && markers.summarizeEvents.length === 0) return false;
   return true;
 }
@@ -994,6 +1001,28 @@ export async function POST(req: Request) {
     });
     const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, branches);
     const maxDialogLength = effectiveDialogMax(branches);
+    const openPlannedEventsForConversation = branches.includes("planning")
+      ? await loadOpenPlannedEventsForConversation(db, userId, conversation.id)
+      : [];
+    const buildInferredPlannedEvents = () =>
+      branches.includes("planning")
+        ? inferPlannedEventsFromUserHistory({
+            history: [
+              ...history,
+              ...(isInitiate ? [] : [{ role: "user" as const, content: userMessage }]),
+            ],
+            nowLocal: context.nowLocal,
+            tz: userTimezone,
+            locale: context.user.locale ?? "ru",
+          })
+        : [];
+    const augmentPlannedMarkers = (markers: ReturnType<typeof parseResponseMarkers>) => ({
+      ...markers,
+      plannedEvents: filterNewPlannedEvents(
+        mergePlannedEventMarkers(markers.plannedEvents, buildInferredPlannedEvents()),
+        openPlannedEventsForConversation,
+      ),
+    });
     const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
     const turnDecision = decideTurnMode(
       history,
@@ -1103,8 +1132,12 @@ export async function POST(req: Request) {
               hasReadyMarker: containsReadyMarker(standardResponse.text),
             }));
             const turnValidation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
-            const standardMarkers = parseResponseMarkers(standardResponse.text);
-            const branchArtifactsSatisfied = hasRequiredBranchArtifacts(branches, standardMarkers);
+            const standardMarkers = augmentPlannedMarkers(parseResponseMarkers(standardResponse.text));
+            const branchArtifactsSatisfied = hasRequiredBranchArtifacts(
+              branches,
+              standardMarkers,
+              openPlannedEventsForConversation.length,
+            );
             if (!containsReadyMarker(standardResponse.text)) {
               if (shouldServerEscalateToFinalRecommendation({
                 turnMode: turnDecision.mode,
@@ -1184,7 +1217,7 @@ export async function POST(req: Request) {
             readyMarkerTriggered,
             modelTierUsed,
           }));
-          let markers = parseResponseMarkers(fullText);
+          let markers = augmentPlannedMarkers(parseResponseMarkers(fullText));
 
           const isFinalMode = responseMode === "final_recommendation"
             || responseMode === "final_recommendation_with_validation_warning"

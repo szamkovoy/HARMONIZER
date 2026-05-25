@@ -120,6 +120,21 @@ export async function loadDuePlannedEvents(db: SupabaseClient, userId: string, n
   return (data ?? []) as PlannedEventRow[];
 }
 
+export async function loadOpenPlannedEventsForConversation(
+  db: SupabaseClient,
+  userId: string,
+  conversationId: string,
+): Promise<PlannedEventRow[]> {
+  const { data, error } = await db
+    .from("planned_events")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,conversation_id")
+    .eq("user_id", userId)
+    .eq("conversation_id", conversationId)
+    .eq("status", "planned");
+  if (error) throw error;
+  return (data ?? []) as PlannedEventRow[];
+}
+
 export async function loadLastPlanningSummary(db: SupabaseClient, userId: string): Promise<{ generated_at: string | null } | null> {
   const { data, error } = await db
     .from("conversation_summaries")

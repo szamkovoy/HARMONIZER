@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.4
-updated: 2026-05-22
+version: 2.5
+updated: 2026-05-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -24,6 +24,8 @@ code_refs:
     supabase/functions/precompute-daily-forecasts/index.ts,
     services/dayContentIntegrity.ts,
     services/opportunityWindowsExplanation.ts,
+    services/devDayContentResetClient.ts,
+    services/dialogSessionCache.ts,
   ]
 ---
 
@@ -69,7 +71,7 @@ code_refs:
 
 1. **Движок (чистая математика + адаптер эфемерид):** `modules/daily-engine` — `computeDailyForecast` / `computeDailyForecastFromTransits`, активация и важность через `effectiveNatalParams` (при `calibration == null` используются только `S_initial` / `H_initial` из натала), ранжирование и `chooseFinalPlanet`, опционально окна через `TransitProvider.computeWindowsOfOpportunity`. `cacheValidUntil` в основном пути: конец локального календарного дня прогноза (`endOfForecastDateUtc` в `computeDailyForecast.ts`).
 2. **Сервер:** загрузка `NatalProfile`, `CalibrationLike | null` из `user_calibrations`, чтение `recentPlanetsOfDay` из `user_settings.preferences`, запись/чтение `user_daily_forecasts`. Для HARMONIZER v2 эта же строка теперь получает `day_target_*` из ассистента; home и profile читают её без отдельной таблицы-прокладки. Инвалидация строк прогноза при успешной калибровке — см. `docs/02_modules/calibration/dependencies.md` и `docs/02_modules/astro/caching_strategy.md`.
-3. **Клиент:** `useDayContent` orchestrates профиль → геолокация → кэш → HTTP; главный экран (`app/(tabs)/index.tsx`) рендерит карточки и `ChakraFlower`, маппинг планета → чакра — `modules/home/planetChakra.ts` + `data/planet_chakra_map.json`. **`OpportunityWindows`** строит волну «неба» из `samplePlanetAltitudeForDay` + `interpolateDiurnalAltitude` (планета графика `graphPlanet` — из `windows.sunrise`/`culmination` или `planetOfTheDay`); кривая — `react-native-svg` (`Polyline`), цвет по чакре `graphPlanet`; вертикальный штрих «сейчас» — `Line` в том же `Svg` (`strokeDasharray="2 4"`), цвет `theme.colors.textPrimary` (прозрачность ~0.28); при `graphPlanet !== planetOfTheDay` под подзаголовком «Главная тема» показывается `opportunityWindows.graphTrack` (`modules/home/i18n/home.ts`). Доля суток 0…1 и позиция линии «сейчас» — `dayFractionFromIso` в IANA-зоне `userLocation.timezone` (та же шкала, что `samplePlanetAltitudeForDay`; проброс `userLocation` с главного экрана). Для paid-пути базовый forecast теперь считается достаточным для первого paint, а вторичные тексты и math-level hydrates отдельным фоновым проходом.
+3. **Клиент:** `useDayContent` orchestrates профиль → геолокация → кэш → HTTP; главный экран (`app/(tabs)/index.tsx`) рендерит карточки и `ChakraFlower`. При **`EXPO_PUBLIC_HARMONIZER_TEST_MODE`** на home показывается dev-ряд с кнопкой **«Обновить»**: сначала `clearHomeDailyDialogCache` (локальная лента ассистента), затем `postGlobalContentDevReset` (`POST /api/ai/global-content`, `devReset: true` — кэши прогноза/монолога и закрытие open `home`-бесед на сервере), `refresh({ forceRefresh: true })` и remount `Communicator`. Полный контракт сброса диалога — `communicator/spec.md` §3.1; индекс темы — `MAP.md` § «Где искать: хранение daily dialog». маппинг планета → чакра — `modules/home/planetChakra.ts` + `data/planet_chakra_map.json`. **`OpportunityWindows`** строит волну «неба» из `samplePlanetAltitudeForDay` + `interpolateDiurnalAltitude` (планета графика `graphPlanet` — из `windows.sunrise`/`culmination` или `planetOfTheDay`); кривая — `react-native-svg` (`Polyline`), цвет по чакре `graphPlanet`; вертикальный штрих «сейчас» — `Line` в том же `Svg` (`strokeDasharray="2 4"`), цвет `theme.colors.textPrimary` (прозрачность ~0.28); при `graphPlanet !== planetOfTheDay` под подзаголовком «Главная тема» показывается `opportunityWindows.graphTrack` (`modules/home/i18n/home.ts`). Доля суток 0…1 и позиция линии «сейчас» — `dayFractionFromIso` в IANA-зоне `userLocation.timezone` (та же шкала, что `samplePlanetAltitudeForDay`; проброс `userLocation` с главного экрана). Для paid-пути базовый forecast теперь считается достаточным для первого paint, а вторичные тексты и math-level hydrates отдельным фоновым проходом.
 
 Стратегия серверного и клиентского кэша, таблицы и TTL описаны **краткой ссылкой** в `docs/02_modules/astro/caching_strategy.md` (без дублирования содержимого здесь).
 

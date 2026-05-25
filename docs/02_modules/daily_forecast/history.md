@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.3
-updated: 2026-05-22
+version: 2.4
+updated: 2026-05-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-25:** `spec.md` — dev-кнопка «Обновить» на home: связка `clearHomeDailyDialogCache` + `postGlobalContentDevReset`; ссылка на индекс lean dialog storage в `MAP.md`.
 
 - **2026-05-22:** Восход/кульминация — `computeDiurnalWindowTimes` (`planetDiurnalCurve.ts`) из той же сэмплированной суточной кривой, что график home (по умолчанию 96 шагов/сутки); `ephemeris.ts` и `freeWindows.ts` убрали дублирующий 10‑минутный поиск по `equatorialForPlanetAt`. Экспорты `computeDiurnalWindowTimes`, `dayFractionFromIso`; `OpportunityWindows` — доля суток маркеров через `dayFractionFromIso`. Регрессия `planet-diurnal-curve.test.ts` (восход на горизонте = X графика).
 

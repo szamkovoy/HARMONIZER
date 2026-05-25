@@ -2,8 +2,8 @@
 
 id: 00_index/MAP
 title: Documentation Map
-version: 1.33
-updated: 2026-05-21
+version: 1.34
+updated: 2026-05-25
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs:
   [
@@ -13,6 +13,7 @@ code_refs:
     modules/communicator/ui/Communicator.tsx,
     modules/practices/ui/PracticeCard.tsx,
     services/communicator-client.ts,
+    services/dialogSessionCache.ts,
   ]
 
 ## User Flow
@@ -44,3 +45,17 @@ code_refs:
 
 
 `error_tracking` документируется внутри `02_modules/infra/error_tracking.md` и не считается отдельным модулем в `MAP.md`.
+
+## Где искать: хранение daily dialog (lean storage)
+
+Сквозная тема: **текст беседы на устройстве**, на сервере — метаданные ходов, планирование и агрегаты для отчётов. Используйте эту таблицу в новых чатах вместо обхода всех модулей.
+
+| Вопрос | Канон в документации | Код |
+| --- | --- | --- |
+| Где хранится видимая лента чата после закрытия приложения? | `communicator/spec.md` § «Хранение и сброс daily dialog» | `services/dialogSessionCache.ts`, `Communicator.tsx` |
+| Что клиент шлёт на POST вместо `messages.content`? | `communicator/spec.md`, `communicator/dependencies.md` | `buildClientTurnHistory`, `turnHistory` в `communicator-client.ts` |
+| Что сервер пишет в БД (без длинного текста)? | `assistant/spec.md` §2 POST, §3 персистенция | `route.ts`, `lifeMatrixPersistence.ts` |
+| Снимки отчётов в профиле | `profile/spec.md` §4 отчёты | `profile_report_snapshots`, миграция `20260525130000_profile_report_snapshots.sql`, `GET /api/profile/life-matrix` |
+| Сброс диалога кнопкой «Обновить» на главной (test UI) | `communicator/spec.md`, `daily_forecast/spec.md` | `clearHomeDailyDialogCache`, `postGlobalContentDevReset`, `app/(tabs)/index.tsx` |
+| Возобновление сессии после reopen / TTL | `assistant/spec.md` GET, `communicator/spec.md` жизненный цикл | `sessionResumeTtlMs`, GET `communicator/v2/dialog/route.ts` |
+| Test mode (сжатые интервалы, фаза дня) | `docs/04_reference/test_mode.md` | `_legacy_web/app/api/_utils/testMode.ts` |
