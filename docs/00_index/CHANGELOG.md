@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.36
+version: 2.37
 updated: 2026-05-25
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-25: pre-push doc-sync — GET dialog session sync (resume/TTL/`debugExport`), `Communicator` mount без cache `conversationId`, `clearHomeDailyDialogCache` на dev-сбросе дня; `assistant` + `communicator` spec/history/dependencies.
 - 2026-05-25: pre-push doc-sync — `assistant/spec.md` (`practicePicked` только на `isFinalMode` в SSE `complete` и `messages.meta`), `communicator/spec.md` (mount: `fetchDialogSession` + cache, server reset, приоритет восстановления ленты).
 - 2026-05-25: pre-push doc-sync — `communicator/dependencies.md` (turnHistory, dialogSessionCache), `assistant/spec.md` (conversation_summaries tag, buildLifeMatrixReportSnapshot), `communicator/spec.md` (buildClientTurnHistory).
 - 2026-05-25: `assistant` + `communicator` + `profile` — daily dialog перестал хранить тексты на сервере: клиент держит current-day local session cache, backend пишет только служебные `messages.meta`, live `planned_events`, `daily_matrices` и новый snapshot-слой `profile_report_snapshots`; профильные отчёты читаются из snapshot с fallback rebuild из day-rollups.

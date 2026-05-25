@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.8
+version: 1.9
 updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -45,7 +45,7 @@ code_refs:
 - `**practices**` (потребление DTO и запуск)  
 Карточка использует общий UI каталога; запуск теперь делает сам `Communicator` через `launchPractice(...)`, а `app/(tabs)/index.tsx` больше не содержит отдельный `launchPracticeFromAssistant`.
 - **Приложение (home)**  
-`app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal`, передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` теперь нужен только для побочных UX-эффектов вроде закрытия оверлея.
+`app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal`, передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` теперь нужен только для побочных UX-эффектов вроде закрытия оверлея. Dev-сброс дня вызывает `clearHomeDailyDialogCache` из `services/dialogSessionCache.ts` (пара `useCase: daily_dialog`, `entrySource: home`).
 - `**modules/breath`** (опциональная очередь)  
 `modules/breath/ui/CoherenceBreathScreen.tsx` вызывает `enqueueCommunicatorGreeting` из `modules/communicator/core/pending-greeting.ts` перед переходом на главный экран. Потребление очереди на стороне home не зафиксировано в коде главного экрана — см. `docs/04_workspace/open_questions.md` (раздел `communicator`).
 
