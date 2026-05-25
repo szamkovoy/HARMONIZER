@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.33
+version: 2.34
 updated: 2026-05-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
@@ -9,7 +9,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
-- **2026-05-25:** Planning branch больше не зависит только от `[PLANNED_EVENT]` модели: `plannedEventInference.ts` извлекает timed-события из реплик пользователя через `timeParser`, `route.ts` мержит их с маркерами, сохраняет в `planned_events` и учитывает уже открытые rows беседы перед финальной рекомендацией.
+- **2026-05-25:** Planning branch больше не зависит только от `[PLANNED_EVENT]` модели: `plannedEventInference.ts` (`inferPlannedEventsFromUserHistory`, `mergePlannedEventMarkers`, `filterNewPlannedEvents`) извлекает timed-события из user-реплик через `timeParser` (в т.ч. «через N минут» в ru-resolver), `route.ts` через `augmentPlannedMarkers` мержит их с маркерами, `loadOpenPlannedEventsForConversation` отсекает дубликаты, `hasRequiredBranchArtifacts` учитывает открытые rows беседы перед финальной рекомендацией и server-side escalation.
 - **2026-05-25:** `spec.md` — ссылка на индекс хранения daily dialog в `MAP.md` (§3); клиентский канон текста — `communicator/spec.md` §3.1.
 - **2026-05-25:** GET session sync: при `conversationId` в query беседа не возобновляется, если `ended_at` задана или TTL истёк (кроме `debugExport=1`); фильтр сообщений по TTL применяется ко всем ответам без `debugExport`, а не только при явном id. **`route.ts`**, **`spec.md`**.
 - **2026-05-25:** SSE `complete.practicePicked` и persist `messages.meta.practice_picked` теперь заполняются только на финальных turn_mode (`isFinalMode`: `final_recommendation`, `final_recommendation_with_validation_warning`, `forced_final`, `fast_track_final`); на нефинальных ходах — `null` / отсутствует. Это предотвращает преждевременный рендер карточки практики до финальной рекомендации. **`route.ts`**, **`spec.md`**, **`CHANGELOG.md`**.
