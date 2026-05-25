@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.40
+version: 2.41
 updated: 2026-05-25
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-25: pre-push doc-sync — SSE split `complete` / `turn_artifacts`, `DialogTurnArtifactsEvent` + `onTurnArtifacts`; lean-storage hydration при пустом server `content`; `communicator/spec.md`, `communicator/dependencies.md`, `assistant/dependencies.md`.
 - 2026-05-25: pre-push doc-sync — `communicator/spec.md` + `dependencies.md` (`dialogExportMerge`, расширенный `DialogCompleteEvent`); `assistant/spec.md` + `dependencies.md` (`complete.messageId`, `matrixCells`).
 - 2026-05-25: `communicator` + `assistant` — restore early SSE `complete` for practice card; `turn_artifacts` after persist for planning meta; lean-storage session hydration from server meta.
 - 2026-05-25: `communicator` + `assistant` — `messages.meta.planning_persistence` согласован с `dialog_state_after`: SSE `complete` после persist с `planningPersistence`, dev-export merge по role-index + reconcile fallback.
