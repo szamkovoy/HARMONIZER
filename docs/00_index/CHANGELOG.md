@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.39
+version: 2.40
 updated: 2026-05-25
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-25: pre-push doc-sync — `communicator/spec.md` + `dependencies.md` (`dialogExportMerge`, расширенный `DialogCompleteEvent`); `assistant/spec.md` + `dependencies.md` (`complete.messageId`, `matrixCells`).
 - 2026-05-25: `communicator` + `assistant` — `messages.meta.planning_persistence` согласован с `dialog_state_after`: SSE `complete` после persist с `planningPersistence`, dev-export merge по role-index + reconcile fallback.
 - 2026-05-25: `assistant/spec.md` — детали `augmentPlannedMarkers`, `loadOpenPlannedEventsForConversation`, `hasRequiredBranchArtifacts` (open planned rows), `timeParser` «через N минут»; `MAP.md` — code ref `plannedEventInference.ts`.
 - 2026-05-25: `assistant` — server-side inference planned events from user history when planning branch active; `plannedEventInference.ts`, `route.ts`.
