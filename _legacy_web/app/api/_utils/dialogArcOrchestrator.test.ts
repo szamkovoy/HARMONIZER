@@ -150,4 +150,21 @@ describe("decideTurnMode", () => {
     expect(decision.mode).toBe("practice_declined");
     expect(decision.instruction).toContain("отказался от практики");
   });
+
+  it("uses practice_declined for 'времени для практик нет' on the first reply", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Сколько времени на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Через 10 минут вебинар, времени для практик нет.",
+    );
+
+    expect(decision.mode).toBe("practice_declined");
+  });
 });

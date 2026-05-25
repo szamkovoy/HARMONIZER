@@ -3,7 +3,7 @@
  * Копия `modules/practices/core/assistantSelectableDurations.ts` для Vercel (_legacy_web-only deploy).
  */
 export function selectableDurationMinutesForPracticeCard(kind: "breath" | "meditation" | "yoga"): number[] {
-  if (kind === "meditation") return Array.from({ length: 10 }, (_, index) => index + 1);
+  if (kind === "meditation") return Array.from({ length: 5 }, (_, index) => index + 1);
   if (kind === "breath") return Array.from({ length: 16 }, (_, index) => index + 5);
   return [];
 }

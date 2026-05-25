@@ -40,6 +40,10 @@ describe("parseEventTime", () => {
     { phrase: "в 7", now: "2026-05-16T08:00:00", expected: "2026-05-16 19:00", resolution: "explicit" },
     { phrase: "в 7", now: "2026-05-16T13:00:00", expected: "2026-05-16 19:00", resolution: "explicit" },
     { phrase: "в 7", now: "2026-05-16T20:30:00", expected: "2026-05-17 07:00", resolution: "explicit" },
+    { phrase: "10", now: "2026-05-16T08:00:00", expected: "2026-05-16 10:00", resolution: "explicit" },
+    { phrase: "10", now: "2026-05-16T14:00:00", expected: "2026-05-16 22:00", resolution: "explicit" },
+    { phrase: "10", now: "2026-05-16T23:00:00", expected: "2026-05-17 10:00", resolution: "explicit" },
+    { phrase: "9:30", now: "2026-05-16T09:00:00", expected: "2026-05-16 09:30", resolution: "explicit" },
     { phrase: "с двух до четырех", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
     { phrase: "между 14 и 16", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
     { phrase: "часа в 3-4 дня", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
@@ -63,16 +67,16 @@ describe("parseEventTime", () => {
     { phrase: "завтра вечером", now: "2026-05-16T09:00:00", expected: "2026-05-17 20:00", resolution: "daypart_default" },
     { phrase: "послезавтра утром", now: "2026-05-16T09:00:00", expected: "2026-05-18 10:00", resolution: "daypart_default" },
     { phrase: "в субботу днем", now: "2026-05-14T09:00:00", expected: "2026-05-16 16:00", resolution: "daypart_default" },
-    { phrase: "завтра", now: "2026-05-16T09:00:00", expected: "2026-05-17 18:00", resolution: "fallback_default" },
-    { phrase: "что-то важное", now: "2026-05-16T12:00:00", expected: "2026-05-16 18:00", resolution: "fallback_default" },
-    { phrase: "что-то важное", now: "2026-05-16T21:00:00", expected: "2026-05-17 18:00", resolution: "fallback_default" },
+    { phrase: "завтра", now: "2026-05-16T09:00:00", expected: "2026-05-17 16:00", resolution: "fallback_default" },
+    { phrase: "что-то важное", now: "2026-05-16T12:00:00", expected: "2026-05-16 16:00", resolution: "fallback_default" },
+    { phrase: "что-то важное", now: "2026-05-16T21:00:00", expected: "2026-05-17 16:00", resolution: "fallback_default" },
     { phrase: "утром встреча", now: "2026-05-16T14:00:00", expected: "2026-05-16 14:15", resolution: "daypart_default" },
     { phrase: "в 9 утра", now: "2026-05-16T16:00:00", expected: "2026-05-16 16:15", resolution: "explicit" },
     { phrase: "с двух до четырех", now: "2026-05-16T16:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
     { phrase: "завтра в 7 вечера", now: "2026-05-16T09:00:00", expected: "2026-05-17 19:00", resolution: "explicit" },
     { phrase: "2026-05-17T15:30:00", now: "2026-05-16T09:00:00", expected: "2026-05-17 15:30", resolution: "explicit", locale: "en" },
     { phrase: "3:45 pm", now: "2026-05-16T09:00:00", expected: "2026-05-16 15:45", resolution: "explicit", locale: "en" },
-    { phrase: "sometime later", now: "2026-05-16T21:00:00", expected: "2026-05-17 18:00", resolution: "fallback_default", locale: "en" },
+    { phrase: "sometime later", now: "2026-05-16T21:00:00", expected: "2026-05-17 16:00", resolution: "fallback_default", locale: "en" },
   ];
 
   it("covers Russian and English resolver cases", () => {
@@ -103,7 +107,7 @@ describe("parseEventTime", () => {
 
     expect(result.matchedPhrase).toBeNull();
     expect(result.resolution).toBe("fallback_default");
-    expect(result.expectedLocal.toFormat("yyyy-MM-dd HH:mm")).toBe("2026-05-16 18:00");
+    expect(result.expectedLocal.toFormat("yyyy-MM-dd HH:mm")).toBe("2026-05-16 16:00");
   });
 
   it("canonicalizes legacy daypart resolution to db-safe value", () => {

@@ -184,8 +184,82 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     branches: raw.branches ?? raw.dialog_branches,
     phaseTime: raw.phaseTime ?? raw.phase_time,
     targetChakra: raw.targetChakra ?? raw.target_chakra,
+    relatedEventIds: raw.relatedEventIds ?? raw.related_event_ids,
+    matrixCells: raw.matrixCells ?? raw.matrix_cells,
+    skippedPlannedEvents: raw.skippedPlannedEvents ?? raw.skipped_planned_events,
+    planningPersistence: raw.planningPersistence ?? raw.planning_persistence,
     debug: raw.debug,
   };
+}
+
+type ExportMessageSnapshot = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: number;
+  meta?: CommunicatorHistoryMessage["meta"];
+  rawMeta?: Record<string, unknown>;
+};
+
+function exportTextsMatch(a: string, b: string): boolean {
+  return a.trim() === b.trim();
+}
+
+function mergeExportMessageMeta(
+  localMeta: CommunicatorHistoryMessage["meta"] | undefined,
+  syncedMeta: CommunicatorHistoryMessage["meta"] | undefined,
+): CommunicatorHistoryMessage["meta"] | undefined {
+  if (!localMeta && !syncedMeta) return undefined;
+  return {
+    ...(localMeta ?? {}),
+    ...(syncedMeta ?? {}),
+    insightMetrics: syncedMeta?.insightMetrics ?? localMeta?.insightMetrics,
+    validation: syncedMeta?.validation ?? localMeta?.validation,
+    practicePicked: syncedMeta?.practicePicked ?? localMeta?.practicePicked,
+    targetChakra: syncedMeta?.targetChakra ?? localMeta?.targetChakra,
+    recommendationCorrected: syncedMeta?.recommendationCorrected ?? localMeta?.recommendationCorrected,
+    debug: syncedMeta?.debug ?? localMeta?.debug,
+  };
+}
+
+function mergeExportMessages(params: {
+  localMessages: ExportMessageSnapshot[];
+  syncedMessages: ExportMessageSnapshot[];
+}): ExportMessageSnapshot[] {
+  const merged: ExportMessageSnapshot[] = [];
+  let syncIndex = 0;
+
+  for (const localMessage of params.localMessages) {
+    let matchedIndex = -1;
+    for (let index = syncIndex; index < params.syncedMessages.length; index += 1) {
+      const syncedMessage = params.syncedMessages[index];
+      if (syncedMessage.role !== localMessage.role) continue;
+      if (!exportTextsMatch(syncedMessage.content, localMessage.content)) continue;
+      matchedIndex = index;
+      break;
+    }
+
+    if (matchedIndex >= 0) {
+      const syncedMessage = params.syncedMessages[matchedIndex];
+      syncIndex = matchedIndex + 1;
+      merged.push({
+        ...localMessage,
+        id: syncedMessage.id || localMessage.id,
+        createdAt: syncedMessage.createdAt ?? localMessage.createdAt,
+        meta: mergeExportMessageMeta(localMessage.meta, syncedMessage.meta),
+        rawMeta: syncedMessage.rawMeta ?? localMessage.rawMeta,
+      });
+      continue;
+    }
+
+    merged.push(localMessage);
+  }
+
+  for (let index = syncIndex; index < params.syncedMessages.length; index += 1) {
+    merged.push(params.syncedMessages[index]);
+  }
+
+  return merged;
 }
 
 function completeFromSessionMessage(
@@ -1840,76 +1914,153 @@ export function Communicator({
       harmoniousness_label:
         typeof triggerMeta?.harmoniousnessLabel === "string" ? triggerMeta.harmoniousnessLabel : null,
     };
-    const hasDebugExport = messages.some(
+    const localHasDebugExport = messages.some(
       (message) => message.role === "assistant" && message.meta?.debug != null,
     );
+    let syncedConversationId: string | null | undefined;
+    let syncedMessages: DialogSessionMessage[] | null = null;
     let dialogStateAfter: Record<string, unknown> | undefined;
-    if (hasDebugExport) {
-      try {
-        const sync = await fetchDialogSession({ useCase, entrySource, debugExport: true });
-        dialogStateAfter = sync.dialogStateAfter;
-      } catch {
-        /* export still works without server snapshot */
-      }
+    let syncError: string | null = null;
+    try {
+      const sync = await fetchDialogSession({
+        useCase,
+        entrySource,
+        conversationId: activeConversationId ?? undefined,
+        debugExport: true,
+      });
+      syncedConversationId = sync.conversationId;
+      syncedMessages = sync.messages;
+      dialogStateAfter = sync.dialogStateAfter;
+    } catch {
+      syncError = "session_sync_failed";
     }
+    const canUseSyncedMessages =
+      Array.isArray(syncedMessages)
+      && syncedMessages.length > 0
+      && (activeConversationId == null || syncedConversationId == null || syncedConversationId === activeConversationId);
+    const localExportMessages: ExportMessageSnapshot[] = messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      meta: message.meta,
+      rawMeta: message.meta && typeof message.meta === "object" ? message.meta as Record<string, unknown> : undefined,
+    }));
+    const syncedExportMessages: ExportMessageSnapshot[] = canUseSyncedMessages && syncedMessages
+      ? syncedMessages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt,
+          meta: normalizeMessageMeta(message.meta),
+          rawMeta: message.meta,
+        }))
+      : [];
+    const exportMessages = canUseSyncedMessages
+      ? mergeExportMessages({
+          localMessages: localExportMessages,
+          syncedMessages: syncedExportMessages,
+        })
+      : localExportMessages;
+    const exportCanonicalSource =
+      !canUseSyncedMessages
+        ? "local_client_state"
+        : exportMessages.length === syncedExportMessages.length
+          ? "server_session_sync"
+          : "server_session_sync_merged_with_local";
+    const hasDebugExport = localHasDebugExport || Boolean(dialogStateAfter);
     const payload = {
       conversation: {
-        conversation_id: activeConversationId,
+        conversation_id: (canUseSyncedMessages ? syncedConversationId : activeConversationId) ?? null,
         use_case: useCase,
         entry_source: entrySource,
         debug_export_enabled: hasDebugExport,
+        canonical_source: exportCanonicalSource,
+        server_sync: {
+          attempted: true,
+          used_for_export: canUseSyncedMessages,
+          fetched_conversation_id: syncedConversationId ?? null,
+          error: syncError,
+        },
       },
       day_context: dayContext,
-      messages: messages.map((message) => {
+      messages: exportMessages.map((message) => {
+        const normalizedMeta = message.meta;
+        const rawMeta = message.rawMeta && typeof message.rawMeta === "object" ? message.rawMeta as Record<string, unknown> : undefined;
         const practicePicked =
-          message.meta?.practicePicked && typeof message.meta.practicePicked === "object"
-            ? message.meta.practicePicked
+          normalizedMeta?.practicePicked && typeof normalizedMeta.practicePicked === "object"
+            ? normalizedMeta.practicePicked
             : null;
-        const branches = Array.isArray(message.meta?.branches)
-          ? message.meta.branches.filter((value): value is string => typeof value === "string")
+        const branches = Array.isArray(normalizedMeta?.branches)
+          ? normalizedMeta.branches.filter((value): value is string => typeof value === "string")
           : null;
         const targetChakra =
-          message.meta?.targetChakra && typeof message.meta.targetChakra === "object"
-            ? message.meta.targetChakra
+          normalizedMeta?.targetChakra && typeof normalizedMeta.targetChakra === "object"
+            ? normalizedMeta.targetChakra
             : null;
+        const relatedEventIds = Array.isArray(rawMeta?.related_event_ids)
+          ? rawMeta.related_event_ids.filter((value): value is string => typeof value === "string")
+          : Array.isArray(normalizedMeta?.relatedEventIds)
+            ? normalizedMeta.relatedEventIds.filter((value): value is string => typeof value === "string")
+            : null;
+        const matrixCells = Array.isArray(rawMeta?.matrix_cells)
+          ? rawMeta.matrix_cells
+          : Array.isArray(normalizedMeta?.matrixCells)
+            ? normalizedMeta.matrixCells
+            : null;
+        const planningPersistence =
+          rawMeta?.planning_persistence && typeof rawMeta.planning_persistence === "object"
+            ? rawMeta.planning_persistence
+            : normalizedMeta?.planningPersistence && typeof normalizedMeta.planningPersistence === "object"
+              ? normalizedMeta.planningPersistence
+              : null;
         const baseMeta = {
-          turn_mode: typeof message.meta?.turnMode === "string" ? message.meta.turnMode : null,
-          csi: typeof message.meta?.csi === "number"
-            ? message.meta.csi
-            : typeof (message.meta?.insightMetrics as { csi?: unknown } | undefined)?.csi === "number"
-              ? (message.meta?.insightMetrics as { csi: number }).csi
+          turn_mode: typeof normalizedMeta?.turnMode === "string" ? normalizedMeta.turnMode : null,
+          csi: typeof normalizedMeta?.csi === "number"
+            ? normalizedMeta.csi
+            : typeof (normalizedMeta?.insightMetrics as { csi?: unknown } | undefined)?.csi === "number"
+              ? (normalizedMeta?.insightMetrics as { csi: number }).csi
               : null,
-          ttm_stage: typeof (message.meta?.insightMetrics as { ttm_stage?: unknown } | undefined)?.ttm_stage === "string"
-            ? (message.meta?.insightMetrics as { ttm_stage: string }).ttm_stage
+          ttm_stage: typeof (normalizedMeta?.insightMetrics as { ttm_stage?: unknown } | undefined)?.ttm_stage === "string"
+            ? (normalizedMeta?.insightMetrics as { ttm_stage: string }).ttm_stage
             : null,
-          etv: typeof (message.meta?.insightMetrics as { etv?: unknown } | undefined)?.etv === "number"
-            ? (message.meta?.insightMetrics as { etv: number }).etv
+          etv: typeof (normalizedMeta?.insightMetrics as { etv?: unknown } | undefined)?.etv === "number"
+            ? (normalizedMeta?.insightMetrics as { etv: number }).etv
             : null,
-          model_used: typeof message.meta?.modelTier === "string" ? message.meta.modelTier : null,
-          model_id: typeof message.meta?.modelUsed === "string" ? message.meta.modelUsed : null,
-          iteration: typeof message.meta?.iteration === "number" ? message.meta.iteration : null,
+          model_used: typeof normalizedMeta?.modelTier === "string" ? normalizedMeta.modelTier : null,
+          model_id: typeof normalizedMeta?.modelUsed === "string" ? normalizedMeta.modelUsed : null,
+          iteration: typeof normalizedMeta?.iteration === "number" ? normalizedMeta.iteration : null,
           latency_ms: null,
           complete_text_chars: message.content.length,
           prompt_tokens: null,
           completion_tokens: null,
-          ready_marker_triggered: typeof message.meta?.readyMarkerTriggered === "boolean"
-            ? message.meta.readyMarkerTriggered
+          ready_marker_triggered: typeof normalizedMeta?.readyMarkerTriggered === "boolean"
+            ? normalizedMeta.readyMarkerTriggered
             : null,
           validation:
-            message.meta?.validation && typeof message.meta.validation === "object"
-              ? message.meta.validation
+            normalizedMeta?.validation && typeof normalizedMeta.validation === "object"
+              ? normalizedMeta.validation
               : null,
           practice_picked: practicePicked,
           branches_active: branches,
-          phase_time: typeof message.meta?.phaseTime === "string" ? message.meta.phaseTime : null,
+          phase_time: typeof normalizedMeta?.phaseTime === "string" ? normalizedMeta.phaseTime : null,
           target_chakra: targetChakra,
+          related_event_ids: relatedEventIds,
+          matrix_cells: matrixCells,
+          skipped_planned_events: Array.isArray(rawMeta?.skipped_planned_events)
+            ? rawMeta.skipped_planned_events
+            : Array.isArray(normalizedMeta?.skippedPlannedEvents)
+              ? normalizedMeta.skippedPlannedEvents
+              : null,
+          planning_persistence: planningPersistence,
           recommendation_corrected:
-            message.meta?.recommendationCorrected && typeof message.meta.recommendationCorrected === "object"
-              ? message.meta.recommendationCorrected
+            normalizedMeta?.recommendationCorrected && typeof normalizedMeta.recommendationCorrected === "object"
+              ? normalizedMeta.recommendationCorrected
               : null,
         };
-        const debug = message.role === "assistant" && message.meta?.debug != null ? message.meta.debug : undefined;
+        const debug = message.role === "assistant" && normalizedMeta?.debug != null ? normalizedMeta.debug : undefined;
         return {
+          message_id: message.id,
           role: message.role,
           text: message.content,
           timestamp: message.createdAt ?? null,

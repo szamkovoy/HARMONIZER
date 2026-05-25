@@ -9,7 +9,7 @@ export const DEFAULT_DAYPART_HOURS: DaypartDefaultHours = {
   evening: 20,
   lateEvening: 22,
   night: 23,
-  fallback: 18,
+  fallback: 16,
 };
 
 export const PAST_EVENT_GRACE_MINUTES = 30;

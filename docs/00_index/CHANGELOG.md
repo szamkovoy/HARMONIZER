@@ -3,13 +3,20 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.30
-updated: 2026-05-22
+version: 2.33
+updated: 2026-05-23
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-23: `assistant` + `communicator` — dev-export и `dialog_state_after` расширены для QA planning/summarizing: per-turn `planning_persistence`, snapshot планов на старт/конец диалога.
+- 2026-05-23: `assistant` — финальные premium-ответы daily dialog больше не должны задавать пользователю дополнительных вопросов после выбора практики; `final_recommendation`, `final_recommendation_with_validation_warning` и `forced_final` явно завершает ход, если под ним уже показывается карточка практики.
+- 2026-05-23: `assistant` — после повторных QA-диалогов `markers.ts` дополнительно усилен: длительность теперь привязывается к упоминанию именно выбранного типа практики, refusal распознаёт `не до практик` / `нет времени выполнять асаны, пранаяму` / `не нужно предлагать практику`, а parser понимает `2,5`, `2.5` и `3/4 часа`.
+- 2026-05-23: `assistant` + `practices` — `validateHistoryHasDurationAndType` перестал путать время события с длительностью практики и теперь выбирает минутность рядом с упоминанием practice-type; это исправляет кейсы вроде «через полчаса вебинар, предложи 3 минуты медитации» и подтверждение «ладно, 5 минут медитации». Одновременно `PracticeCard` / shared `assistantSelectableDurations` / `catalog.ts` выровнены на диапазон медитации **1–5 минут**.
+- 2026-05-23: `assistant` + `communicator` — `practice_declined` стал терминальным: при явном отказе от практики диалог закрывается одним ответом с рекомендацией на день без практики и с пожеланием по времени суток; export теперь может читать конкретную беседу по `conversationId`, чтобы завершённые диалоги не терялись в сокращённый local snapshot; `timeParser` понимает bare-hour формулировки вроде `10`.
+- 2026-05-23: `assistant` + `communicator` — после первых QA-диалогов закрыт ранний уход в финальную практику без planning/summarizing артефактов: `inquiry` теперь удерживает ветку до `PLANNED_EVENT` / `SUMMARIZE_EVENT`, server-side ready escalation блокируется без этих маркеров, fallback времени без явного указания смещён на дневное окно (`16:00`), дальние планы за пределами `сегодня/завтра` сохраняются как `skipped_planned_events`, а export показывает статус `conversation.server_sync`.
+- 2026-05-23: `assistant` + `communicator` — исправлен opening-hint для комбинированной ветки `summarizing + planning` (сначала подытоживание, потом планы), а debug/export диалога стал каноническим: `Communicator` предпочитает server session sync, JSON включает `message_id`, `related_event_ids`, `matrix_cells`, а `dialog_state_after` расширен `context_snapshot` и `conversation_summary_for_exported_conversation`.
 - 2026-05-22: pre-push doc-sync — `daily_forecast`: `computeDiurnalWindowTimes` / `dayFractionFromIso`, единая дискретизация окон восхода/кульминации и графика home; **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**.
 - 2026-05-22: `assistant` — найден и закрыт crash после финального текста без карточки: сервер нормализует legacy `time_resolution = "daypart"` в `daypart_default` перед insert в `planned_events`; `monitoring.ts` сериализует object-errors в JSON вместо `"[object Object]"`.
 - 2026-05-22: `assistant` + `communicator` — opening первого хода теперь без чакр/астро-лексики и с явной привязкой `summarizing` к событию; `Communicator` получил многократную session hydration финального `complete` и более подробный dialog export (`conversation`, `practice_picked`, `branches_active`, `phase_time`, `target_chakra`).

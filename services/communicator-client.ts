@@ -458,6 +458,7 @@ export async function fetchDialogSession(params: {
   scenarioId?: string;
   useCase: DialogueUseCase;
   entrySource: DialogueEntrySource;
+  conversationId?: string;
   debugExport?: boolean;
   signal?: AbortSignal;
 }): Promise<DialogSessionResponse> {
@@ -470,6 +471,7 @@ export async function fetchDialogSession(params: {
         entrySource: params.entrySource,
       });
       if (params.scenarioId) query.set("scenario_id", params.scenarioId);
+      if (params.conversationId) query.set("conversationId", params.conversationId);
       if (params.debugExport) query.set("debugExport", "1");
       const url = `${baseUrl}?${query.toString()}`;
       let res: Response;

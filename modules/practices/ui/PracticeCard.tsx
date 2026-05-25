@@ -26,7 +26,7 @@ function chakraLabel(practice: PracticeSummary): string {
 }
 
 function durationOptions(practice: PracticeSummary): number[] {
-  if (practice.kind === "meditation") return Array.from({ length: 10 }, (_, index) => index + 1);
+  if (practice.kind === "meditation") return Array.from({ length: 5 }, (_, index) => index + 1);
   if (practice.kind === "breath") return Array.from({ length: 16 }, (_, index) => index + 5);
   return [];
 }

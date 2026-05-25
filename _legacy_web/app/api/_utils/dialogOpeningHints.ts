@@ -5,6 +5,9 @@ export function openingDayQuestionForContext(phaseTime: PhaseTime, branches: Dia
   const hasPlanning = branches.includes("planning");
   const hasSummarizing = branches.includes("summarizing");
 
+  if (hasSummarizing && hasPlanning) {
+    return "Коротко спроси сначала про событие, которое пора подытожить, а затем про ближайшие планы — без длинного списка и без абстрактного вопроса «как день».";
+  }
   if (hasSummarizing && !hasPlanning) {
     return "Спроси коротко про то событие, которое сейчас пора подытожить: как оно прошло, в каком состоянии человек его прожил и что осталось незавершённым.";
   }
@@ -16,9 +19,6 @@ export function openingDayQuestionForContext(phaseTime: PhaseTime, branches: Dia
   }
   if (hasPlanning && phaseTime === "evening") {
     return "Спроси про планы на завтра — что намечено, что важно не отложить.";
-  }
-  if (hasSummarizing && hasPlanning) {
-    return "Коротко спроси сначала про событие, которое пора подытожить, а затем про ближайшие планы — без длинного списка и без абстрактного вопроса «как день».";
   }
   return "Спроси, что у пользователя сегодня происходит — что волнует, какие планы, что важного.";
 }

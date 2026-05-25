@@ -148,6 +148,26 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.practiceKind).toBe("meditation");
   });
 
+  it("accepts decimal meditation duration with comma", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "хочу 2,5 минуты медитации" },
+    ]);
+    expect(result.durationSec).toBe(150);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("accepts decimal meditation duration with dot", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "хочу 2.5 минуты медитации" },
+    ]);
+    expect(result.durationSec).toBe(150);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("extracts durationSec and practiceKind: '15 минут йогу'", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "15 минут йогу" },
@@ -188,6 +208,34 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.practiceKind).toBe("breath");
   });
 
+  it("prefers practice duration over event timing in the same sentence", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "Через полчаса я планирую провести вебинар и это будет интересно, насыщенно. Чтобы подготовиться, предложи мне три минуты медитации.",
+      },
+    ]);
+    expect(result.durationSec).toBe(3 * 60);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("does not confuse incidental 'подышу' in day context with a final meditation request", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "Через полчаса я планирую начать вебинар. После вебинара в 11.40 нужно будет пойти за творогом. Заодно прогуляюсь, подышу, может быть сделаю зарядку. Далее, думаю, нужно вздремнуть. И в 4 часа поеду на балет. Готов сейчас выполнить три минуты медитации.",
+      },
+    ]);
+    expect(result.durationSec).toBe(3 * 60);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("uses last mentioned values when user changes mind across messages", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "хочу 3 минуты медитацию" },
@@ -196,6 +244,20 @@ describe("validateHistoryHasDurationAndType", () => {
     ]);
     expect(result.durationSec).toBe(300);
     expect(result.practiceKind).toBe("breath");
+  });
+
+  it("keeps the confirmed practice duration when the same reply mentions an older rejected value", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "Хорошо, пять минут медитации, хотя перед этим я тебе говорил три минуты, это вроде меньше и непонятно куда сокращать, но если ты хочешь пять, то пусть будет пять.",
+      },
+    ]);
+    expect(result.durationSec).toBe(5 * 60);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
   });
 
   it("confirms 21 min asanas after catalog reconciliation (dialog 489E)", () => {
@@ -238,6 +300,16 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.practiceKind).toBe("meditation");
   });
 
+  it("extracts '3/4 часа' as 45 minutes", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "хочу асаны 3/4 часа" },
+    ]);
+    expect(result.durationSec).toBe(45 * 60);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("does not treat 'подышать или через тело' as exclusive breath (keeps yoga from earlier message)", () => {
     const result = validateHistoryHasDurationAndType([
       {
@@ -261,6 +333,15 @@ describe("userDeclinedPracticeInHistory", () => {
     expect(userDeclinedPracticeInHistory(["не хочу выполнять сейчас никакую практику"])).toBe(true);
     expect(userDeclinedPracticeInHistory(["Никакую практику не хочу выполнять."])).toBe(true);
     expect(userDeclinedPracticeInHistory(["Да, практика совсем не нужна"])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Практика мне сейчас не нужна, давайте без нее"])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Нет, сейчас не до практик."])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Нет времени выполнять какую-либо практику."])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Через 10 минут вебинар, времени для практик нет."])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Не нужно предлагать практику."])).toBe(true);
+    expect(userDeclinedPracticeInHistory([
+      "Через полчаса я планирую провести вебинар. И нет времени сейчас для практик.",
+      "Я хочу, чтобы люди узнали что-то новое. И нет времени выполнять асаны, пранаяму.",
+    ])).toBe(true);
   });
 
   it("does not treat unresolved day talk as refusal", () => {

@@ -15,6 +15,12 @@ describe("dialogOpeningHints", () => {
     const hint = openingDayQuestionForContext("evening", ["planning"]);
     expect(hint).toContain("завтра");
   });
+
+  it("prioritizes summarizing before planning when both branches are active", () => {
+    const hint = openingDayQuestionForContext("morning", ["summarizing", "planning"]);
+    expect(hint).toContain("сначала про событие");
+    expect(hint).toContain("затем про ближайшие планы");
+  });
 });
 
 describe("chooseDialogBranches opening override", () => {
@@ -38,6 +44,7 @@ describe("shouldServerEscalateToFinalRecommendation", () => {
         turnMode: "inquiry",
         validation: { confident: true },
         hasReadyMarker: false,
+        hasRequiredBranchArtifacts: true,
       }),
     ).toBe(true);
   });
@@ -48,6 +55,18 @@ describe("shouldServerEscalateToFinalRecommendation", () => {
         turnMode: "inquiry",
         validation: { confident: false },
         hasReadyMarker: false,
+        hasRequiredBranchArtifacts: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not escalate until branch artifacts are present", () => {
+    expect(
+      shouldServerEscalateToFinalRecommendation({
+        turnMode: "inquiry",
+        validation: { confident: true },
+        hasReadyMarker: false,
+        hasRequiredBranchArtifacts: false,
       }),
     ).toBe(false);
   });

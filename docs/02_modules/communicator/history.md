@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.9
-updated: 2026-05-22
+version: 2.14
+updated: 2026-05-23
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,10 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-23:** Dev-export и `dialog_state_after` расширены для QA planning/summarizing: при первом ходе диалога сервер сохраняет `planning_snapshot_at_start` в `conversations.trigger_meta`; после каждого assistant-turn в `messages.meta.planning_persistence` попадают `inserted` / `summarized` / `skipped` по `planned_events`; в export также есть `planning_open_now`, `planning_closed_recent_48h`, `planning_created_in_this_conversation`.
+- **2026-05-23:** `fetchDialogSession(...)` получил optional `conversationId`: dev-export теперь может запросить именно тот диалог, который пользователь только что закончил, даже если backend уже пометил его `ended_at`. Это закрывает кейс «сокращённой выгрузки», когда export раньше не находил закрытую беседу в active-session sync и падал обратно на локальный неполный снимок.
+- **2026-05-23:** Dev-export получил ещё одну диагностическую ступень: в блоке `conversation` теперь есть `server_sync` со статусом попытки `fetchDialogSession({ debugExport: true })`, а в `messages.meta` экспортируются `skipped_planned_events`, если backend отсеял дальний план. Это позволяет отличить «экспорт построен по локальному состоянию» от «взята каноническая server session sync».
+- **2026-05-23:** Dev-export диалога теперь старается брать канонические `messages` из `fetchDialogSession({ debugExport: true })`, если server session sync доступна для той же беседы. Это убирает расхождение «в UI виден текст, а в export ещё нет сохранённых артефактов»: JSON теперь включает `message_id`, `related_event_ids`, `matrix_cells`, а `dialog_state_after` — расширенный server snapshot после persistence.
 - **2026-05-22:** Финальный assistant-turn теперь делает несколько попыток session hydration (backoff ~0.7/1.4/2.6 s), если `complete` отсутствует или неполон на финальном ходе. Это закрывает регресс, когда текст уже виден, а `practicePicked`/ветки/`debug` ещё не доехали и карточка практики не рендерилась. Одновременно dev-export расширен: в JSON теперь есть блок `conversation` и по каждому сообщению сохраняются `practice_picked`, `branches_active`, `phase_time`, `target_chakra`, `validation`.
 - **2026-05-22:** Финальный assistant-turn теперь восстанавливает `complete`-метаданные не только в `catch`, но и на success-path: если текст уже есть, а `complete` отсутствует или неполон, `Communicator.tsx` добирает последнюю assistant-реплику через `fetchDialogSession`, сверяет её с локальным текстом и гидрирует `turnMode`, `modelTier`, `modelUsed`, `iteration`, `practicePicked`, `recommendationCorrected`, `debug`. Это устраняет кейс «короткий финальный текст виден, а карточки/метаданных нет». Добавлен pure helper `core/dialogTurnHydration.ts` и unit-тест `dialogTurnHydration.test.ts`.
 - **2026-05-21:** Карточка практики после финальной premium-рекомендации: отложенный коммит больше не блокирует flush, когда в `complete` есть `practicePicked`; перед defer `syncDisplayText(finalText)` выравнивает стрим с sanitized `complete.fullText` (иначе `stripTarget` ≠ `revealGoal` и карточка не попадала в `messages` до 60 с). **`Communicator.tsx`**, **`useCommunicatorStream.ts`**, **`spec.md`**, **`CHANGELOG.md`**.

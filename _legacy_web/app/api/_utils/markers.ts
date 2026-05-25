@@ -459,6 +459,19 @@ const TYPE_BREATH = ["дыхан", "дыхательн", "пранаям", "по
 const TYPE_MEDITATION = ["медитац", "помедитировать", "посидеть", "успокоиться"];
 const TYPE_YOGA = ["асан", "йог"];
 
+type TextSpan = {
+  start: number;
+  end: number;
+};
+
+type DurationMention = TextSpan & {
+  sec: number;
+};
+
+type KindMention = TextSpan & {
+  kind: PracticeKindInferred;
+};
+
 /** «Подышать или через тело» — не выбор только дыхания; не перетираем ранее сказанное «йога/асаны». */
 function isBreathVersusOtherParallelOffer(lower: string): boolean {
   const hasBreathCue = /(?:дыхан|дыхательн|пранаям|подышат)/.test(lower);
@@ -470,50 +483,170 @@ function isBreathVersusOtherParallelOffer(lower: string): boolean {
   return /(?:^|[\s,.;:!?()])или(?:$|[\s,.;:!?()])/i.test(lower);
 }
 
-function inferDurationSecFromText(text: string): number | null {
+function addDurationMention(mentions: DurationMention[], start: number, end: number, sec: number) {
+  if (!Number.isFinite(sec) || sec <= 0) return;
+  mentions.push({ start, end, sec });
+}
+
+function extractKindMentions(text: string): KindMention[] {
+  const mentions: KindMention[] = [];
+  const patterns: Array<{ pattern: RegExp; kind: PracticeKindInferred }> = [
+    { pattern: /медитац/gi, kind: "meditation" },
+    { pattern: /помедитировать/gi, kind: "meditation" },
+    { pattern: /посидеть/gi, kind: "meditation" },
+    { pattern: /успокоиться/gi, kind: "meditation" },
+    { pattern: /асан/gi, kind: "yoga" },
+    { pattern: /йог/gi, kind: "yoga" },
+    { pattern: /дыхан/gi, kind: "breath" },
+    { pattern: /дыхательн/gi, kind: "breath" },
+    { pattern: /пранаям/gi, kind: "breath" },
+    { pattern: /подыш/gi, kind: "breath" },
+    { pattern: /дыш/gi, kind: "breath" },
+  ];
+  for (const { pattern, kind } of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const value = match[0];
+      const start = match.index ?? -1;
+      if (!value || start < 0) continue;
+      mentions.push({ start, end: start + value.length, kind });
+    }
+  }
+  return mentions.sort((a, b) => a.start - b.start);
+}
+
+function distanceBetweenSpans(a: TextSpan, b: TextSpan): number {
+  if (a.end <= b.start) return b.start - a.end;
+  if (b.end <= a.start) return a.start - b.end;
+  return 0;
+}
+
+function chooseDurationMention(
+  mentions: DurationMention[],
+  kindMentions: KindMention[],
+  targetKind: PracticeKindInferred | null,
+): DurationMention | null {
+  if (!mentions.length) return null;
+  const scopedKindMentions =
+    targetKind != null
+      ? kindMentions.filter((mention) => mention.kind === targetKind)
+      : kindMentions;
+  const anchorMentions = scopedKindMentions.length ? scopedKindMentions : kindMentions;
+  if (!anchorMentions.length) return mentions[mentions.length - 1] ?? null;
+
+  let best: DurationMention | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const mention of mentions) {
+    const distance = anchorMentions.reduce((min, kind) => Math.min(min, distanceBetweenSpans(mention, kind)), Number.POSITIVE_INFINITY);
+    if (
+      !best
+      || distance < bestDistance
+      || (distance === bestDistance && mention.start > best.start)
+    ) {
+      best = mention;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function extractDurationMentions(text: string): DurationMention[] {
+  const mentions: DurationMention[] = [];
+
   for (const entry of DURATION_PHRASES) {
-    if (text.includes(entry.phrase)) return entry.sec;
-  }
-
-  // «Три четверти часа» = 45 мин (без \b — JS \b не считает кириллицу «словом»).
-  if (/три\s+четверт[иь]\s*час/i.test(text)) return 45 * 60;
-
-  const rangeMinutPrefix = text.match(/(?:^|\s)минут\s+(\d{1,2})\s*[-–]\s*(\d{1,2})(?:\s|$|хот|[,.])/i);
-  if (rangeMinutPrefix) {
-    const a = Number.parseInt(rangeMinutPrefix[1] ?? "", 10);
-    const b = Number.parseInt(rangeMinutPrefix[2] ?? "", 10);
-    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
-      return Math.round((a + b) / 2) * 60;
-    }
-  }
-  const rangeWithUnit = text.match(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(минут|мин\b)/i);
-  if (rangeWithUnit) {
-    const a = Number.parseInt(rangeWithUnit[1] ?? "", 10);
-    const b = Number.parseInt(rangeWithUnit[2] ?? "", 10);
-    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
-      return Math.round((a + b) / 2) * 60;
+    const pattern = new RegExp(entry.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    for (const match of text.matchAll(pattern)) {
+      const value = match[0];
+      const start = match.index ?? -1;
+      if (!value || start < 0) continue;
+      addDurationMention(mentions, start, start + value.length, entry.sec);
     }
   }
 
-  const digitMatch = text.match(/(\d{1,3})\s*(минут|мин\b|час)/i);
-  if (digitMatch) {
-    const num = Number.parseInt(digitMatch[1] ?? "", 10);
-    if (Number.isFinite(num) && num > 0) {
-      return /час/i.test(digitMatch[2] ?? "") ? num * 3600 : num * 60;
-    }
+  for (const match of text.matchAll(/три\s+четверт(?:и|ь)\s*час(?:а|ов)?/gi)) {
+    const value = match[0];
+    const start = match.index ?? -1;
+    if (!value || start < 0) continue;
+    addDurationMention(mentions, start, start + value.length, 45 * 60);
   }
 
-  if (!digitMatch && /(?:^|\s)час(?:\s|$|ик|а|ов)/i.test(text)) return 3600;
-
-  for (const [word, num] of Object.entries(NUMBER_WORD_MAP)) {
-    for (const unit of DURATION_NUMBER_UNITS) {
-      if (!text.includes(word) || !text.includes(unit)) continue;
-      if (/час/.test(unit) && word === "три" && /\bчетверт/i.test(text)) continue;
-      return /час/.test(unit) ? num * 3600 : num * 60;
-    }
+  for (const match of text.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})\s*час(?:а|ов)?/gi)) {
+    const start = match.index ?? -1;
+    const value = match[0];
+    const num = Number.parseInt(match[1] ?? "", 10);
+    const den = Number.parseInt(match[2] ?? "", 10);
+    if (!value || start < 0 || !Number.isFinite(num) || !Number.isFinite(den) || num <= 0 || den <= 0) continue;
+    addDurationMention(mentions, start, start + value.length, (num / den) * 3600);
   }
 
-  return null;
+  for (const match of text.matchAll(/(?:^|\s)минут\s+(\d{1,2})\s*[-–]\s*(\d{1,2})(?:\s|$|хот|[,.])/gi)) {
+    const start = match.index ?? -1;
+    const value = match[0];
+    const a = Number.parseInt(match[1] ?? "", 10);
+    const b = Number.parseInt(match[2] ?? "", 10);
+    if (!value || start < 0 || !Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) continue;
+    addDurationMention(mentions, start, start + value.length, Math.round((a + b) / 2) * 60);
+  }
+
+  for (const match of text.matchAll(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(минут|мин\b)/gi)) {
+    const start = match.index ?? -1;
+    const value = match[0];
+    const a = Number.parseInt(match[1] ?? "", 10);
+    const b = Number.parseInt(match[2] ?? "", 10);
+    if (!value || start < 0 || !Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) continue;
+    addDurationMention(mentions, start, start + value.length, Math.round((a + b) / 2) * 60);
+  }
+
+  for (const match of text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(минут(?:а|ы|у)?|мин\b|час(?:а|ов)?)/gi)) {
+    const start = match.index ?? -1;
+    const value = match[0];
+    const num = Number.parseFloat((match[1] ?? "").replace(",", "."));
+    const unit = match[2] ?? "";
+    if (!value || start < 0 || !Number.isFinite(num) || num <= 0) continue;
+    addDurationMention(mentions, start, start + value.length, /час/i.test(unit) ? num * 3600 : num * 60);
+  }
+
+  const numberWordsAlternation = Object.keys(NUMBER_WORD_MAP)
+    .sort((a, b) => b.length - a.length)
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const wordDurationPattern = new RegExp(`(${numberWordsAlternation})\\s*(минут(?:а|ы|у)?|час(?:а|ов)?)`, "gi");
+  for (const match of text.matchAll(wordDurationPattern)) {
+    const start = match.index ?? -1;
+    const value = match[0];
+    const word = (match[1] ?? "").toLowerCase();
+    const unit = match[2] ?? "";
+    if (!value || start < 0) continue;
+    if (/час/i.test(unit) && word === "три" && /\bчетверт/i.test(text)) continue;
+    const num = NUMBER_WORD_MAP[word];
+    if (!Number.isFinite(num) || num <= 0) continue;
+    addDurationMention(mentions, start, start + value.length, /час/i.test(unit) ? num * 3600 : num * 60);
+  }
+
+  for (const match of text.matchAll(/(?:^|[\s,.;:!?()])(час(?:ик|а|ов)?)(?=$|[\s,.;:!?()])/gi)) {
+    const value = match[1];
+    const start = match.index ?? -1;
+    if (!value || start < 0) continue;
+    const offset = match[0].indexOf(value);
+    const valueStart = start + Math.max(0, offset);
+    addDurationMention(mentions, valueStart, valueStart + value.length, 3600);
+  }
+
+  return mentions
+    .filter((mention, index, all) => {
+      return !all.some((other, otherIndex) =>
+        otherIndex !== index
+        && other.start <= mention.start
+        && other.end >= mention.end
+        && (other.end - other.start) > (mention.end - mention.start)
+      );
+    })
+    .sort((a, b) => a.start - b.start);
+}
+
+function inferDurationSecFromText(text: string): number | null {
+  const mentions = extractDurationMentions(text);
+  const best = chooseDurationMention(mentions, extractKindMentions(text), inferKindFromText(text));
+  return best?.sec ?? null;
 }
 
 function inferKindFromText(text: string): PracticeKindInferred | null {
@@ -528,6 +661,11 @@ function inferKindFromText(text: string): PracticeKindInferred | null {
 const PRACTICE_DECLINE_PATTERNS: RegExp[] = [
   /практик\w*[\s\S]{0,56}(?:не\s+(?:хоч|буд)|не\s+нужн|не\s+буду)/i,
   /(?:не\s+(?:хоч|буд)|не\s+буду|не\s+нужн)[\s\S]{0,56}практик/i,
+  /(?:не\s+хоч|не\s+нужн|без)\w*[\s\S]{0,56}(?:асан|медитац|дыхан|пранаям|йог|практик)/i,
+  /не\s+до\s+(?:каких[\s-]*либо\s+)?(?:асан|медитац|дыхан|пранаям|йог|практик)/i,
+  /нет\s+времени[\s\S]{0,56}(?:на|для|под|делать|выполнять)?[\s\S]{0,24}(?:асан|медитац|дыхан|пранаям|йог|практик)/i,
+  /времени[\s\S]{0,24}(?:на|для)?[\s\S]{0,16}(?:асан|медитац|дыхан|пранаям|йог|практик)[\s\S]{0,16}нет/i,
+  /не\s+нужно[\s\S]{0,24}(?:предлагать|делать|давать)?[\s\S]{0,24}(?:асан|медитац|дыхан|пранаям|йог|практик)/i,
   /никак\w*\s+практик/i,
   /практик\w*\s+совсем\s+не\s+нужн/i,
   /(?:не\s+хоч|не\s+буд)\w*\s+(?:сейчас\s+)?(?:выполнять\s+)?(?:асан|медитац|дыхан|пранаям|йог)/i,

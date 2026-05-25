@@ -66,7 +66,7 @@ const STATIC_MEDITATIONS: PracticeSummary[] = [
     description: "Короткая визуальная медитация для мягкого переключения внимания и гармонизации.",
     defaultDurationSec: 3 * 60,
     minDurationSec: 1 * 60,
-    maxDurationSec: 10 * 60,
+    maxDurationSec: 5 * 60,
     durationPolicy: "user_selectable",
     chakraIds: [1, 6, 7],
     primaryChakra: 1,

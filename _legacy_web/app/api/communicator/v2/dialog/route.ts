@@ -30,7 +30,7 @@ import { getScenario } from "@legacy/app/api/_utils/scenarios";
 import { isDebugDialogExportEnabled, promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
-import { buildDialogStateAfter, buildTurnDebugExport } from "@legacy/app/api/communicator/v2/dialog/dialogDebugExport";
+import { buildDialogStateAfter, buildTurnDebugExport, capturePlanningSnapshotIfNeeded, type PlanningPersistenceTurn } from "@legacy/app/api/communicator/v2/dialog/dialogDebugExport";
 import {
   isConversationExpired,
   loadHistory,
@@ -45,6 +45,7 @@ import {
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
 import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
+  asMatrixCells,
   mergeUserProfileMemory,
   upsertConversationSummary,
   upsertDailyMatrixForDate,
@@ -606,6 +607,26 @@ function resolveSummarizedEvent(ref: string, dueEvents: PlannedEventRow[]): Plan
   return dueEvents.find((event) => event.description.toLowerCase().includes(normalizedRef)) ?? null;
 }
 
+function hasRequiredBranchArtifacts(
+  branches: DialogBranch[],
+  markers: ReturnType<typeof parseResponseMarkers>,
+): boolean {
+  if (branches.includes("planning") && markers.plannedEvents.length === 0) return false;
+  if (branches.includes("summarizing") && markers.summarizeEvents.length === 0) return false;
+  return true;
+}
+
+function branchRepairInstruction(branches: DialogBranch[]): string {
+  const parts: string[] = [];
+  if (branches.includes("summarizing")) {
+    parts.push("сначала коротко подведи итог по уже наступившему событию и выведи invisible marker [SUMMARIZE_EVENT: ...]");
+  }
+  if (branches.includes("planning")) {
+    parts.push("сначала выдели один ближайший планируемый эпизод на сегодня или завтра и выведи invisible marker [PLANNED_EVENT: ...] с временем или примерным временем");
+  }
+  return `Продолжи этот же диалог, но не переходи к рекомендации практики прямо сейчас. ${parts.join("; ")}. Не выводи [READY_FOR_RECOMMENDATION], пока эти маркеры не добавлены.`;
+}
+
 async function persistDialogArtifacts(params: {
   db: SupabaseClient;
   userId: string;
@@ -622,6 +643,9 @@ async function persistDialogArtifacts(params: {
   const effectiveBranches = [...new Set([...params.branches, ...(params.markers.planTomorrow ? ["planning" as const] : [])])];
   const relatedEventIds: string[] = [];
   const affectedDates = new Set<string>();
+  const skippedPlannedEvents: PlanningPersistenceTurn["skipped"] = [];
+  const insertedPlannedEvents: PlanningPersistenceTurn["inserted"] = [];
+  const summarizedPlannedEvents: PlanningPersistenceTurn["summarized"] = [];
   const inferredCells = normalizeCells([
     ...params.markers.matrixCells,
     ...params.markers.plannedEvents.flatMap((event) => event.cells),
@@ -635,6 +659,19 @@ async function persistDialogArtifacts(params: {
       tz: timezone,
       locale,
     });
+    const dayDelta = Math.round(
+      parsedTime.expectedLocal.startOf("day").diff(params.context.nowLocal.startOf("day"), "days").days,
+    );
+    if (dayDelta < 0 || dayDelta > 1) {
+      skippedPlannedEvents.push({
+        desc: event.desc,
+        time: event.time,
+        time_norm: event.timeNorm,
+        reason: "beyond_supported_horizon",
+        resolved_local_date: parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
+      });
+      continue;
+    }
 
     const insertPayload = {
       user_id: params.userId,
@@ -649,9 +686,24 @@ async function persistDialogArtifacts(params: {
       cells: event.cells,
       status: "planned",
     };
-    const { data, error } = await params.db.from("planned_events").insert(insertPayload).select("id,planned_local_date").single();
+    const { data, error } = await params.db.from("planned_events").insert(insertPayload).select("id,conversation_id,planned_at,planned_local_date,expected_at,time_phrase_raw,time_resolution,description,context_snippets,cells,status").single();
     if (error) throw error;
-    if (data?.id) relatedEventIds.push(data.id as string);
+    if (data?.id) {
+      relatedEventIds.push(data.id as string);
+      insertedPlannedEvents.push({
+        id: String(data.id),
+        conversation_id: typeof data.conversation_id === "string" ? data.conversation_id : params.conversationId,
+        description: String(data.description ?? event.desc),
+        planned_at: typeof data.planned_at === "string" ? data.planned_at : nowIso,
+        planned_local_date: typeof data.planned_local_date === "string" ? data.planned_local_date : parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
+        expected_at: String(data.expected_at ?? parsedTime.expectedUtc),
+        time_phrase_raw: typeof data.time_phrase_raw === "string" ? data.time_phrase_raw : event.time ?? event.timeNorm,
+        time_resolution: typeof data.time_resolution === "string" ? data.time_resolution : canonicalizeTimeResolution(parsedTime.resolution),
+        status: String(data.status ?? "planned"),
+        context_snippets: Array.isArray(data.context_snippets) ? data.context_snippets : event.snippets,
+        cells: asMatrixCells(data.cells ?? event.cells),
+      });
+    }
     if (data?.planned_local_date) affectedDates.add(String(data.planned_local_date));
   }
 
@@ -670,6 +722,23 @@ async function persistDialogArtifacts(params: {
     if (error) throw error;
     relatedEventIds.push(resolved.id);
     affectedDates.add(resolved.planned_local_date);
+    summarizedPlannedEvents.push({
+      id: resolved.id,
+      conversation_id: null,
+      description: resolved.description,
+      planned_at: resolved.planned_at,
+      planned_local_date: resolved.planned_local_date,
+      expected_at: resolved.expected_at,
+      time_phrase_raw: resolved.time_phrase_raw,
+      time_resolution: resolved.time_resolution,
+      status: "summarized",
+      context_snippets: Array.isArray(resolved.context_snippets) ? resolved.context_snippets : [],
+      cells: asMatrixCells(resolved.cells),
+      summarized_at: nowIso,
+      outcome_text: summary.outcome,
+      outcome_cells: asMatrixCells(summary.outcomeCells),
+      matched_ref: summary.ref,
+    });
   }
 
   for (const localDate of affectedDates) {
@@ -694,7 +763,17 @@ async function persistDialogArtifacts(params: {
       : [],
   });
 
-  return { effectiveBranches, relatedEventIds, inferredCells };
+  return {
+    effectiveBranches,
+    relatedEventIds,
+    inferredCells,
+    skippedPlannedEvents,
+    planningPersistence: {
+      inserted: insertedPlannedEvents,
+      summarized: summarizedPlannedEvents,
+      skipped: skippedPlannedEvents,
+    } satisfies PlanningPersistenceTurn,
+  };
 }
 
 async function persistAssistantMessage(params: {
@@ -739,36 +818,62 @@ export async function GET(req: Request) {
       useCase: assertUseCase(url.searchParams.get("useCase") ?? undefined),
     });
     const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
+    const requestedConversationId = url.searchParams.get("conversationId")?.trim() || null;
 
     const context = await loadContext(db, userId);
     const userTimezone = context.user.tz ?? "UTC";
-    const { data, error } = await db
-      .from("conversations")
-      .select("id,scenario_id,trigger_meta,entry_source,started_at,ended_at,last_message_at")
-      .eq("user_id", userId)
-      .eq("entry_source", entrySource)
-      .is("ended_at", null)
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(10);
-    if (error) throw error;
+    let conversation: ConversationRecord | undefined;
+    if (requestedConversationId) {
+      const { data, error } = await db
+        .from("conversations")
+        .select("id,scenario_id,trigger_meta,entry_source,started_at,ended_at,last_message_at")
+        .eq("user_id", userId)
+        .eq("id", requestedConversationId)
+        .maybeSingle();
+      if (error) throw error;
+      const candidate = (data as ConversationRecord | null) ?? null;
+      if (candidate) {
+        const metaUseCase = typeof candidate.trigger_meta?.use_case === "string" ? candidate.trigger_meta.use_case : null;
+        const scenarioMatches = !scenarioId || candidate.scenario_id === scenarioId || (!candidate.scenario_id && metaUseCase === useCase);
+        if (scenarioMatches && (!metaUseCase || metaUseCase === useCase)) {
+          conversation = candidate;
+        }
+      }
+    } else {
+      const { data, error } = await db
+        .from("conversations")
+        .select("id,scenario_id,trigger_meta,entry_source,started_at,ended_at,last_message_at")
+        .eq("user_id", userId)
+        .eq("entry_source", entrySource)
+        .is("ended_at", null)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(10);
+      if (error) throw error;
 
-    const resumeTtlMs = sessionResumeTtlMs();
-    const conversation = ((data ?? []) as ConversationRecord[]).find((item) => {
-      const metaUseCase = typeof item.trigger_meta?.use_case === "string" ? item.trigger_meta.use_case : null;
-      const scenarioMatches = !scenarioId || item.scenario_id === scenarioId || (!item.scenario_id && metaUseCase === useCase);
-      return (
-        scenarioMatches
-        && (!metaUseCase || metaUseCase === useCase)
-        && !isConversationExpired(item, userTimezone, new Date(), resumeTtlMs)
-      );
-    });
+      const resumeTtlMs = sessionResumeTtlMs();
+      conversation = ((data ?? []) as ConversationRecord[]).find((item) => {
+        const metaUseCase = typeof item.trigger_meta?.use_case === "string" ? item.trigger_meta.use_case : null;
+        const scenarioMatches = !scenarioId || item.scenario_id === scenarioId || (!item.scenario_id && metaUseCase === useCase);
+        return (
+          scenarioMatches
+          && (!metaUseCase || metaUseCase === useCase)
+          && !isConversationExpired(item, userTimezone, new Date(), resumeTtlMs)
+        );
+      });
+    }
     if (!conversation) return json({ conversationId: null, messages: [], reset: true });
 
-    const cutoffMs = Date.now() - resumeTtlMs;
-    const history = (await loadHistory(db, userId, conversation.id)).filter((message) => {
-      const createdMs = Date.parse(message.created_at ?? "");
-      return Number.isFinite(createdMs) && createdMs >= cutoffMs;
-    });
+    const rawHistory = await loadHistory(db, userId, conversation.id);
+    const history = requestedConversationId
+      ? rawHistory
+      : (() => {
+        const resumeTtlMs = sessionResumeTtlMs();
+        const cutoffMs = Date.now() - resumeTtlMs;
+        return rawHistory.filter((message) => {
+          const createdMs = Date.parse(message.created_at ?? "");
+          return Number.isFinite(createdMs) && createdMs >= cutoffMs;
+        });
+      })();
     const debugExportEnabled = isDebugDialogExportEnabled();
     const dialogStateAfter =
       debugExportEnabled && url.searchParams.get("debugExport") === "1"
@@ -840,6 +945,15 @@ export async function POST(req: Request) {
       userTimezone,
     );
     const history = await loadHistory(db, userId, conversation.id);
+    if (history.length === 0) {
+      await capturePlanningSnapshotIfNeeded(
+        db,
+        userId,
+        conversation.id,
+        context,
+        conversation.trigger_meta,
+      );
+    }
     const iteration = countAssistantTurns(history) + 1;
     const branches = chooseDialogBranches({
       phaseTime: context.phaseTime,
@@ -960,11 +1074,14 @@ export async function POST(req: Request) {
               hasReadyMarker: containsReadyMarker(standardResponse.text),
             }));
             const turnValidation = validateHistoryHasDurationAndType([...history, { role: "user", content: userMessage }]);
+            const standardMarkers = parseResponseMarkers(standardResponse.text);
+            const branchArtifactsSatisfied = hasRequiredBranchArtifacts(branches, standardMarkers);
             if (!containsReadyMarker(standardResponse.text)) {
               if (shouldServerEscalateToFinalRecommendation({
                 turnMode: turnDecision.mode,
                 validation: turnValidation,
                 hasReadyMarker: false,
+                hasRequiredBranchArtifacts: branchArtifactsSatisfied,
               })) {
                 console.log("[DIALOG_V3_DIAG] server-side ready escalation (confident inquiry without READY marker)");
                 readyMarkerTriggered = true;
@@ -988,9 +1105,24 @@ export async function POST(req: Request) {
                   controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
                 }
               } else {
+                if (turnValidation.confident && !branchArtifactsSatisfied && turnDecision.mode === "inquiry") {
+                  console.log("[DIALOG_V3_DIAG] blocking ready escalation until planning/summarizing markers appear");
+                }
                 fullText = standardResponse.text;
               }
             } else {
+              if (!branchArtifactsSatisfied) {
+                console.log("[DIALOG_V3_DIAG] ignoring premature READY marker until planning/summarizing markers appear");
+                const repairedResponse = await generateGeminiText({
+                  systemInstruction: systemPromptData.systemInstruction,
+                  contents: [...prefixContents, { role: "user", parts: [{ text: branchRepairInstruction(branches) }] }],
+                  model: requestedModel,
+                  temperature: 0.7,
+                  maxOutputTokens: 1500,
+                });
+                modelIdUsed = repairedResponse.modelUsed;
+                fullText = repairedResponse.text;
+              } else {
               readyMarkerTriggered = true;
               validation = turnValidation;
               const finalInstructionText = expandOrchestratorInstruction(
@@ -1012,6 +1144,7 @@ export async function POST(req: Request) {
                 modelIdUsed = chunk.modelUsed;
                 fullText += chunk.text;
                 controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
+              }
               }
             }
           }
@@ -1100,7 +1233,7 @@ export async function POST(req: Request) {
             controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed: modelIdUsed })));
           }
 
-          const shouldClose = responseMode === "forced_final";
+          const shouldClose = responseMode === "forced_final" || responseMode === "practice_declined";
           const effectiveBranches = [...new Set([...branches, ...(markers.planTomorrow ? ["planning" as const] : [])])];
           const debugExport =
             isDebugDialogExportEnabled()
@@ -1173,6 +1306,8 @@ export async function POST(req: Request) {
             phase_time: context.phaseTime,
             related_event_ids: artifactResult.relatedEventIds,
             matrix_cells: artifactResult.inferredCells,
+            skipped_planned_events: artifactResult.skippedPlannedEvents,
+            planning_persistence: artifactResult.planningPersistence,
             insight_metrics: insightMetrics,
             ...(debugExport ? { debug: debugExport } : {}),
           };

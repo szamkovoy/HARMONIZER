@@ -346,6 +346,24 @@ function parseExact(text: string, nowLocal: DateTime, targetDate: DateTime, hasE
     }
   }
 
+  const bareHour = text.match(/^\s*(\d{1,2})(?:\s*(утра|дня|вечера|ночи))?\s*$/);
+  if (bareHour) {
+    const rawHour = Number.parseInt(bareHour[1] ?? "", 10);
+    if (Number.isFinite(rawHour)) {
+      const matchPart = detectExplicitPart(bareHour[0] ?? "") ?? part;
+      const resolvedHour = hourWithExplicitPart(rawHour, matchPart);
+      const preferEvening = rawHour === 7 && matchPart == null && nowLocal.hour < 12;
+      return {
+        expectedLocal: matchPart || rawHour > 12 || hasExplicitFutureDate
+          ? atLocal(targetDate, resolvedHour, 0)
+          : inferAmbiguousHour(nowLocal, targetDate, rawHour, 0, preferEvening),
+        resolution: "explicit",
+        matchedPhrase: bareHour[0]?.trim() ?? null,
+        hasExplicitFutureDate,
+      };
+    }
+  }
+
   return null;
 }
 
