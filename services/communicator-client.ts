@@ -51,6 +51,14 @@ export interface DialogCompleteEvent {
   phaseTime?: string;
   targetChakra?: { chakraNumber?: number; reason?: string } | null;
   recommendationCorrected?: RecommendationCorrected;
+  planningPersistence?: {
+    inserted: unknown[];
+    summarized: unknown[];
+    skipped: unknown[];
+  };
+  relatedEventIds?: string[];
+  skippedPlannedEvents?: unknown[];
+  matrixCells?: unknown[];
   debugExport?: Record<string, unknown>;
 }
 

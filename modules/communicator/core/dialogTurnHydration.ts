@@ -7,6 +7,10 @@ export type SessionAssistantTurnMeta = {
   modelUsed?: string;
   iteration?: number;
   practicePicked?: PracticePicked;
+  planningPersistence?: DialogCompleteEvent["planningPersistence"];
+  relatedEventIds?: string[];
+  skippedPlannedEvents?: unknown[];
+  matrixCells?: unknown[];
   debug?: Record<string, unknown>;
   shouldClose?: boolean;
   recommendationCorrected?: RecommendationCorrected;
@@ -83,6 +87,10 @@ export function mergeCompleteWithSession(params: {
     modelUsed: complete.modelUsed ?? params.sessionMeta?.modelUsed,
     iteration: complete.iteration ?? params.sessionMeta?.iteration,
     practicePicked: complete.practicePicked ?? params.sessionMeta?.practicePicked,
+    planningPersistence: complete.planningPersistence ?? params.sessionMeta?.planningPersistence,
+    relatedEventIds: complete.relatedEventIds ?? params.sessionMeta?.relatedEventIds,
+    skippedPlannedEvents: complete.skippedPlannedEvents ?? params.sessionMeta?.skippedPlannedEvents,
+    matrixCells: complete.matrixCells ?? params.sessionMeta?.matrixCells,
     recommendationCorrected: complete.recommendationCorrected ?? params.sessionMeta?.recommendationCorrected,
     debugExport: complete.debugExport ?? params.sessionMeta?.debug,
   };

@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-25: `communicator` + `assistant` — `messages.meta.planning_persistence` согласован с `dialog_state_after`: SSE `complete` после persist с `planningPersistence`, dev-export merge по role-index + reconcile fallback.
 - 2026-05-25: `assistant/spec.md` — детали `augmentPlannedMarkers`, `loadOpenPlannedEventsForConversation`, `hasRequiredBranchArtifacts` (open planned rows), `timeParser` «через N минут»; `MAP.md` — code ref `plannedEventInference.ts`.
 - 2026-05-25: `assistant` — server-side inference planned events from user history when planning branch active; `plannedEventInference.ts`, `route.ts`.
 - 2026-05-25: pre-push doc-sync — GET dialog session sync (resume/TTL/`debugExport`), `Communicator` mount без cache `conversationId`, `clearHomeDailyDialogCache` на dev-сбросе дня; `assistant` + `communicator` spec/history/dependencies.

@@ -36,6 +36,11 @@ import {
 } from "@/modules/communicator/core/voiceTurnPipeline";
 import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import {
+  mergeExportMessages,
+  reconcileExportPlanningPersistence,
+  type ExportMessageSnapshot,
+} from "@/modules/communicator/core/dialogExportMerge";
+import {
   mergeCompleteWithSession,
   needsAssistantTurnHydration,
   sessionAssistantMatchesTurn,
@@ -198,75 +203,6 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
   };
 }
 
-type ExportMessageSnapshot = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt?: number;
-  meta?: CommunicatorHistoryMessage["meta"];
-  rawMeta?: Record<string, unknown>;
-};
-
-function exportTextsMatch(a: string, b: string): boolean {
-  return a.trim() === b.trim();
-}
-
-function mergeExportMessageMeta(
-  localMeta: CommunicatorHistoryMessage["meta"] | undefined,
-  syncedMeta: CommunicatorHistoryMessage["meta"] | undefined,
-): CommunicatorHistoryMessage["meta"] | undefined {
-  if (!localMeta && !syncedMeta) return undefined;
-  return {
-    ...(localMeta ?? {}),
-    ...(syncedMeta ?? {}),
-    insightMetrics: syncedMeta?.insightMetrics ?? localMeta?.insightMetrics,
-    validation: syncedMeta?.validation ?? localMeta?.validation,
-    practicePicked: syncedMeta?.practicePicked ?? localMeta?.practicePicked,
-    targetChakra: syncedMeta?.targetChakra ?? localMeta?.targetChakra,
-    recommendationCorrected: syncedMeta?.recommendationCorrected ?? localMeta?.recommendationCorrected,
-    debug: syncedMeta?.debug ?? localMeta?.debug,
-  };
-}
-
-function mergeExportMessages(params: {
-  localMessages: ExportMessageSnapshot[];
-  syncedMessages: ExportMessageSnapshot[];
-}): ExportMessageSnapshot[] {
-  const merged: ExportMessageSnapshot[] = [];
-  let syncIndex = 0;
-
-  for (const localMessage of params.localMessages) {
-    let matchedIndex = -1;
-    for (let index = syncIndex; index < params.syncedMessages.length; index += 1) {
-      const syncedMessage = params.syncedMessages[index];
-      if (syncedMessage.role !== localMessage.role) continue;
-      if (!exportTextsMatch(syncedMessage.content, localMessage.content)) continue;
-      matchedIndex = index;
-      break;
-    }
-
-    if (matchedIndex >= 0) {
-      const syncedMessage = params.syncedMessages[matchedIndex];
-      syncIndex = matchedIndex + 1;
-      merged.push({
-        ...localMessage,
-        id: syncedMessage.id || localMessage.id,
-        createdAt: syncedMessage.createdAt ?? localMessage.createdAt,
-        meta: mergeExportMessageMeta(localMessage.meta, syncedMessage.meta),
-        rawMeta: syncedMessage.rawMeta ?? localMessage.rawMeta,
-      });
-      continue;
-    }
-
-    merged.push(localMessage);
-  }
-
-  for (let index = syncIndex; index < params.syncedMessages.length; index += 1) {
-    merged.push(params.syncedMessages[index]);
-  }
-
-  return merged;
-}
 
 function completeFromSessionMessage(
   message: DialogSessionMessage,
@@ -1162,6 +1098,10 @@ export function Communicator({
           targetChakra: hydratedComplete?.targetChakra,
           shouldClose: hydratedComplete?.shouldClose,
           recommendationCorrected: hydratedComplete?.recommendationCorrected,
+          planningPersistence: hydratedComplete?.planningPersistence,
+          relatedEventIds: hydratedComplete?.relatedEventIds,
+          skippedPlannedEvents: hydratedComplete?.skippedPlannedEvents,
+          matrixCells: hydratedComplete?.matrixCells,
           debug: mergedDebug,
         },
       };
@@ -2086,23 +2026,8 @@ export function Communicator({
           ? "server_session_sync"
           : "server_session_sync_merged_with_local";
     const hasDebugExport = localHasDebugExport || Boolean(dialogStateAfter);
-    const payload = {
-      conversation: {
-        conversation_id: (canUseSyncedMessages ? syncedConversationId : activeConversationId) ?? null,
-        use_case: useCase,
-        entry_source: entrySource,
-        debug_export_enabled: hasDebugExport,
-        canonical_source: exportCanonicalSource,
-        server_sync: {
-          attempted: true,
-          used_for_export: canUseSyncedMessages,
-          fetched_conversation_id: syncedConversationId ?? null,
-          error: syncError,
-        },
-      },
-      day_context: dayContext,
-      messages: exportMessages.map((message) => {
-        const normalizedMeta = message.meta;
+    const exportMessageRows = exportMessages.map((message) => {
+        const normalizedMeta = message.meta as CommunicatorHistoryMessage["meta"] | undefined;
         const rawMeta = message.rawMeta && typeof message.rawMeta === "object" ? message.rawMeta as Record<string, unknown> : undefined;
         const practicePicked =
           normalizedMeta?.practicePicked && typeof normalizedMeta.practicePicked === "object"
@@ -2176,7 +2101,7 @@ export function Communicator({
               : null,
         };
         const debug = message.role === "assistant" && normalizedMeta?.debug != null ? normalizedMeta.debug : undefined;
-        return {
+        const row = {
           message_id: message.id,
           role: message.role,
           text: message.content,
@@ -2184,7 +2109,28 @@ export function Communicator({
           meta: baseMeta,
           ...(debug != null ? { debug } : {}),
         };
-      }),
+        return row;
+    });
+    reconcileExportPlanningPersistence(
+      exportMessageRows as Array<{ role: string; meta: { planning_persistence: { inserted: unknown[]; summarized: unknown[]; skipped: unknown[] } | null } }>,
+      dialogStateAfter,
+    );
+    const payload = {
+      conversation: {
+        conversation_id: (canUseSyncedMessages ? syncedConversationId : activeConversationId) ?? null,
+        use_case: useCase,
+        entry_source: entrySource,
+        debug_export_enabled: hasDebugExport,
+        canonical_source: exportCanonicalSource,
+        server_sync: {
+          attempted: true,
+          used_for_export: canUseSyncedMessages,
+          fetched_conversation_id: syncedConversationId ?? null,
+          error: syncError,
+        },
+      },
+      day_context: dayContext,
+      messages: exportMessageRows,
       ...(dialogStateAfter ? { dialog_state_after: dialogStateAfter } : {}),
     };
     await Share.share({
