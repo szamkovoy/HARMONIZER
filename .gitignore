@@ -52,6 +52,8 @@ yarn-error.*
 .tmp_ocr/
 __tmp_ocr/
 .vercel
+# Локальный HOME для `vercel` CLI (кэш, auth.json — не коммитить)
+.vercel-home/
 
 docs/.sync-logs/
 docs/.sync-failures.log
