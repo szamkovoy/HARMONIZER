@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.13
-updated: 2026-05-23
+version: 1.14
+updated: 2026-05-25
 depends_on: [02_modules/assistant/spec]
 code_refs:
   [
