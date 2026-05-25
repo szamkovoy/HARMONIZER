@@ -1264,7 +1264,7 @@ export async function POST(req: Request) {
                   rawAssistantText: fullText,
                   context,
                   branches,
-                  practicePublic: finalPracticePublic,
+                  practicePublic: isFinalMode ? finalPracticePublic : null,
                 })
               : undefined;
 
@@ -1287,7 +1287,7 @@ export async function POST(req: Request) {
                 phaseTime: context.phaseTime,
                 validation,
                 insightMetrics,
-                practicePicked: finalPracticePublic ?? undefined,
+                practicePicked: isFinalMode ? (finalPracticePublic ?? undefined) : undefined,
                 recommendationCorrected: markers.recommendationCorrection
                   ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
                   : undefined,
@@ -1320,8 +1320,8 @@ export async function POST(req: Request) {
             iteration,
             ready_marker_triggered: readyMarkerTriggered,
             validation,
-            practicePicked: finalPracticePublic,
-            practice_picked: finalPracticePublic,
+            practicePicked: isFinalMode ? finalPracticePublic : null,
+            practice_picked: isFinalMode ? finalPracticePublic : null,
             recommendationCorrected: markers.recommendationCorrection,
             dialog_branches: artifactResult.effectiveBranches,
             target_chakra: context.targetChakra,

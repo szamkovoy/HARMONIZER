@@ -632,6 +632,7 @@ export function Communicator({
   }, [history, memoryWindow]);
 
   const retryHandlerRef = useRef<(() => void) | null>(null);
+  const initiateFiredRef = useRef(false);
 
   const reportError = useCallback(
     (err: Error) => {
@@ -766,49 +767,100 @@ export function Communicator({
 
   useEffect(() => {
     if (profileLoading) return;
+    const ac = new AbortController();
     let cancelled = false;
     setSessionSynced(false);
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
     void (async () => {
       try {
-        if (localDialogUserId) {
-          const cached = await loadDialogSessionCache({
-            userId: localDialogUserId,
-            useCase,
-            entrySource,
-            timeZone: timezone,
-          });
-          if (cancelled) return;
-          const validMessages = (cached?.messages ?? []).filter(
-            (m) => !(m.role === "assistant" && !m.content?.trim()),
-          );
-          if (validMessages.length > 0) {
-            setActiveConversationId(cached?.conversationId ?? conversationId ?? null);
-            setMessages(
-              ensureIds(
-                sliceHistoryForWindow(
-                  validMessages.map((message) => ({
-                    id: message.id,
-                    role: message.role,
-                    content: message.content,
-                    createdAt: message.createdAt,
-                    meta: normalizeMessageMeta(message.meta),
-                  })),
-                  memoryWindow,
-                ),
-              ),
-            );
-            setSessionSynced(true);
-            return;
+        const cached = localDialogUserId
+          ? await loadDialogSessionCache({
+              userId: localDialogUserId,
+              useCase,
+              entrySource,
+              timeZone: timezone,
+            })
+          : null;
+        if (cancelled) return;
+
+        const session = await fetchDialogSession({
+          useCase,
+          entrySource,
+          conversationId: cached?.conversationId ?? conversationId ?? undefined,
+          signal: ac.signal,
+        });
+        if (cancelled) return;
+
+        const serverReset = session.reset || !session.conversationId;
+        if (serverReset) {
+          if (localDialogUserId) {
+            await clearDialogSessionCache({
+              userId: localDialogUserId,
+              useCase,
+              entrySource,
+              timeZone: timezone,
+            });
           }
+          initiateFiredRef.current = false;
+          setActiveConversationId(null);
+          const seed = initialHistoryRef.current;
+          setMessages(seed.length ? [...seed] : []);
+          return;
+        }
+
+        const cachedMessages = (cached?.messages ?? []).filter(
+          (m) => !(m.role === "assistant" && !m.content?.trim()),
+        );
+        if (
+          cached
+          && cached.conversationId === session.conversationId
+          && cachedMessages.length > 0
+        ) {
+          setActiveConversationId(session.conversationId);
+          setMessages(
+            ensureIds(
+              sliceHistoryForWindow(
+                cachedMessages.map((message) => ({
+                  id: message.id,
+                  role: message.role,
+                  content: message.content,
+                  createdAt: message.createdAt,
+                  meta: normalizeMessageMeta(message.meta),
+                })),
+                memoryWindow,
+              ),
+            ),
+          );
+          return;
+        }
+
+        setActiveConversationId(session.conversationId);
+        const serverMessages = session.messages.filter(
+          (m) => !(m.role === "assistant" && !m.content?.trim()),
+        );
+        if (serverMessages.length > 0) {
+          setMessages(
+            ensureIds(
+              sliceHistoryForWindow(
+                serverMessages.map((message) => ({
+                  id: message.id,
+                  role: message.role,
+                  content: message.content,
+                  createdAt: message.createdAt,
+                  meta: normalizeMessageMeta(message.meta),
+                })),
+                memoryWindow,
+              ),
+            ),
+          );
+          return;
         }
 
         const seed = initialHistoryRef.current;
         setMessages(seed.length ? [...seed] : []);
-        setActiveConversationId(conversationId ?? null);
       } catch (error) {
-        if (cancelled) return;
+        if (cancelled || ac.signal.aborted) return;
         reportError(error instanceof Error ? error : new Error(String(error)));
         setMessages(initialHistoryRef.current);
         setActiveConversationId(conversationId ?? null);
@@ -819,6 +871,7 @@ export function Communicator({
 
     return () => {
       cancelled = true;
+      ac.abort();
     };
   }, [conversationId, entrySource, localDialogUserId, memoryWindow, profileLoading, reportError, useCase]);
 
@@ -1443,8 +1496,6 @@ export function Communicator({
    * any user-message. The server receives `initiateDialog: true` and
    * generates opening using dialog_system_v3 context alone.
    */
-  const initiateFiredRef = useRef(false);
-
   const performInitiateDialog = useCallback(async () => {
     retryHandlerRef.current = () => {
       void performInitiateDialog();
