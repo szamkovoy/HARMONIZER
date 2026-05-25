@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.7
-updated: 2026-05-22
+version: 1.8
+updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -13,6 +13,7 @@ code_refs:
     modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/ui/StreamingAssistantLines.tsx,
     services/communicator-client.ts,
+    services/dialogSessionCache.ts,
     app/(tabs)/index.tsx,
     app/calibration.tsx,
     modules/practices/ui/PracticeCard.tsx,
@@ -28,7 +29,9 @@ code_refs:
 - `**modules/ui**` (i18n ошибок)  
 `modules/ui/i18n/userErrors.ts` — строки Alert, в т.ч. **`timeoutTitle`** / **`timeoutMessage`**; потребляется через `services/userFacingErrors.ts` в `Communicator` и на других экранах.
 - `**profile**` (через auth)  
-`modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`), не для гейтинга функций.
+`modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
+- `**assistant**` (транспорт daily dialog)  
+`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); сервер (`resolveTurnHistory`) предпочитает клиентскую ленту над `messages` в БД, где `content` пустой.
 - `**practices**`  
 `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
 `modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams` и `launchPractice(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI.
@@ -53,3 +56,4 @@ code_refs:
 - `**triggerMeta.systemPrompt**` — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - `**fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.
 - **Транспорт SSE на native** — `sendDialogMessage` не использует `fetch` для тела диалога на iOS/Android (часто буферизует весь ответ до конца); там `**XMLHttpRequest`**. Парсер блоков (`parseSseBlock` / `handleSseEvent`) общий с web.
+- **`turnHistory` / session-cache** — рассинхрон лимита (40), формата ролей или ключа кеша (`localDate` в tz) ломает восстановление daily dialog после перезапуска приложения без server-side текста в `messages.content`.

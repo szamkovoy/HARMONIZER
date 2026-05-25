@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.18
+version: 2.19
 updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -18,6 +18,7 @@ code_refs:
     modules/communicator/ui/useCommunicatorStream.ts,
     modules/practices/core/assistantSelectableDurations.ts,
     services/communicator-client.ts,
+    services/dialogSessionCache.ts,
     services/communicatorConfig.ts,
   ]
 ---
@@ -102,7 +103,7 @@ code_refs:
 - `transcribeCommunicatorAudio(req, options?: { useNetworkRetry?: boolean })` — POST на `/api/communicator/v2/transcribe` (тело `{ audio: { mimeType, base64 }, language }`); таймаут одной попытки **12 с** (`TRANSCRIBE_TIMEOUT_MS`). По умолчанию — `withTransientNetworkRetry`; голосовой пайплайн передаёт `useNetworkRetry: false` (повторы на уровне `transcribeVoiceRecording`).
 - `extractCalibration(req)` — используется экраном калибровки, не `Communicator.tsx`.
 
-Типы: `DialogueUseCase`, `DialogueEntrySource`, `PracticePicked`, `OrchestratorDecision`, `DialogCompleteEvent`, `SendDialogMessageParams`, и др. — см. файл.
+Типы: `DialogueUseCase`, `DialogueEntrySource`, `PracticePicked`, `OrchestratorDecision`, `DialogCompleteEvent`, `SendDialogMessageParams`, `DialogTurnHistoryItem`, и др. — см. файл. `**buildClientTurnHistory**` / `DIALOG_TURN_HISTORY_LIMIT` (40) собирают `turnHistory` из локальной ленты перед POST.
 
 `**PracticePicked**` — `Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">` (реэкспорт контракта каталога практик).
 

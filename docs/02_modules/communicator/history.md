@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.15
+version: 2.16
 updated: 2026-05-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-25:** `dependencies.md` дополнен контрактом `turnHistory` + `dialogSessionCache` (ключ `profile.id`, лимит 40, риск рассинхрона с сервером); `spec.md` — `buildClientTurnHistory` в публичном транспорте.
 - **2026-05-25:** `Communicator` перестал считать server session sync каноническим источником текста daily dialog. Текущая беседа теперь восстанавливается из локального current-day cache (`services/dialogSessionCache.ts`) по `userId + useCase + entrySource`; `fetchDialogSession(...)` остался только fallback-каналом для гидрации `complete`, debug export и server-side `dialog_state_after`. Это согласовано с серверным решением не хранить тексты daily dialog в `messages.content`.
 - **2026-05-23:** Dev-export и `dialog_state_after` расширены для QA planning/summarizing: при первом ходе диалога сервер сохраняет `planning_snapshot_at_start` в `conversations.trigger_meta`; после каждого assistant-turn в `messages.meta.planning_persistence` попадают `inserted` / `summarized` / `skipped` по `planned_events`; в export также есть `planning_open_now`, `planning_closed_recent_48h`, `planning_created_in_this_conversation`.
 - **2026-05-23:** `fetchDialogSession(...)` получил optional `conversationId`: dev-export теперь может запросить именно тот диалог, который пользователь только что закончил, даже если backend уже пометил его `ended_at`. Это закрывает кейс «сокращённой выгрузки», когда export раньше не находил закрытую беседу в active-session sync и падал обратно на локальный неполный снимок.
