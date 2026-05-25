@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.30
+version: 2.31
 updated: 2026-05-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
@@ -9,6 +9,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-05-25:** SSE `complete.practicePicked` и persist `messages.meta.practice_picked` теперь заполняются только на финальных turn_mode (`isFinalMode`: `final_recommendation`, `final_recommendation_with_validation_warning`, `forced_final`, `fast_track_final`); на нефинальных ходах — `null` / отсутствует. Это предотвращает преждевременный рендер карточки практики до финальной рекомендации. **`route.ts`**, **`spec.md`**, **`CHANGELOG.md`**.
 - **2026-05-25:** Уточнён контракт `conversation_summaries`: `summary_text` = `[branch:phaseTime]`, upsert только вне `free`/`none`; профильный snapshot именован (`buildLifeMatrixReportSnapshot`, `PROFILE_REPORT_SNAPSHOT_VERSION`).
 - **2026-05-25:** Daily dialog storage ужат под профильные отчёты. Сервер больше не держит текст беседы в `messages.content`: клиент присылает `turnHistory`, а после `closeConversation(...)` message-строки удаляются. `planned_events` теперь используются только как live-очередь открытых эпизодов; при `[SUMMARIZE_EVENT]` итог сразу merge-ится в `daily_matrices`, затем пересобирается `profile_report_snapshots`, а raw planned-row удаляется. Запись в `user_profile_memory` отключена, `conversation_summaries` оставлены как минимальный служебный след для anti-replan/TTL.
 - **2026-05-23:** Для QA planning/summarizing export теперь фиксирует per-turn `planning_persistence` в `messages.meta` и snapshot планов на старт/конец диалога в `dialog_state_after` (`planning_snapshot_at_start`, `planning_open_now`, `planning_closed_recent_48h`, `planning_created_in_this_conversation`).
