@@ -233,3 +233,14 @@ export async function clearDialogSessionCache(params: {
   void params.timeZone;
   await removeRaw(cacheKey(params.userId, params.useCase, params.entrySource));
 }
+
+/** Clears the home daily assistant dialog stored on device (SecureStore / web localStorage). */
+export async function clearHomeDailyDialogCache(userId: string): Promise<void> {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  await clearDialogSessionCache({
+    userId,
+    useCase: "daily_dialog",
+    entrySource: "home",
+    timeZone,
+  });
+}

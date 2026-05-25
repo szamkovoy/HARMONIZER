@@ -839,9 +839,12 @@ export async function GET(req: Request) {
     });
     const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
     const requestedConversationId = url.searchParams.get("conversationId")?.trim() || null;
+    const debugExportEnabled = isDebugDialogExportEnabled();
+    const debugExport = debugExportEnabled && url.searchParams.get("debugExport") === "1";
 
     const context = await loadContext(db, userId);
     const userTimezone = context.user.tz ?? "UTC";
+    const resumeTtlMs = sessionResumeTtlMs();
     let conversation: ConversationRecord | undefined;
     if (requestedConversationId) {
       const { data, error } = await db
@@ -855,7 +858,13 @@ export async function GET(req: Request) {
       if (candidate) {
         const metaUseCase = typeof candidate.trigger_meta?.use_case === "string" ? candidate.trigger_meta.use_case : null;
         const scenarioMatches = !scenarioId || candidate.scenario_id === scenarioId || (!candidate.scenario_id && metaUseCase === useCase);
-        if (scenarioMatches && (!metaUseCase || metaUseCase === useCase)) {
+        const resumeAllowed =
+          debugExport
+          || (
+            !candidate.ended_at
+            && !isConversationExpired(candidate, userTimezone, new Date(), resumeTtlMs)
+          );
+        if (scenarioMatches && (!metaUseCase || metaUseCase === useCase) && resumeAllowed) {
           conversation = candidate;
         }
       }
@@ -870,7 +879,6 @@ export async function GET(req: Request) {
         .limit(10);
       if (error) throw error;
 
-      const resumeTtlMs = sessionResumeTtlMs();
       conversation = ((data ?? []) as ConversationRecord[]).find((item) => {
         const metaUseCase = typeof item.trigger_meta?.use_case === "string" ? item.trigger_meta.use_case : null;
         const scenarioMatches = !scenarioId || item.scenario_id === scenarioId || (!item.scenario_id && metaUseCase === useCase);
@@ -884,19 +892,17 @@ export async function GET(req: Request) {
     if (!conversation) return json({ conversationId: null, messages: [], reset: true });
 
     const rawHistory = await loadHistory(db, userId, conversation.id);
-    const history = requestedConversationId
+    const history = debugExport
       ? rawHistory
       : (() => {
-        const resumeTtlMs = sessionResumeTtlMs();
         const cutoffMs = Date.now() - resumeTtlMs;
         return rawHistory.filter((message) => {
           const createdMs = Date.parse(message.created_at ?? "");
           return Number.isFinite(createdMs) && createdMs >= cutoffMs;
         });
       })();
-    const debugExportEnabled = isDebugDialogExportEnabled();
     const dialogStateAfter =
-      debugExportEnabled && url.searchParams.get("debugExport") === "1"
+      debugExport
         ? await buildDialogStateAfter(db, userId, conversation.id, context)
         : undefined;
     return json({

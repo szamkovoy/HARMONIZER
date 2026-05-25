@@ -17,6 +17,7 @@ import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
+import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
   buildOpportunityAlarmStyleContent,
   getExpoNotificationsOrNull,
@@ -391,7 +392,7 @@ function CommunicatorOverlay({
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { profile, signOut, signingIn, refreshProfile } = useAuth();
+  const { authUser, profile, signOut, signingIn, refreshProfile } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const strings = useMemo(
@@ -502,6 +503,9 @@ export default function HomeScreen() {
   const onDevResetDayContent = useCallback(async () => {
     setDevDayResetBusy(true);
     try {
+      if (authUser?.id) {
+        await clearHomeDailyDialogCache(authUser.id);
+      }
       const resetResult = await postGlobalContentDevReset();
       await refresh({ forceRefresh: true });
       setAssistantRemountKey((k) => k + 1);
@@ -515,7 +519,7 @@ export default function HomeScreen() {
     } finally {
       setDevDayResetBusy(false);
     }
-  }, [refresh]);
+  }, [authUser?.id, refresh]);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>

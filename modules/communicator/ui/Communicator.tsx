@@ -787,7 +787,7 @@ export function Communicator({
         const session = await fetchDialogSession({
           useCase,
           entrySource,
-          conversationId: cached?.conversationId ?? conversationId ?? undefined,
+          ...(conversationId ? { conversationId } : {}),
           signal: ac.signal,
         });
         if (cancelled) return;
