@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
-import { inferPlannedEventsFromUserHistory } from "./plannedEventInference";
+import { inferPlannedEventsFromUserHistory, mergePlannedEventMarkers, samePlannedEventIdentity } from "./plannedEventInference";
 
 const TZ = "Europe/Moscow";
 
@@ -50,5 +50,212 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred).toHaveLength(1);
     expect(inferred[0]?.time).toMatch(/18:00/);
     expect(inferred[0]?.desc.toLowerCase()).toContain("созвон");
+  });
+
+  it("ignores low-signal time fragments that do not describe an event", () => {
+    const nowLocal = DateTime.fromISO("2026-05-25T19:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Хотелось бы в 11.30 примерно." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
+  it("strips the practice request tail from a planning sentence", () => {
+    const nowLocal = DateTime.fromISO("2026-05-25T19:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "В 11.20 планирую лечь спать, а пока предложи мне 12 минут дыхательных упражнений." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.time).toBe("в 11.20");
+    expect(inferred[0]?.desc).toBe("лечь спать");
+  });
+
+  it("drops discourse prefixes from planned event descriptions", () => {
+    const nowLocal = DateTime.fromISO("2026-05-25T14:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "И главное, я хочу лечь в 11.30 сегодня." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toBe("лечь спать");
+    expect(inferred[0]?.time).toBe("в 11.30");
+  });
+
+  it("does not create a new plan from a past-tense summary sentence", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T00:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Да, я хорошо выспался этой ночью." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
+  it("infers an evening default for a time-less movie plan", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T14:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Сегодня тоже интересные планы. Хочу посмотреть фильм. Бронсон называется." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toBe("посмотреть фильм");
+    expect(inferred[0]?.time).toBeNull();
+    expect(inferred[0]?.timeNorm).toBe("сегодня вечером");
+  });
+
+  it("treats breakfast words as planning, not as the date word 'tomorrow'", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Хочу позавтракать зеленым коктейлем." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toContain("позавтракать");
+    expect(inferred[0]?.timeNorm).toBe("сегодня утром");
+  });
+
+  it("infers a theater plan from 'хотел бы' without explicit time", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "А еще хотел бы в театр сходить, правда не знаю получится или не получится." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toBe("в театр сходить");
+    expect(inferred[0]?.timeNorm).toBe("сегодня вечером");
+  });
+
+  it("does not resurrect an old planning topic from too far back in history", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [
+        { role: "user", content: "Сегодня заеду в офис за документами." },
+        { role: "user", content: "Сейчас настроение спокойное." },
+        { role: "user", content: "Пока просто делюсь мыслями." },
+        { role: "user", content: "Хочется больше тишины внутри." },
+        { role: "user", content: "Ничего нового сегодня не добавляю." },
+      ],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
+  it("skips causal support clauses when a concrete activity already carries the plan", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{
+        role: "user",
+        content:
+          "А вечером хочу на велосипеде покататься. Потому что нужно ведь и спортом заниматься.",
+      }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toContain("велосипед");
+    expect(inferred[0]?.time).toBe("вечером");
+  });
+
+  it("drops 'думаю, что' wrappers from a timed office plan", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Я думаю, что через полчаса я уже приеду в офис." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toBe("уже приеду в офис");
+    expect(inferred[0]?.time).toBe("через полчаса");
+  });
+
+  it("does not turn vague workload talk into a planned event", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Да, нужно поработать, много дел, я не знаю как пойдет все." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
+  it("recognises a clarification as the same client meeting", () => {
+    expect(samePlannedEventIdentity(
+      "Встреча с клиентом, от которой зависит доход на несколько месяцев",
+      "встречи с клиентом. Договорились встретиться и нужно будет мне проявить некоторое упорство",
+    )).toBe(true);
+  });
+
+  it("recognises a generic time clarification as the same meeting", () => {
+    expect(samePlannedEventIdentity(
+      "Встреча с клиентом, от которой зависит доход на несколько месяцев",
+      "По времени встреча пройдет",
+    )).toBe(true);
+  });
+
+  it("recognises a generic store clarification as the same shopping plan", () => {
+    expect(samePlannedEventIdentity(
+      "в магазин пойти посмотреть моторные лодки",
+      "В магазин я пойду",
+    )).toBe(true);
+  });
+
+  it("prefers the model marker when history clarification describes the same event", () => {
+    const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
+    const merged = mergePlannedEventMarkers(
+      [
+        {
+          desc: "Встреча с клиентом, от которой зависит доход на несколько месяцев",
+          time: "13:00",
+          timeNorm: "13:00",
+          cells: [],
+          snippets: [],
+        },
+      ],
+      [
+        {
+          desc: "встречи с клиентом. Договорились встретиться и нужно будет мне проявить некоторое упорство",
+          time: "в час дня",
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      { nowLocal, tz: TZ, locale: "ru" },
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.desc).toContain("Встреча с клиентом");
+    expect(merged[0]?.time).toBe("13:00");
   });
 });

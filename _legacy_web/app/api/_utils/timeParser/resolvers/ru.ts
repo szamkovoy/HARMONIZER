@@ -5,6 +5,9 @@ import type { ParseEventTimeInput, ResolverResult, TimeResolver } from "../types
 
 type ExplicitPart = "morning" | "day" | "evening" | "night";
 
+const DATE_WORD_BOUNDARY = "(?:^|[\\s,.;:!?()\\\"'])";
+const DATE_WORD_END = "(?=$|[\\s,.;:!?()\\\"'])";
+
 const WORD_HOURS: Record<string, number> = {
   "час": 1,
   "один": 1,
@@ -133,13 +136,13 @@ function inferAmbiguousHour(nowLocal: DateTime, baseDate: DateTime, hour: number
 }
 
 function resolveTargetDate(nowLocal: DateTime, text: string): { date: DateTime; matchedPhrase: string | null; hasExplicitFutureDate: boolean } {
-  if (/послезавтра/.test(text)) {
+  if (new RegExp(`${DATE_WORD_BOUNDARY}послезавтра${DATE_WORD_END}`).test(text)) {
     return { date: nowLocal.plus({ days: 2 }).startOf("day"), matchedPhrase: "послезавтра", hasExplicitFutureDate: true };
   }
-  if (/завтра/.test(text)) {
+  if (new RegExp(`${DATE_WORD_BOUNDARY}завтра${DATE_WORD_END}`).test(text)) {
     return { date: nowLocal.plus({ days: 1 }).startOf("day"), matchedPhrase: "завтра", hasExplicitFutureDate: true };
   }
-  if (/сегодня/.test(text)) {
+  if (new RegExp(`${DATE_WORD_BOUNDARY}сегодня${DATE_WORD_END}`).test(text)) {
     return { date: nowLocal.startOf("day"), matchedPhrase: "сегодня", hasExplicitFutureDate: false };
   }
   for (const weekday of WEEKDAYS) {
@@ -322,7 +325,7 @@ function parseColloquial(text: string, nowLocal: DateTime, targetDate: DateTime,
 
 function parseExact(text: string, nowLocal: DateTime, targetDate: DateTime, hasExplicitFutureDate: boolean): ResolverResult | null {
   const part = detectExplicitPart(text);
-  const hhmm = text.match(/(?:^|\s)(?:в|к)?\s*(\d{1,2}):(\d{2})(?:\s*(утра|дня|вечера|ночи))?/);
+  const hhmm = text.match(/(?:^|\s)(?:(?:около|примерно|где(?:-|\s)?то)\s+)?(?:в|к)?\s*(\d{1,2})[:.](\d{2})(?:\s*(утра|дня|вечера|ночи))?/);
   if (hhmm) {
     const rawHour = Number.parseInt(hhmm[1] ?? "", 10);
     const minute = Number.parseInt(hhmm[2] ?? "", 10);
@@ -340,7 +343,7 @@ function parseExact(text: string, nowLocal: DateTime, targetDate: DateTime, hasE
     }
   }
 
-  const hourWords = text.match(/(?:^|\s)(?:в|к)\s+(\d{1,2}|[а-я]+)(?:\s*час(?:ов|а|ам)?)?(?:\s*(утра|дня|вечера|ночи))?/);
+  const hourWords = text.match(/(?:^|\s)(?:(?:около|примерно|где(?:-|\s)?то)\s+)?(?:в|к)\s+(\d{1,2}|[а-я]+)(?:\s*час(?:ов|а|ам)?)?(?:\s*(утра|дня|вечера|ночи))?/);
   if (hourWords) {
     const rawHour = parseHourToken(hourWords[1]);
     if (rawHour != null) {
@@ -407,6 +410,7 @@ function parseDaypart(text: string, targetDate: DateTime, hasExplicitFutureDate:
 export const ruTimeResolver: TimeResolver = {
   parse(input: ParseEventTimeInput): ResolverResult | null {
     const nowLocal = input.nowLocal.setZone(input.tz || input.nowLocal.zoneName || "UTC");
+    const relativeNowLocal = (input.relativeNowLocal ?? input.nowLocal).setZone(input.tz || input.nowLocal.zoneName || "UTC");
     const normalized = normalizeText(input.phrase);
     if (!normalized) return null;
 
@@ -415,7 +419,7 @@ export const ruTimeResolver: TimeResolver = {
 
     const { date: targetDate, matchedPhrase: datePhrase, hasExplicitFutureDate } = resolveTargetDate(nowLocal, normalized);
 
-    const relative = parseRelative(normalized, nowLocal);
+    const relative = parseRelative(normalized, relativeNowLocal);
     if (relative) return relative;
 
     const range = parseRange(normalized, nowLocal, targetDate, hasExplicitFutureDate);

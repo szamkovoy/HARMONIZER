@@ -5,6 +5,7 @@ import {
   loadHistory,
   todayLocalDate,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
+import { shouldRetryForMissingSummaryMarker } from "./summaryRepair";
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];
@@ -152,5 +153,55 @@ describe("dialog session lifecycle helpers", () => {
         now,
       ),
     ).toBe(true);
+  });
+});
+
+describe("missing summary retry guard", () => {
+  it("retries summary repair for final_without_practice when the single due event was answered", () => {
+    expect(shouldRetryForMissingSummaryMarker({
+      branches: ["summarizing"],
+      summarizeEventsCount: 0,
+      userMessage: "Встреча была непростая, возник конфликт интересов, договорились вернуться к переговорам позже.",
+      dueEvents: [
+        {
+          id: "event-1",
+          description: "Встреча с клиентом",
+          expected_at: "2026-05-26T03:19:00+00:00",
+          planned_at: "2026-05-26T05:40:40.244+00:00",
+          planned_local_date: "2026-05-26",
+          status: "planned",
+          time_phrase_raw: "06:19",
+          time_resolution: "explicit",
+          context_snippets: [],
+          cells: [],
+          outcome_cells: null,
+          outcome_text: null,
+        },
+      ],
+    })).toBe(true);
+  });
+
+  it("does not retry when summary marker is already present", () => {
+    expect(shouldRetryForMissingSummaryMarker({
+      branches: ["summarizing"],
+      summarizeEventsCount: 1,
+      userMessage: "Встреча была непростая, возник конфликт интересов.",
+      dueEvents: [
+        {
+          id: "event-1",
+          description: "Встреча с клиентом",
+          expected_at: "2026-05-26T03:19:00+00:00",
+          planned_at: "2026-05-26T05:40:40.244+00:00",
+          planned_local_date: "2026-05-26",
+          status: "planned",
+          time_phrase_raw: "06:19",
+          time_resolution: "explicit",
+          context_snippets: [],
+          cells: [],
+          outcome_cells: null,
+          outcome_text: null,
+        },
+      ],
+    })).toBe(false);
   });
 });

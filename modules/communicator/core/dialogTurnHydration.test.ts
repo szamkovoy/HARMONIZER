@@ -5,13 +5,22 @@ import {
   mergeCompleteWithSession,
   needsAssistantTurnHydration,
   sessionAssistantMatchesTurn,
+  turnModeCarriesPractice,
 } from "./dialogTurnHydration";
 
 describe("dialogTurnHydration", () => {
-  it("treats fast-track and final recommendation turns as final-like", () => {
+  it("treats practice and no-practice finals as final-like", () => {
     expect(isFinalLikeTurnMode("fast_track_final")).toBe(true);
     expect(isFinalLikeTurnMode("final_recommendation")).toBe(true);
+    expect(isFinalLikeTurnMode("final_without_practice")).toBe(true);
+    expect(isFinalLikeTurnMode("practice_repick")).toBe(true);
     expect(isFinalLikeTurnMode("inquiry")).toBe(false);
+  });
+
+  it("requires practice payload only for card-carrying final turns", () => {
+    expect(turnModeCarriesPractice("final_recommendation")).toBe(true);
+    expect(turnModeCarriesPractice("practice_repick")).toBe(true);
+    expect(turnModeCarriesPractice("final_without_practice")).toBe(false);
   });
 
   it("requests hydration when final complete is missing practicePicked", () => {
@@ -34,6 +43,17 @@ describe("dialogTurnHydration", () => {
       modelUsed: "gemini-test",
       iteration: 3,
       practicePicked: { id: "asana-1", kind: "yoga" },
+    })).toBe(false);
+  });
+
+  it("does not require practicePicked for final_without_practice", () => {
+    expect(needsAssistantTurnHydration({
+      fullText: "Пусть день идет в спокойном темпе.",
+      shouldClose: true,
+      turnMode: "final_without_practice",
+      modelTier: "standard",
+      modelUsed: "gemini-test",
+      iteration: 3,
     })).toBe(false);
   });
 

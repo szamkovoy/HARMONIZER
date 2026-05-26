@@ -45,6 +45,7 @@ import {
   mergeCompleteWithSession,
   needsAssistantTurnHydration,
   sessionAssistantMatchesTurn,
+  turnModeCarriesPractice,
   type SessionAssistantTurnMeta,
 } from "@/modules/communicator/core/dialogTurnHydration";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
@@ -66,6 +67,8 @@ import type {
 import {
   buildClientTurnHistory,
   fetchDialogSession,
+  isPlanningReconcileEndpointMissing,
+  reconcileDialogPlans,
   type DialogCompleteEvent,
   type DialogSessionMessage,
   type DialogueEntrySource,
@@ -128,6 +131,7 @@ type CommunicatorListRow =
 /** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
 const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
 const SESSION_HYDRATION_RETRY_DELAYS_MS = [700, 1400, 2600] as const;
+const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000;
 
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
 const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
@@ -202,6 +206,14 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     planningPersistence: raw.planningPersistence ?? raw.planning_persistence,
     debug: raw.debug,
   };
+}
+
+function hasQueuedPlanningArtifacts(messages: ReadonlyArray<CommunicatorHistoryMessage>): boolean {
+  return messages.some((message) => {
+    const raw = message.meta?.planningPersistence as { queued?: unknown[]; queued_summaries?: unknown[] } | undefined;
+    return (Array.isArray(raw?.queued) && raw.queued.length > 0)
+      || (Array.isArray(raw?.queued_summaries) && raw.queued_summaries.length > 0);
+  });
 }
 
 
@@ -554,7 +566,11 @@ export function Communicator({
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId ?? null);
+  const activeConversationIdRef = useRef<string | null>(conversationId ?? null);
+  activeConversationIdRef.current = activeConversationId;
   const [sessionSynced, setSessionSynced] = useState(false);
+  const planningReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const planningReconcileSignatureRef = useRef<string | null>(null);
   const [txtDraft, setTxtDraft] = useState("");
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
@@ -843,6 +859,51 @@ export function Communicator({
     });
   }, [activeConversationId, entrySource, localDialogUserId, messages, sessionSynced, useCase]);
 
+  useEffect(() => {
+    if (planningReconcileTimerRef.current) {
+      clearTimeout(planningReconcileTimerRef.current);
+      planningReconcileTimerRef.current = null;
+    }
+    if (!sessionSynced || streamBusy || !activeConversationId || messages.length === 0) return;
+    const hasQueuedPlanning = hasQueuedPlanningArtifacts(messages);
+    if (!hasQueuedPlanning) return;
+    const latestMessage = messages[messages.length - 1];
+    if (!latestMessage?.id) return;
+    const signature = `${activeConversationId}:${latestMessage.id}`;
+    planningReconcileTimerRef.current = setTimeout(() => {
+      planningReconcileTimerRef.current = null;
+      if (planningReconcileSignatureRef.current === signature) return;
+      planningReconcileSignatureRef.current = signature;
+      void reconcileDialogPlans({ conversationId: activeConversationId }).catch((error) => {
+        planningReconcileSignatureRef.current = null;
+        if (isPlanningReconcileEndpointMissing(error)) {
+          console.warn(
+            "[Communicator] planning reconcile endpoint is not deployed yet; queued plans stay in trigger_meta until backend is updated.",
+          );
+          return;
+        }
+        logErrorForDevelopers("Communicator planning reconcile", error instanceof Error ? error : new Error(String(error)));
+      });
+    }, PLANNING_RECONCILE_DELAY_MS);
+    return () => {
+      if (planningReconcileTimerRef.current) {
+        clearTimeout(planningReconcileTimerRef.current);
+        planningReconcileTimerRef.current = null;
+      }
+    };
+  }, [activeConversationId, messages, sessionSynced, streamBusy]);
+
+  useEffect(() => {
+    return () => {
+      const conversationIdToFlush = activeConversationIdRef.current;
+      if (!conversationIdToFlush || streamBusyRef.current || !hasQueuedPlanningArtifacts(messagesRef.current)) return;
+      void reconcileDialogPlans({ conversationId: conversationIdToFlush }).catch((error) => {
+        if (isPlanningReconcileEndpointMissing(error)) return;
+        logErrorForDevelopers("Communicator planning reconcile on unmount", error instanceof Error ? error : new Error(String(error)));
+      });
+    };
+  }, []);
+
   const updateScrollDownFlag = useCallback(() => {
     if (scrollHintDismissedRef.current) {
       setShowScrollDown(false);
@@ -1009,8 +1070,11 @@ export function Communicator({
           const sessionMeta = normalizeMessageMeta(last.meta) as SessionAssistantTurnMeta | undefined;
           if (!recovered) {
             if (
-              sessionMeta?.practicePicked
-              && isFinalLikeTurnMode(sessionMeta.turnMode)
+              isFinalLikeTurnMode(sessionMeta?.turnMode)
+              && (
+                !turnModeCarriesPractice(sessionMeta?.turnMode)
+                || Boolean(sessionMeta?.practicePicked)
+              )
               && params.currentText.trim().length > 0
             ) {
               lastHydrationDebugRef.current = {
@@ -1846,6 +1910,13 @@ export function Communicator({
 
   const handlePracticeLaunch = useCallback(
     (practice: PracticePicked, configured: PracticeSummary) => {
+      const conversationIdToFlush = activeConversationIdRef.current;
+      if (conversationIdToFlush && hasQueuedPlanningArtifacts(messagesRef.current)) {
+        void reconcileDialogPlans({ conversationId: conversationIdToFlush }).catch((error) => {
+          if (isPlanningReconcileEndpointMissing(error)) return;
+          logErrorForDevelopers("Communicator planning reconcile before practice", error instanceof Error ? error : new Error(String(error)));
+        });
+      }
       launchPractice(configured.launch, { launchSource: "assistant" });
       onPracticePicked?.(summaryToPractice(practice, configured));
     },

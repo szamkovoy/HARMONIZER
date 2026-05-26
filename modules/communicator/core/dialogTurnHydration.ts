@@ -16,17 +16,28 @@ export type SessionAssistantTurnMeta = {
   recommendationCorrected?: RecommendationCorrected;
 };
 
-export function isFinalLikeTurnMode(turnMode: string | null | undefined): boolean {
-  return turnMode === "final_recommendation"
+export function turnModeCarriesPractice(turnMode: string | null | undefined): boolean {
+  return turnMode === "fast_track_final"
+    || turnMode === "final_recommendation"
     || turnMode === "final_recommendation_with_validation_warning"
     || turnMode === "forced_final"
-    || turnMode === "fast_track_final";
+    || turnMode === "practice_repick";
+}
+
+export function isFinalLikeTurnMode(turnMode: string | null | undefined): boolean {
+  return turnMode === "final_without_practice"
+    || turnMode === "practice_declined"
+    || turnMode === "final_recommendation"
+    || turnMode === "final_recommendation_with_validation_warning"
+    || turnMode === "forced_final"
+    || turnMode === "fast_track_final"
+    || turnMode === "practice_repick";
 }
 
 export function needsAssistantTurnHydration(complete: DialogCompleteEvent | null | undefined): boolean {
   if (!complete) return true;
   if (!complete.turnMode || !complete.modelTier || !complete.modelUsed || complete.iteration == null) return true;
-  if (isFinalLikeTurnMode(complete.turnMode) && !complete.practicePicked) return true;
+  if (turnModeCarriesPractice(complete.turnMode) && !complete.practicePicked) return true;
   return false;
 }
 

@@ -1,6 +1,13 @@
 import { Platform } from "react-native";
 
-import { getAiDialogUrl, getCalibrationExtractUrl, getCommunicatorV2DialogUrl, getCommunicatorV2TranscribeUrl } from "@/services/communicatorConfig";
+import {
+  getAiDialogReconcilePlansUrl,
+  getAiDialogUrl,
+  getCalibrationExtractUrl,
+  getCommunicatorV2DialogReconcilePlansUrl,
+  getCommunicatorV2DialogUrl,
+  getCommunicatorV2TranscribeUrl,
+} from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
@@ -52,7 +59,10 @@ export interface DialogCompleteEvent {
   targetChakra?: { chakraNumber?: number; reason?: string } | null;
   recommendationCorrected?: RecommendationCorrected;
   planningPersistence?: {
+    queued?: unknown[];
+    queued_summaries?: unknown[];
     inserted: unknown[];
+    updated?: unknown[];
     summarized: unknown[];
     skipped: unknown[];
   };
@@ -73,6 +83,10 @@ export type DialogTurnArtifactsEvent = {
 export type DialogTurnHistoryItem = {
   role: "user" | "assistant";
   content: string;
+  meta?: {
+    practicePicked?: PracticePicked;
+    practice_picked?: PracticePicked;
+  };
 };
 
 export interface SendDialogMessageParams {
@@ -116,11 +130,53 @@ export interface SendDialogMessageResult {
   complete: DialogCompleteEvent | null;
 }
 
+export type ReconcileDialogPlansResponse = {
+  applied: boolean;
+  planningPersistence?: DialogCompleteEvent["planningPersistence"] | null;
+};
+
 export interface CalibrationExtractRequest {
   source?: "initial" | "manual_resync" | "auto_aggregated";
   feedbackText?: string;
   conversationDigest?: unknown;
   language?: string;
+}
+
+export async function reconcileDialogPlans(params: {
+  conversationId: string;
+  force?: boolean;
+  signal?: AbortSignal;
+}): Promise<ReconcileDialogPlansResponse> {
+  const token = await getAccessToken();
+  const body = {
+    conversationId: params.conversationId,
+    force: params.force ?? false,
+  };
+  const urls = [getAiDialogReconcilePlansUrl(), getCommunicatorV2DialogReconcilePlansUrl()];
+  let lastError: Error | null = null;
+
+  for (const url of urls) {
+    let res: Response;
+    try {
+      res = await postReconcileDialogPlans(url, token, body, params.signal);
+    } catch (error) {
+      throw wrapConnectivityFailure(error, "communicator-planning-reconcile");
+    }
+    if (res.ok) {
+      return (await res.json().catch(() => ({ applied: false }))) as ReconcileDialogPlansResponse;
+    }
+    const error = await readError(res);
+    lastError = error;
+    if (!isPlanningReconcileEndpointMissing(error)) {
+      throw error;
+    }
+  }
+
+  if (lastError && isPlanningReconcileEndpointMissing(lastError)) {
+    return { applied: false };
+  }
+  if (lastError) throw lastError;
+  return { applied: false };
 }
 
 export interface CalibrationExtractResponse {
@@ -181,6 +237,28 @@ async function readError(res: Response): Promise<Error> {
 
 function isMissingSessionSyncEndpoint(error: Error): boolean {
   return /\bHTTP 40[45]\b|Сервер вернул HTML вместо API \(404\)/i.test(error.message);
+}
+
+export function isPlanningReconcileEndpointMissing(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return isMissingSessionSyncEndpoint(error instanceof Error ? error : new Error(message));
+}
+
+async function postReconcileDialogPlans(
+  url: string,
+  token: string,
+  body: { conversationId: string; force: boolean },
+  signal?: AbortSignal,
+): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
 }
 
 function parseSseBlock(block: string): SseEvent | null {
@@ -263,7 +341,7 @@ function buildDialogPostBody(params: SendDialogMessageParams): Record<string, un
 export const DIALOG_TURN_HISTORY_LIMIT = 40;
 
 export function buildClientTurnHistory(
-  messages: Array<{ role: string; content: string }>,
+  messages: Array<{ role: string; content: string; meta?: Record<string, unknown> }>,
   pendingUserText = "",
   voiceUserAlreadyCommitted = false,
 ): DialogTurnHistoryItem[] {
@@ -272,6 +350,12 @@ export function buildClientTurnHistory(
     .map((message) => ({
       role: message.role as "user" | "assistant",
       content: message.content.trim(),
+      meta:
+        message.meta?.practicePicked && typeof message.meta.practicePicked === "object"
+          ? { practicePicked: message.meta.practicePicked as PracticePicked }
+          : message.meta?.practice_picked && typeof message.meta.practice_picked === "object"
+            ? { practice_picked: message.meta.practice_picked as PracticePicked }
+            : undefined,
     }))
     .filter((message) => message.content.length > 0);
   const trimmedPending = pendingUserText.trim();

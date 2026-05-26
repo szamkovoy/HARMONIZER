@@ -90,7 +90,7 @@ function resolvePublishedGeminiModelId(modelId: string): string {
   return INFORMAL_GEMINI_MODEL_IDS[lower] ?? trimmed;
 }
 
-function resolveEnvModelId(name: "AI_MODEL_STANDARD" | "AI_MODEL_PREMIUM" | "AI_MODEL_FALLBACK"): string | null {
+function resolveEnvModelId(name: "AI_MODEL_STANDARD" | "AI_MODEL_PREMIUM" | "AI_MODEL_FALLBACK" | "AI_MODEL_LOW"): string | null {
   const model = process.env[name]?.trim();
   if (!model) return null;
   return resolvePublishedGeminiModelId(model);
@@ -120,15 +120,30 @@ export function getModelByHint(hint: string | null | undefined, options?: { fall
   if (tier.startsWith("deepseek-")) {
     return rawHint.trim();
   }
-  const model = tier === "premium" ? process.env.AI_MODEL_PREMIUM?.trim() : process.env.AI_MODEL_STANDARD?.trim();
+  const model =
+    tier === "premium"
+      ? process.env.AI_MODEL_PREMIUM?.trim()
+      : tier === "low"
+        ? (process.env.AI_MODEL_LOW?.trim() || process.env.AI_MODEL_STANDARD?.trim())
+        : process.env.AI_MODEL_STANDARD?.trim();
   if (!model) {
     throw new Error(
-      tier === "premium" ? "Missing AI_MODEL_PREMIUM environment variable" : "Missing AI_MODEL_STANDARD environment variable",
+      tier === "premium"
+        ? "Missing AI_MODEL_PREMIUM environment variable"
+        : tier === "low"
+          ? "Missing AI_MODEL_LOW or AI_MODEL_STANDARD environment variable"
+          : "Missing AI_MODEL_STANDARD environment variable",
     );
   }
   const ml = model.toLowerCase();
   if (ml.startsWith("deepseek-")) return model;
   return resolvePublishedGeminiModelId(model);
+}
+
+export function supportsExplicitLlmCache(modelId: string | null | undefined): boolean {
+  const trimmed = modelId?.trim();
+  if (!trimmed) return false;
+  return !isDeepSeekModelId(trimmed);
 }
 
 function httpStatusFromUnknown(error: unknown): number | undefined {
@@ -364,6 +379,7 @@ export async function ensureDialogCache(
   history: GeminiContent[],
   model: string,
 ): Promise<string | null> {
+  if (!supportsExplicitLlmCache(model)) return null;
   const trimmedSystemInstruction = systemInstruction.trim();
   const cacheableHistory = history.filter((item) => item.parts.some((part) => part.text.trim().length > 0));
   if (!conversationId || !trimmedSystemInstruction || cacheableHistory.length === 0) return null;

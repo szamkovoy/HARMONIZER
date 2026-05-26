@@ -5,6 +5,7 @@ export type TimeResolution = "explicit" | "daypart_default" | "fallback_default"
 export interface ParseEventTimeInput {
   phrase: string;
   nowLocal: DateTime;
+  relativeNowLocal?: DateTime;
   tz: string;
   locale?: string | null;
 }

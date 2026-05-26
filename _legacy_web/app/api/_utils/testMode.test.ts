@@ -34,9 +34,10 @@ describe("testMode", () => {
   it("sessionTtlMs stays at real 2h even in test mode", async () => {
     process.env.TEST_MODE_FAST_INTERVALS = "1";
     process.env.TEST_MODE_TIME_DIVISOR = "600";
-    const { sessionTtlMs, sessionResumeTtlMs } = await loadTestMode();
+    const { planningReconciliationDelayMs, sessionTtlMs, sessionResumeTtlMs } = await loadTestMode();
     expect(sessionTtlMs()).toBe(2 * 60 * 60 * 1000);
     expect(sessionResumeTtlMs()).toBe(12_000);
+    expect(planningReconciliationDelayMs()).toBe(1_000);
   });
 
   it("forcedPhaseOrNull returns evening override", async () => {
@@ -68,5 +69,13 @@ describe("testMode", () => {
     delete process.env.TEST_MODE_FORCE_PHASE;
     const { promptLocalHour } = await loadTestMode();
     expect(promptLocalHour(22)).toBe(22);
+  });
+
+  it("effectiveDialogNowLocal aligns the hour with forced phase", async () => {
+    process.env.TEST_MODE_FORCE_PHASE = "day";
+    const { effectiveDialogNowLocal } = await loadTestMode();
+    const actual = DateTime.fromISO("2026-05-25T23:28:45", { zone: "Europe/Moscow" });
+
+    expect(effectiveDialogNowLocal(actual).toFormat("yyyy-MM-dd HH:mm:ss")).toBe("2026-05-25 14:28:00");
   });
 });

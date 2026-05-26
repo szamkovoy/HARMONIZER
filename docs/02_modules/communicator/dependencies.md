@@ -32,7 +32,7 @@ code_refs:
 - `**profile**` (через auth)  
 `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
 - `**assistant**` (транспорт daily dialog)  
-`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); сервер (`resolveTurnHistory`) предпочитает клиентскую ленту над `messages` в БД, где `content` пустой.
+`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn после показа карточки туда подмешивается минимальный `meta.practicePicked`, а сервер (`resolveTurnHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport теперь даёт `reconcileDialogPlans(...)`: `Communicator` после idle-дебаунса вызывает отдельный assistant endpoint для delayed planning reconciliation, а не пишет новые `planned_events` синхронно в live-turn.
 - `**practices**`  
 `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
 `modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams` и `launchPractice(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI.
@@ -57,4 +57,4 @@ code_refs:
 - `**triggerMeta.systemPrompt**` — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - `**fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.
 - **Транспорт SSE на native** — `sendDialogMessage` не использует `fetch` для тела диалога на iOS/Android (часто буферизует весь ответ до конца); там `**XMLHttpRequest`**. Парсер блоков (`parseSseBlock` / `handleSseEvent`) общий с web.
-- **`turnHistory` / session-cache** — рассинхрон лимита (40), формата ролей или ключа кеша (`localDate` в tz) ломает восстановление daily dialog после перезапуска приложения без server-side текста в `messages.content`.
+- **`turnHistory` / session-cache** — рассинхрон лимита (40), формата ролей/минимального `meta.practicePicked` или ключа кеша (`localDate` в tz) ломает восстановление daily dialog после перезапуска приложения без server-side текста в `messages.content`.

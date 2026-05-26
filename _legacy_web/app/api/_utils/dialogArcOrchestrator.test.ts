@@ -11,6 +11,7 @@ describe("decideTurnMode", () => {
   it("keeps planning inquiry focused and does not require exact minutes inside a valid range", () => {
     expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("НЕ уточняй сферу жизни");
     expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("Не проси выбрать точное число внутри диапазона");
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("это асаны");
   });
 
   it("uses inquiry after opening when meditation duration conflicts with catalog", () => {
@@ -138,7 +139,7 @@ describe("decideTurnMode", () => {
     expect(decision.instructionVariables?.practice_refusal_check ?? "").toContain("явного отказа");
   });
 
-  it("uses practice_declined after an explicit refusal", () => {
+  it("uses final_without_practice after an explicit refusal", () => {
     const decision = decideTurnMode(
       [
         {
@@ -152,11 +153,11 @@ describe("decideTurnMode", () => {
       "Практику выполнять я не хочу",
     );
 
-    expect(decision.mode).toBe("practice_declined");
-    expect(decision.instruction).toContain("отказался от практики");
+    expect(decision.mode).toBe("final_without_practice");
+    expect(decision.instruction).toContain("финальный ход диалога без карточки практики");
   });
 
-  it("uses practice_declined for 'времени для практик нет' on the first reply", () => {
+  it("uses final_without_practice for 'времени для практик нет' on the first reply", () => {
     const decision = decideTurnMode(
       [
         {
@@ -170,6 +171,59 @@ describe("decideTurnMode", () => {
       "Через 10 минут вебинар, времени для практик нет.",
     );
 
-    expect(decision.mode).toBe("practice_declined");
+    expect(decision.mode).toBe("final_without_practice");
+  });
+
+  it("uses final_without_practice for 'что касается практики, нет сейчас времени этим заниматься'", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Сколько времени на практику?",
+          meta: { turn_mode: "opening" },
+        },
+      ],
+      2,
+      9,
+      "Что касается практики, нет сейчас времени этим заниматься.",
+    );
+
+    expect(decision.mode).toBe("final_without_practice");
+  });
+
+  it("uses post_recommendation after a picked practice for a thank-you", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Вот практика ниже.",
+          meta: { practice_picked: { id: "practice-1" }, turn_mode: "final_recommendation" },
+        },
+      ],
+      3,
+      9,
+      "Спасибо.",
+    );
+
+    expect(decision.mode).toBe("post_recommendation");
+    expect(decision.modelTier).toBe("standard");
+  });
+
+  it("uses practice_repick when the user asks for another practice after an offer", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Вот практика ниже.",
+          meta: { practice_picked: { id: "practice-1" }, turn_mode: "final_recommendation" },
+        },
+      ],
+      3,
+      9,
+      "Предложи другую практику, эту я уже делал.",
+    );
+
+    expect(decision.mode).toBe("practice_repick");
+    expect(decision.modelTier).toBe("premium");
   });
 });

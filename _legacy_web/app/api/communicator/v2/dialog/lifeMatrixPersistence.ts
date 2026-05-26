@@ -11,14 +11,18 @@ import {
   type DenseMatrix,
   type MatrixCell,
 } from "@legacy/app/api/_utils/lifeMatrix";
-import { hoursToMs } from "@legacy/app/api/_utils/testMode";
+import { samePlannedEventIdentity } from "@legacy/app/api/_utils/plannedEventInference";
 
 const PLANNED_EVENT_EXPIRY_HOURS = 36;
-const PLANNED_EVENT_EXPIRY_MS = hoursToMs(PLANNED_EVENT_EXPIRY_HOURS);
+// Test mode accelerates anti-replan/session TTLs, but summary availability for
+// planned events stays on real wall-clock time so QA can still revisit a due
+// event after manually shifting it into the past.
+const PLANNED_EVENT_EXPIRY_MS = PLANNED_EVENT_EXPIRY_HOURS * 60 * 60 * 1000;
 export const PROFILE_REPORT_SNAPSHOT_VERSION = 1;
 
 export type PlannedEventRow = {
   id: string;
+  conversation_id?: string | null;
   description: string;
   expected_at: string;
   planned_at: string;
@@ -80,6 +84,68 @@ function mergeUniqueStrings(existing: string[], incoming: string[]): string[] {
   return [...new Set([...existing, ...incoming].filter((value) => value.trim()))];
 }
 
+function mergeUnknownArrays(left: unknown, right: unknown): unknown[] {
+  const values = [
+    ...(Array.isArray(left) ? left : []),
+    ...(Array.isArray(right) ? right : []),
+  ];
+  const seen = new Set<string>();
+  const merged: unknown[] = [];
+  for (const value of values) {
+    const key = JSON.stringify(value);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(value);
+  }
+  return merged;
+}
+
+function minuteKey(iso: string): string {
+  const parsed = new Date(Date.parse(iso));
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 16) : iso;
+}
+
+function isSemanticallyDuplicatePlannedRow(left: PlannedEventRow, right: PlannedEventRow): boolean {
+  if (left.status !== "planned" || right.status !== "planned") return false;
+  if (left.planned_local_date !== right.planned_local_date) return false;
+  if (!samePlannedEventIdentity(left.description, right.description)) return false;
+  return (
+    minuteKey(left.expected_at) === minuteKey(right.expected_at)
+    || left.time_resolution !== "explicit"
+    || right.time_resolution !== "explicit"
+  );
+}
+
+function rowQualityScore(row: PlannedEventRow): number {
+  const explicitScore = row.time_resolution === "explicit" ? 1000 : row.time_resolution === "daypart_default" ? 100 : 10;
+  const cellScore = asMatrixCells(row.cells).length * 20;
+  const snippetScore = (Array.isArray(row.context_snippets) ? row.context_snippets.length : 0) * 5;
+  const descriptionScore = row.description.trim().length;
+  const plannedAtScore = Date.parse(row.planned_at);
+  return explicitScore + cellScore + snippetScore + descriptionScore + (Number.isFinite(plannedAtScore) ? plannedAtScore / 1_000_000_000_000 : 0);
+}
+
+function collapseDuplicatePlannedRows(rows: PlannedEventRow[]): PlannedEventRow[] {
+  const collapsed: PlannedEventRow[] = [];
+  for (const row of rows) {
+    const duplicateIndex = collapsed.findIndex((existing) => isSemanticallyDuplicatePlannedRow(existing, row));
+    if (duplicateIndex < 0) {
+      collapsed.push(row);
+      continue;
+    }
+    const existing = collapsed[duplicateIndex]!;
+    const keepIncoming = rowQualityScore(row) >= rowQualityScore(existing);
+    const keeper = keepIncoming ? row : existing;
+    const shadow = keepIncoming ? existing : row;
+    collapsed[duplicateIndex] = {
+      ...keeper,
+      context_snippets: mergeUnknownArrays(keeper.context_snippets, shadow.context_snippets),
+      cells: normalizeCells([...asMatrixCells(keeper.cells), ...asMatrixCells(shadow.cells)]),
+    };
+  }
+  return collapsed;
+}
+
 export async function expireStalePlannedEvents(db: SupabaseClient, userId: string, nowIso: string): Promise<string[]> {
   const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_MS).toISOString();
   const { data, error } = await db
@@ -87,7 +153,9 @@ export async function expireStalePlannedEvents(db: SupabaseClient, userId: strin
     .select("id,planned_local_date")
     .eq("user_id", userId)
     .eq("status", "planned")
-    .lt("planned_at", cutoffIso);
+    // Summary availability is anchored to when the event was supposed to happen,
+    // not when the plan row happened to be created.
+    .lt("expected_at", cutoffIso);
   if (error) throw error;
   const expiredRows = (data ?? []) as Array<{ id: string; planned_local_date: string }>;
   if (!expiredRows.length) return [];
@@ -114,10 +182,10 @@ export async function loadDuePlannedEvents(db: SupabaseClient, userId: string, n
     .eq("user_id", userId)
     .eq("status", "planned")
     .lte("expected_at", nowIso)
-    .gte("planned_at", cutoffIso)
+    .gte("expected_at", cutoffIso)
     .order("expected_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as PlannedEventRow[];
+  return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
 }
 
 export async function loadOpenPlannedEventsForConversation(
@@ -132,7 +200,24 @@ export async function loadOpenPlannedEventsForConversation(
     .eq("conversation_id", conversationId)
     .eq("status", "planned");
   if (error) throw error;
-  return (data ?? []) as PlannedEventRow[];
+  return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
+}
+
+export async function loadOpenPlannedEventsForUserHorizon(
+  db: SupabaseClient,
+  userId: string,
+  localDates: string[],
+): Promise<PlannedEventRow[]> {
+  const uniqueDates = [...new Set(localDates.filter(Boolean))];
+  if (!uniqueDates.length) return [];
+  const { data, error } = await db
+    .from("planned_events")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,conversation_id")
+    .eq("user_id", userId)
+    .eq("status", "planned")
+    .in("planned_local_date", uniqueDates);
+  if (error) throw error;
+  return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
 }
 
 export async function loadLastPlanningSummary(db: SupabaseClient, userId: string): Promise<{ generated_at: string | null } | null> {

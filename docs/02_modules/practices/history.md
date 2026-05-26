@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.9
-updated: 2026-05-23
+version: 1.10
+updated: 2026-05-26
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-26:** Assistant-facing длительности выровнены по нижней границе каталога: серверный `markers.ts` теперь трактует `короткую` / `minimal` практику без числа минут как `1` мин для медитации, `5` мин для дыхания и `20` мин для асан. Это убирает лишний уточняющий вопрос перед карточкой и синхронизирует server inference с шагами `assistantSelectableDurations.ts`.
 - **2026-05-23:** Диапазон медитации в карточке практики и в статическом каталоге выровнен с daily dialog: `assistantSelectableDurations.ts` и `PracticeCard.tsx` теперь допускают только **1–5 минут** (не 1–10), а `STATIC_MEDITATIONS` в `catalog.ts` ограничивает `maxDurationSec` тем же потолком. Это убирает расхождение между серверным `catalogDurationRangeForKind("meditation")`, активным prompt `dialog_system_v3` и клиентским выбором минут.
 - **2026-05-19 (pre-push doc-sync):** Серверный **`route.ts`** импортирует шаги длительности карточки через **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`** для Vercel-only deploy); клиентский канонический файл без изменения контракта. **`spec.md`**, **`dependencies.md`**, **`assistant/dependencies.md`**, **`MAP.md`**, **`CHANGELOG.md`**.
 - **2026-05-14 (doc-sync):** **`spec.md`** — лог **`[PRACTICE_CARD_MISMATCH]`** в **`PracticeCard`**: добавлено поле **`source: "practice_card_client_sync"`**; **`dependencies.md`** — явная связь **`route.ts`** ↔ **`assistantSelectableDurations.ts`**; **`MAP.md`**, **`CHANGELOG.md`**.

@@ -10,8 +10,10 @@ import { tonalRegisterForPlanet } from "@legacy/app/api/_utils/dialogTonalRegist
 import { formatLifeSpheresBaselineForPrompt } from "@legacy/app/api/_utils/lifeSpheresBaseline";
 import { normalizeCells } from "@legacy/app/api/_utils/lifeMatrix";
 import {
+  ensureDialogCache,
   generateGeminiText,
   getModelByHint,
+  supportsExplicitLlmCache,
   streamGeminiText,
   type GeminiContent,
 } from "@legacy/app/api/_utils/gemini";
@@ -23,11 +25,10 @@ import {
   validateHistoryHasDurationAndType,
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
-import { canonicalizeTimeResolution, parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
-import { isDebugDialogExportEnabled, promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
+import { effectiveDialogNowLocal, isDebugDialogExportEnabled, promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import { buildDialogStateAfter, buildTurnDebugExport, capturePlanningSnapshotIfNeeded, type PlanningPersistenceTurn } from "@legacy/app/api/communicator/v2/dialog/dialogDebugExport";
@@ -37,7 +38,6 @@ import {
   loadHistory,
   MESSAGE_HISTORY_LIMIT,
   resolveTurnHistory,
-  SESSION_TTL_MS,
   summarizeConversationIfNeeded,
   type ConversationRecord,
   type MessageRecord,
@@ -47,14 +47,12 @@ import {
   buildPracticeCardSummary,
   normalizeModelPracticeCardBlurb,
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
+import { shouldRetryForMissingSummaryMarker } from "@legacy/app/api/communicator/v2/dialog/summaryRepair";
 import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
   asMatrixCells,
-  mergeSummarizedEventIntoDailyMatrix,
-  loadOpenPlannedEventsForConversation,
-  rebuildProfileReportSnapshot,
+  loadOpenPlannedEventsForUserHorizon,
   upsertConversationSummary,
-  upsertDailyMatrixForDate,
   type PlannedEventRow,
 } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import {
@@ -63,6 +61,12 @@ import {
   mergePlannedEventMarkers,
 } from "@legacy/app/api/_utils/plannedEventInference";
 import { choosePractice, publicPracticePickedPayload } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
+import {
+  enqueueSummaryCandidates,
+  enqueuePlanningCandidates,
+  pendingSummaryEventIds,
+  reconcilePendingPlanningCandidates,
+} from "@legacy/app/api/communicator/v2/dialog/planningReconciliation";
 import {
   clipDurationMinutesToSelectableMinutes,
   PRACTICE_CARD_DURATION_MISMATCH_THRESHOLD_MIN,
@@ -95,10 +99,12 @@ type ResponseMode =
   | "inquiry"
   | "forced_final"
   | "fast_track_final"
+  | "final_without_practice"
   | "post_recommendation"
-  | "practice_declined"
+  | "practice_repick"
   | "final_recommendation"
   | "final_recommendation_with_validation_warning";
+type ResponseMarkers = ReturnType<typeof parseResponseMarkers>;
 
 const CHAKRA_LABEL_ACCUSATIVE_RU: Record<string, string> = {
   "Муладхара": "Муладхару",
@@ -196,6 +202,8 @@ function expandOrchestratorInstruction(
   });
 }
 
+type OrchestratorInstructionPlaceholders = Parameters<typeof expandOrchestratorInstruction>[1];
+
 function forecastHarmoniousness(forecast: LoadedContext["forecast"]): number {
   const planetState = (forecast?.today_planet_state ?? forecast?.todayPlanetState ?? {}) as {
     naturalHarmoniousness?: unknown;
@@ -278,8 +286,9 @@ function turnDecisionEvent(mode: ResponseMode, modelTier: "premium" | "standard"
     inquiry: "deepen_inquiry",
     forced_final: "suggest_practice",
     fast_track_final: "suggest_practice",
+    final_without_practice: "confirm_and_close",
+    practice_repick: "suggest_practice",
     post_recommendation: "confirm_and_close",
-    practice_declined: "confirm_and_close",
     final_recommendation: "suggest_practice",
     final_recommendation_with_validation_warning: "suggest_practice",
   };
@@ -376,6 +385,7 @@ function buildDialogSystemInstruction(
   promptTemplate: string,
   context: LoadedContext,
   branches: DialogBranch[],
+  openPlannedEventsForUserHorizon: PlannedEventRow[],
 ): {
   systemInstruction: string;
   planet: Planet;
@@ -409,7 +419,7 @@ function buildDialogSystemInstruction(
         local_hour: promptHour,
         phase_time: context.phaseTime,
         branches: branches.join(",") || "none",
-        due_events: formatDueEvents(context.dueEvents),
+        due_events: formatDueEvents(context.dueEvents, context.nowLocal, context.user.locale),
         matrix_ready: context.matrixReady ? "true" : "false",
         target_chakra: String(context.targetChakra.chakraNumber),
         target_explain: context.targetChakra.explain,
@@ -431,7 +441,12 @@ function buildDialogSystemInstruction(
         lexical_pragmatic: joinLines(chakraData.lexical_registers.pragmatic),
         address_form: context.user.address_form === "informal" ? "ты" : "вы",
         tonal_register: tonalRegisterForPlanet(planet),
-        historical_context: "",
+        historical_context: formatOpenPlansHistoricalContext({
+          dueEvents: context.dueEvents,
+          openPlans: openPlannedEventsForUserHorizon,
+          nowLocal: context.nowLocal,
+          locale: context.user.locale,
+        }),
         user_self_description: "",
       },
     ),
@@ -443,12 +458,109 @@ function buildDialogSystemInstruction(
   };
 }
 
-function formatDueEvents(events: LoadedContext["dueEvents"]): string {
+function dueEventWhenLabel(
+  event: Pick<PlannedEventRow, "expected_at" | "time_phrase_raw" | "time_resolution">,
+  nowLocal: DateTime,
+  locale?: string | null,
+): string {
+  const zone = nowLocal.zoneName ?? "UTC";
+  const eventLocal = DateTime.fromISO(event.expected_at, { zone }).setZone(zone);
+  if (!eventLocal.isValid) return event.expected_at;
+  const localeSafe = locale?.startsWith("en") ? "en" : "ru";
+  const dayDiff = Math.round(eventLocal.startOf("day").diff(nowLocal.startOf("day"), "days").days);
+  const timeText = eventLocal.setLocale(localeSafe).toFormat("HH:mm");
+  const approximateTime =
+    event.time_resolution !== "explicit" && event.time_phrase_raw
+      ? event.time_phrase_raw.trim()
+      : null;
+
+  if (localeSafe === "ru") {
+    if (approximateTime) {
+      return `${approximateTime} (время не уточнялось пользователем, ${timeText} служебное)`;
+    }
+    if (dayDiff === 0) return `сегодня около ${timeText}`;
+    if (dayDiff === -1) return `вчера около ${timeText}`;
+    return `${eventLocal.toFormat("dd.MM")} около ${timeText}`;
+  }
+
+  if (approximateTime) {
+    return `${approximateTime} (user did not specify the exact time, ${timeText} is synthetic)`;
+  }
+  if (dayDiff === 0) return `today around ${timeText}`;
+  if (dayDiff === -1) return `yesterday around ${timeText}`;
+  return `${eventLocal.toFormat("dd.MM")} around ${timeText}`;
+}
+
+function formatDueEvents(events: LoadedContext["dueEvents"], nowLocal: DateTime, locale?: string | null): string {
   if (!events.length) return "none";
   return events
     .slice(0, 5)
-    .map((event, index) => `${index + 1}. ${event.description} @ ${event.expected_at}`)
+    .map((event, index) => `${index + 1}. ${event.description} @ ${dueEventWhenLabel(event, nowLocal, locale)}`)
     .join("\n");
+}
+
+function formatOpenPlansHistoricalContext(params: {
+  dueEvents: LoadedContext["dueEvents"];
+  openPlans: PlannedEventRow[];
+  nowLocal: DateTime;
+  locale?: string | null;
+}): string {
+  const localeSafe = params.locale?.startsWith("en") ? "en" : "ru";
+  const dueIds = new Set(params.dueEvents.map((event) => event.id));
+  const today = params.nowLocal.toFormat("yyyy-MM-dd");
+  const tomorrow = params.nowLocal.plus({ days: 1 }).toFormat("yyyy-MM-dd");
+  const formatPlan = (event: PlannedEventRow, index: number) => {
+    const eventLocal = DateTime.fromISO(event.expected_at, { zone: params.nowLocal.zoneName ?? "UTC" })
+      .setZone(params.nowLocal.zoneName ?? "UTC");
+    const timeText = eventLocal.isValid ? eventLocal.toFormat("HH:mm") : "??:??";
+    const approximateTime =
+      event.time_resolution !== "explicit" && event.time_phrase_raw
+        ? event.time_phrase_raw.trim()
+        : null;
+    const label = approximateTime
+      ? (localeSafe === "ru"
+          ? `${approximateTime} (время не уточнялось пользователем, ${timeText} служебное)`
+          : `${approximateTime} (user did not specify the exact time, ${timeText} is synthetic)`)
+      : timeText;
+    return `${index + 1}. ${event.description} @ ${label}`;
+  };
+  const laterToday = params.openPlans
+    .filter((event) => !dueIds.has(event.id) && event.planned_local_date === today)
+    .slice(0, 5);
+  const tomorrowPlans = params.openPlans
+    .filter((event) => !dueIds.has(event.id) && event.planned_local_date === tomorrow)
+    .slice(0, 5);
+  const sections: string[] = [];
+
+  if (params.dueEvents.length) {
+    sections.push(
+      localeSafe === "ru"
+        ? `Уже наступили / готовы к подытоживанию:\n${formatDueEvents(params.dueEvents, params.nowLocal, params.locale)}`
+        : `Due now / ready to summarize:\n${formatDueEvents(params.dueEvents, params.nowLocal, params.locale)}`,
+    );
+  }
+  if (laterToday.length) {
+    sections.push(
+      localeSafe === "ru"
+        ? `Открытые планы позже сегодня:\n${laterToday.map(formatPlan).join("\n")}`
+        : `Open plans later today:\n${laterToday.map(formatPlan).join("\n")}`,
+    );
+  }
+  if (tomorrowPlans.length) {
+    sections.push(
+      localeSafe === "ru"
+        ? `Открытые планы на завтра:\n${tomorrowPlans.map(formatPlan).join("\n")}`
+        : `Open plans for tomorrow:\n${tomorrowPlans.map(formatPlan).join("\n")}`,
+    );
+  }
+
+  if (!sections.length) return "none";
+
+  const guidance = localeSafe === "ru"
+    ? "Используй этот сохранённый planning-context как реальную часть картины дня. Если здесь уже видно несколько конкретных планов, не вытягивай из пользователя ещё одну расплывчатую структуру дня, если он сам не ввёл новое явное событие."
+    : "Use this stored planning context as a real part of the day picture. If it already shows several concrete plans, do not keep fishing for more vague schedule structure unless the user clearly introduces a new event.";
+
+  return `${guidance}\n\n${sections.join("\n\n")}`;
 }
 
 function formatTop3Planets(top3: LoadedContext["top3Planets"]): string {
@@ -610,6 +722,44 @@ async function resolvePracticePublic(
   };
 }
 
+function exactPracticeDurationInstruction(params: {
+  validation: ValidationResult | null;
+  locale: string | null | undefined;
+}): string {
+  const validation = params.validation;
+  if (!validation?.confident || validation.durationSec == null || !validation.practiceKind) return "";
+  const durationMin = Math.round(validation.durationSec / 60);
+  const isEnglish = (params.locale ?? "ru").toLowerCase().startsWith("en");
+  const kindLabel = isEnglish
+    ? ({
+        meditation: "meditation",
+        breath: "breathing practice",
+        yoga: "asana practice",
+      } as const)[validation.practiceKind]
+    : ({
+        meditation: "медитация",
+        breath: "дыхательная практика",
+        yoga: "практика асан",
+      } as const)[validation.practiceKind];
+  return isEnglish
+    ? `IMPORTANT FOR THIS TURN: the server already validated the requested practice as ${kindLabel} for exactly ${durationMin} min. In the visible text, especially in the bridge-to-practice block, mention only this type and this duration. Do not write a different duration.`
+    : `ВАЖНО ДЛЯ ЭТОГО ХОДА: сервер уже подтвердил запрос пользователя на практику: ${kindLabel}, ровно ${durationMin} мин. В видимом тексте, особенно в мостике к практике, называй только этот тип и эту длительность. Не пиши другую длительность.`;
+}
+
+function buildFinalInstructionText(params: {
+  baseInstruction: string;
+  placeholders: OrchestratorInstructionPlaceholders;
+  validation: ValidationResult | null;
+  locale: string | null | undefined;
+}): string {
+  const base = expandOrchestratorInstruction(params.baseInstruction, params.placeholders);
+  const durationLock = exactPracticeDurationInstruction({
+    validation: params.validation,
+    locale: params.locale,
+  });
+  return durationLock ? `${base}\n\n${durationLock}` : base;
+}
+
 function branchLabel(branches: DialogBranch[]): "planning" | "summarizing" | "both" | "free" | "none" {
   const hasSummarizing = branches.includes("summarizing");
   const hasPlanning = branches.includes("planning");
@@ -654,127 +804,148 @@ function branchRepairInstruction(branches: DialogBranch[]): string {
   return `Продолжи этот же диалог, но не переходи к рекомендации практики прямо сейчас. ${parts.join("; ")}. Не выводи [READY_FOR_RECOMMENDATION], пока эти маркеры не добавлены.`;
 }
 
+function missingSummaryRepairInstruction(turnMode: ResponseMode, branches: DialogBranch[]): string {
+  if (turnMode === "final_without_practice") {
+    return "Пользователь уже описал итог наступившего события и одновременно отказался от практики. Сохрани короткий закрывающий ответ без практики, но обязательно добавь invisible marker [SUMMARIZE_EVENT: ...] по этому событию. Не выводи [PRACTICE_PICK] и [READY_FOR_RECOMMENDATION].";
+  }
+  return branchRepairInstruction(branches);
+}
+
+function turnModeCarriesPracticeCard(turnMode: ResponseMode): boolean {
+  return turnMode === "final_recommendation"
+    || turnMode === "final_recommendation_with_validation_warning"
+    || turnMode === "forced_final"
+    || turnMode === "fast_track_final"
+    || turnMode === "practice_repick";
+}
+
+function isTerminalFinalTurnMode(turnMode: ResponseMode): boolean {
+  return turnMode === "forced_final" || turnMode === "final_without_practice";
+}
+
+function mergeResponseMarkersForPersistence(base: ResponseMarkers, carried: ResponseMarkers | null): ResponseMarkers {
+  if (!carried) return base;
+
+  const summarizeSeen = new Set<string>();
+  const summarizeEvents = [...carried.summarizeEvents, ...base.summarizeEvents].filter((event) => {
+    const key = `${event.ref}|${event.outcome ?? ""}|${JSON.stringify(event.outcomeCells)}`;
+    if (summarizeSeen.has(key)) return false;
+    summarizeSeen.add(key);
+    return true;
+  });
+
+  const stateSeen = new Set<string>();
+  const stateProposals = [...carried.stateProposals, ...base.stateProposals].filter((event) => {
+    const key = `${event.proposed_planet}|${event.proposed_label}|${event.proposed_polarity}|${event.trigger_phrase ?? ""}`;
+    if (stateSeen.has(key)) return false;
+    stateSeen.add(key);
+    return true;
+  });
+
+  return {
+    stateProposals,
+    practicePick: base.practicePick ?? carried.practicePick,
+    recommendationCorrection: base.recommendationCorrection ?? carried.recommendationCorrection,
+    plannedEvents: mergePlannedEventMarkers(carried.plannedEvents, base.plannedEvents),
+    summarizeEvents,
+    planTomorrow: base.planTomorrow || carried.planTomorrow,
+    matrixCells: normalizeCells([...carried.matrixCells, ...base.matrixCells]),
+  };
+}
+
 async function persistDialogArtifacts(params: {
   db: SupabaseClient;
   userId: string;
   conversationId: string;
+  conversationTriggerMeta: Record<string, unknown> | null | undefined;
   context: LoadedContext;
+  openPlannedEventsForUserHorizon: PlannedEventRow[];
   branches: DialogBranch[];
   markers: ReturnType<typeof parseResponseMarkers>;
   assistantText: string;
 }) {
   const nowIso = params.context.nowLocal.toUTC().toISO() ?? new Date().toISOString();
-  const timezone = params.context.user.tz ?? "UTC";
-  const locale = params.context.user.locale ?? "ru";
   const effectiveBranches = [...new Set([...params.branches, ...(params.markers.planTomorrow ? ["planning" as const] : [])])];
   const relatedEventIds: string[] = [];
-  const plannedDatesToRefresh = new Set<string>();
   const skippedPlannedEvents: PlanningPersistenceTurn["skipped"] = [];
+  const queuedPlannedEvents: PlanningPersistenceTurn["queued"] = [];
+  const queuedSummaries: PlanningPersistenceTurn["queued_summaries"] = [];
   const insertedPlannedEvents: PlanningPersistenceTurn["inserted"] = [];
+  const updatedPlannedEvents: PlanningPersistenceTurn["updated"] = [];
   const summarizedPlannedEvents: PlanningPersistenceTurn["summarized"] = [];
   const inferredCells = normalizeCells([
     ...params.markers.matrixCells,
     ...params.markers.plannedEvents.flatMap((event) => event.cells),
     ...params.markers.summarizeEvents.flatMap((event) => event.outcomeCells),
   ]);
-
-  for (const event of params.markers.plannedEvents) {
-    const parsedTime = parseEventTime({
-      phrase: event.timeNorm ?? event.time ?? event.desc,
-      nowLocal: params.context.nowLocal,
-      tz: timezone,
-      locale,
+  let pendingTriggerMeta = params.conversationTriggerMeta;
+  if (params.markers.plannedEvents.length > 0) {
+    const pendingPlanning = await enqueuePlanningCandidates({
+      db: params.db,
+      userId: params.userId,
+      conversationId: params.conversationId,
+      triggerMeta: pendingTriggerMeta,
+      candidates: params.markers.plannedEvents,
+      nowIso,
     });
-    const dayDelta = Math.round(
-      parsedTime.expectedLocal.startOf("day").diff(params.context.nowLocal.startOf("day"), "days").days,
-    );
-    if (dayDelta < 0 || dayDelta > 1) {
-      skippedPlannedEvents.push({
-        desc: event.desc,
-        time: event.time,
-        time_norm: event.timeNorm,
-        reason: "beyond_supported_horizon",
-        resolved_local_date: parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
-      });
-      continue;
+    if (pendingPlanning) {
+      pendingTriggerMeta = {
+        ...(pendingTriggerMeta ?? {}),
+        pending_planning_reconciliation: pendingPlanning,
+      };
+      queuedPlannedEvents.push(
+        ...pendingPlanning.planning_candidates.map((candidate) => ({
+          candidate_id: candidate.candidate_id,
+          desc: candidate.desc,
+          time: candidate.time,
+          timeNorm: candidate.timeNorm,
+          snippets: candidate.snippets,
+          cells: candidate.cells,
+          queued_at: candidate.queued_at,
+        })),
+      );
     }
-
-    const insertPayload = {
-      user_id: params.userId,
-      conversation_id: params.conversationId,
-      planned_at: nowIso,
-      planned_local_date: parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
-      expected_at: parsedTime.expectedUtc,
-      time_phrase_raw: event.time ?? event.timeNorm,
-      time_resolution: canonicalizeTimeResolution(parsedTime.resolution),
-      description: event.desc,
-      context_snippets: event.snippets,
-      cells: event.cells,
-      status: "planned",
-    };
-    const { data, error } = await params.db.from("planned_events").insert(insertPayload).select("id,conversation_id,planned_at,planned_local_date,expected_at,time_phrase_raw,time_resolution,description,context_snippets,cells,status").single();
-    if (error) throw error;
-    if (data?.id) {
-      relatedEventIds.push(data.id as string);
-      insertedPlannedEvents.push({
-        id: String(data.id),
-        conversation_id: typeof data.conversation_id === "string" ? data.conversation_id : params.conversationId,
-        description: String(data.description ?? event.desc),
-        planned_at: typeof data.planned_at === "string" ? data.planned_at : nowIso,
-        planned_local_date: typeof data.planned_local_date === "string" ? data.planned_local_date : parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
-        expected_at: String(data.expected_at ?? parsedTime.expectedUtc),
-        time_phrase_raw: typeof data.time_phrase_raw === "string" ? data.time_phrase_raw : event.time ?? event.timeNorm,
-        time_resolution: typeof data.time_resolution === "string" ? data.time_resolution : canonicalizeTimeResolution(parsedTime.resolution),
-        status: String(data.status ?? "planned"),
-        context_snippets: Array.isArray(data.context_snippets) ? data.context_snippets : event.snippets,
-        cells: asMatrixCells(data.cells ?? event.cells),
-      });
-    }
-    if (data?.planned_local_date) plannedDatesToRefresh.add(String(data.planned_local_date));
   }
 
+  const summaryQueuePayload: Array<{
+    event: PlannedEventRow;
+    outcome: string | null;
+    proposedOutcomeCells: ReturnType<typeof asMatrixCells>;
+  }> = [];
   for (const summary of params.markers.summarizeEvents) {
     const resolved = resolveSummarizedEvent(summary.ref, params.context.dueEvents);
     if (!resolved) continue;
-    await mergeSummarizedEventIntoDailyMatrix(
-      params.db,
-      params.userId,
-      resolved.planned_local_date,
-      summary.outcomeCells,
-      nowIso,
-    );
-    const { error: deleteError } = await params.db
-      .from("planned_events")
-      .delete()
-      .eq("user_id", params.userId)
-      .eq("id", resolved.id);
-    if (deleteError) throw deleteError;
-    relatedEventIds.push(resolved.id);
-    summarizedPlannedEvents.push({
-      id: resolved.id,
-      conversation_id: null,
-      description: resolved.description,
-      planned_at: resolved.planned_at,
-      planned_local_date: resolved.planned_local_date,
-      expected_at: resolved.expected_at,
-      time_phrase_raw: resolved.time_phrase_raw,
-      time_resolution: resolved.time_resolution,
-      status: "summarized",
-      context_snippets: Array.isArray(resolved.context_snippets) ? resolved.context_snippets : [],
-      cells: asMatrixCells(resolved.cells),
-      summarized_at: nowIso,
-      outcome_text: summary.outcome,
-      outcome_cells: asMatrixCells(summary.outcomeCells),
-      matched_ref: summary.ref,
+    summaryQueuePayload.push({
+      event: resolved,
+      outcome: summary.outcome,
+      proposedOutcomeCells: asMatrixCells(summary.outcomeCells),
     });
   }
-
-  for (const localDate of plannedDatesToRefresh) {
-    await upsertDailyMatrixForDate(params.db, params.userId, localDate, nowIso);
-  }
-
-  if (params.markers.summarizeEvents.length > 0) {
-    await rebuildProfileReportSnapshot(params.db, params.userId, nowIso);
+  if (summaryQueuePayload.length > 0) {
+    const pendingArtifacts = await enqueueSummaryCandidates({
+      db: params.db,
+      userId: params.userId,
+      conversationId: params.conversationId,
+      triggerMeta: pendingTriggerMeta,
+      candidates: summaryQueuePayload,
+      nowIso,
+    });
+    if (pendingArtifacts) {
+      pendingTriggerMeta = {
+        ...(pendingTriggerMeta ?? {}),
+        pending_planning_reconciliation: pendingArtifacts,
+      };
+      queuedSummaries.push(
+        ...pendingArtifacts.summary_candidates.map((candidate) => ({
+          candidate_id: candidate.candidate_id,
+          event_id: candidate.event_id,
+          description: candidate.description,
+          outcome: candidate.outcome,
+          proposed_outcome_cells: candidate.proposed_outcome_cells,
+          queued_at: candidate.queued_at,
+        })),
+      );
+    }
   }
 
   const branch = branchLabel(effectiveBranches);
@@ -796,7 +967,10 @@ async function persistDialogArtifacts(params: {
     inferredCells,
     skippedPlannedEvents,
     planningPersistence: {
+      queued: queuedPlannedEvents,
+      queued_summaries: queuedSummaries,
       inserted: insertedPlannedEvents,
+      updated: updatedPlannedEvents,
       summarized: summarizedPlannedEvents,
       skipped: skippedPlannedEvents,
     } satisfies PlanningPersistenceTurn,
@@ -898,6 +1072,31 @@ export async function GET(req: Request) {
     }
     if (!conversation) return json({ conversationId: null, messages: [], reset: true });
 
+    const planningHorizonLocalDates = [
+      context.nowLocal.toFormat("yyyy-MM-dd"),
+      context.nowLocal.plus({ days: 1 }).toFormat("yyyy-MM-dd"),
+    ];
+    if (!debugExport) {
+      const reconciledPending = await reconcilePendingPlanningCandidates({
+        db,
+        userId,
+        conversation,
+        nowLocal: context.nowLocal,
+        eventParseNowLocal: effectiveDialogNowLocal(context.nowLocal),
+        eventParseRelativeNowLocal: context.nowLocal,
+        timezone: userTimezone,
+        locale: context.user.locale ?? "ru",
+        dueEvents: context.dueEvents,
+        planningHorizonLocalDates,
+      });
+      if (reconciledPending.triggerMeta) {
+        conversation = {
+          ...conversation,
+          trigger_meta: reconciledPending.triggerMeta,
+        };
+      }
+    }
+
     const rawHistory = await loadHistory(db, userId, conversation.id);
     const history = debugExport
       ? rawHistory
@@ -960,10 +1159,12 @@ export async function POST(req: Request) {
     }
 
     endpointStage = "load_context";
-    const [context, systemPromptRecord] = await Promise.all([
+    const [loadedContext, systemPromptRecord] = await Promise.all([
       loadContext(db, userId, body.userTimezone),
       getActivePrompt(db, "dialog_system_v3"),
     ]);
+    let context = loadedContext;
+    const dialogNowLocal = effectiveDialogNowLocal(context.nowLocal);
     const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
     const conversation = await loadConversation(
       db,
@@ -990,6 +1191,13 @@ export async function POST(req: Request) {
         conversation.trigger_meta,
       );
     }
+    const queuedSummaryIds = pendingSummaryEventIds(conversation.trigger_meta);
+    if (queuedSummaryIds.size > 0) {
+      context = {
+        ...context,
+        dueEvents: context.dueEvents.filter((event) => !queuedSummaryIds.has(event.id)),
+      };
+    }
     const iteration = countAssistantTurns(history) + 1;
     const branches = chooseDialogBranches({
       phaseTime: context.phaseTime,
@@ -999,11 +1207,21 @@ export async function POST(req: Request) {
       planTomorrowMarker: false,
       forcePlanningOnOpening: iteration === 1,
     });
-    const systemPromptData = buildDialogSystemInstruction(systemPromptRecord.template, context, branches);
     const maxDialogLength = effectiveDialogMax(branches);
-    const openPlannedEventsForConversation = branches.includes("planning")
-      ? await loadOpenPlannedEventsForConversation(db, userId, conversation.id)
+    const planningHorizonLocalDates = [
+      context.nowLocal.toFormat("yyyy-MM-dd"),
+      context.nowLocal.plus({ days: 1 }).toFormat("yyyy-MM-dd"),
+    ];
+    const openPlannedEventsForUserHorizon = branches.includes("planning")
+      ? (await loadOpenPlannedEventsForUserHorizon(db, userId, planningHorizonLocalDates))
+        .filter((event) => !queuedSummaryIds.has(event.id))
       : [];
+    const systemPromptData = buildDialogSystemInstruction(
+      systemPromptRecord.template,
+      context,
+      branches,
+      openPlannedEventsForUserHorizon,
+    );
     const buildInferredPlannedEvents = () =>
       branches.includes("planning")
         ? inferPlannedEventsFromUserHistory({
@@ -1011,19 +1229,36 @@ export async function POST(req: Request) {
               ...history,
               ...(isInitiate ? [] : [{ role: "user" as const, content: userMessage }]),
             ],
-            nowLocal: context.nowLocal,
+            nowLocal: dialogNowLocal,
+            relativeNowLocal: context.nowLocal,
             tz: userTimezone,
             locale: context.user.locale ?? "ru",
           })
         : [];
     const inferredPlanningArtifactsFromHistory = branches.includes("planning")
-      ? filterNewPlannedEvents(buildInferredPlannedEvents(), openPlannedEventsForConversation)
+      ? filterNewPlannedEvents(buildInferredPlannedEvents(), openPlannedEventsForUserHorizon, {
+          nowLocal: dialogNowLocal,
+          relativeNowLocal: context.nowLocal,
+          tz: userTimezone,
+          locale: context.user.locale ?? "ru",
+        })
       : [];
     const augmentPlannedMarkers = (markers: ReturnType<typeof parseResponseMarkers>) => ({
       ...markers,
       plannedEvents: filterNewPlannedEvents(
-        mergePlannedEventMarkers(markers.plannedEvents, buildInferredPlannedEvents()),
-        openPlannedEventsForConversation,
+        mergePlannedEventMarkers(markers.plannedEvents, buildInferredPlannedEvents(), {
+          nowLocal: dialogNowLocal,
+          relativeNowLocal: context.nowLocal,
+          tz: userTimezone,
+          locale: context.user.locale ?? "ru",
+        }),
+        openPlannedEventsForUserHorizon,
+        {
+          nowLocal: dialogNowLocal,
+          relativeNowLocal: context.nowLocal,
+          tz: userTimezone,
+          locale: context.user.locale ?? "ru",
+        },
       ),
     });
     const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
@@ -1052,7 +1287,7 @@ export async function POST(req: Request) {
     const historyBranchArtifactsSatisfied =
       (!branches.includes("planning")
         || inferredPlanningArtifactsFromHistory.length > 0
-        || openPlannedEventsForConversation.length > 0)
+        || openPlannedEventsForUserHorizon.length > 0)
       && !branches.includes("summarizing");
 
     console.log("[DIALOG_V3_DIAG]", JSON.stringify({
@@ -1082,9 +1317,9 @@ export async function POST(req: Request) {
     }
 
     const baseHistory = mapHistoryToGemini(history);
-    const prefixContents = isInitiate
-      ? [...baseHistory]
-      : [...baseHistory, { role: "user", parts: [{ text: userMessage }] } as GeminiContent];
+    const currentTurnPrefix = isInitiate
+      ? []
+      : [{ role: "user", parts: [{ text: userMessage }] } as GeminiContent];
     const routeDb = db;
     const routeUserId = userId;
     const encoder = new TextEncoder();
@@ -1098,12 +1333,50 @@ export async function POST(req: Request) {
           const premiumModel = getModelByHint("premium");
           const requestedModel = turnDecision.modelTier === "premium" ? premiumModel : standardModel;
           const initialInstruction: GeminiContent = { role: "user", parts: [{ text: expandedTurnInstruction }] };
-          const initialContents = [...prefixContents, initialInstruction];
+          const initialContents = [...currentTurnPrefix, initialInstruction];
+          const cachedContentByModel = new Map<string, Promise<string | null>>();
+          const getCachedContentForModel = (modelId: string) => {
+            if (!supportsExplicitLlmCache(modelId) || baseHistory.length === 0) return Promise.resolve<string | null>(null);
+            const existing = cachedContentByModel.get(modelId);
+            if (existing) return existing;
+            const created = ensureDialogCache(
+              conversation.id,
+              systemPromptData.systemInstruction,
+              baseHistory,
+              modelId,
+            );
+            cachedContentByModel.set(modelId, created);
+            return created;
+          };
+          const buildStructuredRequest = async (
+            modelId: string,
+            contents: GeminiContent[],
+            temperature: number,
+            maxOutputTokens: number,
+          ) => {
+            const cachedContent = await getCachedContentForModel(modelId);
+            return cachedContent
+              ? {
+                  systemInstruction: systemPromptData.systemInstruction,
+                  contents,
+                  model: modelId,
+                  temperature,
+                  maxOutputTokens,
+                  cachedContent,
+                }
+              : {
+                  systemInstruction: systemPromptData.systemInstruction,
+                  contents: [...baseHistory, ...contents],
+                  model: modelId,
+                  temperature,
+                  maxOutputTokens,
+                };
+          };
 
           if (emitDebugPromptLog) {
             console.log("[DIALOG_V3_DEBUG_PROMPT]", JSON.stringify({
               systemInstruction: systemPromptData.systemInstruction,
-              contents: initialContents,
+              contents: [...baseHistory, ...initialContents],
             }));
           }
 
@@ -1113,15 +1386,15 @@ export async function POST(req: Request) {
           let responseMode: ResponseMode = turnDecision.mode;
           let readyMarkerTriggered = false;
           let validation: ValidationResult | null = null;
+          let carriedMarkers: ResponseMarkers | null = null;
 
           if (turnDecision.modelTier === "premium") {
-            for await (const chunk of streamGeminiText({
-              systemInstruction: systemPromptData.systemInstruction,
-              contents: initialContents,
-              model: requestedModel,
-              temperature: 0.85,
-              maxOutputTokens: 2500,
-            })) {
+            for await (const chunk of streamGeminiText(await buildStructuredRequest(
+              requestedModel,
+              initialContents,
+              0.85,
+              2500,
+            ))) {
               modelIdUsed = chunk.modelUsed;
               fullText += chunk.text;
               controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
@@ -1138,33 +1411,33 @@ export async function POST(req: Request) {
               console.log("[DIALOG_V3_DIAG] bypassing standard inquiry and escalating directly from history");
               readyMarkerTriggered = true;
               validation = pendingTurnValidation;
-              const finalInstructionText = expandOrchestratorInstruction(
-                ORCHESTRATOR_INSTRUCTIONS.final_recommendation,
-                orchestratorPlaceholders,
-              );
+              const finalInstructionText = buildFinalInstructionText({
+                baseInstruction: ORCHESTRATOR_INSTRUCTIONS.final_recommendation,
+                placeholders: orchestratorPlaceholders,
+                validation,
+                locale: context.user.locale,
+              });
               responseMode = "final_recommendation";
               modelTierUsed = "premium";
               const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
-              for await (const chunk of streamGeminiText({
-                systemInstruction: systemPromptData.systemInstruction,
-                contents: [...prefixContents, finalInstruction],
-                model: premiumModel,
-                temperature: 0.85,
-                maxOutputTokens: 2500,
-              })) {
+              for await (const chunk of streamGeminiText(await buildStructuredRequest(
+                premiumModel,
+                [...currentTurnPrefix, finalInstruction],
+                0.85,
+                2500,
+              ))) {
                 modelIdUsed = chunk.modelUsed;
                 fullText += chunk.text;
                 controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
               }
             } else {
             console.log("[DIALOG_V3_DIAG] standard path: generating with model", requestedModel);
-            const standardResponse = await generateGeminiText({
-              systemInstruction: systemPromptData.systemInstruction,
-              contents: initialContents,
-              model: requestedModel,
-              temperature: 0.85,
-              maxOutputTokens: 1500,
-            });
+            const standardResponse = await generateGeminiText(await buildStructuredRequest(
+              requestedModel,
+              initialContents,
+              0.85,
+              1500,
+            ));
             modelIdUsed = standardResponse.modelUsed;
             console.log("[DIALOG_V3_DIAG] standard response:", JSON.stringify({
               modelUsed: standardResponse.modelUsed,
@@ -1177,7 +1450,7 @@ export async function POST(req: Request) {
             const branchArtifactsSatisfied = hasRequiredBranchArtifacts(
               branches,
               standardMarkers,
-              openPlannedEventsForConversation.length,
+              openPlannedEventsForUserHorizon.length,
             );
             if (!containsReadyMarker(standardResponse.text)) {
               if (shouldServerEscalateToFinalRecommendation({
@@ -1189,20 +1462,22 @@ export async function POST(req: Request) {
                 console.log("[DIALOG_V3_DIAG] server-side ready escalation (confident inquiry without READY marker)");
                 readyMarkerTriggered = true;
                 validation = turnValidation;
-                const finalInstructionText = expandOrchestratorInstruction(
-                  ORCHESTRATOR_INSTRUCTIONS.final_recommendation,
-                  orchestratorPlaceholders,
-                );
+                carriedMarkers = standardMarkers;
+                const finalInstructionText = buildFinalInstructionText({
+                  baseInstruction: ORCHESTRATOR_INSTRUCTIONS.final_recommendation,
+                  placeholders: orchestratorPlaceholders,
+                  validation,
+                  locale: context.user.locale,
+                });
                 responseMode = "final_recommendation";
                 modelTierUsed = "premium";
                 const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
-                for await (const chunk of streamGeminiText({
-                  systemInstruction: systemPromptData.systemInstruction,
-                  contents: [...prefixContents, finalInstruction],
-                  model: premiumModel,
-                  temperature: 0.85,
-                  maxOutputTokens: 2500,
-                })) {
+                for await (const chunk of streamGeminiText(await buildStructuredRequest(
+                  premiumModel,
+                  [...currentTurnPrefix, finalInstruction],
+                  0.85,
+                  2500,
+                ))) {
                   modelIdUsed = chunk.modelUsed;
                   fullText += chunk.text;
                   controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
@@ -1211,39 +1486,61 @@ export async function POST(req: Request) {
                 if (turnValidation.confident && !branchArtifactsSatisfied && turnDecision.mode === "inquiry") {
                   console.log("[DIALOG_V3_DIAG] blocking ready escalation until planning/summarizing markers appear");
                 }
-                fullText = standardResponse.text;
+                const shouldRetryForMissingSummary = shouldRetryForMissingSummaryMarker({
+                  branches,
+                  summarizeEventsCount: standardMarkers.summarizeEvents.length,
+                  userMessage,
+                  dueEvents: context.dueEvents,
+                });
+                if (shouldRetryForMissingSummary) {
+                  console.log("[DIALOG_V3_DIAG] retrying standard response to recover missing summary marker");
+                  const repairedResponse = await generateGeminiText(await buildStructuredRequest(
+                    requestedModel,
+                    [...currentTurnPrefix, { role: "user", parts: [{ text: missingSummaryRepairInstruction(turnDecision.mode, branches) }] }],
+                    0.7,
+                    1500,
+                  ));
+                  modelIdUsed = repairedResponse.modelUsed;
+                  fullText = repairedResponse.text;
+                  carriedMarkers = augmentPlannedMarkers(parseResponseMarkers(repairedResponse.text));
+                } else {
+                  fullText = standardResponse.text;
+                  carriedMarkers = standardMarkers;
+                }
               }
             } else {
               if (!branchArtifactsSatisfied) {
                 console.log("[DIALOG_V3_DIAG] ignoring premature READY marker until planning/summarizing markers appear");
-                const repairedResponse = await generateGeminiText({
-                  systemInstruction: systemPromptData.systemInstruction,
-                  contents: [...prefixContents, { role: "user", parts: [{ text: branchRepairInstruction(branches) }] }],
-                  model: requestedModel,
-                  temperature: 0.7,
-                  maxOutputTokens: 1500,
-                });
+                const repairedResponse = await generateGeminiText(await buildStructuredRequest(
+                  requestedModel,
+                  [...currentTurnPrefix, { role: "user", parts: [{ text: branchRepairInstruction(branches) }] }],
+                  0.7,
+                  1500,
+                ));
                 modelIdUsed = repairedResponse.modelUsed;
                 fullText = repairedResponse.text;
+                carriedMarkers = augmentPlannedMarkers(parseResponseMarkers(repairedResponse.text));
               } else {
               readyMarkerTriggered = true;
               validation = turnValidation;
-              const finalInstructionText = expandOrchestratorInstruction(
-                validation.confident
+              carriedMarkers = standardMarkers;
+              const finalInstructionText = buildFinalInstructionText({
+                baseInstruction: validation.confident
                   ? ORCHESTRATOR_INSTRUCTIONS.final_recommendation
                   : ORCHESTRATOR_INSTRUCTIONS.final_recommendation_with_validation_warning,
-                orchestratorPlaceholders,
-              );
+                placeholders: orchestratorPlaceholders,
+                validation,
+                locale: context.user.locale,
+              });
               responseMode = validation.confident ? "final_recommendation" : "final_recommendation_with_validation_warning";
               modelTierUsed = "premium";
               const finalInstruction: GeminiContent = { role: "user", parts: [{ text: finalInstructionText }] };
-              for await (const chunk of streamGeminiText({
-                systemInstruction: systemPromptData.systemInstruction,
-                contents: [...prefixContents, finalInstruction],
-                model: premiumModel,
-                temperature: 0.85,
-                maxOutputTokens: 2500,
-              })) {
+              for await (const chunk of streamGeminiText(await buildStructuredRequest(
+                premiumModel,
+                [...currentTurnPrefix, finalInstruction],
+                0.85,
+                2500,
+              ))) {
                 modelIdUsed = chunk.modelUsed;
                 fullText += chunk.text;
                 controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed: modelIdUsed })));
@@ -1259,25 +1556,24 @@ export async function POST(req: Request) {
             readyMarkerTriggered,
             modelTierUsed,
           }));
-          let markers = augmentPlannedMarkers(parseResponseMarkers(fullText));
+          let markers = mergeResponseMarkersForPersistence(
+            augmentPlannedMarkers(parseResponseMarkers(fullText)),
+            carriedMarkers,
+          );
 
-          const isFinalMode = responseMode === "final_recommendation"
-            || responseMode === "final_recommendation_with_validation_warning"
-            || responseMode === "forced_final"
-            || responseMode === "fast_track_final";
-          if (!markers.practicePick && isFinalMode) {
+          const carriesPracticeCard = turnModeCarriesPracticeCard(responseMode);
+          if (!markers.practicePick && carriesPracticeCard) {
             console.warn("[DIALOG_V3_DIAG] marker missing after premium — retry call");
             const retryInstruction: GeminiContent = { role: "user", parts: [{ text:
               `Ты только что написал финальную рекомендацию, но забыл маркер. Выведи ТОЛЬКО одну строку — технический маркер [PRACTICE_PICK: id="..." reason="..." card_blurb="..."] на основе рекомендации выше. В card_blurb дай связный текст карточки практики; не используй двойные кавычки внутри значения. Ничего больше не пиши.`
             }] };
-            const retryContents = [...prefixContents, { role: "model", parts: [{ text: fullText }] } as GeminiContent, retryInstruction];
-            const retryResponse = await generateGeminiText({
-              systemInstruction: systemPromptData.systemInstruction,
-              contents: retryContents,
-              model: premiumModel,
-              temperature: 0.3,
-              maxOutputTokens: 320,
-            });
+            const retryContents = [...currentTurnPrefix, { role: "model", parts: [{ text: fullText }] } as GeminiContent, retryInstruction];
+            const retryResponse = await generateGeminiText(await buildStructuredRequest(
+              premiumModel,
+              retryContents,
+              0.3,
+              320,
+            ));
             const retryMarkers = parseResponseMarkers(retryResponse.text);
             if (retryMarkers.practicePick) {
               markers = { ...markers, practicePick: retryMarkers.practicePick };
@@ -1303,18 +1599,20 @@ export async function POST(req: Request) {
             throw new Error("Premium model returned empty text after sanitization");
           }
 
-          const finalPracticePublic = await resolvePracticePublic(
-            routeDb,
-            routeUserId,
-            markers.practicePick,
-            context,
-            userMessage,
-            history,
-            conversation.id,
-          );
+          const finalPracticePublic = carriesPracticeCard
+            ? await resolvePracticePublic(
+                routeDb,
+                routeUserId,
+                markers.practicePick,
+                context,
+                userMessage,
+                history,
+                conversation.id,
+              )
+            : null;
 
           if (
-            isFinalMode
+            carriesPracticeCard
             && !finalPracticePublic
           ) {
             const pickValidation = validateHistoryHasDurationAndType([
@@ -1337,7 +1635,7 @@ export async function POST(req: Request) {
             controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed: modelIdUsed })));
           }
 
-          const shouldClose = responseMode === "forced_final" || responseMode === "practice_declined";
+          const shouldClose = isTerminalFinalTurnMode(responseMode);
           const effectiveBranches = [...new Set([...branches, ...(markers.planTomorrow ? ["planning" as const] : [])])];
           const debugExport =
             isDebugDialogExportEnabled()
@@ -1345,7 +1643,7 @@ export async function POST(req: Request) {
                   rawAssistantText: fullText,
                   context,
                   branches,
-                  practicePublic: isFinalMode ? finalPracticePublic : null,
+                  practicePublic: carriesPracticeCard ? finalPracticePublic : null,
                 })
               : undefined;
 
@@ -1363,7 +1661,7 @@ export async function POST(req: Request) {
             phaseTime: context.phaseTime,
             validation,
             insightMetrics,
-            practicePicked: isFinalMode ? (finalPracticePublic ?? undefined) : undefined,
+            practicePicked: carriesPracticeCard ? (finalPracticePublic ?? undefined) : undefined,
             recommendationCorrected: markers.recommendationCorrection
               ? { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection }
               : undefined,
@@ -1385,7 +1683,9 @@ export async function POST(req: Request) {
             db: routeDb,
             userId: routeUserId,
             conversationId: conversation.id,
+            conversationTriggerMeta: conversation.trigger_meta,
             context,
+            openPlannedEventsForUserHorizon,
             branches,
             markers,
             assistantText: cleanText,
@@ -1398,8 +1698,8 @@ export async function POST(req: Request) {
             iteration,
             ready_marker_triggered: readyMarkerTriggered,
             validation,
-            practicePicked: isFinalMode ? finalPracticePublic : null,
-            practice_picked: isFinalMode ? finalPracticePublic : null,
+            practicePicked: carriesPracticeCard ? finalPracticePublic : null,
+            practice_picked: carriesPracticeCard ? finalPracticePublic : null,
             recommendationCorrected: markers.recommendationCorrection,
             dialog_branches: artifactResult.effectiveBranches,
             target_chakra: context.targetChakra,

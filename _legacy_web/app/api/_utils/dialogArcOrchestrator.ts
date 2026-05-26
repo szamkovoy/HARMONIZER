@@ -50,11 +50,15 @@ ${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
 
 Если пользователь уже назвал конкретное дело или встречу с явным либо примерным временем, считай planning по этому эпизоду собранным. На этапе planning НЕ уточняй сферу жизни, подтекст события, внутреннее состояние, «что в этом важнее» и другие классифицирующие детали — они нужны для summarizing, а не для первичного планирования.
 
+Если в дополнительном контексте уже перечислены несколько открытых планов на сегодня или завтра, считай дневной каркас уже собранным. Не задавай новые широкие вопросы в стиле «какой ещё кусок дня?» или «что ещё сегодня важно?», если пользователь не ввёл явно новое конкретное событие. В таком случае либо уточни только действительно недостающее, либо переходи к завершению хода.
+
 Если активна ветка summarizing и итог по наступившему событию ещё не зафиксирован, сначала доведи разговор до invisible marker [SUMMARIZE_EVENT: ...]. Не переходи к [READY_FOR_RECOMMENDATION], пока summarizing не зафиксирован таким маркером.
 
 {{catalog_reconciliation}}
 
 {{practice_refusal_check}}
+
+Если пользователь сказал просто «йога» / «практика йоги» и назвал длительность 20 минут или больше, считай тип уже определённым: это асаны. Не объясняй это отдельной репликой и не проси дополнительного подтверждения именно на асаны.
 
 Если пользователь назвал диапазон минут, который уже укладывается в каталог выбранного типа практики, считай длительность достаточно определённой. Не проси выбрать точное число внутри диапазона; возьми подходящее значение сам и переходи дальше.
 
@@ -111,6 +115,28 @@ ${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
 ${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
 
 Затем следуй структуре из \`final_recommendation\` (блоки 1–5). Если контекста почти нет — блоки 1 и 2 пропусти, переходи сразу к блоку 3 (главная тема через призму чакры) и блоку 5 (мостик к практике). Не выдумывай за пользователя то, чего он не сказал. Не описывай технику выполнения практики — она будет в карточке. Финальный текст не должен содержать вопросов или просьб что-то дополнительно уточнить.]`,
+  final_without_practice: `[Инструкция оркестратора:
+это финальный ход диалога без карточки практики. Диалог завершается здесь, просто в этом финале практика не предлагается.
+
+Не спрашивай про длительность, тип или «может другой формат». Не выводи [PRACTICE_PICK] и [READY_FOR_RECOMMENDATION]. Не уточняй «совсем или не сейчас» — решение уже принято.
+
+Если активна ветка summarizing и пользователь уже описал, как прошло наступившее событие, сначала добавь invisible marker [SUMMARIZE_EVENT: ...], а потом уже дай видимый ответ. Это нужно сделать без рекомендации практики.
+
+Дай ОДИН финальный ответ без дальнейших вопросов. В этом ответе:
+1) коротко поддержи то, что пользователь сказал о дне;
+2) если активна planning или summarizing — дай содержательную рекомендацию на день по ситуации пользователя, но БЕЗ рекомендации практики;
+3) закончи тёплым пожеланием хорошего дня, хорошего вечера или спокойной ночи по текущему времени.
+
+Ответ должен естественно завершать разговор. Не оставляй открытых вопросов и не приглашай продолжать обсуждение прямо сейчас.]`,
+  practice_repick: `[Инструкция оркестратора: практика уже была предложена, и пользователь попросил другой вариант.
+
+ПЕРВОЕ — выведи на отдельной строке технический маркер: [PRACTICE_PICK: id="..." reason="..."]. Маркер невидим для пользователя, обрабатывается системой. Пиши его ДО текста ответа.
+
+${PRACTICE_PICK_WITH_CARD_BLURB_INSTRUCTION}
+
+Затем дай очень короткий ответ — одно-два предложения, не больше 240 символов. Спокойно подтверди, что предлагаешь другой вариант, и подведи к новой карточке ниже.
+
+Не повторяй длинную финальную рекомендацию заново. Не пересказывай весь день. Не задавай вопросов. Не обсуждай старую практику подробно.]`,
   post_recommendation: `[Инструкция
 оркестратора: практика уже выбрана в предыдущем ходу. Веди
 себя кратко по правилам из системного промпта (раздел «если
@@ -131,7 +157,7 @@ export function shouldServerEscalateToFinalRecommendation(params: {
 }
 
 export interface ArcDecision {
-  mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "post_recommendation" | "practice_declined";
+  mode: "opening" | "inquiry" | "forced_final" | "fast_track_final" | "final_without_practice" | "post_recommendation" | "practice_repick";
   modelTier: "premium" | "standard";
   instruction: string;
   instructionVariables?: {
@@ -144,22 +170,19 @@ export type OrchestratorMode = ArcDecision["mode"];
 
 const PRACTICE_REFUSAL_CHECK_INSTRUCTION = `ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже не ответил на вопрос о длительности и типе практики (но явного отказа от практики ещё не было). В этом ходу не повторяй обычный уточняющий вопрос. Вместо этого прямо спроси, нужна ли практика вообще: «Возможно, сейчас вам не до практики — нет времени или просто не хочется? Если нужна — скажите длительность и тип. Если нет — так и скажите, я не буду настаивать». Адаптируй формулировку под обращение, смысл сохрани.`;
 
-const PRACTICE_DECLINED_SESSION_INSTRUCTION = `[Инструкция оркестратора:
-пользователь уже ясно отказался от практики на эту сессию (в том числе «не сейчас», «некогда», «не хочу асаны/медитацию/дыхание», «никакую практику»).
-
-Не спрашивай про длительность, тип или «может другой формат». Не выводи [PRACTICE_PICK] и [READY_FOR_RECOMMENDATION]. Не уточняй «совсем или не сейчас» — отказ уже принят.
-
-Дай ОДИН финальный ответ без дальнейших вопросов. В этом ответе:
-1) коротко поддержи то, что пользователь сказал о дне;
-2) если активна planning или summarizing — дай содержательную рекомендацию на день по ситуации пользователя, но БЕЗ рекомендации практики;
-3) закончи тёплым пожеланием хорошего дня, хорошего вечера или спокойной ночи по текущему времени.
-
-Ответ должен естественно завершать разговор. Не оставляй открытых вопросов и не приглашай продолжать обсуждение прямо сейчас.]`;
-
 function hasPracticePicked(message: Message): boolean {
   const practicePicked = (message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null)?.practicePicked
     ?? (message.meta as { practice_picked?: unknown } | null)?.practice_picked;
   return practicePicked != null;
+}
+
+function lastAssistantOfferedPracticeInHistory(history: Message[]): boolean {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant");
+  return Boolean(lastAssistant && hasPracticePicked(lastAssistant));
+}
+
+function userRejectsPracticeOfferText(text: string): boolean {
+  return /(друг|инач|не\s+хочу|не\s+подходит|не\s+то|замен|альтернатив|another|different|not\s+this)/i.test(text);
 }
 
 function textFromMessage(message: Message): string {
@@ -173,8 +196,11 @@ function turnModeFromMessageMeta(message: Message): OrchestratorMode | null {
     || raw === "inquiry"
     || raw === "forced_final"
     || raw === "fast_track_final"
+    || raw === "final_without_practice"
     || raw === "post_recommendation"
-    ? raw
+    || raw === "practice_repick"
+    || raw === "practice_declined"
+    ? (raw === "practice_declined" ? "final_without_practice" : raw)
     : null;
 }
 
@@ -350,6 +376,14 @@ export function decideTurnMode(
   emitFastTrackDiagnostics = false,
 ): ArcDecision {
   if (history.some((message) => message.role === "assistant" && hasPracticePicked(message))) {
+    const pendingTrim = typeof pendingUserContent === "string" ? pendingUserContent.trim() : "";
+    if (pendingTrim && lastAssistantOfferedPracticeInHistory(history) && userRejectsPracticeOfferText(pendingTrim)) {
+      return {
+        mode: "practice_repick",
+        modelTier: "premium",
+        instruction: ORCHESTRATOR_INSTRUCTIONS.practice_repick,
+      };
+    }
     return {
       mode: "post_recommendation",
       modelTier: "standard",
@@ -367,9 +401,9 @@ export function decideTurnMode(
 
   if (userDeclinedPracticeInHistory(userTextsFromHistory(history, pendingUserContent))) {
     return {
-      mode: "practice_declined",
+      mode: "final_without_practice",
       modelTier: "standard",
-      instruction: PRACTICE_DECLINED_SESSION_INSTRUCTION,
+      instruction: ORCHESTRATOR_INSTRUCTIONS.final_without_practice,
     };
   }
 

@@ -29,6 +29,14 @@ export function getAiDialogUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/ai/dialog`;
 }
 
+export function getAiDialogReconcilePlansUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/ai/dialog/reconcile-plans`;
+}
+
+export function getCommunicatorV2DialogReconcilePlansUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/dialog/reconcile-plans`;
+}
+
 export function getAiMonologueUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/ai/monologue`;
 }

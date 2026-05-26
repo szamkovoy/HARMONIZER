@@ -105,6 +105,26 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.confident).toBe(true);
   });
 
+  it("treats a short breath request as the minimum supported duration", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "хочу короткую практику дыхания" },
+    ]);
+    expect(result.durationSec).toBe(5 * 60);
+    expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("treats a minimum meditation request as one minute", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "I want a minimal meditation practice" },
+    ]);
+    expect(result.durationSec).toBe(60);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("accepts a catalog-safe breath duration range in a planning sentence", () => {
     const result = validateHistoryHasDurationAndType([
       {
@@ -115,6 +135,20 @@ describe("validateHistoryHasDurationAndType", () => {
     ]);
     expect(result.durationSec).toBe(13 * 60);
     expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("does not let an event timing override a short meditation request", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content:
+          "В магазин я через 15 минут пойду. Поэтому практику мне предложи какую-нибудь короткую медитацию.",
+      },
+    ]);
+    expect(result.durationSec).toBe(60);
+    expect(result.practiceKind).toBe("meditation");
     expect(result.catalogConsistent).toBe(true);
     expect(result.confident).toBe(true);
   });
@@ -260,6 +294,17 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.practiceKind).toBe("breath");
   });
 
+  it("does not let a later clock-time message overwrite an already confirmed practice request", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "Да, выспался, прекрасно себя чувствую и хотел бы выполнить 15 минут дыхания." },
+      { role: "user", content: "Давно не виделись. Четыре часа дня мы с ним договорились встретиться." },
+    ]);
+    expect(result.durationSec).toBe(15 * 60);
+    expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("keeps the confirmed practice duration when the same reply mentions an older rejected value", () => {
     const result = validateHistoryHasDurationAndType([
       {
@@ -289,6 +334,19 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.confident).toBe(true);
   });
 
+  it("prefers the last practice kind mention inside one mixed sentence", () => {
+    const result = validateHistoryHasDurationAndType([
+      {
+        role: "user",
+        content: "Что касается практики йоги, я бы сейчас выполнил короткую практику дыхания.",
+      },
+    ]);
+    expect(result.durationSec).toBe(5 * 60);
+    expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
   it("returns null for durationSec/practiceKind when not mentioned", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "привет, как дела" },
@@ -304,6 +362,38 @@ describe("validateHistoryHasDurationAndType", () => {
     ]);
     expect(result.durationSec).toBe(3600);
     expect(result.practiceKind).toBe("yoga");
+  });
+
+  it("treats 'йогу в течение часа' as a valid hour-long yoga request", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "Да, практику я бы хотел выполнить йогу в течение часа." },
+    ]);
+    expect(result.hasDuration).toBe(true);
+    expect(result.durationSec).toBe(3600);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("treats 4 hours of yoga as a catalog conflict", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "хочу асаны 4 часа" },
+    ]);
+    expect(result.durationSec).toBe(4 * 60 * 60);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.catalogConsistent).toBe(false);
+    expect(result.confident).toBe(false);
+  });
+
+  it("keeps explicit reversed-order duration in 'йоги минут 40' instead of collapsing to the minimum hint", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "Думаю выполнить небольшую практику йоги минут 40." },
+    ]);
+
+    expect(result.durationSec).toBe(40 * 60);
+    expect(result.practiceKind).toBe("yoga");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
   });
 
   it("extracts 'четверть часа' as 900 sec", () => {
@@ -350,6 +440,7 @@ describe("userDeclinedPracticeInHistory", () => {
     expect(userDeclinedPracticeInHistory(["Практика мне сейчас не нужна, давайте без нее"])).toBe(true);
     expect(userDeclinedPracticeInHistory(["Нет, сейчас не до практик."])).toBe(true);
     expect(userDeclinedPracticeInHistory(["Нет времени выполнять какую-либо практику."])).toBe(true);
+    expect(userDeclinedPracticeInHistory(["Что касается практики, нет сейчас времени этим заниматься."])).toBe(true);
     expect(userDeclinedPracticeInHistory(["Через 10 минут вебинар, времени для практик нет."])).toBe(true);
     expect(userDeclinedPracticeInHistory(["Не нужно предлагать практику."])).toBe(true);
     expect(userDeclinedPracticeInHistory([

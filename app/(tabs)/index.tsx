@@ -408,7 +408,9 @@ export default function HomeScreen() {
   const [natalProfileLoading, setNatalProfileLoading] = useState(needsPersonalForecast);
   const [natalProfileResolved, setNatalProfileResolved] = useState(!needsPersonalForecast);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
-  const hasNatalProfile = needsPersonalForecast ? (natalProfileResolved ? Boolean(natalProfile) : null) : true;
+  const hasNatalProfile = needsPersonalForecast
+    ? (natalProfileLoading || !natalProfileResolved ? null : Boolean(natalProfile))
+    : true;
   const { forecast, error, refresh, status, accessMode, modelUsed, userLocation } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     birthDataErrorMessage: strings.birthDataMessage,

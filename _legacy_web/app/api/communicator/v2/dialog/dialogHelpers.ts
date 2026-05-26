@@ -9,6 +9,7 @@ export const MESSAGE_HISTORY_LIMIT = 40;
 export type TurnHistoryItem = {
   role: "user" | "assistant";
   content: string;
+  meta?: Record<string, unknown> | null;
 };
 
 export function resolveTurnHistory(
@@ -21,7 +22,7 @@ export function resolveTurnHistory(
       role: item.role,
       content: item.content,
       transcript: null,
-      meta: null,
+      meta: item.meta ?? null,
       created_at: null,
     }));
   }

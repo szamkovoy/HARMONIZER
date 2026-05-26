@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.19
-updated: 2026-05-25
+version: 2.22
+updated: 2026-05-26
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,11 @@ code_refs:
 
 ## Decision Log
 
+- **2026-05-26:** Delayed reconcile перестал зависеть только от живого таймера внутри открытого чата. Если в ленте уже есть `planningPersistence.queued` / `queued_summaries`, `Communicator` теперь делает best-effort flush `reconcileDialogPlans({ conversationId })` и при запуске практики из карточки ассистента, и при unmount компонента. Это закрывает QA-кейс, где пользователь сразу уходит в практику/закрывает оверлей, а queued planning-summary artifacts зависают в `trigger_meta` и не доходят до `planned_events` / `daily_matrices`.
+- **2026-05-26:** Debounce `reconcileDialogPlans({ conversationId })` перестал быть только planning-memory хуком. Клиент теперь считает queued state по обоим хвостам — `planningPersistence.queued` и `planningPersistence.queued_summaries`, поэтому delayed server-pass закрывает и канонизацию планов, и late matrix/summarizing persistence, не заставляя live SSE сразу менять `planned_events` / `daily_matrices`.
+- **2026-05-26:** `Communicator` получил отдельный debounce-контур для planning-memory: после паузы в переписке компонент вызывает `reconcileDialogPlans({ conversationId })`, а сервер уже вне live SSE канонизирует pending planning-candidates в `planned_events`. Это позволяет не писать планы синхронно на каждом assistant-turn и не разрывает пользовательский хвост сообщений после финального ответа или карточки практики.
+- **2026-05-26:** Hydration финальных daily-turns больше не завязана на старое предположение «любой финал обязан нести `practicePicked`». `dialogTurnHydration.ts` теперь отдельно знает, какие turn_mode являются final-like, а какие действительно требуют карточку (`turnModeCarriesPractice`). Это позволило принять новый server-режим `final_without_practice` как обычный финальный ход lean-storage диалога: `Communicator.tsx` может гидрировать такой assistant-turn даже при пустом server `content`, не ожидая карточку практики.
+- **2026-05-26:** После QA на `текст_2_6.txt` `buildClientTurnHistory` перестал быть text-only: для assistant-turn с карточкой он теперь сохраняет минимальный `meta.practicePicked`, а серверный `resolveTurnHistory` этот meta-хвост не отбрасывает. Это вернуло две цепочки daily dialog при lean storage: короткий `post_recommendation` на `спасибо` и корректную server-side замену карточки при явном запросе `другая практика`.
 - **2026-05-25:** SSE dialog: `complete` снова уходит до persist (карточка практики на native XHR), после записи — `turn_artifacts` с `planningPersistence`; hydration на lean storage читает `practice_picked` из server meta при пустом `content`. **`route.ts`**, **`communicator-client.ts`**, **`Communicator.tsx`**.
 - **2026-05-25:** Dev-export и локальный meta: `dialogExportMerge.ts` сопоставляет local/server сообщения по порядковому индексу роли (серверный `content` пустой), `reconcileExportPlanningPersistence` подставляет `planning_created_in_this_conversation`, если на ходах нет `inserted`. **`Communicator.tsx`**, **`dialogExportMerge.ts`**.
 - **2026-05-25:** Документация: §3.1 «Хранение и сброс daily dialog» в `spec.md`, индекс в `MAP.md` для поиска в новых чатах; `daily_forecast/spec.md` — кнопка «Обновить» и `clearHomeDailyDialogCache`.

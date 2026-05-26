@@ -4,11 +4,13 @@ import { extractJson, getModelByHint } from "./gemini";
 const originalStandard = process.env.AI_MODEL_STANDARD;
 const originalPremium = process.env.AI_MODEL_PREMIUM;
 const originalFallback = process.env.AI_MODEL_FALLBACK;
+const originalLow = process.env.AI_MODEL_LOW;
 
 afterEach(() => {
   process.env.AI_MODEL_STANDARD = originalStandard;
   process.env.AI_MODEL_PREMIUM = originalPremium;
   process.env.AI_MODEL_FALLBACK = originalFallback;
+  process.env.AI_MODEL_LOW = originalLow;
 });
 
 describe("getModelByHint", () => {
@@ -26,6 +28,14 @@ describe("getModelByHint", () => {
     expect(getModelByHint("standard")).toBe("standard-model");
     expect(getModelByHint(null)).toBe("standard-model");
     expect(getModelByHint("legacy-model-name")).toBe("standard-model");
+  });
+
+  it("uses AI_MODEL_LOW for low-cost hint and falls back to standard", () => {
+    process.env.AI_MODEL_STANDARD = "standard-model";
+    process.env.AI_MODEL_LOW = "low-model";
+    expect(getModelByHint("low")).toBe("low-model");
+    delete process.env.AI_MODEL_LOW;
+    expect(getModelByHint("low")).toBe("standard-model");
   });
 
   it("accepts concrete Gemini model hints", () => {

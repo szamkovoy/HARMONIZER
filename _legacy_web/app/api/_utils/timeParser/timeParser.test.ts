@@ -44,6 +44,8 @@ describe("parseEventTime", () => {
     { phrase: "10", now: "2026-05-16T14:00:00", expected: "2026-05-16 22:00", resolution: "explicit" },
     { phrase: "10", now: "2026-05-16T23:00:00", expected: "2026-05-17 10:00", resolution: "explicit" },
     { phrase: "9:30", now: "2026-05-16T09:00:00", expected: "2026-05-16 09:30", resolution: "explicit" },
+    { phrase: "в 11.30", now: "2026-05-16T18:00:00", expected: "2026-05-16 23:30", resolution: "explicit" },
+    { phrase: "сегодня около 20:00", now: "2026-05-16T09:00:00", expected: "2026-05-16 20:00", resolution: "explicit" },
     { phrase: "с двух до четырех", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
     { phrase: "между 14 и 16", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
     { phrase: "часа в 3-4 дня", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "explicit" },
@@ -68,6 +70,7 @@ describe("parseEventTime", () => {
     { phrase: "послезавтра утром", now: "2026-05-16T09:00:00", expected: "2026-05-18 10:00", resolution: "daypart_default" },
     { phrase: "в субботу днем", now: "2026-05-14T09:00:00", expected: "2026-05-16 16:00", resolution: "daypart_default" },
     { phrase: "завтра", now: "2026-05-16T09:00:00", expected: "2026-05-17 16:00", resolution: "fallback_default" },
+    { phrase: "хочу позавтракать зеленым коктейлем", now: "2026-05-16T09:00:00", expected: "2026-05-16 16:00", resolution: "fallback_default" },
     { phrase: "что-то важное", now: "2026-05-16T12:00:00", expected: "2026-05-16 16:00", resolution: "fallback_default" },
     { phrase: "что-то важное", now: "2026-05-16T21:00:00", expected: "2026-05-17 16:00", resolution: "fallback_default" },
     { phrase: "утром встреча", now: "2026-05-16T14:00:00", expected: "2026-05-16 14:15", resolution: "daypart_default" },
@@ -95,6 +98,22 @@ describe("parseEventTime", () => {
     });
 
     expect(result.matchedPhrase).toBe("через пару часов");
+  });
+
+  it("uses real current time for relative phrases even if prompt-time is forced", () => {
+    const promptNowLocal = DateTime.fromISO("2026-05-26T09:00:00", { zone: TZ });
+    const realNowLocal = DateTime.fromISO("2026-05-26T10:27:06", { zone: TZ });
+    const result = parseEventTime({
+      phrase: "через полчаса",
+      nowLocal: promptNowLocal,
+      relativeNowLocal: realNowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(result.expectedLocal.toFormat("yyyy-MM-dd HH:mm")).toBe("2026-05-26 10:57");
+    expect(result.resolution).toBe("explicit");
+    expect(result.matchedPhrase).toBe("через полчаса");
   });
 
   it("falls back with null matched phrase when nothing is recognized", () => {

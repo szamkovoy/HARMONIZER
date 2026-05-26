@@ -32,7 +32,25 @@ export type PlannedEventExportRow = {
 };
 
 export type PlanningPersistenceTurn = {
+  queued: Array<{
+    candidate_id: string;
+    desc: string;
+    time: string | null;
+    timeNorm: string | null;
+    snippets: string[];
+    cells: ReturnType<typeof formatCells>;
+    queued_at: string;
+  }>;
+  queued_summaries: Array<{
+    candidate_id: string;
+    event_id: string;
+    description: string;
+    outcome: string | null;
+    proposed_outcome_cells: ReturnType<typeof formatCells>;
+    queued_at: string;
+  }>;
   inserted: PlannedEventExportRow[];
+  updated: PlannedEventExportRow[];
   summarized: Array<PlannedEventExportRow & { matched_ref: string | null }>;
   skipped: Array<{
     desc: string;
@@ -217,6 +235,12 @@ export async function buildDialogStateAfter(
   const planningSnapshotAtStart =
     (conversationRow?.trigger_meta as { planning_snapshot_at_start?: unknown } | null | undefined)?.planning_snapshot_at_start
     ?? null;
+  const pendingPlanningReconciliation =
+    (conversationRow?.trigger_meta as { pending_planning_reconciliation?: unknown } | null | undefined)?.pending_planning_reconciliation
+    ?? null;
+  const lastPlanningReconciliation =
+    (conversationRow?.trigger_meta as { last_planning_reconciliation?: unknown } | null | undefined)?.last_planning_reconciliation
+    ?? null;
 
   const { data: matrixRow, error: matrixError } = await db
     .from("daily_matrices")
@@ -272,6 +296,8 @@ export async function buildDialogStateAfter(
         }
       : null,
     planning_snapshot_at_start: planningSnapshotAtStart,
+    pending_planning_reconciliation: pendingPlanningReconciliation,
+    last_planning_reconciliation: lastPlanningReconciliation,
     planning_open_now: openPlansNow,
     planning_closed_recent_48h: closedPlansRecent,
     planning_created_in_this_conversation: createdInConversation,

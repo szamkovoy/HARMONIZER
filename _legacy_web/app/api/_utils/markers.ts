@@ -379,8 +379,8 @@ export interface ValidationResult {
 /** v6 dialog prompt catalog ranges (minutes). */
 export function catalogDurationRangeForKind(kind: PracticeKindInferred): { min: number; max: number } {
   if (kind === "meditation") return { min: 1, max: 5 };
-  if (kind === "breath") return { min: 6, max: 20 };
-  return { min: 21, max: 480 };
+  if (kind === "breath") return { min: 5, max: 20 };
+  return { min: 20, max: 70 };
 }
 
 export function isCatalogConsistentDurationAndKind(durationMin: number, kind: PracticeKindInferred): boolean {
@@ -394,8 +394,8 @@ export function isCatalogConsistentDurationAndKind(durationMin: number, kind: Pr
 export function catalogKindForDurationMin(durationMin: number): PracticeKindInferred | null {
   const rounded = Math.max(1, Math.round(durationMin));
   if (rounded >= 1 && rounded <= 5) return "meditation";
-  if (rounded >= 6 && rounded <= 20) return "breath";
-  if (rounded >= 21) return "yoga";
+  if (rounded >= 5 && rounded <= 20) return "breath";
+  if (rounded >= 20) return "yoga";
   return null;
 }
 
@@ -429,7 +429,7 @@ export function userAnsweredPracticeRequest(result: ValidationResult): boolean {
   return result.hasDuration && result.hasType;
 }
 
-const DURATION_NUMBER_UNITS = ["минут", "час"];
+const DURATION_NUMBER_UNITS = ["минут", "час", "min", "mins", "minute", "minutes", "hour", "hours"];
 
 const DURATION_PHRASES: Array<{ phrase: string; sec: number }> = [
   { phrase: "полчаса", sec: 30 * 60 },
@@ -446,6 +446,19 @@ const DURATION_PHRASES_NO_VALUE = [
   "сколько нужно", "много времени",
 ];
 
+const MINIMUM_DURATION_HINT_PATTERNS: RegExp[] = [
+  /коротк/i,
+  /кратк/i,
+  /миним/i,
+  /минимальн/i,
+  /небольш/i,
+  /quick/i,
+  /brief/i,
+  /short/i,
+  /minimal/i,
+  /minimum/i,
+];
+
 const NUMBER_WORD_MAP: Record<string, number> = {
   "один": 1, "одну": 1, "одна": 1,
   "два": 2, "две": 2, "пару": 2,
@@ -455,9 +468,9 @@ const NUMBER_WORD_MAP: Record<string, number> = {
   "тридцать": 30, "сорок": 40, "пятьдесят": 50, "полтора": 1.5,
 };
 
-const TYPE_BREATH = ["дыхан", "дыхательн", "пранаям", "подыш", "дыш"];
-const TYPE_MEDITATION = ["медитац", "помедитировать", "посидеть", "успокоиться"];
-const TYPE_YOGA = ["асан", "йог"];
+const TYPE_BREATH = ["дыхан", "дыхательн", "пранаям", "подыш", "дыш", "breath", "breathe", "breathwork"];
+const TYPE_MEDITATION = ["медитац", "помедитировать", "посидеть", "успокоиться", "meditat", "meditate"];
+const TYPE_YOGA = ["асан", "йог", "yoga", "asana"];
 
 type TextSpan = {
   start: number;
@@ -495,13 +508,19 @@ function extractKindMentions(text: string): KindMention[] {
     { pattern: /помедитировать/gi, kind: "meditation" },
     { pattern: /посидеть/gi, kind: "meditation" },
     { pattern: /успокоиться/gi, kind: "meditation" },
+    { pattern: /meditat/gi, kind: "meditation" },
     { pattern: /асан/gi, kind: "yoga" },
     { pattern: /йог/gi, kind: "yoga" },
+    { pattern: /yoga/gi, kind: "yoga" },
+    { pattern: /asana/gi, kind: "yoga" },
     { pattern: /дыхан/gi, kind: "breath" },
     { pattern: /дыхательн/gi, kind: "breath" },
     { pattern: /пранаям/gi, kind: "breath" },
     { pattern: /подыш/gi, kind: "breath" },
     { pattern: /дыш/gi, kind: "breath" },
+    { pattern: /breathwork/gi, kind: "breath" },
+    { pattern: /breathe/gi, kind: "breath" },
+    { pattern: /breath/gi, kind: "breath" },
   ];
   for (const { pattern, kind } of patterns) {
     for (const match of text.matchAll(pattern)) {
@@ -518,6 +537,30 @@ function distanceBetweenSpans(a: TextSpan, b: TextSpan): number {
   if (a.end <= b.start) return b.start - a.end;
   if (b.end <= a.start) return a.start - b.end;
   return 0;
+}
+
+function chooseKindMention(
+  kindMentions: KindMention[],
+  durationMentions: DurationMention[],
+): KindMention | null {
+  if (!kindMentions.length) return null;
+  const anchor = durationMentions[durationMentions.length - 1] ?? null;
+  if (!anchor) return kindMentions[kindMentions.length - 1] ?? null;
+
+  let best: KindMention | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const mention of kindMentions) {
+    const distance = distanceBetweenSpans(anchor, mention);
+    if (
+      !best
+      || distance < bestDistance
+      || (distance === bestDistance && mention.start > best.start)
+    ) {
+      best = mention;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 function chooseDurationMention(
@@ -547,6 +590,27 @@ function chooseDurationMention(
     }
   }
   return best;
+}
+
+function hasMinimumDurationHint(text: string): boolean {
+  return MINIMUM_DURATION_HINT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function minimumDurationSecForKind(kind: PracticeKindInferred): number {
+  const range = catalogDurationRangeForKind(kind);
+  return range.min * 60;
+}
+
+function shouldPreferMinimumHintOverExplicitDuration(params: {
+  text: string;
+  bestDuration: DurationMention | null;
+  selectedKindMention: KindMention | null;
+  targetKind: PracticeKindInferred | null;
+}): boolean {
+  if (!params.bestDuration || !params.selectedKindMention || !params.targetKind) return false;
+  if (!hasMinimumDurationHint(params.text)) return false;
+  const distance = distanceBetweenSpans(params.bestDuration, params.selectedKindMention);
+  return distance >= 18;
 }
 
 function extractDurationMentions(text: string): DurationMention[] {
@@ -594,6 +658,15 @@ function extractDurationMentions(text: string): DurationMention[] {
     const b = Number.parseInt(match[2] ?? "", 10);
     if (!value || start < 0 || !Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) continue;
     addDurationMention(mentions, start, start + value.length, Math.round((a + b) / 2) * 60);
+  }
+
+  for (const match of text.matchAll(/(минут(?:а|ы|у)?|мин\b|час(?:а|ов)?)\s*(\d{1,3}(?:[.,]\d+)?)/gi)) {
+    const start = match.index ?? -1;
+    const value = match[0];
+    const unit = match[1] ?? "";
+    const num = Number.parseFloat((match[2] ?? "").replace(",", "."));
+    if (!value || start < 0 || !Number.isFinite(num) || num <= 0) continue;
+    addDurationMention(mentions, start, start + value.length, /час/i.test(unit) ? num * 3600 : num * 60);
   }
 
   for (const match of text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(минут(?:а|ы|у)?|мин\b|час(?:а|ов)?)/gi)) {
@@ -645,21 +718,46 @@ function extractDurationMentions(text: string): DurationMention[] {
 
 function inferDurationSecFromText(text: string): number | null {
   const mentions = extractDurationMentions(text);
-  const best = chooseDurationMention(mentions, extractKindMentions(text), inferKindFromText(text));
-  return best?.sec ?? null;
+  const kindMentions = extractKindMentions(text);
+  const selectedKindMention = chooseKindMention(kindMentions, mentions);
+  const targetKind = selectedKindMention?.kind ?? inferKindFromText(text, mentions);
+  const best = chooseDurationMention(mentions, kindMentions, targetKind);
+  if (targetKind && hasMinimumDurationHint(text)) {
+    if (shouldPreferMinimumHintOverExplicitDuration({
+      text,
+      bestDuration: best,
+      selectedKindMention,
+      targetKind,
+    })) {
+      return minimumDurationSecForKind(targetKind);
+    }
+  }
+  if (best) return best.sec;
+  if (targetKind && hasMinimumDurationHint(text)) {
+    return minimumDurationSecForKind(targetKind);
+  }
+  return null;
 }
 
-function inferKindFromText(text: string): PracticeKindInferred | null {
+function inferKindFromText(text: string, durationMentions?: DurationMention[]): PracticeKindInferred | null {
   const lower = text.toLowerCase();
-  if (TYPE_MEDITATION.some((k) => lower.includes(k))) return "meditation";
-  if (TYPE_YOGA.some((k) => lower.includes(k))) return "yoga";
   if (isBreathVersusOtherParallelOffer(lower)) return null;
-  if (TYPE_BREATH.some((k) => lower.includes(k))) return "breath";
-  return null;
+  const kindMentions = extractKindMentions(text);
+  return chooseKindMention(kindMentions, durationMentions ?? extractDurationMentions(text))?.kind ?? null;
+}
+
+function looksLikeClockTimeContext(text: string): boolean {
+  return (
+    /(?:^|[\s,.;:!?()])\d{1,2}\s*час(?:а|ов)?\s*(?:дня|утра|вечера|ночи)(?=$|[\s,.;:!?()])/i.test(text)
+    || /(?:^|[\s,.;:!?()])в\s+\d{1,2}(?::\d{2})?(?=$|[\s,.;:!?()])/i.test(text)
+    || /(?:^|[\s,.;:!?()])около\s+\d{1,2}(?::\d{2})?(?=$|[\s,.;:!?()])/i.test(text)
+    || /(?:^|[\s,.;:!?()])(?:сегодня|завтра|послезавтра)\s+в\s+\d{1,2}(?::\d{2})?(?=$|[\s,.;:!?()])/i.test(text)
+  );
 }
 
 const PRACTICE_DECLINE_PATTERNS: RegExp[] = [
   /практик\w*[\s\S]{0,56}(?:не\s+(?:хоч|буд)|не\s+нужн|не\s+буду)/i,
+  /практик\w*[\s\S]{0,56}нет[\s\S]{0,24}времен/i,
   /(?:не\s+(?:хоч|буд)|не\s+буду|не\s+нужн)[\s\S]{0,56}практик/i,
   /(?:не\s+хоч|не\s+нужн|без)\w*[\s\S]{0,56}(?:асан|медитац|дыхан|пранаям|йог|практик)/i,
   /не\s+до\s+(?:каких[\s-]*либо\s+)?(?:асан|медитац|дыхан|пранаям|йог|практик)/i,
@@ -689,12 +787,35 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
 
   const NUMBER_WORDS = Object.keys(NUMBER_WORD_MAP);
 
+  let durationSec: number | null = null;
+  let practiceKind: PracticeKindInferred | null = null;
+  let latestConsistentPair: { durationSec: number; practiceKind: PracticeKindInferred } | null = null;
+  for (const msg of userMessages) {
+    const durationMentions = extractDurationMentions(msg);
+    const k = inferKindFromText(msg, durationMentions);
+    let d = inferDurationSecFromText(msg);
+    if (k == null && d !== null && looksLikeClockTimeContext(msg)) {
+      d = null;
+    }
+    if (d !== null) durationSec = d;
+    if (k !== null) practiceKind = k;
+    if (d !== null && k !== null && isCatalogConsistentDurationAndKind(Math.round(d / 60), k)) {
+      latestConsistentPair = { durationSec: d, practiceKind: k };
+    }
+  }
+
+  if (latestConsistentPair) {
+    durationSec = latestConsistentPair.durationSec;
+    practiceKind = latestConsistentPair.practiceKind;
+  }
+
   const hasNumber =
     /\d+/.test(userText) ||
     NUMBER_WORDS.some((w) => userText.includes(w));
 
   const hasDuration =
-    (hasNumber && DURATION_NUMBER_UNITS.some((u) => userText.includes(u)))
+    durationSec != null
+    || (hasNumber && DURATION_NUMBER_UNITS.some((u) => userText.includes(u)))
     || DURATION_PHRASES.some((p) => userText.includes(p.phrase))
     || DURATION_PHRASES_NO_VALUE.some((p) => userText.includes(p));
 
@@ -702,15 +823,6 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
     TYPE_BREATH.some((k) => userText.includes(k))
     || TYPE_MEDITATION.some((k) => userText.includes(k))
     || TYPE_YOGA.some((k) => userText.includes(k));
-
-  let durationSec: number | null = null;
-  let practiceKind: PracticeKindInferred | null = null;
-  for (const msg of userMessages) {
-    const d = inferDurationSecFromText(msg);
-    if (d !== null) durationSec = d;
-    const k = inferKindFromText(msg);
-    if (k !== null) practiceKind = k;
-  }
 
   const durationMin = durationSec != null ? Math.round(durationSec / 60) : null;
   const catalogConsistent =

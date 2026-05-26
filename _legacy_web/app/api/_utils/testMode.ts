@@ -1,3 +1,5 @@
+import type { DateTime } from "luxon";
+
 const TEST_MODE_ON = process.env.TEST_MODE_FAST_INTERVALS === "1";
 
 const TIME_DIVISOR = (() => {
@@ -18,6 +20,11 @@ export function isTestMode(): boolean {
  */
 export function hoursToMs(hours: number): number {
   const base = hours * 60 * 60 * 1000;
+  return TEST_MODE_ON ? Math.round(base / TIME_DIVISOR) : base;
+}
+
+export function minutesToMs(minutes: number): number {
+  const base = minutes * 60 * 1000;
   return TEST_MODE_ON ? Math.round(base / TIME_DIVISOR) : base;
 }
 
@@ -43,6 +50,10 @@ export function hoursToSec(hours: number): number {
   return Math.round(hoursToMs(hours) / 1000);
 }
 
+export function planningReconciliationDelayMs(): number {
+  return minutesToMs(10);
+}
+
 export function forcedPhaseOrNull(): "morning" | "day" | "evening" | null {
   const v = process.env.TEST_MODE_FORCE_PHASE;
   if (v === "morning" || v === "day" || v === "evening") return v;
@@ -60,6 +71,17 @@ export function representativeLocalHourForPhase(phase: "morning" | "day" | "even
 export function promptLocalHour(realLocalHour: number): number {
   const forced = forcedPhaseOrNull();
   return forced ? representativeLocalHourForPhase(forced) : realLocalHour;
+}
+
+/** Effective local time for dialog interpretation under forced phase in QA. */
+export function effectiveDialogNowLocal<T extends DateTime>(realNowLocal: T): T {
+  const forced = forcedPhaseOrNull();
+  if (!forced) return realNowLocal;
+  return realNowLocal.set({
+    hour: representativeLocalHourForPhase(forced),
+    second: 0,
+    millisecond: 0,
+  }) as T;
 }
 
 export function getTimeDivisor(): number {

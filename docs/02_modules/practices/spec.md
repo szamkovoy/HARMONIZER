@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.9
-updated: 2026-05-23
+version: 1.10
+updated: 2026-05-26
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -124,7 +124,7 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания каталога RU захардкожены в `catalog.ts`.
 
-- **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`.
+- **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`. Если пользователь просит **короткую / минимальную** практику без явного числа минут, серверный валидатор (`markers.ts`) берёт нижнюю границу каталога для уже названного типа: медитация 1 мин, дыхание 5 мин, асаны 20 мин.
 
 - **Йога:** выборка активных строк `practices` + связи `practice_chakras`; превью по `readPracticeVideoThumbnailFromParams` из `params`.
 
