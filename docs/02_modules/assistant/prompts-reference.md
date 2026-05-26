@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.15
+version: 1.16
 updated: 2026-05-26
 depends_on: [02_modules/assistant/spec]
 code_refs:
@@ -468,7 +468,7 @@ MATRIX EXTRACTION
 | `{{local_hour}}`                 | Час 0–23 в зоне пользователя            | `promptLocalHour(now.hour)` (при принудительной фазе — представительный час, иначе `now.hour`)                                                                                                                                                                                    |
 | `{{phase_time}}`                 | Фаза дня (`morning` / `day` / `evening`) | `context.phaseTime` из `dialogDailyContext.ts` (`phaseTimeFor`)                                                                                                                                                  |
 | `{{branches}}`                   | Активные ветки хода (`summarizing`, `planning`) | `chooseDialogBranches(...).join(",")` или `"none"` в `route.ts`                                                                                                                                          |
-| `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents)` — до 5 строк `description @ expected_at` или `none`                                                                                                                          |
+| `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents, context.nowLocal, context.user.locale)` — до 5 строк `description @ dueEventWhenLabel(...)` (локализованное «сегодня/вчера около HH:mm»; для non-explicit `time_resolution` — `time_phrase_raw` с пометкой synthetic) или `none`                                                                                                                          |
 | `{{matrix_ready}}`               | Достаточно ли измерений матрицы         | `"true"` / `"false"` по `context.matrixReady` (`isMatrixReady`)                                                                                                                                                   |
 | `{{target_chakra}}`              | Номер целевой чакры дня (1–7)           | `String(context.targetChakra.chakraNumber)`                                                                                                                                                                       |
 | `{{target_explain}}`             | Почему выбрана целевая чакра            | `context.targetChakra.explain` (`chooseTargetChakra` + `lifeMatrix`)                                                                                                                                              |
@@ -494,7 +494,7 @@ MATRIX EXTRACTION
 | `{{practice_refusal_check}}`     | Одноходовый флаг для `inquiry`         | `decideTurnMode(...)` в `dialogArcOrchestrator.ts`: когда `unresolvedPracticePromptCount >= getPracticeRefusalThreshold()` (env `PRACTICE_REFUSAL_THRESHOLD`, дефолт **1**), `userDeclinedPracticeInHistory(...)` **ложно** и `userAnsweredPracticeRequest(...)` **ложно** — подставляется `PRACTICE_REFUSAL_CHECK_INSTRUCTION` (текст в §2 под `inquiry`); иначе пустая строка |
 | `{{catalog_reconciliation}}`   | Переспрос при конфликте тип/минуты     | `buildCatalogReconciliationInstruction` в `markers.ts`, когда тип и длительность названы, но `catalogConsistent === false`; refusal-check в том же ходу не подставляется |
 | `{{opening_day_question}}`       | Вопрос про день в `opening`            | `openingDayQuestionForContext(phaseTime, branches)` в `dialogOpeningHints.ts` |
-| `{{historical_context}}`         | Дополнительный server-side контекст по уже собранным планам | `route.ts` передаёт компактную сводку `due / later today / tomorrow` из user-wide open plans; используется как anti-overasking контекст, чтобы модель не добывала ещё один абстрактный список дел, если каркас дня уже виден |
+| `{{historical_context}}`         | Дополнительный server-side контекст по уже собранным планам | `formatOpenPlansHistoricalContext({ dueEvents, openPlans: loadOpenPlannedEventsForUserHorizon(...), nowLocal, locale })` — секции due / later today / tomorrow с тем же `dueEventWhenLabel`, плюс guidance не вытягивать ещё один абстрактный каркас дня |
 | `{{user_self_description}}`      | Самоописание из портрета                | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется)                                                                                                                                           |
 
 

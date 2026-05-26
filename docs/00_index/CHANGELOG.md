@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.45
+version: 2.46
 updated: 2026-05-26
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-26: pre-push doc-sync — `assistant/dependencies.md`, `communicator/dependencies.md`, `MAP.md`, `assistant/prompts-reference.md` §3: delayed `reconcile-plans` (planning + summary), flush на unmount/launch practice, формат `dueEventWhenLabel` для `{{due_events}}` / `{{historical_context}}`.
 - 2026-05-26: `assistant` + `communicator` — practice validation перестала путать clock-time с длительностью практики (`четыре часа дня` больше не превращаются в `240 мин дыхания`), `historical_context` теперь помечает synthetic planning-time как approximate вместо точного пользовательского часа, а delayed reconcile дополнительно флашится при закрытии чата/запуске практики, чтобы queued plans и summaries не зависали в `trigger_meta`.
 - 2026-05-26: `assistant` + `communicator` — delayed reconcile шаг daily dialog теперь общий для planning и summarizing: assistant-turn складывает и `PLANNED_EVENT`, и `SUMMARIZE_EVENT` в `conversations.trigger_meta`, low-cost `reconcile-plans` одним LLM JSON-pass и канонизирует `planned_events`, и вычисляет `outcome_cells` для `daily_matrices`, а клиент дебаунсит reconcile и по `queued_summaries`.
 - 2026-05-26: `assistant` + `communicator` — planning persistence в daily dialog стал delayed: assistant-turn теперь складывает candidates в `conversations.trigger_meta`, клиент запускает debounce `reconcile-plans`, а сервер канонизирует `planned_events` отдельным low-cost LLM-step (`AI_MODEL_LOW` / fallback `AI_MODEL_STANDARD`). В том же проходе `route.ts` получил provider-aware explicit cache для стабильного префикса structured dialog requests.
