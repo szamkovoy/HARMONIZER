@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.22
-updated: 2026-05-27
+version: 1.23
+updated: 2026-05-28
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -48,9 +48,9 @@ code_refs: []
 **Проявление:** пользователь, который перестал открывать ассистента, может оставить stale `planned_events` до следующего dialog request; отчёты и вспомогательные выборки должны учитывать это best-effort поведение.  
 **Действие:** при следующем инфраструктурном проходе решить, нужен ли scheduled cleanup / background rebuild для `planned_events` и `daily_matrices`.
 - **`outcome_cells` для summarized events могут уезжать в слишком общие сферы**  
-**Контекст:** delayed reconcile в `_legacy_web/app/api/communicator/v2/dialog/planningReconciliation.ts` использует `getModelByHint("low")` и даёт low-cost LLM только компактные `life_spheres_baseline` + `chakra_baselines`, после чего принимает `summary_decisions.outcome_cells` почти без дополнительной семантической валидации, если клетки не пустые.  
+**Контекст:** delayed reconcile в `planningReconciliation.ts` больше не смешивает planning anti-duplicate и summary-classification в одном JSON-pass: summary-кандидаты сначала нормализуются в compact `normalized_outcome`, затем отдельным low-cost classifier prompt-ом (`getModelByHint("low")` + `life_spheres_baseline` + `chakra_baselines`) получают `outcome_cells`. Rule-based post-validation по sphere hints по-прежнему отсутствует.  
 **Проявление:** события вроде обсуждения контракта могут неожиданно получать сферу 7 («смысл и вклад»), а культурный/релаксационный эпизод — сферу 1 («тело и здоровье»), если модель цепляется за косвенные слова вроде `спалось`, `ценности`, `голос`, а не за основной домен события. Пользователю это выглядит как «фонящий» выбор столбцов при в целом разумной архитектуре матрицы.  
-**Действие:** при следующем заходе в assistant/life-matrix решить, достаточно ли текущего low-cost шага, или нужно усилить prompt, поднять модель для `summary_decisions`, добавить rule-based post-validation по sphere hints или завести golden-fixtures для спорных доменов (`контракты`, `искусство`, `сон после события`).
+**Действие:** при следующем заходе в assistant/life-matrix решить, достаточно ли двухшаговой low-cost цепочки, или нужно усилить classifier prompt, поднять модель для classification, добавить rule-based post-validation по sphere hints или завести golden-fixtures для спорных доменов (`контракты`, `искусство`, `сон после события`).
 
 ## `bindu`
 

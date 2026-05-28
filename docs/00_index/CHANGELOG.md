@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.49
-updated: 2026-05-27
+version: 2.50
+updated: 2026-05-28
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-28: pre-push doc-sync — `assistant/spec.md` ( `normalizeTurnHistory`, post-practice scan по любому assistant-turn с карточкой, `conversation_summaries` upsert `onConflict` ); `open_questions.md` — контекст summary `outcome_cells` приведён к двухшаговой цепочке reconcile.
 - 2026-05-27: `assistant` — delayed `reconcile-plans` для summary-ветки больше не классифицирует `outcome_cells` тем же смешанным prompt-ом, что и planning anti-duplicate: `planningReconciliation.ts` теперь сначала нормализует outcome summary-эпизода, а затем отдельным classifier prompt-ом вычисляет клетки матрицы из compact outcome + baseline-ов. Это снижает semantic bleed между основным доменом события и побочными эффектами.
 - 2026-05-27: `assistant` — `plannedEventInference.ts` перестал терять несколько планов из одной длинной спонтанной реплики: short daypart/time-фрагменты теперь остаются рядом с соседним событием, а разные планы больше не схлопываются только из-за одинакового synthetic default time. В том же проходе replace-flow после карточки снова остаётся `practice_repick`, даже если между карточкой и запросом был короткий `post_recommendation`.
 - 2026-05-27: `assistant` + `communicator` — QA на `текст-4D64-AFFA-FE-0.txt`: `conversation_summaries` теперь upsert-ится по `conversation_id` вместо падения с `23505` после `complete`, а `normalizeTurnHistory()` перестал выкидывать `practicePicked` / `turn_mode`, поэтому после карточки снова корректно работают `post_recommendation` и `practice_repick`.
