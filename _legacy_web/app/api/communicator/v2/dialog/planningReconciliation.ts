@@ -84,10 +84,52 @@ type SummaryReconcileDecision = {
   reason?: string | null;
 };
 
+type SummaryNormalizationDecision = {
+  candidate_id: string;
+  normalized_outcome?: string | null;
+  confidence?: number | null;
+  reason?: string | null;
+};
+
+type SummaryCellClassification = {
+  candidate_id: string;
+  outcome_cells: MatrixCell[];
+  confidence?: number | null;
+  reason?: string | null;
+};
+
 export function buildPlanningCandidateParsePhrase(candidate: Pick<PendingPlanningCandidate, "desc" | "time" | "timeNorm">): string {
   const explicitTime = candidate.timeNorm?.trim() || candidate.time?.trim() || "";
   if (!explicitTime) return candidate.desc;
   return `${candidate.desc}. ${explicitTime}`.trim();
+}
+
+export function buildSummaryNormalizationSourceText(
+  candidate: Pick<PendingSummaryCandidate, "description" | "outcome" | "planned_local_date" | "time_phrase_raw">,
+): string {
+  const parts = [
+    candidate.description?.trim() ? `Событие: ${candidate.description.trim()}.` : null,
+    candidate.outcome?.trim() ? `Итог пользователя: ${candidate.outcome.trim()}.` : null,
+    candidate.time_phrase_raw?.trim() ? `Когда было: ${candidate.time_phrase_raw.trim()}.` : null,
+    candidate.planned_local_date?.trim() ? `Локальная дата: ${candidate.planned_local_date.trim()}.` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join(" ").trim();
+}
+
+export function buildSummaryClassificationCandidate(
+  candidate: Pick<PendingSummaryCandidate, "candidate_id" | "description" | "outcome">,
+  normalizedOutcome: string | null | undefined,
+): {
+  candidate_id: string;
+  event_description: string;
+  normalized_outcome: string;
+} {
+  return {
+    candidate_id: candidate.candidate_id,
+    event_description: candidate.description,
+    normalized_outcome: normalizedOutcome?.trim() || candidate.outcome?.trim() || candidate.description,
+  };
 }
 
 function newCandidateId(nowIso: string, index: number): string {
@@ -349,6 +391,36 @@ function normalizeSummaryDecision(value: unknown): SummaryReconcileDecision | nu
   };
 }
 
+function normalizeSummaryNormalization(value: unknown): SummaryNormalizationDecision | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const candidateId = typeof raw.candidate_id === "string" ? raw.candidate_id.trim() : "";
+  if (!candidateId) return null;
+  const confidence = Number(raw.confidence);
+  return {
+    candidate_id: candidateId,
+    normalized_outcome: typeof raw.normalized_outcome === "string" && raw.normalized_outcome.trim()
+      ? raw.normalized_outcome.trim()
+      : null,
+    confidence: Number.isFinite(confidence) ? confidence : null,
+    reason: typeof raw.reason === "string" && raw.reason.trim() ? raw.reason.trim() : null,
+  };
+}
+
+function normalizeSummaryCellClassification(value: unknown): SummaryCellClassification | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const candidateId = typeof raw.candidate_id === "string" ? raw.candidate_id.trim() : "";
+  if (!candidateId) return null;
+  const confidence = Number(raw.confidence);
+  return {
+    candidate_id: candidateId,
+    outcome_cells: normalizeCells(asMatrixCells(raw.outcome_cells)),
+    confidence: Number.isFinite(confidence) ? confidence : null,
+    reason: typeof raw.reason === "string" && raw.reason.trim() ? raw.reason.trim() : null,
+  };
+}
+
 function compactChakraBaselines() {
   return Object.entries(chakraStatesBaseline)
     .map(([planet, value]) => ({
@@ -362,28 +434,22 @@ function compactChakraBaselines() {
     .sort((left, right) => left.chakra_number - right.chakra_number);
 }
 
-async function decideArtifactReconciliation(params: {
+async function decidePlanningReconciliation(params: {
   conversationId: string;
   nowLocal: DateTime;
   locale: string;
   dueEvents: PlannedEventRow[];
   openPlans: PlannedEventRow[];
   planningCandidates: PendingPlanningCandidate[];
-  summaryCandidates: PendingSummaryCandidate[];
-}): Promise<{
-  planningDecisions: ReconcileDecision[];
-  summaryDecisions: SummaryReconcileDecision[];
-}> {
-  if (!params.planningCandidates.length && !params.summaryCandidates.length) {
-    return { planningDecisions: [], summaryDecisions: [] };
+}): Promise<ReconcileDecision[]> {
+  if (!params.planningCandidates.length) {
+    return [];
   }
   const model = getModelByHint("low");
   const systemInstruction =
-    "You reconcile delayed dialog artifacts. Return JSON only. " +
+    "You reconcile delayed planning artifacts. Return JSON only. " +
     "For planning candidates, choose exactly one action: create_new, update_existing, or ignore. " +
     "Bias strongly against duplicates: if a candidate likely rephrases or уточняет an existing same-day plan, prefer update_existing. " +
-    "For summary candidates, infer sparse outcome_cells for the life matrix based on the user's lived result, using the provided life spheres and chakra baselines. " +
-    "Use at most 3 outcome cells per summary candidate. Weights inside the same sphere should sum to 1. " +
     "Do not return ambiguous placeholders.";
   const cachedPrefixContent: GeminiContent = {
     role: "user",
@@ -417,7 +483,6 @@ async function decideArtifactReconciliation(params: {
     parts: [{
       text: JSON.stringify({
         planning_candidates: params.planningCandidates,
-        summary_candidates: params.summaryCandidates,
         response_shape: {
           planning_decisions: [
             {
@@ -429,10 +494,113 @@ async function decideArtifactReconciliation(params: {
               reason: "short string",
             },
           ],
-          summary_decisions: [
+        },
+      }),
+    }],
+  };
+  const cachedContent = supportsExplicitLlmCache(model)
+    ? await ensureDialogCache(
+        `${params.conversationId}:planning_reconcile`,
+        systemInstruction,
+        [cachedPrefixContent],
+        model,
+      )
+    : null;
+  const requestContents = cachedContent ? [suffixContent] : [cachedPrefixContent, suffixContent];
+  const { json } = await generateGeminiJson<{ planning_decisions?: unknown }>({
+    systemInstruction,
+    contents: requestContents,
+    cachedContent: cachedContent ?? undefined,
+    model,
+    temperature: 0.1,
+    maxOutputTokens: 2200,
+  });
+  return Array.isArray(json?.planning_decisions)
+    ? json.planning_decisions.map(normalizeDecision).filter((item): item is ReconcileDecision => Boolean(item))
+    : [];
+}
+
+async function normalizeSummaryOutcomes(params: {
+  conversationId: string;
+  locale: string;
+  summaryCandidates: PendingSummaryCandidate[];
+}): Promise<SummaryNormalizationDecision[]> {
+  if (!params.summaryCandidates.length) return [];
+  const model = getModelByHint("low");
+  const systemInstruction =
+    "You normalize summarized dialog outcomes for later life-matrix classification. Return JSON only. " +
+    "For each candidate, write one compact canonical outcome in the same language as the input. " +
+    "Keep the primary event or activity explicit, preserve the lived result, and demote side effects to the background. " +
+    "Do not over-abstract into body/recovery or meaning/value language unless that theme is central to the outcome itself.";
+  const { json } = await generateGeminiJson<{ normalized_summaries?: unknown }>({
+    systemInstruction,
+    contents: [{
+      role: "user",
+      parts: [{
+        text: JSON.stringify({
+          locale: params.locale,
+          summary_candidates: params.summaryCandidates.map((candidate) => ({
+            candidate_id: candidate.candidate_id,
+            source_text: buildSummaryNormalizationSourceText(candidate),
+            event_description: candidate.description,
+            raw_outcome: candidate.outcome,
+          })),
+          response_shape: {
+            normalized_summaries: [
+              {
+                candidate_id: "string",
+                normalized_outcome: "string | null",
+                confidence: "number 0..1",
+                reason: "short string",
+              },
+            ],
+          },
+        }),
+      }],
+    }],
+    model,
+    temperature: 0.1,
+    maxOutputTokens: 1400,
+  });
+  return Array.isArray(json?.normalized_summaries)
+    ? json.normalized_summaries.map(normalizeSummaryNormalization).filter((item): item is SummaryNormalizationDecision => Boolean(item))
+    : [];
+}
+
+async function classifySummaryOutcomeCells(params: {
+  conversationId: string;
+  locale: string;
+  summaryInputs: Array<ReturnType<typeof buildSummaryClassificationCandidate>>;
+}): Promise<SummaryCellClassification[]> {
+  if (!params.summaryInputs.length) return [];
+  const model = getModelByHint("low");
+  const systemInstruction =
+    "You classify normalized summarized outcomes into sparse life-matrix cells. Return JSON only. " +
+    "Use normalized_outcome as primary truth and event_description only as a domain anchor. " +
+    "Prefer the event's primary domain over secondary side effects. " +
+    "Do not move an outcome into sphere 1 unless body, health, recovery, sleep, or energy are central to the normalized outcome. " +
+    "Do not move an outcome into sphere 7 unless meaning, values, purpose, service, faith, or orientation are central to the normalized outcome. " +
+    "Use at most 3 outcome cells per candidate. Weights inside the same sphere should sum to 1. " +
+    "Do not return ambiguous placeholders.";
+  const cachedPrefixContent: GeminiContent = {
+    role: "user",
+    parts: [{
+      text: JSON.stringify({
+        locale: params.locale,
+        life_spheres_baseline: getLifeSpheresBaseline(params.locale),
+        chakra_baselines: compactChakraBaselines(),
+      }),
+    }],
+  };
+  const suffixContent: GeminiContent = {
+    role: "user",
+    parts: [{
+      text: JSON.stringify({
+        summary_inputs: params.summaryInputs,
+        response_shape: {
+          summary_classifications: [
             {
               candidate_id: "string",
-              normalized_outcome: "string | null",
               outcome_cells: [{ sphere: 1, chakra: 1, weight: 1 }],
               confidence: "number 0..1",
               reason: "short string",
@@ -444,29 +612,66 @@ async function decideArtifactReconciliation(params: {
   };
   const cachedContent = supportsExplicitLlmCache(model)
     ? await ensureDialogCache(
-        `${params.conversationId}:artifact_reconcile`,
+        `${params.conversationId}:summary_outcome_classifier`,
         systemInstruction,
         [cachedPrefixContent],
         model,
       )
     : null;
   const requestContents = cachedContent ? [suffixContent] : [cachedPrefixContent, suffixContent];
-  const { json } = await generateGeminiJson<{ planning_decisions?: unknown; summary_decisions?: unknown }>({
+  const { json } = await generateGeminiJson<{ summary_classifications?: unknown }>({
     systemInstruction,
     contents: requestContents,
     cachedContent: cachedContent ?? undefined,
     model,
     temperature: 0.1,
-    maxOutputTokens: 2200,
+    maxOutputTokens: 1800,
   });
-  return {
-    planningDecisions: Array.isArray(json?.planning_decisions)
-      ? json.planning_decisions.map(normalizeDecision).filter((item): item is ReconcileDecision => Boolean(item))
-      : [],
-    summaryDecisions: Array.isArray(json?.summary_decisions)
-      ? json.summary_decisions.map(normalizeSummaryDecision).filter((item): item is SummaryReconcileDecision => Boolean(item))
-      : [],
-  };
+  return Array.isArray(json?.summary_classifications)
+    ? json.summary_classifications.map(normalizeSummaryCellClassification).filter((item): item is SummaryCellClassification => Boolean(item))
+    : [];
+}
+
+async function decideSummaryReconciliation(params: {
+  conversationId: string;
+  locale: string;
+  summaryCandidates: PendingSummaryCandidate[];
+}): Promise<SummaryReconcileDecision[]> {
+  if (!params.summaryCandidates.length) return [];
+
+  const normalizedSummaries = await normalizeSummaryOutcomes(params);
+  const normalizedByCandidate = new Map(normalizedSummaries.map((item) => [item.candidate_id, item]));
+  const classifications = await classifySummaryOutcomeCells({
+    conversationId: params.conversationId,
+    locale: params.locale,
+    summaryInputs: params.summaryCandidates.map((candidate) =>
+      buildSummaryClassificationCandidate(
+        candidate,
+        normalizedByCandidate.get(candidate.candidate_id)?.normalized_outcome ?? null,
+      ),
+    ),
+  });
+  const classificationByCandidate = new Map(classifications.map((item) => [item.candidate_id, item]));
+
+  return params.summaryCandidates.map((candidate) => {
+    const normalized = normalizedByCandidate.get(candidate.candidate_id);
+    const classified = classificationByCandidate.get(candidate.candidate_id);
+    const reason = [normalized?.reason, classified?.reason].filter((value): value is string => Boolean(value)).join("; ");
+
+    return normalizeSummaryDecision({
+      candidate_id: candidate.candidate_id,
+      normalized_outcome: normalized?.normalized_outcome ?? candidate.outcome ?? candidate.description,
+      outcome_cells: classified?.outcome_cells ?? [],
+      confidence: classified?.confidence ?? normalized?.confidence ?? null,
+      reason: reason || null,
+    }) ?? {
+      candidate_id: candidate.candidate_id,
+      normalized_outcome: normalized?.normalized_outcome ?? candidate.outcome ?? candidate.description,
+      outcome_cells: classified?.outcome_cells ?? [],
+      confidence: classified?.confidence ?? normalized?.confidence ?? null,
+      reason: reason || null,
+    };
+  });
 }
 
 async function clearPendingPlanningState(params: {
@@ -514,15 +719,21 @@ export async function reconcilePendingPlanningCandidates(params: {
     params.userId,
     params.planningHorizonLocalDates,
   );
-  const { planningDecisions, summaryDecisions } = await decideArtifactReconciliation({
-    conversationId: params.conversation.id,
-    nowLocal: params.nowLocal,
-    locale: params.locale,
-    dueEvents: params.dueEvents,
-    openPlans,
-    planningCandidates: pending.planning_candidates,
-    summaryCandidates: pending.summary_candidates,
-  });
+  const [planningDecisions, summaryDecisions] = await Promise.all([
+    decidePlanningReconciliation({
+      conversationId: params.conversation.id,
+      nowLocal: params.nowLocal,
+      locale: params.locale,
+      dueEvents: params.dueEvents,
+      openPlans,
+      planningCandidates: pending.planning_candidates,
+    }),
+    decideSummaryReconciliation({
+      conversationId: params.conversation.id,
+      locale: params.locale,
+      summaryCandidates: pending.summary_candidates,
+    }),
+  ]);
 
   const planningDecisionByCandidate = new Map(planningDecisions.map((decision) => [decision.candidate_id, decision]));
   const summaryDecisionByCandidate = new Map(summaryDecisions.map((decision) => [decision.candidate_id, decision]));

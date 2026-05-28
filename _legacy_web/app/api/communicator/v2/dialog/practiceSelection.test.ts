@@ -397,4 +397,24 @@ describe("practice suggestion phase guard", () => {
       }),
     ).toBe(false);
   });
+
+  it("still treats a replace request as practice-suggestion after a short follow-up assistant turn", () => {
+    expect(
+      shouldStayInPracticeSuggestion({
+        useCase: "daily_dialog",
+        history: [
+          ...historyWithPracticeOffer,
+          {
+            id: "m2",
+            role: "assistant",
+            content: "Хорошего дня.",
+            transcript: null,
+            meta: { turn_mode: "post_recommendation" },
+            created_at: null,
+          },
+        ],
+        userMessage: "Дай другую практику",
+      }),
+    ).toBe(true);
+  });
 });

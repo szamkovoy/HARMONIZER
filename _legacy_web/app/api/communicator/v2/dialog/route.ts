@@ -36,7 +36,7 @@ import {
   closeConversation,
   isConversationExpired,
   loadHistory,
-  MESSAGE_HISTORY_LIMIT,
+  normalizeTurnHistory,
   resolveTurnHistory,
   summarizeConversationIfNeeded,
   type ConversationRecord,
@@ -247,20 +247,6 @@ function joinLines(items: readonly string[] | undefined): string {
 
 function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">): string {
   return String(message.content ?? message.transcript ?? "").trim();
-}
-
-function normalizeTurnHistory(raw: unknown): TurnHistoryItem[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const items = raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const role = (item as { role?: unknown }).role;
-      const content = String((item as { content?: unknown }).content ?? "").trim();
-      if ((role !== "user" && role !== "assistant") || !content) return null;
-      return { role, content: content.slice(0, 8000) } satisfies TurnHistoryItem;
-    })
-    .filter((item): item is TurnHistoryItem => Boolean(item));
-  return items.length ? items.slice(-MESSAGE_HISTORY_LIMIT) : undefined;
 }
 
 function countAssistantTurns(history: MessageRecord[]): number {

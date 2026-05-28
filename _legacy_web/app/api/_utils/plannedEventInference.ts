@@ -27,16 +27,48 @@ function splitEventSegments(text: string): string[] {
 
   if (parts.length === 0) return [normalized];
 
+  const shiftTrailingTimeLead = [...parts];
+  for (let index = 0; index < shiftTrailingTimeLead.length - 1; index += 1) {
+    const current = shiftTrailingTimeLead[index]!;
+    const next = shiftTrailingTimeLead[index + 1]!;
+    const match = current.match(/^(.*?)(?:\s+|^)((?:сегодня|завтра|послезавтра)\s+)?(утром|днем|днём|вечером|ночью)$/i);
+    if (!match) continue;
+    const head = (match[1] ?? "").trim();
+    const carry = `${match[2] ?? ""}${match[3] ?? ""}`.trim();
+    if (!head || !carry) continue;
+    shiftTrailingTimeLead[index] = head;
+    shiftTrailingTimeLead[index + 1] = `${carry} ${next}`.trim();
+  }
+
   const merged: string[] = [];
-  for (let index = 0; index < parts.length; index += 1) {
-    const current = parts[index]!;
-    const next = parts[index + 1];
+  for (let index = 0; index < shiftTrailingTimeLead.length; index += 1) {
+    let current = shiftTrailingTimeLead[index]!;
+    while (index + 1 < shiftTrailingTimeLead.length) {
+      const next = shiftTrailingTimeLead[index + 1]!;
+      if (
+        /^(?:(?:сегодня|завтра|послезавтра)\s+)?(?:утром|днем|днём|вечером|ночью)\b/i.test(current)
+        || /^(?:перед|после)\b/i.test(current)
+        || /^(?:может быть|возможно|наверное|думаю|ну|да)\b/i.test(current)
+      ) {
+        current = `${current} ${next}`.trim();
+        index += 1;
+        continue;
+      }
+      break;
+    }
     if (
-      next
-      && /^(?:относительно|насчет|насч[её]т|по поводу)\b/i.test(current)
+      /^(?:относительно|насчет|насч[её]т|по поводу)\b/i.test(current)
+      && index + 1 < shiftTrailingTimeLead.length
     ) {
-      merged.push(`${current} ${next}`.trim());
+      merged.push(`${current} ${shiftTrailingTimeLead[index + 1]!}`.trim());
       index += 1;
+      continue;
+    }
+    if (
+      merged.length > 0
+      && /^(?:примерно|около)\s+в\s+\d{1,2}(?:[:.]\d{2})\b/i.test(current)
+    ) {
+      merged[merged.length - 1] = `${merged[merged.length - 1]} ${current}`.trim();
       continue;
     }
     merged.push(current);
@@ -228,7 +260,7 @@ function isPracticeOnlySegment(text: string, nowLocal: DateTime, tz: string, loc
 }
 
 function hasStrongPlanningCue(text: string): boolean {
-  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?)(?=$|[\s,.;:!?()])/i.test(text);
+  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь)(?=$|[\s,.;:!?()])/i.test(text);
 }
 
 function looksLikeCompletedOutcomeSegment(text: string): boolean {
@@ -289,6 +321,7 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
     .replace(/^(?:да|ну)\s*,?\s*/i, "")
     .replace(/^(?:а\s+еще|а\s+ещё)\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*что\s+/i, "")
+    .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*/i, "")
     .replace(/^(?:у меня|мне|я)\s+/i, "")
     .replace(/^(?:сегодня\s+)?предстоит\s+[^,]+,\s*/i, "")
     .replace(/^(?:потому\s+что\s*,?\s*)?(?:во-?\s*первых\s*,?\s*)?/i, "")
@@ -426,13 +459,13 @@ export function inferPlannedEventsFromUserHistory(params: {
       if (isCausalSupportingSegment(segment, parsed)) continue;
       if (isGenericWorkloadSegment(segment, parsed)) continue;
       const hasPlanningCue = hasStrongPlanningCue(segment);
-      if ((parsed.resolution === "fallback_default" || !parsed.matchedPhrase) && !hasPlanningCue) continue;
-      if (parsed.resolution === "daypart_default" && !hasPlanningCue && segment.split(/\s+/).filter(Boolean).length < 4) continue;
+      const implicitTimeNorm = parsed.matchedPhrase ? null : inferImplicitTimeNorm(segment, params.locale);
+      if ((parsed.resolution === "fallback_default" || !parsed.matchedPhrase) && !hasPlanningCue && !implicitTimeNorm) continue;
+      if (parsed.resolution === "daypart_default" && !hasPlanningCue && !implicitTimeNorm && segment.split(/\s+/).filter(Boolean).length < 4) continue;
 
       const desc = buildEventDescription(segment, parsed.matchedPhrase);
       if (!desc) continue;
 
-      const implicitTimeNorm = parsed.matchedPhrase ? null : inferImplicitTimeNorm(segment, params.locale);
       const effectiveTimeSource = implicitTimeNorm ?? desc;
       const effectiveParsed = parsed.matchedPhrase
         ? parsed
@@ -458,15 +491,26 @@ export function inferPlannedEventsFromUserHistory(params: {
       });
     }
 
-    const bestByTime = new Map<string, { event: PlannedEventMarker; descLen: number }>();
+    const bestByTimeAndIdentity: Array<{ expectedKey: string; event: PlannedEventMarker; descLen: number }> = [];
     for (const candidate of segmentCandidates) {
-      const existing = bestByTime.get(candidate.expectedKey);
-      if (!existing || candidate.descLen < existing.descLen) {
-        bestByTime.set(candidate.expectedKey, { event: candidate.event, descLen: candidate.descLen });
+      const existingIndex = bestByTimeAndIdentity.findIndex((existing) =>
+        existing.expectedKey === candidate.expectedKey
+        && samePlannedEventIdentity(existing.event.desc, candidate.event.desc),
+      );
+      if (existingIndex < 0) {
+        bestByTimeAndIdentity.push({ expectedKey: candidate.expectedKey, event: candidate.event, descLen: candidate.descLen });
+        continue;
+      }
+      if (candidate.descLen < bestByTimeAndIdentity[existingIndex]!.descLen) {
+        bestByTimeAndIdentity[existingIndex] = {
+          expectedKey: candidate.expectedKey,
+          event: candidate.event,
+          descLen: candidate.descLen,
+        };
       }
     }
 
-    for (const [expectedKey, { event }] of bestByTime.entries()) {
+    for (const { expectedKey, event } of bestByTimeAndIdentity) {
       const key = dedupeKey(event.desc, expectedKey);
       if (seen.has(key)) continue;
       seen.add(key);

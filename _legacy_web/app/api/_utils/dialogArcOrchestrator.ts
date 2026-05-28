@@ -177,8 +177,7 @@ function hasPracticePicked(message: Message): boolean {
 }
 
 function lastAssistantOfferedPracticeInHistory(history: Message[]): boolean {
-  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant");
-  return Boolean(lastAssistant && hasPracticePicked(lastAssistant));
+  return history.some((message) => message.role === "assistant" && hasPracticePicked(message));
 }
 
 function userRejectsPracticeOfferText(text: string): boolean {

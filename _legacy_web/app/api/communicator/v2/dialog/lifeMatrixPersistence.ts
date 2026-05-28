@@ -518,18 +518,21 @@ export async function upsertConversationSummary(db: SupabaseClient, payload: {
   relatedEventIds: string[];
   matrixCells: MatrixCell[];
 }): Promise<void> {
-  const { error } = await db.from("conversation_summaries").upsert({
-    user_id: payload.userId,
-    conversation_id: payload.conversationId,
-    summary_text: `[${payload.branch}:${payload.phaseTime}]`,
-    key_topics: [],
-    chakras_mentioned: [...new Set(payload.matrixCells.map((cell) => cell.chakra))].sort((a, b) => a - b),
-    practices_mentioned: [],
-    plans: [],
-    branch: payload.branch,
-    phase_time: payload.phaseTime,
-    related_event_ids: payload.relatedEventIds,
-    matrix_cells: payload.matrixCells,
-  });
+  const { error } = await db.from("conversation_summaries").upsert(
+    {
+      user_id: payload.userId,
+      conversation_id: payload.conversationId,
+      summary_text: `[${payload.branch}:${payload.phaseTime}]`,
+      key_topics: [],
+      chakras_mentioned: [...new Set(payload.matrixCells.map((cell) => cell.chakra))].sort((a, b) => a - b),
+      practices_mentioned: [],
+      plans: [],
+      branch: payload.branch,
+      phase_time: payload.phaseTime,
+      related_event_ids: payload.relatedEventIds,
+      matrix_cells: payload.matrixCells,
+    },
+    { onConflict: "conversation_id" },
+  );
   if (error) throw error;
 }

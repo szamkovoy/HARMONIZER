@@ -226,4 +226,27 @@ describe("decideTurnMode", () => {
     expect(decision.mode).toBe("practice_repick");
     expect(decision.modelTier).toBe("premium");
   });
+
+  it("keeps practice_repick available after a short post-recommendation reply", () => {
+    const decision = decideTurnMode(
+      [
+        {
+          role: "assistant",
+          content: "Вот практика ниже.",
+          meta: { practice_picked: { id: "practice-1" }, turn_mode: "final_recommendation" },
+        },
+        {
+          role: "assistant",
+          content: "Хорошего дня.",
+          meta: { turn_mode: "post_recommendation" },
+        },
+      ],
+      4,
+      9,
+      "Предложи другую практику, пожалуйста.",
+    );
+
+    expect(decision.mode).toBe("practice_repick");
+    expect(decision.modelTier).toBe("premium");
+  });
 });

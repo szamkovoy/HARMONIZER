@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expireStalePlannedEvents, loadDuePlannedEvents } from "./lifeMatrixPersistence";
+import { expireStalePlannedEvents, loadDuePlannedEvents, upsertConversationSummary } from "./lifeMatrixPersistence";
 
 type QueryRecorder = {
   ltColumn: string | null;
@@ -117,5 +117,36 @@ describe("lifeMatrixPersistence planned event windows", () => {
 
     expect(due).toHaveLength(1);
     expect(due[0]?.description).toBe("Поход в театр вечером");
+  });
+});
+
+describe("upsertConversationSummary", () => {
+  it("upserts by conversation_id to avoid duplicate-key crashes on later turns", async () => {
+    const calls: Array<{ values: Record<string, unknown>; options: Record<string, unknown> | undefined }> = [];
+    const db = {
+      from(table: string) {
+        expect(table).toBe("conversation_summaries");
+        return {
+          upsert(values: Record<string, unknown>, options?: Record<string, unknown>) {
+            calls.push({ values, options });
+            return Promise.resolve({ error: null });
+          },
+        };
+      },
+    };
+
+    await upsertConversationSummary(db as never, {
+      userId: "user-1",
+      conversationId: "conv-1",
+      summaryText: "ignored",
+      branch: "planning",
+      phaseTime: "morning",
+      relatedEventIds: ["event-1"],
+      matrixCells: [{ sphere: 3, chakra: 5, weight: 1 }],
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.options).toEqual({ onConflict: "conversation_id" });
+    expect(calls[0]?.values.summary_text).toBe("[planning:morning]");
   });
 });

@@ -3,6 +3,7 @@ import {
   isConversationExpired,
   lastAssistantDecisions,
   loadHistory,
+  normalizeTurnHistory,
   todayLocalDate,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { shouldRetryForMissingSummaryMarker } from "./summaryRepair";
@@ -153,6 +154,43 @@ describe("dialog session lifecycle helpers", () => {
         now,
       ),
     ).toBe(true);
+  });
+});
+
+describe("normalizeTurnHistory", () => {
+  it("preserves practice and turn mode meta needed by the orchestrator", () => {
+    expect(
+      normalizeTurnHistory([
+        {
+          role: "assistant",
+          content: "Вот практика",
+          meta: {
+            turnMode: "final_recommendation",
+            practicePicked: {
+              id: "practice-1",
+              kind: "breath",
+            },
+            debug: { ignored: true },
+          },
+        },
+      ]),
+    ).toEqual([
+      {
+        role: "assistant",
+        content: "Вот практика",
+        meta: {
+          turn_mode: "final_recommendation",
+          practicePicked: {
+            id: "practice-1",
+            kind: "breath",
+          },
+          practice_picked: {
+            id: "practice-1",
+            kind: "breath",
+          },
+        },
+      },
+    ]);
   });
 });
 

@@ -3,13 +3,17 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.46
-updated: 2026-05-26
+version: 2.49
+updated: 2026-05-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-05-27: `assistant` — delayed `reconcile-plans` для summary-ветки больше не классифицирует `outcome_cells` тем же смешанным prompt-ом, что и planning anti-duplicate: `planningReconciliation.ts` теперь сначала нормализует outcome summary-эпизода, а затем отдельным classifier prompt-ом вычисляет клетки матрицы из compact outcome + baseline-ов. Это снижает semantic bleed между основным доменом события и побочными эффектами.
+- 2026-05-27: `assistant` — `plannedEventInference.ts` перестал терять несколько планов из одной длинной спонтанной реплики: short daypart/time-фрагменты теперь остаются рядом с соседним событием, а разные планы больше не схлопываются только из-за одинакового synthetic default time. В том же проходе replace-flow после карточки снова остаётся `practice_repick`, даже если между карточкой и запросом был короткий `post_recommendation`.
+- 2026-05-27: `assistant` + `communicator` — QA на `текст-4D64-AFFA-FE-0.txt`: `conversation_summaries` теперь upsert-ится по `conversation_id` вместо падения с `23505` после `complete`, а `normalizeTurnHistory()` перестал выкидывать `practicePicked` / `turn_mode`, поэтому после карточки снова корректно работают `post_recommendation` и `practice_repick`.
+- 2026-05-27: `assistant` — `prompts-reference.md` v1.16: зеркало v6, §3.1 server-side validation/context, обновлены `{{due_events}}` / `{{historical_context}}` и описание эскалации под текущий `route.ts` / `markers.ts`.
 - 2026-05-26: pre-push doc-sync — `assistant/dependencies.md`, `communicator/dependencies.md`, `MAP.md`, `assistant/prompts-reference.md` §3: delayed `reconcile-plans` (planning + summary), flush на unmount/launch practice, формат `dueEventWhenLabel` для `{{due_events}}` / `{{historical_context}}`.
 - 2026-05-26: `assistant` + `communicator` — practice validation перестала путать clock-time с длительностью практики (`четыре часа дня` больше не превращаются в `240 мин дыхания`), `historical_context` теперь помечает synthetic planning-time как approximate вместо точного пользовательского часа, а delayed reconcile дополнительно флашится при закрытии чата/запуске практики, чтобы queued plans и summaries не зависали в `trigger_meta`.
 - 2026-05-26: `assistant` + `communicator` — delayed reconcile шаг daily dialog теперь общий для planning и summarizing: assistant-turn складывает и `PLANNED_EVENT`, и `SUMMARIZE_EVENT` в `conversations.trigger_meta`, low-cost `reconcile-plans` одним LLM JSON-pass и канонизирует `planned_events`, и вычисляет `outcome_cells` для `daily_matrices`, а клиент дебаунсит reconcile и по `queued_summaries`.

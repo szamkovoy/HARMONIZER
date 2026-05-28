@@ -197,6 +197,26 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred[0]?.time).toBe("через полчаса");
   });
 
+  it("extracts several concrete plans from one long spontaneous reply", () => {
+    const nowLocal = DateTime.fromISO("2026-05-27T13:19:15", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{
+        role: "user",
+        content:
+          "Сегодня я хочу поехать в магазин посмотреть надувные лодки так как впереди лето то хочется купить какую-то лодку с мотором но хочу сначала прицениться почувствовать вообще каково она будет мне необходимость в этой покупке или нет так как не знаю вообще проведу ли я лето здесь на озере или может быть поеду в питер а если поеду в питер то возьму с собой сабборд и буду у нас сабборд Вечером, думаю, фильм посмотреть, тоже выбрать какой-нибудь так, чтобы расслабиться, отдохнуть. Перед фильмом, может быть, погуляю сначала, да, где-то еще погулять хочу в парке, час хотя бы, чтобы потом лучше мне спалось, и спать хочу лечь не поздно, примерно в 11.30. Вот такие планы на этот На этот день.",
+      }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    const descriptions = inferred.map((item) => item.desc.toLowerCase());
+    expect(descriptions.some((item) => item.includes("магазин") && item.includes("лод"))).toBe(true);
+    expect(descriptions.some((item) => item.includes("фильм"))).toBe(true);
+    expect(descriptions.some((item) => item.includes("парк") || item.includes("погуля"))).toBe(true);
+    expect(descriptions.some((item) => item.includes("лечь спать") || item.includes("спать"))).toBe(true);
+  });
+
   it("does not turn vague workload talk into a planned event", () => {
     const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({

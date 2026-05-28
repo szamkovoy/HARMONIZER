@@ -2,7 +2,7 @@
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
 version: 1.16
-updated: 2026-05-26
+updated: 2026-05-27
 depends_on: [02_modules/assistant/spec]
 code_refs:
   [
@@ -15,6 +15,7 @@ code_refs:
     _legacy_web/app/api/_utils/dialogArcOrchestrator.ts,
     _legacy_web/app/api/_utils/dialogOpeningHints.ts,
     _legacy_web/app/api/_utils/dialogTonalRegisters.ts,
+    _legacy_web/app/api/_utils/markers.ts,
     _legacy_web/app/api/communicator/v2/dialog/route.ts,
   ]
 ---
@@ -23,7 +24,7 @@ code_refs:
 
 ## 1. Системный промпт `dialog_system_v3`
 
-**Сверка с БД:** на 2026-05-23 runtime уже использует `public.prompts.prompt_key = "dialog_system_v3"` **version 6** (`is_active = true`). Текст §1 ниже — дословное зеркало миграции `supabase/migrations/20260521120000_dialog_system_v3_v6.sql`; справочник синхронизирован с текущей активной строкой в БД.
+**Сверка с БД:** runtime использует `public.prompts.prompt_key = "dialog_system_v3"` **version 6** (`is_active = true`). Текст §1 ниже — дословное зеркало миграции `supabase/migrations/20260521120000_dialog_system_v3_v6.sql`. Backend-валидация практики и `{{catalog_reconciliation}}` опираются на более узкие диапазоны в `markers.ts` (**1–5 / 5–20 / 20–70** минут) — см. §3.1; при расхождении с формулировками v6 источник истины для эскалации и `practice_picked` — backend.
 
 ```text
 Ты — внимательный человек со знанием психологии, йоги и нейрофизиологии, который слышит собеседника и подстраивается под его язык.
@@ -143,18 +144,13 @@ MATRIX EXTRACTION
 
 Допустимые диапазоны в приложении:
 - медитация: 1–5 минут
-- дыхание: 5–20 минут
-- асаны: 20 минут и больше
+- дыхание: 6–20 минут
+- асаны: больше 20 минут
 
 Ориентир, если пользователь назвал только длительность без типа:
-20 минут и больше -> асаны
-5–20 минут -> дыхательные практики
+больше 20 минут -> асаны
+6–20 минут -> дыхательные практики
 1–5 минуты -> медитация
-
-Если пользователь просит короткую / минимальную практику без числа минут, бери нижнюю границу выбранного типа и не задавай отдельный вопрос о точной длительности:
-- медитация -> 1 минута
-- дыхание -> 5 минут
-- асаны -> 20 минут
 
 При конфликте между названным типом и длительностью НЕ подгоняй молча и НЕ переключай тип сам. Переспроси одним коротким вопросом, например:
 «Длительность {N} минут не подходит для {названный тип}: в приложении {названный тип} — {диапазон}. Сократить до {макс} минут или выбрать {альтернатива} на {N} минут?»
@@ -211,7 +207,7 @@ MATRIX EXTRACTION
 {{user_self_description}}
 ```
 
-## 2. Инструкции оркестратора (`ORCHESTRATOR_INSTRUCTIONS`) (`ORCHESTRATOR_INSTRUCTIONS`)
+## 2. Инструкции оркестратора (`ORCHESTRATOR_INSTRUCTIONS`)
 
 Источник: `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`. Тексты ниже — дословно из значений константы (без пересказа). Отдельные строки retry для восстановления маркера (`route.ts`, не часть этой константы) здесь не приводятся. Плейсхолдеры `{{chakra_label}}`, `{{chakra_label_accusative}}`, `{{harmoniousness_value}}`, `{{harmoniousness_label}}`, `{{catalog_reconciliation}}`, `{{practice_refusal_check}}`, `{{opening_day_question}}` подставляются в `route.ts` функцией `expandOrchestratorInstruction` (`renderPrompt`) перед вызовом Gemini.
 
@@ -236,7 +232,7 @@ MATRIX EXTRACTION
 
 ### `fast_track_final`
 
-Первый ответ ассистента на первую содержательную реплику пользователя: либо прямой первый запрос пользователя при пустой истории, либо ответ после автоприветствия `opening`, когда в истории ещё **нет** пользовательских сообщений и есть максимум **один** assistant-turn до него. Если по тексту этой первой реплики `validateHistoryHasDurationAndType` на массиве из одного сообщения вернул `confident: true` **и** helper `isPracticeOnlyFirstTurn(...)` считает реплику почти чистым запросом на практику (без заметного жизненного контекста), выбирается `fast_track_final`. Если в первой реплике уже есть насыщенный контекст дня (`встреча`, `важный разговор`, переживание, ставки и т.п.) плюс практика, остаёмся в `inquiry`, чтобы затем выйти в обычный `final_recommendation`. Модель **premium**; `streamGeminiText` со стримингом в UI **без** предварительного standard-вызова и **без** проверки маркера `[READY_FOR_RECOMMENDATION]`.
+Первый ответ ассистента на первую содержательную реплику пользователя: либо прямой первый запрос пользователя при пустой истории, либо ответ после автоприветствия `opening`, когда в истории ещё **нет** пользовательских сообщений и есть максимум **один** assistant-turn до него. Если по тексту этой первой реплики `validateHistoryHasDurationAndType` на массиве из одного сообщения вернул `confident: true` (**тип и минуты согласованы** с backend-каталогом **1–5 / 5–20 / 20–70**) **и** helper `isPracticeOnlyFirstTurn(...)` считает реплику почти чистым запросом на практику (остаток текста после вычитания practice-filler ≤ 3 слов / 18 символов), выбирается `fast_track_final`. Если в первой реплике уже есть насыщенный контекст дня (`встреча`, `важный разговор`, переживание, ставки и т.п.) плюс практика, остаёмся в `inquiry`, чтобы затем выйти в обычный `final_recommendation`. Модель **premium**; `streamGeminiText` со стримингом в UI **без** предварительного standard-вызова и **без** проверки маркера `[READY_FOR_RECOMMENDATION]`.
 
 ```text
 [Инструкция оркестратора: пользователь в самом первом сообщении уже назвал длительность и тип практики, и ничего больше о себе не рассказал. Это деловой режим: разговор не нужен, нужна практика.
@@ -285,8 +281,6 @@ MATRIX EXTRACTION
 
 Если пользователь назвал диапазон минут, который уже укладывается в каталог выбранного типа практики, считай длительность достаточно определённой. Не проси выбрать точное число внутри диапазона; возьми подходящее значение сам и переходи дальше.
 
-Если в одной реплике всплывают несколько типов практики, ориентируйся на последнее явное предпочтение пользователя, а не на первое слово в фразе.
-
 Если в этом ходу ты упоминаешь, что нужно определиться с практикой — обязательно задай конкретный вопрос про длительность и тип прямо в этом же сообщении, не откладывай его на потом и не оставляй фразу-анонс без самого вопроса.
 
 Если все три вещи собраны и согласованы — выведи только маркер [READY_FOR_RECOMMENDATION], без видимого текста.
@@ -300,7 +294,7 @@ MATRIX EXTRACTION
 ВАЖНО ДЛЯ ЭТОГО ХОДА: пользователь уже не ответил на вопрос о длительности и типе практики (но явного отказа от практики ещё не было). В этом ходу не повторяй обычный уточняющий вопрос. Вместо этого прямо спроси, нужна ли практика вообще: «Возможно, сейчас вам не до практики — нет времени или просто не хочется? Если нужна — скажите длительность и тип. Если нет — так и скажите, я не буду настаивать». Адаптируй формулировку под обращение, смысл сохрани.
 ```
 
-Подстановка `{{catalog_reconciliation}}` — `buildCatalogReconciliationInstruction` в `markers.ts`, когда тип и длительность названы, но не согласованы с диапазонами v6 (медитация 1–5, дыхание 5–20, асаны >=20). Пример: «медитация 15 мин» → переспрос «5 мин медитация или 15 мин дыхание»; refusal-check в этом ходу **не** подставляется. Если диапазон уже попадает в каталог (например, `дыхание 10-15 минут`), runtime нормализует его к среднему значению и отдельный переспрос не нужен.
+Подстановка `{{catalog_reconciliation}}` — `buildCatalogReconciliationInstruction` в `markers.ts`, когда тип и длительность названы, но `catalogConsistent === false` по backend-каталогу (**медитация 1–5, дыхание 5–20, асаны 20–70** минут через `catalogDurationRangeForKind`). Пример: «медитация 15 мин» → переспрос «5 мин медитация или 15 мин дыхание»; refusal-check в этом ходу **не** подставляется. Если диапазон уже попадает в каталог (например, `дыхание 10-15 минут`), runtime нормализует его к среднему значению и отдельный переспрос не нужен. Правила «короткая / минимальная практика», «последний явный тип при нескольких упоминаниях» и игнор clock-time без practice-kind живут в `validateHistoryHasDurationAndType`, а не в тексте `inquiry` — см. §3.1.
 
 ### `final_without_practice`
 
@@ -468,7 +462,7 @@ MATRIX EXTRACTION
 | `{{local_hour}}`                 | Час 0–23 в зоне пользователя            | `promptLocalHour(now.hour)` (при принудительной фазе — представительный час, иначе `now.hour`)                                                                                                                                                                                    |
 | `{{phase_time}}`                 | Фаза дня (`morning` / `day` / `evening`) | `context.phaseTime` из `dialogDailyContext.ts` (`phaseTimeFor`)                                                                                                                                                  |
 | `{{branches}}`                   | Активные ветки хода (`summarizing`, `planning`) | `chooseDialogBranches(...).join(",")` или `"none"` в `route.ts`                                                                                                                                          |
-| `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents, context.nowLocal, context.user.locale)` — до 5 строк `description @ dueEventWhenLabel(...)` (локализованное «сегодня/вчера около HH:mm»; для non-explicit `time_resolution` — `time_phrase_raw` с пометкой synthetic) или `none`                                                                                                                          |
+| `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents, context.nowLocal, context.user.locale)` — до 5 строк `description @ dueEventWhenLabel(...)` (локализованное «сегодня/вчера около HH:mm»; для non-explicit `time_resolution` — `time_phrase_raw` с пометкой synthetic) или `none` |
 | `{{matrix_ready}}`               | Достаточно ли измерений матрицы         | `"true"` / `"false"` по `context.matrixReady` (`isMatrixReady`)                                                                                                                                                   |
 | `{{target_chakra}}`              | Номер целевой чакры дня (1–7)           | `String(context.targetChakra.chakraNumber)`                                                                                                                                                                       |
 | `{{target_explain}}`             | Почему выбрана целевая чакра            | `context.targetChakra.explain` (`chooseTargetChakra` + `lifeMatrix`)                                                                                                                                              |
@@ -500,12 +494,25 @@ MATRIX EXTRACTION
 
 Здесь `chakraData = chakraStatesBaseline[planet]`, `forecast` и `context` — аргументы и замыкание `buildDialogSystemInstruction`.
 
+## 3.1. Server-side дополнения (не в тексте `dialog_system_v3` / `ORCHESTRATOR_INSTRUCTIONS`)
+
+Эти правила влияют на подстановки, эскалацию и `practice_picked`, но не дублируются дословно в §1–§2.
+
+| Компонент | Поведение |
+| --------- | --------- |
+| `catalogDurationRangeForKind` (`markers.ts`) | Backend-каталог: медитация **1–5**, дыхание **5–20**, асаны **20–70** минут. Используется в `validateHistoryHasDurationAndType`, `buildCatalogReconciliationInstruction`, `resolvePracticePublic` (клип к `assistantSelectableDurations`). Текст v6 в §1 может формулировать дыхание как **6–20** и не называть потолок асан — для runtime authoritative backend. |
+| `validateHistoryHasDurationAndType` | Выбирает **последнюю catalog-consistent** пару `{duration, practiceKind}` по user-history; длительность берётся **ближе к упоминанию практики**, а не из первого числа/clock-time в реплике. Фразы clock-time без practice-kind (`«четыре часа дня»`) **не** перезаписывают уже подтверждённые минуты практики. «Короткая / минимальная» практика → нижняя граница типа (1 / 5 / 20 мин). Несколько типов в одной реплике → **последнее** явное предпочтение пользователя. |
+| `dueEventWhenLabel` / `formatOpenPlansHistoricalContext` | Synthetic/daypart/fallback timestamps в prompt помечаются как approximate; модель не должна считать их пользовательским exact time (anti false conflict). |
+| Premium bridge lock | При `validation.confident === true` в `final_recommendation*` `route.ts` дописывает server-side lock: видимый «мостик к практике» должен называть **ровно** validated тип и минуты. |
+| Legacy `turn_mode` | Persisted `practice_declined` при чтении истории нормализуется в `final_without_practice` (`turnModeFromMessageMeta`). |
+| Branch gating | `shouldServerEscalateToFinalRecommendation` и `[READY_FOR_RECOMMENDATION]` блокируются, пока `hasRequiredBranchArtifacts` ложно: для `planning` нужен маркер **или** open plans user-wide; для `summarizing` — `[SUMMARIZE_EVENT]` (при единственном due-событии, уже описанном пользователем, возможен standard retry через `branchRepairInstruction`). |
+
 ## 4. Где править что
 
 - **Текст системного промпта** — строка `template` для `prompt_key = 'dialog_system_v3'` в `public.prompts`: правка через новую миграцию (или админский SQL), затем `supabase db push` локально и тот же порядок на продакшене; этот файл — зеркало для диффа в git, его нужно обновить дословно после изменения шаблона в миграции/БД.
 - **Тексты инструкций оркестратора** — константа `ORCHESTRATOR_INSTRUCTIONS` в `_legacy_web/app/api/_utils/dialogArcOrchestrator.ts`: обычный commit в репозитории; при изменении синхронизируйте §2 здесь.
 - **Список переменных и подстановки** — любое новое `{{имя}}` в шаблоне БД или в `ORCHESTRATOR_INSTRUCTIONS` требует одновременной правки объекта в `renderPrompt` внутри `buildDialogSystemInstruction` / `expandOrchestratorInstruction` в `route.ts` и строки в §3 этого файла; тональные строки по планете — в `dialogTonalRegisters.ts`.
-- **Поведение эскалации standard → premium** — логика ветвления в `route.ts` (маркер `[READY_FOR_RECOMMENDATION]`, `validateHistoryHasDurationAndType`, при `inquiry` без маркера но с `confident` — `shouldServerEscalateToFinalRecommendation` → premium `final_recommendation`); не путать с текстами `ORCHESTRATOR_INSTRUCTIONS`.
+- **Поведение эскалации standard → premium** — логика ветвления в `route.ts` (маркер `[READY_FOR_RECOMMENDATION]`, `validateHistoryHasDurationAndType`, при `inquiry` без маркера но с `confident` и закрытыми branch-артефактами — `shouldServerEscalateToFinalRecommendation` → premium `final_recommendation`; bypass standard inquiry для чистого `planning`, если тип+минуты уже confident); server-side правила §3.1 — в `markers.ts` и helper-ах `route.ts`, не в `ORCHESTRATOR_INSTRUCTIONS`.
 - **Полный лог промпта в dev** — `console.log` с тегом `[DIALOG_V3_DEBUG_PROMPT]` (JSON: `systemInstruction`, `contents`) только если `NODE_ENV !== "production"`, или query `?debug=prompt`, или заголовок `X-Debug-Prompt: 1`, или `DEBUG_DIALOG_PROMPT=1`; в продакшене без флага полный промпт не логируется.
 - **Retry-текст при отсутствии `[PRACTICE_PICK]`** — инлайн-строка в `route.ts`, не входит в `ORCHESTRATOR_INSTRUCTIONS`; при правке не забыть описание в `spec.md`, при необходимости — отдельную строку в справочнике вне §2.
 

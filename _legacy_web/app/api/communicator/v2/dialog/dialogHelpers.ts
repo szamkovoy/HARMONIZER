@@ -9,7 +9,7 @@ export const MESSAGE_HISTORY_LIMIT = 40;
 export type TurnHistoryItem = {
   role: "user" | "assistant";
   content: string;
-  meta?: Record<string, unknown> | null;
+  meta?: Record<string, unknown>;
 };
 
 export function resolveTurnHistory(
@@ -27,6 +27,41 @@ export function resolveTurnHistory(
     }));
   }
   return dbHistory;
+}
+
+export function normalizeTurnHistory(raw: unknown): TurnHistoryItem[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const items = raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const role = (item as { role?: unknown }).role;
+      const content = String((item as { content?: unknown }).content ?? "").trim();
+      if ((role !== "user" && role !== "assistant") || !content) return null;
+      const rawMeta = (item as { meta?: unknown }).meta;
+      const meta =
+        rawMeta && typeof rawMeta === "object"
+          ? (() => {
+              const practicePicked =
+                (rawMeta as { practicePicked?: unknown; practice_picked?: unknown }).practicePicked
+                ?? (rawMeta as { practice_picked?: unknown }).practice_picked;
+              const turnMode =
+                (rawMeta as { turn_mode?: unknown; turnMode?: unknown }).turn_mode
+                ?? (rawMeta as { turnMode?: unknown }).turnMode;
+              const sanitized: Record<string, unknown> = {};
+              if (practicePicked && typeof practicePicked === "object") {
+                sanitized.practicePicked = practicePicked;
+                sanitized.practice_picked = practicePicked;
+              }
+              if (typeof turnMode === "string" && turnMode.trim()) {
+                sanitized.turn_mode = turnMode;
+              }
+              return Object.keys(sanitized).length ? sanitized : undefined;
+            })()
+          : undefined;
+      return { role, content: content.slice(0, 8000), ...(meta ? { meta } : {}) } satisfies TurnHistoryItem;
+    })
+    .filter((item): item is NonNullable<typeof item> => item != null);
+  return items.length ? items.slice(-MESSAGE_HISTORY_LIMIT) : undefined;
 }
 
 export async function purgeConversationMessages(

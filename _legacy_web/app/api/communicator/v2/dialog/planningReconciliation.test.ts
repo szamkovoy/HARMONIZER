@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPlanningCandidateParsePhrase, pendingSummaryEventIds, readPendingArtifactState } from "./planningReconciliation";
+import {
+  buildPlanningCandidateParsePhrase,
+  buildSummaryClassificationCandidate,
+  buildSummaryNormalizationSourceText,
+  pendingSummaryEventIds,
+  readPendingArtifactState,
+} from "./planningReconciliation";
 
 describe("readPendingArtifactState", () => {
   it("reads valid pending planning queue from trigger_meta", () => {
@@ -95,5 +101,46 @@ describe("buildPlanningCandidateParsePhrase", () => {
       time: "в 11.30",
       timeNorm: null,
     })).toBe("Ужин после театра и сон в 23:30. в 11.30");
+  });
+});
+
+describe("summary outcome helpers", () => {
+  it("keeps contract context in normalization source text", () => {
+    expect(buildSummaryNormalizationSourceText({
+      description: "Обсуждение контракта с клиентом",
+      outcome: "Пришлось настоять на важных условиях, но удалось продвинуться к договоренности",
+      planned_local_date: "2026-05-27",
+      time_phrase_raw: "днем",
+    })).toContain("Событие: Обсуждение контракта с клиентом.");
+  });
+
+  it("keeps theater context as classifier anchor even when outcome mentions recovery side effects", () => {
+    expect(buildSummaryClassificationCandidate(
+      {
+        candidate_id: "s-theater",
+        description: "Поход в театр и филармонию",
+        outcome: "Удалось расслабиться, потом лучше спалось",
+      },
+      "Культурный выход в театр и филармонию дал эстетическое впечатление и отдых",
+    )).toEqual({
+      candidate_id: "s-theater",
+      event_description: "Поход в театр и филармонию",
+      normalized_outcome: "Культурный выход в театр и филармонию дал эстетическое впечатление и отдых",
+    });
+  });
+
+  it("falls back to event description plus raw contract outcome when normalization is missing", () => {
+    expect(buildSummaryClassificationCandidate(
+      {
+        candidate_id: "s-contract",
+        description: "Разговор по контракту",
+        outcome: "Удалось прояснить рабочие договоренности",
+      },
+      null,
+    )).toEqual({
+      candidate_id: "s-contract",
+      event_description: "Разговор по контракту",
+      normalized_outcome: "Удалось прояснить рабочие договоренности",
+    });
   });
 });

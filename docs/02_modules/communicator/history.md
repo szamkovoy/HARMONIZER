@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.22
-updated: 2026-05-26
+version: 2.23
+updated: 2026-05-27
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -18,6 +18,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-05-27:** QA по `текст-4D64-AFFA-FE-0.txt` показал, что post-practice хвост daily dialog ломался сразу в двух местах. Во-первых, `buildClientTurnHistory()` действительно отправлял `meta.practicePicked`, но серверный `normalizeTurnHistory()` его выкидывал, поэтому оркестратор терял факт уже показанной карточки и вместо `post_recommendation` / `practice_repick` снова шёл в длинный `final_recommendation`. Во-вторых, из-за server-side `23505` после `complete` клиент часто не получал `turn_artifacts`, поэтому queued planning/summarizing не доходили до reconcile. Фикс в этой итерации: client turnHistory снова сохраняет минимальный meta-контракт до сервера, а server-side artifact-pass больше не падает на `conversation_summaries`.
 
 - **2026-05-26:** Delayed reconcile перестал зависеть только от живого таймера внутри открытого чата. Если в ленте уже есть `planningPersistence.queued` / `queued_summaries`, `Communicator` теперь делает best-effort flush `reconcileDialogPlans({ conversationId })` и при запуске практики из карточки ассистента, и при unmount компонента. Это закрывает QA-кейс, где пользователь сразу уходит в практику/закрывает оверлей, а queued planning-summary artifacts зависают в `trigger_meta` и не доходят до `planned_events` / `daily_matrices`.
 - **2026-05-26:** Debounce `reconcileDialogPlans({ conversationId })` перестал быть только planning-memory хуком. Клиент теперь считает queued state по обоим хвостам — `planningPersistence.queued` и `planningPersistence.queued_summaries`, поэтому delayed server-pass закрывает и канонизацию планов, и late matrix/summarizing persistence, не заставляя live SSE сразу менять `planned_events` / `daily_matrices`.

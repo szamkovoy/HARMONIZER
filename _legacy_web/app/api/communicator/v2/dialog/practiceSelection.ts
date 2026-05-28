@@ -130,8 +130,7 @@ export function userRejectsPracticeOffer(text: string): boolean {
 }
 
 export function lastAssistantOfferedPractice(history: MessageRecord[]): boolean {
-  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant");
-  return Boolean(lastAssistant && practiceMetaId(lastAssistant));
+  return history.some((message) => message.role === "assistant" && practiceMetaId(message));
 }
 
 export function shouldStayInPracticeSuggestion(params: {
