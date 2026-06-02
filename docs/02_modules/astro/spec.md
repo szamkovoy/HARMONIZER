@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/spec
 title: Astro Spec
-version: 1.3
-updated: 2026-05-21
+version: 1.4
+updated: 2026-06-02
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -102,7 +102,7 @@ export interface NatalProfile {
 
 - `services/natalProfileClient.ts`: `createNatalProfile(birthData, signal?)` — `POST` на `getAstroNatalUrl()` (Vercel `_legacy_web/app/api/astro/natal`) с телом `{ birthData }` и JWT Supabase; ответ содержит `profile: NatalProfile` и опционально `natalChart` (строка БД).
 - `fetchActiveNatalProfile()` — чтение активной строки из `user_natal_charts` через клиентский Supabase SDK и сборка `NatalProfile` (включая восстановление `houseCusps` для `precise` при наличии `ascendant_longitude`); клиентский запрос защищён таймаутом `10s` через `AbortController` + PostgREST `.abortSignal(...)`.
-- `fetchActiveNatalProfileCached(userId)` — mobile/web helper для быстрого старта: сначала пытается вернуть локальный кэш `expo-secure-store` / `localStorage` по ключу `harmonizer.natalProfile.v1.{userId}`, затем best-effort обновляет его из сети в фоне; при отсутствии кэша ждёт сетевой fetch.
+- `fetchActiveNatalProfileCached(userId, options?)` — mobile/web helper для UI карты на Home: при наличии **непустого** локального кэша (`expo-secure-store` / `localStorage`, ключ `harmonizer.natalProfile.v1.{userId}`) сразу возвращает его и в фоне обновляет из сети; опциональный `options.onBackgroundRefresh` вызывается после завершения background refresh. Запись кэша с `profile: null` при чтении сбрасывается (не short-circuit), сетевые сбои **не** персистятся как «нет карты». При отсутствии валидного кэша ждёт сетевой fetch. Запуск персонального прогноза на Home **не** зависит от успеха этого helper — gate по `users.birth_date` (см. `daily_forecast`).
 
 ## 3. Внутренняя архитектура
 

@@ -2,7 +2,7 @@
 id: 02_modules/profile/history
 title: Profile History
 version: 1.10
-updated: 2026-05-25
+updated: 2026-06-02
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---

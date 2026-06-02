@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.12
-updated: 2026-05-25
+version: 1.13
+updated: 2026-06-02
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -86,7 +86,7 @@ code_refs:
 ## 6. Интеграции
 
 - **`subscription`:** тариф и trial читаются из `profile`; эффективный tier и `canUseFeature` — через `AccessProvider`. Ключ `stats` теперь открывает не только старую bar-chart статистику, но и server-backed отчёты HARMONIZER v2.
-- **`astro`:** персональный прогноз и натал зависят от полей профиля и результата `createNatalProfile`; клиентский контракт BirthData/`NatalProfile` — `modules/astro-core`, вызовы в `services/natalProfileClient.ts`.
+- **`astro`:** персональный прогноз на Home зависит от **`birth_date`** (и связанных birth-полей) в строке `users`, а не от успешного клиентского чтения `user_natal_charts`; `createNatalProfile` / `fetchActiveNatalProfileCached` — для карты и последующих серверных расчётов. Клиентский контракт BirthData/`NatalProfile` — `modules/astro-core`, вызовы в `services/natalProfileClient.ts`.
 - **`practices`:** экран профиля читает статистику завершённых сессий через **`practice_sessions`** (сервис `practiceSessions`), без записи новых сессий с этого экрана.
 - **`communicator` / `assistant`:** не импортируют экран профиля; серверные маршруты сами выбирают `users` и натал для диалога. Обновление профиля после смены birth data на клиенте косвенно влияет на последующие запросы диалога после `refreshProfile`.
 - **`assistant`:** profile reports читают `profile_report_snapshots` с fallback rebuild из `daily_matrices` (daily dialog) и helpers ассистента для матрицы/сфер (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`); легенда чакр — отдельный server util **`planetChakraLegend.ts`**, без импорта клиентского `modules/home/planetChakra`.

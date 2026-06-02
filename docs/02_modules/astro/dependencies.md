@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/dependencies
 title: Astro Dependencies
-version: 1.2
-updated: 2026-05-07
+version: 1.3
+updated: 2026-06-02
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -30,7 +30,7 @@ code_refs:
 ## 2. От него зависят
 
 - **`profile`**  
-  `services/natalProfileClient.ts` вызывает `createNatalProfile` / `fetchActiveNatalProfile`; активная карта определяет доступность персонального контента на главной.
+  `services/natalProfileClient.ts` вызывает `createNatalProfile` / `fetchActiveNatalProfile` / `fetchActiveNatalProfileCached`; на Home персональный прогноз gate-ится по `users.birth_date` из профиля, а клиентский fetch активной карты нужен в основном для UI (`ModalMathLevel`), не как обязательный блокер day content.
 
 - **`daily_forecast`**  
   `modules/daily-engine/core/activation.ts` — `effectiveNatalParams`, `computeActivation`, `computeImportance` используют `natalProfile.planets[*].longitude`, `.sign`, `.house`, `.S_initial`, `.H_initial` и `precisionMode`.  

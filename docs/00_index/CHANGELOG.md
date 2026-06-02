@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.50
+version: 2.51
 updated: 2026-06-02
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-02: `astro` — `fetchActiveNatalProfileCached(userId, options?)` с `onBackgroundRefresh`; кэш «нет карты» и сетевые сбои чтения натала больше не маскируют отсутствие `birth_date` на Home (`spec.md`, `dependencies.md`, `history.md`; уточнение в `profile/spec.md`).
 - 2026-06-02: `assistant` — в QA с `TEST_MODE_FORCE_PHASE` `dueEvents` внутри dialog-context теперь режутся по representative часу forced-phase, чтобы untimed/daypart-планы не становились `summarizing` раньше симулируемого времени; `plannedEventInference.ts` дополнительно перестал сохранять meta-фразы про «интересный день», игнорирует голые time-clarification реплики и разделяет независимые coordinated-actions вроде `фильм` + `ужин`.
 - 2026-06-02: `profile` / Home — баннер «Нужна дата рождения» только если в `users` нет `birth_date`; сбой загрузки `user_natal_charts` больше не блокирует главный экран.
 - 2026-05-28: pre-push doc-sync — `assistant/spec.md` ( `normalizeTurnHistory`, post-practice scan по любому assistant-turn с карточкой, `conversation_summaries` upsert `onConflict` ); `open_questions.md` — контекст summary `outcome_cells` приведён к двухшаговой цепочке reconcile.
