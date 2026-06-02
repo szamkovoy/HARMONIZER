@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { loadActiveNatalProfile } from "@legacy/app/api/_utils/astro-db";
 import { phaseTimeFor } from "@legacy/app/api/_utils/dialogBranching";
 import { chooseTargetChakra, isMatrixReady, sumMatrices, type DenseMatrix } from "@legacy/app/api/_utils/lifeMatrix";
+import { effectiveDialogNowLocal } from "@legacy/app/api/_utils/testMode";
 import { buildTopPetals, type CalibrationLike, type PetalData } from "@legacy/app/api/_utils/topPetals";
 import { expireStalePlannedEvents, loadDuePlannedEvents, loadLastPlanningSummary, type PlannedEventRow } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { todayLocalDate } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
@@ -116,8 +117,10 @@ export async function loadDialogDailyContext(db: SupabaseClient, userId: string,
   const user = await loadUser(db, userId);
   const timezone = user.tz ?? timezoneHint ?? "UTC";
   const nowLocal = DateTime.now().setZone(timezone);
+  const dialogNowLocal = effectiveDialogNowLocal(nowLocal);
   const localDate = todayLocalDate(timezone);
   const nowIso = nowLocal.toUTC().toISO() ?? new Date().toISOString();
+  const dueNowIso = dialogNowLocal.toUTC().toISO() ?? nowIso;
 
   await expireStalePlannedEvents(db, userId, nowIso);
 
@@ -125,7 +128,7 @@ export async function loadDialogDailyContext(db: SupabaseClient, userId: string,
     loadForecastForLocalDate(db, userId, localDate),
     loadActiveNatalProfile(db, userId),
     loadCalibration(db, userId),
-    loadDuePlannedEvents(db, userId, nowIso),
+    loadDuePlannedEvents(db, userId, nowIso, dueNowIso),
     loadLastPlanningSummary(db, userId),
     loadAggregatedMatrix(db, userId),
   ]);

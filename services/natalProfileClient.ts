@@ -182,6 +182,12 @@ async function readCachedNatalProfile(userId: string): Promise<NatalProfile | nu
     await removeRaw(key);
     return undefined;
   }
+  // A cached "no profile" must not short-circuit startup — network may have the chart now.
+  if (!entry.profile) {
+    natalProfileMemoryCache.delete(key);
+    await removeRaw(key);
+    return undefined;
+  }
   natalProfileMemoryCache.set(key, entry);
   return entry.profile;
 }
@@ -315,6 +321,7 @@ async function fetchActiveNatalProfileFromNetwork(userId: string, signal?: Abort
     if (timeout.timedOut()) {
       throw new Error(`Natal profile request timed out after ${Math.round(NATAL_PROFILE_TIMEOUT_MS / 1000)}s.`);
     }
+    // Do not persist failures as "profile: null" — that caused false "birth data required" on Home.
     throw error;
   } finally {
     timeout.cleanup();
@@ -336,10 +343,22 @@ export async function fetchActiveNatalProfile(): Promise<NatalProfile | null> {
   return fetchActiveNatalProfileFromNetwork(userId);
 }
 
-export async function fetchActiveNatalProfileCached(userId: string): Promise<NatalProfile | null> {
+export type FetchActiveNatalProfileCachedOptions = {
+  /** Called when a warm cache was shown and a background refresh finishes. */
+  onBackgroundRefresh?: (profile: NatalProfile | null) => void;
+};
+
+export async function fetchActiveNatalProfileCached(
+  userId: string,
+  options?: FetchActiveNatalProfileCachedOptions,
+): Promise<NatalProfile | null> {
   const cached = await readCachedNatalProfile(userId);
-  if (cached !== undefined) {
-    void refreshNatalProfileCache(userId).catch(() => undefined);
+  if (cached) {
+    void refreshNatalProfileCache(userId)
+      .then((profile) => {
+        options?.onBackgroundRefresh?.(profile);
+      })
+      .catch(() => undefined);
     return cached;
   }
   return refreshNatalProfileCache(userId);

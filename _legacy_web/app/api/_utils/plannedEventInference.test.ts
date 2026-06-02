@@ -147,6 +147,52 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred[0]?.timeNorm).toBe("сегодня вечером");
   });
 
+  it("does not create a generic 'interesting day' planned event", () => {
+    const nowLocal = DateTime.fromISO("2026-06-02T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Сегодня у меня предстоит интересный день." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
+  it("splits film and dinner into separate planned events", () => {
+    const nowLocal = DateTime.fromISO("2026-06-02T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{
+        role: "user",
+        content: "Также вечером хочу посмотреть интересный фильм и сделать хороший, здоровый, вкусный ужин.",
+      }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(2);
+    expect(inferred.map((item) => item.desc)).toEqual([
+      "посмотреть интересный фильм",
+      "сделать хороший, здоровый, вкусный ужин",
+    ]);
+    expect(inferred.map((item) => item.time)).toEqual(["вечером", "вечером"]);
+  });
+
+  it("keeps a supportive pair like walk plus fresh air as one event", () => {
+    const nowLocal = DateTime.fromISO("2026-06-02T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Сегодня вечером хочу погулять и подышать свежим воздухом." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc).toContain("погулять");
+    expect(inferred[0]?.desc).toContain("подышать свежим воздухом");
+  });
+
   it("does not resurrect an old planning topic from too far back in history", () => {
     const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
@@ -221,6 +267,18 @@ describe("inferPlannedEventsFromUserHistory", () => {
     const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
       history: [{ role: "user", content: "Да, нужно поработать, много дел, я не знаю как пойдет все." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
+  it("ignores bare time clarifications without an event", () => {
+    const nowLocal = DateTime.fromISO("2026-06-02T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Я планирую на 8." }],
       nowLocal,
       tz: TZ,
       locale: "ru",

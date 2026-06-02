@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.48
-updated: 2026-05-27
+version: 2.49
+updated: 2026-06-02
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-06-02:** QA по диалогу `feff4790-5ea1-49be-8024-57efa69de167` показал, что при `TEST_MODE_FORCE_PHASE=morning` untimed/fallback-план мог стать `due` раньше симулируемого времени, если реальный локальный час устройства уже ушёл дальше representative-часа forced phase. `dialogDailyContext.ts` / `lifeMatrixPersistence.ts` теперь считают `dueEvents` внутри dialog-context по forced-phase cutoff (`9 / 14 / 19`), сохраняя при этом реальное 36-часовое expiry-окно `planned_events`. В том же проходе `plannedEventInference.ts` перестал поднимать meta-фразы вроде `«предстоит интересный день»`, игнорирует голые time-clarification реплики вроде `«планирую на 8»` и умеет расклеивать независимые coordinated-actions (`фильм` + `ужин`) без разрыва поддерживающих пар вроде `погулять и подышать свежим воздухом`.
 - **2026-05-27:** Delayed summary reconcile в `planningReconciliation.ts` перестал вычислять `outcome_cells` тем же смешанным low-cost prompt-ом, что и planning anti-duplicate. Теперь summary-кандидаты проходят двухшаговую цепочку внутри того же idle/end reconcile-pass: сначала low-cost normalization удерживает primary domain события в компактном `normalized_outcome`, затем отдельный classifier prompt классифицирует `outcome_cells` по `life_spheres_baseline` + `chakra_baselines`, уже без planning-очереди и без шумного сырого диалогового контекста. Это уменьшает semantic bleed, где побочный эффект (`лучше спалось`, `задумался о смысле`) мог увести театральный/контрактный эпизод в нецелевую сферу.
 - **2026-05-27:** После QA на `текст-4C53-BA7A-F5-0.txt` planning inference в `plannedEventInference.ts` перестал терять несколько планов из одной длинной спонтанной реплики. Разбиение пользовательского текста теперь удерживает короткие daypart/time-хвосты (`вечером`, `примерно в 11:30`) рядом с соседним событием, а dedupe больше не схлопывает разные планы только из-за одинакового synthetic default time. В том же проходе post-practice replace-flow стал устойчивым к промежуточному `post_recommendation`: запрос `другая практика` теперь остаётся `practice_repick`, даже если перед ним уже было короткое `Спасибо!` / `Хорошего дня`.
 - **2026-05-27:** QA по `текст-4D64-AFFA-FE-0.txt` вскрыл server-side разрыв после `complete`: `upsertConversationSummary()` в `lifeMatrixPersistence.ts` вызывался без `onConflict`, поэтому на втором и последующих assistant-turn срабатывал `23505` по `conversation_summaries.conversation_id`. Клиент уже видел видимый ответ, но сервер падал до `persistAssistantMessage()` / `turn_artifacts`, из-за чего новые assistant-ходы не появлялись в БД, а queued planning/summarizing оставались в `trigger_meta`. Фикс: upsert теперь конфликтует по `conversation_id`.

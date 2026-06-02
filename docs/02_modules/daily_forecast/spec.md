@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.5
-updated: 2026-05-25
+version: 2.6
+updated: 2026-06-02
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -49,7 +49,7 @@ code_refs:
   - **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты **`YYYY-MM-DD`** и времени **`HH:MM`**; опционально **`initialDate` / `initialTime`**; при сабмите — **`timeMode: "precise"`**, **`location`** = экспорт **`NATAL_BRIDGE_DEFAULT_LOCATION`** (M1: Москва, `Europe/Moscow`).
   - Локальный календарный день: `Intl` + `forecastDate` в IANA-зоне из профиля/геолокации.
   - Free: `fetchGlobalContent` + URL из `getAiGlobalContentUrl()`; premium/trial: `fetchDailyForecast` + `getDailyForecastUrl()` (Vercel `/api/astro/daily-forecast` или Supabase Function — определяется `communicatorConfig`).
-  - Перед первым `refresh()` главный экран (`app/(tabs)/index.tsx`) для персонального режима запрашивает активный натал через `fetchActiveNatalProfileCached(profile.id)`, чтобы `hasNatalProfile` мог разрешиться из локального кэша и не блокировал ранний `peek/loadDayContentCache`.
+  - Перед первым `refresh()` главный экран (`app/(tabs)/index.tsx`) для персонального режима ждёт готовность **birth-fields из `useAuth().profile`** (`birth_date` как признак наличия персональных данных), а `fetchActiveNatalProfileCached(profile.id)` использует только для дополнительного UI (`ModalMathLevel` → карта). Поэтому сбой клиентского fetch `user_natal_charts` не должен переводить Home в `need_birth_data`.
   - Персональный режим больше не держит первый рендер до полной LLM-генерации: если базовый `DailyForecast` валиден, home может открыться сразу; вторичный слой (`slogan`, `recommendationShortText`, `recommendationLongText`, `mathLevel`) догружается в фоне через `callMonologue("morning_recommendation", …)` и затем перезаписывает клиентский day-cache. Если при этом **`refresh` вызван с `forceRefresh` или `blockingReload`**, вторичный слой **всегда** запрашивается заново с `variables.forceRefresh: true` у monologue, даже когда текстовые поля в ответе `daily-forecast` уже заполнены (иначе после смены натала остаются старые формулировки при обновлённом числовом прогнозе).
   - **`DailyRecommendationCard`**: строка отладки `model: … · accessMode` под рекомендацией показывается только при **`__DEV__`** (не в production).
 

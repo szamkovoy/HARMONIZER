@@ -5,8 +5,10 @@ import { expireStalePlannedEvents, loadDuePlannedEvents, upsertConversationSumma
 type QueryRecorder = {
   ltColumn: string | null;
   gteColumn: string | null;
+  lteColumn: string | null;
   ltValue: string | null;
   gteValue: string | null;
+  lteValue: string | null;
 };
 
 function createMockSupabase(recorder: QueryRecorder, rows: unknown[] = []) {
@@ -25,7 +27,9 @@ function createMockSupabase(recorder: QueryRecorder, rows: unknown[] = []) {
                       recorder.ltValue = value;
                       return Promise.resolve({ data: [], error: null });
                     },
-                    lte(_column: string, _value: string) {
+                    lte(column: string, value: string) {
+                      recorder.lteColumn = column;
+                      recorder.lteValue = value;
                       return {
                         gte(column: string, value: string) {
                           recorder.gteColumn = column;
@@ -51,7 +55,14 @@ function createMockSupabase(recorder: QueryRecorder, rows: unknown[] = []) {
 
 describe("lifeMatrixPersistence planned event windows", () => {
   it("expires planned rows by expected_at, not by planned_at", async () => {
-    const recorder: QueryRecorder = { ltColumn: null, gteColumn: null, ltValue: null, gteValue: null };
+    const recorder: QueryRecorder = {
+      ltColumn: null,
+      gteColumn: null,
+      lteColumn: null,
+      ltValue: null,
+      gteValue: null,
+      lteValue: null,
+    };
 
     await expireStalePlannedEvents(
       createMockSupabase(recorder) as never,
@@ -64,7 +75,14 @@ describe("lifeMatrixPersistence planned event windows", () => {
   });
 
   it("loads due rows using the expected_at summary window", async () => {
-    const recorder: QueryRecorder = { ltColumn: null, gteColumn: null, ltValue: null, gteValue: null };
+    const recorder: QueryRecorder = {
+      ltColumn: null,
+      gteColumn: null,
+      lteColumn: null,
+      ltValue: null,
+      gteValue: null,
+      lteValue: null,
+    };
 
     await loadDuePlannedEvents(
       createMockSupabase(recorder) as never,
@@ -76,8 +94,37 @@ describe("lifeMatrixPersistence planned event windows", () => {
     expect(recorder.gteValue).toBe("2026-05-24T00:00:00.000Z");
   });
 
+  it("can cap due rows by a simulated dialog cutoff without shrinking the real expiry window", async () => {
+    const recorder: QueryRecorder = {
+      ltColumn: null,
+      gteColumn: null,
+      lteColumn: null,
+      ltValue: null,
+      gteValue: null,
+      lteValue: null,
+    };
+
+    await loadDuePlannedEvents(
+      createMockSupabase(recorder) as never,
+      "user-1",
+      "2026-05-25T16:30:00.000Z",
+      "2026-05-25T09:00:00.000Z",
+    );
+
+    expect(recorder.lteColumn).toBe("expected_at");
+    expect(recorder.lteValue).toBe("2026-05-25T09:00:00.000Z");
+    expect(recorder.gteValue).toBe("2026-05-24T04:30:00.000Z");
+  });
+
   it("collapses semantic duplicates when loading due planned rows", async () => {
-    const recorder: QueryRecorder = { ltColumn: null, gteColumn: null, ltValue: null, gteValue: null };
+    const recorder: QueryRecorder = {
+      ltColumn: null,
+      gteColumn: null,
+      lteColumn: null,
+      ltValue: null,
+      gteValue: null,
+      lteValue: null,
+    };
     const rows = [
       {
         id: "event-1",

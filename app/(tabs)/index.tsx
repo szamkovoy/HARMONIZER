@@ -29,7 +29,7 @@ import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -389,10 +389,14 @@ function CommunicatorOverlay({
   );
 }
 
+function profileHasBirthData(profile: { birth_date?: string | null } | null | undefined): boolean {
+  return Boolean(typeof profile?.birth_date === "string" && profile.birth_date.trim());
+}
+
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { authUser, profile, signOut, signingIn, refreshProfile } = useAuth();
+  const { authUser, profile, signOut, signingIn, refreshProfile, profileLoading } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const strings = useMemo(
@@ -405,19 +409,20 @@ export default function HomeScreen() {
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
   const [assistantRemountKey, setAssistantRemountKey] = useState(0);
   const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
-  const [natalProfileLoading, setNatalProfileLoading] = useState(needsPersonalForecast);
-  const [natalProfileResolved, setNatalProfileResolved] = useState(!needsPersonalForecast);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
-  const hasNatalProfile = needsPersonalForecast
-    ? (natalProfileLoading || !natalProfileResolved ? null : Boolean(natalProfile))
-    : true;
+  // Personal forecast needs birth fields in `users`, not a successful chart row fetch (chart is UI-only).
+  const hasBirthDataForForecast = !needsPersonalForecast
+    ? true
+    : profileLoading
+      ? null
+      : profileHasBirthData(profile);
   const { forecast, error, refresh, status, accessMode, modelUsed, userLocation } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     birthDataErrorMessage: strings.birthDataMessage,
     accessModeOverride: accessModeForTier(access.tier),
     accessTierOverride: access.tier,
     natalRequired: needsPersonalForecast,
-    hasNatalProfile,
+    hasNatalProfile: hasBirthDataForForecast,
   });
   const forecastErrorAlert = useMemo(
     () =>
@@ -427,44 +432,27 @@ export default function HomeScreen() {
     [error, strings.forecastErrorTitle, strings.locale],
   );
 
-  useLayoutEffect(() => {
-    if (!profile?.id || !needsPersonalForecast) {
-      return;
-    }
-    setNatalProfileLoading(true);
-    setNatalProfileResolved(false);
-  }, [needsPersonalForecast, profile?.id, profile?.birth_date, profile?.birth_time]);
-
   useEffect(() => {
     let cancelled = false;
     if (!profile?.id || !needsPersonalForecast) {
       setNatalProfile(null);
-      setNatalProfileLoading(false);
-      setNatalProfileResolved(true);
       return;
     }
-    setNatalProfileLoading(true);
-    setNatalProfileResolved(false);
-    fetchActiveNatalProfileCached(profile.id)
+    fetchActiveNatalProfileCached(profile.id, {
+      onBackgroundRefresh: (value) => {
+        if (!cancelled && value) setNatalProfile(value);
+      },
+    })
       .then((value) => {
-        if (!cancelled) {
-          setNatalProfile(value);
-          setNatalProfileLoading(false);
-          setNatalProfileResolved(true);
-        }
+        if (!cancelled) setNatalProfile(value);
       })
       .catch((loadError) => {
-        console.warn("[Home] Failed to load active natal profile", loadError);
-        if (!cancelled) {
-          setNatalProfile(null);
-          setNatalProfileLoading(false);
-          setNatalProfileResolved(true);
-        }
+        console.warn("[Home] Failed to load active natal profile for chart UI", loadError);
       });
     return () => {
       cancelled = true;
     };
-  }, [needsPersonalForecast, profile?.id, profile?.birth_date, profile?.birth_time]);
+  }, [needsPersonalForecast, profile?.id]);
 
   useFocusEffect(
     useCallback(() => {

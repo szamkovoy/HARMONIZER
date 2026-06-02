@@ -74,7 +74,54 @@ function splitEventSegments(text: string): string[] {
     merged.push(current);
   }
 
-  return merged;
+  return merged.flatMap(splitCoordinatedActionSegment);
+}
+
+const COORDINATED_ACTION_PRONOUNS = new Set(["его", "ее", "её", "их", "это", "этого", "эту", "эти"]);
+const SUPPORTIVE_COORDINATED_ACTION_PAIRS = new Set([
+  "пройти|подыш",
+  "погуля|подыш",
+]);
+
+function normalizedTokens(value: string): string[] {
+  return normalizeDescription(value)
+    .replace(/ё/g, "е")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function clauseCanStandAsSeparateAction(value: string): boolean {
+  const tokens = normalizedTokens(value);
+  if (tokens.length < 2) return false;
+  const tailTokens = tokens
+    .slice(1)
+    .filter((token) => token.length >= 3 && !EVENT_IDENTITY_STOPWORDS.has(token));
+  if (tailTokens.length === 0) return false;
+  if (tailTokens.every((token) => COORDINATED_ACTION_PRONOUNS.has(token))) return false;
+  return true;
+}
+
+function leadingVerbStem(value: string): string {
+  return normalizedTokens(value)[0]?.slice(0, 6) ?? "";
+}
+
+function splitCoordinatedActionSegment(segment: string): string[] {
+  if (!/\s+и\s+/i.test(segment)) return [segment];
+  const sharedCue = segment.match(
+    /^(.*?(?:^|[\s,.;:!?()])(?:хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?|буду)\s+)(.+)$/i,
+  );
+  if (!sharedCue) return [segment];
+
+  const prefix = sharedCue[1]!.trim();
+  const body = sharedCue[2]!.trim();
+  const clauses = body.split(/\s+и\s+/i).map((part) => part.trim());
+  if (clauses.length !== 2) return [segment];
+  if (!clauses.every(clauseCanStandAsSeparateAction)) return [segment];
+
+  const pairKey = `${leadingVerbStem(clauses[0]!)}|${leadingVerbStem(clauses[1]!)}`;
+  if (SUPPORTIVE_COORDINATED_ACTION_PAIRS.has(pairKey)) return [segment];
+
+  return clauses.map((clause) => `${prefix} ${clause}`.replace(/\s+/g, " ").trim());
 }
 
 function stripMatchedPhrase(text: string, matchedPhrase: string | null): string {
@@ -284,6 +331,22 @@ function isGenericWorkloadSegment(
   return /^(?:да,\s*)?(?:нужно\s+)?поработать(?:,\s*много\s+дел)?(?:,\s*я\s+не\s+знаю\s+как\s+пойд[её]т\s+вс[её])?\.?$/i.test(text.trim());
 }
 
+function isGenericDayOverviewDescription(description: string): boolean {
+  return /^(?:(?:сегодня\s+)?(?:у\s+меня\s+)?)?(?:предстоит\s+)?(?:интересн|насыщенн|спокойн|хорош|приятн|обычн|непрост)[^\s]*\s+(?:день|вечер|утро)$/i.test(
+    description.trim(),
+  );
+}
+
+function isGenericDayOverviewSegment(text: string): boolean {
+  return /^(?:сегодня\s+)?(?:у\s+меня\s+)?предстоит\s+(?:интересн|насыщенн|спокойн|хорош|приятн|обычн|непрост)[^\s]*\s+(?:день|вечер|утро)\.?$/i.test(
+    text.trim(),
+  );
+}
+
+function isBareTimeClarificationDescription(description: string): boolean {
+  return /^(?:на|около|примерно)\s+\d{1,2}(?::\d{2})?$/i.test(description.trim());
+}
+
 function inferImplicitTimeNorm(segment: string, locale: string): string | null {
   const lower = segment.toLowerCase();
   const localeSafe = locale.toLowerCase().startsWith("en") ? "en" : "ru";
@@ -319,7 +382,7 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
 
   description = stripTrailingPracticeClause(description)
     .replace(/^(?:да|ну)\s*,?\s*/i, "")
-    .replace(/^(?:а\s+еще|а\s+ещё)\s+/i, "")
+    .replace(/^(?:а\s+еще|а\s+ещё|также)\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*что\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*/i, "")
     .replace(/^(?:у меня|мне|я)\s+/i, "")
@@ -446,6 +509,7 @@ export function inferPlannedEventsFromUserHistory(params: {
     const segmentCandidates: Array<{ event: PlannedEventMarker; expectedKey: string; descLen: number }> = [];
 
     for (const segment of splitEventSegments(text)) {
+      if (isGenericDayOverviewSegment(segment)) continue;
       if (isPracticeOnlySegment(segment, params.nowLocal, params.tz, params.locale)) continue;
       if (looksLikeCompletedOutcomeSegment(segment) && !hasStrongPlanningCue(segment)) continue;
 
@@ -465,6 +529,7 @@ export function inferPlannedEventsFromUserHistory(params: {
 
       const desc = buildEventDescription(segment, parsed.matchedPhrase);
       if (!desc) continue;
+      if (isGenericDayOverviewDescription(desc) || isBareTimeClarificationDescription(desc)) continue;
 
       const effectiveTimeSource = implicitTimeNorm ?? desc;
       const effectiveParsed = parsed.matchedPhrase

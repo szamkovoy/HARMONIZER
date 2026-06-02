@@ -4,12 +4,14 @@
 
 title: Documentation Changelog
 version: 2.50
-updated: 2026-05-28
+updated: 2026-06-02
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-02: `assistant` — в QA с `TEST_MODE_FORCE_PHASE` `dueEvents` внутри dialog-context теперь режутся по representative часу forced-phase, чтобы untimed/daypart-планы не становились `summarizing` раньше симулируемого времени; `plannedEventInference.ts` дополнительно перестал сохранять meta-фразы про «интересный день», игнорирует голые time-clarification реплики и разделяет независимые coordinated-actions вроде `фильм` + `ужин`.
+- 2026-06-02: `profile` / Home — баннер «Нужна дата рождения» только если в `users` нет `birth_date`; сбой загрузки `user_natal_charts` больше не блокирует главный экран.
 - 2026-05-28: pre-push doc-sync — `assistant/spec.md` ( `normalizeTurnHistory`, post-practice scan по любому assistant-turn с карточкой, `conversation_summaries` upsert `onConflict` ); `open_questions.md` — контекст summary `outcome_cells` приведён к двухшаговой цепочке reconcile.
 - 2026-05-27: `assistant` — delayed `reconcile-plans` для summary-ветки больше не классифицирует `outcome_cells` тем же смешанным prompt-ом, что и planning anti-duplicate: `planningReconciliation.ts` теперь сначала нормализует outcome summary-эпизода, а затем отдельным classifier prompt-ом вычисляет клетки матрицы из compact outcome + baseline-ов. Это снижает semantic bleed между основным доменом события и побочными эффектами.
 - 2026-05-27: `assistant` — `plannedEventInference.ts` перестал терять несколько планов из одной длинной спонтанной реплики: short daypart/time-фрагменты теперь остаются рядом с соседним событием, а разные планы больше не схлопываются только из-за одинакового synthetic default time. В том же проходе replace-flow после карточки снова остаётся `practice_repick`, даже если между карточкой и запросом был короткий `post_recommendation`.
