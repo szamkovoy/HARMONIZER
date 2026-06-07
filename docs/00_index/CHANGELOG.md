@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.52
-updated: 2026-06-04
+version: 2.53
+updated: 2026-06-07
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-07: `assistant` — doc-sync push refinement daily dialog: `buildPostRecommendationTimingGuard` для post-recommendation, planning gating только по inferred artifacts, prompt-лимит due/open plans до 3; `prompts-reference.md` §3–§3.1 и `communicator/history.md` (due window до 3).
 - 2026-06-04: `assistant` — follow-up QA по `текст-4E29-8568-EF-0.txt`: daily dialog теперь держит до `3` текущих due-событий в summarizing, single-due summary repair не путает согласование новой практики с итогом старого события, single-event финал звучит более директивно, а post-recommendation больше не должен преждевременно спрашивать, как прошла практика.
 - 2026-06-03: `assistant` + `communicator` — follow-up QA по `текст-4106-A447-F2-0.txt`: multi-due summarizing больше не repair-ится только в single-event кейсе, unanswered due remainder после partial summary не теряется сразу, planning inference перестал канонизировать выбор практики и supportive detail-фразы как `planned_events`, финальный multi-event текст жёстче держит структуру `общий фокус дня -> по одному абзацу на событие -> практика`, а communicator смягчил post-practice fallback после карточки и дольше ждёт hydration реального short reply.
 - 2026-06-03: `assistant` + `communicator` — daily dialog получил safe core refinement: due-события теперь идут по циклу `prompted -> one reminder -> delete ignored`, planning сужен до `1-3` важных событий, summarizing явно собирает «как событие проживалось», а multi-event финал допускает короткие per-event рекомендации без ломки single-event natural flow.

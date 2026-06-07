@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.18
-updated: 2026-06-04
+version: 1.19
+updated: 2026-06-07
 depends_on: [02_modules/assistant/spec]
 code_refs:
   [
@@ -471,7 +471,7 @@ MATRIX EXTRACTION
 | `{{local_hour}}`                 | Час 0–23 в зоне пользователя            | `promptLocalHour(now.hour)` (при принудительной фазе — представительный час, иначе `now.hour`)                                                                                                                                                                                    |
 | `{{phase_time}}`                 | Фаза дня (`morning` / `day` / `evening`) | `context.phaseTime` из `dialogDailyContext.ts` (`phaseTimeFor`)                                                                                                                                                  |
 | `{{branches}}`                   | Активные ветки хода (`summarizing`, `planning`) | `chooseDialogBranches(...).join(",")` или `"none"` в `route.ts`                                                                                                                                          |
-| `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents, context.nowLocal, context.user.locale)` — до 5 строк `description @ dueEventWhenLabel(...)` (локализованное «сегодня/вчера около HH:mm»; для non-explicit `time_resolution` — `time_phrase_raw` с пометкой synthetic) или `none` |
+| `{{due_events}}`                 | Список наступивших planned events       | `formatDueEvents(context.dueEvents, context.nowLocal, context.user.locale)` — до 3 строк `description @ dueEventWhenLabel(...)` (локализованное «сегодня/вчера около HH:mm»; для non-explicit `time_resolution` — `time_phrase_raw` с пометкой synthetic) или `none` |
 | `{{matrix_ready}}`               | Достаточно ли измерений матрицы         | `"true"` / `"false"` по `context.matrixReady` (`isMatrixReady`)                                                                                                                                                   |
 | `{{target_chakra}}`              | Номер целевой чакры дня (1–7)           | `String(context.targetChakra.chakraNumber)`                                                                                                                                                                       |
 | `{{target_explain}}`             | Почему выбрана целевая чакра            | `context.targetChakra.explain` (`chooseTargetChakra` + `lifeMatrix`)                                                                                                                                              |
@@ -497,7 +497,7 @@ MATRIX EXTRACTION
 | `{{practice_refusal_check}}`     | Одноходовый флаг для `inquiry`         | `decideTurnMode(...)` в `dialogArcOrchestrator.ts`: когда `unresolvedPracticePromptCount >= getPracticeRefusalThreshold()` (env `PRACTICE_REFUSAL_THRESHOLD`, дефолт **1**), `userDeclinedPracticeInHistory(...)` **ложно** и `userAnsweredPracticeRequest(...)` **ложно** — подставляется `PRACTICE_REFUSAL_CHECK_INSTRUCTION` (текст в §2 под `inquiry`); иначе пустая строка |
 | `{{catalog_reconciliation}}`   | Переспрос при конфликте тип/минуты     | `buildCatalogReconciliationInstruction` в `markers.ts`, когда тип и длительность названы, но `catalogConsistent === false`; refusal-check в том же ходу не подставляется |
 | `{{opening_day_question}}`       | Вопрос про день в `opening`            | `openingDayQuestionForContext(phaseTime, branches)` в `dialogOpeningHints.ts` |
-| `{{historical_context}}`         | Дополнительный server-side контекст по уже собранным планам | `formatOpenPlansHistoricalContext({ dueEvents, openPlans: loadOpenPlannedEventsForUserHorizon(...), nowLocal, locale })` — секции due / later today / tomorrow с тем же `dueEventWhenLabel`, плюс guidance не вытягивать ещё один абстрактный каркас дня |
+| `{{historical_context}}`         | Дополнительный server-side контекст по уже собранным планам | `formatOpenPlansHistoricalContext({ dueEvents, openPlans: loadOpenPlannedEventsForUserHorizon(...), nowLocal, locale })` — секции due / later today / tomorrow с тем же `dueEventWhenLabel`, до 3 строк на секцию, плюс guidance не вытягивать ещё один абстрактный каркас дня |
 | `{{user_self_description}}`      | Самоописание из портрета                | литерал `""` в объекте `renderPrompt` (зарезервировано, не заполняется)                                                                                                                                           |
 
 
@@ -514,7 +514,9 @@ MATRIX EXTRACTION
 | `dueEventWhenLabel` / `formatOpenPlansHistoricalContext` | Synthetic/daypart/fallback timestamps в prompt помечаются как approximate; модель не должна считать их пользовательским exact time (anti false conflict). |
 | Premium bridge lock | При `validation.confident === true` в `final_recommendation*` `route.ts` дописывает server-side lock: видимый «мостик к практике» должен называть **ровно** validated тип и минуты. |
 | Legacy `turn_mode` | Persisted `practice_declined` при чтении истории нормализуется в `final_without_practice` (`turnModeFromMessageMeta`). |
-| Branch gating | `shouldServerEscalateToFinalRecommendation` и `[READY_FOR_RECOMMENDATION]` блокируются, пока `hasRequiredBranchArtifacts` ложно: для `planning` нужен маркер **или** новые inferred planning-artifacts из текущей истории; для `summarizing` — `[SUMMARIZE_EVENT]` (при единственном due-событии, уже описанном пользователем, возможен standard retry через `branchRepairInstruction`). |
+| Branch gating | `shouldServerEscalateToFinalRecommendation` и `[READY_FOR_RECOMMENDATION]` блокируются, пока `hasRequiredBranchArtifacts` ложно: для `planning` нужен маркер **или** current-turn inferred planning-artifacts из `inferPlannedEventsFromUserHistory(...)`; существующие open rows user-wide horizon сами по себе planning не закрывают; для `summarizing` — `[SUMMARIZE_EVENT]` (если user-text уже выглядит как outcome due-события, возможен standard retry через `branchRepairInstruction` / `likelyAnsweredDueEventIds`). |
+| `buildPostRecommendationTimingGuard` (`route.ts`) | На `post_recommendation`, если с момента assistant-turn с `practice_picked` прошло меньше выбранной длительности и пользователь ещё не сообщил о завершении практики, в turn-инструкцию дописывается короткий guard: не спрашивать «как прошла практика» и не открывать новый опрос. |
+| `buildCatalogReconciliationInstruction` | При переспросе конфликта тип/минуты ссылки на каталог и ограничения формулируются как «здесь» / «в приложении», не «там». |
 
 ## 4. Где править что
 
