@@ -47,14 +47,22 @@ import {
   buildPracticeCardSummary,
   normalizeModelPracticeCardBlurb,
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
-import { shouldRetryForMissingSummaryMarker } from "@legacy/app/api/communicator/v2/dialog/summaryRepair";
+import { likelyAnsweredDueEventIds, shouldRetryForMissingSummaryMarker } from "@legacy/app/api/communicator/v2/dialog/summaryRepair";
 import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
   asMatrixCells,
+  deletePlannedEventsByIds,
   loadOpenPlannedEventsForUserHorizon,
   upsertConversationSummary,
   type PlannedEventRow,
 } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import {
+  DUE_SUMMARY_STATE_KEY,
+  readDueSummaryState,
+  resolveDueSummaryTurn,
+  selectDueEventsForTurn,
+  type DueSummaryState,
+} from "@legacy/app/api/communicator/v2/dialog/dueSummaryState";
 import {
   filterNewPlannedEvents,
   inferPlannedEventsFromUserHistory,
@@ -394,9 +402,38 @@ function buildDialogSystemInstruction(
   const chakraMeta = planetMeta(planet);
   const harmoniousnessValue = forecastHarmoniousness(forecast);
   const harmoniousnessLabelValue = harmoniousnessLabel(harmoniousnessValue);
+  const branchGuardrails: string[] = [
+    "ДОПОЛНИТЕЛЬНЫЕ SERVER-SIDE GUARDRAILS:",
+  ];
+  if (branches.includes("planning")) {
+    branchGuardrails.push(
+      "- planning не должен превращаться в сбор всего расписания: держи фокус на 1-3 самых важных событиях;",
+      "- собирай один конкретный эпизод за раз; если пользователь уже назвал 2-3 важных события, не добирай новые ради полноты;",
+      "- существующие open plans используй как память для dedupe/update, а не как повод продолжать длинный опрос обо всём дне;",
+    );
+  }
+  if (branches.includes("summarizing")) {
+    branchGuardrails.push(
+      "- в summarizing спрашивай не только факт результата, но и как человек проживал событие, в каком состоянии действовал, получилось ли пройти его в рекомендованной волне или всё пошло привычно;",
+      "- если описание слишком поверхностное, мягко уточни состояние/способ проживания, а уже потом переходи дальше;",
+    );
+    if (context.dueEvents.length > 1) {
+      branchGuardrails.push(
+        "- если в due_events сейчас 2-3 события, не теряй оставшиеся: после первого подытоживания вернись к следующему due-событию перед переходом к чистой planning/practice части;",
+      );
+    }
+  }
+  branchGuardrails.push(
+    "- если в разговоре есть 2-3 конкретных важных события, в финальном ответе можно дать по каждому короткий отдельный абзац с рекомендацией, в каком состоянии его лучше прожить;",
+    "- если событие одно, сохраняй естественную цельную форму ответа без искусственной разбивки.",
+    "- если событие одно, формулируй рекомендацию прямо как совет к действию, а не как предсказание: «когда будете делать X, держитесь Y и избегайте Z», без оборотов «день несёт» или «событие ложится на состояние»;",
+    "- если событий несколько, сначала коротко назови общий фокус дня через целевую чакру, затем дай по каждому событию ровно один абзац; не разбивай одно событие на две туманные части;",
+    "- для mixed / disharmonious дня не добавляй абстрактный риск вроде случайной «тени» сам по себе: называй только тот риск, который прямо связан с сегодняшней ситуацией пользователя и читается из baseline чакры;",
+    "- если физиологический или эндокринный смысл уже объяснён в мостике к практике, не дублируй его отдельным абзацем ради симметрии.",
+  );
 
   return {
-    systemInstruction: renderPrompt(
+    systemInstruction: `${renderPrompt(
       promptTemplate,
       {
         day_of_week: formatted.dayOfWeek,
@@ -435,7 +472,7 @@ function buildDialogSystemInstruction(
         }),
         user_self_description: "",
       },
-    ),
+    )}\n\n${branchGuardrails.join("\n")}`,
     planet,
     chakraLabel: chakraMeta.chakra_name_ru,
     chakraLabelAccusative: chakraLabelAccusative(chakraMeta.chakra_name_ru),
@@ -480,7 +517,7 @@ function dueEventWhenLabel(
 function formatDueEvents(events: LoadedContext["dueEvents"], nowLocal: DateTime, locale?: string | null): string {
   if (!events.length) return "none";
   return events
-    .slice(0, 5)
+    .slice(0, 3)
     .map((event, index) => `${index + 1}. ${event.description} @ ${dueEventWhenLabel(event, nowLocal, locale)}`)
     .join("\n");
 }
@@ -512,10 +549,10 @@ function formatOpenPlansHistoricalContext(params: {
   };
   const laterToday = params.openPlans
     .filter((event) => !dueIds.has(event.id) && event.planned_local_date === today)
-    .slice(0, 5);
+    .slice(0, 3);
   const tomorrowPlans = params.openPlans
     .filter((event) => !dueIds.has(event.id) && event.planned_local_date === tomorrow)
-    .slice(0, 5);
+    .slice(0, 3);
   const sections: string[] = [];
 
   if (params.dueEvents.length) {
@@ -772,9 +809,9 @@ function resolveSummarizedEvent(ref: string, dueEvents: PlannedEventRow[]): Plan
 function hasRequiredBranchArtifacts(
   branches: DialogBranch[],
   markers: ReturnType<typeof parseResponseMarkers>,
-  openPlannedEventCount = 0,
+  planningArtifactCount = 0,
 ): boolean {
-  if (branches.includes("planning") && markers.plannedEvents.length === 0 && openPlannedEventCount === 0) return false;
+  if (branches.includes("planning") && markers.plannedEvents.length === 0 && planningArtifactCount === 0) return false;
   if (branches.includes("summarizing") && markers.summarizeEvents.length === 0) return false;
   return true;
 }
@@ -782,12 +819,34 @@ function hasRequiredBranchArtifacts(
 function branchRepairInstruction(branches: DialogBranch[]): string {
   const parts: string[] = [];
   if (branches.includes("summarizing")) {
-    parts.push("сначала коротко подведи итог по уже наступившему событию и выведи invisible marker [SUMMARIZE_EVENT: ...]");
+    parts.push("сначала коротко подведи итог по уже наступившему событию: что произошло и в каком состоянии человек это проживал, затем выведи invisible marker [SUMMARIZE_EVENT: ...]");
   }
   if (branches.includes("planning")) {
     parts.push("сначала выдели один ближайший планируемый эпизод на сегодня или завтра и выведи invisible marker [PLANNED_EVENT: ...] с временем или примерным временем");
   }
   return `Продолжи этот же диалог, но не переходи к рекомендации практики прямо сейчас. ${parts.join("; ")}. Не выводи [READY_FOR_RECOMMENDATION], пока эти маркеры не добавлены.`;
+}
+
+async function updateConversationTriggerMeta(
+  db: SupabaseClient,
+  userId: string,
+  conversationId: string,
+  triggerMeta: Record<string, unknown> | null | undefined,
+  nextDueSummaryState: DueSummaryState | null,
+): Promise<Record<string, unknown>> {
+  const nextMeta = { ...(triggerMeta ?? {}) };
+  if (nextDueSummaryState) {
+    nextMeta[DUE_SUMMARY_STATE_KEY] = nextDueSummaryState;
+  } else {
+    delete nextMeta[DUE_SUMMARY_STATE_KEY];
+  }
+  const { error } = await db
+    .from("conversations")
+    .update({ trigger_meta: nextMeta })
+    .eq("id", conversationId)
+    .eq("user_id", userId);
+  if (error) throw error;
+  return nextMeta;
 }
 
 function missingSummaryRepairInstruction(turnMode: ResponseMode, branches: DialogBranch[]): string {
@@ -807,6 +866,47 @@ function turnModeCarriesPracticeCard(turnMode: ResponseMode): boolean {
 
 function isTerminalFinalTurnMode(turnMode: ResponseMode): boolean {
   return turnMode === "forced_final" || turnMode === "final_without_practice";
+}
+
+function messagePracticePickedMeta(message: Pick<MessageRecord, "meta">): Record<string, unknown> | null {
+  const raw = (message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null)?.practicePicked
+    ?? (message.meta as { practice_picked?: unknown } | null)?.practice_picked;
+  return raw && typeof raw === "object" ? raw as Record<string, unknown> : null;
+}
+
+function practiceDurationMinutesFromMeta(practicePicked: Record<string, unknown> | null): number | null {
+  if (!practicePicked) return null;
+  const overrides = practicePicked.overrides;
+  if (overrides && typeof overrides === "object") {
+    const durationMin = Number((overrides as { durationMin?: unknown }).durationMin);
+    if (Number.isFinite(durationMin) && durationMin > 0) return durationMin;
+  }
+  const durationSec = Number(practicePicked.durationSec);
+  if (Number.isFinite(durationSec) && durationSec > 0) return durationSec / 60;
+  return null;
+}
+
+function userExplicitlyFinishedPractice(text: string): boolean {
+  return /\b(?:выполнил(?:а|и)?|закончил(?:а|и)?|сделал(?:а|и)?|прош[её]л(?:а|и)?|completed|finished|done)\b/i.test(text);
+}
+
+function buildPostRecommendationTimingGuard(
+  dbHistory: MessageRecord[],
+  pendingUserMessage: string,
+  now: Date = new Date(),
+): string | null {
+  if (!pendingUserMessage.trim() || userExplicitlyFinishedPractice(pendingUserMessage)) return null;
+  const lastAssistantWithPractice = [...dbHistory]
+    .reverse()
+    .find((message) => message.role === "assistant" && messagePracticePickedMeta(message) && message.created_at);
+  if (!lastAssistantWithPractice?.created_at) return null;
+  const createdMs = Date.parse(lastAssistantWithPractice.created_at);
+  if (!Number.isFinite(createdMs)) return null;
+  const practiceDurationMin = practiceDurationMinutesFromMeta(messagePracticePickedMeta(lastAssistantWithPractice));
+  if (!practiceDurationMin) return null;
+  const elapsedMs = now.getTime() - createdMs;
+  if (elapsedMs >= practiceDurationMin * 60_000) return null;
+  return `ВАЖНО ДЛЯ ЭТОГО ХОДА: после показа карточки практики прошло меньше ${practiceDurationMin} мин., а пользователь ещё не сообщил, что уже завершил её. Не спрашивай, как прошла практика, не подводи её итог и не открывай новый опрос. Просто коротко ответь на текущую реплику и оставь фокус на самом выполнении практики.`;
 }
 
 function mergeResponseMarkersForPersistence(base: ResponseMarkers, carried: ResponseMarkers | null): ResponseMarkers {
@@ -952,6 +1052,7 @@ async function persistDialogArtifacts(params: {
     relatedEventIds,
     inferredCells,
     skippedPlannedEvents,
+    nextTriggerMeta: pendingTriggerMeta ?? {},
     planningPersistence: {
       queued: queuedPlannedEvents,
       queued_summaries: queuedSummaries,
@@ -1164,9 +1265,10 @@ export async function POST(req: Request) {
       scenarioId,
       userTimezone,
     );
+    const dbHistory = await loadHistory(db, userId, conversation.id);
     const history = resolveTurnHistory(
       normalizeTurnHistory(body.turnHistory),
-      await loadHistory(db, userId, conversation.id),
+      dbHistory,
     );
     if (history.length === 0) {
       await capturePlanningSnapshotIfNeeded(
@@ -1184,6 +1286,11 @@ export async function POST(req: Request) {
         dueEvents: context.dueEvents.filter((event) => !queuedSummaryIds.has(event.id)),
       };
     }
+    const dueSummaryState = readDueSummaryState(conversation.trigger_meta, context.dueEvents);
+    context = {
+      ...context,
+      dueEvents: selectDueEventsForTurn(context.dueEvents, dueSummaryState),
+    };
     const iteration = countAssistantTurns(history) + 1;
     const branches = chooseDialogBranches({
       phaseTime: context.phaseTime,
@@ -1264,7 +1371,13 @@ export async function POST(req: Request) {
       catalogReconciliation: turnDecision.instructionVariables?.catalog_reconciliation ?? "",
       openingDayQuestion: openingDayQuestionForContext(context.phaseTime, branches),
     };
-    const expandedTurnInstruction = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
+    const expandedTurnInstructionBase = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
+    const postRecommendationTimingGuard = turnDecision.mode === "post_recommendation" && !isInitiate
+      ? buildPostRecommendationTimingGuard(dbHistory, userMessage)
+      : null;
+    const expandedTurnInstruction = postRecommendationTimingGuard
+      ? `${expandedTurnInstructionBase}\n\n${postRecommendationTimingGuard}`
+      : expandedTurnInstructionBase;
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
     const pendingTurnValidation = validateHistoryHasDurationAndType([
       ...history.filter((message) => message.role === "user"),
@@ -1272,8 +1385,7 @@ export async function POST(req: Request) {
     ]);
     const historyBranchArtifactsSatisfied =
       (!branches.includes("planning")
-        || inferredPlanningArtifactsFromHistory.length > 0
-        || openPlannedEventsForUserHorizon.length > 0)
+        || inferredPlanningArtifactsFromHistory.length > 0)
       && !branches.includes("summarizing");
 
     console.log("[DIALOG_V3_DIAG]", JSON.stringify({
@@ -1436,7 +1548,7 @@ export async function POST(req: Request) {
             const branchArtifactsSatisfied = hasRequiredBranchArtifacts(
               branches,
               standardMarkers,
-              openPlannedEventsForUserHorizon.length,
+              inferredPlanningArtifactsFromHistory.length,
             );
             if (!containsReadyMarker(standardResponse.text)) {
               if (shouldServerEscalateToFinalRecommendation({
@@ -1676,6 +1788,36 @@ export async function POST(req: Request) {
             markers,
             assistantText: cleanText,
           });
+
+          const answeredDueEventIds = [
+            ...markers.summarizeEvents
+            .map((summary) => resolveSummarizedEvent(summary.ref, context.dueEvents)?.id ?? null)
+            .filter((eventId): eventId is string => Boolean(eventId)),
+            ...likelyAnsweredDueEventIds(userMessage, context.dueEvents),
+          ];
+          const dueSummaryTurn = resolveDueSummaryTurn({
+            existingState: dueSummaryState,
+            selectedDueEvents: context.dueEvents,
+            answeredEventIds: answeredDueEventIds,
+            isInitiate,
+            summarizingActive: branches.includes("summarizing"),
+            nowIso: context.nowLocal.toUTC().toISO() ?? new Date().toISOString(),
+          });
+          if (dueSummaryTurn.deleteEventIds.length > 0) {
+            await deletePlannedEventsByIds(
+              routeDb,
+              routeUserId,
+              dueSummaryTurn.deleteEventIds,
+              context.nowLocal.toUTC().toISO() ?? new Date().toISOString(),
+            );
+          }
+          await updateConversationTriggerMeta(
+            routeDb,
+            routeUserId,
+            conversation.id,
+            artifactResult.nextTriggerMeta,
+            dueSummaryTurn.nextState,
+          );
 
           const assistantMeta = {
             turn_mode: responseMode,

@@ -5,6 +5,7 @@ import {
   buildCalendarRangeTrend,
   chooseTargetChakra,
   computeRangeMetric,
+  hasEnoughLifeMatrixHistory,
   LIFE_MATRIX_SIZE,
   sumMatrices,
   type DenseMatrix,
@@ -116,6 +117,16 @@ describe("buildCalendarRangeTrend", () => {
 
     expect(trend[0]?.rangeMetric).toBe(aggregatedMetric);
   });
+
+  it("builds a first point after five calendar days even when some days have no summarized events", () => {
+    const activeDates = ["2026-05-25", "2026-05-26", "2026-06-02"];
+    const matrixByDate = new Map(activeDates.map((date, index) => [date, matrixWithSignal((index % 7) + 1)]));
+
+    const trend = buildCalendarRangeTrend(activeDates, matrixByDate, 5);
+
+    expect(trend).toHaveLength(1);
+    expect(trend[0]?.localDate).toBe("2026-05-29");
+  });
 });
 
 describe("buildLifeMatrixReportSnapshot", () => {
@@ -143,5 +154,23 @@ describe("buildLifeMatrixReportSnapshot", () => {
     expect(snapshot.calendarTrend).toHaveLength(1);
     expect(snapshot.rawMatrix).toEqual(sumMatrices(rows.map((row) => row.matrix)));
     expect(snapshot.visualMatrix.flat().some((value) => value > 0)).toBe(true);
+  });
+});
+
+describe("hasEnoughLifeMatrixHistory", () => {
+  it("requires both enough summarized events and five elapsed calendar days", () => {
+    expect(hasEnoughLifeMatrixHistory({
+      summarizedEventsCount: 5,
+      firstSummaryLocalDate: "2026-05-25",
+      currentLocalDate: "2026-06-02",
+    })).toBe(true);
+  });
+
+  it("stays false when only active days are few but calendar gap is long and events are insufficient", () => {
+    expect(hasEnoughLifeMatrixHistory({
+      summarizedEventsCount: 4,
+      firstSummaryLocalDate: "2026-05-25",
+      currentLocalDate: "2026-06-02",
+    })).toBe(false);
   });
 });

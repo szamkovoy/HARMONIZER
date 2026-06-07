@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.23
-updated: 2026-05-27
+version: 2.25
+updated: 2026-06-03
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,9 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-03:** Follow-up QA по `текст-4106-A447-F2-0.txt` показал, что неадекватный ответ после `«спасибо за практику»` был не содержательной ошибкой модели, а клиентским fallback-слоем. `Communicator.tsx` теперь дольше ждёт hydration финального/пост-финального хода (`fetchDialogSession` backoff расширен до `0.7 / 1.4 / 2.6 / 4.2 s`), а если текст всё равно не успел восстановиться после уже показанной карточки, подставляет мягкий `postPracticeReplyFallback` вместо generic `«я не получил полный текст ответа…»`. Это сохраняет UX-фокус на выполнении практики и не превращает короткий post-recommendation хвост в технический сбой.
+- **2026-06-03:** Daily dialog server lifecycle для due-событий стал жёстче и чище для UI/QA: backend держит `trigger_meta.due_summary_state` только для `1-2` prompted due-events, после первого неответа оставляет один reminder, после второго — физически удаляет проигнорированные `planned_events`, а при partial summary удаляет только неотвеченный остаток. Клиентский контракт при этом не менялся: итог виден через обычные `turn_artifacts` / debug-export, без нового отдельного SSE-события.
+- **2026-06-03:** QA по `текст-4E77-8BFC-4A-0.txt` вскрыл двойной voice-failure regression. Во-первых, communicator показывал сырое `Aborted` как generic send-error без retry, хотя для пользователя это транзиентный timeout/abort сценарий. `userFacingErrors.ts` теперь нормализует `AbortError` / `Aborted` к retryable timeout-copy и понижает лог до `console.warn`. Во-вторых, failed transcription bubble попадал в локальную историю как обычный user-text и затем мог уйти в `turnHistory`/export как будто это настоящая реплика пользователя. `Communicator.tsx` теперь помечает такой пузырь `meta.voiceTranscribeFailed`, а `buildClientTurnHistory()` исключает voice placeholders и failed-transcription bubbles из серверного контекста.
 - **2026-05-27:** QA по `текст-4D64-AFFA-FE-0.txt` показал, что post-practice хвост daily dialog ломался сразу в двух местах. Во-первых, `buildClientTurnHistory()` действительно отправлял `meta.practicePicked`, но серверный `normalizeTurnHistory()` его выкидывал, поэтому оркестратор терял факт уже показанной карточки и вместо `post_recommendation` / `practice_repick` снова шёл в длинный `final_recommendation`. Во-вторых, из-за server-side `23505` после `complete` клиент часто не получал `turn_artifacts`, поэтому queued planning/summarizing не доходили до reconcile. Фикс в этой итерации: client turnHistory снова сохраняет минимальный meta-контракт до сервера, а server-side artifact-pass больше не падает на `conversation_summaries`.
 
 - **2026-05-26:** Delayed reconcile перестал зависеть только от живого таймера внутри открытого чата. Если в ленте уже есть `planningPersistence.queued` / `queued_summaries`, `Communicator` теперь делает best-effort flush `reconcileDialogPlans({ conversationId })` и при запуске практики из карточки ассистента, и при unmount компонента. Это закрывает QA-кейс, где пользователь сразу уходит в практику/закрывает оверлей, а queued planning-summary artifacts зависают в `trigger_meta` и не доходят до `planned_events` / `daily_matrices`.

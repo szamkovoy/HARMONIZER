@@ -86,6 +86,8 @@ export type DialogTurnHistoryItem = {
   meta?: {
     practicePicked?: PracticePicked;
     practice_picked?: PracticePicked;
+    voiceTranscribing?: boolean;
+    voiceTranscribeFailed?: boolean;
   };
 };
 
@@ -355,9 +357,17 @@ export function buildClientTurnHistory(
           ? { practicePicked: message.meta.practicePicked as PracticePicked }
           : message.meta?.practice_picked && typeof message.meta.practice_picked === "object"
             ? { practice_picked: message.meta.practice_picked as PracticePicked }
-            : undefined,
+            : message.meta?.voiceTranscribing || message.meta?.voiceTranscribeFailed
+              ? {
+                  voiceTranscribing: Boolean(message.meta?.voiceTranscribing),
+                  voiceTranscribeFailed: Boolean(message.meta?.voiceTranscribeFailed),
+                }
+              : undefined,
     }))
-    .filter((message) => message.content.length > 0);
+    .filter((message) => {
+      if (message.meta?.voiceTranscribing || message.meta?.voiceTranscribeFailed) return false;
+      return message.content.length > 0;
+    });
   const trimmedPending = pendingUserText.trim();
   if (trimmedPending && !voiceUserAlreadyCommitted) {
     const last = items[items.length - 1];

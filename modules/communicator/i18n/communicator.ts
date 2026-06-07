@@ -51,6 +51,8 @@ export interface CommunicatorStrings {
   transcriptionReviewSend: string;
   /** Когда сервер/стрим не вернули видимый текст ответа — вместо пустого пузыря */
   emptyAssistantReplyFallback: string;
+  /** Более мягкий локальный fallback после уже показанной карточки практики */
+  postPracticeReplyFallback: string;
   /** В пузыре пользователя на время расшифровки голоса (до текста) */
   voiceUserBubblePending: string;
   voiceTranscribeFailedBubble: string;
@@ -154,8 +156,10 @@ const ru: CommunicatorStrings = {
   transcriptionReviewSend: "Отправить",
   emptyAssistantReplyFallback:
     "Я не получил полный текст ответа — связь могла прерваться. Напиши ещё раз коротко, что сейчас важно, и я продолжу.",
+  postPracticeReplyFallback:
+    "Практика уже выбрана. Пусть она пойдёт вам на пользу; если потом захочется вернуться к разговору, я подхвачу.",
   voiceUserBubblePending: "Расшифровываю голос…",
-  voiceTranscribeFailedBubble: "Не удалось расшифровать. Нажмите «Повторить».",
+  voiceTranscribeFailedBubble: "Голосовое сообщение не удалось распознать.",
   practiceCard: {
     eyebrow: "Практика на сейчас",
     fallbackTitle: "Практика",
@@ -204,8 +208,10 @@ const en: CommunicatorStrings = {
   transcriptionReviewSend: "Send",
   emptyAssistantReplyFallback:
     "I did not receive the full reply — the connection may have dropped. Send a short note about what matters now and I will continue.",
+  postPracticeReplyFallback:
+    "The practice is already chosen. May it serve you well; if you want to return to the conversation later, I will pick it up.",
   voiceUserBubblePending: "Transcribing your voice…",
-  voiceTranscribeFailedBubble: "Could not transcribe. Tap Retry.",
+  voiceTranscribeFailedBubble: "Could not recognize the voice message.",
   practiceCard: {
     eyebrow: "Practice for now",
     fallbackTitle: "Practice",

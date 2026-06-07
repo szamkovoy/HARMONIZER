@@ -421,7 +421,7 @@ export function buildCatalogReconciliationInstruction(result: ValidationResult):
 
 НЕ спрашивай, нужна ли практика вообще — пользователь уже попросил. НЕ выводи [READY_FOR_RECOMMENDATION] и [PRACTICE_PICK].
 
-Одним коротким вопросом предложи выбор: сократить ${kindLabel} до ${range.max} мин или выбрать ${altLabel} на ${durationMin} мин. Сформулируй своими словами, смысл сохрани.`;
+Одним коротким вопросом предложи выбор: сократить ${kindLabel} до ${range.max} мин или выбрать ${altLabel} на ${durationMin} мин. Сформулируй своими словами, смысл сохрани. Если ссылаешься на каталог или ограничения, говори «здесь» / «в приложении», не «там».`;
 }
 
 /** User answered the practice question (type + duration named), even if catalog ranges conflict. */
@@ -592,6 +592,35 @@ function chooseDurationMention(
   return best;
 }
 
+function chooseTrailingMinuteMentionOverLeadingHour(params: {
+  text: string;
+  mentions: DurationMention[];
+  selectedKindMention: KindMention | null;
+}): DurationMention | null {
+  const { text, mentions, selectedKindMention } = params;
+  if (!selectedKindMention) return null;
+  const leadingHour = mentions
+    .filter((mention) =>
+      mention.sec >= 3600
+      && mention.end <= selectedKindMention.start
+      && selectedKindMention.start - mention.end <= 6,
+    )
+    .at(-1);
+  if (!leadingHour) return null;
+
+  const trailingMinute = mentions.find((mention) =>
+    mention.sec < 3600
+    && mention.start >= selectedKindMention.end
+    && mention.start - selectedKindMention.end <= 18,
+  );
+  if (!trailingMinute) return null;
+
+  const bridgeToKind = text.slice(leadingHour.end, selectedKindMention.start);
+  const bridgeToMinute = text.slice(selectedKindMention.end, trailingMinute.start);
+  if (!/^[\s,:;.!?-]*$/u.test(bridgeToKind) || !/^[\s,:;.!?-]*$/u.test(bridgeToMinute)) return null;
+  return trailingMinute;
+}
+
 function hasMinimumDurationHint(text: string): boolean {
   return MINIMUM_DURATION_HINT_PATTERNS.some((pattern) => pattern.test(text));
 }
@@ -717,10 +746,23 @@ function extractDurationMentions(text: string): DurationMention[] {
 }
 
 function inferDurationSecFromText(text: string): number | null {
+  const noisyRussianTrailingMinutes = text.match(
+    /(?:час(?:а|ов)?|\d{1,2}\s*час(?:а|ов)?)\s+(?:дыхан[а-яё]*|дыхательн[а-яё]*|пранаям[а-яё]*|медитац[а-яё]*|асан[а-яё]*|йог[а-яё]*)[\s,;:.!?-]*((?:\d+|[а-яё]+)\s*(?:минут(?:а|ы|у)?|мин\b))/i,
+  );
+  if (noisyRussianTrailingMinutes?.[1]) {
+    const rescueMention = extractDurationMentions(noisyRussianTrailingMinutes[1]).find((mention) => mention.sec < 3600);
+    if (rescueMention) return rescueMention.sec;
+  }
   const mentions = extractDurationMentions(text);
   const kindMentions = extractKindMentions(text);
   const selectedKindMention = chooseKindMention(kindMentions, mentions);
   const targetKind = selectedKindMention?.kind ?? inferKindFromText(text, mentions);
+  const rescuedTrailingMinute = chooseTrailingMinuteMentionOverLeadingHour({
+    text,
+    mentions,
+    selectedKindMention,
+  });
+  if (rescuedTrailingMinute) return rescuedTrailingMinute.sec;
   const best = chooseDurationMention(mentions, kindMentions, targetKind);
   if (targetKind && hasMinimumDurationHint(text)) {
     if (shouldPreferMinimumHintOverExplicitDuration({

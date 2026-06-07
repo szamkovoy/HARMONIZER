@@ -130,7 +130,7 @@ type CommunicatorListRow =
 
 /** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
 const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
-const SESSION_HYDRATION_RETRY_DELAYS_MS = [700, 1400, 2600] as const;
+const SESSION_HYDRATION_RETRY_DELAYS_MS = [700, 1400, 2600, 4200] as const;
 const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000;
 
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
@@ -1162,11 +1162,18 @@ export function Communicator({
         hydratedComplete?.debugExport && clientHydrationDebug
           ? { ...hydratedComplete.debugExport, clientHydration: clientHydrationDebug }
           : hydratedComplete?.debugExport ?? (clientHydrationDebug ? { clientHydration: clientHydrationDebug } : undefined);
+      const previousAssistantPracticePicked = [...messagesRef.current]
+        .reverse()
+        .find((message) => message.role === "assistant" && Boolean(message.meta?.practicePicked))
+        ?.meta?.practicePicked;
+      const fallbackAssistantText = previousAssistantPracticePicked
+        ? strings.postPracticeReplyFallback
+        : strings.emptyAssistantReplyFallback;
 
       const assistant: CommunicatorHistoryMessage = {
         id: hydratedComplete?.messageId ?? newMessageId(),
         role: "assistant",
-        content: finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback,
+        content: finalText.length > 0 ? finalText : fallbackAssistantText,
         createdAt: Date.now(),
         meta: {
           orchestratorDecision: result.decision,
@@ -1192,7 +1199,7 @@ export function Communicator({
         },
       };
       const contentLenSource =
-        finalText.length > 0 ? finalText : strings.emptyAssistantReplyFallback;
+        finalText.length > 0 ? finalText : fallbackAssistantText;
       const strippedLen = stripDialogScaffoldMarkdown(
         stripStreamingMarkers(contentLenSource),
       ).length;
@@ -1232,6 +1239,7 @@ export function Communicator({
       syncChatStreamDisplayText,
       useCase,
       strings.emptyAssistantReplyFallback,
+      strings.postPracticeReplyFallback,
     ],
   );
 
@@ -1300,6 +1308,7 @@ export function Communicator({
     async (uri: string, durationMs: number) => {
       const existing = retainedVoiceRef.current;
       let pendingVoiceId = existing?.uri === uri ? existing.pendingVoiceId : undefined;
+      let transcriptResolved = false;
 
       if (!pendingVoiceId) {
         pendingVoiceId = newMessageId();
@@ -1349,6 +1358,7 @@ export function Communicator({
           uri,
           language: strings.transcribeLanguage,
         });
+        transcriptResolved = true;
         const userMessageText = transcript.text.trim();
         setPhase("idle");
 
@@ -1403,14 +1413,13 @@ export function Communicator({
         await submitDialogTurn(userMessageText, true);
       } catch (e) {
         setPhase("idle");
-        const retained = retainedVoiceRef.current;
-        if (pendingVoiceId && !retained?.transcribedText) {
+        if (pendingVoiceId && !transcriptResolved) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === pendingVoiceId
                 ? {
                     ...m,
-                    meta: { voiceTranscribing: false },
+                    meta: { voiceTranscribing: false, voiceTranscribeFailed: true },
                     content: strings.voiceTranscribeFailedBubble,
                   }
                 : m,

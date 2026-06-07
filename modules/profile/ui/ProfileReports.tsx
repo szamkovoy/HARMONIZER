@@ -310,7 +310,7 @@ export function RangeTrendReportCard(props: {
     );
   }
 
-  const trendReady = (props.report?.activeDaysCount ?? 0) >= 5;
+  const trendReady = props.report?.trendReady ?? false;
   const trendPoints = props.report?.calendarTrend ?? [];
   const showTrendHint =
     !props.loading && !props.error && Boolean(props.report) && trendReady && trendPoints.length > 0;

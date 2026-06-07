@@ -104,6 +104,18 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred).toHaveLength(0);
   });
 
+  it("does not turn a summarized evening into new planning candidates", () => {
+    const nowLocal = DateTime.fromISO("2026-06-03T21:05:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Потом почитал книгу, поужинал. Вообще хороший вечер был." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
   it("infers an evening default for a time-less movie plan", () => {
     const nowLocal = DateTime.fromISO("2026-05-26T14:05:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
@@ -273,6 +285,27 @@ describe("inferPlannedEventsFromUserHistory", () => {
     });
 
     expect(inferred).toHaveLength(0);
+  });
+
+  it("keeps the concrete client meeting, skips practice noise, and keeps real evening plans", () => {
+    const nowLocal = DateTime.fromISO("2026-06-03T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{
+        role: "user",
+        content:
+          "На сегодня у меня планируется встреча с клиентом и это, пожалуй, самое важное событие дня. Нужно будет почувствовать хорошо его интересы, сопоставить с моими интересами. А вечером хочу погулять в парке. Может быть потом фильм посмотрю перед сном и лягу спать пораньше, где-нибудь в полдвенадцатого. А практику я бы хотел выполнить час дыхания, три минуты.",
+      }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred.map((item) => item.desc)).toEqual([
+      "планируется встреча с клиентом",
+      "погулять в парке",
+      "Может быть потом фильм посмотрю перед сном и лягу спать пораньше, где-нибудь в",
+    ]);
+    expect(inferred.some((item) => /практик|дыхани/i.test(item.desc))).toBe(false);
   });
 
   it("ignores bare time clarifications without an event", () => {

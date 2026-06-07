@@ -1,7 +1,7 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.10
+version: 1.11
 updated: 2026-06-02
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
@@ -9,6 +9,7 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-06-02:** Отчёты `life-matrix` / `Толщина линии жизни` были скрыты лишним суррогатным gate `active_days_count >= 5`, хотя продуктово readiness определяется иначе: нужно не меньше **5 summarized events** и минимум **5 календарных дней** с первого summary. Backend `GET /api/profile/life-matrix` теперь считает readiness по `daily_matrices.events_count + firstSummaryLocalDate`, а `calendarTrend` строит по календарным 5-дневным окнам от первой summary-даты, даже если внутри окна были дни без summary. Для форсированного rebuild кэша повышена `PROFILE_REPORT_SNAPSHOT_VERSION`.
 - **2026-06-02:** Ложный баннер «Нужна дата рождения» на Home: персональный прогноз ошибочно ждал успешный fetch `user_natal_charts`, хотя в БД достаточно `users.birth_date`. Фикс: `need_birth_data` только без `birth_date` в профиле; загрузка натала — только для UI карты. Кэш натала: не доверять сохранённому «нет карты» и не писать `null` при сетевой ошибке.
 - **2026-05-25:** `life-matrix` больше не тянет исторические `planned_events` для сборки профиля. Отчёт теперь читается из `profile_report_snapshots`, которые сервер обновляет при подытоживании и при необходимости rebuild-ит из `daily_matrices`. Это делает оба профильных отчёта (`Матрица состояний`, `Толщина линии жизни`) быстрыми на чтении и независимыми от хранения старых текстов/планов.
 - **2026-05-21 (блоки UX):** Страница профиля — 4 независимые карточки (статистика → практики по чакрам → матрица → толщина). Селектор периода только у первых двух. `life-matrix` API: активные дни из `planned_events` (`summarized` / `planned_local_date`), `calendarTrend` по блокам 5 дней, без query `days`. Единые пустые состояния (`ProfileEmptyState`). Sanity: unit-тест `buildCalendarRangeTrend` (6 активных дней → 1 точка на 5-й дате).

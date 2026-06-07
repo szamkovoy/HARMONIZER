@@ -5,7 +5,10 @@ import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry"
 
 export type LifeMatrixReport = {
   activeDaysCount: number;
+  summarizedEventsCount: number;
+  firstSummaryLocalDate: string | null;
   matrixReady: boolean;
+  trendReady: boolean;
   chakras: Array<{ chakra: number; label: string; shortLabel: string; color: string }>;
   spheres: Array<{ id: number; slug: string; title: string }>;
   rawMatrix: number[][];

@@ -293,12 +293,18 @@ function stripTrailingPracticeClause(text: string): string {
 function isPracticeOnlySegment(text: string, nowLocal: DateTime, tz: string, locale: string): boolean {
   if (isDurationOnlyReply(text)) return true;
   const validation = validateHistoryHasDurationAndType([{ role: "user", content: text }]);
+  const hasPracticeLexicon = /(?:предлож|практик|медитац|дыха|дыхательн|пранаям|асан|йог)/i.test(text);
+  const looksLikePracticeRequest =
+    /^(?:а\s+)?(?:практик\w*|(?:я\s+бы\s+)?хотел(?:\s+бы)?\s+(?:практик|подыш|медитац|дыхан|асан|йог)|(?:хочу|выбрал(?:а)?|возьму|сделаю)\s+(?:практик|подыш|медитац|дыхан|асан|йог))/i.test(text.trim());
   const parsed = parseEventTime({
     phrase: text,
     nowLocal,
     tz,
     locale,
   });
+  if (hasPracticeLexicon && validation.hasType && (validation.hasDuration || looksLikePracticeRequest)) {
+    if (parsed.resolution === "fallback_default" || !parsed.matchedPhrase) return true;
+  }
   if (validation.confident) {
     if (parsed.resolution === "fallback_default" || !parsed.matchedPhrase) return true;
     if (/^\d{1,2}\s*(?:-|–|—|до)\s*\d{1,2}$/.test(parsed.matchedPhrase.trim())) return true;
@@ -307,11 +313,11 @@ function isPracticeOnlySegment(text: string, nowLocal: DateTime, tz: string, loc
 }
 
 function hasStrongPlanningCue(text: string): boolean {
-  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь)(?=$|[\s,.;:!?()])/i.test(text);
+  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|планируется|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь)(?=$|[\s,.;:!?()])/i.test(text);
 }
 
 function looksLikeCompletedOutcomeSegment(text: string): boolean {
-  return /(?:^|[\s,.;:!?()])(?:выспал(?:ся|ась|ись)|успел(?:а|и)?|купил(?:а|и)?|куплен(?:о|а|ы)?|получил(?:а|и)?|удалось|удался|удалась|удались|сложил(?:ось|ся)|прош[её]л(?:а|и)?|отдохнул(?:а|и)?|лег(?:ла|ли)?|л[её]г(?:ла|ли)?|рад(?:ует|овал(?:а|и)?)|довол(?:ен|ьна|ьны))/i.test(text);
+  return /(?:^|[\s,.;:!?()])(?:выспал(?:ся|ась|ись)|успел(?:а|и)?|купил(?:а|и)?|куплен(?:о|а|ы)?|получил(?:а|и)?|удалось|удался|удалась|удались|сложил(?:ось|ся)|прош[её]л(?:а|и)?|отдохнул(?:а|и)?|погулял(?:а|и)?|почитал(?:а|и)?|поужинал(?:а|и)?|ужинал(?:а|и)?|вечер\s+был|лег(?:ла|ли)?|л[её]г(?:ла|ли)?|рад(?:ует|овал(?:а|и)?)|довол(?:ен|ьна|ьны))/i.test(text);
 }
 
 function isCausalSupportingSegment(
@@ -321,6 +327,16 @@ function isCausalSupportingSegment(
   if (parsed.matchedPhrase) return false;
   if (!/^\s*(?:потому\s+что|так\s+как)(?=$|[\s,.;:!?()])/i.test(text)) return false;
   return /(?:^|[\s,.;:!?()])(?:нужно|надо|важно|полезно)(?=$|[\s,.;:!?()])/i.test(text);
+}
+
+function isSupportivePlanningDetailSegment(
+  text: string,
+  parsed: ReturnType<typeof parseEventTime>,
+): boolean {
+  if (parsed.matchedPhrase) return false;
+  if (!/^\s*(?:нужно|надо)\s+будет(?=$|[\s,.;:!?()])/i.test(text)) return false;
+  if (!/(?:почувств|понять|услышать|сопоставить|удержать|сохранить|проявить)\w*/i.test(text)) return false;
+  return /(?:его|ее|её|их|мои|моих|свои|своих|интерес|взаимопоним|коммуникабель|сочувств)/i.test(text);
 }
 
 function isGenericWorkloadSegment(
@@ -372,6 +388,8 @@ function inferImplicitTimeNorm(segment: string, locale: string): string | null {
 function buildEventDescription(segment: string, matchedPhrase: string | null): string | null {
   let description = stripMatchedPhrase(segment, matchedPhrase)
     .replace(/^(?:у меня|мне|я)\s+/i, "")
+    .replace(/^на\s+/i, "")
+    .replace(/^(?:на\s+)?(?:сегодня|завтра|послезавтра)\s+/i, "")
     .replace(/^(?:сегодня|завтра|послезавтра)\s+/i, "")
     .replace(/^(?:и\s+главное|главное|а\s+до\s+этого|до\s+этого)\s*,?\s*/i, "")
     .trim();
@@ -381,8 +399,8 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
   }
 
   description = stripTrailingPracticeClause(description)
-    .replace(/^(?:да|ну)\s*,?\s*/i, "")
-    .replace(/^(?:а\s+еще|а\s+ещё|также)\s+/i, "")
+    .replace(/^(?:да|ну)(?=$|[\s,.;:!?()])\s*/i, "")
+    .replace(/^(?:а\s+еще|а\s+ещё|также|а)\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*что\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*/i, "")
     .replace(/^(?:у меня|мне|я)\s+/i, "")
@@ -392,12 +410,16 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
     .replace(/(?:[,;]\s*|\s+)(?:а\s+пока|а\s+потом|а\s+позже|и\s+потом)(?=$|[\s,.;:!?()]).*(?:предлож|практик|медитац|дыхат|дыхательн|асан|йог)/i, "")
     .replace(/(?:[,;]\s*|\s+)(?:правда\s+не\s+знаю|если\s+получится|там\s+видно\s+будет).*/i, "")
     .replace(/(?:[,;]\s*|\s+)сложится\s+со\s+временем\s+или\s+нет.*$/i, "")
+    .replace(/(?:\s+и\s*)?(?:это\s*,?\s*)?(?:пожалуй\s*,?\s*)?самое\s+важное\s+событие\s+дня.*$/i, "")
+    .replace(/\s+и\s+это$/i, "")
+    .replace(/\s+и(?:[,.!?;:]*)$/i, "")
     .replace(/(^|[\s,.;:!?()])(?:примерно|где[-\s]*то|около)(?=$|[\s,.;:!?()])/gi, "$1")
     .replace(/^(?:я\s+)?(?:хотелось\s+бы|хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?)\s+/i, "")
     .replace(/(?:^|[\s,.;:!?()])(?:сегодня|завтра|послезавтра)(?=$|[\s,.;:!?()])/gi, " ")
     .replace(/(^|[\s,.;:!?()])(?:во-?\s*первых|во-?\s*вторых)(?=$|[\s,.;:!?()])/gi, "$1")
     .replace(/\s+/g, " ")
     .replace(/[,.;:!?]+$/g, "")
+    .replace(/\s+и$/i, "")
     .trim();
   if (/^лечь$/i.test(description)) description = "лечь спать";
   return description.length >= 4 ? description : null;
@@ -512,6 +534,11 @@ export function inferPlannedEventsFromUserHistory(params: {
       if (isGenericDayOverviewSegment(segment)) continue;
       if (isPracticeOnlySegment(segment, params.nowLocal, params.tz, params.locale)) continue;
       if (looksLikeCompletedOutcomeSegment(segment) && !hasStrongPlanningCue(segment)) continue;
+      if (/^\s*(?:нужно|надо)\s+будет\b/i.test(segment)
+        && /(?:почувств|понять|услышать|сопоставить|удержать|сохранить|проявить)\w*/i.test(segment)
+        && /(?:его|ее|её|их|мои|моих|свои|своих|интерес|взаимопоним|коммуникабель|сочувств)/i.test(segment)) {
+        continue;
+      }
 
       const parsed = parseEventTime({
         phrase: segment,
@@ -521,6 +548,7 @@ export function inferPlannedEventsFromUserHistory(params: {
         locale: params.locale,
       });
       if (isCausalSupportingSegment(segment, parsed)) continue;
+      if (isSupportivePlanningDetailSegment(segment, parsed)) continue;
       if (isGenericWorkloadSegment(segment, parsed)) continue;
       const hasPlanningCue = hasStrongPlanningCue(segment);
       const implicitTimeNorm = parsed.matchedPhrase ? null : inferImplicitTimeNorm(segment, params.locale);

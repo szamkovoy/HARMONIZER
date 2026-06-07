@@ -1,3 +1,5 @@
+import { DateTime } from "luxon";
+
 import { getLifeMatrixOverdevThreshold } from "./dialogConfig";
 import type { PetalData } from "./topPetals";
 
@@ -13,6 +15,8 @@ export type DailyMatrixSource = "summary" | "plan";
 
 export const LIFE_MATRIX_SIZE = 7;
 export const LIFE_MATRIX_MIN_READY_MEASUREMENTS = 5;
+export const LIFE_MATRIX_MIN_READY_EVENTS = 5;
+export const LIFE_MATRIX_MIN_READY_ELAPSED_DAYS = 5;
 export const RANGE_GROUP_SIZE_DEFAULT = 5;
 export const LIFE_MATRIX_LOG_SMOOTHING_K_DEFAULT = 50;
 
@@ -143,6 +147,20 @@ export function isMatrixReady(measurementsCount: number): boolean {
   return measurementsCount >= LIFE_MATRIX_MIN_READY_MEASUREMENTS;
 }
 
+export function hasEnoughLifeMatrixHistory(params: {
+  summarizedEventsCount: number;
+  firstSummaryLocalDate: string | null;
+  currentLocalDate: string;
+}): boolean {
+  if (params.summarizedEventsCount < LIFE_MATRIX_MIN_READY_EVENTS) return false;
+  if (!params.firstSummaryLocalDate) return false;
+  const first = DateTime.fromISO(params.firstSummaryLocalDate, { zone: "UTC" }).startOf("day");
+  const current = DateTime.fromISO(params.currentLocalDate, { zone: "UTC" }).startOf("day");
+  if (!first.isValid || !current.isValid || current < first) return false;
+  const elapsedDays = Math.floor(current.diff(first, "days").days);
+  return elapsedDays >= LIFE_MATRIX_MIN_READY_ELAPSED_DAYS;
+}
+
 export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null): {
   chakraNumber: number;
   reason: "astro_primary" | "matrix_filtered_by_strength" | "astro_primary_all_overdeveloped";
@@ -249,13 +267,26 @@ export function buildCalendarRangeTrend(
   matrixByDate: Map<string, DenseMatrix>,
   groupSize = RANGE_GROUP_SIZE_DEFAULT,
 ): CalendarTrendPoint[] {
+  const first = activeDatesAsc[0];
+  const last = activeDatesAsc.at(-1);
+  if (!first || !last) return [];
+
+  const firstDate = DateTime.fromISO(first, { zone: "UTC" }).startOf("day");
+  const lastDate = DateTime.fromISO(last, { zone: "UTC" }).startOf("day");
+  if (!firstDate.isValid || !lastDate.isValid || lastDate < firstDate) return [];
+
+  const calendarDates: string[] = [];
+  for (let cursor = firstDate; cursor <= lastDate; cursor = cursor.plus({ days: 1 })) {
+    calendarDates.push(cursor.toFormat("yyyy-MM-dd"));
+  }
+
   const out: CalendarTrendPoint[] = [];
-  for (let index = 0; index + groupSize <= activeDatesAsc.length; index += groupSize) {
-    const blockDates = activeDatesAsc.slice(index, index + groupSize);
+  for (let index = 0; index + groupSize <= calendarDates.length; index += groupSize) {
+    const blockDates = calendarDates.slice(index, index + groupSize);
     const matrices = blockDates
       .map((date) => matrixByDate.get(date))
       .filter((matrix): matrix is DenseMatrix => Boolean(matrix));
-    if (matrices.length < groupSize) continue;
+    if (matrices.length === 0) continue;
     const rangeMetric = computeRangeMetric(sumMatrices(matrices));
     if (rangeMetric == null) continue;
     out.push({ localDate: blockDates[groupSize - 1]!, rangeMetric });

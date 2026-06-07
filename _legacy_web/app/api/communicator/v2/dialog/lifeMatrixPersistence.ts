@@ -18,7 +18,7 @@ const PLANNED_EVENT_EXPIRY_HOURS = 36;
 // planned events stays on real wall-clock time so QA can still revisit a due
 // event after manually shifting it into the past.
 const PLANNED_EVENT_EXPIRY_MS = PLANNED_EVENT_EXPIRY_HOURS * 60 * 60 * 1000;
-export const PROFILE_REPORT_SNAPSHOT_VERSION = 1;
+export const PROFILE_REPORT_SNAPSHOT_VERSION = 2;
 
 export type PlannedEventRow = {
   id: string;
@@ -43,6 +43,13 @@ export type ProfileReportSnapshot = {
   calendarTrend: CalendarTrendPoint[];
   lastRolledDate: string | null;
   snapshotVersion: number;
+};
+
+export type LifeMatrixReadinessMeta = {
+  activeDaysCount: number;
+  summarizedEventsCount: number;
+  firstSummaryLocalDate: string | null;
+  lastSummaryLocalDate: string | null;
 };
 
 export function asMatrixCells(value: unknown): MatrixCell[] {
@@ -174,6 +181,40 @@ export async function expireStalePlannedEvents(db: SupabaseClient, userId: strin
   return expiredRows.map((row) => row.id);
 }
 
+export async function deletePlannedEventsByIds(
+  db: SupabaseClient,
+  userId: string,
+  eventIds: string[],
+  nowIso: string,
+): Promise<string[]> {
+  const uniqueIds = [...new Set(eventIds.filter(Boolean))];
+  if (!uniqueIds.length) return [];
+
+  const { data, error } = await db
+    .from("planned_events")
+    .select("id,planned_local_date")
+    .eq("user_id", userId)
+    .eq("status", "planned")
+    .in("id", uniqueIds);
+  if (error) throw error;
+
+  const plannedRows = (data ?? []) as Array<{ id: string; planned_local_date: string }>;
+  if (!plannedRows.length) return [];
+
+  const { error: deleteError } = await db
+    .from("planned_events")
+    .delete()
+    .eq("user_id", userId)
+    .in("id", plannedRows.map((row) => row.id));
+  if (deleteError) throw deleteError;
+
+  const affectedDates = [...new Set(plannedRows.map((row) => row.planned_local_date).filter(Boolean))];
+  for (const localDate of affectedDates) {
+    await upsertDailyMatrixForDate(db, userId, localDate, nowIso);
+  }
+  return plannedRows.map((row) => row.id);
+}
+
 export async function loadDuePlannedEvents(
   db: SupabaseClient,
   userId: string,
@@ -236,6 +277,27 @@ export async function loadLastPlanningSummary(db: SupabaseClient, userId: string
     .maybeSingle();
   if (error) throw error;
   return (data as { generated_at: string | null } | null) ?? null;
+}
+
+export async function loadLifeMatrixReadinessMeta(
+  db: SupabaseClient,
+  userId: string,
+): Promise<LifeMatrixReadinessMeta> {
+  const { data, error } = await db
+    .from("daily_matrices")
+    .select("local_date,events_count")
+    .eq("user_id", userId)
+    .eq("source", "summary")
+    .order("local_date", { ascending: true });
+  if (error) throw error;
+
+  const rows = (data ?? []) as Array<{ local_date: string; events_count: number | null }>;
+  return {
+    activeDaysCount: rows.length,
+    summarizedEventsCount: rows.reduce((sum, row) => sum + (Number.isFinite(Number(row.events_count)) ? Number(row.events_count) : 0), 0),
+    firstSummaryLocalDate: rows[0]?.local_date ?? null,
+    lastSummaryLocalDate: rows.at(-1)?.local_date ?? null,
+  };
 }
 
 export async function upsertDailyMatrixForDate(db: SupabaseClient, userId: string, localDate: string, nowIso: string): Promise<{

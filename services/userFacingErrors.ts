@@ -60,6 +60,13 @@ function isTimeoutMessage(message: string): boolean {
   return /timed out|timeout|занял слишком много|took too long/i.test(message);
 }
 
+function isAbortMessage(error: unknown, message: string): boolean {
+  return (
+    (error instanceof Error && error.name === "AbortError") ||
+    /\baborted\b/i.test(message.trim())
+  );
+}
+
 function isAuthRequiredMessage(message: string): boolean {
   return (
     /Нужна авторизация/i.test(message) ||
@@ -74,6 +81,7 @@ export function classifyUserFacingError(error: unknown): UserFacingErrorKind {
   if (kind) return kind;
 
   const message = errorMessage(error);
+  if (isAbortMessage(error, message)) return "timeout";
   if (isLikelyFetchNetworkFailure(error) || isLegacyClientNetworkMessage(message)) return "network";
   if (isServiceBusyMessage(message)) return "service_busy";
   if (isAuthRequiredMessage(message)) return "auth";
@@ -83,7 +91,12 @@ export function classifyUserFacingError(error: unknown): UserFacingErrorKind {
 
 export function wrapConnectivityFailure(error: unknown, feature: string): Error {
   if (isAppUserError(error)) return error;
-  if (error instanceof Error && error.name === "AbortError") return error;
+  if (error instanceof Error && error.name === "AbortError") {
+    return new AppUserError("timeout", {
+      cause: error,
+      debugMessage: `[${feature}] aborted request`,
+    });
+  }
   if (isLikelyFetchNetworkFailure(error) || isLegacyClientNetworkMessage(errorMessage(error))) {
     return new AppUserError("network", {
       cause: error,
@@ -161,7 +174,7 @@ function sanitizeGenericServerMessage(message: string): string | null {
 export function logErrorForDevelopers(scope: string, error: unknown): void {
   const message = errorMessage(error);
   const kind = classifyUserFacingError(error);
-  if (kind === "network") {
+  if (kind === "network" || kind === "timeout") {
     console.warn(`[${scope}]`, message, error instanceof Error ? error.stack : "");
     return;
   }

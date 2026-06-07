@@ -169,7 +169,17 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(instruction).toContain("15 мин");
     expect(instruction).toContain("медитация");
     expect(instruction).toContain("дыхательная практика");
+    expect(instruction).toContain("здесь");
     expect(instruction).not.toContain("не до практики");
+  });
+
+  it("prefers the trailing minute duration in a noisy Russian STT phrase", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "А практику я бы хотел выполнить час дыхания, три минуты." },
+    ]);
+    expect(result.durationSec).toBe(180);
+    expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(false);
   });
 
   it("recognises explicit first-message practice requests from packet B", () => {

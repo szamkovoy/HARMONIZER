@@ -6,7 +6,7 @@ import {
   normalizeTurnHistory,
   todayLocalDate,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
-import { shouldRetryForMissingSummaryMarker } from "./summaryRepair";
+import { likelyAnsweredDueEventIds, shouldRetryForMissingSummaryMarker } from "./summaryRepair";
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];
@@ -241,5 +241,63 @@ describe("missing summary retry guard", () => {
         },
       ],
     })).toBe(false);
+  });
+
+  it("detects an answered event among multiple due events", () => {
+    expect(likelyAnsweredDueEventIds(
+      "Да, вчера действительно я прошел больше 10 тысяч шагов. Это была приятная прогулка, и после этого я хорошо спал.",
+      [
+        {
+          id: "walk",
+          description: "Пройти минимум 10 тысяч шагов",
+          expected_at: "2026-06-02T18:00:00+00:00",
+          planned_at: "2026-06-02T05:40:40.244+00:00",
+          planned_local_date: "2026-06-02",
+          status: "planned",
+          time_phrase_raw: "вечером",
+          time_resolution: "daypart_default",
+          context_snippets: [],
+          cells: [],
+          outcome_cells: null,
+          outcome_text: null,
+        },
+        {
+          id: "film",
+          description: "Посмотреть фильм и приготовить здоровый ужин",
+          expected_at: "2026-06-02T19:30:00+00:00",
+          planned_at: "2026-06-02T05:40:40.244+00:00",
+          planned_local_date: "2026-06-02",
+          status: "planned",
+          time_phrase_raw: "вечером",
+          time_resolution: "daypart_default",
+          context_snippets: [],
+          cells: [],
+          outcome_cells: null,
+          outcome_text: null,
+        },
+      ],
+    )).toEqual(["walk"]);
+  });
+
+  it("does not treat practice selection as an answer to the remaining single due event", () => {
+    expect(likelyAnsweredDueEventIds(
+      "Да, давай сократим время практики до 5 минут, пусть это будет медитация.",
+      [
+        {
+          id: "event-1",
+          description: "Выполнить практику дыхания (1 час)",
+          expected_at: "2026-05-26T03:19:00+00:00",
+          planned_at: "2026-05-26T05:40:40.244+00:00",
+          planned_local_date: "2026-05-26",
+          status: "planned",
+          time_phrase_raw: "06:19",
+          time_resolution: "explicit",
+          context_snippets: [],
+          cells: [],
+          outcome_cells: null,
+          outcome_text: null,
+        },
+      ],
+    )).toEqual([]);
   });
 });

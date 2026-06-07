@@ -1,10 +1,11 @@
+import { DateTime } from "luxon";
 import {
-  isMatrixReady,
+  hasEnoughLifeMatrixHistory,
 } from "@legacy/app/api/_utils/lifeMatrix";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 import { buildChakraLegend } from "@legacy/app/api/_utils/planetChakraLegend";
 import { getLifeSpheresBaseline } from "@legacy/app/api/_utils/lifeSpheresBaseline";
-import { loadOrRebuildProfileReportSnapshot } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import { loadLifeMatrixReadinessMeta, loadOrRebuildProfileReportSnapshot } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 
 export const runtime = "nodejs";
 
@@ -12,15 +13,28 @@ export async function GET(req: Request) {
   try {
     const userId = await requireUserId(req);
     const db = createServiceSupabase();
-    const snapshot = await loadOrRebuildProfileReportSnapshot(
-      db,
-      userId,
-      new Date().toISOString(),
-    );
+    const nowIso = new Date().toISOString();
+    const [{ data: user, error: userError }, snapshot, readiness] = await Promise.all([
+      db.from("users").select("tz").eq("id", userId).maybeSingle(),
+      loadOrRebuildProfileReportSnapshot(db, userId, nowIso),
+      loadLifeMatrixReadinessMeta(db, userId),
+    ]);
+    if (userError) throw userError;
+
+    const zonedNow = DateTime.now().setZone(user?.tz ?? "UTC");
+    const currentLocalDate = zonedNow.isValid ? zonedNow.toFormat("yyyy-MM-dd") : DateTime.utc().toFormat("yyyy-MM-dd");
+    const reportReady = hasEnoughLifeMatrixHistory({
+      summarizedEventsCount: readiness.summarizedEventsCount,
+      firstSummaryLocalDate: readiness.firstSummaryLocalDate,
+      currentLocalDate,
+    });
 
     return json({
-      activeDaysCount: snapshot.activeDaysCount,
-      matrixReady: isMatrixReady(snapshot.activeDaysCount),
+      activeDaysCount: readiness.activeDaysCount,
+      summarizedEventsCount: readiness.summarizedEventsCount,
+      firstSummaryLocalDate: readiness.firstSummaryLocalDate,
+      matrixReady: reportReady,
+      trendReady: reportReady && snapshot.calendarTrend.length > 0,
       chakras: buildChakraLegend(),
       spheres: getLifeSpheresBaseline("ru").map((item) => ({
         id: item.id,

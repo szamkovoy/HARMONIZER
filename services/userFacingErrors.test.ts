@@ -24,6 +24,19 @@ describe("userFacingErrors", () => {
     expect(err).toBeInstanceOf(AppUserError);
     expect((err as AppUserError).userFacingKind).toBe("network");
   });
+
+  it("treats AbortError as retryable timeout copy", () => {
+    const abortError = Object.assign(new Error("Aborted"), { name: "AbortError" });
+    const copy = resolveUserFacingAlert(abortError, "ru");
+    expect(copy.title).toBe("Ответ занимает слишком много времени");
+    expect(copy.retryable).toBe(true);
+  });
+
+  it("wrapConnectivityFailure maps AbortError to timeout AppUserError", () => {
+    const err = wrapConnectivityFailure(Object.assign(new Error("Aborted"), { name: "AbortError" }), "communicator");
+    expect(err).toBeInstanceOf(AppUserError);
+    expect((err as AppUserError).userFacingKind).toBe("timeout");
+  });
 });
 
 describe("withTransientNetworkRetry", () => {

@@ -3,13 +3,18 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.51
-updated: 2026-06-02
+version: 2.52
+updated: 2026-06-04
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-04: `assistant` — follow-up QA по `текст-4E29-8568-EF-0.txt`: daily dialog теперь держит до `3` текущих due-событий в summarizing, single-due summary repair не путает согласование новой практики с итогом старого события, single-event финал звучит более директивно, а post-recommendation больше не должен преждевременно спрашивать, как прошла практика.
+- 2026-06-03: `assistant` + `communicator` — follow-up QA по `текст-4106-A447-F2-0.txt`: multi-due summarizing больше не repair-ится только в single-event кейсе, unanswered due remainder после partial summary не теряется сразу, planning inference перестал канонизировать выбор практики и supportive detail-фразы как `planned_events`, финальный multi-event текст жёстче держит структуру `общий фокус дня -> по одному абзацу на событие -> практика`, а communicator смягчил post-practice fallback после карточки и дольше ждёт hydration реального short reply.
+- 2026-06-03: `assistant` + `communicator` — daily dialog получил safe core refinement: due-события теперь идут по циклу `prompted -> one reminder -> delete ignored`, planning сужен до `1-3` важных событий, summarizing явно собирает «как событие проживалось», а multi-event финал допускает короткие per-event рекомендации без ломки single-event natural flow.
+- 2026-06-03: `communicator` — voice-failure UX: `AbortError`/`Aborted` больше не показываются как сырой generic error без retry; failed transcription bubbles помечаются отдельно и не попадают в `turnHistory` как будто это реальная реплика пользователя.
+- 2026-06-02: `assistant` + `profile` — ветка `planning` в daily dialog больше не считается закрытой одними существующими open/due-событиями из summarizing, а `life-matrix` / `Толщина линии жизни` теперь открываются по продуктовым условиям (`>= 5` summarized events + `>= 5` календарных дней с первого summary) вместо `active_days_count >= 5`; `calendarTrend` пересчитан по календарным 5-дневным окнам.
 - 2026-06-02: `astro` — `fetchActiveNatalProfileCached(userId, options?)` с `onBackgroundRefresh`; кэш «нет карты» и сетевые сбои чтения натала больше не маскируют отсутствие `birth_date` на Home (`spec.md`, `dependencies.md`, `history.md`; уточнение в `profile/spec.md`).
 - 2026-06-02: `assistant` — в QA с `TEST_MODE_FORCE_PHASE` `dueEvents` внутри dialog-context теперь режутся по representative часу forced-phase, чтобы untimed/daypart-планы не становились `summarizing` раньше симулируемого времени; `plannedEventInference.ts` дополнительно перестал сохранять meta-фразы про «интересный день», игнорирует голые time-clarification реплики и разделяет независимые coordinated-actions вроде `фильм` + `ужин`.
 - 2026-06-02: `profile` / Home — баннер «Нужна дата рождения» только если в `users` нет `birth_date`; сбой загрузки `user_natal_charts` больше не блокирует главный экран.
