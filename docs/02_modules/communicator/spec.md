@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.29
-updated: 2026-06-03
+version: 2.30
+updated: 2026-06-08
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -121,7 +121,7 @@ code_refs:
 
 `**PracticePicked**` — `Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">` (реэкспорт контракта каталога практик).
 
-`**DialogCompleteEvent**` / `**DialogTurnArtifactsEvent**` — SSE **`complete`** (до `persistDialogArtifacts`) несёт UI-поля: `fullText`, `turnMode`, `practicePicked`, `branches`, `phaseTime`, `targetChakra`, `validation`, `insightMetrics`, `recommendationCorrected`, `debugExport`, `conversationId` и др.; **`messageId`**, **`planningPersistence`**, `relatedEventIds`, `skippedPlannedEvents`, `matrixCells` приходят в **`turn_artifacts`** после persist и сливаются в агрегат `state.complete` в `handleSseEvent`. В delayed architecture `planningPersistence` может содержать и `queued_summaries`, поэтому debounce reconcile активируется не только после новых планов, но и после queued summarizing/matrix work. На серверной стороне этот же контур теперь ведёт `trigger_meta.due_summary_state` для prompted due-events и сам удаляет проигнорированные `planned_events` после одного reminder; клиенту отдельный новый payload для этого не нужен, но dev-export увидит итог через `planning_persistence` / `dialog_state_after`. Клиент сохраняет объединённые поля в `messages.meta` и dev-export (см. `assistant/spec.md`).
+`**DialogCompleteEvent**` / `**DialogTurnArtifactsEvent**` — SSE **`complete`** (до `persistDialogArtifacts`) несёт UI-поля: `fullText`, `turnMode`, `practicePicked`, `branches`, `phaseTime`, `targetChakra`, `validation`, `insightMetrics`, `recommendationCorrected`, `debugExport`, `conversationId` и др.; **`messageId`**, **`planningPersistence`**, `relatedEventIds`, `skippedPlannedEvents`, `matrixCells` приходят в **`turn_artifacts`** после persist и сливаются в агрегат `state.complete` в `handleSseEvent`. В delayed architecture `planningPersistence` может содержать и `queued_summaries`, поэтому debounce reconcile активируется не только после новых планов, но и после queued summarizing/matrix work. На серверной стороне этот же контур ведёт `trigger_meta.due_summary_state` для prompted due-events: после одного reminder state сбрасывается, но ignored `planned_events` остаются до explicit delete (вкладка «День») или summary; клиенту отдельный новый payload для этого не нужен, dev-export видит итог через `planning_persistence` / `dialog_state_after`. Клиент сохраняет объединённые поля в `messages.meta` и dev-export (см. `assistant/spec.md`).
 
 ## 3. Внутренняя архитектура
 

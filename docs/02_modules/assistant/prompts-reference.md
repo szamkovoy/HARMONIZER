@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/prompts-reference
 title: Assistant Dialog v3 Prompts Reference
-version: 1.19
-updated: 2026-06-07
+version: 1.20
+updated: 2026-06-08
 depends_on: [02_modules/assistant/spec]
 code_refs:
   [
@@ -522,6 +522,9 @@ MATRIX EXTRACTION
 | Branch gating | `shouldServerEscalateToFinalRecommendation` и `[READY_FOR_RECOMMENDATION]` блокируются, пока `hasRequiredBranchArtifacts` ложно: для `planning` нужен маркер **или** current-turn inferred planning-artifacts из `inferPlannedEventsFromUserHistory(...)`; существующие open rows user-wide horizon сами по себе planning не закрывают; для `summarizing` — `[SUMMARIZE_EVENT]` (если user-text уже выглядит как outcome due-события, возможен standard retry через `branchRepairInstruction` / `likelyAnsweredDueEventIds`). |
 | `buildPostRecommendationTimingGuard` (`route.ts`) | На `post_recommendation`, если с момента assistant-turn с `practice_picked` прошло меньше выбранной длительности и пользователь ещё не сообщил о завершении практики, в turn-инструкцию дописывается короткий guard: не спрашивать «как прошла практика» и не открывать новый опрос. |
 | `buildCatalogReconciliationInstruction` | При переспросе конфликта тип/минуты ссылки на каталог и ограничения формулируются как «здесь» / «в приложении», не «там». |
+| `canPersistPlanningMarkers` (`route.ts`) | `[PLANNED_EVENT]` и delayed planning queue пишутся только на terminal final modes (`final_recommendation`, `final_recommendation_with_validation_warning`, `forced_final`, `final_without_practice`); промежуточные `opening`/`inquiry` markers не персистятся. |
+| `formatDayTabTurnContext` / `daySummaryRequested` | При `triggerMeta.daySummaryRequested = true` route форсирует ветку `summarizing`, подгружает все rows рабочего дня через `loadPlannedEventsForLocalDate`, добавляет turn-контекст вкладки «День» (actions, practices, `dayHealthContext`) и server-side summarizing guardrails про йогу/Health без выдуманных метрик. |
+| Planning guardrails в `buildDialogSystemInstruction` | Дополнительный runtime-блок для `planning`: только действия/события; без уточнения состояний/подтекста/«первая или вторая половина дня»; practice-replies не превращаются в `[PLANNED_EVENT]`; каждый `[PLANNED_EVENT]` несёт `recommendation` и `display_order`, `desc` — короткое название для вкладки «День», `time/time_norm` — только при явном времени. |
 
 ## 4. Где править что
 
