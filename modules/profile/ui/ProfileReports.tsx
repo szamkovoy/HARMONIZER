@@ -55,6 +55,22 @@ function donutPath(cx: number, cy: number, outerRadius: number, innerRadius: num
   ].join(" ");
 }
 
+const CHAKRA_NUMERIC_LABELS_RU = [
+  "Первая чакра",
+  "Вторая чакра",
+  "Третья чакра",
+  "Четвертая чакра",
+  "Пятая чакра",
+  "Шестая чакра",
+  "Седьмая чакра",
+] as const;
+
+function capitalizeFirst(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefix: string }) {
   const theme = useTheme();
   const rowLegend = props.report.chakras;
@@ -75,7 +91,7 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
         return (
           <View key={chakra?.chakra ?? rowIndex} style={styles.heatmapRow}>
             <AppText variant="technicalCaption" tone="muted" style={styles.heatmapAxisLabel} numberOfLines={1}>
-              {chakra?.shortLabel ?? rowIndex + 1}
+              {capitalizeFirst(chakra?.shortLabel ?? String(rowIndex + 1))}
             </AppText>
             {row.map((value, colIndex) => (
               <View
@@ -93,10 +109,89 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
         );
       })}
       <AppText variant="technicalCaption" tone="muted">
-        {props.spheresLegendPrefix} {colLegend.map((item) => `${item.id}.${item.title}`).join(" · ")}
+        {props.spheresLegendPrefix} {colLegend.map((item) => `${item.id}. ${item.title};`).join(" ")}
       </AppText>
     </View>
   );
+}
+
+function MatrixProjectionChart(props: {
+  items: NonNullable<LifeMatrixReport["sphereProjection"]>;
+}) {
+  const theme = useTheme();
+  const total = Math.max(0, props.items.reduce((sum, item) => sum + Math.max(0, item.value), 0));
+  let angle = 0;
+  return (
+    <View style={styles.projectionBlock}>
+      {total > 0 ? (
+        <Svg width="100%" height={190} viewBox="0 0 220 190">
+          {props.items
+            .filter((item) => item.value > 0)
+            .map((item) => {
+              const startAngle = angle;
+              angle += (item.value / total) * 360;
+              return (
+                <Path
+                  key={item.id}
+                  d={donutPath(110, 90, 72, 42, startAngle, angle)}
+                  fill={item.color ?? theme.colors.accent}
+                  stroke={theme.colors.screenBg}
+                  strokeWidth={2}
+                />
+              );
+            })}
+          <Circle cx={110} cy={90} r={28} fill={theme.colors.surface} />
+        </Svg>
+      ) : null}
+      <View style={styles.legendList}>
+        {props.items.map((item) => {
+          const isZero = item.value <= 0;
+          return (
+            <View key={item.id} style={styles.legendRow}>
+              <View
+                style={[
+                  styles.legendSwatch,
+                  {
+                    backgroundColor: isZero ? theme.colors.surfaceBorder : item.color ?? theme.colors.accent,
+                  },
+                ]}
+              />
+              <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"} style={styles.legendLabel}>
+                {capitalizeFirst(item.label)}
+              </AppText>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function ProjectionReportContent(props: {
+  items?: NonNullable<LifeMatrixReport["sphereProjection"]>;
+  loading: boolean;
+  error: string | null;
+  matrixReady: boolean;
+  emptyMessage: string;
+}) {
+  if (props.loading) {
+    return (
+      <AppText variant="dialogBody" tone="muted">
+        Загрузка...
+      </AppText>
+    );
+  }
+  if (props.error) {
+    return (
+      <AppText variant="dialogBody" tone="muted">
+        {props.error}
+      </AppText>
+    );
+  }
+  if (!props.matrixReady || !props.items?.length) {
+    return <ProfileEmptyState message={props.emptyMessage} />;
+  }
+  return <MatrixProjectionChart items={props.items} />;
 }
 
 export function useLifeMatrixReport(enabled: boolean) {
@@ -166,14 +261,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     );
   }
 
-  const sortedStats = report
-    ? [...report.chakraStats].sort((a, b) => {
-        if (a.durationSec > 0 && b.durationSec === 0) return -1;
-        if (a.durationSec === 0 && b.durationSec > 0) return 1;
-        if (a.durationSec !== b.durationSec) return b.durationSec - a.durationSec;
-        return a.chakra - b.chakra;
-      })
-    : [];
+  const sortedStats = report ? [...report.chakraStats].sort((a, b) => a.chakra - b.chakra) : [];
   const total = Math.max(0, report?.totalDurationSec ?? 0);
   let angle = 0;
 
@@ -224,8 +312,8 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
                         { backgroundColor: isZero ? theme.colors.surfaceBorder : item.color },
                       ]}
                     />
-                    <AppText variant="technicalCaption" tone={isZero ? "faint" : undefined} style={styles.legendLabel}>
-                      {item.label}
+                    <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"} style={styles.legendLabel}>
+                      {CHAKRA_NUMERIC_LABELS_RU[item.chakra - 1] ?? item.label}
                     </AppText>
                     <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"}>
                       {formatDurationClock(item.durationSec)}
@@ -267,7 +355,7 @@ export function LifeMatrixReportCard(props: {
   const showMatrix = props.report?.matrixReady ?? false;
 
   return (
-    <ProfileReportCard title={strings.lifeMatrixTitle}>
+    <ProfileReportCard title={strings.lifeMatrixTitle} subtitle={strings.lifeMatrixHint}>
       {props.loading ? (
         <AppText variant="dialogBody" tone="muted">
           {strings.reportsLoading}
@@ -285,6 +373,70 @@ export function LifeMatrixReportCard(props: {
           <ProfileEmptyState message={strings.matrixNotReady} />
         )
       ) : null}
+    </ProfileReportCard>
+  );
+}
+
+export function LifeSpheresReportCard(props: {
+  enabled: boolean;
+  onUpgrade: () => void;
+  report: LifeMatrixReport | null;
+  loading: boolean;
+  error: string | null;
+  locale?: "ru" | "en";
+}) {
+  const strings = getProfileReportStrings(props.locale ?? "ru");
+  if (!props.enabled) {
+    return (
+      <ProfileReportCard title={strings.lifeSpheresTitle}>
+        <AppText variant="dialogBody" tone="muted">
+          {strings.reportsUpgradeHint}
+        </AppText>
+        <AppButton label={strings.openTiersButton} onPress={props.onUpgrade} />
+      </ProfileReportCard>
+    );
+  }
+  return (
+    <ProfileReportCard title={strings.lifeSpheresTitle} subtitle={strings.lifeSpheresHint}>
+      <ProjectionReportContent
+        loading={props.loading}
+        error={props.error}
+        matrixReady={props.report?.matrixReady ?? false}
+        items={props.report?.sphereProjection}
+        emptyMessage={strings.matrixNotReady}
+      />
+    </ProfileReportCard>
+  );
+}
+
+export function LifeStatesReportCard(props: {
+  enabled: boolean;
+  onUpgrade: () => void;
+  report: LifeMatrixReport | null;
+  loading: boolean;
+  error: string | null;
+  locale?: "ru" | "en";
+}) {
+  const strings = getProfileReportStrings(props.locale ?? "ru");
+  if (!props.enabled) {
+    return (
+      <ProfileReportCard title={strings.lifeStatesTitle}>
+        <AppText variant="dialogBody" tone="muted">
+          {strings.reportsUpgradeHint}
+        </AppText>
+        <AppButton label={strings.openTiersButton} onPress={props.onUpgrade} />
+      </ProfileReportCard>
+    );
+  }
+  return (
+    <ProfileReportCard title={strings.lifeStatesTitle} subtitle={strings.lifeStatesHint}>
+      <ProjectionReportContent
+        loading={props.loading}
+        error={props.error}
+        matrixReady={props.report?.matrixReady ?? false}
+        items={props.report?.stateProjection}
+        emptyMessage={strings.matrixNotReady}
+      />
     </ProfileReportCard>
   );
 }
@@ -312,11 +464,8 @@ export function RangeTrendReportCard(props: {
 
   const trendReady = props.report?.trendReady ?? false;
   const trendPoints = props.report?.calendarTrend ?? [];
-  const showTrendHint =
-    !props.loading && !props.error && Boolean(props.report) && trendReady && trendPoints.length > 0;
-
   return (
-    <ProfileReportCard title={strings.rangeTrendTitle} subtitle={showTrendHint ? strings.rangeTrendHint : undefined}>
+    <ProfileReportCard title={strings.rangeTrendTitle} subtitle={strings.rangeTrendHint}>
       {props.loading ? (
         <AppText variant="dialogBody" tone="muted">
           {strings.reportsLoading}
@@ -343,7 +492,11 @@ const HEATMAP_CELL_SIZE = 18;
 
 const styles = StyleSheet.create({
   heatmapBlock: {
+    gap: 4,
+  },
+  projectionBlock: {
     gap: 10,
+    alignItems: "stretch",
   },
   heatmapHeader: {
     flexDirection: "row",
@@ -360,7 +513,7 @@ const styles = StyleSheet.create({
   heatmapRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 4,
+    gap: 3,
   },
   heatmapAxisLabel: {
     width: HEATMAP_LABEL_WIDTH,

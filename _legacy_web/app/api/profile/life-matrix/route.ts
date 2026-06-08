@@ -9,6 +9,29 @@ import { loadLifeMatrixReadinessMeta, loadOrRebuildProfileReportSnapshot } from 
 
 export const runtime = "nodejs";
 
+function projection(values: number[], labels: Array<{ id?: number; chakra?: number; title?: string; shortLabel?: string; label?: string; color?: string }>) {
+  const max = Math.max(0, ...values);
+  return values.map((value, index) => ({
+    id: index + 1,
+    label: labels[index]?.title ?? labels[index]?.shortLabel ?? labels[index]?.label ?? String(index + 1),
+    color: labels[index]?.color ?? null,
+    value,
+    radius: max > 0 ? Math.sqrt(value / max) : 0,
+  }));
+}
+
+function columnSums(matrix: number[][]): number[] {
+  return Array.from({ length: 7 }, (_, col) =>
+    matrix.reduce((sum, row) => sum + (Number(row?.[col]) || 0), 0),
+  );
+}
+
+function rowSums(matrix: number[][]): number[] {
+  return Array.from({ length: 7 }, (_, row) =>
+    (matrix[row] ?? []).reduce((sum, value) => sum + (Number(value) || 0), 0),
+  );
+}
+
 export async function GET(req: Request) {
   try {
     const userId = await requireUserId(req);
@@ -29,21 +52,29 @@ export async function GET(req: Request) {
       currentLocalDate,
     });
 
+    const chakras = buildChakraLegend();
+    const spheres = getLifeSpheresBaseline("ru").map((item) => ({
+      id: item.id,
+      slug: item.slug,
+      title: item.title,
+    }));
+
     return json({
       activeDaysCount: readiness.activeDaysCount,
       summarizedEventsCount: readiness.summarizedEventsCount,
       firstSummaryLocalDate: readiness.firstSummaryLocalDate,
       matrixReady: reportReady,
       trendReady: reportReady && snapshot.calendarTrend.length > 0,
-      chakras: buildChakraLegend(),
-      spheres: getLifeSpheresBaseline("ru").map((item) => ({
-        id: item.id,
-        slug: item.slug,
-        title: item.title,
-      })),
+      chakras,
+      spheres,
       rawMatrix: snapshot.rawMatrix,
       visualMatrix: snapshot.visualMatrix,
       calendarTrend: snapshot.calendarTrend,
+      sphereProjection: projection(columnSums(snapshot.rawMatrix), spheres.map((sphere, index) => ({
+        ...sphere,
+        color: chakras[index]?.color,
+      }))),
+      stateProjection: projection(rowSums(snapshot.rawMatrix), chakras),
     });
   } catch (error) {
     return errorResponse(error);

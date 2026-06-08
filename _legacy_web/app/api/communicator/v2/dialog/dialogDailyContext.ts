@@ -6,7 +6,7 @@ import { phaseTimeFor } from "@legacy/app/api/_utils/dialogBranching";
 import { chooseTargetChakra, isMatrixReady, sumMatrices, type DenseMatrix } from "@legacy/app/api/_utils/lifeMatrix";
 import { effectiveDialogNowLocal } from "@legacy/app/api/_utils/testMode";
 import { buildTopPetals, type CalibrationLike, type PetalData } from "@legacy/app/api/_utils/topPetals";
-import { expireStalePlannedEvents, loadDuePlannedEvents, loadLastPlanningSummary, type PlannedEventRow } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import { expireStalePlannedEvents, loadDuePlannedEvents, loadLastPlanningSummary, loadPlannedEventsForLocalDate, type PlannedEventRow } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { todayLocalDate } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
 export type DialogDailyContext = {
@@ -113,7 +113,12 @@ function fallbackTop3FromForecast(forecast: Record<string, unknown> | null): Pet
   }));
 }
 
-export async function loadDialogDailyContext(db: SupabaseClient, userId: string, timezoneHint?: string): Promise<DialogDailyContext> {
+export async function loadDialogDailyContext(
+  db: SupabaseClient,
+  userId: string,
+  timezoneHint?: string,
+  options?: { summarizeWholeLocalDate?: string | null },
+): Promise<DialogDailyContext> {
   const user = await loadUser(db, userId);
   const timezone = user.tz ?? timezoneHint ?? "UTC";
   const nowLocal = DateTime.now().setZone(timezone);
@@ -124,14 +129,17 @@ export async function loadDialogDailyContext(db: SupabaseClient, userId: string,
 
   await expireStalePlannedEvents(db, userId, nowIso);
 
-  const [forecast, natal, calibration, dueEvents, lastPlanning, aggregated] = await Promise.all([
+  const [forecast, natal, calibration, dueEventsRaw, lastPlanning, aggregated] = await Promise.all([
     loadForecastForLocalDate(db, userId, localDate),
     loadActiveNatalProfile(db, userId),
     loadCalibration(db, userId),
-    loadDuePlannedEvents(db, userId, nowIso, dueNowIso),
+    options?.summarizeWholeLocalDate
+      ? loadPlannedEventsForLocalDate(db, userId, options.summarizeWholeLocalDate)
+      : loadDuePlannedEvents(db, userId, nowIso, dueNowIso),
     loadLastPlanningSummary(db, userId),
     loadAggregatedMatrix(db, userId),
   ]);
+  const dueEvents = dueEventsRaw;
 
   const top3Planets = forecast
     ? buildTopPetals(forecast as never, natal.profile, calibration, 3)

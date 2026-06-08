@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.10
-updated: 2026-05-26
+version: 1.11
+updated: 2026-06-07
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,10 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-08 (2):** `services/dayHealthContext.ts` использует `user_daily_stats` как baseline для финального подытоживания дня: ассистент получает минуты/количество практик за день и сравнение с обычной практикой пользователя. Это не меняет запись `practice_sessions`: как и раньше, учитываются только завершённые практики.
+- **2026-06-08:** `PracticeCard` больше не сбрасывает выбранную пользователем длительность медитации/дыхания после локального выбора, пока карточка остаётся той же практикой. Дефолт чакры для дыхания/медитации теперь берётся из `primaryChakra` / `chakraIds`, а вкладка «День» перед сохранением pending-практики принудительно подставляет `user_daily_forecasts.day_target_chakra` для meditation/breath offer.
+- **2026-06-07:** Вкладка «День» получила одну ожидающую карточку практики на локальный день через таблицу `day_practice_offers`; это не меняет инвариант `practice_sessions`: отчёты и статистика по-прежнему учитывают только завершённые практики. `GET /api/day` автоматически закрывает pending offer как `completed`, если после создания карточки появилась matching completed session.
+- **2026-06-07 (2):** Ассистентская `PRACTICE_PICK`-карточка теперь тоже становится pending-практикой вкладки «День»: `Communicator.onPracticeOffered(...)` передаёт `PracticeSummary`, а вкладка сохраняет его через `POST /api/day`.
 - **2026-05-26:** Assistant-facing длительности выровнены по нижней границе каталога: серверный `markers.ts` теперь трактует `короткую` / `minimal` практику без числа минут как `1` мин для медитации, `5` мин для дыхания и `20` мин для асан. Это убирает лишний уточняющий вопрос перед карточкой и синхронизирует server inference с шагами `assistantSelectableDurations.ts`.
 - **2026-05-23:** Диапазон медитации в карточке практики и в статическом каталоге выровнен с daily dialog: `assistantSelectableDurations.ts` и `PracticeCard.tsx` теперь допускают только **1–5 минут** (не 1–10), а `STATIC_MEDITATIONS` в `catalog.ts` ограничивает `maxDurationSec` тем же потолком. Это убирает расхождение между серверным `catalogDurationRangeForKind("meditation")`, активным prompt `dialog_system_v3` и клиентским выбором минут.
 - **2026-05-19 (pre-push doc-sync):** Серверный **`route.ts`** импортирует шаги длительности карточки через **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`** для Vercel-only deploy); клиентский канонический файл без изменения контракта. **`spec.md`**, **`dependencies.md`**, **`assistant/dependencies.md`**, **`MAP.md`**, **`CHANGELOG.md`**.

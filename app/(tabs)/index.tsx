@@ -17,6 +17,7 @@ import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
+import { loadDayPlan } from "@/services/dayPlan";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
   buildOpportunityAlarmStyleContent,
@@ -511,6 +512,28 @@ export default function HomeScreen() {
     }
   }, [authUser?.id, refresh]);
 
+  const onOpenAssistantOrDay = useCallback(async () => {
+    if (!canUseFeature("assistant_dialog")) {
+      setUpgradeFeature("assistant_dialog");
+      return;
+    }
+    try {
+      if (canUseFeature("day_planning")) {
+        const dayPlan = await loadDayPlan();
+        const today = new Date();
+        const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        if (dayPlan.localDate === todayLocal && dayPlan.actions.length > 0) {
+          router.push("/day");
+          return;
+        }
+      }
+      setCommunicatorOpen(true);
+    } catch (loadError) {
+      console.warn("[Home] Failed to check day plan before assistant", loadError);
+      setCommunicatorOpen(true);
+    }
+  }, [canUseFeature]);
+
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
       <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
@@ -564,13 +587,7 @@ export default function HomeScreen() {
             <DailyRecommendationCard
               forecast={forecast}
               strings={strings}
-              onDiscuss={() => {
-                if (canUseFeature("assistant_dialog")) {
-                  setCommunicatorOpen(true);
-                } else {
-                  setUpgradeFeature("assistant_dialog");
-                }
-              }}
+              onDiscuss={() => void onOpenAssistantOrDay()}
               showDiscuss
               accessMode={accessMode}
               natalProfile={natalProfile}
@@ -644,7 +661,10 @@ export default function HomeScreen() {
           accessMode={accessMode}
           strings={strings}
           remountKey={assistantRemountKey}
-          onClose={() => setCommunicatorOpen(false)}
+          onClose={() => {
+            setCommunicatorOpen(false);
+            router.push("/day");
+          }}
         />
       ) : null}
       <NatalBirthDataModal

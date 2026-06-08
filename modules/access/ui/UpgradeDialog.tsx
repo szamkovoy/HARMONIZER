@@ -11,6 +11,7 @@ const FEATURE_LABELS: Record<FeatureKey, string> = {
   personal_daily_forecast: "персональный прогноз",
   calibration: "калибровка",
   assistant_dialog: "ИИ-ассистент",
+  day_planning: "вкладку «День»",
   practice_catalog: "каталог практик",
   breath_practices: "дыхательные практики",
   meditations: "медитации",

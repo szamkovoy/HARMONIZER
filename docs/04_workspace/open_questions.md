@@ -18,6 +18,10 @@ code_refs: []
 
 ## `communicator`
 
+- **Google Play Health Connect declaration**
+**Контекст:** Android summary health-context использует `react-native-health-connect` и permissions `READ_STEPS`, `READ_ACTIVE_CALORIES_BURNED`, `READ_EXERCISE`, `READ_SLEEP` через Google Health / Android Health Connect.
+**Проявление:** dev-client может читать данные на устройстве после permissions, но для production-релиза в Google Play может потребоваться Health Connect declaration / review и время на propagation whitelist.
+**Действие:** перед Android production rollout заполнить Google Play declaration для Health Connect data types и проверить, не изменились ли требования Google Health/Health Connect к маю-июню 2026.
 - **Очередь `pending-greeting` без потребителя на главном экране**  
 **Контекст:** `modules/breath/ui/CoherenceBreathScreen.tsx` вызывает `enqueueCommunicatorGreeting()` и затем `router.replace("/")`, ожидая, что главный экран смонтирует `Communicator` с `autoSendInitialMessage` / переопределением `systemPrompt` из очереди. В `app/(tabs)/index.tsx` нет вызова `consumeCommunicatorGreeting()` и передачи результата в `<Communicator />`.  
 **Проявление:** сценарий «Обсудить результаты» из дыхания не запускает автоматическую отправку первого сообщения в ассистенте.  

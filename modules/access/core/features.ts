@@ -5,6 +5,7 @@ export type FeatureKey =
   | "personal_daily_forecast"
   | "calibration"
   | "assistant_dialog"
+  | "day_planning"
   | "practice_catalog"
   | "breath_practices"
   | "meditations"
@@ -21,6 +22,7 @@ export const TIER_FEATURES: Record<ProductTier, readonly FeatureKey[]> = {
     "personal_daily_forecast",
     "calibration",
     "assistant_dialog",
+    "day_planning",
     "practice_catalog",
     "breath_practices",
     "meditations",
@@ -32,6 +34,7 @@ export const TIER_FEATURES: Record<ProductTier, readonly FeatureKey[]> = {
     "personal_daily_forecast",
     "calibration",
     "assistant_dialog",
+    "day_planning",
     "practice_catalog",
     "breath_practices",
     "meditations",
@@ -47,6 +50,7 @@ export const FEATURE_REQUIRED_TIER: Record<FeatureKey, ProductTier> = {
   personal_daily_forecast: "oracle",
   calibration: "oracle",
   assistant_dialog: "practitioner",
+  day_planning: "practitioner",
   practice_catalog: "practitioner",
   breath_practices: "practitioner",
   meditations: "practitioner",

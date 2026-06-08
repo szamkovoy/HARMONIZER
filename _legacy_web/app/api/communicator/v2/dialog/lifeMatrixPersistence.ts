@@ -13,12 +13,7 @@ import {
 } from "@legacy/app/api/_utils/lifeMatrix";
 import { samePlannedEventIdentity } from "@legacy/app/api/_utils/plannedEventInference";
 
-const PLANNED_EVENT_EXPIRY_HOURS = 36;
-// Test mode accelerates anti-replan/session TTLs, but summary availability for
-// planned events stays on real wall-clock time so QA can still revisit a due
-// event after manually shifting it into the past.
-const PLANNED_EVENT_EXPIRY_MS = PLANNED_EVENT_EXPIRY_HOURS * 60 * 60 * 1000;
-export const PROFILE_REPORT_SNAPSHOT_VERSION = 2;
+export const PROFILE_REPORT_SNAPSHOT_VERSION = 3;
 
 export type PlannedEventRow = {
   id: string;
@@ -34,6 +29,9 @@ export type PlannedEventRow = {
   cells: unknown;
   outcome_cells: unknown;
   outcome_text: string | null;
+  recommendation_text?: string | null;
+  display_order?: number | null;
+  explicit_time_text?: string | null;
 };
 
 export type ProfileReportSnapshot = {
@@ -154,31 +152,10 @@ function collapseDuplicatePlannedRows(rows: PlannedEventRow[]): PlannedEventRow[
 }
 
 export async function expireStalePlannedEvents(db: SupabaseClient, userId: string, nowIso: string): Promise<string[]> {
-  const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_MS).toISOString();
-  const { data, error } = await db
-    .from("planned_events")
-    .select("id,planned_local_date")
-    .eq("user_id", userId)
-    .eq("status", "planned")
-    // Summary availability is anchored to when the event was supposed to happen,
-    // not when the plan row happened to be created.
-    .lt("expected_at", cutoffIso);
-  if (error) throw error;
-  const expiredRows = (data ?? []) as Array<{ id: string; planned_local_date: string }>;
-  if (!expiredRows.length) return [];
-
-  const { error: deleteError } = await db
-    .from("planned_events")
-    .delete()
-    .eq("user_id", userId)
-    .in("id", expiredRows.map((row) => row.id));
-  if (deleteError) throw deleteError;
-
-  const affectedDates = [...new Set(expiredRows.map((row) => row.planned_local_date).filter(Boolean))];
-  for (const localDate of affectedDates) {
-    await upsertDailyMatrixForDate(db, userId, localDate, nowIso);
-  }
-  return expiredRows.map((row) => row.id);
+  void db;
+  void userId;
+  void nowIso;
+  return [];
 }
 
 export async function deletePlannedEventsByIds(
@@ -221,15 +198,30 @@ export async function loadDuePlannedEvents(
   nowIso: string,
   dueNowIso = nowIso,
 ): Promise<PlannedEventRow[]> {
-  const cutoffIso = new Date(Date.parse(nowIso) - PLANNED_EVENT_EXPIRY_MS).toISOString();
   const { data, error } = await db
     .from("planned_events")
-    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text")
     .eq("user_id", userId)
     .eq("status", "planned")
     .lte("expected_at", dueNowIso)
-    .gte("expected_at", cutoffIso)
     .order("expected_at", { ascending: true });
+  if (error) throw error;
+  return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
+}
+
+export async function loadPlannedEventsForLocalDate(
+  db: SupabaseClient,
+  userId: string,
+  localDate: string,
+): Promise<PlannedEventRow[]> {
+  const { data, error } = await db
+    .from("planned_events")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text,conversation_id")
+    .eq("user_id", userId)
+    .eq("planned_local_date", localDate)
+    .eq("status", "planned")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("planned_at", { ascending: true });
   if (error) throw error;
   return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
 }
@@ -241,7 +233,7 @@ export async function loadOpenPlannedEventsForConversation(
 ): Promise<PlannedEventRow[]> {
   const { data, error } = await db
     .from("planned_events")
-    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,conversation_id")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text,conversation_id")
     .eq("user_id", userId)
     .eq("conversation_id", conversationId)
     .eq("status", "planned");
@@ -258,7 +250,7 @@ export async function loadOpenPlannedEventsForUserHorizon(
   if (!uniqueDates.length) return [];
   const { data, error } = await db
     .from("planned_events")
-    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,conversation_id")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text,conversation_id")
     .eq("user_id", userId)
     .eq("status", "planned")
     .in("planned_local_date", uniqueDates);

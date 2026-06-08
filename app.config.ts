@@ -68,7 +68,22 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ...((config.ios as { entitlements?: Record<string, boolean> } | undefined)?.entitlements ?? {}),
         /** Локальные уведомления с `interruptionLevel: timeSensitive` (напоминания о окнах). */
         "com.apple.developer.usernotifications.time-sensitive": true,
+        "com.apple.developer.healthkit": true,
       },
+    },
+    android: {
+      ...base.android,
+      ...config.android,
+      permissions: [
+        ...new Set([
+          ...((base.android as { permissions?: string[] } | undefined)?.permissions ?? []),
+          ...((config.android as { permissions?: string[] } | undefined)?.permissions ?? []),
+          "android.permission.health.READ_STEPS",
+          "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+          "android.permission.health.READ_EXERCISE",
+          "android.permission.health.READ_SLEEP",
+        ]),
+      ],
     },
     plugins: [
       ...(base.plugins ?? []),
@@ -79,6 +94,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           iosUrlScheme: googleIosUrlScheme ?? "com.googleusercontent.apps.PLACEHOLDER",
         },
       ],
+      [
+        "expo-build-properties",
+        {
+          android: {
+            minSdkVersion: 26,
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
+          },
+        },
+      ],
+      "react-native-health-connect",
+      "./plugins/with-native-health.js",
     ],
   };
 };

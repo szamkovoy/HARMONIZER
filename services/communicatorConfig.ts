@@ -81,6 +81,10 @@ export function getProfilePracticeByChakraUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/profile/practice-by-chakra`;
 }
 
+export function getDayUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/day`;
+}
+
 /** POST: принять/отклонить AI-предложение состояния (Bearer JWT). */
 export function getAiProposalRespondUrl(proposalId: string): string {
   return `${getCommunicatorApiBaseUrl()}/api/proposals/${proposalId}/respond`;

@@ -14,6 +14,8 @@ export type LifeMatrixReport = {
   rawMatrix: number[][];
   visualMatrix: number[][];
   calendarTrend: Array<{ localDate: string; rangeMetric: number }>;
+  sphereProjection?: Array<{ id: number; label: string; color: string | null; value: number; radius: number }>;
+  stateProjection?: Array<{ id: number; label: string; color: string | null; value: number; radius: number }>;
 };
 
 export type PracticeByChakraReport = {

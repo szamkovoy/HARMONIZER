@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Circle, Path, Text as SvgText } from "react-native-svg";
 
 import {
   buildCalendarAxisTicks,
@@ -28,6 +28,14 @@ export function RangeTrendChart(props: { points: CalendarTrendPoint[] }) {
           stroke={theme.colors.surfaceBorder}
           strokeWidth={1}
         />
+        {[0, 0.5, 1].map((value) => {
+          const y = CHART_HEIGHT - CHART_PADDING - value * (CHART_HEIGHT - CHART_PADDING * 2);
+          return (
+            <SvgText key={value} x={2} y={y + 4} fill={theme.colors.textFaint} fontSize={9}>
+              {Math.round(value * 100)}%
+            </SvgText>
+          );
+        })}
         {linePath ? (
           <Path d={linePath} fill="none" stroke={theme.colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
         ) : null}

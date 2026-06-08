@@ -79,7 +79,7 @@ describe("dueSummaryState", () => {
     expect(result.deleteEventIds).toEqual([]);
   });
 
-  it("deletes prompted due events after a second ignore", () => {
+  it("keeps prompted due events after a second ignore", () => {
     const result = resolveDueSummaryTurn({
       existingState: {
         prompted_event_ids: ["a", "b"],
@@ -94,7 +94,7 @@ describe("dueSummaryState", () => {
     });
 
     expect(result.nextState).toBeNull();
-    expect(result.deleteEventIds).toEqual(["a", "b"]);
+    expect(result.deleteEventIds).toEqual([]);
   });
 
   it("keeps the unanswered remainder active after a partial answer", () => {

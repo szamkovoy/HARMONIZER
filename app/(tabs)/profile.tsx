@@ -18,6 +18,8 @@ import { ProfileEmptyState } from "@/modules/profile/ui/ProfileEmptyState";
 import { ProfileReportCard } from "@/modules/profile/ui/ProfileReportCard";
 import {
   LifeMatrixReportCard,
+  LifeSpheresReportCard,
+  LifeStatesReportCard,
   PracticeByChakraReportCard,
   RangeTrendReportCard,
   useLifeMatrixReport,
@@ -230,6 +232,20 @@ export default function ProfileTabRoute() {
 
         <PracticeByChakraReportCard enabled={statsEnabled} onUpgrade={() => setUpgradeFeature("stats")} />
         <LifeMatrixReportCard
+          enabled={statsEnabled}
+          onUpgrade={() => setUpgradeFeature("stats")}
+          report={lifeMatrix.report}
+          loading={lifeMatrix.loading}
+          error={lifeMatrix.error}
+        />
+        <LifeSpheresReportCard
+          enabled={statsEnabled}
+          onUpgrade={() => setUpgradeFeature("stats")}
+          report={lifeMatrix.report}
+          loading={lifeMatrix.loading}
+          error={lifeMatrix.error}
+        />
+        <LifeStatesReportCard
           enabled={statsEnabled}
           onUpgrade={() => setUpgradeFeature("stats")}
           report={lifeMatrix.report}

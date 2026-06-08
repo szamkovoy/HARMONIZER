@@ -102,20 +102,17 @@ export function buildChartPoints(
   const minMs = dateToMs(points[0]!.localDate);
   const maxMs = dateToMs(points[points.length - 1]!.localDate);
   const spanMs = Math.max(86_400_000, maxMs - minMs);
-  const values = points.map((point) => point.rangeMetric);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const valueSpan = Math.max(0.0001, maxValue - minValue);
   const plotWidth = Math.max(1, width - padding * 2);
   const plotHeight = Math.max(1, height - padding * 2);
 
   return points.map((point) => {
     const ratioX = points.length === 1 ? 0.5 : (dateToMs(point.localDate) - minMs) / spanMs;
+    const safeValue = Math.max(0, Math.min(1, point.rangeMetric));
     return {
       localDate: point.localDate,
       rangeMetric: point.rangeMetric,
       x: padding + ratioX * plotWidth,
-      y: height - padding - ((point.rangeMetric - minValue) / valueSpan) * plotHeight,
+      y: height - padding - safeValue * plotHeight,
     };
   });
 }

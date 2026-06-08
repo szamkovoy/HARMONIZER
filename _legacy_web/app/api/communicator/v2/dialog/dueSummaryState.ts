@@ -102,7 +102,7 @@ export function resolveDueSummaryTurn(params: {
   if (reminderCount >= 1) {
     return {
       nextState: null,
-      deleteEventIds: selectedIds,
+      deleteEventIds: [],
     };
   }
 

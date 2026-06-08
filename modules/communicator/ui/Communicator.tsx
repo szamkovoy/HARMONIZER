@@ -454,6 +454,7 @@ export interface CommunicatorProps {
   autoSendInitialMessage?: string;
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
+  onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>;
   onPracticePicked?: (practice: PracticePicked) => void;
   onError?: (err: Error) => void;
   onAbort?: () => void;
@@ -534,6 +535,7 @@ export function Communicator({
   memoryWindow,
   onEmotionSegment,
   onMessage,
+  onPracticeOffered,
   onPracticePicked,
   onError,
   onAbort,
@@ -567,6 +569,7 @@ export function Communicator({
   const [phase, setPhase] = useState<Phase>("idle");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId ?? null);
   const activeConversationIdRef = useRef<string | null>(conversationId ?? null);
+  const offeredPracticeKeysRef = useRef(new Set<string>());
   activeConversationIdRef.current = activeConversationId;
   const [sessionSynced, setSessionSynced] = useState(false);
   const planningReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1198,6 +1201,19 @@ export function Communicator({
           debug: mergedDebug,
         },
       };
+      const offeredPractice = hydratedComplete?.practicePicked ? practiceToSummary(hydratedComplete.practicePicked) : null;
+      if (offeredPractice && onPracticeOffered) {
+        const offerKey = `${assistant.id}:${offeredPractice.id}:${offeredPractice.slug}`;
+        if (!offeredPracticeKeysRef.current.has(offerKey)) {
+          offeredPracticeKeysRef.current.add(offerKey);
+          void Promise.resolve(onPracticeOffered(offeredPractice)).catch((error) => {
+            logErrorForDevelopers(
+              "Communicator onPracticeOffered",
+              error instanceof Error ? error : new Error(String(error)),
+            );
+          });
+        }
+      }
       const contentLenSource =
         finalText.length > 0 ? finalText : fallbackAssistantText;
       const strippedLen = stripDialogScaffoldMarkdown(
@@ -1234,6 +1250,7 @@ export function Communicator({
       entrySource,
       hydrateAssistantTurnFromSession,
       onMessage,
+      onPracticeOffered,
       resetChatStream,
       scheduleDeferredAssistantCommit,
       syncChatStreamDisplayText,

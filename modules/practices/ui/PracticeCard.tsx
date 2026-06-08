@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
@@ -40,8 +40,7 @@ function defaultSelectableDurationMinutes(practice: PracticeSummary, selectable:
 }
 
 function defaultSelectableChakra(practice: PracticeSummary): number {
-  if (practice.kind === "meditation" || practice.kind === "breath") return 1;
-  return practice.primaryChakra ?? practice.chakraIds[0] ?? 6;
+  return practice.primaryChakra ?? practice.chakraIds[0] ?? (practice.kind === "yoga" ? 6 : 1);
 }
 
 export const PracticeCard = memo(function PracticeCard({
@@ -67,6 +66,7 @@ export const PracticeCard = memo(function PracticeCard({
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
+  const durationTouchedRef = useRef(false);
   const [selectedDurationMin, setSelectedDurationMin] = useState(() => {
     const raw = overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations);
     return clipDurationMinutesToSelectableMinutes(raw, selectableDurations).value;
@@ -78,7 +78,12 @@ export const PracticeCard = memo(function PracticeCard({
   const [openField, setOpenField] = useState<SelectField>(null);
 
   useEffect(() => {
+    durationTouchedRef.current = false;
+  }, [practice.id]);
+
+  useEffect(() => {
     if (practice.kind === "yoga" || !selectableDurations.length) return;
+    if (durationTouchedRef.current) return;
     const raw = overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations);
     const { value, clipped } = clipDurationMinutesToSelectableMinutes(raw, selectableDurations);
     if (clipped) {
@@ -217,6 +222,7 @@ export const PracticeCard = memo(function PracticeCard({
                 label: `${minutes} мин`,
                 active: selectedDurationMin === minutes,
                 onPress: () => {
+                  durationTouchedRef.current = true;
                   setSelectedDurationMin(minutes);
                   setOpenField(null);
                 },

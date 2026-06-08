@@ -24,6 +24,8 @@ export type PlannedEventMarker = {
   desc: string;
   time: string | null;
   timeNorm: string | null;
+  recommendation: string | null;
+  displayOrder: number | null;
   cells: MatrixCell[];
   snippets: string[];
 };
@@ -203,6 +205,8 @@ export function parseResponseMarkers(text: string): {
         desc,
         time: attrs.time?.trim() || null,
         timeNorm: attrs.time_norm?.trim() || null,
+        recommendation: attrs.recommendation?.trim() || null,
+        displayOrder: Number.isFinite(Number(attrs.display_order)) ? Number(attrs.display_order) : null,
         cells: parseCompactCells(attrs.cells),
         snippets: (attrs.snippets ?? "")
           .split(";")
@@ -256,6 +260,8 @@ function parseDebugMarkerBody(type: string, body: string): { parsed?: unknown; p
             desc,
             time: attrs.time?.trim() || null,
             time_norm: attrs.time_norm?.trim() || null,
+            recommendation: attrs.recommendation?.trim() || null,
+            display_order: Number.isFinite(Number(attrs.display_order)) ? Number(attrs.display_order) : null,
             cells: parseCompactCells(attrs.cells),
             snippets: (attrs.snippets ?? "")
               .split(";")

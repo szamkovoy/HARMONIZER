@@ -8,6 +8,7 @@ export default function TabLayout() {
   const theme = useTheme();
   const { canUseFeature } = useAccess();
   const canOpenPractices = canUseFeature("practice_catalog");
+  const canOpenDay = canUseFeature("day_planning");
 
   return (
     <Tabs
@@ -22,6 +23,14 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Home", tabBarLabel: "Home" }} />
+      <Tabs.Screen
+        name="day"
+        options={{
+          title: "День",
+          tabBarLabel: "День",
+          href: canOpenDay ? undefined : null,
+        }}
+      />
       <Tabs.Screen
         name="practices"
         options={{

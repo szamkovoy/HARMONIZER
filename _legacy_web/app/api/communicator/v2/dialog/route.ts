@@ -371,8 +371,16 @@ async function loadConversation(
   return createConversation(db, userId, body, useCase, scenarioId);
 }
 
-async function loadContext(db: SupabaseClient, userId: string, timezoneHint?: string) {
-  return loadDialogDailyContext(db, userId, timezoneHint);
+async function loadContext(
+  db: SupabaseClient,
+  userId: string,
+  timezoneHint?: string,
+  triggerMeta?: Record<string, unknown>,
+) {
+  const summaryDate = triggerMeta?.daySummaryRequested === true && typeof triggerMeta.workingLocalDate === "string"
+    ? triggerMeta.workingLocalDate
+    : null;
+  return loadDialogDailyContext(db, userId, timezoneHint, { summarizeWholeLocalDate: summaryDate });
 }
 
 function buildDialogSystemInstruction(
@@ -410,12 +418,22 @@ function buildDialogSystemInstruction(
       "- planning не должен превращаться в сбор всего расписания: держи фокус на 1-3 самых важных событиях;",
       "- собирай один конкретный эпизод за раз; если пользователь уже назвал 2-3 важных события, не добирай новые ради полноты;",
       "- существующие open plans используй как память для dedupe/update, а не как повод продолжать длинный опрос обо всём дне;",
+      "- в planning спрашивай только о действиях/событиях; не спрашивай, какие состояния человек хочет проявить, что цепляет сильнее или какой психологический подтекст у события;",
+      "- не уточняй расплывчатое время вроде «первая/вторая половина дня», «после обеда», «вечером»: для новой вкладки «День» это больше не требуется;",
+      "- ответы пользователя на вопрос о практике («движение телом», «дыхание», «медитация», «асаны», длительность практики) никогда не превращай в [PLANNED_EVENT];",
+      "- для каждого [PLANNED_EVENT] добавляй recommendation=\"...\" — короткую, живую рекомендацию по этому конкретному действию в фокусе целевой чакры дня; именно этот текст будет показан во вкладке «День»;",
+      "- для каждого [PLANNED_EVENT] добавляй display_order=\"1\", \"2\", \"3\" по порядку упоминания пользователем; не сортируй события по времени;",
+      "- desc в [PLANNED_EVENT] — это короткое название действия для списка во вкладке «День», не длинное пересказывание; держи примерно 30-40 символов, а детали переноси в recommendation;",
+      "- time/time_norm заполняй только при явно названном времени вроде «в 15:30» или «в 9 утра»; расплывчатые слова «вечером», «потом», «после обеда», «перед сном» не превращай во время для вкладки «День»;",
     );
   }
   if (branches.includes("summarizing")) {
     branchGuardrails.push(
       "- в summarizing спрашивай не только факт результата, но и как человек проживал событие, в каком состоянии действовал, получилось ли пройти его в рекомендованной волне или всё пошло привычно;",
       "- если описание слишком поверхностное, мягко уточни состояние/способ проживания, а уже потом переходи дальше;",
+      "- если triggerMeta содержит dayPractices, учитывай практики йоги как поддержку дня: мягко отметь выполненные практики или, если их не было, объясни без давления, что йога помогает держать осознанность и энергию для нешаблонных действий, расширения матрицы состояний и толщины жизни;",
+      "- финальное сообщение summarizing после сбора всех событий должно быть самостоятельной ценностью: сначала психологическая обратная связь по тому, насколько пользователь смог прожить день в рекомендованной чакре/состояниях, с чем справился и где остался привычный шаблон; затем 1-2 коротких наблюдения о йоге/здоровье только по переданным данным;",
+      "- если Health-контекст говорит, что Apple/Google Health недоступен, не выдумывай шаги, сон, калории, тренировки и не упоминай конкретные цифры; используй только практики йоги из приложения и фразу без технических подробностей;",
     );
     if (context.dueEvents.length > 1) {
       branchGuardrails.push(
@@ -849,6 +867,106 @@ async function updateConversationTriggerMeta(
   return nextMeta;
 }
 
+function formatDayTabTurnContext(triggerMeta: Record<string, unknown> | null | undefined): string {
+  if (triggerMeta?.daySummaryRequested !== true) return "";
+  const rawActions = Array.isArray(triggerMeta.dayActions) ? triggerMeta.dayActions : [];
+  const rawPractices = Array.isArray(triggerMeta.dayPractices) ? triggerMeta.dayPractices : [];
+  const dayHealthContext = formatDayHealthContext(triggerMeta.dayHealthContext);
+  const actions = rawActions
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const title = typeof (item as { title?: unknown }).title === "string"
+        ? (item as { title: string }).title.trim()
+        : "";
+      const status = typeof (item as { status?: unknown }).status === "string"
+        ? (item as { status: string }).status.trim()
+        : "";
+      return title ? `${index + 1}. ${title}${status ? ` (${status})` : ""}` : null;
+    })
+    .filter((value): value is string => Boolean(value));
+  const practices = rawPractices
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const title = typeof (item as { title?: unknown }).title === "string"
+        ? (item as { title: string }).title.trim()
+        : "";
+      const durationSec = Number((item as { durationSec?: unknown }).durationSec);
+      const minutes = Number.isFinite(durationSec) && durationSec > 0 ? `${Math.round(durationSec / 60)} мин` : "";
+      return title ? `${title}${minutes ? ` (${minutes})` : ""}` : null;
+    })
+    .filter((value): value is string => Boolean(value));
+  return [
+    "[Контекст вкладки «День»: пользователь нажал «Подытожить этот день». Проведи подытоживание всех неподытоженных действий дня по очереди, не планируй завтра до закрытия прошлого дня.]",
+    actions.length ? `Действия дня:\n${actions.join("\n")}` : "Действий в списке нет.",
+    practices.length ? `Выполненные практики йоги:\n${practices.join("\n")}` : "Практики йоги в этот день пока не выполнялись.",
+    dayHealthContext,
+  ].join("\n\n");
+}
+
+function numberOrNull(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function comparisonLabel(value: unknown): string {
+  if (value === "higher") return "выше обычного";
+  if (value === "lower") return "ниже обычного";
+  if (value === "similar") return "примерно как обычно";
+  return "нет сравнения";
+}
+
+function formatMetric(label: string, metric: unknown, unit: string): string | null {
+  if (!metric || typeof metric !== "object") return null;
+  const item = metric as { value?: unknown; average?: unknown; comparison?: unknown };
+  const value = numberOrNull(item.value);
+  if (value == null) return null;
+  const average = numberOrNull(item.average);
+  const averageText = average == null ? "" : `, обычно около ${Math.round(average)} ${unit}`;
+  return `${label}: ${Math.round(value)} ${unit}${averageText}, ${comparisonLabel(item.comparison)}`;
+}
+
+function formatDayHealthContext(value: unknown): string {
+  if (!value || typeof value !== "object") {
+    return "Health-контекст: не передан. Не упоминай Apple Health / Google Health и не выдумывай шаги, сон, калории или тренировки.";
+  }
+  const context = value as {
+    provider?: unknown;
+    providerStatus?: unknown;
+    yoga?: { totalMinutes?: unknown; practiceCount?: unknown; kinds?: unknown; averageDailyMinutes?: unknown; comparison?: unknown };
+    activity?: { steps?: unknown; activeCalories?: unknown; workoutMinutes?: unknown };
+    sleep?: { durationMinutes?: unknown; quality?: unknown };
+  };
+  const yoga = context.yoga && typeof context.yoga === "object" ? context.yoga : null;
+  const yogaMinutes = numberOrNull(yoga?.totalMinutes) ?? 0;
+  const yogaCount = numberOrNull(yoga?.practiceCount) ?? 0;
+  const yogaAverage = numberOrNull(yoga?.averageDailyMinutes);
+  const yogaKinds = Array.isArray(yoga?.kinds)
+    ? yoga.kinds.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+  const providerStatus =
+    context.providerStatus === "available" ? "available" :
+    context.providerStatus === "permission_denied" ? "permission_denied" :
+    "unavailable";
+  const lines = [
+    "[Health-контекст для финального подытоживания дня: это временные данные только для текущего ответа, не сохраняй их и не превращай в отдельные действия.]",
+    `Йога за день: ${yogaMinutes} мин, практик: ${yogaCount}${yogaKinds.length ? `, типы: ${yogaKinds.join(", ")}` : ""}${yogaAverage == null ? "" : `, обычно около ${yogaAverage} мин/день, ${comparisonLabel(yoga?.comparison)}`}.`,
+  ];
+  const metrics = [
+    formatMetric("Шаги", context.activity?.steps, "шагов"),
+    formatMetric("Активные калории", context.activity?.activeCalories, "ккал"),
+    formatMetric("Тренировки/активность", context.activity?.workoutMinutes, "мин"),
+    formatMetric("Сон", context.sleep?.durationMinutes, "мин"),
+  ].filter((item): item is string => Boolean(item));
+  if (metrics.length) {
+    lines.push(`Apple/Google Health:\n${metrics.join("\n")}`);
+  } else if (providerStatus === "permission_denied") {
+    lines.push("Apple/Google Health доступен на устройстве, но пользователь не дал права: не называй шаги, сон, калории и тренировки; можно сказать только про практики йоги из приложения.");
+  } else if (providerStatus === "unavailable") {
+    lines.push("Apple/Google Health сейчас недоступен или не подключён: не называй шаги, сон, калории и тренировки; можно сказать только про практики йоги из приложения.");
+  }
+  return lines.join("\n");
+}
+
 function missingSummaryRepairInstruction(turnMode: ResponseMode, branches: DialogBranch[]): string {
   if (turnMode === "final_without_practice") {
     return "Пользователь уже описал итог наступившего события и одновременно отказался от практики. Сохрани короткий закрывающий ответ без практики, но обязательно добавь invisible marker [SUMMARIZE_EVENT: ...] по этому событию. Не выводи [PRACTICE_PICK] и [READY_FOR_RECOMMENDATION].";
@@ -932,11 +1050,18 @@ function mergeResponseMarkersForPersistence(base: ResponseMarkers, carried: Resp
     stateProposals,
     practicePick: base.practicePick ?? carried.practicePick,
     recommendationCorrection: base.recommendationCorrection ?? carried.recommendationCorrection,
-    plannedEvents: mergePlannedEventMarkers(carried.plannedEvents, base.plannedEvents),
+    plannedEvents: base.plannedEvents.length > 0 ? base.plannedEvents : carried.plannedEvents,
     summarizeEvents,
     planTomorrow: base.planTomorrow || carried.planTomorrow,
     matrixCells: normalizeCells([...carried.matrixCells, ...base.matrixCells]),
   };
+}
+
+function canPersistPlanningMarkers(turnMode: ResponseMode): boolean {
+  return turnMode === "final_recommendation"
+    || turnMode === "final_recommendation_with_validation_warning"
+    || turnMode === "forced_final"
+    || turnMode === "final_without_practice";
 }
 
 async function persistDialogArtifacts(params: {
@@ -985,6 +1110,8 @@ async function persistDialogArtifacts(params: {
           desc: candidate.desc,
           time: candidate.time,
           timeNorm: candidate.timeNorm,
+          recommendation: candidate.recommendation,
+          displayOrder: candidate.displayOrder,
           snippets: candidate.snippets,
           cells: candidate.cells,
           queued_at: candidate.queued_at,
@@ -1247,7 +1374,7 @@ export async function POST(req: Request) {
 
     endpointStage = "load_context";
     const [loadedContext, systemPromptRecord] = await Promise.all([
-      loadContext(db, userId, body.userTimezone),
+      loadContext(db, userId, body.userTimezone, body.triggerMeta),
       getActivePrompt(db, "dialog_system_v3"),
     ]);
     let context = loadedContext;
@@ -1292,14 +1419,16 @@ export async function POST(req: Request) {
       dueEvents: selectDueEventsForTurn(context.dueEvents, dueSummaryState),
     };
     const iteration = countAssistantTurns(history) + 1;
-    const branches = chooseDialogBranches({
-      phaseTime: context.phaseTime,
-      dueEventsCount: context.dueEvents.length,
-      userMessage,
-      hoursSinceLastPlanning: hoursSince(context.lastPlanningAt, context.nowLocal),
-      planTomorrowMarker: false,
-      forcePlanningOnOpening: iteration === 1,
-    });
+    const branches = conversation.trigger_meta?.daySummaryRequested === true && context.dueEvents.length > 0
+      ? ["summarizing" as const]
+      : chooseDialogBranches({
+        phaseTime: context.phaseTime,
+        dueEventsCount: context.dueEvents.length,
+        userMessage,
+        hoursSinceLastPlanning: hoursSince(context.lastPlanningAt, context.nowLocal),
+        planTomorrowMarker: false,
+        forcePlanningOnOpening: iteration === 1,
+      });
     const maxDialogLength = effectiveDialogMax(branches);
     const planningHorizonLocalDates = [
       context.nowLocal.toFormat("yyyy-MM-dd"),
@@ -1339,12 +1468,7 @@ export async function POST(req: Request) {
     const augmentPlannedMarkers = (markers: ReturnType<typeof parseResponseMarkers>) => ({
       ...markers,
       plannedEvents: filterNewPlannedEvents(
-        mergePlannedEventMarkers(markers.plannedEvents, buildInferredPlannedEvents(), {
-          nowLocal: dialogNowLocal,
-          relativeNowLocal: context.nowLocal,
-          tz: userTimezone,
-          locale: context.user.locale ?? "ru",
-        }),
+        markers.plannedEvents,
         openPlannedEventsForUserHorizon,
         {
           nowLocal: dialogNowLocal,
@@ -1375,9 +1499,12 @@ export async function POST(req: Request) {
     const postRecommendationTimingGuard = turnDecision.mode === "post_recommendation" && !isInitiate
       ? buildPostRecommendationTimingGuard(dbHistory, userMessage)
       : null;
-    const expandedTurnInstruction = postRecommendationTimingGuard
-      ? `${expandedTurnInstructionBase}\n\n${postRecommendationTimingGuard}`
-      : expandedTurnInstructionBase;
+    const dayTabTurnContext = formatDayTabTurnContext(conversation.trigger_meta);
+    const expandedTurnInstruction = [
+      expandedTurnInstructionBase,
+      postRecommendationTimingGuard,
+      dayTabTurnContext,
+    ].filter((value): value is string => Boolean(value)).join("\n\n");
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
     const pendingTurnValidation = validateHistoryHasDurationAndType([
       ...history.filter((message) => message.role === "user"),
@@ -1658,6 +1785,9 @@ export async function POST(req: Request) {
             augmentPlannedMarkers(parseResponseMarkers(fullText)),
             carriedMarkers,
           );
+          const markersForArtifacts = canPersistPlanningMarkers(responseMode)
+            ? markers
+            : { ...markers, plannedEvents: [] };
 
           const carriesPracticeCard = turnModeCarriesPracticeCard(responseMode);
           if (!markers.practicePick && carriesPracticeCard) {
@@ -1734,7 +1864,7 @@ export async function POST(req: Request) {
           }
 
           const shouldClose = isTerminalFinalTurnMode(responseMode);
-          const effectiveBranches = [...new Set([...branches, ...(markers.planTomorrow ? ["planning" as const] : [])])];
+          const effectiveBranches = [...new Set([...branches, ...(markersForArtifacts.planTomorrow ? ["planning" as const] : [])])];
           const debugExport =
             isDebugDialogExportEnabled()
               ? buildTurnDebugExport({
@@ -1774,7 +1904,7 @@ export async function POST(req: Request) {
             routeDb,
             typeof context.forecast?.id === "string" ? context.forecast.id : undefined,
             context.forecast,
-            markers.recommendationCorrection,
+            markersForArtifacts.recommendationCorrection,
           );
 
           const artifactResult = await persistDialogArtifacts({
@@ -1785,7 +1915,7 @@ export async function POST(req: Request) {
             context,
             openPlannedEventsForUserHorizon,
             branches,
-            markers,
+            markers: markersForArtifacts,
             assistantText: cleanText,
           });
 

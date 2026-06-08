@@ -58,7 +58,7 @@ code_refs:
 - **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт полный набор фич по матрице `TIER_FEATURES`). Иначе базовый тариф из **`profileTier`**: значения `oracle` / `practitioner` / `master` из БД проходят как есть; **`premium` маппится в `oracle`**; остальное — `free`.
 - **`canUseFeature(tier, key)`** — включение ключа в `TIER_FEATURES[tier]` (список на тариф).
 - **Провайдер** мемоизирует `access` и замыкает `canUseFeature` на текущий `access.tier`.
- - **Потребители UI:** главный таб (`app/(tabs)/index.tsx`) — `personal_daily_forecast`, `assistant_dialog`, `calibration`, баннер free-tier, `UpgradeDialog`; таб layout — скрытие вкладки «Практики», если нет `practice_catalog`; профиль — `stats`, HARMONIZER v2 reports и dev-переключатель; каталог практик и экран асаны — `practice_catalog` / `asana_practices`.
+ - **Потребители UI:** главный таб (`app/(tabs)/index.tsx`) — `personal_daily_forecast`, `assistant_dialog`, `calibration`, баннер free-tier, `UpgradeDialog`; tab layout — скрытие вкладки «День», если нет `day_planning`, и вкладки «Практики», если нет `practice_catalog`; профиль — `stats`, HARMONIZER v2 reports и dev-переключатель; каталог практик и экран асаны — `practice_catalog` / `asana_practices`.
 - **Параллельный контур «free / premium / trial»** для кэша и загрузки дневного контента: `modules/home/useDayContent.ts` и `services/globalContentClient.ts` вычисляют `AccessMode` по **сырым** `membership_tier` + `trial_expires_at` (логика «как `hasPremiumAccess`»), без вызова `getEffectiveAccess`. Ключи кэша `services/dayContentCache.ts` включают `ProductTier` (`accessTier`), который главный экран пробрасывает из `useAccess().access.tier` — смена эффективного тарифа или dev override меняет scope кэша.
 
 Серверные зеркала «есть ли платный LLM / премиум-доступ»: `_legacy_web/app/api/_utils/userModelTier.ts` (`hasPremiumLlmAccess`), маршруты `global-content`, `communicator/v2/dialog`, `greeting`, `recommendation-text` — выборка `membership_tier`, `trial_expires_at` из `users`.
@@ -66,6 +66,7 @@ code_refs:
 ## 4. Конфигурация и параметры
 
 - **Матрица фич** — константы в `modules/access/core/features.ts`: `TIER_FEATURES` (список `FeatureKey` на каждый `ProductTier`) и **`FEATURE_REQUIRED_TIER`** (обратное отображение: минимальный тариф для ключа). Отдельной таблицы feature gates в БД нет.
+- **Ключ `day_planning`** — открывает вкладку «День» и доступен на тарифах `practitioner` и `master`.
 - **Ключ `stats`** — открывает как старую клиентскую статистику практик, так и новые server-backed profile reports (`/api/profile/life-matrix`, `/api/profile/practice-by-chakra`).
 - **Порядок тарифов** — `TIER_ORDER` / `tierAtLeast` в `modules/access/core/tiers.ts`.
 - **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql`: `users.membership_tier` с `check in ('free','premium')`, `trial_expires_at`; комментарии в миграции описывают семантику trial для `free`.

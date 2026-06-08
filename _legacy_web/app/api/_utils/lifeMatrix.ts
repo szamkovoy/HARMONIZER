@@ -17,7 +17,7 @@ export const LIFE_MATRIX_SIZE = 7;
 export const LIFE_MATRIX_MIN_READY_MEASUREMENTS = 5;
 export const LIFE_MATRIX_MIN_READY_EVENTS = 5;
 export const LIFE_MATRIX_MIN_READY_ELAPSED_DAYS = 5;
-export const RANGE_GROUP_SIZE_DEFAULT = 5;
+export const RANGE_GROUP_SIZE_DEFAULT = 7;
 export const LIFE_MATRIX_LOG_SMOOTHING_K_DEFAULT = 50;
 
 function emptyMatrix(): DenseMatrix {

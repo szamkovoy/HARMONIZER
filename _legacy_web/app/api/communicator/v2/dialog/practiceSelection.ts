@@ -338,7 +338,8 @@ export async function choosePractice(
   const preferredDurationSec = validation.durationSec;
   const preferredDurationMin = preferredDurationSec ? Math.round(preferredDurationSec / 60) : null;
   const workingMarker: PracticePickMarker | null = marker ? { ...marker } : null;
-  if (isDefaultPracticeMarker(workingMarker)) {
+  const preferredKind = validation.practiceKind;
+  if (isDefaultPracticeMarker(workingMarker) && !preferredKind) {
     return {
       picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, workingMarker?.reason, chakraId, [STATIC_COHERENT_BREATH]),
       markerIdResolved: true,
@@ -348,7 +349,9 @@ export async function choosePractice(
       historyKindConflictResolved: false,
     };
   }
-  const preferredKind = validation.practiceKind;
+  if (isDefaultPracticeMarker(workingMarker) && preferredKind) {
+    workingMarker!.id = "";
+  }
   const hasExplicitMarker = Boolean(workingMarker?.id?.trim()) && !isDefaultPracticeMarker(workingMarker);
 
   let query = db

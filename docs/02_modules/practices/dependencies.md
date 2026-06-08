@@ -58,6 +58,9 @@ code_refs:
 - **`assistant`**  
   Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts`, **`route.ts`** с импортом **`@shared/assistantSelectableDurations`** — `_legacy_web/shared_core/assistantSelectableDurations.ts`, копия клиентского **`assistantSelectableDurations.ts`** — для карточки, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и использует общий `PracticeCard` + `launchPractice`. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
 
+- **`communicator` / вкладка «День»**  
+  `services/dayHealthContext.ts` читает `user_daily_stats` и завершённые практики дня из `DayPlan`, чтобы перед summary-веткой передать ассистенту временный контекст йоги: сколько минут/практик было сегодня и выше/ниже ли это обычной практики пользователя.
+
 ## 3. Контрактные точки риска
 
 - **`practice_sessions`**: смена имён/типов колонок, `metrics` или `context` ломает профиль, ассистент и серверные запросы истории (`practiceSelection.ts` читает `practice_id` / `practice_slug` / join на `practices.kind`).

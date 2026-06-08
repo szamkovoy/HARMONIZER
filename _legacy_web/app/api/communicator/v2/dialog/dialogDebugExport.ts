@@ -37,6 +37,8 @@ export type PlanningPersistenceTurn = {
     desc: string;
     time: string | null;
     timeNorm: string | null;
+    recommendation?: string | null;
+    displayOrder?: number | null;
     snippets: string[];
     cells: ReturnType<typeof formatCells>;
     queued_at: string;

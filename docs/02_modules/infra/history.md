@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-06-08:** Native health prebuild-конфиг добавлен в Expo: зависимости `@kingstinct/react-native-healthkit`, `react-native-nitro-modules`, `react-native-health-connect`, `expo-build-properties`; `app.config.ts` включает HealthKit entitlement, Android Health Connect permissions и SDK 35/minSdk 26, а `plugins/with-native-health.js` добавляет iOS usage descriptions и Android `HealthConnectPermissionDelegate`.
+
 - **2026-05-21:** `instrumentation.ts` при старте Node вызывает `logTestModeStartupWarning` из `testMode.ts` до загрузки Sentry — диагностика активного `TEST_MODE_FAST_INTERVALS` без влияния на клиент Expo.
 
 - **2026-05-15:** В **`dependencies.md`** §1 (Supabase) уточнено, что строка **`dialog_system_v3`** в **`public.prompts`** поддерживается цепочкой миграций (не только `20260511161000_dialog_system_v3.sql`), со ссылкой на модуль **`assistant`** для актуальной версии. **`MAP.md`** — в точках входа **`assistant`** добавлена миграция **`20260515030000_dialog_system_v3_pack_b.sql`**.

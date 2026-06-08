@@ -40,6 +40,8 @@ export type PendingPlanningCandidate = {
   desc: string;
   time: string | null;
   timeNorm: string | null;
+  recommendation: string | null;
+  displayOrder: number | null;
   cells: MatrixCell[];
   snippets: string[];
   queued_at: string;
@@ -165,6 +167,8 @@ function normalizePendingCandidate(value: unknown): PendingPlanningCandidate | n
     desc,
     time: typeof raw.time === "string" && raw.time.trim() ? raw.time.trim() : null,
     timeNorm: typeof raw.timeNorm === "string" && raw.timeNorm.trim() ? raw.timeNorm.trim() : null,
+    recommendation: typeof raw.recommendation === "string" && raw.recommendation.trim() ? raw.recommendation.trim() : null,
+    displayOrder: Number.isFinite(Number(raw.displayOrder)) ? Number(raw.displayOrder) : null,
     cells: normalizeCells(asMatrixCells(raw.cells)),
     snippets: Array.isArray(raw.snippets)
       ? raw.snippets.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
@@ -279,6 +283,8 @@ export async function enqueuePlanningCandidates(params: {
       desc: candidate.desc,
       time: candidate.time ?? null,
       timeNorm: candidate.timeNorm ?? null,
+      recommendation: candidate.recommendation ?? null,
+      displayOrder: candidate.displayOrder ?? null,
       cells: normalizeCells(candidate.cells),
       snippets: candidate.snippets,
       queued_at: params.nowIso,
@@ -823,6 +829,9 @@ export async function reconcilePendingPlanningCandidates(params: {
         time_phrase_raw: candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null,
         time_resolution: canonicalizeTimeResolution(parsedTime.resolution),
         description: decision.normalized_desc?.trim() || candidate.desc,
+        recommendation_text: candidate.recommendation ?? existing.recommendation_text ?? null,
+        display_order: existing.display_order ?? candidate.displayOrder,
+        explicit_time_text: parsedTime.resolution === "explicit" ? candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null : null,
         context_snippets: mergeUnknownArrays(existing.context_snippets, candidate.snippets),
         cells: normalizeCells([...asMatrixCells(existing.cells), ...candidate.cells]),
         status: "planned",
@@ -832,7 +841,7 @@ export async function reconcilePendingPlanningCandidates(params: {
         .update(updatePayload)
         .eq("user_id", params.userId)
         .eq("id", existing.id)
-        .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,conversation_id")
+        .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text,conversation_id")
         .single();
       if (error) throw error;
       if (data) {
@@ -890,22 +899,37 @@ export async function reconcilePendingPlanningCandidates(params: {
       continue;
     }
 
+    const targetLocalDate = parsedTime.expectedLocal.toFormat("yyyy-MM-dd");
+    const maxDisplayOrderForDay = Math.max(
+      0,
+      ...mutableOpenPlans
+        .filter((row) => row.planned_local_date === targetLocalDate)
+        .map((row) => Number(row.display_order))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    );
+    const displayOrder = maxDisplayOrderForDay > 0
+      ? maxDisplayOrderForDay + (candidate.displayOrder ?? 1)
+      : candidate.displayOrder;
+
     const { data, error } = await params.db
       .from("planned_events")
       .insert({
         user_id: params.userId,
         conversation_id: params.conversation.id,
         planned_at: params.nowLocal.toUTC().toISO() ?? new Date().toISOString(),
-        planned_local_date: parsedTime.expectedLocal.toFormat("yyyy-MM-dd"),
+        planned_local_date: targetLocalDate,
         expected_at: parsedTime.expectedUtc,
         time_phrase_raw: candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null,
         time_resolution: canonicalizeTimeResolution(parsedTime.resolution),
         description: decision.normalized_desc?.trim() || candidate.desc,
+        recommendation_text: candidate.recommendation,
+        display_order: displayOrder,
+        explicit_time_text: parsedTime.resolution === "explicit" ? candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null : null,
         context_snippets: candidate.snippets,
         cells: candidate.cells,
         status: "planned",
       })
-      .select("id,conversation_id,planned_at,planned_local_date,expected_at,time_phrase_raw,time_resolution,description,context_snippets,cells,status,outcome_cells,outcome_text")
+      .select("id,conversation_id,planned_at,planned_local_date,expected_at,time_phrase_raw,time_resolution,description,context_snippets,cells,status,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text")
       .single();
     if (error) throw error;
     if (data) {

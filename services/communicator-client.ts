@@ -14,7 +14,7 @@ import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry"
 import type { PracticeRecommendation } from "@/modules/practices";
 
 export type DialogueUseCase = "calibration" | "daily_dialog";
-export type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
+export type DialogueEntrySource = "home" | "day" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
 
 export interface OrchestratorDecision {
   mode?: string;
@@ -383,8 +383,22 @@ function readErrorFromXhr(xhr: XMLHttpRequest): Error {
   const text = xhr.responseText ?? "";
   if (ct.includes("application/json")) {
     try {
-      const data = JSON.parse(text) as { error?: string } | null;
-      return new Error(data?.error ?? `HTTP ${xhr.status}`);
+      const data = JSON.parse(text) as { error?: unknown; message?: unknown; details?: unknown; hint?: unknown; code?: unknown } | null;
+      const message = [data?.error, data?.message, data?.details, data?.hint, data?.code]
+        .map((item) => {
+          if (typeof item === "string") return item.trim();
+          if (item && typeof item === "object") {
+            try {
+              return JSON.stringify(item);
+            } catch {
+              return "";
+            }
+          }
+          return "";
+        })
+        .filter(Boolean)
+        .join(" ");
+      return new Error(message || `HTTP ${xhr.status}`);
     } catch {
       /* fall through */
     }

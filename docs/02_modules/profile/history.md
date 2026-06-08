@@ -1,14 +1,16 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.11
-updated: 2026-06-02
+version: 1.13
+updated: 2026-06-08
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
 
+- **2026-06-07:** Отчёт `life-matrix` расширен двумя radial-проекциями под heatmap: `sphereProjection` (суммы по сферам/столбцам) и `stateProjection` (суммы по состояниям/строкам). Названия сфер обновлены до новой продуктовой семёрки (`Тело и безопасность` … `Высшие смыслы, вера`), а `RangeTrendChart` перешёл на фиксированную нормированную шкалу 0–100%, чтобы точки не выглядели как «ноль» из-за автонормализации.
+- **2026-06-08:** Профильные отчёты «Сферы жизни» и «Проживаемые состояния» стали самостоятельными карточками в donut-формате, с цветами по порядку состояний/чакр и серыми нулевыми пунктами в легенде. «Практики по чакрам» теперь сортирует легенду по чакрам 1–7 и использует подписи «Первая чакра» … «Седьмая чакра». «Толщина линии жизни» переведена с 5-дневных на 7-дневные блоки; snapshot cache bump: `PROFILE_REPORT_SNAPSHOT_VERSION = 3`.
 - **2026-06-02:** Отчёты `life-matrix` / `Толщина линии жизни` были скрыты лишним суррогатным gate `active_days_count >= 5`, хотя продуктово readiness определяется иначе: нужно не меньше **5 summarized events** и минимум **5 календарных дней** с первого summary. Backend `GET /api/profile/life-matrix` теперь считает readiness по `daily_matrices.events_count + firstSummaryLocalDate`, а `calendarTrend` строит по календарным 5-дневным окнам от первой summary-даты, даже если внутри окна были дни без summary. Для форсированного rebuild кэша повышена `PROFILE_REPORT_SNAPSHOT_VERSION`.
 - **2026-06-02:** Ложный баннер «Нужна дата рождения» на Home: персональный прогноз ошибочно ждал успешный fetch `user_natal_charts`, хотя в БД достаточно `users.birth_date`. Фикс: `need_birth_data` только без `birth_date` в профиле; загрузка натала — только для UI карты. Кэш натала: не доверять сохранённому «нет карты» и не писать `null` при сетевой ошибке.
 - **2026-05-25:** `life-matrix` больше не тянет исторические `planned_events` для сборки профиля. Отчёт теперь читается из `profile_report_snapshots`, которые сервер обновляет при подытоживании и при необходимости rebuild-ит из `daily_matrices`. Это делает оба профильных отчёта (`Матрица состояний`, `Толщина линии жизни`) быстрыми на чтении и независимыми от хранения старых текстов/планов.

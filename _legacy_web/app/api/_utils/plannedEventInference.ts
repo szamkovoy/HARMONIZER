@@ -294,8 +294,12 @@ function isPracticeOnlySegment(text: string, nowLocal: DateTime, tz: string, loc
   if (isDurationOnlyReply(text)) return true;
   const validation = validateHistoryHasDurationAndType([{ role: "user", content: text }]);
   const hasPracticeLexicon = /(?:предлож|практик|медитац|дыха|дыхательн|пранаям|асан|йог)/i.test(text);
+  const looksLikeBodyPracticeChoice =
+    /(?:движени\w*\s+тел\w*|двигат\w*\s+тел\w*|через\s+тел\w*|телом)/i.test(text)
+    && /(?:хотел(?:\s+бы)?|хотела(?:\s+бы)?|выбрал(?:а)?|возьму|сделаю|выполнил(?:а)?(?:\s+бы)?|практик|дыхан)/i.test(text);
   const looksLikePracticeRequest =
     /^(?:а\s+)?(?:практик\w*|(?:я\s+бы\s+)?хотел(?:\s+бы)?\s+(?:практик|подыш|медитац|дыхан|асан|йог)|(?:хочу|выбрал(?:а)?|возьму|сделаю)\s+(?:практик|подыш|медитац|дыхан|асан|йог))/i.test(text.trim());
+  if (looksLikeBodyPracticeChoice) return true;
   const parsed = parseEventTime({
     phrase: text,
     nowLocal,
@@ -576,6 +580,8 @@ export function inferPlannedEventsFromUserHistory(params: {
           desc,
           time: parsed.matchedPhrase?.trim() ?? null,
           timeNorm: implicitTimeNorm,
+          recommendation: null,
+          displayOrder: null,
           cells: [],
           snippets: [segment.slice(0, 240)],
         },

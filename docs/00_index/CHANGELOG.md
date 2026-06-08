@@ -3,13 +3,20 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.53
-updated: 2026-06-07
+version: 2.54
+updated: 2026-06-08
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-08: `communicator` / `infra` — добавлен native health provider для summary-ветки: Apple HealthKit на iOS, Google Health / Android Health Connect на Android, read-only permissions для шагов/калорий/тренировок/сна, мягкий backoff повторного запроса прав и Expo prebuild-конфиг для dev-client.
+- 2026-06-08: `assistant` / `communicator` / `practices` — summary-ветка вкладки «День» передаёт временный `dayHealthContext`: йога за день сравнивается с обычной практикой пользователя, Apple/Google Health явно помечены как недоступные до native provider, а финальный prompt prioritizes психологическую обратную связь по целевой чакре и использует health-данные только если они реально переданы.
+- 2026-06-08: `assistant` / `communicator` / `practices` — QA-фикс диалога и вкладки «День»: planning больше не сохраняет промежуточные inferred events и не путает выбор практики с действием дня, `default` practice-marker уступает уверенной истории пользователя, добавленные действия сохраняют порядок, Home «Что делать?» ведёт на `/day` при уже собранном плане, а `PracticeCard` сохраняет выбранную длительность.
+- 2026-06-08: `assistant` — неподытоженные `planned_events` больше не удаляются по 36-часовому окну и не отсекаются из summarizing по нижней границе due-window; ignored due-rows тоже остаются до явного удаления или summary. Planning marker `desc` сужен до короткого названия действия для вкладки «День».
+- 2026-06-08: `profile` — «Сферы жизни» и «Проживаемые состояния» вынесены в самостоятельные donut-карточки; цвета сфер синхронизированы с цветами состояний, нулевые пункты серые, «Практики по чакрам» сортирует легенду 1–7 с русскими числовыми названиями чакр, а «Толщина линии жизни» считает 7-дневные блоки.
+- 2026-06-07: `assistant` / `communicator` / `practices` / `profile` / `subscription` — добавлена первая вертикаль вкладки «День»: feature gate `day_planning`, endpoint `/api/day`, миграция `20260607183000_day_tab_foundation.sql`, видимые действия с рекомендациями, одна pending-практика дня, day-summary режим ассистента, radial-диаграмма сфер дня и профильные radial-проекции матрицы.
+- 2026-06-07: `communicator` + `practices` — ассистентская `PRACTICE_PICK`-карточка теперь автоматически сохраняется как pending-практика вкладки «День» через `Communicator.onPracticeOffered(...)` и `POST /api/day`.
 - 2026-06-07: `assistant` — doc-sync push refinement daily dialog: `buildPostRecommendationTimingGuard` для post-recommendation, planning gating только по inferred artifacts, prompt-лимит due/open plans до 3; `prompts-reference.md` §3–§3.1 и `communicator/history.md` (due window до 3).
 - 2026-06-04: `assistant` — follow-up QA по `текст-4E29-8568-EF-0.txt`: daily dialog теперь держит до `3` текущих due-событий в summarizing, single-due summary repair не путает согласование новой практики с итогом старого события, single-event финал звучит более директивно, а post-recommendation больше не должен преждевременно спрашивать, как прошла практика.
 - 2026-06-03: `assistant` + `communicator` — follow-up QA по `текст-4106-A447-F2-0.txt`: multi-due summarizing больше не repair-ится только в single-event кейсе, unanswered due remainder после partial summary не теряется сразу, planning inference перестал канонизировать выбор практики и supportive detail-фразы как `planned_events`, финальный multi-event текст жёстче держит структуру `общий фокус дня -> по одному абзацу на событие -> практика`, а communicator смягчил post-practice fallback после карточки и дольше ждёт hydration реального short reply.
