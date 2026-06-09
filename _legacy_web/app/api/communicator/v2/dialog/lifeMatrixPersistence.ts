@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  asPlanningSphereCells,
   buildDailyMatrix,
   buildLifeMatrixReportSnapshot,
   computeRangeMetric,
+  normalizePlanningSphereCells,
   normalizeCells,
   parseCompactCells,
   type CalendarTrendPoint,
@@ -123,7 +125,7 @@ function isSemanticallyDuplicatePlannedRow(left: PlannedEventRow, right: Planned
 
 function rowQualityScore(row: PlannedEventRow): number {
   const explicitScore = row.time_resolution === "explicit" ? 1000 : row.time_resolution === "daypart_default" ? 100 : 10;
-  const cellScore = asMatrixCells(row.cells).length * 20;
+  const cellScore = asPlanningSphereCells(row.cells).length * 20;
   const snippetScore = (Array.isArray(row.context_snippets) ? row.context_snippets.length : 0) * 5;
   const descriptionScore = row.description.trim().length;
   const plannedAtScore = Date.parse(row.planned_at);
@@ -145,7 +147,7 @@ function collapseDuplicatePlannedRows(rows: PlannedEventRow[]): PlannedEventRow[
     collapsed[duplicateIndex] = {
       ...keeper,
       context_snippets: mergeUnknownArrays(keeper.context_snippets, shadow.context_snippets),
-      cells: normalizeCells([...asMatrixCells(keeper.cells), ...asMatrixCells(shadow.cells)]),
+      cells: normalizePlanningSphereCells([...asPlanningSphereCells(keeper.cells), ...asPlanningSphereCells(shadow.cells)]),
     };
   }
   return collapsed;
@@ -324,8 +326,6 @@ export async function upsertDailyMatrixForDate(db: SupabaseClient, userId: strin
   }>;
 
   const summarized = rows.filter((row) => row.status === "summarized" && asMatrixCells(row.outcome_cells).length > 0);
-  const duePlanned = rows.filter((row) => (row.status === "planned" || row.status === "expired") && row.expected_at <= nowIso && asMatrixCells(row.cells).length > 0);
-
   let source: DailyMatrixSource | null = null;
   let cellsCollections: MatrixCell[][] = [];
   if (summarized.length > 0) {
@@ -343,9 +343,6 @@ export async function upsertDailyMatrixForDate(db: SupabaseClient, userId: strin
         rangeMetric: typeof persistedRangeMetric === "number" ? persistedRangeMetric : computeRangeMetric(persistedMatrix),
       };
     }
-  } else if (duePlanned.length > 0) {
-    source = "plan";
-    cellsCollections = duePlanned.map((row) => asMatrixCells(row.cells));
   }
 
   if (!source || cellsCollections.length === 0) {

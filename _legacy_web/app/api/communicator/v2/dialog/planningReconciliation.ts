@@ -11,7 +11,13 @@ import {
   type GeminiContent,
 } from "@legacy/app/api/_utils/gemini";
 import { getLifeSpheresBaseline } from "@legacy/app/api/_utils/lifeSpheresBaseline";
-import { normalizeCells, type MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+import {
+  asPlanningSphereCells,
+  normalizePlanningSphereCells,
+  normalizeCells,
+  type MatrixCell,
+  type PlanningSphereCell,
+} from "@legacy/app/api/_utils/lifeMatrix";
 import { canonicalizeTimeResolution, parseEventTime } from "@legacy/app/api/_utils/timeParser";
 import { planningReconciliationDelayMs } from "@legacy/app/api/_utils/testMode";
 import {
@@ -34,6 +40,7 @@ const chakraStatesBaseline = require("../../../../../data/chakra_states_baseline
 
 const PENDING_PLANNING_META_KEY = "pending_planning_reconciliation";
 const LAST_PLANNING_RESULT_META_KEY = "last_planning_reconciliation";
+const CHAKRA_LABELS_RU = ["первая чакра", "вторая чакра", "третья чакра", "четвёртая чакра", "пятая чакра", "шестая чакра", "седьмая чакра"] as const;
 
 export type PendingPlanningCandidate = {
   candidate_id: string;
@@ -42,7 +49,7 @@ export type PendingPlanningCandidate = {
   timeNorm: string | null;
   recommendation: string | null;
   displayOrder: number | null;
-  cells: MatrixCell[];
+  cells: PlanningSphereCell[];
   snippets: string[];
   queued_at: string;
 };
@@ -104,6 +111,40 @@ export function buildPlanningCandidateParsePhrase(candidate: Pick<PendingPlannin
   const explicitTime = candidate.timeNorm?.trim() || candidate.time?.trim() || "";
   if (!explicitTime) return candidate.desc;
   return `${candidate.desc}. ${explicitTime}`.trim();
+}
+
+async function loadDayTargetChakra(
+  db: SupabaseClient,
+  userId: string,
+  localDate: string,
+): Promise<number | null> {
+  const { data, error } = await db
+    .from("user_daily_forecasts")
+    .select("day_target_chakra")
+    .eq("user_id", userId)
+    .eq("forecast_date", localDate)
+    .maybeSingle();
+  if (error) throw error;
+  const value = Number(data?.day_target_chakra);
+  return Number.isInteger(value) && value >= 1 && value <= 7 ? value : null;
+}
+
+function fallbackPlanningRecommendation(
+  desc: string,
+  chakraNumber: number | null,
+  locale: string,
+): string {
+  if ((locale ?? "ru").startsWith("en")) {
+    if (chakraNumber == null) {
+      return `For "${desc}", stay deliberate and not automatic: act with a little more attention and inner space than usual.`;
+    }
+    return `For "${desc}", stay in the focus of chakra ${chakraNumber}: move through it with more awareness, a wider inner frame, and less automatic reaction.`;
+  }
+  if (chakraNumber == null) {
+    return `Для «${desc}» держите больше осознанности и меньше автоматизма: проживите это действие чуть внимательнее обычного.`;
+  }
+  const chakraLabel = CHAKRA_LABELS_RU[chakraNumber - 1] ?? `чакра ${chakraNumber}`;
+  return `Для «${desc}» держите фокус ${chakraLabel}: проживите это действие осознанно, шире обычной рутины и без автоматической реакции.`;
 }
 
 export function buildSummaryNormalizationSourceText(
@@ -169,7 +210,7 @@ function normalizePendingCandidate(value: unknown): PendingPlanningCandidate | n
     timeNorm: typeof raw.timeNorm === "string" && raw.timeNorm.trim() ? raw.timeNorm.trim() : null,
     recommendation: typeof raw.recommendation === "string" && raw.recommendation.trim() ? raw.recommendation.trim() : null,
     displayOrder: Number.isFinite(Number(raw.displayOrder)) ? Number(raw.displayOrder) : null,
-    cells: normalizeCells(asMatrixCells(raw.cells)),
+    cells: asPlanningSphereCells(raw.cells),
     snippets: Array.isArray(raw.snippets)
       ? raw.snippets.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       : [],
@@ -285,7 +326,7 @@ export async function enqueuePlanningCandidates(params: {
       timeNorm: candidate.timeNorm ?? null,
       recommendation: candidate.recommendation ?? null,
       displayOrder: candidate.displayOrder ?? null,
-      cells: normalizeCells(candidate.cells),
+      cells: normalizePlanningSphereCells(candidate.cells),
       snippets: candidate.snippets,
       queued_at: params.nowIso,
     })),
@@ -584,6 +625,8 @@ async function classifySummaryOutcomeCells(params: {
     "You classify normalized summarized outcomes into sparse life-matrix cells. Return JSON only. " +
     "Use normalized_outcome as primary truth and event_description only as a domain anchor. " +
     "Prefer the event's primary domain over secondary side effects. " +
+    "If the outcome clearly says the event did not happen, was cancelled, or never took place, return an empty outcome_cells array. " +
+    "If the outcome confirms the event but still does not describe the user's lived inner state well enough for a state matrix, also return an empty outcome_cells array. " +
     "Do not move an outcome into sphere 1 unless body, health, recovery, sleep, or energy are central to the normalized outcome. " +
     "Do not move an outcome into sphere 7 unless meaning, values, purpose, service, faith, or orientation are central to the normalized outcome. " +
     "Use at most 3 outcome cells per candidate. Weights inside the same sphere should sum to 1. " +
@@ -740,6 +783,11 @@ export async function reconcilePendingPlanningCandidates(params: {
       summaryCandidates: pending.summary_candidates,
     }),
   ]);
+  const dayTargetChakra = await loadDayTargetChakra(
+    params.db,
+    params.userId,
+    params.nowLocal.toFormat("yyyy-MM-dd"),
+  );
 
   const planningDecisionByCandidate = new Map(planningDecisions.map((decision) => [decision.candidate_id, decision]));
   const summaryDecisionByCandidate = new Map(summaryDecisions.map((decision) => [decision.candidate_id, decision]));
@@ -765,6 +813,12 @@ export async function reconcilePendingPlanningCandidates(params: {
       });
       continue;
     }
+    const recommendationText = candidate.recommendation
+      ?? fallbackPlanningRecommendation(
+        decision.normalized_desc?.trim() || candidate.desc,
+        dayTargetChakra,
+        params.locale,
+      );
 
     const parsedTime = parseEventTime({
       phrase: buildPlanningCandidateParsePhrase(candidate),
@@ -829,11 +883,11 @@ export async function reconcilePendingPlanningCandidates(params: {
         time_phrase_raw: candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null,
         time_resolution: canonicalizeTimeResolution(parsedTime.resolution),
         description: decision.normalized_desc?.trim() || candidate.desc,
-        recommendation_text: candidate.recommendation ?? existing.recommendation_text ?? null,
+        recommendation_text: recommendationText ?? existing.recommendation_text ?? null,
         display_order: existing.display_order ?? candidate.displayOrder,
         explicit_time_text: parsedTime.resolution === "explicit" ? candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null : null,
         context_snippets: mergeUnknownArrays(existing.context_snippets, candidate.snippets),
-        cells: normalizeCells([...asMatrixCells(existing.cells), ...candidate.cells]),
+        cells: normalizePlanningSphereCells([...asPlanningSphereCells(existing.cells), ...candidate.cells]),
         status: "planned",
       };
       const { data, error } = await params.db
@@ -859,7 +913,7 @@ export async function reconcilePendingPlanningCandidates(params: {
           time_resolution: typeof data.time_resolution === "string" ? data.time_resolution : canonicalizeTimeResolution(parsedTime.resolution),
           status: String(data.status ?? "planned"),
           context_snippets: Array.isArray(data.context_snippets) ? data.context_snippets : candidate.snippets,
-          cells: asMatrixCells(data.cells ?? candidate.cells),
+          cells: asPlanningSphereCells(data.cells ?? candidate.cells),
         });
       }
       continue;
@@ -922,17 +976,18 @@ export async function reconcilePendingPlanningCandidates(params: {
         time_phrase_raw: candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null,
         time_resolution: canonicalizeTimeResolution(parsedTime.resolution),
         description: decision.normalized_desc?.trim() || candidate.desc,
-        recommendation_text: candidate.recommendation,
+        recommendation_text: recommendationText,
         display_order: displayOrder,
         explicit_time_text: parsedTime.resolution === "explicit" ? candidate.time?.trim() ?? candidate.timeNorm?.trim() ?? null : null,
         context_snippets: candidate.snippets,
-        cells: candidate.cells,
+        cells: normalizePlanningSphereCells(candidate.cells),
         status: "planned",
       })
       .select("id,conversation_id,planned_at,planned_local_date,expected_at,time_phrase_raw,time_resolution,description,context_snippets,cells,status,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text")
       .single();
     if (error) throw error;
     if (data) {
+      mutableOpenPlans.push(data as PlannedEventRow);
       insertedPlannedEvents.push({
         id: String(data.id),
         conversation_id: typeof data.conversation_id === "string" ? data.conversation_id : params.conversation.id,
@@ -944,7 +999,7 @@ export async function reconcilePendingPlanningCandidates(params: {
         time_resolution: typeof data.time_resolution === "string" ? data.time_resolution : canonicalizeTimeResolution(parsedTime.resolution),
         status: String(data.status ?? "planned"),
         context_snippets: Array.isArray(data.context_snippets) ? data.context_snippets : candidate.snippets,
-        cells: asMatrixCells(data.cells ?? candidate.cells),
+        cells: asPlanningSphereCells(data.cells ?? candidate.cells),
       });
     }
   }
@@ -952,17 +1007,9 @@ export async function reconcilePendingPlanningCandidates(params: {
   let appliedSummaries = 0;
   for (const candidate of pending.summary_candidates) {
     const summaryDecision = summaryDecisionByCandidate.get(candidate.candidate_id);
-    const outcomeCells = normalizeCells(summaryDecision?.outcome_cells?.length ? summaryDecision.outcome_cells : candidate.proposed_outcome_cells);
-    if (!outcomeCells.length) {
-      skippedPlannedEvents.push({
-        desc: candidate.description,
-        time: candidate.time_phrase_raw,
-        time_norm: candidate.time_phrase_raw,
-        reason: summaryDecision?.reason ?? "summary_missing_outcome_cells",
-        resolved_local_date: candidate.planned_local_date,
-      });
-      continue;
-    }
+    const outcomeCells = summaryDecision
+      ? normalizeCells(summaryDecision.outcome_cells)
+      : normalizeCells(candidate.proposed_outcome_cells);
     const { data: existingRow, error: existingError } = await params.db
       .from("planned_events")
       .select("id,description,planned_at,planned_local_date,expected_at,time_phrase_raw,time_resolution,status,context_snippets,cells")
@@ -976,6 +1023,39 @@ export async function reconcilePendingPlanningCandidates(params: {
         time: candidate.time_phrase_raw,
         time_norm: candidate.time_phrase_raw,
         reason: "summary_event_missing_or_already_processed",
+        resolved_local_date: candidate.planned_local_date,
+      });
+      continue;
+    }
+    if (!outcomeCells.length) {
+      const { error: deleteError } = await params.db
+        .from("planned_events")
+        .delete()
+        .eq("user_id", params.userId)
+        .eq("id", candidate.event_id);
+      if (deleteError) throw deleteError;
+      summarizedPlannedEvents.push({
+        id: String(existingRow.id),
+        conversation_id: null,
+        description: String(existingRow.description ?? candidate.description),
+        planned_at: typeof existingRow.planned_at === "string" ? existingRow.planned_at : null,
+        planned_local_date: typeof existingRow.planned_local_date === "string" ? existingRow.planned_local_date : candidate.planned_local_date,
+        expected_at: String(existingRow.expected_at ?? candidate.expected_at),
+        time_phrase_raw: typeof existingRow.time_phrase_raw === "string" ? existingRow.time_phrase_raw : candidate.time_phrase_raw,
+        time_resolution: typeof existingRow.time_resolution === "string" ? existingRow.time_resolution : candidate.time_resolution,
+        status: "summarized",
+        context_snippets: Array.isArray(existingRow.context_snippets) ? existingRow.context_snippets : [],
+        cells: asMatrixCells(existingRow.cells),
+        summarized_at: params.nowLocal.toUTC().toISO() ?? new Date().toISOString(),
+        outcome_text: summaryDecision?.normalized_outcome ?? candidate.outcome,
+        outcome_cells: [],
+        matched_ref: candidate.event_id,
+      });
+      skippedPlannedEvents.push({
+        desc: candidate.description,
+        time: candidate.time_phrase_raw,
+        time_norm: candidate.time_phrase_raw,
+        reason: summaryDecision?.reason ?? "summary_closed_without_matrix",
         resolved_local_date: candidate.planned_local_date,
       });
       continue;

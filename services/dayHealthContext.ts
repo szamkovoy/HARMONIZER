@@ -47,7 +47,7 @@ function practiceKindFromTitle(title: string): string {
   return title.trim();
 }
 
-async function loadAverageYogaMinutes(limit = 30): Promise<number | null> {
+async function loadAverageYogaMinutes(limit = 7): Promise<number | null> {
   const supabase = requireSupabase();
   const { data, error } = await supabase
     .from("user_daily_stats")
@@ -60,7 +60,7 @@ async function loadAverageYogaMinutes(limit = 30): Promise<number | null> {
   }
   const values = (data ?? [])
     .map((row) => Number(row.total_practice_seconds))
-    .filter((value) => Number.isFinite(value) && value > 0);
+    .filter((value) => Number.isFinite(value) && value >= 0);
   if (!values.length) return null;
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length / 60);
 }

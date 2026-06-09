@@ -12,8 +12,8 @@ describe("buildPracticeCardSummary", () => {
       userMessage: "Волнует разговор с шефом",
       modelCardBlurb: null,
     });
-    expect(s).toContain("Вишуддха");
-    expect(s).toContain("Анахата");
+    expect(s).toContain("пятая чакра");
+    expect(s).toContain("четвёртая чакра");
     expect(s).toContain("асан");
   });
 

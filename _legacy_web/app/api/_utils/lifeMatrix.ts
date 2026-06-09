@@ -9,6 +9,11 @@ export type MatrixCell = {
   weight: number;
 };
 
+export type PlanningSphereCell = {
+  sphere: number;
+  weight: number;
+};
+
 export type DenseMatrix = number[][];
 
 export type DailyMatrixSource = "summary" | "plan";
@@ -71,6 +76,79 @@ export function parseCompactCells(raw: string | null | undefined): MatrixCell[] 
         };
       }),
   );
+}
+
+export function normalizePlanningSphereCells(rawCells: PlanningSphereCell[] | null | undefined): PlanningSphereCell[] {
+  const grouped = new Map<number, number>();
+  for (const cell of rawCells ?? []) {
+    if (!validIndex(cell.sphere)) continue;
+    const safeWeight = Number.isFinite(cell.weight) && cell.weight > 0 ? cell.weight : 0;
+    if (safeWeight <= 0) continue;
+    grouped.set(cell.sphere, (grouped.get(cell.sphere) ?? 0) + safeWeight);
+  }
+
+  const total = [...grouped.values()].reduce((sum, value) => sum + value, 0);
+  if (total <= 0) return [];
+  return [...grouped.entries()].map(([sphere, weight]) => ({
+    sphere,
+    weight: Number((weight / total).toFixed(6)),
+  }));
+}
+
+export function planningSphereCellsFromMatrixCells(rawCells: MatrixCell[] | null | undefined): PlanningSphereCell[] {
+  return normalizePlanningSphereCells(
+    (rawCells ?? [])
+      .filter((cell) => validIndex(cell.sphere) && validIndex(cell.chakra))
+      .map((cell) => ({
+        sphere: cell.sphere,
+        weight: Number.isFinite(cell.weight) && cell.weight > 0 ? cell.weight : 0,
+      })),
+  );
+}
+
+export function parseCompactPlanningSphereCells(raw: string | null | undefined): PlanningSphereCell[] {
+  if (!raw?.trim()) return [];
+  const parsed = raw
+    .split(";")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const parts = chunk.split(":").map((part) => part.trim());
+      const sphereRaw = parts[0];
+      const weightRaw = parts.length >= 3 ? parts[2] : parts[1];
+      const parsedWeight = weightRaw ? Number.parseFloat(weightRaw) : 1;
+      return {
+        sphere: Number.parseInt(sphereRaw ?? "", 10),
+        weight: Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 1,
+      };
+    });
+  return normalizePlanningSphereCells(parsed);
+}
+
+export function asPlanningSphereCells(value: unknown): PlanningSphereCell[] {
+  if (!Array.isArray(value)) return [];
+  const sphereOnly = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const raw = item as { sphere?: unknown; weight?: unknown; chakra?: unknown };
+      if (!Number.isInteger(raw.sphere)) return null;
+      if (raw.chakra != null && !Number.isInteger(raw.chakra)) return null;
+      return {
+        sphere: Number(raw.sphere),
+        weight: Number.isFinite(Number(raw.weight)) && Number(raw.weight) > 0 ? Number(raw.weight) : 1,
+        chakra: raw.chakra == null ? null : Number(raw.chakra),
+      };
+    })
+    .filter((item): item is { sphere: number; weight: number; chakra: number | null } => Boolean(item));
+  if (!sphereOnly.length) return [];
+  const hasChakra = sphereOnly.some((cell) => cell.chakra != null);
+  return hasChakra
+    ? planningSphereCellsFromMatrixCells(
+        sphereOnly
+          .filter((cell): cell is { sphere: number; weight: number; chakra: number } => cell.chakra != null)
+          .map((cell) => ({ sphere: cell.sphere, chakra: cell.chakra, weight: cell.weight })),
+      )
+    : normalizePlanningSphereCells(sphereOnly.map(({ sphere, weight }) => ({ sphere, weight })));
 }
 
 export function buildDailyMatrix(cellsCollections: MatrixCell[][]): DenseMatrix {

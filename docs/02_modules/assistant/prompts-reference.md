@@ -108,12 +108,13 @@ Top-3 планетарных направления дня:
 где ref — номер события из блока due_events или id события, если он уже явно был в истории.
 
 Если в ветках есть planning:
-- помоги сформулировать предстоящее событие дня простыми словами: что это, когда примерно, в какой сфере жизни, какие психические состояния, эмоции и личные качества вовлечены;
+- помоги сформулировать предстоящее событие дня простыми словами: что это, когда примерно и с какими сферами жизни оно связано;
 - не превращай planning в длинный коучинг; тебе нужен один конкретный предстоящий эпизод за раз;
-- когда событие и связанные с ним состояния достаточно понятны, добавь invisible marker:
-[PLANNED_EVENT: desc="..." time="..." time_norm="..." recommendation="..." display_order="1" cells="3:5:0.6;6:5:0.4" snippets="...;..."]
+- не пытайся определять для planning чакры и матричные веса будущего события; для Day-tab достаточно только сфер жизни;
+- когда событие и связанные с ним сферы достаточно понятны, добавь invisible marker:
+[PLANNED_EVENT: desc="..." time="..." time_norm="..." recommendation="..." display_order="1" spheres="3:0.6;6:0.4" snippets="...;..."]
 - если пользователь явно хочет планировать уже завтра, добавь отдельный маркер [PLAN_TOMORROW].
-- для вкладки «День» recommendation должен быть тем же коротким советом, который видит пользователь по действию; display_order — порядок упоминания, не сортировка по времени; time/time_norm заполняются только при явно названном времени.
+- для вкладки «День» recommendation должен быть тем же коротким советом, который видит пользователь по действию; display_order — порядок упоминания, не сортировка по времени; time/time_norm заполняются только при явно названном времени; `spheres` может быть и одной сферой (`spheres="4"`).
 
 MATRIX EXTRACTION
 
@@ -524,7 +525,7 @@ MATRIX EXTRACTION
 | `buildCatalogReconciliationInstruction` | При переспросе конфликта тип/минуты ссылки на каталог и ограничения формулируются как «здесь» / «в приложении», не «там». |
 | `canPersistPlanningMarkers` (`route.ts`) | `[PLANNED_EVENT]` и delayed planning queue пишутся только на terminal final modes (`final_recommendation`, `final_recommendation_with_validation_warning`, `forced_final`, `final_without_practice`); промежуточные `opening`/`inquiry` markers не персистятся. |
 | `formatDayTabTurnContext` / `daySummaryRequested` | При `triggerMeta.daySummaryRequested = true` route форсирует ветку `summarizing`, подгружает все rows рабочего дня через `loadPlannedEventsForLocalDate`, добавляет turn-контекст вкладки «День» (actions, practices, `dayHealthContext`) и server-side summarizing guardrails про йогу/Health без выдуманных метрик. |
-| Planning guardrails в `buildDialogSystemInstruction` | Дополнительный runtime-блок для `planning`: только действия/события; без уточнения состояний/подтекста/«первая или вторая половина дня»; practice-replies не превращаются в `[PLANNED_EVENT]`; каждый `[PLANNED_EVENT]` несёт `recommendation` и `display_order`, `desc` — короткое название для вкладки «День», `time/time_norm` — только при явном времени. |
+| Planning guardrails в `buildDialogSystemInstruction` | Дополнительный runtime-блок для `planning`: только действия/события; без уточнения состояний/подтекста/«первая или вторая половина дня»; practice-replies не превращаются в `[PLANNED_EVENT]`; каждый `[PLANNED_EVENT]` несёт `recommendation`, `display_order` и только sphere-only `spheres`, `desc` — короткое название для вкладки «День», `time/time_norm` — только при явном времени. |
 
 ## 4. Где править что
 

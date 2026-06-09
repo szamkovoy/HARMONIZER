@@ -299,6 +299,7 @@ function AssistantModal({
           locale="ru"
           useCase="daily_dialog"
           entrySource="day"
+          startFreshSession={mode === "add"}
           triggerMeta={{
             dayTabMode: mode,
             workingLocalDate: plan.localDate,
@@ -314,6 +315,7 @@ function AssistantModal({
           autoSendInitialMessage={modePrompt}
           memoryWindow={24}
           onPracticeOffered={onPracticeOffered}
+          onRequestClose={onClose}
         />
       </View>
     </Modal>

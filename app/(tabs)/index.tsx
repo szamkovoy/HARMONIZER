@@ -17,7 +17,8 @@ import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
-import { loadDayPlan } from "@/services/dayPlan";
+import { collectDayHealthContext, type DayHealthContext } from "@/services/dayHealthContext";
+import { loadDayPlan, savePendingDayPractice } from "@/services/dayPlan";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
   buildOpportunityAlarmStyleContent,
@@ -313,21 +314,32 @@ function FreeTierBanner() {
   );
 }
 
-function launchPracticeFromAssistant(practice: PracticePicked, onClose: () => void) {
-  onClose();
+function launchPracticeFromAssistant(_practice: PracticePicked, onPracticeStarted: () => void) {
+  onPracticeStarted();
+}
+
+function dayPlanHasVisibleContent(plan: Awaited<ReturnType<typeof loadDayPlan>>): boolean {
+  const today = new Date();
+  const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  if (plan.localDate !== todayLocal) return false;
+  return plan.actions.length > 0 || Boolean(plan.dayRecommendation) || Boolean(plan.pendingPractice);
 }
 
 function CommunicatorOverlay({
   forecast,
   accessMode,
   strings,
+  dayHealthContext,
   onClose,
+  onPracticeStarted,
   remountKey,
 }: {
   forecast: DailyForecast;
   accessMode: "free" | "premium" | "trial";
   strings: HomeStrings;
+  dayHealthContext: DayHealthContext | null;
   onClose: () => void;
+  onPracticeStarted: () => void;
   remountKey: number;
 }) {
   const insets = useSafeAreaInsets();
@@ -362,11 +374,12 @@ function CommunicatorOverlay({
           </Pressable>
         </View>
         <Communicator
-          key={`${accessMode}-${forecast.date}-${forecast.planetOfTheDay}-${forecast.computedAt}-${remountKey}`}
+          key={`home-${forecast.date}-${remountKey}`}
           systemPrompt={strings.defaultSystemPrompt}
           locale={strings.locale}
           useCase="daily_dialog"
           entrySource="home"
+          startFreshSession
           triggerMeta={{
             clientGreetingShown: true,
             forecastDate: forecast.date,
@@ -381,9 +394,14 @@ function CommunicatorOverlay({
                   ? "дисгармоничная"
                   : "смешанная",
             windowsOfOpportunity: forecast.windowsOfOpportunity,
+            ...(dayHealthContext ? { dayHealthContext } : {}),
           }}
           memoryWindow={24}
-          onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onClose)}
+          onPracticeOffered={async (practice) => {
+            await savePendingDayPractice(forecast.date, practice);
+          }}
+          onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onPracticeStarted)}
+          onRequestClose={onClose}
         />
       </View>
     </Modal>
@@ -405,6 +423,7 @@ export default function HomeScreen() {
     [profile?.locale],
   );
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
+  const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
@@ -520,16 +539,27 @@ export default function HomeScreen() {
     try {
       if (canUseFeature("day_planning")) {
         const dayPlan = await loadDayPlan();
-        const today = new Date();
-        const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-        if (dayPlan.localDate === todayLocal && dayPlan.actions.length > 0) {
+        if (dayPlanHasVisibleContent(dayPlan)) {
           router.push("/day");
           return;
         }
+        if (dayPlan.actions.length > 0) {
+          try {
+            setHomeDayHealthContext(await collectDayHealthContext(dayPlan));
+          } catch (healthError) {
+            console.warn("[Home] Failed to collect health context before assistant", healthError);
+            setHomeDayHealthContext(null);
+          }
+        } else {
+          setHomeDayHealthContext(null);
+        }
       }
+      setAssistantRemountKey((k) => k + 1);
       setCommunicatorOpen(true);
     } catch (loadError) {
       console.warn("[Home] Failed to check day plan before assistant", loadError);
+      setHomeDayHealthContext(null);
+      setAssistantRemountKey((k) => k + 1);
       setCommunicatorOpen(true);
     }
   }, [canUseFeature]);
@@ -660,8 +690,14 @@ export default function HomeScreen() {
           forecast={forecast}
           accessMode={accessMode}
           strings={strings}
+          dayHealthContext={homeDayHealthContext}
           remountKey={assistantRemountKey}
+          onPracticeStarted={() => {
+            setHomeDayHealthContext(null);
+            setCommunicatorOpen(false);
+          }}
           onClose={() => {
+            setHomeDayHealthContext(null);
             setCommunicatorOpen(false);
             router.push("/day");
           }}

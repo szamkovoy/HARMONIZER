@@ -9,8 +9,9 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
-- **2026-06-09:** Sentry-шум от штатной перегрузки LLM и обрыва SSE снижен: `reportRouteError` логирует «Сервис временно недоступен…» как `warning` (не `error`), `sentry.server.config.ts` фильтрует `failed to pipe response`, dialog SSE при ошибке responder закрывается событием `error` + `controller.close()` вместо `controller.error()`. Аналитика перегрузок остаётся в `user_event_log`.
-
+- **2026-06-09 (4):** Sentry-шум от штатной перегрузки LLM и обрыва SSE снижен: `reportRouteError` логирует «Сервис временно недоступен…» как `warning` (не `error`), `sentry.server.config.ts` фильтрует `failed to pipe response`, dialog SSE при ошибке responder закрывается событием `error` + `controller.close()` вместо `controller.error()`. Аналитика перегрузок остаётся в `user_event_log`.
+- **2026-06-08 (3):** Добавлена follow-up миграция `20260608170000_activate_dialog_system_v3_v6.sql`: она деактивирует старые версии `dialog_system_v3` и явно поднимает `version = 6` в `is_active = true`, чтобы новые окружения не оставались без активного daily-dialog prompt после `db push`.
+- **2026-06-08 (2):** В Supabase добавлена follow-up миграция `20260608153000_allow_day_entry_source.sql`: она расширяет CHECK `public.conversations.entry_source`, добавляя значение `day`. Это синхронизирует БД с уже существующим клиентским/серверным контрактом Day tab modal и убирает `23514 conversations_entry_source_check` при создании новой беседы.
 - **2026-06-08:** Native health prebuild-конфиг добавлен в Expo: зависимости `@kingstinct/react-native-healthkit`, `react-native-nitro-modules`, `react-native-health-connect`, `expo-build-properties`; `app.config.ts` включает HealthKit entitlement, Android Health Connect permissions и SDK 35/minSdk 26, а `plugins/with-native-health.js` добавляет iOS usage descriptions и Android `HealthConnectPermissionDelegate`.
 
 - **2026-05-21:** `instrumentation.ts` при старте Node вызывает `logTestModeStartupWarning` из `testMode.ts` до загрузки Sentry — диагностика активного `TEST_MODE_FAST_INTERVALS` без влияния на клиент Expo.

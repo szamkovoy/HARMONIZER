@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
+import { chakraLabelAccusativeRu, chakraLabelRu } from "@/modules/chakra/labels";
 import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
 import planetChakraMap from "@/data/planet_chakra_map.json";
 import { decideTurnMode, ORCHESTRATOR_INSTRUCTIONS, shouldServerEscalateToFinalRecommendation } from "@legacy/app/api/_utils/dialogArcOrchestrator";
@@ -23,6 +24,7 @@ import {
   parseResponseMarkers,
   sanitizeAssistantText,
   validateHistoryHasDurationAndType,
+  type PlannedEventMarker,
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
 import { reportRouteError, toUserFacingStreamErrorMessage } from "@legacy/app/api/_utils/monitoring";
@@ -47,7 +49,7 @@ import {
   buildPracticeCardSummary,
   normalizeModelPracticeCardBlurb,
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
-import { likelyAnsweredDueEventIds, shouldRetryForMissingSummaryMarker } from "@legacy/app/api/communicator/v2/dialog/summaryRepair";
+import { assessDueEventSummary, likelyAnsweredDueEventIds, shouldRetryForMissingSummaryMarker } from "@legacy/app/api/communicator/v2/dialog/summaryRepair";
 import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
   asMatrixCells,
@@ -84,7 +86,7 @@ import {
 export const runtime = "nodejs";
 
 type DialogueUseCase = "calibration" | "daily_dialog";
-type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
+type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding" | "day";
 
 type Body = {
   scenario_id?: string;
@@ -113,16 +115,10 @@ type ResponseMode =
   | "final_recommendation"
   | "final_recommendation_with_validation_warning";
 type ResponseMarkers = ReturnType<typeof parseResponseMarkers>;
-
-const CHAKRA_LABEL_ACCUSATIVE_RU: Record<string, string> = {
-  "Муладхара": "Муладхару",
-  "Свадхистхана": "Свадхистхану",
-  "Манипура": "Манипуру",
-  "Анахата": "Анахату",
-  "Вишуддха": "Вишудху",
-  "Вишудха": "Вишудху",
-  "Аджна": "Аджну",
-  "Сахасрара": "Сахасрару",
+type SyntheticSummaryMarker = {
+  ref: string;
+  outcome: string | null;
+  outcomeCells: ReturnType<typeof asMatrixCells>;
 };
 
 function sse(event: string, data: unknown): string {
@@ -169,10 +165,6 @@ function planetMeta(planet: Planet): PlanetMeta {
 
 function normalizePlanet(value: unknown): Planet {
   return (typeof value === "string" && value in chakraStatesBaseline ? value : "Sun") as Planet;
-}
-
-function chakraLabelAccusative(label: string): string {
-  return CHAKRA_LABEL_ACCUSATIVE_RU[label] ?? "";
 }
 
 function shouldEmitDialogV3DebugPrompt(req: Request): boolean {
@@ -418,21 +410,32 @@ function buildDialogSystemInstruction(
       "- planning не должен превращаться в сбор всего расписания: держи фокус на 1-3 самых важных событиях;",
       "- собирай один конкретный эпизод за раз; если пользователь уже назвал 2-3 важных события, не добирай новые ради полноты;",
       "- существующие open plans используй как память для dedupe/update, а не как повод продолжать длинный опрос обо всём дне;",
-      "- в planning спрашивай только о действиях/событиях; не спрашивай, какие состояния человек хочет проявить, что цепляет сильнее или какой психологический подтекст у события;",
+      "- в planning спрашивай только о самих действиях/событиях; не спрашивай, какие состояния человек хочет проявить, что цепляет сильнее, в каком настроении он собирается туда входить и какой психологический подтекст у события;",
       "- не уточняй расплывчатое время вроде «первая/вторая половина дня», «после обеда», «вечером»: для новой вкладки «День» это больше не требуется;",
+      "- если пользователь уже назвал событие вроде «автосервис», не добирай технические детали уровня «что именно с машиной» только ради разговора; либо спроси, есть ли ещё 1-2 важных события дня, либо переходи к финализации planning;",
+      "- если в одной фразе названы два самостоятельных действия вроде «погулять и пораньше лечь спать», сохраняй их как два разных planned events; но не дроби одно действие на цель/следствие вроде «купить лодку, чтобы потом плавать»;",
       "- ответы пользователя на вопрос о практике («движение телом», «дыхание», «медитация», «асаны», длительность практики) никогда не превращай в [PLANNED_EVENT];",
+      "- для planning не пытайся классифицировать действие по чакрам и не выводи chakra-weight cells; в [PLANNED_EVENT] указывай только сферы жизни через `spheres=\"1:0.6;4:0.4\"` (или одну сферу `spheres=\"4\"`), этого достаточно для Day-tab диаграммы;",
       "- для каждого [PLANNED_EVENT] добавляй recommendation=\"...\" — короткую, живую рекомендацию по этому конкретному действию в фокусе целевой чакры дня; именно этот текст будет показан во вкладке «День»;",
+      "- когда planning уже собран и ты переходишь к вопросу о практике, сначала дай полноценный planning-финал: коротко назови общий фокус дня через целевую чакру, затем отдельно пройди по каждому новому действию и дай по нему рекомендацию, как прожить его сегодня нешаблонно и в энергии этой чакры;",
+      "- в этом planning-финале добавляй invisible marker [CORRECT_RECOMMENDATION: short_text=\"...\"] с короткой общей рекомендацией дня для блока «Фокус дня» во вкладке «День»;",
+      "- после planning-финала вопрос про практику должен касаться только самой практики; не дублируй в practice-ветке рекомендации по событиям дня;",
       "- для каждого [PLANNED_EVENT] добавляй display_order=\"1\", \"2\", \"3\" по порядку упоминания пользователем; не сортируй события по времени;",
       "- desc в [PLANNED_EVENT] — это короткое название действия для списка во вкладке «День», не длинное пересказывание; держи примерно 30-40 символов, а детали переноси в recommendation;",
       "- time/time_norm заполняй только при явно названном времени вроде «в 15:30» или «в 9 утра»; расплывчатые слова «вечером», «потом», «после обеда», «перед сном» не превращай во время для вкладки «День»;",
     );
+    if (context.planningSphereLens) {
+      branchGuardrails.push(`- ${context.planningSphereLens}`);
+    }
   }
   if (branches.includes("summarizing")) {
     branchGuardrails.push(
       "- в summarizing спрашивай не только факт результата, но и как человек проживал событие, в каком состоянии действовал, получилось ли пройти его в рекомендованной волне или всё пошло привычно;",
-      "- если описание слишком поверхностное, мягко уточни состояние/способ проживания, а уже потом переходи дальше;",
+      "- если событие состоялось, но описание слишком поверхностное и по нему нельзя уверенно понять психологическое состояние, задай ровно один уточняющий вопрос и коротко объясни, что это нужно для заполнения матрицы состояний по событию;",
+      "- если пользователь ясно сказал, что событие не состоялось, состояние дополнительно не выясняй и не выдумывай outcome-cells для матрицы;",
+      "- на промежуточных ходах summarizing не давай пользователю психологическую обратную связь, советы, интерпретации и мини-итоги по событию: выясняй только факты и способ проживания; вся обратная связь должна собраться в финальном сообщении после всех событий;",
       "- если triggerMeta содержит dayPractices, учитывай практики йоги как поддержку дня: мягко отметь выполненные практики или, если их не было, объясни без давления, что йога помогает держать осознанность и энергию для нешаблонных действий, расширения матрицы состояний и толщины жизни;",
-      "- финальное сообщение summarizing после сбора всех событий должно быть самостоятельной ценностью: сначала психологическая обратная связь по тому, насколько пользователь смог прожить день в рекомендованной чакре/состояниях, с чем справился и где остался привычный шаблон; затем 1-2 коротких наблюдения о йоге/здоровье только по переданным данным;",
+      "- финальное сообщение summarizing после сбора всех событий должно быть самостоятельной ценностью: сначала психологическая обратная связь по тому, насколько пользователь смог прожить день в рекомендованной чакре/состояниях, с чем справился и где остался привычный шаблон; затем кратко, но отдельно упомяни КАЖДОЕ подытоженное действие дня; после этого добавь 1-2 коротких наблюдения о йоге/здоровье только по переданным данным;",
       "- если Health-контекст говорит, что Apple/Google Health недоступен, не выдумывай шаги, сон, калории, тренировки и не упоминай конкретные цифры; используй только практики йоги из приложения и фразу без технических подробностей;",
     );
     if (context.dueEvents.length > 1) {
@@ -466,7 +469,7 @@ function buildDialogSystemInstruction(
         target_explain: context.targetChakra.explain,
         top3_planets: formatTop3Planets(context.top3Planets),
         life_spheres_baseline: formatLifeSpheresBaselineForPrompt(context.user.locale),
-        chakra_label: chakraMeta.chakra_name_ru,
+        chakra_label: chakraLabelRu(chakraMeta.chakra_number),
         planet,
         harmoniousness_label: harmoniousnessLabelValue,
         harmoniousness_value: Number(harmoniousnessValue.toFixed(2)),
@@ -492,8 +495,8 @@ function buildDialogSystemInstruction(
       },
     )}\n\n${branchGuardrails.join("\n")}`,
     planet,
-    chakraLabel: chakraMeta.chakra_name_ru,
-    chakraLabelAccusative: chakraLabelAccusative(chakraMeta.chakra_name_ru),
+    chakraLabel: chakraLabelRu(chakraMeta.chakra_number),
+    chakraLabelAccusative: chakraLabelAccusativeRu(chakraMeta.chakra_number),
     harmoniousnessValue,
     harmoniousnessLabel: harmoniousnessLabelValue,
   };
@@ -792,13 +795,19 @@ function buildFinalInstructionText(params: {
   placeholders: OrchestratorInstructionPlaceholders;
   validation: ValidationResult | null;
   locale: string | null | undefined;
+  planningAlreadyFinalized?: boolean;
 }): string {
   const base = expandOrchestratorInstruction(params.baseInstruction, params.placeholders);
   const durationLock = exactPracticeDurationInstruction({
     validation: params.validation,
     locale: params.locale,
   });
-  return durationLock ? `${base}\n\n${durationLock}` : base;
+  const planningLock = params.planningAlreadyFinalized
+    ? ((params.locale ?? "ru").toLowerCase().startsWith("en")
+        ? "IMPORTANT FOR THIS TURN: planning was already fully finalized in the previous assistant turn. Do not summarize the day again, do not repeat recommendations for planned events, and do not restate the overall day focus. After [PRACTICE_PICK], write only a short practice-specific bridge explaining why this practice supports the already defined focus."
+        : "ВАЖНО ДЛЯ ЭТОГО ХОДА: planning уже был полностью финализирован в предыдущем assistant-turn. Не подводи день заново, не повторяй рекомендации по запланированным событиям и не пересказывай общий фокус дня. После [PRACTICE_PICK] дай только короткий practice-specific мостик: почему именно эта практика поддержит уже заданный фокус.")
+    : "";
+  return [base, durationLock, planningLock].filter(Boolean).join("\n\n");
 }
 
 function branchLabel(branches: DialogBranch[]): "planning" | "summarizing" | "both" | "free" | "none" {
@@ -808,6 +817,41 @@ function branchLabel(branches: DialogBranch[]): "planning" | "summarizing" | "bo
   if (hasSummarizing) return "summarizing";
   if (hasPlanning) return "planning";
   return "free";
+}
+
+function branchesFromAssistantMeta(message: Pick<MessageRecord, "meta"> | null | undefined): DialogBranch[] {
+  if (!message?.meta || typeof message.meta !== "object") return [];
+  const meta = message.meta as { dialog_branches?: unknown; branches_active?: unknown };
+  const raw = Array.isArray(meta.dialog_branches)
+    ? meta.dialog_branches
+    : Array.isArray(meta.branches_active)
+      ? meta.branches_active
+      : [];
+  return raw.filter((branch): branch is DialogBranch => branch === "planning" || branch === "summarizing");
+}
+
+function messageRecommendationCorrectedMeta(message: Pick<MessageRecord, "meta"> | null | undefined): Record<string, unknown> | null {
+  if (!message?.meta || typeof message.meta !== "object") return null;
+  const meta = message.meta as { recommendationCorrected?: unknown; recommendation_corrected?: unknown };
+  const raw = meta.recommendationCorrected ?? meta.recommendation_corrected;
+  return raw && typeof raw === "object" ? raw as Record<string, unknown> : null;
+}
+
+function recentPlanningThreadIsActive(history: MessageRecord[]): boolean {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant");
+  if (!lastAssistant) return false;
+  if (messagePracticePickedMeta(lastAssistant)) return false;
+  return branchesFromAssistantMeta(lastAssistant).includes("planning");
+}
+
+function recentPlanningAlreadyFinalized(history: MessageRecord[]): boolean {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant");
+  if (!lastAssistant) return false;
+  if (messagePracticePickedMeta(lastAssistant)) return false;
+  if (!branchesFromAssistantMeta(lastAssistant).includes("planning")) return false;
+  if (messageRecommendationCorrectedMeta(lastAssistant)) return true;
+  const text = String(lastAssistant.content ?? "").trim();
+  return /нужна ли .*практик|want .*practice|would you like .*practice/i.test(text);
 }
 
 function resolveSummarizedEvent(ref: string, dueEvents: PlannedEventRow[]): PlannedEventRow | null {
@@ -822,6 +866,102 @@ function resolveSummarizedEvent(ref: string, dueEvents: PlannedEventRow[]): Plan
   }
 
   return dueEvents.find((event) => event.description.toLowerCase().includes(normalizedRef)) ?? null;
+}
+
+function uniqueNonEmptyTexts(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values.map((item) => item.trim()).filter(Boolean)) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function buildAutomaticSummaryOutcomeText(params: {
+  history: MessageRecord[];
+  userMessage: string;
+  includePreviousUserReply: boolean;
+}): string | null {
+  const previousReplies = params.includePreviousUserReply
+    ? params.history
+      .filter((message) => message.role === "user")
+      .map((message) => textFromMessage(message))
+      .filter(Boolean)
+      .slice(-1)
+    : [];
+  const combined = uniqueNonEmptyTexts([...previousReplies, params.userMessage]);
+  return combined.length ? combined.join(" ") : null;
+}
+
+function resolveAutomaticDaySummaryAdvance(params: {
+  daySummaryRequested: boolean;
+  isInitiate: boolean;
+  existingState: DueSummaryState | null;
+  selectedDueEvents: PlannedEventRow[];
+  allDueEvents: PlannedEventRow[];
+  history: MessageRecord[];
+  userMessage: string;
+  promptLimit: number;
+}): {
+  promptDueEvents: PlannedEventRow[];
+  syntheticSummary: SyntheticSummaryMarker | null;
+  autoAnsweredEventIds: string[];
+} {
+  if (!params.daySummaryRequested || params.isInitiate || params.selectedDueEvents.length !== 1) {
+    return {
+      promptDueEvents: params.selectedDueEvents,
+      syntheticSummary: null,
+      autoAnsweredEventIds: [],
+    };
+  }
+
+  const currentEvent = params.selectedDueEvents[0]!;
+  const directAnswered = likelyAnsweredDueEventIds(params.userMessage, [currentEvent]).includes(currentEvent.id);
+  const secondReplyReached = (params.existingState?.reminder_count ?? 0) >= 1;
+  if (!directAnswered && !secondReplyReached) {
+    return {
+      promptDueEvents: params.selectedDueEvents,
+      syntheticSummary: null,
+      autoAnsweredEventIds: [],
+    };
+  }
+
+  const outcomeText = buildAutomaticSummaryOutcomeText({
+    history: params.history,
+    userMessage: params.userMessage,
+    includePreviousUserReply: secondReplyReached,
+  });
+  if (!outcomeText) {
+    return {
+      promptDueEvents: params.selectedDueEvents,
+      syntheticSummary: null,
+      autoAnsweredEventIds: [],
+    };
+  }
+  const summaryAssessment = assessDueEventSummary(outcomeText);
+  if (summaryAssessment === "unknown" || (!secondReplyReached && summaryAssessment === "occurred_without_state")) {
+    return {
+      promptDueEvents: params.selectedDueEvents,
+      syntheticSummary: null,
+      autoAnsweredEventIds: [],
+    };
+  }
+
+  const remainingDueEvents = params.allDueEvents
+    .filter((event) => event.id !== currentEvent.id)
+    .slice(0, params.promptLimit);
+
+  return {
+    promptDueEvents: remainingDueEvents,
+    syntheticSummary: {
+      ref: currentEvent.id,
+      outcome: outcomeText,
+      outcomeCells: [],
+    },
+    autoAnsweredEventIds: [currentEvent.id],
+  };
 }
 
 function hasRequiredBranchArtifacts(
@@ -840,7 +980,7 @@ function branchRepairInstruction(branches: DialogBranch[]): string {
     parts.push("сначала коротко подведи итог по уже наступившему событию: что произошло и в каком состоянии человек это проживал, затем выведи invisible marker [SUMMARIZE_EVENT: ...]");
   }
   if (branches.includes("planning")) {
-    parts.push("сначала выдели один ближайший планируемый эпизод на сегодня или завтра и выведи invisible marker [PLANNED_EVENT: ...] с временем или примерным временем");
+    parts.push("сначала выдели один ближайший планируемый эпизод на сегодня или завтра и выведи invisible marker [PLANNED_EVENT: ...] без запроса времени, если пользователь сам его не называл; для planning указывай только spheres, без chakra/cells");
   }
   return `Продолжи этот же диалог, но не переходи к рекомендации практики прямо сейчас. ${parts.join("; ")}. Не выводи [READY_FOR_RECOMMENDATION], пока эти маркеры не добавлены.`;
 }
@@ -868,7 +1008,14 @@ async function updateConversationTriggerMeta(
 }
 
 function formatDayTabTurnContext(triggerMeta: Record<string, unknown> | null | undefined): string {
-  if (triggerMeta?.daySummaryRequested !== true) return "";
+  const dayTabMode = typeof triggerMeta?.dayTabMode === "string" ? triggerMeta.dayTabMode : null;
+  if (dayTabMode === "add" || dayTabMode === "plan") {
+    return "[Контекст вкладки «День»: пользователь открыл ветку планирования/добавления действий. Не возвращай его к подытоживанию прошлых событий, даже если у дня есть просроченные планы. Сразу помогай добавить новые действия и держи фокус на planning.]";
+  }
+  if (triggerMeta?.daySummaryRequested !== true) {
+    const dayHealthContextOnly = formatDayHealthContext(triggerMeta?.dayHealthContext);
+    return triggerMeta?.dayHealthContext ? dayHealthContextOnly : "";
+  }
   const rawActions = Array.isArray(triggerMeta.dayActions) ? triggerMeta.dayActions : [];
   const rawPractices = Array.isArray(triggerMeta.dayPractices) ? triggerMeta.dayPractices : [];
   const dayHealthContext = formatDayHealthContext(triggerMeta.dayHealthContext);
@@ -896,8 +1043,8 @@ function formatDayTabTurnContext(triggerMeta: Record<string, unknown> | null | u
     })
     .filter((value): value is string => Boolean(value));
   return [
-    "[Контекст вкладки «День»: пользователь нажал «Подытожить этот день». Проведи подытоживание всех неподытоженных действий дня по очереди, не планируй завтра до закрытия прошлого дня.]",
-    actions.length ? `Действия дня:\n${actions.join("\n")}` : "Действий в списке нет.",
+    "[Контекст вкладки «День»: пользователь нажал «Подытожить этот день». Проводи подытоживание строго по одному событию за ход. Для текущего хода ориентируйся только на событие из блока due_events системного контекста; не пытайся перечислять, помнить или разбирать остальные заранее. Не смешивай несколько событий в один вопрос и не планируй завтра до закрытия прошлого дня. На каждое событие можно задать максимум два вопроса: один основной и, только если правда не хватает фактуры, один уточняющий; затем обязательно переходи к следующему событию или к финалу.]",
+    actions.length ? `Всего действий дня в списке: ${actions.length}. Остальные события система подаст тебе по очереди.` : "Действий в списке нет.",
     practices.length ? `Выполненные практики йоги:\n${practices.join("\n")}` : "Практики йоги в этот день пока не выполнялись.",
     dayHealthContext,
   ].join("\n\n");
@@ -951,6 +1098,12 @@ function formatDayHealthContext(value: unknown): string {
     "[Health-контекст для финального подытоживания дня: это временные данные только для текущего ответа, не сохраняй их и не превращай в отдельные действия.]",
     `Йога за день: ${yogaMinutes} мин, практик: ${yogaCount}${yogaKinds.length ? `, типы: ${yogaKinds.join(", ")}` : ""}${yogaAverage == null ? "" : `, обычно около ${yogaAverage} мин/день, ${comparisonLabel(yoga?.comparison)}`}.`,
   ];
+  if (yogaAverage == null) {
+    lines.push("Если исторической средней по йоге нет, используй мягкий ориентир: около 30 минут практики в день уже достаточно; заметно меньше — можно бережно подтолкнуть к большей регулярности без давления.");
+  } else {
+    lines.push("В финальном сообщении коротко оцени поддержку тела: если йоги заметно меньше обычного или меньше примерно 30 минут, можно мягко подтолкнуть к большей регулярности; если пользователь практиковал около 30 минут или больше и/или выше своей обычной базы — похвали за телесную дисциплину.");
+  }
+  lines.push("Если есть данные Apple Health / Google Health, используй их для 1-2 коротких наблюдений о телесной активности, тренировках или сне: называй конкретные цифры из переданного контекста (например шаги, минуты сна, минуты активности), чтобы обратная связь звучала предметно. Похвали при хорошем дне, а при явной гиподинамии, нехватке сна или слабой активности — дай мягкий вектор роста без перегруза и морализаторства.");
   const metrics = [
     formatMetric("Шаги", context.activity?.steps, "шагов"),
     formatMetric("Активные калории", context.activity?.activeCalories, "ккал"),
@@ -1057,6 +1210,19 @@ function mergeResponseMarkersForPersistence(base: ResponseMarkers, carried: Resp
   };
 }
 
+function applyInferredPlanningFallback(
+  markers: ResponseMarkers,
+  inferredPlanningArtifacts: PlannedEventMarker[],
+  responseMode: ResponseMode,
+): ResponseMarkers {
+  if (!canPersistPlanningMarkers(responseMode)) return markers;
+  if (markers.plannedEvents.length > 0 || inferredPlanningArtifacts.length === 0) return markers;
+  return {
+    ...markers,
+    plannedEvents: inferredPlanningArtifacts,
+  };
+}
+
 function canPersistPlanningMarkers(turnMode: ResponseMode): boolean {
   return turnMode === "final_recommendation"
     || turnMode === "final_recommendation_with_validation_warning"
@@ -1086,7 +1252,6 @@ async function persistDialogArtifacts(params: {
   const summarizedPlannedEvents: PlanningPersistenceTurn["summarized"] = [];
   const inferredCells = normalizeCells([
     ...params.markers.matrixCells,
-    ...params.markers.plannedEvents.flatMap((event) => event.cells),
     ...params.markers.summarizeEvents.flatMap((event) => event.outcomeCells),
   ]);
   let pendingTriggerMeta = params.conversationTriggerMeta;
@@ -1234,8 +1399,9 @@ export async function GET(req: Request) {
     });
     const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
     const requestedConversationId = url.searchParams.get("conversationId")?.trim() || null;
-    const debugExportEnabled = isDebugDialogExportEnabled();
-    const debugExport = debugExportEnabled && url.searchParams.get("debugExport") === "1";
+    const debugExportRequested = url.searchParams.get("debugExport") === "1";
+    const debugExportEnabled = isDebugDialogExportEnabled() || debugExportRequested;
+    const debugExport = debugExportRequested;
 
     const context = await loadContext(db, userId);
     const userTimezone = context.user.tz ?? "UTC";
@@ -1358,6 +1524,7 @@ export async function POST(req: Request) {
   let db: SupabaseClient | null = null;
   let userId: string | null = null;
   let endpointStage = "request";
+  const requestStartedMs = Date.now();
   try {
     warnDeprecatedDialogRoute(req);
     userId = await requireUserId(req);
@@ -1413,22 +1580,63 @@ export async function POST(req: Request) {
         dueEvents: context.dueEvents.filter((event) => !queuedSummaryIds.has(event.id)),
       };
     }
-    const dueSummaryState = readDueSummaryState(conversation.trigger_meta, context.dueEvents);
+    const allDueEvents = context.dueEvents;
+    const dueSummaryState = readDueSummaryState(conversation.trigger_meta, allDueEvents);
+    const dueSummaryLimit = conversation.trigger_meta?.daySummaryRequested === true ? 1 : undefined;
+    const selectedDueEvents = selectDueEventsForTurn(allDueEvents, dueSummaryState, dueSummaryLimit);
     context = {
       ...context,
-      dueEvents: selectDueEventsForTurn(context.dueEvents, dueSummaryState),
+      dueEvents: selectedDueEvents,
     };
     const iteration = countAssistantTurns(history) + 1;
-    const branches = conversation.trigger_meta?.daySummaryRequested === true && context.dueEvents.length > 0
-      ? ["summarizing" as const]
-      : chooseDialogBranches({
-        phaseTime: context.phaseTime,
-        dueEventsCount: context.dueEvents.length,
-        userMessage,
-        hoursSinceLastPlanning: hoursSince(context.lastPlanningAt, context.nowLocal),
-        planTomorrowMarker: false,
-        forcePlanningOnOpening: iteration === 1,
-      });
+    const dayTabMode = typeof conversation.trigger_meta?.dayTabMode === "string"
+      ? conversation.trigger_meta.dayTabMode
+      : null;
+    const isExplicitDayPlanningMode = body.entrySource === "day" && (dayTabMode === "plan" || dayTabMode === "add");
+    const automaticDaySummaryAdvance = resolveAutomaticDaySummaryAdvance({
+      daySummaryRequested: conversation.trigger_meta?.daySummaryRequested === true,
+      isInitiate,
+      existingState: dueSummaryState,
+      selectedDueEvents,
+      allDueEvents,
+      history,
+      userMessage,
+      promptLimit: dueSummaryLimit ?? 3,
+    });
+    const promptContext = {
+      ...context,
+      dueEvents: isExplicitDayPlanningMode ? [] : automaticDaySummaryAdvance.promptDueEvents,
+    };
+    const rawInferredPlanningArtifacts = isInitiate
+      ? []
+      : inferPlannedEventsFromUserHistory({
+          history: [
+            ...history,
+            { role: "user" as const, content: userMessage },
+          ],
+          nowLocal: dialogNowLocal,
+          relativeNowLocal: context.nowLocal,
+          tz: userTimezone,
+          locale: context.user.locale ?? "ru",
+        });
+    const planningIntentDetected = conversation.trigger_meta?.daySummaryRequested !== true
+      && (rawInferredPlanningArtifacts.length > 0 || recentPlanningThreadIsActive(history));
+    const baseBranches = isExplicitDayPlanningMode
+      ? ["planning" as const]
+      : conversation.trigger_meta?.daySummaryRequested === true
+        && (promptContext.dueEvents.length > 0 || automaticDaySummaryAdvance.syntheticSummary != null)
+        ? ["summarizing" as const]
+        : chooseDialogBranches({
+          phaseTime: promptContext.phaseTime,
+          dueEventsCount: promptContext.dueEvents.length,
+          userMessage,
+          hoursSinceLastPlanning: hoursSince(promptContext.lastPlanningAt, promptContext.nowLocal),
+          planTomorrowMarker: false,
+          forcePlanningOnOpening: iteration === 1,
+        });
+    const branches = planningIntentDetected && !baseBranches.includes("planning")
+      ? [...baseBranches, "planning" as const]
+      : baseBranches;
     const maxDialogLength = effectiveDialogMax(branches);
     const planningHorizonLocalDates = [
       context.nowLocal.toFormat("yyyy-MM-dd"),
@@ -1440,25 +1648,12 @@ export async function POST(req: Request) {
       : [];
     const systemPromptData = buildDialogSystemInstruction(
       systemPromptRecord.template,
-      context,
+      promptContext,
       branches,
       openPlannedEventsForUserHorizon,
     );
-    const buildInferredPlannedEvents = () =>
-      branches.includes("planning")
-        ? inferPlannedEventsFromUserHistory({
-            history: [
-              ...history,
-              ...(isInitiate ? [] : [{ role: "user" as const, content: userMessage }]),
-            ],
-            nowLocal: dialogNowLocal,
-            relativeNowLocal: context.nowLocal,
-            tz: userTimezone,
-            locale: context.user.locale ?? "ru",
-          })
-        : [];
     const inferredPlanningArtifactsFromHistory = branches.includes("planning")
-      ? filterNewPlannedEvents(buildInferredPlannedEvents(), openPlannedEventsForUserHorizon, {
+      ? filterNewPlannedEvents(rawInferredPlanningArtifacts, openPlannedEventsForUserHorizon, {
           nowLocal: dialogNowLocal,
           relativeNowLocal: context.nowLocal,
           tz: userTimezone,
@@ -1479,13 +1674,31 @@ export async function POST(req: Request) {
       ),
     });
     const emitDebugPromptLog = shouldEmitDialogV3DebugPrompt(req);
-    const turnDecision = decideTurnMode(
+    let turnDecision = decideTurnMode(
       history,
       iteration,
       maxDialogLength,
       isInitiate ? null : userMessage,
       emitDebugPromptLog,
     );
+    const summaryOnlyDayMode = conversation.trigger_meta?.daySummaryRequested === true
+      && branches.length === 1
+      && branches[0] === "summarizing";
+    if (summaryOnlyDayMode) {
+      if (automaticDaySummaryAdvance.syntheticSummary && promptContext.dueEvents.length === 0) {
+        turnDecision = {
+          mode: "final_without_practice",
+          modelTier: "standard",
+          instruction: ORCHESTRATOR_INSTRUCTIONS.final_without_practice,
+        };
+      } else if (turnDecision.mode === "forced_final") {
+        turnDecision = {
+          mode: "final_without_practice",
+          modelTier: "standard",
+          instruction: ORCHESTRATOR_INSTRUCTIONS.final_without_practice,
+        };
+      }
+    }
     const orchestratorPlaceholders = {
       chakraLabel: systemPromptData.chakraLabel,
       chakraLabelAccusative: systemPromptData.chakraLabelAccusative,
@@ -1493,16 +1706,24 @@ export async function POST(req: Request) {
       harmoniousnessLabel: systemPromptData.harmoniousnessLabel,
       practiceRefusalCheck: turnDecision.instructionVariables?.practice_refusal_check ?? "",
       catalogReconciliation: turnDecision.instructionVariables?.catalog_reconciliation ?? "",
-      openingDayQuestion: openingDayQuestionForContext(context.phaseTime, branches),
+      openingDayQuestion: openingDayQuestionForContext(promptContext.phaseTime, branches),
     };
     const expandedTurnInstructionBase = expandOrchestratorInstruction(turnDecision.instruction, orchestratorPlaceholders);
     const postRecommendationTimingGuard = turnDecision.mode === "post_recommendation" && !isInitiate
       ? buildPostRecommendationTimingGuard(dbHistory, userMessage)
       : null;
+    const summaryToPlanningTransitionGuard =
+      branches.includes("summarizing")
+      && branches.includes("planning")
+      && automaticDaySummaryAdvance.autoAnsweredEventIds.length > 0
+      && promptContext.dueEvents.length === 0
+        ? "ВАЖНО ДЛЯ ЭТОГО ХОДА: summarizing по прошлому периоду уже закрыт, и сейчас ты переходишь к planning. Перед новым planning-вопросом дай 1-2 короткие фразы переходного итога по уже подытоженным событиям. Если в контексте есть Health-данные, добавь одно короткое наблюдение с конкретной цифрой. После этого задай ОДИН вопрос только про планы дня. Не предлагай практику и не разворачивай длинный финал на этом переходе."
+        : null;
     const dayTabTurnContext = formatDayTabTurnContext(conversation.trigger_meta);
     const expandedTurnInstruction = [
       expandedTurnInstructionBase,
       postRecommendationTimingGuard,
+      summaryToPlanningTransitionGuard,
       dayTabTurnContext,
     ].filter((value): value is string => Boolean(value)).join("\n\n");
     const insightMetrics = buildInsightMetrics(history, userMessage, context.user.locale);
@@ -1510,6 +1731,7 @@ export async function POST(req: Request) {
       ...history.filter((message) => message.role === "user"),
       ...(isInitiate ? [] : [{ role: "user" as const, content: userMessage }]),
     ]);
+    const planningAlreadyFinalized = recentPlanningAlreadyFinalized(history);
     const historyBranchArtifactsSatisfied =
       (!branches.includes("planning")
         || inferredPlanningArtifactsFromHistory.length > 0)
@@ -1641,6 +1863,7 @@ export async function POST(req: Request) {
                 placeholders: orchestratorPlaceholders,
                 validation,
                 locale: context.user.locale,
+                planningAlreadyFinalized,
               });
               responseMode = "final_recommendation";
               modelTierUsed = "premium";
@@ -1693,6 +1916,7 @@ export async function POST(req: Request) {
                   placeholders: orchestratorPlaceholders,
                   validation,
                   locale: context.user.locale,
+                  planningAlreadyFinalized,
                 });
                 responseMode = "final_recommendation";
                 modelTierUsed = "premium";
@@ -1756,6 +1980,7 @@ export async function POST(req: Request) {
                 placeholders: orchestratorPlaceholders,
                 validation,
                 locale: context.user.locale,
+                planningAlreadyFinalized,
               });
               responseMode = validation.confident ? "final_recommendation" : "final_recommendation_with_validation_warning";
               modelTierUsed = "premium";
@@ -1785,6 +2010,43 @@ export async function POST(req: Request) {
             augmentPlannedMarkers(parseResponseMarkers(fullText)),
             carriedMarkers,
           );
+          const combinedSummaryOutcomeText = buildAutomaticSummaryOutcomeText({
+            history,
+            userMessage,
+            includePreviousUserReply: (dueSummaryState?.reminder_count ?? 0) >= 1,
+          });
+          const summaryAssessmentForCurrentTurn = combinedSummaryOutcomeText
+            ? assessDueEventSummary(combinedSummaryOutcomeText)
+            : assessDueEventSummary(userMessage);
+          if (
+            branches.includes("summarizing")
+            && context.dueEvents.length === 1
+            && (dueSummaryState?.reminder_count ?? 0) < 1
+            && summaryAssessmentForCurrentTurn === "occurred_without_state"
+          ) {
+            const currentDueEventId = context.dueEvents[0]?.id;
+            markers = {
+              ...markers,
+              summarizeEvents: markers.summarizeEvents.filter((summary) => {
+                const resolvedId = resolveSummarizedEvent(summary.ref, context.dueEvents)?.id ?? null;
+                return resolvedId !== currentDueEventId;
+              }),
+            };
+          }
+          markers = applyInferredPlanningFallback(
+            markers,
+            inferredPlanningArtifactsFromHistory,
+            responseMode,
+          );
+          if (automaticDaySummaryAdvance.syntheticSummary) {
+            markers = {
+              ...markers,
+              summarizeEvents: [
+                ...markers.summarizeEvents,
+                automaticDaySummaryAdvance.syntheticSummary,
+              ],
+            };
+          }
           const markersForArtifacts = canPersistPlanningMarkers(responseMode)
             ? markers
             : { ...markers, plannedEvents: [] };
@@ -1880,6 +2142,7 @@ export async function POST(req: Request) {
             fullText: cleanText,
             shouldClose,
             modelUsed: modelIdUsed,
+            latencyMs: Date.now() - requestStartedMs,
             modelTier: modelTierUsed,
             turnMode: responseMode,
             iteration,
@@ -1924,6 +2187,7 @@ export async function POST(req: Request) {
             .map((summary) => resolveSummarizedEvent(summary.ref, context.dueEvents)?.id ?? null)
             .filter((eventId): eventId is string => Boolean(eventId)),
             ...likelyAnsweredDueEventIds(userMessage, context.dueEvents),
+            ...automaticDaySummaryAdvance.autoAnsweredEventIds,
           ];
           const dueSummaryTurn = resolveDueSummaryTurn({
             existingState: dueSummaryState,
@@ -1941,7 +2205,7 @@ export async function POST(req: Request) {
               context.nowLocal.toUTC().toISO() ?? new Date().toISOString(),
             );
           }
-          await updateConversationTriggerMeta(
+          const finalTriggerMeta = await updateConversationTriggerMeta(
             routeDb,
             routeUserId,
             conversation.id,
@@ -1953,6 +2217,7 @@ export async function POST(req: Request) {
             turn_mode: responseMode,
             model_used: modelTierUsed,
             model_id: modelIdUsed,
+            latency_ms: Date.now() - requestStartedMs,
             iteration,
             ready_marker_triggered: readyMarkerTriggered,
             validation,
@@ -1992,6 +2257,25 @@ export async function POST(req: Request) {
           );
 
           if (shouldClose) {
+            await reconcilePendingPlanningCandidates({
+              db: routeDb,
+              userId: routeUserId,
+              conversation: {
+                id: conversation.id,
+                trigger_meta: finalTriggerMeta,
+              },
+              nowLocal: context.nowLocal,
+              eventParseNowLocal: effectiveDialogNowLocal(context.nowLocal),
+              eventParseRelativeNowLocal: context.nowLocal,
+              timezone: userTimezone,
+              locale: context.user.locale ?? "ru",
+              dueEvents: context.dueEvents,
+              planningHorizonLocalDates: [
+                context.nowLocal.toFormat("yyyy-MM-dd"),
+                context.nowLocal.plus({ days: 1 }).toFormat("yyyy-MM-dd"),
+              ],
+              force: true,
+            });
             await closeConversation(routeDb, routeUserId, conversation.id);
           }
           controller.close();

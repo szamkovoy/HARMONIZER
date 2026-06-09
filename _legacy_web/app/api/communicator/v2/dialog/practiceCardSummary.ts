@@ -5,19 +5,21 @@
  * Локали: ru / en. Дальше мультиязычие — вынести строки в JSON/i18n или params в БД.
  */
 
+import { chakraLabelRu } from "@/modules/chakra/labels";
+
 export type PracticeKindForCard = "breath" | "meditation" | "yoga";
 
 const MODEL_CARD_BLURB_MIN_LENGTH = 100;
 const MODEL_CARD_BLURB_MAX_LENGTH = 700;
 
 const CHAKRA_NAME_RU: Record<number, string> = {
-  1: "Муладхара",
-  2: "Свадхистана",
-  3: "Манипура",
-  4: "Анахата",
-  5: "Вишуддха",
-  6: "Аджна",
-  7: "Сахасрара",
+  1: chakraLabelRu(1),
+  2: chakraLabelRu(2),
+  3: chakraLabelRu(3),
+  4: chakraLabelRu(4),
+  5: chakraLabelRu(5),
+  6: chakraLabelRu(6),
+  7: chakraLabelRu(7),
 };
 
 const CHAKRA_NAME_EN: Record<number, string> = {

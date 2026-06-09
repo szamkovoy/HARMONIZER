@@ -35,6 +35,7 @@ export interface DialogCompleteEvent {
   conversationId?: string;
   fullText: string;
   shouldClose: boolean;
+  latencyMs?: number;
   modelUsed?: string;
   modelTier?: "premium" | "standard";
   turnMode?: string;

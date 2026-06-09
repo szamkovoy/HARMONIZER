@@ -13,7 +13,7 @@ export type DayAction = {
   status: string;
   summarizedAt: string | null;
   outcomeText: string | null;
-  cells: Array<{ sphere: number; chakra: number; weight: number }>;
+  cells: Array<{ sphere: number; weight: number }>;
 };
 
 export type DaySphereStat = {

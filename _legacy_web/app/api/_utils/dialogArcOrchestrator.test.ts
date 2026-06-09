@@ -8,10 +8,22 @@ describe("decideTurnMode", () => {
     expect(ORCHESTRATOR_INSTRUCTIONS.fast_track_final).toContain("{{chakra_label_accusative}}");
   });
 
-  it("keeps planning inquiry focused and does not require exact minutes inside a valid range", () => {
-    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("НЕ уточняй сферу жизни");
+  it("keeps planning inquiry focused and blocks pseudo-psychology outside finals", () => {
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("НЕ уточняй психологический подтекст");
     expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("Не проси выбрать точное число внутри диапазона");
     expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("это асаны");
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("Не играй роль психолога");
+  });
+
+  it("keeps opening on one clear branch question without asking about practice", () => {
+    expect(ORCHESTRATOR_INSTRUCTIONS.opening).toContain("Не спрашивай про практику в первом сообщении");
+    expect(ORCHESTRATOR_INSTRUCTIONS.opening).toContain("Один ясный вопрос за ход");
+    expect(ORCHESTRATOR_INSTRUCTIONS.opening).toContain("восклицательный знак");
+  });
+
+  it("forbids interim feedback during per-event summarizing", () => {
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("НЕ давай обратную связь");
+    expect(ORCHESTRATOR_INSTRUCTIONS.inquiry).toContain("только ОДНО событие");
   });
 
   it("uses inquiry after opening when meditation duration conflicts with catalog", () => {

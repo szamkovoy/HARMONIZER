@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { forcedPhaseOrNull, promptLocalHour } from "@legacy/app/api/_utils/testMode";
 import { extractRawMarkersForDebug } from "@legacy/app/api/_utils/markers";
+import { asPlanningSphereCells } from "@legacy/app/api/_utils/lifeMatrix";
 import type { DialogBranch } from "@legacy/app/api/_utils/dialogBranching";
 import type { DialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import { asMatrixCells } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
@@ -25,7 +26,7 @@ export type PlannedEventExportRow = {
   time_resolution: string | null;
   status: string;
   context_snippets: unknown[];
-  cells: ReturnType<typeof formatCells>;
+  cells: ReturnType<typeof formatPlanningCells>;
   summarized_at?: string | null;
   outcome_text?: string | null;
   outcome_cells?: ReturnType<typeof formatCells> | null;
@@ -40,7 +41,7 @@ export type PlanningPersistenceTurn = {
     recommendation?: string | null;
     displayOrder?: number | null;
     snippets: string[];
-    cells: ReturnType<typeof formatCells>;
+    cells: ReturnType<typeof formatPlanningCells>;
     queued_at: string;
   }>;
   queued_summaries: Array<{
@@ -98,7 +99,7 @@ function formatPlannedEventRowForExport(row: Record<string, unknown>): PlannedEv
     time_resolution: typeof row.time_resolution === "string" ? row.time_resolution : null,
     status: String(row.status ?? ""),
     context_snippets: Array.isArray(row.context_snippets) ? row.context_snippets : [],
-    cells: formatCells(row.cells),
+    cells: formatPlanningCells(row.cells),
     summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
     outcome_text: typeof row.outcome_text === "string" ? row.outcome_text : null,
     outcome_cells: row.outcome_cells ? formatCells(row.outcome_cells) : null,
@@ -136,7 +137,7 @@ export async function capturePlanningSnapshotIfNeeded(
       time_resolution: event.time_resolution,
       status: event.status,
       context_snippets: Array.isArray(event.context_snippets) ? event.context_snippets : [],
-      cells: formatCells(event.cells),
+      cells: formatPlanningCells(event.cells),
     })),
     open_plans: ((openRows ?? []) as Array<Record<string, unknown>>).map(formatPlannedEventRowForExport),
   };
@@ -197,6 +198,10 @@ export function buildTurnDebugExport(params: {
 
 function formatCells(value: unknown) {
   return asMatrixCells(value);
+}
+
+function formatPlanningCells(value: unknown) {
+  return asPlanningSphereCells(value);
 }
 
 export async function buildDialogStateAfter(
@@ -286,7 +291,7 @@ export async function buildDialogStateAfter(
         time_resolution: event.time_resolution,
         status: event.status,
         context_snippets: Array.isArray(event.context_snippets) ? event.context_snippets : [],
-        cells: formatCells(event.cells),
+        cells: formatPlanningCells(event.cells),
       })),
     },
     user_daily_forecast: forecast

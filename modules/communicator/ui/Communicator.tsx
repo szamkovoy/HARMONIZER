@@ -81,6 +81,7 @@ import {
   saveDialogSessionCache,
 } from "@/services/dialogSessionCache";
 import { useAuth } from "@/modules/auth";
+import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
@@ -130,6 +131,7 @@ type CommunicatorListRow =
 
 /** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
 const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
+const DEFERRED_ASSISTANT_COMMIT_TIMEOUT_MS = 8000;
 const SESSION_HYDRATION_RETRY_DELAYS_MS = [700, 1400, 2600, 4200] as const;
 const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000;
 
@@ -188,6 +190,7 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     turnMode: raw.turnMode ?? raw.turn_mode,
     modelTier: raw.modelTier ?? raw.model_used,
     modelUsed: raw.modelUsed ?? raw.model_id,
+    latencyMs: raw.latencyMs ?? raw.latency_ms,
     iteration: raw.iteration,
     insightMetrics,
     csi: raw.csi ?? insightMetrics?.csi,
@@ -452,10 +455,12 @@ export interface CommunicatorProps {
    * очереди).
    */
   autoSendInitialMessage?: string;
+  startFreshSession?: boolean;
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
   onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>;
   onPracticePicked?: (practice: PracticePicked) => void;
+  onRequestClose?: () => void | Promise<void>;
   onError?: (err: Error) => void;
   onAbort?: () => void;
   onStateChange?: (state: CommunicatorSessionState) => void;
@@ -533,10 +538,12 @@ export function Communicator({
   conversationId,
   history,
   memoryWindow,
+  startFreshSession = false,
   onEmotionSegment,
   onMessage,
   onPracticeOffered,
   onPracticePicked,
+  onRequestClose,
   onError,
   onAbort,
   onStateChange,
@@ -730,6 +737,23 @@ export function Communicator({
 
     void (async () => {
       try {
+        if (startFreshSession) {
+          if (localDialogUserId) {
+            await clearDialogSessionCache({
+              userId: localDialogUserId,
+              useCase,
+              entrySource,
+              timeZone: timezone,
+            });
+          }
+          if (cancelled) return;
+          initiateFiredRef.current = false;
+          setActiveConversationId(conversationId ?? null);
+          const seed = initialHistoryRef.current;
+          setMessages(seed.length ? [...seed] : []);
+          return;
+        }
+
         const cached = localDialogUserId
           ? await loadDialogSessionCache({
               userId: localDialogUserId,
@@ -829,7 +853,7 @@ export function Communicator({
       cancelled = true;
       ac.abort();
     };
-  }, [conversationId, entrySource, localDialogUserId, memoryWindow, profileLoading, reportError, useCase]);
+  }, [conversationId, entrySource, localDialogUserId, memoryWindow, profileLoading, reportError, startFreshSession, useCase]);
 
   useEffect(() => {
     if (!sessionSynced || !localDialogUserId) return;
@@ -901,7 +925,7 @@ export function Communicator({
       abortChatStream();
       const conversationIdToFlush = activeConversationIdRef.current;
       if (!conversationIdToFlush || streamBusyRef.current || !hasQueuedPlanningArtifacts(messagesRef.current)) return;
-      void reconcileDialogPlans({ conversationId: conversationIdToFlush }).catch((error) => {
+      void reconcileDialogPlans({ conversationId: conversationIdToFlush, force: true }).catch((error) => {
         if (isPlanningReconcileEndpointMissing(error)) return;
         logErrorForDevelopers("Communicator planning reconcile on unmount", error instanceof Error ? error : new Error(String(error)));
       });
@@ -1009,7 +1033,7 @@ export function Communicator({
       deferredRevealForceTimerRef.current = setTimeout(() => {
         deferredRevealForceTimerRef.current = null;
         flushPendingAssistantCommit();
-      }, 60_000);
+      }, DEFERRED_ASSISTANT_COMMIT_TIMEOUT_MS);
     },
     [clearDeferredRevealForceTimer, flushPendingAssistantCommit],
   );
@@ -1184,6 +1208,7 @@ export function Communicator({
           turnMode: hydratedComplete?.turnMode,
           modelTier: hydratedComplete?.modelTier,
           modelUsed: hydratedComplete?.modelUsed,
+          latencyMs: hydratedComplete?.latencyMs,
           iteration: hydratedComplete?.iteration,
           readyMarkerTriggered: hydratedComplete?.readyMarkerTriggered,
           validation: hydratedComplete?.validation,
@@ -1224,7 +1249,8 @@ export function Communicator({
         !recoveredFromSession &&
         mergedText.trim().length > 0 &&
         strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD &&
-        !hydratedComplete?.practicePicked;
+        !hydratedComplete?.practicePicked &&
+        hydratedComplete?.shouldClose !== true;
       if (!deferAllowed) {
         setPendingRevealGoal(null);
         if (options?.replaceAll) {
@@ -1939,7 +1965,7 @@ export function Communicator({
     (practice: PracticePicked, configured: PracticeSummary) => {
       const conversationIdToFlush = activeConversationIdRef.current;
       if (conversationIdToFlush && hasQueuedPlanningArtifacts(messagesRef.current)) {
-        void reconcileDialogPlans({ conversationId: conversationIdToFlush }).catch((error) => {
+        void reconcileDialogPlans({ conversationId: conversationIdToFlush, force: true }).catch((error) => {
           if (isPlanningReconcileEndpointMissing(error)) return;
           logErrorForDevelopers("Communicator planning reconcile before practice", error instanceof Error ? error : new Error(String(error)));
         });
@@ -1949,6 +1975,20 @@ export function Communicator({
     },
     [onPracticePicked],
   );
+
+  const handleExitDialog = useCallback(async () => {
+    const conversationIdToFlush = activeConversationIdRef.current;
+    if (conversationIdToFlush && hasQueuedPlanningArtifacts(messagesRef.current)) {
+      try {
+        await reconcileDialogPlans({ conversationId: conversationIdToFlush, force: true });
+      } catch (error) {
+        if (!isPlanningReconcileEndpointMissing(error)) {
+          logErrorForDevelopers("Communicator planning reconcile before close", error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+    }
+    await Promise.resolve(onRequestClose?.());
+  }, [onRequestClose]);
 
   const renderCommunicatorItem = useCallback<ListRenderItem<CommunicatorListRow>>(
     ({ item }) => {
@@ -1967,6 +2007,8 @@ export function Communicator({
       }
       if (item.kind === "assistant") {
         const m = item.message;
+        const isLatestAssistant = messages[messages.length - 1]?.id === m.id;
+        const showExitButton = isLatestAssistant && m.meta?.shouldClose === true && !m.meta?.practicePicked && Boolean(onRequestClose);
         return (
           <View>
             <AssistantBubble text={m.content} isStreaming={false} />
@@ -1986,6 +2028,11 @@ export function Communicator({
                 </View>
               ) : null;
             })() : null}
+            {showExitButton ? (
+              <View style={styles.exitDialogButtonWrap}>
+                <AppButton label={strings.exitDialogButton} variant="secondary" onPress={() => void handleExitDialog()} />
+              </View>
+            ) : null}
           </View>
         );
       }
@@ -2000,7 +2047,7 @@ export function Communicator({
         </View>
       );
     },
-    [handlePracticeLaunch, onStreamFullyRevealed, pendingRevealGoal, streamStatus, strippedStreamTarget, strings],
+    [handleExitDialog, handlePracticeLaunch, messages, onRequestClose, onStreamFullyRevealed, pendingRevealGoal, streamStatus, strippedStreamTarget, strings],
   );
 
   const streamAnchorIndex = streamBusy ? communicatorListData.length - 1 : -1;
@@ -2192,7 +2239,7 @@ export function Communicator({
           model_used: typeof normalizedMeta?.modelTier === "string" ? normalizedMeta.modelTier : null,
           model_id: typeof normalizedMeta?.modelUsed === "string" ? normalizedMeta.modelUsed : null,
           iteration: typeof normalizedMeta?.iteration === "number" ? normalizedMeta.iteration : null,
-          latency_ms: null,
+          latency_ms: typeof normalizedMeta?.latencyMs === "number" ? normalizedMeta.latencyMs : null,
           complete_text_chars: message.content.length,
           prompt_tokens: null,
           completion_tokens: null,
@@ -2235,6 +2282,28 @@ export function Communicator({
       exportMessageRows as Array<{ role: string; meta: { planning_persistence: { inserted: unknown[]; summarized: unknown[]; skipped: unknown[] } | null } }>,
       dialogStateAfter,
     );
+    const summarizedRows = Array.isArray(dialogStateAfter?.planning_closed_recent_48h)
+      ? (dialogStateAfter.planning_closed_recent_48h as Array<Record<string, unknown>>)
+          .filter((row) => row?.status === "summarized")
+      : [];
+    const summarizedEventsAppliedToMatrix = summarizedRows
+      .filter((row) => Array.isArray(row?.outcome_cells) && row.outcome_cells.length > 0)
+      .map((row) => ({
+        id: typeof row.id === "string" ? row.id : null,
+        description: typeof row.description === "string" ? row.description : null,
+        outcome_text: typeof row.outcome_text === "string" ? row.outcome_text : null,
+        outcome_cells: Array.isArray(row.outcome_cells) ? row.outcome_cells : [],
+        summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
+      }));
+    const summarizedEventsClosedWithoutMatrix = summarizedRows
+      .filter((row) => !Array.isArray(row?.outcome_cells) || row.outcome_cells.length === 0)
+      .map((row) => ({
+        id: typeof row.id === "string" ? row.id : null,
+        description: typeof row.description === "string" ? row.description : null,
+        outcome_text: typeof row.outcome_text === "string" ? row.outcome_text : null,
+        outcome_cells: [],
+        summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
+      }));
     const payload = {
       conversation: {
         conversation_id: (canUseSyncedMessages ? syncedConversationId : activeConversationId) ?? null,
@@ -2251,6 +2320,8 @@ export function Communicator({
       },
       day_context: dayContext,
       messages: exportMessageRows,
+      summary_events_applied_to_matrix: summarizedEventsAppliedToMatrix,
+      summary_events_closed_without_matrix: summarizedEventsClosedWithoutMatrix,
       ...(dialogStateAfter ? { dialog_state_after: dialogStateAfter } : {}),
     };
     await Share.share({
@@ -2571,6 +2642,11 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 12,
     paddingTop: 8,
+  },
+  exitDialogButtonWrap: {
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingTop: 10,
   },
   micHit: {
     width: 72,

@@ -1,4 +1,9 @@
-import { parseCompactCells, type MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+import {
+  parseCompactCells,
+  parseCompactPlanningSphereCells,
+  type MatrixCell,
+  type PlanningSphereCell,
+} from "@legacy/app/api/_utils/lifeMatrix";
 
 export type StateProposalMarker = {
   proposed_planet: string;
@@ -26,7 +31,7 @@ export type PlannedEventMarker = {
   timeNorm: string | null;
   recommendation: string | null;
   displayOrder: number | null;
-  cells: MatrixCell[];
+  cells: PlanningSphereCell[];
   snippets: string[];
 };
 
@@ -207,7 +212,7 @@ export function parseResponseMarkers(text: string): {
         timeNorm: attrs.time_norm?.trim() || null,
         recommendation: attrs.recommendation?.trim() || null,
         displayOrder: Number.isFinite(Number(attrs.display_order)) ? Number(attrs.display_order) : null,
-        cells: parseCompactCells(attrs.cells),
+        cells: parseCompactPlanningSphereCells(attrs.spheres?.trim() ? attrs.spheres : attrs.cells),
         snippets: (attrs.snippets ?? "")
           .split(";")
           .map((item) => item.trim())
@@ -262,7 +267,7 @@ function parseDebugMarkerBody(type: string, body: string): { parsed?: unknown; p
             time_norm: attrs.time_norm?.trim() || null,
             recommendation: attrs.recommendation?.trim() || null,
             display_order: Number.isFinite(Number(attrs.display_order)) ? Number(attrs.display_order) : null,
-            cells: parseCompactCells(attrs.cells),
+            cells: parseCompactPlanningSphereCells(attrs.spheres?.trim() ? attrs.spheres : attrs.cells),
             snippets: (attrs.snippets ?? "")
               .split(";")
               .map((item) => item.trim())

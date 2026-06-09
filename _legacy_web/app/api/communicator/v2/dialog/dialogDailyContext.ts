@@ -3,7 +3,8 @@ import { DateTime } from "luxon";
 
 import { loadActiveNatalProfile } from "@legacy/app/api/_utils/astro-db";
 import { phaseTimeFor } from "@legacy/app/api/_utils/dialogBranching";
-import { chooseTargetChakra, isMatrixReady, sumMatrices, type DenseMatrix } from "@legacy/app/api/_utils/lifeMatrix";
+import { chooseTargetChakra, isMatrixReady, rowMass, sumMatrices, type DenseMatrix } from "@legacy/app/api/_utils/lifeMatrix";
+import { getLifeSpheresBaseline } from "@legacy/app/api/_utils/lifeSpheresBaseline";
 import { effectiveDialogNowLocal } from "@legacy/app/api/_utils/testMode";
 import { buildTopPetals, type CalibrationLike, type PetalData } from "@legacy/app/api/_utils/topPetals";
 import { expireStalePlannedEvents, loadDuePlannedEvents, loadLastPlanningSummary, loadPlannedEventsForLocalDate, type PlannedEventRow } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
@@ -29,6 +30,7 @@ export type DialogDailyContext = {
   top3Planets: PetalData[];
   matrixReady: boolean;
   aggregatedMatrix: DenseMatrix | null;
+  planningSphereLens: string | null;
   targetChakra: {
     chakraNumber: number;
     reason: string;
@@ -94,6 +96,38 @@ async function loadAggregatedMatrix(db: SupabaseClient, userId: string): Promise
   };
 }
 
+async function loadRecentMatrices(db: SupabaseClient, userId: string, limit = 7): Promise<DenseMatrix[]> {
+  const { data, error } = await db
+    .from("daily_matrices")
+    .select("matrix")
+    .eq("user_id", userId)
+    .order("local_date", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? [])
+    .map((row) => row.matrix)
+    .filter((matrix): matrix is DenseMatrix => Array.isArray(matrix));
+}
+
+function buildPlanningSphereLens(matrices: DenseMatrix[], locale?: string | null): string | null {
+  if (!matrices.length) return null;
+  const baseline = getLifeSpheresBaseline(locale);
+  const weakest = rowMass(sumMatrices(matrices))
+    .map((value, index) => ({
+      id: index + 1,
+      value,
+      title: baseline[index]?.title ?? `Сфера ${index + 1}`,
+    }))
+    .sort((a, b) => a.value - b.value)
+    .slice(0, 2);
+  if (!weakest.length) return null;
+  const titles = weakest.map((item) => item.title).join(", ");
+  const windowDays = matrices.length;
+  return locale?.startsWith("en")
+    ? `Planning lens: over the last ${windowDays} active day(s), the least represented life spheres are ${titles}. If today's plan is still narrow, gently invite one small action from these areas to broaden the user's life pattern.`
+    : `Planning lens: за последние ${windowDays} активных дн${windowDays === 1 ? "я" : windowDays < 5 ? "я" : "ей"} слабее всего представлены сферы «${titles}». Если план дня пока узкий, мягко предложи одно небольшое действие из этих областей, чтобы расширить рисунок жизни.`;
+}
+
 function fallbackTop3FromForecast(forecast: Record<string, unknown> | null): PetalData[] {
   const ranked = Array.isArray(forecast?.ranked_planets)
     ? (forecast?.ranked_planets as Array<string>)
@@ -129,7 +163,7 @@ export async function loadDialogDailyContext(
 
   await expireStalePlannedEvents(db, userId, nowIso);
 
-  const [forecast, natal, calibration, dueEventsRaw, lastPlanning, aggregated] = await Promise.all([
+  const [forecast, natal, calibration, dueEventsRaw, lastPlanning, aggregated, recentMatrices] = await Promise.all([
     loadForecastForLocalDate(db, userId, localDate),
     loadActiveNatalProfile(db, userId),
     loadCalibration(db, userId),
@@ -138,6 +172,7 @@ export async function loadDialogDailyContext(
       : loadDuePlannedEvents(db, userId, nowIso, dueNowIso),
     loadLastPlanningSummary(db, userId),
     loadAggregatedMatrix(db, userId),
+    loadRecentMatrices(db, userId),
   ]);
   const dueEvents = dueEventsRaw;
 
@@ -181,6 +216,7 @@ export async function loadDialogDailyContext(
     top3Planets,
     matrixReady,
     aggregatedMatrix: matrixReady ? aggregated.matrix : null,
+    planningSphereLens: buildPlanningSphereLens(recentMatrices, user.locale),
     targetChakra,
   };
 }

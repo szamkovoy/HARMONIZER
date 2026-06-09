@@ -49,6 +49,7 @@ export interface CommunicatorStrings {
   transcriptionReviewHint: (confidence?: number) => string;
   transcriptionReviewCancel: string;
   transcriptionReviewSend: string;
+  exitDialogButton: string;
   /** Когда сервер/стрим не вернули видимый текст ответа — вместо пустого пузыря */
   emptyAssistantReplyFallback: string;
   /** Более мягкий локальный fallback после уже показанной карточки практики */
@@ -154,6 +155,7 @@ const ru: CommunicatorStrings = {
       : `Я не уверен, что точно тебя услышал (${Math.round(confidence * 100)}%). Поправь текст, если нужно.`,
   transcriptionReviewCancel: "Отменить",
   transcriptionReviewSend: "Отправить",
+  exitDialogButton: "Выйти из диалога",
   emptyAssistantReplyFallback:
     "Я не получил полный текст ответа — связь могла прерваться. Напиши ещё раз коротко, что сейчас важно, и я продолжу.",
   postPracticeReplyFallback:
@@ -206,6 +208,7 @@ const en: CommunicatorStrings = {
       : `I am not fully sure I heard you correctly (${Math.round(confidence * 100)}%). Edit the text if needed.`,
   transcriptionReviewCancel: "Cancel",
   transcriptionReviewSend: "Send",
+  exitDialogButton: "Exit dialog",
   emptyAssistantReplyFallback:
     "I did not receive the full reply — the connection may have dropped. Send a short note about what matters now and I will continue.",
   postPracticeReplyFallback:

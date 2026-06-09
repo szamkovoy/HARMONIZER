@@ -64,7 +64,7 @@ code_refs:
 
 - **`loadDailyPracticeStats(userId, limit?): Promise<DailyPracticeStat[]>`**  
   Чтение `user_daily_stats`: `user_id`, `local_date`, `total_practice_seconds`, `practice_count`, `chakras_touched`, `updated_at`.
-  Дополнительно вкладка «День» через `services/dayHealthContext.ts` читает последние строки `user_daily_stats`, чтобы перед summary-веткой дать ассистенту compact-сравнение йоги за подытоживаемый день с обычной практикой пользователя.
+  Дополнительно вкладка «День» через `services/dayHealthContext.ts` читает последние строки `user_daily_stats`, чтобы перед summary-веткой дать ассистенту compact-сравнение йоги за подытоживаемый день с обычной практикой пользователя. Текущее baseline-сравнение берётся по 7 последним дням как реальное дневное среднее (нулевые дни тоже учитываются); если исторической базы нет, server prompt использует мягкий ориентир достаточности около 30 минут практики в день.
 
 - **`selfRatingFromMood(mood)`** — маппинг настроения на `self_rating`.
 
@@ -72,7 +72,7 @@ code_refs:
 
 - **`app/breath-coherence.tsx`** → `CoherenceBreathScreen`: `practiceId` (`BreathPracticeId`), `durationMs`, `chakra` (1–7), `launchSource`, `usePulseSensor` (`"false"` отключает сценарий с пульсометром; иначе по умолчанию включено).
 
-- **`app/sacred-symbol-stream.tsx`** → `SacredSymbolStreamScreen`: `durationMs`, `chakra`, `launchSource`. Параметр **`practiceId` из каталога не читается** (в каталоге одна медитация).
+- **`app/sacred-symbol-stream.tsx`** → `SacredSymbolStreamScreen`: `durationMs`, `chakra`, `launchSource`. Параметр **`practiceId` из каталога не читается** (в каталоге одна медитация). При `launchSource = "assistant" | "day"` завершение медитации возвращает пользователя на `/day`, а не назад на предыдущий экран, чтобы после ассистентской рекомендации пользователь попадал во вкладку «День».
 
 - **`app/asana-practice.tsx`**: `practiceId` (UUID строки практики), опционально `durationMs`, `chakra`, `launchSource`.
 
@@ -84,7 +84,7 @@ code_refs:
 
 ### Интеграция с ассистентом (реализовано в коде)
 
-- Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID). Для не-`default` маркера **`[PRACTICE_PICK]`** id резолвится по полному каталогу; недавние сессии и **`practice_picked`** нормализуются к каноническому **`id`** строки каталога, затем **`selectPracticeCandidate`** исключает повторы **только по этому `id`**.
+- Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID). Для не-`default` маркера **`[PRACTICE_PICK]`** id резолвится по полному каталогу; недавние сессии и **`practice_picked`** нормализуются к каноническому **`id`** строки каталога, затем **`selectPracticeCandidate`** исключает повторы **только по этому `id`**. Server fallback-текст карточки (`practiceCardSummary.ts`) для chakra labels в RU теперь использует нумерованные названия (`первая чакра` … `седьмая чакра`), а не санскрит.
 - Клиент: **`Communicator`** SSE `complete.practicePicked` → общий **`modules/practices/ui/PracticeCard.tsx`** → `launchPractice` с `launchSource: 'assistant'`; отдельного `launchPracticeFromAssistant` на home больше нет.  
   Автоматизированных E2E-тестов полного диалога в репозитории нет — это ограничение процесса QA, не отсутствие кода.
 

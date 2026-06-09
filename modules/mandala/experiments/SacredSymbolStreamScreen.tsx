@@ -23,6 +23,15 @@ const DEFAULT_DURATION_MS = 5 * 60_000;
 const DEFAULT_CHAKRA = 6;
 const OVERLAY_AUTOHIDE_MS = 4_000;
 
+function exitAfterPractice(launchSource?: string) {
+  const normalized = (launchSource ?? "").trim().toLowerCase();
+  if (normalized === "assistant" || normalized === "day") {
+    router.replace("/day");
+    return;
+  }
+  router.back();
+}
+
 function SyncedSacredSymbolFlowCanvas({
   isActive,
   sceneOffset,
@@ -166,7 +175,7 @@ export function SacredSymbolStreamScreen({
     });
     setCompletionSaved(Boolean(savedId));
     setSavingCompletion(false);
-    router.back();
+    exitAfterPractice(launchSource);
   }, [authUser?.id, chakra, completionSaved, durationMs, launchSource, savingCompletion]);
 
   const handleScreenTap = useCallback(() => {

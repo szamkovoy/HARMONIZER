@@ -503,8 +503,8 @@ describe("parseResponseMarkers", () => {
     expect(parsed.plannedEvents).toHaveLength(1);
     expect(parsed.plannedEvents[0]?.desc).toBe("Разговор с руководителем");
     expect(parsed.plannedEvents[0]?.cells).toEqual([
-      { sphere: 3, chakra: 5, weight: 1 },
-      { sphere: 6, chakra: 5, weight: 1 },
+      { sphere: 3, weight: 0.7 },
+      { sphere: 6, weight: 0.3 },
     ]);
     expect(parsed.summarizeEvents).toHaveLength(1);
     expect(parsed.summarizeEvents[0]?.ref).toBe("1");

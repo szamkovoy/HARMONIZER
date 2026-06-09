@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 
-import { asMatrixCells } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import { asPlanningSphereCells } from "@legacy/app/api/_utils/lifeMatrix";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
@@ -59,7 +59,7 @@ function buildSphereStats(actions: Array<{ cells: unknown }>) {
     value: 0,
   }));
   for (const action of actions) {
-    for (const cell of asMatrixCells(action.cells)) {
+    for (const cell of asPlanningSphereCells(action.cells)) {
       if (cell.sphere >= 1 && cell.sphere <= 7) {
         totals[cell.sphere - 1]!.value += cell.weight;
       }
@@ -176,7 +176,7 @@ export async function GET(req: Request) {
       status: row.status,
       summarizedAt: row.summarized_at,
       outcomeText: row.outcome_text,
-      cells: asMatrixCells(row.cells),
+      cells: asPlanningSphereCells(row.cells),
     }));
     const sphereStats = buildSphereStats(actionsRes.data ?? []);
 
