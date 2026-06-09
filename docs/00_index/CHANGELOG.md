@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.58
+version: 2.59
 updated: 2026-06-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-09: pre-push doc-sync — `assistant/prompts-reference.md` §1–§3.1: зеркало `dialog_system_v3` v7, обновлённые `opening`/`inquiry`/`final_recommendation`, numbered chakra labels и planning/summary guardrails; `assistant/spec.md` §4 — v7 как активный prompt.
 - 2026-06-09: `infra` / `communicator` — меньше шума в Sentry при штатной перегрузке LLM: warning вместо error, фильтр `failed to pipe response`, graceful SSE `error` event; клиент abort стрима при unmount Communicator.
 - 2026-06-09: `assistant` — planning-артефакты daily dialog очищены до sphere-only: `PLANNED_EVENT` теперь предпочитает `spheres="..."`, `planned_events.cells` и `GET /api/day` держат только сферы жизни без chakra-tail, а `daily_matrices` больше не строятся из будущих planned rows. Это убирает лишние planning-токены и не даёт матричной логике принимать решения по ещё не прожитым событиям.
 - 2026-06-09: `assistant` / `communicator` — summary больше не закрывается без lived-state по состоявшемуся событию: ассистент обязан потратить один уточняющий ход на состояние для матрицы, а события без `outcome_cells` (не состоялись или так и не дали state) теперь закрываются без вклада в `daily_matrices`. Home daily dialog теперь стартует fresh, не ремонтируется от `forecast.computedAt`, умеет передавать `dayHealthContext`, пишет `latencyMs` в dialog meta/export, а JSON-export явно показывает `summary_events_applied_to_matrix` и `summary_events_closed_without_matrix`.
