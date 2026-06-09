@@ -1,7 +1,7 @@
 ---
-id: 02_modules/assistant/prompts-reference
-title: Assistant Dialog v3 Prompts Reference
-version: 1.21
+id: 05_archive/migrated/assistant/dialog_v7_prompts-reference
+title: Assistant Dialog v3/v7 Prompts Reference (ARCHIVED — not executed)
+version: 1.22
 updated: 2026-06-09
 depends_on: [02_modules/assistant/spec]
 code_refs:
@@ -14,15 +14,16 @@ code_refs:
     supabase/migrations/20260519030000_dialog_system_v3_v5_activate.sql,
     supabase/migrations/20260513224500_dialog_system_v3_polish_pack_a_fix.sql,
     supabase/migrations/20260513223000_dialog_system_v3_polish_pack_a.sql,
-    _legacy_web/app/api/_utils/dialogArcOrchestrator.ts,
-    _legacy_web/app/api/_utils/dialogOpeningHints.ts,
+    _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts,
     _legacy_web/app/api/_utils/dialogTonalRegisters.ts,
     _legacy_web/app/api/_utils/markers.ts,
     _legacy_web/app/api/communicator/v2/dialog/route.ts,
   ]
 ---
 
-Справочник **дословных** текстов системного промпта `dialog_system_v3` и инструкций оркестратора daily dialog v3. Архитектура и поведение — в `spec.md`; здесь только шаблоны и карта подстановок для точечных правок формулировок.
+> **АРХИВ v7 (июнь 2026).** Daily dialog переведён на явный FSM с тремя короткими код-side промптами (`_legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts`). Мега-промпт `dialog_system_v3` и `ORCHESTRATOR_INSTRUCTIONS` ниже **больше не выполняются** runtime; `dialogArcOrchestrator.ts` / `dialogOpeningHints.ts` перенесены в `_legacy_web/app/api/_archive_v7/`. Документ сохранён как дословный архив прежнего «мозга». Актуальная архитектура и поведение — `spec.md` §«Диалог дня — явный автомат».
+
+Справочник **дословных** текстов системного промпта `dialog_system_v3` и инструкций оркестратора daily dialog v3 (исторический). Архитектура и поведение — в `spec.md`; здесь только шаблоны и карта подстановок для точечных правок формулировок.
 
 ## 1. Системный промпт `dialog_system_v3`
 

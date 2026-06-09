@@ -1,10 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { effectiveDialogNowLocal } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
-import { loadDialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
-import { reconcilePendingPlanningCandidates } from "@legacy/app/api/communicator/v2/dialog/planningReconciliation";
 
 export const runtime = "nodejs";
 
@@ -13,11 +10,16 @@ type ReconcilePlansBody = {
   force?: boolean;
 };
 
-type ConversationRow = {
-  id: string;
-  trigger_meta?: Record<string, unknown> | null;
-};
-
+/**
+ * Compatibility no-op.
+ *
+ * The daily-dialog "brain" is now an explicit FSM that persists planned events,
+ * the day focus and summarized outcomes **synchronously** at the end of each
+ * branch (see `dialogBrainPersistence.ts`). There is no longer any deferred
+ * planning/summary reconciliation queue to drain, so this endpoint just
+ * acknowledges the request. The client still debounce-calls it on close/unmount
+ * (and tolerates a missing endpoint), so we keep the route to avoid 404 noise.
+ */
 export async function POST(req: Request) {
   let db: SupabaseClient | null = null;
   let userId: string | null = null;
@@ -28,47 +30,15 @@ export async function POST(req: Request) {
     if (!conversationId) {
       return json({ error: "conversationId is required" }, { status: 400 });
     }
-
-    db = createServiceSupabase();
-    const { data, error } = await db
-      .from("conversations")
-      .select("id,trigger_meta")
-      .eq("id", conversationId)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) {
-      return json({ error: "Conversation not found" }, { status: 404 });
-    }
-
-    const context = await loadDialogDailyContext(db, userId);
-    const result = await reconcilePendingPlanningCandidates({
-      db,
-      userId,
-      conversation: data as ConversationRow,
-      nowLocal: context.nowLocal,
-      eventParseNowLocal: effectiveDialogNowLocal(context.nowLocal),
-      eventParseRelativeNowLocal: context.nowLocal,
-      timezone: context.user.tz ?? "UTC",
-      locale: context.user.locale ?? "ru",
-      dueEvents: context.dueEvents,
-      planningHorizonLocalDates: [
-        context.nowLocal.toFormat("yyyy-MM-dd"),
-        context.nowLocal.plus({ days: 1 }).toFormat("yyyy-MM-dd"),
-      ],
-      force: body.force === true,
-    });
-
-    return json({
-      applied: result.applied,
-      planningPersistence: result.planningPersistence,
-    });
+    // Persistence already happened inline during the turn; nothing to reconcile.
+    return json({ applied: false });
   } catch (error) {
+    db = createServiceSupabase();
     await reportRouteError(error, {
       db,
       userId,
       endpoint: "communicator/v2/dialog/reconcile-plans",
-      stage: "reconcile_pending_plans",
+      stage: "reconcile_pending_plans_noop",
     });
     return errorResponse(error);
   }

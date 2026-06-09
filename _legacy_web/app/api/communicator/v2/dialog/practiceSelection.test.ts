@@ -30,8 +30,6 @@ function yoga(input: Partial<PracticeCandidate> & Pick<PracticeCandidate, "id">)
 
 function breath(input: Partial<PracticeCandidate> & Pick<PracticeCandidate, "id" | "slug">): PracticeCandidate {
   return {
-    id: input.id,
-    slug: input.slug,
     title: { ru: input.slug },
     description: null,
     kind: "breath",
@@ -305,7 +303,7 @@ describe("choosePractice", () => {
 
     expect(picked && "picked" in picked ? picked.picked?.kind : null).toBe("meditation");
     expect(picked && "picked" in picked ? picked.markerIdResolved : null).toBeUndefined();
-    expect(picked && "picked" in picked ? picked.historyKindConflictResolved : null).toBe(true);
+    expect(picked && "historyKindConflictResolved" in picked ? picked.historyKindConflictResolved : null).toBe(true);
   });
 
   it("ignores explicit marker when that breath was just offered — picks another breath from the fresh stack", async () => {

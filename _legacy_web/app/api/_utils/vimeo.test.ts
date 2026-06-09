@@ -59,7 +59,12 @@ describe("attachThumbnailToPracticeRecommendation", () => {
       },
     };
 
-    await expect(attachThumbnailToPracticeRecommendation(practice, 295)).resolves.toEqual(practice);
+    await expect(
+      attachThumbnailToPracticeRecommendation(
+        practice as unknown as Parameters<typeof attachThumbnailToPracticeRecommendation>[0],
+        295,
+      ),
+    ).resolves.toEqual(practice);
     expect(warnSpy).toHaveBeenCalledWith(
       "[vimeo] attach thumbnail skipped",
       "123456",

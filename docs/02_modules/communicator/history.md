@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.29
+version: 2.30
 updated: 2026-06-09
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-09 (4):** Серверный «мозг» daily dialog переписан на явный FSM (`assistant/history.md` 2026-06-09 (6)). **Клиент не менялся**: URL, SSE-события (`chunk`/`complete`/`turn_artifacts`/`error`) и поля (`turnMode`/`practicePicked`/`branches`/`targetChakra`/`planningPersistence`) сохранены, `triggerMeta` (`dayTabMode`/`daySummaryRequested`/`dayActions`/`dayPractices`/`dayHealthContext`/`workingLocalDate`) и `startFreshSession` add-flow работают по-прежнему. Единственное последствие: сервер теперь пишет `planned_events`/`daily_matrices` синхронно на финале ветки, поэтому debounce-`reconcileDialogPlans` стал совместимым no-op/catch-up, а отложенная очередь `queued`/`queued_summaries` больше не наполняется.
 - **2026-06-09 (3):** Dialog SSE: сервер при ошибке responder шлёт событие `error` и закрывает стрим без `controller.error`; клиент парсит `error` в `streamError` и показывает user-facing alert. `Communicator` на unmount вызывает `abortChatStream()`, чтобы закрытие оверлея не оставляло висящий POST.
 - **2026-06-09 (2):** Home communicator lifecycle стал жёстче и предсказуемее для daily dialog. Главная кнопка `Что делать?` теперь поднимает новый home-session через `startFreshSession`, а не пытается resume старый local cache; при этом сам открытый чат больше не может внезапно перемонтироваться из-за смены `forecast.computedAt`, потому что `CommunicatorOverlay` больше не key-ится на этот volatile forecast field. В том же проходе Home начал подготавливать `dayHealthContext` и для auto-summary сценария с главной, `Communicator` перестал держать terminal final-turn в deferred reveal: cardless финал коммитится сразу, fallback timeout reveal сокращён до 8 секунд, а в meta/dev-export появился `latencyMs`. Отдельно dev-export JSON стал информативнее для summary-QA: клиент теперь вытаскивает из `dialogStateAfter` два явных блока — `summary_events_applied_to_matrix` и `summary_events_closed_without_matrix`.
 - **2026-06-09:** Home overlay перестал перетирать запуск практики переходом на `/day`. Раньше `onPracticePicked` на главной просто закрывал overlay тем же `onClose`, а тот всегда делал `router.push("/day")`, поэтому нажатие `Начать` могло мгновенно перебиваться навигацией назад во вкладку «День». Теперь Home отделяет `practice started` от обычного `close`: при запуске практики overlay просто скрывается, не навязывая переход на `/day`. Одновременно Home начал использовать `Communicator.onPracticeOffered(...)`, чтобы ассистентская карточка практики сразу сохранялась в `day_practice_offers` и потом корректно появлялась на вкладке «День», даже если пользователь ушёл в практику или закрыл диалог.
