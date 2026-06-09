@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.30
-updated: 2026-06-08
+version: 2.31
+updated: 2026-06-09
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -117,7 +117,7 @@ code_refs:
 - `transcribeCommunicatorAudio(req, options?: { useNetworkRetry?: boolean })` — POST на `/api/communicator/v2/transcribe` (тело `{ audio: { mimeType, base64 }, language }`); таймаут одной попытки **12 с** (`TRANSCRIBE_TIMEOUT_MS`). По умолчанию — `withTransientNetworkRetry`; голосовой пайплайн передаёт `useNetworkRetry: false` (повторы на уровне `transcribeVoiceRecording`).
 - `extractCalibration(req)` — используется экраном калибровки, не `Communicator.tsx`.
 
-Типы: `DialogueUseCase`, `DialogueEntrySource`, `PracticePicked`, `OrchestratorDecision`, `DialogCompleteEvent`, `DialogTurnArtifactsEvent`, `SendDialogMessageParams` (колбэк `onTurnArtifacts`), `DialogTurnHistoryItem`, и др. — см. файл. `**buildClientTurnHistory**` / `DIALOG_TURN_HISTORY_LIMIT` (40) собирают `turnHistory` из локальной ленты перед POST; для assistant-turn с уже показанной карточкой туда теперь подмешивается минимальный `meta.practicePicked`, чтобы серверный оркестратор при lean storage мог различать `post_recommendation` и запрос на замену практики.
+Типы: `DialogueUseCase`, `DialogueEntrySource`, `PracticePicked`, `OrchestratorDecision`, `DialogCompleteEvent`, `DialogTurnArtifactsEvent`, `SendDialogMessageParams` (колбэк `onTurnArtifacts`), `SendDialogMessageResult` (в т.ч. опциональный `streamError?: string` при SSE `error`), `DialogTurnHistoryItem`, и др. — см. файл. `**buildClientTurnHistory**` / `DIALOG_TURN_HISTORY_LIMIT` (40) собирают `turnHistory` из локальной ленты перед POST; для assistant-turn с уже показанной карточкой туда теперь подмешивается минимальный `meta.practicePicked`, чтобы серверный оркестратор при lean storage мог различать `post_recommendation` и запрос на замену практики.
 
 `**PracticePicked**` — `Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">` (реэкспорт контракта каталога практик).
 

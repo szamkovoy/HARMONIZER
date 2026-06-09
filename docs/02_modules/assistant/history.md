@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.54
-updated: 2026-06-08
+version: 2.55
+updated: 2026-06-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-06-09:** Dialog SSE при ошибке responder: `route.ts` шлёт событие `error` с user-facing текстом и закрывает стрим через `controller.close()` вместо `controller.error`; `reportRouteError` логирует штатную перегрузку LLM как Sentry `warning` (`expected_llm_unavailable`), `sentry.server.config.ts` фильтрует `failed to pipe response`.
 - **2026-06-08 (4):** `dayHealthContext` больше не ограничен йогой: клиентский native provider подставляет реальные внешние health-метрики при доступных правах (steps, active calories, workout/exercise minutes, sleep duration) и статус `available` / `permission_denied` / `unavailable`. Серверный prompt остаётся защитным: использует только переданные значения и не выдумывает health-цифры при пустом контексте.
 - **2026-06-08 (3):** Summary-ветка вкладки «День» получила временный `dayHealthContext`: route форматирует йогу за день, сравнение с обычной практикой и статус Apple/Google Health для LLM. Финальный summarizing guardrail теперь требует сначала психологическое резюме по целевой чакре/состояниям, затем 1-2 наблюдения о йоге/здоровье только по реально переданным данным; при `unavailable` provider модель не должна выдумывать шаги, сон, калории или тренировки.
 - **2026-06-08 (2):** QA по выгрузке `текст-4D6D-9987-D4-0.txt` развёл planning/practice жёстче. `dialogArcOrchestrator.ts` больше не задаёт вопрос о практике в opening и запрещает в planning уточнять состояния/подтекст/примерные части дня; `route.ts` перестал мержить rule-based inferred events в persisted planning markers и больше не сохраняет `PLANNED_EVENT` с промежуточных `inquiry`-ходов. `planningReconciliation.ts` сохраняет порядок действий по `display_order`, добавленные позже действия ставит после уже существующих и не стирает старую рекомендацию пустым update. `practiceSelection.ts` больше не трактует `PRACTICE_PICK id="default"` как дыхание, если история уверенно говорит про асаны/медитацию/дыхание.

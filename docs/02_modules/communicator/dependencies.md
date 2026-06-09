@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.12
-updated: 2026-05-26
+version: 1.13
+updated: 2026-06-09
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -54,7 +54,7 @@ code_refs:
 
 ## 3. Контрактные точки риска
 
-- **Имена SSE-событий** — клиент ожидает `orchestrator_decision`, `chunk`, `complete`, `turn_artifacts`; рассинхрон с сервером сломает стрим без явной ошибки. `planningPersistence` / `messageId` / matrix-поля приходят в `turn_artifacts` и мержатся в агрегат `complete`.
+- **Имена SSE-событий** — клиент ожидает `orchestrator_decision`, `chunk`, `complete`, `turn_artifacts`, `error`; рассинхрон с сервером сломает стрим без явной ошибки. `planningPersistence` / `messageId` / matrix-поля приходят в `turn_artifacts` и мержатся в агрегат `complete`; `error` → `SendDialogMessageResult.streamError` и reject/`throwIfStreamError`.
 - `**PracticePicked`** — расширение/сужение полей на сервере ломает адаптер `PracticePicked → PracticeSummary` и параметры `launchPractice` (маршруты, slug vs id, chakra/duration override).
 - `**triggerMeta.systemPrompt**` — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - `**fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.
