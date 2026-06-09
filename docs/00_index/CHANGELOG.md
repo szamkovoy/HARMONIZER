@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.59
+version: 2.60
 updated: 2026-06-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-09: pre-push doc-sync — новый модуль `chakra` (`labels.ts`): нумерованные RU-подписи и падежи; `daily_forecast` и `assistant` зависят от него; `MAP.md`, `daily_forecast/spec.md`, `assistant/dependencies.md`.
 - 2026-06-09: pre-push doc-sync — `assistant/prompts-reference.md` §1–§3.1: зеркало `dialog_system_v3` v7, обновлённые `opening`/`inquiry`/`final_recommendation`, numbered chakra labels и planning/summary guardrails; `assistant/spec.md` §4 — v7 как активный prompt.
 - 2026-06-09: `infra` / `communicator` — меньше шума в Sentry при штатной перегрузке LLM: warning вместо error, фильтр `failed to pipe response`, graceful SSE `error` event; клиент abort стрима при unmount Communicator.
 - 2026-06-09: `assistant` — planning-артефакты daily dialog очищены до sphere-only: `PLANNED_EVENT` теперь предпочитает `spheres="..."`, `planned_events.cells` и `GET /api/day` держат только сферы жизни без chakra-tail, а `daily_matrices` больше не строятся из будущих planned rows. Это убирает лишние planning-токены и не даёт матричной логике принимать решения по ещё не прожитым событиям.

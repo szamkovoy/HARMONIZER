@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.5
-updated: 2026-06-02
+version: 2.6
+updated: 2026-06-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-09:** Русские chakra labels вынесены в `modules/chakra/labels.ts`; home (`i18n/home.ts`, `DailyRecommendationCard.tsx`) импортирует падежные helper-ы вместо inline-строк. Баннер планеты дня больше не дублирует номер чакры в `chakraLine` (RU — только `chakraName`, EN — `Chakra N`). `planet_chakra_map.json` на клиенте синхронизирован по `chakra_name_ru`.
 - **2026-06-08:** Home-слой дневной рекомендации и глобальный transit fallback перестали показывать санскритские имена чакр в видимом тексте. `planet_chakra_map.json`, `modules/home/i18n/home.ts`, `DailyRecommendationCard.tsx`, `_legacy_web/app/api/_utils/topPetals.ts` и оба global-forecast math-пути теперь используют нумерованные labels (`первая чакра` … `седьмая чакра`) в рекомендациях и объясняющем тексте на главной.
 - **2026-06-02:** Ложный `need_birth_data` на paid-home: главный экран ошибочно считал обязательным успешный клиентский fetch `user_natal_charts`, хотя для запуска персонального прогноза достаточно `users.birth_date`, а натал на клиенте нужен только для дополнительного UI карты в `ModalMathLevel`. Фикс: gate прогноза переведён на `useAuth().profile.birth_date`; cached `null` из `natalProfileClient` больше не считается каноном, а сетевой сбой чтения натала не должен маскироваться под «введите дату рождения».
 - **2026-05-25:** `spec.md` — dev-кнопка «Обновить» на home: связка `clearHomeDailyDialogCache` + `postGlobalContentDevReset`; ссылка на индекс lean dialog storage в `MAP.md`.

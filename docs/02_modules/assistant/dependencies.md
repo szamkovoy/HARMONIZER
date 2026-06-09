@@ -1,13 +1,17 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.14
-updated: 2026-05-26
+version: 1.15
+updated: 2026-06-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
 ---
 
 ## 1. Зависит от
+
+- **`chakra`**
+  - `_legacy_web/app/api/_utils/topPetals.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для утреннего монолога `buildTopPetals`.
+  - `_legacy_web/app/api/_utils/globalTransitMath.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для free-tier global math (`buildGlobalMathLevel`).
 
 - **`astro`**
   - `natalProfileFromRow` / `user_natal_charts` в `_legacy_web/app/api/communicator/v2/dialog/route.ts` (`loadContext`) и в `_legacy_web/app/api/ai/monologue/route.ts` (`loadActiveNatalProfile`) для профиля и **`buildMathLevel`** / **`buildTopPetals`**.
@@ -37,7 +41,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 ## 3. Контрактные точки риска
 
 - **Форма SSE-событий** — `communicator-client` ждёт `orchestrator_decision`, `chunk`, `complete`, `turn_artifacts`; UI-поля (`practicePicked`, `turnMode`, `validation`) — в `complete`, persist-артефакты (`planningPersistence`, `messageId`, `matrixCells`) — в `turn_artifacts`; смена имён или раскладки ключей ломает UI тихо.
-- **`dialog_system_v3`** — маршрут daily dialog v3 теперь жёстко зависит от наличия активного prompt в `public.prompts`; отсутствие строки даёт 500 на `getActivePrompt`.
+- **`dialog_system_v3` / `getActivePrompt`** — daily dialog ожидает строку `dialog_system_v3` в `public.prompts`; при отсутствии `is_active = true` `getActivePrompt()` аварийно берёт последнюю версию по `prompt_key` и пишет `console.warn` (500 только если нет ни одной версии).
 - **`planned_events` / `daily_matrices` / `profile_report_snapshots`** — этот trio теперь часть публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции ломает и live planning/summarizing, и профильные отчёты.
 - **`scenarios`**: неверный `cache_strategy` или отсутствие строки сценария — 404/500 на monologue.
 - **`buildTopPetals` / `ranked_planets`**: смена формата прогноза без обновления утреннего пайплайна ломает монолог **`morning_recommendation`**.

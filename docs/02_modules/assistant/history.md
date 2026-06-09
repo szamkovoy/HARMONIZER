@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.59
+version: 2.60
 updated: 2026-06-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
@@ -9,6 +9,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-06-09 (6):** `topPetals.ts` и `globalTransitMath.ts` переведены на `chakraLabelRu` из `modules/chakra/labels.ts`; `getActivePrompt()` в `prompts.ts` реализует fallback на последнюю версию prompt-а при отсутствии active-флага (ранее задокументировано, теперь в коде).
 - **2026-06-09 (5):** Pre-push doc-sync: активирован `dialog_system_v3` v7 (`20260608203500_activate_dialog_system_v3_v7.sql`); `prompts-reference.md` §1–§3.1 синхронизирован с v7 migration, обновлёнными `ORCHESTRATOR_INSTRUCTIONS` (`opening`/`inquiry`/`final_recommendation`) и server-side guardrails `buildDialogSystemInstruction`; `spec.md` §4 зафиксировал v7 как текущий runtime prompt.
 - **2026-06-09 (4):** Planning persistence очищен от chakra-tail. `markers.ts`, `planningReconciliation.ts`, `lifeMatrix.ts` и `route.ts` перевели `PLANNED_EVENT` на sphere-only контракт: новый preferred marker — `spheres="1:0.6;4:0.4"` (legacy `cells="sphere:chakra:weight"` всё ещё читается), а в `planned_events.cells` теперь канонизируется только распределение по сферам жизни без chakra/weight-логики матрицы. `GET /api/day` и debug export начали отдавать для planning rows те же sphere-only данные, а `upsertDailyMatrixForDate(...)` больше не строит `daily_matrices.source = "plan"` из будущих событий: матрица дня снова зависит только от summary/outcome-cells, что убирает лишние токены и снижает риск ложных решений по ещё не прожитым действиям.
 - **2026-06-09:** Dialog SSE при ошибке responder: `route.ts` шлёт событие `error` с user-facing текстом и закрывает стрим через `controller.close()` вместо `controller.error`; `reportRouteError` логирует штатную перегрузку LLM как Sentry `warning` (`expected_llm_unavailable`), `sentry.server.config.ts` фильтрует `failed to pipe response`.

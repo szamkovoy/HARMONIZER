@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 1.9
-updated: 2026-06-02
+version: 2.0
+updated: 2026-06-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -16,12 +16,20 @@ code_refs:
     modules/daily-engine/planetDiurnalCurve.ts,
     modules/daily-engine/freeWindows.ts,
     modules/home/ui/OpportunityWindows.tsx,
+    modules/home/i18n/home.ts,
+    modules/home/ui/DailyRecommendationCard.tsx,
+    modules/chakra/labels.ts,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
     supabase/functions/daily-forecast/index.ts,
   ]
 ---
 
 ## 1. Зависит от
+
+- **`chakra` (русские подписи чакр)**
+  - `modules/home/i18n/home.ts` — `chakraLabelGenitiveRu` в fallback-рекомендации дня (RU) и EN-формулировке «qualities of Chakra N».
+  - `modules/home/ui/DailyRecommendationCard.tsx` — `chakraLabelGenitiveRu` в клиентском `detailText`, когда серверный long-text отсутствует.
+  - `modules/home/planetChakra.ts` + `data/planet_chakra_map.json` по-прежнему дают `chakraName`/`label` для баннера; значения `chakra_name_ru` согласованы с `chakraLabelRu`, но читаются из JSON.
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  
