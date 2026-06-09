@@ -1,3 +1,4 @@
+import { chakraLabelRu } from "@/modules/chakra/labels";
 import { computeActivation } from "../../../modules/daily-engine/core/activation";
 import type { ActivationContribution, TransitChart } from "../../../modules/daily-engine/core/types";
 import type { NatalProfile, Planet } from "../../../modules/astro-core";
@@ -40,13 +41,13 @@ export interface PetalData {
 }
 
 export const PLANET_TO_CHAKRA: Record<Planet, { number: number; label: string }> = {
-  Moon: { number: 1, label: "муладхара (телесность, безопасность)" },
-  Venus: { number: 2, label: "свадхистхана (удовольствие, чувственность)" },
-  Mars: { number: 3, label: "манипура (воля, действие)" },
-  Jupiter: { number: 4, label: "анахата (любовь, отношения)" },
-  Saturn: { number: 5, label: "вишуддха (самовыражение, речь)" },
-  Mercury: { number: 6, label: "аджна (мудрость, ясность)" },
-  Sun: { number: 7, label: "сахасрара (смысл, путь)" },
+  Moon: { number: 1, label: `${chakraLabelRu(1)} (телесность, безопасность)` },
+  Venus: { number: 2, label: `${chakraLabelRu(2)} (удовольствие, чувственность)` },
+  Mars: { number: 3, label: `${chakraLabelRu(3)} (воля, действие)` },
+  Jupiter: { number: 4, label: `${chakraLabelRu(4)} (любовь, отношения)` },
+  Saturn: { number: 5, label: `${chakraLabelRu(5)} (самовыражение, речь)` },
+  Mercury: { number: 6, label: `${chakraLabelRu(6)} (мудрость, ясность)` },
+  Sun: { number: 7, label: `${chakraLabelRu(7)} (смысл, путь)` },
 };
 
 function isPlanet(value: unknown): value is Planet {

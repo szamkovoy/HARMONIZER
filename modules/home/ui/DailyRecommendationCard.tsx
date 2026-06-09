@@ -2,6 +2,7 @@ import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { NatalProfile } from "@/modules/astro-core";
+import { chakraLabelGenitiveRu } from "@/modules/chakra/labels";
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { getForecastRecommendation } from "@/modules/home/i18n/home";
@@ -39,7 +40,7 @@ export function DailyRecommendationCard({
   const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
   const detailText = [
     `Сегодня алгоритм выделил тему «${meta.label}»: её важность выше остальных направлений дня.`,
-    `Тональность сейчас ${tone}, поэтому рекомендация сформулирована как практическое задание: удерживать состояние, которое поддерживает ${meta.chakraName.toLowerCase()}, и не разгонять автоматические реакции.`,
+    `Тональность сейчас ${tone}, поэтому рекомендация сформулирована как практическое задание: удерживать состояние, которое поддерживает качества ${chakraLabelGenitiveRu(meta.chakraNumber)}, и не разгонять автоматические реакции.`,
     forecast.isAlternativeChoice && forecast.alternativeReasonText
       ? forecast.alternativeReasonText
       : "Если эта тема повторялась несколько дней подряд, приложение может выбрать вторую по значимости чакру, чтобы усилия не зацикливались.",

@@ -34,13 +34,13 @@ const ASPECT_MAX_ORB = { conjunction: 6, opposition: 6, square: 5, trine: 5, sex
 const ASPECT_EXACT_ANGLE = { conjunction: 0, opposition: 180, trine: 120, square: 90, sextile: 60 };
 const ZODIAC_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 const PLANET_TO_CHAKRA = {
-  Moon: { number: 1, label: "муладхара" },
-  Venus: { number: 2, label: "свадхистхана" },
-  Mars: { number: 3, label: "манипура" },
-  Jupiter: { number: 4, label: "анахата" },
-  Saturn: { number: 5, label: "вишуддха" },
-  Mercury: { number: 6, label: "аджна" },
-  Sun: { number: 7, label: "сахасрара" },
+  Moon: { number: 1, label: "первая чакра" },
+  Venus: { number: 2, label: "вторая чакра" },
+  Mars: { number: 3, label: "третья чакра" },
+  Jupiter: { number: 4, label: "четвёртая чакра" },
+  Saturn: { number: 5, label: "пятая чакра" },
+  Mercury: { number: 6, label: "шестая чакра" },
+  Sun: { number: 7, label: "седьмая чакра" },
 };
 
 const earth = new planetposition.Planet(vsop87Bearth);

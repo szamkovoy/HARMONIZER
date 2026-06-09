@@ -2,6 +2,7 @@
  * Транзитная «математика дня» без натальной карты (PATCH 14).
  * Держите в синхроне с `supabase/functions/_shared/dailyForecast.ts` (computeGlobalDailyForecast / buildGlobalMathLevel).
  */
+import { chakraLabelRu } from "@/modules/chakra/labels";
 import base from "astronomia/base";
 import julian from "astronomia/julian";
 import solar from "astronomia/solar";
@@ -48,13 +49,13 @@ const ZODIAC_SIGNS = [
   "Pisces",
 ];
 const PLANET_TO_CHAKRA: Record<string, { number: number; label: string }> = {
-  Moon: { number: 1, label: "муладхара" },
-  Venus: { number: 2, label: "свадхистхана" },
-  Mars: { number: 3, label: "манипура" },
-  Jupiter: { number: 4, label: "анахата" },
-  Saturn: { number: 5, label: "вишуддха" },
-  Mercury: { number: 6, label: "аджна" },
-  Sun: { number: 7, label: "сахасрара" },
+  Moon: { number: 1, label: chakraLabelRu(1) },
+  Venus: { number: 2, label: chakraLabelRu(2) },
+  Mars: { number: 3, label: chakraLabelRu(3) },
+  Jupiter: { number: 4, label: chakraLabelRu(4) },
+  Saturn: { number: 5, label: chakraLabelRu(5) },
+  Mercury: { number: 6, label: chakraLabelRu(6) },
+  Sun: { number: 7, label: chakraLabelRu(7) },
 };
 
 const earth = new planetposition.Planet(vsop87Bearth);

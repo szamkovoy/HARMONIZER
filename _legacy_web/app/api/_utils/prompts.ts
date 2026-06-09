@@ -24,11 +24,27 @@ export async function getActivePrompt(db: SupabaseClient, promptKey: string): Pr
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) {
+  if (data) {
+    return data as PromptRecord;
+  }
+
+  const latest = await db
+    .from("prompts")
+    .select(
+      "prompt_key,prompt_type,use_case,version,template,variables,model_hint,max_output_tokens,temperature,response_format",
+    )
+    .eq("prompt_key", promptKey)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latest.error) throw latest.error;
+  if (!latest.data) {
     throw new Response(JSON.stringify({ error: `Active prompt not found: ${promptKey}` }), { status: 500 });
   }
 
-  return data as PromptRecord;
+  console.warn(`[prompts] Active prompt missing for ${promptKey}; falling back to latest version ${latest.data.version}`);
+  return latest.data as PromptRecord;
 }
 
 export function renderPrompt(template: string, variables: Record<string, unknown>): string {

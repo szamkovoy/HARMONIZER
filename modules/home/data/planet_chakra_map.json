@@ -14,49 +14,49 @@
     "Moon": {
       "chakra_number": 1,
       "chakra_key": "muladhara",
-      "chakra_name_ru": "Муладхара",
+      "chakra_name_ru": "первая чакра",
       "color_hex": "#D32F2F",
       "short_label_ru": "витальность"
     },
     "Venus": {
       "chakra_number": 2,
       "chakra_key": "svadhisthana",
-      "chakra_name_ru": "Свадхистхана",
+      "chakra_name_ru": "вторая чакра",
       "color_hex": "#FF6F00",
       "short_label_ru": "кайфушность"
     },
     "Mars": {
       "chakra_number": 3,
       "chakra_key": "manipura",
-      "chakra_name_ru": "Манипура",
+      "chakra_name_ru": "третья чакра",
       "color_hex": "#FFC107",
       "short_label_ru": "сила"
     },
     "Jupiter": {
       "chakra_number": 4,
       "chakra_key": "anahata",
-      "chakra_name_ru": "Анахата",
+      "chakra_name_ru": "четвёртая чакра",
       "color_hex": "#4CAF50",
       "short_label_ru": "любовь"
     },
     "Saturn": {
       "chakra_number": 5,
       "chakra_key": "vishuddha",
-      "chakra_name_ru": "Вишуддха",
+      "chakra_name_ru": "пятая чакра",
       "color_hex": "#03A9F4",
       "short_label_ru": "самовыражение"
     },
     "Mercury": {
       "chakra_number": 6,
       "chakra_key": "ajna",
-      "chakra_name_ru": "Аджна",
+      "chakra_name_ru": "шестая чакра",
       "color_hex": "#3F51B5",
       "short_label_ru": "мудрость"
     },
     "Sun": {
       "chakra_number": 7,
       "chakra_key": "sahasrara",
-      "chakra_name_ru": "Сахасрара",
+      "chakra_name_ru": "седьмая чакра",
       "color_hex": "#9B5BEB",
       "short_label_ru": "высшее Я"
     }

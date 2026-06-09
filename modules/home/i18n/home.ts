@@ -1,4 +1,5 @@
 import type { AspectType, DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
+import { chakraLabelGenitiveRu } from "@/modules/chakra/labels";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 
 export type HomeLocale = "ru" | "en";
@@ -180,7 +181,7 @@ const ru: HomeStrings = {
   planetBanner: {
     eyebrow: "Планета дня",
     title: (planet) => planet,
-    chakraLine: (chakraNumber, chakraName) => `${chakraNumber} чакра · ${chakraName}`,
+    chakraLine: (_chakraNumber, chakraName) => chakraName,
     toneLine: (tone, label) => `${tone} тон · ${label}`,
   },
   opportunityWindows: {
@@ -227,7 +228,7 @@ const ru: HomeStrings = {
     fallback: (forecast) => {
       const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
       const verb = ru.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
-      return `Сегодня держите фокус на теме «${meta.label}»: не распыляйтесь, не доказывайте лишнего и не пытайтесь ускорять процессы силой. Полезнее выбрать один ясный шаг, ${verb} ${meta.chakraName.toLowerCase()} через тело и дыхание, а в сложных разговорах сначала возвращаться к спокойному ритму. Так день станет не прогнозом, а понятным планом действий.`;
+      return `Сегодня держите фокус на теме «${meta.label}»: не распыляйтесь, не доказывайте лишнего и не пытайтесь ускорять процессы силой. Полезнее выбрать один ясный шаг и ${verb} качества ${chakraLabelGenitiveRu(meta.chakraNumber)} через тело и дыхание, а в сложных разговорах сначала возвращаться к спокойному ритму. Так день станет не прогнозом, а понятным планом действий.`;
     },
     discussButton: "Что делать?",
   },
@@ -307,7 +308,7 @@ const en: HomeStrings = {
   planetBanner: {
     eyebrow: "Planet of the Day",
     title: (planet) => planet,
-    chakraLine: (chakraNumber, chakraName) => `Chakra ${chakraNumber} · ${chakraName}`,
+    chakraLine: (chakraNumber) => `Chakra ${chakraNumber}`,
     toneLine: (tone, label) => `${tone} tone · ${label}`,
   },
   opportunityWindows: {
@@ -354,7 +355,7 @@ const en: HomeStrings = {
     fallback: (forecast) => {
       const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
       const verb = en.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
-      return `Today it may help to ${verb} ${meta.chakraName}: bring attention to "${meta.label}" and choose a practice without rushing.`;
+      return `Today it may help to ${verb} the qualities of Chakra ${meta.chakraNumber}: bring attention to "${meta.label}" and choose a practice without rushing.`;
     },
     discussButton: "Discuss with assistant",
   },
