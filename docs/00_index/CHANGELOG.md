@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.61
+version: 2.62
 updated: 2026-06-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-09: pre-push doc-sync — `assistant/dependencies.md`, `communicator/spec.md`, `communicator/dependencies.md`: reconcile-plans как no-op, FSM-синхронная персистенция вместо delayed `queued`/`queued_summaries`, `resolvePracticeCard`, SSE `orchestrator_decision` опционален; снят resolved open question про v7-imports.
 - 2026-06-09: `assistant` — пост-FSM зачистка: DeepSeek prefix-cache (стабильный `systemInstruction` = `sharedPreamble`, походовые инструкции в финальный `userInstruction`); удалён мёртвый v7-код (`_archive_v7/`, `summaryRepair`, `dueSummaryState`, `planningReconciliation`, `dialogDebugExport` + тесты); `reconcile-plans` route → совместимый no-op; SSE `orchestrator_decision` больше не шлётся; добавлен `dialogFsm.test.ts`; `tsc`+`vitest`(302) зелёные; v7 prompts-reference вынесен в `docs/05_archive/migrated/assistant/`; legacy-описание удалено из активного `spec.md`. БД не менялась (вестигиальны лишь jsonb-ключи и always-null time-колонки `planned_events`).
 - 2026-06-09: `assistant` / `communicator` — «мозг» daily dialog переписан на явный FSM (`dialogFsm.ts` + `dialogBranchPrompts.ts` английское ядро + `dialogBrainPersistence.ts` синхронная запись + `dialogPracticeCard.ts`); `route.ts` — тонкий диспетчер (один LLM-вызов/ход, один маркер). Прежний v7-«мозг» (`dialogArcOrchestrator.ts`, `dialogOpeningHints.ts`, мега-промпт `dialog_system_v3`) перенесён в `_legacy_web/app/api/_archive_v7/` и больше не выполняется. URL/SSE-контракт и клиент не менялись; debounce `reconcileDialogPlans` теперь no-op (персистенция синхронна).
 - 2026-06-09: pre-push doc-sync — `assistant/prompts-reference.md` §1–§3.1: зеркало `dialog_system_v3` v7, обновлённые `opening`/`inquiry`/`final_recommendation`, numbered chakra labels и planning/summary guardrails; `assistant/spec.md` §4 — v7 как активный prompt.

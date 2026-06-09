@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.15
+version: 1.16
 updated: 2026-06-09
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
@@ -22,7 +22,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`communicator` / `profile` (новый серверный потребитель)**
   - Экран профиля читает быстрый snapshot `profile_report_snapshots` с fallback rebuild из `daily_matrices`, а practice-by-chakra — через отдельный route. Оба profile-route переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр для этих routes — **`planetChakraLegend.ts`** (`buildChakraLegend()`, JSON `planet_chakra_map.json` на сервере), не `modules/home/planetChakra`.
 - **`practices`**
-  - Таблица **`practices`**, связь **`practice_chakras`** в **`practiceSelection.ts`**; сессии **`practice_sessions`** для недавних ID в **`recentCompletedPracticeIds`**; клиентские маршруты запуска задаются в **`launchForPractice`** (асана / дыхание / «Вспышка»). **`_legacy_web/app/api/communicator/v2/dialog/route.ts`** (`**resolvePracticePublic**`) импортирует **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`**) для тех же шагов длительности карточки, что и **`PracticeCard`** на клиенте.
+  - Таблица **`practices`**, связь **`practice_chakras`** в **`practiceSelection.ts`**; сессии **`practice_sessions`** для недавних ID в **`recentCompletedPracticeIds`**; клиентские маршруты запуска задаются в **`launchForPractice`** (асана / дыхание / «Вспышка»). **`dialogPracticeCard.ts`** (`**resolvePracticeCard**`, порт прежнего `resolvePracticePublic`) импортирует **`@shared/assistantSelectableDurations`** (`_legacy_web/shared_core/assistantSelectableDurations.ts`, копия **`modules/practices/core/assistantSelectableDurations.ts`**) для тех же шагов длительности карточки, что и **`PracticeCard`** на клиенте.
 - **`infra`**
   - Next.js API routes, **`gemini`**, мониторинг ошибок маршрутов, переменные окружения на Vercel. Для v3 explicit context caching пока доступен только in-memory store без внешнего Redis.
   - Опциональные серверные `TEST_MODE_*` (см. `docs/04_reference/test_mode.md`); при `NEXT_RUNTIME === "nodejs"` **`instrumentation.ts`** вызывает **`logTestModeStartupWarning`** из **`testMode.ts`**.
@@ -30,7 +30,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 ## 2. От него зависят
 
 - **`communicator`**
-  - **`services/communicator-client.ts`**: `sendDialogMessage` / `fetchDialogSession` вызывают **`getAiDialogUrl()`** при наличии **`scenario_id`**, иначе **`getCommunicatorV2DialogUrl()`** — тот же обработчик диалога на сервере; отдельно **`reconcileDialogPlans`** бьёт в **`POST /api/ai/dialog/reconcile-plans`** (реэкспорт **`POST /api/communicator/v2/dialog/reconcile-plans`**) и догоняет `conversations.trigger_meta.pending_planning_reconciliation` после idle на клиенте.
+  - **`services/communicator-client.ts`**: `sendDialogMessage` / `fetchDialogSession` вызывают **`getAiDialogUrl()`** при наличии **`scenario_id`**, иначе **`getCommunicatorV2DialogUrl()`** — тот же обработчик диалога на сервере; отдельно **`reconcileDialogPlans`** бьёт в **`POST /api/ai/dialog/reconcile-plans`** (реэкспорт **`POST /api/communicator/v2/dialog/reconcile-plans`**) — **совместимый no-op** (`{ applied: false }`): FSM пишет `planned_events`/`daily_matrices`/day-focus синхронно (`dialogBrainPersistence.ts`), клиент по-прежнему debounce-вызывает endpoint на idle/close/unmount.
   - UI чата не содержит LLM-логики; только вызов API и отображение SSE.
 - **`profile`**
   - `app/(tabs)/profile.tsx` и backend routes `api/profile/*` читают артефакты ассистента (`daily_matrices`, `planned_events`-derived range) и server helpers для матрицы/сфер; chakra legend в отчётах — `buildChakraLegend()` (`planetChakraLegend.ts`).
@@ -40,8 +40,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## 3. Контрактные точки риска
 
-- **Форма SSE-событий** — `communicator-client` ждёт `orchestrator_decision`, `chunk`, `complete`, `turn_artifacts`; UI-поля (`practicePicked`, `turnMode`, `validation`) — в `complete`, persist-артефакты (`planningPersistence`, `messageId`, `matrixCells`) — в `turn_artifacts`; смена имён или раскладки ключей ломает UI тихо.
-- **`dialog_system_v3` / `getActivePrompt`** — daily dialog ожидает строку `dialog_system_v3` в `public.prompts`; при отсутствии `is_active = true` `getActivePrompt()` аварийно берёт последнюю версию по `prompt_key` и пишет `console.warn` (500 только если нет ни одной версии).
+- **Форма SSE-событий** — `communicator-client` ждёт `chunk`, `complete`, `turn_artifacts`, `error` (и опционально legacy `orchestrator_decision`, которое FSM-маршрут больше не шлёт); UI-поля (`practicePicked`, `turnMode`, `validation`) — в `complete`, persist-артефакты (`planningPersistence`, `messageId`, `matrixCells`) — в `turn_artifacts`; смена имён или раскладки ключей ломает UI тихо.
+- **FSM-промпты (`dialogBranchPrompts.ts`)** — daily dialog больше не рендерит `dialog_system_v3` из `public.prompts`; монологи и прочие маршруты по-прежнему читают свои `prompt_key` через `getActivePrompt()`.
 - **`planned_events` / `daily_matrices` / `profile_report_snapshots`** — этот trio теперь часть публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции ломает и live planning/summarizing, и профильные отчёты.
 - **`scenarios`**: неверный `cache_strategy` или отсутствие строки сценария — 404/500 на monologue.
 - **`buildTopPetals` / `ranked_planets`**: смена формата прогноза без обновления утреннего пайплайна ломает монолог **`morning_recommendation`**.

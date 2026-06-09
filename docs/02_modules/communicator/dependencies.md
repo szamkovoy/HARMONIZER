@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.13
+version: 1.14
 updated: 2026-06-09
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -32,7 +32,7 @@ code_refs:
 - `**profile**` (через auth)  
 `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
 - `**assistant**` (транспорт daily dialog)  
-`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn после показа карточки туда подмешивается минимальный `meta.practicePicked`, а сервер (`resolveTurnHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport даёт `reconcileDialogPlans({ conversationId, force? })` → POST `/api/ai/dialog/reconcile-plans` (fallback `/api/communicator/v2/dialog/reconcile-plans`): `Communicator` после idle-дебаунса и при наличии `planningPersistence.queued` / `queued_summaries` просит сервер канонизировать delayed planning- и summary-candidates; best-effort flush того же вызова выполняется перед `launchPractice(...)` и на unmount, чтобы queued artifacts не зависали в `trigger_meta`.
+`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn после показа карточки туда подмешивается минимальный `meta.practicePicked`, а сервер (`resolveTurnHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport даёт `reconcileDialogPlans({ conversationId, force? })` → POST `/api/ai/dialog/reconcile-plans` (fallback `/api/communicator/v2/dialog/reconcile-plans`): с июня 2026 серверный FSM пишет planning/summary синхронно, endpoint — **совместимый no-op** (`{ applied: false }`); клиент по-прежнему debounce-вызывает его на idle и делает best-effort flush перед `launchPractice(...)` / unmount / кнопкой «Выйти».
 - `**practices**`  
 `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
 `modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams` и `launchPractice(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI. Вкладка «День» перед summary-веткой вызывает `services/dayHealthContext.ts`, который читает агрегат `user_daily_stats` для сравнения йоги за день с обычной практикой пользователя.
@@ -54,7 +54,7 @@ code_refs:
 
 ## 3. Контрактные точки риска
 
-- **Имена SSE-событий** — клиент ожидает `orchestrator_decision`, `chunk`, `complete`, `turn_artifacts`, `error`; рассинхрон с сервером сломает стрим без явной ошибки. `planningPersistence` / `messageId` / matrix-поля приходят в `turn_artifacts` и мержатся в агрегат `complete`; `error` → `SendDialogMessageResult.streamError` и reject/`throwIfStreamError`.
+- **Имена SSE-событий** — клиент ожидает `chunk`, `complete`, `turn_artifacts`, `error` (и опционально legacy `orchestrator_decision`, которое FSM-маршрут больше не шлёт); рассинхрон с сервером сломает стрим без явной ошибки. `planningPersistence` / `messageId` / matrix-поля приходят в `turn_artifacts` и мержатся в агрегат `complete`; `error` → `SendDialogMessageResult.streamError` и reject/`throwIfStreamError`.
 - `**PracticePicked`** — расширение/сужение полей на сервере ломает адаптер `PracticePicked → PracticeSummary` и параметры `launchPractice` (маршруты, slug vs id, chakra/duration override).
 - `**triggerMeta.systemPrompt**` — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - `**fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.

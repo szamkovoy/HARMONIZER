@@ -3,7 +3,7 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.24
+version: 1.25
 updated: 2026-06-09
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -33,10 +33,6 @@ code_refs: []
 
 ## `assistant`
 
-- **Legacy v7 helpers удалены, spec §2 ещё описывает старый оркестратор**
-**Контекст:** commit удалил `dialogArcOrchestrator.ts`, `planningReconciliation.ts`, `dueSummaryState.ts`, `summaryRepair.ts`, `dialogDebugExport.ts`, `dialogOpeningHints.ts`, но `route.ts` и `reconcile-plans/route.ts` всё ещё импортируют символы из этих путей; `spec.md` §2 сохраняет поведенческое описание `decideTurnMode` / delayed reconcile.
-**Проявление:** сборка backend и doc-sync расходятся; без follow-up commit daily dialog route не резолвит импорты.
-**Действие:** при land FSM brain или рефакторе route — обновить imports, затем переписать `assistant/spec.md` §2–§3 под новую архитектуру; archived `dialog_v7_prompts-reference.md` оставить как исторический снимок v7.
 - **Locale-aware baseline применён только для новых life spheres, не для chakra states**  
 **Контекст:** HARMONIZER v2 добавил `_legacy_web/data/life_spheres_baseline/{ru,en}.json` и loader `lifeSpheresBaseline.ts`, но существующий `_legacy_web/data/chakra_states_baseline.json` остаётся единым файлом без locale-dispatch.  
 **Проявление:** новый prompt v5 уже может быть локализован по сферам жизни, тогда как chakra-state baseline по-прежнему монолитный и не следует новому паттерну.  
@@ -56,7 +52,7 @@ code_refs: []
 **Проявление:** пользователь, который перестал открывать ассистента, может оставить stale `planned_events` до следующего dialog request; отчёты и вспомогательные выборки должны учитывать это best-effort поведение.  
 **Действие:** при следующем инфраструктурном проходе решить, нужен ли scheduled cleanup / background rebuild для `planned_events` и `daily_matrices`.
 - **`outcome_cells` для summarized events могут уезжать в слишком общие сферы**  
-**Контекст:** delayed reconcile (ранее `planningReconciliation.ts`, файл удалён 2026-06-09) больше не смешивает planning anti-duplicate и summary-classification в одном JSON-pass: summary-кандидаты сначала нормализуются в compact `normalized_outcome`, затем отдельным low-cost classifier prompt-ом (`getModelByHint("low")` + `life_spheres_baseline` + `chakra_baselines`) получают `outcome_cells`. Rule-based post-validation по sphere hints по-прежнему отсутствует.  
+**Контекст:** FSM-маршрут получает `outcome_cells` напрямую из маркера `[SUMMARIZE_EVENT]` (`buildSummarizingPrompt` + `persistSummarizedEvent`); прежний delayed classifier в `planningReconciliation.ts` (удалён 2026-06-09) больше не участвует. Rule-based post-validation по sphere hints по-прежнему отсутствует.  
 **Проявление:** события вроде обсуждения контракта могут неожиданно получать сферу 7 («смысл и вклад»), а культурный/релаксационный эпизод — сферу 1 («тело и здоровье»), если модель цепляется за косвенные слова вроде `спалось`, `ценности`, `голос`, а не за основной домен события. Пользователю это выглядит как «фонящий» выбор столбцов при в целом разумной архитектуре матрицы.  
 **Действие:** при следующем заходе в assistant/life-matrix решить, достаточно ли двухшаговой low-cost цепочки, или нужно усилить classifier prompt, поднять модель для classification, добавить rule-based post-validation по sphere hints или завести golden-fixtures для спорных доменов (`контракты`, `искусство`, `сон после события`).
 
