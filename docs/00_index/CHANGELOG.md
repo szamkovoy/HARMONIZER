@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-09: `infra` / `communicator` — меньше шума в Sentry при штатной перегрузке LLM: warning вместо error, фильтр `failed to pipe response`, graceful SSE `error` event; клиент abort стрима при unmount Communicator.
 - 2026-06-08: doc-sync pre-push — `assistant/spec.md`, `communicator/spec.md`, `prompts-reference.md` §3.1 и `MAP.md`: сняты устаревшие 36-часовые auto-expiry/delete для `planned_events`, зафиксированы day-summary guardrails, `canPersistPlanningMarkers` и точки входа вкладки «День».
 - 2026-06-08: `communicator` / `infra` — добавлен native health provider для summary-ветки: Apple HealthKit на iOS, Google Health / Android Health Connect на Android, read-only permissions для шагов/калорий/тренировок/сна, мягкий backoff повторного запроса прав и Expo prebuild-конфиг для dev-client.
 - 2026-06-08: `assistant` / `communicator` / `practices` — summary-ветка вкладки «День» передаёт временный `dayHealthContext`: йога за день сравнивается с обычной практикой пользователя, Apple/Google Health явно помечены как недоступные до native provider, а финальный prompt prioritizes психологическую обратную связь по целевой чакре и использует health-данные только если они реально переданы.

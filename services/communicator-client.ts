@@ -130,6 +130,7 @@ export interface SendDialogMessageResult {
   fullText: string;
   modelUsed?: string;
   complete: DialogCompleteEvent | null;
+  streamError?: string;
 }
 
 export type ReconcileDialogPlansResponse = {
@@ -323,7 +324,16 @@ function handleSseEvent(
       matrixCells: artifacts.matrixCells ?? state.complete?.matrixCells,
     };
     params.onTurnArtifacts?.(artifacts);
+    return;
   }
+  if (event.event === "error") {
+    const payload = safeJson<{ error?: string }>(event.data);
+    state.streamError = payload.error?.trim() || "Dialog stream failed";
+  }
+}
+
+function throwIfStreamError(state: SendDialogMessageResult): void {
+  if (state.streamError) throw new Error(state.streamError);
 }
 
 function buildDialogPostBody(params: SendDialogMessageParams): Record<string, unknown> {
@@ -511,6 +521,10 @@ function readSseResponseWithXHR(
       }
       settle(() => {
         finalizeStream();
+        if (state.streamError) {
+          reject(new Error(state.streamError));
+          return;
+        }
         resolve(state);
       });
     };
@@ -518,6 +532,10 @@ function readSseResponseWithXHR(
     xhr.onerror = () => {
       settle(() => {
         finalizeStream();
+        if (state.streamError) {
+          reject(new Error(state.streamError));
+          return;
+        }
         // iOS/React Native: onerror may fire when the SSE socket closes even after a full body was received.
         if (
           (xhr.status >= 200 && xhr.status < 300 && hasSuccessfulStreamPayload()) ||
@@ -559,6 +577,7 @@ async function readSseResponse(res: Response, params: SendDialogMessageParams): 
       const event = parseSseBlock(block);
       if (event) handleSseEvent(event, params, state);
     }
+    throwIfStreamError(state);
     return state;
   }
 
@@ -589,6 +608,7 @@ async function readSseResponse(res: Response, params: SendDialogMessageParams): 
     reader.releaseLock();
   }
 
+  throwIfStreamError(state);
   return state;
 }
 

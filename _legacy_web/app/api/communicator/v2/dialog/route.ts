@@ -25,7 +25,7 @@ import {
   validateHistoryHasDurationAndType,
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
-import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
+import { reportRouteError, toUserFacingStreamErrorMessage } from "@legacy/app/api/_utils/monitoring";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
 import { effectiveDialogNowLocal, isDebugDialogExportEnabled, promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
@@ -2008,7 +2008,16 @@ export async function POST(req: Request) {
               turn_mode: turnDecision.mode,
             },
           });
-          controller.error(error);
+          try {
+            controller.enqueue(
+              encoder.encode(
+                sse("error", { error: toUserFacingStreamErrorMessage(error) }),
+              ),
+            );
+            controller.close();
+          } catch {
+            /* stream already closed */
+          }
         }
       },
     });

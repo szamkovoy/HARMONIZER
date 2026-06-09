@@ -898,6 +898,7 @@ export function Communicator({
 
   useEffect(() => {
     return () => {
+      abortChatStream();
       const conversationIdToFlush = activeConversationIdRef.current;
       if (!conversationIdToFlush || streamBusyRef.current || !hasQueuedPlanningArtifacts(messagesRef.current)) return;
       void reconcileDialogPlans({ conversationId: conversationIdToFlush }).catch((error) => {
@@ -905,7 +906,7 @@ export function Communicator({
         logErrorForDevelopers("Communicator planning reconcile on unmount", error instanceof Error ? error : new Error(String(error)));
       });
     };
-  }, []);
+  }, [abortChatStream]);
 
   const updateScrollDownFlag = useCallback(() => {
     if (scrollHintDismissedRef.current) {

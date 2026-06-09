@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-09:** Dialog SSE: сервер при ошибке responder шлёт событие `error` и закрывает стрим без `controller.error`; клиент парсит `error` в `streamError` и показывает user-facing alert. `Communicator` на unmount вызывает `abortChatStream()`, чтобы закрытие оверлея не оставляло висящий POST.
 - **2026-06-08 (4):** `due_summary_state` больше не удаляет ignored due-rows после второго ignore: `resolveDueSummaryTurn` возвращает пустой `deleteEventIds`, rows остаются для вкладки «День» и последующего summarizing. Обновлены `communicator/spec.md` и `assistant/spec.md` (сняты устаревшие ссылки на 36-часовой auto-expiry).
 - **2026-06-08 (3):** Summary health-context получил native provider: `services/nativeHealth.ts` читает Apple HealthKit на iOS и Google Health / Android Health Connect на Android (steps, active calories, exercise/workout minutes, sleep duration), выбирая provider по платформе. Permission prompt стал мягким: первый отказ повторяется на следующий день, второй — через неделю, далее — раз в месяц; при отсутствии provider или отказе summary продолжает работать без внешних метрик.
 - **2026-06-08 (2):** Модальный ассистент вкладки «День» перед summary-веткой сначала собирает временный `dayHealthContext` (`services/dayHealthContext.ts`) и только потом запускает auto-send. Контекст передаётся в `triggerMeta`: йога за день, сравнение с обычной практикой из `user_daily_stats`, а Apple/Google Health пока явно помечены как `unavailable`, чтобы серверный prompt не выдумывал внешние health-метрики.

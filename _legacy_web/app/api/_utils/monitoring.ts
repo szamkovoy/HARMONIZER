@@ -32,6 +32,29 @@ export function isLlmError(error: unknown): boolean {
   return /gemini|generat|llm|model|GEMINI_API_KEY|Resource exhausted|overloaded|quota|429|503/i.test(message);
 }
 
+/** User-facing overload copy from gemini.ts after fallback chain is exhausted. */
+export function isExpectedLlmUnavailableError(error: unknown): boolean {
+  const message = errorMessage(error);
+  return (
+    /Сервис временно недоступен/i.test(message) ||
+    /Service is temporarily busy/i.test(message)
+  );
+}
+
+/** Next.js/Vercel artifact when an SSE ReadableStream errors mid-flight. */
+export function isStreamPipeArtifactError(error: unknown): boolean {
+  return /failed to pipe response/i.test(errorMessage(error));
+}
+
+export function toUserFacingStreamErrorMessage(error: unknown): string {
+  const message = errorMessage(error);
+  if (isExpectedLlmUnavailableError(error)) return message;
+  if (isTimeoutError(error)) {
+    return "Ответ занимает слишком много времени. Попробуйте ещё раз.";
+  }
+  return "Не удалось выполнить запрос. Попробуйте ещё раз чуть позже.";
+}
+
 export async function logUserEvent(
   db: SupabaseClient | null | undefined,
   userId: string | null | undefined,
@@ -51,6 +74,7 @@ export async function reportRouteError(error: unknown, context: RouteErrorContex
   const message = errorMessage(error);
   const timeout = isTimeoutError(error);
   const llm = isLlmError(error);
+  const expectedUnavailable = isExpectedLlmUnavailableError(error);
   const status = error instanceof Response ? error.status : undefined;
 
   Sentry.withScope((scope) => {
@@ -60,7 +84,13 @@ export async function reportRouteError(error: unknown, context: RouteErrorContex
     if (status) scope.setTag("http_status", String(status));
     if (timeout) scope.setTag("timeout", "true");
     if (llm) scope.setTag("llm_error", "true");
+    if (expectedUnavailable) scope.setTag("expected_llm_unavailable", "true");
     if (context.payload) scope.setContext("payload", context.payload);
+    if (expectedUnavailable) {
+      scope.setLevel("warning");
+      Sentry.captureMessage(message, "warning");
+      return;
+    }
     Sentry.captureException(error);
   });
 

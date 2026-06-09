@@ -20,10 +20,10 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - `RootLayout` (`_legacy_web/app/layout.tsx`) — HTML-оболочка API-сервиса: `metadata` (title, `manifest`, иконки, `appleWebApp`), `viewport` (theme-color, масштаб), `lang="en"` для документа.
 - `nextConfig` (`_legacy_web/next.config.ts`) — `outputFileTracingRoot` указывает на корень `_legacy_web`; экспорт обёрнут в `withSentryConfig` (орг/проект Sentry, `tunnelRoute: "/monitoring"`, `disableLogger`, `widenClientFileUpload`).
 - `register()` (`_legacy_web/instrumentation.ts`) — при `NEXT_RUNTIME === "nodejs"` импортирует `logTestModeStartupWarning` из `app/api/_utils/testMode.ts` (однократный `console.warn` при `TEST_MODE_FAST_INTERVALS=1`), затем подгружает `sentry.server.config`.
-- `Sentry.init` (`_legacy_web/sentry.server.config.ts`) — серверный SDK: `dsn` из `SENTRY_DSN`, `enabled` при наличии DSN, `environment` из `VERCEL_ENV` / `NODE_ENV`, `tracesSampleRate` из `SENTRY_TRACES_SAMPLE_RATE` (дефолт `0.05`).
+- `Sentry.init` (`_legacy_web/sentry.server.config.ts`) — серверный SDK: `dsn` из `SENTRY_DSN`, `enabled` при наличии DSN, `environment` из `VERCEL_ENV` / `NODE_ENV`, `tracesSampleRate` из `SENTRY_TRACES_SAMPLE_RATE` (дефолт `0.05`); `beforeSend` отбрасывает `failed to pipe response` и связанные с expected LLM-unavailable артефакты SSE.
 - `onRequestError` — экспорт `Sentry.captureRequestError` из `instrumentation.ts` для Next error boundary.
-- `reportRouteError(error, context)` (`_legacy_web/app/api/_utils/monitoring.ts`) — обогащает scope Sentry тегами (`endpoint`, `stage`, `timeout`, `llm_error`, `http_status`), вызывает `Sentry.captureException`, параллельно пишет строки в `user_event_log` через `logUserEvent` (виды `api_error`, `llm_error`, `llm_timeout`).
-- `logUserEvent`, `isTimeoutError`, `isLlmError` — вспомогательные функции того же файла для маршрутов API.
+- `reportRouteError(error, context)` (`_legacy_web/app/api/_utils/monitoring.ts`) — обогащает scope Sentry тегами (`endpoint`, `stage`, `timeout`, `llm_error`, `http_status`, `expected_llm_unavailable`), вызывает `Sentry.captureException` (или `captureMessage` уровня `warning` для штатного user-facing «Сервис временно недоступен…» после исчерпания LLM fallback), параллельно пишет строки в `user_event_log` через `logUserEvent` (виды `api_error`, `llm_error`, `llm_timeout`).
+- `logUserEvent`, `isTimeoutError`, `isLlmError`, `isExpectedLlmUnavailableError`, `isStreamPipeArtifactError`, `toUserFacingStreamErrorMessage` — вспомогательные функции того же файла для маршрутов API.
 
 **Корень монорепозитория**
 
