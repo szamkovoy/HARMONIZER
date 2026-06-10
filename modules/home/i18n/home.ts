@@ -1,6 +1,7 @@
 import type { AspectType, DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { chakraLabelGenitiveRu } from "@/modules/chakra/labels";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
+import type { LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 
 export type HomeLocale = "ru" | "en";
 
@@ -20,6 +21,9 @@ export interface HomeStrings {
   skeletonText: string;
   locationErrorTitle: string;
   locationErrorMessage: string;
+  locationErrorPermissionMessage: string;
+  locationErrorTimeoutMessage: string;
+  openSettingsButton: string;
   birthDataTitle: string;
   birthDataMessage: string;
   staleContentTitle: string;
@@ -139,6 +143,11 @@ const ru: HomeStrings = {
   locationErrorTitle: "Нужна геолокация",
   locationErrorMessage:
     "Для расчёта окон возможностей нужна геолокация. Разрешите доступ к геопозиции и попробуйте снова.",
+  locationErrorPermissionMessage:
+    "Доступ к геопозиции выключен. Откройте настройки приложения, разрешите геолокацию и вернитесь сюда.",
+  locationErrorTimeoutMessage:
+    "Не удалось быстро определить местоположение. Проверьте GPS или Wi‑Fi и попробуйте снова.",
+  openSettingsButton: "Открыть настройки",
   birthDataTitle: "Нужна дата рождения",
   birthDataMessage: "Чтобы построить персональный прогноз дня, введите дату, время и место рождения.",
   staleContentTitle: "Показываю сохранённый прогноз",
@@ -266,6 +275,11 @@ const en: HomeStrings = {
   locationErrorTitle: "Location is required",
   locationErrorMessage:
     "Opportunity windows need your location. Allow location access and try again.",
+  locationErrorPermissionMessage:
+    "Location access is off. Open app settings, allow location, and come back here.",
+  locationErrorTimeoutMessage:
+    "We could not determine your location in time. Check GPS or Wi‑Fi and try again.",
+  openSettingsButton: "Open settings",
   birthDataTitle: "Birth data is required",
   birthDataMessage: "Enter your birth date, time, and place to build a personal daily forecast.",
   staleContentTitle: "Showing saved forecast",
@@ -370,6 +384,15 @@ const en: HomeStrings = {
 
 export function getHomeStrings(locale: HomeLocale): HomeStrings {
   return locale === "en" ? en : ru;
+}
+
+export function resolveLocationErrorMessage(
+  reason: LocationAcquireFailureReason | null,
+  strings: HomeStrings,
+): string {
+  if (reason === "permission_denied") return strings.locationErrorPermissionMessage;
+  if (reason === "timeout") return strings.locationErrorTimeoutMessage;
+  return strings.locationErrorMessage;
 }
 
 export function getForecastRecommendation(forecast: DailyForecast, strings: HomeStrings): string {

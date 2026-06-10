@@ -8,9 +8,9 @@ import type { ProductTier } from "@/modules/access/core/tiers";
 import { callMonologue, type MorningRecommendationResponse } from "@/services/aiClient";
 import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communicatorConfig";
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
-import { clearDayContentCache, loadDayContentCache, peekDayContentCache, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
+import { clearDayContentCache, loadDayContentCache, loadDayContentCacheRelaxed, peekDayContentCache, peekDayContentCacheRelaxed, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
 import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome } from "@/services/dayContentIntegrity";
-import { acquireAndPersistUserCoordinates } from "@/modules/location/acquireAndPersistUserCoordinates";
+import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
@@ -47,6 +47,8 @@ export interface UseDayContentResult {
   status: DayContentStatus;
   loading: boolean;
   error: Error | null;
+  /** Причина сбоя авто-геолокации; null если coords есть или ещё не пробовали. */
+  locationIssue: LocationAcquireFailureReason | null;
   userLocation: DayContentUserLocation | null;
   refresh: (opts?: DayContentRefreshOptions) => Promise<void>;
 }
@@ -172,6 +174,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const [source, setSource] = useState<DayContentSource | null>(null);
   const [status, setStatus] = useState<DayContentStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
+  const [locationIssue, setLocationIssue] = useState<LocationAcquireFailureReason | null>(null);
   const [accessMode, setAccessMode] = useState<AccessMode>("free");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
 
@@ -203,6 +206,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       abortRef.current?.abort();
       secondaryContentAbortRef.current?.abort();
       setError(null);
+      setLocationIssue(null);
 
       if (profileLoading) {
         beginHomeBootstrap("initializing", "AUTH/wait_profile_refresh");
@@ -222,6 +226,17 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const provisionalForecastDate = localDateIso(provisionalTimezone);
       const contentScopeKey = nextAccessMode === "free" ? "global" : scopeKey;
       const requestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, provisionalForecastDate, contentScopeKey].join("|");
+      const relaxedInstant =
+        !opts?.forceRefresh && profileId
+          ? peekDayContentCacheRelaxed({
+              userId: profileId,
+              accessMode: nextAccessMode,
+              accessTier: nextAccessTier,
+              forecastDate: provisionalForecastDate,
+              scopeKey: contentScopeKey,
+              allowStale: true,
+            })
+          : null;
       const instantCached =
         !opts?.forceRefresh && profileId && userLocation
           ? peekDayContentCache({
@@ -232,12 +247,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
               scopeKey: contentScopeKey,
               userLocation,
             })
-          : null;
+          : relaxedInstant?.freshness === "fresh"
+            ? relaxedInstant
+            : null;
+      const hasPaintableOfflineCache = relaxedInstant?.freshness === "stale";
       const shouldBlockSplash =
         Boolean(opts?.blockingReload) ||
         (!opts?.forceRefresh &&
           (lastResolvedRequestKeyRef.current !== requestKey || !forecast) &&
-          !(instantCached && instantCached.freshness === "fresh"));
+          !(instantCached && instantCached.freshness === "fresh") &&
+          !hasPaintableOfflineCache);
 
       if (shouldBlockSplash) {
         beginHomeBootstrap("initializing", "HOME/home_overlay_start");
@@ -259,30 +278,73 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       }
 
       let locationForRequest = userLocation;
+      const offlineStaleCache = relaxedInstant?.freshness === "stale" ? relaxedInstant : null;
+      if (!locationForRequest && relaxedInstant?.freshness === "fresh") {
+        locationForRequest = relaxedInstant.location;
+      }
+
+      let acquireFailure: LocationAcquireFailureReason | null = null;
       if (!locationForRequest && profileId) {
         setHomeBootstrapPhase("initializing", "HOME/gps_acquire_persist");
         setStatus("acquiring_location");
         logRuntimeEvent("day_content:auto_location_attempt", { profileId }, "info");
         const acquired = await acquireAndPersistUserCoordinates(profileId);
-        if (acquired) {
+        if (acquired.ok) {
           await refreshProfile();
-          locationForRequest = acquired;
+          locationForRequest = acquired.coords;
+        } else {
+          acquireFailure = acquired.reason;
+          setLocationIssue(acquired.reason);
         }
       }
 
       if (!locationForRequest) {
+        if (offlineStaleCache && profileId) {
+          locationForRequest = offlineStaleCache.location;
+          latestCacheContextRef.current = {
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: contentScopeKey,
+            userLocation: offlineStaleCache.location,
+          };
+          setAccessMode(nextAccessMode);
+          setForecast(offlineStaleCache.forecast);
+          setSource(offlineStaleCache.source);
+          setModelUsed(offlineStaleCache.modelUsed);
+          setError(locationError(options?.locationErrorMessage));
+          setStatus("stale_ready");
+          lastResolvedRequestKeyRef.current = requestKey;
+          completeHomeBootstrap();
+          logRuntimeEvent(
+            "day_content:offline_stale_with_missing_location",
+            { reason: acquireFailure },
+            "warn",
+          );
+          return;
+        }
+
         const err = locationError(options?.locationErrorMessage);
-        logRuntimeEvent("day_content:missing_location", {
-          hasProfile: Boolean(profileId),
-          profileId,
-          tz: profileTimezone,
-        }, "warn");
+        logRuntimeEvent(
+          "day_content:missing_location",
+          {
+            hasProfile: Boolean(profileId),
+            profileId,
+            tz: profileTimezone,
+            reason: acquireFailure,
+          },
+          "warn",
+        );
         setForecast(null);
         setSource(null);
         setModelUsed(null);
         latestCacheContextRef.current = null;
         setStatus("need_location");
         setError(err);
+        if (acquireFailure) {
+          setLocationIssue(acquireFailure);
+        }
         completeHomeBootstrap();
         return;
       }
@@ -672,6 +734,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     status,
     loading: status === "loading" || status === "acquiring_location",
     error,
+    locationIssue,
     userLocation,
     refresh,
   };

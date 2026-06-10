@@ -4,7 +4,7 @@ import { DevTierSwitch as AccessDevTierSwitch, UpgradeDialog, accessModeForTier,
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
-import { getHomeStrings, type HomeStrings } from "@/modules/home/i18n/home";
+import { getHomeStrings, resolveLocationErrorMessage, type HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useDayContent } from "@/modules/home/useDayContent";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
@@ -36,6 +36,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -130,12 +131,16 @@ function HomeError({
   tone,
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
 }: {
   title: string;
   message: string;
   tone: "warning" | "danger";
   actionLabel?: string;
   onAction?: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
 }) {
   const theme = useTheme();
   return (
@@ -155,6 +160,29 @@ function HomeError({
         {message}
       </AppText>
       {actionLabel && onAction ? <AppButton label={actionLabel} variant="secondary" onPress={onAction} /> : null}
+      {secondaryActionLabel && onSecondaryAction ? (
+        <AppButton label={secondaryActionLabel} variant="secondary" onPress={onSecondaryAction} />
+      ) : null}
+    </View>
+  );
+}
+
+function HomeLoadingSkeleton({ text }: { text: string }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.stateCard,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.surfaceBorder,
+        },
+      ]}
+    >
+      <ActivityIndicator color={theme.colors.accent} />
+      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
+        {text}
+      </AppText>
     </View>
   );
 }
@@ -439,7 +467,7 @@ export default function HomeScreen() {
     : profileLoading
       ? null
       : profileHasBirthData(profile);
-  const { forecast, error, refresh, status, accessMode, modelUsed, userLocation } = useDayContent({
+  const { forecast, error, refresh, status, accessMode, modelUsed, userLocation, locationIssue, loading } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     birthDataErrorMessage: strings.birthDataMessage,
     accessModeOverride: accessModeForTier(access.tier),
@@ -593,13 +621,19 @@ export default function HomeScreen() {
         <HomeHeader forecast={forecast} strings={strings} />
         <AnnouncementBanner />
 
+        {loading && !forecast ? <HomeLoadingSkeleton text={strings.skeletonText} /> : null}
+
         {status === "need_location" && error ? (
           <HomeError
             title={strings.locationErrorTitle}
-            message={error.message}
+            message={resolveLocationErrorMessage(locationIssue, strings)}
             tone="warning"
             actionLabel={strings.retryButton}
             onAction={() => void refresh({ forceRefresh: true })}
+            secondaryActionLabel={locationIssue === "permission_denied" ? strings.openSettingsButton : undefined}
+            onSecondaryAction={
+              locationIssue === "permission_denied" ? () => void Linking.openSettings() : undefined
+            }
           />
         ) : null}
         {status === "need_birth_data" ? (
@@ -622,6 +656,19 @@ export default function HomeScreen() {
         ) : null}
         {status === "stale_ready" ? (
           <HomeStaleNotice title={strings.staleContentTitle} message={strings.staleContentMessage} />
+        ) : null}
+        {locationIssue && status === "stale_ready" ? (
+          <HomeError
+            title={strings.locationErrorTitle}
+            message={resolveLocationErrorMessage(locationIssue, strings)}
+            tone="warning"
+            actionLabel={strings.retryButton}
+            onAction={() => void refresh({ forceRefresh: true })}
+            secondaryActionLabel={locationIssue === "permission_denied" ? strings.openSettingsButton : undefined}
+            onSecondaryAction={
+              locationIssue === "permission_denied" ? () => void Linking.openSettings() : undefined
+            }
+          />
         ) : null}
 
         {forecast ? (

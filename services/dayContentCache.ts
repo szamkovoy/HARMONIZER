@@ -49,6 +49,11 @@ export interface CacheLookupResult extends CachedDayContent {
   freshness: "fresh" | "stale";
 }
 
+/** Кэш дня + координаты из записи (для старта без lat/lon в профиле). */
+export type RelaxedCacheLookupResult = CacheLookupResult & {
+  location: UserLocation;
+};
+
 type SecureStoreLike = typeof import("expo-secure-store");
 
 const CACHE_VERSION = 1;
@@ -218,6 +223,41 @@ function sameLocation(a: UserLocation, b: UserLocation): boolean {
   );
 }
 
+function entryMatchesLookup(
+  entry: DayContentCacheEntry,
+  params: {
+    userId: string;
+    accessMode: AccessMode;
+    accessTier: ProductTier;
+    forecastDate: string;
+    scopeKey: string;
+  },
+): boolean {
+  return (
+    entry.version === CACHE_VERSION &&
+    entry.userId === params.userId &&
+    entry.accessMode === params.accessMode &&
+    entry.accessTier === params.accessTier &&
+    entry.forecastDate === params.forecastDate &&
+    entry.scopeKey === params.scopeKey &&
+    isDayContentCacheable(entry.forecast, params.accessMode)
+  );
+}
+
+function entryToLookupResult(
+  entry: DayContentCacheEntry,
+  allowStale: boolean | undefined,
+): CacheLookupResult | null {
+  const freshness = isFresh(entry) ? "fresh" : "stale";
+  if (freshness === "stale" && !allowStale) return null;
+  return {
+    forecast: entry.forecast,
+    source: entry.source,
+    modelUsed: entry.modelUsed,
+    freshness,
+  };
+}
+
 function isFresh(entry: DayContentCacheEntry, now = Date.now()): boolean {
   return new Date(entry.expiresAt).getTime() > now;
 }
@@ -305,32 +345,32 @@ export async function loadDayContentCache(params: {
   const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(await getRaw(key));
   if (!entry) return null;
 
-  if (
-    entry.version !== CACHE_VERSION ||
-    entry.userId !== params.userId ||
-    entry.accessMode !== params.accessMode ||
-    entry.accessTier !== params.accessTier ||
-    entry.forecastDate !== params.forecastDate ||
-    entry.scopeKey !== params.scopeKey ||
-    !sameLocation(entry.location, params.userLocation) ||
-    !isDayContentCacheable(entry.forecast, params.accessMode)
-  ) {
+  if (!entryMatchesLookup(entry, params) || !sameLocation(entry.location, params.userLocation)) {
     memoryCache.delete(key);
     await removeRaw(key);
     return null;
   }
 
   memoryCache.set(key, entry);
-  const freshness = isFresh(entry) ? "fresh" : "stale";
-  if (freshness === "stale" && !params.allowStale) {
-    return null;
-  }
-  return {
-    forecast: entry.forecast,
-    source: entry.source,
-    modelUsed: entry.modelUsed,
-    freshness,
-  };
+  return entryToLookupResult(entry, params.allowStale);
+}
+
+export async function loadDayContentCacheRelaxed(params: {
+  userId: string;
+  accessMode: AccessMode;
+  accessTier: ProductTier;
+  forecastDate: string;
+  scopeKey: string;
+  allowStale?: boolean;
+}): Promise<RelaxedCacheLookupResult | null> {
+  const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
+  const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(await getRaw(key));
+  if (!entry || !entryMatchesLookup(entry, params)) return null;
+
+  memoryCache.set(key, entry);
+  const lookup = entryToLookupResult(entry, params.allowStale);
+  if (!lookup) return null;
+  return { ...lookup, location: entry.location };
 }
 
 export function peekDayContentCache(params: {
@@ -345,26 +385,26 @@ export function peekDayContentCache(params: {
   const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
   const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(getRawSync(key));
   if (!entry) return null;
-  if (
-    entry.version !== CACHE_VERSION ||
-    entry.userId !== params.userId ||
-    entry.accessMode !== params.accessMode ||
-    entry.accessTier !== params.accessTier ||
-    entry.forecastDate !== params.forecastDate ||
-    entry.scopeKey !== params.scopeKey ||
-    !sameLocation(entry.location, params.userLocation) ||
-    !isDayContentCacheable(entry.forecast, params.accessMode)
-  ) {
+  if (!entryMatchesLookup(entry, params) || !sameLocation(entry.location, params.userLocation)) {
     return null;
   }
-  const freshness = isFresh(entry) ? "fresh" : "stale";
-  if (freshness === "stale" && !params.allowStale) return null;
-  return {
-    forecast: entry.forecast,
-    source: entry.source,
-    modelUsed: entry.modelUsed,
-    freshness,
-  };
+  return entryToLookupResult(entry, params.allowStale);
+}
+
+export function peekDayContentCacheRelaxed(params: {
+  userId: string;
+  accessMode: AccessMode;
+  accessTier: ProductTier;
+  forecastDate: string;
+  scopeKey: string;
+  allowStale?: boolean;
+}): RelaxedCacheLookupResult | null {
+  const key = cacheKey(params.userId, params.accessMode, params.accessTier, params.forecastDate, params.scopeKey);
+  const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(getRawSync(key));
+  if (!entry || !entryMatchesLookup(entry, params)) return null;
+  const lookup = entryToLookupResult(entry, params.allowStale);
+  if (!lookup) return null;
+  return { ...lookup, location: entry.location };
 }
 
 export async function saveDayContentCache(params: {
