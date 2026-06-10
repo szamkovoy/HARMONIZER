@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
+import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { requireSupabase } from "@/services/supabase";
 import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
 import { rewriteAuthNetworkError } from "./authNetworkErrors";
@@ -117,6 +118,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (lastUserIdRef.current === user.id) {
       setProfile(row);
       setProfileLoading(false);
+      if (typeof row?.lat === "number" && typeof row?.lon === "number") {
+        void saveCachedUserCoords(user.id, {
+          lat: row.lat,
+          lng: row.lon,
+          timezone: row.tz?.trim() || "UTC",
+        }).catch(() => undefined);
+      }
     }
   }, []);
 

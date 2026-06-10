@@ -64,7 +64,7 @@ code_refs:
 - **Корневой layout:** `app/_layout.tsx` оборачивает дерево в `AuthProvider`, затем `AccessBridge` передаёт **`profile`** в `AccessProvider` (`modules/access`) для подписочных gate.
 - **Редактирование натальных / BirthData:** **`app/(tabs)/index.tsx`** и **`app/(tabs)/profile.tsx`** — общий UI **`NatalBirthDataModal`** + `createNatalProfile` → `POST /api/astro/natal`. Сервер (`_legacy_web/app/api/astro/natal/route.ts`) обновляет `users.birth_*`, `lat`/`lon`/`tz` при необходимости, пересобирает `user_natal_charts`, **удаляет** `user_daily_forecasts` с текущей локальной даты и далее.
 - **Онбординг:** `app/onboarding.tsx` пишет в `users` поля `tz`, `lat`, `lon`, `location_name`, `onboarded_at` и вызывает `refreshProfile()`.
-- **Геолокация для прогноза:** `modules/location/acquireAndPersistUserCoordinates.ts` обновляет `lat`, `lon`, `tz`, опционально `location_name` без смены birth-полей.
+- **Геолокация для прогноза:** `modules/location/acquireAndPersistUserCoordinates.ts` обновляет `lat`, `lon`, `tz`, опционально `location_name` без смены birth-полей; при успешном `syncProfile` с координатами и после GPS-захвата координаты дублируются в локальный кэш `modules/location/userLocationProfileCache.ts` (SecureStore / `localStorage`) для cold start без повторного GPS.
 
 ## 4. UI: `app/(tabs)/profile.tsx`
 

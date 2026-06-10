@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 
+import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
@@ -8,7 +9,7 @@ export type UserLocationCoords = { lat: number; lng: number; timezone: string };
 export type LocationAcquireFailureReason = "permission_denied" | "timeout" | "unavailable" | "persist_failed";
 
 export type LocationAcquireResult =
-  | { ok: true; coords: UserLocationCoords }
+  | { ok: true; coords: UserLocationCoords; persisted: boolean }
   | { ok: false; reason: LocationAcquireFailureReason };
 
 /** Не держим home на сплэше дольше этого при cold GPS. */
@@ -84,7 +85,7 @@ async function persistCoords(
     return { ok: false, reason: "persist_failed" };
   }
 
-  return { ok: true, coords: { lat, lng: lon, timezone: tz } };
+  return { ok: true, coords: { lat, lng: lon, timezone: tz }, persisted: true };
 }
 
 /**
@@ -109,11 +110,25 @@ export async function acquireAndPersistUserCoordinates(userId: string): Promise<
       return { ok: false, reason: "timeout" };
     }
 
-    const result = await persistCoords(userId, pos.coords.latitude, pos.coords.longitude, deviceTimeZone());
+    const coords: UserLocationCoords = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      timezone: deviceTimeZone(),
+    };
+    await saveCachedUserCoords(userId, coords);
+
+    const result = await persistCoords(userId, coords.lat, coords.lng, coords.timezone);
     if (result.ok) {
       logRuntimeEvent("location:auto_acquire_ok", { accuracy: pos.coords.accuracy ?? null }, "info");
+      return result;
     }
-    return result;
+
+    logRuntimeEvent(
+      "location:auto_acquire_coords_only",
+      { reason: result.reason, accuracy: pos.coords.accuracy ?? null },
+      "warn",
+    );
+    return { ok: true, coords, persisted: false };
   } catch (error) {
     logRuntimeEvent(
       "location:auto_acquire_error",

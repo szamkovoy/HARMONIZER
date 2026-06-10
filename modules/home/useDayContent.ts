@@ -11,6 +11,7 @@ import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyFo
 import { clearDayContentCache, loadDayContentCache, loadDayContentCacheRelaxed, peekDayContentCache, peekDayContentCacheRelaxed, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
 import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome } from "@/services/dayContentIntegrity";
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
+import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
@@ -226,17 +227,18 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const provisionalForecastDate = localDateIso(provisionalTimezone);
       const contentScopeKey = nextAccessMode === "free" ? "global" : scopeKey;
       const requestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, provisionalForecastDate, contentScopeKey].join("|");
-      const relaxedInstant =
-        !opts?.forceRefresh && profileId
-          ? peekDayContentCacheRelaxed({
-              userId: profileId,
-              accessMode: nextAccessMode,
-              accessTier: nextAccessTier,
-              forecastDate: provisionalForecastDate,
-              scopeKey: contentScopeKey,
-              allowStale: true,
-            })
-          : null;
+      const relaxedLookupParams = profileId
+        ? {
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: contentScopeKey,
+            allowStale: true as const,
+          }
+        : null;
+      let relaxedCache =
+        !opts?.forceRefresh && relaxedLookupParams ? peekDayContentCacheRelaxed(relaxedLookupParams) : null;
       const instantCached =
         !opts?.forceRefresh && profileId && userLocation
           ? peekDayContentCache({
@@ -247,16 +249,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
               scopeKey: contentScopeKey,
               userLocation,
             })
-          : relaxedInstant?.freshness === "fresh"
-            ? relaxedInstant
+          : relaxedCache?.freshness === "fresh"
+            ? relaxedCache
             : null;
-      const hasPaintableOfflineCache = relaxedInstant?.freshness === "stale";
+      const hasPaintableOfflineCache = relaxedCache?.freshness === "stale";
       const shouldBlockSplash =
         Boolean(opts?.blockingReload) ||
         (!opts?.forceRefresh &&
           (lastResolvedRequestKeyRef.current !== requestKey || !forecast) &&
           !(instantCached && instantCached.freshness === "fresh") &&
-          !hasPaintableOfflineCache);
+          !(relaxedCache?.freshness === "stale"));
 
       if (shouldBlockSplash) {
         beginHomeBootstrap("initializing", "HOME/home_overlay_start");
@@ -278,9 +280,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       }
 
       let locationForRequest = userLocation;
-      const offlineStaleCache = relaxedInstant?.freshness === "stale" ? relaxedInstant : null;
-      if (!locationForRequest && relaxedInstant?.freshness === "fresh") {
-        locationForRequest = relaxedInstant.location;
+      if (!locationForRequest && profileId) {
+        locationForRequest = await loadCachedUserCoords(profileId);
+      }
+      if (!locationForRequest && relaxedLookupParams && !opts?.forceRefresh && !relaxedCache) {
+        setHomeBootstrapPhase("initializing", "HOME/day_cache_relaxed_read");
+        relaxedCache = await loadDayContentCacheRelaxed(relaxedLookupParams);
+      }
+      const offlineStaleCache = relaxedCache?.freshness === "stale" ? relaxedCache : null;
+      if (!locationForRequest && relaxedCache?.freshness === "fresh") {
+        locationForRequest = relaxedCache.location;
       }
 
       let acquireFailure: LocationAcquireFailureReason | null = null;
@@ -290,8 +299,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         logRuntimeEvent("day_content:auto_location_attempt", { profileId }, "info");
         const acquired = await acquireAndPersistUserCoordinates(profileId);
         if (acquired.ok) {
-          await refreshProfile();
           locationForRequest = acquired.coords;
+          if (acquired.persisted) {
+            await refreshProfile();
+          }
         } else {
           acquireFailure = acquired.reason;
           setLocationIssue(acquired.reason);
