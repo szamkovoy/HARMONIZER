@@ -7,7 +7,15 @@ import { chooseTargetChakra, isMatrixReady, rowMass, sumMatrices, type DenseMatr
 import { getLifeSpheresBaseline } from "@legacy/app/api/_utils/lifeSpheresBaseline";
 import { effectiveDialogNowLocal } from "@legacy/app/api/_utils/testMode";
 import { buildTopPetals, type CalibrationLike, type PetalData } from "@legacy/app/api/_utils/topPetals";
-import { expireStalePlannedEvents, loadDuePlannedEvents, loadLastPlanningSummary, loadPlannedEventsForLocalDate, type PlannedEventRow } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import {
+  expireStalePlannedEvents,
+  loadDuePlannedEvents,
+  loadLastPlanningSummary,
+  loadPlannedEventsForLocalDate,
+  loadPlannedEventsUpToLocalDate,
+  purgeHistoricalSummarizedPlannedEvents,
+  type PlannedEventRow,
+} from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { todayLocalDate } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
 export type DialogDailyContext = {
@@ -151,26 +159,31 @@ export async function loadDialogDailyContext(
   db: SupabaseClient,
   userId: string,
   timezoneHint?: string,
-  options?: { summarizeWholeLocalDate?: string | null },
+  options?: { summarizeUpToLocalDate?: string | null; summarizeWholeLocalDate?: string | null },
 ): Promise<DialogDailyContext> {
   const user = await loadUser(db, userId);
   const timezone = user.tz ?? timezoneHint ?? "UTC";
   const nowLocal = DateTime.now().setZone(timezone);
-  const dialogNowLocal = effectiveDialogNowLocal(nowLocal);
   const localDate = todayLocalDate(timezone);
   const nowIso = nowLocal.toUTC().toISO() ?? new Date().toISOString();
-  const dueNowIso = dialogNowLocal.toUTC().toISO() ?? nowIso;
+  void effectiveDialogNowLocal(nowLocal);
 
   await expireStalePlannedEvents(db, userId, nowIso);
+  await purgeHistoricalSummarizedPlannedEvents(db, userId, localDate);
 
   const [forecast, natal, calibration, dueEventsRaw, lastPlanning, aggregated, recentMatrices] = await Promise.all([
     loadForecastForLocalDate(db, userId, localDate),
     loadActiveNatalProfile(db, userId),
     loadCalibration(db, userId),
+    options?.summarizeUpToLocalDate
+      ? loadPlannedEventsUpToLocalDate(db, userId, options.summarizeUpToLocalDate)
+      : options?.summarizeWholeLocalDate
+        ? loadPlannedEventsForLocalDate(db, userId, options.summarizeWholeLocalDate)
+        : loadDuePlannedEvents(db, userId, localDate),
     options?.summarizeWholeLocalDate
-      ? loadPlannedEventsForLocalDate(db, userId, options.summarizeWholeLocalDate)
-      : loadDuePlannedEvents(db, userId, nowIso, dueNowIso),
-    loadLastPlanningSummary(db, userId),
+      || options?.summarizeUpToLocalDate
+      ? Promise.resolve(null)
+      : loadLastPlanningSummary(db, userId),
     loadAggregatedMatrix(db, userId),
     loadRecentMatrices(db, userId),
   ]);

@@ -1,4 +1,4 @@
-import type { DayPlan } from "@/services/dayPlan";
+import type { DayPlan, DayPracticeLog } from "@/services/dayPlan";
 import { collectNativeHealthSignals } from "@/services/nativeHealth";
 import { requireSupabase } from "@/services/supabase";
 
@@ -65,21 +65,21 @@ async function loadAverageYogaMinutes(limit = 7): Promise<number | null> {
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length / 60);
 }
 
-export async function collectDayHealthContext(plan: DayPlan): Promise<DayHealthContext> {
+export async function collectDayHealthContextForDate(localDate: string, practices: DayPracticeLog[]): Promise<DayHealthContext> {
   const yogaTotalMinutes = Math.round(
-    plan.practices.reduce((sum, practice) => sum + Math.max(0, practice.durationSec ?? 0), 0) / 60,
+    practices.reduce((sum, practice) => sum + Math.max(0, practice.durationSec ?? 0), 0) / 60,
   );
   const averageDailyMinutes = await loadAverageYogaMinutes();
-  const kinds = [...new Set(plan.practices.map((practice) => practiceKindFromTitle(practice.title)).filter(Boolean))];
-  const nativeHealth = await collectNativeHealthSignals(plan.localDate);
+  const kinds = [...new Set(practices.map((practice) => practiceKindFromTitle(practice.title)).filter(Boolean))];
+  const nativeHealth = await collectNativeHealthSignals(localDate);
 
   return {
-    localDate: plan.localDate,
+    localDate,
     provider: nativeHealth.provider,
     providerStatus: nativeHealth.providerStatus,
     yoga: {
       totalMinutes: yogaTotalMinutes,
-      practiceCount: plan.practices.length,
+      practiceCount: practices.length,
       kinds,
       averageDailyMinutes,
       comparison: compare(yogaTotalMinutes, averageDailyMinutes),
@@ -94,4 +94,10 @@ export async function collectDayHealthContext(plan: DayPlan): Promise<DayHealthC
       quality: nativeHealth.sleep.quality,
     },
   };
+}
+
+export async function collectDayHealthContext(plan: DayPlan): Promise<DayHealthContext> {
+  const targetDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
+  const section = plan.sections.find((item) => item.localDate === targetDate) ?? plan.sections[0];
+  return collectDayHealthContextForDate(targetDate, section?.practices ?? []);
 }

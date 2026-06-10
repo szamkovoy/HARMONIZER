@@ -18,6 +18,15 @@ export type PersistedPlannedEvent = {
   action: "inserted" | "updated";
 };
 
+export type PersistedSummarizedEvent = {
+  id: string;
+  title: string;
+  displayOrder: number | null;
+  summarizedAt: string;
+  appliedToMatrix: boolean;
+  outcomeCells: MatrixCell[];
+};
+
 function endOfLocalDayIso(localDate: string, timezone: string): string {
   const end = DateTime.fromISO(localDate, { zone: timezone || "UTC" }).endOf("day");
   return end.toUTC().toISO() ?? `${localDate}T23:59:59.000Z`;
@@ -36,36 +45,62 @@ export async function persistPlanningFinalize(params: {
   timezone: string;
   nowIso: string;
   markers: PlannedEventMarker[];
+  appendToExisting?: boolean;
 }): Promise<PersistedPlannedEvent[]> {
-  const { db, userId, conversationId, workingLocalDate, timezone, nowIso, markers } = params;
+  const { db, userId, conversationId, workingLocalDate, timezone, nowIso, markers, appendToExisting } = params;
   if (markers.length === 0) return [];
 
   const existing = await loadPlannedEventsForLocalDate(db, userId, workingLocalDate);
+  let appendOrderOffset = 0;
+  if (appendToExisting) {
+    const { data: allRows, error: allRowsError } = await db
+      .from("planned_events")
+      .select("display_order")
+      .eq("user_id", userId)
+      .eq("planned_local_date", workingLocalDate)
+      .order("display_order", { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (allRowsError) throw allRowsError;
+    const maxDisplayOrder = Number((allRows ?? [])[0]?.display_order);
+    appendOrderOffset = Number.isFinite(maxDisplayOrder) ? maxDisplayOrder : existing.length;
+  }
   const expectedAt = endOfLocalDayIso(workingLocalDate, timezone);
   const results: PersistedPlannedEvent[] = [];
+  const seenMarkerIndexes = new Set<number>();
   let order = 0;
 
   for (const marker of markers) {
+    const duplicateIndex = markers.findIndex((candidate) => samePlannedEventIdentity(candidate.desc, marker.desc));
+    if (duplicateIndex !== -1 && seenMarkerIndexes.has(duplicateIndex)) continue;
+    if (duplicateIndex !== -1) seenMarkerIndexes.add(duplicateIndex);
     order += 1;
-    const displayOrder = Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : order;
     const cells: PlanningSphereCell[] = normalizePlanningSphereCells(marker.cells);
     const match: PlannedEventRow | undefined = existing.find(
       (row) => row.status === "planned" && samePlannedEventIdentity(row.description, marker.desc),
     );
+    const baseDisplayOrder = Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : order;
+    const displayOrder = appendToExisting && !match
+      ? appendOrderOffset + order
+      : baseDisplayOrder;
 
     if (match) {
+      const resolvedDisplayOrder = appendToExisting ? (match.display_order ?? displayOrder) : displayOrder;
       const { error } = await db
         .from("planned_events")
         .update({
           description: marker.desc,
           recommendation_text: marker.recommendation,
-          display_order: displayOrder,
+          display_order: resolvedDisplayOrder,
           cells,
         })
         .eq("user_id", userId)
         .eq("id", match.id);
       if (error) throw error;
-      results.push({ id: match.id, desc: marker.desc, displayOrder, action: "updated" });
+      results.push({ id: match.id, desc: marker.desc, displayOrder: resolvedDisplayOrder, action: "updated" });
+      match.description = marker.desc;
+      match.recommendation_text = marker.recommendation;
+      match.display_order = resolvedDisplayOrder;
+      match.cells = cells;
       continue;
     }
 
@@ -91,6 +126,24 @@ export async function persistPlanningFinalize(params: {
       .single();
     if (error) throw error;
     results.push({ id: (data?.id as string) ?? null, desc: marker.desc, displayOrder, action: "inserted" });
+    existing.push({
+      id: (data?.id as string) ?? `pending:${results.length}`,
+      conversation_id: conversationId,
+      description: marker.desc,
+      planned_at: nowIso,
+      planned_local_date: workingLocalDate,
+      expected_at: expectedAt,
+      time_resolution: "fallback_default",
+      time_phrase_raw: null,
+      context_snippets: marker.snippets ?? [],
+      cells,
+      status: "planned",
+      outcome_cells: null,
+      outcome_text: null,
+      recommendation_text: marker.recommendation,
+      display_order: displayOrder,
+      explicit_time_text: null,
+    });
   }
 
   return results;
@@ -117,9 +170,8 @@ export async function persistDayFocus(params: {
 }
 
 /**
- * Persist one SUMMARIZE_EVENT outcome: mark the event summarized, store the
- * outcome, and (when there are outcome cells) merge it into the daily matrix.
- * Events that "did not happen" carry no cells and never touch the matrix.
+ * Persist one SUMMARIZE_EVENT outcome inside the same `planned_events` entity:
+ * mark the event summarized and keep it visible until the local day changes.
  */
 export async function persistSummarizedEvent(params: {
   db: SupabaseClient;
@@ -128,7 +180,7 @@ export async function persistSummarizedEvent(params: {
   outcomeText: string | null;
   outcomeCells: MatrixCell[];
   nowIso: string;
-}): Promise<void> {
+}): Promise<PersistedSummarizedEvent> {
   const { db, userId, event, outcomeText, outcomeCells, nowIso } = params;
   const { error } = await db
     .from("planned_events")
@@ -146,4 +198,13 @@ export async function persistSummarizedEvent(params: {
     await mergeSummarizedEventIntoDailyMatrix(db, userId, event.planned_local_date, outcomeCells, nowIso);
     await rebuildProfileReportSnapshot(db, userId, nowIso);
   }
+
+  return {
+    id: event.id,
+    title: event.description,
+    displayOrder: event.display_order ?? null,
+    summarizedAt: nowIso,
+    appliedToMatrix: outcomeCells.length > 0,
+    outcomeCells,
+  };
 }

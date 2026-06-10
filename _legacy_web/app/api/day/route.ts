@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 
 import { asPlanningSphereCells } from "@legacy/app/api/_utils/lifeMatrix";
+import { purgeHistoricalSummarizedPlannedEvents } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
@@ -84,17 +85,62 @@ function buildSphereHint(stats: ReturnType<typeof buildSphereStats>) {
   return "День выглядит достаточно разнообразным. Выберите главный тон внимания и проживите эти действия не на автомате, а в новом состоянии.";
 }
 
-async function chooseWorkingLocalDate(db: ReturnType<typeof createServiceSupabase>, userId: string, today: string) {
-  const { data, error } = await db
-    .from("planned_events")
-    .select("planned_local_date")
+async function loadForecastForLocalDateOrLatest(
+  db: ReturnType<typeof createServiceSupabase>,
+  userId: string,
+  localDate: string,
+) {
+  const exact = await db
+    .from("user_daily_forecasts")
+    .select("forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
     .eq("user_id", userId)
-    .eq("status", "planned")
-    .lt("planned_local_date", today)
-    .order("planned_local_date", { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  return typeof data?.[0]?.planned_local_date === "string" ? data[0].planned_local_date : today;
+    .eq("forecast_date", localDate)
+    .maybeSingle();
+  if (exact.error) throw exact.error;
+  if (exact.data) return exact;
+
+  const latest = await db
+    .from("user_daily_forecasts")
+    .select("forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
+    .eq("user_id", userId)
+    .order("forecast_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latest.error) throw latest.error;
+  return latest;
+}
+
+function dateLabelKindFor(localDate: string, today: string, yesterday: string): "today" | "yesterday" | "date" {
+  if (localDate === today) return "today";
+  if (localDate === yesterday) return "yesterday";
+  return "date";
+}
+
+function localDateForStartedAt(iso: string, timezone: string): string {
+  const date = DateTime.fromISO(iso, { zone: "utc" }).setZone(timezone);
+  return date.isValid ? date.toFormat("yyyy-MM-dd") : iso.slice(0, 10);
+}
+
+function buildPracticeLogsForDates(
+  rows: Array<{ id: string; practice_slug: string; started_at: string; ended_at: string | null; duration_sec: number | null; context: unknown }>,
+  timezone: string,
+) {
+  const grouped = new Map<string, Array<{ id: string; localDate: string; title: string; startedAt: string; endedAt: string | null; durationSec: number | null }>>();
+  for (const row of rows) {
+    const localDate = localDateForStartedAt(row.started_at, timezone);
+    const item = {
+      id: row.id,
+      localDate,
+      title: formatPracticeTitle(row),
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      durationSec: row.duration_sec,
+    };
+    const bucket = grouped.get(localDate);
+    if (bucket) bucket.push(item);
+    else grouped.set(localDate, [item]);
+  }
+  return grouped;
 }
 
 export async function GET(req: Request) {
@@ -112,16 +158,20 @@ export async function GET(req: Request) {
     const nowLocal = DateTime.now().setZone(timezone);
     const today = nowLocal.toFormat("yyyy-MM-dd");
     const yesterday = nowLocal.minus({ days: 1 }).toFormat("yyyy-MM-dd");
-    const localDate = await chooseWorkingLocalDate(db, userId, today);
-    const { startUtc, endUtc } = localDayBounds(localDate, timezone);
+    const localDate = today;
+    await purgeHistoricalSummarizedPlannedEvents(db, userId, localDate);
 
-    const [forecastRes, actionsRes, practicesRes, offerRes] = await Promise.all([
+    const [overdueActionsRes, forecastRes, currentActionsRes, offerRes] = await Promise.all([
       db
-        .from("user_daily_forecasts")
-        .select("forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
+        .from("planned_events")
+        .select("id,description,recommendation_text,explicit_time_text,display_order,planned_local_date,expected_at,planned_at,status,cells,outcome_text,summarized_at")
         .eq("user_id", userId)
-        .eq("forecast_date", localDate)
-        .maybeSingle(),
+        .eq("status", "planned")
+        .lt("planned_local_date", localDate)
+        .order("planned_local_date", { ascending: false })
+        .order("display_order", { ascending: true, nullsFirst: false })
+        .order("planned_at", { ascending: true }),
+      loadForecastForLocalDateOrLatest(db, userId, localDate),
       db
         .from("planned_events")
         .select("id,description,recommendation_text,explicit_time_text,display_order,planned_local_date,expected_at,planned_at,status,cells,outcome_text,summarized_at")
@@ -131,14 +181,6 @@ export async function GET(req: Request) {
         .order("display_order", { ascending: true, nullsFirst: false })
         .order("planned_at", { ascending: true }),
       db
-        .from("practice_sessions")
-        .select("id,practice_slug,started_at,ended_at,duration_sec,context")
-        .eq("user_id", userId)
-        .not("ended_at", "is", null)
-        .gte("started_at", startUtc)
-        .lt("started_at", endUtc)
-        .order("started_at", { ascending: true }),
-      db
         .from("day_practice_offers")
         .select("id,practice_kind,practice_id,practice_slug,title,duration_sec,launch,practice_summary,status,created_at")
         .eq("user_id", userId)
@@ -146,10 +188,88 @@ export async function GET(req: Request) {
         .eq("status", "pending")
         .maybeSingle(),
     ]);
+    if (overdueActionsRes.error) throw overdueActionsRes.error;
     if (forecastRes.error) throw forecastRes.error;
-    if (actionsRes.error) throw actionsRes.error;
-    if (practicesRes.error) throw practicesRes.error;
+    if (currentActionsRes.error) throw currentActionsRes.error;
     if (offerRes.error) throw offerRes.error;
+
+    const overdueRows = overdueActionsRes.data ?? [];
+    const hasOverdueSummary = overdueRows.length > 0;
+
+    if (hasOverdueSummary) {
+      const overdueDates = [...new Set(overdueRows.map((row) => row.planned_local_date).filter(Boolean))];
+      const oldestDate = overdueDates[overdueDates.length - 1] ?? localDate;
+      const newestDate = overdueDates[0] ?? localDate;
+      const oldestBounds = localDayBounds(oldestDate, timezone);
+      const newestBounds = localDayBounds(newestDate, timezone);
+      const practicesRes = await db
+        .from("practice_sessions")
+        .select("id,practice_slug,started_at,ended_at,duration_sec,context")
+        .eq("user_id", userId)
+        .not("ended_at", "is", null)
+        .gte("started_at", oldestBounds.startUtc)
+        .lt("started_at", newestBounds.endUtc)
+        .order("started_at", { ascending: true });
+      if (practicesRes.error) throw practicesRes.error;
+
+      const practicesByDate = buildPracticeLogsForDates(practicesRes.data ?? [], timezone);
+      const sections = overdueDates.map((date) => {
+        const dateRows = overdueRows.filter((row) => row.planned_local_date === date);
+        const actions = dateRows
+          .map((row, index) => ({
+            id: row.id,
+            localDate: row.planned_local_date,
+            title: row.description,
+            recommendation: row.recommendation_text ?? null,
+            explicitTimeText: row.explicit_time_text ?? null,
+            displayOrder: row.display_order ?? index,
+            status: row.status,
+            summarizedAt: row.summarized_at,
+            outcomeText: row.outcome_text,
+            cells: asPlanningSphereCells(row.cells),
+            plannedAt: row.planned_at,
+          }))
+          .sort((left, right) => {
+            const byDisplayOrder = (left.displayOrder ?? Number.MAX_SAFE_INTEGER) - (right.displayOrder ?? Number.MAX_SAFE_INTEGER);
+            if (byDisplayOrder !== 0) return byDisplayOrder;
+            return String(left.plannedAt ?? "").localeCompare(String(right.plannedAt ?? ""));
+          })
+          .map(({ plannedAt, ...rest }) => rest);
+        const sphereStats = buildSphereStats(dateRows);
+        return {
+          localDate: date,
+          dateLabelKind: dateLabelKindFor(date, today, yesterday),
+          actions,
+          sphereStats,
+          sphereHint: buildSphereHint(sphereStats),
+          practices: practicesByDate.get(date) ?? [],
+        };
+      });
+
+      return json({
+        mode: "overdue_summary",
+        currentLocalDate: localDate,
+        timezone,
+        forecast: null,
+        dayRecommendation: null,
+        hasOverdueSummary: true,
+        canSummarizeCurrentDay: false,
+        summaryTargetLocalDate: newestDate,
+        sections,
+        pendingPractice: null,
+      });
+    }
+
+    const { startUtc, endUtc } = localDayBounds(localDate, timezone);
+    const practicesRes = await db
+      .from("practice_sessions")
+      .select("id,practice_slug,started_at,ended_at,duration_sec,context")
+      .eq("user_id", userId)
+      .not("ended_at", "is", null)
+      .gte("started_at", startUtc)
+      .lt("started_at", endUtc)
+      .order("started_at", { ascending: true });
+    if (practicesRes.error) throw practicesRes.error;
 
     let pendingPractice = offerRes.data ?? null;
     if (pendingPractice) {
@@ -167,35 +287,48 @@ export async function GET(req: Request) {
       }
     }
 
-    const actions = (actionsRes.data ?? []).map((row, index) => ({
-      id: row.id,
-      title: row.description,
-      recommendation: row.recommendation_text ?? null,
-      explicitTimeText: row.explicit_time_text ?? null,
-      displayOrder: row.display_order ?? index,
-      status: row.status,
-      summarizedAt: row.summarized_at,
-      outcomeText: row.outcome_text,
-      cells: asPlanningSphereCells(row.cells),
-    }));
-    const sphereStats = buildSphereStats(actionsRes.data ?? []);
-
-    return json({
+    const actions = (currentActionsRes.data ?? [])
+      .map((row, index) => ({
+        id: row.id,
+        localDate: row.planned_local_date,
+        title: row.description,
+        recommendation: row.recommendation_text ?? null,
+        explicitTimeText: row.explicit_time_text ?? null,
+        displayOrder: row.display_order ?? index,
+        status: row.status,
+        summarizedAt: row.summarized_at,
+        outcomeText: row.outcome_text,
+        cells: asPlanningSphereCells(row.cells),
+        plannedAt: row.planned_at,
+      }))
+      .sort((left, right) => {
+        const byDisplayOrder = (left.displayOrder ?? Number.MAX_SAFE_INTEGER) - (right.displayOrder ?? Number.MAX_SAFE_INTEGER);
+        if (byDisplayOrder !== 0) return byDisplayOrder;
+        return String(left.plannedAt ?? "").localeCompare(String(right.plannedAt ?? ""));
+      })
+      .map(({ plannedAt, ...rest }) => rest);
+    const sphereStats = buildSphereStats(currentActionsRes.data ?? []);
+    const practices = buildPracticeLogsForDates(practicesRes.data ?? [], timezone).get(localDate) ?? [];
+    const canSummarizeCurrentDay = actions.some((action) => action.status === "planned");
+    const sections = [{
       localDate,
-      dateLabelKind: localDate === yesterday ? "yesterday" : "date",
-      timezone,
-      forecast: forecastRes.data ?? null,
-      dayRecommendation: forecastRes.data?.recommendation_short_text ?? forecastRes.data?.recommendation_long_text ?? null,
+      dateLabelKind: dateLabelKindFor(localDate, today, yesterday),
       actions,
       sphereStats,
       sphereHint: buildSphereHint(sphereStats),
-      practices: (practicesRes.data ?? []).map((row) => ({
-        id: row.id,
-        title: formatPracticeTitle(row),
-        startedAt: row.started_at,
-        endedAt: row.ended_at,
-        durationSec: row.duration_sec,
-      })),
+      practices,
+    }];
+
+    return json({
+      mode: actions.length > 0 || practices.length > 0 || Boolean(pendingPractice) ? "current_day" : "empty_today",
+      currentLocalDate: localDate,
+      timezone,
+      forecast: forecastRes.data ?? null,
+      dayRecommendation: forecastRes.data?.recommendation_short_text ?? forecastRes.data?.recommendation_long_text ?? null,
+      hasOverdueSummary: false,
+      canSummarizeCurrentDay,
+      summaryTargetLocalDate: canSummarizeCurrentDay ? localDate : null,
+      sections,
       pendingPractice,
     });
   } catch (error) {

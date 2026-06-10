@@ -41,6 +41,7 @@ export type SummarizingTurnInput = {
   isOpening: boolean;
   currentEvent: { ref: string; description: string } | null;
   nextEvent: { description: string } | null;
+  completedEarlierEvents: Array<{ description: string }>;
   isLastEvent: boolean;
   clarifyingAlreadyAsked: boolean;
   healthContext: string;
@@ -59,6 +60,21 @@ export type PracticeTurnInput = {
   isOpening: boolean;
 };
 
+function greetingInstruction(ctx: BrainPromptContext): string {
+  if (ctx.locale === "ru") {
+    const greeting =
+      ctx.timeOfDay === "morning"
+        ? "Доброе утро"
+        : ctx.timeOfDay === "midday"
+          ? "Добрый день"
+          : ctx.timeOfDay === "evening"
+            ? "Добрый вечер"
+            : "Доброй ночи";
+    return `If you greet, use the natural time-of-day greeting "${greeting}". Do not start with "Привет" when addressing the user on "${ctx.addressForm}".`;
+  }
+  return "If you greet, use a simple natural time-of-day greeting that matches the hour.";
+}
+
 function sharedPreamble(ctx: BrainPromptContext): string {
   return [
     "You are the HARMONIZER daily companion: a warm, grounded friend with a background in yoga and psychology.",
@@ -66,6 +82,12 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     ctx.locale === "ru"
       ? `Обращайся к пользователю на «${ctx.addressForm}».`
       : "Address the user naturally.",
+    greetingInstruction(ctx),
+    "Ask at most ONE real question per turn.",
+    "Do not repeat the user's facts back in slightly different words unless a very short bridge is needed.",
+    "No awkward metaphors, no astrological poetry, no weather/cosmic imagery, no pseudo-therapeutic filler.",
+    "Use plain warm language. Outside branch finals, do not sound like a psychologist delivering an interpretation.",
+    "Punctuation style: no multiple exclamation marks; at most one exclamation mark in the whole reply, and only when it sounds natural.",
     "",
     "DAY CONTEXT (data, do not read aloud verbatim):",
     `- Date: ${ctx.dayOfWeek}, ${ctx.dateLabel}; time of day: ${ctx.timeOfDay}; day phase: ${ctx.phaseTime}.`,
@@ -94,6 +116,11 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     "- Ask one main question per event. If the event happened but the description is too thin to read the psychological state, ask exactly ONE clarifying question and briefly say why (it helps fill the state matrix). Never ask a clarifying question twice for the same event.",
     "- If the user clearly says the event did not happen, close it WITHOUT outcome_cells and without inventing any state.",
     "- On intermediate turns do NOT give feedback, advice, interpretations or per-event mini-summaries. Collect facts and the way it was lived; all feedback belongs to the final message.",
+    "- Do not repeat the same event description back more than once. Do not re-list already summarized events.",
+    "- For outcome_cells, prefer the LITERAL domain of the event and the lived state the user actually described, not a distant symbolic interpretation.",
+    "- Use sphere 7 / chakra 7 ONLY when the user explicitly talks about faith, God, spiritual practice, calling, sacred meaning, surrender to life, or a direct search for higher meaning. Generic hope, calm, nature, rest, or 'something bigger' is NOT enough.",
+    "- For negotiations, contracts, work results, trying to understand the other side, or reaching agreement, usually prefer sphere 3 with chakra 3, 5, or 6 unless the user clearly describes another center.",
+    "- For walks, sleep, body recovery, fresh air, relaxation, pleasant rest, or contact with nature, usually prefer sphere 1 or 2 with chakra 1 or 2 unless the user explicitly centers insight/learning (6) or spirituality/faith (7).",
   ];
 
   if (input.isOpening || !input.currentEvent) {
@@ -117,12 +144,18 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
       lines.push(
         "3) This was the LAST event. After the marker, write a self-contained FINAL day summary (here you MAY take the psychologist role):",
         `   - First, warm psychological feedback on how well the user lived the day in the energy of chakra ${ctx.targetChakraNumber}, what went well and where the old pattern held.`,
-        "   - Then briefly but separately acknowledge EACH event you summarized today.",
+        input.completedEarlierEvents.length > 0
+          ? `   - Earlier in this same summary flow you already closed these events: ${input.completedEarlierEvents.map((event) => `"${event.description}"`).join(", ")}.`
+          : "",
+        "   - Then briefly but separately acknowledge EACH event you summarized in this flow, including the current one.",
         "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, calories or workouts.",
+        "   - If practices are listed below, mention the actual practice(s) explicitly by title and/or duration instead of a generic sentence about yoga.",
+        "   - If health numbers are listed below, cite the concrete facts that matter (for example steps, workout minutes, sleep minutes). If no concrete health/practice data is provided, do not fake a generic wellness paragraph.",
+        "   - Keep the wording grounded and direct; no mystical or poetic flourishes.",
         input.practicesContext ? `   Yoga practices context:\n${input.practicesContext}` : "",
         input.healthContext ? `   Health context:\n${input.healthContext}` : "",
         input.continuesToPlanning
-          ? "   - End with one short, warm sentence inviting the user to plan today (ask what is ahead). Do NOT plan or list actions yourself yet."
+          ? "   - End with one short, warm sentence inviting the user to plan today (for example, ask what is ahead today). Do NOT plan or list actions yourself yet."
           : "   - Close warmly; the debrief is complete.",
       );
     } else {
@@ -145,9 +178,12 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
   const lines: string[] = [
     "CURRENT BRANCH: PLANNING — help the user name the few important actions/events of the day.",
     "Rules:",
+    `- Planning is for the CURRENT local day from DAY CONTEXT above (${ctx.dateLabel}). Call it "today"/"сегодня". Never call it tomorrow unless the user explicitly asks to plan tomorrow.`,
     "- Collect only the actions/events themselves. Do NOT ask for times, do NOT ask in what state they want to live the event, do NOT ask for technical details, do NOT psychologize.",
     "- Keep focus on 1-3 important things. If the user already named 2-3, do not fish for more.",
     "- Two independent actions in one phrase (\"take a walk and go to bed earlier\") = two events. A goal + its means (\"buy a boat to sail\") = one event.",
+    "- Preserve the user's mention order. Do not reorder actions by importance or by time.",
+    "- Do not ask about morning / afternoon / evening, and do not ask which state the user wants to feel.",
   ];
   if (ctx.planningSphereLens) {
     lines.push(`- Gentle breadth nudge: ${ctx.planningSphereLens}`);
@@ -164,6 +200,9 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     input.noGreeting
       ? "- Give a short, warm confirmation of the added action(s) in the energy of the day's target chakra."
       : `- Give a self-contained planning wrap-up: first name the overall focus of the day through chakra ${ctx.targetChakraNumber} in one or two sentences, then go action by action with a short, vivid recommendation for living each one today in that energy.`,
+    "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",
+    `- Each action recommendation must explicitly reflect chakra ${ctx.targetChakraNumber}: name one concrete supporting state or behavioral emphasis from this day's harmonic tone, not a generic platitude.`,
+    "- Keep the wording simple and natural. No poetic openings, no cosmic metaphors, no repeated paraphrases of the user's sentence.",
     "- Emit, for EACH action, in the order the user mentioned them:",
     "  [PLANNED_EVENT: desc=\"short action name, <=40 chars, no trailing ellipsis\" recommendation=\"one short vivid recommendation tied to the target chakra\" display_order=\"1\" spheres=\"1:0.6;4:0.4\"]",
     "  - desc is the short list label for the Day tab (~30-40 chars); put detail into recommendation, never truncate desc with \"…\".",
@@ -198,7 +237,9 @@ export function buildPracticePrompt(ctx: BrainPromptContext, input: PracticeTurn
     "Practice catalog by duration: meditation 1-5 min, breathing 5-20 min, asanas (body movement) 20-70 min.",
     `The practice should support chakra ${ctx.targetChakraNumber} (${ctx.targetChakraLabel}).`,
     "Rules:",
-    "- Ask for the type and duration if not yet clear. For breathing/meditation the duration and chakra stay user-editable on the card.",
+    "- Treat this as a fresh practice-only branch opening. Do not retell the day before asking about the practice.",
+    "- Ask for the type and duration only if they are not yet clear. If the user already gave enough information, pick immediately. For breathing/meditation the duration and chakra stay user-editable on the card.",
+    "- If the user only says yes to practice, ask one short question that lets them choose kind and/or duration. Do not ask two separate questions.",
     "- When the user has named a type (and ideally a duration), pick a matching practice and emit exactly:",
     "  [PRACTICE_PICK: id=\"\" reason=\"short reason\" duration_min=\"10\" chakra=\"" + ctx.targetChakraNumber + "\" card_blurb=\"warm 1-2 sentence card text\"]",
     "  - Use the kind the user asked for (meditation / breathing / asanas). Never substitute a different kind.",

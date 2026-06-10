@@ -160,6 +160,20 @@ export async function expireStalePlannedEvents(db: SupabaseClient, userId: strin
   return [];
 }
 
+export async function purgeHistoricalSummarizedPlannedEvents(
+  db: SupabaseClient,
+  userId: string,
+  currentLocalDate: string,
+): Promise<void> {
+  const { error } = await db
+    .from("planned_events")
+    .delete()
+    .eq("user_id", userId)
+    .eq("status", "summarized")
+    .lt("planned_local_date", currentLocalDate);
+  if (error) throw error;
+}
+
 export async function deletePlannedEventsByIds(
   db: SupabaseClient,
   userId: string,
@@ -197,18 +211,21 @@ export async function deletePlannedEventsByIds(
 export async function loadDuePlannedEvents(
   db: SupabaseClient,
   userId: string,
-  nowIso: string,
-  dueNowIso = nowIso,
+  beforeLocalDate: string,
 ): Promise<PlannedEventRow[]> {
   const { data, error } = await db
     .from("planned_events")
     .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text")
     .eq("user_id", userId)
     .eq("status", "planned")
-    .lte("expected_at", dueNowIso)
-    .order("expected_at", { ascending: true });
+    .lt("planned_local_date", beforeLocalDate)
+    .order("planned_local_date", { ascending: false })
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("planned_at", { ascending: true });
   if (error) throw error;
-  return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
+  const collapsed = collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
+  const latestLocalDate = collapsed[0]?.planned_local_date ?? null;
+  return latestLocalDate ? collapsed.filter((row) => row.planned_local_date === latestLocalDate) : [];
 }
 
 export async function loadPlannedEventsForLocalDate(
@@ -222,6 +239,24 @@ export async function loadPlannedEventsForLocalDate(
     .eq("user_id", userId)
     .eq("planned_local_date", localDate)
     .eq("status", "planned")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("planned_at", { ascending: true });
+  if (error) throw error;
+  return collapseDuplicatePlannedRows((data ?? []) as PlannedEventRow[]);
+}
+
+export async function loadPlannedEventsUpToLocalDate(
+  db: SupabaseClient,
+  userId: string,
+  localDate: string,
+): Promise<PlannedEventRow[]> {
+  const { data, error } = await db
+    .from("planned_events")
+    .select("id,description,expected_at,planned_at,planned_local_date,status,time_phrase_raw,time_resolution,context_snippets,cells,outcome_cells,outcome_text,recommendation_text,display_order,explicit_time_text,conversation_id")
+    .eq("user_id", userId)
+    .eq("status", "planned")
+    .lte("planned_local_date", localDate)
+    .order("planned_local_date", { ascending: true })
     .order("display_order", { ascending: true, nullsFirst: false })
     .order("planned_at", { ascending: true });
   if (error) throw error;
@@ -325,7 +360,10 @@ export async function upsertDailyMatrixForDate(db: SupabaseClient, userId: strin
     outcome_cells: unknown;
   }>;
 
-  const summarized = rows.filter((row) => row.status === "summarized" && asMatrixCells(row.outcome_cells).length > 0);
+  const summarized = rows
+    .filter((row) => row.status === "summarized")
+    .map((row) => ({ id: row.id, outcome_cells: row.outcome_cells }))
+    .filter((row) => asMatrixCells(row.outcome_cells).length > 0);
   let source: DailyMatrixSource | null = null;
   let cellsCollections: MatrixCell[][] = [];
   if (summarized.length > 0) {
@@ -517,7 +555,7 @@ export async function scrubPlannedEventTextAfterMatrix(
     })
     .eq("user_id", userId)
     .eq("planned_local_date", localDate)
-    .in("status", ["summarized", "expired", "dismissed"]);
+    .in("status", ["expired", "dismissed"]);
   if (error) throw error;
 }
 

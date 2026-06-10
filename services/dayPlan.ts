@@ -6,6 +6,7 @@ import type { PracticeSummary } from "@/modules/practices/core/types";
 
 export type DayAction = {
   id: string;
+  localDate: string;
   title: string;
   recommendation: string | null;
   explicitTimeText: string | null;
@@ -25,10 +26,20 @@ export type DaySphereStat = {
 
 export type DayPracticeLog = {
   id: string;
+  localDate: string;
   title: string;
   startedAt: string;
   endedAt: string | null;
   durationSec: number | null;
+};
+
+export type DaySection = {
+  localDate: string;
+  dateLabelKind: "today" | "yesterday" | "date";
+  actions: DayAction[];
+  sphereStats: DaySphereStat[];
+  sphereHint: string | null;
+  practices: DayPracticeLog[];
 };
 
 export type DayPracticeOffer = {
@@ -45,15 +56,15 @@ export type DayPracticeOffer = {
 };
 
 export type DayPlan = {
-  localDate: string;
-  dateLabelKind: "yesterday" | "date";
+  mode: "empty_today" | "overdue_summary" | "current_day";
+  currentLocalDate: string;
   timezone: string;
   forecast: Record<string, unknown> | null;
   dayRecommendation: string | null;
-  actions: DayAction[];
-  sphereStats: DaySphereStat[];
-  sphereHint: string | null;
-  practices: DayPracticeLog[];
+  hasOverdueSummary: boolean;
+  canSummarizeCurrentDay: boolean;
+  summaryTargetLocalDate: string | null;
+  sections: DaySection[];
   pendingPractice: DayPracticeOffer | null;
 };
 

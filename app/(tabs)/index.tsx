@@ -18,7 +18,7 @@ import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
 import { collectDayHealthContext, type DayHealthContext } from "@/services/dayHealthContext";
-import { loadDayPlan, savePendingDayPractice } from "@/services/dayPlan";
+import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
   buildOpportunityAlarmStyleContent,
@@ -319,10 +319,9 @@ function launchPracticeFromAssistant(_practice: PracticePicked, onPracticeStarte
 }
 
 function dayPlanHasVisibleContent(plan: Awaited<ReturnType<typeof loadDayPlan>>): boolean {
-  const today = new Date();
-  const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  if (plan.localDate !== todayLocal) return false;
-  return plan.actions.length > 0 || Boolean(plan.dayRecommendation) || Boolean(plan.pendingPractice);
+  if (plan.mode !== "current_day") return false;
+  const todaySection = plan.sections.find((section) => section.localDate === plan.currentLocalDate) ?? plan.sections[0];
+  return (todaySection?.actions.length ?? 0) > 0 || Boolean(plan.pendingPractice);
 }
 
 function CommunicatorOverlay({
@@ -330,6 +329,7 @@ function CommunicatorOverlay({
   accessMode,
   strings,
   dayHealthContext,
+  dayPractices,
   onClose,
   onPracticeStarted,
   remountKey,
@@ -338,6 +338,7 @@ function CommunicatorOverlay({
   accessMode: "free" | "premium" | "trial";
   strings: HomeStrings;
   dayHealthContext: DayHealthContext | null;
+  dayPractices: DayPlan["sections"][number]["practices"];
   onClose: () => void;
   onPracticeStarted: () => void;
   remountKey: number;
@@ -394,6 +395,7 @@ function CommunicatorOverlay({
                   ? "дисгармоничная"
                   : "смешанная",
             windowsOfOpportunity: forecast.windowsOfOpportunity,
+            dayPractices,
             ...(dayHealthContext ? { dayHealthContext } : {}),
           }}
           memoryWindow={24}
@@ -424,6 +426,7 @@ export default function HomeScreen() {
   );
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);
+  const [homeDayPractices, setHomeDayPractices] = useState<DayPlan["sections"][number]["practices"]>([]);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
@@ -539,11 +542,20 @@ export default function HomeScreen() {
     try {
       if (canUseFeature("day_planning")) {
         const dayPlan = await loadDayPlan();
-        if (dayPlanHasVisibleContent(dayPlan)) {
+        if (!dayPlan.hasOverdueSummary && dayPlanHasVisibleContent(dayPlan)) {
+          setHomeDayPractices([]);
+          setHomeDayHealthContext(null);
           router.push("/day");
           return;
         }
-        if (dayPlan.actions.length > 0) {
+        if (dayPlan.hasOverdueSummary) {
+          const practices = dayPlan.sections.flatMap((section) =>
+            section.practices.map((practice) => ({
+              ...practice,
+              title: dayPlan.sections.length > 1 ? `${section.localDate}: ${practice.title}` : practice.title,
+            })),
+          );
+          setHomeDayPractices(practices);
           try {
             setHomeDayHealthContext(await collectDayHealthContext(dayPlan));
           } catch (healthError) {
@@ -551,6 +563,7 @@ export default function HomeScreen() {
             setHomeDayHealthContext(null);
           }
         } else {
+          setHomeDayPractices([]);
           setHomeDayHealthContext(null);
         }
       }
@@ -558,6 +571,7 @@ export default function HomeScreen() {
       setCommunicatorOpen(true);
     } catch (loadError) {
       console.warn("[Home] Failed to check day plan before assistant", loadError);
+      setHomeDayPractices([]);
       setHomeDayHealthContext(null);
       setAssistantRemountKey((k) => k + 1);
       setCommunicatorOpen(true);
@@ -691,12 +705,15 @@ export default function HomeScreen() {
           accessMode={accessMode}
           strings={strings}
           dayHealthContext={homeDayHealthContext}
+          dayPractices={homeDayPractices}
           remountKey={assistantRemountKey}
           onPracticeStarted={() => {
+            setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setCommunicatorOpen(false);
           }}
           onClose={() => {
+            setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setCommunicatorOpen(false);
             router.push("/day");

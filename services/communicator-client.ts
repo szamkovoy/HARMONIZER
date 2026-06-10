@@ -316,6 +316,10 @@ function handleSseEvent(
   }
   if (event.event === "turn_artifacts") {
     const artifacts = safeJson<DialogTurnArtifactsEvent>(event.data);
+    if (!state.complete && !state.fullText.trim()) {
+      params.onTurnArtifacts?.(artifacts);
+      return;
+    }
     state.complete = {
       ...(state.complete ?? { fullText: state.fullText, shouldClose: false }),
       messageId: artifacts.messageId ?? state.complete?.messageId,

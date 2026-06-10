@@ -31,7 +31,9 @@ import {
   type TurnHistoryItem,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { loadDialogDailyContext, type DialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
-import type { PlannedEventRow } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
+import {
+  type PlannedEventRow,
+} from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import {
   advanceBranch,
   initFsmState,
@@ -81,6 +83,16 @@ type TurnMode =
   | "inquiry"
   | "final_recommendation"
   | "final_without_practice";
+
+type SummarySessionItem = {
+  id: string;
+  description: string;
+  planned_local_date: string;
+  display_order: number | null;
+  summarized_at: string;
+  applied_to_matrix: boolean;
+  outcome_cells: unknown;
+};
 
 function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -171,29 +183,62 @@ function numberOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function formatMetricForPrompt(label: string, value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const metric = value as { value?: unknown; average?: unknown; comparison?: unknown };
+  const current = numberOrNull(metric.value);
+  if (current == null) return null;
+  const average = numberOrNull(metric.average);
+  const comparison = typeof metric.comparison === "string" ? metric.comparison : "unknown";
+  const averagePart = average != null ? `, average: ${Math.round(average)}` : "";
+  const comparisonPart = comparison !== "unknown" ? `, comparison: ${comparison}` : "";
+  return `${label}: ${Math.round(current)}${averagePart}${comparisonPart}`;
+}
+
 function formatHealthForPrompt(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const ctx = value as {
     providerStatus?: unknown;
-    yoga?: { totalMinutes?: unknown; practiceCount?: unknown };
+    provider?: unknown;
+    yoga?: { totalMinutes?: unknown; practiceCount?: unknown; averageDailyMinutes?: unknown; comparison?: unknown; kinds?: unknown };
     activity?: { steps?: unknown; activeCalories?: unknown; workoutMinutes?: unknown };
-    sleep?: { durationMinutes?: unknown };
+    sleep?: { durationMinutes?: unknown; quality?: unknown };
   };
   const lines: string[] = [];
-  const steps = numberOrNull(ctx.activity?.steps);
-  const calories = numberOrNull(ctx.activity?.activeCalories);
-  const workout = numberOrNull(ctx.activity?.workoutMinutes);
-  const sleep = numberOrNull(ctx.sleep?.durationMinutes);
-  if (steps != null) lines.push(`steps: ${Math.round(steps)}`);
-  if (calories != null) lines.push(`active calories: ${Math.round(calories)}`);
-  if (workout != null) lines.push(`workout minutes: ${Math.round(workout)}`);
-  if (sleep != null) lines.push(`sleep minutes: ${Math.round(sleep)}`);
+  const provider = typeof ctx.provider === "string" ? ctx.provider : "unknown";
+  const yogaMinutes = numberOrNull(ctx.yoga?.totalMinutes);
+  const yogaPracticeCount = numberOrNull(ctx.yoga?.practiceCount);
+  const yogaAverage = numberOrNull(ctx.yoga?.averageDailyMinutes);
+  const yogaComparison = typeof ctx.yoga?.comparison === "string" ? ctx.yoga.comparison : "unknown";
+  const yogaKinds = Array.isArray(ctx.yoga?.kinds)
+    ? ctx.yoga.kinds.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)
+    : [];
+
+  if (yogaMinutes != null && yogaMinutes > 0) {
+    const practiceCountPart = yogaPracticeCount != null ? `, practices: ${Math.round(yogaPracticeCount)}` : "";
+    const averagePart = yogaAverage != null ? `, average daily minutes: ${Math.round(yogaAverage)}` : "";
+    const comparisonPart = yogaComparison !== "unknown" ? `, comparison: ${yogaComparison}` : "";
+    const kindsPart = yogaKinds.length ? `, kinds: ${yogaKinds.join("/")}` : "";
+    lines.push(`yoga minutes: ${Math.round(yogaMinutes)}${practiceCountPart}${averagePart}${comparisonPart}${kindsPart}`);
+  }
+
+  const stepsLine = formatMetricForPrompt("steps", ctx.activity?.steps);
+  const caloriesLine = formatMetricForPrompt("active calories", ctx.activity?.activeCalories);
+  const workoutLine = formatMetricForPrompt("workout minutes", ctx.activity?.workoutMinutes);
+  const sleepLine = formatMetricForPrompt("sleep minutes", ctx.sleep?.durationMinutes);
+  if (stepsLine) lines.push(stepsLine);
+  if (caloriesLine) lines.push(caloriesLine);
+  if (workoutLine) lines.push(workoutLine);
+  if (sleepLine) lines.push(sleepLine);
+  if (typeof ctx.sleep?.quality === "string" && ctx.sleep.quality !== "unknown") {
+    lines.push(`sleep quality: ${ctx.sleep.quality}`);
+  }
   if (!lines.length) {
     return ctx.providerStatus === "available"
-      ? "no specific Apple/Google Health numbers were shared; do not invent any."
+      ? `provider: ${provider}; no specific Apple/Google Health numbers were shared; do not invent any.`
       : "Apple/Google Health is unavailable; do not mention steps, sleep, calories or workouts.";
   }
-  return lines.join(", ");
+  return [`provider: ${provider}`, ...lines].join(", ");
 }
 
 function formatPracticesForPrompt(value: unknown): string {
@@ -212,6 +257,10 @@ function formatPracticesForPrompt(value: unknown): string {
 
 function userDeclinesPractice(text: string): boolean {
   return /\b(не\s*надо|не\s*хочу|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|skip|no\s*practice|not\s*now|maybe\s*later)\b/i.test(text);
+}
+
+function userSaysEventDidNotHappen(text: string): boolean {
+  return /\b(не\s*получил(?:ось|ась)?|не\s*случил(?:ось|ась)?|не\s*состоял(?:ось|ась)?|не\s*был[оа]?|не\s*произошл[оа]|не\s*успел|не\s*вышло|не\s*сделал|не\s*сделала|didn['’]t happen|did not happen|didn['’]t manage|did not manage)\b/i.test(text);
 }
 
 function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">): string {
@@ -254,6 +303,29 @@ async function createConversation(
   return data as ConversationRecord;
 }
 
+async function closeSiblingOpenConversations(
+  db: SupabaseClient,
+  userId: string,
+  entrySource: string,
+  useCase: DialogueUseCase,
+) {
+  const { data, error } = await db
+    .from("conversations")
+    .select("id,trigger_meta,ended_at")
+    .eq("user_id", userId)
+    .eq("entry_source", entrySource)
+    .is("ended_at", null)
+    .limit(20);
+  if (error) throw error;
+  const siblings = ((data ?? []) as ConversationRecord[]).filter((conversation) => {
+    const metaUseCase = typeof conversation.trigger_meta?.use_case === "string" ? conversation.trigger_meta.use_case : null;
+    return !metaUseCase || metaUseCase === useCase;
+  });
+  for (const conversation of siblings) {
+    await closeConversation(db, userId, conversation.id);
+  }
+}
+
 async function loadConversation(
   db: SupabaseClient,
   userId: string,
@@ -282,6 +354,7 @@ async function loadConversation(
       previous_conversation_summary: summary,
     });
   }
+  await closeSiblingOpenConversations(db, userId, body.entrySource, useCase);
   return createConversation(db, userId, body, useCase, scenarioId);
 }
 
@@ -300,6 +373,175 @@ function openDueEvents(context: LoadedContext): PlannedEventRow[] {
   return context.dueEvents.filter((event) => event.status === "planned");
 }
 
+function immediateDialogStream(params: {
+  conversationId: string;
+  fullText: string;
+  turnMode: TurnMode;
+  phaseTime: LoadedContext["phaseTime"];
+  targetChakra: LoadedContext["targetChakra"];
+  shouldClose: boolean;
+}) {
+  const encoder = new TextEncoder();
+  const completePayload = {
+    conversationId: params.conversationId,
+    fullText: params.fullText,
+    shouldClose: params.shouldClose,
+    modelUsed: "premium",
+    latencyMs: 0,
+    modelTier: "premium" as const,
+    turnMode: params.turnMode,
+    iteration: 1,
+    readyMarkerTriggered: false,
+    branches: ["summarizing"],
+    targetChakra: params.targetChakra,
+    phaseTime: params.phaseTime,
+    validation: null,
+  };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(sse("complete", completePayload)));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+function readSummarySessionItems(meta: Record<string, unknown> | null | undefined): SummarySessionItem[] {
+  const raw = (meta as { summary_session?: { closed_events?: unknown } } | null | undefined)?.summary_session?.closed_events;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const id = typeof (item as { id?: unknown }).id === "string" ? (item as { id: string }).id : null;
+      const description = typeof (item as { description?: unknown }).description === "string"
+        ? (item as { description: string }).description
+        : null;
+      const plannedLocalDate = typeof (item as { planned_local_date?: unknown }).planned_local_date === "string"
+        ? (item as { planned_local_date: string }).planned_local_date
+        : null;
+      const summarizedAt = typeof (item as { summarized_at?: unknown }).summarized_at === "string"
+        ? (item as { summarized_at: string }).summarized_at
+        : null;
+      if (!id || !description || !plannedLocalDate || !summarizedAt) return null;
+      const displayOrder = Number((item as { display_order?: unknown }).display_order);
+      const outcomeCells = (item as { outcome_cells?: unknown }).outcome_cells ?? null;
+      const parsed: SummarySessionItem = {
+        id,
+        description,
+        planned_local_date: plannedLocalDate,
+        display_order: Number.isFinite(displayOrder) ? displayOrder : null,
+        summarized_at: summarizedAt,
+        applied_to_matrix: (item as { applied_to_matrix?: unknown }).applied_to_matrix === true,
+        outcome_cells: outcomeCells,
+      };
+      return parsed;
+    })
+    .filter((item): item is SummarySessionItem => Boolean(item));
+}
+
+function appendSummarySessionItem(meta: Record<string, unknown>, item: SummarySessionItem): Record<string, unknown> {
+  const current = readSummarySessionItems(meta).filter((entry) => entry.id !== item.id);
+  const closedEvents = [...current, item]
+    .sort((left, right) => {
+      if (left.planned_local_date !== right.planned_local_date) return left.planned_local_date.localeCompare(right.planned_local_date);
+      const leftOrder = left.display_order ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = right.display_order ?? Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return left.summarized_at.localeCompare(right.summarized_at);
+    })
+    .slice(-20);
+  return {
+    ...meta,
+    summary_session: {
+      closed_events: closedEvents,
+    },
+  };
+}
+
+const DEBUG_PLANNED_EVENT_SELECT =
+  "id,conversation_id,description,planned_local_date,status,planned_at,expected_at,display_order,recommendation_text,cells,outcome_text,outcome_cells,summarized_at,explicit_time_text";
+
+async function loadDebugDialogStateAfter(
+  db: SupabaseClient,
+  userId: string,
+  conversation: ConversationRecord,
+  context: LoadedContext,
+): Promise<Record<string, unknown>> {
+  const summarizedCutoffIso = DateTime.utc().minus({ hours: 48 }).toISO() ?? new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const [createdRes, openRes, closedRows] = await Promise.all([
+    db
+      .from("planned_events")
+      .select(DEBUG_PLANNED_EVENT_SELECT)
+      .eq("user_id", userId)
+      .eq("conversation_id", conversation.id)
+      .order("display_order", { ascending: true, nullsFirst: false })
+      .order("planned_at", { ascending: true }),
+    db
+      .from("planned_events")
+      .select(DEBUG_PLANNED_EVENT_SELECT)
+      .eq("user_id", userId)
+      .eq("status", "planned")
+      .order("planned_local_date", { ascending: false })
+      .order("display_order", { ascending: true, nullsFirst: false })
+      .order("planned_at", { ascending: true })
+      .limit(30),
+    db
+      .from("planned_events")
+      .select(DEBUG_PLANNED_EVENT_SELECT)
+      .eq("user_id", userId)
+      .eq("status", "summarized")
+      .gte("summarized_at", summarizedCutoffIso)
+      .order("summarized_at", { ascending: false })
+      .limit(30),
+  ]);
+  if (createdRes.error) throw createdRes.error;
+  if (openRes.error) throw openRes.error;
+  if (closedRows.error) throw closedRows.error;
+
+  const relevantLocalDates = [...new Set([
+    context.localDate,
+    ...((createdRes.data ?? []) as Array<{ planned_local_date?: string | null }>).map((row) => row.planned_local_date).filter((value): value is string => typeof value === "string" && value.length > 0),
+    ...((closedRows.data ?? []) as Array<{ planned_local_date?: string | null }>).map((row) => row.planned_local_date).filter((value): value is string => typeof value === "string" && value.length > 0),
+  ])];
+  const [forecastRes, matricesRes] = await Promise.all([
+    db
+      .from("user_daily_forecasts")
+      .select("id,forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
+      .eq("user_id", userId)
+      .eq("forecast_date", context.localDate)
+      .maybeSingle(),
+    relevantLocalDates.length
+      ? db
+          .from("daily_matrices")
+          .select("local_date,matrix,range_metric,updated_at")
+          .eq("user_id", userId)
+          .in("local_date", relevantLocalDates)
+          .order("local_date", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (forecastRes.error) throw forecastRes.error;
+  if (matricesRes.error) throw matricesRes.error;
+
+  return {
+    context_local_date: context.localDate,
+    conversation_id: conversation.id,
+    conversation_started_at: conversation.started_at ?? null,
+    conversation_ended_at: conversation.ended_at ?? null,
+    forecast_for_local_date: (forecastRes.data as Record<string, unknown> | null) ?? context.forecast ?? null,
+    planning_snapshot_at_start: [],
+    planning_created_in_this_conversation: createdRes.data ?? [],
+    planning_open_now: openRes.data ?? [],
+    planning_closed_recent_48h: closedRows.data ?? [],
+    daily_matrices_for_relevant_dates: matricesRes.data ?? [],
+  };
+}
+
 export async function GET(req: Request) {
   let db: SupabaseClient | null = null;
   let userId: string | null = null;
@@ -313,6 +555,7 @@ export async function GET(req: Request) {
     });
     const entrySource = (url.searchParams.get("entrySource") as DialogueEntrySource | null) ?? "home";
     const requestedConversationId = url.searchParams.get("conversationId")?.trim() || null;
+    const debugExportRequested = url.searchParams.get("debugExport") === "1";
 
     const context = await loadDialogDailyContext(db, userId);
     const userTimezone = context.user.tz ?? "UTC";
@@ -328,7 +571,7 @@ export async function GET(req: Request) {
         .maybeSingle();
       if (error) throw error;
       const candidate = (data as ConversationRecord | null) ?? null;
-      if (candidate && !candidate.ended_at && !isConversationExpired(candidate, userTimezone, new Date(), resumeTtlMs)) {
+      if (candidate && (debugExportRequested || (!candidate.ended_at && !isConversationExpired(candidate, userTimezone, new Date(), resumeTtlMs)))) {
         conversation = candidate;
       }
     } else {
@@ -356,6 +599,9 @@ export async function GET(req: Request) {
       const createdMs = Date.parse(message.created_at ?? "");
       return Number.isFinite(createdMs) && createdMs >= cutoffMs;
     });
+    const dialogStateAfter = debugExportRequested
+      ? await loadDebugDialogStateAfter(db, userId, conversation, context)
+      : undefined;
     return json({
       conversationId: conversation.id,
       messages: history.map((message) => ({
@@ -370,7 +616,8 @@ export async function GET(req: Request) {
             (message.meta as { practice_picked?: unknown } | null)?.practice_picked,
         },
       })),
-      reset: history.length === 0,
+      reset: debugExportRequested ? false : history.length === 0,
+      ...(debugExportRequested ? { debugExportEnabled: true, dialogStateAfter } : {}),
     });
   } catch (error) {
     await reportRouteError(error, { db, userId, endpoint: "communicator/v2/dialog", stage: "session_sync" });
@@ -402,7 +649,9 @@ export async function POST(req: Request) {
     const daySummaryRequested = triggerMeta.daySummaryRequested === true;
     const summaryDate = daySummaryRequested && typeof triggerMeta.workingLocalDate === "string" ? triggerMeta.workingLocalDate : null;
 
-    const context = await loadDialogDailyContext(db, userId, body.userTimezone, { summarizeWholeLocalDate: summaryDate });
+    const context = await loadDialogDailyContext(db, userId, body.userTimezone, {
+      ...(daySummaryRequested && summaryDate ? { summarizeUpToLocalDate: summaryDate } : {}),
+    });
     const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
     const conversation = await loadConversation(
       db,
@@ -438,13 +687,35 @@ export async function POST(req: Request) {
     const currentEvent = due[0] ?? null;
     const nextEvent = due[1] ?? null;
 
+    if (fsm.branch === "summarizing" && due.length === 0) {
+      if (!daySummaryRequested) {
+        const nextFsm = advanceBranch(fsm);
+        conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, nextFsm);
+        fsm = nextFsm;
+      } else {
+        await closeConversation(db, userId, conversation.id);
+        return immediateDialogStream({
+          conversationId: conversation.id,
+          fullText: "Все неподытоженные действия уже подытожены.",
+          turnMode: "final_without_practice",
+          phaseTime: context.phaseTime,
+          targetChakra: context.targetChakra,
+          shouldClose: true,
+        });
+      }
+    }
+
     // ----- Build the single per-turn prompt for the current branch -----
     let prompt: { systemInstruction: string; userInstruction: string };
     if (fsm.branch === "summarizing") {
+      const completedEarlierEvents = readSummarySessionItems(conversationMeta)
+        .filter((item) => !currentEvent || item.id !== currentEvent.id)
+        .map((item) => ({ description: item.description }));
       prompt = buildSummarizingPrompt(brainCtx, {
         isOpening,
         currentEvent: currentEvent ? { ref: currentEvent.id, description: currentEvent.description } : null,
         nextEvent: nextEvent ? { description: nextEvent.description } : null,
+        completedEarlierEvents,
         isLastEvent: due.length <= 1,
         clarifyingAlreadyAsked: summaryAskedCount(fsm, currentEvent?.id) >= 1,
         healthContext: formatHealthForPrompt(triggerMeta.dayHealthContext),
@@ -452,7 +723,12 @@ export async function POST(req: Request) {
         continuesToPlanning: !isLastBranch(fsm),
       });
     } else if (fsm.branch === "practice") {
-      prompt = buildPracticePrompt(brainCtx, { isOpening: false });
+      const lastAssistantBranch = [...history]
+        .reverse()
+        .find((message) => message.role === "assistant")
+        ?.meta?.dialog_branches;
+      const isPracticeOpening = !Array.isArray(lastAssistantBranch) || !lastAssistantBranch.includes("practice");
+      prompt = buildPracticePrompt(brainCtx, { isOpening: isPracticeOpening });
     } else {
       prompt = buildPlanningPrompt(brainCtx, { isOpening, noPractice: fsm.noPractice, noGreeting: fsm.noGreeting });
     }
@@ -521,6 +797,7 @@ export async function POST(req: Request) {
                 timezone: userTimezone,
                 nowIso,
                 markers: markers.plannedEvents,
+                appendToExisting: tabMode === "add",
               });
               planningPersistence.inserted = persisted.filter((p) => p.action === "inserted");
               planningPersistence.updated = persisted.filter((p) => p.action === "updated");
@@ -578,8 +855,11 @@ export async function POST(req: Request) {
             const summaryMarker = currentEvent
               ? markers.summarizeEvents.find((s) => s.ref.trim() === currentEvent.id || currentEvent.description.toLowerCase().includes(s.ref.trim().toLowerCase()))
               : undefined;
+            const remainingAfterCurrent = currentEvent
+              ? due.filter((event) => event.id !== currentEvent.id).length
+              : due.length;
             if (!isOpening && summaryMarker && currentEvent) {
-              await persistSummarizedEvent({
+              const summarizedItem = await persistSummarizedEvent({
                 db: routeDb,
                 userId: routeUserId,
                 event: currentEvent,
@@ -587,8 +867,69 @@ export async function POST(req: Request) {
                 outcomeCells: summaryMarker.outcomeCells,
                 nowIso,
               });
+              conversationMeta = appendSummarySessionItem(conversationMeta, {
+                id: summarizedItem.id,
+                description: summarizedItem.title,
+                planned_local_date: currentEvent.planned_local_date,
+                display_order: summarizedItem.displayOrder,
+                summarized_at: summarizedItem.summarizedAt,
+                applied_to_matrix: summarizedItem.appliedToMatrix,
+                outcome_cells: summarizedItem.outcomeCells,
+              });
               planningPersistence.summarized = [{ id: currentEvent.id, description: currentEvent.description }];
-              if (due.length <= 1) {
+              if (remainingAfterCurrent <= 0) {
+                nextFsm = advanceBranch(fsmAtTurnStart);
+                if (nextFsm.branch === "done") {
+                  turnMode = "final_without_practice";
+                  shouldClose = true;
+                } else {
+                  turnMode = "inquiry";
+                }
+              } else {
+                turnMode = "inquiry";
+              }
+            } else if (!isOpening && currentEvent && userSaysEventDidNotHappen(userMessage)) {
+              const summarizedItem = await persistSummarizedEvent({
+                db: routeDb,
+                userId: routeUserId,
+                event: currentEvent,
+                outcomeText: userMessage.trim() || null,
+                outcomeCells: [],
+                nowIso,
+              });
+              conversationMeta = appendSummarySessionItem(conversationMeta, {
+                id: summarizedItem.id,
+                description: summarizedItem.title,
+                planned_local_date: currentEvent.planned_local_date,
+                display_order: summarizedItem.displayOrder,
+                summarized_at: summarizedItem.summarizedAt,
+                applied_to_matrix: summarizedItem.appliedToMatrix,
+                outcome_cells: summarizedItem.outcomeCells,
+              });
+              planningPersistence.summarized = [{ id: currentEvent.id, description: currentEvent.description }];
+              turnMode = remainingAfterCurrent <= 0 && isLastBranch(fsmAtTurnStart) ? "final_without_practice" : "inquiry";
+              nextFsm = remainingAfterCurrent <= 0 ? advanceBranch(fsmAtTurnStart) : fsmAtTurnStart;
+              shouldClose = remainingAfterCurrent <= 0 && nextFsm.branch === "done";
+            } else if (!isOpening && currentEvent && summaryAskedCount(fsmAtTurnStart, currentEvent.id) >= 1) {
+              const summarizedItem = await persistSummarizedEvent({
+                db: routeDb,
+                userId: routeUserId,
+                event: currentEvent,
+                outcomeText: userMessage.trim() || null,
+                outcomeCells: [],
+                nowIso,
+              });
+              conversationMeta = appendSummarySessionItem(conversationMeta, {
+                id: summarizedItem.id,
+                description: summarizedItem.title,
+                planned_local_date: currentEvent.planned_local_date,
+                display_order: summarizedItem.displayOrder,
+                summarized_at: summarizedItem.summarizedAt,
+                applied_to_matrix: summarizedItem.appliedToMatrix,
+                outcome_cells: summarizedItem.outcomeCells,
+              });
+              planningPersistence.summarized = [{ id: currentEvent.id, description: currentEvent.description }];
+              if (remainingAfterCurrent <= 0) {
                 nextFsm = advanceBranch(fsmAtTurnStart);
                 if (nextFsm.branch === "done") {
                   turnMode = "final_without_practice";

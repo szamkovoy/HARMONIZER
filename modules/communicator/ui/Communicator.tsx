@@ -538,6 +538,7 @@ export function Communicator({
   conversationId,
   history,
   memoryWindow,
+  autoSendInitialMessage,
   startFreshSession = false,
   onEmotionSegment,
   onMessage,
@@ -596,6 +597,8 @@ export function Communicator({
 
   const retryHandlerRef = useRef<(() => void) | null>(null);
   const initiateFiredRef = useRef(false);
+  const autoSendFiredRef = useRef(false);
+  const freshSessionBootstrappedRef = useRef(false);
 
   const reportError = useCallback(
     (err: Error) => {
@@ -738,6 +741,8 @@ export function Communicator({
     void (async () => {
       try {
         if (startFreshSession) {
+          if (freshSessionBootstrappedRef.current) return;
+          freshSessionBootstrappedRef.current = true;
           if (localDialogUserId) {
             await clearDialogSessionCache({
               userId: localDialogUserId,
@@ -748,11 +753,13 @@ export function Communicator({
           }
           if (cancelled) return;
           initiateFiredRef.current = false;
+          autoSendFiredRef.current = false;
           setActiveConversationId(conversationId ?? null);
           const seed = initialHistoryRef.current;
           setMessages(seed.length ? [...seed] : []);
           return;
         }
+        freshSessionBootstrappedRef.current = false;
 
         const cached = localDialogUserId
           ? await loadDialogSessionCache({
@@ -783,6 +790,7 @@ export function Communicator({
             });
           }
           initiateFiredRef.current = false;
+          autoSendFiredRef.current = false;
           setActiveConversationId(null);
           const seed = initialHistoryRef.current;
           setMessages(seed.length ? [...seed] : []);
@@ -1196,7 +1204,14 @@ export function Communicator({
         ?.meta?.practicePicked;
       const fallbackAssistantText = previousAssistantPracticePicked
         ? strings.postPracticeReplyFallback
-        : strings.emptyAssistantReplyFallback;
+        : hydratedComplete?.practicePicked
+          ? strings.postPracticeReplyFallback
+          : hydratedComplete?.shouldClose
+            ? "Диалог завершён."
+            : "";
+      if (!finalText.length && !fallbackAssistantText && !hydratedComplete?.practicePicked && hydratedComplete?.shouldClose !== true) {
+        throw new Error("Assistant reply was empty after hydration");
+      }
 
       const assistant: CommunicatorHistoryMessage = {
         id: hydratedComplete?.messageId ?? newMessageId(),
@@ -1282,7 +1297,6 @@ export function Communicator({
       scheduleDeferredAssistantCommit,
       syncChatStreamDisplayText,
       useCase,
-      strings.emptyAssistantReplyFallback,
       strings.postPracticeReplyFallback,
     ],
   );
@@ -1613,12 +1627,26 @@ export function Communicator({
 
   useEffect(() => {
     if (initiateFiredRef.current) return;
+    if (autoSendInitialMessage?.trim()) return;
     if (!sessionSynced) return;
     if (messages.length > 0) return;
     initiateFiredRef.current = true;
     const h = setTimeout(() => void performInitiateDialog(), 120);
     return () => clearTimeout(h);
-  }, [sessionSynced, messages.length, performInitiateDialog]);
+  }, [autoSendInitialMessage, sessionSynced, messages.length, performInitiateDialog]);
+
+  useEffect(() => {
+    const initialText = autoSendInitialMessage?.trim();
+    if (!initialText) return;
+    if (autoSendFiredRef.current) return;
+    if (!sessionSynced) return;
+    if (messages.length > 0) return;
+    autoSendFiredRef.current = true;
+    const h = setTimeout(() => {
+      void runStream({ type: "text", text: initialText });
+    }, 120);
+    return () => clearTimeout(h);
+  }, [autoSendInitialMessage, messages.length, runStream, sessionSynced]);
 
   const resetRecordingAudioMode = useCallback(async () => {
     try {
@@ -2287,7 +2315,7 @@ export function Communicator({
           .filter((row) => row?.status === "summarized")
       : [];
     const summarizedEventsAppliedToMatrix = summarizedRows
-      .filter((row) => Array.isArray(row?.outcome_cells) && row.outcome_cells.length > 0)
+      .filter((row) => row?.applied_to_matrix === true || (Array.isArray(row?.outcome_cells) && row.outcome_cells.length > 0))
       .map((row) => ({
         id: typeof row.id === "string" ? row.id : null,
         description: typeof row.description === "string" ? row.description : null,
@@ -2296,7 +2324,7 @@ export function Communicator({
         summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
       }));
     const summarizedEventsClosedWithoutMatrix = summarizedRows
-      .filter((row) => !Array.isArray(row?.outcome_cells) || row.outcome_cells.length === 0)
+      .filter((row) => row?.applied_to_matrix !== true && (!Array.isArray(row?.outcome_cells) || row.outcome_cells.length === 0))
       .map((row) => ({
         id: typeof row.id === "string" ? row.id : null,
         description: typeof row.description === "string" ? row.description : null,

@@ -31,6 +31,7 @@ import {
   savePendingDayPractice,
   type DayAction,
   type DayPlan,
+  type DaySection,
   type DaySphereStat,
 } from "@/services/dayPlan";
 
@@ -54,11 +55,13 @@ function sectorPath(cx: number, cy: number, radius: number, startAngle: number, 
   return [`M ${cx} ${cy}`, `L ${start.x} ${start.y}`, `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`, "Z"].join(" ");
 }
 
-function formatDateLabel(plan: DayPlan) {
-  const [year, month, day] = plan.localDate.split("-").map((part) => Number.parseInt(part, 10));
+function formatLocalDateLabel(localDate: string, kind: DaySection["dateLabelKind"]) {
+  const [year, month, day] = localDate.split("-").map((part) => Number.parseInt(part, 10));
   const date = new Date(year, (month ?? 1) - 1, day ?? 1, 12, 0, 0);
   const formatted = new Intl.DateTimeFormat("ru", { day: "numeric", month: "long" }).format(date);
-  return plan.dateLabelKind === "yesterday" ? `Вчера, ${formatted}` : formatted;
+  if (kind === "today") return `Сегодня, ${formatted}`;
+  if (kind === "yesterday") return `Вчера, ${formatted}`;
+  return formatted;
 }
 
 function formatPracticeLineTime(value: string) {
@@ -72,13 +75,6 @@ function formatPracticeDuration(seconds: number | null) {
   return `${Math.max(1, Math.round(seconds / 60))} мин`;
 }
 
-function todayLocalDate() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
 function compactActionTitle(value: string) {
   return value.trim();
 }
@@ -86,6 +82,29 @@ function compactActionTitle(value: string) {
 function dayTargetChakra(plan: DayPlan | null): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
   const raw = Number(plan?.forecast?.day_target_chakra);
   return Number.isInteger(raw) && raw >= 1 && raw <= 7 ? raw as 1 | 2 | 3 | 4 | 5 | 6 | 7 : null;
+}
+
+function currentDaySection(plan: DayPlan | null): DaySection | null {
+  if (!plan) return null;
+  return plan.sections.find((section) => section.localDate === plan.currentLocalDate) ?? plan.sections[0] ?? null;
+}
+
+function summarySections(plan: DayPlan | null): DaySection[] {
+  if (!plan) return [];
+  if (plan.mode === "overdue_summary") return plan.sections;
+  const todaySection = currentDaySection(plan);
+  return todaySection ? [todaySection] : [];
+}
+
+function summaryPracticesForAssistant(plan: DayPlan): DayPlan["sections"][number]["practices"] {
+  const sections = summarySections(plan);
+  const includeDatePrefix = sections.length > 1;
+  return sections.flatMap((section) =>
+    section.practices.map((practice) => ({
+      ...practice,
+      title: includeDatePrefix ? `${formatLocalDateLabel(section.localDate, section.dateLabelKind)}: ${practice.title}` : practice.title,
+    })),
+  );
 }
 
 function practiceForDayTarget(practice: PracticeSummary, target: 1 | 2 | 3 | 4 | 5 | 6 | 7 | null): PracticeSummary {
@@ -144,9 +163,11 @@ function SphereRadialChart({ stats }: { stats: DaySphereStat[] }) {
 function DayActionRow({
   action,
   onChanged,
+  readonly = false,
 }: {
   action: DayAction;
   onChanged: () => void;
+  readonly?: boolean;
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
@@ -190,7 +211,7 @@ function DayActionRow({
         },
       ]}
     >
-      <Pressable style={styles.actionMainRow} onPress={() => setExpanded((value) => !value)}>
+      <Pressable style={styles.actionMainRow} onPress={() => { if (!readonly) setExpanded((value) => !value); }}>
         <View style={styles.actionTitleBlock}>
           {editing ? (
             <TextInput
@@ -218,10 +239,17 @@ function DayActionRow({
             </AppText>
           )}
         </View>
-        {!summarized && !editing ? (
+        {!readonly && !summarized && !editing ? (
           <View style={styles.actionIcons}>
-            <Pressable accessibilityRole="button" accessibilityLabel={expanded ? "Свернуть рекомендацию" : "Развернуть рекомендацию"} onPress={() => setExpanded((value) => !value)} style={styles.iconButton}>
-              <AppText variant="buttonLabel">{expanded ? "▴" : "▾"}</AppText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={expanded ? "Скрыть рекомендацию" : "Показать рекомендацию"}
+              onPress={() => setExpanded((value) => !value)}
+              style={styles.iconButton}
+            >
+              <AppText variant="buttonLabel" tone="accent">
+                {expanded ? "▴" : "▾"}
+              </AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Редактировать действие" onPress={() => setEditing(true)} style={styles.iconButton}>
               <AppText variant="buttonLabel">✎</AppText>
@@ -244,7 +272,7 @@ function DayActionRow({
           }} style={styles.smallButton} />
         </View>
       ) : null}
-      {expanded && !editing ? (
+      {expanded && !editing && !readonly ? (
         <AppText variant="dialogBody" tone="muted" style={styles.actionRecommendation}>
           {action.recommendation ?? "Рекомендация появится после обновления ассистента для этого действия."}
         </AppText>
@@ -271,12 +299,17 @@ function AssistantModal({
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   if (!visible || !plan) return null;
-  const modePrompt =
-    mode === "summary"
-      ? "Давайте подытожим этот день. Проведите меня по всем неподытоженным действиям и учитывайте, выполнял ли я практики йоги."
-      : mode === "add"
-        ? "Что бы вы хотели добавить в список действий на этот день?"
-        : "Что делать сегодня? Помогите составить список действий на день.";
+  const summaryTargetLocalDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
+  const assistantActions = (mode === "summary" ? summarySections(plan) : (currentDaySection(plan) ? [currentDaySection(plan)!] : []))
+    .flatMap((section) => section.actions.map((action) => ({
+      id: action.id,
+      title: action.title,
+      status: action.status,
+      localDate: section.localDate,
+    })));
+  const assistantPractices = mode === "summary"
+    ? summaryPracticesForAssistant(plan)
+    : (currentDaySection(plan)?.practices ?? []);
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={[styles.modalRoot, { backgroundColor: theme.colors.screenBg }]}>
@@ -295,24 +328,20 @@ function AssistantModal({
           </Pressable>
         </View>
         <Communicator
+          key={`day-${mode}-${summaryTargetLocalDate}`}
           systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Помоги пользователю заполнить или подытожить вкладку «День»."
           locale="ru"
           useCase="daily_dialog"
           entrySource="day"
-          startFreshSession={mode === "add"}
+          startFreshSession
           triggerMeta={{
             dayTabMode: mode,
-            workingLocalDate: plan.localDate,
+            workingLocalDate: mode === "summary" ? summaryTargetLocalDate : plan.currentLocalDate,
             daySummaryRequested: mode === "summary",
-            dayActions: plan.actions.map((action) => ({
-              id: action.id,
-              title: action.title,
-              status: action.status,
-            })),
-            dayPractices: plan.practices,
+            dayActions: assistantActions,
+            dayPractices: assistantPractices,
             dayHealthContext: mode === "summary" ? dayHealthContext : null,
           }}
-          autoSendInitialMessage={modePrompt}
           memoryWindow={24}
           onPracticeOffered={onPracticeOffered}
           onRequestClose={onClose}
@@ -370,17 +399,18 @@ export default function DayTabRoute() {
     });
   }, [catalog, practiceMenuLevel]);
 
-  const hasActions = (plan?.actions.length ?? 0) > 0;
-  const hasUnsummary = (plan?.actions ?? []).some((action) => action.status !== "summarized");
+  const todaySection = currentDaySection(plan);
+  const hasActions = (todaySection?.actions.length ?? 0) > 0;
+  const canSummarizeCurrentDay = Boolean(plan?.canSummarizeCurrentDay);
   const activeSphereStats = useMemo(
-    () => (plan?.sphereStats ?? []).filter((item) => item.value > 0.001),
-    [plan?.sphereStats],
+    () => (todaySection?.sphereStats ?? []).filter((item) => item.value > 0.001),
+    [todaySection?.sphereStats],
   );
-  const isPastUnfinishedDay = plan ? plan.localDate < todayLocalDate() : false;
+  const showRefreshingBanner = loading && Boolean(plan);
 
   const saveOffer = async (practice: PracticeSummary) => {
     if (!plan) return;
-    await savePendingDayPractice(plan.localDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
+    await savePendingDayPractice(plan.currentLocalDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
     setPracticeMenuLevel("closed");
     await refresh({ showRefreshing: true });
   };
@@ -409,140 +439,172 @@ export default function DayTabRoute() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <AppText variant="screenTitle" accessibilityRole="header">
-            {plan ? formatDateLabel(plan) : "День"}
+            {plan && plan.mode !== "overdue_summary" && todaySection
+              ? formatLocalDateLabel(todaySection.localDate, todaySection.dateLabelKind)
+              : "День"}
           </AppText>
         </View>
 
-        {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
+        {loading && !plan ? <ActivityIndicator color={theme.colors.accent} /> : null}
         {error ? (
           <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.danger }]}>
             <AppText variant="dialogBody" tone="danger">{error}</AppText>
             <AppButton label="Повторить" onPress={() => void refresh()} />
           </View>
         ) : null}
+        {showRefreshingBanner ? (
+          <View style={[styles.card, styles.refreshingBanner, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+            <ActivityIndicator color={theme.colors.accent} />
+            <AppText variant="technicalCaption" tone="muted">Обновляем день...</AppText>
+          </View>
+        ) : null}
 
         {plan ? (
           <>
-            {plan.dayRecommendation ? (
+            {plan.mode === "overdue_summary" ? (
+              <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+                <AppText variant="dialogBody" tone="muted">
+                  Для анализа данных, подытожьте действия, которые вы планировали ранее.
+                </AppText>
+                {healthLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
+                <AppButton label="Подытожить" onPress={() => openAssistant("summary")} />
+              </View>
+            ) : null}
+
+            {plan.mode === "current_day" && plan.dayRecommendation ? (
               <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
                 <AppText variant="sectionTitle">Фокус дня</AppText>
                 <AppText variant="dialogBody" tone="muted">{plan.dayRecommendation}</AppText>
               </View>
             ) : null}
 
-            <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-              <AppText variant="sectionTitle">Действия</AppText>
-              {hasActions ? (
-                plan.actions.map((action) => (
-                  <DayActionRow key={action.id} action={action} onChanged={() => void refresh()} />
-                ))
-              ) : (
-                <AppText variant="dialogBody" tone="muted">
-                  Пока действий нет. Начните с ассистента, и он поможет собрать день.
-                </AppText>
-              )}
-              {activeSphereStats.length ? (
-                <>
-                <AppText variant="sectionTitle" style={styles.innerSectionTitle}>Сферы жизни</AppText>
-                <SphereRadialChart stats={plan.sphereStats} />
-                {plan.sphereHint ? <AppText variant="technicalCaption" tone="muted">{plan.sphereHint}</AppText> : null}
-                </>
-              ) : null}
-              {!isPastUnfinishedDay ? (
-                <AppButton
-                  label={hasActions ? "Добавить действие" : "Что делать?"}
-                  onPress={() => openAssistant(hasActions ? "add" : "plan")}
-                />
-              ) : null}
-            </View>
+            {plan.sections.map((section) => (
+              <View key={section.localDate} style={styles.sectionGroup}>
+                {plan.mode === "overdue_summary" ? (
+                  <AppText variant="sectionTitle">{formatLocalDateLabel(section.localDate, section.dateLabelKind)}</AppText>
+                ) : null}
+                <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+                  <AppText variant="sectionTitle">Действия</AppText>
+                  {section.actions.length ? (
+                    section.actions.map((action) => (
+                      <DayActionRow
+                        key={action.id}
+                        action={action}
+                        readonly={plan.mode === "overdue_summary"}
+                        onChanged={() => void refresh({ showRefreshing: true })}
+                      />
+                    ))
+                  ) : (
+                    <AppText variant="dialogBody" tone="muted">
+                      Пока действий нет. Начните с ассистента, и он поможет собрать день.
+                    </AppText>
+                  )}
+                  {plan.mode === "current_day" && activeSphereStats.length ? (
+                    <>
+                      <AppText variant="sectionTitle" style={styles.innerSectionTitle}>Сферы жизни</AppText>
+                      <SphereRadialChart stats={section.sphereStats} />
+                      {section.sphereHint ? <AppText variant="dialogBody" tone="muted">{section.sphereHint}</AppText> : null}
+                    </>
+                  ) : null}
+                  {plan.mode === "empty_today" || plan.mode === "current_day" ? (
+                    <AppButton
+                      label={hasActions ? "Добавить" : "Что делать?"}
+                      onPress={() => openAssistant(hasActions ? "add" : "plan")}
+                    />
+                  ) : null}
+                </View>
 
-            <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-              <AppText variant="sectionTitle">Йога</AppText>
-              {plan.practices.length ? (
-                <View style={styles.practiceLogList}>
-                  {plan.practices.map((practice) => {
-                    const time = formatPracticeLineTime(practice.startedAt);
-                    const duration = formatPracticeDuration(practice.durationSec);
-                    return (
-                      <AppText key={practice.id} variant="dialogBody" tone="muted">
-                        {time ? `${time} ` : ""}{practice.title}{duration ? ` (${duration})` : ""}
+                {plan.mode === "overdue_summary" && section.practices.length === 0 ? null : (
+                  <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+                    <AppText variant="sectionTitle">Йога</AppText>
+                    {section.practices.length ? (
+                      <View style={styles.practiceLogList}>
+                        {section.practices.map((practice) => {
+                          const time = formatPracticeLineTime(practice.startedAt);
+                          const duration = formatPracticeDuration(practice.durationSec);
+                          return (
+                            <AppText key={practice.id} variant="dialogBody" tone="muted">
+                              {time ? `${time} ` : ""}{practice.title}{duration ? ` (${duration})` : ""}
+                            </AppText>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <AppText variant="dialogBody" tone="muted">
+                        Выполните практику йоги, чтобы поддержать в себе способность гармонично проявлять рекомендованные состояния.
                       </AppText>
-                    );
-                  })}
-                </View>
-              ) : (
-                <AppText variant="dialogBody" tone="muted">
-                  Выполните практику йоги, чтобы поддержать в себе способность гармонично проявлять рекомендованные состояния.
-                </AppText>
-              )}
+                    )}
 
-              {plan.pendingPractice ? (
-                <View style={styles.pendingPractice}>
-                  <PracticeCard
-                    practice={plan.pendingPractice.practice_summary}
-                    onLaunch={(practice) => {
-                      launchPractice(practice.launch, { launchSource: "day" });
-                    }}
-                  />
-                  <AppButton
-                    label="Отменить практику"
-                    variant="secondary"
-                    onPress={() => {
-                      void cancelPendingDayPractice(plan.pendingPractice!.id).then(() => refresh({ showRefreshing: true }));
-                    }}
-                  />
-                </View>
-              ) : (
-                !isPastUnfinishedDay ? (
-                <>
-                  <AppButton label="Выбрать практику" onPress={() => setPracticeMenuLevel((value) => value === "closed" ? "root" : "closed")} />
-                  {practiceMenuLevel !== "closed" ? (
-                    <View style={[styles.practicePicker, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.surface }]}>
-                      {!catalog ? <ActivityIndicator color={theme.colors.accent} /> : null}
-                      {catalog ? (
+                    {plan.mode !== "overdue_summary" ? (
+                      plan.pendingPractice ? (
+                        <View style={styles.pendingPractice}>
+                          <PracticeCard
+                            practice={plan.pendingPractice.practice_summary}
+                            onLaunch={(practice) => {
+                              launchPractice(practice.launch, { launchSource: "day" });
+                            }}
+                          />
+                          <AppButton
+                            label="Отменить практику"
+                            variant="secondary"
+                            onPress={() => {
+                              void cancelPendingDayPractice(plan.pendingPractice!.id).then(() => refresh({ showRefreshing: true }));
+                            }}
+                          />
+                        </View>
+                      ) : (
                         <>
-                          {practiceMenuLevel === "root" ? (
-                            <>
-                              {catalog.meditation[0] ? <Pressable style={styles.menuItem} onPress={() => void saveOffer(catalog.meditation[0]!)}><AppText variant="dialogBody">Медитация</AppText></Pressable> : null}
-                              <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("breath")}><AppText variant="dialogBody">Дыхание</AppText></Pressable>
-                              <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("yoga")}><AppText variant="dialogBody">Асаны</AppText></Pressable>
-                            </>
-                          ) : null}
-                          {practiceMenuLevel === "breath" ? (
-                            <>
-                              <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">‹ Назад</AppText></Pressable>
-                              {catalog.breath.map((practice) => (
-                                <Pressable key={practice.id} style={styles.menuItem} onPress={() => void saveOffer(practice)}><AppText variant="dialogBody">{practice.title}</AppText></Pressable>
-                              ))}
-                            </>
-                          ) : null}
-                          {practiceMenuLevel === "yoga" ? (
-                            <>
-                              <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">‹ Назад</AppText></Pressable>
-                              {(["20-30", "31-40", "41-50", "50+"] as const).map((bucket) => (
-                                <Pressable
-                                  key={bucket}
-                                  style={styles.menuItem}
-                                  onPress={() => {
-                                    const yoga = chooseYogaByBucket(catalog, bucket);
-                                    if (yoga) void saveOffer(yoga);
-                                  }}
-                                >
-                                  <AppText variant="dialogBody">{bucket} минут</AppText>
-                                </Pressable>
-                              ))}
-                            </>
+                          <AppButton label="Выбрать практику" onPress={() => setPracticeMenuLevel((value) => value === "closed" ? "root" : "closed")} />
+                          {practiceMenuLevel !== "closed" ? (
+                            <View style={[styles.practicePicker, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.surface }]}>
+                              {!catalog ? <ActivityIndicator color={theme.colors.accent} /> : null}
+                              {catalog ? (
+                                <>
+                                  {practiceMenuLevel === "root" ? (
+                                    <>
+                                      {catalog.meditation[0] ? <Pressable style={styles.menuItem} onPress={() => void saveOffer(catalog.meditation[0]!)}><AppText variant="dialogBody">Медитация</AppText></Pressable> : null}
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("breath")}><AppText variant="dialogBody">Дыхание</AppText></Pressable>
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("yoga")}><AppText variant="dialogBody">Асаны</AppText></Pressable>
+                                    </>
+                                  ) : null}
+                                  {practiceMenuLevel === "breath" ? (
+                                    <>
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">‹ Назад</AppText></Pressable>
+                                      {catalog.breath.map((practice) => (
+                                        <Pressable key={practice.id} style={styles.menuItem} onPress={() => void saveOffer(practice)}><AppText variant="dialogBody">{practice.title}</AppText></Pressable>
+                                      ))}
+                                    </>
+                                  ) : null}
+                                  {practiceMenuLevel === "yoga" ? (
+                                    <>
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">‹ Назад</AppText></Pressable>
+                                      {(["20-30", "31-40", "41-50", "50+"] as const).map((bucket) => (
+                                        <Pressable
+                                          key={bucket}
+                                          style={styles.menuItem}
+                                          onPress={() => {
+                                            const yoga = chooseYogaByBucket(catalog, bucket);
+                                            if (yoga) void saveOffer(yoga);
+                                          }}
+                                        >
+                                          <AppText variant="dialogBody">{bucket} минут</AppText>
+                                        </Pressable>
+                                      ))}
+                                    </>
+                                  ) : null}
+                                </>
+                              ) : null}
+                            </View>
                           ) : null}
                         </>
-                      ) : null}
-                    </View>
-                  ) : null}
-                </>
-                ) : null
-              )}
-            </View>
+                      )
+                    ) : null}
+                  </View>
+                )}
+              </View>
+            ))}
 
-            {hasUnsummary ? (
+            {plan.mode === "current_day" && canSummarizeCurrentDay ? (
               <>
                 {healthLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
                 <AppButton label="Подытожить этот день" onPress={() => openAssistant("summary")} />
@@ -559,7 +621,7 @@ export default function DayTabRoute() {
         dayHealthContext={dayHealthContext}
         onPracticeOffered={async (practice) => {
           if (!plan) return;
-          await savePendingDayPractice(plan.localDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
+          await savePendingDayPractice(plan.currentLocalDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
           await refresh({ showRefreshing: true });
         }}
         onClose={() => {
@@ -582,6 +644,9 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: 6,
+  },
+  sectionGroup: {
+    gap: 12,
   },
   card: {
     borderRadius: 24,
@@ -633,6 +698,11 @@ const styles = StyleSheet.create({
   },
   actionRecommendation: {
     paddingRight: 8,
+  },
+  refreshingBanner: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
   },
   innerSectionTitle: {
     marginTop: 10,
