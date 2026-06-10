@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 
+import { phaseTimeForHour } from "./dialogTimeOfDay";
 import { getBothMaxDialogLength, getPlanningMaxDialogLength, getSummarizingMaxDialogLength } from "./dialogConfig";
 import { forcedPhaseOrNull, hoursToMs } from "./testMode";
 
@@ -16,10 +17,7 @@ export function phaseTimeFor(nowLocal: DateTime): PhaseTime {
   const forced = forcedPhaseOrNull();
   if (forced) return forced;
 
-  const hour = nowLocal.hour;
-  if (hour >= 4 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 18) return "day";
-  return "evening";
+  return phaseTimeForHour(nowLocal.hour);
 }
 
 export function chooseDialogBranches(params: {

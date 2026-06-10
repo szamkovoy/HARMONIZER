@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeExportMessages, reconcileExportPlanningPersistence } from "./dialogExportMerge";
+import {
+  collectSummaryEventsFromExportMessages,
+  mergeExportMessages,
+  reconcileExportPlanningPersistence,
+} from "./dialogExportMerge";
 
 describe("mergeExportMessages", () => {
   it("merges server planning meta onto local assistant turn when server content is empty", () => {
@@ -37,6 +41,56 @@ describe("mergeExportMessages", () => {
     expect(merged).toHaveLength(3);
     expect(merged[2]?.meta?.planningPersistence?.inserted).toHaveLength(1);
     expect(merged[2]?.rawMeta?.planning_persistence).toBeTruthy();
+  });
+});
+
+describe("collectSummaryEventsFromExportMessages", () => {
+  it("collects per-turn matrix outcomes from server planning_persistence rawMeta", () => {
+    const { applied, closedWithoutMatrix } = collectSummaryEventsFromExportMessages([
+      {
+        id: "msg-1",
+        role: "assistant",
+        rawMeta: {
+          planning_persistence: {
+            inserted: [],
+            summarized: [
+              {
+                id: "evt-1",
+                description: "Прогулка в парке",
+                outcome_text: "Хорошая прогулка",
+                outcome_cells: [{ sphere: 1, chakra: 2, weight: 0.8 }],
+                applied_to_matrix: true,
+                summarized_at: "2026-06-10T15:00:00.000Z",
+              },
+            ],
+            skipped: [],
+          },
+        },
+      },
+      {
+        id: "msg-2",
+        role: "assistant",
+        rawMeta: {
+          planning_persistence: {
+            inserted: [],
+            summarized: [
+              {
+                id: "evt-2",
+                description: "Саженцы",
+                outcome_text: "Не поехал",
+                outcome_cells: [],
+                applied_to_matrix: false,
+                summarized_at: "2026-06-10T15:01:00.000Z",
+              },
+            ],
+            skipped: [],
+          },
+        },
+      },
+    ], { requireServerPersistedMeta: true });
+    expect(applied).toHaveLength(1);
+    expect(applied[0]?.source_message_id).toBe("msg-1");
+    expect(closedWithoutMatrix).toHaveLength(1);
   });
 });
 

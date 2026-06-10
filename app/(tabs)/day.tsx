@@ -22,7 +22,8 @@ import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { collectDayHealthContext, type DayHealthContext } from "@/services/dayHealthContext";
+import type { DayHealthContext } from "@/services/dayHealthContext";
+import { startSummarizingHealthCollectionFromPlan } from "@/services/summarizingHealthContext";
 import {
   cancelPendingDayPractice,
   deleteDayAction,
@@ -37,6 +38,60 @@ import {
 
 type AssistantMode = "plan" | "add" | "summary";
 type PracticeMenuLevel = "closed" | "root" | "breath" | "yoga";
+
+type AssistantDayAction = {
+  id: string;
+  title: string;
+  status: string;
+  localDate: string;
+};
+
+/** Frozen snapshot for one assistant modal open — survives background day-plan refresh. */
+type AssistantSession = {
+  sessionKey: number;
+  mode: AssistantMode;
+  workingLocalDate: string;
+  dayActions: AssistantDayAction[];
+  dayPractices: DaySection["practices"];
+  dayHealthContext: DayHealthContext | null;
+};
+
+function buildAssistantActions(plan: DayPlan, mode: AssistantMode): AssistantDayAction[] {
+  const sections =
+    mode === "summary"
+      ? summarySections(plan)
+      : currentDaySection(plan)
+        ? [currentDaySection(plan)!]
+        : [];
+  return sections.flatMap((section) =>
+    section.actions.map((action) => ({
+      id: action.id,
+      title: action.title,
+      status: action.status,
+      localDate: section.localDate,
+    })),
+  );
+}
+
+function buildAssistantSession(
+  plan: DayPlan,
+  mode: AssistantMode,
+  health: DayHealthContext | null,
+  sessionKey: number,
+): AssistantSession {
+  const summaryTargetLocalDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
+  return {
+    sessionKey,
+    mode,
+    workingLocalDate: mode === "summary" ? summaryTargetLocalDate : plan.currentLocalDate,
+    dayActions: buildAssistantActions(plan, mode),
+    dayPractices:
+      mode === "summary"
+        ? summaryPracticesForAssistant(plan)
+        : (currentDaySection(plan)?.practices ?? []),
+    dayHealthContext: mode === "summary" ? health : null,
+  };
+}
 
 const SPHERE_COLORS = ["#D32F2F", "#FF6F00", "#FFC107", "#4CAF50", "#03A9F4", "#3F51B5", "#9B5BEB"] as const;
 
@@ -59,9 +114,12 @@ function formatLocalDateLabel(localDate: string, kind: DaySection["dateLabelKind
   const [year, month, day] = localDate.split("-").map((part) => Number.parseInt(part, 10));
   const date = new Date(year, (month ?? 1) - 1, day ?? 1, 12, 0, 0);
   const formatted = new Intl.DateTimeFormat("ru", { day: "numeric", month: "long" }).format(date);
-  if (kind === "today") return `Сегодня, ${formatted}`;
   if (kind === "yesterday") return `Вчера, ${formatted}`;
   return formatted;
+}
+
+function formatDayHeaderDateLabel(section: DaySection): string {
+  return formatLocalDateLabel(section.localDate, section.dateLabelKind);
 }
 
 function formatPracticeLineTime(value: string) {
@@ -283,33 +341,20 @@ function DayActionRow({
 
 function AssistantModal({
   visible,
-  mode,
-  plan,
+  session,
   onClose,
   onPracticeOffered,
-  dayHealthContext,
+  onAssistantMessage,
 }: {
   visible: boolean;
-  mode: AssistantMode;
-  plan: DayPlan | null;
+  session: AssistantSession | null;
   onClose: () => void;
   onPracticeOffered: (practice: PracticeSummary) => void | Promise<void>;
-  dayHealthContext: DayHealthContext | null;
+  onAssistantMessage?: (message: { meta?: Record<string, unknown> }) => void;
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  if (!visible || !plan) return null;
-  const summaryTargetLocalDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
-  const assistantActions = (mode === "summary" ? summarySections(plan) : (currentDaySection(plan) ? [currentDaySection(plan)!] : []))
-    .flatMap((section) => section.actions.map((action) => ({
-      id: action.id,
-      title: action.title,
-      status: action.status,
-      localDate: section.localDate,
-    })));
-  const assistantPractices = mode === "summary"
-    ? summaryPracticesForAssistant(plan)
-    : (currentDaySection(plan)?.practices ?? []);
+  if (!visible || !session) return null;
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={[styles.modalRoot, { backgroundColor: theme.colors.screenBg }]}>
@@ -328,22 +373,27 @@ function AssistantModal({
           </Pressable>
         </View>
         <Communicator
-          key={`day-${mode}-${summaryTargetLocalDate}`}
+          key={`day-assistant-${session.sessionKey}`}
           systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Помоги пользователю заполнить или подытожить вкладку «День»."
           locale="ru"
           useCase="daily_dialog"
           entrySource="day"
           startFreshSession
           triggerMeta={{
-            dayTabMode: mode,
-            workingLocalDate: mode === "summary" ? summaryTargetLocalDate : plan.currentLocalDate,
-            daySummaryRequested: mode === "summary",
-            dayActions: assistantActions,
-            dayPractices: assistantPractices,
-            dayHealthContext: mode === "summary" ? dayHealthContext : null,
+            dayTabMode: session.mode,
+            workingLocalDate: session.workingLocalDate,
+            daySummaryRequested: session.mode === "summary",
+            dayActions: session.dayActions,
+            dayPractices: session.dayPractices,
+            dayHealthContext: session.dayHealthContext,
           }}
           memoryWindow={24}
           onPracticeOffered={onPracticeOffered}
+          onMessage={(message) => {
+            if (message.role === "assistant") {
+              onAssistantMessage?.(message);
+            }
+          }}
           onRequestClose={onClose}
         />
       </View>
@@ -368,13 +418,13 @@ export default function DayTabRoute() {
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [assistantMode, setAssistantMode] = useState<AssistantMode | null>(null);
-  const [dayHealthContext, setDayHealthContext] = useState<DayHealthContext | null>(null);
-  const [healthLoading, setHealthLoading] = useState(false);
+  const [assistantSession, setAssistantSession] = useState<AssistantSession | null>(null);
+  const assistantSessionKeyRef = useRef(0);
   const [catalog, setCatalog] = useState<PracticeCatalog | null>(null);
   const [practiceMenuLevel, setPracticeMenuLevel] = useState<PracticeMenuLevel>("closed");
 
-  const refresh = useCallback(async (options?: { showRefreshing?: boolean }) => {
+  const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean }) => {
+    if (assistantSession && !options?.force) return;
     setLoading((current) => (plan && !options?.showRefreshing ? current : true));
     setError(null);
     try {
@@ -384,12 +434,13 @@ export default function DayTabRoute() {
     } finally {
       setLoading(false);
     }
-  }, [plan]);
+  }, [assistantSession, plan]);
 
   useFocusEffect(
     useCallback(() => {
+      if (assistantSession) return;
       void refresh();
-    }, [refresh]),
+    }, [assistantSession, refresh]),
   );
 
   useEffect(() => {
@@ -415,22 +466,46 @@ export default function DayTabRoute() {
     await refresh({ showRefreshing: true });
   };
 
+  const prefetchDayPlan = useCallback(async () => {
+    try {
+      setPlan(await loadDayPlan());
+    } catch (loadError) {
+      console.warn("[Day] Failed to prefetch day plan", loadError);
+    }
+  }, []);
+
+  const handleAssistantMessage = useCallback((message: { meta?: Record<string, unknown> }) => {
+    const persistence = message.meta?.planningPersistence as {
+      inserted?: unknown[];
+      updated?: unknown[];
+      summarized?: unknown[];
+    } | null | undefined;
+    const inserted = Array.isArray(persistence?.inserted) ? persistence.inserted : [];
+    const updated = Array.isArray(persistence?.updated) ? persistence.updated : [];
+    const summarized = Array.isArray(persistence?.summarized) ? persistence.summarized : [];
+    const branches = Array.isArray(message.meta?.branches) ? message.meta.branches : [];
+    const isSummarizingFinal =
+      message.meta?.turnMode === "final_without_practice" && branches.includes("summarizing");
+    if (inserted.length > 0 || updated.length > 0 || summarized.length > 0 || isSummarizingFinal) {
+      void prefetchDayPlan();
+    }
+  }, [prefetchDayPlan]);
+
   const openAssistant = (mode: AssistantMode) => {
-    setDayHealthContext(null);
-    if (mode !== "summary" || !plan) {
-      setAssistantMode(mode);
+    if (!plan) return;
+    assistantSessionKeyRef.current += 1;
+    const sessionKey = assistantSessionKeyRef.current;
+    if (mode !== "summary") {
+      setAssistantSession(buildAssistantSession(plan, mode, null, sessionKey));
       return;
     }
-    setHealthLoading(true);
-    void collectDayHealthContext(plan)
-      .then(setDayHealthContext)
-      .catch((loadError) => {
-        console.warn("[Day] Failed to collect health context", loadError);
-      })
-      .finally(() => {
-        setHealthLoading(false);
-        setAssistantMode(mode);
-      });
+    const healthCollection = startSummarizingHealthCollectionFromPlan(plan);
+    setAssistantSession(buildAssistantSession(plan, mode, healthCollection.getSnapshot(), sessionKey));
+    void healthCollection.whenReady().then((health) => {
+      setAssistantSession((current) =>
+        current?.sessionKey === sessionKey ? { ...current, dayHealthContext: health } : current,
+      );
+    });
   };
 
   return (
@@ -438,11 +513,20 @@ export default function DayTabRoute() {
       <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <AppText variant="screenTitle" accessibilityRole="header">
-            {plan && plan.mode !== "overdue_summary" && todaySection
-              ? formatLocalDateLabel(todaySection.localDate, todaySection.dateLabelKind)
-              : "День"}
-          </AppText>
+          {plan && plan.mode !== "overdue_summary" && todaySection ? (
+            <>
+              <AppText variant="screenTitle" accessibilityRole="header">
+                {formatDayHeaderDateLabel(todaySection)}
+              </AppText>
+              {plan.dayRecommendation?.trim() ? (
+                <AppText variant="dialogBody">{plan.dayRecommendation.trim()}</AppText>
+              ) : null}
+            </>
+          ) : (
+            <AppText variant="screenTitle" accessibilityRole="header">
+              День
+            </AppText>
+          )}
         </View>
 
         {loading && !plan ? <ActivityIndicator color={theme.colors.accent} /> : null}
@@ -466,15 +550,7 @@ export default function DayTabRoute() {
                 <AppText variant="dialogBody" tone="muted">
                   Для анализа данных, подытожьте действия, которые вы планировали ранее.
                 </AppText>
-                {healthLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
                 <AppButton label="Подытожить" onPress={() => openAssistant("summary")} />
-              </View>
-            ) : null}
-
-            {plan.mode === "current_day" && plan.dayRecommendation ? (
-              <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-                <AppText variant="sectionTitle">Фокус дня</AppText>
-                <AppText variant="dialogBody" tone="muted">{plan.dayRecommendation}</AppText>
               </View>
             ) : null}
 
@@ -605,28 +681,24 @@ export default function DayTabRoute() {
             ))}
 
             {plan.mode === "current_day" && canSummarizeCurrentDay ? (
-              <>
-                {healthLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
-                <AppButton label="Подытожить этот день" onPress={() => openAssistant("summary")} />
-              </>
+              <AppButton label="Подытожить этот день" onPress={() => openAssistant("summary")} />
             ) : null}
           </>
         ) : null}
       </ScrollView>
 
       <AssistantModal
-        visible={assistantMode != null}
-        mode={assistantMode ?? "plan"}
-        plan={plan}
-        dayHealthContext={dayHealthContext}
+        visible={assistantSession != null}
+        session={assistantSession}
+        onAssistantMessage={handleAssistantMessage}
         onPracticeOffered={async (practice) => {
           if (!plan) return;
           await savePendingDayPractice(plan.currentLocalDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
-          await refresh({ showRefreshing: true });
+          await prefetchDayPlan();
         }}
         onClose={() => {
-          setAssistantMode(null);
-          void refresh({ showRefreshing: true });
+          setAssistantSession(null);
+          void refresh({ showRefreshing: true, force: true });
         }}
       />
     </SafeAreaView>

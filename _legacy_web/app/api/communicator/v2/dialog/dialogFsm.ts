@@ -82,10 +82,15 @@ export function initFsmState(params: {
   let noPractice = false;
   let noGreeting = false;
 
-  if (params.tabMode === "add" || params.tabMode === "plan") {
+  if (params.tabMode === "add") {
     flow = ["planning"];
     noPractice = true;
-    noGreeting = params.tabMode === "add";
+    noGreeting = true;
+  } else if (params.tabMode === "plan") {
+    // Day tab "Что делать?" — same as home: overdue summary first, then plan, then practice.
+    flow = [...(params.hasDueEvents ? (["summarizing"] as DialogBranch[]) : []), "planning", "practice"];
+    noPractice = false;
+    noGreeting = false;
   } else if (params.daySummaryRequested) {
     // "Summarize this day" — close after the wrap-up, no planning/practice.
     flow = ["summarizing"];

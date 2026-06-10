@@ -136,6 +136,121 @@ function planningPersistenceHasInserts(value: unknown): boolean {
   return Array.isArray(inserted) && inserted.length > 0;
 }
 
+export type SummaryEventExportRow = {
+  id: string | null;
+  description: string | null;
+  outcome_text: string | null;
+  outcome_cells: unknown[];
+  applied_to_matrix: boolean;
+  summarized_at: string | null;
+  source_message_id?: string | null;
+};
+
+function asSummaryRow(value: unknown, sourceMessageId?: string | null): SummaryEventExportRow | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const outcomeCells = Array.isArray(row.outcome_cells) ? row.outcome_cells : [];
+  const applied = row.applied_to_matrix === true || outcomeCells.length > 0;
+  return {
+    id: typeof row.id === "string" ? row.id : null,
+    description: typeof row.description === "string" ? row.description : null,
+    outcome_text: typeof row.outcome_text === "string" ? row.outcome_text : null,
+    outcome_cells: outcomeCells,
+    applied_to_matrix: applied,
+    summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
+    source_message_id: sourceMessageId ?? null,
+  };
+}
+
+/** Primary QA source: server-persisted planning_persistence on assistant messages (snake_case rawMeta). */
+export function collectSummaryEventsFromExportMessages(
+  messages: Array<{
+    role: string;
+    id?: string;
+    meta?: ExportMessageMeta | Record<string, unknown>;
+    rawMeta?: Record<string, unknown>;
+  }>,
+  options?: { requireServerPersistedMeta?: boolean },
+): { applied: SummaryEventExportRow[]; closedWithoutMatrix: SummaryEventExportRow[] } {
+  const applied: SummaryEventExportRow[] = [];
+  const closedWithoutMatrix: SummaryEventExportRow[] = [];
+  const seen = new Set<string>();
+
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    const rawPersistence = message.rawMeta?.planning_persistence;
+    const meta = message.meta as ExportMessageMeta | undefined;
+    const summarized = options?.requireServerPersistedMeta
+      ? (rawPersistence && typeof rawPersistence === "object"
+          ? (rawPersistence as PlanningPersistenceExport).summarized
+          : undefined)
+      : (rawPersistence && typeof rawPersistence === "object"
+          ? (rawPersistence as PlanningPersistenceExport).summarized
+          : meta?.planningPersistence?.summarized);
+    if (!Array.isArray(summarized)) continue;
+    for (const item of summarized) {
+      const row = asSummaryRow(item, message.id ?? null);
+      if (!row?.id || seen.has(row.id)) continue;
+      seen.add(row.id);
+      if (row.applied_to_matrix) applied.push(row);
+      else closedWithoutMatrix.push(row);
+    }
+  }
+
+  return { applied, closedWithoutMatrix };
+}
+
+export function collectSummaryEventsFromDialogState(
+  dialogStateAfter: Record<string, unknown> | undefined,
+): { applied: SummaryEventExportRow[]; closedWithoutMatrix: SummaryEventExportRow[] } {
+  const applied: SummaryEventExportRow[] = [];
+  const closedWithoutMatrix: SummaryEventExportRow[] = [];
+  const seen = new Set<string>();
+
+  const pushRows = (rows: unknown, defaultApplied?: boolean) => {
+    if (!Array.isArray(rows)) return;
+    for (const item of rows) {
+      const row = asSummaryRow(item);
+      if (!row?.id || seen.has(row.id)) continue;
+      seen.add(row.id);
+      const isApplied = defaultApplied ?? row.applied_to_matrix;
+      if (isApplied) applied.push(row);
+      else closedWithoutMatrix.push(row);
+    }
+  };
+
+  pushRows(dialogStateAfter?.summary_session_closed_events);
+  for (const row of [
+    ...(Array.isArray(dialogStateAfter?.planning_closed_recent_48h) ? dialogStateAfter!.planning_closed_recent_48h as unknown[] : []),
+  ]) {
+    const parsed = asSummaryRow(row);
+    if (!parsed?.id || seen.has(parsed.id)) continue;
+    seen.add(parsed.id);
+    if (parsed.applied_to_matrix) applied.push(parsed);
+    else closedWithoutMatrix.push(parsed);
+  }
+
+  return { applied, closedWithoutMatrix };
+}
+
+export function mergeSummaryEventExportBuckets(
+  primary: { applied: SummaryEventExportRow[]; closedWithoutMatrix: SummaryEventExportRow[] },
+  fallback: { applied: SummaryEventExportRow[]; closedWithoutMatrix: SummaryEventExportRow[] },
+): { applied: SummaryEventExportRow[]; closedWithoutMatrix: SummaryEventExportRow[] } {
+  const applied = [...primary.applied];
+  const closedWithoutMatrix = [...primary.closedWithoutMatrix];
+  const seen = new Set([...applied, ...closedWithoutMatrix].map((row) => row.id).filter(Boolean) as string[]);
+
+  for (const row of [...fallback.applied, ...fallback.closedWithoutMatrix]) {
+    if (!row.id || seen.has(row.id)) continue;
+    seen.add(row.id);
+    if (row.applied_to_matrix) applied.push(row);
+    else closedWithoutMatrix.push(row);
+  }
+
+  return { applied, closedWithoutMatrix };
+}
+
 export function reconcileExportPlanningPersistence(
   messages: Array<{ role: string; meta: { planning_persistence: PlanningPersistenceExport | null } }>,
   dialogStateAfter: Record<string, unknown> | undefined,

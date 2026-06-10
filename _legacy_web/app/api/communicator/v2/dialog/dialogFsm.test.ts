@@ -38,11 +38,17 @@ describe("initFsmState — flow per entry point", () => {
     expect(fsm.noGreeting).toBe(true);
   });
 
-  it("day-tab plan: planning only, no practice, with greeting", () => {
-    const fsm = initFsmState({ tabMode: "plan", daySummaryRequested: false, hasDueEvents: false, ...baseInit });
-    expect(fsm.flow).toEqual(["planning"]);
-    expect(fsm.noPractice).toBe(true);
+  it("day-tab plan (Что делать?): summarize if due, then plan and practice", () => {
+    const fsm = initFsmState({ tabMode: "plan", daySummaryRequested: false, hasDueEvents: true, ...baseInit });
+    expect(fsm.flow).toEqual(["summarizing", "planning", "practice"]);
+    expect(fsm.noPractice).toBe(false);
     expect(fsm.noGreeting).toBe(false);
+  });
+
+  it("day-tab plan without due events: planning then practice", () => {
+    const fsm = initFsmState({ tabMode: "plan", daySummaryRequested: false, hasDueEvents: false, ...baseInit });
+    expect(fsm.flow).toEqual(["planning", "practice"]);
+    expect(fsm.noPractice).toBe(false);
   });
 
   it("explicit summarize-this-day: summarizing only, closes after wrap-up", () => {

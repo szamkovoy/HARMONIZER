@@ -338,7 +338,7 @@ function handleSseEvent(
 }
 
 function throwIfStreamError(state: SendDialogMessageResult): void {
-  if (state.streamError) throw new Error(state.streamError);
+  if (state.streamError && !state.fullText.trim()) throw new Error(state.streamError);
 }
 
 function buildDialogPostBody(params: SendDialogMessageParams): Record<string, unknown> {
@@ -526,7 +526,7 @@ function readSseResponseWithXHR(
       }
       settle(() => {
         finalizeStream();
-        if (state.streamError) {
+        if (state.streamError && !state.fullText.trim()) {
           reject(new Error(state.streamError));
           return;
         }
@@ -537,7 +537,7 @@ function readSseResponseWithXHR(
     xhr.onerror = () => {
       settle(() => {
         finalizeStream();
-        if (state.streamError) {
+        if (state.streamError && !state.fullText.trim()) {
           reject(new Error(state.streamError));
           return;
         }

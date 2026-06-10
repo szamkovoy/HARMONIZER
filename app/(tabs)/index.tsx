@@ -17,7 +17,8 @@ import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
-import { collectDayHealthContext, type DayHealthContext } from "@/services/dayHealthContext";
+import type { DayHealthContext } from "@/services/dayHealthContext";
+import { startSummarizingHealthCollection } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
@@ -584,12 +585,14 @@ export default function HomeScreen() {
             })),
           );
           setHomeDayPractices(practices);
-          try {
-            setHomeDayHealthContext(await collectDayHealthContext(dayPlan));
-          } catch (healthError) {
-            console.warn("[Home] Failed to collect health context before assistant", healthError);
-            setHomeDayHealthContext(null);
-          }
+          const healthCollection = startSummarizingHealthCollection({
+            localDate: dayPlan.summaryTargetLocalDate ?? dayPlan.currentLocalDate,
+            practices,
+          });
+          setHomeDayHealthContext(healthCollection.getSnapshot());
+          void healthCollection.whenReady().then(setHomeDayHealthContext).catch((healthError) => {
+            console.warn("[Home] Failed to collect health context in background", healthError);
+          });
         } else {
           setHomeDayPractices([]);
           setHomeDayHealthContext(null);

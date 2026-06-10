@@ -92,7 +92,7 @@ async function loadForecastForLocalDateOrLatest(
 ) {
   const exact = await db
     .from("user_daily_forecasts")
-    .select("forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
+    .select("forecast_date,recommendation_short_text,recommendation_long_text,is_corrected_via_dialog,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
     .eq("user_id", userId)
     .eq("forecast_date", localDate)
     .maybeSingle();
@@ -101,7 +101,7 @@ async function loadForecastForLocalDateOrLatest(
 
   const latest = await db
     .from("user_daily_forecasts")
-    .select("forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
+    .select("forecast_date,recommendation_short_text,recommendation_long_text,is_corrected_via_dialog,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
     .eq("user_id", userId)
     .order("forecast_date", { ascending: false })
     .limit(1)
@@ -324,7 +324,13 @@ export async function GET(req: Request) {
       currentLocalDate: localDate,
       timezone,
       forecast: forecastRes.data ?? null,
-      dayRecommendation: forecastRes.data?.recommendation_short_text ?? forecastRes.data?.recommendation_long_text ?? null,
+      // Header focus is written only by PLANNING branch ([CORRECT_RECOMMENDATION] → persistDayFocus).
+      // Summarizing never sets is_corrected_via_dialog; do not surface generic forecast text here.
+      dayRecommendation:
+        forecastRes.data?.forecast_date === localDate
+        && forecastRes.data?.is_corrected_via_dialog === true
+          ? forecastRes.data.recommendation_short_text ?? null
+          : null,
       hasOverdueSummary: false,
       canSummarizeCurrentDay,
       summaryTargetLocalDate: canSummarizeCurrentDay ? localDate : null,

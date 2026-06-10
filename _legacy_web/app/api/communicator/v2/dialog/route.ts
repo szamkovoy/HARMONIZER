@@ -11,12 +11,14 @@ import {
   type GeminiContent,
 } from "@legacy/app/api/_utils/gemini";
 import {
+  buildCatalogReconciliationInstruction,
   parseResponseMarkers,
   sanitizeAssistantText,
   validateHistoryHasDurationAndType,
 } from "@legacy/app/api/_utils/markers";
 import { reportRouteError, toUserFacingStreamErrorMessage } from "@legacy/app/api/_utils/monitoring";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
+import { dialogTimeOfDayForHour } from "@legacy/app/api/_utils/dialogTimeOfDay";
 import { promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 import {
@@ -30,8 +32,13 @@ import {
   type MessageRecord,
   type TurnHistoryItem,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
-import { loadDialogDailyContext, type DialogDailyContext } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
+  loadDialogDailyContext,
+  resolveSummarizingPromptContext,
+  type DialogDailyContext,
+} from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
+import {
+  loadDuePlannedEvents,
   type PlannedEventRow,
 } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import {
@@ -49,15 +56,33 @@ import {
   buildPlanningPrompt,
   buildPracticePrompt,
   buildSummarizingPrompt,
+  injectPlanningActionsVisibleList,
+  injectPlanningDayFocus,
   containsPracticeDeclined,
   stripBrainSentinels,
   type BrainPromptContext,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBranchPrompts";
 import {
+  assistantFinalizeWithoutMarkers,
+  buildPostDialogReply,
+  coerceFsmBeforeTurn,
+  extractPlanningMarkersFromVisibleFinalize,
+  filterPracticeLikePlannedEvents,
+  historyHasPracticePicked,
+  isPostDialogTurn,
+  practiceValidationForTurn,
+  buildSummaryClarifyingQuestion,
+  userAnswerIsThinForSummary,
+  userSaysEventDidNotHappen,
+  userSignalsPlanningDone,
+} from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
+import {
   persistDayFocus,
   persistPlanningFinalize,
   persistSummarizedEvent,
+  type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
+import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
 
 export const runtime = "nodejs";
@@ -141,28 +166,24 @@ function chakraStates(chakraNumber: number): { harmonic: string[]; dissonant: st
   };
 }
 
-function timeOfDayForHour(hour: number): string {
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "midday";
-  if (hour >= 17 && hour < 22) return "evening";
-  return "night";
-}
-
-function buildBrainPromptContext(context: LoadedContext): BrainPromptContext {
+function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: string | null): BrainPromptContext {
   const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
   const now = context.nowLocal;
   const promptHour = promptLocalHour(now.hour);
   const targetChakra = context.targetChakra.chakraNumber;
   const states = chakraStates(targetChakra);
   const planetOfDay = typeof context.forecast?.planet_of_the_day === "string" ? context.forecast.planet_of_the_day : "Sun";
-  const dayFocus = typeof context.forecast?.recommendation_short_text === "string" ? context.forecast.recommendation_short_text : null;
+  const promptDate = promptLocalDate && /^\d{4}-\d{2}-\d{2}$/.test(promptLocalDate)
+    ? DateTime.fromISO(promptLocalDate, { zone: context.nowLocal.zoneName ?? "UTC" })
+    : now;
   return {
     locale,
     languageName: locale === "en" ? "English" : "Russian",
     addressForm: context.user.address_form === "informal" ? "ты" : "вы",
-    dayOfWeek: now.setLocale(locale).toFormat("cccc"),
-    dateLabel: now.setLocale(locale).toFormat("d LLLL"),
-    timeOfDay: timeOfDayForHour(promptHour),
+    dayOfWeek: promptDate.setLocale(locale).toFormat("cccc"),
+    dateLabel: promptDate.setLocale(locale).toFormat("d LLLL"),
+    timeOfDay: dialogTimeOfDayForHour(promptHour),
+    localHour: promptHour,
     phaseTime: context.phaseTime,
     targetChakraNumber: targetChakra,
     targetChakraLabel: chakraLabelRu(targetChakra),
@@ -174,7 +195,7 @@ function buildBrainPromptContext(context: LoadedContext): BrainPromptContext {
     tonalRegister: tonalRegisterForPlanet(planetOfDay),
     lifeSpheresBaseline: formatLifeSpheresBaselineForPrompt(context.user.locale),
     planningSphereLens: context.planningSphereLens,
-    existingDayFocus: dayFocus,
+    existingDayFocus: null,
   };
 }
 
@@ -257,10 +278,6 @@ function formatPracticesForPrompt(value: unknown): string {
 
 function userDeclinesPractice(text: string): boolean {
   return /\b(не\s*надо|не\s*хочу|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|skip|no\s*practice|not\s*now|maybe\s*later)\b/i.test(text);
-}
-
-function userSaysEventDidNotHappen(text: string): boolean {
-  return /\b(не\s*получил(?:ось|ась)?|не\s*случил(?:ось|ась)?|не\s*состоял(?:ось|ась)?|не\s*был[оа]?|не\s*произошл[оа]|не\s*успел|не\s*вышло|не\s*сделал|не\s*сделала|didn['’]t happen|did not happen|didn['’]t manage|did not manage)\b/i.test(text);
 }
 
 function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">): string {
@@ -380,6 +397,9 @@ function immediateDialogStream(params: {
   phaseTime: LoadedContext["phaseTime"];
   targetChakra: LoadedContext["targetChakra"];
   shouldClose: boolean;
+  branches?: string[];
+  iteration?: number;
+  messageId?: string | null;
 }) {
   const encoder = new TextEncoder();
   const completePayload = {
@@ -390,12 +410,13 @@ function immediateDialogStream(params: {
     latencyMs: 0,
     modelTier: "premium" as const,
     turnMode: params.turnMode,
-    iteration: 1,
+    iteration: params.iteration ?? 1,
     readyMarkerTriggered: false,
-    branches: ["summarizing"],
+    branches: params.branches ?? ["summarizing"],
     targetChakra: params.targetChakra,
     phaseTime: params.phaseTime,
     validation: null,
+    messageId: params.messageId ?? null,
   };
   const stream = new ReadableStream({
     start(controller) {
@@ -445,6 +466,45 @@ function readSummarySessionItems(meta: Record<string, unknown> | null | undefine
     .filter((item): item is SummarySessionItem => Boolean(item));
 }
 
+type SummaryPersistenceRow = {
+  id: string;
+  description: string;
+  outcome_text: string | null;
+  outcome_cells: MatrixCell[];
+  applied_to_matrix: boolean;
+  summarized_at: string;
+};
+
+function toSummaryPersistenceRow(
+  item: PersistedSummarizedEvent,
+  outcomeText: string | null,
+): SummaryPersistenceRow {
+  return {
+    id: item.id,
+    description: item.title,
+    outcome_text: outcomeText,
+    outcome_cells: item.outcomeCells,
+    applied_to_matrix: item.appliedToMatrix,
+    summarized_at: item.summarizedAt,
+  };
+}
+
+function visibleTextMentionsEvent(text: string, description: string): boolean {
+  const needle = description.trim().toLowerCase();
+  if (needle.length < 4) return false;
+  return text.toLowerCase().includes(needle);
+}
+
+function findSummaryMarkerForEvent(
+  markers: ReturnType<typeof parseResponseMarkers>,
+  event: PlannedEventRow,
+) {
+  return markers.summarizeEvents.find(
+    (marker) => marker.ref.trim() === event.id
+      || event.description.toLowerCase().includes(marker.ref.trim().toLowerCase()),
+  );
+}
+
 function appendSummarySessionItem(meta: Record<string, unknown>, item: SummarySessionItem): Record<string, unknown> {
   const current = readSummarySessionItems(meta).filter((entry) => entry.id !== item.id);
   const closedEvents = [...current, item]
@@ -472,6 +532,7 @@ async function loadDebugDialogStateAfter(
   userId: string,
   conversation: ConversationRecord,
   context: LoadedContext,
+  fsm: DialogFsmState | null,
 ): Promise<Record<string, unknown>> {
   const summarizedCutoffIso = DateTime.utc().minus({ hours: 48 }).toISO() ?? new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const [createdRes, openRes, closedRows] = await Promise.all([
@@ -504,18 +565,31 @@ async function loadDebugDialogStateAfter(
   if (openRes.error) throw openRes.error;
   if (closedRows.error) throw closedRows.error;
 
+  const summaryOnlyFlow = fsm?.flow.length === 1 && fsm.flow[0] === "summarizing";
+  const forecastScopeDate = summaryOnlyFlow && fsm?.workingLocalDate
+    ? fsm.workingLocalDate
+    : context.localDate;
   const relevantLocalDates = [...new Set([
     context.localDate,
+    forecastScopeDate,
     ...((createdRes.data ?? []) as Array<{ planned_local_date?: string | null }>).map((row) => row.planned_local_date).filter((value): value is string => typeof value === "string" && value.length > 0),
     ...((closedRows.data ?? []) as Array<{ planned_local_date?: string | null }>).map((row) => row.planned_local_date).filter((value): value is string => typeof value === "string" && value.length > 0),
   ])];
-  const [forecastRes, matricesRes] = await Promise.all([
+  const [forecastRes, todayForecastRes, matricesRes] = await Promise.all([
     db
       .from("user_daily_forecasts")
-      .select("id,forecast_date,recommendation_short_text,recommendation_long_text,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
+      .select("id,forecast_date,recommendation_short_text,recommendation_long_text,is_corrected_via_dialog,day_target_chakra,day_target_reason,planet_of_the_day,today_planet_state")
       .eq("user_id", userId)
-      .eq("forecast_date", context.localDate)
+      .eq("forecast_date", forecastScopeDate)
       .maybeSingle(),
+    summaryOnlyFlow
+      ? db
+          .from("user_daily_forecasts")
+          .select("id,forecast_date,recommendation_short_text,recommendation_long_text,is_corrected_via_dialog")
+          .eq("user_id", userId)
+          .eq("forecast_date", context.localDate)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     relevantLocalDates.length
       ? db
           .from("daily_matrices")
@@ -526,18 +600,51 @@ async function loadDebugDialogStateAfter(
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (forecastRes.error) throw forecastRes.error;
+  if (todayForecastRes.error) throw todayForecastRes.error;
   if (matricesRes.error) throw matricesRes.error;
+
+  const planningRecommendationInThisConversation = (createdRes.data ?? []).length > 0;
+  const forecastRow = (forecastRes.data as Record<string, unknown> | null) ?? null;
+  const todayForecastRow = (todayForecastRes.data as Record<string, unknown> | null) ?? null;
+  const summarySessionClosed = readSummarySessionItems(conversation.trigger_meta ?? {});
+  const scopedOpenRows = summaryOnlyFlow && fsm?.workingLocalDate
+    ? (openRes.data ?? []).filter(
+        (row) => (row as { planned_local_date?: string }).planned_local_date === fsm.workingLocalDate,
+      )
+    : (openRes.data ?? []);
+  const closedWithMatrixFlag = (closedRows.data ?? []).map((row) => {
+    const outcomeCells = (row as { outcome_cells?: unknown }).outcome_cells;
+    const applied = Array.isArray(outcomeCells) && outcomeCells.length > 0;
+    return { ...row, applied_to_matrix: applied };
+  });
 
   return {
     context_local_date: context.localDate,
     conversation_id: conversation.id,
     conversation_started_at: conversation.started_at ?? null,
     conversation_ended_at: conversation.ended_at ?? null,
-    forecast_for_local_date: (forecastRes.data as Record<string, unknown> | null) ?? context.forecast ?? null,
+    dialog_fsm: fsm
+      ? {
+          flow: fsm.flow,
+          branch: fsm.branch,
+          working_local_date: fsm.workingLocalDate,
+          summary_only: summaryOnlyFlow,
+        }
+      : null,
+    forecast_for_local_date: forecastRow,
+    forecast_context_note: summaryOnlyFlow
+      ? "Forecast row for summary working_local_date (ambient DB context). Planning header text for today, if any, is listed separately and was NOT produced by this summarizing conversation unless recommendation_corrected appears in message meta."
+      : "Forecast row for context_local_date (ambient DB context). Shown only when is_corrected_via_dialog=true in Day tab header.",
+    today_forecast_when_summary_only: summaryOnlyFlow ? todayForecastRow : null,
+    planning_recommendation_written_in_this_conversation: planningRecommendationInThisConversation,
     planning_snapshot_at_start: [],
     planning_created_in_this_conversation: createdRes.data ?? [],
-    planning_open_now: openRes.data ?? [],
-    planning_closed_recent_48h: closedRows.data ?? [],
+    planning_open_now: scopedOpenRows,
+    planning_open_now_note: summaryOnlyFlow
+      ? "Filtered to summary working_local_date; global overdue rows are not mixed into this snapshot."
+      : null,
+    summary_session_closed_events: summarySessionClosed,
+    planning_closed_recent_48h: closedWithMatrixFlag,
     daily_matrices_for_relevant_dates: matricesRes.data ?? [],
   };
 }
@@ -557,7 +664,9 @@ export async function GET(req: Request) {
     const requestedConversationId = url.searchParams.get("conversationId")?.trim() || null;
     const debugExportRequested = url.searchParams.get("debugExport") === "1";
 
-    const context = await loadDialogDailyContext(db, userId);
+    const context = await loadDialogDailyContext(db, userId, undefined, {
+      skipPurgeSummarized: debugExportRequested,
+    });
     const userTimezone = context.user.tz ?? "UTC";
     const resumeTtlMs = sessionResumeTtlMs();
 
@@ -600,7 +709,7 @@ export async function GET(req: Request) {
       return Number.isFinite(createdMs) && createdMs >= cutoffMs;
     });
     const dialogStateAfter = debugExportRequested
-      ? await loadDebugDialogStateAfter(db, userId, conversation, context)
+      ? await loadDebugDialogStateAfter(db, userId, conversation, context, readFsmState(conversation.trigger_meta))
       : undefined;
     return json({
       conversationId: conversation.id,
@@ -649,9 +758,20 @@ export async function POST(req: Request) {
     const daySummaryRequested = triggerMeta.daySummaryRequested === true;
     const summaryDate = daySummaryRequested && typeof triggerMeta.workingLocalDate === "string" ? triggerMeta.workingLocalDate : null;
 
-    const context = await loadDialogDailyContext(db, userId, body.userTimezone, {
+    let context = await loadDialogDailyContext(db, userId, body.userTimezone, {
       ...(daySummaryRequested && summaryDate ? { summarizeUpToLocalDate: summaryDate } : {}),
     });
+    if (
+      daySummaryRequested
+      && summaryDate
+      && summaryDate >= context.localDate
+      && openDueEvents(context).length === 0
+    ) {
+      const overdueRows = await loadDuePlannedEvents(db, userId, context.localDate);
+      if (overdueRows.length > 0) {
+        context = { ...context, dueEvents: overdueRows };
+      }
+    }
     const userTimezone = context.user.tz ?? body.userTimezone ?? "UTC";
     const conversation = await loadConversation(
       db,
@@ -670,8 +790,19 @@ export async function POST(req: Request) {
     // ----- FSM state: read, or initialize and persist -----
     let fsm: DialogFsmState | null = readFsmState(conversation.trigger_meta);
     let conversationMeta: Record<string, unknown> = conversation.trigger_meta ?? {};
-    const workingLocalDate = summaryDate ?? context.localDate;
-    if (!fsm || fsm.branch === "done") {
+    let workingLocalDate = summaryDate ?? context.localDate;
+    if (daySummaryRequested && openDueEvents(context).length > 0) {
+      const anchorDate = openDueEvents(context)[0]?.planned_local_date;
+      if (
+        anchorDate
+        && summaryDate
+        && summaryDate >= context.localDate
+        && anchorDate < workingLocalDate
+      ) {
+        workingLocalDate = anchorDate;
+      }
+    }
+    if (!fsm || (fsm.branch === "done" && isInitiate)) {
       fsm = initFsmState({
         tabMode,
         daySummaryRequested,
@@ -682,7 +813,24 @@ export async function POST(req: Request) {
       conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
     }
 
-    const brainCtx = buildBrainPromptContext(context);
+    if (!isInitiate && fsm.branch === "planning" && !fsm.planningFinalized && assistantFinalizeWithoutMarkers(history)) {
+      fsm = { ...fsm, planningFinalized: true };
+      conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
+    }
+
+    const coercedFsm = coerceFsmBeforeTurn({ fsm, history, userMessage, isInitiate });
+    if (coercedFsm !== fsm) {
+      fsm = coercedFsm;
+      conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
+    }
+
+    const promptContext = fsm.branch === "summarizing"
+      ? await resolveSummarizingPromptContext(db, userId, context, workingLocalDate)
+      : context;
+    const brainCtx = buildBrainPromptContext(
+      promptContext,
+      fsm.branch === "summarizing" ? workingLocalDate : null,
+    );
     const due = openDueEvents(context);
     const currentEvent = due[0] ?? null;
     const nextEvent = due[1] ?? null;
@@ -720,6 +868,8 @@ export async function POST(req: Request) {
         clarifyingAlreadyAsked: summaryAskedCount(fsm, currentEvent?.id) >= 1,
         healthContext: formatHealthForPrompt(triggerMeta.dayHealthContext),
         practicesContext: formatPracticesForPrompt(triggerMeta.dayPractices),
+        summaryWorkingLocalDate: workingLocalDate,
+        currentEventPlannedLocalDate: currentEvent?.planned_local_date ?? null,
         continuesToPlanning: !isLastBranch(fsm),
       });
     } else if (fsm.branch === "practice") {
@@ -728,9 +878,21 @@ export async function POST(req: Request) {
         .find((message) => message.role === "assistant")
         ?.meta?.dialog_branches;
       const isPracticeOpening = !Array.isArray(lastAssistantBranch) || !lastAssistantBranch.includes("practice");
-      prompt = buildPracticePrompt(brainCtx, { isOpening: isPracticeOpening });
+      const practiceValidation = practiceValidationForTurn(history, userMessage);
+      prompt = buildPracticePrompt(brainCtx, {
+        isOpening: isPracticeOpening,
+        pickImmediately: practiceValidation.confident,
+        catalogReconciliation: buildCatalogReconciliationInstruction(practiceValidation),
+        postPracticeReply: historyHasPracticePicked(history),
+      });
     } else {
-      prompt = buildPlanningPrompt(brainCtx, { isOpening, noPractice: fsm.noPractice, noGreeting: fsm.noGreeting });
+      prompt = buildPlanningPrompt(brainCtx, {
+        isOpening,
+        noPractice: fsm.noPractice,
+        noGreeting: fsm.noGreeting,
+        userSignaledDone: userSignalsPlanningDone(userMessage),
+        planningLocked: fsm.planningFinalized,
+      });
     }
 
     // Record the user turn (placeholder row; text lives in client turnHistory).
@@ -745,6 +907,61 @@ export async function POST(req: Request) {
       });
     }
 
+    const postDialogReplyNeeded =
+      isPostDialogTurn(fsm, isInitiate)
+      || (fsm.branch === "practice" && historyHasPracticePicked(history) && !isInitiate);
+    if (postDialogReplyNeeded) {
+      const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+      const replyText = buildPostDialogReply({
+        locale,
+        userMessage,
+        hadPractice: historyHasPracticePicked(history),
+      });
+      const doneFsm: DialogFsmState = {
+        ...fsm,
+        branch: "done",
+        branchIndex: fsm.flow.length,
+        practiceDecided: true,
+      };
+      conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, doneFsm);
+      const { data: insertedAssistant, error: postDialogInsertError } = await db
+        .from("messages")
+        .insert({
+          user_id: userId,
+          conversation_id: conversation.id,
+          role: "assistant",
+          content: null,
+          content_type: "text",
+          meta: {
+            use_case: useCase,
+            scenario_id: scenarioId,
+            turn_mode: "final_without_practice",
+            model_used: "premium",
+            latency_ms: Date.now() - requestStartedMs,
+            iteration,
+            ready_marker_triggered: false,
+            dialog_branches: ["practice"],
+            target_chakra: promptContext.targetChakra,
+            phase_time: context.phaseTime,
+          },
+        })
+        .select("id")
+        .single();
+      if (postDialogInsertError) throw postDialogInsertError;
+      await closeConversation(db, userId, conversation.id);
+      return immediateDialogStream({
+        conversationId: conversation.id,
+        fullText: replyText,
+        turnMode: "final_without_practice",
+        phaseTime: context.phaseTime,
+        targetChakra: context.targetChakra,
+        shouldClose: true,
+        branches: ["practice"],
+        iteration,
+        messageId: insertedAssistant?.id ?? null,
+      });
+    }
+
     const baseHistory = mapHistoryToGemini(history);
     const currentTurnPrefix: GeminiContent[] = isInitiate ? [] : [{ role: "user", parts: [{ text: userMessage }] }];
     const directiveTurn: GeminiContent = { role: "user", parts: [{ text: prompt.userInstruction }] };
@@ -754,18 +971,27 @@ export async function POST(req: Request) {
     const fsmAtTurnStart = fsm;
     const branchForTurn = fsm.branch;
     const encoder = new TextEncoder();
+    const summarizingFinalTurn =
+      branchForTurn === "summarizing"
+      && !isOpening
+      && due.length <= 1
+      && currentEvent != null;
+    const maxOutputTokens =
+      summarizingFinalTurn ? 4500
+      : branchForTurn === "summarizing" ? 900
+      : 2200;
 
     const stream = new ReadableStream({
       async start(controller) {
+        let fullText = "";
         try {
-          let fullText = "";
           let modelUsed = model;
           for await (const chunk of streamGeminiText({
             systemInstruction: prompt.systemInstruction,
             contents: [...baseHistory, ...currentTurnPrefix, directiveTurn],
             model,
             temperature: 0.85,
-            maxOutputTokens: 2200,
+            maxOutputTokens,
           })) {
             modelUsed = chunk.modelUsed;
             fullText += chunk.text;
@@ -778,9 +1004,12 @@ export async function POST(req: Request) {
           let nextFsm: DialogFsmState = fsmAtTurnStart;
           let turnMode: TurnMode = isOpening ? "opening" : "inquiry";
           let shouldClose = false;
+          let summaryClarifyingDeferred = false;
           let practicePicked: Record<string, unknown> | null = null;
           let recommendationCorrected: Record<string, unknown> | null = null;
-          const planningPersistence: { inserted: unknown[]; updated: unknown[]; summarized: unknown[] } = {
+          let turnMatrixCells: MatrixCell[] | undefined;
+          let turnRelatedEventIds: string[] | undefined;
+          const planningPersistence: { inserted: unknown[]; updated: unknown[]; summarized: SummaryPersistenceRow[] } = {
             inserted: [],
             updated: [],
             summarized: [],
@@ -788,7 +1017,26 @@ export async function POST(req: Request) {
           const nowIso = context.nowLocal.toUTC().toISO() ?? new Date().toISOString();
 
           if (branchForTurn === "planning") {
-            if (markers.plannedEvents.length > 0) {
+            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            let plannedMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
+            if (
+              plannedMarkers.length === 0
+              && userSignalsPlanningDone(userMessage)
+              && !fsmAtTurnStart.planningFinalized
+            ) {
+              const salvaged = extractPlanningMarkersFromVisibleFinalize(
+                stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
+                locale,
+              );
+              if (salvaged.length > 0) {
+                plannedMarkers = salvaged;
+                console.warn(
+                  "[DIALOG_FSM] Salvaged planning markers from visible finalize",
+                  JSON.stringify({ conversationId: conversation.id, count: salvaged.length }),
+                );
+              }
+            }
+            if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
               const persisted = await persistPlanningFinalize({
                 db: routeDb,
                 userId: routeUserId,
@@ -796,7 +1044,7 @@ export async function POST(req: Request) {
                 workingLocalDate,
                 timezone: userTimezone,
                 nowIso,
-                markers: markers.plannedEvents,
+                markers: plannedMarkers,
                 appendToExisting: tabMode === "add",
               });
               planningPersistence.inserted = persisted.filter((p) => p.action === "inserted");
@@ -817,16 +1065,20 @@ export async function POST(req: Request) {
               } else {
                 turnMode = "inquiry";
               }
+            } else if (fsmAtTurnStart.planningFinalized) {
+              turnMode = "inquiry";
+              nextFsm = { ...fsmAtTurnStart, planningFinalized: true };
             } else {
               turnMode = isOpening ? "opening" : "inquiry";
             }
           } else if (branchForTurn === "practice") {
             const declined = (containsPracticeDeclined(fullText) || userDeclinesPractice(userMessage)) && !markers.practicePick;
-            const validation = validateHistoryHasDurationAndType([
-              ...history.filter((m) => m.role === "user"),
-              { role: "user" as const, content: userMessage },
-            ]);
-            if (declined) {
+            const validation = practiceValidationForTurn(history, userMessage);
+            if (historyHasPracticePicked(history)) {
+              nextFsm = { ...fsmAtTurnStart, practiceDecided: true, branch: "done", branchIndex: fsmAtTurnStart.flow.length };
+              turnMode = "final_without_practice";
+              shouldClose = true;
+            } else if (declined) {
               nextFsm = advanceBranch({ ...fsmAtTurnStart, practiceDecided: true });
               turnMode = "final_without_practice";
               shouldClose = true;
@@ -852,43 +1104,16 @@ export async function POST(req: Request) {
               turnMode = "inquiry";
             }
           } else if (branchForTurn === "summarizing") {
+            if (markers.recommendationCorrection?.short_text) {
+              console.warn("[DIALOG_FSM] Ignoring CORRECT_RECOMMENDATION marker in summarizing branch");
+            }
             const summaryMarker = currentEvent
-              ? markers.summarizeEvents.find((s) => s.ref.trim() === currentEvent.id || currentEvent.description.toLowerCase().includes(s.ref.trim().toLowerCase()))
+              ? findSummaryMarkerForEvent(markers, currentEvent)
               : undefined;
             const remainingAfterCurrent = currentEvent
               ? due.filter((event) => event.id !== currentEvent.id).length
               : due.length;
-            if (!isOpening && summaryMarker && currentEvent) {
-              const summarizedItem = await persistSummarizedEvent({
-                db: routeDb,
-                userId: routeUserId,
-                event: currentEvent,
-                outcomeText: summaryMarker.outcome,
-                outcomeCells: summaryMarker.outcomeCells,
-                nowIso,
-              });
-              conversationMeta = appendSummarySessionItem(conversationMeta, {
-                id: summarizedItem.id,
-                description: summarizedItem.title,
-                planned_local_date: currentEvent.planned_local_date,
-                display_order: summarizedItem.displayOrder,
-                summarized_at: summarizedItem.summarizedAt,
-                applied_to_matrix: summarizedItem.appliedToMatrix,
-                outcome_cells: summarizedItem.outcomeCells,
-              });
-              planningPersistence.summarized = [{ id: currentEvent.id, description: currentEvent.description }];
-              if (remainingAfterCurrent <= 0) {
-                nextFsm = advanceBranch(fsmAtTurnStart);
-                if (nextFsm.branch === "done") {
-                  turnMode = "final_without_practice";
-                  shouldClose = true;
-                } else {
-                  turnMode = "inquiry";
-                }
-              } else {
-                turnMode = "inquiry";
-              }
-            } else if (!isOpening && currentEvent && userSaysEventDidNotHappen(userMessage)) {
+            if (!isOpening && currentEvent && userSaysEventDidNotHappen(userMessage)) {
               const summarizedItem = await persistSummarizedEvent({
                 db: routeDb,
                 userId: routeUserId,
@@ -906,10 +1131,100 @@ export async function POST(req: Request) {
                 applied_to_matrix: summarizedItem.appliedToMatrix,
                 outcome_cells: summarizedItem.outcomeCells,
               });
-              planningPersistence.summarized = [{ id: currentEvent.id, description: currentEvent.description }];
+              const persistenceRow = toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null);
+              planningPersistence.summarized = [persistenceRow];
+              turnRelatedEventIds = [summarizedItem.id];
               turnMode = remainingAfterCurrent <= 0 && isLastBranch(fsmAtTurnStart) ? "final_without_practice" : "inquiry";
               nextFsm = remainingAfterCurrent <= 0 ? advanceBranch(fsmAtTurnStart) : fsmAtTurnStart;
               shouldClose = remainingAfterCurrent <= 0 && nextFsm.branch === "done";
+            } else if (
+              !isOpening
+              && summaryMarker
+              && currentEvent
+              && userAnswerIsThinForSummary(userMessage)
+              && summaryAskedCount(fsmAtTurnStart, currentEvent.id) < 1
+            ) {
+              console.warn(
+                "[DIALOG_FSM] Thin summary answer without lived state — deferring marker for clarifying question",
+                JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id }),
+              );
+              summaryClarifyingDeferred = true;
+              turnMode = "inquiry";
+            } else if (
+              !isOpening
+              && summaryMarker
+              && currentEvent
+              && userAnswerIsThinForSummary(userMessage)
+              && summaryAskedCount(fsmAtTurnStart, currentEvent.id) >= 1
+            ) {
+              console.warn(
+                "[DIALOG_FSM] Clarifying exhausted but answer still thin — closing without matrix cells",
+                JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id }),
+              );
+              const summarizedItem = await persistSummarizedEvent({
+                db: routeDb,
+                userId: routeUserId,
+                event: currentEvent,
+                outcomeText: summaryMarker.outcome,
+                outcomeCells: [],
+                nowIso,
+              });
+              conversationMeta = appendSummarySessionItem(conversationMeta, {
+                id: summarizedItem.id,
+                description: summarizedItem.title,
+                planned_local_date: currentEvent.planned_local_date,
+                display_order: summarizedItem.displayOrder,
+                summarized_at: summarizedItem.summarizedAt,
+                applied_to_matrix: summarizedItem.appliedToMatrix,
+                outcome_cells: summarizedItem.outcomeCells,
+              });
+              const persistenceRow = toSummaryPersistenceRow(summarizedItem, summaryMarker.outcome);
+              planningPersistence.summarized = [persistenceRow];
+              turnRelatedEventIds = [summarizedItem.id];
+              if (remainingAfterCurrent <= 0) {
+                nextFsm = advanceBranch(fsmAtTurnStart);
+                if (nextFsm.branch === "done") {
+                  turnMode = "final_without_practice";
+                  shouldClose = true;
+                } else {
+                  turnMode = "inquiry";
+                }
+              } else {
+                turnMode = "inquiry";
+              }
+            } else if (!isOpening && summaryMarker && currentEvent) {
+              const summarizedItem = await persistSummarizedEvent({
+                db: routeDb,
+                userId: routeUserId,
+                event: currentEvent,
+                outcomeText: summaryMarker.outcome,
+                outcomeCells: summaryMarker.outcomeCells,
+                nowIso,
+              });
+              conversationMeta = appendSummarySessionItem(conversationMeta, {
+                id: summarizedItem.id,
+                description: summarizedItem.title,
+                planned_local_date: currentEvent.planned_local_date,
+                display_order: summarizedItem.displayOrder,
+                summarized_at: summarizedItem.summarizedAt,
+                applied_to_matrix: summarizedItem.appliedToMatrix,
+                outcome_cells: summarizedItem.outcomeCells,
+              });
+              const persistenceRow = toSummaryPersistenceRow(summarizedItem, summaryMarker.outcome);
+              planningPersistence.summarized = [persistenceRow];
+              turnMatrixCells = summarizedItem.outcomeCells;
+              turnRelatedEventIds = [summarizedItem.id];
+              if (remainingAfterCurrent <= 0) {
+                nextFsm = advanceBranch(fsmAtTurnStart);
+                if (nextFsm.branch === "done") {
+                  turnMode = "final_without_practice";
+                  shouldClose = true;
+                } else {
+                  turnMode = "inquiry";
+                }
+              } else {
+                turnMode = "inquiry";
+              }
             } else if (!isOpening && currentEvent && summaryAskedCount(fsmAtTurnStart, currentEvent.id) >= 1) {
               const summarizedItem = await persistSummarizedEvent({
                 db: routeDb,
@@ -928,7 +1243,50 @@ export async function POST(req: Request) {
                 applied_to_matrix: summarizedItem.appliedToMatrix,
                 outcome_cells: summarizedItem.outcomeCells,
               });
-              planningPersistence.summarized = [{ id: currentEvent.id, description: currentEvent.description }];
+              const persistenceRow = toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null);
+              planningPersistence.summarized = [persistenceRow];
+              turnRelatedEventIds = [summarizedItem.id];
+              if (remainingAfterCurrent <= 0) {
+                nextFsm = advanceBranch(fsmAtTurnStart);
+                if (nextFsm.branch === "done") {
+                  turnMode = "final_without_practice";
+                  shouldClose = true;
+                } else {
+                  turnMode = "inquiry";
+                }
+              } else {
+                turnMode = "inquiry";
+              }
+            } else if (
+              !isOpening
+              && currentEvent
+              && !summaryMarker
+              && nextEvent
+              && visibleTextMentionsEvent(
+                stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
+                nextEvent.description,
+              )
+            ) {
+              console.warn("[DIALOG_FSM] Model mentioned the next event before closing the current one — force-closing current without matrix");
+              const summarizedItem = await persistSummarizedEvent({
+                db: routeDb,
+                userId: routeUserId,
+                event: currentEvent,
+                outcomeText: userMessage.trim() || null,
+                outcomeCells: [],
+                nowIso,
+              });
+              conversationMeta = appendSummarySessionItem(conversationMeta, {
+                id: summarizedItem.id,
+                description: summarizedItem.title,
+                planned_local_date: currentEvent.planned_local_date,
+                display_order: summarizedItem.displayOrder,
+                summarized_at: summarizedItem.summarizedAt,
+                applied_to_matrix: summarizedItem.appliedToMatrix,
+                outcome_cells: summarizedItem.outcomeCells,
+              });
+              planningPersistence.summarized = [toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null)];
+              turnRelatedEventIds = [summarizedItem.id];
               if (remainingAfterCurrent <= 0) {
                 nextFsm = advanceBranch(fsmAtTurnStart);
                 if (nextFsm.branch === "done") {
@@ -949,31 +1307,36 @@ export async function POST(req: Request) {
             }
           }
 
-          const cleanText = stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
+          let cleanText = stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
+          const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents);
+          if (branchForTurn === "planning") {
+            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            const dayFocus = markers.recommendationCorrection?.short_text?.trim();
+            if (dayFocus) {
+              cleanText = injectPlanningDayFocus(cleanText, dayFocus);
+            }
+            if (planningMarkersForVisible.length > 0) {
+              cleanText = injectPlanningActionsVisibleList(cleanText, planningMarkersForVisible, locale);
+            }
+          }
+          if (branchForTurn === "practice" && practicePicked) {
+            const cardReason =
+              typeof practicePicked.reason === "string" && practicePicked.reason.trim().length > 0
+                ? practicePicked.reason.trim()
+                : typeof practicePicked.card_blurb === "string" && practicePicked.card_blurb.trim().length > 0
+                  ? practicePicked.card_blurb.trim()
+                  : null;
+            if (cardReason) cleanText = cardReason;
+          }
+          if (summaryClarifyingDeferred && currentEvent) {
+            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            cleanText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
+          }
           if (!cleanText) {
             throw new Error("Model returned empty text after sanitization");
           }
 
-          const completePayload = {
-            conversationId: conversation.id,
-            fullText: cleanText,
-            shouldClose,
-            modelUsed,
-            latencyMs: Date.now() - requestStartedMs,
-            modelTier: "premium" as const,
-            turnMode,
-            iteration,
-            readyMarkerTriggered: turnMode === "final_recommendation",
-            branches: [branchForTurn],
-            targetChakra: context.targetChakra,
-            phaseTime: context.phaseTime,
-            validation: null,
-            practicePicked: practicePicked ?? undefined,
-            recommendationCorrected: recommendationCorrected ?? undefined,
-          };
-          controller.enqueue(encoder.encode(sse("complete", completePayload)));
-
-          // Persist FSM + assistant message after shipping UI-critical fields.
+          // Persist FSM + assistant meta only after planned_events / daily_matrices writes succeed.
           await writeFsmState(routeDb, routeUserId, conversation.id, conversationMeta, nextFsm);
 
           const { data: inserted, error: insertError } = await routeDb
@@ -997,20 +1360,54 @@ export async function POST(req: Request) {
                 practice_picked: practicePicked ?? null,
                 recommendationCorrected,
                 dialog_branches: [branchForTurn],
-                target_chakra: context.targetChakra,
+                target_chakra: promptContext.targetChakra,
                 phase_time: context.phaseTime,
                 planning_persistence: planningPersistence,
+                related_event_ids: turnRelatedEventIds ?? null,
+                matrix_cells: turnMatrixCells ?? null,
               },
             })
             .select("id")
             .single();
           if (insertError) throw insertError;
 
+          const persistenceConfirmed = planningPersistence.summarized.length > 0
+            || planningPersistence.inserted.length > 0
+            || planningPersistence.updated.length > 0;
+          const completePayload = {
+            conversationId: conversation.id,
+            fullText: cleanText,
+            shouldClose,
+            modelUsed,
+            latencyMs: Date.now() - requestStartedMs,
+            modelTier: "premium" as const,
+            turnMode,
+            iteration,
+            readyMarkerTriggered: turnMode === "final_recommendation",
+            branches: [branchForTurn],
+            targetChakra: promptContext.targetChakra,
+            phaseTime: context.phaseTime,
+            validation: null,
+            practicePicked: practicePicked ?? undefined,
+            recommendationCorrected: recommendationCorrected ?? undefined,
+            messageId: inserted?.id ?? null,
+            ...(persistenceConfirmed
+              ? {
+                  planningPersistence,
+                  relatedEventIds: turnRelatedEventIds,
+                  matrixCells: turnMatrixCells,
+                }
+              : {}),
+          };
+          controller.enqueue(encoder.encode(sse("complete", completePayload)));
+
           controller.enqueue(
             encoder.encode(
               sse("turn_artifacts", {
                 messageId: inserted?.id ?? null,
                 planningPersistence,
+                relatedEventIds: turnRelatedEventIds,
+                matrixCells: turnMatrixCells,
               }),
             ),
           );
@@ -1029,7 +1426,32 @@ export async function POST(req: Request) {
             payload: { conversation_id: conversation.id, iteration, branch: branchForTurn },
           });
           try {
-            controller.enqueue(encoder.encode(sse("error", { error: toUserFacingStreamErrorMessage(error) })));
+            const salvaged = stripBrainSentinels(
+              sanitizeAssistantText(fullText, context.user.locale),
+            ).trim();
+            if (salvaged) {
+              controller.enqueue(
+                encoder.encode(
+                  sse("complete", {
+                    conversationId: conversation.id,
+                    fullText: salvaged,
+                    shouldClose: false,
+                    modelUsed: model,
+                    latencyMs: Date.now() - requestStartedMs,
+                    modelTier: "premium" as const,
+                    turnMode: "inquiry" as const,
+                    iteration,
+                    readyMarkerTriggered: false,
+                    branches: [branchForTurn],
+                    targetChakra: context.targetChakra,
+                    phaseTime: context.phaseTime,
+                    validation: null,
+                  }),
+                ),
+              );
+            } else {
+              controller.enqueue(encoder.encode(sse("error", { error: toUserFacingStreamErrorMessage(error) })));
+            }
             controller.close();
           } catch {
             /* stream already closed */

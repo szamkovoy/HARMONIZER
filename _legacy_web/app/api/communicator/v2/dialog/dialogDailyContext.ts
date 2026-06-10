@@ -56,7 +56,7 @@ async function loadUser(db: SupabaseClient, userId: string) {
   return (data as DialogDailyContext["user"] | null) ?? {};
 }
 
-async function loadForecastForLocalDate(db: SupabaseClient, userId: string, localDate: string): Promise<Record<string, unknown> | null> {
+export async function loadForecastForLocalDate(db: SupabaseClient, userId: string, localDate: string): Promise<Record<string, unknown> | null> {
   const exact = await db
     .from("user_daily_forecasts")
     .select("*")
@@ -159,7 +159,12 @@ export async function loadDialogDailyContext(
   db: SupabaseClient,
   userId: string,
   timezoneHint?: string,
-  options?: { summarizeUpToLocalDate?: string | null; summarizeWholeLocalDate?: string | null },
+  options?: {
+    summarizeUpToLocalDate?: string | null;
+    summarizeWholeLocalDate?: string | null;
+    /** Debug export must read recently summarized rows — do not purge them first. */
+    skipPurgeSummarized?: boolean;
+  },
 ): Promise<DialogDailyContext> {
   const user = await loadUser(db, userId);
   const timezone = user.tz ?? timezoneHint ?? "UTC";
@@ -169,7 +174,9 @@ export async function loadDialogDailyContext(
   void effectiveDialogNowLocal(nowLocal);
 
   await expireStalePlannedEvents(db, userId, nowIso);
-  await purgeHistoricalSummarizedPlannedEvents(db, userId, localDate);
+  if (!options?.skipPurgeSummarized) {
+    await purgeHistoricalSummarizedPlannedEvents(db, userId, localDate);
+  }
 
   const [forecast, natal, calibration, dueEventsRaw, lastPlanning, aggregated, recentMatrices] = await Promise.all([
     loadForecastForLocalDate(db, userId, localDate),
@@ -231,5 +238,30 @@ export async function loadDialogDailyContext(
     aggregatedMatrix: matrixReady ? aggregated.matrix : null,
     planningSphereLens: buildPlanningSphereLens(recentMatrices, user.locale),
     targetChakra,
+  };
+}
+
+/** When summarizing a past local day, align target chakra with that day's forecast. */
+export async function resolveSummarizingPromptContext(
+  db: SupabaseClient,
+  userId: string,
+  context: DialogDailyContext,
+  workingLocalDate: string,
+): Promise<DialogDailyContext> {
+  if (!workingLocalDate || workingLocalDate === context.localDate) return context;
+  const forecast = await loadForecastForLocalDate(db, userId, workingLocalDate);
+  const chakraNumber = typeof forecast?.day_target_chakra === "number"
+    ? forecast.day_target_chakra
+    : context.targetChakra.chakraNumber;
+  return {
+    ...context,
+    forecast: forecast ?? context.forecast,
+    targetChakra: {
+      chakraNumber,
+      reason: typeof forecast?.day_target_reason === "string"
+        ? forecast.day_target_reason
+        : "summary_working_day",
+      explain: "Целевая чакра подытоживаемого локального дня.",
+    },
   };
 }

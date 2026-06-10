@@ -28,6 +28,13 @@ import {
 import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import type { DayHealthContext } from "@/services/dayHealthContext";
+import { loadDayPlan, type DayPracticeLog } from "@/services/dayPlan";
+import {
+  startSummarizingHealthCollection,
+  startSummarizingHealthCollectionFromPlan,
+  type SummarizingHealthCollection,
+} from "@/services/summarizingHealthContext";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import {
   deleteVoiceRecordingFile,
@@ -36,7 +43,10 @@ import {
 } from "@/modules/communicator/core/voiceTurnPipeline";
 import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
 import {
+  collectSummaryEventsFromDialogState,
+  collectSummaryEventsFromExportMessages,
   mergeExportMessages,
+  mergeSummaryEventExportBuckets,
   reconcileExportPlanningPersistence,
   type ExportMessageSnapshot,
 } from "@/modules/communicator/core/dialogExportMerge";
@@ -582,6 +592,46 @@ export function Communicator({
   const [sessionSynced, setSessionSynced] = useState(false);
   const planningReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const planningReconcileSignatureRef = useRef<string | null>(null);
+  const summarizingHealthCollectionRef = useRef<SummarizingHealthCollection | null>(null);
+  const summarizingHealthBootstrappedRef = useRef(false);
+
+  const bootstrapSummarizingHealth = useCallback(() => {
+    if (summarizingHealthBootstrappedRef.current) return;
+    summarizingHealthBootstrappedRef.current = true;
+    const meta = triggerMeta ?? {};
+    const localDate = typeof meta.workingLocalDate === "string" ? meta.workingLocalDate : null;
+    const practices = Array.isArray(meta.dayPractices) ? (meta.dayPractices as DayPracticeLog[]) : null;
+    if (localDate && practices) {
+      summarizingHealthCollectionRef.current = startSummarizingHealthCollection({ localDate, practices });
+      return;
+    }
+    void loadDayPlan()
+      .then((plan) => {
+        summarizingHealthCollectionRef.current = startSummarizingHealthCollectionFromPlan(plan);
+      })
+      .catch((error) => {
+        console.warn("[Communicator] Failed to start summarizing health collection", error);
+      });
+  }, [triggerMeta]);
+
+  const buildRequestTriggerMeta = useCallback((): Record<string, unknown> => {
+    const base: Record<string, unknown> = {
+      systemPrompt,
+      ...(triggerMeta ?? {}),
+    };
+    const parentHealth = (triggerMeta?.dayHealthContext ?? null) as DayHealthContext | null;
+    const liveHealth = summarizingHealthCollectionRef.current?.getSnapshot() ?? parentHealth;
+    if (liveHealth) {
+      base.dayHealthContext = liveHealth;
+    }
+    return base;
+  }, [systemPrompt, triggerMeta]);
+
+  useEffect(() => {
+    if (triggerMeta?.daySummaryRequested === true) {
+      bootstrapSummarizingHealth();
+    }
+  }, [bootstrapSummarizingHealth, triggerMeta?.daySummaryRequested]);
   const [txtDraft, setTxtDraft] = useState("");
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
@@ -728,11 +778,22 @@ export function Communicator({
     prevStreamBusyForScrollRef.current = streamBusy;
   }, [streamBusy]);
 
+  const dialogWindDown = useMemo(() => {
+    const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+    return latestAssistant?.meta?.shouldClose === true;
+  }, [messages]);
+
   const isBusy =
-    phase === "arming" || phase === "recording" || phase === "transcribing" || streamBusy;
+    phase === "arming" || phase === "recording" || phase === "transcribing" || streamBusy || dialogWindDown;
 
   useEffect(() => {
     if (profileLoading) return;
+
+    if (startFreshSession && freshSessionBootstrappedRef.current) {
+      setSessionSynced(true);
+      return;
+    }
+
     const ac = new AbortController();
     let cancelled = false;
     setSessionSynced(false);
@@ -1177,6 +1238,9 @@ export function Communicator({
       lastHydrationDebugRef.current = null;
       const complete = result.complete;
       if (complete?.conversationId) setActiveConversationId(complete.conversationId);
+      if (complete?.branches?.includes("summarizing")) {
+        bootstrapSummarizingHealth();
+      }
       const mergedText = resolveAssistantReplyText(result.assistantText, complete?.fullText).trim();
 
       let recoveredFromSession = false;
@@ -1298,6 +1362,7 @@ export function Communicator({
       syncChatStreamDisplayText,
       useCase,
       strings.postPracticeReplyFallback,
+      bootstrapSummarizingHealth,
     ],
   );
 
@@ -1316,10 +1381,7 @@ export function Communicator({
           conversationId: activeConversationId,
           useCase,
           entrySource,
-          triggerMeta: {
-            systemPrompt,
-            ...(triggerMeta ?? {}),
-          },
+          triggerMeta: buildRequestTriggerMeta(),
           userMessage: userMessageText,
           userTimezone: timezone,
           turnHistory: buildClientTurnHistory(
@@ -1356,8 +1418,7 @@ export function Communicator({
       entrySource,
       hydrateAssistantTurnFromSession,
       runChatStream,
-      systemPrompt,
-      triggerMeta,
+      buildRequestTriggerMeta,
       useCase,
     ],
   );
@@ -1599,10 +1660,7 @@ export function Communicator({
         conversationId: activeConversationId,
         useCase,
         entrySource,
-        triggerMeta: {
-          systemPrompt,
-          ...(triggerMeta ?? {}),
-        },
+        triggerMeta: buildRequestTriggerMeta(),
         userMessage: "__initiate__",
         userTimezone: timezone,
         initiateDialog: true,
@@ -1620,20 +1678,22 @@ export function Communicator({
     entrySource,
     reportError,
     runChatStream,
-    systemPrompt,
-    triggerMeta,
+    buildRequestTriggerMeta,
     useCase,
   ]);
 
   useEffect(() => {
-    if (initiateFiredRef.current) return;
     if (autoSendInitialMessage?.trim()) return;
     if (!sessionSynced) return;
     if (messages.length > 0) return;
-    initiateFiredRef.current = true;
-    const h = setTimeout(() => void performInitiateDialog(), 120);
+    if (initiateFiredRef.current) return;
+    const h = setTimeout(() => {
+      if (initiateFiredRef.current || messagesRef.current.length > 0) return;
+      initiateFiredRef.current = true;
+      void performInitiateDialog();
+    }, 120);
     return () => clearTimeout(h);
-  }, [autoSendInitialMessage, sessionSynced, messages.length, performInitiateDialog]);
+  }, [autoSendInitialMessage, performInitiateDialog, sessionSynced, messages.length]);
 
   useEffect(() => {
     const initialText = autoSendInitialMessage?.trim();
@@ -2310,28 +2370,20 @@ export function Communicator({
       exportMessageRows as Array<{ role: string; meta: { planning_persistence: { inserted: unknown[]; summarized: unknown[]; skipped: unknown[] } | null } }>,
       dialogStateAfter,
     );
-    const summarizedRows = Array.isArray(dialogStateAfter?.planning_closed_recent_48h)
-      ? (dialogStateAfter.planning_closed_recent_48h as Array<Record<string, unknown>>)
-          .filter((row) => row?.status === "summarized")
-      : [];
-    const summarizedEventsAppliedToMatrix = summarizedRows
-      .filter((row) => row?.applied_to_matrix === true || (Array.isArray(row?.outcome_cells) && row.outcome_cells.length > 0))
-      .map((row) => ({
-        id: typeof row.id === "string" ? row.id : null,
-        description: typeof row.description === "string" ? row.description : null,
-        outcome_text: typeof row.outcome_text === "string" ? row.outcome_text : null,
-        outcome_cells: Array.isArray(row.outcome_cells) ? row.outcome_cells : [],
-        summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
-      }));
-    const summarizedEventsClosedWithoutMatrix = summarizedRows
-      .filter((row) => row?.applied_to_matrix !== true && (!Array.isArray(row?.outcome_cells) || row.outcome_cells.length === 0))
-      .map((row) => ({
-        id: typeof row.id === "string" ? row.id : null,
-        description: typeof row.description === "string" ? row.description : null,
-        outcome_text: typeof row.outcome_text === "string" ? row.outcome_text : null,
-        outcome_cells: [],
-        summarized_at: typeof row.summarized_at === "string" ? row.summarized_at : null,
-      }));
+    const summaryFromMessages = collectSummaryEventsFromExportMessages(
+      exportMessages.map((message) => ({
+        role: message.role,
+        id: message.id,
+        meta: message.meta,
+        rawMeta: message.rawMeta,
+      })),
+      { requireServerPersistedMeta: canUseSyncedMessages },
+    );
+    const summaryFromDialogState = canUseSyncedMessages
+      ? collectSummaryEventsFromDialogState(dialogStateAfter)
+      : { applied: [], closedWithoutMatrix: [] };
+    const { applied: summarizedEventsAppliedToMatrix, closedWithoutMatrix: summarizedEventsClosedWithoutMatrix } =
+      mergeSummaryEventExportBuckets(summaryFromMessages, summaryFromDialogState);
     const payload = {
       conversation: {
         conversation_id: (canUseSyncedMessages ? syncedConversationId : activeConversationId) ?? null,
@@ -2350,6 +2402,9 @@ export function Communicator({
       messages: exportMessageRows,
       summary_events_applied_to_matrix: summarizedEventsAppliedToMatrix,
       summary_events_closed_without_matrix: summarizedEventsClosedWithoutMatrix,
+      summary_matrix_export_note: canUseSyncedMessages
+        ? "Matrix rows are taken only from server-persisted message meta and dialog_state_after (after DB writes)."
+        : "Server sync unavailable — summary matrix blocks are empty to avoid unconfirmed local-only data.",
       ...(dialogStateAfter ? { dialog_state_after: dialogStateAfter } : {}),
     };
     await Share.share({
