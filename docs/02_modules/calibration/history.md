@@ -1,14 +1,15 @@
 ---
 id: 02_modules/calibration/history
 title: Calibration History
-version: 1.1
-updated: 2026-05-06
+version: 1.2
+updated: 2026-06-10
 depends_on: [01_foundation/architecture, 02_modules/profile/spec, 02_modules/communicator/spec, 02_modules/assistant/spec, 02_modules/infra/spec]
 code_refs: [app/calibration.tsx, _legacy_web/app/api/calibration/extract/route.ts, _legacy_web/app/api/calibration/extract/forecast-cache-date.ts, _legacy_web/app/api/calibration/transcribe/route.ts, _legacy_web/app/api/_utils/calibration.ts, supabase/functions/auto-calibrate/index.ts, supabase/functions/auto-calibrate/proposal.ts, services/communicator-client.ts]
 ---
 
 ## Decision Log
 
+- **2026-06-10:** Расширен `_legacy_web/data/chakra_states_baseline.json`: для чакр 6/5/2/1 добавлены маркеры взаимопонимания, переговоров, отдыха, прогулок и контакта с природой — чтобы extract и matrix-classifier лучше покрывали summary-домены, уже описанные в FSM guardrails ассистента.
 - **Не датировано (источник `docs/05_archive/migrated/calibration/MODULE_3_Calibration_TZ.md`):** Зафиксировано разделение **states_map** (семантические маркеры по планетам/чакрам) и **user_lexicon** (речевые паттерны пользователя); оба поля пишутся из extract и читаются ассистентом для тона и контекста. ТЗ предполагало транскрипцию через `/api/calibration/transcribe`; **в текущем приложении** экран `app/calibration.tsx` использует **`/api/communicator/v2/transcribe`**, а маршрут `calibration/transcribe` остаётся отдельным серверным entry point — расхождение зафиксировано в каноне по коду клиента.
 
 - **Не датировано (источник `docs/05_archive/migrated/calibration/PATCH_1_M3_averaging_ratio.md`):** Усреднение S/H переведено с равных весов на взвешенное по `source`: `initial` и `manual_resync` — **60%** натал / **40%** предложение LLM; `auto_aggregated` — **50/50** (`AVERAGING_WEIGHTS` в `_utils/calibration.ts`, проброс `source` в `extract/route.ts`). Старое описание в `calibration_and_orchestrator.md` («делить на два») **не соответствует** текущей реализации.

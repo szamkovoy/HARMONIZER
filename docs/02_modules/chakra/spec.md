@@ -1,8 +1,8 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.0
-updated: 2026-06-09
+version: 1.1
+updated: 2026-06-10
 depends_on: [01_foundation/product_model]
 code_refs: [modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 ---
@@ -34,7 +34,7 @@ code_refs: [modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 ## 4. Конфигурация и параметры
 
 - Внешних env и runtime-флагов нет.
-- Канонические строки зашиты в `labels.ts`; дублирующие копии в `planet_chakra_map.json` и `supabase/functions/_shared/dailyForecast.ts` пока существуют параллельно и должны оставаться согласованными по смыслу с `chakraLabelRu`.
+- Канонические строки зашиты в `labels.ts`; клиентский `planetChakra.ts` читает `chakraName` через `chakraLabelRu`, а не из JSON. Поле `chakra_name_ru` в `planet_chakra_map.json` и inline-строки в `supabase/functions/_shared/dailyForecast.ts` — параллельные дубли, их нужно вручную держать согласованными с `chakraLabelRu`.
 
 ## 5. Известные ограничения
 

@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.62
-updated: 2026-06-09
+version: 2.63
+updated: 2026-06-10
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-10: pre-push doc-sync — выравнивание baseline-данных ассистента (`life_spheres_baseline`, `dto.ts`, `dialogTonalRegisters.ts`, `topPetals.ts`, `chakra_states_baseline.json`); `planetChakra.ts` читает `chakraName` через `chakraLabelRu`. Обновлены **`docs/02_modules/assistant/{spec,history}.md`**, **`docs/02_modules/calibration/history.md`**, **`docs/02_modules/daily_forecast/{spec,dependencies,history}.md`**, **`docs/02_modules/chakra/{spec,dependencies,history}.md`**.
 - 2026-06-10: `assistant` / `communicator` / `daily_forecast` — Day tab was rebuilt around three explicit UI modes: `empty_today`, `overdue_summary`, and `current_day`. `/api/day` now returns `mode + sections[]` instead of one flat day payload, overdue past days are rendered as separate sections with a single `Подытожить` CTA, and Home routes to `/day` only for a real current-day plan without an overdue summary tail.
 - 2026-06-10: `assistant` / `communicator` — summary persistence was simplified back to one table: the same `planned_events` row now becomes `status='summarized'`, keeps `summarized_at` / `outcome_text` / `outcome_cells`, remains visible on the Day tab until the local day ends, and still appears in JSON debug export with real matrix cells. Old `summarized` rows from previous local dates are auto-deleted on the next day, so no extra summary table or migration is needed.
 - 2026-06-09: pre-push doc-sync — `assistant/dependencies.md`, `communicator/spec.md`, `communicator/dependencies.md`: reconcile-plans как no-op, FSM-синхронная персистенция вместо delayed `queued`/`queued_summaries`, `resolvePracticeCard`, SSE `orchestrator_decision` опционален; снят resolved open question про v7-imports.

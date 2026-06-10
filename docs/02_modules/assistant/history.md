@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.62
-updated: 2026-06-09
+version: 2.63
+updated: 2026-06-10
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-06-10:** Продуктовое выравнивание baseline-данных под FSM summary/planning: `life_spheres_baseline/{ru,en}.json` — заголовки сфер 1–7 и расширенные `prompt_hint` (отдых, отношения, финансы, переговоры, духовность); `dto.ts` — `PLANET_SHORT_LABELS` / `PLANET_THEME_LABELS_RU` под те же темы; `dialogTonalRegisters.ts` — уточнённые тональные строки по планетам; `topPetals.ts` — суффикс Sun `(святость, вера)`; `chakra_states_baseline.json` — маркеры взаимопонимания, переговоров, отдыха и прогулок для чакр 6/5/2/1.
 - **2026-06-10 (5):** `/api/day` получил явную секционную модель для вкладки `День`. Вместо одного `localDate + actions[]` endpoint теперь отдаёт `mode` и `sections[]`: overdue-summary режим показывает только прошлые локальные даты с неподытоженными `planned_events`, текущий день при этом скрывается до завершения хвоста; current-day режим возвращается только когда прошлых хвостов больше нет, а empty-state отделён как самостоятельный `mode="empty_today"`. Для day-summary backend дополнительно получает `summaryTargetLocalDate` как верхнюю overdue-дату, чтобы кнопка `Подытожить` подбирала все прошлые дни `<= target`, но не затрагивала планы текущего дня.
 - **2026-06-10 (4):** Summary persistence возвращён к одной сущности в `planned_events`. `persistSummarizedEvent(...)` больше не создаёт отдельную summary-таблицу и не удаляет событие немедленно: то же действие получает `status='summarized'`, `summarized_at`, `outcome_text`, `outcome_cells`, остаётся видимым на вкладке `День` до конца текущего локального дня и продолжает попадать в debug-export со своими реальными `outcome_cells`. Чтобы мусор не копился, `dialogDailyContext.ts` и `/api/day` при входе в новый локальный день автоматически удаляют старые `planned_events.status='summarized'` с прошлых дат. `route.ts` дополнительно держит compact `summary_session.closed_events` в `conversations.trigger_meta`, чтобы финальный summary-turn надёжнее видел уже закрытые earlier events текущей ветки.
 - **2026-06-09 (8):** Pre-push doc-sync: `dependencies.md` §1–§3 — `resolvePracticeCard` вместо `resolvePracticePublic`, `reconcile-plans` как no-op, FSM-промпты (`dialogBranchPrompts.ts`) вместо runtime `dialog_system_v3`, SSE `orchestrator_decision` опционален; снят resolved open question про незакрытые v7-imports.

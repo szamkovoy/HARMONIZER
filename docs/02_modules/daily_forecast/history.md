@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.6
-updated: 2026-06-09
+version: 2.7
+updated: 2026-06-10
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-10:** `modules/home/planetChakra.ts` — `chakraName` теперь через `chakraLabelRu(chakra_number)` из `modules/chakra/labels.ts`, а не из поля `chakra_name_ru` в JSON; `planet_chakra_map.json` остаётся источником номера/ключа/цвета/`short_label_ru`.
 - **2026-06-10 (3):** Вкладка `День` получила три жёстких режима рендера вместо одной плоской модели. `app/(tabs)/day.tsx` теперь различает `empty_today`, `overdue_summary` и `current_day`; прошлые неподытоженные даты рендерятся отдельными секциями с одной общей кнопкой `Подытожить`, причём текущий день не показывается, пока этот хвост не закрыт. Home-кнопка `Что делать?` синхронизирована с той же моделью: на `/day` пользователь уходит только для собранного текущего дня без overdue-summary хвоста.
 - **2026-06-09 (2):** Вкладка `День` перестала терять общий фокус дня, если в `user_daily_forecasts` нет точной строки на рабочую локальную дату. `_legacy_web/app/api/day/route.ts` теперь берёт рекомендацию сначала по exact `forecast_date = localDate`, а затем fallback-ится на последнюю доступную forecast-row пользователя. Это выравнивает Day tab с dialog-context, который уже использовал тот же fallback при planning.
 - **2026-06-09:** Русские chakra labels вынесены в `modules/chakra/labels.ts`; home (`i18n/home.ts`, `DailyRecommendationCard.tsx`) импортирует падежные helper-ы вместо inline-строк. Баннер планеты дня больше не дублирует номер чакры в `chakraLine` (RU — только `chakraName`, EN — `Chakra N`). `planet_chakra_map.json` на клиенте синхронизирован по `chakra_name_ru`.
