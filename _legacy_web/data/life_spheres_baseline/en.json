@@ -9,7 +9,7 @@
     "id": 2,
     "slug": "relationships",
     "title": "Pleasure and rest",
-    "prompt_hint": "partner, family, children, friends, support, conflict, distance, trust"
+    "prompt_hint": "rest, relaxation, pleasure, walk, pause, leisure, pleasant experiences, recovery through rest"
   },
   {
     "id": 3,
@@ -21,7 +21,7 @@
     "id": 4,
     "slug": "home_daily_life",
     "title": "Friends, family, relationships",
-    "prompt_hint": "home, commute, schedule, chores, routine, space, day organization"
+    "prompt_hint": "partner, family, children, friends, support, closeness, conflict, distance, trust, reciprocity"
   },
   {
     "id": 5,

@@ -1,7 +1,7 @@
 import { chakraLabelRu } from "@/modules/chakra/labels";
+import type { NatalProfile, Planet } from "../../../modules/astro-core";
 import { computeActivation } from "../../../modules/daily-engine/core/activation";
 import type { ActivationContribution, TransitChart } from "../../../modules/daily-engine/core/types";
-import type { NatalProfile, Planet } from "../../../modules/astro-core";
 
 export const PLANETS_7 = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
 
@@ -47,7 +47,7 @@ export const PLANET_TO_CHAKRA: Record<Planet, { number: number; label: string }>
   Jupiter: { number: 4, label: `${chakraLabelRu(4)} (любовь, отношения)` },
   Saturn: { number: 5, label: `${chakraLabelRu(5)} (самовыражение, речь)` },
   Mercury: { number: 6, label: `${chakraLabelRu(6)} (мудрость, ясность)` },
-  Sun: { number: 7, label: `${chakraLabelRu(7)} (смысл, путь)` },
+  Sun: { number: 7, label: `${chakraLabelRu(7)} (святость, вера)` },
 };
 
 function isPlanet(value: unknown): value is Planet {

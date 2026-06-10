@@ -15,22 +15,22 @@ const PLANET_TO_CHAKRA: Record<Planet, number> = {
 
 const PLANET_SHORT_LABELS: Record<Planet, string> = {
   Moon: "safety",
-  Venus: "connection",
+  Venus: "pleasures",
   Mars: "will",
-  Jupiter: "heart",
-  Saturn: "voice",
+  Jupiter: "love",
+  Saturn: "creativity",
   Mercury: "clarity",
-  Sun: "vitality",
+  Sun: "holiness",
 };
 
 const PLANET_THEME_LABELS_RU: Record<Planet, string> = {
-  Moon: "опора и безопасность",
-  Venus: "близость и удовольствие",
-  Mars: "воля и действие",
-  Jupiter: "сердце и смысл",
-  Saturn: "самовыражение и границы",
-  Mercury: "ясность и понимание",
-  Sun: "витальность и присутствие",
+  Moon: "тело и безопасность",
+  Venus: "удовольствия и отдых",
+  Mars: "проявленность и деньги",
+  Jupiter: "друзья, семья, отношения",
+  Saturn: "ценности и самовыражение",
+  Mercury: "познание и обучение",
+  Sun: "высшие смыслы, вера",
 };
 
 export const TOKEN_BUDGETS = {

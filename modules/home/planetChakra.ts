@@ -1,4 +1,5 @@
 import type { Planet } from "@/modules/daily-engine";
+import { chakraLabelRu } from "@/modules/chakra/labels";
 import planetChakraMap from "./data/planet_chakra_map.json";
 
 export interface PlanetChakraMeta {
@@ -32,7 +33,7 @@ export const PLANET_CHAKRA = PLANET_ORDER.reduce(
       planet,
       chakraNumber: item.chakra_number,
       chakraKey: item.chakra_key,
-      chakraName: item.chakra_name_ru,
+      chakraName: chakraLabelRu(item.chakra_number),
       color: item.color_hex,
       label: item.short_label_ru,
     };
