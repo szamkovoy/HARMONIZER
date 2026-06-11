@@ -19,6 +19,9 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-11 (5):** Home assistant overlay при закрытии и при старте практики теперь запускает best-effort prefetch вкладки `День` (`loadDayPlan()` → `storePrefetchedDayPlan`) перед/параллельно переходу. Это дополняет day-tab refresh и снижает шанс увидеть stale overdue-секции после завершённого диалога.
+- **2026-06-11 (4):** Streaming cleanup теперь вырезает bare sentinel `[PRACTICE_DECLINED]` так же, как остальные internal markers. Это страхует partial SSE на practice-refusal ходах: даже если сервер/модель вернут sentinel до финальной очистки, пользователь не увидит служебный текст в bubble.
+- **2026-06-11 (3):** Practice launch из карточки ассистента больше не закрывает модальный диалог до навигации. `Communicator` сначала вызывает `launchPractice(..., { launchSource: "assistant" })`, затем на следующий кадр запускает `onPracticePicked` для закрытия overlay/refresh; это убирает flash вкладки `День` между нажатием `Начать практику` и экраном практики.
 - **2026-06-11 (2):** Day modal flow polish: верхняя overdue CTA `Подытожить` теперь передаёт `dayTabMode="plan"` + `daySummaryRequested=false`, чтобы после overdue-summary сервер продолжил planning/practice; current-day `Подытожить этот день` остаётся summary-only. `dialogTextCleanup` / streaming cleanup удаляют bare internal markers (`[CORRECT_RECOMMENDATION]` и др.). При запуске практики из карточки `Communicator` сначала вызывает/ожидает `onPracticePicked`, чтобы модальный overlay успел закрыться до `router.push`, иначе экран практики открывался под диалогом.
 - **2026-06-11:** Summarizing health: `Communicator` стартует `startSummarizingHealthCollection` при `daySummaryRequested` или первом ответе с веткой `summarizing`; каждый POST диалога отправляет `triggerMeta.dayHealthContext` из `getSnapshot()` (native health догружается в фоне без стартового таймаута).
 

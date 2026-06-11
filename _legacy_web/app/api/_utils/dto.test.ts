@@ -88,7 +88,7 @@ describe("buildResponderProfileCompact", () => {
 
     expect(dto.name).toBe("Test");
     expect(dto.centers[5]).toMatchObject({
-      theme: "самовыражение и границы",
+      theme: "ценности и самовыражение",
       strength: 0.5,
       harmony: 0,
     });
@@ -136,7 +136,7 @@ describe("buildResponderForecastCompact", () => {
 
     expect(dto).toMatchObject({
       date: "2026-04-29",
-      theme: "опора и безопасность",
+      theme: "тело и безопасность",
       tone: "harmonic",
       H: 0.46,
       S: 0.79,
@@ -217,7 +217,7 @@ describe("buildStatesMapCompact and logDTOSize", () => {
   });
 
   it("maps planets to user-facing responder themes", () => {
-    expect(responderThemeLabel("Saturn")).toBe("самовыражение и границы");
-    expect(responderThemeLabel("unknown")).toBe("витальность и присутствие");
+    expect(responderThemeLabel("Saturn")).toBe("ценности и самовыражение");
+    expect(responderThemeLabel("unknown")).toBe("высшие смыслы, вера");
   });
 });

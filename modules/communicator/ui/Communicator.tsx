@@ -148,7 +148,7 @@ const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
 const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
 
-const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS):[^\]]*\]|\[\s*PLAN_TOMORROW\s*\]/gi;
+const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS):[^\]]*\]|\[\s*(?:PLAN_TOMORROW|PRACTICE_DECLINED)\s*\]/gi;
 const READY_MARKER_RE = /\[\s*ready_for_recommendation\s*\]/gi;
 const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
 
@@ -2059,8 +2059,20 @@ export function Communicator({
         });
       }
       void (async () => {
-        await Promise.resolve(onPracticePicked?.(summaryToPractice(practice, configured)));
-        launchPractice(configured.launch, { launchSource: "assistant" });
+        const picked = summaryToPractice(practice, configured);
+        const launched = launchPractice(configured.launch, { launchSource: "assistant" });
+        if (!launched) {
+          await Promise.resolve(onPracticePicked?.(picked));
+          return;
+        }
+        requestAnimationFrame(() => {
+          void Promise.resolve(onPracticePicked?.(picked)).catch((error) => {
+            logErrorForDevelopers(
+              "Communicator practice picked callback",
+              error instanceof Error ? error : new Error(String(error)),
+            );
+          });
+        });
       })();
     },
     [onPracticePicked],

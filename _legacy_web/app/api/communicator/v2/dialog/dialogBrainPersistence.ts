@@ -180,8 +180,9 @@ export async function persistSummarizedEvent(params: {
   outcomeText: string | null;
   outcomeCells: MatrixCell[];
   nowIso: string;
+  deleteAfterPersist?: boolean;
 }): Promise<PersistedSummarizedEvent> {
-  const { db, userId, event, outcomeText, outcomeCells, nowIso } = params;
+  const { db, userId, event, outcomeText, outcomeCells, nowIso, deleteAfterPersist = false } = params;
   const { error } = await db
     .from("planned_events")
     .update({
@@ -197,6 +198,16 @@ export async function persistSummarizedEvent(params: {
   if (outcomeCells.length > 0) {
     await mergeSummarizedEventIntoDailyMatrix(db, userId, event.planned_local_date, outcomeCells, nowIso);
     await rebuildProfileReportSnapshot(db, userId, nowIso);
+  }
+
+  if (deleteAfterPersist) {
+    const { error: deleteError } = await db
+      .from("planned_events")
+      .delete()
+      .eq("user_id", userId)
+      .eq("id", event.id)
+      .eq("status", "summarized");
+    if (deleteError) throw deleteError;
   }
 
   return {

@@ -20,6 +20,7 @@ import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { startSummarizingHealthCollection } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
+import { storePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
   buildOpportunityAlarmStyleContent,
@@ -761,12 +762,24 @@ export default function HomeScreen() {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setCommunicatorOpen(false);
+            void loadDayPlan()
+              .then(storePrefetchedDayPlan)
+              .catch((error) => {
+                console.warn("[Home] Failed to prefetch Day before practice", error);
+              });
           }}
           onClose={() => {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setCommunicatorOpen(false);
-            router.push("/day");
+            void loadDayPlan()
+              .then(storePrefetchedDayPlan)
+              .catch((error) => {
+                console.warn("[Home] Failed to prefetch Day before navigation", error);
+              })
+              .finally(() => {
+                router.push("/day");
+              });
           }}
         />
       ) : null}

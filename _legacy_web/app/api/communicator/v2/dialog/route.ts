@@ -59,6 +59,8 @@ import {
   buildPlanningFinalVisibleText,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
+  ensureSentencePunctuation,
+  polishPlanningMarker,
   containsPracticeDeclined,
   stripBrainSentinels,
   type BrainPromptContext,
@@ -72,6 +74,7 @@ import {
   historyHasPracticePicked,
   isPostDialogTurn,
   practiceValidationForTurn,
+  assistantAskedSummaryClarifyingQuestion,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
   userAnswerIsThinForSummary,
@@ -119,6 +122,7 @@ type SummarySessionItem = {
   summarized_at: string;
   applied_to_matrix: boolean;
   outcome_cells: unknown;
+  outcome_text: string | null;
 };
 
 function sse(event: string, data: unknown): string {
@@ -218,6 +222,24 @@ function formatMetricForPrompt(label: string, value: unknown): string | null {
   return `${label}: ${Math.round(current)}${averagePart}${comparisonPart}`;
 }
 
+function sleepQualityLabelForPrompt(value: string): string | null {
+  const normalized = value.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    short: "сон был короче обычного",
+    long: "сон был длиннее обычного",
+    normal: "сон был обычной длительности",
+    average: "сон был обычной длительности",
+    good: "качество сна выглядело хорошим",
+    fair: "качество сна выглядело средним",
+    poor: "качество сна выглядело низким",
+    restless: "сон был беспокойным",
+    interrupted: "сон прерывался",
+    unknown: "",
+  };
+  const label = labels[normalized] ?? normalized.replace(/[_-]+/g, " ");
+  return label.trim() || null;
+}
+
 function formatHealthForPrompt(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const ctx = value as {
@@ -254,7 +276,10 @@ function formatHealthForPrompt(value: unknown): string {
   if (workoutLine) lines.push(workoutLine);
   if (sleepLine) lines.push(sleepLine);
   if (typeof ctx.sleep?.quality === "string" && ctx.sleep.quality !== "unknown") {
-    lines.push(`sleep quality: ${ctx.sleep.quality}`);
+    const sleepQuality = sleepQualityLabelForPrompt(ctx.sleep.quality);
+    if (sleepQuality) {
+      lines.push(`sleep quality note: ${sleepQuality}; do not quote raw provider codes.`);
+    }
   }
   if (!lines.length) {
     return ctx.providerStatus === "available"
@@ -279,7 +304,7 @@ function formatPracticesForPrompt(value: unknown): string {
 }
 
 function userDeclinesPractice(text: string): boolean {
-  return /\b(не\s*надо|не\s*хочу|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|skip|no\s*practice|not\s*now|maybe\s*later)\b/i.test(text);
+  return /\b(не\s*надо|не\s*хочу|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later)\b/i.test(text);
 }
 
 function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">): string {
@@ -454,6 +479,9 @@ function readSummarySessionItems(meta: Record<string, unknown> | null | undefine
       if (!id || !description || !plannedLocalDate || !summarizedAt) return null;
       const displayOrder = Number((item as { display_order?: unknown }).display_order);
       const outcomeCells = (item as { outcome_cells?: unknown }).outcome_cells ?? null;
+      const outcomeText = typeof (item as { outcome_text?: unknown }).outcome_text === "string"
+        ? (item as { outcome_text: string }).outcome_text
+        : null;
       const parsed: SummarySessionItem = {
         id,
         description,
@@ -462,6 +490,7 @@ function readSummarySessionItems(meta: Record<string, unknown> | null | undefine
         summarized_at: summarizedAt,
         applied_to_matrix: (item as { applied_to_matrix?: unknown }).applied_to_matrix === true,
         outcome_cells: outcomeCells,
+        outcome_text: outcomeText,
       };
       return parsed;
     })
@@ -491,6 +520,47 @@ function toSummaryPersistenceRow(
   };
 }
 
+function formatSummaryOutcomeLine(item: SummarySessionItem, index: number): string {
+  const title = item.description.trim() || `Действие ${index + 1}`;
+  const outcome = (item.outcome_text ?? "").trim();
+  return outcome ? `— ${title}: ${outcome}.` : `— ${title}: подытожено.`;
+}
+
+function buildDeterministicSummaryEventsBlock(items: SummarySessionItem[]): string {
+  const lines = items
+    .map(formatSummaryOutcomeLine)
+    .map((line) => line.replace(/([.!?…])\.+$/u, "$1"));
+  return ["По событиям:", ...lines].join("\n");
+}
+
+function replaceSummaryEventsBlock(visibleText: string, items: SummarySessionItem[]): string {
+  if (!items.length) return visibleText;
+  const block = buildDeterministicSummaryEventsBlock(items);
+  const start = visibleText.search(/(?:^|\n)По событиям:\s*/i);
+  if (start < 0) return visibleText;
+  const before = visibleText.slice(0, start).trimEnd();
+  const rest = visibleText.slice(start);
+  const nextSection = rest.search(/\n\n(?:По телу:|Какой день|Что у вас|Какие планы|Теперь можно перейти)/i);
+  const after = nextSection >= 0 ? rest.slice(nextSection).trimStart() : "";
+  return [before, block, after].filter(Boolean).join("\n\n");
+}
+
+function sanitizeSummaryFinalVisibleText(value: string): string {
+  return value
+    .replace(/^\s*[—–-]{2,}\s*/u, "")
+    .replace(/\bсегодняшн(?:ий|его|ему|им|ем)\s+день\b/giu, "день")
+    .replace(/\bсегодня\s+вы\b/giu, "Вы")
+    .replace(/\btoday'?s\s+day\b/giu, "the day")
+    .replace(/\btoday\s+you\b/giu, "You")
+    .replace(/\b(?:сегодняшн(?:ий|его|ему|им|ем)|сегодня|вчерашн(?:ий|его|ему|им|ем)|вчера|позавчерашн(?:ий|его|ему|им|ем)|позавчера)\b/giu, "")
+    .replace(/\b(?:today'?s|today|yesterday'?s|yesterday|the day before yesterday)\b/giu, "")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function visibleTextMentionsEvent(text: string, description: string): boolean {
   const needle = description.trim().toLowerCase();
   if (needle.length < 4) return false;
@@ -502,8 +572,7 @@ function findSummaryMarkerForEvent(
   event: PlannedEventRow,
 ) {
   return markers.summarizeEvents.find(
-    (marker) => marker.ref.trim() === event.id
-      || event.description.toLowerCase().includes(marker.ref.trim().toLowerCase()),
+    (marker) => marker.ref.trim() === event.id,
   );
 }
 
@@ -856,6 +925,8 @@ export async function POST(req: Request) {
     }
 
     // ----- Build the single per-turn prompt for the current branch -----
+    const practiceValidationAtTurn =
+      fsm.branch === "practice" ? practiceValidationForTurn(history, userMessage) : null;
     let prompt: { systemInstruction: string; userInstruction: string };
     if (fsm.branch === "summarizing") {
       const completedEarlierEvents = readSummarySessionItems(conversationMeta)
@@ -880,11 +951,10 @@ export async function POST(req: Request) {
         .find((message) => message.role === "assistant")
         ?.meta?.dialog_branches;
       const isPracticeOpening = !Array.isArray(lastAssistantBranch) || !lastAssistantBranch.includes("practice");
-      const practiceValidation = practiceValidationForTurn(history, userMessage);
       prompt = buildPracticePrompt(brainCtx, {
         isOpening: isPracticeOpening,
-        pickImmediately: practiceValidation.confident,
-        catalogReconciliation: buildCatalogReconciliationInstruction(practiceValidation),
+        pickImmediately: practiceValidationAtTurn?.confident === true,
+        catalogReconciliation: buildCatalogReconciliationInstruction(practiceValidationAtTurn!),
         postPracticeReply: historyHasPracticePicked(history),
       });
     } else {
@@ -982,7 +1052,16 @@ export async function POST(req: Request) {
       branchForTurn === "summarizing"
       && !isOpening
       && currentEvent != null
-      && summaryAskedCount(fsm, currentEvent.id) < 1;
+      && (summaryAskedCount(fsm, currentEvent.id) < 1 || due.length <= 1);
+    const bufferPlanningUntilGuards =
+      branchForTurn === "planning"
+      && !isOpening
+      && !fsmAtTurnStart.planningFinalized;
+    const bufferPracticeUntilGuards =
+      branchForTurn === "practice"
+      && !isOpening
+      && (practiceValidationAtTurn?.confident === true || userDeclinesPractice(userMessage));
+    const bufferUntilGuards = bufferSummaryUntilGuards || bufferPlanningUntilGuards || bufferPracticeUntilGuards;
     const maxOutputTokens =
       summarizingFinalTurn ? 4500
       : branchForTurn === "summarizing" ? 900
@@ -1002,12 +1081,13 @@ export async function POST(req: Request) {
           })) {
             modelUsed = chunk.modelUsed;
             fullText += chunk.text;
-            if (!bufferSummaryUntilGuards) {
+            if (!bufferUntilGuards) {
               controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed })));
             }
           }
 
           const markers = parseResponseMarkers(fullText);
+          const sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
 
           // ----- Deterministic FSM transition + persistence per branch -----
           let nextFsm: DialogFsmState = fsmAtTurnStart;
@@ -1046,6 +1126,7 @@ export async function POST(req: Request) {
                 );
               }
             }
+            plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
             if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
               const persisted = await persistPlanningFinalize({
                 db: routeDb,
@@ -1060,13 +1141,18 @@ export async function POST(req: Request) {
               planningPersistence.inserted = persisted.filter((p) => p.action === "inserted");
               planningPersistence.updated = persisted.filter((p) => p.action === "updated");
               if (!fsmAtTurnStart.noGreeting && markers.recommendationCorrection?.short_text) {
+                const shortText = ensureSentencePunctuation(markers.recommendationCorrection.short_text);
                 await persistDayFocus({
                   db: routeDb,
                   userId: routeUserId,
                   forecastId: typeof context.forecast?.id === "string" ? context.forecast.id : null,
-                  shortText: markers.recommendationCorrection.short_text,
+                  shortText,
                 });
-                recommendationCorrected = { newShortText: markers.recommendationCorrection.short_text, ...markers.recommendationCorrection };
+                recommendationCorrected = {
+                  ...markers.recommendationCorrection,
+                  short_text: shortText,
+                  newShortText: shortText,
+                };
               }
               nextFsm = advanceBranch({ ...fsmAtTurnStart, planningFinalized: true });
               if (nextFsm.branch === "done") {
@@ -1120,6 +1206,12 @@ export async function POST(req: Request) {
             const summaryMarker = currentEvent
               ? findSummaryMarkerForEvent(markers, currentEvent)
               : undefined;
+            const markerWithVisibleClarifier =
+              !isOpening
+              && summaryMarker
+              && currentEvent
+              && summaryAskedCount(fsmAtTurnStart, currentEvent.id) < 1
+              && assistantAskedSummaryClarifyingQuestion(sanitizedVisibleText, nextEvent?.description);
             const remainingAfterCurrent = currentEvent
               ? due.filter((event) => event.id !== currentEvent.id).length
               : due.length;
@@ -1131,6 +1223,7 @@ export async function POST(req: Request) {
                 outcomeText: userMessage.trim() || null,
                 outcomeCells: [],
                 nowIso,
+                deleteAfterPersist: currentEvent.planned_local_date < context.localDate,
               });
               conversationMeta = appendSummarySessionItem(conversationMeta, {
                 id: summarizedItem.id,
@@ -1140,6 +1233,7 @@ export async function POST(req: Request) {
                 summarized_at: summarizedItem.summarizedAt,
                 applied_to_matrix: summarizedItem.appliedToMatrix,
                 outcome_cells: summarizedItem.outcomeCells,
+                outcome_text: userMessage.trim() || null,
               });
               const persistenceRow = toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null);
               planningPersistence.summarized = [persistenceRow];
@@ -1151,6 +1245,14 @@ export async function POST(req: Request) {
                 const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
                 forcedVisibleText = buildSummaryEventDidNotHappenBridge(currentEvent.description, nextEvent.description, locale);
               }
+            } else if (markerWithVisibleClarifier && currentEvent) {
+              console.warn(
+                "[DIALOG_FSM] Summary marker deferred because visible reply asked a clarifying question",
+                JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id }),
+              );
+              summaryClarifyingDeferred = true;
+              nextFsm = bumpSummaryAsked(fsmAtTurnStart, currentEvent.id);
+              turnMode = "inquiry";
             } else if (
               !isOpening
               && summaryMarker
@@ -1163,6 +1265,7 @@ export async function POST(req: Request) {
                 JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id }),
               );
               summaryClarifyingDeferred = true;
+              nextFsm = bumpSummaryAsked(fsmAtTurnStart, currentEvent.id);
               turnMode = "inquiry";
             } else if (
               !isOpening
@@ -1182,6 +1285,7 @@ export async function POST(req: Request) {
                 outcomeText: summaryMarker.outcome,
                 outcomeCells: [],
                 nowIso,
+                deleteAfterPersist: currentEvent.planned_local_date < context.localDate,
               });
               conversationMeta = appendSummarySessionItem(conversationMeta, {
                 id: summarizedItem.id,
@@ -1191,6 +1295,7 @@ export async function POST(req: Request) {
                 summarized_at: summarizedItem.summarizedAt,
                 applied_to_matrix: summarizedItem.appliedToMatrix,
                 outcome_cells: summarizedItem.outcomeCells,
+                outcome_text: summaryMarker.outcome,
               });
               const persistenceRow = toSummaryPersistenceRow(summarizedItem, summaryMarker.outcome);
               planningPersistence.summarized = [persistenceRow];
@@ -1214,6 +1319,7 @@ export async function POST(req: Request) {
                 outcomeText: summaryMarker.outcome,
                 outcomeCells: summaryMarker.outcomeCells,
                 nowIso,
+                deleteAfterPersist: currentEvent.planned_local_date < context.localDate,
               });
               conversationMeta = appendSummarySessionItem(conversationMeta, {
                 id: summarizedItem.id,
@@ -1223,6 +1329,7 @@ export async function POST(req: Request) {
                 summarized_at: summarizedItem.summarizedAt,
                 applied_to_matrix: summarizedItem.appliedToMatrix,
                 outcome_cells: summarizedItem.outcomeCells,
+                outcome_text: summaryMarker.outcome,
               });
               const persistenceRow = toSummaryPersistenceRow(summarizedItem, summaryMarker.outcome);
               planningPersistence.summarized = [persistenceRow];
@@ -1247,6 +1354,7 @@ export async function POST(req: Request) {
                 outcomeText: userMessage.trim() || null,
                 outcomeCells: [],
                 nowIso,
+                deleteAfterPersist: currentEvent.planned_local_date < context.localDate,
               });
               conversationMeta = appendSummarySessionItem(conversationMeta, {
                 id: summarizedItem.id,
@@ -1256,6 +1364,7 @@ export async function POST(req: Request) {
                 summarized_at: summarizedItem.summarizedAt,
                 applied_to_matrix: summarizedItem.appliedToMatrix,
                 outcome_cells: summarizedItem.outcomeCells,
+                outcome_text: userMessage.trim() || null,
               });
               const persistenceRow = toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null);
               planningPersistence.summarized = [persistenceRow];
@@ -1277,41 +1386,15 @@ export async function POST(req: Request) {
               && !summaryMarker
               && nextEvent
               && visibleTextMentionsEvent(
-                stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
+                sanitizedVisibleText,
                 nextEvent.description,
               )
             ) {
-              console.warn("[DIALOG_FSM] Model mentioned the next event before closing the current one — force-closing current without matrix");
-              const summarizedItem = await persistSummarizedEvent({
-                db: routeDb,
-                userId: routeUserId,
-                event: currentEvent,
-                outcomeText: userMessage.trim() || null,
-                outcomeCells: [],
-                nowIso,
-              });
-              conversationMeta = appendSummarySessionItem(conversationMeta, {
-                id: summarizedItem.id,
-                description: summarizedItem.title,
-                planned_local_date: currentEvent.planned_local_date,
-                display_order: summarizedItem.displayOrder,
-                summarized_at: summarizedItem.summarizedAt,
-                applied_to_matrix: summarizedItem.appliedToMatrix,
-                outcome_cells: summarizedItem.outcomeCells,
-              });
-              planningPersistence.summarized = [toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null)];
-              turnRelatedEventIds = [summarizedItem.id];
-              if (remainingAfterCurrent <= 0) {
-                nextFsm = advanceBranch(fsmAtTurnStart);
-                if (nextFsm.branch === "done") {
-                  turnMode = "final_without_practice";
-                  shouldClose = true;
-                } else {
-                  turnMode = "inquiry";
-                }
-              } else {
-                turnMode = "inquiry";
-              }
+              console.warn("[DIALOG_FSM] Model mentioned the next event before closing the current one — keeping current event open");
+              const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+              forcedVisibleText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
+              nextFsm = bumpSummaryAsked(fsmAtTurnStart, currentEvent.id);
+              turnMode = "inquiry";
             } else if (!isOpening && currentEvent) {
               // No marker this turn: count it as the single clarifying question.
               nextFsm = bumpSummaryAsked(fsmAtTurnStart, currentEvent.id);
@@ -1321,11 +1404,12 @@ export async function POST(req: Request) {
             }
           }
 
-          let cleanText = forcedVisibleText ?? stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
-          const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents);
+          let cleanText = forcedVisibleText ?? sanitizedVisibleText;
           if (branchForTurn === "planning") {
             const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
-            const dayFocus = markers.recommendationCorrection?.short_text?.trim();
+            const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
+              .map((marker) => polishPlanningMarker(marker, locale));
+            const dayFocus = ensureSentencePunctuation(markers.recommendationCorrection?.short_text);
             if (planningMarkersForVisible.length > 0 && !fsmAtTurnStart.noGreeting) {
               cleanText = buildPlanningFinalVisibleText({
                 visibleText: cleanText,
@@ -1353,10 +1437,19 @@ export async function POST(req: Request) {
             const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
             cleanText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
           }
+          if (
+            branchForTurn === "summarizing"
+            && !isOpening
+            && nextFsm.branch !== "summarizing"
+            && !summaryClarifyingDeferred
+          ) {
+            cleanText = replaceSummaryEventsBlock(cleanText, readSummarySessionItems(conversationMeta));
+            cleanText = sanitizeSummaryFinalVisibleText(cleanText);
+          }
           if (!cleanText) {
             throw new Error("Model returned empty text after sanitization");
           }
-          if (bufferSummaryUntilGuards) {
+          if (bufferUntilGuards) {
             controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed })));
           }
 

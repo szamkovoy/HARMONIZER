@@ -35,6 +35,7 @@ import {
   type DaySection,
   type DaySphereStat,
 } from "@/services/dayPlan";
+import { consumePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
 
 type AssistantMode = "plan" | "add" | "summary";
 type PracticeMenuLevel = "closed" | "root" | "breath" | "yoga";
@@ -436,7 +437,12 @@ export default function DayTabRoute() {
     try {
       setPlan(await loadDayPlan());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить день.");
+      if (plan) {
+        console.warn("[Day] Background refresh failed", loadError);
+        setError(null);
+      } else {
+        setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить день.");
+      }
     } finally {
       setLoading(false);
     }
@@ -445,6 +451,12 @@ export default function DayTabRoute() {
   useFocusEffect(
     useCallback(() => {
       if (assistantSession) return;
+      const prefetched = consumePrefetchedDayPlan();
+      if (prefetched) {
+        setPlan(prefetched);
+        setError(null);
+        setLoading(false);
+      }
       void refresh();
     }, [assistantSession, refresh]),
   );
@@ -704,7 +716,7 @@ export default function DayTabRoute() {
         }}
         onClose={() => {
           setAssistantSession(null);
-          void refresh({ showRefreshing: true, force: true });
+          void refresh({ force: true });
         }}
       />
     </SafeAreaView>

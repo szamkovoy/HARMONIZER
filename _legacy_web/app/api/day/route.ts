@@ -16,6 +16,16 @@ const SPHERE_TITLES_RU = [
   "Высшие смыслы, вера",
 ] as const;
 
+const SPHERE_SHORT_TITLES_RU = [
+  "тело",
+  "отдых",
+  "деньги/дела",
+  "отношения",
+  "ценности",
+  "обучение",
+  "смысл",
+] as const;
+
 const BREATH_LABEL_RU: Record<string, string> = {
   coherent: "когерентное",
   "nadi-shodhana": "попеременное",
@@ -74,15 +84,45 @@ function buildSphereStats(actions: Array<{ cells: unknown }>) {
 }
 
 function buildSphereHint(stats: ReturnType<typeof buildSphereStats>) {
-  const active = stats.filter((item) => item.value > 0.001);
+  const active = stats.filter((item) => item.value > 0.001).sort((left, right) => right.value - left.value);
+  const missing = stats.filter((item) => item.value <= 0.001);
   if (!active.length) return null;
+  if (active.length >= 5) return null;
+  const activeNames = active
+    .slice(0, 2)
+    .map((item) => SPHERE_SHORT_TITLES_RU[item.id - 1] ?? item.title.toLowerCase());
+  const missingNames = missing
+    .slice(0, 2)
+    .map((item) => SPHERE_SHORT_TITLES_RU[item.id - 1] ?? item.title.toLowerCase());
+  const primaryMissing = missingNames[0] ?? "другую сферу";
   if (active.length <= 2) {
-    return "Пока день собран довольно узко. Чтобы расширять матрицу состояний, добавьте одно небольшое действие из другой сферы: тело, отдых, отношения, обучение или ценности.";
+    const activeText = activeNames.length === 1 ? activeNames[0] : activeNames.join(" и ");
+    const missingText = missingNames.length >= 2 ? `${missingNames[0]} или ${missingNames[1]}` : primaryMissing;
+    const verb = activeNames.length === 1 ? "звучит" : "звучат";
+    return `Сейчас сильнее ${verb} ${activeText}. Для баланса добавьте небольшое действие: ${missingText}.`;
   }
-  if (active.length <= 4) {
-    return "День уже включает несколько сфер. Можно сделать его шире: добавьте короткое действие из той области, которая обычно остаётся без внимания.";
-  }
-  return "День выглядит достаточно разнообразным. Выберите главный тон внимания и проживите эти действия не на автомате, а в новом состоянии.";
+  return `Баланс уже шире. Можно добавить ${primaryMissing} — эта сфера пока почти не звучит.`;
+}
+
+async function loadRecentSphereRows(
+  db: ReturnType<typeof createServiceSupabase>,
+  userId: string,
+  throughLocalDate: string,
+) {
+  const { data, error } = await db
+    .from("planned_events")
+    .select("planned_local_date,cells")
+    .eq("user_id", userId)
+    .lte("planned_local_date", throughLocalDate)
+    .in("status", ["planned", "summarized"])
+    .order("planned_local_date", { ascending: false })
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .limit(200);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{ planned_local_date: string | null; cells: unknown }>;
+  const activeDates = [...new Set(rows.map((row) => row.planned_local_date).filter((value): value is string => Boolean(value)))].slice(0, 7);
+  const activeDateSet = new Set(activeDates);
+  return rows.filter((row) => row.planned_local_date && activeDateSet.has(row.planned_local_date));
 }
 
 async function loadForecastForLocalDateOrLatest(
@@ -287,7 +327,8 @@ export async function GET(req: Request) {
       }
     }
 
-    const actions = (currentActionsRes.data ?? [])
+    const currentRows = currentActionsRes.data ?? [];
+    const actions = currentRows
       .map((row, index) => ({
         id: row.id,
         localDate: row.planned_local_date,
@@ -307,7 +348,9 @@ export async function GET(req: Request) {
         return String(left.plannedAt ?? "").localeCompare(String(right.plannedAt ?? ""));
       })
       .map(({ plannedAt, ...rest }) => rest);
-    const sphereStats = buildSphereStats(currentActionsRes.data ?? []);
+    const sphereStats = buildSphereStats(currentRows);
+    const recentSphereRows = await loadRecentSphereRows(db, userId, localDate);
+    const sphereHintStats = buildSphereStats(recentSphereRows.length > 0 ? recentSphereRows : currentRows);
     const practices = buildPracticeLogsForDates(practicesRes.data ?? [], timezone).get(localDate) ?? [];
     const canSummarizeCurrentDay = actions.some((action) => action.status === "planned");
     const sections = [{
@@ -315,7 +358,7 @@ export async function GET(req: Request) {
       dateLabelKind: dateLabelKindFor(localDate, today, yesterday),
       actions,
       sphereStats,
-      sphereHint: buildSphereHint(sphereStats),
+      sphereHint: buildSphereHint(sphereHintStats),
       practices,
     }];
 

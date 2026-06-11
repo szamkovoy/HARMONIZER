@@ -81,7 +81,8 @@ describe("buildPlanningPrompt", () => {
       planningLocked: false,
     });
     expect(userInstruction).toMatch(/NOT a forecast/i);
-    expect(userInstruction).toMatch(/EXACTLY the same wording/i);
+    expect(userInstruction).toMatch(/may be fuller/i);
+    expect(userInstruction).toMatch(/polite suggestions/i);
   });
 
   it("forbids day-focus markers in Day tab add flow", () => {
@@ -122,8 +123,30 @@ describe("buildPlanningFinalVisibleText", () => {
       "1. Рабочие задачи",
       "Рекомендация: Сначала увидьте целое.",
       "",
-      "Хотите короткую практику на 5 минут?",
+      "Хотите сейчас выполнить практику: медитацию, дыхание или асаны? Если да, назовите тип и примерную длительность — или скажите, что сегодня без практики.",
     ].join("\n"));
+  });
+
+  it("drops pre-final add-more questions from the deterministic final", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "Хороший набор. Есть ли ещё что-то важное, что вы хотели бы прожить сегодня осознанно?",
+        "",
+        "Сегодня держите ясность.",
+        "",
+        "1. Сауна",
+        "Рекомендация: Отдохните.",
+      ].join("\n"),
+      dayFocus: "Сегодня держите ясность.",
+      locale: "ru",
+      includePracticeQuestion: true,
+      events: [
+        { desc: "Сауна", recommendation: "Отдохните.", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+
+    expect(result).not.toContain("Есть ли ещё");
+    expect(result).toContain("1. Сауна");
   });
 });
 

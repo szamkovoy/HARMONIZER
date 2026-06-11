@@ -69,6 +69,51 @@ export function formatLocalDateForPrompt(localDate: string, locale: "ru" | "en")
 }
 
 /** Deterministic visible list for planning finalize — matches Day tab action titles. */
+export function ensureSentencePunctuation(value: string | null | undefined): string {
+  const text = (value ?? "").trim();
+  if (!text) return "";
+  if (/[:;]$/.test(text)) return text;
+  return /[.!?…]$/.test(text) ? text : `${text}.`;
+}
+
+function polishRuRecommendationText(value: string): string {
+  let text = value.trim().replace(/\b1-2\b/g, "одну-две");
+  const replacements: Array<[RegExp, string]> = [
+    [/^Перед стартом выделить\b/i, "Перед стартом выделите"],
+    [/^Перед началом выделить\b/i, "Перед началом выделите"],
+    [/^Выделить\b/i, "Выделите"],
+    [/^Задать\b/i, "Задайте"],
+    [/^Осознанно выбрать\b/i, "Осознанно выберите"],
+    [/^Выбрать\b/i, "Выберите"],
+    [/^Сохранить\b/i, "Сохраните"],
+    [/^Начать\b/i, "Начните"],
+    [/^Сделать\b/i, "Сделайте"],
+    [/^Проверить\b/i, "Проверьте"],
+    [/^Уточнить\b/i, "Уточните"],
+  ];
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(text)) {
+      text = text.replace(pattern, replacement);
+      break;
+    }
+  }
+  return text;
+}
+
+export function polishPlanningRecommendation(value: string | null | undefined, locale: "ru" | "en"): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  const polished = locale === "ru" ? polishRuRecommendationText(raw) : raw;
+  return ensureSentencePunctuation(polished);
+}
+
+export function polishPlanningMarker(event: PlannedEventMarker, locale: "ru" | "en"): PlannedEventMarker {
+  return {
+    ...event,
+    recommendation: polishPlanningRecommendation(event.recommendation, locale) || event.recommendation,
+  };
+}
+
 export function buildPlanningActionsVisibleBlock(
   events: PlannedEventMarker[],
   locale: "ru" | "en",
@@ -79,7 +124,7 @@ export function buildPlanningActionsVisibleBlock(
     .map((event, index) => {
       const order = event.displayOrder ?? index + 1;
       const title = event.desc.trim();
-      const recommendation = (event.recommendation ?? "").trim();
+      const recommendation = polishPlanningRecommendation(event.recommendation, locale);
       return recommendation
         ? `${order}. ${title}\n${recommendationLabel}: ${recommendation}`
         : `${order}. ${title}`;
@@ -131,20 +176,25 @@ export function injectPlanningDayFocus(visibleText: string, dayFocus: string): s
 
 function fallbackPracticeQuestion(locale: "ru" | "en"): string {
   return locale === "ru"
-    ? "Хотите, чтобы я предложил короткую практику, которая поможет настроиться на это состояние? Или сегодня без неё?"
-    : "Would you like me to suggest a short practice to help you tune into this state, or skip it today?";
+    ? "Хотите сейчас выполнить практику: медитацию, дыхание или асаны? Если да, назовите тип и примерную длительность — или скажите, что сегодня без практики."
+    : "Would you like to do a practice now: meditation, breathing, or asanas? If yes, name the kind and approximate duration, or say you will skip it today.";
 }
 
-function extractPracticeQuestion(visibleText: string, locale: "ru" | "en"): string {
-  const paragraphs = visibleText
+function extractPlanningIntro(visibleText: string, fallbackFocus: string | null | undefined): string {
+  const listStart = visibleText.search(/\n\s*\d+\.\s/m);
+  const beforeList = (listStart >= 0 ? visibleText.slice(0, listStart) : visibleText)
     .split(/\n\n+/)
     .map((part) => part.trim())
-    .filter(Boolean);
-  const practiceParagraph = [...paragraphs].reverse().find((part) =>
-    /(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
-    && /\?/.test(part)
-  );
-  return practiceParagraph ?? fallbackPracticeQuestion(locale);
+    .filter((part) =>
+      part
+      && !/[?？]/.test(part)
+      && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
+      && !/\[(?:PLANNED_EVENT|CORRECT_RECOMMENDATION|PRACTICE_PICK)\b/i.test(part)
+      && !/(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
+    )
+    .join("\n\n");
+  if (beforeList.length >= 80) return ensureSentencePunctuation(beforeList);
+  return ensureSentencePunctuation(fallbackFocus);
 }
 
 /** Deterministic planning final assembled from persisted marker data. */
@@ -157,11 +207,11 @@ export function buildPlanningFinalVisibleText(params: {
 }): string {
   const { visibleText, events, dayFocus, locale, includePracticeQuestion } = params;
   const parts: string[] = [];
-  const focus = dayFocus?.trim();
+  const focus = extractPlanningIntro(visibleText, dayFocus);
   if (focus) parts.push(focus);
   parts.push(buildPlanningActionsVisibleBlock(events, locale));
   if (includePracticeQuestion) {
-    parts.push(extractPracticeQuestion(visibleText, locale));
+    parts.push(fallbackPracticeQuestion(locale));
   }
   return parts.filter((part) => part.trim()).join("\n\n");
 }
@@ -238,6 +288,9 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     ctx.locale === "ru"
       ? "- Не называйте календарные даты в видимом тексте. Говорите только названиями событий (например «прогулка в парке», «выбор саженцев»). Никогда не используйте «вчера», «сегодня», «завтра» и подобные слова."
       : "- Do NOT name calendar dates in visible text. Refer to events by their titles only (for example walk in the park, apple saplings). Never use yesterday, today, tomorrow, or similar words.",
+    ctx.locale === "ru"
+      ? "- Не ставьте названия событий в кавычки в видимом тексте. Вплетайте событие разговорно: «когда вы работали с задачами», «во время визита в автосервис», либо говорите «это действие», если заголовок трудно склонить."
+      : "- Do not put event titles in quotation marks in visible text. Weave the event naturally into the sentence, or say \"this event\" if the title is hard to inflect.",
     "- Work strictly on ONE event at a time. Do not list or pre-empt other events.",
     "- Until you emit [SUMMARIZE_EVENT] for the current event, your visible reply must discuss ONLY that event. Never ask about or mention another event in the same turn.",
     "- If you need a clarifying question, ask exactly ONE question about the current event only — no marker, no interpretation, no feedback, no other events.",
@@ -335,7 +388,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
       : [
           `- Give a self-contained planning wrap-up: first one short paragraph with the overall day recommendation, then go action by action with a short, vivid recommendation for living each one today.`,
           `  The day recommendation is NOT a forecast — it invites the user to direct attention toward states and actions aligned with chakra ${ctx.targetChakraNumber} today, so they live less on autopilot and more in harmony with natural energies. Gently motivate: what to notice, why this shift helps growth/wholeness, what they may gain if they lean into it.`,
-          "  The visible day-recommendation paragraph and [CORRECT_RECOMMENDATION: short_text=\"...\"] MUST use EXACTLY the same wording (character-for-character).",
+          "  The visible day-recommendation paragraph may be fuller than [CORRECT_RECOMMENDATION: short_text=\"...\"], but both must carry the same meaning. The marker short_text is for the Day tab header: keep it concise, complete and punctuated.",
         ].join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",
     ctx.locale === "ru"
@@ -343,6 +396,9 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
       : "- VISIBLE list format (one block per action, blank line between blocks):\n  N. {short action name}\n  Recommendation: {recommendation text}",
     "- The action name in visible text MUST match the desc you put into each PLANNED_EVENT marker (this is what the Day tab shows). Never output \"N. — recommendation\" without the action name.",
     `- Each action recommendation must explicitly reflect chakra ${ctx.targetChakraNumber}: name one concrete supporting state or behavioral emphasis from this day's harmonic tone, not a generic platitude.`,
+    ctx.locale === "ru"
+      ? "- Write action recommendations as polite suggestions in imperative form, not infinitive commands: «выделите», «задайте», «выберите», not «выделить», «задать», «выбрать». Every recommendation and day-focus sentence must end with punctuation."
+      : "- Write action recommendations as suggestions, not terse command labels. Every recommendation and day-focus sentence must end with punctuation.",
     "- Keep the wording simple and natural. No poetic openings, no cosmic metaphors, no repeated paraphrases of the user's sentence.",
     "- NEVER put yoga/meditation/breathing/asana/practice requests into [PLANNED_EVENT]. Practices belong only to the PRACTICE branch, not the Day tab actions list.",
     "- Emit, for EACH action, in the order the user mentioned them:",
@@ -355,7 +411,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
       : "- Also emit the overall day focus once: [CORRECT_RECOMMENDATION: short_text=\"one short overall recommendation for the day\"]",
     input.noPractice
       ? "- This flow has NO practice step. End your finalize message here."
-      : "- After the wrap-up, end with ONE short question offering an optional short practice (which kind / how long, or skip). Do not describe specific practices yet.",
+      : "- After the wrap-up, end with ONE broad question: whether the user wants a practice now, and if yes which kind (meditation / breathing / asanas) and approximate duration. Do not narrow the user to one specific practice yet.",
     input.planningLocked
       ? "- Planning finalize already happened in this conversation. Do NOT repeat the planning wrap-up, do NOT emit [PLANNED_EVENT] or [CORRECT_RECOMMENDATION], and do NOT re-list day actions."
       : "",

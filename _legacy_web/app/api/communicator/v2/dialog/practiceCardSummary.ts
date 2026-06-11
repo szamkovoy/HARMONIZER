@@ -74,6 +74,22 @@ function chakraLine(ids: readonly number[], locale: "ru" | "en"): string {
   return unique.map((id) => map[id] ?? String(id)).join(locale === "en" ? ", " : " и ");
 }
 
+function chakraZoneRu(ids: readonly number[]): string {
+  const unique = [...new Set(ids.filter((n) => Number.isInteger(n) && n >= 1 && n <= 7))];
+  const genitive: Record<number, string> = {
+    1: "первой чакры",
+    2: "второй чакры",
+    3: "третьей чакры",
+    4: "четвёртой чакры",
+    5: "пятой чакры",
+    6: "шестой чакры",
+    7: "седьмой чакры",
+  };
+  if (!unique.length) return "ключевых энергетических центров";
+  if (unique.length === 1) return genitive[unique[0]!] ?? "целевой чакры";
+  return unique.map((id) => genitive[id] ?? `${id}-й чакры`).join(" и ");
+}
+
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -110,7 +126,7 @@ export function buildPracticeCardSummary(params: {
     if (locale === "en") {
       return `This asana sequence focuses on ${ch}—gentle work through the body tends to hold longer than a single conversation.`;
     }
-    return `Эта серия асан опирается на зону ${ch}: через тело вы возвращаете устойчивость — эффект обычно глубже, чем от одного разговора.`;
+    return `Эта серия асан опирается на зону ${chakraZoneRu(params.chakraIds)}: через тело вы возвращаете устойчивость — эффект обычно глубже, чем от одного разговора.`;
   }
 
   if (params.kind === "meditation") {
@@ -143,10 +159,10 @@ export function buildPracticeAssistantReason(params: {
     return `This asana practice can anchor ${ch} through the body, so the day's focus becomes more than an idea.`;
   }
   if (params.kind === "meditation") {
-    return `Эта короткая медитация поможет собрать внимание и войти в день через ${ch}: меньше суеты, больше тихой ясности.`;
+    return `Эта короткая медитация поможет собрать внимание и войти в день спокойнее: меньше суеты, больше тихой ясности.`;
   }
   if (params.kind === "breath") {
-    return `Эта дыхательная практика поможет выровнять нервную систему и поддержать ${ch}, чтобы рекомендации дня легче проживались изнутри.`;
+    return `Эта дыхательная практика поможет выровнять нервную систему и мягко поддержать фокус дня.`;
   }
-  return `Эта практика асан поможет закрепить ${ch} через тело, чтобы фокус дня остался не только мыслью, но и состоянием.`;
+  return `Хороший выбор: после разговора важно не только понять направление дня, но и дать телу опору. Эта практика поможет собрать энергию и легче удержать ясность в реальных действиях.`;
 }

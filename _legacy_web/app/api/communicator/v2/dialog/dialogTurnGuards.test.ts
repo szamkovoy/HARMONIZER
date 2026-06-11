@@ -4,6 +4,7 @@ import { initFsmState } from "./dialogFsm";
 import {
   assistantFinalizeWithoutMarkers,
   assistantOfferedPractice,
+  assistantAskedSummaryClarifyingQuestion,
   coerceFsmBeforeTurn,
   extractPlanningMarkersFromVisibleFinalize,
   filterPracticeLikePlannedEvents,
@@ -81,9 +82,26 @@ describe("dialogTurnGuards", () => {
   });
 
   it("builds clarifying question for thin summary deferral", () => {
-    expect(buildSummaryClarifyingQuestion("Прогулка в парке", "ru")).toContain("Прогулка в парке");
-    expect(buildSummaryClarifyingQuestion("Прогулка в парке", "ru")).not.toContain("что было в теле и внутри");
+    const walkQuestion = buildSummaryClarifyingQuestion("Прогулка в парке", "ru");
+    expect(walkQuestion).not.toContain("(");
+    expect(walkQuestion).not.toContain("«");
+    expect(walkQuestion).not.toContain("что было в теле и внутри");
+    const saunaQuestion = buildSummaryClarifyingQuestion("Сходить в сауну и пообщаться с друзьями", "ru");
+    expect(saunaQuestion.toLowerCase()).toContain("когда вы были в сауне");
+    expect(saunaQuestion).not.toContain("(");
+    expect(buildSummaryClarifyingQuestion("Пораньше лечь спать", "ru")).toContain("когда вы легли спать");
     expect(buildSummaryClarifyingQuestion("Walk in the park", "en")).toContain("Walk in the park");
+  });
+
+  it("detects model-visible clarifying questions in summary turns", () => {
+    expect(assistantAskedSummaryClarifyingQuestion(
+      "Звучит хорошо. Чтобы точнее отразить это в матрице, уточните: какие состояния там были?",
+      "Рабочие задачи",
+    )).toBe(true);
+    expect(assistantAskedSummaryClarifyingQuestion(
+      "Ясно, тогда закроем это событие. Теперь о рабочих задачах. Как они прошли?",
+      "Рабочие задачи",
+    )).toBe(false);
   });
 
   it("builds a short bridge when an event did not happen", () => {
@@ -91,7 +109,7 @@ describe("dialogTurnGuards", () => {
       "Встреча с важным клиентом",
       "Фильм вечером",
       "ru",
-    )).toBe("Жаль, что не сложилось. Как прошёл «Фильм вечером»?");
+    )).toBe("Жаль, что не сложилось. Как прошёл следующий пункт — Фильм вечером?");
   });
 
   it("salvages visible planning markers without meditation rows", () => {

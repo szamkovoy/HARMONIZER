@@ -202,23 +202,62 @@ export function userSaysEventDidNotHappen(text: string): boolean {
 }
 
 /** Server-side clarifying question when the model tries to close a thin answer too early. */
+function summaryEventPhraseRu(eventDescription: string): string {
+  const label = eventDescription.trim();
+  if (!label) return "в этом действии";
+  const lower = label.toLowerCase();
+  if (lower.startsWith("работа с ")) {
+    return `когда вы работали с ${label.slice("Работа с ".length).trim() || "этими задачами"}`;
+  }
+  if (lower.startsWith("визит в ")) {
+    return `во время визита в ${label.slice("Визит в ".length).trim() || "это место"}`;
+  }
+  if (lower.includes("саун") && lower.includes("друз")) {
+    return "когда вы были в сауне и общались с друзьями";
+  }
+  if (lower.includes("саун")) {
+    return "когда вы были в сауне";
+  }
+  if (lower.includes("лечь спать")) {
+    return "когда вы легли спать";
+  }
+  if (/^(?:почитать|прочитать|погулять|поужинать|поработать|съездить|сделать)\b/i.test(label)) {
+    return `когда вы планировали ${lower}`;
+  }
+  return "в этом действии";
+}
+
 export function buildSummaryClarifyingQuestion(eventDescription: string, locale: "ru" | "en"): string {
   const label = eventDescription.trim() || (locale === "ru" ? "это событие" : "this event");
   const seed = [...label].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   if (locale === "en") {
     const variants = [
-      `Thanks. For "${label}", what was the main state you noticed — calm, tension, joy, tiredness, clarity, or something else?`,
-      `Got it. To place "${label}" more accurately in the matrix, what did it leave you with emotionally or mentally?`,
-      `One small detail about "${label}": was it more about the body, the mood, the mind, or relationships?`,
+      `Thanks. For "${label}", what states were present there — body recovery, calm, joy, contact with people, clarity, or something else?`,
+      `Got it. To place "${label}" more accurately in the matrix, you do not need to choose a “right” moment: just name what you lived there emotionally or mentally.`,
+      `One small detail about "${label}": was it more about the body, the mood, the mind, or relationships? You can answer very briefly.`,
     ];
     return variants[seed % variants.length]!;
   }
+  const phrase = summaryEventPhraseRu(label);
   const variants = [
-    `Спасибо. Для «${label}» уточните, пожалуйста, главное состояние: спокойствие, радость, усталость, ясность, напряжение — или что-то другое?`,
-    `Понял. Чтобы точнее отметить «${label}» в матрице, скажите одним-двумя словами: какое состояние осталось после этого?`,
-    `Хорошо. В «${label}» это больше было про тело, настроение, мысли или отношения? Можно ответить совсем коротко.`,
+    `Спасибо. Что было сильнее ${phrase}: восстановление тела, спокойствие, радость, общение, ясность — или что-то другое?`,
+    "Понял. Чтобы точнее отметить это в матрице, не нужно выбирать «правильный» момент — просто назовите, что вы проживали внутри.",
+    `Хорошо. ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}, это больше было про тело, настроение, мысли или отношения? Можно ответить совсем коротко.`,
   ];
   return variants[seed % variants.length]!;
+}
+
+export function assistantAskedSummaryClarifyingQuestion(
+  text: string,
+  nextEventDescription?: string | null,
+): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || !/\?/.test(normalized)) return false;
+  const next = nextEventDescription?.trim().toLowerCase();
+  if (next && next.length >= 4 && normalized.includes(next)) return false;
+  return /(?:уточн|какие состояния|какое состояние|в какой момент|что вы проживали|что вы проживал|что осталось|как вы себя чувств|матриц|body|mood|mind|relationships|what states|what state|which moment|how did you feel|clarify|matrix)/i.test(
+    normalized,
+  );
 }
 
 export function buildSummaryEventDidNotHappenBridge(
@@ -233,7 +272,7 @@ export function buildSummaryEventDidNotHappenBridge(
   const prefix = /(?:отмен|перенес|перенёс|не состоя)/i.test(currentEventDescription)
     ? "Понял."
     : "Жаль, что не сложилось.";
-  return `${prefix} Как прошёл${next ? ` «${next}»` : " следующий пункт"}?`;
+  return `${prefix} Как прошёл следующий пункт${next ? ` — ${next}` : ""}?`;
 }
 
 /** User confirms the event happened but names no lived state — needs one clarifying question. */
