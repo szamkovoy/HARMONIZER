@@ -50,6 +50,8 @@ type AssistantDayAction = {
 type AssistantSession = {
   sessionKey: number;
   mode: AssistantMode;
+  dayTabMode: AssistantMode;
+  daySummaryRequested: boolean;
   workingLocalDate: string;
   dayActions: AssistantDayAction[];
   dayPractices: DaySection["practices"];
@@ -80,9 +82,12 @@ function buildAssistantSession(
   sessionKey: number,
 ): AssistantSession {
   const summaryTargetLocalDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
+  const overdueSummaryStartsFullFlow = mode === "summary" && plan.mode === "overdue_summary";
   return {
     sessionKey,
     mode,
+    dayTabMode: overdueSummaryStartsFullFlow ? "plan" : mode,
+    daySummaryRequested: mode === "summary" && !overdueSummaryStartsFullFlow,
     workingLocalDate: mode === "summary" ? summaryTargetLocalDate : plan.currentLocalDate,
     dayActions: buildAssistantActions(plan, mode),
     dayPractices:
@@ -380,15 +385,16 @@ function AssistantModal({
           entrySource="day"
           startFreshSession
           triggerMeta={{
-            dayTabMode: session.mode,
+            dayTabMode: session.dayTabMode,
             workingLocalDate: session.workingLocalDate,
-            daySummaryRequested: session.mode === "summary",
+            daySummaryRequested: session.daySummaryRequested,
             dayActions: session.dayActions,
             dayPractices: session.dayPractices,
             dayHealthContext: session.dayHealthContext,
           }}
           memoryWindow={24}
           onPracticeOffered={onPracticeOffered}
+          onPracticePicked={onClose}
           onMessage={(message) => {
             if (message.role === "assistant") {
               onAssistantMessage?.(message);

@@ -204,9 +204,36 @@ export function userSaysEventDidNotHappen(text: string): boolean {
 /** Server-side clarifying question when the model tries to close a thin answer too early. */
 export function buildSummaryClarifyingQuestion(eventDescription: string, locale: "ru" | "en"): string {
   const label = eventDescription.trim() || (locale === "ru" ? "это событие" : "this event");
-  return locale === "ru"
-    ? `Спасибо. Чтобы точнее отразить «${label}» в вашей матрице жизни, расскажите, пожалуйста, как вы себя чувствовали — что было в теле и внутри?`
-    : `Thanks. To capture "${label}" in your life matrix, how did you feel — in your body and emotionally?`;
+  const seed = [...label].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  if (locale === "en") {
+    const variants = [
+      `Thanks. For "${label}", what was the main state you noticed — calm, tension, joy, tiredness, clarity, or something else?`,
+      `Got it. To place "${label}" more accurately in the matrix, what did it leave you with emotionally or mentally?`,
+      `One small detail about "${label}": was it more about the body, the mood, the mind, or relationships?`,
+    ];
+    return variants[seed % variants.length]!;
+  }
+  const variants = [
+    `Спасибо. Для «${label}» уточните, пожалуйста, главное состояние: спокойствие, радость, усталость, ясность, напряжение — или что-то другое?`,
+    `Понял. Чтобы точнее отметить «${label}» в матрице, скажите одним-двумя словами: какое состояние осталось после этого?`,
+    `Хорошо. В «${label}» это больше было про тело, настроение, мысли или отношения? Можно ответить совсем коротко.`,
+  ];
+  return variants[seed % variants.length]!;
+}
+
+export function buildSummaryEventDidNotHappenBridge(
+  currentEventDescription: string,
+  nextEventDescription: string,
+  locale: "ru" | "en",
+): string {
+  const next = nextEventDescription.trim();
+  if (locale === "en") {
+    return `I'm sorry it didn't happen. How did "${next}" go?`;
+  }
+  const prefix = /(?:отмен|перенес|перенёс|не состоя)/i.test(currentEventDescription)
+    ? "Понял."
+    : "Жаль, что не сложилось.";
+  return `${prefix} Как прошёл${next ? ` «${next}»` : " следующий пункт"}?`;
 }
 
 /** User confirms the event happened but names no lived state — needs one clarifying question. */
@@ -217,7 +244,7 @@ export function userAnswerIsThinForSummary(text: string): boolean {
   const claimsDone = /(?:состоял|получил|сделал|было|хорошо|отлично|удалось|нормально|да|yes|it happened|all good|went well)/i.test(
     normalized,
   );
-  const namesState = /(?:чувств|ощущ|состояни|споко|тревог|радост|устал|энерг|внимани|тишин|довер|смят|напряж|расслаб|присутств|felt|calm|anxious|tired|focused|peaceful)/i.test(
+  const namesState = /(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected)/i.test(
     normalized,
   );
   return claimsDone && !namesState;

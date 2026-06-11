@@ -1,14 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.63
-updated: 2026-06-10
+version: 2.64
+updated: 2026-06-11
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
 
+- **2026-06-11 (3):** QA полного Day dialog flow: верхняя overdue CTA `Подытожить` на вкладке `День` теперь стартует тот же day-start flow, что Home `Что делать?` (`summarizing → planning → practice`), а current-day `Подытожить этот день` остаётся summary-only. Summary guard больше не стримит сырой model-output на ходах, где сервер ещё может заменить premature final на уточнение; уточняющие вопросы стали детерминированно вариативными, а «событие не состоялось» даёт короткий bridge без перефразирования всего ответа пользователя. Planning-final видимый текст собирается из подтверждённых `[CORRECT_RECOMMENDATION]` + `[PLANNED_EVENT]` артефактов (`day focus → actions → practice question`), add-flow запрещает `[CORRECT_RECOMMENDATION]`, а practice pick разделяет `reason` для пузыря ассистента и `card_blurb` для карточки.
 - **2026-06-11 (2):** Dialog time-of-day: `phaseTimeFor` больше не относит 00:00–05:00 к `evening`; ночное приветствие 22:00–03:00, после полуночи до 03:00 запрещена только контекстная риторика («уже вечер»), не «Доброй ночи». `tonalRegisterInstruction` вернул полный текст из `dialogTonalRegisters.ts`. Planning finalize: day-focus синхронизируется с `[CORRECT_RECOMMENDATION]` (`injectPlanningDayFocus`); промпт — рекомендация к вниманию, не прогноз.
 - **2026-06-11:** Summary QA: Day «Подытожить» и auto-summary с Home открывают коммуникатор сразу; native health + yoga собираются в фоне на весь диалог, в каждый POST уходит `getSnapshot()` (на финале — что успело загрузиться). Prefetch/refresh day plan на `planning_persistence.summarized` и при закрытии summary-диалога. Summarizing FSM: при thin-ответе сервер не принимает преждевременный `[SUMMARIZE_EVENT]`, подставляет уточняющий вопрос о прожитом состоянии (без ложного `summaryAskedCount`); после исчерпания уточнения — закрытие без `outcome_cells`; «нет»/«не было» — без матрицы.
 - **2026-06-10 (10):** Practice-branch regression fix (export `45d83b37`): `dialogTurnGuards.ts` — детерминированный переход planning→practice после ответа на practice-offer, фильтр practice-like `[PLANNED_EVENT]`, salvage маркеров из visible finalize, post-dialog wind-down без ре-init FSM; `route.ts` — `planningFinalized` блокирует повторный planning-final, visible practice = только card blurb; `Communicator` — `dialogWindDown` отключает mic/text при `shouldClose`.

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.31
-updated: 2026-06-09
+version: 2.32
+updated: 2026-06-11
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-11 (2):** Day modal flow polish: верхняя overdue CTA `Подытожить` теперь передаёт `dayTabMode="plan"` + `daySummaryRequested=false`, чтобы после overdue-summary сервер продолжил planning/practice; current-day `Подытожить этот день` остаётся summary-only. `dialogTextCleanup` / streaming cleanup удаляют bare internal markers (`[CORRECT_RECOMMENDATION]` и др.). При запуске практики из карточки `Communicator` сначала вызывает/ожидает `onPracticePicked`, чтобы модальный overlay успел закрыться до `router.push`, иначе экран практики открывался под диалогом.
 - **2026-06-11:** Summarizing health: `Communicator` стартует `startSummarizingHealthCollection` при `daySummaryRequested` или первом ответе с веткой `summarizing`; каждый POST диалога отправляет `triggerMeta.dayHealthContext` из `getSnapshot()` (native health догружается в фоне без стартового таймаута).
 
 - **2026-06-10 (7):** Исправлен intermittent-bug «диалог не стартует с первого открытия» в day/home fresh-session: повторный session-sync больше не сбрасывает `sessionSynced` и не отменяет отложенный `initiateDialog`, если `startFreshSession` уже bootstrap-нут; `initiateFiredRef` выставляется только в момент фактического вызова.

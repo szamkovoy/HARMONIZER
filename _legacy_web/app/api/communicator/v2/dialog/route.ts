@@ -56,6 +56,7 @@ import {
   buildPlanningPrompt,
   buildPracticePrompt,
   buildSummarizingPrompt,
+  buildPlanningFinalVisibleText,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
   containsPracticeDeclined,
@@ -72,6 +73,7 @@ import {
   isPostDialogTurn,
   practiceValidationForTurn,
   buildSummaryClarifyingQuestion,
+  buildSummaryEventDidNotHappenBridge,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
@@ -976,6 +978,11 @@ export async function POST(req: Request) {
       && !isOpening
       && due.length <= 1
       && currentEvent != null;
+    const bufferSummaryUntilGuards =
+      branchForTurn === "summarizing"
+      && !isOpening
+      && currentEvent != null
+      && summaryAskedCount(fsm, currentEvent.id) < 1;
     const maxOutputTokens =
       summarizingFinalTurn ? 4500
       : branchForTurn === "summarizing" ? 900
@@ -995,7 +1002,9 @@ export async function POST(req: Request) {
           })) {
             modelUsed = chunk.modelUsed;
             fullText += chunk.text;
-            controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed })));
+            if (!bufferSummaryUntilGuards) {
+              controller.enqueue(encoder.encode(sse("chunk", { text: chunk.text, modelUsed })));
+            }
           }
 
           const markers = parseResponseMarkers(fullText);
@@ -1009,6 +1018,7 @@ export async function POST(req: Request) {
           let recommendationCorrected: Record<string, unknown> | null = null;
           let turnMatrixCells: MatrixCell[] | undefined;
           let turnRelatedEventIds: string[] | undefined;
+          let forcedVisibleText: string | null = null;
           const planningPersistence: { inserted: unknown[]; updated: unknown[]; summarized: SummaryPersistenceRow[] } = {
             inserted: [],
             updated: [],
@@ -1137,6 +1147,10 @@ export async function POST(req: Request) {
               turnMode = remainingAfterCurrent <= 0 && isLastBranch(fsmAtTurnStart) ? "final_without_practice" : "inquiry";
               nextFsm = remainingAfterCurrent <= 0 ? advanceBranch(fsmAtTurnStart) : fsmAtTurnStart;
               shouldClose = remainingAfterCurrent <= 0 && nextFsm.branch === "done";
+              if (nextEvent && remainingAfterCurrent > 0) {
+                const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+                forcedVisibleText = buildSummaryEventDidNotHappenBridge(currentEvent.description, nextEvent.description, locale);
+              }
             } else if (
               !isOpening
               && summaryMarker
@@ -1307,15 +1321,22 @@ export async function POST(req: Request) {
             }
           }
 
-          let cleanText = stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
+          let cleanText = forcedVisibleText ?? stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
           const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents);
           if (branchForTurn === "planning") {
             const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
             const dayFocus = markers.recommendationCorrection?.short_text?.trim();
-            if (dayFocus) {
+            if (planningMarkersForVisible.length > 0 && !fsmAtTurnStart.noGreeting) {
+              cleanText = buildPlanningFinalVisibleText({
+                visibleText: cleanText,
+                events: planningMarkersForVisible,
+                dayFocus,
+                locale,
+                includePracticeQuestion: !fsmAtTurnStart.noPractice,
+              });
+            } else if (dayFocus) {
               cleanText = injectPlanningDayFocus(cleanText, dayFocus);
-            }
-            if (planningMarkersForVisible.length > 0) {
+            } else if (planningMarkersForVisible.length > 0) {
               cleanText = injectPlanningActionsVisibleList(cleanText, planningMarkersForVisible, locale);
             }
           }
@@ -1334,6 +1355,9 @@ export async function POST(req: Request) {
           }
           if (!cleanText) {
             throw new Error("Model returned empty text after sanitization");
+          }
+          if (bufferSummaryUntilGuards) {
+            controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed })));
           }
 
           // Persist FSM + assistant meta only after planned_events / daily_matrices writes succeed.

@@ -41,7 +41,7 @@ import {
   transcribeVoiceRecording,
   type RetainedVoiceRecording,
 } from "@/modules/communicator/core/voiceTurnPipeline";
-import { stripDialogScaffoldMarkdown } from "@/modules/communicator/core/dialogTextCleanup";
+import { stripDialogScaffoldMarkdown, stripInternalDialogMarkers } from "@/modules/communicator/core/dialogTextCleanup";
 import {
   collectSummaryEventsFromDialogState,
   collectSummaryEventsFromExportMessages,
@@ -158,12 +158,12 @@ const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
  * Also handles an incomplete trailing marker that hasn't closed yet.
  */
 function stripStreamingMarkers(text: string): string {
-  return text
+  return stripInternalDialogMarkers(text
     .replace(MARKER_RE, "")
     .replace(READY_MARKER_RE, "")
     .replace(TRAILING_OPEN_MARKER_RE, "")
     .replace(/[ \t]+\n/g, "\n")
-    .trim();
+    .trim());
 }
 
 /**
@@ -469,7 +469,7 @@ export interface CommunicatorProps {
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
   onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>;
-  onPracticePicked?: (practice: PracticePicked) => void;
+  onPracticePicked?: (practice: PracticePicked) => void | Promise<void>;
   onRequestClose?: () => void | Promise<void>;
   onError?: (err: Error) => void;
   onAbort?: () => void;
@@ -2058,8 +2058,10 @@ export function Communicator({
           logErrorForDevelopers("Communicator planning reconcile before practice", error instanceof Error ? error : new Error(String(error)));
         });
       }
-      launchPractice(configured.launch, { launchSource: "assistant" });
-      onPracticePicked?.(summaryToPractice(practice, configured));
+      void (async () => {
+        await Promise.resolve(onPracticePicked?.(summaryToPractice(practice, configured)));
+        launchPractice(configured.launch, { launchSource: "assistant" });
+      })();
     },
     [onPracticePicked],
   );

@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.63
-updated: 2026-06-10
+version: 2.64
+updated: 2026-06-11
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-11: `assistant` / `communicator` / `daily_forecast` — QA-fix полного Day dialog: overdue `Подытожить` теперь продолжает planning/practice как Home `Что делать?`; summary guard буферизует заменяемые ходы и задаёт вариативные уточнения; planning-final собирается из маркеров в порядке focus/actions/practice; practice reply и card text разведены; запуск практики закрывает модальный коммуникатор до навигации.
 - 2026-06-11: `daily_forecast` / `profile` — fix повторного `need_location` на cold start в Expo: async relaxed day-cache read, локальный кэш coords профиля, GPS coords используются даже при сбое persist в Supabase.
 - 2026-06-11: `assistant` — dialog time-of-day windows (night greeting 22:00–03:00, day-part rhetoric ban 00:00–03:00); fix `phaseTimeFor` early-morning mislabel; tonal register restored in `sharedPreamble`; planning day-focus synced with Day tab via `injectPlanningDayFocus`.
 - 2026-06-11: `communicator` — `summarizingHealthContext` + `Communicator` background health snapshots on every summarizing POST; instant Day/Home summary open.

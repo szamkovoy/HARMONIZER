@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.7
-updated: 2026-06-10
+version: 2.8
+updated: 2026-06-11
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-11 (2):** Вкладка `День`: верхняя CTA `Подытожить` в режиме `overdue_summary` теперь запускает полный day-start dialog, как Home `Что делать?` — сначала summary хвоста прошлых действий, затем planning текущего дня и practice. Нижняя CTA `Подытожить этот день` в `current_day` остаётся summary-only для текущего списка действий.
 - **2026-06-11:** Повторный `need_location` на cold start в Expo/dev: `peekDayContentCacheRelaxed` на native не читает SecureStore (только memory/web), поэтому relaxed fallback не срабатывал; `useDayContent` теперь делает **async** `loadDayContentCacheRelaxed` и читает **`userLocationProfileCache`** до GPS; `acquireAndPersistUserCoordinates` возвращает координаты сессии даже при `persist_failed` (локальный кэш coords + `persisted: false`).
 - **2026-06-10 (6):** Home cold start без lat/lon в профиле: `acquireAndPersistUserCoordinates` возвращает structured `LocationAcquireResult` (last-known ≤24h, GPS с таймаутом 12s); `peek/loadDayContentCacheRelaxed` читают day-cache с coords из записи; при stale cache + сбое GPS — `stale_ready` вместо пустого экрана; `useDayContent.locationIssue` + на home skeleton, «Открыть настройки» при `permission_denied` (`resolveLocationErrorMessage`).
 - **2026-06-10:** `modules/home/planetChakra.ts` — `chakraName` теперь через `chakraLabelRu(chakra_number)` из `modules/chakra/labels.ts`, а не из поля `chakra_name_ru` в JSON; `planet_chakra_map.json` остаётся источником номера/ключа/цвета/`short_label_ru`.

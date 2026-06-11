@@ -59,6 +59,22 @@ type ParsedMarker = {
   end: number;
 };
 
+const INTERNAL_MARKER_NAMES = [
+  "STATE_PROPOSAL",
+  "PRACTICE_PICK",
+  "CORRECT_RECOMMENDATION",
+  "PLANNED_EVENT",
+  "SUMMARIZE_EVENT",
+  "MATRIX_CELLS",
+  "PLAN_TOMORROW",
+  "READY_FOR_RECOMMENDATION",
+] as const;
+
+const INTERNAL_BARE_MARKER_RE = new RegExp(
+  `\\[\\s*(?:${INTERNAL_MARKER_NAMES.join("|")})\\s*\\]`,
+  "gi",
+);
+
 function closingQuoteFor(openingQuote: string): string {
   if (openingQuote === "«") return "»";
   if (openingQuote === "“") return "”";
@@ -355,7 +371,7 @@ export function extractRawMarkersForDebug(text: string): DebugRawMarker[] {
 
 export function stripResponseMarkers(text: string): string {
   const markers = parseMarkers(text);
-  if (!markers.length) return text.replace(/\[\s*PLAN_TOMORROW\s*\]/gi, "").replace(/[ \t]+\n/g, "\n").trim();
+  if (!markers.length) return text.replace(INTERNAL_BARE_MARKER_RE, "").replace(/[ \t]+\n/g, "\n").trim();
 
   let out = "";
   let cursor = 0;
@@ -364,7 +380,7 @@ export function stripResponseMarkers(text: string): string {
     cursor = marker.end;
   }
   out += text.slice(cursor);
-  return out.replace(/\[\s*PLAN_TOMORROW\s*\]/gi, "").replace(/[ \t]+\n/g, "\n").trim();
+  return out.replace(INTERNAL_BARE_MARKER_RE, "").replace(/[ \t]+\n/g, "\n").trim();
 }
 
 export function containsReadyMarker(text: string): boolean {

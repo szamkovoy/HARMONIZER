@@ -10,6 +10,7 @@ import {
   isPracticeLikePlannedEventDesc,
   userAffirmsPracticeOffer,
   buildSummaryClarifyingQuestion,
+  buildSummaryEventDidNotHappenBridge,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
@@ -67,6 +68,12 @@ describe("dialogTurnGuards", () => {
   it("detects thin summary answers and event absence", () => {
     expect(userAnswerIsThinForSummary("Да, состоялось, всё хорошо.")).toBe(true);
     expect(userAnswerIsThinForSummary("Чувствовал спокойствие и лёгкую усталость.")).toBe(false);
+    expect(userAnswerIsThinForSummary(
+      "Я замечательно погулял по парку. Было время подумать, спланировать проект и увидеть общую картину. Я очень доволен этой прогулкой.",
+    )).toBe(false);
+    expect(userAnswerIsThinForSummary(
+      "Ужин в кафе прошел замечательно, с друзьями покушали, пообщались, давно не виделись, поэтому все очень даже хорошо.",
+    )).toBe(false);
     expect(userSaysEventDidNotHappen("Нет, медитации не было.")).toBe(true);
     expect(userSaysEventDidNotHappen("Нет")).toBe(true);
     expect(userSaysEventDidNotHappen("no")).toBe(true);
@@ -75,7 +82,16 @@ describe("dialogTurnGuards", () => {
 
   it("builds clarifying question for thin summary deferral", () => {
     expect(buildSummaryClarifyingQuestion("Прогулка в парке", "ru")).toContain("Прогулка в парке");
-    expect(buildSummaryClarifyingQuestion("Walk in the park", "en")).toContain("life matrix");
+    expect(buildSummaryClarifyingQuestion("Прогулка в парке", "ru")).not.toContain("что было в теле и внутри");
+    expect(buildSummaryClarifyingQuestion("Walk in the park", "en")).toContain("Walk in the park");
+  });
+
+  it("builds a short bridge when an event did not happen", () => {
+    expect(buildSummaryEventDidNotHappenBridge(
+      "Встреча с важным клиентом",
+      "Фильм вечером",
+      "ru",
+    )).toBe("Жаль, что не сложилось. Как прошёл «Фильм вечером»?");
   });
 
   it("salvages visible planning markers without meditation rows", () => {

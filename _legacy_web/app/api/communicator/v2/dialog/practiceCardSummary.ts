@@ -125,3 +125,28 @@ export function buildPracticeCardSummary(params: {
     ? BREATH_CARD_EN[slug] ?? BREATH_CARD_EN.coherent
     : BREATH_CARD_RU[slug] ?? BREATH_CARD_RU.coherent;
 }
+
+export function buildPracticeAssistantReason(params: {
+  kind: PracticeKindForCard;
+  chakraIds: readonly number[];
+  locale: string | null | undefined;
+}): string {
+  const locale: "ru" | "en" = params.locale?.toLowerCase().startsWith("en") ? "en" : "ru";
+  const ch = chakraLine(params.chakraIds, locale);
+  if (locale === "en") {
+    if (params.kind === "meditation") {
+      return `This short meditation can help you collect attention and enter the day through ${ch}: less rush, more quiet clarity.`;
+    }
+    if (params.kind === "breath") {
+      return `This breathing practice can steady the nervous system and support ${ch}, so the day's recommendations are easier to live from inside.`;
+    }
+    return `This asana practice can anchor ${ch} through the body, so the day's focus becomes more than an idea.`;
+  }
+  if (params.kind === "meditation") {
+    return `Эта короткая медитация поможет собрать внимание и войти в день через ${ch}: меньше суеты, больше тихой ясности.`;
+  }
+  if (params.kind === "breath") {
+    return `Эта дыхательная практика поможет выровнять нервную систему и поддержать ${ch}, чтобы рекомендации дня легче проживались изнутри.`;
+  }
+  return `Эта практика асан поможет закрепить ${ch} через тело, чтобы фокус дня остался не только мыслью, но и состоянием.`;
+}

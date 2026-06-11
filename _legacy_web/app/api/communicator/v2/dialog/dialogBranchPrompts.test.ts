@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPlanningPrompt,
+  buildPlanningFinalVisibleText,
   buildSummarizingPrompt,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
@@ -81,6 +82,48 @@ describe("buildPlanningPrompt", () => {
     });
     expect(userInstruction).toMatch(/NOT a forecast/i);
     expect(userInstruction).toMatch(/EXACTLY the same wording/i);
+  });
+
+  it("forbids day-focus markers in Day tab add flow", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: true,
+      planningLocked: false,
+    });
+    expect(userInstruction).toMatch(/NEVER emit \[CORRECT_RECOMMENDATION\]/i);
+    expect(userInstruction).toMatch(/only PLANNED_EVENT markers are allowed/i);
+  });
+});
+
+describe("buildPlanningFinalVisibleText", () => {
+  it("places day focus first, actions second, and practice question last", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "Вот таким видится день.",
+        "",
+        "Хотите короткую практику на 5 минут?",
+        "",
+        "1. Рабочие задачи",
+        "Рекомендация: Сначала увидьте целое.",
+      ].join("\n"),
+      dayFocus: "Сегодня держите ясность и внутреннюю тишину.",
+      locale: "ru",
+      includePracticeQuestion: true,
+      events: [
+        { desc: "Рабочие задачи", recommendation: "Сначала увидьте целое.", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+
+    expect(result).toBe([
+      "Сегодня держите ясность и внутреннюю тишину.",
+      "",
+      "1. Рабочие задачи",
+      "Рекомендация: Сначала увидьте целое.",
+      "",
+      "Хотите короткую практику на 5 минут?",
+    ].join("\n"));
   });
 });
 

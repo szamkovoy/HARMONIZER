@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPracticeCardSummary } from "./practiceCardSummary";
+import { buildPracticeAssistantReason, buildPracticeCardSummary } from "./practiceCardSummary";
 
 describe("buildPracticeCardSummary", () => {
   it("yoga: mentions chakras and body work (ru)", () => {
@@ -81,5 +81,27 @@ describe("buildPracticeCardSummary", () => {
     });
     expect(s).toContain("Когерентное");
     expect(s).not.toContain("<b>");
+  });
+});
+
+describe("buildPracticeAssistantReason", () => {
+  it("builds a day-state reason distinct from the card summary", () => {
+    const card = buildPracticeCardSummary({
+      kind: "meditation",
+      slug: "sacred-symbol-stream",
+      chakraIds: [6, 7],
+      locale: "ru",
+      userMessage: "одну минуту медитации",
+      modelCardBlurb: null,
+    });
+    const reason = buildPracticeAssistantReason({
+      kind: "meditation",
+      chakraIds: [6, 7],
+      locale: "ru",
+    });
+
+    expect(reason).not.toBe(card);
+    expect(reason).toContain("день");
+    expect(card).toContain("Короткая медитация");
   });
 });

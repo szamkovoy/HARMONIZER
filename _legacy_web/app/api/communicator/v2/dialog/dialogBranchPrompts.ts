@@ -129,6 +129,43 @@ export function injectPlanningDayFocus(visibleText: string, dayFocus: string): s
   return `${opener}\n\n${focus}${listAndAfter}`;
 }
 
+function fallbackPracticeQuestion(locale: "ru" | "en"): string {
+  return locale === "ru"
+    ? "Хотите, чтобы я предложил короткую практику, которая поможет настроиться на это состояние? Или сегодня без неё?"
+    : "Would you like me to suggest a short practice to help you tune into this state, or skip it today?";
+}
+
+function extractPracticeQuestion(visibleText: string, locale: "ru" | "en"): string {
+  const paragraphs = visibleText
+    .split(/\n\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const practiceParagraph = [...paragraphs].reverse().find((part) =>
+    /(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
+    && /\?/.test(part)
+  );
+  return practiceParagraph ?? fallbackPracticeQuestion(locale);
+}
+
+/** Deterministic planning final assembled from persisted marker data. */
+export function buildPlanningFinalVisibleText(params: {
+  visibleText: string;
+  events: PlannedEventMarker[];
+  dayFocus: string | null | undefined;
+  locale: "ru" | "en";
+  includePracticeQuestion: boolean;
+}): string {
+  const { visibleText, events, dayFocus, locale, includePracticeQuestion } = params;
+  const parts: string[] = [];
+  const focus = dayFocus?.trim();
+  if (focus) parts.push(focus);
+  parts.push(buildPlanningActionsVisibleBlock(events, locale));
+  if (includePracticeQuestion) {
+    parts.push(extractPracticeQuestion(visibleText, locale));
+  }
+  return parts.filter((part) => part.trim()).join("\n\n");
+}
+
 export type PlanningTurnInput = {
   isOpening: boolean;
   noPractice: boolean;
@@ -285,7 +322,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     lines.push(`- Gentle breadth nudge: ${ctx.planningSphereLens}`);
   }
   if (input.noGreeting) {
-    lines.push("- This is an ADD flow opened from the Day tab: do NOT greet, do NOT restate the day focus. Just help add the new action(s).");
+    lines.push("- This is an ADD flow opened from the Day tab: do NOT greet, do NOT restate or rewrite the day focus, and NEVER emit [CORRECT_RECOMMENDATION] in any form. Just help add the new action(s).");
   }
 
   lines.push(
@@ -314,7 +351,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     "  - display_order is 1,2,3 by mention order (not by time).",
     "  - spheres tags the life spheres 1..7 (\"4\" or \"1:0.6;4:0.4\"). Do NOT output chakra cells for planning.",
     input.noGreeting
-      ? ""
+      ? "- Because this is an ADD flow, do NOT emit [CORRECT_RECOMMENDATION] or any day-focus marker; only PLANNED_EVENT markers are allowed."
       : "- Also emit the overall day focus once: [CORRECT_RECOMMENDATION: short_text=\"one short overall recommendation for the day\"]",
     input.noPractice
       ? "- This flow has NO practice step. End your finalize message here."

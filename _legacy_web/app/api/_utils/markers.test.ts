@@ -24,6 +24,21 @@ describe("stripDialogScaffoldMarkdown", () => {
 });
 
 describe("sanitizeAssistantText", () => {
+  it("removes bare internal markers that the model emitted without attributes", () => {
+    const raw = [
+      "Два события сегодня вечером — кино и кафе.",
+      "",
+      "1. Поход в кино",
+      "Рекомендация: Смотрите фильм внимательно.",
+      "",
+      "[CORRECT_RECOMMENDATION]",
+    ].join("\n");
+
+    expect(sanitizeAssistantText(raw, "ru")).toBe(
+      "Два события сегодня вечером — кино и кафе.\n\n1. Поход в кино\nРекомендация: Смотрите фильм внимательно.",
+    );
+  });
+
   it("removes leaked hint markers from Russian assistant text", () => {
     const raw = `Не понял. Допустим, в голове отзывается. Что дальше?\n\n(Saturn/Voice hint), или, может, просто тихая нехватка ясности? Наговорите`;
 

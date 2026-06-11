@@ -6,6 +6,7 @@ import {
 } from "@legacy/app/api/_utils/markers";
 import { attachThumbnailToPracticeRecommendation } from "@legacy/app/api/_utils/vimeo";
 import {
+  buildPracticeAssistantReason,
   buildPracticeCardSummary,
   normalizeModelPracticeCardBlurb,
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
@@ -85,7 +86,7 @@ export async function resolvePracticeCard(params: {
   const canUseMarkerCardBlurb =
     Boolean(marker?.cardBlurb) && !historyKindConflictResolved && (marker?.id === "default" || markerIdResolved === true);
   const cardBlurb = canUseMarkerCardBlurb ? normalizeModelPracticeCardBlurb(marker!.cardBlurb) : null;
-  const cardReason = buildPracticeCardSummary({
+  const cardSummary = buildPracticeCardSummary({
     kind: picked.kind,
     slug: picked.slug,
     chakraIds: picked.chakraIds ?? [],
@@ -93,8 +94,13 @@ export async function resolvePracticeCard(params: {
     userMessage,
     modelCardBlurb: cardBlurb,
   });
+  const assistantReason = buildPracticeAssistantReason({
+    kind: picked.kind,
+    chakraIds: picked.chakraIds ?? [],
+    locale: context.user?.locale,
+  });
   const publicPayload = await attachThumbnailToPracticeRecommendation(
-    publicPracticePickedPayload({ ...picked, reason: cardReason, card_blurb: cardBlurb }, cardReason),
+    publicPracticePickedPayload({ ...picked, reason: assistantReason, card_blurb: cardSummary }, assistantReason),
     295,
   );
   const overrides: { durationMin?: number | null; chakraIndex?: number } | undefined = isYoga
