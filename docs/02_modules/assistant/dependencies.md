@@ -41,7 +41,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 ## 3. Контрактные точки риска
 
 - **Форма SSE-событий** — `communicator-client` ждёт `chunk`, `complete`, `turn_artifacts`, `error` (и опционально legacy `orchestrator_decision`, которое FSM-маршрут больше не шлёт); UI-поля (`practicePicked`, `turnMode`, `validation`) — в `complete`, persist-артефакты (`planningPersistence`, `messageId`, `matrixCells`) — в `turn_artifacts`; смена имён или раскладки ключей ломает UI тихо.
-- **FSM-промпты (`dialogBranchPrompts.ts`)** — daily dialog больше не рендерит `dialog_system_v3` из `public.prompts`; монологи и прочие маршруты по-прежнему читают свои `prompt_key` через `getActivePrompt()`.
+- **FSM server guards (`dialogTurnGuards.ts`)** — клиент не дублирует: planning→practice coercion, practice-like planned-event filter, summarizing thin-answer / clarifying / post-dialog wind-down. Изменение сигнатур guard-функций или порядка веток в `route.ts` ломает поведение без изменения клиента.
+- **FSM-промпты (`dialogBranchPrompts.ts`, `dialogTimeOfDay.ts`)** — daily dialog больше не рендерит `dialog_system_v3` из `public.prompts`; монологи и прочие маршруты по-прежнему читают свои `prompt_key` через `getActivePrompt()`.
 - **`planned_events` / `daily_matrices` / `profile_report_snapshots`** — этот trio теперь часть публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции ломает и live planning/summarizing, и Day tab/debug export, и профильные отчёты.
 - **`scenarios`**: неверный `cache_strategy` или отсутствие строки сценария — 404/500 на monologue.
 - **`buildTopPetals` / `ranked_planets`**: смена формата прогноза без обновления утреннего пайплайна ломает монолог **`morning_recommendation`**.

@@ -62,4 +62,7 @@ jobs:
 
       - name: Push docs updates
         if: steps.sync.outputs.created_commit == 'true'
-        run: git push origin "HEAD:main"
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main
+          git push origin "HEAD:main"

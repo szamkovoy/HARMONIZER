@@ -11,7 +11,9 @@ code_refs: [docs/_proposal.md]
 ## Changelog
 
 - 2026-06-11: `daily_forecast` / `profile` — fix повторного `need_location` на cold start в Expo: async relaxed day-cache read, локальный кэш coords профиля, GPS coords используются даже при сбое persist в Supabase.
-- 2026-06-11: `assistant` — dialog time-of-day windows (silent 00–03, greeting bands 03/10/17/22); fix `phaseTimeFor` early-morning mislabel; planning day-focus synced with Day tab via `injectPlanningDayFocus`.
+- 2026-06-11: `assistant` — dialog time-of-day windows (night greeting 22:00–03:00, day-part rhetoric ban 00:00–03:00); fix `phaseTimeFor` early-morning mislabel; tonal register restored in `sharedPreamble`; planning day-focus synced with Day tab via `injectPlanningDayFocus`.
+- 2026-06-11: `communicator` — `summarizingHealthContext` + `Communicator` background health snapshots on every summarizing POST; instant Day/Home summary open.
+- 2026-06-11: `infra` — docs-sync workflow rebases onto `main` before push to avoid non-fast-forward after parallel commits.
 - 2026-06-11: `assistant` / `communicator` — Day summary: мгновенный старт диалога; health/yoga в фоне на весь summarizing (snapshot на каждый POST); prefetch вкладки при summarized-event; FSM подставляет уточняющий вопрос при thin-ответе вместо ложного закрытия маркером.
 - 2026-06-10: `assistant` / `communicator` — восстановлена v7-логика practice-ветки: ответ на practice-offer переводит FSM в `practice` без повторного planning-final, медитации не попадают в `planned_events`, pick-turn показывает только card blurb + карточку, post-practice/«Спасибо» — короткий wind-down; mic/text блокируются при `shouldClose`.
 - 2026-06-10: `daily_forecast` — home cold start без coords: GPS last-known + 12s timeout, relaxed day-cache, `locationIssue` + Settings CTA, offline stale fallback вместо пустого экрана.
