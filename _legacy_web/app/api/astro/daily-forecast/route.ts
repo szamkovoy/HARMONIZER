@@ -114,9 +114,28 @@ export async function POST(req: Request) {
       recentPlanetsOfDay,
     });
 
+    // Recomputing the forecast (e.g. after the user edits their birth date) must
+    // NOT wipe a day recommendation already written by the planning dialog —
+    // otherwise the Day tab shows the actions but loses the day-level focus.
+    const { data: existing, error: existingError } = await db
+      .from("user_daily_forecasts")
+      .select("recommendation_short_text,recommendation_long_text,is_corrected_via_dialog,corrected_at")
+      .eq("user_id", userId)
+      .eq("forecast_date", forecastDate)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    const insertPayload = dailyForecastToInsert(userId, body.userLocation.timezone, forecast);
+    if (existing?.is_corrected_via_dialog === true || (typeof existing?.recommendation_short_text === "string" && existing.recommendation_short_text.trim())) {
+      insertPayload.recommendation_short_text = existing.recommendation_short_text ?? null;
+      insertPayload.recommendation_long_text = existing.recommendation_long_text ?? null;
+      insertPayload.is_corrected_via_dialog = existing.is_corrected_via_dialog ?? false;
+      insertPayload.corrected_at = existing.corrected_at ?? null;
+    }
+
     const { data, error } = await db
       .from("user_daily_forecasts")
-      .upsert(dailyForecastToInsert(userId, body.userLocation.timezone, forecast), {
+      .upsert(insertPayload, {
         onConflict: "user_id,forecast_date",
       })
       .select("*")

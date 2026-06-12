@@ -201,6 +201,18 @@ export async function GET(req: Request) {
     const localDate = today;
     await purgeHistoricalSummarizedPlannedEvents(db, userId, localDate);
 
+    // A practice offered on an earlier day must not linger once a new day starts.
+    // Expire stale pending offers so the Day tab never shows a previous day's card.
+    {
+      const { error: expireError } = await db
+        .from("day_practice_offers")
+        .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("status", "pending")
+        .lt("local_date", localDate);
+      if (expireError) throw expireError;
+    }
+
     const [overdueActionsRes, forecastRes, currentActionsRes, offerRes] = await Promise.all([
       db
         .from("planned_events")

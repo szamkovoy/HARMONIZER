@@ -422,6 +422,7 @@ function chooseYogaByBucket(catalog: PracticeCatalog, bucket: "20-30" | "31-40" 
 
 export default function DayTabRoute() {
   const theme = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -430,14 +431,23 @@ export default function DayTabRoute() {
   const [catalog, setCatalog] = useState<PracticeCatalog | null>(null);
   const [practiceMenuLevel, setPracticeMenuLevel] = useState<PracticeMenuLevel>("closed");
 
+  // Mirrors of state read inside the stable callbacks below. Keeping `refresh`
+  // and the focus effect dependency-free prevents a feedback loop where every
+  // setPlan() recreated `refresh`, re-ran useFocusEffect, and snapped scroll
+  // back to the top — making the page impossible to scroll.
+  const planRef = useRef<DayPlan | null>(null);
+  planRef.current = plan;
+  const assistantSessionRef = useRef<AssistantSession | null>(null);
+  assistantSessionRef.current = assistantSession;
+
   const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean }) => {
-    if (assistantSession && !options?.force) return;
-    setLoading((current) => (plan && !options?.showRefreshing ? current : true));
+    if (assistantSessionRef.current && !options?.force) return;
+    setLoading((current) => (planRef.current && !options?.showRefreshing ? current : true));
     setError(null);
     try {
       setPlan(await loadDayPlan());
     } catch (loadError) {
-      if (plan) {
+      if (planRef.current) {
         console.warn("[Day] Background refresh failed", loadError);
         setError(null);
       } else {
@@ -446,11 +456,16 @@ export default function DayTabRoute() {
     } finally {
       setLoading(false);
     }
-  }, [assistantSession, plan]);
+  }, []);
 
+  // Scroll to the top only when the tab actually gains focus (returning from a
+  // dialog or a practice), not on every background data refresh.
   useFocusEffect(
     useCallback(() => {
-      if (assistantSession) return;
+      if (assistantSessionRef.current) return;
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+      });
       const prefetched = consumePrefetchedDayPlan();
       if (prefetched) {
         setPlan(prefetched);
@@ -458,7 +473,7 @@ export default function DayTabRoute() {
         setLoading(false);
       }
       void refresh();
-    }, [assistantSession, refresh]),
+    }, [refresh]),
   );
 
   useEffect(() => {
@@ -529,7 +544,7 @@ export default function DayTabRoute() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
       <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           {plan && plan.mode !== "overdue_summary" && todaySection ? (
             <>
@@ -716,6 +731,9 @@ export default function DayTabRoute() {
         }}
         onClose={() => {
           setAssistantSession(null);
+          requestAnimationFrame(() => {
+            scrollRef.current?.scrollTo({ y: 0, animated: false });
+          });
           void refresh({ force: true });
         }}
       />

@@ -180,7 +180,20 @@ function fallbackPracticeQuestion(locale: "ru" | "en"): string {
     : "Would you like to do a practice now: meditation, breathing, or asanas? If yes, name the kind and approximate duration, or say you will skip it today.";
 }
 
-function extractPlanningIntro(visibleText: string, fallbackFocus: string | null | undefined): string {
+function introHasWrongActionCount(text: string, eventCount: number): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  const mentionsActions = /(?:дел[ао]|вещ[ьи]|событи|action|item|thing)/i.test(normalized);
+  if (!mentionsActions) return false;
+  const countWords: Record<number, RegExp> = {
+    1: /(?:\b1\b|одно|одна|one)/i,
+    2: /(?:\b2\b|два|две|two)/i,
+    3: /(?:\b3\b|три|three)/i,
+  };
+  return Object.entries(countWords).some(([count, pattern]) => Number(count) !== eventCount && pattern.test(normalized));
+}
+
+function extractPlanningIntro(visibleText: string, fallbackFocus: string | null | undefined, eventCount: number): string {
   const listStart = visibleText.search(/\n\s*\d+\.\s/m);
   const beforeList = (listStart >= 0 ? visibleText.slice(0, listStart) : visibleText)
     .split(/\n\n+/)
@@ -188,6 +201,7 @@ function extractPlanningIntro(visibleText: string, fallbackFocus: string | null 
     .filter((part) =>
       part
       && !/[?？]/.test(part)
+      && !introHasWrongActionCount(part, eventCount)
       && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
       && !/\[(?:PLANNED_EVENT|CORRECT_RECOMMENDATION|PRACTICE_PICK)\b/i.test(part)
       && !/(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
@@ -195,6 +209,14 @@ function extractPlanningIntro(visibleText: string, fallbackFocus: string | null 
     .join("\n\n");
   if (beforeList.length >= 80) return ensureSentencePunctuation(beforeList);
   return ensureSentencePunctuation(fallbackFocus);
+}
+
+function actionCountWord(count: number, locale: "ru" | "en"): string {
+  if (locale === "en") return `${count}`;
+  if (count === 1) return "одно";
+  if (count === 2) return "два";
+  if (count === 3) return "три";
+  return `${count}`;
 }
 
 /** Deterministic planning final assembled from persisted marker data. */
@@ -207,13 +229,46 @@ export function buildPlanningFinalVisibleText(params: {
 }): string {
   const { visibleText, events, dayFocus, locale, includePracticeQuestion } = params;
   const parts: string[] = [];
-  const focus = extractPlanningIntro(visibleText, dayFocus);
+  const focus = extractPlanningIntro(visibleText, dayFocus, events.length);
   if (focus) parts.push(focus);
   parts.push(buildPlanningActionsVisibleBlock(events, locale));
   if (includePracticeQuestion) {
     parts.push(fallbackPracticeQuestion(locale));
   }
   return parts.filter((part) => part.trim()).join("\n\n");
+}
+
+/** Deterministic add-flow final: never trusts the model's count or proposed-but-rejected items. */
+export function buildPlanningAddFinalVisibleText(params: {
+  events: PlannedEventMarker[];
+  locale: "ru" | "en";
+}): string {
+  const { events, locale } = params;
+  const count = events.length;
+  const intro = locale === "ru"
+    ? `Хорошо, добавил ${actionCountWord(count, locale)} ${count === 1 ? "дело" : "дела"} в план на сегодня:`
+    : `Done — I added ${count} ${count === 1 ? "item" : "items"} to today's plan:`;
+  return [intro, buildPlanningActionsVisibleBlock(events, locale)].join("\n\n");
+}
+
+/**
+ * Deterministic, warm closing when the user declines to plan the day. Ends the
+ * dialogue gracefully (no practice branch follows) and gently explains why
+ * planning matters, without naming any calendar date.
+ */
+export function buildPlanningDeclinedReply(locale: "ru" | "en"): string {
+  if (locale === "en") {
+    return [
+      "Got it — I won't push. You can plan later, whenever a free minute appears.",
+      "It's not a formality: when you note what matters to live through, the app learns which states you tend to be in and, over time, helps you gently widen that range — so you stay more flexible and whole. For now, just let the day unfold and notice what larger purpose you're acting for.",
+      "Come back whenever you're ready to outline the main things.",
+    ].join("\n\n");
+  }
+  return [
+    "Хорошо, не настаиваю — планирование можно сделать позже, когда появится свободная минута.",
+    "Это не формальность: когда вы отмечаете, что важно прожить, приложение лучше понимает, в каких состояниях вы бываете, и со временем помогает мягко расширять их диапазон — чтобы вы оставались более гибким и цельным. А пока просто позвольте дню идти своим чередом и замечайте, ради чего большего вы действуете.",
+    "Возвращайтесь, когда будете готовы наметить главное.",
+  ].join("\n\n");
 }
 
 export type PlanningTurnInput = {
@@ -235,6 +290,40 @@ export type PracticeTurnInput = {
   /** After a practice card was already shown — only a short wind-down reply. */
   postPracticeReply: boolean;
 };
+
+const PRACTICE_KIND_LABELS_RU: Record<"breath" | "meditation" | "yoga", string> = {
+  breath: "дыхание",
+  meditation: "медитацию",
+  yoga: "асаны",
+};
+
+/**
+ * Deterministic, user-facing fallback for the practice branch so a turn never
+ * ends up with empty visible text (which used to crash the client with
+ * "Assistant reply was empty after hydration"). When the user named a type +
+ * duration that the catalog cannot satisfy (e.g. 30-min breathing), it offers a
+ * concrete reconciliation; otherwise it asks the generic practice question.
+ */
+export function buildPracticeClarificationFallback(params: {
+  locale: "ru" | "en";
+  kind: "breath" | "meditation" | "yoga" | null;
+  requestedDurationMin: number | null;
+  range: { min: number; max: number } | null;
+  altKind: "breath" | "meditation" | "yoga" | null;
+}): string {
+  const { locale, kind, requestedDurationMin, range, altKind } = params;
+  if (kind && range && requestedDurationMin != null && altKind && altKind !== kind) {
+    if (locale === "en") {
+      const kindEn = kind === "breath" ? "breathing" : kind === "meditation" ? "meditation" : "asanas";
+      const altEn = altKind === "breath" ? "breathing" : altKind === "meditation" ? "meditation" : "asanas";
+      return `Here ${kindEn} runs ${range.min}–${range.max} min. Would you like ${kindEn} for ${range.max} min, or ${altEn} for about ${requestedDurationMin} min?`;
+    }
+    const kindRu = PRACTICE_KIND_LABELS_RU[kind];
+    const altRu = PRACTICE_KIND_LABELS_RU[altKind];
+    return `Здесь ${kindRu} идёт ${range.min}–${range.max} минут. Хотите ${kindRu} на ${range.max} минут или ${altRu} примерно на ${requestedDurationMin} минут?`;
+  }
+  return fallbackPracticeQuestion(locale);
+}
 
 function greetingInstruction(ctx: BrainPromptContext): string {
   return greetingInstructionForTimeOfDay(ctx.timeOfDay, ctx.locale, ctx.addressForm, ctx.localHour);
@@ -329,19 +418,20 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     if (input.isLastEvent) {
       lines.push(
         "3) This was the LAST event. After the marker, write a self-contained FINAL day summary (here you MAY take the psychologist role):",
-        `   - First, warm psychological feedback on how well the user lived the day in the energy of chakra ${ctx.targetChakraNumber}, what went well and where the old pattern held.`,
+        `   - Write it as ONE cohesive, warm, psychological reflection (1-2 short paragraphs) on how the period was lived in the energy of chakra ${ctx.targetChakraNumber}: what went well, where the old pattern held, and an insight the user can take about themselves.`,
+        "   - Weave the events naturally into that reflection. Do NOT produce a labeled per-event recap list (never write a \"По событиям\"/\"By events\" section), do NOT restate each outcome bullet by bullet — that just repeats what was already said in the dialog.",
         input.completedEarlierEvents.length > 0
-          ? `   - Earlier in this same summary flow you already closed these events: ${input.completedEarlierEvents.map((event) => `"${event.description}"`).join(", ")}.`
+          ? `   - For your own context, the events closed in this flow were: ${input.completedEarlierEvents.map((event) => `"${event.description}"`).join(", ")}. Reflect on the whole arc, not item by item.`
           : "",
-        "   - Then briefly but separately acknowledge EACH event you summarized in this flow, including the current one.",
         "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, calories or workouts.",
         "   - If practices are listed below, mention the actual practice(s) explicitly by title and/or duration instead of a generic sentence about yoga.",
-        "   - If health numbers are listed below, cite the concrete facts that matter (for example steps, workout minutes, sleep minutes). If no concrete health/practice data is provided, do not fake a generic wellness paragraph.",
+        "   - If health numbers are listed below, cite the concrete facts that matter (for example steps, workout minutes, sleep minutes). If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
         "   - Keep the wording grounded and direct; no mystical or poetic flourishes.",
+        "   - Do NOT name calendar dates or use day words (no «вчера»/«сегодня»/«вчерашний»/«yesterday»/«today»); refer to the period only as «этот день» / «прожитый день» / «the day».",
         input.practicesContext ? `   Yoga practices context:\n${input.practicesContext}` : "",
         input.healthContext ? `   Health context:\n${input.healthContext}` : "",
         input.continuesToPlanning
-          ? "   - End with one short, warm sentence inviting the user to plan today (for example, ask what is ahead today). Do NOT plan or list actions yourself yet."
+          ? "   - Close the reflection warmly and STOP. Do NOT invite planning, do NOT ask what is ahead, do NOT name actions — the app appends the planning hand-off itself."
           : "   - Close warmly; the debrief is complete.",
       );
     } else {

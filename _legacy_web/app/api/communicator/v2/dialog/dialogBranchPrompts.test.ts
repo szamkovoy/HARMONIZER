@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildPlanningAddFinalVisibleText,
   buildPlanningPrompt,
   buildPlanningFinalVisibleText,
   buildSummarizingPrompt,
@@ -147,6 +148,43 @@ describe("buildPlanningFinalVisibleText", () => {
 
     expect(result).not.toContain("Есть ли ещё");
     expect(result).toContain("1. Сауна");
+  });
+
+  it("drops an intro with the wrong action count", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "Хорошо, тогда три главные вещи на сегодня.",
+        "",
+        "1. Магазин",
+        "Рекомендация: Сохраняйте ясность.",
+      ].join("\n"),
+      dayFocus: "Проживите дела дня с ясностью и внутренней опорой.",
+      locale: "ru",
+      includePracticeQuestion: false,
+      events: [
+        { desc: "Магазин", recommendation: "Сохраняйте ясность.", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+        { desc: "Свидание", recommendation: "Будьте внимательны к контакту.", displayOrder: 2, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+
+    expect(result).not.toContain("три главные");
+    expect(result).toContain("Проживите дела дня");
+    expect(result).toContain("2. Свидание");
+  });
+
+  it("builds add-flow final only from accepted marker-backed actions", () => {
+    const result = buildPlanningAddFinalVisibleText({
+      locale: "ru",
+      events: [
+        { desc: "Вкусный ужин в ресторане", recommendation: "Замечайте вкус и атмосферу.", displayOrder: 4, time: null, timeNorm: null, cells: [], snippets: [] },
+        { desc: "Урок танцев", recommendation: "Следуйте музыке без самокритики.", displayOrder: 5, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+
+    expect(result).toContain("два дела");
+    expect(result).toContain("Вкусный ужин в ресторане");
+    expect(result).toContain("Урок танцев");
+    expect(result).not.toContain("высших смыслов");
   });
 });
 

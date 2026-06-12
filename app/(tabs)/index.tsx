@@ -360,6 +360,7 @@ function CommunicatorOverlay({
   strings,
   dayHealthContext,
   dayPractices,
+  workingLocalDate,
   onClose,
   onPracticeStarted,
   remountKey,
@@ -369,6 +370,7 @@ function CommunicatorOverlay({
   strings: HomeStrings;
   dayHealthContext: DayHealthContext | null;
   dayPractices: DayPlan["sections"][number]["practices"];
+  workingLocalDate: string | null;
   onClose: () => void;
   onPracticeStarted: () => void;
   remountKey: number;
@@ -426,6 +428,7 @@ function CommunicatorOverlay({
                   : "смешанная",
             windowsOfOpportunity: forecast.windowsOfOpportunity,
             dayPractices,
+            ...(workingLocalDate ? { workingLocalDate } : {}),
             ...(dayHealthContext ? { dayHealthContext } : {}),
           }}
           memoryWindow={24}
@@ -457,6 +460,7 @@ export default function HomeScreen() {
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);
   const [homeDayPractices, setHomeDayPractices] = useState<DayPlan["sections"][number]["practices"]>([]);
+  const [homeWorkingLocalDate, setHomeWorkingLocalDate] = useState<string | null>(null);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
@@ -579,6 +583,7 @@ export default function HomeScreen() {
           return;
         }
         if (dayPlan.hasOverdueSummary) {
+          const summaryTargetLocalDate = dayPlan.summaryTargetLocalDate ?? dayPlan.currentLocalDate;
           const practices = dayPlan.sections.flatMap((section) =>
             section.practices.map((practice) => ({
               ...practice,
@@ -586,17 +591,21 @@ export default function HomeScreen() {
             })),
           );
           setHomeDayPractices(practices);
+          // Communicator owns live health collection via workingLocalDate; keep an
+          // initial snapshot so the first POST is not empty while native loads.
           const healthCollection = startSummarizingHealthCollection({
-            localDate: dayPlan.summaryTargetLocalDate ?? dayPlan.currentLocalDate,
+            localDate: summaryTargetLocalDate,
             practices,
           });
           setHomeDayHealthContext(healthCollection.getSnapshot());
           void healthCollection.whenReady().then(setHomeDayHealthContext).catch((healthError) => {
             console.warn("[Home] Failed to collect health context in background", healthError);
           });
+          setHomeWorkingLocalDate(summaryTargetLocalDate);
         } else {
           setHomeDayPractices([]);
           setHomeDayHealthContext(null);
+          setHomeWorkingLocalDate(null);
         }
       }
       setAssistantRemountKey((k) => k + 1);
@@ -605,6 +614,7 @@ export default function HomeScreen() {
       console.warn("[Home] Failed to check day plan before assistant", loadError);
       setHomeDayPractices([]);
       setHomeDayHealthContext(null);
+      setHomeWorkingLocalDate(null);
       setAssistantRemountKey((k) => k + 1);
       setCommunicatorOpen(true);
     }
@@ -757,10 +767,12 @@ export default function HomeScreen() {
           strings={strings}
           dayHealthContext={homeDayHealthContext}
           dayPractices={homeDayPractices}
+          workingLocalDate={homeWorkingLocalDate}
           remountKey={assistantRemountKey}
           onPracticeStarted={() => {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
+            setHomeWorkingLocalDate(null);
             setCommunicatorOpen(false);
             void loadDayPlan()
               .then(storePrefetchedDayPlan)
@@ -771,6 +783,7 @@ export default function HomeScreen() {
           onClose={() => {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
+            setHomeWorkingLocalDate(null);
             setCommunicatorOpen(false);
             void loadDayPlan()
               .then(storePrefetchedDayPlan)

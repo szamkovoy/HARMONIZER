@@ -12,6 +12,8 @@ import {
 } from "@legacy/app/api/_utils/gemini";
 import {
   buildCatalogReconciliationInstruction,
+  catalogDurationRangeForKind,
+  catalogKindForDurationMin,
   parseResponseMarkers,
   sanitizeAssistantText,
   validateHistoryHasDurationAndType,
@@ -56,7 +58,10 @@ import {
   buildPlanningPrompt,
   buildPracticePrompt,
   buildSummarizingPrompt,
+  buildPlanningAddFinalVisibleText,
+  buildPlanningDeclinedReply,
   buildPlanningFinalVisibleText,
+  buildPracticeClarificationFallback,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
   ensureSentencePunctuation,
@@ -259,12 +264,19 @@ function formatHealthForPrompt(value: unknown): string {
     ? ctx.yoga.kinds.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)
     : [];
 
-  if (yogaMinutes != null && yogaMinutes > 0) {
-    const practiceCountPart = yogaPracticeCount != null ? `, practices: ${Math.round(yogaPracticeCount)}` : "";
+  if (yogaPracticeCount != null && yogaPracticeCount > 0) {
+    const minutesPart = yogaMinutes != null && yogaMinutes > 0 ? `${Math.round(yogaMinutes)}` : "0";
     const averagePart = yogaAverage != null ? `, average daily minutes: ${Math.round(yogaAverage)}` : "";
     const comparisonPart = yogaComparison !== "unknown" ? `, comparison: ${yogaComparison}` : "";
     const kindsPart = yogaKinds.length ? `, kinds: ${yogaKinds.join("/")}` : "";
-    lines.push(`yoga minutes: ${Math.round(yogaMinutes)}${practiceCountPart}${averagePart}${comparisonPart}${kindsPart}`);
+    lines.push(
+      `yoga minutes: ${minutesPart}, practices: ${Math.round(yogaPracticeCount)}${averagePart}${comparisonPart}${kindsPart}`,
+    );
+  } else if (yogaMinutes != null && yogaMinutes > 0) {
+    const averagePart = yogaAverage != null ? `, average daily minutes: ${Math.round(yogaAverage)}` : "";
+    const comparisonPart = yogaComparison !== "unknown" ? `, comparison: ${yogaComparison}` : "";
+    const kindsPart = yogaKinds.length ? `, kinds: ${yogaKinds.join("/")}` : "";
+    lines.push(`yoga minutes: ${Math.round(yogaMinutes)}${averagePart}${comparisonPart}${kindsPart}`);
   }
 
   const stepsLine = formatMetricForPrompt("steps", ctx.activity?.steps);
@@ -305,6 +317,17 @@ function formatPracticesForPrompt(value: unknown): string {
 
 function userDeclinesPractice(text: string): boolean {
   return /\b(не\s*надо|не\s*хочу|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later)\b/i.test(text);
+}
+
+/**
+ * User declines to plan the day right now (not the same as "I'm done adding").
+ * Avoids JS word boundaries around Cyrillic (which never match) by using
+ * whitespace and word-fragment patterns. Used only inside the planning branch
+ * when no action was extracted, so false positives are unlikely.
+ */
+function userDeclinesPlanning(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return /(некогда|нет\s+времени|не\s+до\s+планов|не\s+до\s+этого\s+сейчас|не\s+хоч\w*\s+планир|не\s+буду\s+планир|не\s+могу\s+планир|без\s+планир|план\w*\s+потом|потом\s+планир|не\s+сейчас[^.?!]{0,20}планир|не\s+готов\w*\s+планир|skip\s+planning|don'?t\s+want\s+to\s+plan|no\s+time\s+to\s+plan|not\s+now[^.?!]{0,20}plan)/iu.test(normalized);
 }
 
 function textFromMessage(message: Pick<MessageRecord, "content" | "transcript">): string {
@@ -497,6 +520,79 @@ function readSummarySessionItems(meta: Record<string, unknown> | null | undefine
     .filter((item): item is SummarySessionItem => Boolean(item));
 }
 
+function readSummarySessionItemsFromHistory(history: MessageRecord[]): SummarySessionItem[] {
+  const items: SummarySessionItem[] = [];
+  for (const message of history) {
+    if (message.role !== "assistant" || !message.meta || typeof message.meta !== "object") continue;
+    const persistence = (message.meta as {
+      planning_persistence?: { summarized?: unknown };
+      planningPersistence?: { summarized?: unknown };
+    }).planning_persistence ?? (message.meta as {
+      planningPersistence?: { summarized?: unknown };
+    }).planningPersistence;
+    const summarized = persistence && typeof persistence === "object" && Array.isArray(persistence.summarized)
+      ? persistence.summarized
+      : [];
+    for (const raw of summarized) {
+      if (!raw || typeof raw !== "object") continue;
+      const id = typeof (raw as { id?: unknown }).id === "string" ? (raw as { id: string }).id : null;
+      const description = typeof (raw as { description?: unknown }).description === "string"
+        ? (raw as { description: string }).description
+        : null;
+      const summarizedAt = typeof (raw as { summarized_at?: unknown; summarizedAt?: unknown }).summarized_at === "string"
+        ? (raw as { summarized_at: string }).summarized_at
+        : typeof (raw as { summarizedAt?: unknown }).summarizedAt === "string"
+          ? (raw as { summarizedAt: string }).summarizedAt
+          : null;
+      if (!id || !description || !summarizedAt) continue;
+      items.push({
+        id,
+        description,
+        planned_local_date: "",
+        display_order: null,
+        summarized_at: summarizedAt,
+        applied_to_matrix: (raw as { applied_to_matrix?: unknown; appliedToMatrix?: unknown }).applied_to_matrix === true
+          || (raw as { appliedToMatrix?: unknown }).appliedToMatrix === true,
+        outcome_cells: (raw as { outcome_cells?: unknown; outcomeCells?: unknown }).outcome_cells
+          ?? (raw as { outcomeCells?: unknown }).outcomeCells
+          ?? null,
+        outcome_text: typeof (raw as { outcome_text?: unknown; outcomeText?: unknown }).outcome_text === "string"
+          ? (raw as { outcome_text: string }).outcome_text
+          : typeof (raw as { outcomeText?: unknown }).outcomeText === "string"
+            ? (raw as { outcomeText: string }).outcomeText
+            : null,
+      });
+    }
+  }
+  return items;
+}
+
+function mergeSummarySessionItems(...groups: SummarySessionItem[][]): SummarySessionItem[] {
+  const byId = new Map<string, SummarySessionItem>();
+  for (const group of groups) {
+    for (const item of group) {
+      const previous = byId.get(item.id);
+      byId.set(item.id, {
+        ...previous,
+        ...item,
+        planned_local_date: item.planned_local_date || previous?.planned_local_date || "",
+        display_order: item.display_order ?? previous?.display_order ?? null,
+        outcome_text: item.outcome_text ?? previous?.outcome_text ?? null,
+        outcome_cells: item.outcome_cells ?? previous?.outcome_cells ?? null,
+      });
+    }
+  }
+  return [...byId.values()].sort((left, right) => {
+    if (left.planned_local_date && right.planned_local_date && left.planned_local_date !== right.planned_local_date) {
+      return left.planned_local_date.localeCompare(right.planned_local_date);
+    }
+    const leftOrder = left.display_order ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = right.display_order ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return left.summarized_at.localeCompare(right.summarized_at);
+  });
+}
+
 type SummaryPersistenceRow = {
   id: string;
   description: string;
@@ -520,45 +616,62 @@ function toSummaryPersistenceRow(
   };
 }
 
-function formatSummaryOutcomeLine(item: SummarySessionItem, index: number): string {
-  const title = item.description.trim() || `Действие ${index + 1}`;
-  const outcome = (item.outcome_text ?? "").trim();
-  return outcome ? `— ${title}: ${outcome}.` : `— ${title}: подытожено.`;
+/**
+ * Remove a model-produced per-event recap section ("По событиям:" / "By events:")
+ * from the summarizing final message — the user-facing summary should read as a
+ * cohesive psychological reflection, not a labeled list of outcomes.
+ */
+function stripSummaryEventsBlock(value: string): string {
+  const start = value.search(/(?:^|\n)\s*(?:По\s+событиям|By\s+events)\s*:/iu);
+  if (start < 0) return value;
+  const before = value.slice(0, start).trimEnd();
+  const rest = value.slice(start);
+  // Keep anything after the list that is clearly a new section (health note or
+  // the planning bridge question); drop only the bulleted event recap itself.
+  const resume = rest.search(/\n\s*\n(?!\s*[—–\-•*])/u);
+  const after = resume >= 0 ? rest.slice(resume).trim() : "";
+  return [before, after].filter(Boolean).join("\n\n");
 }
 
-function buildDeterministicSummaryEventsBlock(items: SummarySessionItem[]): string {
-  const lines = items
-    .map(formatSummaryOutcomeLine)
-    .map((line) => line.replace(/([.!?…])\.+$/u, "$1"));
-  return ["По событиям:", ...lines].join("\n");
-}
-
-function replaceSummaryEventsBlock(visibleText: string, items: SummarySessionItem[]): string {
-  if (!items.length) return visibleText;
-  const block = buildDeterministicSummaryEventsBlock(items);
-  const start = visibleText.search(/(?:^|\n)По событиям:\s*/i);
-  if (start < 0) return visibleText;
-  const before = visibleText.slice(0, start).trimEnd();
-  const rest = visibleText.slice(start);
-  const nextSection = rest.search(/\n\n(?:По телу:|Какой день|Что у вас|Какие планы|Теперь можно перейти)/i);
-  const after = nextSection >= 0 ? rest.slice(nextSection).trimStart() : "";
-  return [before, block, after].filter(Boolean).join("\n\n");
-}
+// NOTE: JavaScript's \b only treats [A-Za-z0-9_] as word characters, so it never
+// matches a boundary next to Cyrillic letters. Day-word stripping must use explicit
+// Unicode letter look-arounds instead, or the Russian variants silently pass through.
+const RU_DAY_WORDS = /(?<![\p{L}])(?:сегодняшн(?:ий|его|ему|им|ем|яя|юю|ей)|сегодня|вчерашн(?:ий|его|ему|им|ем|яя|юю|ей)|вчера|позавчерашн(?:ий|его|ему|им|ем|яя|юю|ей)|позавчера|завтрашн(?:ий|его|ему|им|ем|яя|юю|ей)|завтра)(?![\p{L}])/giu;
 
 function sanitizeSummaryFinalVisibleText(value: string): string {
-  return value
+  return stripSummaryEventsBlock(value)
     .replace(/^\s*[—–-]{2,}\s*/u, "")
-    .replace(/\bсегодняшн(?:ий|его|ему|им|ем)\s+день\b/giu, "день")
-    .replace(/\bсегодня\s+вы\b/giu, "Вы")
+    .replace(/(?<![\p{L}])сегодняшн(?:ий|его|ему|им|ем)\s+день(?![\p{L}])/giu, "день")
+    .replace(/(?<![\p{L}])сегодня\s+вы(?![\p{L}])/giu, "Вы")
     .replace(/\btoday'?s\s+day\b/giu, "the day")
     .replace(/\btoday\s+you\b/giu, "You")
-    .replace(/\b(?:сегодняшн(?:ий|его|ему|им|ем)|сегодня|вчерашн(?:ий|его|ему|им|ем)|вчера|позавчерашн(?:ий|его|ему|им|ем)|позавчера)\b/giu, "")
+    .replace(RU_DAY_WORDS, "")
     .replace(/\b(?:today'?s|today|yesterday'?s|yesterday|the day before yesterday)\b/giu, "")
     .replace(/\s+([,.!?;:])/g, "$1")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function ensureSummaryToPlanningBridge(visibleText: string, locale: "ru" | "en"): string {
+  // Drop any trailing question the model wrote itself (its own planning invite).
+  // It often re-introduces day words ("Что у вас на сегодня?") which the sanitizer
+  // then mangles, and it duplicates the deterministic bridge we append below.
+  const paragraphs = visibleText.trim().split(/\n{2,}/);
+  while (paragraphs.length > 1) {
+    const last = paragraphs[paragraphs.length - 1]?.trim() ?? "";
+    if (/[?？]\s*$/.test(last)) {
+      paragraphs.pop();
+    } else {
+      break;
+    }
+  }
+  const body = paragraphs.join("\n\n").trim();
+  const bridge = locale === "ru"
+    ? "Что важного вы хотите запланировать на текущий день?"
+    : "What feels important to plan for today?";
+  return body ? `${body}\n\n${bridge}` : bridge;
 }
 
 function visibleTextMentionsEvent(text: string, description: string): boolean {
@@ -827,7 +940,9 @@ export async function POST(req: Request) {
     const triggerMeta = body.triggerMeta ?? {};
     const tabMode = (typeof triggerMeta.dayTabMode === "string" ? triggerMeta.dayTabMode : null) as DialogTabMode;
     const daySummaryRequested = triggerMeta.daySummaryRequested === true;
-    const summaryDate = daySummaryRequested && typeof triggerMeta.workingLocalDate === "string" ? triggerMeta.workingLocalDate : null;
+    const clientWorkingLocalDate =
+      typeof triggerMeta.workingLocalDate === "string" ? triggerMeta.workingLocalDate : null;
+    const summaryDate = daySummaryRequested ? clientWorkingLocalDate : null;
 
     let context = await loadDialogDailyContext(db, userId, body.userTimezone, {
       ...(daySummaryRequested && summaryDate ? { summarizeUpToLocalDate: summaryDate } : {}),
@@ -861,15 +976,11 @@ export async function POST(req: Request) {
     // ----- FSM state: read, or initialize and persist -----
     let fsm: DialogFsmState | null = readFsmState(conversation.trigger_meta);
     let conversationMeta: Record<string, unknown> = conversation.trigger_meta ?? {};
-    let workingLocalDate = summaryDate ?? context.localDate;
-    if (daySummaryRequested && openDueEvents(context).length > 0) {
-      const anchorDate = openDueEvents(context)[0]?.planned_local_date;
-      if (
-        anchorDate
-        && summaryDate
-        && summaryDate >= context.localDate
-        && anchorDate < workingLocalDate
-      ) {
+    let workingLocalDate = summaryDate ?? clientWorkingLocalDate ?? context.localDate;
+    const dueForWorkingDate = openDueEvents(context);
+    if (dueForWorkingDate.length > 0) {
+      const anchorDate = dueForWorkingDate[0]?.planned_local_date;
+      if (anchorDate && anchorDate < workingLocalDate) {
         workingLocalDate = anchorDate;
       }
     }
@@ -929,7 +1040,10 @@ export async function POST(req: Request) {
       fsm.branch === "practice" ? practiceValidationForTurn(history, userMessage) : null;
     let prompt: { systemInstruction: string; userInstruction: string };
     if (fsm.branch === "summarizing") {
-      const completedEarlierEvents = readSummarySessionItems(conversationMeta)
+      const completedEarlierEvents = mergeSummarySessionItems(
+        readSummarySessionItems(conversationMeta),
+        readSummarySessionItemsFromHistory(history),
+      )
         .filter((item) => !currentEvent || item.id !== currentEvent.id)
         .map((item) => ({ description: item.description }));
       prompt = buildSummarizingPrompt(brainCtx, {
@@ -1127,7 +1241,25 @@ export async function POST(req: Request) {
               }
             }
             plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
-            if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
+            if (
+              plannedMarkers.length === 0
+              && !isOpening
+              && !fsmAtTurnStart.planningFinalized
+              && userDeclinesPlanning(userMessage)
+            ) {
+              // User declines to plan now → close the dialogue gracefully and
+              // skip the practice branch (it only follows real planning).
+              forcedVisibleText = buildPlanningDeclinedReply(locale);
+              nextFsm = {
+                ...fsmAtTurnStart,
+                planningFinalized: true,
+                practiceDecided: true,
+                branch: "done",
+                branchIndex: fsmAtTurnStart.flow.length,
+              };
+              turnMode = "final_without_practice";
+              shouldClose = true;
+            } else if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
               const persisted = await persistPlanningFinalize({
                 db: routeDb,
                 userId: routeUserId,
@@ -1410,7 +1542,12 @@ export async function POST(req: Request) {
             const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
               .map((marker) => polishPlanningMarker(marker, locale));
             const dayFocus = ensureSentencePunctuation(markers.recommendationCorrection?.short_text);
-            if (planningMarkersForVisible.length > 0 && !fsmAtTurnStart.noGreeting) {
+            if (planningMarkersForVisible.length > 0 && fsmAtTurnStart.noGreeting) {
+              cleanText = buildPlanningAddFinalVisibleText({
+                events: planningMarkersForVisible,
+                locale,
+              });
+            } else if (planningMarkersForVisible.length > 0) {
               cleanText = buildPlanningFinalVisibleText({
                 visibleText: cleanText,
                 events: planningMarkersForVisible,
@@ -1443,8 +1580,37 @@ export async function POST(req: Request) {
             && nextFsm.branch !== "summarizing"
             && !summaryClarifyingDeferred
           ) {
-            cleanText = replaceSummaryEventsBlock(cleanText, readSummarySessionItems(conversationMeta));
+            // The final summary reads as a cohesive psychological reflection — no
+            // per-event recap list, no calendar/day words. The planning hand-off
+            // (if any) is appended deterministically below.
             cleanText = sanitizeSummaryFinalVisibleText(cleanText);
+            if (nextFsm.branch === "planning") {
+              const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+              cleanText = ensureSummaryToPlanningBridge(cleanText, locale);
+            }
+          }
+          if (!cleanText.trim() && branchForTurn === "practice" && !practicePicked && !shouldClose) {
+            // The practice turn produced no card and no visible text (e.g. the
+            // model put everything inside a marker that failed to resolve, or a
+            // catalog-inconsistent request like 30-min breathing). Never crash the
+            // client — fall back to a deterministic catalog-aware clarification.
+            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            const v = practiceValidationAtTurn;
+            const requestedDurationMin = v?.durationSec != null ? Math.round(v.durationSec / 60) : null;
+            const kind = v?.practiceKind ?? null;
+            const conflict = Boolean(v && v.hasDuration && v.hasType && !v.catalogConsistent);
+            cleanText = buildPracticeClarificationFallback({
+              locale,
+              kind: conflict ? kind : null,
+              requestedDurationMin: conflict ? requestedDurationMin : null,
+              range: conflict && kind ? catalogDurationRangeForKind(kind) : null,
+              altKind: conflict && requestedDurationMin != null ? catalogKindForDurationMin(requestedDurationMin) : null,
+            });
+            turnMode = "inquiry";
+            console.warn(
+              "[DIALOG_FSM] Practice turn yielded empty text — using deterministic clarification fallback",
+              JSON.stringify({ conversationId: conversation.id, conflict, kind, requestedDurationMin }),
+            );
           }
           if (!cleanText) {
             throw new Error("Model returned empty text after sanitization");

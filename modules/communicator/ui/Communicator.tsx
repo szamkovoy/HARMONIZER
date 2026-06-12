@@ -600,8 +600,8 @@ export function Communicator({
     summarizingHealthBootstrappedRef.current = true;
     const meta = triggerMeta ?? {};
     const localDate = typeof meta.workingLocalDate === "string" ? meta.workingLocalDate : null;
-    const practices = Array.isArray(meta.dayPractices) ? (meta.dayPractices as DayPracticeLog[]) : null;
-    if (localDate && practices) {
+    const practices = Array.isArray(meta.dayPractices) ? (meta.dayPractices as DayPracticeLog[]) : [];
+    if (localDate) {
       summarizingHealthCollectionRef.current = startSummarizingHealthCollection({ localDate, practices });
       return;
     }
@@ -628,10 +628,17 @@ export function Communicator({
   }, [systemPrompt, triggerMeta]);
 
   useEffect(() => {
-    if (triggerMeta?.daySummaryRequested === true) {
+    if (useCase !== "daily_dialog") return;
+    // Day-tab summary sets daySummaryRequested; Home «Что делать?» with overdue
+    // events only passes workingLocalDate + dayPractices — bootstrap must run for both.
+    if (
+      triggerMeta?.daySummaryRequested === true
+      || typeof triggerMeta?.workingLocalDate === "string"
+      || Array.isArray(triggerMeta?.dayPractices)
+    ) {
       bootstrapSummarizingHealth();
     }
-  }, [bootstrapSummarizingHealth, triggerMeta?.daySummaryRequested]);
+  }, [bootstrapSummarizingHealth, triggerMeta?.dayPractices, triggerMeta?.daySummaryRequested, triggerMeta?.workingLocalDate, useCase]);
   const [txtDraft, setTxtDraft] = useState("");
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
