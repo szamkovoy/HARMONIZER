@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { initFsmState } from "./dialogFsm";
 import {
   assistantFinalizeWithoutMarkers,
@@ -17,6 +18,10 @@ import {
   userSignalsPlanningDone,
 } from "./dialogTurnGuards";
 
+function assistantMsg(content: string): MessageRecord {
+  return { id: "m", role: "assistant", content, transcript: null, meta: null, created_at: null };
+}
+
 describe("dialogTurnGuards", () => {
   it("detects planning done signals", () => {
     expect(userSignalsPlanningDone("Думаю, достаточно этого.")).toBe(true);
@@ -27,7 +32,7 @@ describe("dialogTurnGuards", () => {
     const text =
       "1. Прогулка\nРекомендация: Идите спокойно.\n\nХотите, предложу короткую практику перед сном?";
     expect(assistantOfferedPractice(text)).toBe(true);
-    expect(assistantFinalizeWithoutMarkers([{ role: "assistant", content: text }])).toBe(true);
+    expect(assistantFinalizeWithoutMarkers([assistantMsg(text)])).toBe(true);
   });
 
   it("filters practice-like planned events", () => {
@@ -50,11 +55,7 @@ describe("dialogTurnGuards", () => {
       workingLocalDate: "2026-06-10",
     });
     const history = [
-      {
-        role: "assistant" as const,
-        content:
-          "1. Прогулка\nРекомендация: Тихо.\n\nХотите короткую практику перед сном?",
-      },
+      assistantMsg("1. Прогулка\nРекомендация: Тихо.\n\nХотите короткую практику перед сном?"),
     ];
     const next = coerceFsmBeforeTurn({
       fsm: { ...fsm, planningFinalized: true },
@@ -81,16 +82,31 @@ describe("dialogTurnGuards", () => {
     expect(userAnswerIsThinForSummary("Нет")).toBe(false);
   });
 
-  it("builds clarifying question for thin summary deferral", () => {
+  it("builds a thematic, right-sized clarifying question for thin summary deferral", () => {
+    // The question must read like a friend picking up the thread: a real question,
+    // no parentheses, no quoted event titles, and never the fixed
+    // "тело, настроение, мысли или отношения" checklist.
     const walkQuestion = buildSummaryClarifyingQuestion("Прогулка в парке", "ru");
     expect(walkQuestion).not.toContain("(");
     expect(walkQuestion).not.toContain("«");
-    expect(walkQuestion).not.toContain("что было в теле и внутри");
-    const saunaQuestion = buildSummaryClarifyingQuestion("Сходить в сауну и пообщаться с друзьями", "ru");
-    expect(saunaQuestion.toLowerCase()).toContain("когда вы были в сауне");
-    expect(saunaQuestion).not.toContain("(");
-    expect(buildSummaryClarifyingQuestion("Пораньше лечь спать", "ru")).toContain("когда вы легли спать");
-    expect(buildSummaryClarifyingQuestion("Walk in the park", "en")).toContain("Walk in the park");
+    expect(walkQuestion).toContain("?");
+    expect(walkQuestion).not.toContain("тело, настроение, мысли или отношения");
+
+    // Work events ask about the texture of the process, not a generic checklist.
+    const workQuestion = buildSummaryClarifyingQuestion("Работа, решение текущих вопросов", "ru");
+    expect(workQuestion).not.toContain("(");
+    expect(workQuestion).not.toContain("тело, настроение, мысли или отношения");
+    expect(/фокус|увлеч|людьми|процесс|выматыв/i.test(workQuestion)).toBe(true);
+
+    // A tiny action stays light and does not interrogate.
+    const tinyQuestion = buildSummaryClarifyingQuestion("Пораньше лечь спать", "ru");
+    expect(tinyQuestion).toContain("?");
+    expect(tinyQuestion).not.toContain("тело, настроение, мысли или отношения");
+
+    // English path produces a real, non-empty question without quoting the title.
+    const enQuestion = buildSummaryClarifyingQuestion("Walk in the park", "en");
+    expect(enQuestion).toContain("?");
+    expect(enQuestion).not.toContain("\"");
   });
 
   it("detects model-visible clarifying questions in summary turns", () => {

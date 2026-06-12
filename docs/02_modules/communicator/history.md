@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-12:** `practiceToSummary` теперь запекает редактируемую длительность (`practicePicked.overrides.durationMin`) в `defaultDurationSec` и `launch.durationMs` для дыхания/медитации. Раньше `onPracticeOffered(PracticeSummary)` нёс каталожный дефолт, поэтому отложенная (pending) карточка практики на вкладке `День` показывала 10 мин вместо выбранных в диалоге 20 мин (в самом диалоге карточка была верной, т.к. получала `overrideDurationMinutes` отдельным пропом). Йога без overrides не затронута.
 - **2026-06-11 (5):** Home assistant overlay при закрытии и при старте практики теперь запускает best-effort prefetch вкладки `День` (`loadDayPlan()` → `storePrefetchedDayPlan`) перед/параллельно переходу. Это дополняет day-tab refresh и снижает шанс увидеть stale overdue-секции после завершённого диалога.
 - **2026-06-11 (4):** Streaming cleanup теперь вырезает bare sentinel `[PRACTICE_DECLINED]` так же, как остальные internal markers. Это страхует partial SSE на practice-refusal ходах: даже если сервер/модель вернут sentinel до финальной очистки, пользователь не увидит служебный текст в bubble.
 - **2026-06-11 (3):** Practice launch из карточки ассистента больше не закрывает модальный диалог до навигации. `Communicator` сначала вызывает `launchPractice(..., { launchSource: "assistant" })`, затем на следующий кадр запускает `onPracticePicked` для закрытия overlay/refresh; это убирает flash вкладки `День` между нажатием `Начать практику` и экраном практики.

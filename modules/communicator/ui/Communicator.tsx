@@ -302,6 +302,16 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
   const chakra = parseIntParam(launchParams.chakra);
   const baseChakra = practice.chakraIds?.[0] ?? chakra;
   const slug = practice.slug ?? practice.id;
+  // The dialog card may carry a user-editable duration override (breath/meditation).
+  // Bake it into the summary so a pending Day-tab practice shows the chosen length
+  // (e.g. 20 min) instead of the catalog default (e.g. 10 min). Yoga has no override.
+  const durationOverrideMin = (
+    practice as PracticePicked & { overrides?: { durationMin?: number | null } }
+  ).overrides?.durationMin;
+  const overrideDurationSec =
+    typeof durationOverrideMin === "number" && durationOverrideMin > 0
+      ? Math.round(durationOverrideMin * 60)
+      : null;
 
   if (practice.kind === "breath") {
     return {
@@ -310,7 +320,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
       kind: "breath",
       title: practice.name ?? slug,
       description: stripLegacyPracticeCardReason(practice.card_blurb ?? practice.reason) ?? undefined,
-      defaultDurationSec: practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
+      defaultDurationSec: overrideDurationSec ?? practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
       minDurationSec: practice.minDurationSec ?? undefined,
       maxDurationSec: practice.maxDurationSec ?? undefined,
       durationPolicy:
@@ -325,7 +335,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
         kind: "breath",
         route: "/breath-coherence",
         practiceId: (launchParams.practiceId ?? slug) as never,
-        durationMs: durationMs ?? (practice.durationSec ?? 600) * 1000,
+        durationMs: overrideDurationSec != null ? overrideDurationSec * 1000 : durationMs ?? (practice.durationSec ?? 600) * 1000,
         chakra: (chakra ?? baseChakra ?? 4) as NonNullable<PracticeLaunchParams["chakra"]>,
         usePulseSensor: launchParams.usePulseSensor !== "false",
       },
@@ -339,7 +349,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
       kind: "meditation",
       title: practice.name ?? slug,
       description: stripLegacyPracticeCardReason(practice.card_blurb ?? practice.reason) ?? undefined,
-      defaultDurationSec: practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
+      defaultDurationSec: overrideDurationSec ?? practice.durationSec ?? (durationMs ? Math.round(durationMs / 1000) : undefined),
       minDurationSec: practice.minDurationSec ?? undefined,
       maxDurationSec: practice.maxDurationSec ?? undefined,
       durationPolicy:
@@ -354,7 +364,7 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
         kind: "meditation",
         route: "/sacred-symbol-stream",
         practiceId: launchParams.practiceId ?? slug,
-        durationMs: durationMs ?? (practice.durationSec ? practice.durationSec * 1000 : undefined),
+        durationMs: overrideDurationSec != null ? overrideDurationSec * 1000 : durationMs ?? (practice.durationSec ? practice.durationSec * 1000 : undefined),
         chakra: typeof (chakra ?? baseChakra) === "number"
           ? ((chakra ?? baseChakra) as PracticeLaunchParams["chakra"])
           : undefined,

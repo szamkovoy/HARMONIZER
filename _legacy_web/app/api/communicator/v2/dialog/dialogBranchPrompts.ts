@@ -351,6 +351,9 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     "No awkward metaphors, no astrological poetry, no weather/cosmic imagery, no pseudo-therapeutic filler.",
     "Use plain warm language. Outside branch finals, do not sound like a psychologist delivering an interpretation.",
     "Punctuation style: no multiple exclamation marks; at most one exclamation mark in the whole reply, and only when it sounds natural.",
+    ctx.locale === "ru"
+      ? "Пиши целиком по-русски. Не вставляй спонтанные английские слова (например quietly, mindfully, flow, gently) — всегда подбирай русский эквивалент. Иностранный термин допустим, только если сам пользователь назвал его так (например профессиональный термин)."
+      : "",
     "",
     "DAY CONTEXT (data, do not read aloud verbatim):",
     `- Date: ${ctx.dayOfWeek}, ${ctx.dateLabel}; time of day: ${ctx.timeOfDay}; day phase: ${ctx.phaseTime}.`,
@@ -384,7 +387,8 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     "- Until you emit [SUMMARIZE_EVENT] for the current event, your visible reply must discuss ONLY that event. Never ask about or mention another event in the same turn.",
     "- If you need a clarifying question, ask exactly ONE question about the current event only — no marker, no interpretation, no feedback, no other events.",
     "- Friendly debrief tone; you are NOT playing therapist on intermediate turns. Just find out what happened and how the person lived it.",
-    "- Ask one main question per event. If the event happened but the description is too thin to read the psychological state, ask exactly ONE clarifying question. In that clarifying question, briefly explain that this detail is needed to fill the user's life-state matrix for analysis. Never ask a clarifying question twice for the same event.",
+    "- Ask one main question per event. If the event happened but the description is too thin to read the inner state, ask exactly ONE clarifying question that flows naturally from what the user just said — pick up their own words and gently invite a bit more. Never ask a clarifying question twice for the same event.",
+    "- Make the clarifying question thematic and right-sized for the action, NOT a fixed checklist. Do NOT keep asking the same generic \"это было про тело, настроение, мысли или отношения?\". Examples: for work — \"чем был наполнен этот процесс: вы были увлечены делом, больше держали фокус и точность, согласовывали что-то с людьми — или были трения и прорывы?\"; for rest / a walk / nature — ask how it ощущалось телесно и эмоционально; for a tiny or simple action (лечь пораньше, короткий звонок) keep it very light and do not interrogate. If it would feel forced to dig deeper, just close the event instead.",
     ctx.locale === "ru"
       ? "- Если после одного уточняющего вопроса ответа всё ещё недостаточно, закройте событие без outcome_cells — оно не попадёт в матрицу, но попытка сбора состояния была сделана."
       : "- If the answer is still too thin after your one clarifying question, close the event with empty outcome_cells — it will not affect the matrix, but the collection attempt still counts.",
@@ -424,8 +428,8 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
           ? `   - For your own context, the events closed in this flow were: ${input.completedEarlierEvents.map((event) => `"${event.description}"`).join(", ")}. Reflect on the whole arc, not item by item.`
           : "",
         "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, calories or workouts.",
-        "   - If practices are listed below, mention the actual practice(s) explicitly by title and/or duration instead of a generic sentence about yoga.",
-        "   - If health numbers are listed below, cite the concrete facts that matter (for example steps, workout minutes, sleep minutes). If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
+        "   - Phrase practices in natural, flowing Russian, not a dry report. Instead of \"медитации были — три практики, в сумме 5 минут\", write something like \"в течение дня вы выполнили три коротких медитации\". If the total practice time is clearly low or below the average shown, add ONE warm, encouraging nudge to give a bit more attention to practice — never scold.",
+        "   - If health numbers are listed below, you MUST cite at least ONE concrete number inline (for example exact steps, sleep duration, or workout minutes) so the reflection reads as real analytics, not a guess. Do not replace the number with vague words like \"немного\" alone — pair the impression with the figure (for example \"шагов набралось немного — всего 1240\"). Mention only one or two metrics, keep it light. If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
         "   - Keep the wording grounded and direct; no mystical or poetic flourishes.",
         "   - Do NOT name calendar dates or use day words (no «вчера»/«сегодня»/«вчерашний»/«yesterday»/«today»); refer to the period only as «этот день» / «прожитый день» / «the day».",
         input.practicesContext ? `   Yoga practices context:\n${input.practicesContext}` : "",
@@ -445,6 +449,31 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     systemInstruction: sharedPreamble(ctx),
     userInstruction: lines.filter(Boolean).join("\n"),
   };
+}
+
+/**
+ * Optional "background voice" for the PLANNING final only: the sensibility of a
+ * few thinkers associated with the day's target chakra. It gives the day-focus
+ * reflection more depth and day-to-day variety. The experts are NEVER named or
+ * quoted in the visible text — only their worldview quietly informs the
+ * assistant's own warm voice. The per-planet tonal register (tone/lexicon) is
+ * unchanged; this only adds depth of meaning to the closing reflection.
+ */
+function chakraExpertLens(chakraNumber: number, locale: "ru" | "en"): string {
+  const experts: Record<number, string> = {
+    1: "Andrew Huberman, Hans Selye",
+    2: "Epicurus, Esther Perel",
+    3: "Stephen Covey, Barbara Sher",
+    4: "Carl Rogers, Clarissa Pinkola Estés",
+    5: "Rainer Maria Rilke, Julia Cameron",
+    6: "Carl Jung, Joseph Campbell, Viktor Frankl",
+    7: "Thomas Merton, Ram Dass, Thich Nhat Hanh",
+  };
+  const names = experts[chakraNumber];
+  if (!names) return "";
+  return locale === "ru"
+    ? `- Глубинная оптика финала (ТОЛЬКО для общего абзаца дня, не для списка действий): пусть он звучит так, будто его мировосприятие подсказано чувствительностью таких мыслителей, как ${names} — их взглядом на смысл и человеческую глубину. Но напиши всё целиком СВОИМ тёплым голосом от лица приложения; НИКОГДА не называй эти имена, не цитируй их и не упоминай, что опираешься на кого-то.`
+    : `- Depth lens for the final (ONLY the overall day-focus paragraph, not the action list): let it read as if quietly informed by the sensibility of thinkers like ${names} — their view of meaning and human depth. But write it entirely in YOUR OWN warm voice as the app; NEVER name or quote them or hint that you lean on anyone.`;
 }
 
 export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurnInput): {
@@ -479,13 +508,17 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
           `- Give a self-contained planning wrap-up: first one short paragraph with the overall day recommendation, then go action by action with a short, vivid recommendation for living each one today.`,
           `  The day recommendation is NOT a forecast — it invites the user to direct attention toward states and actions aligned with chakra ${ctx.targetChakraNumber} today, so they live less on autopilot and more in harmony with natural energies. Gently motivate: what to notice, why this shift helps growth/wholeness, what they may gain if they lean into it.`,
           "  The visible day-recommendation paragraph may be fuller than [CORRECT_RECOMMENDATION: short_text=\"...\"], but both must carry the same meaning. The marker short_text is for the Day tab header: keep it concise, complete and punctuated.",
-        ].join("\n"),
+          chakraExpertLens(ctx.targetChakraNumber, ctx.locale),
+        ].filter(Boolean).join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",
     ctx.locale === "ru"
       ? "- VISIBLE list format (one block per action, blank line between blocks):\n  N. {короткое название дела}\n  Рекомендация: {текст рекомендации}"
       : "- VISIBLE list format (one block per action, blank line between blocks):\n  N. {short action name}\n  Recommendation: {recommendation text}",
     "- The action name in visible text MUST match the desc you put into each PLANNED_EVENT marker (this is what the Day tab shows). Never output \"N. — recommendation\" without the action name.",
     `- Each action recommendation must explicitly reflect chakra ${ctx.targetChakraNumber}: name one concrete supporting state or behavioral emphasis from this day's harmonic tone, not a generic platitude.`,
+    "- Right-size each recommendation to the SCOPE of its action. For an all-day or lengthy activity (work, a trip, an evening out) give a background orientation to hold throughout it — not a one-minute pause to perform mid-flow. For a brief, one-off act (a short call, an apology, going to bed earlier) give ONE precise, small shift — never inflate it into a meditation or a ritual.",
+    "- Keep every recommendation concretely doable and logically consistent with the action exactly as the user framed it. Do not propose steps that contradict the activity (for example, for reading a book speak to CHOOSING a book that touches meaning, or reading slowly to let it land — never tell them to 'pick a few pages' of a book they have not opened yet).",
+    `- Gently invite the user OUT of their habitual pattern toward the day's chakra ${ctx.targetChakraNumber} tone: if they usually act on autopilot (e.g. pushing hard for results), name that kindly and offer today's different emphasis as a small, meaningful experiment — not as an obvious platitude and not as a demand. The point of these recommendations is to widen the user's range of states, so make the shift feel worth doing.`,
     ctx.locale === "ru"
       ? "- Write action recommendations as polite suggestions in imperative form, not infinitive commands: «выделите», «задайте», «выберите», not «выделить», «задать», «выбрать». Every recommendation and day-focus sentence must end with punctuation."
       : "- Write action recommendations as suggestions, not terse command labels. Every recommendation and day-focus sentence must end with punctuation.",

@@ -638,8 +638,20 @@ function stripSummaryEventsBlock(value: string): string {
 // Unicode letter look-arounds instead, or the Russian variants silently pass through.
 const RU_DAY_WORDS = /(?<![\p{L}])(?:сегодняшн(?:ий|его|ему|им|ем|яя|юю|ей)|сегодня|вчерашн(?:ий|его|ему|им|ем|яя|юю|ей)|вчера|позавчерашн(?:ий|его|ему|им|ем|яя|юю|ей)|позавчера|завтрашн(?:ий|его|ему|им|ем|яя|юю|ей)|завтра)(?![\p{L}])/giu;
 
+/**
+ * Capitalize the first letter of the whole message and of each paragraph.
+ * Day-word stripping above can turn "Сегодняшний день сложился…" into
+ * "день сложился…", leaving the message starting with a lowercase letter; this
+ * restores a normal sentence opening without touching mid-sentence casing.
+ */
+function capitalizeParagraphStarts(value: string): string {
+  return value.replace(/(^|\n\n)(\s*)(\p{Ll})/gu, (_match, sep: string, space: string, char: string) =>
+    `${sep}${space}${char.toUpperCase()}`,
+  );
+}
+
 function sanitizeSummaryFinalVisibleText(value: string): string {
-  return stripSummaryEventsBlock(value)
+  const cleaned = stripSummaryEventsBlock(value)
     .replace(/^\s*[—–-]{2,}\s*/u, "")
     .replace(/(?<![\p{L}])сегодняшн(?:ий|его|ему|им|ем)\s+день(?![\p{L}])/giu, "день")
     .replace(/(?<![\p{L}])сегодня\s+вы(?![\p{L}])/giu, "Вы")
@@ -652,6 +664,7 @@ function sanitizeSummaryFinalVisibleText(value: string): string {
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  return capitalizeParagraphStarts(cleaned);
 }
 
 function ensureSummaryToPlanningBridge(visibleText: string, locale: "ru" | "en"): string {
@@ -1260,11 +1273,18 @@ export async function POST(req: Request) {
               turnMode = "final_without_practice";
               shouldClose = true;
             } else if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
+              // Planning ALWAYS targets the current local day, never the summary
+              // working date. In the overdue "Подытожить" → plan continuation the
+              // turn-level `workingLocalDate` is still the past summarized day, so
+              // persisting against it would file today's new actions under
+              // yesterday (they then vanish from the current-day section and
+              // resurface as overdue). The planning prompt already speaks of
+              // "today" (context.localDate), so persistence must match it.
               const persisted = await persistPlanningFinalize({
                 db: routeDb,
                 userId: routeUserId,
                 conversationId: conversation.id,
-                workingLocalDate,
+                workingLocalDate: context.localDate,
                 timezone: userTimezone,
                 nowIso,
                 markers: plannedMarkers,

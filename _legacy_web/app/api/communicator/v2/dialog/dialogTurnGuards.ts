@@ -201,6 +201,31 @@ export function userSaysEventDidNotHappen(text: string): boolean {
   );
 }
 
+/** Coarse domain of a planned-event label, used to tailor a clarifying question. */
+type SummaryEventDomain = "work" | "rest" | "social" | "creative" | "tiny" | "generic";
+
+function summaryEventDomain(eventDescription: string): SummaryEventDomain {
+  const lower = eventDescription.trim().toLowerCase();
+  if (!lower) return "generic";
+  // Very short / simple actions where digging for "states" feels forced.
+  if (/(?:лечь\s+(?:по)?раньше|лечь\s+спать|пораньше\s+спать|выспаться|вовремя\s+лечь|зарядк|выпить\s+воды|сделать\s+паузу)/i.test(lower)) {
+    return "tiny";
+  }
+  if (/(?:работ|задач|проект|совещ|клиент|дедлайн|код|разработ|бизнес|дел[ао]\s+по\s+работ)/i.test(lower)) {
+    return "work";
+  }
+  if (/(?:озер|природ|прогул|погул|парк|отдых|купан|море|лес|пляж|кафе|сон|поспать|расслаб|баня|саун|поездк)/i.test(lower)) {
+    return "rest";
+  }
+  if (/(?:друз|семь|близк|позвон|встреч[аи]?\s+с|общени|свидани|поговорить|извинит)/i.test(lower)) {
+    return "social";
+  }
+  if (/(?:книг|почитать|прочитать|читать|написать|порисов|рисов|музык|творч|размышл|подумать)/i.test(lower)) {
+    return "creative";
+  }
+  return "generic";
+}
+
 /** Server-side clarifying question when the model tries to close a thin answer too early. */
 function summaryEventPhraseRu(eventDescription: string): string {
   const label = eventDescription.trim();
@@ -227,23 +252,73 @@ function summaryEventPhraseRu(eventDescription: string): string {
   return "в этом действии";
 }
 
+/**
+ * Deterministic clarifying question used as a safety net when the model closes a
+ * thin answer too early. It is tailored to the event's coarse domain and to its
+ * depth (a long activity vs a tiny action), so it reads like a friend picking up
+ * the thread — not a fixed "тело/настроение/мысли/отношения" checklist that
+ * repeats across every dialog.
+ */
 export function buildSummaryClarifyingQuestion(eventDescription: string, locale: "ru" | "en"): string {
   const label = eventDescription.trim() || (locale === "ru" ? "это событие" : "this event");
+  const domain = summaryEventDomain(label);
   const seed = [...label].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   if (locale === "en") {
-    const variants = [
-      `Thanks. For "${label}", what states were present there — body recovery, calm, joy, contact with people, clarity, or something else?`,
-      `Got it. To place "${label}" more accurately in the matrix, you do not need to choose a “right” moment: just name what you lived there emotionally or mentally.`,
-      `One small detail about "${label}": was it more about the body, the mood, the mind, or relationships? You can answer very briefly.`,
-    ];
+    const byDomain: Record<SummaryEventDomain, string[]> = {
+      work: [
+        "What filled that work — were you absorbed in it, mostly coordinating with people, holding tight focus, or were there frictions and breakthroughs?",
+        "How did the work feel from the inside — driven and focused, collaborative, or more draining than rewarding?",
+      ],
+      rest: [
+        "How did it feel — more bodily relaxation, quiet pleasure, a lift in mood, or simply being present?",
+        "What did that give you inside — rest for the body, calm, or a bit of joy?",
+      ],
+      social: [
+        "How was that with the other person — warm and close, light, or a little tense?",
+        "What did it feel like inside — closeness, ease, or something you had to work through?",
+      ],
+      creative: [
+        "What did it stir in you — calm, a spark of interest, or a sense of meaning?",
+        "How did it land — restful, inspiring, or thought-provoking?",
+      ],
+      tiny: [
+        "How did that feel — was it easy to follow through on, and did it leave you a bit more settled?",
+      ],
+      generic: [
+        "How did that feel from the inside — what state were you mostly in there?",
+        "What did you mostly live through there — in a word or two?",
+      ],
+    };
+    const variants = byDomain[domain];
     return variants[seed % variants.length]!;
   }
   const phrase = summaryEventPhraseRu(label);
-  const variants = [
-    `Спасибо. Что было сильнее ${phrase}: восстановление тела, спокойствие, радость, общение, ясность — или что-то другое?`,
-    "Понял. Чтобы точнее отметить это в матрице, не нужно выбирать «правильный» момент — просто назовите, что вы проживали внутри.",
-    `Хорошо. ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}, это больше было про тело, настроение, мысли или отношения? Можно ответить совсем коротко.`,
-  ];
+  const byDomain: Record<SummaryEventDomain, string[]> = {
+    work: [
+      "Чем был наполнен этот процесс: вы были увлечены делом, больше держали фокус и точность, согласовывали что-то с людьми — или были трения и прорывы?",
+      "А как это ощущалось изнутри: вы двигались с азартом и сосредоточенностью, больше координировали с людьми, или это скорее выматывало?",
+    ],
+    rest: [
+      `А что это дало вам внутри ${phrase}: отдых телу, спокойствие, удовольствие — или радость от того, что просто были в моменте?`,
+      "Как это ощущалось: больше телесное расслабление, тихое удовольствие или подъём настроения?",
+    ],
+    social: [
+      "А как это было с человеком: тепло и близко, легко — или немного напряжённо?",
+      "Что это дало внутри: ощущение близости, лёгкости — или что-то, что пришлось проживать непросто?",
+    ],
+    creative: [
+      "А что это в вас затронуло: спокойствие, интерес, или ощущение смысла?",
+      "Как это отозвалось: отдыхом, вдохновением — или поводом подумать о важном?",
+    ],
+    tiny: [
+      "А как это вышло: удалось ли, и стало ли от этого чуть спокойнее?",
+    ],
+    generic: [
+      `А что было сильнее ${phrase}: спокойствие, радость, общение, ясность — или что-то другое?`,
+      "А что вы там в основном проживали внутри? Можно совсем коротко.",
+    ],
+  };
+  const variants = byDomain[domain];
   return variants[seed % variants.length]!;
 }
 
