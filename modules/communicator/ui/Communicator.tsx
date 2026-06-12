@@ -2082,7 +2082,14 @@ export function Communicator({
           await Promise.resolve(onPracticePicked?.(picked));
           return;
         }
-        requestAnimationFrame(() => {
+        // The communicator is a full-screen Modal rendered ABOVE the navigator,
+        // while launchPractice pushes the practice screen BEHIND it. If we close
+        // the modal immediately, its slide-out reveals the Day tab for a frame
+        // before the practice push transition settles (the "Day tab flashes"
+        // bug). Dismiss the communicator only AFTER the navigation/transition
+        // interactions finish, so the practice screen is already in place behind
+        // the modal and the reveal is seamless.
+        InteractionManager.runAfterInteractions(() => {
           void Promise.resolve(onPracticePicked?.(picked)).catch((error) => {
             logErrorForDevelopers(
               "Communicator practice picked callback",

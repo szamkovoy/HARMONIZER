@@ -84,7 +84,11 @@ describe("buildPlanningPrompt", () => {
       planningLocked: false,
     });
     expect(userInstruction).toMatch(/NOT a forecast/i);
-    expect(userInstruction).toMatch(/may be fuller/i);
+    // Visible day-recommendation paragraph and short_text must be the SAME text.
+    expect(userInstruction).toMatch(/MUST be the SAME text/i);
+    // The model itself names the chakra by number, and keeps the paragraph compact.
+    expect(userInstruction).toMatch(/naming the day's chakra BY NUMBER/i);
+    expect(userInstruction).toMatch(/180[–-]300 characters/i);
     expect(userInstruction).toMatch(/polite suggestions/i);
   });
 
@@ -172,6 +176,29 @@ describe("buildPlanningFinalVisibleText", () => {
     expect(result).not.toContain("три главные");
     expect(result).toContain("Проживите дела дня");
     expect(result).toContain("2. Свидание");
+  });
+
+  it("uses a substantial short_text (dayFocus) verbatim as the intro, ignoring the model's free intro", () => {
+    // The Day-tab header stores short_text; the visible final intro must be the
+    // SAME text so they never diverge in length or wording.
+    const shortText =
+      "Седьмая чакра приглашает прожить вечер чуть осознаннее: заметьте за обычным ужином тепло близких и тихий смысл, удержите это присутствие — оно делает день цельнее.";
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "Совсем другой, более длинный и не такой текст вступления, который модель написала отдельно от маркера и который не должен попасть в финал вместо short_text.",
+        "",
+        "1. Ужин с друзьями",
+        "Рекомендация: Замечайте лица и тепло.",
+      ].join("\n"),
+      dayFocus: shortText,
+      locale: "ru",
+      includePracticeQuestion: false,
+      events: [
+        { desc: "Ужин с друзьями", recommendation: "Замечайте лица и тепло.", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+    expect(result.startsWith(shortText)).toBe(true);
+    expect(result).not.toContain("более длинный и не такой текст");
   });
 
   it("builds add-flow final only from accepted marker-backed actions", () => {

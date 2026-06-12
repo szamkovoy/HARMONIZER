@@ -351,7 +351,11 @@ function launchPracticeFromAssistant(_practice: PracticePicked, onPracticeStarte
 function dayPlanHasVisibleContent(plan: Awaited<ReturnType<typeof loadDayPlan>>): boolean {
   if (plan.mode !== "current_day") return false;
   const todaySection = plan.sections.find((section) => section.localDate === plan.currentLocalDate) ?? plan.sections[0];
-  return (todaySection?.actions.length ?? 0) > 0 || Boolean(plan.pendingPractice);
+  // Navigate straight to the Day tab ONLY when the day already has planned/summarized
+  // actions. A leftover pending practice card alone must NOT short-circuit the
+  // dialog: with no actions yet, "Что делать?" should open the communicator and
+  // start the standard flow (summarize due events, else plan today).
+  return (todaySection?.actions.length ?? 0) > 0;
 }
 
 function CommunicatorOverlay({

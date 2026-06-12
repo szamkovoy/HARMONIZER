@@ -149,12 +149,18 @@ export function chakraAttentionPrefix(chakraNumber: number, locale: "ru" | "en")
   return ord ? `Внимание на ${ord} чакру. ` : "";
 }
 
-/** Prepend the chakra attention phrase to a day-recommendation text, unless already present. */
+/**
+ * Safety net only: prepend the chakra attention phrase to a day-recommendation
+ * text when the text does NOT already name the day's chakra. The model is now
+ * instructed to name the chakra itself inside the recommendation, so in the
+ * normal case this is a no-op; it fires only when the model forgot.
+ */
 export function prependChakraAttention(text: string | null | undefined, chakraNumber: number, locale: "ru" | "en"): string {
   const value = (text ?? "").trim();
   const prefix = chakraAttentionPrefix(chakraNumber, locale);
   if (!prefix) return value;
-  if (/^\s*(?:внимание на |attention on the )/i.test(value)) return value;
+  // The model already mentioned a chakra anywhere in the text → leave it as-is.
+  if (/чакр|chakra/i.test(value)) return value;
   return value ? `${prefix}${value}` : prefix.trim();
 }
 
@@ -277,6 +283,13 @@ function introHasWrongActionCount(text: string, eventCount: number): boolean {
 }
 
 function extractPlanningIntro(visibleText: string, fallbackFocus: string | null | undefined, eventCount: number): string {
+  // The canonical day recommendation is the [CORRECT_RECOMMENDATION] short_text
+  // (this is what the Day tab header stores). Prefer it verbatim so the visible
+  // planning final and the saved Day-tab recommendation are exactly the same
+  // text. Only fall back to extracting an intro from the model's free visible
+  // text when short_text is missing or too thin.
+  const focus = (fallbackFocus ?? "").trim();
+  if (focus.length >= 80) return ensureSentencePunctuation(focus);
   const listStart = visibleText.search(/\n\s*\d+\.\s/m);
   const beforeList = (listStart >= 0 ? visibleText.slice(0, listStart) : visibleText)
     .split(/\n\n+/)
@@ -593,15 +606,15 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
   lines.push(
     "",
     "WHILE GATHERING (user is still naming things): reply briefly and conversationally, optionally ask if there is anything else important today. Do NOT emit any PLANNED_EVENT or CORRECT_RECOMMENDATION marker yet.",
+    "- If you propose an example of something they might add, only suggest actions substantial enough to look back on later — something that takes at least a few minutes and leaves a felt inner trace (e.g. read a book, write a letter, take a walk, a real conversation, reflect on a question). NEVER suggest micro-gestures that are over in seconds (jot down one thought, read a couple of lines, one stretch): such actions are not meaningful to summarize into states.",
     "",
     "FINALIZE the planning ONLY when the user signals they are done (or you already have 2-3 clear actions and they add nothing new). On the finalize turn:",
     input.noGreeting
       ? "- Give a short, warm confirmation of the added action(s) in the energy of the day's target chakra."
       : [
-          `- Give a self-contained planning wrap-up: first one short paragraph with the overall day recommendation, then go action by action with a short, vivid recommendation for living each one today.`,
-          `  The day recommendation is NOT a forecast — it invites the user to direct attention toward states and actions aligned with chakra ${ctx.targetChakraNumber} today, so they live less on autopilot and more in harmony with natural energies. Gently motivate: what to notice, why this shift helps growth/wholeness, what they may gain if they lean into it.`,
-          "  The visible day-recommendation paragraph may be fuller than [CORRECT_RECOMMENDATION: short_text=\"...\"], but both must carry the same meaning. The marker short_text is for the Day tab header: keep it concise, complete and punctuated.",
-          "  Do NOT name the day's chakra number inside the day-recommendation text or short_text yourself — the app automatically prepends a short \"Внимание на N-ю чакру.\" prefix. Just write the recommendation itself.",
+          `- Give a self-contained planning wrap-up: first ONE day-recommendation paragraph, then go action by action with a short, vivid recommendation for living each one today.`,
+          `  Begin the day-recommendation paragraph by naming the day's chakra BY NUMBER in plain words (${ctx.locale === "ru" ? `например «${ctx.targetChakraLabel}»` : `e.g. "the ${ctx.targetChakraNumber}th chakra"`}). Then, in one flowing paragraph, say which inner states to lean into and hold today and why living in them makes the person more whole, harmonious and healthier. It is an invitation to direct attention (NOT a forecast): what to notice, why this shift helps growth/wholeness, what they may gain. Do not psychologize abstractly — make it concrete and warm.`,
+          "  Keep this paragraph compact — about 180–300 characters. The visible day-recommendation paragraph and [CORRECT_RECOMMENDATION: short_text=\"...\"] MUST be the SAME text word for word (the Day tab shows it verbatim): write it once, then copy it into short_text. Keep it complete and punctuated.",
           chakraExpertLens(ctx.targetChakraNumber, ctx.locale),
         ].filter(Boolean).join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",
