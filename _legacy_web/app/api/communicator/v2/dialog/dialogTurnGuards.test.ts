@@ -67,6 +67,42 @@ describe("dialogTurnGuards", () => {
     expect(userAffirmsPracticeOffer("Да, предложи мне одну минуту медитации.", history)).toBe(true);
   });
 
+  it("does NOT skip planning when the summary final merely mentions practice and the planning reply contains 'потом'", () => {
+    // Regression: the Home overdue→plan flow lost all planned actions because the
+    // summarizing FINAL message says "три коротких медитации" (a practice word) and
+    // ends with a question, and the user's first planning reply happened to contain
+    // "потом" ("куда её потом девать"). The old loose lock coerced planning→practice
+    // and skipped the whole planning branch, so nothing persisted.
+    const fsm = initFsmState({
+      tabMode: "plan",
+      daySummaryRequested: false,
+      hasDueEvents: true,
+      targetChakra: 7,
+      workingLocalDate: "2026-06-11",
+    });
+    const planningFsm = { ...fsm, branch: "planning" as const, branchIndex: fsm.flow.indexOf("planning") };
+    const summaryFinal = assistantMsg(
+      "Этот день прожит в энергии шестой чакры. Из практик в течение дня вы выполнили три коротких медитации — в сумме пять минут. Что важного вы хотите запланировать на текущий день?",
+    );
+    const next = coerceFsmBeforeTurn({
+      fsm: planningFsm,
+      history: [summaryFinal],
+      userMessage:
+        "Хочу съездить за лодкой, но не уверен, что куплю — куда её потом девать. А ещё хочу на озеро отдохнуть.",
+      isInitiate: false,
+    });
+    expect(next.branch).toBe("planning");
+    expect(next.planningFinalized).toBe(false);
+  });
+
+  it("treats 'не удалось' style answers as the event not happening", () => {
+    expect(userSaysEventDidNotHappen("Нет, к сожалению, не удалось лечь пораньше. Лёг почти в 2 ночи.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Так и не смог выбраться на прогулку.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Так и не дошёл до зала.")).toBe(true);
+    // A clearly-happened answer is not treated as a no-show.
+    expect(userSaysEventDidNotHappen("Поработал продуктивно, удалось закрыть задачу.")).toBe(false);
+  });
+
   it("detects thin summary answers and event absence", () => {
     expect(userAnswerIsThinForSummary("Да, состоялось, всё хорошо.")).toBe(true);
     expect(userAnswerIsThinForSummary("Чувствовал спокойствие и лёгкую усталость.")).toBe(false);

@@ -99,9 +99,15 @@ export function coerceFsmBeforeTurn(params: {
   if (isInitiate || fsm.noPractice) return fsm;
 
   if (fsm.branch === "planning") {
-    const lastAssistant = lastAssistantText(history);
+    // Only treat this as "answering a practice offer" when planning has actually
+    // finalized — either with markers (planningFinalized) or visibly as a numbered
+    // wrap-up that offered a practice (assistantFinalizeWithoutMarkers). We must NOT
+    // use a loose assistantOfferedPractice() here: the summarizing FINAL message
+    // mentions past practices ("из практик… три коротких медитации") and ends with a
+    // question, which would falsely lock planning and skip the whole planning branch
+    // when the user's first planning reply merely contains a word like "потом".
     const planningLocked =
-      fsm.planningFinalized || assistantFinalizeWithoutMarkers(history) || assistantOfferedPractice(lastAssistant);
+      fsm.planningFinalized || assistantFinalizeWithoutMarkers(history);
     const answeringPracticeOffer =
       planningLocked && (userAffirmsPracticeOffer(userMessage, history) || userDeclinesPracticeOffer(userMessage));
     if (answeringPracticeOffer) {
@@ -196,7 +202,7 @@ export function userSaysEventDidNotHappen(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
   if (/^(?:нет|no)[.!?,]*$/i.test(normalized)) return true;
-  return /(?:не получил(?:ось|ась)?|не случил(?:ось|ась)?|не состоял(?:ось|ась)?|не был[оа]?|не было|не происходил[оа]?|не прошл[оа]|не успел|не вышло|не сделал|не сделала|не делал|не делала|пропустил|пропустила|не делала? это|didn'?t happen|did not happen|didn'?t manage|did not manage|skipped it)/i.test(
+  return /(?:не удал(?:ось|ась|о)?|не смог(?:л[аи])?|так и не\s|не получил(?:ось|ась)?|не случил(?:ось|ась)?|не состоял(?:ось|ась)?|не был[оа]?|не было|не происходил[оа]?|не прошл[оа]|не успел|не вышло|не сделал|не сделала|не делал|не делала|пропустил|пропустила|не делала? это|didn'?t happen|did not happen|didn'?t manage|did not manage|skipped it)/i.test(
     normalized,
   );
 }

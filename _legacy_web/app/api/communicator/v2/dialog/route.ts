@@ -65,6 +65,8 @@ import {
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
   ensureSentencePunctuation,
+  prependChakraAttention,
+  replaceSpontaneousEnglishRu,
   polishPlanningMarker,
   containsPracticeDeclined,
   stripBrainSentinels,
@@ -1293,7 +1295,11 @@ export async function POST(req: Request) {
               planningPersistence.inserted = persisted.filter((p) => p.action === "inserted");
               planningPersistence.updated = persisted.filter((p) => p.action === "updated");
               if (!fsmAtTurnStart.noGreeting && markers.recommendationCorrection?.short_text) {
-                const shortText = ensureSentencePunctuation(markers.recommendationCorrection.short_text);
+                const shortText = prependChakraAttention(
+                  ensureSentencePunctuation(markers.recommendationCorrection.short_text),
+                  brainCtx.targetChakraNumber,
+                  locale,
+                );
                 await persistDayFocus({
                   db: routeDb,
                   userId: routeUserId,
@@ -1574,6 +1580,7 @@ export async function POST(req: Request) {
                 dayFocus,
                 locale,
                 includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                targetChakraNumber: brainCtx.targetChakraNumber,
               });
             } else if (dayFocus) {
               cleanText = injectPlanningDayFocus(cleanText, dayFocus);
@@ -1634,6 +1641,13 @@ export async function POST(req: Request) {
           }
           if (!cleanText) {
             throw new Error("Model returned empty text after sanitization");
+          }
+          // Deterministic safety net: DeepSeek occasionally drops a stray English
+          // word into Russian output ("рутинный task", "пусть ответ quietly…").
+          // The prompt forbids it but the model is not fully reliable, so we also
+          // replace a curated set of common offenders. Skip for EN dialogues.
+          if (!context.user.locale?.startsWith("en")) {
+            cleanText = replaceSpontaneousEnglishRu(cleanText);
           }
           if (bufferUntilGuards) {
             controller.enqueue(encoder.encode(sse("chunk", { text: cleanText, modelUsed })));

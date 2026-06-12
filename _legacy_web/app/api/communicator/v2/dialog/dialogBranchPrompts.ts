@@ -76,6 +76,88 @@ export function ensureSentencePunctuation(value: string | null | undefined): str
   return /[.!?…]$/.test(text) ? text : `${text}.`;
 }
 
+/**
+ * Deterministic safety net for the recurring "spontaneous English word" bug.
+ * DeepSeek occasionally drops a stray English word into otherwise-Russian text
+ * (e.g. "рутинный task", "пусть ответ quietly присутствует"). The prompt forbids
+ * this, but the model is not fully reliable, so we also replace a curated set of
+ * the most common offenders with Russian equivalents. Only whole Latin tokens
+ * are touched; unknown Latin tokens are left as-is (they are rarer and may be a
+ * term the user named, e.g. SQL).
+ */
+const SPONTANEOUS_ENGLISH_RU: Array<[RegExp, string]> = [
+  [/\btasks\b/gi, "задачи"],
+  [/\btask\b/gi, "задача"],
+  [/\bmindfully\b/gi, "осознанно"],
+  [/\bmindfulness\b/gi, "осознанность"],
+  [/\bmindful\b/gi, "осознанно"],
+  [/\bquietly\b/gi, "тихо"],
+  [/\bgently\b/gi, "мягко"],
+  [/\bsoftly\b/gi, "мягко"],
+  [/\bslowly\b/gi, "медленно"],
+  [/\bdeeply\b/gi, "глубоко"],
+  [/\beffortlessly\b/gi, "без усилий"],
+  [/\bflow\b/gi, "поток"],
+  [/\bmindset\b/gi, "настрой"],
+  [/\binsight\b/gi, "озарение"],
+  [/\bawareness\b/gi, "осознанность"],
+  [/\bpresence\b/gi, "присутствие"],
+  [/\bfocus\b/gi, "фокус"],
+  [/\bbalance\b/gi, "баланс"],
+  [/\bflowing\b/gi, "плавно"],
+];
+
+export function replaceSpontaneousEnglishRu(text: string): string {
+  let out = text ?? "";
+  for (const [pattern, replacement] of SPONTANEOUS_ENGLISH_RU) {
+    out = out.replace(pattern, (match) => {
+      const firstChar = match.charAt(0);
+      const isCapitalized = firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
+      return isCapitalized ? replacement.charAt(0).toUpperCase() + replacement.slice(1) : replacement;
+    });
+  }
+  return out;
+}
+
+const CHAKRA_ORDINAL_ACC_RU: Record<number, string> = {
+  1: "первую",
+  2: "вторую",
+  3: "третью",
+  4: "четвёртую",
+  5: "пятую",
+  6: "шестую",
+  7: "седьмую",
+};
+
+const CHAKRA_ORDINAL_EN: Record<number, string> = {
+  1: "first",
+  2: "second",
+  3: "third",
+  4: "fourth",
+  5: "fifth",
+  6: "sixth",
+  7: "seventh",
+};
+
+/** "Внимание на седьмую чакру. " — numeric chakra naming for the day recommendation. */
+export function chakraAttentionPrefix(chakraNumber: number, locale: "ru" | "en"): string {
+  if (locale === "en") {
+    const ord = CHAKRA_ORDINAL_EN[chakraNumber];
+    return ord ? `Attention on the ${ord} chakra. ` : "";
+  }
+  const ord = CHAKRA_ORDINAL_ACC_RU[chakraNumber];
+  return ord ? `Внимание на ${ord} чакру. ` : "";
+}
+
+/** Prepend the chakra attention phrase to a day-recommendation text, unless already present. */
+export function prependChakraAttention(text: string | null | undefined, chakraNumber: number, locale: "ru" | "en"): string {
+  const value = (text ?? "").trim();
+  const prefix = chakraAttentionPrefix(chakraNumber, locale);
+  if (!prefix) return value;
+  if (/^\s*(?:внимание на |attention on the )/i.test(value)) return value;
+  return value ? `${prefix}${value}` : prefix.trim();
+}
+
 function polishRuRecommendationText(value: string): string {
   let text = value.trim().replace(/\b1-2\b/g, "одну-две");
   const replacements: Array<[RegExp, string]> = [
@@ -103,7 +185,8 @@ function polishRuRecommendationText(value: string): string {
 export function polishPlanningRecommendation(value: string | null | undefined, locale: "ru" | "en"): string {
   const raw = (value ?? "").trim();
   if (!raw) return "";
-  const polished = locale === "ru" ? polishRuRecommendationText(raw) : raw;
+  const deEnglished = locale === "ru" ? replaceSpontaneousEnglishRu(raw) : raw;
+  const polished = locale === "ru" ? polishRuRecommendationText(deEnglished) : deEnglished;
   return ensureSentencePunctuation(polished);
 }
 
@@ -226,10 +309,14 @@ export function buildPlanningFinalVisibleText(params: {
   dayFocus: string | null | undefined;
   locale: "ru" | "en";
   includePracticeQuestion: boolean;
+  targetChakraNumber?: number;
 }): string {
-  const { visibleText, events, dayFocus, locale, includePracticeQuestion } = params;
+  const { visibleText, events, dayFocus, locale, includePracticeQuestion, targetChakraNumber } = params;
   const parts: string[] = [];
-  const focus = extractPlanningIntro(visibleText, dayFocus, events.length);
+  let focus = extractPlanningIntro(visibleText, dayFocus, events.length);
+  if (focus && typeof targetChakraNumber === "number") {
+    focus = prependChakraAttention(focus, targetChakraNumber, locale);
+  }
   if (focus) parts.push(focus);
   parts.push(buildPlanningActionsVisibleBlock(events, locale));
   if (includePracticeQuestion) {
@@ -387,8 +474,9 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     "- Until you emit [SUMMARIZE_EVENT] for the current event, your visible reply must discuss ONLY that event. Never ask about or mention another event in the same turn.",
     "- If you need a clarifying question, ask exactly ONE question about the current event only — no marker, no interpretation, no feedback, no other events.",
     "- Friendly debrief tone; you are NOT playing therapist on intermediate turns. Just find out what happened and how the person lived it.",
-    "- Ask one main question per event. If the event happened but the description is too thin to read the inner state, ask exactly ONE clarifying question that flows naturally from what the user just said — pick up their own words and gently invite a bit more. Never ask a clarifying question twice for the same event.",
-    "- Make the clarifying question thematic and right-sized for the action, NOT a fixed checklist. Do NOT keep asking the same generic \"это было про тело, настроение, мысли или отношения?\". Examples: for work — \"чем был наполнен этот процесс: вы были увлечены делом, больше держали фокус и точность, согласовывали что-то с людьми — или были трения и прорывы?\"; for rest / a walk / nature — ask how it ощущалось телесно и эмоционально; for a tiny or simple action (лечь пораньше, короткий звонок) keep it very light and do not interrogate. If it would feel forced to dig deeper, just close the event instead.",
+    "- Ask one main question per event. If the event happened but the description is too thin to read the inner state, ask exactly ONE clarifying question. Never ask a clarifying question twice for the same event.",
+    "- CRITICAL — the clarifying question must NOT paraphrase or echo back what the user just said. Two interlocutors do not retell each other's sentences. Do not open with \"Рабочие дела — это когда…\" or \"Вы сказали, что…\". Instead, move the thought forward: briefly note (in one short clause) that a little more detail helps capture the range of inner states for better future recommendations, then ask directly about the states, offering 2-3 concrete options that fit THIS action.",
+    "- Make the clarifying question thematic and right-sized for the action, NOT a fixed checklist. Do NOT use the generic \"это было про тело, настроение, мысли или отношения?\". Example (work): \"Чтобы точнее зафиксировать ваши состояния и потом давать полезные рекомендации — чем были наполнены эти дела: вы держали точность и ясность, согласовывали что-то с людьми, или были моменты внутреннего напряжения и прорыва?\". For rest / a walk / nature — ask how it felt in the body and mood. For a tiny or simple action (лечь пораньше, короткий звонок) keep it very light and do not interrogate; if digging deeper would feel forced, just close the event instead.",
     ctx.locale === "ru"
       ? "- Если после одного уточняющего вопроса ответа всё ещё недостаточно, закройте событие без outcome_cells — оно не попадёт в матрицу, но попытка сбора состояния была сделана."
       : "- If the answer is still too thin after your one clarifying question, close the event with empty outcome_cells — it will not affect the matrix, but the collection attempt still counts.",
@@ -406,6 +494,11 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     lines.push(
       "",
       "THIS TURN: open the debrief. Greet briefly and ask about the FIRST event below. Do not emit any marker yet.",
+      input.continuesToPlanning
+        ? (ctx.locale === "ru"
+          ? "- Since the day has no plans yet and planning will follow, make it clear in ONE short sentence that you are first looking back at the previously planned things before planning today — for example «Давайте начнём с того, что подытожим запланированные ранее дела.» Do NOT name any calendar date or use «вчера/сегодня»; just signal that this is a look-back."
+          : "- Since the day has no plans yet and planning will follow, make it clear in ONE short sentence that you are first looking back at the previously planned things before planning today (for example \"Let's start by looking back at what was planned earlier.\"). Do NOT name any calendar date.")
+        : "",
       input.currentEvent ? `Event to ask about: "${input.currentEvent.description}".` : "There is no concrete event; ask softly how the period went.",
     );
   } else {
@@ -508,6 +601,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
           `- Give a self-contained planning wrap-up: first one short paragraph with the overall day recommendation, then go action by action with a short, vivid recommendation for living each one today.`,
           `  The day recommendation is NOT a forecast — it invites the user to direct attention toward states and actions aligned with chakra ${ctx.targetChakraNumber} today, so they live less on autopilot and more in harmony with natural energies. Gently motivate: what to notice, why this shift helps growth/wholeness, what they may gain if they lean into it.`,
           "  The visible day-recommendation paragraph may be fuller than [CORRECT_RECOMMENDATION: short_text=\"...\"], but both must carry the same meaning. The marker short_text is for the Day tab header: keep it concise, complete and punctuated.",
+          "  Do NOT name the day's chakra number inside the day-recommendation text or short_text yourself — the app automatically prepends a short \"Внимание на N-ю чакру.\" prefix. Just write the recommendation itself.",
           chakraExpertLens(ctx.targetChakraNumber, ctx.locale),
         ].filter(Boolean).join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",

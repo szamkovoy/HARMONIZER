@@ -7,6 +7,8 @@ import {
   buildSummarizingPrompt,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
+  prependChakraAttention,
+  replaceSpontaneousEnglishRu,
   type BrainPromptContext,
 } from "./dialogBranchPrompts";
 
@@ -185,6 +187,53 @@ describe("buildPlanningFinalVisibleText", () => {
     expect(result).toContain("Вкусный ужин в ресторане");
     expect(result).toContain("Урок танцев");
     expect(result).not.toContain("высших смыслов");
+  });
+});
+
+describe("replaceSpontaneousEnglishRu", () => {
+  it("replaces stray English wellness words with Russian equivalents", () => {
+    expect(replaceSpontaneousEnglishRu("Пусть даже самый рутинный task коснётся смысла.")).toContain("задача");
+    expect(replaceSpontaneousEnglishRu("Пусть ответ quietly присутствует фоном.")).toContain("тихо");
+    expect(replaceSpontaneousEnglishRu("Пусть ответ quietly присутствует фоном.")).not.toMatch(/quietly/i);
+  });
+  it("preserves leading capitalization of the replaced word", () => {
+    expect(replaceSpontaneousEnglishRu("Flow дня важен.")).toBe("Поток дня важен.");
+  });
+  it("does not touch unknown Latin tokens (possible user terms)", () => {
+    expect(replaceSpontaneousEnglishRu("Сегодня пишу запросы на SQL.")).toBe("Сегодня пишу запросы на SQL.");
+  });
+});
+
+describe("prependChakraAttention", () => {
+  it("prepends a numeric chakra attention phrase in accusative", () => {
+    expect(prependChakraAttention("Заметьте большее за суетой.", 7, "ru")).toBe(
+      "Внимание на седьмую чакру. Заметьте большее за суетой.",
+    );
+  });
+  it("is idempotent when the phrase is already present", () => {
+    const once = prependChakraAttention("Заметьте большее.", 6, "ru");
+    expect(prependChakraAttention(once, 6, "ru")).toBe(once);
+  });
+  it("uses ordinals for the English locale", () => {
+    expect(prependChakraAttention("Notice the bigger picture.", 4, "en")).toBe(
+      "Attention on the fourth chakra. Notice the bigger picture.",
+    );
+  });
+});
+
+describe("buildPlanningFinalVisibleText with chakra prefix", () => {
+  it("adds the chakra attention phrase to the day-focus paragraph", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: "Сегодня держите ясность.\n\n1. Работа\nРекомендация: Видьте целое.",
+      dayFocus: "Сегодня держите ясность.",
+      locale: "ru",
+      includePracticeQuestion: false,
+      targetChakraNumber: 6,
+      events: [
+        { desc: "Работа", recommendation: "Видьте целое.", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+    expect(result.startsWith("Внимание на шестую чакру.")).toBe(true);
   });
 });
 
