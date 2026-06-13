@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.66
-updated: 2026-06-14
+version: 2.67
+updated: 2026-06-13
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-13: doc-sync pre-push — `assistant/spec.md` §PLANNING (gathering invite cap ~2×, shared-occasion event segmentation); `communicator/spec.md` (`onMessage` Day pre-warm); `daily_forecast/spec.md` (Home `router.push("/day")` до dismiss + planning-final prefetch).
 - 2026-06-14: `assistant`/`communicator` — QA planning из Home. Подтверждено: persistence действий + день-рекомендация + порядок чинятся деплоем (пост-деплой выгрузка корректна). Planning-промпт: мягкий **cap на «есть ли ещё что добавить?»** (максимум ~дважды, потом предлагать собрать план, без бесконечного чек-листа) + правило сегментации «один совместный выход = одно событие» (встретиться с кем-то, чтобы сделать что-то вместе). Home: закрытие диалога открывает «День» **мгновенно** (`router.push("/day")` до dismiss модалки, без ожидания `loadDayPlan` в `.finally`), а контент «Дня» **прогревается** во время финала planning через новый `onMessage`-хендлер (`loadDayPlan`→`storePrefetchedDayPlan`).
 - 2026-06-14: `assistant` — planning robustness fix (QA `текст-44D5-9EB7-27-0`): planned actions now persist **incrementally** (`persistPlanningFinalize` runs on every turn a `[PLANNED_EVENT]` appears, idempotent; prompt emits a light `[PLANNED_EVENT]` the moment an action is named), so the plan survives an interrupted dialog like summarizing does. Robust `finalizeIntent` (done-signal / visible numbered finalize / `[CORRECT_RECOMMENDATION]` / add-flow) drives `persistDayFocus` + FSM advance + close. New `extractDayFocusFromVisibleFinalize` salvages the day recommendation from visible text when the marker is missing (so the Day-tab header updates). New `planningFinalizedThisTurn` gate prevents incremental markers from turning a gathering ack into a premature finalize. Broadened `userSignalsPlanningDone` / practice-decline detectors. Fixes: actions not saved, missing day recommendation, dialog not closing (mic staying active) after practice decline.
 - 2026-06-13: doc-sync pre-push — `assistant/spec.md` aligned with FSM code (planning short_text=visible, add-flow/decline-planning, summary reflection without «Пo событиям», practice empty-text fallback, GET /api/day expires stale pending offers); `communicator/spec.md` (InteractionManager dismiss, health bootstrap, practiceToSummary duration); `daily_forecast/spec.md` + `astro/caching_strategy.md` (preserve dialog recommendation on forecast recompute; Day tab scroll stability).

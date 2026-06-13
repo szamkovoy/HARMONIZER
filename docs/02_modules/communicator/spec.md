@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.36
+version: 2.37
 updated: 2026-06-13
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -43,10 +43,10 @@ code_refs:
   - `conversationId?: string | null` — начальное значение; после ответа может обновиться из события `complete`.
   - `history?: CommunicatorHistoryMessage[]`, `memoryWindow?: number` — начальная история и ограничение числа последних пар для синхронизации/отображения (`sliceHistoryForWindow`).
   - `autoSendInitialMessage?: string` — один раз после локального восстановления/инициализации сессии отправляет текст как пользователя (см. ref-guard в коде).
-  - `onMessage?: (msg: CommunicatorHistoryMessage) => void`
-- `onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>` — срабатывает сразу при появлении assistant `practicePicked` в `complete` / hydration, ещё до нажатия пользователем `Начать`; внешняя поверхность может сохранить pending practice-card (например в `day_practice_offers`).
-- `onPracticePicked?: (practice: PracticePicked) => void | Promise<void>` — вызывается после успешного локального `launchPractice(...)` на следующий кадр; модальные поверхности используют его как side-effect закрытия оверлея/refresh без промежуточного flash вкладки под ним.
-- `onRequestClose?: () => void` — колбэк явного выхода из диалога; используется, когда финальный assistant-turn завершает разговор без карточки практики и UI показывает кнопку `Выйти из диалога` прямо под последним сообщением.
+  - `onMessage?: (msg: CommunicatorHistoryMessage) => void` — колбэк на каждый коммит сообщения в ленту. Home (`app/(tabs)/index.tsx`, `assistantMessageTriggersDayPrefetch`) использует его для **pre-warm** вкладки «День»: при assistant-ходе с `planningPersistence.inserted/updated/summarized`, `recommendationCorrected` или `turnMode=final_without_practice` запускается `loadDayPlan()` → `storePrefetchedDayPlan()` (зеркало `day.tsx` `handleAssistantMessage`), чтобы к закрытию диалога контент «Дня» уже был в памяти.
+  - `onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>` — срабатывает сразу при появлении assistant `practicePicked` в `complete` / hydration, ещё до нажатия пользователем `Начать`; внешняя поверхность может сохранить pending practice-card (например в `day_practice_offers`).
+  - `onPracticePicked?: (practice: PracticePicked) => void | Promise<void>` — вызывается после успешного локального `launchPractice(...)` на следующий кадр; модальные поверхности используют его как side-effect закрытия оверлея/refresh без промежуточного flash вкладки под ним.
+  - `onRequestClose?: () => void` — колбэк явного выхода из диалога; используется, когда финальный assistant-turn завершает разговор без карточки практики и UI показывает кнопку `Выйти из диалога` прямо под последним сообщением.
   - `onError`, `onAbort`, `onStateChange`, `onEmotionSegment` — см. `CommunicatorProps` в коде.
   - `locale`, `initialMode`, `mode` — локаль строк и политика VOICE/TXT (часть режимов завязана на флаг `COMMUNICATOR_TEXT_MODE_ENABLED` в `modules/ui/testMode`).
 - Локальной карточки практики в `communicator` больше нет: используется общий `**modules/practices/ui/PracticeCard.tsx**` через адаптацию `PracticePicked → PracticeSummary`.
