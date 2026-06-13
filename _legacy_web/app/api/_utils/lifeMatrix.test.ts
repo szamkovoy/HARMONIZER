@@ -49,7 +49,7 @@ describe("chooseTargetChakra", () => {
       chakraNumber: 6,
       reason: "matrix_filtered_by_strength",
     });
-    expect(result.explain).toMatch(/переразвит/i);
+    expect(result.explain).toMatch(/переразви/i);
     expect(result.explain).not.toContain("терцил");
   });
 

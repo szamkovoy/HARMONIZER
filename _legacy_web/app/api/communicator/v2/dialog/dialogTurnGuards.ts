@@ -198,13 +198,20 @@ export function extractPlanningMarkersFromVisibleFinalize(
   return markers;
 }
 
+/**
+ * Minimal, language-stable backstop only. The real "did the event happen?"
+ * judgment is delegated to the LLM: the summarizing prompt instructs it to
+ * close a non-event with [SUMMARIZE_EVENT … outcome_cells=""] and WITHOUT a
+ * clarifying question, in any wording and any language. We deliberately do NOT
+ * maintain verb/keyword/ending lists here — they were brittle, accumulated
+ * exceptions, and did not scale to the English version. This guard now catches
+ * only a bare "нет"/"no" reply (an unambiguous, universal non-occurrence) as a
+ * safety net; everything nuanced is the model's call.
+ */
 export function userSaysEventDidNotHappen(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  if (/^(?:нет|no)[.!?,]*$/i.test(normalized)) return true;
-  return /(?:не удал(?:ось|ась|о)?|не смог(?:л[аи])?|так и не\s|не получил(?:ось|ась)?|не случил(?:ось|ась)?|не состоял(?:ось|ась)?|не был[оа]?|не было|не происходил[оа]?|не прошл[оа]|не успел|не вышло|не сделал|не сделала|не делал|не делала|пропустил|пропустила|не делала? это|didn'?t happen|did not happen|didn'?t manage|did not manage|skipped it)/i.test(
-    normalized,
-  );
+  return /^(?:нет|no|нету|не)[.!?,…\s]*$/i.test(normalized);
 }
 
 /** Coarse domain of a planned-event label, used to tailor a clarifying question. */

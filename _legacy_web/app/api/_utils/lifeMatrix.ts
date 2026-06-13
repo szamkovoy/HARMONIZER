@@ -248,7 +248,7 @@ export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null
     return {
       chakraNumber: 7,
       reason: "astro_primary",
-      explain: "fallback: no ranked planets available",
+      explain: "Сегодня нет выраженно сильной планеты, поэтому фокус дня — седьмая чакра по умолчанию.",
     };
   }
 
@@ -257,7 +257,7 @@ export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null
     return {
       chakraNumber: first.chakra_number,
       reason: "astro_primary",
-      explain: `Матрица ещё не собрана, поэтому берём самое сильное направление дня: ${first.planet} -> чакра ${first.chakra_number}.`,
+      explain: `Это самое сильное направление дня по астрологии (${first.planet}). Карта состояний пользователя ещё накапливается (нужно не менее 7 прожитых и подытоженных действий), поэтому рекомендация опирается просто на сильнейшую энергию дня.`,
     };
   }
 
@@ -268,34 +268,30 @@ export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null
     return {
       chakraNumber: first.chakra_number,
       reason: "astro_primary",
-      explain: `Матрица пустая, поэтому берём самое сильное направление дня: ${first.planet} -> чакра ${first.chakra_number}.`,
+      explain: `Это самое сильное направление дня по астрологии (${first.planet}). Карта состояний пользователя пока пуста, поэтому рекомендация опирается просто на сильнейшую энергию дня.`,
     };
   }
 
   const proportions = masses.map((value) => value / total);
   const overdevThreshold = getLifeMatrixOverdevThreshold();
-  const equilibriumShare = 1 / LIFE_MATRIX_SIZE;
   const overdevelopedInTop3 = top3
     .filter((candidate) => (proportions[candidate.chakra_number - 1] ?? 0) > overdevThreshold)
-    .map((candidate) => `ч${candidate.chakra_number} (${(proportions[candidate.chakra_number - 1] ?? 0).toFixed(3)})`);
-  const top3Summary = top3
-    .map((candidate) => `${candidate.planet} -> ч${candidate.chakra_number}`)
-    .join(", ");
+    .map((candidate) => `чакра ${candidate.chakra_number}`);
 
   for (const candidate of top3) {
     const proportion = proportions[candidate.chakra_number - 1] ?? 0;
     if (proportion <= overdevThreshold) {
       const overdevNote =
         overdevelopedInTop3.length > 0
-          ? ` Переразвиты относительно равновесия (${equilibriumShare.toFixed(4)}): ${overdevelopedInTop3.join(", ")}.`
-          : " Среди top-3 перекоса относительно равновесия нет.";
+          ? ` Из сильных направлений дня пользователь уже переразвил (живёт там чаще равновесия): ${overdevelopedInTop3.join(", ")}.`
+          : " Среди сильных направлений дня перекоса относительно равновесия нет.";
       return {
         chakraNumber: candidate.chakra_number,
         reason: "matrix_filtered_by_strength",
         explain:
-          `Сильнейшие направления дня: ${top3Summary}.` +
+          `Это одно из самых сильных направлений дня (${candidate.planet}, чакра ${candidate.chakra_number}), и при этом пользователь ещё НЕ переразвил это состояние — живёт в нём не чаще равновесия.` +
           overdevNote +
-          ` Выбрано первое непереразвитое по силе — ${candidate.planet} (чакра ${candidate.chakra_number}, доля ${proportion.toFixed(3)}, порог перекоса ${overdevThreshold.toFixed(4)} при равновесии ${equilibriumShare.toFixed(4)}).`,
+          ` Поэтому именно здесь у него сегодня больше всего возможностей выйти за рамки привычного и расширить диапазон своих состояний.`,
       };
     }
   }
@@ -305,8 +301,8 @@ export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null
     chakraNumber: first.chakra_number,
     reason: "astro_primary_all_overdeveloped",
     explain:
-      `Сильнейшие направления дня: ${top3Summary}. Все три уже переразвиты относительно равновесия (${equilibriumShare.toFixed(4)}): ` +
-      `${overdevelopedInTop3.join(", ")}. Остаёмся на сильнейшей планете дня ${first.planet} -> чакра ${first.chakra_number}.`,
+      `Сильнейшие направления дня — ${overdevelopedInTop3.join(", ")}. Все три уже переразвиты относительно равновесия (пользователь и так живёт в этих состояниях чаще обычного), ` +
+      `поэтому опираемся на сильнейшую планету дня — ${first.planet} (чакра ${first.chakra_number}).`,
   };
 }
 

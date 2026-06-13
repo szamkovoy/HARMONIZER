@@ -95,10 +95,17 @@ describe("dialogTurnGuards", () => {
     expect(next.planningFinalized).toBe(false);
   });
 
-  it("treats 'не удалось' style answers as the event not happening", () => {
-    expect(userSaysEventDidNotHappen("Нет, к сожалению, не удалось лечь пораньше. Лёг почти в 2 ночи.")).toBe(true);
-    expect(userSaysEventDidNotHappen("Так и не смог выбраться на прогулку.")).toBe(true);
-    expect(userSaysEventDidNotHappen("Так и не дошёл до зала.")).toBe(true);
+  it("is a minimal bare-no backstop; nuanced non-occurrence is delegated to the LLM", () => {
+    // Unambiguous, language-stable bare negations are still caught deterministically.
+    expect(userSaysEventDidNotHappen("Нет")).toBe(true);
+    expect(userSaysEventDidNotHappen("Нет.")).toBe(true);
+    expect(userSaysEventDidNotHappen("no")).toBe(true);
+    expect(userSaysEventDidNotHappen("Не.")).toBe(true);
+    // Everything nuanced is now the model's call (prompt-driven), NOT a regex:
+    // these intentionally return false here — the LLM closes them via the marker.
+    expect(userSaysEventDidNotHappen("Книгу даже не читал, не до того было.")).toBe(false);
+    expect(userSaysEventDidNotHappen("Так и не дошёл до зала.")).toBe(false);
+    expect(userSaysEventDidNotHappen("Нет, к сожалению, не удалось лечь пораньше.")).toBe(false);
     // A clearly-happened answer is not treated as a no-show.
     expect(userSaysEventDidNotHappen("Поработал продуктивно, удалось закрыть задачу.")).toBe(false);
   });
@@ -112,7 +119,9 @@ describe("dialogTurnGuards", () => {
     expect(userAnswerIsThinForSummary(
       "Ужин в кафе прошел замечательно, с друзьями покушали, пообщались, давно не виделись, поэтому все очень даже хорошо.",
     )).toBe(false);
-    expect(userSaysEventDidNotHappen("Нет, медитации не было.")).toBe(true);
+    // "Нет, медитации не было." carries extra content → now delegated to the LLM
+    // (no longer caught by the minimal bare-no backstop).
+    expect(userSaysEventDidNotHappen("Нет, медитации не было.")).toBe(false);
     expect(userSaysEventDidNotHappen("Нет")).toBe(true);
     expect(userSaysEventDidNotHappen("no")).toBe(true);
     expect(userAnswerIsThinForSummary("Нет")).toBe(false);

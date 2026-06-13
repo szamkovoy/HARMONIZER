@@ -35,6 +35,7 @@ export type BrainPromptContext = {
   targetChakraNumber: number;
   targetChakraLabel: string;
   targetChakraAccusative: string;
+  targetChakraGenitive: string;
   targetChakraExplain: string;
   harmonicStates: string[];
   dissonantStates: string[];
@@ -457,10 +458,11 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     "",
     "DAY CONTEXT (data, do not read aloud verbatim):",
     `- Date: ${ctx.dayOfWeek}, ${ctx.dateLabel}; time of day: ${ctx.timeOfDay}; day phase: ${ctx.phaseTime}.`,
-    `- Day target chakra: number ${ctx.targetChakraNumber} (${ctx.targetChakraLabel}). Why: ${ctx.targetChakraExplain}`,
-    `- Planet of the day: ${ctx.planetOfDay}.`,
-    `- Harmonic states of this chakra (use as the "wave" to live in): ${ctx.harmonicStates.slice(0, 12).join(", ")}.`,
-    `- Dissonant states to gently avoid: ${ctx.dissonantStates.slice(0, 10).join(", ")}.`,
+    `- Today's focus chakra: number ${ctx.targetChakraNumber} (${ctx.targetChakraLabel}).`,
+    `- Why this chakra is today's focus (rationale for you, do not read aloud verbatim): ${ctx.targetChakraExplain}`,
+    `- Planet of the day (sets the conversational tone/register; may differ from the focus chakra): ${ctx.planetOfDay}.`,
+    `- Harmonic states of this chakra (use to recommend the "wave" to live in): ${ctx.harmonicStates.slice(0, 12).join(", ")}.`,
+    `- Dissonant states of this chakra (to gently recommend to avoid): ${ctx.dissonantStates.slice(0, 10).join(", ")}.`,
     "",
     "CHAKRA NAMING RULE: never use Sanskrit chakra names. Refer to chakras only by ordinal number / the provided label.",
     "LIFE SPHERES (for sphere tagging, 1..7):",
@@ -493,7 +495,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     ctx.locale === "ru"
       ? "- Если после одного уточняющего вопроса ответа всё ещё недостаточно, закройте событие без outcome_cells — оно не попадёт в матрицу, но попытка сбора состояния была сделана."
       : "- If the answer is still too thin after your one clarifying question, close the event with empty outcome_cells — it will not affect the matrix, but the collection attempt still counts.",
-    "- If the user clearly says the event did not happen, close it WITHOUT outcome_cells and without inventing any state.",
+    "- DECIDE FOR YOURSELF whether the event happened, from the meaning of the user's reply (in any wording / any language). If the user indicates it did NOT happen / they did not do it (e.g. «не читал», «не успел», «не до того было», «не получилось», «не ходил», «didn't get to it»…), then it simply did not take place: do NOT ask ANY clarifying question about states, and do NOT try to read an inner state. Briefly acknowledge it warmly (one short, human line of sympathy/support), and CLOSE the event this turn by emitting [SUMMARIZE_EVENT: ref=\"…\" outcome=\"short factual outcome, e.g. did not happen\" outcome_cells=\"\"] (empty cells). Then move to the next event, or to the final message if this was the last one. NEVER ask «что это в вас затронуло» about an action that did not occur. This judgment is YOURS to make — the server does not detect it for you.",
     "- On intermediate turns do NOT give feedback, advice, interpretations or per-event mini-summaries. Collect facts and the way it was lived; all feedback belongs to the final message.",
     "- Do not repeat the same event description back more than once. Do not re-list already summarized events.",
     "- For outcome_cells, prefer the LITERAL domain of the event and the lived state the user actually described, not a distant symbolic interpretation.",
@@ -529,13 +531,18 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
       lines.push(
         "3) This was the LAST event. After the marker, write a self-contained FINAL day summary (here you MAY take the psychologist role):",
         `   - Write it as ONE cohesive, warm, psychological reflection (1-2 short paragraphs) on how the period was lived in the energy of chakra ${ctx.targetChakraNumber}: what went well, where the old pattern held, and an insight the user can take about themselves.`,
+        chakraExpertLens(ctx.targetChakraNumber, ctx.locale, "summarizing"),
         "   - Weave the events naturally into that reflection. Do NOT produce a labeled per-event recap list (never write a \"По событиям\"/\"By events\" section), do NOT restate each outcome bullet by bullet — that just repeats what was already said in the dialog.",
         input.completedEarlierEvents.length > 0
           ? `   - For your own context, the events closed in this flow were: ${input.completedEarlierEvents.map((event) => `"${event.description}"`).join(", ")}. Reflect on the whole arc, not item by item.`
           : "",
         "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, calories or workouts.",
-        "   - Phrase practices in natural, flowing Russian, not a dry report. Instead of \"медитации были — три практики, в сумме 5 минут\", write something like \"в течение дня вы выполнили три коротких медитации\". If the total practice time is clearly low or below the average shown, add ONE warm, encouraging nudge to give a bit more attention to practice — never scold.",
-        "   - If health numbers are listed below, you MUST cite at least ONE concrete number inline (for example exact steps, sleep duration, or workout minutes) so the reflection reads as real analytics, not a guess. Do not replace the number with vague words like \"немного\" alone — pair the impression with the figure (for example \"шагов набралось немного — всего 1240\"). Mention only one or two metrics, keep it light. If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
+        input.practicesContext
+          ? "   - Phrase practices in natural, flowing Russian, not a dry report. Instead of \"медитации были — три практики, в сумме 5 минут\", write something like \"в течение дня вы выполнили три коротких медитации\". If the total practice time is clearly low or below the average shown, add ONE warm, encouraging nudge to give a bit more attention to practice — never scold."
+          : (ctx.locale === "ru"
+            ? "   - В этот день практик йоги не было. Мягко, без упрёка и в том же тёплом стиле, добавь ОДНУ фразу-приглашение к практике: своими словами объясни, что практики йоги в приложении мощно поддерживают те психологические изменения, к которым человек идёт, и одновременно оздоравливают тело и поддерживают жизненный тонус. Это мотивирующее приглашение, а НЕ отчёт о здоровье — его можно дать, даже если данных Health нет. Не своди это к общей физкультуре, прогулке или зарядке — речь именно о практиках йоги/медитации из приложения. Каждый раз формулируй по-новому."
+            : "   - There were no yoga practices on this day. Gently, without reproach and in the same warm style, add ONE inviting line toward practice: explain in your own words that the app's yoga practices powerfully support the psychological changes the person is moving toward, and at the same time restore the body and sustain vitality. This is a motivating invitation, NOT a health report — it may be given even with no Health data. Do not reduce it to generic exercise, a walk or a workout — it is specifically about the app's yoga/meditation practices. Word it freshly each time."),
+        "   - If health numbers are listed below, you MUST cite at least ONE concrete number inline (for example exact steps, sleep duration, or workout minutes) so the reflection reads as real analytics, not a guess. Do not replace the number with vague words like \"немного\" alone — pair the impression with the figure (for example \"вы прошли всего 1240 шагов\"). Mention only one or two metrics, keep it light. If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
         "   - Keep the wording grounded and direct; no mystical or poetic flourishes.",
         "   - Do NOT name calendar dates or use day words (no «вчера»/«сегодня»/«вчерашний»/«yesterday»/«today»); refer to the period only as «этот день» / «прожитый день» / «the day».",
         input.practicesContext ? `   Yoga practices context:\n${input.practicesContext}` : "",
@@ -558,14 +565,16 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
 }
 
 /**
- * Optional "background voice" for the PLANNING final only: the sensibility of a
- * few thinkers associated with the day's target chakra. It gives the day-focus
- * reflection more depth and day-to-day variety. The experts are NEVER named or
- * quoted in the visible text — only their worldview quietly informs the
- * assistant's own warm voice. The per-planet tonal register (tone/lexicon) is
- * unchanged; this only adds depth of meaning to the closing reflection.
+ * Optional "background voice" for the PLANNING final and the SUMMARIZING final:
+ * the sensibility of a few thinkers associated with the day's target chakra. It
+ * gives the closing reflection more depth and day-to-day variety. The experts are
+ * NEVER named or quoted in the visible text — only their worldview quietly informs
+ * the assistant's own warm voice. The per-planet tonal register (tone/lexicon) is
+ * unchanged; this only adds depth of meaning to the closing reflection. In the
+ * summarizing branch the chakra is the SUMMARIZED day's chakra, so its thinkers may
+ * differ from a planning day — that is intentional and not a conflict.
  */
-function chakraExpertLens(chakraNumber: number, locale: "ru" | "en"): string {
+function chakraExpertLens(chakraNumber: number, locale: "ru" | "en", variant: "planning" | "summarizing" = "planning"): string {
   const experts: Record<number, string> = {
     1: "Andrew Huberman, Hans Selye",
     2: "Epicurus, Esther Perel",
@@ -577,8 +586,13 @@ function chakraExpertLens(chakraNumber: number, locale: "ru" | "en"): string {
   };
   const names = experts[chakraNumber];
   if (!names) return "";
+  if (variant === "summarizing") {
+    return locale === "ru"
+      ? `   - Глубинная оптика рефлексии: пусть итоговое осмысление прожитого дня будет написано так, будто его мировосприятие подсказано чувствительностью таких мыслителей, как ${names} — их взглядом на смысл и человеческую глубину. Но напиши всё целиком СВОИМ тёплым голосом от лица приложения; НИКОГДА не называй эти имена, не цитируй их и не упоминай, что опираешься на кого-то.`
+      : `   - Depth lens for the reflection: let the closing reflection read as if quietly informed by the sensibility of thinkers like ${names} — their view of meaning and human depth. But write it entirely in YOUR OWN warm voice as the app; NEVER name or quote them or hint that you lean on anyone.`;
+  }
   return locale === "ru"
-    ? `- Глубинная оптика финала (ТОЛЬКО для общего абзаца дня, не для списка действий): пусть он звучит так, будто его мировосприятие подсказано чувствительностью таких мыслителей, как ${names} — их взглядом на смысл и человеческую глубину. Но напиши всё целиком СВОИМ тёплым голосом от лица приложения; НИКОГДА не называй эти имена, не цитируй их и не упоминай, что опираешься на кого-то.`
+    ? `- Глубинная оптика финала (ТОЛЬКО для общего абзаца дня, не для списка действий): пусть он будет написан так, будто его мировосприятие подсказано чувствительностью таких мыслителей, как ${names} — их взглядом на смысл и человеческую глубину. Но напиши всё целиком СВОИМ тёплым голосом от лица приложения; НИКОГДА не называй эти имена, не цитируй их и не упоминай, что опираешься на кого-то.`
     : `- Depth lens for the final (ONLY the overall day-focus paragraph, not the action list): let it read as if quietly informed by the sensibility of thinkers like ${names} — their view of meaning and human depth. But write it entirely in YOUR OWN warm voice as the app; NEVER name or quote them or hint that you lean on anyone.`;
 }
 
@@ -591,8 +605,8 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     "Rules:",
     `- Planning is for the CURRENT local day from DAY CONTEXT above (${ctx.dateLabel}). Call it "today"/"сегодня". Never call it tomorrow unless the user explicitly asks to plan tomorrow.`,
     "- Collect only the actions/events themselves. Do NOT ask for times, do NOT ask in what state they want to live the event, do NOT ask for technical details, do NOT psychologize.",
-    "- Keep focus on 1-3 important things. If the user already named 2-3, do not fish for more.",
-    "- Two independent actions in one phrase (\"take a walk and go to bed earlier\") = two events. A goal + its means (\"buy a boat to sail\") = one event.",
+    "- Keep focus on a FEW important things (about 1-3). If the user already named 2-3, do not fish for more — do not pad the plan with extra suggestions.",
+    "- When you split the user's plan into separate [PLANNED_EVENT] cards, segment it correctly: two independent actions named in one phrase («погулять и лечь пораньше») are TWO separate events; a goal together with the means of reaching it («купить лодку, чтобы плавать») is ONE event.",
     "- Preserve the user's mention order. Do not reorder actions by importance or by time.",
     "- Do not ask about morning / afternoon / evening, and do not ask which state the user wants to feel.",
   ];
@@ -613,8 +627,11 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
       ? "- Give a short, warm confirmation of the added action(s) in the energy of the day's target chakra."
       : [
           `- Give a self-contained planning wrap-up: first ONE day-recommendation paragraph, then go action by action with a short, vivid recommendation for living each one today.`,
-          `  Begin the day-recommendation paragraph by naming the day's chakra BY NUMBER in plain words (${ctx.locale === "ru" ? `например «${ctx.targetChakraLabel}»` : `e.g. "the ${ctx.targetChakraNumber}th chakra"`}). Then, in one flowing paragraph, say which inner states to lean into and hold today and why living in them makes the person more whole, harmonious and healthier. It is an invitation to direct attention (NOT a forecast): what to notice, why this shift helps growth/wholeness, what they may gain. Do not psychologize abstractly — make it concrete and warm.`,
-          "  Keep this paragraph compact — about 180–300 characters. The visible day-recommendation paragraph and [CORRECT_RECOMMENDATION: short_text=\"...\"] MUST be the SAME text word for word (the Day tab shows it verbatim): write it once, then copy it into short_text. Keep it complete and punctuated.",
+          `  Name the day's chakra BY NUMBER, but phrase it in natural, living ${ctx.locale === "ru" ? "Russian" : "English"} — as a living recommendation, never as a flat label. ${ctx.locale === "ru"
+            ? `Пиши как живую рекомендацию, например: «Сегодня направьте внимание на ${ctx.targetChakraAccusative}…», «Сегодня наибольшим потенциалом обладает ${ctx.targetChakraLabel}…», «В этот день именно ${ctx.targetChakraLabel} открывает наибольшие возможности для вашего развития…», «Чтобы максимально использовать потенциал этого дня, действуйте в потоке ${ctx.targetChakraGenitive}…» и тому подобное. Меняй фразы на подобные. Чакра может раскрываться, проявляться, выходить на первый план, просить внимания, предлагать возможности и так далее. Описывай, чем это может быть особенно полезно, почему для расширения диапазона психологических состояний важно в этот день действовать не шаблонно, а на волне этой чакры, какие возможности даёт эта чакра для саморазвития. Перечисленные фразы — это лишь иллюстрации духа рекомендации, а НЕ шаблоны: НЕ копируй их дословно, каждый раз сочиняй своё начало, меняя и глагол, и структуру предложения, и не начинай рекомендацию каждый раз со слова «Сегодня».`
+            : `Write it as a living recommendation, e.g.: "Today, turn your attention to the ${ctx.targetChakraNumber}th chakra…", "Today the ${ctx.targetChakraNumber}th chakra holds the greatest potential…", "Today it is the ${ctx.targetChakraNumber}th chakra that opens the widest opportunities for your growth…", "To make the most of today, act in the flow of the ${ctx.targetChakraNumber}th chakra…", and the like. Vary the phrasing similarly. The chakra can open up, reveal itself, come to the foreground, ask for attention, offer opportunities, and so on. Describe how this can be especially useful, why — in order to widen the range of psychological states — it matters today to act not on autopilot but on the wave of this chakra, and what opportunities this chakra offers for self-development. The phrases above are illustrations of the spirit only, NOT templates: do NOT copy them verbatim — compose a fresh opening every time, varying both the verb and the sentence structure, and do not begin the recommendation with "Today" every time.`}`,
+          `  This is the core of the app: each day opens a UNIQUE, non-repeating chance to live differently and grow. Don't just state a fact — gently stir motivation and a little emotion: why leaning into these states matters TODAY, what the user gains, how it moves them toward becoming more whole, harmonious and healthier. Keep it warm and human, not abstract.`,
+          "  Keep this paragraph compact — about 150–230 characters. The visible day-recommendation paragraph and [CORRECT_RECOMMENDATION: short_text=\"...\"] MUST be the SAME text word for word (the Day tab shows it verbatim): write it once, then copy it into short_text. Keep it complete and punctuated.",
           chakraExpertLens(ctx.targetChakraNumber, ctx.locale),
         ].filter(Boolean).join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",
@@ -651,7 +668,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
         ? "THIS TURN: the user is adding action(s) from the Day tab — help them name the action(s); do not greet."
         : "THIS TURN: open the planning — warmly ask what is ahead today.")
       : input.userSignaledDone
-        ? "THIS TURN: the user signaled they are done naming actions — FINALIZE NOW. You MUST emit [PLANNED_EVENT] for every action and [CORRECT_RECOMMENDATION] (unless add-flow). Without these markers the server cannot save the plan."
+        ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)"
         : input.planningLocked
           ? "THIS TURN: the user is answering the practice-offer question from planning finalize — this is NOT planning. Do not emit planning markers."
           : "THIS TURN: continue from the conversation above; gather or finalize as the rules describe.",

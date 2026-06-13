@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
-import { chakraLabelAccusativeRu, chakraLabelRu } from "@/modules/chakra/labels";
+import { chakraLabelAccusativeRu, chakraLabelGenitiveRu, chakraLabelRu } from "@/modules/chakra/labels";
 import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
 import { tonalRegisterForPlanet } from "@legacy/app/api/_utils/dialogTonalRegisters";
 import { formatLifeSpheresBaselineForPrompt } from "@legacy/app/api/_utils/lifeSpheresBaseline";
@@ -201,6 +201,7 @@ function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: strin
     targetChakraNumber: targetChakra,
     targetChakraLabel: chakraLabelRu(targetChakra),
     targetChakraAccusative: chakraLabelAccusativeRu(targetChakra),
+    targetChakraGenitive: chakraLabelGenitiveRu(targetChakra),
     targetChakraExplain: context.targetChakra.explain,
     harmonicStates: states.harmonic,
     dissonantStates: states.dissonant,
@@ -1373,7 +1374,12 @@ export async function POST(req: Request) {
             const remainingAfterCurrent = currentEvent
               ? due.filter((event) => event.id !== currentEvent.id).length
               : due.length;
-            if (!isOpening && currentEvent && userSaysEventDidNotHappen(userMessage)) {
+            if (
+              !isOpening
+              && currentEvent
+              && summaryAskedCount(fsmAtTurnStart, currentEvent.id) < 1
+              && userSaysEventDidNotHappen(userMessage)
+            ) {
               const summarizedItem = await persistSummarizedEvent({
                 db: routeDb,
                 userId: routeUserId,

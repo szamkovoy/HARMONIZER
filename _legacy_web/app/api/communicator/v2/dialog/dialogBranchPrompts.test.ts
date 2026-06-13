@@ -24,6 +24,7 @@ const brainCtx: BrainPromptContext = {
   targetChakraNumber: 4,
   targetChakraLabel: "4",
   targetChakraAccusative: "4",
+  targetChakraGenitive: "4",
   targetChakraExplain: "heart",
   harmonicStates: ["warmth"],
   dissonantStates: ["cold"],
@@ -83,12 +84,12 @@ describe("buildPlanningPrompt", () => {
       userSignaledDone: true,
       planningLocked: false,
     });
-    expect(userInstruction).toMatch(/NOT a forecast/i);
+    expect(userInstruction).toMatch(/as a living recommendation/i);
     // Visible day-recommendation paragraph and short_text must be the SAME text.
     expect(userInstruction).toMatch(/MUST be the SAME text/i);
     // The model itself names the chakra by number, and keeps the paragraph compact.
-    expect(userInstruction).toMatch(/naming the day's chakra BY NUMBER/i);
-    expect(userInstruction).toMatch(/180[–-]300 characters/i);
+    expect(userInstruction).toMatch(/Name the day's chakra BY NUMBER/i);
+    expect(userInstruction).toMatch(/150[–-]230 characters/i);
     expect(userInstruction).toMatch(/polite suggestions/i);
   });
 
