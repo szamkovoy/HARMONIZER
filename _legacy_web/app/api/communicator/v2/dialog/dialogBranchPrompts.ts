@@ -283,6 +283,34 @@ function introHasWrongActionCount(text: string, eventCount: number): boolean {
   return Object.entries(countWords).some(([count, pattern]) => Number(count) !== eventCount && pattern.test(normalized));
 }
 
+/**
+ * Salvage the day-recommendation paragraph from a visible planning finalize when
+ * the model forgot the [CORRECT_RECOMMENDATION] marker. Picks the single most
+ * recommendation-like paragraph that appears before the numbered action list
+ * (skipping short acks, questions, the action items, and practice mentions).
+ * Returns "" if nothing usable was found.
+ */
+export function extractDayFocusFromVisibleFinalize(visibleText: string, eventCount: number): string {
+  const listStart = visibleText.search(/\n\s*\d+\.\s/m);
+  const beforeList = listStart >= 0 ? visibleText.slice(0, listStart) : visibleText;
+  const candidates = beforeList
+    .split(/\n\n+/)
+    .map((part) => part.trim())
+    .filter((part) =>
+      part
+      && !/[?？]/.test(part)
+      && !introHasWrongActionCount(part, eventCount)
+      && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
+      && !/\[(?:PLANNED_EVENT|CORRECT_RECOMMENDATION|PRACTICE_PICK)\b/i.test(part)
+      && !/(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
+    );
+  if (candidates.length === 0) return "";
+  // Prefer the longest qualifying paragraph (the recommendation), which lets short
+  // lead-in acks like "Договорились. Тогда подведу итог." fall away.
+  const best = candidates.reduce((a, b) => (b.length > a.length ? b : a));
+  return best.length >= 80 ? ensureSentencePunctuation(best).trim() : "";
+}
+
 function extractPlanningIntro(visibleText: string, fallbackFocus: string | null | undefined, eventCount: number): string {
   // The canonical day recommendation is the [CORRECT_RECOMMENDATION] short_text
   // (this is what the Day tab header stores). Prefer it verbatim so the visible
@@ -619,7 +647,8 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
 
   lines.push(
     "",
-    "WHILE GATHERING (user is still naming things): reply briefly and conversationally, optionally ask if there is anything else important today. Do NOT emit any PLANNED_EVENT or CORRECT_RECOMMENDATION marker yet.",
+    "WHILE GATHERING (user is still naming things): keep the VISIBLE reply short and conversational, and optionally ask if there is anything else important today.",
+    "- INCREMENTAL SAVE (important): the moment the user names a concrete action, emit an invisible [PLANNED_EVENT] marker for THAT action ON THE SAME TURN, so it is saved immediately even if the dialog is interrupted before the finalize. While gathering use the light form: [PLANNED_EVENT: desc=\"short action name, <=40 chars\" display_order=\"1\" spheres=\"1:0.6;4:0.4\"] — one marker per newly named action, in mention order; you MAY omit recommendation while gathering (it is added at the finalize). Do NOT re-emit an action you already marked on an earlier turn, and do NOT emit [CORRECT_RECOMMENDATION] while gathering — the overall day focus belongs only to the finalize turn.",
     "- If you propose an example of something they might add, only suggest actions substantial enough to look back on later — something that takes at least a few minutes and leaves a felt inner trace (e.g. read a book, write a letter, take a walk, a real conversation, reflect on a question). NEVER suggest micro-gestures that are over in seconds (jot down one thought, read a couple of lines, one stretch): such actions are not meaningful to summarize into states.",
     "",
     "FINALIZE the planning ONLY when the user signals they are done (or you already have 2-3 clear actions and they add nothing new). On the finalize turn:",

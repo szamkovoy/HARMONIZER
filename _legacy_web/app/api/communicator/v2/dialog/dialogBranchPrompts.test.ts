@@ -5,6 +5,7 @@ import {
   buildPlanningPrompt,
   buildPlanningFinalVisibleText,
   buildSummarizingPrompt,
+  extractDayFocusFromVisibleFinalize,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
   prependChakraAttention,
@@ -54,6 +55,31 @@ describe("buildSummarizingPrompt", () => {
     expect(userInstruction).not.toMatch(/9 июня/i);
     expect(userInstruction).toMatch(/ONLY that event/i);
     expect(userInstruction).toMatch(/exactly one question about the NEXT event/i);
+  });
+});
+
+describe("extractDayFocusFromVisibleFinalize", () => {
+  it("salvages the day recommendation paragraph before the numbered list", () => {
+    const text = [
+      "Договорились. Тогда подведу итог вашему дню.",
+      "",
+      "Сегодня наибольшим потенциалом обладает седьмая чакра: именно сейчас стоит действовать не по привычке, а из состояния тихого доверия к большему, и тогда даже бытовые дела раскроют новый смысл.",
+      "",
+      "1. Выбрать саженцы яблони",
+      "Рекомендация: выбирайте неспешно.",
+      "",
+      "2. Почитать книгу перед сном",
+      "Рекомендация: читайте без спешки.",
+    ].join("\n");
+    const result = extractDayFocusFromVisibleFinalize(text, 2);
+    expect(result).toContain("седьмая чакра");
+    expect(result).not.toContain("Выбрать саженцы");
+    expect(result).not.toMatch(/Договорились/);
+  });
+
+  it("returns empty string when there is no substantial recommendation", () => {
+    const text = ["Хорошо. Что-то ещё важное на сегодня?"].join("\n");
+    expect(extractDayFocusFromVisibleFinalize(text, 1)).toBe("");
   });
 });
 

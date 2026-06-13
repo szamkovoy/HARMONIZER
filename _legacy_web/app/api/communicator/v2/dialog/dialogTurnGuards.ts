@@ -34,7 +34,11 @@ export function historyHasPracticePicked(history: MessageRecord[]): boolean {
 export function userSignalsPlanningDone(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  return /(?:достаточно|хватит|всё|все|это всё|это все|больше ничего|на сегодня всё|на сегодня все|that's enough|that is enough|enough for today|nothing else|i'm done|i am done)/i.test(
+  // Bare negation as a standalone reply ("нет", "no", "не, всё") = done adding.
+  if (/^(?:нет|не|no|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/i.test(normalized)) {
+    return true;
+  }
+  return /(?:достаточно|хватит|всё|все|это всё|это все|больше ничего|ничего больше|ничего (?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше не\s+(?:надо|нужно|хочу)|на сегодня всё|на сегодня все|that's enough|that is enough|enough for today|nothing else|nothing more|that's all|that is all|i'm done|i am done)/i.test(
     normalized,
   );
 }
@@ -62,7 +66,7 @@ export function filterPracticeLikePlannedEvents(markers: PlannedEventMarker[]): 
 }
 
 export function userDeclinesPracticeOffer(text: string): boolean {
-  return /(?:не надо|не хочу|без практик|не буду|пропуст|потом|позже|не сейчас|обойдёмся|обойдемся|skip|no practice|not now|maybe later|without a practice|without practice)/i.test(
+  return /(?:не надо|не хочу|не предлаг|без практик|не буду|пропуст|потом|позже|не сейчас|обойдёмся|обойдемся|skip|no practice|not now|maybe later|without a practice|without practice|don'?t (?:offer|suggest))/i.test(
     text,
   );
 }

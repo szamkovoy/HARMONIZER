@@ -62,6 +62,7 @@ import {
   buildPlanningDeclinedReply,
   buildPlanningFinalVisibleText,
   buildPracticeClarificationFallback,
+  extractDayFocusFromVisibleFinalize,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
   ensureSentencePunctuation,
@@ -319,7 +320,7 @@ function formatPracticesForPrompt(value: unknown): string {
 }
 
 function userDeclinesPractice(text: string): boolean {
-  return /\b(не\s*надо|не\s*хочу|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later)\b/i.test(text);
+  return /\b(не\s*надо|не\s*хочу|не\s*предлаг\w*|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later|don'?t\s*(?:offer|suggest))\b/i.test(text);
 }
 
 /**
@@ -1226,6 +1227,10 @@ export async function POST(req: Request) {
           let summaryClarifyingDeferred = false;
           let practicePicked: Record<string, unknown> | null = null;
           let recommendationCorrected: Record<string, unknown> | null = null;
+          // True only on the turn planning actually finalizes. With incremental
+          // persistence, PLANNED_EVENT markers also appear on gathering turns, so the
+          // finalize-only visible assembly below must NOT key off "markers present".
+          let planningFinalizedThisTurn = false;
           let turnMatrixCells: MatrixCell[] | undefined;
           let turnRelatedEventIds: string[] | undefined;
           let forcedVisibleText: string | null = null;
@@ -1239,26 +1244,36 @@ export async function POST(req: Request) {
           if (branchForTurn === "planning") {
             const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
             let plannedMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
-            if (
-              plannedMarkers.length === 0
-              && userSignalsPlanningDone(userMessage)
-              && !fsmAtTurnStart.planningFinalized
-            ) {
-              const salvaged = extractPlanningMarkersFromVisibleFinalize(
+            // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
+            // model finalized this turn even if it forgot the invisible markers or
+            // the deterministic done-detector missed the user's phrasing.
+            const salvagedFromVisible = filterPracticeLikePlannedEvents(
+              extractPlanningMarkersFromVisibleFinalize(
                 stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
                 locale,
+              ),
+            );
+            const finalizeIntent =
+              !fsmAtTurnStart.planningFinalized
+              && (
+                userSignalsPlanningDone(userMessage)
+                || salvagedFromVisible.length > 0
+                || Boolean(markers.recommendationCorrection?.short_text)
+                // Add flow (from the Day tab) is a one-shot add: finalize as soon as
+                // an action is named, since there is no gather/finalize back-and-forth.
+                || (tabMode === "add" && plannedMarkers.length > 0)
               );
-              if (salvaged.length > 0) {
-                plannedMarkers = salvaged;
-                console.warn(
-                  "[DIALOG_FSM] Salvaged planning markers from visible finalize",
-                  JSON.stringify({ conversationId: conversation.id, count: salvaged.length }),
-                );
-              }
+            if (plannedMarkers.length === 0 && finalizeIntent && salvagedFromVisible.length > 0) {
+              plannedMarkers = salvagedFromVisible;
+              console.warn(
+                "[DIALOG_FSM] Salvaged planning markers from visible finalize",
+                JSON.stringify({ conversationId: conversation.id, count: salvagedFromVisible.length }),
+              );
             }
             plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
             if (
               plannedMarkers.length === 0
+              && !finalizeIntent
               && !isOpening
               && !fsmAtTurnStart.planningFinalized
               && userDeclinesPlanning(userMessage)
@@ -1275,56 +1290,84 @@ export async function POST(req: Request) {
               };
               turnMode = "final_without_practice";
               shouldClose = true;
-            } else if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
-              // Planning ALWAYS targets the current local day, never the summary
-              // working date. In the overdue "Подытожить" → plan continuation the
-              // turn-level `workingLocalDate` is still the past summarized day, so
-              // persisting against it would file today's new actions under
-              // yesterday (they then vanish from the current-day section and
-              // resurface as overdue). The planning prompt already speaks of
-              // "today" (context.localDate), so persistence must match it.
-              const persisted = await persistPlanningFinalize({
-                db: routeDb,
-                userId: routeUserId,
-                conversationId: conversation.id,
-                workingLocalDate: context.localDate,
-                timezone: userTimezone,
-                nowIso,
-                markers: plannedMarkers,
-                appendToExisting: tabMode === "add",
-              });
-              planningPersistence.inserted = persisted.filter((p) => p.action === "inserted");
-              planningPersistence.updated = persisted.filter((p) => p.action === "updated");
-              if (!fsmAtTurnStart.noGreeting && markers.recommendationCorrection?.short_text) {
-                const shortText = prependChakraAttention(
-                  ensureSentencePunctuation(markers.recommendationCorrection.short_text),
-                  brainCtx.targetChakraNumber,
-                  locale,
-                );
-                await persistDayFocus({
+            } else {
+              // INCREMENTAL PERSISTENCE: save planned actions on EVERY turn they are
+              // named, not only at the finalize. persistPlanningFinalize is idempotent
+              // (it updates existing `planned` rows by description identity), so a
+              // re-emit at the finalize just attaches the recommendation. This makes
+              // the plan survive an interrupted dialog the same way summarizing does.
+              // Planning ALWAYS targets the current local day (context.localDate), never
+              // the summary working date: in the overdue "Подытожить" → plan chain the
+              // turn-level workingLocalDate is still the past summarized day.
+              if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
+                const persisted = await persistPlanningFinalize({
                   db: routeDb,
                   userId: routeUserId,
-                  forecastId: typeof context.forecast?.id === "string" ? context.forecast.id : null,
-                  shortText,
+                  conversationId: conversation.id,
+                  workingLocalDate: context.localDate,
+                  timezone: userTimezone,
+                  nowIso,
+                  markers: plannedMarkers,
+                  // While still gathering (no finalize intent), append new actions
+                  // after the ones already saved this conversation; the finalize
+                  // re-emit then re-numbers them cleanly by mention order.
+                  appendToExisting: tabMode === "add" || !finalizeIntent,
                 });
-                recommendationCorrected = {
-                  ...markers.recommendationCorrection,
-                  short_text: shortText,
-                  newShortText: shortText,
-                };
+                planningPersistence.inserted.push(...persisted.filter((p) => p.action === "inserted"));
+                planningPersistence.updated.push(...persisted.filter((p) => p.action === "updated"));
               }
-              nextFsm = advanceBranch({ ...fsmAtTurnStart, planningFinalized: true });
-              if (nextFsm.branch === "done") {
-                turnMode = "final_without_practice";
-                shouldClose = true;
-              } else {
+              if (finalizeIntent) {
+                planningFinalizedThisTurn = true;
+                // The overall day recommendation comes from the [CORRECT_RECOMMENDATION]
+                // marker. Flash often forgets it, so when it is missing salvage the
+                // recommendation paragraph from the visible finalize (the substantial
+                // paragraph before the numbered action list). The add flow has no day
+                // focus step, so only do this in the full greeted planning flow.
+                let dayFocusSource = markers.recommendationCorrection?.short_text?.trim() ?? "";
+                if (!dayFocusSource && !fsmAtTurnStart.noGreeting) {
+                  const salvagedDayFocus = extractDayFocusFromVisibleFinalize(
+                    stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
+                    plannedMarkers.length,
+                  );
+                  if (salvagedDayFocus.length >= 80) {
+                    dayFocusSource = salvagedDayFocus;
+                    console.warn(
+                      "[DIALOG_FSM] Salvaged day focus from visible finalize",
+                      JSON.stringify({ conversationId: conversation.id, length: salvagedDayFocus.length }),
+                    );
+                  }
+                }
+                if (!fsmAtTurnStart.noGreeting && dayFocusSource) {
+                  const shortText = prependChakraAttention(
+                    ensureSentencePunctuation(dayFocusSource),
+                    brainCtx.targetChakraNumber,
+                    locale,
+                  );
+                  await persistDayFocus({
+                    db: routeDb,
+                    userId: routeUserId,
+                    forecastId: typeof context.forecast?.id === "string" ? context.forecast.id : null,
+                    shortText,
+                  });
+                  recommendationCorrected = {
+                    ...(markers.recommendationCorrection ?? {}),
+                    short_text: shortText,
+                    newShortText: shortText,
+                  };
+                }
+                nextFsm = advanceBranch({ ...fsmAtTurnStart, planningFinalized: true });
+                if (nextFsm.branch === "done") {
+                  turnMode = "final_without_practice";
+                  shouldClose = true;
+                } else {
+                  turnMode = "inquiry";
+                }
+              } else if (fsmAtTurnStart.planningFinalized) {
                 turnMode = "inquiry";
+                nextFsm = { ...fsmAtTurnStart, planningFinalized: true };
+              } else {
+                turnMode = isOpening ? "opening" : "inquiry";
               }
-            } else if (fsmAtTurnStart.planningFinalized) {
-              turnMode = "inquiry";
-              nextFsm = { ...fsmAtTurnStart, planningFinalized: true };
-            } else {
-              turnMode = isOpening ? "opening" : "inquiry";
             }
           } else if (branchForTurn === "practice") {
             const declined = (containsPracticeDeclined(fullText) || userDeclinesPractice(userMessage)) && !markers.practicePick;
@@ -1569,11 +1612,17 @@ export async function POST(req: Request) {
           }
 
           let cleanText = forcedVisibleText ?? sanitizedVisibleText;
-          if (branchForTurn === "planning") {
+          if (branchForTurn === "planning" && planningFinalizedThisTurn) {
             const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
             const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
               .map((marker) => polishPlanningMarker(marker, locale));
-            const dayFocus = ensureSentencePunctuation(markers.recommendationCorrection?.short_text);
+            const persistedDayFocus =
+              recommendationCorrected && typeof recommendationCorrected.short_text === "string"
+                ? recommendationCorrected.short_text
+                : undefined;
+            const dayFocus = ensureSentencePunctuation(
+              persistedDayFocus ?? markers.recommendationCorrection?.short_text,
+            );
             if (planningMarkersForVisible.length > 0 && fsmAtTurnStart.noGreeting) {
               cleanText = buildPlanningAddFinalVisibleText({
                 events: planningMarkersForVisible,
