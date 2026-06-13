@@ -348,6 +348,31 @@ function launchPracticeFromAssistant(_practice: PracticePicked, onPracticeStarte
   onPracticeStarted();
 }
 
+/**
+ * True when an assistant turn just persisted planning actions / summary or
+ * finalized planning — the moment to pre-warm the Day tab so it is ready
+ * instantly when the user closes the dialog. Mirrors the Day-tab handler.
+ */
+function assistantMessageTriggersDayPrefetch(meta: Record<string, unknown> | undefined): boolean {
+  const persistence = meta?.planningPersistence as
+    | { inserted?: unknown[]; updated?: unknown[]; summarized?: unknown[] }
+    | null
+    | undefined;
+  const inserted = Array.isArray(persistence?.inserted) ? persistence!.inserted! : [];
+  const updated = Array.isArray(persistence?.updated) ? persistence!.updated! : [];
+  const summarized = Array.isArray(persistence?.summarized) ? persistence!.summarized! : [];
+  const branches = Array.isArray(meta?.branches) ? (meta!.branches as unknown[]) : [];
+  const isFinalWithoutPractice = meta?.turnMode === "final_without_practice";
+  const hasRecommendation = Boolean(meta?.recommendationCorrected);
+  return (
+    inserted.length > 0 ||
+    updated.length > 0 ||
+    summarized.length > 0 ||
+    hasRecommendation ||
+    isFinalWithoutPractice
+  );
+}
+
 function dayPlanHasVisibleContent(plan: Awaited<ReturnType<typeof loadDayPlan>>): boolean {
   if (plan.mode !== "current_day") return false;
   const todaySection = plan.sections.find((section) => section.localDate === plan.currentLocalDate) ?? plan.sections[0];
@@ -438,6 +463,17 @@ function CommunicatorOverlay({
           memoryWindow={24}
           onPracticeOffered={async (practice) => {
             await savePendingDayPractice(forecast.date, practice);
+          }}
+          onMessage={(message) => {
+            // Pre-warm the Day tab the moment planning is finalized (recommendation +
+            // actions persisted), so closing the dialog opens Day instantly with content.
+            if (message.role !== "assistant") return;
+            if (!assistantMessageTriggersDayPrefetch(message.meta)) return;
+            void loadDayPlan()
+              .then(storePrefetchedDayPlan)
+              .catch((error) => {
+                console.warn("[Home] Failed to pre-warm Day during planning final", error);
+              });
           }}
           onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onPracticeStarted)}
           onRequestClose={onClose}
@@ -788,14 +824,16 @@ export default function HomeScreen() {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setHomeWorkingLocalDate(null);
+            // Navigate to Day FIRST so dismissing the modal reveals the Day tab
+            // (not a flash of Home), and do NOT block navigation on the network
+            // reload. Day content was pre-warmed via onMessage during the planning
+            // final; this background reload is just a catch-up.
+            router.push("/day");
             setCommunicatorOpen(false);
             void loadDayPlan()
               .then(storePrefetchedDayPlan)
               .catch((error) => {
-                console.warn("[Home] Failed to prefetch Day before navigation", error);
-              })
-              .finally(() => {
-                router.push("/day");
+                console.warn("[Home] Failed to prefetch Day after closing dialog", error);
               });
           }}
         />
