@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/caching_strategy
 title: Astro Caching Strategy
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-06-13
 depends_on: [01_foundation/architecture, 02_modules/infra/spec, 02_modules/daily_forecast/spec]
 code_refs:
   [
@@ -35,7 +35,7 @@ code_refs:
   - **Основной путь (Next.js + `computeDailyForecast`):** конец **локального** календарного дня для `forecast.date` в TZ пользователя: `endOfForecastDateUtc` в `modules/daily-engine/computeDailyForecast.ts` (Luxon `endOf("day").toUTC()`).
   - **Проверка попадания в кэш:** `cachedForecast` в `daily-forecast/route.ts` — строка на нужную `forecast_date` и `cache_valid_until > now()`.
   - **Edge / fallback:** в `supabase/functions/daily-forecast/index.ts` для упрощённого fallback-ответа встречается `cacheValidUntil: now + 24h` — это **не** тот же расчёт, что у Node-движка; при сравнении parity ориентироваться на Next.js + `daily-engine`.
-- **Тексты рекомендаций** (`recommendation_short_text`, `recommendation_long_text`, `slogan`, `math_level`): после upsert прогноза вызывается `ensureMorningRecommendation` (`_legacy_web/app/api/_utils/morningRecommendation.ts`); при попадании в серверный кэш прогноза короткий/длинный текст могут **дозаписаться** через `persistRecommendation` в тот же ряд.
+- **Тексты рекомендаций** (`recommendation_short_text`, `recommendation_long_text`, `slogan`, `math_level`): после upsert прогноза вызывается `ensureMorningRecommendation` (`_legacy_web/app/api/_utils/morningRecommendation.ts`); при попадании в серверный кэш прогноза короткий/длинный текст могут **дозаписаться** через `persistRecommendation` в тот же ряд. При **пересчёте** существующей строки (`POST /api/astro/daily-forecast` с force) planning-артефакты (`recommendation_short_text` / `recommendation_long_text`, `is_corrected_via_dialog`, `corrected_at`) **не перезаписываются**, если уже заданы диалогом или correction-флагом — иначе смена натала стирала бы header вкладки «День».
 
 ## 3. Инвалидация дневного кэша при калибровке
 

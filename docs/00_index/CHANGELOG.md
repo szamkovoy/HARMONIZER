@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.64
+version: 2.65
 updated: 2026-06-13
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-13: doc-sync pre-push — `assistant/spec.md` aligned with FSM code (planning short_text=visible, add-flow/decline-planning, summary reflection without «Пo событиям», practice empty-text fallback, GET /api/day expires stale pending offers); `communicator/spec.md` (InteractionManager dismiss, health bootstrap, practiceToSummary duration); `daily_forecast/spec.md` + `astro/caching_strategy.md` (preserve dialog recommendation on forecast recompute; Day tab scroll stability).
 - 2026-06-13: `assistant` — more polish: planning-final now explicitly forbids copying the example phrases verbatim / starting every time with «Сегодня» (flash was tiling one example 4/7 → down to 1/7). Saturn (5th chakra) tonal register «творческого выражения» → «творческого самовыражения». Summary-final step-citation example reworded to «вы прошли всего 1240 шагов». Summary-final practice nudge when there were ZERO practices now invites specifically toward the app's yoga/meditation practices (psychological transformation + body vitality), not generic exercise. `chakraExpertLens` depth lens added to the SUMMARIZING final too (uses the summarized day's chakra). `Why: {explain}` (chooseTargetChakra) stripped of numeric matrix internals (shares/thresholds) — now a clean semantic rationale; SYSTEM line split into focus-chakra + rationale + planet-sets-tone (planet may differ from focus chakra, kept intentionally).
 - 2026-06-13: `assistant` — planning prompt polish: day-recommendation example reworded toward self-development framing («направьте внимание на N чакру», «наибольшим потенциалом обладает», «открывает наибольшие возможности для вашего развития», «действуйте в потоке N чакры»); added `targetChakraGenitive` to `BrainPromptContext`. `chakraExpertLens` «пусть он звучит так» → «пусть он будет написан так»; tonal registers «Хорошо звучат фразы/темы про…» → «Уместны слова и темы…» (×7). SYSTEM harmonic/dissonant state lines reworded to "use to recommend" / "to gently recommend to avoid". USER event-segmentation rule rewritten via explicit [PLANNED_EVENT] cards, and the FINALIZE-NOW directive rephrased to make clear that markers are what persists the plan to the Day tab.
 - 2026-06-13: `assistant` — planning day-recommendation no longer defaults to auditory metaphors for the chakra («звучит/слышна/тишина»): the prompt example that seeded «Сегодня сильнее обычного звучит N чакра…» was replaced with non-auditory invitations plus an explicit anti-cliché note (vary the image; sound/voice imagery fits mainly the throat 5th chakra). Tonal registers (shared preamble) left unchanged.

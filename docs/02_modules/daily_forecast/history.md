@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.8
-updated: 2026-06-11
+version: 2.9
+updated: 2026-06-13
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-13:** Doc-sync pre-push: `POST /api/astro/daily-forecast` при пересчёте сохраняет dialog-written `recommendation_*` и `is_corrected_via_dialog`; Day tab scroll/refs и Home `Что делать?` gate задокументированы в `spec.md`.
 - **2026-06-11 (4):** Home→Day после закрытия ассистента больше не должен показывать старый overdue-state на несколько секунд. Home при закрытии assistant overlay или старте практики делает best-effort `loadDayPlan()` и сохраняет snapshot через `services/dayPlanReloadRequest.ts`; вкладка `День` при следующем фокусе сначала применяет этот prefetched plan, затем запускает обычный refresh.
 - **2026-06-11 (3):** Вкладка `День`: `sphereHint` под диаграммой теперь строится по распределению сфер за последние 7 активных дней действий, называет сильные и недостающие сферы коротким текстом и возвращает `null`, если распределение уже достаточно разнообразное. Фоновый refresh больше не показывает красный блок `{"error":"Internal server error"}` с кнопкой «Повторить», когда на экране уже есть валидный план; текущий день остаётся видимым, сбой уходит только в dev console.
 - **2026-06-11 (2):** Вкладка `День`: верхняя CTA `Подытожить` в режиме `overdue_summary` теперь запускает полный day-start dialog, как Home `Что делать?` — сначала summary хвоста прошлых действий, затем planning текущего дня и practice. Нижняя CTA `Подытожить этот день` в `current_day` остаётся summary-only для текущего списка действий.

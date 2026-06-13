@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.32
-updated: 2026-06-11
+version: 2.33
+updated: 2026-06-13
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-13:** Doc-sync pre-push: `communicator/spec.md` — `InteractionManager.runAfterInteractions` для dismiss после launch practice; health bootstrap при `workingLocalDate`/`dayPractices` без `daySummaryRequested`; `practiceToSummary` duration override для pending Day card. `daily_forecast/spec.md` — preserve dialog recommendation on forecast recompute; Day tab scroll stability; Home `Что делать?` не short-circuit'ится pending practice без actions.
 - **2026-06-12 (2):** Flash вкладки «День» при запуске практики вернулся: `requestAnimationFrame` (см. 2026-06-11 (3)) закрывал overlay раньше, чем успевал завершиться push-переход экрана практики, поэтому на кадр проступал Day tab под модалкой. Заменено на `InteractionManager.runAfterInteractions` — overlay коммуникатора закрывается ТОЛЬКО после оседания навигационного перехода, экран практики уже на месте за модалкой, и раскрытие происходит без мелькания. Также Home `Что делать?` (`dayPlanHasVisibleContent`) больше не уходит на вкладку «День» из-за одной висящей карточки практики: переход на «День» только если на текущий день есть запланированные/подытоженные действия, иначе открывается коммуникатор и стартует диалог.
 - **2026-06-12:** `practiceToSummary` теперь запекает редактируемую длительность (`practicePicked.overrides.durationMin`) в `defaultDurationSec` и `launch.durationMs` для дыхания/медитации. Раньше `onPracticeOffered(PracticeSummary)` нёс каталожный дефолт, поэтому отложенная (pending) карточка практики на вкладке `День` показывала 10 мин вместо выбранных в диалоге 20 мин (в самом диалоге карточка была верной, т.к. получала `overrideDurationMinutes` отдельным пропом). Йога без overrides не затронута.
 - **2026-06-11 (5):** Home assistant overlay при закрытии и при старте практики теперь запускает best-effort prefetch вкладки `День` (`loadDayPlan()` → `storePrefetchedDayPlan`) перед/параллельно переходу. Это дополняет day-tab refresh и снижает шанс увидеть stale overdue-секции после завершённого диалога.
