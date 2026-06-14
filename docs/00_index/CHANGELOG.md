@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.67
+version: 2.68
 updated: 2026-06-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-14: doc-sync pre-push — `assistant/spec.md` §SUMMARIZING выровнен с кодом (расширенный `userSaysEventDidNotHappen`, закрытие без `summaryAskedCount<1`, prompt «ничего особенного»); §PRACTICE — `userDeclinesPractice` без `\b` для кириллицы; таблица `dialogBranchPrompts.ts` — `capitalizeFirstLetter`/`polishPlanningMarker`.
 - 2026-06-14: `assistant` — QA fixes (выгрузки `текст-484D…`, `текст-4338…`, `текст-4D75…`, `текст-46F2…`). (1) **Несостоявшиеся события** в summarizing: `userSaysEventDidNotHappen` расширен с «голого нет» до выверенного набора формулировок («не почитал», «не пошёл», «не успел», «не получилось», «не до того», «не было времени», «забыл», «перенесли», EN-эквиваленты) — но без «не было» в одиночку, чтобы не ловить «ничего особенного не было». Условие закрытия в `route.ts` больше не требует `summaryAskedCount<1`: при сигнале «не было» событие закрывается сразу, без уточняющего вопроса и без записи в матрицу. (2) **Дубли действий**: `persistPlanningFinalize` на основном финале (не add-flow) удаляет «осиротевшие» `planned`-строки этой беседы, которые модель переформулировала между инкрементальными сохранениями (fuzzy-identity их не сопоставил) — «Работа над результатами» + «Поработать для результатов» больше не двоятся в «Дне». (3) **Закрытие после отказа от практики**: `userDeclinesPractice` в `route.ts` больше не использует `\b` (не работает с кириллицей) — «Нет, ничего не надо сохранять» теперь закрывает диалог сразу; bare-«нет» считается отказом только если в реплике нет запроса практики (тип/длительность). (4) **Заглавная буква действия**: `polishPlanningMarker` приводит первую букву `desc` к верхнему регистру (через `capitalizeFirstLetter`) → действия из «Добавить» больше не отображаются со строчной. (5) Prompt summarizing: не допытываться о состояниях, если событие «ничего особенного / обычные ритуалы».
 - 2026-06-13: doc-sync pre-push — `assistant/spec.md` §PLANNING (gathering invite cap ~2×, shared-occasion event segmentation); `communicator/spec.md` (`onMessage` Day pre-warm); `daily_forecast/spec.md` (Home `router.push("/day")` до dismiss + planning-final prefetch).
 - 2026-06-14: `assistant`/`communicator` — QA planning из Home. Подтверждено: persistence действий + день-рекомендация + порядок чинятся деплоем (пост-деплой выгрузка корректна). Planning-промпт: мягкий **cap на «есть ли ещё что добавить?»** (максимум ~дважды, потом предлагать собрать план, без бесконечного чек-листа) + правило сегментации «один совместный выход = одно событие» (встретиться с кем-то, чтобы сделать что-то вместе). Home: закрытие диалога открывает «День» **мгновенно** (`router.push("/day")` до dismiss модалки, без ожидания `loadDayPlan` в `.finally`), а контент «Дня» **прогревается** во время финала planning через новый `onMessage`-хендлер (`loadDayPlan`→`storePrefetchedDayPlan`).
