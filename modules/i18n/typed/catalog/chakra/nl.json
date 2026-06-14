@@ -1,0 +1,38 @@
+{
+  "display": {
+    "1": "Eerste chakra",
+    "2": "Tweede chakra",
+    "3": "Derde chakra",
+    "4": "Vierde chakra",
+    "5": "Vijfde chakra",
+    "6": "Zesde chakra",
+    "7": "Zevende chakra"
+  },
+  "gen": {
+    "1": "van de eerste chakra",
+    "2": "van de tweede chakra",
+    "3": "van de derde chakra",
+    "4": "van de vierde chakra",
+    "5": "van de vijfde chakra",
+    "6": "van de zesde chakra",
+    "7": "van de zevende chakra"
+  },
+  "nom": {
+    "1": "eerste chakra",
+    "2": "tweede chakra",
+    "3": "derde chakra",
+    "4": "vierde chakra",
+    "5": "vijfde chakra",
+    "6": "zesde chakra",
+    "7": "zevende chakra"
+  },
+  "short": {
+    "1": "vitaliteit",
+    "2": "plezier",
+    "3": "kracht",
+    "4": "liefde",
+    "5": "zelfexpressie",
+    "6": "wijsheid",
+    "7": "hoger Zelf"
+  }
+}

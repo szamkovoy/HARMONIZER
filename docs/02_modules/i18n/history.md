@@ -15,6 +15,16 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-15:** **All 8 locales enabled in Profile; home locale refresh fix.**
+  Bulk `node scripts/i18n-sync.mjs fill --all` — JSON catalog + typed overlays for
+  de/fr/it/es/pt/nl; `APP_LOCALE_OPTIONS[*].enabled = true`. Server:
+  `outputLanguagePrompt.ts` prepends OUTPUT LANGUAGE block to
+  `morning_recommendation` monologue; `scenario_cache` rows store `outputLocale`
+  and invalidate pre-i18n payloads. Client: `useDayContent` subscribes to locale
+  changes, scopes day-cache by locale, strips stale LLM texts, guards secondary
+  monologue against race overwrites; `DailyRecommendationCard` shows loading state
+  instead of EN fallback template.
+
 - **2026-06-14 (6):** **Locale switch + global-content serve path.** `useDayContent`
   owns locale-change refresh via `subscribeAppLocale` (Home no longer duplicates the
   effect). Free-tier serve: on-demand row `text_i18n` precompute in

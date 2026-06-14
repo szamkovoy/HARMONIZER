@@ -1,0 +1,19 @@
+{
+  "common.cancel": "Annuleren",
+  "common.ok": "OK",
+  "profile.access.birthHint": "Geboortedatum en -tijd (geboortehoroscoop). Wordt na opslaan bijgewerkt op het startscherm.",
+  "profile.access.title": "Huidige toegang",
+  "profile.access.updateButton": "Profiel bijwerken",
+  "profile.comingSoon.body": "Uitgebreide profielinstellingen en weergave volgen in een volgende fase.",
+  "profile.comingSoon.title": "Binnenkort hier",
+  "profile.language.comingSoon": "binnenkort",
+  "profile.language.hint": "Taal van de interface en de antwoorden van de assistent.",
+  "profile.language.testModeNote": "Testmodus: je spreekt Russisch, maar de interface en antwoorden zijn in de gekozen taal.",
+  "profile.language.title": "Taal",
+  "profile.subtitle": "Minimale ruimte voor instellingen en toegang voor de eerste ronde.",
+  "profile.title": "Profiel",
+  "tabs.day": "Dag",
+  "tabs.home": "Home",
+  "tabs.practices": "Oefeningen",
+  "tabs.profile": "Profiel"
+}

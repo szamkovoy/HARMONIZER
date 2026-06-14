@@ -1,0 +1,19 @@
+{
+  "common.cancel": "Annulla",
+  "common.ok": "OK",
+  "profile.access.birthHint": "Data e ora di nascita (carta natale). La schermata Home si aggiornerà dopo il salvataggio.",
+  "profile.access.title": "Accesso attuale",
+  "profile.access.updateButton": "Aggiorna profilo",
+  "profile.comingSoon.body": "Impostazioni avanzate del profilo e aspetto – nelle prossime fasi.",
+  "profile.comingSoon.title": "Prossimamente",
+  "profile.language.comingSoon": "presto",
+  "profile.language.hint": "Lingua dell'interfaccia e delle risposte dell'assistente.",
+  "profile.language.testModeNote": "Modalità test: parli in russo, interfaccia e risposte nella lingua selezionata.",
+  "profile.language.title": "Lingua",
+  "profile.subtitle": "Area minima per impostazioni e verifica dell'accesso per la prima fase.",
+  "profile.title": "Profilo",
+  "tabs.day": "Giorno",
+  "tabs.home": "Home",
+  "tabs.practices": "Pratiche",
+  "tabs.profile": "Profilo"
+}

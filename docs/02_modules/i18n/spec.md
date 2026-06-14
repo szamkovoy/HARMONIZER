@@ -2,7 +2,7 @@
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
 version: 1.2
-updated: 2026-06-14
+updated: 2026-06-15
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -74,8 +74,8 @@ cost never decides layer-C design.
 ### 2.1 `localeStore.ts` — single source of truth for the active locale
 - `AppLocale` = `"ru" | "en" | "de" | "fr" | "it" | "es" | "pt" | "nl"`.
 - `APP_LOCALE_OPTIONS` — every target locale with `{ code, nativeLabel, enabled }`.
-  `enabled` is `true` only for locales whose **content is ready** (today RU/EN).
-  The Profile selector renders disabled options as "(soon)".
+  `enabled` is `true` for all eight locales after bulk `fill --all` (2026-06-15).
+  Layer C (dialog scaffolding) for de–nl still falls back to EN until Phase 3.
 - `DEFAULT_APP_LOCALE = "ru"`.
 - `I18N_TEST_MODE` — parsed from `EXPO_PUBLIC_I18N_TEST_MODE`.
 - State: a module-level `currentLocale` + listener set (powers `useSyncExternalStore`).
@@ -96,7 +96,7 @@ cost never decides layer-C design.
     the active locale.
 
 ### 2.2 `t.ts` — translation + plurals
-- JSON catalogs `catalog/{ru,en}.json` are flat dotted-key → string maps.
+- JSON catalogs `catalog/{ru,en,de,fr,it,es,pt,nl}.json` are flat dotted-key → string maps.
 - `t(locale, key, params?)` — lookup with `{placeholder}` interpolation; fallback
   chain **requested → en → ru → key** (so a missing key never crashes; it renders
   the key, which is visible in QA).

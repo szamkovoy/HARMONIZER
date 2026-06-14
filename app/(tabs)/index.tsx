@@ -512,7 +512,7 @@ export default function HomeScreen() {
     : profileLoading
       ? null
       : profileHasBirthData(profile);
-  const { forecast, error, refresh, status, accessMode, modelUsed, userLocation, locationIssue, loading } = useDayContent({
+  const { forecast, error, refresh, status, accessMode, modelUsed, userLocation, locationIssue, loading, homeTextsLoading } = useDayContent({
     locationErrorMessage: strings.locationErrorMessage,
     birthDataErrorMessage: strings.birthDataMessage,
     accessModeOverride: accessModeForTier(access.tier),
@@ -741,6 +741,7 @@ export default function HomeScreen() {
               accessMode={accessMode}
               natalProfile={natalProfile}
               modelUsed={modelUsed}
+              homeTextsLoading={homeTextsLoading}
             />
             <OpportunityWindows
               planetOfTheDay={forecast.planetOfTheDay}

@@ -1,0 +1,19 @@
+{
+  "common.cancel": "Cancelar",
+  "common.ok": "OK",
+  "profile.access.birthHint": "Data e hora de nascimento (mapa astral). A tela principal será atualizada após salvar.",
+  "profile.access.title": "Acesso atual",
+  "profile.access.updateButton": "Atualizar perfil",
+  "profile.comingSoon.body": "Configurações avançadas de perfil e aparência — nas próximas etapas.",
+  "profile.comingSoon.title": "Em breve aqui",
+  "profile.language.comingSoon": "em breve",
+  "profile.language.hint": "Idioma da interface e respostas do assistente.",
+  "profile.language.testModeNote": "Modo teste: você fala russo, e a interface e respostas estão no idioma selecionado.",
+  "profile.language.title": "Idioma",
+  "profile.subtitle": "Área mínima de configurações e verificação de acesso para a primeira etapa.",
+  "profile.title": "Perfil",
+  "tabs.day": "Dia",
+  "tabs.home": "Início",
+  "tabs.practices": "Práticas",
+  "tabs.profile": "Perfil"
+}

@@ -1,0 +1,19 @@
+{
+  "continueButton": "Doorgaan",
+  "description": "Een korte visuele meditatie voor een zachte verschuiving van aandacht en innerlijke harmonie.",
+  "finishA11y": "Oefening beëindigen",
+  "finishButton": "Afsluiten",
+  "locale": "nl",
+  "moodBetter": "Beter",
+  "moodSame": "Hetzelfde",
+  "moodWorse": "Slechter",
+  "newLineButton": "Nieuwe lijn",
+  "nextMandalaButton": "Volgende mandala",
+  "pauseButton": "Pauze",
+  "ratingMessage": "Deze beoordeling helpt later om betere oefeningen te kiezen.",
+  "ratingTitle": "Hoe voel je je?",
+  "resumeButton": "Doorgaan",
+  "stopConfirmMessage": "Je kunt nu stoppen en ontdekken hoe je je voelt na de oefening.",
+  "stopConfirmTitle": "Oefening afsluiten?",
+  "title": "Flits"
+}

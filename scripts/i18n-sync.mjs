@@ -182,16 +182,39 @@ async function runTypedFill(manifest, targets) {
   writeGeneratedRegistry(REPO_ROOT, manifest);
 }
 
-async function translateBatch(locale, entries) {
+function resolveTranslateEnv() {
   const deepseekBase = (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com").replace(/\/$/, "");
-  const apiUrl =
-    process.env.I18N_TRANSLATE_API_URL?.trim()
-    ?? `${deepseekBase}/v1/chat/completions`;
-  const apiKey = process.env.I18N_TRANSLATE_API_KEY?.trim() ?? process.env.DEEPSEEK_API_KEY?.trim();
-  const model =
-    process.env.I18N_TRANSLATE_MODEL?.trim()
-    ?? process.env.AI_MODEL_PREMIUM?.trim()
-    ?? process.env.AI_MODEL_STANDARD?.trim();
+  const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim();
+  const explicitUrl = process.env.I18N_TRANSLATE_API_URL?.trim();
+  const explicitKey = process.env.I18N_TRANSLATE_API_KEY?.trim();
+  const explicitModel = process.env.I18N_TRANSLATE_MODEL?.trim();
+
+  if (explicitUrl && explicitKey && explicitModel) {
+    return { apiUrl: explicitUrl, apiKey: explicitKey, model: explicitModel };
+  }
+
+  if (deepseekKey) {
+    let model =
+      explicitModel ?? process.env.AI_MODEL_PREMIUM?.trim() ?? process.env.AI_MODEL_STANDARD?.trim() ?? "deepseek-v4-pro";
+    if (!model.toLowerCase().includes("deepseek")) {
+      model = "deepseek-v4-pro";
+    }
+    return {
+      apiUrl: `${deepseekBase}/v1/chat/completions`,
+      apiKey: deepseekKey,
+      model,
+    };
+  }
+
+  return {
+    apiUrl: explicitUrl ?? null,
+    apiKey: explicitKey ?? deepseekKey ?? null,
+    model: explicitModel ?? process.env.AI_MODEL_PREMIUM?.trim() ?? process.env.AI_MODEL_STANDARD?.trim() ?? null,
+  };
+}
+
+async function translateBatch(locale, entries) {
+  const { apiUrl, apiKey, model } = resolveTranslateEnv();
   if (!apiUrl || !apiKey || !model) return null;
 
   const languageName = LANGUAGE_NAMES[locale] ?? locale;

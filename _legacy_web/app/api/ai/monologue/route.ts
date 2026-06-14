@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import chakraStatesBaseline from "../../../../data/chakra_states_baseline.json";
 import { CONTENT_LENGTHS } from "../../../../config/contentLengths";
 import { buildAddressFormHint } from "../../_utils/addressForm";
+import {
+  buildOutputLanguageBlock,
+  isMorningRecommendationCacheValid,
+  MORNING_CACHE_OUTPUT_LOCALE_KEY,
+} from "../../_utils/outputLanguagePrompt";
 import { resolveContentLocale, type AppContentLocale } from "../../_utils/contentLocales";
 import { loadActiveNatalProfile } from "../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../_utils/authorVoice";
@@ -33,19 +38,6 @@ type BaselineStates = {
   dissonantStates?: string[];
 };
 
-function isStaleMorningCache(
-  scenarioId: string,
-  cached: Record<string, unknown>,
-  expectedModel: string | null,
-): boolean {
-  if (scenarioId !== "morning_recommendation") return false;
-  if (!cached.math_level) return true;
-  if (!expectedModel) return false;
-  const used = typeof (cached as { modelUsed?: unknown }).modelUsed === "string" ? (cached as { modelUsed: string }).modelUsed.trim() : "";
-  // Старый кэш без modelUsed или с другой моделью (после смены env / tier) — пересчитать.
-  if (!used) return true;
-  return used !== expectedModel;
-}
 
 async function loadActiveCalibration(db: SupabaseClient, userId: string): Promise<CalibrationLike | null> {
   const { data, error } = await db
@@ -211,7 +203,12 @@ export async function POST(req: Request) {
     endpointStage = "cache_lookup";
     const forceRefresh = body.variables?.forceRefresh === true || body.variables?.force_refresh === true;
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, userId, db, cacheSuffix);
-    if (!forceRefresh && cached && !isStaleMorningCache(scenario.id, cached, expectedModel)) {
+    if (
+      !forceRefresh
+      && cached
+      && (scenario.id !== "morning_recommendation"
+        || isMorningRecommendationCacheValid(cached, expectedModel, responseLocale))
+    ) {
       return json({
         ...cached,
         cached: true,
@@ -232,8 +229,13 @@ export async function POST(req: Request) {
       scenario.id === "morning_recommendation"
         ? Math.max(prompt.max_output_tokens ?? 2200, 6144)
         : (prompt.max_output_tokens ?? 1500);
+    const rendered = renderPrompt(prompt.template, variables);
+    const promptText =
+      scenario.id === "morning_recommendation"
+        ? `${buildOutputLanguageBlock(responseLocale)}\n\n${rendered}`
+        : rendered;
     const result = await generateGeminiJson<Record<string, unknown>>({
-      prompt: renderPrompt(prompt.template, variables),
+      prompt: promptText,
       model: getModelByHint(prompt.model_hint),
       temperature: prompt.temperature,
       maxOutputTokens,
@@ -242,6 +244,9 @@ export async function POST(req: Request) {
       ...result.json,
       ...(mathLevel ? { math_level: mathLevel } : {}),
       modelUsed: result.modelUsed,
+      ...(scenario.id === "morning_recommendation"
+        ? { [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale }
+        : {}),
     };
 
     endpointStage = "cache_save";

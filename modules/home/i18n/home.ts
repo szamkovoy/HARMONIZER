@@ -84,6 +84,8 @@ export interface HomeStrings {
   recommendation: {
     title: string;
     meta: (planet: string, chakraName: string) => string;
+    /** Shown while locale-specific LLM texts are loading (avoid EN/RU fallback flash). */
+    loading: string;
     fallback: (forecast: DailyForecast) => string;
     discussButton: string;
     readMoreButton: string;
@@ -255,6 +257,7 @@ const ru: HomeStrings = {
   recommendation: {
     title: "Рекомендации на день",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
+    loading: "Обновляем рекомендацию на выбранном языке…",
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
       const verb = ru.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
@@ -418,6 +421,7 @@ const en: HomeStrings = {
   recommendation: {
     title: "Daily recommendation",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
+    loading: "Updating the recommendation in your language…",
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
       const verb = en.toneRecommendationVerb[forecast.todayPlanetState.todayTone];

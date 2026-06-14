@@ -54,10 +54,12 @@ export async function callMonologue<T extends Record<string, unknown> = Record<s
   scenarioId: string,
   variables: Record<string, unknown> = {},
   signal?: AbortSignal,
+  responseLocale?: string,
 ): Promise<MonologueResponse<T>> {
   return withTransientNetworkRetry(
     async () => {
       const token = await getAccessToken();
+      const locale = responseLocale ?? getResponseLocale();
       let res: Response;
       try {
         res = await fetch(getAiMonologueUrl(), {
@@ -68,7 +70,7 @@ export async function callMonologue<T extends Record<string, unknown> = Record<s
           },
           body: JSON.stringify({
             scenario_id: scenarioId,
-            responseLocale: getResponseLocale(),
+            responseLocale: locale,
             variables,
           }),
           signal,

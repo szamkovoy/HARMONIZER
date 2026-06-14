@@ -1,0 +1,108 @@
+{
+  "appTitle": "Harmonizer",
+  "assistantTitle": "Assistent",
+  "birthDataMessage": "Voer geboortedatum, -tijd en -plaats in om een persoonlijke dagvoorspelling te maken.",
+  "birthDataTitle": "Geboortedatum nodig",
+  "closeAssistantAccessibilityLabel": "Assistent sluiten",
+  "closeButton": "Sluiten",
+  "defaultSystemPrompt": "Jij bent een empathische mentor van de Harmonizer-app. Antwoord kort en to the point.",
+  "emptyTimeLabel": "—",
+  "forecastErrorTitle": "Voorspelling laden mislukt",
+  "headerHint": "Hoofdafstemming van de dag: chakra's, vensters van mogelijkheden en praktische aanbeveling.",
+  "locale": "nl",
+  "locationErrorTitle": "Locatie nodig",
+  "openSettingsButton": "Instellingen openen",
+  "refreshAccessibilityLabel": "Dagvoorspelling vernieuwen",
+  "refreshButton": "Vernieuwen",
+  "refreshingLabel": "...",
+  "retryButton": "Opnieuw proberen",
+  "signOutButton": "Uitloggen",
+  "signingOutButton": "Uitloggen...",
+  "skeletonText": "Dagvoorspelling en kansenvensters verzamelen...",
+  "staleContentMessage": "De nieuwste gegevens konden nu niet worden geladen, dus toon ik tijdelijk de laatst opgeslagen versie voor vandaag.",
+  "staleContentTitle": "Opgeslagen voorspelling tonen",
+  "toneLabels": {
+    "harmonic": "harmonisch",
+    "neutral": "neutraal",
+    "dissonant": "gespannen",
+    "toneRecommendationVerb": {
+      "harmonic": "zacht versterken",
+      "neutral": "rustig afstemmen",
+      "dissonant": "zorgvuldig stabiliseren",
+      "chakraFlower": {
+        "title": "Bloem van de dag",
+        "caption": "De grootte van de bloemblaadjes geeft het belang van de chakra's voor vandaag weer.",
+        "planetBanner": {
+          "eyebrow": "Planeet van de dag",
+          "opportunityWindows": {
+            "title": "Kansenvenster",
+            "emptyDetail": "Vandaag geen exact venster",
+            "windowTitles": {
+              "sunrise": "Zonsopgang",
+              "culmination": "Culminatie",
+              "exactAspect": "Exact aspect",
+              "aspectLabels": {
+                "conjunction": "conjunctie",
+                "opposition": "oppositie",
+                "square": "vierkant",
+                "trine": "driehoek",
+                "sextile": "sextiel",
+                "reminderModalTitle": "Herinneren",
+                "reminderTextLabel": "Tekst melding",
+                "reminderModeExact": "precies op tijd",
+                "reminderModeBefore5": "5 minuten van tevoren",
+                "reminderSave": "Opslaan",
+                "reminderCancel": "Annuleren",
+                "reminderBodyFiveMinPrefix": "5 minuten voor",
+                "reminderPastTitle": "Tijd is verstreken",
+                "reminderPastMessage": "Voor een voorbij venster kan geen melding worden ingesteld.",
+                "reminderNotificationsUnavailableTitle": "Meldingen nog niet beschikbaar",
+                "reminderNeedPermissionTitle": "Meldingen nodig",
+                "reminderNeedPermissionMessage": "Sta meldingen toe zodat Harmonizer je kan herinneren aan het kansenvenster.",
+                "helpButtonAccessibilityLabel": "Uitleg bij de grafiek van het kansenvenster",
+                "helpModalTitle": "Hoe lees je dit venster",
+                "helpLoading": "Uitleg verzamelen...",
+                "recommendation": {
+                  "title": "Dagaanbeveling",
+                  "loading": "Aanbeveling bijwerken in geselecteerde taal…",
+                  "discussButton": "Wat te doen?",
+                  "readMoreButton": "Meer details",
+                  "longExplanationModal": {
+                    "title": "Meer details",
+                    "subtitle": "Uitgebreide uitleg van de dagaanbeveling.",
+                    "closeButton": "Sluiten",
+                    "mathButton": "Berekeningen en formules",
+                    "mathButtonA11y": "Open berekeningen en formules van de dagaanbeveling",
+                    "mathCaption": "Exacte wiskunde van planeetkracht en harmonie, aspectgewichten en keuze van het dagthema.",
+                    "eventBells": {
+                      "title": "Klokjes",
+                      "empty": "Vandaag geen aankomende astro-gebeurtenissen met exacte tijd.",
+                      "aspectTitle": "Aspect",
+                      "devLinks": {
+                        "biofeedback": "Biofeedback",
+                        "mandala": "Mandala",
+                        "bindu": "Bindu",
+                        "symbols": "Symbolen",
+                        "breath": "Adem",
+                        "calibration": "Kalibratie",
+                        "devResetDayContent": "Vernieuwen",
+                        "mathModal": {
+                          "title": "Wiskunde van de dag",
+                          "subtitle": "Formules voor planeetkracht, harmonie, transits en keuze van planeet van de dag.",
+                          "closeButton": "Terug",
+                          "emptyHint": "Wiskundeblok nog niet meegekomen met de voorspelling. Vernieuw de dagvoorspelling na de backend-deployment.",
+                          "showChartButton": "Toon geboorte- en transitchart",
+                          "chartUnavailableHint": "Chart alleen beschikbaar voor trial/premium-gebruikers met een geboorteprofiel."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -9,6 +9,11 @@ import { resolveContentLocale, type AppContentLocale } from "./contentLocales";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "./authorVoice";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { buildMathLevel } from "./mathLevelBuilder";
+import {
+  buildOutputLanguageBlock,
+  isMorningRecommendationCacheValid,
+  MORNING_CACHE_OUTPUT_LOCALE_KEY,
+} from "./outputLanguagePrompt";
 import { getActivePrompt, renderPrompt } from "./prompts";
 import { checkScenarioCache, saveScenarioCache } from "./scenarioCache";
 import { getScenario } from "./scenarios";
@@ -32,15 +37,6 @@ export type MorningRecommendationPayload = {
   modelUsed: string | null;
 };
 
-function isStaleMorningCache(
-  cached: Record<string, unknown>,
-  expectedModel: string | null,
-): boolean {
-  if (!cached.math_level) return true;
-  if (!expectedModel) return false;
-  const used = typeof cached.modelUsed === "string" ? cached.modelUsed.trim() : "";
-  return !used || used !== expectedModel;
-}
 
 async function loadUser(db: SupabaseClient, userId: string): Promise<UserRecord> {
   const { data, error } = await db.from("users").select("locale,address_form").eq("id", userId).maybeSingle();
@@ -75,7 +71,7 @@ function buildVariables(params: {
   calibration: CalibrationLike | null;
   user: UserRecord;
   clientVariables?: Record<string, unknown>;
-  responseLocale?: ResponseLocale;
+  responseLocale?: AppContentLocale;
 }): { variables: Record<string, unknown>; mathLevel: ReturnType<typeof buildMathLevel> } {
   const petals = buildTopPetals(params.forecast, params.natalProfile, params.calibration, 3);
   if (petals.length < 3) {
@@ -141,7 +137,7 @@ export async function ensureMorningRecommendation(params: {
   calibration: CalibrationLike | null;
   forceRefresh?: boolean;
   clientVariables?: Record<string, unknown>;
-  responseLocale?: ResponseLocale;
+  responseLocale?: AppContentLocale;
 }): Promise<MorningRecommendationPayload> {
   const scenario = await getScenario("morning_recommendation", params.db);
   if (!scenario) {
@@ -162,7 +158,7 @@ export async function ensureMorningRecommendation(params: {
 
   if (!params.forceRefresh) {
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db, cacheSuffix);
-    if (cached && !isStaleMorningCache(cached, expectedModel)) {
+    if (cached && isMorningRecommendationCacheValid(cached, expectedModel, responseLocale)) {
       return {
         slogan: String(cached.slogan ?? "").trim(),
         short_text: String(cached.short_text ?? "").trim(),
@@ -183,7 +179,7 @@ export async function ensureMorningRecommendation(params: {
   });
 
   const result = await generateGeminiJson<Record<string, unknown>>({
-    prompt: renderPrompt(prompt.template, prepared.variables),
+    prompt: `${buildOutputLanguageBlock(responseLocale)}\n\n${renderPrompt(prompt.template, prepared.variables)}`,
     model: getModelByHint(prompt.model_hint),
     temperature: prompt.temperature,
     maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
@@ -204,6 +200,7 @@ export async function ensureMorningRecommendation(params: {
       ...payload,
       math_level: payload.math_level,
       modelUsed: payload.modelUsed,
+      [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale,
     },
     params.db,
     cacheSuffix,

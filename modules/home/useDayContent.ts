@@ -56,6 +56,8 @@ export interface UseDayContentResult {
   locationIssue: LocationAcquireFailureReason | null;
   userLocation: DayContentUserLocation | null;
   refresh: (opts?: DayContentRefreshOptions) => Promise<void>;
+  /** True while locale-specific LLM texts (slogan/rec/math) are being fetched. */
+  homeTextsLoading: boolean;
 }
 
 interface UseDayContentOptions {
@@ -122,11 +124,13 @@ async function enrichWithMorningContent(
   forecast: DailyForecast,
   forceRefresh: boolean | undefined,
   signal: AbortSignal,
+  responseLocale: AppLocale,
 ): Promise<{ forecast: DailyForecast; modelUsed: string | null }> {
   const content = await callMonologue<MorningRecommendationResponse>(
     "morning_recommendation",
     { forceRefresh: Boolean(forceRefresh) },
     signal,
+    responseLocale,
   );
   if (content.error) throw new Error(content.error);
   return {
@@ -188,6 +192,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const [locationIssue, setLocationIssue] = useState<LocationAcquireFailureReason | null>(null);
   const [accessMode, setAccessMode] = useState<AccessMode>("free");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
+  const [homeTextsLoading, setHomeTextsLoading] = useState(false);
+  const secondaryRunRef = useRef(0);
 
   const userLocation = useMemo(() => {
     if (typeof profile?.lat !== "number" || typeof profile?.lon !== "number") return null;
@@ -218,6 +224,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       secondaryContentAbortRef.current?.abort();
       setError(null);
       setLocationIssue(null);
+      if (opts?.forceRefresh || opts?.localeChange) {
+        setHomeTextsLoading(true);
+      }
 
       if (profileLoading) {
         beginHomeBootstrap("initializing", "AUTH/wait_profile_refresh");
@@ -396,6 +405,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setForecast(resolvedInstantCache.forecast);
         setSource(resolvedInstantCache.source);
         setModelUsed(resolvedInstantCache.modelUsed);
+        setHomeTextsLoading(!isDayContentComplete(resolvedInstantCache.forecast, nextAccessMode));
         setStatus("ready");
         lastResolvedRequestKeyRef.current = [
           profileId ?? "anon",
@@ -453,6 +463,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
               setForecast(cached.forecast);
               setSource(cached.source);
               setModelUsed(cached.modelUsed);
+              setHomeTextsLoading(!isDayContentComplete(cached.forecast, nextAccessMode));
               setStatus("ready");
               lastResolvedRequestKeyRef.current = resolvedRequestKey;
               completeHomeBootstrap();
@@ -571,6 +582,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setStatus("ready");
         lastResolvedRequestKeyRef.current = resolvedRequestKey;
         completeHomeBootstrap();
+        if (nextAccessMode === "free" || (!opts?.forceRefresh && !opts?.localeChange)) {
+          setHomeTextsLoading(false);
+        }
         logRuntimeEvent("day_content:ready", {
           accessMode: nextAccessMode,
           source: nextAccessMode === "free" ? "global" : "personal",
@@ -609,6 +623,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         latestCacheContextRef.current = null;
         setError(err);
         setStatus("error");
+        setHomeTextsLoading(false);
         completeHomeBootstrap();
       } finally {
         if (abortRef.current === controller) {
@@ -657,6 +672,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       pendingMorningMonologueForceRef.current = true;
       lastHydratedForecastKeyRef.current = null;
       lastResolvedRequestKeyRef.current = null;
+      setHomeTextsLoading(true);
       setForecast((current) => (current ? stripHomeLlmTexts(current) : current));
       void refresh({ forceRefresh: true, localeChange: true }).catch(() => undefined);
     });
@@ -704,12 +720,25 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     secondaryContentAbortRef.current?.abort();
     const controller = new AbortController();
     secondaryContentAbortRef.current = controller;
+    const runId = ++secondaryRunRef.current;
+    const localeAtStart = getResponseLocale();
+    const scopeKeyAtStart = cacheContext.scopeKey;
+    setHomeTextsLoading(true);
 
     void (async () => {
       try {
         setStartupStep("HOME/api_morning_monologue");
-        const enriched = await enrichWithMorningContent(forecastForHydration, forceMorningRefresh, controller.signal);
-        if (controller.signal.aborted || !isBaseForecastValid(enriched.forecast)) return;
+        const enriched = await enrichWithMorningContent(
+          forecastForHydration,
+          forceMorningRefresh,
+          controller.signal,
+          localeAtStart,
+        );
+        if (controller.signal.aborted || runId !== secondaryRunRef.current) return;
+        if (getResponseLocale() !== localeAtStart || latestCacheContextRef.current?.scopeKey !== scopeKeyAtStart) {
+          return;
+        }
+        if (!isBaseForecastValid(enriched.forecast)) return;
         setForecast((current) => {
           if (!current) return current;
           if (current.date !== forecastForHydration.date || current.computedAt !== forecastForHydration.computedAt) {
@@ -724,6 +753,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           pendingMorningMonologueForceRef.current = false;
           lastHydratedForecastKeyRef.current = hydrationKey;
         }
+        setHomeTextsLoading(false);
         await saveDayContentCache({
           userId: cacheContext.userId,
           accessMode: cacheContext.accessMode,
@@ -739,6 +769,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         });
       } catch (e) {
         if (controller.signal.aborted) return;
+        if (runId === secondaryRunRef.current) {
+          setHomeTextsLoading(false);
+        }
         if (forceMorningRefresh) {
           pendingMorningMonologueForceRef.current = false;
         }
@@ -773,5 +806,6 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     locationIssue,
     userLocation,
     refresh,
+    homeTextsLoading,
   };
 }

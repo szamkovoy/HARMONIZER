@@ -1,0 +1,19 @@
+{
+  "common.cancel": "Annuler",
+  "common.ok": "OK",
+  "profile.access.birthHint": "Date et heure de naissance (carte natale). L'écran d'accueil se met à jour après la sauvegarde.",
+  "profile.access.title": "Accès actuel",
+  "profile.access.updateButton": "Mettre à jour",
+  "profile.comingSoon.body": "Paramètres avancés du profil et apparence — dans les prochains tours.",
+  "profile.comingSoon.title": "Bientôt disponible",
+  "profile.language.comingSoon": "bientôt",
+  "profile.language.hint": "Langue de l'interface et des réponses de l'assistant.",
+  "profile.language.testModeNote": "Mode test : vous parlez russe, l'interface et les réponses sont dans la langue sélectionnée.",
+  "profile.language.title": "Langue",
+  "profile.subtitle": "Espace minimal pour les paramètres et la vérification d'accès pour le premier tour.",
+  "profile.title": "Profil",
+  "tabs.day": "Jour",
+  "tabs.home": "Home",
+  "tabs.practices": "Pratiques",
+  "tabs.profile": "Profil"
+}

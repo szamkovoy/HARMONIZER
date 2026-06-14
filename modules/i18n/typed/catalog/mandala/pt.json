@@ -1,0 +1,19 @@
+{
+  "continueButton": "Continuar",
+  "description": "Meditação visual breve para redirecionar a atenção suavemente e harmonizar.",
+  "finishA11y": "Concluir a prática",
+  "finishButton": "Concluir",
+  "locale": "pt",
+  "moodBetter": "Melhor",
+  "moodSame": "Igual",
+  "moodWorse": "Pior",
+  "newLineButton": "Nova linha",
+  "nextMandalaButton": "Próxima mandala",
+  "pauseButton": "Pausa",
+  "ratingMessage": "Esta avaliação ajudará a recomendar práticas melhores no futuro.",
+  "ratingTitle": "Como você se sente?",
+  "resumeButton": "Continuar",
+  "stopConfirmMessage": "Pode parar agora e registrar como se sente após a prática.",
+  "stopConfirmTitle": "Concluir a prática?",
+  "title": "Flash"
+}

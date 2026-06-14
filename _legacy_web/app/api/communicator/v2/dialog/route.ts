@@ -97,7 +97,7 @@ import {
   type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
-import { resolveResponseLocale, localeToLanguageName } from "@legacy/app/api/_utils/dialogLocale";
+import { resolveResponseLocale, resolveDialogScaffoldLocale, localeToLanguageName } from "@legacy/app/api/_utils/dialogLocale";
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
 
 export const runtime = "nodejs";
@@ -185,7 +185,7 @@ function chakraStates(chakraNumber: number): { harmonic: string[]; dissonant: st
 }
 
 function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: string | null): BrainPromptContext {
-  const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+  const locale = resolveDialogScaffoldLocale(context.user.locale);
   const now = context.nowLocal;
   const promptHour = promptLocalHour(now.hour);
   const targetChakra = context.targetChakra.chakraNumber;
@@ -1155,7 +1155,7 @@ export async function POST(req: Request) {
       isPostDialogTurn(fsm, isInitiate)
       || (fsm.branch === "practice" && historyHasPracticePicked(history) && !isInitiate);
     if (postDialogReplyNeeded) {
-      const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+      const locale = resolveDialogScaffoldLocale(context.user.locale);
       const replyText = buildPostDialogReply({
         locale,
         userMessage,
@@ -1289,7 +1289,7 @@ export async function POST(req: Request) {
           const nowIso = context.nowLocal.toUTC().toISO() ?? new Date().toISOString();
 
           if (branchForTurn === "planning") {
-            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+            const locale = resolveDialogScaffoldLocale(context.user.locale);
             // Lightweight cancellation: if the user asked to drop a still-open
             // planned action, fuzzy-match it against today's open events and mark
             // it `dismissed` so it disappears from the Day tab. Summarized events
@@ -1522,7 +1522,7 @@ export async function POST(req: Request) {
               nextFsm = remainingAfterCurrent <= 0 ? advanceBranch(fsmAtTurnStart) : fsmAtTurnStart;
               shouldClose = remainingAfterCurrent <= 0 && nextFsm.branch === "done";
               if (nextEvent && remainingAfterCurrent > 0) {
-                const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+                const locale = resolveDialogScaffoldLocale(context.user.locale);
                 forcedVisibleText = buildSummaryEventDidNotHappenBridge(currentEvent.description, nextEvent.description, locale);
               }
             } else if (markerWithVisibleClarifier && currentEvent) {
@@ -1671,7 +1671,7 @@ export async function POST(req: Request) {
               )
             ) {
               console.warn("[DIALOG_FSM] Model mentioned the next event before closing the current one — keeping current event open");
-              const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+              const locale = resolveDialogScaffoldLocale(context.user.locale);
               forcedVisibleText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
               nextFsm = bumpSummaryAsked(fsmAtTurnStart, currentEvent.id);
               turnMode = "inquiry";
@@ -1686,7 +1686,7 @@ export async function POST(req: Request) {
 
           let cleanText = forcedVisibleText ?? sanitizedVisibleText;
           if (branchForTurn === "planning" && planningFinalizedThisTurn) {
-            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+            const locale = resolveDialogScaffoldLocale(context.user.locale);
             const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
               .map((marker) => polishPlanningMarker(marker, locale));
             const persistedDayFocus =
@@ -1726,7 +1726,7 @@ export async function POST(req: Request) {
             if (cardReason) cleanText = cardReason;
           }
           if (summaryClarifyingDeferred && currentEvent) {
-            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+            const locale = resolveDialogScaffoldLocale(context.user.locale);
             cleanText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
           }
           if (
@@ -1740,7 +1740,7 @@ export async function POST(req: Request) {
             // (if any) is appended deterministically below.
             cleanText = sanitizeSummaryFinalVisibleText(cleanText);
             if (nextFsm.branch === "planning") {
-              const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+              const locale = resolveDialogScaffoldLocale(context.user.locale);
               cleanText = ensureSummaryToPlanningBridge(cleanText, locale);
             }
           }
@@ -1749,7 +1749,7 @@ export async function POST(req: Request) {
             // model put everything inside a marker that failed to resolve, or a
             // catalog-inconsistent request like 30-min breathing). Never crash the
             // client — fall back to a deterministic catalog-aware clarification.
-            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+            const locale = resolveDialogScaffoldLocale(context.user.locale);
             const v = practiceValidationAtTurn;
             const requestedDurationMin = v?.durationSec != null ? Math.round(v.durationSec / 60) : null;
             const kind = v?.practiceKind ?? null;

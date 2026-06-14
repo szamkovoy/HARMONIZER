@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
-import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate } from "@/modules/i18n";
+import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -56,6 +56,13 @@ export default function ProfileTabRoute() {
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const { locale, setLocale, testMode } = useAppLocale();
   const { t } = useTranslate();
+  const handleSetLocale = useCallback(
+    (code: AppLocale) => {
+      void setLocale(code);
+      markHomeDayContentBlockingReload({ forceRefresh: true });
+    },
+    [setLocale],
+  );
   const reportLocale = locale;
   const reportStrings = getProfileReportStrings(reportLocale);
   const [statsPeriodDays, setStatsPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
@@ -185,7 +192,7 @@ export default function ProfileTabRoute() {
                   label={option.enabled ? option.nativeLabel : `${option.nativeLabel} (${t("profile.language.comingSoon")})`}
                   variant={active ? "primary" : "secondary"}
                   disabled={!option.enabled}
-                  onPress={() => setLocale(option.code)}
+                  onPress={() => handleSetLocale(option.code)}
                   style={styles.localeButton}
                 />
               );

@@ -1,0 +1,15 @@
+{
+  "authRequiredMessage": "Je sessie is verlopen. Sluit de app en open hem opnieuw, of log opnieuw in.",
+  "authRequiredTitle": "Opnieuw inloggen",
+  "dismissButton": "Sluiten",
+  "genericMessage": "Je verzoek kon niet worden uitgevoerd. Probeer het later opnieuw.",
+  "genericTitle": "Er is iets misgegaan",
+  "locale": "nl",
+  "networkMessage": "Controleer je internet of wifi en probeer het opnieuw.",
+  "networkTitle": "Kan geen verbinding maken met de server",
+  "retryButton": "Probeer opnieuw",
+  "serviceBusyMessage": "Wacht een minuut en probeer het opnieuw.",
+  "serviceBusyTitle": "Service tijdelijk bezet",
+  "timeoutMessage": "De server heeft niet op tijd gereageerd. Probeer het opnieuw of stuur een korter bericht.",
+  "timeoutTitle": "Het antwoord duurt te lang"
+}

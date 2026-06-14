@@ -1,0 +1,19 @@
+{
+  "continueButton": "Fortsetzen",
+  "description": "Kurze visuelle Meditation für sanften Fokuswechsel und Harmonisierung.",
+  "finishA11y": "Praxis beenden",
+  "finishButton": "Beenden",
+  "locale": "de",
+  "moodBetter": "Besser",
+  "moodSame": "Gleich",
+  "moodWorse": "Schlechter",
+  "newLineButton": "Neue Linie",
+  "nextMandalaButton": "Nächstes Mandala",
+  "pauseButton": "Pause",
+  "ratingMessage": "Diese Bewertung hilft, später besser passende Übungen zu empfehlen.",
+  "ratingTitle": "Wie fühlst du dich?",
+  "resumeButton": "Fortsetzen",
+  "stopConfirmMessage": "Du kannst jetzt aufhören und notieren, wie du dich nach der Praxis fühlst.",
+  "stopConfirmTitle": "Praxis beenden?",
+  "title": "Blitz"
+}

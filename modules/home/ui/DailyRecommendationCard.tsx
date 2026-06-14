@@ -21,6 +21,7 @@ interface DailyRecommendationCardProps {
   accessMode: AccessMode;
   natalProfile?: NatalProfile | null;
   modelUsed?: string | null;
+  homeTextsLoading?: boolean;
 }
 
 export function DailyRecommendationCard({
@@ -31,16 +32,22 @@ export function DailyRecommendationCard({
   accessMode,
   natalProfile,
   modelUsed,
+  homeTextsLoading = false,
 }: DailyRecommendationCardProps) {
   const theme = useTheme();
   const [modalLevel, setModalLevel] = useState<"none" | "long" | "math">("none");
-  const locale = strings.locale === "en" ? "en" : "ru";
+  const locale = strings.locale === "ru" ? "ru" : "en";
   const planetChakra = useMemo(() => getPlanetChakraMap(locale), [locale]);
-  const text = getForecastRecommendation(forecast, strings);
+  const shortText = forecast.recommendationShortText?.trim();
+  const text =
+    shortText
+    || (homeTextsLoading ? strings.recommendation.loading : strings.recommendation.fallback(forecast));
   const meta = planetChakra[forecast.planetOfTheDay];
   const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
   const detailText = strings.recommendation.detailParagraphs(forecast).join("\n\n");
-  const longExplanation = forecast.recommendationLongText ?? detailText;
+  const longExplanation =
+    forecast.recommendationLongText?.trim()
+    || (homeTextsLoading ? strings.recommendation.loading : detailText);
   const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
   return (

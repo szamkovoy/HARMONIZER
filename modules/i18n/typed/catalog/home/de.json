@@ -1,0 +1,108 @@
+{
+  "appTitle": "Harmonizer",
+  "assistantTitle": "Assistent",
+  "birthDataMessage": "Um Ihre persönliche Tagesprognose zu erstellen, geben Sie bitte Geburtsdatum, -zeit und -ort ein.",
+  "birthDataTitle": "Geburtsdatum erforderlich",
+  "closeAssistantAccessibilityLabel": "Assistenten schließen",
+  "closeButton": "Schließen",
+  "defaultSystemPrompt": "Du bist ein einfühlsamer Mentor der App Harmonizer. Antworte kurz und sachlich.",
+  "emptyTimeLabel": "—",
+  "forecastErrorTitle": "Prognose konnte nicht geladen werden",
+  "headerHint": "Hauptstimmung des Tages: Chakren, Gelegenheitsfenster und eine praktische Empfehlung.",
+  "locale": "de",
+  "locationErrorTitle": "Ortung erforderlich",
+  "openSettingsButton": "Einstellungen öffnen",
+  "refreshAccessibilityLabel": "Tagesprognose aktualisieren",
+  "refreshButton": "Aktualisieren",
+  "refreshingLabel": "...",
+  "retryButton": "Wiederholen",
+  "signOutButton": "Abmelden",
+  "signingOutButton": "Abmelden...",
+  "skeletonText": "Tagesprognose und Gelegenheitsfenster werden zusammengestellt…",
+  "staleContentMessage": "Die aktuellen Daten konnten nicht geladen werden, daher wird vorübergehend die letzte für diesen Tag gespeicherte Version angezeigt.",
+  "staleContentTitle": "Gespeicherte Prognose anzeigen",
+  "toneLabels": {
+    "harmonic": "harmonisch",
+    "neutral": "neutral",
+    "dissonant": "dissonant",
+    "toneRecommendationVerb": {
+      "harmonic": "sanft verstärken",
+      "neutral": "ruhig einstimmen",
+      "dissonant": "behutsam stabilisieren",
+      "chakraFlower": {
+        "title": "Blume des Tages",
+        "caption": "Die Größe der Blütenblätter spiegelt die heutige Bedeutung der Chakren wider.",
+        "planetBanner": {
+          "eyebrow": "Planet des Tages",
+          "opportunityWindows": {
+            "title": "Gelegenheitsfenster",
+            "emptyDetail": "Heute kein genaues Fenster",
+            "windowTitles": {
+              "sunrise": "Sonnenaufgang",
+              "culmination": "Kulmination",
+              "exactAspect": "Exakter Aspekt",
+              "aspectLabels": {
+                "conjunction": "Konjunktion",
+                "opposition": "Opposition",
+                "square": "Quadrat",
+                "trine": "Trigon",
+                "sextile": "Sextil",
+                "reminderModalTitle": "Benachrichtigen",
+                "reminderTextLabel": "Benachrichtigungstext",
+                "reminderModeExact": "genau zu dieser Zeit",
+                "reminderModeBefore5": "5 Minuten vorher",
+                "reminderSave": "Speichern",
+                "reminderCancel": "Abbrechen",
+                "reminderBodyFiveMinPrefix": "5 Minuten vor",
+                "reminderPastTitle": "Zeit bereits vorbei",
+                "reminderPastMessage": "Für ein vergangenes Fenster kann keine Benachrichtigung gesetzt werden.",
+                "reminderNotificationsUnavailableTitle": "Benachrichtigungen derzeit nicht verfügbar",
+                "reminderNeedPermissionTitle": "Benachrichtigungen erforderlich",
+                "reminderNeedPermissionMessage": "Erlauben Sie Benachrichtigungen, damit Harmonizer Sie an das Gelegenheitsfenster erinnern kann.",
+                "helpButtonAccessibilityLabel": "Erläuterung zum Diagramm des Gelegenheitsfensters",
+                "helpModalTitle": "So lesen Sie dieses Fenster",
+                "helpLoading": "Erläuterung wird geladen...",
+                "recommendation": {
+                  "title": "Tagesempfehlungen",
+                  "loading": "Empfehlung wird in der ausgewählten Sprache aktualisiert…",
+                  "discussButton": "Was tun?",
+                  "readMoreButton": "Mehr erfahren",
+                  "longExplanationModal": {
+                    "title": "Details",
+                    "subtitle": "Ausführliche Erklärung der Tagesempfehlung.",
+                    "closeButton": "Schließen",
+                    "mathButton": "Berechnungen und Formeln",
+                    "mathButtonA11y": "Berechnungen und Formeln der Tagesempfehlung öffnen",
+                    "mathCaption": "Präzise Mathematik der planetaren Stärke und Harmonie, Aspektgewichte und Auswahl des Tagesthemas.",
+                    "eventBells": {
+                      "title": "Glöckchen",
+                      "empty": "Heute keine bevorstehenden Astro-Ereignisse mit genauer Zeit.",
+                      "aspectTitle": "Aspekt",
+                      "devLinks": {
+                        "biofeedback": "Biofeedback",
+                        "mandala": "Mandala",
+                        "bindu": "Bindu",
+                        "symbols": "Symbole",
+                        "breath": "Atem",
+                        "calibration": "Kalibrierung",
+                        "devResetDayContent": "Aktualisieren",
+                        "mathModal": {
+                          "title": "Mathematik des Tages",
+                          "subtitle": "Formeln für Stärke, Harmonie, Transite und Auswahl des Tagesplaneten.",
+                          "closeButton": "Zurück",
+                          "emptyHint": "Der mathematische Block wurde noch nicht mit der Prognose geladen. Aktualisieren Sie die Tagesprognose nach dem Deployment des Backend-Patches.",
+                          "showChartButton": "Geburtshoroskop und Transitkarte anzeigen",
+                          "chartUnavailableHint": "Die Karte ist nur für Trial-/Premium-Nutzer mit Geburtsprofil verfügbar."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

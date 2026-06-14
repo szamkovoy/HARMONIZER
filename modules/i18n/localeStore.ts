@@ -29,12 +29,12 @@ export interface AppLocaleOption {
 export const APP_LOCALE_OPTIONS: readonly AppLocaleOption[] = [
   { code: "ru", nativeLabel: "Русский", enabled: true },
   { code: "en", nativeLabel: "English", enabled: true },
-  { code: "de", nativeLabel: "Deutsch", enabled: false },
-  { code: "fr", nativeLabel: "Français", enabled: false },
-  { code: "it", nativeLabel: "Italiano", enabled: false },
-  { code: "es", nativeLabel: "Español", enabled: false },
-  { code: "pt", nativeLabel: "Português", enabled: false },
-  { code: "nl", nativeLabel: "Nederlands", enabled: false },
+  { code: "de", nativeLabel: "Deutsch", enabled: true },
+  { code: "fr", nativeLabel: "Français", enabled: true },
+  { code: "it", nativeLabel: "Italiano", enabled: true },
+  { code: "es", nativeLabel: "Español", enabled: true },
+  { code: "pt", nativeLabel: "Português", enabled: true },
+  { code: "nl", nativeLabel: "Nederlands", enabled: true },
 ] as const;
 
 export const DEFAULT_APP_LOCALE: AppLocale = "ru";

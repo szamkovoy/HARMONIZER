@@ -1,0 +1,108 @@
+{
+  "appTitle": "Harmonizer",
+  "assistantTitle": "Asistente",
+  "birthDataMessage": "Para generar tu pronóstico personal del día, ingresa tu fecha, hora y lugar de nacimiento.",
+  "birthDataTitle": "Se necesita fecha de nacimiento",
+  "closeAssistantAccessibilityLabel": "Cerrar asistente",
+  "closeButton": "Cerrar",
+  "defaultSystemPrompt": "Eres un mentor empático de la app Harmonizer. Responde de forma breve y al grano.",
+  "emptyTimeLabel": "—",
+  "forecastErrorTitle": "No se pudo cargar el pronóstico",
+  "headerHint": "Configuración principal del día: chakras, ventanas de oportunidades y recomendación práctica.",
+  "locale": "es",
+  "locationErrorTitle": "Se necesita geolocalización",
+  "openSettingsButton": "Abrir ajustes",
+  "refreshAccessibilityLabel": "Actualizar pronóstico del día",
+  "refreshButton": "Actualizar",
+  "refreshingLabel": "...",
+  "retryButton": "Reintentar",
+  "signOutButton": "Cerrar sesión",
+  "signingOutButton": "Cerrando sesión...",
+  "skeletonText": "Preparando pronóstico del día y ventanas de oportunidades...",
+  "staleContentMessage": "Los datos actuales no se cargaron, así que muestro temporalmente la última versión guardada de este día.",
+  "staleContentTitle": "Mostrando pronóstico guardado",
+  "toneLabels": {
+    "harmonic": "armónico",
+    "neutral": "neutral",
+    "dissonant": "disonante",
+    "toneRecommendationVerb": {
+      "harmonic": "reforzar suavemente",
+      "neutral": "ajustar con calma",
+      "dissonant": "estabilizar con cuidado",
+      "chakraFlower": {
+        "title": "Flor del día",
+        "caption": "El tamaño de los pétalos refleja la importancia de los chakras hoy.",
+        "planetBanner": {
+          "eyebrow": "Planeta del día",
+          "opportunityWindows": {
+            "title": "Ventana de oportunidades",
+            "emptyDetail": "Hoy sin una ventana precisa",
+            "windowTitles": {
+              "sunrise": "Amanecer",
+              "culmination": "Culminación",
+              "exactAspect": "Aspecto exacto",
+              "aspectLabels": {
+                "conjunction": "conjunción",
+                "opposition": "oposición",
+                "square": "cuadratura",
+                "trine": "trígono",
+                "sextile": "sextil",
+                "reminderModalTitle": "Notificar",
+                "reminderTextLabel": "Texto de la notificación",
+                "reminderModeExact": "justo a esa hora",
+                "reminderModeBefore5": "5 minutos antes",
+                "reminderSave": "Guardar",
+                "reminderCancel": "Cancelar",
+                "reminderBodyFiveMinPrefix": "5 minutos antes de",
+                "reminderPastTitle": "El tiempo ya pasó",
+                "reminderPastMessage": "No se puede programar una notificación para una ventana que ya pasó.",
+                "reminderNotificationsUnavailableTitle": "Notificaciones aún no disponibles",
+                "reminderNeedPermissionTitle": "Se necesitan notificaciones",
+                "reminderNeedPermissionMessage": "Permite las notificaciones para que Harmonizer pueda recordarte una ventana de oportunidades.",
+                "helpButtonAccessibilityLabel": "Explicación del gráfico de la ventana de oportunidades",
+                "helpModalTitle": "Cómo leer esta ventana",
+                "helpLoading": "Preparando explicación...",
+                "recommendation": {
+                  "title": "Recomendaciones del día",
+                  "loading": "Actualizando la recomendación en el idioma seleccionado…",
+                  "discussButton": "¿Qué hacer?",
+                  "readMoreButton": "Más detalles",
+                  "longExplanationModal": {
+                    "title": "Más detalles",
+                    "subtitle": "Explicación detallada de la recomendación del día.",
+                    "closeButton": "Cerrar",
+                    "mathButton": "Cálculos y fórmulas",
+                    "mathButtonA11y": "Abrir cálculos y fórmulas de la recomendación del día",
+                    "mathCaption": "Matemática precisa de la fuerza y armonía planetaria, pesos de aspectos y elección del tema del día.",
+                    "eventBells": {
+                      "title": "Campanillas",
+                      "empty": "Hoy no hay eventos astrológicos próximos con hora precisa.",
+                      "aspectTitle": "Aspecto",
+                      "devLinks": {
+                        "biofeedback": "Biofeedback",
+                        "mandala": "Mandala",
+                        "bindu": "Bindu",
+                        "symbols": "Símbolos",
+                        "breath": "Respiración",
+                        "calibration": "Calibración",
+                        "devResetDayContent": "Actualizar",
+                        "mathModal": {
+                          "title": "Matemática del día",
+                          "subtitle": "Fórmulas de fuerza, armonía, tránsitos y elección del planeta del día.",
+                          "closeButton": "Atrás",
+                          "emptyHint": "El bloque matemático aún no llegó con el pronóstico. Actualiza el pronóstico del día después del despliegue del backend del parche.",
+                          "showChartButton": "Mostrar carta natal y de tránsitos",
+                          "chartUnavailableHint": "La carta está disponible solo para usuarios de prueba/premium con perfil natal."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

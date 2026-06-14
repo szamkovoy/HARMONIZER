@@ -1,0 +1,19 @@
+{
+  "continueButton": "Continuer",
+  "description": "Courte méditation visuelle pour un changement d'attention en douceur et une harmonisation.",
+  "finishA11y": "Terminer la pratique",
+  "finishButton": "Terminer",
+  "locale": "ru",
+  "moodBetter": "Mieux",
+  "moodSame": "Pareil",
+  "moodWorse": "Moins bien",
+  "newLineButton": "Nouvelle ligne",
+  "nextMandalaButton": "Mandala suivant",
+  "pauseButton": "Pause",
+  "ratingMessage": "Votre retour nous aidera à mieux choisir vos prochaines pratiques.",
+  "ratingTitle": "Comment vous sentez-vous ?",
+  "resumeButton": "Reprendre",
+  "stopConfirmMessage": "Vous pouvez vous arrêter maintenant et noter comment vous vous sentez après la pratique.",
+  "stopConfirmTitle": "Terminer la pratique ?",
+  "title": "Flash"
+}
