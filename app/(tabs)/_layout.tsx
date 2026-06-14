@@ -2,10 +2,12 @@ import React from "react";
 import { Tabs } from "expo-router";
 
 import { useAccess } from "@/modules/access";
+import { useTranslate } from "@/modules/i18n";
 import { useTheme } from "@/modules/ui/theme";
 
 export default function TabLayout() {
   const theme = useTheme();
+  const { t } = useTranslate();
   const { canUseFeature } = useAccess();
   const canOpenPractices = canUseFeature("practice_catalog");
   const canOpenDay = canUseFeature("day_planning");
@@ -22,24 +24,24 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Home", tabBarLabel: "Home" }} />
+      <Tabs.Screen name="index" options={{ title: t("tabs.home"), tabBarLabel: t("tabs.home") }} />
       <Tabs.Screen
         name="day"
         options={{
-          title: "День",
-          tabBarLabel: "День",
+          title: t("tabs.day"),
+          tabBarLabel: t("tabs.day"),
           href: canOpenDay ? undefined : null,
         }}
       />
       <Tabs.Screen
         name="practices"
         options={{
-          title: "Практики",
-          tabBarLabel: "Практики",
+          title: t("tabs.practices"),
+          tabBarLabel: t("tabs.practices"),
           href: canOpenPractices ? undefined : null,
         }}
       />
-      <Tabs.Screen name="profile" options={{ title: "Профиль", tabBarLabel: "Профиль" }} />
+      <Tabs.Screen name="profile" options={{ title: t("tabs.profile"), tabBarLabel: t("tabs.profile") }} />
     </Tabs>
   );
 }

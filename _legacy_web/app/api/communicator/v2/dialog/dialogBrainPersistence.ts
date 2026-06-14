@@ -27,6 +27,11 @@ export type PersistedSummarizedEvent = {
   outcomeCells: MatrixCell[];
 };
 
+export type DismissedPlannedEvent = {
+  id: string;
+  title: string;
+};
+
 function endOfLocalDayIso(localDate: string, timezone: string): string {
   const end = DateTime.fromISO(localDate, { zone: timezone || "UTC" }).endOf("day");
   return end.toUTC().toISO() ?? `${localDate}T23:59:59.000Z`;
@@ -249,4 +254,47 @@ export async function persistSummarizedEvent(params: {
     appliedToMatrix: outcomeCells.length > 0,
     outcomeCells,
   };
+}
+
+/**
+ * Lightweight cancellation: mark still-open (planned, not yet summarized)
+ * events for the working day as `dismissed` so they drop out of the Day tab
+ * (which only reads `planned`/`summarized`). Each ref is fuzzy-matched against
+ * open rows; already-summarized events are never touched.
+ */
+export async function dismissPlannedEvents(params: {
+  db: SupabaseClient;
+  userId: string;
+  workingLocalDate: string;
+  refs: string[];
+}): Promise<DismissedPlannedEvent[]> {
+  const { db, userId, workingLocalDate, refs } = params;
+  const cleanedRefs = refs.map((ref) => ref.trim()).filter(Boolean);
+  if (cleanedRefs.length === 0) return [];
+
+  const existing = await loadPlannedEventsForLocalDate(db, userId, workingLocalDate);
+  const open = existing.filter((row) => row.status === "planned");
+  if (open.length === 0) return [];
+
+  const dismissedIds = new Set<string>();
+  const dismissed: DismissedPlannedEvent[] = [];
+  for (const ref of cleanedRefs) {
+    const match = open.find(
+      (row) => !dismissedIds.has(row.id) && samePlannedEventIdentity(row.description, ref),
+    );
+    if (!match) continue;
+    dismissedIds.add(match.id);
+    dismissed.push({ id: match.id, title: match.description });
+  }
+  if (dismissed.length === 0) return [];
+
+  const { error } = await db
+    .from("planned_events")
+    .update({ status: "dismissed" })
+    .eq("user_id", userId)
+    .in("id", Array.from(dismissedIds))
+    .eq("status", "planned");
+  if (error) throw error;
+
+  return dismissed;
 }

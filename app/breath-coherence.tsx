@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { CoherenceBreathScreen } from "@/modules/breath/ui/CoherenceBreathScreen";
 import { isChakra, type Chakra } from "@/modules/breath/core/chakra";
 import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
+import { useAppLocale } from "@/modules/i18n";
 
 /**
  * Роут-обёртка для экрана дыхательной практики.
@@ -26,6 +27,7 @@ export default function BreathCoherenceRoute() {
     launchSource?: string;
     usePulseSensor?: string;
   }>();
+  const { locale: appLocale } = useAppLocale();
 
   const practiceId = useMemo<BreathPracticeId | undefined>(() => {
     const p = params.practiceId;
@@ -60,7 +62,7 @@ export default function BreathCoherenceRoute() {
     <>
       <StatusBar style="light" />
       <CoherenceBreathScreen
-        locale="ru"
+        locale={appLocale === "en" ? "en" : "ru"}
         practiceId={practiceId}
         durationMs={durationMs}
         chakra={chakra}

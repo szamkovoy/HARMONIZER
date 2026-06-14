@@ -111,6 +111,7 @@ describe("buildPlanningPrompt", () => {
       noGreeting: false,
       userSignaledDone: true,
       planningLocked: false,
+      existingActionCount: 0,
     });
     expect(userInstruction).toMatch(/as a living recommendation/i);
     // Visible day-recommendation paragraph and short_text must be the SAME text.
@@ -128,9 +129,50 @@ describe("buildPlanningPrompt", () => {
       noGreeting: true,
       userSignaledDone: true,
       planningLocked: false,
+      existingActionCount: 0,
     });
     expect(userInstruction).toMatch(/NEVER emit \[CORRECT_RECOMMENDATION\]/i);
     expect(userInstruction).toMatch(/only PLANNED_EVENT markers are allowed/i);
+  });
+
+  it("acknowledges an already-planned day in the add-flow opening", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: true,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 2,
+    });
+    expect(userInstruction).toMatch(/ALREADY has 2 planned action/i);
+    expect(userInstruction).toMatch(/what they would like to ADD/i);
+    expect(userInstruction).toMatch(/Vary the wording/i);
+  });
+
+  it("falls back to the plain add-flow opening when the day has no actions yet", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: true,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 0,
+    });
+    expect(userInstruction).toMatch(/adding action\(s\) from the Day tab/i);
+  });
+
+  it("includes the life-spheres guide and an anti-parrot spheres rule", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: false,
+      noGreeting: false,
+      userSignaledDone: true,
+      planningLocked: false,
+      existingActionCount: 0,
+    });
+    expect(userInstruction).toMatch(/do NOT copy the format example numbers/i);
+    expect(userInstruction).toMatch(/Sphere 4 is ONLY for actions/i);
+    expect(userInstruction).not.toContain('spheres="1:0.6;4:0.4"');
   });
 });
 
@@ -261,12 +303,22 @@ describe("replaceSpontaneousEnglishRu", () => {
     expect(capitalizeFirstLetter("go to the gym")).toBe("Go to the gym");
     expect(capitalizeFirstLetter("")).toBe("");
   });
-  it("polishPlanningMarker capitalizes the action title", () => {
+  it("polishPlanningMarker capitalizes the action title and the recommendation", () => {
     const polished = polishPlanningMarker(
-      { desc: "пойти в кино вечером", recommendation: null, displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      {
+        desc: "пойти в кино вечером",
+        recommendation: "занимаясь каждой задачей, остановитесь на минуту.",
+        displayOrder: 1,
+        time: null,
+        timeNorm: null,
+        cells: [],
+        snippets: [],
+      },
       "ru",
     );
     expect(polished.desc).toBe("Пойти в кино вечером");
+    // Recommendation text in the Day tab must start with a capital letter.
+    expect(polished.recommendation?.startsWith("Занимаясь")).toBe(true);
   });
   it("does not touch unknown Latin tokens (possible user terms)", () => {
     expect(replaceSpontaneousEnglishRu("Сегодня пишу запросы на SQL.")).toBe("Сегодня пишу запросы на SQL.");

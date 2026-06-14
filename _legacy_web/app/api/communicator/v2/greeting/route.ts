@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAddressFormHint } from "@legacy/app/api/_utils/addressForm";
 import { natalProfileFromRow } from "@legacy/app/api/_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "@legacy/app/api/_utils/authorVoice";
+import { resolveResponseLocale } from "@legacy/app/api/_utils/dialogLocale";
 import {
   buildResponderForecastCompact,
   buildResponderProfileCompact,
@@ -10,7 +11,6 @@ import {
 } from "@legacy/app/api/_utils/dto";
 import { generateGeminiText, getModelByHint } from "@legacy/app/api/_utils/gemini";
 import { sanitizeAssistantText } from "@legacy/app/api/_utils/markers";
-import { dialogSurfaceModelHint } from "@legacy/app/api/_utils/userModelTier";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { greetingBypassDecision, timeOfDayContext, type DialogueUseCase } from "@legacy/app/api/_utils/orchestrator";
 import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
@@ -23,6 +23,8 @@ type Body = {
   entrySource?: "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding";
   triggerMeta?: Record<string, unknown>;
   userTimezone?: string;
+  /** Language the opening should be written in (in-app selector); see dialogLocale.ts. */
+  responseLocale?: string;
 };
 
 function assertUseCase(useCase: unknown): DialogueUseCase {
@@ -122,9 +124,13 @@ export async function POST(req: Request) {
       ?? (context.forecast?.today_planet_state as { today_tone?: string } | undefined)?.today_tone
       ?? "neutral";
     const planetOfDay = String(context.forecast?.planet_of_the_day ?? "Sun");
-    const addressFormHint = buildAddressFormHint(context.user.address_form, context.user.locale);
+    // Response locale is separate from the user's input language: an env test
+    // override (DIALOG_RESPONSE_LOCALE) can force the opening into another
+    // language while the user still speaks Russian. See dialogLocale.ts.
+    const responseLocale = resolveResponseLocale(context.user.locale, body.responseLocale);
+    const addressFormHint = buildAddressFormHint(context.user.address_form, responseLocale);
     const authorVoiceBlock = formatAuthorVoiceForPrompt(
-      getAuthorVoice(context.user.locale),
+      getAuthorVoice(responseLocale),
       context.user.address_form === "informal" ? "ty" : "vy",
     );
     const profileSize = logDTOSize("greeting.profile", profileDTO, 350);
@@ -148,7 +154,10 @@ export async function POST(req: Request) {
       window_time: body.triggerMeta?.window_time ?? "",
     });
     endpointStage = "responder";
-    const greetingModel = dialogSurfaceModelHint(responderPrompt.model_hint, context.user);
+    // The dialog (including this opening) always runs on the STANDARD tier so the
+    // whole conversation stays on one model (DeepSeek v4 flash) — uniformity keeps
+    // DeepSeek's prefix cache warm. See DIALOG_MODEL_TIER in the dialog route.
+    const greetingModel = "standard";
     const result = await generateGeminiText({
       prompt: renderPrompt(responderPrompt.template, {
         author_voice_block: authorVoiceBlock,
@@ -167,7 +176,7 @@ export async function POST(req: Request) {
       maxOutputTokens: responderPrompt.max_output_tokens,
     });
 
-    const cleanText = sanitizeAssistantText(result.text, context.user.locale);
+    const cleanText = sanitizeAssistantText(result.text, responseLocale);
 
     const { data: message, error: messageError } = await db
       .from("messages")

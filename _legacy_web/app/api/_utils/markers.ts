@@ -41,6 +41,10 @@ export type SummarizeEventMarker = {
   outcomeCells: MatrixCell[];
 };
 
+export type CancelEventMarker = {
+  ref: string;
+};
+
 type MarkerMessage = {
   role: "user" | "assistant" | "system";
   content?: string | null;
@@ -53,6 +57,7 @@ type ParsedMarker = {
     | "CORRECT_RECOMMENDATION"
     | "PLANNED_EVENT"
     | "SUMMARIZE_EVENT"
+    | "CANCEL_EVENT"
     | "MATRIX_CELLS";
   body: string;
   start: number;
@@ -148,7 +153,7 @@ function findMarkerEnd(text: string, startIndex: number): number {
 
 function parseMarkers(text: string): ParsedMarker[] {
   const markers: ParsedMarker[] = [];
-  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS):/gi;
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
     const name = match[1]?.toUpperCase() as ParsedMarker["name"] | undefined;
@@ -173,6 +178,7 @@ export function parseResponseMarkers(text: string): {
   recommendationCorrection: RecommendationCorrectionMarker | null;
   plannedEvents: PlannedEventMarker[];
   summarizeEvents: SummarizeEventMarker[];
+  cancelEvents: CancelEventMarker[];
   planTomorrow: boolean;
   matrixCells: MatrixCell[];
 } {
@@ -251,13 +257,23 @@ export function parseResponseMarkers(text: string): {
     })
     .filter((item): item is SummarizeEventMarker => Boolean(item));
 
+  const cancelEvents = parsedMarkers
+    .filter((item) => item.name === "CANCEL_EVENT")
+    .map((marker) => {
+      const attrs = parseMarkerAttributes(marker.body);
+      const ref = attrs.ref?.trim();
+      if (!ref) return null;
+      return { ref } satisfies CancelEventMarker;
+    })
+    .filter((item): item is CancelEventMarker => Boolean(item));
+
   const matrixCells = parsedMarkers
     .filter((item) => item.name === "MATRIX_CELLS")
     .flatMap((marker) => parseCompactCells(marker.body.trim()));
 
   const planTomorrow = /\[\s*PLAN_TOMORROW\s*\]/i.test(text);
 
-  return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, planTomorrow, matrixCells };
+  return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, cancelEvents, planTomorrow, matrixCells };
 }
 
 export type DebugRawMarker = {

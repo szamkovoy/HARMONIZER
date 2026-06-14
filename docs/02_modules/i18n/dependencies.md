@@ -1,0 +1,76 @@
+---
+id: 02_modules/i18n/dependencies
+title: i18n Dependencies
+version: 1.0
+updated: 2026-06-14
+depends_on: [02_modules/i18n/spec]
+code_refs:
+  [
+    modules/i18n/localeStore.ts,
+    modules/i18n/t.ts,
+    app/_layout.tsx,
+    app/(tabs)/_layout.tsx,
+    app/(tabs)/index.tsx,
+    app/(tabs)/profile.tsx,
+    app/(tabs)/day.tsx,
+    app/breath-coherence.tsx,
+    services/communicator-client.ts,
+    modules/communicator/ui/Communicator.tsx,
+    _legacy_web/app/api/_utils/dialogLocale.ts,
+    _legacy_web/app/api/communicator/v2/dialog/route.ts,
+    _legacy_web/app/api/communicator/v2/greeting/route.ts,
+  ]
+---
+
+# i18n — dependencies & contracts
+
+i18n is cross-cutting: it has no single "owner" screen but is consumed everywhere.
+This file lists the contracts so a change here is traceable to its blast radius.
+
+## Internal (within `modules/i18n`)
+- `useAppLocale` / `useTranslate` → read `localeStore` via `useSyncExternalStore`.
+- `t` / `tCount` → import the JSON catalogs and `AppLocale` (type-only) from
+  `localeStore` (no React/RN runtime dependency, so they are unit-testable in Node).
+- `index.ts` is the only import surface (`@/modules/i18n`).
+
+## Outbound — what i18n provides to other modules
+| Consumer (module) | Uses | Contract |
+|-------------------|------|----------|
+| `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called once in `AccessBridge`; seeds the store at startup. |
+| `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")` | Tab labels via catalog. |
+| `profile` (`app/(tabs)/profile.tsx`) | `useAppLocale`, `useTranslate`, `APP_LOCALE_OPTIONS`, `setLocale` | Hosts the **language selector**; passes the shared locale into `getProfileReportStrings` and report cards. |
+| `home` (`app/(tabs)/index.tsx`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + the `<Communicator locale=...>` prop follow the store. |
+| `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
+| `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
+| `communicator` (`Communicator.tsx`) | `getTranscribeLocale()` | STT language; `ru` in test mode. The displayed UI strings still come from the `locale` prop passed by the host screen. |
+| `services/communicator-client.ts` | `getResponseLocale()` | `buildDialogPostBody` adds `responseLocale` to every dialog POST (default = active locale). |
+
+## Inbound — what i18n depends on
+- **`assistant` (server)** consumes `responseLocale` via
+  `resolveResponseLocale(userLocale, requestedLocale)` in `dialog/route.ts` and
+  `greeting/route.ts`. Contract: the **request body MAY carry `responseLocale`**;
+  precedence is env override → body → `users.locale` → `ru`. Changing this
+  precedence is an assistant+i18n contract change.
+- **`profile` / Supabase** — `users.locale` (default `ru`) is the production
+  fallback. Read server-side; the client may seed the store from it. (Writing it
+  back from the app is an open Phase-2 item.)
+- **`lifeSpheresBaseline`** (`_legacy_web/.../lifeSpheresBaseline.ts`,
+  `data/life_spheres_baseline/{ru,en}.json`) — selected by the resolved response
+  locale. The only data file that is locale-aware today (layer A otherwise RU).
+
+## External libraries / infra
+- **`Intl.PluralRules`** — plural categories per locale (`t.ts`). Language-complete.
+- **Luxon** — locale-aware date/number formatting (use the active locale; do not
+  hand-format dates).
+- **expo-secure-store** / web `localStorage` — locale persistence.
+- **Vercel env** — `DIALOG_RESPONSE_LOCALE` (server test override).
+  **Expo env** — `EXPO_PUBLIC_I18N_TEST_MODE` (client test mode).
+- **Translate API** (gate `fill`) — `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`.
+
+## Contract-risk checklist (touch i18n if a task does any of these)
+- Adds/edits any user-facing string, alert, button, placeholder, or screen.
+- Changes the assistant's reply language or `languageName` derivation.
+- Adds a deterministic visible-text builder / fallback on the server (layer C).
+- Adds a date/number/plural rendering.
+- Adds a new response language (see spec §6).
+- Adds a new module with UI → it must consume `@/modules/i18n`, not hardcode RU.

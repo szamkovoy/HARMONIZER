@@ -168,6 +168,41 @@ export function buildPostDialogReply(params: {
     : "Диалог можно завершить — нажмите «Выйти из диалога» внизу.";
 }
 
+/** Word-boundary clamp for a salvaged planning label: never breaks a word mid-token, no ellipsis. */
+function clampPlanningDesc(desc: string, max = 60): string {
+  const clean = desc.trim();
+  if (clean.length <= max) return clean;
+  const head = clean.slice(0, max);
+  const lastSpace = head.lastIndexOf(" ");
+  const cut = lastSpace > 20 ? head.slice(0, lastSpace) : head;
+  return cut.replace(/[\s,;:.…–—-]+$/u, "").trim();
+}
+
+/**
+ * Best-effort life-sphere inference for a SALVAGED planned event — used only
+ * when the model finalized visibly but forgot the invisible [PLANNED_EVENT]
+ * marker (so we have no model-provided spheres). Keyword-based, RU/EN,
+ * Cyrillic-safe (no \b). Falls back to sphere 1 (body/home/safety) and NEVER
+ * the old hardcoded sphere-4 default, which mislabeled chores/rest as
+ * "friends/family/relationships" in the Day-tab spheres chart.
+ */
+function inferPlanningSpheresFromText(text: string): PlannedEventMarker["cells"] {
+  const t = text.toLowerCase();
+  const has = (re: RegExp) => re.test(t);
+  const scored: number[] = [];
+  if (has(/(дом|дач|убор|убра|порядок|крыш|краси|ремонт|кос(и|я)|трав|колодец|безопас|здоров|сон|спать|выспат|лечь|тел[оа]|home|chore|clean|repair|garden|sleep)/)) scored.push(1);
+  if (has(/(отдых|релакс|расслаб|прогул|погул|велосипед|катан|купан|плав|озер|море|пляж|природ|кафе|перекус|вкус|ужин|обед|удовольств|бан[яи]|саун|rest|relax|walk|swim|bike|beach|nature|cafe|lunch|dinner)/)) scored.push(2);
+  if (has(/(работ|задач|проект|деньг|бизнес|результат|дедлайн|клиент|совещ|заработ|карьер|work|task|project|money|deadline|client|meeting)/)) scored.push(3);
+  if (has(/(друз|семь|близк|родител|жена|муж[ае]|свидан|отношени|помир|родн|friend|family|relationship|date\b)/)) scored.push(4);
+  if (has(/(творч|рисов|музык|стих|песн|самовыраж|искусств|creativ|paint|music|poem|art)/)) scored.push(5);
+  if (has(/(учеб|обуч|изуч|познан|курс|лекц|разобрат|исследов|study|learn|course|research)/)) scored.push(6);
+  if (has(/(вер[ауы]|молит|духов|медита|смысл\s+жизни|призван|сакрал|паломн|faith|pray|spiritual|medita|sacred|pilgrim)/)) scored.push(7);
+  if (!scored.length) return [{ sphere: 1, weight: 1 }];
+  const top = scored.slice(0, 2);
+  const weight = top.length === 1 ? 1 : 0.5;
+  return top.map((sphere) => ({ sphere, weight }));
+}
+
 /** Salvage planning markers when the model finalized visibly but forgot invisible markers. */
 export function extractPlanningMarkersFromVisibleFinalize(
   text: string,
@@ -189,12 +224,12 @@ export function extractPlanningMarkersFromVisibleFinalize(
       continue;
     }
     markers.push({
-      desc: desc.slice(0, 40),
+      desc: clampPlanningDesc(desc),
       time: null,
       timeNorm: null,
       recommendation,
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : markers.length + 1,
-      cells: [{ sphere: 4, weight: 0.5 }, { sphere: 1, weight: 0.5 }],
+      cells: inferPlanningSpheresFromText(`${desc} ${recommendation}`),
       snippets: [],
     });
     match = pattern.exec(text);

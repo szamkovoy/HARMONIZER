@@ -199,4 +199,48 @@ describe("dialogTurnGuards", () => {
     expect(salvaged).toHaveLength(2);
     expect(salvaged.map((item) => item.desc)).toEqual(["Прогулка в парке", "Ранний отход ко сну"]);
   });
+
+  it("salvages a long label on a word boundary instead of cutting mid-word", () => {
+    const text = [
+      "1. Косить траву, красить крышу, убрать территорию и дом, проверить колодец",
+      "Рекомендация: Делайте с заботой.",
+      "",
+      "Хотите практику?",
+    ].join("\n");
+    const [salvaged] = extractPlanningMarkersFromVisibleFinalize(text, "ru");
+    // No mid-word cut (the old bug produced "убрать терр").
+    expect(salvaged.desc).not.toMatch(/терр$/);
+    expect(salvaged.desc.endsWith(" ")).toBe(false);
+    expect(salvaged.desc.length).toBeLessThanOrEqual(60);
+  });
+
+  it("never defaults salvaged spheres to sphere 4 (friends/family) for chores or rest", () => {
+    const text = [
+      "1. Косить траву и убрать территорию дачи",
+      "Рекомендация: Наводите порядок без спешки.",
+      "",
+      "2. Катание на велосипеде до озера и купание",
+      "Рекомендация: Почувствуйте лёгкость.",
+      "",
+      "Хотите практику?",
+    ].join("\n");
+    const salvaged = extractPlanningMarkersFromVisibleFinalize(text, "ru");
+    for (const marker of salvaged) {
+      expect(marker.cells.some((cell) => cell.sphere === 4)).toBe(false);
+    }
+    // Chores → sphere 1 (body/home); the lake ride → sphere 2 (rest) appears.
+    expect(salvaged[0]?.cells.some((cell) => cell.sphere === 1)).toBe(true);
+    expect(salvaged[1]?.cells.some((cell) => cell.sphere === 2)).toBe(true);
+  });
+
+  it("infers sphere 4 only when people/relationships are actually present", () => {
+    const text = [
+      "1. Встреча с друзьями за ужином",
+      "Рекомендация: Будьте открыты.",
+      "",
+      "Хотите практику?",
+    ].join("\n");
+    const [salvaged] = extractPlanningMarkersFromVisibleFinalize(text, "ru");
+    expect(salvaged.cells.some((cell) => cell.sphere === 4)).toBe(true);
+  });
 });

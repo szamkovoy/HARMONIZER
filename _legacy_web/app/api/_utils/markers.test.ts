@@ -4,6 +4,7 @@ import {
   parseResponseMarkers,
   sanitizeAssistantText,
   stripDialogScaffoldMarkdown,
+  stripResponseMarkers,
   userAnsweredPracticeRequest,
   userDeclinedPracticeInHistory,
   validateHistoryHasDurationAndType,
@@ -527,5 +528,21 @@ describe("parseResponseMarkers", () => {
       { sphere: 3, chakra: 5, weight: 1 },
       { sphere: 2, chakra: 4, weight: 1 },
     ]);
+  });
+
+  it("parses CANCEL_EVENT markers and strips them from visible text", () => {
+    const parsed = parseResponseMarkers(
+      `Хорошо, убрал перекус из плана. [CANCEL_EVENT: ref="перекус в кафе"]`,
+    );
+    expect(parsed.cancelEvents).toHaveLength(1);
+    expect(parsed.cancelEvents[0]?.ref).toBe("перекус в кафе");
+    expect(stripResponseMarkers(`Хорошо, убрал перекус. [CANCEL_EVENT: ref="перекус в кафе"]`)).toBe(
+      "Хорошо, убрал перекус.",
+    );
+  });
+
+  it("ignores CANCEL_EVENT without a ref", () => {
+    const parsed = parseResponseMarkers(`[CANCEL_EVENT: foo="bar"]`);
+    expect(parsed.cancelEvents).toHaveLength(0);
   });
 });

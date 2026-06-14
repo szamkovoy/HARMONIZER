@@ -1,0 +1,45 @@
+---
+description: Multilingual (i18n) is a system invariant — handle it correctly in every task
+globs: ["app/**", "modules/**", "services/**", "_legacy_web/app/api/**"]
+alwaysApply: true
+---
+# i18n is a system invariant
+
+HARMONIZER is multilingual. Russian is the **authoring source of truth**; the app
+must behave identically in every enabled locale (RU/EN now; DE/FR/IT/ES/PT/NL
+later). Treat language as a first-class constraint, not an afterthought.
+
+**Canonical docs:** `docs/02_modules/i18n/spec.md` (+ `dependencies.md`). Read them
+before any i18n-touching change. Design/rationale: `docs/04_workspace/i18n_architecture.md`.
+
+## When a task touches i18n (assume yes if unsure)
+A task touches i18n if it adds/changes any of: user-facing text, alerts, buttons,
+placeholders, a new screen; the assistant's reply language; dates/numbers/plurals;
+a server visible-text builder/fallback; or a new response language.
+
+## Hard rules
+1. **Never hardcode a user-facing Russian string** in JSX or a server response.
+   - New simple UI strings → add to `modules/i18n/catalog/ru.json` **and**
+     `en.json` (same key) and render with `useTranslate().t("key")`.
+   - Complex/structured strings → the typed `get*Strings(locale)` modules; the
+     consumer must pass `useAppLocale().locale` (never hardcoded `"ru"` or raw
+     `profile.locale`).
+2. **Plurals/dates** → `tCount` (`Intl.PluralRules`) and Luxon with the active
+   locale. Never hand-pick plural forms or format dates manually.
+3. **Active locale** comes only from `@/modules/i18n` (`useAppLocale` /
+   `getResponseLocale` / `getTranscribeLocale`). Do not invent a second source.
+4. **Assistant reply language** is decided server-side by
+   `resolveResponseLocale(userLocale, requestedLocale)` (precedence: env override →
+   request body `responseLocale` → `users.locale` → `ru`). The client already sends
+   `responseLocale`; keep it that way.
+5. **Data files stay Russian** (sphere/chakra characteristics, tonal registers) —
+   the LLM emits the target language. Do not translate them.
+6. **Adding a language** is the procedure in spec §6 (localize server layer-C +
+   `SUPPORTED_RESPONSE_LOCALES`, `fill` the catalog, fill typed modules, verify
+   Luxon, then flip `enabled`). Until done, leave it disabled — never ship
+   mixed-language output.
+
+## After changing UI text
+The sync gate keeps locales aligned. Run/verify `node scripts/i18n-sync.mjs check`
+(required locale = `en`); the pre-push hook (`scripts/i18n-sync.sh`) auto-fills on
+push. Do not leave `en` out of sync.

@@ -60,6 +60,7 @@ import {
 } from "@/modules/communicator/core/dialogTurnHydration";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
+import { getTranscribeLocale } from "@/modules/i18n";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { logErrorForDevelopers, resolveUserFacingAlert } from "@/services/userFacingErrors";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
@@ -1492,7 +1493,9 @@ export function Communicator({
         setPhase("transcribing");
         const transcript = await transcribeVoiceRecording({
           uri,
-          language: strings.transcribeLanguage,
+          // Test mode keeps STT in Russian while the dialog answers in the
+          // selected language; production follows the selected locale.
+          language: getTranscribeLocale(),
         });
         transcriptResolved = true;
         const userMessageText = transcript.text.trim();
@@ -1591,7 +1594,6 @@ export function Communicator({
       onMessage,
       reportError,
       resetChatStream,
-      strings.transcribeLanguage,
       strings.voiceTranscribeFailedBubble,
       submitDialogTurn,
     ],

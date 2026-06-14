@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
+import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -53,7 +54,10 @@ export default function ProfileTabRoute() {
   const theme = useTheme();
   const { authUser, profile, refreshProfile } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
-  const reportStrings = getProfileReportStrings("ru");
+  const { locale, setLocale, testMode } = useAppLocale();
+  const { t } = useTranslate();
+  const reportLocale: "ru" | "en" = locale === "en" ? "en" : "ru";
+  const reportStrings = getProfileReportStrings(reportLocale);
   const [statsPeriodDays, setStatsPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -145,15 +149,15 @@ export default function ProfileTabRoute() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <AppText variant="screenTitle" accessibilityRole="header">
-            Профиль
+            {t("profile.title")}
           </AppText>
           <AppText variant="screenHint" tone="muted">
-            Минимальная зона настроек и проверки доступа для первого витка.
+            {t("profile.subtitle")}
           </AppText>
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">Текущий доступ</AppText>
+          <AppText variant="sectionTitle">{t("profile.access.title")}</AppText>
           <AppText variant="screenHint">{access.label}</AppText>
           <AppText variant="technicalCaption" tone="muted">
             effective tier: {TIER_LABELS[access.tier]} · source: {access.source}
@@ -161,10 +165,37 @@ export default function ProfileTabRoute() {
           <AppText variant="technicalCaption" tone="muted">
             profile tier: {profile?.membership_tier ?? "unknown"} · trial: {profile?.trial_expires_at ?? "нет"}
           </AppText>
-          <AppButton label="Обновить профиль" variant="secondary" onPress={openBirthEditor} />
+          <AppButton label={t("profile.access.updateButton")} variant="secondary" onPress={openBirthEditor} />
           <AppText variant="technicalCaption" tone="muted">
-            Дата и время рождения (натальная карта). На главной экран обновится после сохранения.
+            {t("profile.access.birthHint")}
           </AppText>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+          <AppText variant="sectionTitle">{t("profile.language.title")}</AppText>
+          <AppText variant="screenHint" tone="muted">
+            {t("profile.language.hint")}
+          </AppText>
+          <View style={styles.localeRow}>
+            {APP_LOCALE_OPTIONS.map((option) => {
+              const active = option.code === locale;
+              return (
+                <AppButton
+                  key={option.code}
+                  label={option.enabled ? option.nativeLabel : `${option.nativeLabel} (${t("profile.language.comingSoon")})`}
+                  variant={active ? "primary" : "secondary"}
+                  disabled={!option.enabled}
+                  onPress={() => setLocale(option.code)}
+                  style={styles.localeButton}
+                />
+              );
+            })}
+          </View>
+          {testMode ? (
+            <AppText variant="technicalCaption" tone="muted">
+              {t("profile.language.testModeNote")}
+            </AppText>
+          ) : null}
         </View>
 
         {__DEV__ ? <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
@@ -230,13 +261,14 @@ export default function ProfileTabRoute() {
           )}
         </ProfileReportCard>
 
-        <PracticeByChakraReportCard enabled={statsEnabled} onUpgrade={() => setUpgradeFeature("stats")} />
+        <PracticeByChakraReportCard enabled={statsEnabled} onUpgrade={() => setUpgradeFeature("stats")} locale={reportLocale} />
         <LifeMatrixReportCard
           enabled={statsEnabled}
           onUpgrade={() => setUpgradeFeature("stats")}
           report={lifeMatrix.report}
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
+          locale={reportLocale}
         />
         <LifeSpheresReportCard
           enabled={statsEnabled}
@@ -244,6 +276,7 @@ export default function ProfileTabRoute() {
           report={lifeMatrix.report}
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
+          locale={reportLocale}
         />
         <LifeStatesReportCard
           enabled={statsEnabled}
@@ -251,6 +284,7 @@ export default function ProfileTabRoute() {
           report={lifeMatrix.report}
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
+          locale={reportLocale}
         />
         <RangeTrendReportCard
           enabled={statsEnabled}
@@ -258,12 +292,13 @@ export default function ProfileTabRoute() {
           report={lifeMatrix.report}
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
+          locale={reportLocale}
         />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">Скоро здесь</AppText>
+          <AppText variant="sectionTitle">{t("profile.comingSoon.title")}</AppText>
           <AppText variant="dialogBody" tone="muted">
-            Расширенные настройки профиля и внешний вид — на следующих витках.
+            {t("profile.comingSoon.body")}
           </AppText>
         </View>
       </ScrollView>
@@ -322,6 +357,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  localeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  localeButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   chart: {
     alignItems: "flex-end",

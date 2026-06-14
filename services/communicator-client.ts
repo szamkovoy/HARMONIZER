@@ -8,6 +8,7 @@ import {
   getCommunicatorV2DialogUrl,
   getCommunicatorV2TranscribeUrl,
 } from "@/services/communicatorConfig";
+import { getResponseLocale, getTranscribeLocale } from "@/modules/i18n";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
@@ -100,6 +101,8 @@ export interface SendDialogMessageParams {
   triggerMeta?: Record<string, unknown>;
   userMessage: string;
   userTimezone: string;
+  /** Language the assistant should answer in; defaults to the active app locale. */
+  responseLocale?: string;
   /** Client-side transcript for the active session; server does not persist message text in DB. */
   turnHistory?: DialogTurnHistoryItem[];
   initiateDialog?: boolean;
@@ -350,6 +353,7 @@ function buildDialogPostBody(params: SendDialogMessageParams): Record<string, un
     triggerMeta: params.triggerMeta ?? {},
     userMessage: params.initiateDialog ? undefined : params.userMessage,
     userTimezone: params.userTimezone,
+    responseLocale: params.responseLocale ?? getResponseLocale(),
     ...(params.turnHistory?.length ? { turnHistory: params.turnHistory } : {}),
     ...(params.initiateDialog ? { initiateDialog: true } : {}),
   };

@@ -16,6 +16,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";
 import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
+import { hydrateAppLocale } from "@/modules/i18n";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 import { configureLocalNotifications } from "@/services/localNotifications";
@@ -77,6 +78,11 @@ export default function RootLayout() {
 
 function AccessBridge({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
+  useEffect(() => {
+    // Load the persisted app locale once; seed from the profile locale if nothing
+    // is stored yet. Idempotent — later calls are ignored.
+    void hydrateAppLocale(profile?.locale);
+  }, [profile?.locale]);
   return <AccessProvider profile={profile}>{children}</AccessProvider>;
 }
 

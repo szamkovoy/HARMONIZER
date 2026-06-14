@@ -90,12 +90,14 @@ import {
   userSignalsPlanningDone,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
 import {
+  dismissPlannedEvents,
   persistDayFocus,
   persistPlanningFinalize,
   persistSummarizedEvent,
   type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+import { resolveResponseLocale, localeToLanguageName } from "@legacy/app/api/_utils/dialogLocale";
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
 
 export const runtime = "nodejs";
@@ -111,6 +113,8 @@ type Body = {
   triggerMeta?: Record<string, unknown>;
   userMessage?: string;
   userTimezone?: string;
+  /** Language the assistant should answer in (in-app selector); see dialogLocale.ts. */
+  responseLocale?: string;
   initiateDialog?: boolean;
   turnHistory?: TurnHistoryItem[];
 };
@@ -181,7 +185,7 @@ function chakraStates(chakraNumber: number): { harmonic: string[]; dissonant: st
 }
 
 function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: string | null): BrainPromptContext {
-  const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+  const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
   const now = context.nowLocal;
   const promptHour = promptLocalHour(now.hour);
   const targetChakra = context.targetChakra.chakraNumber;
@@ -192,7 +196,7 @@ function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: strin
     : now;
   return {
     locale,
-    languageName: locale === "en" ? "English" : "Russian",
+    languageName: localeToLanguageName(locale),
     addressForm: context.user.address_form === "informal" ? "ты" : "вы",
     dayOfWeek: promptDate.setLocale(locale).toFormat("cccc"),
     dateLabel: promptDate.setLocale(locale).toFormat("d LLLL"),
@@ -208,7 +212,7 @@ function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: strin
     dissonantStates: states.dissonant,
     planetOfDay,
     tonalRegister: tonalRegisterForPlanet(planetOfDay),
-    lifeSpheresBaseline: formatLifeSpheresBaselineForPrompt(context.user.locale),
+    lifeSpheresBaseline: formatLifeSpheresBaselineForPrompt(locale),
     planningSphereLens: context.planningSphereLens,
     existingDayFocus: null,
   };
@@ -451,6 +455,16 @@ async function loadConversation(
   return createConversation(db, userId, body, useCase, scenarioId);
 }
 
+/**
+ * The whole daily dialog runs on the STANDARD model tier (`AI_MODEL_STANDARD`,
+ * i.e. DeepSeek v4 flash), on EVERY turn and for the greeting, regardless of the
+ * user's membership. Uniformity is intentional: mixing premium/standard across
+ * turns breaks DeepSeek's prefix cache (system + history must stay identical to
+ * stay "warm"). Home-page astrology interpretation / day-recommendation / the
+ * "Подробнее" long text are separate endpoints and keep their own tier.
+ */
+const DIALOG_MODEL_TIER = "standard" as const;
+
 function turnDecisionEvent(mode: TurnMode) {
   const phaseMap: Record<TurnMode, string> = {
     opening: "contextual_greeting",
@@ -458,7 +472,7 @@ function turnDecisionEvent(mode: TurnMode) {
     final_recommendation: "suggest_practice",
     final_without_practice: "confirm_and_close",
   };
-  return { mode, modelTier: "premium" as const, next_phase: phaseMap[mode] };
+  return { mode, modelTier: DIALOG_MODEL_TIER, next_phase: phaseMap[mode] };
 }
 
 /** Planned events that are still open for the working day, in deterministic order. */
@@ -482,9 +496,9 @@ function immediateDialogStream(params: {
     conversationId: params.conversationId,
     fullText: params.fullText,
     shouldClose: params.shouldClose,
-    modelUsed: "premium",
+    modelUsed: DIALOG_MODEL_TIER,
     latencyMs: 0,
-    modelTier: "premium" as const,
+    modelTier: DIALOG_MODEL_TIER,
     turnMode: params.turnMode,
     iteration: params.iteration ?? 1,
     readyMarkerTriggered: false,
@@ -986,6 +1000,10 @@ export async function POST(req: Request) {
     let context = await loadDialogDailyContext(db, userId, body.userTimezone, {
       ...(daySummaryRequested && summaryDate ? { summarizeUpToLocalDate: summaryDate } : {}),
     });
+    // Collapse the response-locale decision once (env override > body responseLocale
+    // > stored users.locale > ru) and store it back on the context so every
+    // downstream resolveResponseLocale(context.user.locale) call agrees.
+    context.user.locale = resolveResponseLocale(context.user.locale, body.responseLocale);
     if (
       daySummaryRequested
       && summaryDate
@@ -1117,6 +1135,7 @@ export async function POST(req: Request) {
         noGreeting: fsm.noGreeting,
         userSignaledDone: userSignalsPlanningDone(userMessage),
         planningLocked: fsm.planningFinalized,
+        existingActionCount: due.length,
       });
     }
 
@@ -1136,7 +1155,7 @@ export async function POST(req: Request) {
       isPostDialogTurn(fsm, isInitiate)
       || (fsm.branch === "practice" && historyHasPracticePicked(history) && !isInitiate);
     if (postDialogReplyNeeded) {
-      const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+      const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
       const replyText = buildPostDialogReply({
         locale,
         userMessage,
@@ -1161,7 +1180,7 @@ export async function POST(req: Request) {
             use_case: useCase,
             scenario_id: scenarioId,
             turn_mode: "final_without_practice",
-            model_used: "premium",
+            model_used: DIALOG_MODEL_TIER,
             latency_ms: Date.now() - requestStartedMs,
             iteration,
             ready_marker_triggered: false,
@@ -1190,7 +1209,7 @@ export async function POST(req: Request) {
     const baseHistory = mapHistoryToGemini(history);
     const currentTurnPrefix: GeminiContent[] = isInitiate ? [] : [{ role: "user", parts: [{ text: userMessage }] }];
     const directiveTurn: GeminiContent = { role: "user", parts: [{ text: prompt.userInstruction }] };
-    const model = getModelByHint("premium");
+    const model = getModelByHint(DIALOG_MODEL_TIER);
     const routeDb = db;
     const routeUserId = userId;
     const fsmAtTurnStart = fsm;
@@ -1240,7 +1259,7 @@ export async function POST(req: Request) {
           }
 
           const markers = parseResponseMarkers(fullText);
-          const sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale));
+          const sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
 
           // ----- Deterministic FSM transition + persistence per branch -----
           let nextFsm: DialogFsmState = fsmAtTurnStart;
@@ -1256,22 +1275,55 @@ export async function POST(req: Request) {
           let turnMatrixCells: MatrixCell[] | undefined;
           let turnRelatedEventIds: string[] | undefined;
           let forcedVisibleText: string | null = null;
-          const planningPersistence: { inserted: unknown[]; updated: unknown[]; summarized: SummaryPersistenceRow[] } = {
+          const planningPersistence: {
+            inserted: unknown[];
+            updated: unknown[];
+            summarized: SummaryPersistenceRow[];
+            cancelled: { id: string; title: string }[];
+          } = {
             inserted: [],
             updated: [],
             summarized: [],
+            cancelled: [],
           };
           const nowIso = context.nowLocal.toUTC().toISO() ?? new Date().toISOString();
 
           if (branchForTurn === "planning") {
-            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
+            // Lightweight cancellation: if the user asked to drop a still-open
+            // planned action, fuzzy-match it against today's open events and mark
+            // it `dismissed` so it disappears from the Day tab. Summarized events
+            // are never touched. Undocumented in the UI — a pleasant surprise.
+            if (markers.cancelEvents.length > 0) {
+              try {
+                const dismissed = await dismissPlannedEvents({
+                  db: routeDb,
+                  userId: routeUserId,
+                  workingLocalDate: context.localDate,
+                  refs: markers.cancelEvents.map((c) => c.ref),
+                });
+                if (dismissed.length > 0) {
+                  planningPersistence.cancelled.push(...dismissed);
+                  turnRelatedEventIds = [
+                    ...(turnRelatedEventIds ?? []),
+                    ...dismissed.map((d) => d.id),
+                  ];
+                  console.warn(
+                    "[DIALOG_FSM] Dismissed planned events via dialog",
+                    JSON.stringify({ conversationId: conversation.id, count: dismissed.length }),
+                  );
+                }
+              } catch (cancelError) {
+                console.error("[DIALOG_FSM] Failed to dismiss planned events", cancelError);
+              }
+            }
             let plannedMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
             // model finalized this turn even if it forgot the invisible markers or
             // the deterministic done-detector missed the user's phrasing.
             const salvagedFromVisible = filterPracticeLikePlannedEvents(
               extractPlanningMarkersFromVisibleFinalize(
-                stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
+                stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale))),
                 locale,
               ),
             );
@@ -1348,7 +1400,7 @@ export async function POST(req: Request) {
                 let dayFocusSource = markers.recommendationCorrection?.short_text?.trim() ?? "";
                 if (!dayFocusSource && !fsmAtTurnStart.noGreeting) {
                   const salvagedDayFocus = extractDayFocusFromVisibleFinalize(
-                    stripBrainSentinels(sanitizeAssistantText(fullText, context.user.locale)),
+                    stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale))),
                     plannedMarkers.length,
                   );
                   if (salvagedDayFocus.length >= 80) {
@@ -1470,7 +1522,7 @@ export async function POST(req: Request) {
               nextFsm = remainingAfterCurrent <= 0 ? advanceBranch(fsmAtTurnStart) : fsmAtTurnStart;
               shouldClose = remainingAfterCurrent <= 0 && nextFsm.branch === "done";
               if (nextEvent && remainingAfterCurrent > 0) {
-                const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+                const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
                 forcedVisibleText = buildSummaryEventDidNotHappenBridge(currentEvent.description, nextEvent.description, locale);
               }
             } else if (markerWithVisibleClarifier && currentEvent) {
@@ -1619,7 +1671,7 @@ export async function POST(req: Request) {
               )
             ) {
               console.warn("[DIALOG_FSM] Model mentioned the next event before closing the current one — keeping current event open");
-              const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+              const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
               forcedVisibleText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
               nextFsm = bumpSummaryAsked(fsmAtTurnStart, currentEvent.id);
               turnMode = "inquiry";
@@ -1634,7 +1686,7 @@ export async function POST(req: Request) {
 
           let cleanText = forcedVisibleText ?? sanitizedVisibleText;
           if (branchForTurn === "planning" && planningFinalizedThisTurn) {
-            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
             const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
               .map((marker) => polishPlanningMarker(marker, locale));
             const persistedDayFocus =
@@ -1674,7 +1726,7 @@ export async function POST(req: Request) {
             if (cardReason) cleanText = cardReason;
           }
           if (summaryClarifyingDeferred && currentEvent) {
-            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
             cleanText = buildSummaryClarifyingQuestion(currentEvent.description, locale);
           }
           if (
@@ -1688,7 +1740,7 @@ export async function POST(req: Request) {
             // (if any) is appended deterministically below.
             cleanText = sanitizeSummaryFinalVisibleText(cleanText);
             if (nextFsm.branch === "planning") {
-              const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+              const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
               cleanText = ensureSummaryToPlanningBridge(cleanText, locale);
             }
           }
@@ -1697,7 +1749,7 @@ export async function POST(req: Request) {
             // model put everything inside a marker that failed to resolve, or a
             // catalog-inconsistent request like 30-min breathing). Never crash the
             // client — fall back to a deterministic catalog-aware clarification.
-            const locale: "ru" | "en" = context.user.locale?.startsWith("en") ? "en" : "ru";
+            const locale: "ru" | "en" = resolveResponseLocale(context.user.locale);
             const v = practiceValidationAtTurn;
             const requestedDurationMin = v?.durationSec != null ? Math.round(v.durationSec / 60) : null;
             const kind = v?.practiceKind ?? null;
@@ -1722,7 +1774,7 @@ export async function POST(req: Request) {
           // word into Russian output ("рутинный task", "пусть ответ quietly…").
           // The prompt forbids it but the model is not fully reliable, so we also
           // replace a curated set of common offenders. Skip for EN dialogues.
-          if (!context.user.locale?.startsWith("en")) {
+          if (resolveResponseLocale(context.user.locale) === "ru") {
             cleanText = replaceSpontaneousEnglishRu(cleanText);
           }
           if (bufferUntilGuards) {
@@ -1744,7 +1796,7 @@ export async function POST(req: Request) {
                 use_case: useCase,
                 scenario_id: scenarioId,
                 turn_mode: turnMode,
-                model_used: "premium",
+                model_used: DIALOG_MODEL_TIER,
                 model_id: modelUsed,
                 latency_ms: Date.now() - requestStartedMs,
                 iteration,
@@ -1766,14 +1818,15 @@ export async function POST(req: Request) {
 
           const persistenceConfirmed = planningPersistence.summarized.length > 0
             || planningPersistence.inserted.length > 0
-            || planningPersistence.updated.length > 0;
+            || planningPersistence.updated.length > 0
+            || planningPersistence.cancelled.length > 0;
           const completePayload = {
             conversationId: conversation.id,
             fullText: cleanText,
             shouldClose,
             modelUsed,
             latencyMs: Date.now() - requestStartedMs,
-            modelTier: "premium" as const,
+            modelTier: DIALOG_MODEL_TIER,
             turnMode,
             iteration,
             readyMarkerTriggered: turnMode === "final_recommendation",
@@ -1820,7 +1873,7 @@ export async function POST(req: Request) {
           });
           try {
             const salvaged = stripBrainSentinels(
-              sanitizeAssistantText(fullText, context.user.locale),
+              sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)),
             ).trim();
             if (salvaged) {
               controller.enqueue(
@@ -1831,7 +1884,7 @@ export async function POST(req: Request) {
                     shouldClose: false,
                     modelUsed: model,
                     latencyMs: Date.now() - requestStartedMs,
-                    modelTier: "premium" as const,
+                    modelTier: DIALOG_MODEL_TIER,
                     turnMode: "inquiry" as const,
                     iteration,
                     readyMarkerTriggered: false,

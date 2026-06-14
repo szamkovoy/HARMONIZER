@@ -46,12 +46,20 @@ else
   echo "[pre-push] docs-sync/sync.sh not found or not executable. Skipping."
 fi
 
+# i18n translation sync (keeps locale catalogs in step with the RU source).
+if [ -f "$REPO_ROOT/scripts/i18n-sync.sh" ]; then
+  bash "$REPO_ROOT/scripts/i18n-sync.sh" || {
+    echo "[pre-push] i18n-sync failed, but push continues."
+  }
+fi
+
 exit 0
 HOOK_EOF
 
 chmod +x "$HOOK_PATH"
 chmod +x "$REPO_ROOT/scripts/docs-sync/sync.sh" 2>/dev/null || true
 chmod +x "$REPO_ROOT/scripts/docs-sync/check-structure.sh" 2>/dev/null || true
+chmod +x "$REPO_ROOT/scripts/i18n-sync.sh" 2>/dev/null || true
 
 echo "✓ Pre-push hook installed at $HOOK_PATH"
 echo ""

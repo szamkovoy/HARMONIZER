@@ -1,0 +1,19 @@
+{
+  "tabs.home": "Home",
+  "tabs.day": "Day",
+  "tabs.practices": "Practices",
+  "tabs.profile": "Profile",
+  "common.ok": "OK",
+  "common.cancel": "Cancel",
+  "profile.title": "Profile",
+  "profile.subtitle": "A minimal area for settings and access checks for the first iteration.",
+  "profile.access.title": "Current access",
+  "profile.access.updateButton": "Update profile",
+  "profile.access.birthHint": "Birth date and time (natal chart). The home screen updates after saving.",
+  "profile.comingSoon.title": "Coming soon",
+  "profile.comingSoon.body": "Extended profile settings and appearance — in upcoming iterations.",
+  "profile.language.title": "Language",
+  "profile.language.hint": "Interface and assistant reply language.",
+  "profile.language.testModeNote": "Test mode: you speak Russian, while the interface and replies use the selected language.",
+  "profile.language.comingSoon": "soon"
+}

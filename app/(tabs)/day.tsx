@@ -15,6 +15,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Svg, { Path } from "react-native-svg";
 
 import { Communicator } from "@/modules/communicator/ui/Communicator";
+import { useAppLocale } from "@/modules/i18n";
 import { loadPracticeCatalog } from "@/modules/practices";
 import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/types";
 import { PracticeCard } from "@/modules/practices/ui/PracticeCard";
@@ -360,6 +361,7 @@ function AssistantModal({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const { locale: appLocale } = useAppLocale();
   if (!visible || !session) return null;
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -381,7 +383,7 @@ function AssistantModal({
         <Communicator
           key={`day-assistant-${session.sessionKey}`}
           systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Помоги пользователю заполнить или подытожить вкладку «День»."
-          locale="ru"
+          locale={appLocale === "en" ? "en" : "ru"}
           useCase="daily_dialog"
           entrySource="day"
           startFreshSession

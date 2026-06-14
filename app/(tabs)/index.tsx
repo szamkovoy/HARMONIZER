@@ -5,6 +5,7 @@ import type { BirthData, NatalProfile } from "@/modules/astro-core";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { getHomeStrings, resolveLocationErrorMessage, type HomeStrings } from "@/modules/home/i18n/home";
+import { useAppLocale } from "@/modules/i18n";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useDayContent } from "@/modules/home/useDayContent";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
@@ -493,9 +494,10 @@ export default function HomeScreen() {
   const { authUser, profile, signOut, signingIn, refreshProfile, profileLoading } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
+  const { locale: appLocale } = useAppLocale();
   const strings = useMemo(
-    () => getHomeStrings(profile?.locale === "en" ? "en" : "ru"),
-    [profile?.locale],
+    () => getHomeStrings(appLocale === "en" ? "en" : "ru"),
+    [appLocale],
   );
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);

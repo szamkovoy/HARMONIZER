@@ -3,10 +3,14 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.25
-updated: 2026-06-09
+version: 1.27
+updated: 2026-06-14
 depends_on: [00_index/CHANGELOG]
 code_refs: []
+
+## `i18n` (multilingual)
+
+- Дизайн и фазовый план — в `docs/04_workspace/i18n_architecture.md`. **Phase 1 (response-locale foundation) и Phase 2 (каркас + проводка, вариант A) внедрены.** Phase 2 (этот сеанс): клиентский слой `modules/i18n/` (стор локали, `t`/`tCount` с `Intl.PluralRules`, JSON-каталоги, хуки), переключатель языка в Профиле, dialog POST несёт `responseLocale` (серверный приоритет ENV→body→`users.locale`→`ru`), транскрипция через `getTranscribeLocale()` (тест-режим = RU), экраны День/Дыхание/Profile-reports сняты с хардкода `ru`, гейт переводов `scripts/i18n-sync.*`. Открытые вопросы: (a) **миграция контента** оставшихся хардкод-RU экранов и ad-hoc `get*Strings` в каталог (инкрементально; гейт ловит пробелы, RU/EN обязательны); (b) **Phase 3** — локализация детерминированных visible-text builders слоя C для DE/FR/IT/ES/PT/NL (прочие языки в `APP_LOCALE_OPTIONS` помечены `enabled:false` до наполнения); (c) опционально: запись `users.locale` на сервере + авто-детект языка ввода в проде (сейчас in-app переключатель ведёт и UI, и `responseLocale`).
 
 ## `webinars`
 
