@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.14
-updated: 2026-06-09
+version: 1.15
+updated: 2026-06-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -14,7 +14,9 @@ code_refs:
     modules/communicator/ui/StreamingAssistantLines.tsx,
     services/communicator-client.ts,
     services/dialogSessionCache.ts,
+    modules/i18n/index.ts,
     app/(tabs)/index.tsx,
+    app/(tabs)/day.tsx,
     app/calibration.tsx,
     modules/practices/ui/PracticeCard.tsx,
     modules/communicator/core/dialogTextCleanup.ts,
@@ -29,6 +31,8 @@ code_refs:
 `requireSupabase()` для Bearer JWT; `services/communicatorConfig.ts` — базовый URL (`EXPO_PUBLIC_COMMUNICATOR_API_URL`), сбор путей `/api/communicator/v2/dialog`, `/api/communicator/v2/dialog/reconcile-plans`, `/api/ai/dialog/reconcile-plans`, `/api/communicator/v2/transcribe`, `/api/ai/dialog` и др. В корневом `**package.json**` клиента — `**@shopify/flash-list**` для списка сообщений в `Communicator.tsx` (виртуализация, `scrollToIndex` к якорю стрима), а для summary health-context — native packages `@kingstinct/react-native-healthkit`, `react-native-health-connect`, `react-native-nitro-modules`, `expo-build-properties` + prebuild plugin `plugins/with-native-health.js`. `**modules/communicator/core/dialogTextCleanup.ts**` — нормализация видимого текста ассистента (убирает утечки `---` и **целиком** блоки `**…`**); дублирует контракт серверного `stripDialogScaffoldMarkdown` в `markers.ts`. `**modules/communicator/core/dialogTurnHydration.ts**` — pure helpers для дополнения `DialogCompleteEvent` из `fetchDialogSession` (`isFinalLikeTurnMode`, `turnModeCarriesPractice`, `needsAssistantTurnHydration`, `sessionAssistantMatchesTurn`, `mergeCompleteWithSession`); используется в `Communicator.tsx` при неполном SSE `complete`. `**modules/communicator/core/dialogExportMerge.ts**` — pure merge/reconcile local↔server снимка для dev-export (`mergeExportMessages`, `reconcileExportPlanningPersistence`); `Communicator.tsx` импортирует вместо inline helpers. `**modules/communicator/core/voiceTurnPipeline.ts**` — bounded transcribe/retry и удаление временного файла записи; `Communicator.tsx` импортирует его вместо прямого `transcribeCommunicatorAudio` в UI.
 - `**modules/ui**` (i18n ошибок)  
 `modules/ui/i18n/userErrors.ts` — строки Alert, в т.ч. **`timeoutTitle`** / **`timeoutMessage`**; потребляется через `services/userFacingErrors.ts` в `Communicator` и на других экранах.
+- **`i18n`** (`modules/i18n`, `@/modules/i18n`)  
+`Communicator.tsx` — **`getTranscribeLocale()`** для языка STT (RU в `I18N_TEST_MODE`, иначе активная локаль). Хост-экраны передают prop **`locale`** из **`useAppLocale()`**. `services/communicator-client.ts` — **`getResponseLocale()`** добавляет **`responseLocale`** в каждый dialog POST (язык ответа ассистента; серверный контракт — `docs/02_modules/i18n/dependencies.md` § assistant).
 - `**profile**` (через auth)  
 `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
 - `**assistant**` (транспорт daily dialog)  

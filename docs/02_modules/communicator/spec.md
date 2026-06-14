@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.37
-updated: 2026-06-13
+version: 2.38
+updated: 2026-06-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -21,6 +21,7 @@ code_refs:
     services/communicator-client.ts,
     services/dialogSessionCache.ts,
     services/communicatorConfig.ts,
+    modules/i18n/index.ts,
   ]
 ---
 
@@ -48,7 +49,7 @@ code_refs:
   - `onPracticePicked?: (practice: PracticePicked) => void | Promise<void>` — вызывается после успешного локального `launchPractice(...)` на следующий кадр; модальные поверхности используют его как side-effect закрытия оверлея/refresh без промежуточного flash вкладки под ним.
   - `onRequestClose?: () => void` — колбэк явного выхода из диалога; используется, когда финальный assistant-turn завершает разговор без карточки практики и UI показывает кнопку `Выйти из диалога` прямо под последним сообщением.
   - `onError`, `onAbort`, `onStateChange`, `onEmotionSegment` — см. `CommunicatorProps` в коде.
-  - `locale`, `initialMode`, `mode` — локаль строк и политика VOICE/TXT (часть режимов завязана на флаг `COMMUNICATOR_TEXT_MODE_ENABLED` в `modules/ui/testMode`).
+  - `locale`, `initialMode`, `mode` — локаль строк (`getCommunicatorStrings(locale)`) и политика VOICE/TXT (часть режимов завязана на флаг `COMMUNICATOR_TEXT_MODE_ENABLED` в `modules/ui/testMode`). Хост-экраны (Home, Day, Breath) передают `locale` из **`useAppLocale()`** (`@/modules/i18n`), а не `profile.locale` и не хардкод `"ru"`.
 - Локальной карточки практики в `communicator` больше нет: используется общий `**modules/practices/ui/PracticeCard.tsx**` через адаптацию `PracticePicked → PracticeSummary`.
 
 ### Типы модуля (`modules/communicator/core/types.ts`)
@@ -68,7 +69,7 @@ code_refs:
 
 ### Голосовой пайплайн (`modules/communicator/core/voiceTurnPipeline.ts`)
 
-- `transcribeVoiceRecording({ uri, language, signal? })` — до **`VOICE_TRANSCRIBE_MAX_ATTEMPTS`** (3) попыток по **`VOICE_TRANSCRIBE_ATTEMPT_MS`** (10 с) каждая; внутри вызывает `transcribeCommunicatorAudio` с `{ useNetworkRetry: false }`.
+- `transcribeVoiceRecording({ uri, language, signal? })` — до **`VOICE_TRANSCRIBE_MAX_ATTEMPTS`** (3) попыток по **`VOICE_TRANSCRIBE_ATTEMPT_MS`** (10 с) каждая; внутри вызывает `transcribeCommunicatorAudio` с `{ useNetworkRetry: false }`. В `Communicator.tsx` язык STT берётся из **`getTranscribeLocale()`** (`@/modules/i18n`): в тест-режиме остаётся `"ru"`, в проде следует активной локали (отдельно от `responseLocale`, который задаёт язык ответа ассистента).
 - `deleteVoiceRecordingFile(uri)`, тип **`RetainedVoiceRecording`** (URI, длительность, опционально `transcribedText`, `pendingVoiceId`).
 
 ### Ошибки сети и UX (`services/userFacingErrors.ts`, `modules/ui/i18n/userErrors.ts`)
@@ -167,7 +168,7 @@ code_refs:
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EXPO_PUBLIC_COMMUNICATOR_API_URL` (и fallback `EXPO_PUBLIC_BACKEND_API_URL`) | Origin Vercel без суффикса `/api`; см. `services/communicatorConfig.ts`. Отсутствие переменной — ошибка при первом запросе.                                                                                                   |
 | URL диалога                                                                   | `getAiDialogUrl()` если в запросе передан `**scenario_id**`, иначе `getCommunicatorV2DialogUrl()`. Текущий `**Communicator**` не передаёт `scenarioId` в `runChatStream` — главный поток всегда использует **v2 dialog URL**. |
-| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional `turnHistory`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked`.                                                                                               |
+| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked`.                                                                                               |
 | Константы UI                                                                  | `MIN_VOICE_MS` (450), `LOW_TRANSCRIPTION_CONFIDENCE` (0.65), лимит текста 8000 символов.                                                                                                                                      |
 | Режим текста                                                                  | `COMMUNICATOR_TEXT_MODE_ENABLED` — если выключен, только голос без переключателя.                                                                                                                                             |
 | Дебаг                                                                         | Подпись `model: …` у бейджа ассистента и кнопка `Export dialog to JSON` — только в `**__DEV__`**.                                                                                                                             |

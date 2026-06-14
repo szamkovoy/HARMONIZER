@@ -1,10 +1,10 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.16
-updated: 2026-06-09
+version: 1.17
+updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, services/communicator-client.ts, services/aiClient.ts]
+code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
 
 ## 1. Зависит от
@@ -19,6 +19,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
   - Локальная строка **`user_daily_forecasts`** читается монологом утра и daily dialog v5 (`dialogDailyContext.ts`): кроме `planet_of_the_day` и гармоничности, ассистент теперь использует и фиксирует `day_target_chakra`, `day_target_reason`, `day_target_fixed_at`.
 - **`profile`**
   - **`users`**: `locale`, **`address_form`**, `tz`, `membership_tier`, `trial_expires_at`, `lat`, `lon` для локального времени, обращения, выбора модели и фиксации day-context.
+- **`i18n`**
+  - **`_legacy_web/app/api/_utils/dialogLocale.ts`**: `resolveResponseLocale(userLocale, requestedLocale?)`, `localeToLanguageName`. Daily dialog POST/greeting принимают **`responseLocale`** из тела (клиент — `getResponseLocale()`); приоритет ENV `DIALOG_RESPONSE_LOCALE` → body → `users.locale` → `ru`. Полный контракт — `docs/02_modules/i18n/spec.md` §3.
 - **`communicator` / `profile` (новый серверный потребитель)**
   - Экран профиля читает быстрый snapshot `profile_report_snapshots` с fallback rebuild из `daily_matrices`, а practice-by-chakra — через отдельный route. Оба profile-route переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр для этих routes — **`planetChakraLegend.ts`** (`buildChakraLegend()`, JSON `planet_chakra_map.json` на сервере), не `modules/home/planetChakra`.
 - **`practices`**
@@ -30,7 +32,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 ## 2. От него зависят
 
 - **`communicator`**
-  - **`services/communicator-client.ts`**: `sendDialogMessage` / `fetchDialogSession` вызывают **`getAiDialogUrl()`** при наличии **`scenario_id`**, иначе **`getCommunicatorV2DialogUrl()`** — тот же обработчик диалога на сервере; отдельно **`reconcileDialogPlans`** бьёт в **`POST /api/ai/dialog/reconcile-plans`** (реэкспорт **`POST /api/communicator/v2/dialog/reconcile-plans`**) — **совместимый no-op** (`{ applied: false }`): FSM пишет `planned_events`/`daily_matrices`/day-focus синхронно (`dialogBrainPersistence.ts`), клиент по-прежнему debounce-вызывает endpoint на idle/close/unmount.
+  - **`services/communicator-client.ts`**: `sendDialogMessage` / `fetchDialogSession` вызывают **`getAiDialogUrl()`** при наличии **`scenario_id`**, иначе **`getCommunicatorV2DialogUrl()`** — тот же обработчик диалога на сервере; каждый POST несёт optional **`responseLocale`** (default `getResponseLocale()` из **`modules/i18n`**). Отдельно **`reconcileDialogPlans`** бьёт в **`POST /api/ai/dialog/reconcile-plans`** (реэкспорт **`POST /api/communicator/v2/dialog/reconcile-plans`**) — **совместимый no-op** (`{ applied: false }`): FSM пишет `planned_events`/`daily_matrices`/day-focus синхронно (`dialogBrainPersistence.ts`), клиент по-прежнему debounce-вызывает endpoint на idle/close/unmount.
   - UI чата не содержит LLM-логики; только вызов API и отображение SSE.
 - **`profile`**
   - `app/(tabs)/profile.tsx` и backend routes `api/profile/*` читают артефакты ассистента (`daily_matrices`, `planned_events`-derived range) и server helpers для матрицы/сфер; chakra legend в отчётах — `buildChakraLegend()` (`planetChakraLegend.ts`).
