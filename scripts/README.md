@@ -27,16 +27,32 @@ node scripts/i18n-sync.mjs fill --locale en
 node scripts/i18n-sync.mjs fill --all
 ```
 
-`fill` needs an OpenAI-compatible endpoint via env, else it only prints the plan:
+`fill` needs an OpenAI-compatible chat/completions endpoint. If `I18N_TRANSLATE_API_*`
+is unset, the script falls back to **`DEEPSEEK_API_KEY`** + **`AI_MODEL_PREMIUM`**
+(or `AI_MODEL_STANDARD`) — the same DeepSeek stack as the app backend:
 
-```
-I18N_TRANSLATE_API_URL=...   # chat/completions URL
-I18N_TRANSLATE_API_KEY=...
-I18N_TRANSLATE_MODEL=...      # e.g. the standard DeepSeek model
+```bash
+# Optional overrides (defaults below work when DEEPSEEK_API_KEY is in the environment):
+# I18N_TRANSLATE_API_URL=https://api.deepseek.com/v1/chat/completions
+# I18N_TRANSLATE_API_KEY=$DEEPSEEK_API_KEY
+# I18N_TRANSLATE_MODEL=$AI_MODEL_PREMIUM   # one-time UI string translation; premium is fine
+
+node scripts/i18n-sync.mjs fill --all
 ```
 
-Targets: `en` is **required** (gate fails on drift); `de fr it es pt nl` are
-best-effort (gate warns). To bring up a new language, run `fill --all` once.
+This is a **one-time (or incremental) batch translation** of static UI strings in
+`modules/i18n/catalog/*.json` and typed-module overlays — not runtime dialog text.
+Runtime LLM content (recommendations, global `text_i18n`) uses the server Gemini/DeepSeek
+path separately.
+
+### Enabling DE / FR / … in the app
+
+1. `node scripts/i18n-sync.mjs fill --all` (with DeepSeek env as above).
+2. Localize dialog layer-C builders for that locale (Phase 3 — still open for de/fr).
+3. Flip `enabled: true` for the locale in `APP_LOCALE_OPTIONS` (`localeStore.ts`).
+4. Redeploy backend if server strings changed.
+
+Until step 3, the Profile picker shows the language as **(soon)**.
 
 The pre-push wrapper `scripts/i18n-sync.sh` runs automatically when a push changes
 `ru.json` (installed alongside docs-sync by `scripts/docs-sync/install.sh`). It

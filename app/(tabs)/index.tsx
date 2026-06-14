@@ -563,10 +563,8 @@ export default function HomeScreen() {
 
   const prevLocaleRef = useRef(appLocale);
   useEffect(() => {
-    if (prevLocaleRef.current === appLocale) return;
     prevLocaleRef.current = appLocale;
-    void refresh({ forceRefresh: true });
-  }, [appLocale, refresh]);
+  }, [appLocale]);
 
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.

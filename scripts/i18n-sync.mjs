@@ -183,9 +183,15 @@ async function runTypedFill(manifest, targets) {
 }
 
 async function translateBatch(locale, entries) {
-  const apiUrl = process.env.I18N_TRANSLATE_API_URL;
-  const apiKey = process.env.I18N_TRANSLATE_API_KEY;
-  const model = process.env.I18N_TRANSLATE_MODEL;
+  const deepseekBase = (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com").replace(/\/$/, "");
+  const apiUrl =
+    process.env.I18N_TRANSLATE_API_URL?.trim()
+    ?? `${deepseekBase}/v1/chat/completions`;
+  const apiKey = process.env.I18N_TRANSLATE_API_KEY?.trim() ?? process.env.DEEPSEEK_API_KEY?.trim();
+  const model =
+    process.env.I18N_TRANSLATE_MODEL?.trim()
+    ?? process.env.AI_MODEL_PREMIUM?.trim()
+    ?? process.env.AI_MODEL_STANDARD?.trim();
   if (!apiUrl || !apiKey || !model) return null;
 
   const languageName = LANGUAGE_NAMES[locale] ?? locale;
@@ -283,7 +289,9 @@ async function main() {
         continue;
       }
       if (translated == null) {
-        console.log(`[i18n] ${locale}: no translate API configured (I18N_TRANSLATE_API_URL/_API_KEY/_MODEL). Plan only:`);
+        console.log(
+          `[i18n] ${locale}: no translate API configured. Set I18N_TRANSLATE_API_* or DEEPSEEK_API_KEY + AI_MODEL_PREMIUM/STANDARD. Plan only:`,
+        );
         for (const [key, value] of entries) console.log(`        ${key} = ${value}`);
         continue;
       }

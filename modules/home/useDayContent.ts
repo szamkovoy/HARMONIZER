@@ -13,7 +13,8 @@ import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome } f
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
-import { getResponseLocale } from "@/modules/i18n/localeStore";
+import { getResponseLocale, subscribeAppLocale, type AppLocale } from "@/modules/i18n/localeStore";
+import { stripHomeLlmTexts } from "@/modules/home/stripHomeLlmTexts";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 type DayContentStatus =
@@ -29,6 +30,8 @@ type DayContentSource = DailyForecastResult["source"] | "global";
 
 export type DayContentRefreshOptions = {
   forceRefresh?: boolean;
+  /** Locale switched — refresh in background without blocking splash. */
+  localeChange?: boolean;
   accessModeOverride?: AccessMode;
   accessTierOverride?: ProductTier;
   /** Показать стартовый оверлей до готовности дня (после смены натальных данных с другого экрана). */
@@ -110,6 +113,11 @@ function birthDataError(message?: string): Error {
   return new Error(message ?? "Birth data is required to compute the personal daily forecast.");
 }
 
+function buildContentScopeKey(accessMode: AccessMode, natalScope: string, locale: AppLocale): string {
+  const base = accessMode === "free" ? "global" : natalScope;
+  return `${base}:${locale}`;
+}
+
 async function enrichWithMorningContent(
   forecast: DailyForecast,
   forceRefresh: boolean | undefined,
@@ -171,6 +179,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const latestCacheContextRef = useRef<DayContentCacheContext | null>(null);
   const lastLocalDayRef = useRef<string | null>(null);
   const lastResolvedRequestKeyRef = useRef<string | null>(null);
+  const trackedContentLocaleRef = useRef<AppLocale>(getResponseLocale());
 
   const [forecast, setForecast] = useState<DailyForecast | null>(null);
   const [source, setSource] = useState<DayContentSource | null>(null);
@@ -226,8 +235,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const needsNatalProfile = Boolean(options?.natalRequired && nextAccessMode !== "free");
       const provisionalTimezone = userLocation?.timezone ?? profileTimezone;
       const provisionalForecastDate = localDateIso(provisionalTimezone);
-      const localeTag = getResponseLocale() === "en" ? "en" : "ru";
-      const contentScopeKey = `${nextAccessMode === "free" ? "global" : scopeKey}:${localeTag}`;
+      const contentLocale = getResponseLocale();
+      const contentScopeKey = buildContentScopeKey(nextAccessMode, scopeKey, contentLocale);
       const requestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, provisionalForecastDate, contentScopeKey].join("|");
       const relaxedLookupParams = profileId
         ? {
@@ -258,6 +267,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const shouldBlockSplash =
         Boolean(opts?.blockingReload) ||
         (!opts?.forceRefresh &&
+          !opts?.localeChange &&
           (lastResolvedRequestKeyRef.current !== requestKey || !forecast) &&
           !(instantCached && instantCached.freshness === "fresh") &&
           !(relaxedCache?.freshness === "stale"));
@@ -518,14 +528,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             forceRefresh: opts?.forceRefresh,
             signal: controller.signal,
           });
-          let forecastForUi = result.forecast;
-          let modelForUi = result.modelUsed;
+          let forecastForUi = stripHomeLlmTexts(result.forecast);
+          const modelForUi = result.modelUsed;
+          pendingMorningMonologueForceRef.current = true;
+          lastHydratedForecastKeyRef.current = null;
           if (!isDayContentReadyForHome(forecastForUi, nextAccessMode)) {
             throw new Error("Personal day content is incomplete.");
-          }
-          if ((opts?.forceRefresh || opts?.blockingReload) && userId) {
-            pendingMorningMonologueForceRef.current = true;
-            lastHydratedForecastKeyRef.current = null;
           }
           latestCacheContextRef.current = userId
             ? {
@@ -642,6 +650,19 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   }, [refresh, profileLoading]);
 
   useEffect(() => {
+    return subscribeAppLocale(() => {
+      const nextLocale = getResponseLocale();
+      if (nextLocale === trackedContentLocaleRef.current) return;
+      trackedContentLocaleRef.current = nextLocale;
+      pendingMorningMonologueForceRef.current = true;
+      lastHydratedForecastKeyRef.current = null;
+      lastResolvedRequestKeyRef.current = null;
+      setForecast((current) => (current ? stripHomeLlmTexts(current) : current));
+      void refresh({ forceRefresh: true, localeChange: true }).catch(() => undefined);
+    });
+  }, [refresh]);
+
+  useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       const timezone = userLocation?.timezone ?? profileTimezone;
@@ -670,6 +691,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     const hydrationKey = [
       cacheContext.userId,
       cacheContext.forecastDate,
+      cacheContext.scopeKey,
       forecastForHydration.date,
       forecastForHydration.computedAt,
       accessMode,

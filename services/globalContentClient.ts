@@ -209,6 +209,9 @@ async function fetchGlobalContentOnce(req: {
     } catch (error) {
       if (req.signal?.aborted) throw error;
       if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
+      if (responseLocale !== "ru") {
+        throw wrapConnectivityFailure(error, "global-content");
+      }
       data = await fetchGlobalContentDirect(req.userLocation.timezone, controller.signal);
     }
   } catch (error) {

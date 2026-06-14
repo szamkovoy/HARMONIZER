@@ -1,7 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
-import { resolveContentLocale } from "../../_utils/contentLocales";
+import { resolveContentLocale, SOURCE_LOCALE, type AppContentLocale, type TargetLocale } from "../../_utils/contentLocales";
 import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel } from "../../_utils/ensureGlobalDailyContent";
-import { localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
+import { ensureGlobalTextI18nPrecomputed, localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
+import type { GlobalTextI18nMap } from "../../_utils/pretranslateGlobalTexts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -53,18 +56,52 @@ function payloadFromContent(content: Record<string, unknown>, user: UserAccess, 
   };
 }
 
+async function ensureRowTextI18n(
+  db: SupabaseClient,
+  row: Record<string, unknown>,
+  locale: AppContentLocale,
+): Promise<Record<string, unknown>> {
+  if (locale === SOURCE_LOCALE) return row;
+  const map = row.text_i18n as GlobalTextI18nMap | undefined;
+  const target = locale as TargetLocale;
+  if (map?.[target]?.short_text?.trim()) return row;
+
+  const ru = {
+    slogan: String(row.slogan ?? "").trim(),
+    short_text: String(row.short_text ?? "").trim(),
+    long_explanation: String(row.long_explanation ?? "").trim(),
+  };
+  if (!ru.short_text) return row;
+
+  try {
+    await ensureGlobalTextI18nPrecomputed(db, String(row.forecast_date_utc ?? ""), ru);
+    const { data: refreshed, error } = await db
+      .from("global_daily_content")
+      .select("*")
+      .eq("forecast_date_utc", row.forecast_date_utc)
+      .maybeSingle();
+    if (error) throw error;
+    return (refreshed as Record<string, unknown> | null) ?? row;
+  } catch (pretranslateError) {
+    console.error("[global-content] on-demand text_i18n failed", pretranslateError);
+    return row;
+  }
+}
+
 async function respondWithLocalizedContent(
+  db: SupabaseClient,
   row: Record<string, unknown>,
   user: UserAccess,
   isFallback: boolean,
   responseLocale: ReturnType<typeof resolveContentLocale>,
   devResetExtra: Record<string, unknown>,
 ) {
-  const localized = localizeGlobalContentPayloadSync(row, responseLocale);
+  const localizedRow = await ensureRowTextI18n(db, row, responseLocale);
+  const localized = localizeGlobalContentPayloadSync(localizedRow, responseLocale);
   return json({
     ...payloadFromContent(
       {
-        ...row,
+        ...localizedRow,
         slogan: localized.slogan,
         short_text: localized.short_text,
         long_explanation: localized.long_explanation,
@@ -119,6 +156,7 @@ export async function POST(req: Request) {
         if (refreshedError) throw refreshedError;
         if (refreshed) {
           return respondWithLocalizedContent(
+            db,
             refreshed as Record<string, unknown>,
             userAccess,
             false,
@@ -128,6 +166,7 @@ export async function POST(req: Request) {
         }
       }
       return respondWithLocalizedContent(
+        db,
         content as Record<string, unknown>,
         userAccess,
         false,
@@ -158,6 +197,7 @@ export async function POST(req: Request) {
       if (createdError) throw createdError;
       if (created) {
         return respondWithLocalizedContent(
+          db,
           created as Record<string, unknown>,
           userAccess,
           false,
@@ -169,6 +209,7 @@ export async function POST(req: Request) {
     }
 
     return respondWithLocalizedContent(
+      db,
       fallback as Record<string, unknown>,
       userAccess,
       true,
