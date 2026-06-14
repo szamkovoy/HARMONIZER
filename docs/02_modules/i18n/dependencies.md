@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.0
+version: 1.1
 updated: 2026-06-14
 depends_on: [02_modules/i18n/spec]
 code_refs:
@@ -40,6 +40,7 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")` | Tab labels via catalog. |
 | `profile` (`app/(tabs)/profile.tsx`) | `useAppLocale`, `useTranslate`, `APP_LOCALE_OPTIONS`, `setLocale` | Hosts the **language selector**; passes the shared locale into `getProfileReportStrings` and report cards. |
 | `home` (`app/(tabs)/index.tsx`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + the `<Communicator locale=...>` prop follow the store. |
+| `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |
 | `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
 | `communicator` (`Communicator.tsx`) | `getTranscribeLocale()` | STT language; `ru` in test mode. The displayed UI strings still come from the `locale` prop passed by the host screen. |
@@ -66,7 +67,8 @@ This file lists the contracts so a change here is traceable to its blast radius.
 - **expo-secure-store** / web `localStorage` — locale persistence.
 - **Vercel env** — `DIALOG_RESPONSE_LOCALE` (server test override).
   **Expo env** — `EXPO_PUBLIC_I18N_TEST_MODE` (client test mode).
-- **Translate API** (gate `fill`) — `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`.
+- **Translate API** (gate `fill`) — `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or
+  fallback **`DEEPSEEK_API_KEY`** + **`AI_MODEL_PREMIUM` / `AI_MODEL_STANDARD`**.
 
 ## Contract-risk checklist (touch i18n if a task does any of these)
 - Adds/edits any user-facing string, alert, button, placeholder, or screen.

@@ -1,13 +1,14 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.2
+version: 2.3
 updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
     app/(tabs)/index.tsx,
     modules/home/useDayContent.ts,
+    modules/home/stripHomeLlmTexts.ts,
     services/dailyForecastClient.ts,
     services/dayContentCache.ts,
     services/homeDayContentReloadRequest.ts,
@@ -33,6 +34,7 @@ code_refs:
 
 - **`i18n`**
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
+  - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`.
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  

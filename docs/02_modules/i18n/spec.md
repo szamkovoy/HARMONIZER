@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.1
+version: 1.2
 updated: 2026-06-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -157,8 +157,10 @@ Two resolvers — do not conflate layer B and layer C:
 - `check` — diffs RU source vs each locale: **missing / stale / orphan** keys.
   Exits non-zero if a **required** locale (`en`) drifts; warns for optional ones.
 - `fill [--locale xx | --all]` — LLM-translates missing/stale keys from RU,
-  removes orphans, updates `.sync-meta.json`. Needs `I18N_TRANSLATE_API_URL /
-  _API_KEY / _MODEL`; without them it prints the plan only.
+  removes orphans, updates `.sync-meta.json`. Needs a chat/completions endpoint:
+  explicit `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or fallback to
+  **`DEEPSEEK_API_KEY`** + **`AI_MODEL_PREMIUM`** (else **`AI_MODEL_STANDARD`**) at
+  `${DEEPSEEK_BASE_URL}/v1/chat/completions`; without credentials it prints the plan only.
 - **Diff-based**: only changed keys × target locales, so it is cheap and mostly
   idle. Adding the 6 languages later is a one-time `fill --all`.
 
@@ -249,8 +251,11 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   server uses `resolveContentLocale` (all 8 locales) and **locale-suffixed**
   `scenario_cache` keys for `morning_recommendation`. Free-tier
   `global_daily_content`: RU canonical row + precomputed `text_i18n` jsonb
-  (`pretranslateGlobalTexts` on upsert / cron) — served synchronously per locale;
-  no per-user on-demand translation. Math markdown locale-aware (RU/EN inline;
+  (`pretranslateGlobalTexts` on upsert / cron). Serve path reads `text_i18n` first;
+  if a target locale is missing, **`POST /api/ai/global-content`** may run
+  **`ensureGlobalTextI18nPrecomputed`** on demand before responding (row-level, not
+  per-user). Client `fetchGlobalContent`: Supabase SDK fallback only when
+  `responseLocale === "ru"`. Math markdown locale-aware (RU/EN inline;
   other locales fall back to EN strings in `mathLevelI18n` until extended).
 - **Layer C (deterministic server strings):** dialog branch finals, guards —
   RU/EN only; `resolveDialogScaffoldLocale` maps de/fr/… → EN scaffolding until §6.

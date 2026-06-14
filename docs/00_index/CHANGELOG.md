@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.73
+version: 2.74
 updated: 2026-06-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-14: doc-sync pre-push — locale-aware home day content: `daily_forecast/` (`stripHomeLlmTexts`, `localeChange`, `subscribeAppLocale`, scopeKey+locale, monologue force-refresh, global-content SDK fallback ru-only); `i18n/` (on-demand `text_i18n` precompute, `i18n-sync` DeepSeek fallback).
 - 2026-06-14: doc-sync pre-push — i18n Phase 2 follow-up: `chakra/` (multilingual `i18n.ts`, `getPlanetChakraMap`), `daily_forecast/` (`responseLocale`, `text_i18n`, locale-aware home), `practices/` (`loadYogaPractices(locale)`, `getPracticeCatalogStrings`), `profile/` (report locale, life-sphere labels, Luxon axis); `i18n/spec.md` §6 выровнен с `resolveContentLocale` (8 locales layer B).
 - 2026-06-14: i18n — **Phase 2 completion: users.locale write-back, 8-locale layer B, typed sync gate, global text_i18n.** Клиент: `syncUserLocaleToServer` при смене языка. Сервер: `contentLocales.ts` (`resolveContentLocale` / `resolveDialogScaffoldLocale`); free-tier `global_daily_content.text_i18n` + pretranslate на upsert/cron. Гейт: typed overlays (`modules/i18n/typed/`, `fill --all` для de–nl). Spec/deps/history §5.
 - 2026-06-14: i18n — **UI sweep + layer B locale plumbing.** Клиент: sentence case в отчётах Profile, единый источник подписей состояний (`chakraShortLabelDisplay`), free-tier banner и math modal в `home.ts`, кнопка «What to do?», «Add action», PeriodSelector в Practice statistics. Сервер: `responseLocale` в monologue/global-content, кэш morning_recommendation по локали, EN-перевод free-tier текстов, math markdown RU/EN. Spec §8 — инвентарь слоёв A/B/C и чеклист нового языка.

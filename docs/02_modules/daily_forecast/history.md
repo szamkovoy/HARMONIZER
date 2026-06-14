@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.10
+version: 2.11
 updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-14:** Locale-aware home day content — `useDayContent` слушает `subscribeAppLocale`, сбрасывает LLM-тексты через `stripHomeLlmTexts`, refresh с `localeChange` (без blocking splash); ключ кэша `scopeKey` = `${natal|global}:${AppLocale}`. Персональный HTTP-path всегда форсирует monologue refresh после ответа. `fetchGlobalContent`: SDK-fallback только для `ru`; non-`ru` при сбое HTTP — connectivity error. Сервер `global-content`: on-demand `ensureGlobalTextI18nPrecomputed`, если `text_i18n` для локали пуст. `i18n-sync.mjs`: fallback на `DEEPSEEK_API_KEY` + `AI_MODEL_PREMIUM/STANDARD`.
 
 - **2026-06-14:** i18n sweep — `getPlanetChakraMap(locale)`, `chakra/i18n.ts` на home; `fetchGlobalContent`/`callMonologue` шлют `responseLocale`; free-tier тексты из `global_daily_content.text_i18n`; math modal locale-aware (`mathLevelI18n`).
 

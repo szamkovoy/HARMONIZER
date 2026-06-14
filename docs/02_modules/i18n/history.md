@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.0
+version: 1.1
 updated: 2026-06-14
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -14,6 +14,12 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-14 (6):** **Locale switch + global-content serve path.** `useDayContent`
+  owns locale-change refresh via `subscribeAppLocale` (Home no longer duplicates the
+  effect). Free-tier serve: on-demand row `text_i18n` precompute in
+  `global-content/route.ts` when cache miss; client SDK fallback restricted to `ru`.
+  Gate `fill`: DeepSeek env fallback (`DEEPSEEK_API_KEY`, `AI_MODEL_PREMIUM/STANDARD`).
 
 - **2026-06-14 (5):** **Phase 2 completion — locale persistence, 8-locale layer B,
   typed sync gate, global pre-translate.** (1) `setAppLocale` mirrors to
