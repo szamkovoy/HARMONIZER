@@ -1,15 +1,17 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.10
-updated: 2026-05-26
+version: 1.11
+updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
     modules/practices/index.ts,
     modules/practices/core/assistantSelectableDurations.ts,
     modules/practices/core/types.ts,
+    modules/practices/i18n/practices.ts,
     modules/practices/ui/PracticeCatalogScreen.tsx,
+    modules/practices/ui/PracticeCard.tsx,
     modules/practices/ui/launchPractice.ts,
     modules/breath/index.ts,
     modules/breath/ui/CoherenceBreathScreen.tsx,
@@ -33,7 +35,7 @@ code_refs:
 ### Пакет `modules/practices` (`index.ts`)
 
 - **`loadPracticeCatalog(options?, deps?): Promise<PracticeCatalog>`**  
-  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. Таймаут загрузки йоги — 12 с. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк вызывается не позже чем через 12 с (при ошибке или таймауте — `[]`), а если ответ Supabase пришёл после таймаута — возможен повторный вызов с фактическим списком асан.
+  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. **`loadYogaPractices(locale?: PracticeLocale)`** (default `"ru"`) — отдельная загрузка йоги; UI-строки каталога — **`getPracticeCatalogStrings(locale)`** (`modules/practices/i18n/practices.ts`, `PracticeLocale = AppContentLocale`). Таймаут загрузки йоги — 12 с. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк вызывается не позже чем через 12 с (при ошибке или таймауте — `[]`), а если ответ Supabase пришёл после таймаута — возможен повторный вызов с фактическим списком асан.
 
 - **`filterPractices(practices, filters): PracticeSummary[]`** / **`sortPracticesForCatalog(practices): PracticeSummary[]`**  
   Фильтр по чакре и «корзине» длительности; сортировка через `@shared/selector`.
@@ -123,7 +125,7 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **Медитация:** одна статическая карточка, slug `sacred-symbol-stream`; пользовательский диапазон в каталоге/карточке и у ассистента — **1–5 минут**; дефолт launch в **`catalog.ts`** остаётся **3 мин**, а экран **`SacredSymbolStreamScreen`** при отсутствии params использует **5 мин** — расхождение дефолтов зафиксировано в `history.md`.
 
-- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания каталога RU захардкожены в `catalog.ts`.
+- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания и group titles каталога — **`getPracticeCatalogStrings(locale)`** (RU/EN inline + typed overlays de–nl).
 
 - **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`. Если пользователь просит **короткую / минимальную** практику без явного числа минут, серверный валидатор (`markers.ts`) берёт нижнюю границу каталога для уже названного типа: медитация 1 мин, дыхание 5 мин, асаны 20 мин.
 

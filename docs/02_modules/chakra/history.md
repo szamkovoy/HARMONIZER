@@ -1,13 +1,15 @@
 ---
 id: 02_modules/chakra/history
 title: Chakra History
-version: 1.1
-updated: 2026-06-10
-depends_on: [01_foundation/product_model]
-code_refs: [modules/chakra/labels.ts, modules/chakra/labels.test.ts]
+version: 1.2
+updated: 2026-06-14
+depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
+code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-14:** **Multilingual chakra labels.** Новый `modules/chakra/i18n.ts` — `AppContentLocale`, RU/EN inline + typed overlays (de–nl) через i18n gate; home/planetChakra/practices/profile переведены на `getPlanetChakraMap(locale)` и `chakraLabelGenitive(locale, …)`. `labels.ts` сохранён как RU-only legacy; server `topPetals` / `globalTransitMath` пока на `chakraLabelRu`.
 
 - **2026-06-10:** `modules/home/planetChakra.ts` импортирует `chakraLabelRu` для поля `chakraName` в баннере планеты дня; JSON `planet_chakra_map.json` больше не является runtime-источником нумерованной подписи чакры на home.
 - **2026-06-09:** Вынесены русские chakra labels в `modules/chakra/labels.ts`: нумерованные формы (`первая чакра` … `седьмая чакра`) с падежами и обратным резолвом legacy-санскрита. Home (`i18n/home.ts`, `DailyRecommendationCard.tsx`) и server utils (`topPetals.ts`, `globalTransitMath.ts`) перешли на импорт helper-ов вместо захардкоженных строк; `planet_chakra_map.json` на клиенте и сервере синхронизирован по полю `chakra_name_ru`.

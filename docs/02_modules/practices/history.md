@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.11
-updated: 2026-06-07
+version: 1.12
+updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-14:** Каталог практик локализован: `modules/practices/i18n/practices.ts` (`getPracticeCatalogStrings`, typed gate); `loadYogaPractices(locale)`; `PracticeCatalogScreen`/`PracticeCard` используют `useAppLocale().locale` и `chakra/i18n` для tag labels.
 
 - **2026-06-11 (2):** Assistant practice text снова разделён на два разных слоя: visible `reason` мотивирует выполнить практику сейчас, а `card_blurb` описывает саму карточку. RU yoga fallback в карточке использует падежную форму `зона шестой чакры`, чтобы не было фразы `зона шестая чакра`.
 - **2026-06-11:** Server fallback для assistant practice reason убрал падежные конструкции с русскими названиями чакр (`через шестая чакра`). Видимый bubble practice-pick теперь может опираться на безопасный `card_blurb`, а reason остаётся нейтральной связью практики с фокусом дня.

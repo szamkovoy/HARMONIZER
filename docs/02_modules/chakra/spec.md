@@ -1,17 +1,28 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.1
-updated: 2026-06-10
-depends_on: [01_foundation/product_model]
-code_refs: [modules/chakra/labels.ts, modules/chakra/labels.test.ts]
+version: 1.2
+updated: 2026-06-14
+depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
+code_refs:
+  [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts, modules/chakra/i18n/chakraTypedSource.json]
 ---
 
 ## 1. Назначение
 
-`chakra` — общий клиентско-серверный слой для **русских подписей чакр** в видимом UI и серверных текстах. Модуль не рендерит UI и не владеет маппингом планета→чакра: он даёт единые формы слова «чакра» (именительный / винительный / родительный падеж) и нормализацию legacy-санскритских подписей в нумерованную форму (`первая чакра` … `седьмая чакра`).
+`chakra` — общий слой **локализованных подписей чакр** в видимом UI (клиент) и части серверных текстов. Модуль не рендерит UI и не владеет маппингом планета→чакра. Канон для UI — **`modules/chakra/i18n.ts`** (`AppContentLocale`, RU/EN inline + gate-managed overlays de–nl через `applyFlatChakraOverlay`). **`modules/chakra/labels.ts`** остаётся RU-only legacy для старых импортов и обратной совместимости.
 
 ## 2. Публичный контракт
+
+### 2.1 `modules/chakra/i18n.ts` (основной API)
+
+- **`ChakraLocale`** = `AppContentLocale` (`ru` … `nl`); **`coerceChakraLocale(value)`**.
+- **`chakraShortLabel` / `chakraShortLabelDisplay`** — короткие state-labels для легенд (sentence case в display).
+- **`chakraLabel`**, **`chakraLabelGenitive`**, **`chakraNumericDisplayLabel`**, **`chakraTagLabel`**, **`formatChakraList`** — видимые формы по номеру чакры 1–7.
+- **`capitalizeChakraLabel`** — первая буква заглавная для UI.
+- de/fr/it/es/pt/nl: overlay JSON (`modules/i18n/typed/catalog/chakra/*.json`, источник `chakraTypedSource.json`) через `mergeTypedLocale`; до fill — fallback на EN inline.
+
+### 2.2 `modules/chakra/labels.ts` (legacy RU)
 
 Экспорты из `modules/chakra/labels.ts`:
 
@@ -29,15 +40,16 @@ code_refs: [modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 - Константа **`LEGACY_RU_TO_NUMBER`** — обратный словарь санскритских и нумерованных русских подписей.
 - **`normalizeLabel`** — приватная нормализация входной строки перед lookup.
 
-Пакет не имеет barrel `index.ts`: соседние модули импортируют `@/modules/chakra/labels` напрямую.
+Пакет не имеет barrel `index.ts`: новый код импортирует `@/modules/chakra/i18n`; `@/modules/chakra/labels` — только для legacy RU.
 
 ## 4. Конфигурация и параметры
 
 - Внешних env и runtime-флагов нет.
-- Канонические строки зашиты в `labels.ts`; клиентский `planetChakra.ts` читает `chakraName` через `chakraLabelRu`, а не из JSON. Поле `chakra_name_ru` в `planet_chakra_map.json` и inline-строки в `supabase/functions/_shared/dailyForecast.ts` — параллельные дубли, их нужно вручную держать согласованными с `chakraLabelRu`.
+- RU/EN inline в `i18n.ts`; остальные 6 локалей — typed overlay gate (`scripts/i18n-sync.mjs fill --all`).
+- Клиентский `getPlanetChakraMap(locale)` (`modules/home/planetChakra.ts`) строит `shortLabel`/`chakraName` через `i18n.ts`, не из JSON. Поле `chakra_name_ru` в `planet_chakra_map.json` и inline-строки в Deno `dailyForecast.ts` / server `planetChakraLegend.ts` — legacy-дубли для сверки.
 
 ## 5. Известные ограничения
 
-- Только русская локаль; EN home (`modules/home/i18n/home.ts`) по-прежнему формирует `Chakra N` без этого модуля.
-- Edge `dailyForecast.ts` и server `planetChakraLegend.ts` **не** импортируют `labels.ts` — там inline-строки или JSON `chakra_name_ru`.
-- Расширение на 8+ чакр потребует правки `RU_CHAKRA_FORMS` и всех потребителей, завязанных на диапазон 1–7.
+- Серверные утилиты `topPetals.ts` / `globalTransitMath.ts` по-прежнему используют `chakraLabelRu` (RU-only layer B math labels); de–nl math markdown — EN fallback в `mathLevelI18n.ts`.
+- Edge `dailyForecast.ts` и server `planetChakraLegend.ts` **не** импортируют `i18n.ts` — там inline-строки или JSON `chakra_name_ru`.
+- Расширение на 8+ чакр потребует правки inline maps в `i18n.ts` / `RU_CHAKRA_FORMS` и всех потребителей, завязанных на диапазон 1–7.

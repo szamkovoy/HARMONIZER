@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.9
-updated: 2026-06-13
+version: 2.10
+updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-14:** i18n sweep — `getPlanetChakraMap(locale)`, `chakra/i18n.ts` на home; `fetchGlobalContent`/`callMonologue` шлют `responseLocale`; free-tier тексты из `global_daily_content.text_i18n`; math modal locale-aware (`mathLevelI18n`).
 
 - **2026-06-13:** Doc-sync pre-push: `POST /api/astro/daily-forecast` при пересчёте сохраняет dialog-written `recommendation_*` и `is_corrected_via_dialog`; Day tab scroll/refs и Home `Что делать?` gate задокументированы в `spec.md`.
 - **2026-06-11 (4):** Home→Day после закрытия ассистента больше не должен показывать старый overdue-state на несколько секунд. Home при закрытии assistant overlay или старте практики делает best-effort `loadDayPlan()` и сохраняет snapshot через `services/dayPlanReloadRequest.ts`; вкладка `День` при следующем фокусе сначала применяет этот prefetched plan, затем запускает обычный refresh.

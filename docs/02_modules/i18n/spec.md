@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.0
+version: 1.1
 updated: 2026-06-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -207,14 +207,14 @@ Rules:
 ## 6. How to add a new response language (e.g. `de`)
 
 1. Localize **layer C** (deterministic builders/fallbacks in
-   `dialogBranchPrompts.ts` / `dialogTurnGuards.ts`) for `de`, and add `"de"` to
-   `SUPPORTED_RESPONSE_LOCALES` in `dialogLocale.ts`.
+   `dialogBranchPrompts.ts` / `dialogTurnGuards.ts`) for `de`.
 2. `node scripts/i18n-sync.mjs fill --locale de` to fill the JSON catalog.
-3. Add `de` objects to the typed `get*Strings` modules.
+3. Run `fill --all` for typed overlay JSON (`manifest.json` modules, incl. chakra).
 4. Verify Luxon date formatting uses the `de` locale.
 5. Flip `enabled: true` for `de` in `APP_LOCALE_OPTIONS`.
-6. Until all of the above are done, leave `de` disabled — `resolveResponseLocale`
-   rejects unsupported locales and falls back, so we never ship mixed-language output.
+6. Until all of the above are done, leave `de` disabled in the selector —
+   layer B already accepts `de` via `resolveContentLocale`, but mixed UI (layer A/C
+   gaps) is prevented by `coerceAppLocale` + scaffold fallback to EN.
 
 ---
 

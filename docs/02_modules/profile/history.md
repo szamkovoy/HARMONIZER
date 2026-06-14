@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.13
-updated: 2026-06-08
+version: 1.14
+updated: 2026-06-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-14:** Profile reports i18n — `ProfileLocale = AppContentLocale`, sentence-case titles, `getPeriodPresets(locale)`, locale-aware `RangeTrendChart` axis (`formatAxisLabel` / Luxon), life-sphere labels via `modules/life-spheres/labels.ts`; report cards получают locale из `useAppLocale()`.
 
 - **2026-06-11:** `AuthProvider.syncProfile` при наличии `lat`/`lon` в строке `users` пишет координаты в локальный кэш `userLocationProfileCache` — cold start Home не зависит только от live-профиля и GPS.
 - **2026-06-07:** Отчёт `life-matrix` расширен двумя radial-проекциями под heatmap: `sphereProjection` (суммы по сферам/столбцам) и `stateProjection` (суммы по состояниям/строкам). Названия сфер обновлены до новой продуктовой семёрки (`Тело и безопасность` … `Высшие смыслы, вера`), а `RangeTrendChart` перешёл на фиксированную нормированную шкалу 0–100%, чтобы точки не выглядели как «ноль» из-за автонормализации.

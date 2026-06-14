@@ -3,14 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.72
+version: 2.73
 updated: 2026-06-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
-- 2026-06-14: doc-sync pre-push — `communicator/spec.md` + `communicator/dependencies.md` + `communicator/history.md`: dialog POST **`responseLocale`**, STT через **`getTranscribeLocale()`**, prop **`locale`** из **`useAppLocale()`**; `assistant/spec.md` (таблица `dismissPlannedEvents`) + `assistant/dependencies.md` (контракт **`i18n` ↔ responseLocale**); `MAP.md` — `communicator` зависит от **`i18n`**.
+- 2026-06-14: doc-sync pre-push — i18n Phase 2 follow-up: `chakra/` (multilingual `i18n.ts`, `getPlanetChakraMap`), `daily_forecast/` (`responseLocale`, `text_i18n`, locale-aware home), `practices/` (`loadYogaPractices(locale)`, `getPracticeCatalogStrings`), `profile/` (report locale, life-sphere labels, Luxon axis); `i18n/spec.md` §6 выровнен с `resolveContentLocale` (8 locales layer B).
 - 2026-06-14: i18n — **Phase 2 completion: users.locale write-back, 8-locale layer B, typed sync gate, global text_i18n.** Клиент: `syncUserLocaleToServer` при смене языка. Сервер: `contentLocales.ts` (`resolveContentLocale` / `resolveDialogScaffoldLocale`); free-tier `global_daily_content.text_i18n` + pretranslate на upsert/cron. Гейт: typed overlays (`modules/i18n/typed/`, `fill --all` для de–nl). Spec/deps/history §5.
 - 2026-06-14: i18n — **UI sweep + layer B locale plumbing.** Клиент: sentence case в отчётах Profile, единый источник подписей состояний (`chakraShortLabelDisplay`), free-tier banner и math modal в `home.ts`, кнопка «What to do?», «Add action», PeriodSelector в Practice statistics. Сервер: `responseLocale` в monologue/global-content, кэш morning_recommendation по локали, EN-перевод free-tier текстов, math markdown RU/EN. Spec §8 — инвентарь слоёв A/B/C и чеклист нового языка.
 - 2026-06-14: i18n — **новый модуль документации + завершение конечной части Phase 2**. Создан триадный модуль `docs/02_modules/i18n/` (`spec`/`dependencies`/`history`), зарегистрирован в `MAP.md` (Engines & Services), добавлено always-on правило `.cursor/rules/i18n.mdc` (мультиязычность = инвариант системы: где задача касается UI-строк/языка ответа/дат/множественного числа/нового экрана — реализовывать через `@/modules/i18n`, без хардкода RU). Конечная проводка: Home (`index.tsx`), Профиль (chrome перенесён в JSON-каталог + локаль проброшена в report-карточки) и точки входа ассистента День/Дыхание теперь следуют **общему стору локали**, а не `profile.locale`/хардкоду `"ru"` — переключатель языка в Профиле переключает RU/EN по всему приложению. Зафиксирована двухуровневая стратегия строк (JSON-каталог для новых строк; типизированные `get*Strings` остаются) и точный незакрытый хвост (`practices/core/catalog.ts` названия дыхательных практик; стартовый оверлей; dev-диагностика). Документировано добавление нового языка (spec §6) и гейт синхронизации.

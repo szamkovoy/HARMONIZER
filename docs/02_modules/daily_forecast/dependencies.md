@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.1
-updated: 2026-06-10
+version: 2.2
+updated: 2026-06-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -18,7 +18,8 @@ code_refs:
     modules/home/ui/OpportunityWindows.tsx,
     modules/home/i18n/home.ts,
     modules/home/ui/DailyRecommendationCard.tsx,
-    modules/chakra/labels.ts,
+    modules/chakra/i18n.ts,
+    modules/home/planetChakra.ts,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
     supabase/functions/daily-forecast/index.ts,
   ]
@@ -26,10 +27,12 @@ code_refs:
 
 ## 1. Зависит от
 
-- **`chakra` (русские подписи чакр)**
-  - `modules/home/i18n/home.ts` — `chakraLabelGenitiveRu` в fallback-рекомендации дня (RU) и EN-формулировке «qualities of Chakra N».
-  - `modules/home/ui/DailyRecommendationCard.tsx` — `chakraLabelGenitiveRu` в клиентском `detailText`, когда серверный long-text отсутствует.
-  - `modules/home/planetChakra.ts` + `data/planet_chakra_map.json` дают `chakraNumber`/`label`/`color` для баннера; `chakraName` строится через `chakraLabelRu(chakra_number)`, не из поля `chakra_name_ru` JSON.
+- **`chakra` (локализованные подписи чакр)**
+  - `modules/home/i18n/home.ts`, `DailyRecommendationCard.tsx` — `chakraLabelGenitive(locale, …)` в fallback-рекомендациях.
+  - `modules/home/planetChakra.ts` — **`getPlanetChakraMap(locale)`** + JSON (номер/ключ/цвет); `shortLabel`/`chakraName` из `modules/chakra/i18n.ts`.
+
+- **`i18n`**
+  - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  
@@ -58,7 +61,7 @@ code_refs:
   - UI-модуль `communicator` напрямую типы прогноза **не** импортирует; связь идёт через сервер и общий UX главного экрана.
 
 - **`practices`**  
-  - `app/(tabs)/index.tsx` вызывает `launchPractice` с контекстом, производным от дня (чакра/практика с главного экрана); карта планета→чакра — `modules/home/planetChakra.ts`, питается `forecast.planetOfTheDay`.
+  - `app/(tabs)/index.tsx` вызывает `launchPractice` с контекстом, производным от дня (чакра/практика с главного экрана); карта планета→чакра — **`getPlanetChakraMap(locale)`** (`modules/home/planetChakra.ts`), питается `forecast.planetOfTheDay`.
 
 ## 3. Контрактные точки риска
 

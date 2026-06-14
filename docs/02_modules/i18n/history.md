@@ -46,8 +46,7 @@ code_refs:
   instead of `profile.locale`/hardcoded `"ru"`, so the Profile language selector
   switches the whole app for RU/EN. Documented the two-tier string strategy (JSON
   catalog for new strings; keep typed `get*Strings` modules) and the precise
-  not-yet-migrated tail (`practices/core/catalog.ts` breath titles; startup overlay;
-  dev diagnostics).
+  not-yet-migrated tail (startup overlay; dev diagnostics).
 
 - **2026-06-14 (2):** **Phase 2 framework + plumbing (option A).** New client layer
   `modules/i18n/`: `localeStore.ts` (single source of truth, persisted, sync getters
