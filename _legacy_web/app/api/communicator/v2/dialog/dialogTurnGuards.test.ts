@@ -95,19 +95,29 @@ describe("dialogTurnGuards", () => {
     expect(next.planningFinalized).toBe(false);
   });
 
-  it("is a minimal bare-no backstop; nuanced non-occurrence is delegated to the LLM", () => {
-    // Unambiguous, language-stable bare negations are still caught deterministically.
+  it("detects bare and curated non-occurrence phrasings, without false-positives on happened answers", () => {
+    // Unambiguous, language-stable bare negations.
     expect(userSaysEventDidNotHappen("Нет")).toBe(true);
     expect(userSaysEventDidNotHappen("Нет.")).toBe(true);
     expect(userSaysEventDidNotHappen("no")).toBe(true);
     expect(userSaysEventDidNotHappen("Не.")).toBe(true);
-    // Everything nuanced is now the model's call (prompt-driven), NOT a regex:
-    // these intentionally return false here — the LLM closes them via the marker.
-    expect(userSaysEventDidNotHappen("Книгу даже не читал, не до того было.")).toBe(false);
-    expect(userSaysEventDidNotHappen("Так и не дошёл до зала.")).toBe(false);
-    expect(userSaysEventDidNotHappen("Нет, к сожалению, не удалось лечь пораньше.")).toBe(false);
-    // A clearly-happened answer is not treated as a no-show.
+    // Curated non-occurrence phrasings the model used to mishandle (kept asking
+    // about the lived state instead of closing the event).
+    expect(userSaysEventDidNotHappen("Книгу не почитал, не до того уже было, не хватило времени.")).toBe(true);
+    expect(userSaysEventDidNotHappen("На тренировку я не пошел, не было времени, не успел.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Нет, в кино я не ходил.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Так и не дошёл до зала.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Не удалось лечь пораньше.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Встреча не состоялась, перенесли.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Совсем забыл про это.")).toBe(true);
+    expect(userSaysEventDidNotHappen("Didn't get to it, no time.")).toBe(true);
+    expect(userSaysEventDidNotHappen("I couldn't make it.")).toBe(true);
+    // Clearly-happened answers must NOT be treated as a no-show — including the
+    // tricky "ничего особенного не было" (event happened, just unremarkable).
+    expect(userSaysEventDidNotHappen("Да, получилось, но в этом ничего особенного не было.")).toBe(false);
     expect(userSaysEventDidNotHappen("Поработал продуктивно, удалось закрыть задачу.")).toBe(false);
+    expect(userSaysEventDidNotHappen("Да, с другом встретились, замечательно посидели.")).toBe(false);
+    expect(userSaysEventDidNotHappen("Гулял в парке, было спокойно.")).toBe(false);
   });
 
   it("detects thin summary answers and event absence", () => {

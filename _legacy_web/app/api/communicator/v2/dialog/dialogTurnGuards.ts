@@ -203,19 +203,33 @@ export function extractPlanningMarkersFromVisibleFinalize(
 }
 
 /**
- * Minimal, language-stable backstop only. The real "did the event happen?"
- * judgment is delegated to the LLM: the summarizing prompt instructs it to
- * close a non-event with [SUMMARIZE_EVENT … outcome_cells=""] and WITHOUT a
- * clarifying question, in any wording and any language. We deliberately do NOT
- * maintain verb/keyword/ending lists here — they were brittle, accumulated
- * exceptions, and did not scale to the English version. This guard now catches
- * only a bare "нет"/"no" reply (an unambiguous, universal non-occurrence) as a
- * safety net; everything nuanced is the model's call.
+ * Detects that the user is reporting a planned action did NOT happen, so the
+ * summarizing branch can close that event immediately — no clarifying question,
+ * nothing written to the matrix — and bridge to the next one.
+ *
+ * History: this used to be a bare "нет"/"no"-only backstop with everything
+ * nuanced delegated to the LLM. In practice the model was inconsistent — for
+ * "Книгу не почитал" / "На тренировку я не пошёл" it kept asking about the
+ * lived state instead of closing — so we now also match a curated set of
+ * unambiguous non-occurrence phrasings. The set is intentionally narrow:
+ * negated occurrence/action verbs ("не пошёл", "не почитал", "не успел", "не
+ * получилось"), idioms ("не до того", "не было времени", "не хватило сил"),
+ * and clear skip/cancel/forget verbs — plus their English equivalents. We avoid
+ * bare "не было" (matches occurred answers like "ничего особенного не было") and
+ * generic negated verbs (to keep occurred-but-thin answers out).
  */
+const NON_OCCURRENCE_RU =
+  /(?:не\s+(?:получи|сложи|вышл|удал|состоя|успе|смог|могла|дош|добра|доеха|сходи|пош[ёе]л|пошл|ходи|езди|поеха|съезди|встрети|позвони|почита|прочита|чита|написа|сдела|занима|заня|погуля|посети|купи|выбра|присту|добрал)|так\s+и\s+не\s+|не\s+до\s+(?:того|этого|них)|не\s+хвати(?:ло)?\s+(?:времени|сил|возможност)|не\s+было\s+(?:времени|сил|возможност|настроени)|не\s+дошли\s+руки|пропусти[лвт]|отмени[лвт]|перен[её]с|отложи[лвт]|забы(?:л|ла|лось))/i;
+const NON_OCCURRENCE_EN =
+  /(?:did\s*n[o']?t|didn['’]?t|couldn['’]?t|wasn['’]?t\s+able|never\s+got|no\s+time|ran\s+out\s+of\s+time|skipped?|put\s+it\s+off|postponed?|cancel(?:l?ed)?|forgot)/i;
+
 export function userSaysEventDidNotHappen(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  return /^(?:нет|no|нету|не)[.!?,…\s]*$/i.test(normalized);
+  if (/^(?:нет|no|нету|не)[.!?,…\s]*$/i.test(normalized)) return true;
+  if (NON_OCCURRENCE_RU.test(normalized)) return true;
+  if (NON_OCCURRENCE_EN.test(normalized)) return true;
+  return false;
 }
 
 /** Coarse domain of a planned-event label, used to tailor a clarifying question. */

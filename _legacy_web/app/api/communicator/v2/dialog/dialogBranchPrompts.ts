@@ -197,9 +197,21 @@ export function polishPlanningRecommendation(value: string | null | undefined, l
   return ensureSentencePunctuation(polished);
 }
 
+/** Uppercases the first letter (RU/EN) without touching the rest of the title. */
+export function capitalizeFirstLetter(value: string): string {
+  const trimmed = value.trimStart();
+  if (!trimmed) return value;
+  const first = trimmed[0]!;
+  const upper = first.toLocaleUpperCase("ru");
+  if (upper === first) return value;
+  const lead = value.slice(0, value.length - trimmed.length);
+  return `${lead}${upper}${trimmed.slice(1)}`;
+}
+
 export function polishPlanningMarker(event: PlannedEventMarker, locale: "ru" | "en"): PlannedEventMarker {
   return {
     ...event,
+    desc: capitalizeFirstLetter(event.desc),
     recommendation: polishPlanningRecommendation(event.recommendation, locale) || event.recommendation,
   };
 }
@@ -524,6 +536,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
       ? "- Если после одного уточняющего вопроса ответа всё ещё недостаточно, закройте событие без outcome_cells — оно не попадёт в матрицу, но попытка сбора состояния была сделана."
       : "- If the answer is still too thin after your one clarifying question, close the event with empty outcome_cells — it will not affect the matrix, but the collection attempt still counts.",
     "- DECIDE FOR YOURSELF whether the event happened, from the meaning of the user's reply (in any wording / any language). If the user indicates it did NOT happen / they did not do it (e.g. «не читал», «не успел», «не до того было», «не получилось», «не ходил», «didn't get to it»…), then it simply did not take place: do NOT ask ANY clarifying question about states, and do NOT try to read an inner state. Briefly acknowledge it warmly (one short, human line of sympathy/support), and CLOSE the event this turn by emitting [SUMMARIZE_EVENT: ref=\"…\" outcome=\"short factual outcome, e.g. did not happen\" outcome_cells=\"\"] (empty cells). Then move to the next event, or to the final message if this was the last one. NEVER ask «что это в вас затронуло» about an action that did not occur. This judgment is YOURS to make — the server does not detect it for you.",
+    "- If the user signals the event was unremarkable or that they do not want to elaborate (e.g. «ничего особенного», «обычные ритуалы», «да так», «как всегда», «nothing special», «just the usual»), respect that: do NOT push for deeper states. Take the light state they already gave (or none), and close the event this turn — one extra question is the maximum, and here even one is usually too much.",
     "- On intermediate turns do NOT give feedback, advice, interpretations or per-event mini-summaries. Collect facts and the way it was lived; all feedback belongs to the final message.",
     "- Do not repeat the same event description back more than once. Do not re-list already summarized events.",
     "- For outcome_cells, prefer the LITERAL domain of the event and the lived state the user actually described, not a distant symbolic interpretation.",

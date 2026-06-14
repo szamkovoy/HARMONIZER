@@ -5,9 +5,11 @@ import {
   buildPlanningPrompt,
   buildPlanningFinalVisibleText,
   buildSummarizingPrompt,
+  capitalizeFirstLetter,
   extractDayFocusFromVisibleFinalize,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
+  polishPlanningMarker,
   prependChakraAttention,
   replaceSpontaneousEnglishRu,
   type BrainPromptContext,
@@ -252,6 +254,19 @@ describe("replaceSpontaneousEnglishRu", () => {
   });
   it("preserves leading capitalization of the replaced word", () => {
     expect(replaceSpontaneousEnglishRu("Flow дня важен.")).toBe("Поток дня важен.");
+  });
+  it("capitalizes the first letter of a title without touching the rest", () => {
+    expect(capitalizeFirstLetter("пойти в кино вечером")).toBe("Пойти в кино вечером");
+    expect(capitalizeFirstLetter("Уже с заглавной")).toBe("Уже с заглавной");
+    expect(capitalizeFirstLetter("go to the gym")).toBe("Go to the gym");
+    expect(capitalizeFirstLetter("")).toBe("");
+  });
+  it("polishPlanningMarker capitalizes the action title", () => {
+    const polished = polishPlanningMarker(
+      { desc: "пойти в кино вечером", recommendation: null, displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      "ru",
+    );
+    expect(polished.desc).toBe("Пойти в кино вечером");
   });
   it("does not touch unknown Latin tokens (possible user terms)", () => {
     expect(replaceSpontaneousEnglishRu("Сегодня пишу запросы на SQL.")).toBe("Сегодня пишу запросы на SQL.");

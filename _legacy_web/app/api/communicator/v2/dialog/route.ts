@@ -319,8 +319,30 @@ function formatPracticesForPrompt(value: unknown): string {
   return items.join("\n");
 }
 
+/**
+ * User declines the practice offer. JS word boundaries (\b) never match around
+ * Cyrillic, so the previous \b-wrapped pattern silently failed for Russian and
+ * the dialog stayed open after e.g. "Нет, ничего не надо сохранять". This uses
+ * whitespace/fragment patterns instead, plus a bare-negation reply — but only
+ * when the message does not itself request a practice (type/duration), so
+ * "Нет, лучше дыхание 5 минут" is still routed to validation, not decline.
+ */
 function userDeclinesPractice(text: string): boolean {
-  return /\b(не\s*надо|не\s*хочу|не\s*предлаг\w*|без\s*практик|не\s*буду|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later|don'?t\s*(?:offer|suggest))\b/i.test(text);
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  if (
+    /(не\s*надо|не\s*хочу|не\s*предлаг\w*|без\s*практик|не\s*буду|ничего\s+не\s+(?:надо|нужно)|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later|without\s*(?:a\s*)?practice|don'?t\s*(?:offer|suggest))/i.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+  const mentionsPractice =
+    /(медитац|дыхан|пранаям|асан|йог|минут|practice|meditation|breath|yoga|asana|\bmin\b)/i.test(normalized);
+  if (!mentionsPractice && /^(?:нет|нету|неа|no|nope)[.!?,…\s]/i.test(`${normalized} `)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1420,7 +1442,6 @@ export async function POST(req: Request) {
             if (
               !isOpening
               && currentEvent
-              && summaryAskedCount(fsmAtTurnStart, currentEvent.id) < 1
               && userSaysEventDidNotHappen(userMessage)
             ) {
               const summarizedItem = await persistSummarizedEvent({

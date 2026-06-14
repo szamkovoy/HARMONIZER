@@ -146,6 +146,37 @@ export async function persistPlanningFinalize(params: {
     });
   }
 
+  // On the main finalize (not the incremental add-flow), remove any "planned"
+  // rows from THIS conversation that the finalize did not touch. They are stale
+  // incremental-save rows the model later reworded (so fuzzy identity matching
+  // missed them), which otherwise surface as duplicates in the Day tab — e.g.
+  // "Работа над результатами" (early save) + "Поработать для результатов" (final).
+  if (!appendToExisting) {
+    const touchedIds = new Set(
+      results.map((item) => item.id).filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+    if (touchedIds.size > 0) {
+      const orphanIds = existing
+        .filter(
+          (row) =>
+            row.status === "planned"
+            && row.conversation_id === conversationId
+            && typeof row.id === "string"
+            && !row.id.startsWith("pending:")
+            && !touchedIds.has(row.id),
+        )
+        .map((row) => row.id);
+      if (orphanIds.length > 0) {
+        const { error: cleanupError } = await db
+          .from("planned_events")
+          .delete()
+          .eq("user_id", userId)
+          .in("id", orphanIds);
+        if (cleanupError) throw cleanupError;
+      }
+    }
+  }
+
   return results;
 }
 
