@@ -1,16 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { NatalProfile } from "@/modules/astro-core";
-import { chakraLabelGenitiveRu } from "@/modules/chakra/labels";
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { getForecastRecommendation } from "@/modules/home/i18n/home";
+import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { PLANET_CHAKRA } from "../planetChakra";
 import { ModalLongExplanation } from "./ModalLongExplanation";
 import { ModalMathLevel } from "./ModalMathLevel";
 
@@ -35,17 +34,12 @@ export function DailyRecommendationCard({
 }: DailyRecommendationCardProps) {
   const theme = useTheme();
   const [modalLevel, setModalLevel] = useState<"none" | "long" | "math">("none");
+  const locale = strings.locale === "en" ? "en" : "ru";
+  const planetChakra = useMemo(() => getPlanetChakraMap(locale), [locale]);
   const text = getForecastRecommendation(forecast, strings);
-  const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+  const meta = planetChakra[forecast.planetOfTheDay];
   const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
-  const detailText = [
-    `Сегодня алгоритм выделил тему «${meta.label}»: её важность выше остальных направлений дня.`,
-    `Тональность сейчас ${tone}, поэтому рекомендация сформулирована как практическое задание: удерживать состояние, которое поддерживает качества ${chakraLabelGenitiveRu(meta.chakraNumber)}, и не разгонять автоматические реакции.`,
-    forecast.isAlternativeChoice && forecast.alternativeReasonText
-      ? forecast.alternativeReasonText
-      : "Если эта тема повторялась несколько дней подряд, приложение может выбрать вторую по значимости чакру, чтобы усилия не зацикливались.",
-    "Окна возможностей ниже показывают моменты, когда телу и вниманию легче перестроиться: восход даёт импульс, кульминация усиливает проявление, точный аспект делает тему особенно заметной.",
-  ].join("\n\n");
+  const detailText = strings.recommendation.detailParagraphs(forecast).join("\n\n");
   const longExplanation = forecast.recommendationLongText ?? detailText;
   const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
@@ -79,7 +73,7 @@ export function DailyRecommendationCard({
             {forecast.alternativeReasonText}
           </AppText>
         ) : null}
-        <AppButton label="Подробнее" variant="secondary" onPress={() => setModalLevel("long")} />
+        <AppButton label={strings.recommendation.readMoreButton} variant="secondary" onPress={() => setModalLevel("long")} />
         {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
       </View>
       <ModalLongExplanation
@@ -88,6 +82,7 @@ export function DailyRecommendationCard({
         longExplanation={longExplanation}
         onOpenMath={() => setModalLevel("math")}
         canOpenMath={hasMathLevel}
+        strings={strings.longExplanationModal}
       />
       <ModalMathLevel
         visible={modalLevel === "math"}
@@ -96,6 +91,7 @@ export function DailyRecommendationCard({
         natalProfile={natalProfile}
         forecast={forecast}
         accessMode={accessMode}
+        strings={strings.mathModal}
       />
     </>
   );

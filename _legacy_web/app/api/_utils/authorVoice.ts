@@ -40,7 +40,9 @@ const data = authorVoiceData as AuthorVoiceJson;
 function normalizeLanguage(language: string | null | undefined): SupportedLanguage {
   const normalized = language?.trim().toLowerCase() ?? "";
   if (normalized.startsWith("en")) return "en";
-  return "ru";
+  if (normalized.startsWith("ru")) return "ru";
+  // Author voice JSON is RU/EN only; European locales reuse EN cadence in prompts.
+  return "en";
 }
 
 export function getAuthorVoice(language: string | null | undefined): AuthorVoiceProfile {

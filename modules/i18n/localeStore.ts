@@ -1,5 +1,7 @@
 import { Platform } from "react-native";
 
+import { syncUserLocaleToServer } from "@/services/userLocaleClient";
+
 /**
  * Single source of truth for the app's active locale (UI + assistant response).
  *
@@ -163,6 +165,7 @@ export async function setAppLocale(locale: AppLocale): Promise<void> {
   currentLocale = next;
   notify();
   await persist(next);
+  void syncUserLocaleToServer(next).catch(() => undefined);
 }
 
 export function subscribeAppLocale(listener: () => void): () => void {

@@ -6,12 +6,15 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { MarkdownText } from "./MarkdownText";
 
+import type { HomeStrings } from "@/modules/home/i18n/home";
+
 interface ModalLongExplanationProps {
   visible: boolean;
   onClose: () => void;
   longExplanation: string;
   onOpenMath: () => void;
   canOpenMath: boolean;
+  strings: HomeStrings["longExplanationModal"];
 }
 
 export function ModalLongExplanation({
@@ -20,6 +23,7 @@ export function ModalLongExplanation({
   longExplanation,
   onOpenMath,
   canOpenMath,
+  strings,
 }: ModalLongExplanationProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -29,12 +33,12 @@ export function ModalLongExplanation({
       <View style={[styles.root, { backgroundColor: theme.colors.screenBg, paddingTop: insets.top + 12 }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.surfaceBorder }]}>
           <View style={styles.headerText}>
-            <AppText variant="sectionTitle">Подробнее</AppText>
+            <AppText variant="sectionTitle">{strings.title}</AppText>
             <AppText variant="technicalCaption" tone="muted">
-              Развёрнутое объяснение рекомендации дня.
+              {strings.subtitle}
             </AppText>
           </View>
-          <AppButton label="Закрыть" variant="secondary" onPress={onClose} style={styles.closeButton} />
+          <AppButton label={strings.closeButton} variant="secondary" onPress={onClose} style={styles.closeButton} />
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
@@ -43,14 +47,14 @@ export function ModalLongExplanation({
           </View>
 
           <AppButton
-            label="Расчёты и формулы"
+            label={strings.mathButton}
             variant="secondary"
             onPress={onOpenMath}
             disabled={!canOpenMath}
-            accessibilityLabel="Открыть расчёты и формулы рекомендации дня"
+            accessibilityLabel={strings.mathButtonA11y}
           />
           <AppText variant="technicalCaption" tone="muted" style={styles.centerText}>
-            Точная математика силы и гармоничности планет, веса аспектов и выбор темы дня.
+            {strings.mathCaption}
           </AppText>
         </ScrollView>
       </View>

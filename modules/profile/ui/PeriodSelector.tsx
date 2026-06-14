@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import { PERIOD_PRESETS, type PeriodPreset } from "@/modules/profile/core/periodPresets";
+import { getPeriodPresets } from "@/modules/profile/i18n/profile";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -8,9 +10,10 @@ export function PeriodSelector(props: {
   value: number;
   onChange: (days: number) => void;
   presets?: readonly PeriodPreset[];
+  locale?: AppContentLocale;
 }) {
   const theme = useTheme();
-  const presets = props.presets ?? PERIOD_PRESETS;
+  const presets = props.presets ?? (props.locale ? getPeriodPresets(props.locale) : PERIOD_PRESETS);
 
   return (
     <View style={styles.row}>

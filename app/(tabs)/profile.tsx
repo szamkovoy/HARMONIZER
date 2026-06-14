@@ -56,13 +56,13 @@ export default function ProfileTabRoute() {
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const { locale, setLocale, testMode } = useAppLocale();
   const { t } = useTranslate();
-  const reportLocale: "ru" | "en" = locale === "en" ? "en" : "ru";
+  const reportLocale = locale;
   const reportStrings = getProfileReportStrings(reportLocale);
   const [statsPeriodDays, setStatsPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const statsEnabled = canUseFeature("stats");
-  const lifeMatrix = useLifeMatrixReport(statsEnabled);
+  const lifeMatrix = useLifeMatrixReport(statsEnabled, reportLocale);
   const [natalModalOpen, setNatalModalOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
@@ -215,7 +215,7 @@ export default function ProfileTabRoute() {
 
         <ProfileReportCard
           title={reportStrings.practiceStatsTitle}
-          periodSelector={statsEnabled ? <PeriodSelector value={statsPeriodDays} onChange={setStatsPeriodDays} /> : undefined}
+          periodSelector={statsEnabled ? <PeriodSelector value={statsPeriodDays} onChange={setStatsPeriodDays} locale={reportLocale} /> : undefined}
         >
           {statsEnabled ? (
             statsLoading ? (

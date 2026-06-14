@@ -104,7 +104,7 @@ async function generateForDate(db: any, date: string) {
     maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
   });
 
-  const { error: insertError } = await db.from("global_daily_content").upsert({
+  const row = {
     forecast_date_utc: date,
     planet_positions: forecast.planet_positions,
     primary_planet: forecast.primary_planet,
@@ -119,7 +119,49 @@ async function generateForDate(db: any, date: string) {
     llm_tokens_used: llm.tokensUsed,
     llm_model: llm.model,
     expires_at_utc: calcExpiresAt(date),
-  }, {
+    text_i18n: {} as Record<string, unknown>,
+  };
+
+  const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"];
+  const LANGUAGE_NAMES: Record<string, string> = {
+    en: "English",
+    de: "German",
+    fr: "French",
+    it: "Italian",
+    es: "Spanish",
+    pt: "Portuguese",
+    nl: "Dutch",
+  };
+  const ruTexts = {
+    slogan: String(llm.json.slogan ?? ""),
+    short_text: String(llm.json.short_text ?? ""),
+    long_explanation: String(llm.json.long_explanation ?? ""),
+  };
+  const textI18n: Record<string, typeof ruTexts> = {};
+  for (const locale of TARGET_LOCALES) {
+    try {
+      const tr = await generateGeminiJson({
+        prompt: [
+          `Translate the following daily forecast texts from Russian into ${LANGUAGE_NAMES[locale]}.`,
+          "Preserve an empathetic mentor tone. Return JSON with keys slogan, short_text, long_explanation only.",
+          JSON.stringify(ruTexts, null, 2),
+        ].join("\n"),
+        modelHint: "standard",
+        temperature: 0.3,
+        maxOutputTokens: 6144,
+      });
+      textI18n[locale] = {
+        slogan: String(tr.json.slogan ?? ruTexts.slogan),
+        short_text: String(tr.json.short_text ?? ruTexts.short_text),
+        long_explanation: String(tr.json.long_explanation ?? ruTexts.long_explanation),
+      };
+    } catch (error) {
+      console.error("[precompute-global-recommendations] translate failed", locale, error);
+    }
+  }
+  row.text_i18n = textI18n;
+
+  const { error: insertError } = await db.from("global_daily_content").upsert(row, {
     onConflict: "forecast_date_utc",
   });
   if (insertError) throw insertError;

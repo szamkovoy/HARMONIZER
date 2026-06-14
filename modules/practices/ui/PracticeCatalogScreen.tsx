@@ -5,6 +5,7 @@ import { router, type Href } from "expo-router";
 
 import { UpgradeDialog, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import { isChakra, type Chakra } from "@/modules/breath";
+import { useAppLocale } from "@/modules/i18n";
 import { filterPractices, loadPracticeCatalog } from "@/modules/practices/core/catalog";
 import type {
   PracticeCatalog,
@@ -14,6 +15,7 @@ import type {
   PracticeVideoThumbnail,
 } from "@/modules/practices/core/types";
 import { PRACTICE_GROUPS } from "@/modules/practices/core/types";
+import { getPracticeCatalogStrings, getPracticeGroupTitle } from "@/modules/practices/i18n/practices";
 import { useRemotePlay } from "@/modules/remote-play";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -35,23 +37,27 @@ const EMPTY_CATALOG: PracticeCatalog = {
   yoga: [],
 };
 
-const CHAKRA_FILTERS: Array<{ value: Chakra | "any"; label: string }> = [
-  { value: "any", label: "Все чакры" },
-  { value: 1, label: "1" },
-  { value: 2, label: "2" },
-  { value: 3, label: "3" },
-  { value: 4, label: "4" },
-  { value: 5, label: "5" },
-  { value: 6, label: "6" },
-  { value: 7, label: "7" },
-];
+function chakraFilters(strings: ReturnType<typeof getPracticeCatalogStrings>): Array<{ value: Chakra | "any"; label: string }> {
+  return [
+    { value: "any", label: strings.allChakras },
+    { value: 1, label: "1" },
+    { value: 2, label: "2" },
+    { value: 3, label: "3" },
+    { value: 4, label: "4" },
+    { value: 5, label: "5" },
+    { value: 6, label: "6" },
+    { value: 7, label: "7" },
+  ];
+}
 
-const DURATION_FILTERS: Array<{ value: PracticeDurationBucket; label: string }> = [
-  { value: "any", label: "Любая длительность" },
-  { value: "short", label: "20-30 минут" },
-  { value: "medium", label: "30-45 минут" },
-  { value: "long", label: "45-60 минут" },
-];
+function durationFilters(strings: ReturnType<typeof getPracticeCatalogStrings>): Array<{ value: PracticeDurationBucket; label: string }> {
+  return [
+    { value: "any", label: strings.anyDuration },
+    { value: "short", label: strings.durationShort },
+    { value: "medium", label: strings.durationMedium },
+    { value: "long", label: strings.durationLong },
+  ];
+}
 
 const CATALOG_THUMBNAIL_WIDTH = 295;
 const INITIAL_THUMBNAILS_TO_PREFETCH = 12;
@@ -62,6 +68,11 @@ function totalCount(catalog: PracticeCatalog): number {
 
 export function PracticeCatalogScreen() {
   const theme = useTheme();
+  const { locale: appLocale } = useAppLocale();
+  const strings = useMemo(() => getPracticeCatalogStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
+  const catalogLocale = appLocale === "en" ? "en" : "ru";
+  const CHAKRA_FILTERS = useMemo(() => chakraFilters(strings), [strings]);
+  const DURATION_FILTERS = useMemo(() => durationFilters(strings), [strings]);
   const { canUseFeature } = useAccess();
   const remotePlay = useRemotePlay();
   const [selectedKind, setSelectedKind] = useState<PracticeKind>("meditation");
@@ -102,6 +113,7 @@ export function PracticeCatalogScreen() {
       try {
         setYogaLateLoading(true);
         const catalog = await loadPracticeCatalog({
+          locale: catalogLocale,
           onLateYogaPractices: (yoga) => {
             if (seq !== loadSeqRef.current) return;
             lateYogaSlotRef.current = { resolved: true, yoga };
@@ -173,11 +185,11 @@ export function PracticeCatalogScreen() {
         setState({
           status: "error",
           catalog: EMPTY_CATALOG,
-          error: error instanceof Error ? error.message : "Не удалось загрузить каталог практик.",
+          error: error instanceof Error ? error.message : strings.loadCatalogError,
         });
       }
     },
-    [],
+    [catalogLocale, strings.loadCatalogError],
   );
 
   useEffect(() => {
@@ -323,7 +335,7 @@ export function PracticeCatalogScreen() {
       }
       const vimeoId = practice.video?.provider === "vimeo" ? practice.video.externalId : null;
       if (!vimeoId) {
-        Alert.alert("Видео недоступно", "У этой асаны пока нет Vimeo ID для Remote Play.");
+        Alert.alert(strings.videoUnavailableTitle, strings.videoUnavailableMessage);
         return;
       }
 
@@ -338,7 +350,7 @@ export function PracticeCatalogScreen() {
           },
         } as Href);
       } catch (error) {
-        Alert.alert("Remote Play", error instanceof Error ? error.message : "Не удалось запустить видео на ТВ.");
+        Alert.alert(strings.remotePlayErrorTitle, error instanceof Error ? error.message : strings.loadCatalogError);
       } finally {
         setRemoteBusyPracticeId(null);
       }
@@ -365,10 +377,10 @@ export function PracticeCatalogScreen() {
       <View style={styles.headerContent}>
         <View style={styles.header}>
           <AppText variant="screenTitle" accessibilityRole="header">
-            Каталог практик
+            {strings.screenTitle}
           </AppText>
           <AppText variant="screenHint" tone="muted">
-            Выберите, что вас интересует.
+            {strings.screenSubtitle}
           </AppText>
         </View>
 
@@ -376,7 +388,7 @@ export function PracticeCatalogScreen() {
           <View style={[styles.stateCard, { borderColor: theme.colors.surfaceBorder }]}>
             <ActivityIndicator color={theme.colors.accent} />
             <AppText variant="screenHint" tone="muted">
-              Собираем каталог...
+              {strings.loadingCatalog}
             </AppText>
           </View>
         ) : null}
@@ -384,12 +396,12 @@ export function PracticeCatalogScreen() {
         {state.status === "error" ? (
           <View style={[styles.stateCard, { borderColor: theme.colors.warning }]}>
             <AppText variant="sectionTitle" tone="warning">
-              Каталог загружен частично
+              {strings.partialCatalogTitle}
             </AppText>
             <AppText variant="dialogBody" tone="muted">
               {state.error}
             </AppText>
-            <AppButton label="Повторить" variant="secondary" onPress={load} />
+            <AppButton label={strings.retryButton} variant="secondary" onPress={load} />
           </View>
         ) : null}
 
@@ -427,10 +439,16 @@ export function PracticeCatalogScreen() {
                     ]}
                   >
                     <AppText variant="sectionTitle" tone={active ? "accentOn" : "primary"}>
-                      {group.title}
+                      {getPracticeGroupTitle(group.kind, strings)}
                     </AppText>
                     <AppText variant="technicalCaption" tone={active ? "accentOn" : "muted"}>
-                      {locked ? "только Master" : count ? `${count} практик` : group.kind === "yoga" && yogaLateLoading ? "загружаем..." : "пока пусто"}
+                      {locked
+                        ? strings.masterOnly
+                        : count
+                          ? strings.practiceCount(count)
+                          : group.kind === "yoga" && yogaLateLoading
+                            ? strings.yogaLateLoading
+                            : strings.emptyGroup}
                     </AppText>
                   </Pressable>
                 );
@@ -443,12 +461,12 @@ export function PracticeCatalogScreen() {
                   <View style={styles.remoteText}>
                     <AppText variant="screenHint" tone="muted">
                       {remotePlay.connected
-                        ? `ТВ подключён · код ${remotePlay.session?.pairing_code ?? "…"} · запускайте видео на большом экране.`
-                        : "Подключите TV, чтобы смотреть видео на большом экране."}
+                        ? `TV connected · code ${remotePlay.session?.pairing_code ?? "…"}`
+                        : strings.remotePlayHint}
                     </AppText>
                   </View>
                   <AppButton
-                    label={remotePlay.connected ? "Сменить ТВ" : "Подключить ТВ"}
+                    label={remotePlay.connected ? strings.changeTv : strings.connectTv}
                     variant="secondary"
                     onPress={() => router.push("/connect-tv" as Href)}
                     style={styles.remoteButton}
@@ -457,7 +475,7 @@ export function PracticeCatalogScreen() {
 
                 <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>
                   <AppText variant="technicalCaption" tone="muted">
-                    Фильтр
+                    {strings.filterTitle}
                   </AppText>
                   <View style={styles.chipRow}>
                     {CHAKRA_FILTERS.map((item) => (
@@ -528,7 +546,7 @@ export function PracticeCatalogScreen() {
           <ActivityIndicator color={theme.colors.accent} />
           <AppText variant="sectionTitle">Асаны ещё загружаются</AppText>
           <AppText variant="dialogBody" tone="muted">
-            Supabase отвечает медленнее обычного. Каталог уже открыт, а асаны появятся здесь автоматически.
+            {strings.yogaLateHint}
           </AppText>
         </View>
       );
@@ -544,7 +562,7 @@ export function PracticeCatalogScreen() {
           },
         ]}
       >
-        <AppText variant="sectionTitle">Здесь скоро появятся практики</AppText>
+        <AppText variant="sectionTitle">{strings.emptyPracticesTitle}</AppText>
         <AppText variant="dialogBody" tone="muted">
           Попробуйте другой фильтр или импортируйте Vimeo metadata в practices с kind=yoga.
         </AppText>
@@ -569,7 +587,7 @@ export function PracticeCatalogScreen() {
         ListFooterComponent={
           state.status !== "loading" ? (
             <AppText variant="technicalCaption" tone="faint" style={styles.footer}>
-              Всего в каталоге: {totalCount(catalog)}. Запуск идет через существующие экраны практик.
+              {strings.catalogFooter(totalCount(catalog))}
             </AppText>
           ) : null
         }

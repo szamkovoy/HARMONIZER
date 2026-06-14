@@ -39,7 +39,7 @@ describe("resolveResponseLocale", () => {
   });
 
   it("ignores an unsupported override and falls back to the user locale", () => {
-    process.env.DIALOG_RESPONSE_LOCALE = "it";
+    process.env.DIALOG_RESPONSE_LOCALE = "zz";
     expect(resolveResponseLocale("ru")).toBe("ru");
     expect(resolveResponseLocale("en")).toBe("en");
   });
@@ -48,7 +48,7 @@ describe("resolveResponseLocale", () => {
     delete process.env.DIALOG_RESPONSE_LOCALE;
     expect(resolveResponseLocale("ru", "en")).toBe("en");
     expect(resolveResponseLocale("en", "ru")).toBe("ru");
-    expect(resolveResponseLocale("ru", "it")).toBe("ru"); // unsupported request → fall through
+    expect(resolveResponseLocale("ru", "it")).toBe("it");
     expect(resolveResponseLocale("ru", null)).toBe("ru");
   });
 

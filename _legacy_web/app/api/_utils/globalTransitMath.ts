@@ -2,6 +2,8 @@
  * Транзитная «математика дня» без натальной карты (PATCH 14).
  * Держите в синхроне с `supabase/functions/_shared/dailyForecast.ts` (computeGlobalDailyForecast / buildGlobalMathLevel).
  */
+import type { AppContentLocale } from "./contentLocales";
+import { getMathLevelStrings } from "./mathLevelI18n";
 import { chakraLabelRu } from "@/modules/chakra/labels";
 import base from "astronomia/base";
 import julian from "astronomia/julian";
@@ -303,18 +305,26 @@ export function computeGlobalDailyForecast(forecastDate: string) {
   };
 }
 
-export function buildGlobalMathLevel(forecast: {
+export function buildGlobalMathLevel(
+  forecast: {
   top_petals: { planet: string; gravity: number; chakra_number: number; tone: string }[];
   aspects: { from: string; to: string; type: string; orb: number }[];
   planet_positions: Record<string, unknown>;
-}) {
+},
+  locale: AppContentLocale = "ru",
+) {
+  const t = getMathLevelStrings(locale);
   const md = [
-    "## Математика общего прогноза\n",
-    "Общий прогноз строится без натальной карты: учитываются только транзитные положения семи планет на 12:00 UTC выбранного дня.",
-    "\n### Топ-3 лепестка\n",
-    ...forecast.top_petals.map((petal) => `- **${petal.planet}**: gravity=${petal.gravity}, чакра ${petal.chakra_number}, тон=${petal.tone}`),
-    "\n### Активные аспекты дня\n",
-    ...forecast.aspects.map((aspect) => `- ${aspect.from} ${aspect.type} ${aspect.to}, orb=${aspect.orb.toFixed(2)}°`),
+    t.globalTitle,
+    t.globalIntro,
+    t.globalSectionPetals,
+    ...forecast.top_petals.map((petal) =>
+      t.globalPetalLine(petal.planet, petal.gravity, petal.chakra_number, petal.tone),
+    ),
+    t.globalSectionAspects,
+    ...forecast.aspects.map((aspect) =>
+      t.globalAspectLine(aspect.from, aspect.type, aspect.to, aspect.orb.toFixed(2)),
+    ),
   ];
   const main_aspects = forecast.aspects.map((a) => ({
     from: a.from,

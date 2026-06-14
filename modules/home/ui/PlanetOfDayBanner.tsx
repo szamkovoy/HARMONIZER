@@ -1,8 +1,9 @@
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
-import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
+import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -14,7 +15,10 @@ interface PlanetOfDayBannerProps {
 export function PlanetOfDayBanner({ forecast, strings }: PlanetOfDayBannerProps) {
   const theme = useTheme();
   const planet = forecast.planetOfTheDay;
-  const meta = PLANET_CHAKRA[planet];
+  const meta = useMemo(
+    () => getPlanetChakraMap(strings.locale === "en" ? "en" : "ru")[planet],
+    [planet, strings.locale],
+  );
   const planetLabel = strings.planetLabels[planet];
   const toneLabel = strings.toneLabels[forecast.todayPlanetState.todayTone];
 

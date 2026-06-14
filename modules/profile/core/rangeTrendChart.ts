@@ -3,6 +3,8 @@ export type CalendarTrendPoint = {
   rangeMetric: number;
 };
 
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+
 export type ChartPoint = {
   localDate: string;
   rangeMetric: number;
@@ -17,8 +19,6 @@ export type AxisTick = {
 };
 
 type AxisMode = "day" | "week" | "month" | "year";
-
-const MONTHS_RU = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"] as const;
 
 function parseLocalDate(value: string): Date {
   const [year, month, day] = value.split("-").map((part) => Number.parseInt(part, 10));
@@ -36,14 +36,17 @@ function chooseAxisMode(spanDays: number): AxisMode {
   return "year";
 }
 
-export function formatAxisLabel(localDate: string, mode: AxisMode): string {
+
+export function formatAxisLabel(localDate: string, mode: AxisMode, locale: AppContentLocale = "ru"): string {
   const date = parseLocalDate(localDate);
-  const day = date.getDate();
-  const month = MONTHS_RU[date.getMonth()] ?? "";
-  const year = date.getFullYear();
-  if (mode === "day" || mode === "week") return `${day} ${month}`;
-  if (mode === "month") return month;
-  return `${month} ${year}`;
+  const intlLocale = locale === "ru" ? "ru" : locale;
+  if (mode === "day" || mode === "week") {
+    return new Intl.DateTimeFormat(intlLocale, { day: "numeric", month: "short" }).format(date);
+  }
+  if (mode === "month") {
+    return new Intl.DateTimeFormat(intlLocale, { month: "short" }).format(date);
+  }
+  return new Intl.DateTimeFormat(intlLocale, { month: "short", year: "numeric" }).format(date);
 }
 
 function roundDateToTick(ms: number, mode: AxisMode): number {
@@ -66,7 +69,12 @@ function msToIsoDate(ms: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-export function buildCalendarAxisTicks(points: CalendarTrendPoint[], width: number, padding: number): AxisTick[] {
+export function buildCalendarAxisTicks(
+  points: CalendarTrendPoint[],
+  width: number,
+  padding: number,
+  locale: AppContentLocale = "ru",
+): AxisTick[] {
   if (!points.length) return [];
 
   const minMs = dateToMs(points[0]!.localDate);
@@ -85,7 +93,7 @@ export function buildCalendarAxisTicks(points: CalendarTrendPoint[], width: numb
     ticks.push({
       localDate,
       x: padding + ratio * plotWidth,
-      label: formatAxisLabel(localDate, mode),
+      label: formatAxisLabel(localDate, mode, locale),
     });
   }
   return ticks;

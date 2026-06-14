@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import chakraStatesBaseline from "../../../../data/chakra_states_baseline.json";
 import { CONTENT_LENGTHS } from "../../../../config/contentLengths";
 import { buildAddressFormHint } from "../../_utils/addressForm";
+import { resolveContentLocale, type AppContentLocale } from "../../_utils/contentLocales";
 import { loadActiveNatalProfile } from "../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../_utils/authorVoice";
 import { generateGeminiJson, getModelByHint } from "../../_utils/gemini";
@@ -18,6 +19,7 @@ export const runtime = "nodejs";
 type Body = {
   scenario_id?: string;
   variables?: Record<string, unknown>;
+  responseLocale?: string;
 };
 
 type UserRecord = {
@@ -100,6 +102,7 @@ async function buildMorningRecommendationVariables(
   db: SupabaseClient,
   userId: string,
   clientVariables: Record<string, unknown>,
+  responseLocale: AppContentLocale,
 ): Promise<{ variables: Record<string, unknown>; mathLevel: ReturnType<typeof buildMathLevel> }> {
   const [forecast, natalResult, calibration, user] = await Promise.all([
     loadLatestForecast(db, userId),
@@ -113,7 +116,7 @@ async function buildMorningRecommendationVariables(
     throw new Response(JSON.stringify({ error: "Daily forecast does not contain enough ranked planets" }), { status: 500 });
   }
 
-  const language = (user.locale ?? "ru").slice(0, 2);
+  const language = responseLocale;
   const addressForm = user.address_form === "informal" ? "ty" : "vy";
   const authorVoice = formatAuthorVoiceForPrompt(getAuthorVoice(language), addressForm);
   const addressFormHint = buildAddressFormHint(user.address_form, language);
@@ -163,7 +166,7 @@ async function buildMorningRecommendationVariables(
       user_phrases_for_active_chakras: userPhrasesForPetals(calibration, petals),
       address_form_hint: addressFormHint,
     },
-    mathLevel: buildMathLevel(forecast, natalResult.profile, calibration),
+    mathLevel: buildMathLevel(forecast, natalResult.profile, calibration, responseLocale),
   };
 }
 
@@ -201,10 +204,13 @@ export async function POST(req: Request) {
     endpointStage = "load_prompt";
     const prompt = await getActivePrompt(db, scenario.monologue_prompt_key);
     const expectedModel = scenario.id === "morning_recommendation" ? getModelByHint(prompt.model_hint) : null;
+    const user = await loadUser(db, userId);
+    const responseLocale = resolveContentLocale(user.locale, body.responseLocale);
+    const cacheSuffix = scenario.id === "morning_recommendation" ? responseLocale : undefined;
 
     endpointStage = "cache_lookup";
     const forceRefresh = body.variables?.forceRefresh === true || body.variables?.force_refresh === true;
-    const cached = await checkScenarioCache<Record<string, unknown>>(scenario, userId, db);
+    const cached = await checkScenarioCache<Record<string, unknown>>(scenario, userId, db, cacheSuffix);
     if (!forceRefresh && cached && !isStaleMorningCache(scenario.id, cached, expectedModel)) {
       return json({
         ...cached,
@@ -216,7 +222,7 @@ export async function POST(req: Request) {
     let mathLevel: ReturnType<typeof buildMathLevel> | null = null;
     if (scenario.id === "morning_recommendation") {
       endpointStage = "prepare_morning_recommendation";
-      const prepared = await buildMorningRecommendationVariables(db, userId, variables);
+      const prepared = await buildMorningRecommendationVariables(db, userId, variables, responseLocale);
       variables = prepared.variables;
       mathLevel = prepared.mathLevel;
     }
@@ -239,7 +245,7 @@ export async function POST(req: Request) {
     };
 
     endpointStage = "cache_save";
-    await saveScenarioCache(scenario, userId, payload, db);
+    await saveScenarioCache(scenario, userId, payload, db, cacheSuffix);
 
     return json({
       ...payload,

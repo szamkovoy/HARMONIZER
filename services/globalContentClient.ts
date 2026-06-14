@@ -1,3 +1,4 @@
+import { getResponseLocale } from "@/modules/i18n/localeStore";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
@@ -173,6 +174,7 @@ function globalResponseFromRow(row: Record<string, unknown>, isFallback: boolean
 export async function fetchGlobalContent(req: {
   userLocation: { lat: number; lng: number; timezone: string };
   signal?: AbortSignal;
+  responseLocale?: string;
 }): Promise<GlobalContentResult> {
   return withTransientNetworkRetry(
     async () => fetchGlobalContentOnce(req),
@@ -183,12 +185,14 @@ export async function fetchGlobalContent(req: {
 async function fetchGlobalContentOnce(req: {
   userLocation: { lat: number; lng: number; timezone: string };
   signal?: AbortSignal;
+  responseLocale?: string;
 }): Promise<GlobalContentResult> {
   const token = await getAccessToken();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), GLOBAL_CONTENT_TIMEOUT_MS);
   req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
   let data: GlobalContentResponse;
+  const responseLocale = req.responseLocale ?? getResponseLocale();
   try {
     try {
       const res = await fetch(getAiGlobalContentUrl(), {
@@ -197,7 +201,7 @@ async function fetchGlobalContentOnce(req: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: "{}",
+        body: JSON.stringify({ responseLocale }),
         signal: controller.signal,
       });
       if (!res.ok) throw await readError(res);

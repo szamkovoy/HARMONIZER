@@ -15,7 +15,9 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Svg, { Path } from "react-native-svg";
 
 import { Communicator } from "@/modules/communicator/ui/Communicator";
+import { getDayStrings, mapDateLabelKind, type DayStrings } from "@/modules/day/i18n/day";
 import { useAppLocale } from "@/modules/i18n";
+import { localizeLifeSphereLabel } from "@/modules/life-spheres/labels";
 import { loadPracticeCatalog } from "@/modules/practices";
 import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/types";
 import { PracticeCard } from "@/modules/practices/ui/PracticeCard";
@@ -82,6 +84,7 @@ function buildAssistantSession(
   mode: AssistantMode,
   health: DayHealthContext | null,
   sessionKey: number,
+  strings: DayStrings,
 ): AssistantSession {
   const summaryTargetLocalDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
   const overdueSummaryStartsFullFlow = mode === "summary" && plan.mode === "overdue_summary";
@@ -94,7 +97,7 @@ function buildAssistantSession(
     dayActions: buildAssistantActions(plan, mode),
     dayPractices:
       mode === "summary"
-        ? summaryPracticesForAssistant(plan)
+        ? summaryPracticesForAssistant(plan, strings)
         : (currentDaySection(plan)?.practices ?? []),
     dayHealthContext: mode === "summary" ? health : null,
   };
@@ -117,27 +120,17 @@ function sectorPath(cx: number, cy: number, radius: number, startAngle: number, 
   return [`M ${cx} ${cy}`, `L ${start.x} ${start.y}`, `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`, "Z"].join(" ");
 }
 
-function formatLocalDateLabel(localDate: string, kind: DaySection["dateLabelKind"]) {
-  const [year, month, day] = localDate.split("-").map((part) => Number.parseInt(part, 10));
-  const date = new Date(year, (month ?? 1) - 1, day ?? 1, 12, 0, 0);
-  const formatted = new Intl.DateTimeFormat("ru", { day: "numeric", month: "long" }).format(date);
-  if (kind === "yesterday") return `Вчера, ${formatted}`;
-  return formatted;
+function formatDayHeaderDateLabel(section: DaySection, strings: DayStrings): string {
+  return strings.formatDateHeader(section.localDate, mapDateLabelKind(section.dateLabelKind));
 }
 
-function formatDayHeaderDateLabel(section: DaySection): string {
-  return formatLocalDateLabel(section.localDate, section.dateLabelKind);
+function formatPracticeLineTime(value: string, strings: DayStrings) {
+  return strings.formatTime(value);
 }
 
-function formatPracticeLineTime(value: string) {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "";
-  return new Intl.DateTimeFormat("ru", { hour: "2-digit", minute: "2-digit" }).format(date);
-}
-
-function formatPracticeDuration(seconds: number | null) {
+function formatPracticeDuration(seconds: number | null, strings: DayStrings) {
   if (!seconds || seconds <= 0) return "";
-  return `${Math.max(1, Math.round(seconds / 60))} мин`;
+  return strings.formatDurationMinutes(Math.max(1, Math.round(seconds / 60)));
 }
 
 function compactActionTitle(value: string) {
@@ -161,13 +154,15 @@ function summarySections(plan: DayPlan | null): DaySection[] {
   return todaySection ? [todaySection] : [];
 }
 
-function summaryPracticesForAssistant(plan: DayPlan): DayPlan["sections"][number]["practices"] {
+function summaryPracticesForAssistant(plan: DayPlan, strings: DayStrings): DayPlan["sections"][number]["practices"] {
   const sections = summarySections(plan);
   const includeDatePrefix = sections.length > 1;
   return sections.flatMap((section) =>
     section.practices.map((practice) => ({
       ...practice,
-      title: includeDatePrefix ? `${formatLocalDateLabel(section.localDate, section.dateLabelKind)}: ${practice.title}` : practice.title,
+      title: includeDatePrefix
+        ? `${strings.formatDateHeader(section.localDate, mapDateLabelKind(section.dateLabelKind))}: ${practice.title}`
+        : practice.title,
     })),
   );
 }
@@ -185,7 +180,7 @@ function practiceForDayTarget(practice: PracticeSummary, target: 1 | 2 | 3 | 4 |
   };
 }
 
-function SphereRadialChart({ stats }: { stats: DaySphereStat[] }) {
+function SphereRadialChart({ stats, locale }: { stats: DaySphereStat[]; locale: "ru" | "en" }) {
   const theme = useTheme();
   const size = 220;
   const cx = 110;
@@ -216,7 +211,7 @@ function SphereRadialChart({ stats }: { stats: DaySphereStat[] }) {
           <View key={item.id} style={styles.sphereLegendRow}>
             <View style={[styles.legendDot, { backgroundColor: SPHERE_COLORS[index] ?? theme.colors.accent, opacity: item.value > 0 ? 1 : 0.25 }]} />
             <AppText variant="technicalCaption" tone="muted" style={styles.legendText}>
-              {item.title}
+              {localizeLifeSphereLabel(item.id, item.title, locale)}
             </AppText>
           </View>
         ))}
@@ -229,10 +224,12 @@ function DayActionRow({
   action,
   onChanged,
   readonly = false,
+  strings,
 }: {
   action: DayAction;
   onChanged: () => void;
   readonly?: boolean;
+  strings: DayStrings;
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
@@ -254,10 +251,10 @@ function DayActionRow({
   };
 
   const remove = () => {
-    Alert.alert("Удалить действие?", "Рекомендация к этому действию тоже исчезнет из дня.", [
-      { text: "Отмена", style: "cancel" },
+    Alert.alert(strings.deleteActionTitle, strings.deleteActionMessage, [
+      { text: strings.cancelButton, style: "cancel" },
       {
-        text: "Удалить",
+        text: strings.deleteButton,
         style: "destructive",
         onPress: () => {
           void deleteDayAction(action.id).then(onChanged);
@@ -308,7 +305,7 @@ function DayActionRow({
           <View style={styles.actionIcons}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={expanded ? "Скрыть рекомендацию" : "Показать рекомендацию"}
+              accessibilityLabel={expanded ? strings.hideRecommendationA11y : strings.showRecommendationA11y}
               onPress={() => setExpanded((value) => !value)}
               style={styles.iconButton}
             >
@@ -316,10 +313,10 @@ function DayActionRow({
                 {expanded ? "▴" : "▾"}
               </AppText>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Редактировать действие" onPress={() => setEditing(true)} style={styles.iconButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={strings.editActionA11y} onPress={() => setEditing(true)} style={styles.iconButton}>
               <AppText variant="buttonLabel">✎</AppText>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Удалить действие" onPress={remove} style={styles.iconButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={strings.deleteActionA11y} onPress={remove} style={styles.iconButton}>
               <AppText variant="buttonLabel">×</AppText>
             </Pressable>
           </View>
@@ -330,8 +327,8 @@ function DayActionRow({
       </Pressable>
       {editing ? (
         <View style={styles.editActions}>
-          <AppButton label="Сохранить" onPress={() => void save()} style={styles.smallButton} />
-          <AppButton label="Отмена" variant="secondary" onPress={() => {
+          <AppButton label={strings.saveButton} onPress={() => void save()} style={styles.smallButton} />
+          <AppButton label={strings.cancelButton} variant="secondary" onPress={() => {
             setDraft(action.title);
             setEditing(false);
           }} style={styles.smallButton} />
@@ -339,7 +336,7 @@ function DayActionRow({
       ) : null}
       {expanded && !editing && !readonly ? (
         <AppText variant="dialogBody" tone="muted" style={styles.actionRecommendation}>
-          {action.recommendation ?? "Рекомендация появится после обновления ассистента для этого действия."}
+          {action.recommendation ?? strings.actionRecommendationFallback}
         </AppText>
       ) : null}
     </View>
@@ -352,16 +349,19 @@ function AssistantModal({
   onClose,
   onPracticeOffered,
   onAssistantMessage,
+  strings,
+  appLocale,
 }: {
   visible: boolean;
   session: AssistantSession | null;
   onClose: () => void;
   onPracticeOffered: (practice: PracticeSummary) => void | Promise<void>;
   onAssistantMessage?: (message: { meta?: Record<string, unknown> }) => void;
+  strings: DayStrings;
+  appLocale: "ru" | "en";
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const { locale: appLocale } = useAppLocale();
   if (!visible || !session) return null;
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -375,15 +375,15 @@ function AssistantModal({
             },
           ]}
         >
-          <AppText variant="sectionTitle">Ассистент дня</AppText>
+          <AppText variant="sectionTitle">{strings.assistantTitle}</AppText>
           <Pressable accessibilityRole="button" onPress={onClose} style={[styles.modalClose, { backgroundColor: theme.colors.controlButtonBg }]}>
-            <AppText variant="buttonLabel">Закрыть</AppText>
+            <AppText variant="buttonLabel">{strings.closeButton}</AppText>
           </Pressable>
         </View>
         <Communicator
           key={`day-assistant-${session.sessionKey}`}
-          systemPrompt="Ты эмпатичный наставник приложения Harmonizer. Помоги пользователю заполнить или подытожить вкладку «День»."
-          locale={appLocale === "en" ? "en" : "ru"}
+          systemPrompt={strings.assistantSystemPrompt}
+          locale={appLocale}
           useCase="daily_dialog"
           entrySource="day"
           startFreshSession
@@ -424,6 +424,9 @@ function chooseYogaByBucket(catalog: PracticeCatalog, bucket: "20-30" | "31-40" 
 
 export default function DayTabRoute() {
   const theme = useTheme();
+  const { locale: appLocale } = useAppLocale();
+  const dayStrings = useMemo(() => getDayStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
+  const reportLocale = appLocale === "en" ? "en" : "ru";
   const scrollRef = useRef<ScrollView>(null);
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -453,7 +456,7 @@ export default function DayTabRoute() {
         console.warn("[Day] Background refresh failed", loadError);
         setError(null);
       } else {
-        setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить день.");
+        setError(loadError instanceof Error ? loadError.message : dayStrings.loadDayError);
       }
     } finally {
       setLoading(false);
@@ -480,10 +483,10 @@ export default function DayTabRoute() {
 
   useEffect(() => {
     if (practiceMenuLevel === "closed" || catalog) return;
-    void loadPracticeCatalog().then(setCatalog).catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить практики.");
+    void loadPracticeCatalog({ locale: reportLocale }).then(setCatalog).catch((loadError) => {
+      setError(loadError instanceof Error ? loadError.message : dayStrings.loadPracticesError);
     });
-  }, [catalog, practiceMenuLevel]);
+  }, [catalog, practiceMenuLevel, dayStrings.loadPracticesError, reportLocale]);
 
   const todaySection = currentDaySection(plan);
   const hasActions = (todaySection?.actions.length ?? 0) > 0;
@@ -531,11 +534,11 @@ export default function DayTabRoute() {
     assistantSessionKeyRef.current += 1;
     const sessionKey = assistantSessionKeyRef.current;
     if (mode !== "summary") {
-      setAssistantSession(buildAssistantSession(plan, mode, null, sessionKey));
+      setAssistantSession(buildAssistantSession(plan, mode, null, sessionKey, dayStrings));
       return;
     }
     const healthCollection = startSummarizingHealthCollectionFromPlan(plan);
-    setAssistantSession(buildAssistantSession(plan, mode, healthCollection.getSnapshot(), sessionKey));
+    setAssistantSession(buildAssistantSession(plan, mode, healthCollection.getSnapshot(), sessionKey, dayStrings));
     void healthCollection.whenReady().then((health) => {
       setAssistantSession((current) =>
         current?.sessionKey === sessionKey ? { ...current, dayHealthContext: health } : current,
@@ -551,7 +554,7 @@ export default function DayTabRoute() {
           {plan && plan.mode !== "overdue_summary" && todaySection ? (
             <>
               <AppText variant="screenTitle" accessibilityRole="header">
-                {formatDayHeaderDateLabel(todaySection)}
+                {formatDayHeaderDateLabel(todaySection, dayStrings)}
               </AppText>
               {plan.dayRecommendation?.trim() ? (
                 <AppText variant="dialogBody">{plan.dayRecommendation.trim()}</AppText>
@@ -559,7 +562,7 @@ export default function DayTabRoute() {
             </>
           ) : (
             <AppText variant="screenTitle" accessibilityRole="header">
-              День
+              {dayStrings.screenTitle}
             </AppText>
           )}
         </View>
@@ -568,13 +571,13 @@ export default function DayTabRoute() {
         {error ? (
           <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.danger }]}>
             <AppText variant="dialogBody" tone="danger">{error}</AppText>
-            <AppButton label="Повторить" onPress={() => void refresh()} />
+            <AppButton label={dayStrings.retryButton} onPress={() => void refresh()} />
           </View>
         ) : null}
         {showRefreshingBanner ? (
           <View style={[styles.card, styles.refreshingBanner, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
             <ActivityIndicator color={theme.colors.accent} />
-            <AppText variant="technicalCaption" tone="muted">Обновляем день...</AppText>
+            <AppText variant="technicalCaption" tone="muted">{dayStrings.refreshingHint}</AppText>
           </View>
         ) : null}
 
@@ -583,19 +586,19 @@ export default function DayTabRoute() {
             {plan.mode === "overdue_summary" ? (
               <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
                 <AppText variant="dialogBody" tone="muted">
-                  Для анализа данных, подытожьте действия, которые вы планировали ранее.
+                  {dayStrings.overdueSummaryHint}
                 </AppText>
-                <AppButton label="Подытожить" onPress={() => openAssistant("summary")} />
+                <AppButton label={dayStrings.summarizeButton} onPress={() => openAssistant("summary")} />
               </View>
             ) : null}
 
             {plan.sections.map((section) => (
               <View key={section.localDate} style={styles.sectionGroup}>
                 {plan.mode === "overdue_summary" ? (
-                  <AppText variant="sectionTitle">{formatLocalDateLabel(section.localDate, section.dateLabelKind)}</AppText>
+                  <AppText variant="sectionTitle">{formatDayHeaderDateLabel(section, dayStrings)}</AppText>
                 ) : null}
                 <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-                  <AppText variant="sectionTitle">Действия</AppText>
+                  <AppText variant="sectionTitle">{dayStrings.actionsTitle}</AppText>
                   {section.actions.length ? (
                     section.actions.map((action) => (
                       <DayActionRow
@@ -603,23 +606,24 @@ export default function DayTabRoute() {
                         action={action}
                         readonly={plan.mode === "overdue_summary"}
                         onChanged={() => void refresh({ showRefreshing: true })}
+                        strings={dayStrings}
                       />
                     ))
                   ) : (
                     <AppText variant="dialogBody" tone="muted">
-                      Пока действий нет. Начните с ассистента, и он поможет собрать день.
+                      {dayStrings.noActionsHint}
                     </AppText>
                   )}
                   {plan.mode === "current_day" && activeSphereStats.length ? (
                     <>
-                      <AppText variant="sectionTitle" style={styles.innerSectionTitle}>Сферы жизни</AppText>
-                      <SphereRadialChart stats={section.sphereStats} />
+                      <AppText variant="sectionTitle" style={styles.innerSectionTitle}>{dayStrings.lifeSpheresTitle}</AppText>
+                      <SphereRadialChart stats={section.sphereStats} locale={reportLocale} />
                       {section.sphereHint ? <AppText variant="dialogBody" tone="muted">{section.sphereHint}</AppText> : null}
                     </>
                   ) : null}
                   {plan.mode === "empty_today" || plan.mode === "current_day" ? (
                     <AppButton
-                      label={hasActions ? "Добавить" : "Что делать?"}
+                      label={hasActions ? dayStrings.addButton : dayStrings.whatToDoButton}
                       onPress={() => openAssistant(hasActions ? "add" : "plan")}
                     />
                   ) : null}
@@ -627,12 +631,12 @@ export default function DayTabRoute() {
 
                 {plan.mode === "overdue_summary" && section.practices.length === 0 ? null : (
                   <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-                    <AppText variant="sectionTitle">Йога</AppText>
+                    <AppText variant="sectionTitle">{dayStrings.yogaTitle}</AppText>
                     {section.practices.length ? (
                       <View style={styles.practiceLogList}>
                         {section.practices.map((practice) => {
-                          const time = formatPracticeLineTime(practice.startedAt);
-                          const duration = formatPracticeDuration(practice.durationSec);
+                          const time = formatPracticeLineTime(practice.startedAt, dayStrings);
+                          const duration = formatPracticeDuration(practice.durationSec, dayStrings);
                           return (
                             <AppText key={practice.id} variant="dialogBody" tone="muted">
                               {time ? `${time} ` : ""}{practice.title}{duration ? ` (${duration})` : ""}
@@ -642,7 +646,7 @@ export default function DayTabRoute() {
                       </View>
                     ) : (
                       <AppText variant="dialogBody" tone="muted">
-                        Выполните практику йоги, чтобы поддержать в себе способность гармонично проявлять рекомендованные состояния.
+                        {dayStrings.emptyYogaHint}
                       </AppText>
                     )}
 
@@ -656,7 +660,7 @@ export default function DayTabRoute() {
                             }}
                           />
                           <AppButton
-                            label="Отменить практику"
+                            label={dayStrings.cancelPracticeButton}
                             variant="secondary"
                             onPress={() => {
                               void cancelPendingDayPractice(plan.pendingPractice!.id).then(() => refresh({ showRefreshing: true }));
@@ -665,7 +669,7 @@ export default function DayTabRoute() {
                         </View>
                       ) : (
                         <>
-                          <AppButton label="Выбрать практику" onPress={() => setPracticeMenuLevel((value) => value === "closed" ? "root" : "closed")} />
+                          <AppButton label={dayStrings.choosePracticeButton} onPress={() => setPracticeMenuLevel((value) => value === "closed" ? "root" : "closed")} />
                           {practiceMenuLevel !== "closed" ? (
                             <View style={[styles.practicePicker, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.surface }]}>
                               {!catalog ? <ActivityIndicator color={theme.colors.accent} /> : null}
@@ -673,14 +677,14 @@ export default function DayTabRoute() {
                                 <>
                                   {practiceMenuLevel === "root" ? (
                                     <>
-                                      {catalog.meditation[0] ? <Pressable style={styles.menuItem} onPress={() => void saveOffer(catalog.meditation[0]!)}><AppText variant="dialogBody">Медитация</AppText></Pressable> : null}
-                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("breath")}><AppText variant="dialogBody">Дыхание</AppText></Pressable>
-                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("yoga")}><AppText variant="dialogBody">Асаны</AppText></Pressable>
+                                      {catalog.meditation[0] ? <Pressable style={styles.menuItem} onPress={() => void saveOffer(catalog.meditation[0]!)}><AppText variant="dialogBody">{dayStrings.meditationLabel}</AppText></Pressable> : null}
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("breath")}><AppText variant="dialogBody">{dayStrings.breathLabel}</AppText></Pressable>
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("yoga")}><AppText variant="dialogBody">{dayStrings.asanasLabel}</AppText></Pressable>
                                     </>
                                   ) : null}
                                   {practiceMenuLevel === "breath" ? (
                                     <>
-                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">‹ Назад</AppText></Pressable>
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">{dayStrings.backLabel}</AppText></Pressable>
                                       {catalog.breath.map((practice) => (
                                         <Pressable key={practice.id} style={styles.menuItem} onPress={() => void saveOffer(practice)}><AppText variant="dialogBody">{practice.title}</AppText></Pressable>
                                       ))}
@@ -688,7 +692,7 @@ export default function DayTabRoute() {
                                   ) : null}
                                   {practiceMenuLevel === "yoga" ? (
                                     <>
-                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">‹ Назад</AppText></Pressable>
+                                      <Pressable style={styles.menuItem} onPress={() => setPracticeMenuLevel("root")}><AppText variant="dialogBody" tone="muted">{dayStrings.backLabel}</AppText></Pressable>
                                       {(["20-30", "31-40", "41-50", "50+"] as const).map((bucket) => (
                                         <Pressable
                                           key={bucket}
@@ -698,7 +702,7 @@ export default function DayTabRoute() {
                                             if (yoga) void saveOffer(yoga);
                                           }}
                                         >
-                                          <AppText variant="dialogBody">{bucket} минут</AppText>
+                                          <AppText variant="dialogBody">{dayStrings.minutesBucket(bucket)}</AppText>
                                         </Pressable>
                                       ))}
                                     </>
@@ -716,7 +720,7 @@ export default function DayTabRoute() {
             ))}
 
             {plan.mode === "current_day" && canSummarizeCurrentDay ? (
-              <AppButton label="Подытожить этот день" onPress={() => openAssistant("summary")} />
+              <AppButton label={dayStrings.summarizeDayButton} onPress={() => openAssistant("summary")} />
             ) : null}
           </>
         ) : null}
@@ -738,6 +742,8 @@ export default function DayTabRoute() {
           });
           void refresh({ force: true });
         }}
+        strings={dayStrings}
+        appLocale={reportLocale}
       />
     </SafeAreaView>
   );

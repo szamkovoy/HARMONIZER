@@ -13,6 +13,7 @@ import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome } f
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
+import { getResponseLocale } from "@/modules/i18n/localeStore";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 type DayContentStatus =
@@ -225,7 +226,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const needsNatalProfile = Boolean(options?.natalRequired && nextAccessMode !== "free");
       const provisionalTimezone = userLocation?.timezone ?? profileTimezone;
       const provisionalForecastDate = localDateIso(provisionalTimezone);
-      const contentScopeKey = nextAccessMode === "free" ? "global" : scopeKey;
+      const localeTag = getResponseLocale() === "en" ? "en" : "ru";
+      const contentScopeKey = `${nextAccessMode === "free" ? "global" : scopeKey}:${localeTag}`;
       const requestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, provisionalForecastDate, contentScopeKey].join("|");
       const relaxedLookupParams = profileId
         ? {
@@ -471,6 +473,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           const result = await fetchGlobalContent({
             userLocation: locationForRequest,
             signal: controller.signal,
+            responseLocale: getResponseLocale(),
           });
           if (!isDayContentComplete(result.forecast, "free")) {
             throw new Error("Global day content is incomplete.");

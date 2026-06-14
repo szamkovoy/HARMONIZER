@@ -32,14 +32,16 @@ export async function checkScenarioCache<T>(
   scenario: Scenario,
   userId: string,
   db: SupabaseClient = createServiceSupabase(),
+  cacheKeySuffix?: string,
 ): Promise<T | null> {
   const cacheKey = await buildCacheKey(db, scenario, userId);
   if (!cacheKey) return null;
+  const fullKey = cacheKeySuffix ? `${cacheKey}:${cacheKeySuffix}` : cacheKey;
 
   const { data, error } = await db
     .from("scenario_cache")
     .select("data")
-    .eq("cache_key", cacheKey)
+    .eq("cache_key", fullKey)
     .maybeSingle();
   if (error) throw error;
   return (data?.data as T | undefined) ?? null;
@@ -50,12 +52,14 @@ export async function saveScenarioCache(
   userId: string,
   data: unknown,
   db: SupabaseClient = createServiceSupabase(),
+  cacheKeySuffix?: string,
 ): Promise<void> {
   const cacheKey = await buildCacheKey(db, scenario, userId);
   if (!cacheKey) return;
+  const fullKey = cacheKeySuffix ? `${cacheKey}:${cacheKeySuffix}` : cacheKey;
 
   const { error } = await db.from("scenario_cache").upsert({
-    cache_key: cacheKey,
+    cache_key: fullKey,
     scenario_id: scenario.id,
     user_id: userId,
     data,

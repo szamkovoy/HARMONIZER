@@ -1,10 +1,13 @@
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 
+import { chakraShortLabelDisplay, type ChakraLocale } from "@/modules/chakra/i18n";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
+import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
-import { PLANET_CHAKRA, PLANET_ORDER } from "../planetChakra";
+import { PLANET_ORDER } from "../planetChakra";
 
 interface ChakraFlowerProps {
   forecast: DailyForecast;
@@ -40,11 +43,13 @@ function hexToRgba(hex: string, opacity: number): string {
 
 export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
   const theme = useTheme();
+  const chakraLocale: ChakraLocale = strings.locale === "en" ? "en" : "ru";
+  const planetChakra = useMemo(() => getPlanetChakraMap(chakraLocale), [chakraLocale]);
   const center = 124;
   const startAngle = 360 / PLANET_ORDER.length;
   const { importance, planetOfTheDay } = forecast;
   const todayTone = forecast.todayPlanetState.todayTone;
-  const selectedMeta = PLANET_CHAKRA[planetOfTheDay];
+  const selectedMeta = planetChakra[planetOfTheDay];
 
   return (
     <View
@@ -69,7 +74,7 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
         <View style={styles.flowerWrap}>
           <View style={styles.flowerCanvas} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             {PLANET_ORDER.map((planet, index) => {
-              const meta = PLANET_CHAKRA[planet];
+              const meta = planetChakra[planet];
               const n = normalizedImportance(importance, planet);
               const isSelected = planet === planetOfTheDay;
               const width = 42 + n * 22;
@@ -163,13 +168,13 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
         </View>
         <View style={styles.legend}>
           {PLANET_ORDER.map((planet) => {
-            const meta = PLANET_CHAKRA[planet];
+            const meta = planetChakra[planet];
             const active = planet === planetOfTheDay;
             return (
               <View key={planet} style={styles.legendRow}>
                 <View style={[styles.legendDot, { backgroundColor: meta.color, opacity: active ? 1 : 0.65 }]} />
                 <AppText variant="technicalCaption" tone={active ? "primary" : "muted"} style={styles.legendText}>
-                  {meta.chakraNumber} - {meta.label}
+                  {meta.chakraNumber} - {chakraShortLabelDisplay(chakraLocale, meta.chakraNumber)}
                 </AppText>
               </View>
             );

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { chakraNumericDisplayLabel, chakraShortLabelDisplay } from "@/modules/chakra/i18n";
+import { localizeLifeSphereLabel } from "@/modules/life-spheres/labels";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
 import { getProfileReportStrings } from "@/modules/profile/i18n/profile";
 import { PeriodSelector } from "@/modules/profile/ui/PeriodSelector";
@@ -55,23 +58,20 @@ function donutPath(cx: number, cy: number, outerRadius: number, innerRadius: num
   ].join(" ");
 }
 
-const CHAKRA_NUMERIC_LABELS_RU = [
-  "Первая чакра",
-  "Вторая чакра",
-  "Третья чакра",
-  "Четвертая чакра",
-  "Пятая чакра",
-  "Шестая чакра",
-  "Седьмая чакра",
-] as const;
-
 function capitalizeFirst(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return trimmed;
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefix: string }) {
+function chakraRowLabel(chakraNumber: number | undefined, shortLabel: string | undefined, locale: AppContentLocale): string {
+  if (chakraNumber && chakraNumber >= 1 && chakraNumber <= 7) {
+    return chakraNumericDisplayLabel(locale, chakraNumber);
+  }
+  return capitalizeFirst(shortLabel ?? "");
+}
+
+function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefix: string; locale: AppContentLocale }) {
   const theme = useTheme();
   const rowLegend = props.report.chakras;
   const colLegend = props.report.spheres;
@@ -91,7 +91,7 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
         return (
           <View key={chakra?.chakra ?? rowIndex} style={styles.heatmapRow}>
             <AppText variant="technicalCaption" tone="muted" style={styles.heatmapAxisLabel} numberOfLines={1}>
-              {capitalizeFirst(chakra?.shortLabel ?? String(rowIndex + 1))}
+              {chakraRowLabel(chakra?.chakra, chakra?.shortLabel, props.locale)}
             </AppText>
             {row.map((value, colIndex) => (
               <View
@@ -109,14 +109,22 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
         );
       })}
       <AppText variant="technicalCaption" tone="muted">
-        {props.spheresLegendPrefix} {colLegend.map((item) => `${item.id}. ${item.title};`).join(" ")}
+        {props.spheresLegendPrefix}{" "}
+        {colLegend.map((item) => `${item.id}. ${localizeLifeSphereLabel(item.id, item.title, props.locale)};`).join(" ")}
       </AppText>
     </View>
   );
 }
 
+function projectionItemLabel(item: { id: number; label: string }, locale: AppContentLocale, kind: "sphere" | "state"): string {
+  if (kind === "state") return chakraShortLabelDisplay(locale, item.id);
+  return capitalizeFirst(localizeLifeSphereLabel(item.id, item.label, locale));
+}
+
 function MatrixProjectionChart(props: {
   items: NonNullable<LifeMatrixReport["sphereProjection"]>;
+  locale: AppContentLocale;
+  kind: "sphere" | "state";
 }) {
   const theme = useTheme();
   const total = Math.max(0, props.items.reduce((sum, item) => sum + Math.max(0, item.value), 0));
@@ -157,7 +165,7 @@ function MatrixProjectionChart(props: {
                 ]}
               />
               <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"} style={styles.legendLabel}>
-                {capitalizeFirst(item.label)}
+                {projectionItemLabel(item, props.locale, props.kind)}
               </AppText>
             </View>
           );
@@ -173,28 +181,33 @@ function ProjectionReportContent(props: {
   error: string | null;
   matrixReady: boolean;
   emptyMessage: string;
+  locale: AppContentLocale;
+  loadingMessage: string;
+  loadErrorMessage: string;
+  kind: "sphere" | "state";
 }) {
   if (props.loading) {
     return (
       <AppText variant="dialogBody" tone="muted">
-        Загрузка...
+        {props.loadingMessage}
       </AppText>
     );
   }
   if (props.error) {
     return (
       <AppText variant="dialogBody" tone="muted">
-        {props.error}
+        {props.error || props.loadErrorMessage}
       </AppText>
     );
   }
   if (!props.matrixReady || !props.items?.length) {
     return <ProfileEmptyState message={props.emptyMessage} />;
   }
-  return <MatrixProjectionChart items={props.items} />;
+  return <MatrixProjectionChart items={props.items} locale={props.locale} kind={props.kind} />;
 }
 
-export function useLifeMatrixReport(enabled: boolean) {
+export function useLifeMatrixReport(enabled: boolean, locale: AppContentLocale = "ru") {
+  const strings = getProfileReportStrings(locale);
   const [report, setReport] = useState<LifeMatrixReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,11 +222,11 @@ export function useLifeMatrixReport(enabled: boolean) {
     try {
       setReport(await loadLifeMatrixReport());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить отчёт.");
+      setError(loadError instanceof Error ? loadError.message : strings.reportLoadError);
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, strings.reportLoadError]);
 
   useEffect(() => {
     void loadReport();
@@ -222,7 +235,7 @@ export function useLifeMatrixReport(enabled: boolean) {
   return { report, loading, error };
 }
 
-export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade: () => void; locale?: "ru" | "en" }) {
+export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade: () => void; locale?: AppContentLocale }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
   const [periodDays, setPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [report, setReport] = useState<PracticeByChakraReport | null>(null);
@@ -240,7 +253,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     try {
       setReport(await loadPracticeByChakraReport(periodDays));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить отчёт.");
+      setError(loadError instanceof Error ? loadError.message : strings.reportLoadError);
     } finally {
       setLoading(false);
     }
@@ -268,7 +281,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
   return (
     <ProfileReportCard
       title={strings.practiceByChakraTitle}
-      periodSelector={<PeriodSelector value={periodDays} onChange={setPeriodDays} />}
+      periodSelector={<PeriodSelector value={periodDays} onChange={setPeriodDays} locale={props.locale ?? "ru"} />}
     >
       {loading ? (
         <AppText variant="dialogBody" tone="muted">
@@ -313,7 +326,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
                       ]}
                     />
                     <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"} style={styles.legendLabel}>
-                      {CHAKRA_NUMERIC_LABELS_RU[item.chakra - 1] ?? item.label}
+                      {chakraNumericDisplayLabel(props.locale ?? "ru", item.chakra)}
                     </AppText>
                     <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"}>
                       {formatDurationClock(item.durationSec)}
@@ -337,7 +350,7 @@ export function LifeMatrixReportCard(props: {
   report: LifeMatrixReport | null;
   loading: boolean;
   error: string | null;
-  locale?: "ru" | "en";
+  locale?: AppContentLocale;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
 
@@ -368,7 +381,11 @@ export function LifeMatrixReportCard(props: {
       ) : null}
       {!props.loading && !props.error && props.report ? (
         showMatrix ? (
-          <LifeMatrixHeatmap report={props.report} spheresLegendPrefix={strings.spheresLegendPrefix} />
+          <LifeMatrixHeatmap
+            report={props.report}
+            spheresLegendPrefix={strings.spheresLegendPrefix}
+            locale={props.locale ?? "ru"}
+          />
         ) : (
           <ProfileEmptyState message={strings.matrixNotReady} />
         )
@@ -383,7 +400,7 @@ export function LifeSpheresReportCard(props: {
   report: LifeMatrixReport | null;
   loading: boolean;
   error: string | null;
-  locale?: "ru" | "en";
+  locale?: AppContentLocale;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
   if (!props.enabled) {
@@ -404,6 +421,10 @@ export function LifeSpheresReportCard(props: {
         matrixReady={props.report?.matrixReady ?? false}
         items={props.report?.sphereProjection}
         emptyMessage={strings.matrixNotReady}
+        locale={props.locale ?? "ru"}
+        loadingMessage={strings.projectionLoading}
+        loadErrorMessage={strings.reportLoadError}
+        kind="sphere"
       />
     </ProfileReportCard>
   );
@@ -415,7 +436,7 @@ export function LifeStatesReportCard(props: {
   report: LifeMatrixReport | null;
   loading: boolean;
   error: string | null;
-  locale?: "ru" | "en";
+  locale?: AppContentLocale;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
   if (!props.enabled) {
@@ -436,6 +457,10 @@ export function LifeStatesReportCard(props: {
         matrixReady={props.report?.matrixReady ?? false}
         items={props.report?.stateProjection}
         emptyMessage={strings.matrixNotReady}
+        locale={props.locale ?? "ru"}
+        loadingMessage={strings.projectionLoading}
+        loadErrorMessage={strings.reportLoadError}
+        kind="state"
       />
     </ProfileReportCard>
   );
@@ -447,7 +472,7 @@ export function RangeTrendReportCard(props: {
   report: LifeMatrixReport | null;
   loading: boolean;
   error: string | null;
-  locale?: "ru" | "en";
+  locale?: AppContentLocale;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
 
@@ -478,7 +503,7 @@ export function RangeTrendReportCard(props: {
       ) : null}
       {!props.loading && !props.error && props.report ? (
         trendReady && trendPoints.length > 0 ? (
-          <RangeTrendChart points={trendPoints} />
+          <RangeTrendChart points={trendPoints} locale={props.locale ?? "ru"} />
         ) : (
           <ProfileEmptyState message={strings.matrixNotReady} />
         )

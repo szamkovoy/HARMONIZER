@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NatalProfile, Planet } from "@/modules/astro-core";
 import type { AspectType, DailyForecast } from "@/modules/daily-engine";
+import type { HomeStrings } from "@/modules/home/i18n/home";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -20,6 +21,7 @@ interface ModalMathLevelProps {
   natalProfile?: NatalProfile | null;
   forecast?: DailyForecast | null;
   accessMode: AccessMode;
+  strings: HomeStrings["mathModal"];
 }
 
 const PLANETS: readonly Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
@@ -52,7 +54,15 @@ function chartAspects(mathLevel: DailyForecast["mathLevel"] | null | undefined):
   });
 }
 
-export function ModalMathLevel({ visible, onClose, mathLevel, natalProfile, forecast, accessMode }: ModalMathLevelProps) {
+export function ModalMathLevel({
+  visible,
+  onClose,
+  mathLevel,
+  natalProfile,
+  forecast,
+  accessMode,
+  strings,
+}: ModalMathLevelProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [showChart, setShowChart] = useState(false);
@@ -64,12 +74,12 @@ export function ModalMathLevel({ visible, onClose, mathLevel, natalProfile, fore
       <View style={[styles.root, { backgroundColor: theme.colors.screenBg, paddingTop: insets.top + 12 }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.surfaceBorder }]}>
           <View style={styles.headerText}>
-            <AppText variant="sectionTitle">Математика дня</AppText>
+            <AppText variant="sectionTitle">{strings.title}</AppText>
             <AppText variant="technicalCaption" tone="muted">
-              Формулы силы, гармоничности, транзитов и выбора планеты дня.
+              {strings.subtitle}
             </AppText>
           </View>
-          <AppButton label="Назад" variant="secondary" onPress={onClose} style={styles.closeButton} />
+          <AppButton label={strings.closeButton} variant="secondary" onPress={onClose} style={styles.closeButton} />
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
@@ -78,16 +88,16 @@ export function ModalMathLevel({ visible, onClose, mathLevel, natalProfile, fore
               <MarkdownText source={mathLevel.markdown} />
             ) : (
               <AppText variant="screenHint" tone="muted">
-                Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.
+                {strings.emptyHint}
               </AppText>
             )}
           </View>
 
           {canShowChart ? (
-            <AppButton label="Показать натальную и транзитную карту" variant="secondary" onPress={() => setShowChart(true)} />
+            <AppButton label={strings.showChartButton} variant="secondary" onPress={() => setShowChart(true)} />
           ) : (
             <AppText variant="technicalCaption" tone="muted" style={styles.centerText}>
-              Карта доступна только для trial/premium-пользователей с натальным профилем.
+              {strings.chartUnavailableHint}
             </AppText>
           )}
         </ScrollView>

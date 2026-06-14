@@ -1,6 +1,9 @@
 import type { DialogueUseCase, OrchestratorDecision } from "@/services/communicator-client";
 
-export type CommunicatorLocale = "ru" | "en";
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
+
+export type CommunicatorLocale = AppContentLocale;
 
 type PhaseId =
   | "welcome_and_hint"
@@ -232,5 +235,6 @@ const en: CommunicatorStrings = {
 };
 
 export function getCommunicatorStrings(locale: CommunicatorLocale): CommunicatorStrings {
-  return locale === "en" ? en : ru;
+  const base = locale === "en" ? en : ru;
+  return mergeTypedLocale("communicator", base, locale);
 }

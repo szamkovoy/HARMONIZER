@@ -4,6 +4,8 @@ import type { TransitChart } from "../../../modules/daily-engine/core/types";
 import type { NatalProfile, Planet } from "../../../modules/astro-core";
 import { PLANET_TO_CHAKRA, PLANETS_7 } from "./topPetals";
 import type { CalibrationLike } from "./topPetals";
+import type { AppContentLocale } from "./contentLocales";
+import { getMathLevelStrings } from "./mathLevelI18n";
 
 type ForecastLike = {
   importance?: Partial<Record<Planet, number>>;
@@ -66,7 +68,9 @@ export function buildMathLevel(
   forecast: ForecastLike,
   natal: NatalProfile,
   calibration: CalibrationLike | null,
+  locale: AppContentLocale = "ru",
 ): MathLevelData {
+  const t = getMathLevelStrings(locale);
   const md: string[] = [];
   const structured: MathLevelData["structured"] = {
     natal_strengths: [],
@@ -74,18 +78,12 @@ export function buildMathLevel(
     importance_breakdown: [],
   };
 
-  md.push("## Математика дня\n");
-  md.push(
-    "Здесь — точный расчёт того, что вы видите на главной странице. Используются методы древнегреческой астрологии (эссенциальные достоинства Птолемея, акцидентальные по Лилли), скорректированные под современную психологическую модель чакр.\n",
-  );
+  md.push(t.title);
+  md.push(t.intro);
 
-  md.push("\n### 1. Сила (S) и гармоничность (H) планет\n");
-  md.push(
-    "**Формула S:** комбинация эссенциальных достоинств и акцидентальных факторов. Нормализуется в диапазон [0, 1].\n",
-  );
-  md.push(
-    "**Формула H:** взвешенная сумма гармонизирующих и напряжённых факторов планеты. Нормализуется в диапазон [-1, +1].\n",
-  );
+  md.push(t.section1Title);
+  md.push(t.formulaS);
+  md.push(t.formulaH);
 
   for (const planet of PLANETS_7) {
     const natalPlanet = natal.planets[planet];
@@ -93,16 +91,16 @@ export function buildMathLevel(
     const hCal = calibration?.h_calibrated?.[planet];
     const formulaSummary = formulaSummaryFor(natalPlanet);
 
-    md.push(`\n**${planet}** (чакра ${PLANET_TO_CHAKRA[planet].number}):`);
-    md.push(`- S натальная: ${natalPlanet.S_initial.toFixed(2)} (${formulaSummary})`);
-    md.push(`- H натальная: ${natalPlanet.H_initial.toFixed(2)}`);
+    md.push(`\n**${planet}** ${t.chakraLabel(PLANET_TO_CHAKRA[planet].number)}:`);
+    md.push(`- ${t.natalS}: ${natalPlanet.S_initial.toFixed(2)} (${formulaSummary})`);
+    md.push(`- ${t.natalH}: ${natalPlanet.H_initial.toFixed(2)}`);
     if (sCal !== undefined && Math.abs(sCal - natalPlanet.S_initial) > 0.01) {
       const dS = sCal - natalPlanet.S_initial;
-      md.push(`- S калиброванная: ${sCal.toFixed(2)} (Δ${dS >= 0 ? "+" : ""}${dS.toFixed(2)})`);
+      md.push(`- ${t.calibratedS(sCal.toFixed(2), `${dS >= 0 ? "+" : ""}${dS.toFixed(2)}`)}`);
     }
     if (hCal !== undefined && Math.abs(hCal - natalPlanet.H_initial) > 0.01) {
       const dH = hCal - natalPlanet.H_initial;
-      md.push(`- H калиброванная: ${hCal.toFixed(2)} (Δ${dH >= 0 ? "+" : ""}${dH.toFixed(2)})`);
+      md.push(`- ${t.calibratedH(hCal.toFixed(2), `${dH >= 0 ? "+" : ""}${dH.toFixed(2)}`)}`);
     }
 
     structured.natal_strengths.push({
@@ -114,10 +112,8 @@ export function buildMathLevel(
     });
   }
 
-  md.push("\n### 2. Активирующие транзиты сегодня\n");
-  md.push(
-    "Транзитная планета вступает в аспект с натальной — это активация темы натальной планеты на день. Вес транзита зависит от его медленности, точности орба и типа аспекта.\n",
-  );
+  md.push(t.section2Title);
+  md.push(t.section2Intro);
 
   const transitChart = forecast.transit_chart ?? forecast.transitChart;
   if (transitChart) {
@@ -128,11 +124,11 @@ export function buildMathLevel(
       const transitWeight = TRANSIT_WEIGHT[contribution.transitPlanet] ?? 0.5;
       const activation = round(contribution.value, 3);
 
-      md.push(`\n- Транзитный **${contribution.transitPlanet}** ${contribution.aspect.type} к натальному **${contribution.natalPlanet}**`);
+      md.push(t.transitLine(contribution.transitPlanet, contribution.aspect.type, contribution.natalPlanet));
       md.push(
-        `  - Орб: ${contribution.aspect.orb.toFixed(2)}°, коэф. аспекта: ${aspectCoef}, вес транзита: ${transitWeight}`,
+        t.orbLine(contribution.aspect.orb.toFixed(2), String(aspectCoef), String(transitWeight)),
       );
-      md.push(`  - Активация: ${activation.toFixed(3)}`);
+      md.push(t.activationLine(activation.toFixed(3)));
 
       structured.main_aspects.push({
         from: contribution.transitPlanet,
@@ -144,20 +140,18 @@ export function buildMathLevel(
       });
     }
   } else {
-    md.push("\nТранзитная карта в сохранённом прогнозе отсутствует, поэтому список аспектов недоступен.");
+    md.push(t.noTransitChart);
   }
 
-  md.push("\n### 3. Importance — формула выбора планеты дня\n");
-  md.push("**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n");
-  md.push(
-    "Где `Activation` — суммарный вес активирующих транзитов; `S_eff` — эффективная сила (S_calibrated если есть калибровка, иначе S_initial).\n",
-  );
+  md.push(t.section3Title);
+  md.push(t.section3Formula);
+  md.push(t.section3Intro);
 
   for (const planet of rankedPlanets(forecast)) {
     const sEff = calibration?.s_calibrated?.[planet] ?? natal.planets[planet].S_initial;
     const activation = forecast.activation?.[planet] ?? 0;
     const importance = forecast.importance?.[planet] ?? 0;
-    md.push(`- **${planet}**: Activation=${activation.toFixed(3)} × (0.5 + 0.5 × ${sEff.toFixed(2)}) = **${importance.toFixed(3)}**`);
+    md.push(t.importanceLine(planet, activation.toFixed(3), sEff.toFixed(2), importance.toFixed(3)));
 
     structured.importance_breakdown.push({
       planet,
@@ -168,18 +162,32 @@ export function buildMathLevel(
   }
 
   const planetOfTheDay = forecast.planet_of_the_day ?? forecast.planetOfTheDay ?? rankedPlanets(forecast)[0];
-  md.push("\n### 4. Выбор планеты дня");
-  md.push(`Победитель: **${planetOfTheDay}** (Importance = ${(forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)}).\n`);
+  md.push(`\n${t.section4Title}`);
+  md.push(t.winnerLine(planetOfTheDay, (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
   if (forecast.is_alternative_choice ?? forecast.isAlternativeChoice) {
-    md.push(`Использован альтернативный выбор: ${forecast.alternative_reason_text ?? forecast.alternativeReasonText ?? "сработало правило разнообразия тем"}.`);
+    md.push(
+      t.alternativeLine(
+        forecast.alternative_reason_text ??
+          forecast.alternativeReasonText ??
+          (locale === "en" ? "diversity rule applied" : "сработало правило разнообразия тем"),
+      ),
+    );
   }
 
   if (calibration) {
-    md.push("\n### 5. Дельты калибровки\n");
+    md.push(t.section5Title);
     md.push(
-      `Калибровка v${calibration.version ?? "?"}, источник: ${calibration.source ?? "unknown"}. Применённое усреднение: ${
-        calibration.source === "auto_aggregated" ? "50/50 (натальное / голосовая обратная связь)" : "60/40 (натальное / обратная связь)"
-      }.\n`,
+      t.calibrationIntro(
+        String(calibration.version ?? "?"),
+        String(calibration.source ?? "unknown"),
+        calibration.source === "auto_aggregated"
+          ? locale === "en"
+            ? "50/50 (natal / voice feedback)"
+            : "50/50 (натальное / голосовая обратная связь)"
+          : locale === "en"
+            ? "60/40 (natal / feedback)"
+            : "60/40 (натальное / обратная связь)",
+      ),
     );
 
     structured.calibration_deltas = [];
@@ -189,7 +197,7 @@ export function buildMathLevel(
       const dS = delta?.dS ?? ((calibration.s_calibrated?.[planet] ?? natal.planets[planet].S_initial) - natal.planets[planet].S_initial);
       const dH = delta?.dH ?? ((calibration.h_calibrated?.[planet] ?? natal.planets[planet].H_initial) - natal.planets[planet].H_initial);
       if (Math.abs(dS) > 0.01 || Math.abs(dH) > 0.01) {
-        md.push(`- ${planet}: ΔS=${dS >= 0 ? "+" : ""}${dS.toFixed(2)}, ΔH=${dH >= 0 ? "+" : ""}${dH.toFixed(2)}`);
+        md.push(t.deltaLine(planet, `${dS >= 0 ? "+" : ""}${dS.toFixed(2)}`, `${dH >= 0 ? "+" : ""}${dH.toFixed(2)}`));
         structured.calibration_deltas.push({ planet, dS: round(dS, 2), dH: round(dH, 2) });
       }
     }

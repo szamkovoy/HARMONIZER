@@ -44,8 +44,8 @@ without regressing the working RU dialog.
 
 ## Current reality (audited 2026-06-14)
 
-- `users.locale` (default `ru`) is **read** server-side but **never written** by
-  the app; the dialog POST body carries `userTimezone` only (no language).
+- `users.locale` (default `ru`) is **read and written** by the app (`setAppLocale`
+  → `syncUserLocaleToServer`); dialog POST carries `responseLocale` from the client.
 - Dialog prompts derive `languageName`/`locale` in `buildBrainPromptContext`
   (`dialog/route.ts`). Deterministic visible-text builders in
   `dialogBranchPrompts.ts` / `dialogTurnGuards.ts` are **ru/en only**.
@@ -111,10 +111,11 @@ Landed this session:
   pre-push wrapper (installed by `scripts/docs-sync/install.sh`). See below.
 
 Still TODO in Phase 2 (incremental, gated):
-- Migrate the remaining hardcoded-RU screens and the ad-hoc `get*Strings` tables
-  into the catalog (the gate flags gaps; RU/EN required).
-- Optionally write `users.locale` server-side and auto-detect input language for
-  production (today the in-app selector drives both UI and `responseLocale`).
+- Migrate the remaining hardcoded-RU screens into the catalog (the gate flags gaps; RU/EN required).
+- Run `node scripts/i18n-sync.mjs fill --all` with translate API to populate typed
+  overlays (de–nl) before enabling those locales.
+- Auto-detect input language for production (today the in-app selector drives both UI
+  and `responseLocale`; `users.locale` is mirrored on change).
 
 ## Three layers — do not conflate (clarified 2026-06-14)
 

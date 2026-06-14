@@ -86,6 +86,8 @@ cost never decides layer-C design.
     `app/_layout.tsx` `AccessBridge`); loads persisted value, else seeds from
     `users.locale`, else device. Idempotent.
   - `getAppLocale()` / `setAppLocale(locale)` / `subscribeAppLocale(cb)`.
+    `setAppLocale` persists locally and **best-effort mirrors to `users.locale`**
+    via `services/userLocaleClient.ts` (`syncUserLocaleToServer`).
   - `coerceAppLocale(value)` — reduce any locale-ish string to the nearest
     **enabled** locale (else default). Use this at every boundary.
   - **`getResponseLocale()`** — locale the assistant should answer in (sent as
@@ -115,19 +117,22 @@ Everything is re-exported from `modules/i18n/index.ts`. Import from `@/modules/i
 
 ---
 
-## 3. Objects — server (`_legacy_web/app/api/_utils/dialogLocale.ts`)
+## 3. Objects — server (`_legacy_web/app/api/_utils/contentLocales.ts`, re-exported by `dialogLocale.ts`)
 
-- `ResponseLocale` = `"ru" | "en"` (the **supported response locales today**;
-  expand only after layer C is localized for the new language — see §6).
-- `resolveResponseLocale(userLocale, requestedLocale?)` — precedence:
-  1. `DIALOG_RESPONSE_LOCALE` env override (headless/server test),
-  2. `requestedLocale` from the request body (`responseLocale`, the in-app selector),
+Two resolvers — do not conflate layer B and layer C:
+
+- **`AppContentLocale`** = all 8 targets (`ru` … `nl`).
+- **`resolveContentLocale(userLocale, requestedLocale?)`** — layer **B** (LLM
+  content: recommendations, global texts, monologue). Precedence:
+  1. `DIALOG_RESPONSE_LOCALE` env override,
+  2. `requestedLocale` from the request body (`responseLocale`),
   3. `users.locale`,
   4. `ru`.
-  Unsupported values at any level fall through. With everything unset, returns the
-  exact legacy `userLocale.startsWith("en") ? "en" : "ru"` → **zero regression**.
-- `localeToLanguageName(locale)` — ISO-639-1 → English language name; already covers
-  all 8 targets (used for `languageName` in prompts → drives layer B).
+- **`resolveDialogScaffoldLocale(...)`** — layer **C** (deterministic dialog
+  finals/guards). Same precedence, but only `ru`/`en` are fully localized today;
+  other content locales fall back to `en` scaffolding until Phase 3.
+- `localeToLanguageName` / `languageNameFor` — all 8 targets (drives layer B
+  `languageName` in prompts).
 - Wiring:
   - `dialog/route.ts` collapses the decision **once** right after loading context:
     `context.user.locale = resolveResponseLocale(context.user.locale, body.responseLocale)`.
@@ -157,7 +162,18 @@ Everything is re-exported from `modules/i18n/index.ts`. Import from `@/modules/i
 - **Diff-based**: only changed keys × target locales, so it is cheap and mostly
   idle. Adding the 6 languages later is a one-time `fill --all`.
 
-### 4.3 Pre-push wrapper — `scripts/i18n-sync.sh`
+### 4.3 Typed-module gate (same script)
+- Registry: `modules/i18n/typed/manifest.json` (home, profile, day, practices,
+  communicator, breath, mandala, userErrors, chakra).
+- Source: inline `const ru:` blocks in TS (or `chakraTypedSource.json`).
+  **RU and EN stay inline** in TS; overlay JSONs under
+  `modules/i18n/typed/catalog/<module>/{de,fr,it,es,pt,nl}.json` supply the other
+  six locales at runtime via `mergeTypedLocale`.
+- `check` / `fill --all` run typed diff for **de/fr/it/es/pt/nl** (warn until
+  filled; does not hard-fail — locale stays `enabled: false` until complete).
+- `fill` regenerates `modules/i18n/typed/generated-overlays.ts`.
+
+### 4.4 Pre-push wrapper — `scripts/i18n-sync.sh`
 Installed alongside docs-sync by `scripts/docs-sync/install.sh`. When a push
 changes `ru.json`, it runs `fill --all`, commits updated catalogs, and never
 blocks the push. Bypass: `HARMONIZER_SKIP_I18N_SYNC=1`.
@@ -172,18 +188,19 @@ There are **two** string mechanisms; pick correctly:
    simple/flat text. Gate-managed, scales to all 8 locales automatically. **Default
    choice for any new user-facing string.**
 2. **Typed `get*Strings(locale)` modules** — pre-existing per-module tables
-   (`modules/communicator/i18n/communicator.ts`, `modules/home/i18n/home.ts`,
-   `modules/breath/i18n/coherence.ts`, `modules/profile/i18n/profile.ts`,
-   `modules/.../userFacingErrors`). They are RU/EN, type-safe, and support function
-   interpolation (e.g. `typingStatus: (x)=>...`). **Keep them** for complex/
-   structured strings; do not force them into flat JSON.
+   (`modules/communicator/i18n/communicator.ts`, `modules/home/i18n/home.ts`, …).
+   RU/EN are **inline**; de/fr/it/es/pt/nl come from **gate-managed overlay JSON**
+   merged by `mergeTypedLocale(moduleId, base, locale)` in
+   `modules/i18n/typed/merge.ts`. Chakra uses flat overlay via
+   `applyFlatChakraOverlay`. Function-valued strings (e.g. `typingStatus`) stay in
+   TS and are not gate-extracted.
 
 Rules:
 - A consumer must pass the **shared locale** (`useAppLocale().locale`) into
   `get*Strings`, never a hardcoded `"ru"` and never `profile.locale` directly.
-- When you add a **6-language** target, the typed modules need per-locale objects
-  added by hand (or via a future gate extension); the JSON catalog is filled by the
-  gate. Both must be complete before a locale is flipped `enabled: true`.
+- When you add a **6-language** target, run `node scripts/i18n-sync.mjs fill --all`
+  (typed overlays + JSON catalog). Flip `enabled: true` only after layer C is also
+  ready for that locale (see §6).
 
 ---
 
@@ -205,11 +222,16 @@ Rules:
 
 ```
 Profile selector ── setAppLocale ──▶ localeStore (persisted)
-                                        │
+        │                              │
+        │                              ├── syncUserLocaleToServer ──▶ users.locale
+        │                              │
    useAppLocale / useTranslate ◀────────┤ (UI strings)
                                         │
    getResponseLocale() ──▶ dialog POST body.responseLocale ──▶ server
-                                        │                       resolveResponseLocale
+                                        │                       resolveContentLocale (B)
+                                        │                       resolveDialogScaffoldLocale (C)
+   getResponseLocale() ──▶ ai/monologue + ai/global-content POST.responseLocale
+                                        │                       (morning rec + free-tier texts)
    getTranscribeLocale() ──▶ transcribe language (ru in test mode)
 ```
 
@@ -219,14 +241,24 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 
 - **Enabled now:** RU, EN (UI catalog + typed modules + server layer C).
 - **Pending (disabled):** DE, FR, IT, ES, PT, NL — need §6 steps.
-- **Wired to the shared locale:** tab labels, Profile screen (chrome + reports),
-  Home, Day assistant, Breath screen.
-- **Not yet migrated (hardcoded RU, incremental):** most screen chrome outside the
-  above; `modules/practices/core/catalog.ts` `createBreathPractices()` uses
-  `getCoherenceBreathStrings("ru")` + `BREATH_CATALOG_DESCRIPTION_RU` (practice
-  titles stay RU until the catalog build is threaded with locale);
-  `AppStartupProvider` overlay uses device locale (transient, acceptable).
-  Dev-only diagnostics strings are intentionally left in RU.
-- **Optional later:** writing `users.locale` server-side and auto-detecting the
-  input language in production (today the in-app selector drives both UI and
-  `responseLocale`).
+- **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home
+  chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
+  (`modules/chakra/i18n.ts` — single source for legend text).
+- **Layer B (LLM / server-generated):** morning recommendation, global free-tier
+  slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;
+  server uses `resolveContentLocale` (all 8 locales) and **locale-suffixed**
+  `scenario_cache` keys for `morning_recommendation`. Free-tier
+  `global_daily_content`: RU canonical row + precomputed `text_i18n` jsonb
+  (`pretranslateGlobalTexts` on upsert / cron) — served synchronously per locale;
+  no per-user on-demand translation. Math markdown locale-aware (RU/EN inline;
+  other locales fall back to EN strings in `mathLevelI18n` until extended).
+- **Layer C (deterministic server strings):** dialog branch finals, guards —
+  RU/EN only; `resolveDialogScaffoldLocale` maps de/fr/… → EN scaffolding until §6.
+- **Still hardcoded / incremental:** dev diagnostics card on Profile; some Home
+  dev-only strings (`NatalBridgeCard`); event banner text if server-supplied;
+  `ModalLongExplanation` body comes from LLM (layer B) — UI shell is localized.
+- **Per-locale checklist when enabling a new language:** JSON catalog (`fill`),
+  typed overlay JSON (`fill --all`), layer C builders, Luxon verify, then flip
+  `enabled: true`. Run `node scripts/i18n-sync.mjs check`.
+- **Optional later:** auto-detecting input language in production (today the
+  selector drives UI + `responseLocale`; `users.locale` is mirrored on change).

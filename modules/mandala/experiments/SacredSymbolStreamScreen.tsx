@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 
 import { useAuth } from "@/modules/auth";
+import { useAppLocale } from "@/modules/i18n";
+import { getSymbolStreamStrings } from "@/modules/mandala/i18n/symbolStream";
 import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
 import { MandalaSoundProvider, useMandalaSoundSync } from "@/modules/mandala-sound";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -73,6 +75,8 @@ export function SacredSymbolStreamScreen({
   launchSource?: string;
 }) {
   const { authUser } = useAuth();
+  const { locale: appLocale } = useAppLocale();
+  const strings = useMemo(() => getSymbolStreamStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
   const sessionStartedAtRef = useRef(Date.now());
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [completionSaved, setCompletionSaved] = useState(false);
@@ -217,7 +221,7 @@ export function SacredSymbolStreamScreen({
         {overlayVisible ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Завершить практику"
+            accessibilityLabel={strings.finishA11y}
             onPress={requestStop}
             style={styles.topClose}
             hitSlop={12}
@@ -228,21 +232,19 @@ export function SacredSymbolStreamScreen({
 
         <View pointerEvents="none" style={styles.topOverlay}>
           <Text style={styles.eyebrow}>Preserved Variant</Text>
-          <Text style={styles.title}>Вспышка</Text>
-          <Text style={styles.subtitle}>
-            Короткая визуальная медитация для мягкого переключения внимания и гармонизации.
-          </Text>
+          <Text style={styles.title}>{strings.title}</Text>
+          <Text style={styles.subtitle}>{strings.description}</Text>
         </View>
 
         <Animated.View style={[styles.controlPanel, { transform: [{ translateY: overlayY }] }]}>
           <View style={styles.panelCard}>
-            <Text style={styles.panelTitle}>Вспышка</Text>
-            <Text style={styles.panelTime}>Осталось {formatRemaining(remainingMs)}</Text>
+            <Text style={styles.panelTitle}>{strings.title}</Text>
+            <Text style={styles.panelTime}>{strings.remaining(formatRemaining(remainingMs))}</Text>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.min(1, elapsedMs / Math.max(1, durationMs)) * 100}%` }]} />
             </View>
             <Pressable onPress={requestStop} style={[styles.button, styles.primaryButton]}>
-              <Text style={styles.primaryButtonText}>Завершить</Text>
+              <Text style={styles.primaryButtonText}>{strings.finishButton}</Text>
             </Pressable>
             {HARMONIZER_TEST_MODE ? (
               <View style={styles.testBlock}>
@@ -270,19 +272,19 @@ export function SacredSymbolStreamScreen({
                     }}
                     style={[styles.button, styles.secondaryButton]}
                   >
-                    <Text style={styles.secondaryButtonText}>Новая линия</Text>
+                    <Text style={styles.secondaryButtonText}>{strings.newLineButton}</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setSceneOffset((current) => current + 1)}
                     style={[styles.button, styles.secondaryButton]}
                   >
-                    <Text style={styles.secondaryButtonText}>Следующая мандала</Text>
+                    <Text style={styles.secondaryButtonText}>{strings.nextMandalaButton}</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setIsPaused((current) => !current)}
                     style={[styles.button, styles.secondaryButton]}
                   >
-                    <Text style={styles.secondaryButtonText}>{isPaused ? "Продолжить" : "Пауза"}</Text>
+                    <Text style={styles.secondaryButtonText}>{isPaused ? strings.resumeButton : strings.pauseButton}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -293,13 +295,13 @@ export function SacredSymbolStreamScreen({
 
       <AppDialog
         visible={showStopConfirm}
-        title="Завершить практику?"
-        message="Можно остановиться сейчас и отметить, как вы себя чувствуете после практики."
+        title={strings.stopConfirmTitle}
+        message={strings.stopConfirmMessage}
         actions={
           <>
-            <AppButton label="Продолжить" variant="secondary" onPress={() => setShowStopConfirm(false)} />
+            <AppButton label={strings.continueButton} variant="secondary" onPress={() => setShowStopConfirm(false)} />
             <AppButton
-              label="Завершить"
+              label={strings.finishButton}
               onPress={() => {
                 setShowStopConfirm(false);
                 setShowRatingDialog(true);
@@ -310,14 +312,14 @@ export function SacredSymbolStreamScreen({
       />
       <AppDialog
         visible={showRatingDialog}
-        title="Как вы себя чувствуете?"
-        message="Эта оценка поможет позже лучше подбирать практики."
+        title={strings.ratingTitle}
+        message={strings.ratingMessage}
         actionsLayout="column"
         actions={
           <>
-            <AppButton label="Лучше" onPress={() => void completePractice("better")} disabled={savingCompletion} />
-            <AppButton label="Так же" variant="secondary" onPress={() => void completePractice("same")} disabled={savingCompletion} />
-            <AppButton label="Хуже" variant="secondary" onPress={() => void completePractice("worse")} disabled={savingCompletion} />
+            <AppButton label={strings.moodBetter} onPress={() => void completePractice("better")} disabled={savingCompletion} />
+            <AppButton label={strings.moodSame} variant="secondary" onPress={() => void completePractice("same")} disabled={savingCompletion} />
+            <AppButton label={strings.moodWorse} variant="secondary" onPress={() => void completePractice("worse")} disabled={savingCompletion} />
           </>
         }
       />

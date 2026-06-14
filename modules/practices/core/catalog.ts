@@ -1,6 +1,7 @@
 import { BREATH_PRACTICES, DEFAULT_CHAKRA, isChakra } from "@/modules/breath";
 import type { BreathPracticeId, Chakra } from "@/modules/breath";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
+import { getPracticeCatalogStrings, type PracticeLocale } from "@/modules/practices/i18n/practices";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { getSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
@@ -28,24 +29,6 @@ type YogaCatalogRow = Pick<
 const BREATH_DEFAULT_DURATION_SEC = 10 * 60;
 const YOGA_CATALOG_TIMEOUT_MS = 12_000;
 
-/** Короткие описания в каталоге (RU); подзаголовок с санскритом остаётся отдельной строкой. */
-const BREATH_CATALOG_DESCRIPTION_RU: Record<BreathPracticeId, string> = {
-  coherent:
-    "Создаёт глубокий физиологический резонанс между сердцем и мозгом, переводя всю систему в режим максимальной энергоэффективности и эмоциональной неуязвимости.",
-  "nadi-shodhana":
-    "Выполняет тонкую калибровку полушарий мозга, устраняя функциональную асимметрию и делая вашу психику невероятно пластичной и гармоничной.",
-  "surya-bhedana":
-    "Ваша «педаль газа» для мгновенной активации мозга, пробуждения внутренней энергии и быстрого выхода из состояния апатии или утренней заторможенности.",
-  "chandra-bhedana":
-    "Естественный «тормоз» для нервной системы, который напрямую стимулирует парасимпатику, охлаждает эмоции и быстро снимает накопленное за день напряжение.",
-  square:
-    "Эталонная техника спецназа для сохранения абсолютного хладнокровия и контроля в ситуациях высокого давления, удерживающая вас в коридоре максимальной эффективности.",
-  "triangle-up":
-    "Мощная физиологическая перезагрузка, которая через задержку на выдохе буквально выключает очаги тревоги и тренирует фундаментальную устойчивость к стрессовым факторам.",
-  "triangle-down":
-    "Интенсивный клеточный оксигенатор, который за счёт задержки на вдохе «пропитывает» ткани мозга кислородом, возвращая ясность мысли и когнитивную бодрость.",
-};
-
 const BREATH_PRIMARY_CHAKRA: Record<string, Chakra> = {
   coherent: 4,
   "nadi-shodhana": 6,
@@ -56,45 +39,17 @@ const BREATH_PRIMARY_CHAKRA: Record<string, Chakra> = {
   "triangle-down": 4,
 };
 
-const STATIC_MEDITATIONS: PracticeSummary[] = [
-  {
-    id: "meditation:sacred-symbol-stream",
-    slug: "sacred-symbol-stream",
-    kind: "meditation",
-    title: "Вспышка",
-    subtitle: "Поток сакральных символов",
-    description: "Короткая визуальная медитация для мягкого переключения внимания и гармонизации.",
-    defaultDurationSec: 3 * 60,
-    minDurationSec: 1 * 60,
-    maxDurationSec: 5 * 60,
-    durationPolicy: "user_selectable",
-    chakraIds: [1, 6, 7],
-    primaryChakra: 1,
-    source: "static",
-    params: {
-      duration_policy: "user_selectable",
-      source: "static_meditation",
-    },
-    launch: {
-      kind: "meditation",
-      route: "/sacred-symbol-stream",
-      practiceId: "sacred-symbol-stream",
-      durationMs: 3 * 60_000,
-      chakra: 1,
-    },
-  },
-];
-
 function jsonRecord(value: Json | null): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
 }
 
-function localizedText(value: Json | null, fallback: string): string {
+function localizedText(value: Json | null, fallback: string, locale: PracticeLocale = "ru"): string {
   const record = jsonRecord(value);
   const ru = record.ru;
   const en = record.en;
+  if (locale === "en" && typeof en === "string" && en.trim()) return en.trim();
   if (typeof ru === "string" && ru.trim()) return ru.trim();
   if (typeof en === "string" && en.trim()) return en.trim();
   return fallback;
@@ -119,8 +74,42 @@ function primaryChakraFor(rows: readonly YogaCatalogChakraRow[]): Chakra | undef
   return first && isChakra(first.chakra_id) ? first.chakra_id : undefined;
 }
 
-function createBreathPractices(): PracticeSummary[] {
-  const strings = getCoherenceBreathStrings("ru");
+/** Короткие описания в каталоге; подзаголовок с санскритом остаётся отдельной строкой. */
+function createStaticMeditations(locale: PracticeLocale): PracticeSummary[] {
+  const copy = getPracticeCatalogStrings(locale);
+  return [
+    {
+      id: "meditation:sacred-symbol-stream",
+      slug: "sacred-symbol-stream",
+      kind: "meditation",
+      title: copy.meditationFlashTitle,
+      subtitle: copy.meditationFlashSubtitle,
+      description: copy.meditationFlashDescription,
+      defaultDurationSec: 3 * 60,
+      minDurationSec: 1 * 60,
+      maxDurationSec: 5 * 60,
+      durationPolicy: "user_selectable",
+      chakraIds: [1, 6, 7],
+      primaryChakra: 1,
+      source: "static",
+      params: {
+        duration_policy: "user_selectable",
+        source: "static_meditation",
+      },
+      launch: {
+        kind: "meditation",
+        route: "/sacred-symbol-stream",
+        practiceId: "sacred-symbol-stream",
+        durationMs: 3 * 60_000,
+        chakra: 1,
+      },
+    },
+  ];
+}
+
+function createBreathPractices(locale: PracticeLocale): PracticeSummary[] {
+  const strings = getCoherenceBreathStrings(locale);
+  const copy = getPracticeCatalogStrings(locale);
   return BREATH_PRACTICES.map((practice) => {
     const primaryChakra = BREATH_PRIMARY_CHAKRA[practice.id] ?? DEFAULT_CHAKRA;
     const title = strings.practiceName[practice.id];
@@ -131,7 +120,7 @@ function createBreathPractices(): PracticeSummary[] {
       kind: "breath",
       title,
       subtitle,
-      description: BREATH_CATALOG_DESCRIPTION_RU[practice.id],
+      description: copy.breathDescriptions[practice.id],
       defaultDurationSec: BREATH_DEFAULT_DURATION_SEC,
       minDurationSec: 5 * 60,
       maxDurationSec: 20 * 60,
@@ -157,14 +146,15 @@ function createBreathPractices(): PracticeSummary[] {
   });
 }
 
-function displayYogaTitle(title: string): string {
+function displayYogaTitle(title: string, locale: PracticeLocale): string {
+  if (locale === "en") return title.replace(/(_\d{4})_i.*$/i, "$1").trim();
   return title
     .replace(/^Пробуждение/i, "Практика")
     .replace(/(_\d{4})_и.*$/i, "$1")
     .trim();
 }
 
-function yogaPracticeFromRow(row: YogaCatalogRow): PracticeSummary {
+function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): PracticeSummary {
   const params = jsonRecord(row.params);
   const chakraRows = row.practice_chakras ?? [];
   const chakraIds = chakraRows.map((item) => item.chakra_id).filter(isChakra);
@@ -184,7 +174,7 @@ function yogaPracticeFromRow(row: YogaCatalogRow): PracticeSummary {
     id: row.id,
     slug: row.slug,
     kind: "yoga",
-    title: displayYogaTitle(localizedText(row.title, row.slug)),
+    title: displayYogaTitle(localizedText(row.title, row.slug, locale), locale),
     defaultDurationSec,
     durationPolicy,
     chakraIds,
@@ -225,7 +215,7 @@ export function filterPractices(practices: PracticeSummary[], filters: PracticeC
   );
 }
 
-export async function loadYogaPractices(): Promise<PracticeSummary[]> {
+export async function loadYogaPractices(locale: PracticeLocale = "ru"): Promise<PracticeSummary[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
 
@@ -250,7 +240,7 @@ export async function loadYogaPractices(): Promise<PracticeSummary[]> {
   }
 
   const yogaRows = (practices ?? []) as YogaCatalogRow[];
-  const result = sortPracticesForCatalog(yogaRows.map(yogaPracticeFromRow));
+  const result = sortPracticesForCatalog(yogaRows.map((row) => yogaPracticeFromRow(row, locale)));
   logRuntimeEvent("practice_catalog:yoga_load_ready", {
     durationMs: Date.now() - startedAt,
     practiceCount: result.length,
@@ -278,11 +268,12 @@ async function withTimeout<T>(
 }
 
 type LoadPracticeCatalogOptions = {
+  locale?: PracticeLocale;
   onLateYogaPractices?: (practices: PracticeSummary[]) => void;
 };
 
 type LoadPracticeCatalogDeps = {
-  loadYogaPractices?: () => Promise<PracticeSummary[]>;
+  loadYogaPractices?: (locale?: PracticeLocale) => Promise<PracticeSummary[]>;
 };
 
 export async function loadPracticeCatalog(
@@ -290,11 +281,12 @@ export async function loadPracticeCatalog(
   deps?: LoadPracticeCatalogDeps,
 ): Promise<PracticeCatalog> {
   const startedAt = Date.now();
+  const locale: PracticeLocale = options?.locale === "en" ? "en" : "ru";
   logRuntimeEvent("practice_catalog:load_start", undefined, "debug");
-  const meditation = sortPracticesForCatalog(STATIC_MEDITATIONS);
-  const breath = sortPracticesForCatalog(createBreathPractices());
+  const meditation = sortPracticesForCatalog(createStaticMeditations(locale));
+  const breath = sortPracticesForCatalog(createBreathPractices(locale));
   const yogaLoader = deps?.loadYogaPractices ?? loadYogaPractices;
-  const yogaPromise = yogaLoader();
+  const yogaPromise = yogaLoader(locale);
 
   if (options?.onLateYogaPractices) {
     const safeYogaPromise = yogaPromise.catch((error: unknown) => {

@@ -1,4 +1,7 @@
-export type ProfileLocale = "ru" | "en";
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
+
+export type ProfileLocale = AppContentLocale;
 
 export interface ProfileReportStrings {
   lifeMatrixTitle: string;
@@ -19,6 +22,11 @@ export interface ProfileReportStrings {
   openTiersButton: string;
   statsUpgradeHint: string;
   statsLoading: string;
+  periodPreset7d: string;
+  periodPreset30d: string;
+  periodPreset90d: string;
+  reportLoadError: string;
+  projectionLoading: string;
 }
 
 const ru: ProfileReportStrings = {
@@ -41,20 +49,25 @@ const ru: ProfileReportStrings = {
   openTiersButton: "Открыть тарифы",
   statsUpgradeHint: "Статистика доступна на тарифах Практик и Мастер.",
   statsLoading: "Загружаем статистику...",
+  periodPreset7d: "7д",
+  periodPreset30d: "30д",
+  periodPreset90d: "90д",
+  reportLoadError: "Не удалось загрузить отчёт.",
+  projectionLoading: "Загрузка...",
 };
 
 const en: ProfileReportStrings = {
-  lifeMatrixTitle: "State Matrix",
-  rangeTrendTitle: "Life Line Thickness",
+  lifeMatrixTitle: "State matrix",
+  rangeTrendTitle: "Life line thickness",
   rangeTrendHint:
     "Each point reflects the evenness of your life matrix over 7 days. With regular practice, the graph should move upward.",
   lifeMatrixHint: "Cell color intensity reflects the strength of the corresponding fragments of your psyche",
   lifeSpheresHint: "The significance of different life spheres for you.",
   lifeStatesHint: "Your ability to live through different states. The more even the distribution, the more adequately you interact with the world.",
-  practiceByChakraTitle: "Practices by Chakra",
-  practiceStatsTitle: "Practice Statistics",
-  lifeSpheresTitle: "Life Spheres",
-  lifeStatesTitle: "Lived States",
+  practiceByChakraTitle: "Practices by chakra",
+  practiceStatsTitle: "Practice statistics",
+  lifeSpheresTitle: "Life spheres",
+  lifeStatesTitle: "States lived",
   spheresLegendPrefix: "Life spheres:",
   practicesNotDone: "No practices completed",
   matrixNotReady: "The report will appear after 5 summarized events and 5 days from the first one",
@@ -63,8 +76,23 @@ const en: ProfileReportStrings = {
   openTiersButton: "View tiers",
   statsUpgradeHint: "Statistics are available on Practitioner and Master tiers.",
   statsLoading: "Loading statistics...",
+  periodPreset7d: "7d",
+  periodPreset30d: "30d",
+  periodPreset90d: "90d",
+  reportLoadError: "Could not load the report.",
+  projectionLoading: "Loading...",
 };
 
+export function getPeriodPresets(locale: ProfileLocale = "ru") {
+  const strings = getProfileReportStrings(locale);
+  return [
+    { id: "7d" as const, label: strings.periodPreset7d, days: 7 },
+    { id: "30d" as const, label: strings.periodPreset30d, days: 30 },
+    { id: "90d" as const, label: strings.periodPreset90d, days: 90 },
+  ];
+}
+
 export function getProfileReportStrings(locale: ProfileLocale = "ru"): ProfileReportStrings {
-  return locale === "en" ? en : ru;
+  const base = locale === "en" ? en : ru;
+  return mergeTypedLocale("profile", base, locale);
 }

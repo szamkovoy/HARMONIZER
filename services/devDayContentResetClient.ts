@@ -1,3 +1,4 @@
+import { getResponseLocale } from "@/modules/i18n/localeStore";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 
@@ -30,7 +31,7 @@ export async function postGlobalContentDevReset(signal?: AbortSignal): Promise<D
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ devReset: true }),
+    body: JSON.stringify({ devReset: true, responseLocale: getResponseLocale() }),
     signal,
   });
   const data = (await res.json().catch(() => null)) as { error?: string; dev_reset?: DevDayContentResetResult } | null;

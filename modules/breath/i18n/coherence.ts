@@ -1,4 +1,7 @@
-export type BreathLocale = "ru" | "en";
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
+
+export type BreathLocale = AppContentLocale;
 
 export interface CoherenceBreathStrings {
   inhale: string;
@@ -395,5 +398,6 @@ const en: CoherenceBreathStrings = {
 };
 
 export function getCoherenceBreathStrings(locale: BreathLocale): CoherenceBreathStrings {
-  return locale === "en" ? en : ru;
+  const base = locale === "en" ? en : ru;
+  return mergeTypedLocale("breath", base, locale);
 }

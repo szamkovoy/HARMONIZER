@@ -1,3 +1,4 @@
+import { getResponseLocale } from "@/modules/i18n/localeStore";
 import { getAiMonologueUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
@@ -67,6 +68,7 @@ export async function callMonologue<T extends Record<string, unknown> = Record<s
           },
           body: JSON.stringify({
             scenario_id: scenarioId,
+            responseLocale: getResponseLocale(),
             variables,
           }),
           signal,

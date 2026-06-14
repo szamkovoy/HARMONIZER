@@ -1,4 +1,7 @@
-export type AppLocale = "ru" | "en";
+import type { AppLocale } from "@/modules/i18n/localeStore";
+import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
+
+export type { AppLocale };
 
 export interface UserErrorStrings {
   locale: AppLocale;
@@ -49,5 +52,6 @@ const en: UserErrorStrings = {
 };
 
 export function getUserErrorStrings(locale: AppLocale): UserErrorStrings {
-  return locale === "en" ? en : ru;
+  const base = locale === "en" ? en : ru;
+  return mergeTypedLocale("userErrors", base, locale);
 }

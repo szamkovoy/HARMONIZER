@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path, Text as SvgText } from "react-native-svg";
 
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import {
   buildCalendarAxisTicks,
   buildChartPoints,
@@ -14,10 +15,11 @@ const CHART_WIDTH = 320;
 const CHART_HEIGHT = 160;
 const CHART_PADDING = 16;
 
-export function RangeTrendChart(props: { points: CalendarTrendPoint[] }) {
+export function RangeTrendChart(props: { points: CalendarTrendPoint[]; locale?: AppContentLocale }) {
   const theme = useTheme();
+  const locale = props.locale ?? "ru";
   const chartPoints = buildChartPoints(props.points, CHART_WIDTH, CHART_HEIGHT, CHART_PADDING);
-  const axisTicks = buildCalendarAxisTicks(props.points, CHART_WIDTH, CHART_PADDING);
+  const axisTicks = buildCalendarAxisTicks(props.points, CHART_WIDTH, CHART_PADDING, locale);
   const linePath = chartPoints.length >= 2 ? buildSmoothLinePath(chartPoints) : "";
 
   return (

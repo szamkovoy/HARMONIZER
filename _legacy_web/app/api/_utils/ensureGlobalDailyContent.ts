@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildGlobalMathLevel, computeGlobalDailyForecast } from "./globalTransitMath";
+import { ensureGlobalTextI18nPrecomputed } from "./globalContentLocale";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { getActivePrompt, renderPrompt } from "./prompts";
 
@@ -67,4 +68,14 @@ export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDa
 
   const { error } = await db.from("global_daily_content").upsert(row, { onConflict: "forecast_date_utc" });
   if (error) throw error;
+
+  try {
+    await ensureGlobalTextI18nPrecomputed(db, forecastDateUtc, {
+      slogan: row.slogan,
+      short_text: row.short_text,
+      long_explanation: row.long_explanation,
+    });
+  } catch (pretranslateError) {
+    console.error("[ensureGlobalDailyContentRow] text_i18n pretranslate failed", pretranslateError);
+  }
 }

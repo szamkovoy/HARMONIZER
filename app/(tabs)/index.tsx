@@ -34,7 +34,7 @@ import { requireSupabase } from "@/services/supabase";
 import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -325,7 +325,7 @@ function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
   return <AppButton label="Введите дату рождения" variant="secondary" onPress={onOpen} />;
 }
 
-function FreeTierBanner() {
+function FreeTierBanner({ text }: { text: string }) {
   const theme = useTheme();
   return (
     <View
@@ -337,10 +337,7 @@ function FreeTierBanner() {
         },
       ]}
     >
-      <AppText variant="screenHint">
-        Внизу вы видите универсальный прогноз на этот день. Конечно, индивидуальные прогнозы, опирающиеся на вашу дату
-        рождения, гораздо точнее. Перейдите на платный тариф, чтобы их получать.
-      </AppText>
+      <AppText variant="screenHint">{text}</AppText>
     </View>
   );
 }
@@ -564,6 +561,13 @@ export default function HomeScreen() {
     }, [refresh]),
   );
 
+  const prevLocaleRef = useRef(appLocale);
+  useEffect(() => {
+    if (prevLocaleRef.current === appLocale) return;
+    prevLocaleRef.current = appLocale;
+    void refresh({ forceRefresh: true });
+  }, [appLocale, refresh]);
+
   const onSignOut = useCallback(async () => {
     // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
     await signOut();
@@ -729,7 +733,7 @@ export default function HomeScreen() {
 
         {forecast ? (
           <>
-            {access.tier === "free" ? <FreeTierBanner /> : null}
+            {access.tier === "free" ? <FreeTierBanner text={strings.freeTierBanner} /> : null}
             <ChakraFlower forecast={forecast} strings={strings} />
             <DailyRecommendationCard
               forecast={forecast}

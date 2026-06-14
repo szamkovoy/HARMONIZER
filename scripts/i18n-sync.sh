@@ -25,24 +25,26 @@ if [ -z "${PUSH_RANGE:-}" ]; then
 fi
 
 SOURCE="modules/i18n/catalog/ru.json"
-CHANGED="$(git diff --name-only "$PUSH_RANGE" -- "$SOURCE" || true)"
+TYPED_MANIFEST="modules/i18n/typed/manifest.json"
+TYPED_SOURCE="modules/chakra/i18n/chakraTypedSource.json"
+CHANGED="$(git diff --name-only "$PUSH_RANGE" -- "$SOURCE" "$TYPED_MANIFEST" "$TYPED_SOURCE" modules/profile/i18n/ modules/home/i18n/ modules/day/i18n/ modules/practices/i18n/ modules/communicator/i18n/ modules/breath/i18n/ modules/mandala/i18n/ modules/ui/i18n/ || true)"
 if [ -z "$CHANGED" ]; then
-  echo "[i18n-sync] No changes to $SOURCE in push. Skipping."
+  echo "[i18n-sync] No i18n source changes in push. Skipping."
   exit 0
 fi
 
-echo "[i18n-sync] Source catalog changed — syncing target locales..."
+echo "[i18n-sync] i18n sources changed — syncing target locales..."
 node "$REPO_ROOT/scripts/i18n-sync.mjs" fill --all || {
   echo "[i18n-sync] fill reported an error, push continues."
 }
 
-CATALOG_CHANGED="$(git diff --name-only -- modules/i18n/catalog/ || true)"
+CATALOG_CHANGED="$(git diff --name-only -- modules/i18n/catalog/ modules/i18n/typed/ || true)"
 if [ -z "$CATALOG_CHANGED" ]; then
   echo "[i18n-sync] No catalog files changed. Done."
   exit 0
 fi
 
-git add modules/i18n/catalog/
+git add modules/i18n/catalog/ modules/i18n/typed/ modules/i18n/typed/generated-overlays.ts
 HEAD_SHORT="$(git rev-parse --short HEAD)"
 git commit -m "i18n: auto-sync locale catalogs after $HEAD_SHORT
 

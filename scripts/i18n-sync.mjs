@@ -20,17 +20,29 @@
  * whole catalog. See docs/04_workspace/i18n_architecture.md.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  ensureCatalogDir,
+  extractModuleSource,
+  readTypedManifest,
+  unflatten,
+  writeGeneratedRegistry,
+  writeJson,
+} from "./lib/i18n-typed.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(__dirname, "..");
 const CATALOG_DIR = join(__dirname, "..", "modules", "i18n", "catalog");
 const SOURCE_LOCALE = "ru";
 const REQUIRED_TARGETS = ["en"];
 const OPTIONAL_TARGETS = ["de", "fr", "it", "es", "pt", "nl"];
 const ALL_TARGETS = [...REQUIRED_TARGETS, ...OPTIONAL_TARGETS];
+/** Typed modules keep RU + EN inline in TS; overlays are for de/fr/it/es/pt/nl only. */
+const TYPED_OVERLAY_TARGETS = [...OPTIONAL_TARGETS];
 const META_FILE = join(CATALOG_DIR, ".sync-meta.json");
+const TYPED_META_FILE = join(REPO_ROOT, "modules/i18n/typed/.sync-meta.json");
 
 const LANGUAGE_NAMES = {
   en: "English",
@@ -50,12 +62,6 @@ function readJson(path, fallback) {
     console.error(`[i18n] Cannot parse ${path}: ${error.message}`);
     process.exit(1);
   }
-}
-
-function writeJson(path, value) {
-  // Stable key order keeps diffs small.
-  const ordered = Object.fromEntries(Object.keys(value).sort().map((k) => [k, value[k]]));
-  writeFileSync(path, `${JSON.stringify(ordered, null, 2)}\n`, "utf8");
 }
 
 function localePath(locale) {
@@ -80,6 +86,100 @@ function diffLocale(source, meta, locale) {
     if (!(key in source)) orphan.push(key);
   }
   return { target, missing, stale, orphan };
+}
+
+function diffTypedLocale(sourceFlat, meta, moduleId, locale) {
+  const path = join(REPO_ROOT, "modules/i18n/typed/catalog", moduleId, `${locale}.json`);
+  const targetFlat = existsSync(path) ? flatten(readJson(path, {})) : {};
+  const localeMeta = meta?.[moduleId]?.[locale] ?? {};
+  const missing = [];
+  const stale = [];
+  const orphan = [];
+  for (const key of Object.keys(sourceFlat)) {
+    if (!(key in targetFlat)) missing.push(key);
+    else if (localeMeta[key] !== sourceFlat[key]) stale.push(key);
+  }
+  for (const key of Object.keys(targetFlat)) {
+    if (!(key in sourceFlat)) orphan.push(key);
+  }
+  return { targetFlat, missing, stale, orphan };
+}
+
+function flatten(obj, prefix = "") {
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(out, flatten(value, path));
+    } else if (typeof value === "string") {
+      out[path] = value;
+    }
+  }
+  return out;
+}
+
+async function runTypedCheck(manifest, hardFailLocales) {
+  const meta = readJson(TYPED_META_FILE, {});
+  let hardFail = false;
+  for (const entry of manifest) {
+    const sourceFlat = extractModuleSource(REPO_ROOT, entry);
+    if (!sourceFlat) {
+      console.warn(`[i18n:typed] skip ${entry.id}: could not extract source`);
+      continue;
+    }
+    for (const locale of TYPED_OVERLAY_TARGETS) {
+      const { missing, stale, orphan } = diffTypedLocale(sourceFlat, meta, entry.id, locale);
+      if (missing.length || stale.length || orphan.length) {
+        const tag = hardFailLocales.includes(locale) ? "FAIL" : "warn";
+        console.log(
+          `[i18n:typed] ${tag} ${entry.id}/${locale}: ${missing.length} missing, ${stale.length} stale, ${orphan.length} orphan`,
+        );
+        if (hardFailLocales.includes(locale)) hardFail = true;
+      }
+    }
+  }
+  return hardFail;
+}
+
+async function runTypedFill(manifest, targets) {
+  const meta = readJson(TYPED_META_FILE, {});
+  for (const entry of manifest) {
+    const sourceFlat = extractModuleSource(REPO_ROOT, entry);
+    if (!sourceFlat) continue;
+    ensureCatalogDir(REPO_ROOT, entry.id);
+    for (const locale of targets) {
+      const path = join(REPO_ROOT, "modules/i18n/typed/catalog", entry.id, `${locale}.json`);
+      const { targetFlat, missing, stale, orphan } = diffTypedLocale(sourceFlat, meta, entry.id, locale);
+      const todo = [...missing, ...stale];
+      for (const key of orphan) delete targetFlat[key];
+      if (!todo.length && !orphan.length) continue;
+      console.log(`[i18n:typed] ${entry.id}/${locale}: ${todo.length} keys to translate`);
+      const entries = todo.map((key) => [key, sourceFlat[key]]);
+      let translated = null;
+      try {
+        translated = entries.length ? await translateBatch(locale, entries) : {};
+      } catch (error) {
+        console.error(`[i18n:typed] ${entry.id}/${locale}: ${error.message}`);
+        process.exitCode = 1;
+        continue;
+      }
+      if (translated == null) {
+        for (const [key, value] of entries) console.log(`        ${key} = ${value}`);
+        continue;
+      }
+      meta[entry.id] = meta[entry.id] ?? {};
+      meta[entry.id][locale] = meta[entry.id][locale] ?? {};
+      for (const [key] of entries) {
+        if (translated[key] != null) {
+          targetFlat[key] = String(translated[key]);
+          meta[entry.id][locale][key] = sourceFlat[key];
+        }
+      }
+      writeJson(path, unflatten(targetFlat));
+    }
+  }
+  writeJson(TYPED_META_FILE, meta);
+  writeGeneratedRegistry(REPO_ROOT, manifest);
 }
 
 async function translateBatch(locale, entries) {
@@ -151,11 +251,13 @@ async function main() {
         if (required) hardFail = true;
       }
     }
+    const typedManifest = readTypedManifest(REPO_ROOT);
+    await runTypedCheck(typedManifest, []); // overlays optional until locale enabled
     if (hardFail) {
       console.error("[i18n] Required locales are out of sync. Run: node scripts/i18n-sync.mjs fill --all");
       process.exit(1);
     }
-    console.log("[i18n] Required locales in sync.");
+    console.log("[i18n] Required locales in sync (catalog + typed).");
     return;
   }
 
@@ -196,7 +298,10 @@ async function main() {
       writeJson(localePath(locale), target);
     }
     writeJson(META_FILE, meta);
-    console.log("[i18n] Fill complete.");
+    const typedManifest = readTypedManifest(REPO_ROOT);
+    const typedTargets = targets.filter((l) => TYPED_OVERLAY_TARGETS.includes(l));
+    if (typedTargets.length) await runTypedFill(typedManifest, typedTargets);
+    console.log("[i18n] Fill complete (catalog + typed).");
     return;
   }
 

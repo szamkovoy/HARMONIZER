@@ -5,6 +5,7 @@ import { CONTENT_LENGTHS } from "../../../config/contentLengths";
 import type { NatalProfile } from "../../../modules/astro-core";
 import type { DailyForecast } from "../../../modules/daily-engine";
 import { buildAddressFormHint } from "./addressForm";
+import { resolveContentLocale, type AppContentLocale } from "./contentLocales";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "./authorVoice";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { buildMathLevel } from "./mathLevelBuilder";
@@ -74,13 +75,14 @@ function buildVariables(params: {
   calibration: CalibrationLike | null;
   user: UserRecord;
   clientVariables?: Record<string, unknown>;
+  responseLocale?: ResponseLocale;
 }): { variables: Record<string, unknown>; mathLevel: ReturnType<typeof buildMathLevel> } {
   const petals = buildTopPetals(params.forecast, params.natalProfile, params.calibration, 3);
   if (petals.length < 3) {
     throw new Error("Daily forecast does not contain enough ranked planets");
   }
 
-  const language = (params.user.locale ?? "ru").slice(0, 2);
+  const language = resolveContentLocale(params.user.locale, params.responseLocale ?? (params.clientVariables?.responseLocale as string | undefined));
   const addressForm = params.user.address_form === "informal" ? "ty" : "vy";
   const authorVoice = formatAuthorVoiceForPrompt(getAuthorVoice(language), addressForm);
   const addressFormHint = buildAddressFormHint(params.user.address_form, language);
@@ -88,7 +90,7 @@ function buildVariables(params: {
   const primaryBaseline = baselineForPlanet(primary.planet);
   const secondaryBaseline = baselineForPlanet(secondary.planet);
   const tertiaryBaseline = baselineForPlanet(tertiary.planet);
-  const mathLevel = buildMathLevel(params.forecast, params.natalProfile, params.calibration);
+  const mathLevel = buildMathLevel(params.forecast, params.natalProfile, params.calibration, language);
 
   return {
     variables: {
@@ -139,6 +141,7 @@ export async function ensureMorningRecommendation(params: {
   calibration: CalibrationLike | null;
   forceRefresh?: boolean;
   clientVariables?: Record<string, unknown>;
+  responseLocale?: ResponseLocale;
 }): Promise<MorningRecommendationPayload> {
   const scenario = await getScenario("morning_recommendation", params.db);
   if (!scenario) {
@@ -150,9 +153,15 @@ export async function ensureMorningRecommendation(params: {
   }
   const prompt = await getActivePrompt(params.db, promptKey);
   const expectedModel = getModelByHint(prompt.model_hint);
+  const user = await loadUser(params.db, params.userId);
+  const responseLocale = resolveContentLocale(
+    user.locale,
+    params.responseLocale ?? (params.clientVariables?.responseLocale as string | undefined),
+  );
+  const cacheSuffix = responseLocale;
 
   if (!params.forceRefresh) {
-    const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db);
+    const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db, cacheSuffix);
     if (cached && !isStaleMorningCache(cached, expectedModel)) {
       return {
         slogan: String(cached.slogan ?? "").trim(),
@@ -164,13 +173,13 @@ export async function ensureMorningRecommendation(params: {
     }
   }
 
-  const user = await loadUser(params.db, params.userId);
   const prepared = buildVariables({
     forecast: params.forecast,
     natalProfile: params.natalProfile,
     calibration: params.calibration,
     user,
     clientVariables: params.clientVariables,
+    responseLocale,
   });
 
   const result = await generateGeminiJson<Record<string, unknown>>({
@@ -197,6 +206,7 @@ export async function ensureMorningRecommendation(params: {
       modelUsed: payload.modelUsed,
     },
     params.db,
+    cacheSuffix,
   );
 
   return payload;

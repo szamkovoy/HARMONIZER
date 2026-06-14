@@ -3,6 +3,9 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { clipDurationMinutesToSelectableMinutes } from "@/modules/practices/core/assistantSelectableDurations";
+import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
+import { useAppLocale } from "@/modules/i18n";
+import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -12,17 +15,21 @@ import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 type SelectField = "duration" | "chakra" | "pulse" | null;
 
-function durationLabel(practice: PracticeSummary): string {
+function durationLabel(practice: PracticeSummary, strings: ReturnType<typeof getPracticeCatalogStrings>): string {
   if (!practice.defaultDurationSec) {
-    return practice.durationPolicy === "user_selectable" ? "длительность выбирается" : "длительность уточняется";
+    return practice.durationPolicy === "user_selectable" ? strings.durationSelectable : strings.durationPending;
   }
   const minutes = Math.max(1, Math.round(practice.defaultDurationSec / 60));
-  return practice.durationPolicy === "user_selectable" ? `от ${minutes} мин` : `${minutes} мин`;
+  return practice.durationPolicy === "user_selectable"
+    ? `${strings.locale === "en" ? "from" : "от"} ${minutes} ${strings.locale === "en" ? "min" : "мин"}`
+    : `${minutes} ${strings.locale === "en" ? "min" : "мин"}`;
 }
 
-function chakraLabel(practice: PracticeSummary): string {
-  if (practice.chakraIds.length) return practice.chakraIds.map((chakra) => `${chakra} чакра`).join(", ");
-  return "чакра уточняется";
+function chakraLabelForPractice(practice: PracticeSummary, strings: ReturnType<typeof getPracticeCatalogStrings>): string {
+  if (practice.chakraIds.length) {
+    return practice.chakraIds.map((chakra) => chakraTagLabel(strings.locale, chakra)).join(strings.locale === "en" ? ", " : ", ");
+  }
+  return strings.chakraPending;
 }
 
 function durationOptions(practice: PracticeSummary): number[] {
@@ -63,6 +70,9 @@ export const PracticeCard = memo(function PracticeCard({
   overrideChakraIndex?: number;
 }) {
   const theme = useTheme();
+  const { locale: appLocale } = useAppLocale();
+  const strings = useMemo(() => getPracticeCatalogStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
+  const minSuffix = strings.locale === "en" ? "min" : "мин";
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
@@ -198,14 +208,14 @@ export const PracticeCard = memo(function PracticeCard({
             ) : (
               <View style={styles.thumbnailPlaceholder}>
                 <AppText variant="technicalCaption" tone="muted">
-                  Видео
+                  {strings.videoLabel}
                 </AppText>
               </View>
             )}
           </View>
           <View style={styles.yogaMetaColumn}>
-            <MetaPill label={overrideDurationMinutes ? `${overrideDurationMinutes} мин` : durationLabel(practice)} />
-            <MetaPill label={overrideChakraIndex ? `${overrideChakraIndex} чакра` : chakraLabel(practice)} />
+            <MetaPill label={overrideDurationMinutes ? `${overrideDurationMinutes} ${minSuffix}` : durationLabel(practice, strings)} />
+            <MetaPill label={overrideChakraIndex ? chakraTagLabel(strings.locale, overrideChakraIndex) : chakraLabelForPractice(practice, strings)} />
           </View>
         </View>
       ) : (
@@ -213,13 +223,13 @@ export const PracticeCard = memo(function PracticeCard({
           <View style={styles.selectableMetaRow}>
             <DropdownField
               variant="pill"
-              label="Длительность"
-              value={`${selectedDurationMin} мин`}
+              label={strings.durationLabel}
+              value={`${selectedDurationMin} ${minSuffix}`}
               open={openField === "duration"}
               onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
               options={selectableDurations.map((minutes) => ({
                 key: String(minutes),
-                label: `${minutes} мин`,
+                label: `${minutes} ${minSuffix}`,
                 active: selectedDurationMin === minutes,
                 onPress: () => {
                   durationTouchedRef.current = true;
@@ -230,13 +240,13 @@ export const PracticeCard = memo(function PracticeCard({
             />
             <DropdownField
               variant="pill"
-              label="Чакра"
-              value={`${selectedChakra} чакра`}
+              label={strings.chakraLabel}
+              value={chakraTagLabel(strings.locale, selectedChakra)}
               open={openField === "chakra"}
               onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
               options={CHAKRA_OPTIONS.map((chakra) => ({
                 key: String(chakra),
-                label: `${chakra} чакра`,
+                label: chakraTagLabel(strings.locale, chakra),
                 active: selectedChakra === chakra,
                 onPress: () => {
                   setSelectedChakra(chakra);
@@ -247,14 +257,14 @@ export const PracticeCard = memo(function PracticeCard({
             {practice.kind === "breath" ? (
               <DropdownField
                 variant="pill"
-                label="Пульсометр"
-                value={usePulseSensor ? "с пульсометром" : "без пульсометра"}
+                label={strings.pulseLabel}
+                value={usePulseSensor ? strings.withPulseSensor : strings.withoutPulseSensor}
                 open={openField === "pulse"}
                 onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
                 options={[
                   {
                     key: "pulse-on",
-                    label: "с пульсометром",
+                    label: strings.withPulseSensor,
                     active: usePulseSensor,
                     onPress: () => {
                       setUsePulseSensor(true);
@@ -263,7 +273,7 @@ export const PracticeCard = memo(function PracticeCard({
                   },
                   {
                     key: "pulse-off",
-                    label: "без пульсометра",
+                    label: strings.withoutPulseSensor,
                     active: !usePulseSensor,
                     onPress: () => {
                       setUsePulseSensor(false);
@@ -279,13 +289,13 @@ export const PracticeCard = memo(function PracticeCard({
 
       <View style={styles.buttonRow}>
         <AppButton
-          label={practice.kind === "yoga" && remotePlayConnected ? "Открыть на телефоне" : "Начать практику"}
+          label={practice.kind === "yoga" && remotePlayConnected ? strings.openOnPhone : strings.startPractice}
           onPress={launchConfiguredPractice}
           style={styles.button}
         />
         {practice.kind === "yoga" && remotePlayConnected && onRemotePlay ? (
           <AppButton
-            label="Открыть на ТВ"
+            label={strings.openOnTv}
             variant="secondary"
             onPress={() => onRemotePlay(practice)}
             disabled={remotePlayDisabled}

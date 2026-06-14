@@ -48,6 +48,13 @@ export async function runDevDayContentReset(db: SupabaseClient, userId: string):
     .eq("entry_source", "home");
   if (convErr) throw convErr;
 
+  const { error: giErr } = await db
+    .from("scenario_cache")
+    .delete({ count: "exact" })
+    .eq("user_id", userId)
+    .eq("scenario_id", "global_content_i18n");
+  if (giErr) throw giErr;
+
   await ensureGlobalDailyContentRow(db, localDate);
 
   return {

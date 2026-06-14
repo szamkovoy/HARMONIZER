@@ -1,9 +1,11 @@
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 import type { AspectType, DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
-import { chakraLabelGenitiveRu } from "@/modules/chakra/labels";
-import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
+import { chakraLabelGenitive, type ChakraLocale } from "@/modules/chakra/i18n";
+import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import type { LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 
-export type HomeLocale = "ru" | "en";
+export type HomeLocale = AppContentLocale;
 
 type ForecastWithRecommendation = DailyForecast & {
   recommendationShortText?: string;
@@ -84,6 +86,16 @@ export interface HomeStrings {
     meta: (planet: string, chakraName: string) => string;
     fallback: (forecast: DailyForecast) => string;
     discussButton: string;
+    readMoreButton: string;
+    detailParagraphs: (forecast: DailyForecast) => string[];
+  };
+  longExplanationModal: {
+    title: string;
+    subtitle: string;
+    closeButton: string;
+    mathButton: string;
+    mathButtonA11y: string;
+    mathCaption: string;
   };
   eventBells: {
     title: string;
@@ -93,6 +105,15 @@ export interface HomeStrings {
   devLinks: Record<string, string>;
   /** Кнопка в тестовом ряду: POST global-content { devReset: true } + refresh */
   devResetDayContent: string;
+  freeTierBanner: string;
+  mathModal: {
+    title: string;
+    subtitle: string;
+    closeButton: string;
+    emptyHint: string;
+    showChartButton: string;
+    chartUnavailableHint: string;
+  };
   formatTime: (value: string) => string;
 }
 
@@ -132,7 +153,7 @@ const ru: HomeStrings = {
   daySlogan: (forecast) => {
     if (!forecast) return "Настройся бережно и выбери один ясный шаг.";
     if (forecast.slogan?.trim()) return forecast.slogan.trim();
-    const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+    const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
     return meta.chakraNumber === 7 ? "Соберите внимание вокруг главного" : `Мягко держите фокус: ${meta.label}`;
   },
   refreshButton: "Обновить",
@@ -162,7 +183,7 @@ const ru: HomeStrings = {
   signingOutButton: "Выходим...",
   defaultSystemPrompt: "Ты эмпатичный наставник приложения Harmonizer. Отвечай кратко и по делу.",
   discussInitialMessage: (forecast) => {
-    const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+    const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
     return [
       "Хочу обсудить рекомендацию дня и подобрать практику.",
       "",
@@ -235,11 +256,32 @@ const ru: HomeStrings = {
     title: "Рекомендации на день",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
-      const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+      const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
       const verb = ru.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
-      return `Сегодня держите фокус на теме «${meta.label}»: не распыляйтесь, не доказывайте лишнего и не пытайтесь ускорять процессы силой. Полезнее выбрать один ясный шаг и ${verb} качества ${chakraLabelGenitiveRu(meta.chakraNumber)} через тело и дыхание, а в сложных разговорах сначала возвращаться к спокойному ритму. Так день станет не прогнозом, а понятным планом действий.`;
+      return `Сегодня держите фокус на теме «${meta.label}»: не распыляйтесь, не доказывайте лишнего и не пытайтесь ускорять процессы силой. Полезнее выбрать один ясный шаг и ${verb} качества ${chakraLabelGenitive("ru", meta.chakraNumber)} через тело и дыхание, а в сложных разговорах сначала возвращаться к спокойному ритму. Так день станет не прогнозом, а понятным планом действий.`;
     },
     discussButton: "Что делать?",
+    readMoreButton: "Подробнее",
+    detailParagraphs: (forecast) => {
+      const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
+      const tone = ru.toneLabels[forecast.todayPlanetState.todayTone];
+      return [
+        `Сегодня алгоритм выделил тему «${meta.label}»: её важность выше остальных направлений дня.`,
+        `Тональность сейчас ${tone}, поэтому рекомендация сформулирована как практическое задание: удерживать состояние, которое поддерживает качества ${chakraLabelGenitive("ru", meta.chakraNumber)}, и не разгонять автоматические реакции.`,
+        forecast.isAlternativeChoice && forecast.alternativeReasonText
+          ? forecast.alternativeReasonText
+          : "Если эта тема повторялась несколько дней подряд, приложение может выбрать вторую по значимости чакру, чтобы усилия не зацикливались.",
+        "Окна возможностей ниже показывают моменты, когда телу и вниманию легче перестроиться: восход даёт импульс, кульминация усиливает проявление, точный аспект делает тему особенно заметной.",
+      ];
+    },
+  },
+  longExplanationModal: {
+    title: "Подробнее",
+    subtitle: "Развёрнутое объяснение рекомендации дня.",
+    closeButton: "Закрыть",
+    mathButton: "Расчёты и формулы",
+    mathButtonA11y: "Открыть расчёты и формулы рекомендации дня",
+    mathCaption: "Точная математика силы и гармоничности планет, веса аспектов и выбор темы дня.",
   },
   eventBells: {
     title: "Колокольчики",
@@ -255,6 +297,16 @@ const ru: HomeStrings = {
     calibration: "Calibration",
   },
   devResetDayContent: "Обновить",
+  freeTierBanner:
+    "Внизу вы видите универсальный прогноз на этот день. Конечно, индивидуальные прогнозы, опирающиеся на вашу дату рождения, гораздо точнее. Перейдите на платный тариф, чтобы их получать.",
+  mathModal: {
+    title: "Математика дня",
+    subtitle: "Формулы силы, гармоничности, транзитов и выбора планеты дня.",
+    closeButton: "Назад",
+    emptyHint: "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
+    showChartButton: "Показать натальную и транзитную карту",
+    chartUnavailableHint: "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+  },
   formatTime: (value) => formatTime(value, "ru"),
 };
 
@@ -265,7 +317,7 @@ const en: HomeStrings = {
   daySlogan: (forecast) => {
     if (!forecast) return "Tune gently and choose one clear step.";
     if (forecast.slogan?.trim()) return forecast.slogan.trim();
-    const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+    const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
     return `Today: ${meta.label}. Gather attention around what matters.`;
   },
   refreshButton: "Refresh",
@@ -294,7 +346,7 @@ const en: HomeStrings = {
   signingOutButton: "Signing out...",
   defaultSystemPrompt: "You are an empathetic Harmonizer mentor. Reply briefly and practically.",
   discussInitialMessage: (forecast) => {
-    const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+    const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
     return [
       "I want to discuss today's recommendation and choose a practice.",
       "",
@@ -367,11 +419,32 @@ const en: HomeStrings = {
     title: "Daily recommendation",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
-      const meta = PLANET_CHAKRA[forecast.planetOfTheDay];
+      const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
       const verb = en.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
       return `Today it may help to ${verb} the qualities of Chakra ${meta.chakraNumber}: bring attention to "${meta.label}" and choose a practice without rushing.`;
     },
-    discussButton: "Discuss with assistant",
+    discussButton: "What to do?",
+    readMoreButton: "More details",
+    detailParagraphs: (forecast) => {
+      const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
+      const tone = en.toneLabels[forecast.todayPlanetState.todayTone];
+      return [
+        `Today's algorithm highlighted "${meta.label}" as the most important theme of the day.`,
+        `The tone is ${tone}, so the recommendation is a practical task: hold a state that supports the qualities of ${chakraLabelGenitive("en", meta.chakraNumber)} and avoid automatic reactions.`,
+        forecast.isAlternativeChoice && forecast.alternativeReasonText
+          ? forecast.alternativeReasonText
+          : "If this theme repeats several days in a row, the app may choose the second-most important chakra so your effort does not get stuck.",
+        "The opportunity windows below show moments when body and attention can shift more easily: sunrise brings impulse, culmination amplifies expression, an exact aspect makes the theme especially visible.",
+      ];
+    },
+  },
+  longExplanationModal: {
+    title: "More details",
+    subtitle: "An expanded explanation of today's recommendation.",
+    closeButton: "Close",
+    mathButton: "Calculations and formulas",
+    mathButtonA11y: "Open calculations and formulas for today's recommendation",
+    mathCaption: "Exact math of planetary strength and harmony, aspect weights, and theme selection.",
   },
   eventBells: {
     title: "Bells",
@@ -379,11 +452,24 @@ const en: HomeStrings = {
     aspectTitle: "Aspect",
   },
   devResetDayContent: "Refresh",
+  freeTierBanner:
+    "Below you see a universal forecast for today. Personal forecasts based on your birth date are much more accurate. Upgrade to a paid tier to receive them.",
+  mathModal: {
+    title: "Day mathematics",
+    subtitle: "Formulas for strength, harmony, transits, and choosing the planet of the day.",
+    closeButton: "Back",
+    emptyHint: "The math block has not arrived with the forecast yet. Refresh the daily forecast after the backend update.",
+    showChartButton: "Show natal and transit chart",
+    chartUnavailableHint: "The chart is available only for trial/premium users with a natal profile.",
+  },
   formatTime: (value) => formatTime(value, "en"),
 };
 
 export function getHomeStrings(locale: HomeLocale): HomeStrings {
-  return locale === "en" ? en : ru;
+  const inline: "ru" | "en" = locale === "ru" ? "ru" : "en";
+  const base = inline === "en" ? en : ru;
+  const merged = mergeTypedLocale("home", base, locale);
+  return { ...merged, locale: inline };
 }
 
 export function resolveLocationErrorMessage(

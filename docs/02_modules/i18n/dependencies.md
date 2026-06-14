@@ -44,16 +44,17 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
 | `communicator` (`Communicator.tsx`) | `getTranscribeLocale()` | STT language; `ru` in test mode. The displayed UI strings still come from the `locale` prop passed by the host screen. |
 | `services/communicator-client.ts` | `getResponseLocale()` | `buildDialogPostBody` adds `responseLocale` to every dialog POST (default = active locale). |
+| `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale`; mirrors active locale to Supabase `users.locale`. |
 
 ## Inbound — what i18n depends on
 - **`assistant` (server)** consumes `responseLocale` via
-  `resolveResponseLocale(userLocale, requestedLocale)` in `dialog/route.ts` and
+  `resolveContentLocale` / `resolveDialogScaffoldLocale` in `dialog/route.ts` and
   `greeting/route.ts`. Contract: the **request body MAY carry `responseLocale`**;
-  precedence is env override → body → `users.locale` → `ru`. Changing this
-  precedence is an assistant+i18n contract change.
-- **`profile` / Supabase** — `users.locale` (default `ru`) is the production
-  fallback. Read server-side; the client may seed the store from it. (Writing it
-  back from the app is an open Phase-2 item.)
+  precedence is env override → body → `users.locale` → `ru`. Layer B uses all 8
+  locales; layer C scaffolding is ru/en only today.
+- **`profile` / Supabase** — `users.locale` (default `ru`) is read server-side and
+  **written back** when the in-app selector changes (`setAppLocale` →
+  `syncUserLocaleToServer`). Client also seeds the store from it at hydrate.
 - **`lifeSpheresBaseline`** (`_legacy_web/.../lifeSpheresBaseline.ts`,
   `data/life_spheres_baseline/{ru,en}.json`) — selected by the resolved response
   locale. The only data file that is locale-aware today (layer A otherwise RU).

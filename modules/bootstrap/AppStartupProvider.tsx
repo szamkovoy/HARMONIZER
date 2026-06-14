@@ -3,6 +3,7 @@ import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from "
 
 import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
+import { getAppLocale, subscribeAppLocale } from "@/modules/i18n/localeStore";
 import { AppText } from "@/modules/ui/AppText";
 
 export type AppStartupPhase = "app_loading" | "initializing" | "loading_day";
@@ -286,8 +287,11 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
 }
 
 export function AppStartupProvider({ children }: { children: ReactNode }) {
-  const { initializing, profile, profileLoading } = useAuth();
-  const locale = preferredLocale(profile?.locale);
+  const { initializing, profileLoading } = useAuth();
+  const [locale, setLocale] = useState<"ru" | "en">(() => (getAppLocale() === "en" ? "en" : "ru"));
+
+  useEffect(() => subscribeAppLocale(() => setLocale(getAppLocale() === "en" ? "en" : "ru")), []);
+
   const [isHomeRoute, setHomeRouteActive] = useState(true);
   const [homeBootstrap, setHomeBootstrap] = useState<HomeBootstrapState>({
     blocking: true,

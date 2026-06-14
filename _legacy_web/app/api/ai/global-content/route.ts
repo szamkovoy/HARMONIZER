@@ -1,11 +1,14 @@
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
+import { resolveContentLocale } from "../../_utils/contentLocales";
 import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel } from "../../_utils/ensureGlobalDailyContent";
+import { localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
 
 type UserAccess = {
   tz?: string | null;
+  locale?: string | null;
   membership_tier?: "free" | "premium" | null;
   trial_expires_at?: string | null;
 };
@@ -50,11 +53,35 @@ function payloadFromContent(content: Record<string, unknown>, user: UserAccess, 
   };
 }
 
+async function respondWithLocalizedContent(
+  row: Record<string, unknown>,
+  user: UserAccess,
+  isFallback: boolean,
+  responseLocale: ReturnType<typeof resolveContentLocale>,
+  devResetExtra: Record<string, unknown>,
+) {
+  const localized = localizeGlobalContentPayloadSync(row, responseLocale);
+  return json({
+    ...payloadFromContent(
+      {
+        ...row,
+        slogan: localized.slogan,
+        short_text: localized.short_text,
+        long_explanation: localized.long_explanation,
+        math_level: localized.math_level,
+      },
+      user,
+      isFallback,
+    ),
+    ...devResetExtra,
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const userId = await requireUserId(req);
     const db = createServiceSupabase();
-    const body = (await req.json().catch(() => ({}))) as { devReset?: boolean };
+    const body = (await req.json().catch(() => ({}))) as { devReset?: boolean; responseLocale?: string };
 
     let devResetExtra: { dev_reset?: Awaited<ReturnType<typeof runDevDayContentReset>> } = {};
     if (body.devReset === true) {
@@ -63,13 +90,15 @@ export async function POST(req: Request) {
 
     const { data: user, error: userError } = await db
       .from("users")
-      .select("tz,membership_tier,trial_expires_at")
+      .select("tz,locale,membership_tier,trial_expires_at")
       .eq("id", userId)
       .maybeSingle();
     if (userError) throw userError;
     if (!user) return json({ error: "User not found" }, { status: 404 });
 
-    const localDate = todayLocalDate((user as UserAccess).tz ?? "UTC");
+    const userAccess = user as UserAccess;
+    const responseLocale = resolveContentLocale(userAccess.locale, body.responseLocale);
+    const localDate = todayLocalDate(userAccess.tz ?? "UTC");
     const expectedModel = await getExpectedGlobalDailyContentModel(db);
     const { data: content, error } = await db
       .from("global_daily_content")
@@ -89,10 +118,22 @@ export async function POST(req: Request) {
           .maybeSingle();
         if (refreshedError) throw refreshedError;
         if (refreshed) {
-          return json({ ...payloadFromContent(refreshed as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
+          return respondWithLocalizedContent(
+            refreshed as Record<string, unknown>,
+            userAccess,
+            false,
+            responseLocale,
+            devResetExtra,
+          );
         }
       }
-      return json({ ...payloadFromContent(content as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
+      return respondWithLocalizedContent(
+        content as Record<string, unknown>,
+        userAccess,
+        false,
+        responseLocale,
+        devResetExtra,
+      );
     }
 
     const { data: fallback, error: fallbackError } = await db
@@ -116,12 +157,24 @@ export async function POST(req: Request) {
         .maybeSingle();
       if (createdError) throw createdError;
       if (created) {
-        return json({ ...payloadFromContent(created as Record<string, unknown>, user as UserAccess, false), ...devResetExtra });
+        return respondWithLocalizedContent(
+          created as Record<string, unknown>,
+          userAccess,
+          false,
+          responseLocale,
+          devResetExtra,
+        );
       }
       return json({ error: "No global content available", ...devResetExtra }, { status: 503 });
     }
 
-    return json({ ...payloadFromContent(fallback as Record<string, unknown>, user as UserAccess, true), ...devResetExtra });
+    return respondWithLocalizedContent(
+      fallback as Record<string, unknown>,
+      userAccess,
+      true,
+      responseLocale,
+      devResetExtra,
+    );
   } catch (error) {
     return errorResponse(error);
   }
