@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.74
-updated: 2026-06-14
+version: 2.75
+updated: 2026-06-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-15: doc-sync pre-push — layer C dialog scaffold (8 locales): `i18n/spec.md` §3/§6/§8, `assistant/spec.md` §2/§3/§4, `dependencies.md` обоих модулей, `history.md`, `open_questions.md`, `i18n_architecture.md` — выровнены с `dialogScaffold/`, `contentLocales.ts`, `i18n-sync.mjs`.
 - 2026-06-15: i18n — **Layer C RU-first sync:** dialog scaffold joins `i18n-sync.mjs` + pre-push hook (`dialog_scaffold/ru.json` → auto-fill 7 targets).
 - 2026-06-15: i18n — **Phase 3 layer C:** dialog deterministic scaffold localized for all 8 locales (`dialog_scaffold` catalogs).
 - 2026-06-15: i18n + daily_forecast — **8 locales enabled** (catalog + typed overlays filled); home locale switch refreshes slogan/recommendation/math via locale-scoped cache + `outputLanguagePrompt` on monologue + `outputLocale` cache invalidation; `homeTextsLoading` UX.

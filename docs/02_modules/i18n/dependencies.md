@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.1
-updated: 2026-06-14
+version: 1.2
+updated: 2026-06-15
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -19,6 +19,9 @@ code_refs:
     _legacy_web/app/api/_utils/dialogLocale.ts,
     _legacy_web/app/api/communicator/v2/dialog/route.ts,
     _legacy_web/app/api/communicator/v2/greeting/route.ts,
+    _legacy_web/app/api/_utils/dialogScaffold/index.ts,
+    _legacy_web/data/dialog_scaffold/ru.json,
+    scripts/i18n-sync.mjs,
   ]
 ---
 

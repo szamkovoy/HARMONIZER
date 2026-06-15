@@ -3,14 +3,14 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.27
-updated: 2026-06-14
+version: 1.28
+updated: 2026-06-15
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
 ## `i18n` (multilingual)
 
-- Дизайн и фазовый план — в `docs/04_workspace/i18n_architecture.md`. **Phase 1–2 (каркас + проводка + write-back + 8-locale layer B) внедрены.** Закрыто в Phase 2: запись `users.locale` при смене языка; pre-translate free-tier global content в `text_i18n` (все 7 target-локалей); typed sync gate (`manifest.json`, overlays de–nl, `mergeTypedLocale`); `resolveContentLocale` для слоя B. Открытые вопросы: (a) **миграция контента** оставшихся хардкод-RU экранов (инкрементально); (b) **Phase 3** — локализация детерминированных visible-text builders слоя C для DE/FR/IT/ES/PT/NL + `fill --all` typed overlays + flip `enabled:true`; (c) auto-detect языка ввода в проде; (d) math markdown strings для de–nl (сейчас EN fallback).
+- Дизайн и фазовый план — в `docs/04_workspace/i18n_architecture.md`. **Phase 1–3 (каркас + 8-locale layer B + layer C dialog scaffold) внедрены.** Закрыто в Phase 2: запись `users.locale` при смене языка; pre-translate free-tier global content в `text_i18n`; typed sync gate. Закрыто в Phase 3: детерминированные visible-text builders слоя C для всех 8 локалей (`dialog_scaffold` + `getDialogScaffoldStrings`). Открытые вопросы: (a) **миграция контента** оставшихся хардкод-RU экранов (инкрементально); (b) `practiceCardSummary` breath-slug blurbs — пока RU/EN, не scaffold JSON; (c) auto-detect языка ввода в проде; (d) math markdown strings для de–nl (сейчас EN fallback).
 
 ## `webinars`
 

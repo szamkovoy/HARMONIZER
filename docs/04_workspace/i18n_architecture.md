@@ -1,8 +1,8 @@
 ---
 id: 04_workspace/i18n_architecture
 title: Multilingual (i18n) Architecture — Design
-version: 0.2
-updated: 2026-06-14
+version: 0.3
+updated: 2026-06-15
 depends_on: [02_modules/assistant/spec, 02_modules/communicator/spec, 00_index/CHANGELOG]
 code_refs: [_legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/greeting/route.ts, _legacy_web/app/api/_utils/lifeSpheresBaseline.ts, _legacy_web/data/life_spheres_baseline/ru.json, _legacy_web/data/chakra_states_baseline.json, modules/communicator/i18n/communicator.ts, modules/i18n/localeStore.ts, modules/i18n/t.ts, modules/i18n/catalog/ru.json, scripts/i18n-sync.mjs, scripts/i18n-sync.sh]
 ---
@@ -41,13 +41,15 @@ without regressing the working RU dialog.
 6. **UI strings:** localized statically per locale (resource tables), NOT
    LLM-translated at runtime.
 
-## Current reality (audited 2026-06-14)
+## Current reality (audited 2026-06-15)
 
 - `users.locale` (default `ru`) is **read and written** by the app (`setAppLocale`
   → `syncUserLocaleToServer`); dialog POST carries `responseLocale` from the client.
 - Dialog prompts derive `languageName`/`locale` in `buildBrainPromptContext`
   (`dialog/route.ts`). Deterministic visible-text builders in
-  `dialogBranchPrompts.ts` / `dialogTurnGuards.ts` are **ru/en only**.
+  `dialogBranchPrompts.ts` / `dialogTurnGuards.ts` / `dialogTimeOfDay.ts` read
+  layer-C strings from `_legacy_web/data/dialog_scaffold/*.json` via
+  `getDialogScaffoldStrings(locale)` — all eight `AppContentLocale` values.
 - Data files: `life_spheres_baseline/{ru,en}.json` (locale-aware);
   `chakra_states_baseline.json`, `dialogTonalRegisters.ts`, `chakra/labels.ts`,
   `planet_chakra_map.json` are **Russian only**; `author_voice.json` is bilingual.

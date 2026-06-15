@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.2
+version: 1.3
 updated: 2026-06-15
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -20,6 +20,9 @@ code_refs:
     services/communicator-client.ts,
     scripts/i18n-sync.mjs,
     scripts/i18n-sync.sh,
+    scripts/dialog-scaffold-fill.mjs,
+    _legacy_web/app/api/_utils/dialogScaffold/index.ts,
+    _legacy_web/data/dialog_scaffold/ru.json,
   ]
 ---
 
@@ -129,8 +132,8 @@ Two resolvers — do not conflate layer B and layer C:
   3. `users.locale`,
   4. `ru`.
 - **`resolveDialogScaffoldLocale(...)`** — layer **C** (deterministic dialog
-  finals/guards). Same precedence, but only `ru`/`en` are fully localized today;
-  other content locales fall back to `en` scaffolding until Phase 3.
+  finals/guards). Same precedence as layer B; all eight content locales resolve
+  to native scaffold catalogs (no EN fallback).
 - `localeToLanguageName` / `languageNameFor` — all 8 targets (drives layer B
   `languageName` in prompts).
 - Wiring:
@@ -221,15 +224,17 @@ Rules:
 
 ## 6. How to add a new response language (e.g. `de`)
 
-1. Localize **layer C** (deterministic builders/fallbacks in
-   `dialogBranchPrompts.ts` / `dialogTurnGuards.ts`) for `de`.
-2. `node scripts/i18n-sync.mjs fill --locale de` to fill the JSON catalog.
-3. Run `fill --all` for typed overlay JSON (`manifest.json` modules, incl. chakra).
-4. Verify Luxon date formatting uses the `de` locale.
-5. Flip `enabled: true` for `de` in `APP_LOCALE_OPTIONS`.
-6. Until all of the above are done, leave `de` disabled in the selector —
-   layer B already accepts `de` via `resolveContentLocale`, but mixed UI (layer A/C
-   gaps) is prevented by `coerceAppLocale` + scaffold fallback to EN.
+Layer C for the eight shipped locales is already in `_legacy_web/data/dialog_scaffold/`.
+For a **ninth** locale later:
+
+1. Add keys to `_legacy_web/data/dialog_scaffold/ru.json` (source) and extend
+   `AppContentLocale` / `SUPPORTED_RESPONSE_LOCALES` if needed.
+2. `node scripts/i18n-sync.mjs fill --locale <code>` (or `fill --all`) for UI
+   catalog + dialog scaffold + typed overlays.
+3. Verify Luxon date formatting uses the new locale.
+4. Flip `enabled: true` in `APP_LOCALE_OPTIONS`.
+5. Until catalog + scaffold + typed overlays are complete, leave the locale
+   disabled — `coerceAppLocale` prevents mixed-language UX.
 
 ---
 
@@ -255,7 +260,6 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 ## 8. Support matrix & known gaps
 
 - **Enabled now:** RU, EN, DE, FR, IT, ES, PT, NL (UI catalog + typed modules + server layer B + layer C dialog scaffold).
-- **Layer C (deterministic server strings):** dialog branch finals, guards, greetings, planning labels — all eight locales via `_legacy_web/data/dialog_scaffold/*.json` and `getDialogScaffoldStrings()`. RU source syncs via `node scripts/i18n-sync.mjs fill --all` (same gate as UI catalog).
 - **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
   (`modules/chakra/i18n.ts` — single source for legend text).
@@ -270,8 +274,12 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   per-user). Client `fetchGlobalContent`: Supabase SDK fallback only when
   `responseLocale === "ru"`. Math markdown locale-aware (RU/EN inline;
   other locales fall back to EN strings in `mathLevelI18n` until extended).
-- **Layer C (deterministic server strings):** dialog branch finals, guards —
-  all eight locales; catalogs in `_legacy_web/data/dialog_scaffold/`.
+- **Layer C (deterministic server strings):** dialog branch finals, guards,
+  greetings, planning labels, summary bridges — all eight locales via
+  `_legacy_web/data/dialog_scaffold/*.json` and `getDialogScaffoldStrings()`.
+  RU source syncs via `node scripts/i18n-sync.mjs fill --all` (same gate as UI
+  catalog). Exception: `practiceCardSummary.ts` breath-slug blurbs still use
+  RU copies / EN fallback for non-RU (not scaffold JSON).
 - **Still hardcoded / incremental:** dev diagnostics card on Profile; some Home
   dev-only strings (`NatalBridgeCard`); event banner text if server-supplied;
   `ModalLongExplanation` body comes from LLM (layer B) — UI shell is localized.

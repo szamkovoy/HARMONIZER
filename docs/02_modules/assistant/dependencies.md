@@ -1,10 +1,10 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.17
-updated: 2026-06-14
+version: 1.18
+updated: 2026-06-15
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
-code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
+code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
 
 ## 1. Зависит от
@@ -20,7 +20,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`profile`**
   - **`users`**: `locale`, **`address_form`**, `tz`, `membership_tier`, `trial_expires_at`, `lat`, `lon` для локального времени, обращения, выбора модели и фиксации day-context.
 - **`i18n`**
-  - **`_legacy_web/app/api/_utils/dialogLocale.ts`**: `resolveResponseLocale(userLocale, requestedLocale?)`, `localeToLanguageName`. Daily dialog POST/greeting принимают **`responseLocale`** из тела (клиент — `getResponseLocale()`); приоритет ENV `DIALOG_RESPONSE_LOCALE` → body → `users.locale` → `ru`. Полный контракт — `docs/02_modules/i18n/spec.md` §3.
+  - **`_legacy_web/app/api/_utils/dialogLocale.ts`**: `resolveResponseLocale(userLocale, requestedLocale?)`, `localeToLanguageName`, `resolveDialogScaffoldLocale`. Daily dialog POST/greeting принимают **`responseLocale`** из тела (клиент — `getResponseLocale()`); приоритет ENV `DIALOG_RESPONSE_LOCALE` → body → `users.locale` → `ru`. Layer B — `resolveContentLocale` (8 locales); layer C — `getDialogScaffoldStrings(locale)` из `_legacy_web/data/dialog_scaffold/*.json` (8 locales, RU-first sync via `i18n-sync.mjs`). Полный контракт — `docs/02_modules/i18n/spec.md` §3–§4.
 - **`communicator` / `profile` (новый серверный потребитель)**
   - Экран профиля читает быстрый snapshot `profile_report_snapshots` с fallback rebuild из `daily_matrices`, а practice-by-chakra — через отдельный route. Оба profile-route переиспользуют pure helper-ы ассистента (`lifeMatrix.ts`, `dialogConfig.ts`, `lifeSpheresBaseline.ts`). Легенда чакр для этих routes — **`planetChakraLegend.ts`** (`buildChakraLegend()`, JSON `planet_chakra_map.json` на сервере), не `modules/home/planetChakra`.
 - **`practices`**
@@ -44,7 +44,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 - **Форма SSE-событий** — `communicator-client` ждёт `chunk`, `complete`, `turn_artifacts`, `error` (и опционально legacy `orchestrator_decision`, которое FSM-маршрут больше не шлёт); UI-поля (`practicePicked`, `turnMode`, `validation`) — в `complete`, persist-артефакты (`planningPersistence`, `messageId`, `matrixCells`) — в `turn_artifacts`; смена имён или раскладки ключей ломает UI тихо.
 - **FSM server guards (`dialogTurnGuards.ts`)** — клиент не дублирует: planning→practice coercion, practice-like planned-event filter, summarizing thin-answer / clarifying / post-dialog wind-down. Изменение сигнатур guard-функций или порядка веток в `route.ts` ломает поведение без изменения клиента.
-- **FSM-промпты (`dialogBranchPrompts.ts`, `dialogTimeOfDay.ts`)** — daily dialog больше не рендерит `dialog_system_v3` из `public.prompts`; монологи и прочие маршруты по-прежнему читают свои `prompt_key` через `getActivePrompt()`.
+- **FSM-промпты (`dialogBranchPrompts.ts`, `dialogTimeOfDay.ts`, `dialogTurnGuards.ts`)** — daily dialog больше не рендерит `dialog_system_v3` из `public.prompts`; детерминированные visible/fallback-строки читаются из `getDialogScaffoldStrings` (layer C). Изменение ключей в `_legacy_web/data/dialog_scaffold/ru.json` без `i18n-sync fill` ломает non-RU finals. Монологи и прочие маршруты по-прежнему читают свои `prompt_key` через `getActivePrompt()`.
 - **`planned_events` / `daily_matrices` / `profile_report_snapshots`** — этот trio теперь часть публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции ломает и live planning/summarizing, и Day tab/debug export, и профильные отчёты.
 - **`scenarios`**: неверный `cache_strategy` или отсутствие строки сценария — 404/500 на monologue.
 - **`buildTopPetals` / `ranked_planets`**: смена формата прогноза без обновления утреннего пайплайна ломает монолог **`morning_recommendation`**.
