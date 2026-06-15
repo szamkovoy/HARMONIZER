@@ -1,5 +1,12 @@
 import { DateTime } from "luxon";
 
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
+import { SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
+import {
+  chakraAttentionPrefixFor,
+  getDialogScaffoldStrings,
+  interpolate,
+} from "@legacy/app/api/_utils/dialogScaffold";
 import type { DialogTimeOfDay } from "@legacy/app/api/_utils/dialogTimeOfDay";
 import { dayPartRhetoricInstruction, greetingInstructionForTimeOfDay } from "@legacy/app/api/_utils/dialogTimeOfDay";
 import type { PlannedEventMarker } from "@legacy/app/api/_utils/markers";
@@ -23,7 +30,7 @@ import type { PlannedEventMarker } from "@legacy/app/api/_utils/markers";
  */
 
 export type BrainPromptContext = {
-  locale: "ru" | "en";
+  locale: AppContentLocale;
   languageName: string;
   addressForm: string;
   dayOfWeek: string;
@@ -63,10 +70,10 @@ export type SummarizingTurnInput = {
   continuesToPlanning: boolean;
 };
 
-export function formatLocalDateForPrompt(localDate: string, locale: "ru" | "en"): string {
+export function formatLocalDateForPrompt(localDate: string, locale: AppContentLocale): string {
   const parsed = DateTime.fromISO(localDate, { zone: "utc" });
   if (!parsed.isValid) return localDate;
-  return parsed.setLocale(locale === "en" ? "en" : "ru").toFormat("d MMMM yyyy");
+  return parsed.setLocale(locale).toFormat("d MMMM yyyy");
 }
 
 /** Deterministic visible list for planning finalize — matches Day tab action titles. */
@@ -120,34 +127,8 @@ export function replaceSpontaneousEnglishRu(text: string): string {
   return out;
 }
 
-const CHAKRA_ORDINAL_ACC_RU: Record<number, string> = {
-  1: "первую",
-  2: "вторую",
-  3: "третью",
-  4: "четвёртую",
-  5: "пятую",
-  6: "шестую",
-  7: "седьмую",
-};
-
-const CHAKRA_ORDINAL_EN: Record<number, string> = {
-  1: "first",
-  2: "second",
-  3: "third",
-  4: "fourth",
-  5: "fifth",
-  6: "sixth",
-  7: "seventh",
-};
-
-/** "Внимание на седьмую чакру. " — numeric chakra naming for the day recommendation. */
-export function chakraAttentionPrefix(chakraNumber: number, locale: "ru" | "en"): string {
-  if (locale === "en") {
-    const ord = CHAKRA_ORDINAL_EN[chakraNumber];
-    return ord ? `Attention on the ${ord} chakra. ` : "";
-  }
-  const ord = CHAKRA_ORDINAL_ACC_RU[chakraNumber];
-  return ord ? `Внимание на ${ord} чакру. ` : "";
+export function chakraAttentionPrefix(chakraNumber: number, locale: AppContentLocale): string {
+  return chakraAttentionPrefixFor(locale, chakraNumber);
 }
 
 /**
@@ -156,7 +137,7 @@ export function chakraAttentionPrefix(chakraNumber: number, locale: "ru" | "en")
  * instructed to name the chakra itself inside the recommendation, so in the
  * normal case this is a no-op; it fires only when the model forgot.
  */
-export function prependChakraAttention(text: string | null | undefined, chakraNumber: number, locale: "ru" | "en"): string {
+export function prependChakraAttention(text: string | null | undefined, chakraNumber: number, locale: AppContentLocale): string {
   const value = (text ?? "").trim();
   const prefix = chakraAttentionPrefix(chakraNumber, locale);
   if (!prefix) return value;
@@ -189,11 +170,11 @@ function polishRuRecommendationText(value: string): string {
   return text;
 }
 
-export function polishPlanningRecommendation(value: string | null | undefined, locale: "ru" | "en"): string {
+export function polishPlanningRecommendation(value: string | null | undefined, locale: AppContentLocale): string {
   const raw = (value ?? "").trim();
   if (!raw) return "";
-  const deEnglished = locale === "ru" ? replaceSpontaneousEnglishRu(raw) : raw;
-  const polished = locale === "ru" ? polishRuRecommendationText(deEnglished) : deEnglished;
+  const deEnglished = locale === SOURCE_LOCALE ? replaceSpontaneousEnglishRu(raw) : raw;
+  const polished = locale === SOURCE_LOCALE ? polishRuRecommendationText(deEnglished) : deEnglished;
   return capitalizeFirstLetter(ensureSentencePunctuation(polished));
 }
 
@@ -208,7 +189,7 @@ export function capitalizeFirstLetter(value: string): string {
   return `${lead}${upper}${trimmed.slice(1)}`;
 }
 
-export function polishPlanningMarker(event: PlannedEventMarker, locale: "ru" | "en"): PlannedEventMarker {
+export function polishPlanningMarker(event: PlannedEventMarker, locale: AppContentLocale): PlannedEventMarker {
   return {
     ...event,
     desc: capitalizeFirstLetter(event.desc),
@@ -218,9 +199,9 @@ export function polishPlanningMarker(event: PlannedEventMarker, locale: "ru" | "
 
 export function buildPlanningActionsVisibleBlock(
   events: PlannedEventMarker[],
-  locale: "ru" | "en",
+  locale: AppContentLocale,
 ): string {
-  const recommendationLabel = locale === "ru" ? "Рекомендация" : "Recommendation";
+  const recommendationLabel = getDialogScaffoldStrings(locale).recommendationLabel;
   return [...events]
     .sort((left, right) => (left.displayOrder ?? Number.MAX_SAFE_INTEGER) - (right.displayOrder ?? Number.MAX_SAFE_INTEGER))
     .map((event, index) => {
@@ -238,7 +219,7 @@ export function buildPlanningActionsVisibleBlock(
 export function injectPlanningActionsVisibleList(
   visibleText: string,
   events: PlannedEventMarker[],
-  locale: "ru" | "en",
+  locale: AppContentLocale,
 ): string {
   if (!events.length) return visibleText;
   const block = buildPlanningActionsVisibleBlock(events, locale);
@@ -276,10 +257,8 @@ export function injectPlanningDayFocus(visibleText: string, dayFocus: string): s
   return `${opener}\n\n${focus}${listAndAfter}`;
 }
 
-function fallbackPracticeQuestion(locale: "ru" | "en"): string {
-  return locale === "ru"
-    ? "Хотите сейчас выполнить практику: медитацию, дыхание или асаны? Если да, назовите тип и примерную длительность — или скажите, что сегодня без практики."
-    : "Would you like to do a practice now: meditation, breathing, or asanas? If yes, name the kind and approximate duration, or say you will skip it today.";
+function fallbackPracticeQuestion(locale: AppContentLocale): string {
+  return getDialogScaffoldStrings(locale).fallbackPracticeQuestion;
 }
 
 function introHasWrongActionCount(text: string, eventCount: number): boolean {
@@ -348,12 +327,22 @@ function extractPlanningIntro(visibleText: string, fallbackFocus: string | null 
   return ensureSentencePunctuation(fallbackFocus);
 }
 
-function actionCountWord(count: number, locale: "ru" | "en"): string {
-  if (locale === "en") return `${count}`;
+function actionCountWord(count: number, locale: AppContentLocale): string {
+  if (locale !== SOURCE_LOCALE) return `${count}`;
   if (count === 1) return "одно";
   if (count === 2) return "два";
   if (count === 3) return "три";
   return `${count}`;
+}
+
+function planningAddIntro(count: number, locale: AppContentLocale): string {
+  const s = getDialogScaffoldStrings(locale);
+  if (locale === SOURCE_LOCALE) {
+    const noun = count === 1 ? "дело" : "дела";
+    return `Хорошо, добавил ${actionCountWord(count, locale)} ${noun} в план на сегодня:`;
+  }
+  if (count === 1) return s.planningAddIntro_one;
+  return interpolate(s.planningAddIntro_other, { count });
 }
 
 /** Deterministic planning final assembled from persisted marker data. */
@@ -361,7 +350,7 @@ export function buildPlanningFinalVisibleText(params: {
   visibleText: string;
   events: PlannedEventMarker[];
   dayFocus: string | null | undefined;
-  locale: "ru" | "en";
+  locale: AppContentLocale;
   includePracticeQuestion: boolean;
   targetChakraNumber?: number;
 }): string {
@@ -382,13 +371,10 @@ export function buildPlanningFinalVisibleText(params: {
 /** Deterministic add-flow final: never trusts the model's count or proposed-but-rejected items. */
 export function buildPlanningAddFinalVisibleText(params: {
   events: PlannedEventMarker[];
-  locale: "ru" | "en";
+  locale: AppContentLocale;
 }): string {
   const { events, locale } = params;
-  const count = events.length;
-  const intro = locale === "ru"
-    ? `Хорошо, добавил ${actionCountWord(count, locale)} ${count === 1 ? "дело" : "дела"} в план на сегодня:`
-    : `Done — I added ${count} ${count === 1 ? "item" : "items"} to today's plan:`;
+  const intro = planningAddIntro(events.length, locale);
   return [intro, buildPlanningActionsVisibleBlock(events, locale)].join("\n\n");
 }
 
@@ -397,19 +383,9 @@ export function buildPlanningAddFinalVisibleText(params: {
  * dialogue gracefully (no practice branch follows) and gently explains why
  * planning matters, without naming any calendar date.
  */
-export function buildPlanningDeclinedReply(locale: "ru" | "en"): string {
-  if (locale === "en") {
-    return [
-      "Got it — I won't push. You can plan later, whenever a free minute appears.",
-      "It's not a formality: when you note what matters to live through, the app learns which states you tend to be in and, over time, helps you gently widen that range — so you stay more flexible and whole. For now, just let the day unfold and notice what larger purpose you're acting for.",
-      "Come back whenever you're ready to outline the main things.",
-    ].join("\n\n");
-  }
-  return [
-    "Хорошо, не настаиваю — планирование можно сделать позже, когда появится свободная минута.",
-    "Это не формальность: когда вы отмечаете, что важно прожить, приложение лучше понимает, в каких состояниях вы бываете, и со временем помогает мягко расширять их диапазон — чтобы вы оставались более гибким и цельным. А пока просто позвольте дню идти своим чередом и замечайте, ради чего большего вы действуете.",
-    "Возвращайтесь, когда будете готовы наметить главное.",
-  ].join("\n\n");
+export function buildPlanningDeclinedReply(locale: AppContentLocale): string {
+  const s = getDialogScaffoldStrings(locale);
+  return [s.planningDeclined_p1, s.planningDeclined_p2, s.planningDeclined_p3].join("\n\n");
 }
 
 export type PlanningTurnInput = {
@@ -434,10 +410,15 @@ export type PracticeTurnInput = {
   postPracticeReply: boolean;
 };
 
-const PRACTICE_KIND_LABELS_RU: Record<"breath" | "meditation" | "yoga", string> = {
-  breath: "дыхание",
-  meditation: "медитацию",
-  yoga: "асаны",
+const PRACTICE_KIND_LABELS: Record<AppContentLocale, Record<"breath" | "meditation" | "yoga", string>> = {
+  ru: { breath: "дыхание", meditation: "медитацию", yoga: "асаны" },
+  en: { breath: "breathing", meditation: "meditation", yoga: "asanas" },
+  de: { breath: "Atmung", meditation: "Meditation", yoga: "Asanas" },
+  fr: { breath: "respiration", meditation: "méditation", yoga: "asanas" },
+  it: { breath: "respirazione", meditation: "meditazione", yoga: "asana" },
+  es: { breath: "respiración", meditation: "meditación", yoga: "asanas" },
+  pt: { breath: "respiração", meditation: "meditação", yoga: "asanas" },
+  nl: { breath: "ademhaling", meditation: "meditatie", yoga: "asana's" },
 };
 
 /**
@@ -448,22 +429,28 @@ const PRACTICE_KIND_LABELS_RU: Record<"breath" | "meditation" | "yoga", string> 
  * concrete reconciliation; otherwise it asks the generic practice question.
  */
 export function buildPracticeClarificationFallback(params: {
-  locale: "ru" | "en";
+  locale: AppContentLocale;
   kind: "breath" | "meditation" | "yoga" | null;
   requestedDurationMin: number | null;
   range: { min: number; max: number } | null;
   altKind: "breath" | "meditation" | "yoga" | null;
 }): string {
   const { locale, kind, requestedDurationMin, range, altKind } = params;
+  const s = getDialogScaffoldStrings(locale);
+  const kindLabels = PRACTICE_KIND_LABELS[locale] ?? PRACTICE_KIND_LABELS.en;
   if (kind && range && requestedDurationMin != null && altKind && altKind !== kind) {
-    if (locale === "en") {
-      const kindEn = kind === "breath" ? "breathing" : kind === "meditation" ? "meditation" : "asanas";
-      const altEn = altKind === "breath" ? "breathing" : altKind === "meditation" ? "meditation" : "asanas";
-      return `Here ${kindEn} runs ${range.min}–${range.max} min. Would you like ${kindEn} for ${range.max} min, or ${altEn} for about ${requestedDurationMin} min?`;
+    if (locale === SOURCE_LOCALE) {
+      const kindRu = kindLabels[kind];
+      const altRu = kindLabels[altKind];
+      return `Здесь ${kindRu} идёт ${range.min}–${range.max} минут. Хотите ${kindRu} на ${range.max} минут или ${altRu} примерно на ${requestedDurationMin} минут?`;
     }
-    const kindRu = PRACTICE_KIND_LABELS_RU[kind];
-    const altRu = PRACTICE_KIND_LABELS_RU[altKind];
-    return `Здесь ${kindRu} идёт ${range.min}–${range.max} минут. Хотите ${kindRu} на ${range.max} минут или ${altRu} примерно на ${requestedDurationMin} минут?`;
+    return interpolate(s.practiceClarify_mismatch, {
+      kind: kindLabels[kind],
+      altKind: kindLabels[altKind],
+      min: range.min,
+      max: range.max,
+      duration: requestedDurationMin,
+    });
   }
   return fallbackPracticeQuestion(locale);
 }
@@ -474,7 +461,7 @@ function greetingInstruction(ctx: BrainPromptContext): string {
 
 function tonalRegisterInstruction(ctx: BrainPromptContext): string {
   if (!ctx.tonalRegister.trim()) return "";
-  return ctx.locale === "ru"
+  return ctx.locale === SOURCE_LOCALE
     ? `Тональный окрас дня (планета ${ctx.planetOfDay}): ${ctx.tonalRegister} Это обязательная фоновая настройка для всех веток (summarizing, planning, practice). Не называйте её явно, но держите в интонации, ритме и выборе слов.`
     : `Tonal register for today (planet ${ctx.planetOfDay}): ${ctx.tonalRegister} This colors all branches (summarizing, planning, practice). Do not name it explicitly, but keep it in tone, rhythm, and word choice.`;
 }
@@ -483,10 +470,10 @@ function sharedPreamble(ctx: BrainPromptContext): string {
   return [
     "You are the HARMONIZER daily companion: a warm, grounded friend with a background in yoga and psychology.",
     `Always write your visible reply in ${ctx.languageName}, phrased the way a native speaker of that language actually talks — natural and idiomatic, never a stiff word-for-word translation from another language. It should feel like talking to a real person, not to an AI. Keep a friendly, human, conversational tone — like a thoughtful friend, not a clinician. Be concise: outside of explicit "final" messages, keep replies to a few short sentences.`,
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "Естественность речи: пиши так, как говорит живой человек по-русски — «удалось ли почитать книгу», а не «удалось ли устроить чтение книги»; «как прошла поездка», а не канцелярит. Избегай переводных и канцелярских оборотов."
       : "",
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? `Обращайся к пользователю на «${ctx.addressForm}».`
       : "Address the user naturally.",
     greetingInstruction(ctx),
@@ -497,7 +484,7 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     "No awkward metaphors, no astrological poetry, no weather/cosmic imagery, no pseudo-therapeutic filler.",
     "Use plain warm language. Outside branch finals, do not sound like a psychologist delivering an interpretation.",
     "Punctuation style: no multiple exclamation marks; at most one exclamation mark in the whole reply, and only when it sounds natural.",
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "Пиши целиком по-русски. Не вставляй спонтанные английские слова (например quietly, mindfully, flow, gently) — всегда подбирай русский эквивалент. Иностранный термин допустим, только если сам пользователь назвал его так (например профессиональный термин)."
       : "",
     "",
@@ -524,10 +511,10 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
   const lines: string[] = [
     "CURRENT BRANCH: SUMMARIZING — review how past planned events actually went, one event at a time.",
     "Rules:",
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "- Не называйте календарные даты в видимом тексте. Говорите только названиями событий (например «прогулка в парке», «выбор саженцев»). Никогда не используйте «вчера», «сегодня», «завтра» и подобные слова."
       : "- Do NOT name calendar dates in visible text. Refer to events by their titles only (for example walk in the park, apple saplings). Never use yesterday, today, tomorrow, or similar words.",
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "- Не ставьте названия событий в кавычки в видимом тексте. Вплетайте событие разговорно: «когда вы работали с задачами», «во время визита в автосервис», либо говорите «это действие», если заголовок трудно склонить."
       : "- Do not put event titles in quotation marks in visible text. Weave the event naturally into the sentence, or say \"this event\" if the title is hard to inflect.",
     "- Work strictly on ONE event at a time. Do not list or pre-empt other events.",
@@ -538,7 +525,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     "- Ask one main question per event. DEFAULT TO CLOSING: if the user's answer already lets you name a plausible lived state (a mood, a bodily feeling, an emotional tone — even loosely), that is ENOUGH — close the event now and do NOT ask for a finer distinction. A clarifying question is the EXCEPTION, only when the answer says almost nothing about how it was lived (e.g. just «сделал», «нормально», «было»). Never ask a clarifying question twice for the same event, and never split hairs between two nearby states (e.g. which of two adjacent chakras, «растворение в покое» vs «можно выдохнуть») — the user does not think in those terms; pick the closest reading and close.",
     "- CRITICAL — the clarifying question must NOT paraphrase or echo back what the user just said. Two interlocutors do not retell each other's sentences. Do not open with \"Рабочие дела — это когда…\" or \"Вы сказали, что…\". Instead, move the thought forward: briefly note (in one short clause) that a little more detail helps capture the range of inner states for better future recommendations, then ask directly about the states, offering 2-3 concrete options that fit THIS action.",
     "- Make the clarifying question thematic and right-sized for the action, NOT a fixed checklist. Do NOT use the generic \"это было про тело, настроение, мысли или отношения?\". Example (work): \"Чтобы точнее зафиксировать ваши состояния и потом давать полезные рекомендации — чем были наполнены эти дела: вы держали точность и ясность, согласовывали что-то с людьми, или были моменты внутреннего напряжения и прорыва?\". For rest / a walk / nature — ask how it felt in the body and mood. For a tiny or simple action (лечь пораньше, короткий звонок) keep it very light and do not interrogate; if digging deeper would feel forced, just close the event instead.",
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "- Если после одного уточняющего вопроса ответа всё ещё недостаточно, закройте событие без outcome_cells — оно не попадёт в матрицу, но попытка сбора состояния была сделана."
       : "- If the answer is still too thin after your one clarifying question, close the event with empty outcome_cells — it will not affect the matrix, but the collection attempt still counts.",
     "- DECIDE FOR YOURSELF whether the event happened, from the meaning of the user's reply (in any wording / any language). If the user indicates it did NOT happen / they did not do it (e.g. «не читал», «не успел», «не до того было», «не получилось», «не ходил», «didn't get to it»…), then it simply did not take place: do NOT ask ANY clarifying question about states, and do NOT try to read an inner state. Briefly acknowledge it warmly (one short, human line of sympathy/support), and CLOSE the event this turn by emitting [SUMMARIZE_EVENT: ref=\"…\" outcome=\"short factual outcome, e.g. did not happen\" outcome_cells=\"\"] (empty cells). Then move to the next event, or to the final message if this was the last one. NEVER ask «что это в вас затронуло» about an action that did not occur. This judgment is YOURS to make — the server does not detect it for you.",
@@ -557,7 +544,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
       "",
       "THIS TURN: open the debrief. Greet briefly and ask about the FIRST event below. Do not emit any marker yet.",
       input.continuesToPlanning
-        ? (ctx.locale === "ru"
+        ? (ctx.locale === SOURCE_LOCALE
           ? "- Since the day has no plans yet and planning will follow, make it clear in ONE short sentence that you are first looking back at the previously planned things before planning today — for example «Давайте начнём с того, что подытожим запланированные ранее дела.» Do NOT name any calendar date or use «вчера/сегодня»; just signal that this is a look-back."
           : "- Since the day has no plans yet and planning will follow, make it clear in ONE short sentence that you are first looking back at the previously planned things before planning today (for example \"Let's start by looking back at what was planned earlier.\"). Do NOT name any calendar date.")
         : "",
@@ -586,7 +573,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
         "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, calories or workouts.",
         input.practicesContext
           ? "   - Phrase practices in natural, flowing Russian, not a dry report. Instead of \"медитации были — три практики, в сумме 5 минут\", write something like \"в течение дня вы выполнили три коротких медитации\". If the total practice time is clearly low or below the average shown, add ONE warm, encouraging nudge to give a bit more attention to practice — never scold."
-          : (ctx.locale === "ru"
+          : (ctx.locale === SOURCE_LOCALE
             ? "   - В этот день практик йоги не было. Мягко, без упрёка и в том же тёплом стиле, добавь ОДНУ фразу-приглашение к практике: своими словами объясни, что практики йоги в приложении мощно поддерживают те психологические изменения, к которым человек идёт, и одновременно оздоравливают тело и поддерживают жизненный тонус. Это мотивирующее приглашение, а НЕ отчёт о здоровье — его можно дать, даже если данных Health нет. Не своди это к общей физкультуре, прогулке или зарядке — речь именно о практиках йоги/медитации из приложения. Каждый раз формулируй по-новому."
             : "   - There were no yoga practices on this day. Gently, without reproach and in the same warm style, add ONE inviting line toward practice: explain in your own words that the app's yoga practices powerfully support the psychological changes the person is moving toward, and at the same time restore the body and sustain vitality. This is a motivating invitation, NOT a health report — it may be given even with no Health data. Do not reduce it to generic exercise, a walk or a workout — it is specifically about the app's yoga/meditation practices. Word it freshly each time."),
         "   - If health numbers are listed below, you MUST cite at least ONE concrete number inline (for example exact steps, sleep duration, or workout minutes) so the reflection reads as real analytics, not a guess. Do not replace the number with vague words like \"немного\" alone — pair the impression with the figure (for example \"вы прошли всего 1240 шагов\"). Mention only one or two metrics, keep it light. If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
@@ -621,7 +608,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
  * summarizing branch the chakra is the SUMMARIZED day's chakra, so its thinkers may
  * differ from a planning day — that is intentional and not a conflict.
  */
-function chakraExpertLens(chakraNumber: number, locale: "ru" | "en", variant: "planning" | "summarizing" = "planning"): string {
+function chakraExpertLens(chakraNumber: number, locale: AppContentLocale, variant: "planning" | "summarizing" = "planning"): string {
   const experts: Record<number, string> = {
     1: "Andrew Huberman, Hans Selye",
     2: "Epicurus, Esther Perel",
@@ -634,11 +621,11 @@ function chakraExpertLens(chakraNumber: number, locale: "ru" | "en", variant: "p
   const names = experts[chakraNumber];
   if (!names) return "";
   if (variant === "summarizing") {
-    return locale === "ru"
+    return locale === SOURCE_LOCALE
       ? `   - Глубинная оптика рефлексии: пусть итоговое осмысление прожитого дня будет написано так, будто его мировосприятие подсказано чувствительностью таких мыслителей, как ${names} — их взглядом на смысл и человеческую глубину. Но напиши всё целиком СВОИМ тёплым голосом от лица приложения; НИКОГДА не называй эти имена, не цитируй их и не упоминай, что опираешься на кого-то.`
       : `   - Depth lens for the reflection: let the closing reflection read as if quietly informed by the sensibility of thinkers like ${names} — their view of meaning and human depth. But write it entirely in YOUR OWN warm voice as the app; NEVER name or quote them or hint that you lean on anyone.`;
   }
-  return locale === "ru"
+  return locale === SOURCE_LOCALE
     ? `- Глубинная оптика финала (ТОЛЬКО для общего абзаца дня, не для списка действий): пусть он будет написан так, будто его мировосприятие подсказано чувствительностью таких мыслителей, как ${names} — их взглядом на смысл и человеческую глубину. Но напиши всё целиком СВОИМ тёплым голосом от лица приложения; НИКОГДА не называй эти имена, не цитируй их и не упоминай, что опираешься на кого-то.`
     : `- Depth lens for the final (ONLY the overall day-focus paragraph, not the action list): let it read as if quietly informed by the sensibility of thinkers like ${names} — their view of meaning and human depth. But write it entirely in YOUR OWN warm voice as the app; NEVER name or quote them or hint that you lean on anyone.`;
 }
@@ -676,7 +663,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
       ? "- Give a short, warm confirmation of the added action(s) in the energy of the day's target chakra."
       : [
           `- Give a self-contained planning wrap-up: first ONE day-recommendation paragraph, then go action by action with a short, vivid recommendation for living each one today.`,
-          `  Name the day's chakra BY NUMBER, but phrase it in natural, living ${ctx.locale === "ru" ? "Russian" : "English"} — as a living recommendation, never as a flat label. ${ctx.locale === "ru"
+          `  Name the day's chakra BY NUMBER, but phrase it in natural, living ${ctx.languageName} — as a living recommendation, never as a flat label. ${ctx.locale === SOURCE_LOCALE
             ? `Пиши как живую рекомендацию, например: «Сегодня направьте внимание на ${ctx.targetChakraAccusative}…», «Сегодня наибольшим потенциалом обладает ${ctx.targetChakraLabel}…», «В этот день именно ${ctx.targetChakraLabel} открывает наибольшие возможности для вашего развития…», «Чтобы максимально использовать потенциал этого дня, действуйте в потоке ${ctx.targetChakraGenitive}…» и тому подобное. Меняй фразы на подобные. Чакра может раскрываться, проявляться, выходить на первый план, просить внимания, предлагать возможности и так далее. Описывай, чем это может быть особенно полезно, почему для расширения диапазона психологических состояний важно в этот день действовать не шаблонно, а на волне этой чакры, какие возможности даёт эта чакра для саморазвития. Перечисленные фразы — это лишь иллюстрации духа рекомендации, а НЕ шаблоны: НЕ копируй их дословно, каждый раз сочиняй своё начало, меняя и глагол, и структуру предложения, и не начинай рекомендацию каждый раз со слова «Сегодня».`
             : `Write it as a living recommendation, e.g.: "Today, turn your attention to the ${ctx.targetChakraNumber}th chakra…", "Today the ${ctx.targetChakraNumber}th chakra holds the greatest potential…", "Today it is the ${ctx.targetChakraNumber}th chakra that opens the widest opportunities for your growth…", "To make the most of today, act in the flow of the ${ctx.targetChakraNumber}th chakra…", and the like. Vary the phrasing similarly. The chakra can open up, reveal itself, come to the foreground, ask for attention, offer opportunities, and so on. Describe how this can be especially useful, why — in order to widen the range of psychological states — it matters today to act not on autopilot but on the wave of this chakra, and what opportunities this chakra offers for self-development. The phrases above are illustrations of the spirit only, NOT templates: do NOT copy them verbatim — compose a fresh opening every time, varying both the verb and the sentence structure, and do not begin the recommendation with "Today" every time.`}`,
           `  This is the core of the app: each day opens a UNIQUE, non-repeating chance to live differently and grow. Don't just state a fact — gently stir motivation and a little emotion: why leaning into these states matters TODAY, what the user gains, how it moves them toward becoming more whole, harmonious and healthier. Keep it warm and human, not abstract.`,
@@ -684,7 +671,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
           chakraExpertLens(ctx.targetChakraNumber, ctx.locale),
         ].filter(Boolean).join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "- VISIBLE list format (one block per action, blank line between blocks):\n  N. {короткое название дела}\n  Рекомендация: {текст рекомендации}"
       : "- VISIBLE list format (one block per action, blank line between blocks):\n  N. {short action name}\n  Recommendation: {recommendation text}",
     "- The action name in visible text MUST match the desc you put into each PLANNED_EVENT marker (this is what the Day tab shows). Never output \"N. — recommendation\" without the action name.",
@@ -692,7 +679,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     "- Right-size each recommendation to the SCOPE of its action. For an all-day or lengthy activity (work, a trip, an evening out) give a background orientation to hold throughout it — not a one-minute pause to perform mid-flow. For a brief, one-off act (a short call, an apology, going to bed earlier) give ONE precise, small shift — never inflate it into a meditation or a ritual.",
     "- Keep every recommendation concretely doable and logically consistent with the action exactly as the user framed it. Do not propose steps that contradict the activity (for example, for reading a book speak to CHOOSING a book that touches meaning, or reading slowly to let it land — never tell them to 'pick a few pages' of a book they have not opened yet).",
     `- Gently invite the user OUT of their habitual pattern toward the day's chakra ${ctx.targetChakraNumber} tone: if they usually act on autopilot (e.g. pushing hard for results), name that kindly and offer today's different emphasis as a small, meaningful experiment — not as an obvious platitude and not as a demand. The point of these recommendations is to widen the user's range of states, so make the shift feel worth doing.`,
-    ctx.locale === "ru"
+    ctx.locale === SOURCE_LOCALE
       ? "- Write action recommendations as polite suggestions in imperative form, not infinitive commands: «выделите», «задайте», «выберите», not «выделить», «задать», «выбрать». Every recommendation and day-focus sentence must end with punctuation."
       : "- Write action recommendations as suggestions, not terse command labels. Every recommendation and day-focus sentence must end with punctuation.",
     "- Keep the wording simple and natural. No poetic openings, no cosmic metaphors, no repeated paraphrases of the user's sentence.",

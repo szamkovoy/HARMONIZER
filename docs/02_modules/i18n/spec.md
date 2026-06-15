@@ -75,7 +75,7 @@ cost never decides layer-C design.
 - `AppLocale` = `"ru" | "en" | "de" | "fr" | "it" | "es" | "pt" | "nl"`.
 - `APP_LOCALE_OPTIONS` — every target locale with `{ code, nativeLabel, enabled }`.
   `enabled` is `true` for all eight locales after bulk `fill --all` (2026-06-15).
-  Layer C (dialog scaffolding) for de–nl still falls back to EN until Phase 3.
+  Layer C dialog scaffolding is localized for all eight via `dialog_scaffold` catalogs (2026-06-15).
 - `DEFAULT_APP_LOCALE = "ru"`.
 - `I18N_TEST_MODE` — parsed from `EXPO_PUBLIC_I18N_TEST_MODE`.
 - State: a module-level `currentLocale` + listener set (powers `useSyncExternalStore`).
@@ -146,16 +146,28 @@ Two resolvers — do not conflate layer B and layer C:
 
 ## 4. The catalog + the sync gate
 
-### 4.1 Catalog
+### 4.1 Catalog (UI)
 - Source of truth: `modules/i18n/catalog/ru.json`. Targets: `en` (required) +
   `de fr it es pt nl` (best-effort). Keys are stable, sorted, dotted.
 - `catalog/.sync-meta.json` records, per target locale per key, the **RU source
   value** at the time it was last translated → lets the gate detect *stale* keys
   (source changed since translation).
 
+### 4.1b Layer-C dialog scaffold (server)
+- Source of truth: `_legacy_web/data/dialog_scaffold/ru.json` (~48 flat keys:
+  `recommendationLabel`, planning finals, greetings, summary clarifiers, etc.).
+- Targets: same eight locales as the UI catalog (`en` required + six optional).
+- Meta: `_legacy_web/data/dialog_scaffold/.sync-meta.json` — same stale/missing
+  semantics as the UI catalog.
+- Runtime: `getDialogScaffoldStrings(locale)` in
+  `_legacy_web/app/api/_utils/dialogScaffold/`.
+- **Edit RU → run `fill --all`** (or push; pre-push hook picks it up). One-time
+  bootstrap for existing files: `node scripts/i18n-sync.mjs bootstrap-dialog-scaffold-meta`.
+
 ### 4.2 Gate — `scripts/i18n-sync.mjs`
-- `check` — diffs RU source vs each locale: **missing / stale / orphan** keys.
-  Exits non-zero if a **required** locale (`en`) drifts; warns for optional ones.
+- `check` — diffs RU source vs each locale: **missing / stale / orphan** keys for
+  **UI catalog**, **dialog scaffold**, and typed overlays. Exits non-zero if a
+  **required** locale (`en`) drifts in catalog or scaffold; warns for optional ones.
 - `fill [--locale xx | --all]` — LLM-translates missing/stale keys from RU,
   removes orphans, updates `.sync-meta.json`. Needs a chat/completions endpoint:
   explicit `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or fallback to
@@ -177,8 +189,9 @@ Two resolvers — do not conflate layer B and layer C:
 
 ### 4.4 Pre-push wrapper — `scripts/i18n-sync.sh`
 Installed alongside docs-sync by `scripts/docs-sync/install.sh`. When a push
-changes `ru.json`, it runs `fill --all`, commits updated catalogs, and never
-blocks the push. Bypass: `HARMONIZER_SKIP_I18N_SYNC=1`.
+changes `modules/i18n/catalog/ru.json` or `_legacy_web/data/dialog_scaffold/ru.json`
+(or typed-module RU sources), it runs `fill --all`, commits updated catalogs +
+scaffold JSON + meta, and never blocks the push. Bypass: `HARMONIZER_SKIP_I18N_SYNC=1`.
 
 ---
 
@@ -241,8 +254,8 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 
 ## 8. Support matrix & known gaps
 
-- **Enabled now:** RU, EN (UI catalog + typed modules + server layer C).
-- **Pending (disabled):** DE, FR, IT, ES, PT, NL — need §6 steps.
+- **Enabled now:** RU, EN, DE, FR, IT, ES, PT, NL (UI catalog + typed modules + server layer B + layer C dialog scaffold).
+- **Layer C (deterministic server strings):** dialog branch finals, guards, greetings, planning labels — all eight locales via `_legacy_web/data/dialog_scaffold/*.json` and `getDialogScaffoldStrings()`. RU source syncs via `node scripts/i18n-sync.mjs fill --all` (same gate as UI catalog).
 - **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
   (`modules/chakra/i18n.ts` — single source for legend text).
@@ -258,7 +271,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   `responseLocale === "ru"`. Math markdown locale-aware (RU/EN inline;
   other locales fall back to EN strings in `mathLevelI18n` until extended).
 - **Layer C (deterministic server strings):** dialog branch finals, guards —
-  RU/EN only; `resolveDialogScaffoldLocale` maps de/fr/… → EN scaffolding until §6.
+  all eight locales; catalogs in `_legacy_web/data/dialog_scaffold/`.
 - **Still hardcoded / incremental:** dev diagnostics card on Profile; some Home
   dev-only strings (`NatalBridgeCard`); event banner text if server-supplied;
   `ModalLongExplanation` body comes from LLM (layer B) — UI shell is localized.

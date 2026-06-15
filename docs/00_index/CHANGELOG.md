@@ -10,6 +10,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-15: i18n — **Layer C RU-first sync:** dialog scaffold joins `i18n-sync.mjs` + pre-push hook (`dialog_scaffold/ru.json` → auto-fill 7 targets).
+- 2026-06-15: i18n — **Phase 3 layer C:** dialog deterministic scaffold localized for all 8 locales (`dialog_scaffold` catalogs).
 - 2026-06-15: i18n + daily_forecast — **8 locales enabled** (catalog + typed overlays filled); home locale switch refreshes slogan/recommendation/math via locale-scoped cache + `outputLanguagePrompt` on monologue + `outputLocale` cache invalidation; `homeTextsLoading` UX.
 - 2026-06-14: doc-sync pre-push — locale-aware home day content: `daily_forecast/` (`stripHomeLlmTexts`, `localeChange`, `subscribeAppLocale`, scopeKey+locale, monologue force-refresh, global-content SDK fallback ru-only); `i18n/` (on-demand `text_i18n` precompute, `i18n-sync` DeepSeek fallback).
 - 2026-06-14: doc-sync pre-push — i18n Phase 2 follow-up: `chakra/` (multilingual `i18n.ts`, `getPlanetChakraMap`), `daily_forecast/` (`responseLocale`, `text_i18n`, locale-aware home), `practices/` (`loadYogaPractices(locale)`, `getPracticeCatalogStrings`), `profile/` (report locale, life-sphere labels, Luxon axis); `i18n/spec.md` §6 выровнен с `resolveContentLocale` (8 locales layer B).

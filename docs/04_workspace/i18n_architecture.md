@@ -9,8 +9,7 @@ code_refs: [_legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/comm
 
 # Multilingual architecture for HARMONIZER
 
-Status: **Phase 1 done; Phase 2 framework + plumbing landed (content migration
-incremental); Phase 3 pending.** This doc captures the agreed decisions and the
+Status: **Phase 1 done; Phase 2 done; Phase 3 layer C landed (2026-06-15).** This doc captures the agreed decisions and the
 phased plan so we can extend languages without per-language prompt forks and
 without regressing the working RU dialog.
 
@@ -131,23 +130,14 @@ finale" mixes three different layers. They are handled differently:
 Key consequence: choosing how to handle layer C has **no token impact** (it is
 post-processing, not prompt input), so token cost is NOT a deciding factor there.
 
-## Phase 3 — beyond RU/EN (DE/FR/IT/ES/PT/NL) (TODO)
+## Phase 3 — beyond RU/EN (DE/FR/IT/ES/PT/NL) (LANDED 2026-06-15)
 
-Only layer **C** blocks new response languages (layer A stays RU, layer B is
-already LLM-driven). Two options for layer C:
-
-- **(a) Localize the scaffolding strings** — translate the small set of labels /
-  fallback sentences; dates use Luxon's locale support. **Preferred** — the set
-  is small and mechanical, and it **preserves the deterministic reliability** we
-  built (salvage logic exists precisely because flash mis-formats free-form
-  finales).
-- **(b) Make the finale fully LLM-driven** — drop deterministic assembly.
-  **Rejected as the default**: it would re-introduce the unreliability (forgotten
-  markers, wrong action counts, broken formatting) that the deterministic builders
-  were created to fix. (Earlier draft of this doc wrongly preferred (b).)
-
-Until layer C is localized for a language, `resolveResponseLocale` rejects that
-locale and falls back, to avoid shipping mixed-language output.
+Only layer **C** blocked new response languages (layer A stays RU, layer B is
+already LLM-driven). Implemented option **(a) Localize the scaffolding strings** —
+catalogs under `_legacy_web/data/dialog_scaffold/`, loader
+`app/api/_utils/dialogScaffold/`. **RU-first sync:** same gate as UI catalog
+(`scripts/i18n-sync.mjs` + `.sync-meta.json` under the scaffold dir; pre-push
+when `ru.json` changes).
 
 ## Decision (2026-06-14): build Option A now
 

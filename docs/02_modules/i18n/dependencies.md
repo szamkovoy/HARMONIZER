@@ -52,7 +52,8 @@ This file lists the contracts so a change here is traceable to its blast radius.
   `resolveContentLocale` / `resolveDialogScaffoldLocale` in `dialog/route.ts` and
   `greeting/route.ts`. Contract: the **request body MAY carry `responseLocale`**;
   precedence is env override → body → `users.locale` → `ru`. Layer B uses all 8
-  locales; layer C scaffolding is ru/en only today.
+  locales; layer C scaffolding uses `_legacy_web/data/dialog_scaffold/*.json` (all 8,
+  RU-first sync via `i18n-sync.mjs`).
 - **`profile` / Supabase** — `users.locale` (default `ru`) is read server-side and
   **written back** when the in-app selector changes (`setAppLocale` →
   `syncUserLocaleToServer`). Client also seeds the store from it at hydrate.
@@ -68,7 +69,8 @@ This file lists the contracts so a change here is traceable to its blast radius.
 - **Vercel env** — `DIALOG_RESPONSE_LOCALE` (server test override).
   **Expo env** — `EXPO_PUBLIC_I18N_TEST_MODE` (client test mode).
 - **Translate API** (gate `fill`) — `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or
-  fallback **`DEEPSEEK_API_KEY`** + **`AI_MODEL_PREMIUM` / `AI_MODEL_STANDARD`**.
+  fallback **`DEEPSEEK_API_KEY`** + **`AI_MODEL_PREMIUM` / `AI_MODEL_STANDARD`**. Covers
+  UI catalog, typed overlays, and `dialog_scaffold/` JSON.
 
 ## Contract-risk checklist (touch i18n if a task does any of these)
 - Adds/edits any user-facing string, alert, button, placeholder, or screen.

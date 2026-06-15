@@ -2,10 +2,12 @@
  * Текст для карточки практики в UI.
  * Приоритет: валидированный model-generated `card_blurb` -> server fallback.
  *
- * Локали: ru / en. Дальше мультиязычие — вынести строки в JSON/i18n или params в БД.
+ * Локали: все 8 через `asContentLocale`; RU — ru-копии, остальные — en-fallback для breath slug blurbs.
  */
 
 import { chakraLabelRu } from "@/modules/chakra/labels";
+
+import { asContentLocale, SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
 
 export type PracticeKindForCard = "breath" | "meditation" | "yoga";
 
@@ -119,7 +121,8 @@ export function buildPracticeCardSummary(params: {
   const modelCardBlurb = normalizeModelPracticeCardBlurb(params.modelCardBlurb);
   if (modelCardBlurb) return modelCardBlurb;
 
-  const locale: "ru" | "en" = params.locale?.toLowerCase().startsWith("en") ? "en" : "ru";
+  const resolved = asContentLocale(params.locale) ?? SOURCE_LOCALE;
+  const locale = resolved === SOURCE_LOCALE ? "ru" : "en";
   const ch = chakraLine(params.chakraIds, locale);
 
   if (params.kind === "yoga") {
@@ -147,7 +150,8 @@ export function buildPracticeAssistantReason(params: {
   chakraIds: readonly number[];
   locale: string | null | undefined;
 }): string {
-  const locale: "ru" | "en" = params.locale?.toLowerCase().startsWith("en") ? "en" : "ru";
+  const resolved = asContentLocale(params.locale) ?? SOURCE_LOCALE;
+  const locale = resolved === SOURCE_LOCALE ? "ru" : "en";
   const ch = chakraLine(params.chakraIds, locale);
   if (locale === "en") {
     if (params.kind === "meditation") {

@@ -15,6 +15,18 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-15 (3):** **Layer C RU-first sync gate.** Dialog scaffold
+  (`_legacy_web/data/dialog_scaffold/ru.json`) joins `i18n-sync.mjs` / pre-push
+  hook: edit RU → stale keys auto-translate to en + de/fr/it/es/pt/nl.
+  `.sync-meta.json` tracks source snapshots; `bootstrap-dialog-scaffold-meta` for
+  one-time bootstrap. `dialog-scaffold-fill.mjs` deprecated (delegates to
+  `fill --all`).
+
+- **2026-06-15 (2):** **Phase 3 layer C — dialog scaffold for all 8 locales.**
+  `_legacy_web/data/dialog_scaffold/{ru,en,de,…}.json` + `getDialogScaffoldStrings()`;
+  `resolveDialogScaffoldLocale` returns full content locale (no EN fallback).
+  Planning/summary/post-dialog/greeting deterministic strings localized.
+
 - **2026-06-15:** **All 8 locales enabled in Profile; home locale refresh fix.**
   Bulk `node scripts/i18n-sync.mjs fill --all` — JSON catalog + typed overlays for
   de/fr/it/es/pt/nl; `APP_LOCALE_OPTIONS[*].enabled = true`. Server:

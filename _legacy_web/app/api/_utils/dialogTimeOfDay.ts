@@ -1,4 +1,7 @@
 import type { PhaseTime } from "@legacy/app/api/_utils/dialogBranching";
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
+import { SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
+import { getDialogScaffoldStrings, greetingPhrase, interpolate } from "@legacy/app/api/_utils/dialogScaffold";
 
 /** Prompt-facing time bucket for greetings. Night spans 22:00–03:00. */
 export type DialogTimeOfDay = "morning" | "midday" | "evening" | "night";
@@ -26,35 +29,25 @@ export function phaseTimeForHour(hour: number): PhaseTime {
   return "morning";
 }
 
-export function greetingPhraseForTimeOfDay(timeOfDay: DialogTimeOfDay, locale: "ru" | "en"): string {
-  if (locale === "ru") {
-    if (timeOfDay === "morning") return "Доброе утро";
-    if (timeOfDay === "midday") return "Добрый день";
-    if (timeOfDay === "evening") return "Добрый вечер";
-    return "Доброй ночи";
-  }
-  if (timeOfDay === "morning") return "Good morning";
-  if (timeOfDay === "midday") return "Good afternoon";
-  if (timeOfDay === "evening") return "Good evening";
-  return "Good night";
+export function greetingPhraseForTimeOfDay(timeOfDay: DialogTimeOfDay, locale: AppContentLocale): string {
+  return greetingPhrase(locale, timeOfDay);
 }
 
-export function dayPartRhetoricInstruction(localHour: number, locale: "ru" | "en"): string {
+export function dayPartRhetoricInstruction(localHour: number, locale: AppContentLocale): string {
   if (!isEarlyCalendarMorning(localHour)) return "";
-  return locale === "ru"
-    ? "Сейчас после полуночи, но календарный день только начался. «Доброй ночи» допустимо, но НЕ пишите, что день «уже вечер», не смешивайте день недели с вечером этого дня, не используйте обороты вроде «самое время спокойно оглядеться» или «подвести итоги дня»."
-    : "It is after midnight but the calendar day has just begun. \"Good night\" is fine, but do NOT say the day is \"already evening\", do not pair the weekday with evening, and avoid wind-down phrases like \"time to calmly look back\" or \"wrap up the day\".";
+  return getDialogScaffoldStrings(locale).dayPartEarlyMorning;
 }
 
 export function greetingInstructionForTimeOfDay(
   timeOfDay: DialogTimeOfDay,
-  locale: "ru" | "en",
+  locale: AppContentLocale,
   addressForm: string,
   _localHour: number,
 ): string {
   const greeting = greetingPhraseForTimeOfDay(timeOfDay, locale);
-  if (locale === "ru") {
-    return `Если приветствуете, используйте «${greeting}». Не пишите «Привет» при обращении на «${addressForm}». Не смешивайте приветствие с другой частью суток (например «доброй ночи» + «уже вечер»).`;
+  const s = getDialogScaffoldStrings(locale);
+  if (locale === SOURCE_LOCALE) {
+    return interpolate(s.greetingInstruction, { greeting, addressForm });
   }
-  return `If you greet, use "${greeting}". Do not mix greetings from different parts of the day.`;
+  return interpolate(s.greetingInstruction, { greeting });
 }

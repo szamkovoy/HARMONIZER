@@ -19,8 +19,10 @@ a server visible-text builder/fallback; or a new response language.
 
 ## Hard rules
 1. **Never hardcode a user-facing Russian string** in JSX or a server response.
-   - New simple UI strings → add to `modules/i18n/catalog/ru.json` **and**
-     `en.json` (same key) and render with `useTranslate().t("key")`.
+   - New simple UI strings → add to `modules/i18n/catalog/ru.json` and run
+     `node scripts/i18n-sync.mjs fill --all` (or push — pre-push hook fills targets).
+   - New layer-C server strings → add to `_legacy_web/data/dialog_scaffold/ru.json`
+     only; same gate propagates to en + de/fr/it/es/pt/nl.
    - Complex/structured strings → the typed `get*Strings(locale)` modules; the
      consumer must pass `useAppLocale().locale` (never hardcoded `"ru"` or raw
      `profile.locale`).
@@ -39,7 +41,7 @@ a server visible-text builder/fallback; or a new response language.
    Luxon, then flip `enabled`). Until done, leave it disabled — never ship
    mixed-language output.
 
-## After changing UI text
+## After changing UI or layer-C text
 The sync gate keeps locales aligned. Run/verify `node scripts/i18n-sync.mjs check`
 (required locale = `en`); the pre-push hook (`scripts/i18n-sync.sh`) auto-fills on
-push. Do not leave `en` out of sync.
+push for `catalog/ru.json` and `dialog_scaffold/ru.json`. Do not leave `en` out of sync.

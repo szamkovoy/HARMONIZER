@@ -3,6 +3,13 @@ import {
   validateHistoryHasDurationAndType,
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
+import { SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
+import {
+  getDialogScaffoldStrings,
+  interpolate,
+  summaryClarifyVariant,
+} from "@legacy/app/api/_utils/dialogScaffold";
 import type { DialogFsmState } from "@legacy/app/api/communicator/v2/dialog/dialogFsm";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
@@ -143,29 +150,16 @@ export function isGratitudeOrShortAck(text: string): boolean {
 }
 
 export function buildPostDialogReply(params: {
-  locale: "ru" | "en";
+  locale: AppContentLocale;
   userMessage: string;
   hadPractice: boolean;
 }): string {
   const { locale, userMessage, hadPractice } = params;
+  const s = getDialogScaffoldStrings(locale);
   if (isGratitudeOrShortAck(userMessage)) {
-    if (locale === "en") {
-      return hadPractice
-        ? "You're welcome. Do the practice when you're ready — have a good day."
-        : "You're welcome. Have a good day.";
-    }
-    return hadPractice
-      ? "Пожалуйста. Выполните практику, когда будете готовы — хорошего дня."
-      : "Пожалуйста. Хорошего дня.";
+    return hadPractice ? s.postDialog_thanksPractice : s.postDialog_thanksNoPractice;
   }
-  if (locale === "en") {
-    return hadPractice
-      ? "The practice is already chosen — you can start it from the card above. To end the dialog, use the Exit button below."
-      : "You can end the dialog using the Exit button below.";
-  }
-  return hadPractice
-    ? "Практика уже выбрана — начните её с карточки выше. Чтобы завершить диалог, нажмите «Выйти из диалога» внизу."
-    : "Диалог можно завершить — нажмите «Выйти из диалога» внизу.";
+  return hadPractice ? s.postDialog_hadPractice : s.postDialog_noPractice;
 }
 
 /** Word-boundary clamp for a salvaged planning label: never breaks a word mid-token, no ellipsis. */
@@ -206,9 +200,9 @@ function inferPlanningSpheresFromText(text: string): PlannedEventMarker["cells"]
 /** Salvage planning markers when the model finalized visibly but forgot invisible markers. */
 export function extractPlanningMarkersFromVisibleFinalize(
   text: string,
-  locale: "ru" | "en",
+  locale: AppContentLocale,
 ): PlannedEventMarker[] {
-  const recommendationLabel = locale === "ru" ? "Рекомендация" : "Recommendation";
+  const recommendationLabel = getDialogScaffoldStrings(locale).recommendationLabel;
   const pattern = new RegExp(
     `(\\d+)\\.\\s*([^\\n]+)\\s*\\n\\s*${recommendationLabel}:\\s*([^\\n]+(?:\\n(?!\\d+\\.)[^\\n]+)*)`,
     "gi",
@@ -325,38 +319,12 @@ function summaryEventPhraseRu(eventDescription: string): string {
  * the thread — not a fixed "тело/настроение/мысли/отношения" checklist that
  * repeats across every dialog.
  */
-export function buildSummaryClarifyingQuestion(eventDescription: string, locale: "ru" | "en"): string {
-  const label = eventDescription.trim() || (locale === "ru" ? "это событие" : "this event");
+export function buildSummaryClarifyingQuestion(eventDescription: string, locale: AppContentLocale): string {
+  const label = eventDescription.trim() || getDialogScaffoldStrings(locale).summaryDefaultEvent;
   const domain = summaryEventDomain(label);
   const seed = [...label].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  if (locale === "en") {
-    const byDomain: Record<SummaryEventDomain, string[]> = {
-      work: [
-        "What filled that work — were you absorbed in it, mostly coordinating with people, holding tight focus, or were there frictions and breakthroughs?",
-        "How did the work feel from the inside — driven and focused, collaborative, or more draining than rewarding?",
-      ],
-      rest: [
-        "How did it feel — more bodily relaxation, quiet pleasure, a lift in mood, or simply being present?",
-        "What did that give you inside — rest for the body, calm, or a bit of joy?",
-      ],
-      social: [
-        "How was that with the other person — warm and close, light, or a little tense?",
-        "What did it feel like inside — closeness, ease, or something you had to work through?",
-      ],
-      creative: [
-        "What did it stir in you — calm, a spark of interest, or a sense of meaning?",
-        "How did it land — restful, inspiring, or thought-provoking?",
-      ],
-      tiny: [
-        "How did that feel — was it easy to follow through on, and did it leave you a bit more settled?",
-      ],
-      generic: [
-        "How did that feel from the inside — what state were you mostly in there?",
-        "What did you mostly live through there — in a word or two?",
-      ],
-    };
-    const variants = byDomain[domain];
-    return variants[seed % variants.length]!;
+  if (locale !== SOURCE_LOCALE) {
+    return summaryClarifyVariant(locale, domain, seed);
   }
   const phrase = summaryEventPhraseRu(label);
   const byDomain: Record<SummaryEventDomain, string[]> = {
@@ -404,16 +372,18 @@ export function assistantAskedSummaryClarifyingQuestion(
 export function buildSummaryEventDidNotHappenBridge(
   currentEventDescription: string,
   nextEventDescription: string,
-  locale: "ru" | "en",
+  locale: AppContentLocale,
 ): string {
   const next = nextEventDescription.trim();
-  if (locale === "en") {
-    return `I'm sorry it didn't happen. How did "${next}" go?`;
+  const s = getDialogScaffoldStrings(locale);
+  if (locale !== SOURCE_LOCALE) {
+    return interpolate(s.summaryBridge_en, { next });
   }
   const prefix = /(?:отмен|перенес|перенёс|не состоя)/i.test(currentEventDescription)
-    ? "Понял."
-    : "Жаль, что не сложилось.";
-  return `${prefix} Как прошёл следующий пункт${next ? ` — ${next}` : ""}?`;
+    ? s.summaryBridge_cancelledPrefix
+    : s.summaryBridge_sorryPrefix;
+  const nextSuffix = next ? ` — ${next}` : "";
+  return interpolate(s.summaryBridge_ruTemplate, { prefix, nextSuffix });
 }
 
 /** User confirms the event happened but names no lived state — needs one clarifying question. */

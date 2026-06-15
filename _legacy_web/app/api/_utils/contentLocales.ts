@@ -38,14 +38,11 @@ export function languageNameFor(locale: string | null | undefined): string {
   return LANGUAGE_NAMES[asContentLocale(locale) ?? SOURCE_LOCALE];
 }
 
-/** Layer C (dialog deterministic builders) — fully localized today. */
-export type DialogScaffoldLocale = "ru" | "en";
-
-const DIALOG_SCAFFOLD_LOCALES: readonly DialogScaffoldLocale[] = ["ru", "en"] as const;
+/** Layer C (dialog deterministic builders) — localized for all content locales. */
+export type DialogScaffoldLocale = AppContentLocale;
 
 export function asDialogScaffoldLocale(value: string | null | undefined): DialogScaffoldLocale | null {
-  const prefix = localePrefix(value);
-  return (DIALOG_SCAFFOLD_LOCALES as readonly string[]).includes(prefix) ? (prefix as DialogScaffoldLocale) : null;
+  return asContentLocale(value);
 }
 
 /**
@@ -66,14 +63,13 @@ export function resolveContentLocale(
 
 /**
  * Locale for dialog deterministic scaffolding (planning/summary finals, date labels).
- * Falls back to en when the content locale is not ru/en yet.
+ * Same precedence as layer B; all eight locales have scaffold catalogs.
  */
 export function resolveDialogScaffoldLocale(
   userLocale: string | null | undefined,
   requestedLocale?: string | null,
 ): DialogScaffoldLocale {
-  const content = resolveContentLocale(userLocale, requestedLocale);
-  return asDialogScaffoldLocale(content) ?? "en";
+  return resolveContentLocale(userLocale, requestedLocale);
 }
 
 /** @deprecated alias — use resolveContentLocale for layer B, resolveDialogScaffoldLocale for layer C */

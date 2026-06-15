@@ -98,6 +98,8 @@ import {
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
 import { resolveResponseLocale, resolveDialogScaffoldLocale, localeToLanguageName } from "@legacy/app/api/_utils/dialogLocale";
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
+import { getDialogScaffoldStrings } from "@legacy/app/api/_utils/dialogScaffold";
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
 
 export const runtime = "nodejs";
@@ -707,7 +709,7 @@ function sanitizeSummaryFinalVisibleText(value: string): string {
   return capitalizeParagraphStarts(cleaned);
 }
 
-function ensureSummaryToPlanningBridge(visibleText: string, locale: "ru" | "en"): string {
+function ensureSummaryToPlanningBridge(visibleText: string, locale: AppContentLocale): string {
   // Drop any trailing question the model wrote itself (its own planning invite).
   // It often re-introduces day words ("Что у вас на сегодня?") which the sanitizer
   // then mangles, and it duplicates the deterministic bridge we append below.
@@ -721,9 +723,7 @@ function ensureSummaryToPlanningBridge(visibleText: string, locale: "ru" | "en")
     }
   }
   const body = paragraphs.join("\n\n").trim();
-  const bridge = locale === "ru"
-    ? "Что важного вы хотите запланировать на текущий день?"
-    : "What feels important to plan for today?";
+  const bridge = getDialogScaffoldStrings(locale).summaryToPlanningBridge;
   return body ? `${body}\n\n${bridge}` : bridge;
 }
 
