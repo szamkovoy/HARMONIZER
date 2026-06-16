@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.8
+version: 1.9
 updated: 2026-06-16
 depends_on:
   [
@@ -48,7 +48,7 @@ code_refs:
   Expo Router, Supabase-клиент для каталога асан и для **`services/practiceSessions.ts`** (`practice_sessions`, `user_daily_stats`).
 
 - **`i18n`**  
-  `getPracticeCatalogStrings(locale)` (typed gate + overlays; поля `durationMinUnit`, `durationFromPrefix`); `catalog.ts` — `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` для jsonb-полей йоги; `PracticeCard` / `PracticeCatalogScreen` — `useAppLocale().locale`. Парная запись: `docs/02_modules/i18n/dependencies.md` §2.
+  `getPracticeCatalogStrings(locale)` (typed gate + overlays; поля `durationMinUnit`, `durationFromPrefix`, `practiceCountOne` / `practiceCountWithTotal` / `catalogFooterTemplate`); `catalog.ts` — `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` для jsonb-полей йоги; `PracticeCard` / `PracticeCatalogScreen` — `useAppLocale().locale`. Парная запись: `docs/02_modules/i18n/dependencies.md` §2.
 
 ## 2. От него зависят
 

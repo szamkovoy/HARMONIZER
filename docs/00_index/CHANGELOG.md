@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.77
+version: 2.78
 updated: 2026-06-16
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-16: doc-sync pre-push — practices catalog i18n gaps: typed extractor (quoted/hyphenated keys, multiline values), `practiceCountOne`/`practiceCountWithTotal`/`catalogFooterTemplate`, `chakraTagLabel` overlay for de–nl; breath/practices overlay refill. `i18n/spec.md` §4.3, `practices/{spec,dependencies,history}.md`, `chakra/{spec,history}.md`.
 - 2026-06-16: i18n — fix home recommendation buttons on DE/FR (typed extractor + `recommendation.*` overlay paths); localize natal/transit chart (`astroChartModal`); refilled catalog + home typed overlays.
 - 2026-06-16: doc-sync pre-push — startup overlay → i18n catalog (`startup.step.*`); typed overlay flat-path merge + `rebuild-typed-overlays` gate; practices duration units + yoga jsonb locale lookup. `i18n/{spec,dependencies,history}.md`, `practices/{spec,dependencies,history}.md`.
 - 2026-06-16: doc-sync pre-push — i18n locale plumbing: `i18n/spec.md` (`inlineBaseLocale`, `intlLocaleTag`, `mathLevelI18nTargets`, §8); `i18n/dependencies.md` (`UpgradeDialog`, tab remount, life-spheres); `subscription/` (UpgradeDialog → catalog); `chakra/spec.md`, `profile/dependencies.md`; `MAP.md` (subscription ↔ i18n).

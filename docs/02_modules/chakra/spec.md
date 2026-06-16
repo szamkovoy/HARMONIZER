@@ -1,7 +1,7 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.3
+version: 1.4
 updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs:
@@ -18,7 +18,8 @@ code_refs:
 
 - **`ChakraLocale`** = `AppContentLocale` (`ru` … `nl`); **`coerceChakraLocale(value)`**.
 - **`chakraShortLabel` / `chakraShortLabelDisplay`** — короткие state-labels для легенд (sentence case в display).
-- **`chakraLabel`**, **`chakraLabelGenitive`**, **`chakraNumericDisplayLabel`**, **`chakraTagLabel`**, **`formatChakraList`** — видимые формы по номеру чакры 1–7.
+- **`chakraLabel`**, **`chakraLabelGenitive`**, **`chakraNumericDisplayLabel`**, **`formatChakraList`** — видимые формы по номеру чакры 1–7.
+- **`chakraTagLabel(locale, chakraNumber)`** — короткий tag на карточках практик: RU — `` `${n} чакра` ``; EN — ordinal (`4th chakra`); de–nl — overlay `nom[n]` (capitalized), иначе capitalized **`chakraLabel`**; EN ordinal сохраняется, если overlay `nom` пуст.
 - **`capitalizeChakraLabel`** — первая буква заглавная для UI.
 - de/fr/it/es/pt/nl: overlay JSON (`modules/i18n/typed/catalog/chakra/*.json`, источник `chakraTypedSource.json`) через `mergeTypedLocale`; до fill — fallback на EN inline.
 

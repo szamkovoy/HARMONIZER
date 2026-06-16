@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.12
+version: 1.13
 updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -125,7 +125,7 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **Медитация:** одна статическая карточка, slug `sacred-symbol-stream`; пользовательский диапазон в каталоге/карточке и у ассистента — **1–5 минут**; дефолт launch в **`catalog.ts`** остаётся **3 мин**, а экран **`SacredSymbolStreamScreen`** при отсутствии params использует **5 мин** — расхождение дефолтов зафиксировано в `history.md`.
 
-- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания и group titles каталога — **`getPracticeCatalogStrings(locale)`** (RU/EN inline + typed overlays de–nl).
+- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания и group titles каталога — **`getPracticeCatalogStrings(locale)`** (RU/EN inline + typed overlays de–nl). Счётчики и footer каталога: gate-synced шаблоны **`practiceCountOne`**, **`practiceCountWithTotal`** (`{count}`), **`catalogFooterTemplate`** (`{total}`); **`getPracticeCatalogStrings`** собирает `practiceCount`/`catalogFooter` из overlay + для EN при `count === 1` — `practiceCountOne`.
 
 - **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`. Если пользователь просит **короткую / минимальную** практику без явного числа минут, серверный валидатор (`markers.ts`) берёт нижнюю границу каталога для уже названного типа: медитация 1 мин, дыхание 5 мин, асаны 20 мин.
 

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.13
+version: 1.14
 updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-16 (2):** Typed pluralization/footer: `PracticeCatalogStrings` — `practiceCountOne`, `practiceCountWithTotal`, `catalogFooterTemplate`; `getPracticeCatalogStrings` wires `practiceCount`/`catalogFooter` from overlays (EN singular via `practiceCountOne`). `PracticeCatalogScreen` — group tab titles: `numberOfLines={2}`, `adjustsFontSizeToFit`, tighter grid padding.
 
 - **2026-06-16:** i18n follow-up: `PracticeCatalogStrings` gained `durationMinUnit` / `durationFromPrefix` (typed gate); `PracticeCard` uses them instead of locale ternaries. `catalog.ts` `localizedText` reads yoga jsonb by full `AppContentLocale`; `displayYogaTitle` uses `inlineBaseLocale` + `SOURCE_LOCALE` for RU-only title transforms.
 

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/chakra/history
 title: Chakra History
-version: 1.2
-updated: 2026-06-14
+version: 1.3
+updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-16:** **`chakraTagLabel` для de–nl.** Не-RU tag на карточках практик берёт `nom[n]` из typed chakra overlay; при отсутствии — capitalized `chakraLabel`. EN по-прежнему ordinal (`4th chakra`); RU — `` `${n} чакра` ``.
 
 - **2026-06-14:** **Multilingual chakra labels.** Новый `modules/chakra/i18n.ts` — `AppContentLocale`, RU/EN inline + typed overlays (de–nl) через i18n gate; home/planetChakra/practices/profile переведены на `getPlanetChakraMap(locale)` и `chakraLabelGenitive(locale, …)`. `labels.ts` сохранён как RU-only legacy; server `topPetals` / `globalTransitMath` пока на `chakraLabelRu`.
 

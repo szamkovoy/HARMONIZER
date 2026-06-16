@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.5
+version: 1.6
 updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -197,8 +197,10 @@ Two resolvers — do not conflate layer B and layer C:
 ### 4.3 Typed-module gate (same script)
 - Registry: `modules/i18n/typed/manifest.json` (home, profile, day, practices,
   communicator, breath, mandala, userErrors, chakra).
-- Source: inline `const ru:` blocks in TS (or `chakraTypedSource.json`).
-  **RU and EN stay inline** in TS; overlay JSONs under
+- Source: inline `const ru:` / `const en:` blocks in TS (or `chakraTypedSource.json`),
+  flattened by `scripts/lib/i18n-typed.mjs` (`extractStringTree`): dotted keys,
+  quoted/hyphenated object keys (e.g. `"nadi-shodhana"`), key-on-one-line with
+  string value on the next line. **RU and EN stay inline** in TS; overlay JSONs under
   `modules/i18n/typed/catalog/<module>/{de,fr,it,es,pt,nl}.json` supply the other
   six locales at runtime via `mergeTypedLocale`.
 - `check` / `fill --all` run typed diff for **de/fr/it/es/pt/nl** (warn until
