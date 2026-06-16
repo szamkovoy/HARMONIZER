@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.72
+version: 2.73
 updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-06-16 (2):** Planning finalize — **post-assembly day-focus backstop.** Если greeted-flow planning-finalize прошёл без `[CORRECT_RECOMMENDATION]` и `recommendationCorrected` остался пуст после первой детерминированной сборки visible (`buildPlanningFinalVisibleText`), `route.ts` повторно вызывает `extractDayFocusFromVisibleFinalize` на собранном `cleanText` (с числом practice-filtered маркеров), при успехе — `persistDayFocus`, выставляет `recommendationCorrected` и пересобирает visible-final. Закрывает пробел, когда первый salvage на сыром visible не сработал, но абзац дня-фокуса уже есть в финальном тексте. Тесты: FR day-focus salvage + locale-native `recommendationLabel` («Recommandation:») в `buildPlanningFinalVisibleText`.
 
 - **2026-06-16:** **i18n locale routing — input/reply decoupling + QA localization pass.** `POST /dialog` принимает optional `inputLocale`; `buildBrainPromptContext` выставляет `inputLanguageName` при расхождении с locale ответа; `inputLanguageDecouplingInstruction` в `sharedPreamble` запрещает модели зеркалить язык ввода (RU speech + FR UI → ответ на FR). В test mode клиент шлёт `inputLocale = getTranscribeLocale()` (RU) и `responseLocale` из профиля; вне test mode voice-turn может override-ить оба поля детектированным языком реплики, не меняя системную локаль приложения. В том же проходе: planning-finalization для `... ничего` в `dialogTurnGuards.ts`, practice-card fallback и practice titles по locale (`practiceCardSummary.ts`, `practiceSelection.ts`), детерминированные тексты `/api/day` для всех 8 локалей.
 
