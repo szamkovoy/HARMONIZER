@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.4
+version: 1.5
 updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -186,6 +186,11 @@ Two resolvers — do not conflate layer B and layer C:
   explicit `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or fallback to
   **`DEEPSEEK_API_KEY`** + **`AI_MODEL_PREMIUM`** (else **`AI_MODEL_STANDARD`**) at
   `${DEEPSEEK_BASE_URL}/v1/chat/completions`; without credentials it prints the plan only.
+- `rebuild-typed-overlays` — deletes all typed overlay JSON under
+  `modules/i18n/typed/catalog/<module>/`, clears per-locale entries in
+  `typed/.sync-meta.json`, regenerates `generated-overlays.ts`, then runs
+  `fill` for every overlay target (de/fr/it/es/pt/nl). Use after overlay shape /
+  extractor fixes.
 - **Diff-based**: only changed keys × target locales, so it is cheap and mostly
   idle. Adding the 6 languages later is a one-time `fill --all`.
 
@@ -219,8 +224,10 @@ There are **two** string mechanisms; pick correctly:
    (`modules/communicator/i18n/communicator.ts`, `modules/home/i18n/home.ts`, …).
    RU/EN are **inline**; de/fr/it/es/pt/nl come from **gate-managed overlay JSON**
    merged by `mergeTypedLocale(moduleId, base, locale)` in
-  `modules/i18n/typed/merge.ts`. Chakra uses flat overlay via
-  `applyFlatChakraOverlay` (nested overlay keys flattened by `flattenOverlayStrings`).
+  `modules/i18n/typed/merge.ts` — overlays are applied by **flat dotted path**
+  (`flattenOverlayStrings` → `applyFlatStringOverlay`), robust to JSON nesting shape
+  in generated files. `deepMergeTyped` is deprecated (delegates to the same path).
+  Chakra uses the same flatten path via `applyFlatChakraOverlay`.
   Function-valued strings (e.g. `typingStatus`, `formatDateHeader`) stay in
   TS and are not gate-extracted; date/time formatters use `intlLocaleTag(locale)`.
 
@@ -273,7 +280,8 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 - **Enabled now:** RU, EN, DE, FR, IT, ES, PT, NL (UI catalog + typed modules + server layer B + layer C dialog scaffold).
 - **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
-  (`modules/chakra/i18n.ts` — single source for legend text).
+  (`modules/chakra/i18n.ts` — single source for legend text), startup splash footer
+  (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`).
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier
   slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;
   server uses `resolveContentLocale` (all 8 locales) and **locale-suffixed**

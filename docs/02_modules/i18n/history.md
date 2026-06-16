@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.3
+version: 1.4
 updated: 2026-06-16
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -14,6 +14,13 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-16 (2):** **Startup overlay + typed overlay merge.** `AppStartupProvider`
+  dropped inline RU/EN `STEP_COPY`; footer strings live in the JSON catalog
+  (`startup.step.*`, `startup.fallback`) and follow `useAppLocale()`. Typed overlays:
+  `mergeTypedLocale` applies string leaves by flat dotted path (not nested deep-merge);
+  `deepMergeTyped` deprecated. Gate: new `rebuild-typed-overlays` command; extractor
+  fix in `scripts/lib/i18n-typed.mjs`.
 
 - **2026-06-16:** **Locale plumbing fix (8-language UI).** Root cause of mixed RU/EN/IT:
   `getHomeStrings(appLocale === "en" ? "en" : "ru")` and siblings forced Russian for

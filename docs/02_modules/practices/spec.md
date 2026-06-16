@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.11
-updated: 2026-06-14
+version: 1.12
+updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -52,7 +52,7 @@ code_refs:
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
 
 - **`PracticeCard`** (`modules/practices/ui/PracticeCard.tsx`)  
-  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах. Значение `overrideDurationMinutes` **клипится** к списку допустимых минут (`**assistantSelectableDurations.ts**`, синхронно с сервером для дыхания 5–20 и медитации 1–5); при клипе — `console.log` с тегом **`[PRACTICE_CARD_MISMATCH]`** (поля в духе серверного JSON плюс **`source: "practice_card_client_sync"`**, `conversationId` обычно `null`). После ручного выбора минут карточка не синхронизирует состояние обратно с catalog/default props, пока не сменилась сама `practice.id`, поэтому пользовательская длительность медитации/дыхания не сбрасывается перед запуском. Дефолт чакры для meditation/breath берётся из `primaryChakra` / `chakraIds`, если поверхность передала дневной фокус.
+  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах. Подписи длительности (`от`/`from`, `мин`/`min`) берутся из **`getPracticeCatalogStrings`** (`durationFromPrefix`, `durationMinUnit`), а не из сравнения `locale === "en"`. Значение `overrideDurationMinutes` **клипится** к списку допустимых минут (`**assistantSelectableDurations.ts**`, синхронно с сервером для дыхания 5–20 и медитации 1–5); при клипе — `console.log` с тегом **`[PRACTICE_CARD_MISMATCH]`** (поля в духе серверного JSON плюс **`source: "practice_card_client_sync"`**, `conversationId` обычно `null`). После ручного выбора минут карточка не синхронизирует состояние обратно с catalog/default props, пока не сменилась сама `practice.id`, поэтому пользовательская длительность медитации/дыхания не сбрасывается перед запуском. Дефолт чакры для meditation/breath берётся из `primaryChakra` / `chakraIds`, если поверхность передала дневной фокус.
 
 ### Утилита `modules/practices/core/assistantSelectableDurations.ts`
 
@@ -129,7 +129,7 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`. Если пользователь просит **короткую / минимальную** практику без явного числа минут, серверный валидатор (`markers.ts`) берёт нижнюю границу каталога для уже названного типа: медитация 1 мин, дыхание 5 мин, асаны 20 мин.
 
-- **Йога:** выборка активных строк `practices` + связи `practice_chakras`; превью по `readPracticeVideoThumbnailFromParams` из `params`.
+- **Йога:** выборка активных строк `practices` + связи `practice_chakras`; превью по `readPracticeVideoThumbnailFromParams` из `params`. Локализованные поля jsonb (`title`, `description`, …) читаются через **`localizedText`** по активному `AppContentLocale` (`asContentLocale`, fallback en → ru); **`displayYogaTitle`** применяет RU-специфичные замены только для `SOURCE_LOCALE`, для EN — суффикс `_i…`, для остальных локалей — trim без трансформаций.
 
 - **Сессии и контекст:** в `context` JSON кладутся продуктовые поля (`source`, `launch_source`, `practice_kind`, для асан — `vimeo_id` и т.д.) для аналитики и ассистента.
 - **Ожидающая практика вкладки «День»:** незавершённая карточка хранится не в `practice_sessions`, а в `day_practice_offers` (одна `pending` row на `user_id + local_date`). Источник offer — ручной выбор на вкладке или callback `Communicator.onPracticeOffered(...)` при ассистентской `PRACTICE_PICK`-карточке. Завершённые практики по-прежнему попадают в отчёты только через `practice_sessions`; `GET /api/day` автоматически считает pending offer завершённым, если в этот день появилась matching completed session после создания offer.

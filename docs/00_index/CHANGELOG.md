@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.76
+version: 2.77
 updated: 2026-06-16
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-16: doc-sync pre-push — startup overlay → i18n catalog (`startup.step.*`); typed overlay flat-path merge + `rebuild-typed-overlays` gate; practices duration units + yoga jsonb locale lookup. `i18n/{spec,dependencies,history}.md`, `practices/{spec,dependencies,history}.md`.
 - 2026-06-16: doc-sync pre-push — i18n locale plumbing: `i18n/spec.md` (`inlineBaseLocale`, `intlLocaleTag`, `mathLevelI18nTargets`, §8); `i18n/dependencies.md` (`UpgradeDialog`, tab remount, life-spheres); `subscription/` (UpgradeDialog → catalog); `chakra/spec.md`, `profile/dependencies.md`; `MAP.md` (subscription ↔ i18n).
 - 2026-06-16: i18n — **locale plumbing fix:** load all 8 JSON catalogs in `t.ts`; pass full `appLocale` to typed string getters (was `en ? en : ru`); fix nested chakra overlay flatten; life-sphere titles for 8 locales; `UpgradeDialog` catalog strings + new assistant body; `mathLevelI18n` for de/fr/it/es/pt/nl.
 - 2026-06-15: doc-sync pre-push — layer C dialog scaffold (8 locales): `i18n/spec.md` §3/§6/§8, `assistant/spec.md` §2/§3/§4, `dependencies.md` обоих модулей, `history.md`, `open_questions.md`, `i18n_architecture.md` — выровнены с `dialogScaffold/`, `contentLocales.ts`, `i18n-sync.mjs`.
