@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.35
-updated: 2026-06-14
+version: 2.36
+updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-16:** i18n test mode — dialog POST carries explicit **`responseLocale`** / **`inputLocale`** from `useAppLocale()` in `Communicator.tsx`; `communicator-client.ts` defaults `inputLocale` to `getTranscribeLocale()`. Контракт с сервером — `docs/02_modules/i18n/spec.md` §2.1, `assistant/spec.md` §4.
 - **2026-06-14 (2):** i18n Phase 2 — проводка в communicator-клиент. `Communicator.tsx`: STT через **`getTranscribeLocale()`** (RU в тест-режиме, иначе активная локаль), prop **`locale`** с хост-экранов из **`useAppLocale()`** (Home/Day/Breath), не `profile.locale`/хардкод. `services/communicator-client.ts`: каждый dialog POST несёт **`responseLocale`** (default **`getResponseLocale()`**). Контракт с сервером — `docs/02_modules/i18n/dependencies.md`.
 - **2026-06-14:** QA (planning из Home) — закрытие диалога с Home теперь открывает «День» МГНОВЕННО, без мелькания «Главной». Раньше `CommunicatorOverlay.onClose` сначала закрывал модалку (`setCommunicatorOpen(false)` → проступала Home), а `router.push("/day")` вызывался только в `.finally()` ПОСЛЕ `loadDayPlan()` (сетевой запрос) — отсюда «несколько секунд Главная, потом День». Фикс: `router.push("/day")` вызывается СРАЗУ (до dismiss модалки, чтобы раскрытие показало именно «День»), а `loadDayPlan().then(storePrefetchedDayPlan)` — фоновый catch-up, не блокирует навигацию. **Pre-warm:** в Home-`Communicator` добавлен `onMessage`-хендлер (зеркало `day.tsx` `handleAssistantMessage`): как только приходит ход с `planningPersistence.inserted/updated/summarized`, `recommendationCorrected` или `final_without_practice`, запускается `loadDayPlan()` → `storePrefetchedDayPlan`, поэтому к моменту закрытия диалога контент «Дня» (действия + рекомендация) уже прогрет и вкладка открывается заполненной. Launch практики из карточки (`InteractionManager.runAfterInteractions`, см. 2026-06-12 (2)) и `exitAfterPractice(launchSource)` → `router.replace("/day")` после практики не менялись. tsc — зелёный.
 - **2026-06-13:** Doc-sync pre-push: `communicator/spec.md` — `InteractionManager.runAfterInteractions` для dismiss после launch practice; health bootstrap при `workingLocalDate`/`dayPractices` без `daySummaryRequested`; `practiceToSummary` duration override для pending Day card. `daily_forecast/spec.md` — preserve dialog recommendation on forecast recompute; Day tab scroll stability; Home `Что делать?` не short-circuit'ится pending practice без actions.

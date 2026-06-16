@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.4
+version: 1.5
 updated: 2026-06-16
 depends_on: [02_modules/i18n/spec]
 code_refs:
@@ -52,15 +52,17 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |
 | `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
-| `communicator` (`Communicator.tsx`) | `getTranscribeLocale()` | STT language; `ru` in test mode. The displayed UI strings still come from the `locale` prop passed by the host screen. |
-| `services/communicator-client.ts` | `getResponseLocale()` | `buildDialogPostBody` adds `responseLocale` to every dialog POST (default = active locale). |
+| `communicator` (`Communicator.tsx`) | `useAppLocale()`, `getTranscribeLocale()` | STT via `getTranscribeLocale()` (`ru` in test mode). Each dialog POST sends explicit **`responseLocale`** + **`inputLocale: transcribeLocale`**. UI strings still come from the host `locale` prop. |
+| `services/communicator-client.ts` | `getResponseLocale()`, `getTranscribeLocale()` | `buildDialogPostBody` adds `responseLocale` and `inputLocale` to every dialog POST (defaults = active / transcribe locale). |
 | `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale`; mirrors active locale to Supabase `users.locale`. |
 
 ## Inbound — what i18n depends on
 - **`assistant` (server)** consumes `responseLocale` via
   `resolveContentLocale` / `resolveDialogScaffoldLocale` in `dialog/route.ts` and
-  `greeting/route.ts`. Contract: the **request body MAY carry `responseLocale`**;
-  precedence is env override → body → `users.locale` → `ru`. Layer B uses all 8
+  `greeting/route.ts`, and optional **`inputLocale`** in `dialog/route.ts` only
+  (for `inputLanguageName` / `inputLanguageDecouplingInstruction` in
+  `dialogBranchPrompts.ts`). Contract: the **request body MAY carry `responseLocale`**
+  and **`inputLocale`**; precedence is env override → body → `users.locale` → `ru`. Layer B uses all 8
   locales; layer C scaffolding uses `_legacy_web/data/dialog_scaffold/*.json` (all 8,
   RU-first sync via `i18n-sync.mjs`).
 - **`profile` / Supabase** — `users.locale` (default `ru`) is read server-side and

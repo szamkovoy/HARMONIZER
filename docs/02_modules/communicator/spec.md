@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.38
-updated: 2026-06-14
+version: 2.39
+updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -168,7 +168,7 @@ code_refs:
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EXPO_PUBLIC_COMMUNICATOR_API_URL` (и fallback `EXPO_PUBLIC_BACKEND_API_URL`) | Origin Vercel без суффикса `/api`; см. `services/communicatorConfig.ts`. Отсутствие переменной — ошибка при первом запросе.                                                                                                   |
 | URL диалога                                                                   | `getAiDialogUrl()` если в запросе передан `**scenario_id**`, иначе `getCommunicatorV2DialogUrl()`. Текущий `**Communicator**` не передаёт `scenarioId` в `runChatStream` — главный поток всегда использует **v2 dialog URL**. |
-| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked`.                                                                                               |
+| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional **`inputLocale`** (язык STT/ввода; по умолчанию `getTranscribeLocale()`; в i18n test mode может отличаться от `responseLocale`), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked`. `Communicator.tsx` передаёт оба locale явно из `useAppLocale()`. |
 | Константы UI                                                                  | `MIN_VOICE_MS` (450), `LOW_TRANSCRIPTION_CONFIDENCE` (0.65), лимит текста 8000 символов.                                                                                                                                      |
 | Режим текста                                                                  | `COMMUNICATOR_TEXT_MODE_ENABLED` — если выключен, только голос без переключателя.                                                                                                                                             |
 | Дебаг                                                                         | Подпись `model: …` у бейджа ассистента и кнопка `Export dialog to JSON` — только в `**__DEV__`**.                                                                                                                             |

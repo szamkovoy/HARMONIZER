@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.15
-updated: 2026-06-14
+version: 1.16
+updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -32,7 +32,7 @@ code_refs:
 - `**modules/ui**` (i18n ошибок)  
 `modules/ui/i18n/userErrors.ts` — строки Alert, в т.ч. **`timeoutTitle`** / **`timeoutMessage`**; потребляется через `services/userFacingErrors.ts` в `Communicator` и на других экранах.
 - **`i18n`** (`modules/i18n`, `@/modules/i18n`)  
-`Communicator.tsx` — **`getTranscribeLocale()`** для языка STT (RU в `I18N_TEST_MODE`, иначе активная локаль). Хост-экраны передают prop **`locale`** из **`useAppLocale()`**. `services/communicator-client.ts` — **`getResponseLocale()`** добавляет **`responseLocale`** в каждый dialog POST (язык ответа ассистента; серверный контракт — `docs/02_modules/i18n/dependencies.md` § assistant).
+`Communicator.tsx` — **`getTranscribeLocale()`** для языка STT (RU в `I18N_TEST_MODE`, иначе активная локаль); **`useAppLocale()`** передаёт в каждый dialog POST явные **`responseLocale`** и **`inputLocale: transcribeLocale`**. Хост-экраны передают prop **`locale`** из **`useAppLocale()`**. `services/communicator-client.ts` — **`getResponseLocale()`** / **`getTranscribeLocale()`** добавляют **`responseLocale`** / **`inputLocale`** в каждый dialog POST (серверный контракт — `docs/02_modules/i18n/dependencies.md` § assistant).
 - `**profile**` (через auth)  
 `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
 - `**assistant**` (транспорт daily dialog)  
