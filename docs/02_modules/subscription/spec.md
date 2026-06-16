@@ -1,9 +1,9 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.2
-updated: 2026-05-16
-depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
+version: 1.3
+updated: 2026-06-16
+depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
     modules/access/index.ts,
@@ -49,7 +49,7 @@ code_refs:
 - **`accessModeForTier(tier: ProductTier): "free" | "premium"`** — агрегат для слоя дневного контента (глобальный vs персональный режим загрузки прогноза).
 - **Типы и константы:** `FeatureKey`, `ProductTier`, `EffectiveAccess`, `AccessContextValue`, `TIER_FEATURES`, `FEATURE_REQUIRED_TIER`, `PRODUCT_TIERS`, `TIER_LABELS`, `TIER_ORDER`, **`tierAtLeast(tier, minimum)`**.
 - **`DevTierSwitch`** — UI переключателя эффективного тарифа в dev (`__DEV__`).
-- **`UpgradeDialog`** — модалка апгрейда по `FeatureKey` + `requiredTierFor` (подписи тарифов из `TIER_LABELS`).
+- **`UpgradeDialog`** — модалка апгрейда по `FeatureKey` + `requiredTierFor`; подписи тарифов и фич через **`useTranslate()`** (`tier.*`, `upgrade.*` в JSON-каталоге), не `TIER_LABELS`.
 
 Вход с точки зрения данных: **идентификатор пользователя не передаётся в API модуля** — используется уже загруженный объект профиля из auth/bootstrap; поля подписки читаются из строки `users` (см. `AccessBridge` в `app/_layout.tsx`).
 

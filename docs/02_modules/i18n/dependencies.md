@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.2
-updated: 2026-06-15
+version: 1.3
+updated: 2026-06-16
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -10,6 +10,8 @@ code_refs:
     modules/i18n/t.ts,
     app/_layout.tsx,
     app/(tabs)/_layout.tsx,
+    modules/access/ui/UpgradeDialog.tsx,
+    modules/life-spheres/labels.ts,
     app/(tabs)/index.tsx,
     app/(tabs)/profile.tsx,
     app/(tabs)/day.tsx,
@@ -40,7 +42,9 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | Consumer (module) | Uses | Contract |
 |-------------------|------|----------|
 | `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called once in `AccessBridge`; seeds the store at startup. |
-| `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")` | Tab labels via catalog. |
+| `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")`, `key={locale}` on `<Tabs>` | Tab labels via catalog; remount on locale change. |
+| `subscription` (`modules/access/ui/UpgradeDialog.tsx`) | `useTranslate()` — `tier.*`, `upgrade.*` | Tier/feature labels and body text via JSON catalog (not `TIER_LABELS`). |
+| `life-spheres` (`modules/life-spheres/labels.ts`) | `AppContentLocale`, `asContentLocale` | Client sphere titles for all 8 locales (`SPHERE_TITLES`). |
 | `profile` (`app/(tabs)/profile.tsx`) | `useAppLocale`, `useTranslate`, `APP_LOCALE_OPTIONS`, `setLocale` | Hosts the **language selector**; passes the shared locale into `getProfileReportStrings` and report cards. |
 | `home` (`app/(tabs)/index.tsx`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + the `<Communicator locale=...>` prop follow the store. |
 | `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.3
-updated: 2026-06-15
+version: 1.4
+updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -13,7 +13,10 @@ code_refs:
     modules/i18n/index.ts,
     modules/i18n/catalog/ru.json,
     modules/i18n/catalog/en.json,
+    modules/i18n/localeCodes.ts,
     _legacy_web/app/api/_utils/dialogLocale.ts,
+    _legacy_web/app/api/_utils/mathLevelI18n.ts,
+    _legacy_web/app/api/_utils/mathLevelI18nTargets.ts,
     _legacy_web/app/api/communicator/v2/dialog/route.ts,
     _legacy_web/app/api/communicator/v2/greeting/route.ts,
     _legacy_web/app/api/_utils/lifeSpheresBaseline.ts,
@@ -115,7 +118,14 @@ cost never decides layer-C design.
 - `useTranslate()` → `{ t, tc, locale }` bound to the active locale. **Prefer this
   in components.**
 
-### 2.4 Public surface
+### 2.4 `localeCodes.ts` — content locale types and helpers
+- `AppContentLocale` = all 8 targets (`ru` … `nl`).
+- **`inlineBaseLocale(locale)`** — `ru` for source locale, `en` for all others; selects
+  the inline RU/EN base table before `mergeTypedLocale` overlay.
+- **`intlLocaleTag(locale)`** — BCP 47 tag for `Intl.DateTimeFormat` (`ru-RU`, `de-DE`, …).
+- `asContentLocale(value)` — coerce unknown strings to a valid `AppContentLocale` or `null`.
+
+### 2.5 Public surface
 Everything is re-exported from `modules/i18n/index.ts`. Import from `@/modules/i18n`.
 
 ---
@@ -209,9 +219,10 @@ There are **two** string mechanisms; pick correctly:
    (`modules/communicator/i18n/communicator.ts`, `modules/home/i18n/home.ts`, …).
    RU/EN are **inline**; de/fr/it/es/pt/nl come from **gate-managed overlay JSON**
    merged by `mergeTypedLocale(moduleId, base, locale)` in
-   `modules/i18n/typed/merge.ts`. Chakra uses flat overlay via
-   `applyFlatChakraOverlay`. Function-valued strings (e.g. `typingStatus`) stay in
-   TS and are not gate-extracted.
+  `modules/i18n/typed/merge.ts`. Chakra uses flat overlay via
+  `applyFlatChakraOverlay` (nested overlay keys flattened by `flattenOverlayStrings`).
+  Function-valued strings (e.g. `typingStatus`, `formatDateHeader`) stay in
+  TS and are not gate-extracted; date/time formatters use `intlLocaleTag(locale)`.
 
 Rules:
 - A consumer must pass the **shared locale** (`useAppLocale().locale`) into
@@ -272,8 +283,8 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   if a target locale is missing, **`POST /api/ai/global-content`** may run
   **`ensureGlobalTextI18nPrecomputed`** on demand before responding (row-level, not
   per-user). Client `fetchGlobalContent`: Supabase SDK fallback only when
-  `responseLocale === "ru"`. Math markdown locale-aware (RU/EN inline;
-  other locales fall back to EN strings in `mathLevelI18n` until extended).
+  `responseLocale === "ru"`. Math markdown via `getMathLevelStrings(locale)` in
+  `mathLevelI18n.ts` — RU/EN inline; de/fr/it/es/pt/nl in `mathLevelI18nTargets.ts`.
 - **Layer C (deterministic server strings):** dialog branch finals, guards,
   greetings, planning labels, summary bridges — all eight locales via
   `_legacy_web/data/dialog_scaffold/*.json` and `getDialogScaffoldStrings()`.

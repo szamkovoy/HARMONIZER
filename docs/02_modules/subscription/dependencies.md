@@ -1,9 +1,9 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.2
-updated: 2026-05-16
-depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
+version: 1.3
+updated: 2026-06-16
+depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
     modules/access/core/access.tsx,
@@ -32,6 +32,9 @@ code_refs:
 
 - **Данные профиля / auth (без отдельной строки в MAP)**  
   `app/_layout.tsx` (`AccessBridge`) передаёт в `AccessProvider` объект `profile` из `useAuth()`. Поля подписки приходят из той же загрузки пользователя, что и остальной профиль; модуль не вызывает Supabase сам по тарифу.
+
+- **`i18n`**  
+  `modules/access/ui/UpgradeDialog.tsx` — `useTranslate()` для `tier.*` и `upgrade.*` (заголовок, тело, подписи фич). Новые ключи — в `modules/i18n/catalog/ru.json` + sync gate.
 
 ## 2. От него зависят
 
@@ -63,7 +66,7 @@ code_refs:
 ## 3. Контрактные точки риска
 
 - **Синхронизация трёх слоёв:** `getEffectiveAccess` + дубли `hasPremiumAccess` / `hasPremiumLlmAccess` + ответы `global-content` (`has_premium_access`). Расхождение даёт неверный режим прогноза или модель LLM.
-- **Изменение `FeatureKey` или `TIER_FEATURES`** — ломает все вызовы `canUseFeature` и тексты `UpgradeDialog`; нужна проходка по `app/(tabs)/*`, `modules/practices/*`, `app/asana-practice.tsx`.
+- **Изменение `FeatureKey` или `TIER_FEATURES`** — ломает все вызовы `canUseFeature` и тексты `UpgradeDialog` (`upgrade.feature.*` в каталоге); нужна проходка по `app/(tabs)/*`, `modules/practices/*`, `app/asana-practice.tsx`.
 - **Ключ `stats` стал шире по смыслу** — теперь он гейтит и server-backed reports профиля, так что ошибки в `TIER_FEATURES` затронут не только локальную статистику практик, но и life matrix / range trend.
 - **Смена `ProductTier` или порядка в `TIER_ORDER`** — влияет на `accessModeForTier` и на сравнения `tierAtLeast` у будущих потребителей.
 - **Кэш дня** (`services/dayContentCache.ts`) ключует по `accessTier`; смена правил tier без инвалидации может показывать старый персональный/global контент до принудительного refresh.

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.2
-updated: 2026-06-14
+version: 1.3
+updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs:
   [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts, modules/chakra/i18n/chakraTypedSource.json]
@@ -50,6 +50,6 @@ code_refs:
 
 ## 5. Известные ограничения
 
-- Серверные утилиты `topPetals.ts` / `globalTransitMath.ts` по-прежнему используют `chakraLabelRu` (RU-only layer B math labels); de–nl math markdown — EN fallback в `mathLevelI18n.ts`.
+- Серверные утилиты `topPetals.ts` / `globalTransitMath.ts` по-прежнему используют `chakraLabelRu` (RU-only layer B math labels); math markdown для de–nl — нативные строки в `mathLevelI18nTargets.ts` (`getMathLevelStrings`).
 - Edge `dailyForecast.ts` и server `planetChakraLegend.ts` **не** импортируют `i18n.ts` — там inline-строки или JSON `chakra_name_ru`.
 - Расширение на 8+ чакр потребует правки inline maps в `i18n.ts` / `RU_CHAKRA_FORMS` и всех потребителей, завязанных на диапазон 1–7.

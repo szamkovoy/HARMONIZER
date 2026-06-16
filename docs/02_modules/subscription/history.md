@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.3
-updated: 2026-06-07
+version: 1.4
+updated: 2026-06-16
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-16:** `UpgradeDialog` переведён на JSON-каталог i18n (`tier.*`, `upgrade.*` через `useTranslate()`); убраны хардкод RU и `TIER_LABELS` в UI модалки.
 
 - **2026-06-07:** Добавлен feature gate `day_planning`: вкладка «День» видна на тарифах `practitioner` и `master`, скрыта для `free`/`oracle`. Это не меняет текущий SQL constraint `users.membership_tier` (`free`/`premium`) и работает через существующий effective access/dev override.
 - **2026-05-16:** Feature gate `stats` стал единым входом не только для старой клиентской статистики практик, но и для новых HARMONIZER v2 reports на профиле (`life matrix`, `range trend`, `practice-by-chakra`). Изменений в матрице тарифов не потребовалось: доступ остался на текущем effective tier без расширения SQL-схемы `membership_tier`.
