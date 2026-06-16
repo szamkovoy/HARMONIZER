@@ -425,8 +425,8 @@ function chooseYogaByBucket(catalog: PracticeCatalog, bucket: "20-30" | "31-40" 
 export default function DayTabRoute() {
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
-  const dayStrings = useMemo(() => getDayStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
-  const reportLocale = appLocale === "en" ? "en" : "ru";
+  const dayStrings = useMemo(() => getDayStrings(appLocale), [appLocale]);
+  const reportLocale = appLocale;
   const scrollRef = useRef<ScrollView>(null);
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [loading, setLoading] = useState(false);

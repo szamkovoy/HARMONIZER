@@ -1,4 +1,5 @@
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
 import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 
 export type ProfileLocale = AppContentLocale;
@@ -93,6 +94,6 @@ export function getPeriodPresets(locale: ProfileLocale = "ru") {
 }
 
 export function getProfileReportStrings(locale: ProfileLocale = "ru"): ProfileReportStrings {
-  const base = locale === "en" ? en : ru;
+  const base = inlineBaseLocale(locale) === "en" ? en : ru;
   return mergeTypedLocale("profile", base, locale);
 }

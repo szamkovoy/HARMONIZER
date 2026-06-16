@@ -1,4 +1,5 @@
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
 import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 import type { AspectType, DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { chakraLabelGenitive, type ChakraLocale } from "@/modules/chakra/i18n";
@@ -470,10 +471,13 @@ const en: HomeStrings = {
 };
 
 export function getHomeStrings(locale: HomeLocale): HomeStrings {
-  const inline: "ru" | "en" = locale === "ru" ? "ru" : "en";
-  const base = inline === "en" ? en : ru;
-  const merged = mergeTypedLocale("home", base, locale);
-  return { ...merged, locale: inline };
+  const base = inlineBaseLocale(locale) === "en" ? en : ru;
+  const merged = mergeTypedLocale("home", base, locale) as HomeStrings;
+  return {
+    ...merged,
+    locale,
+    formatTime: (value) => formatTime(value, inlineBaseLocale(locale)),
+  };
 }
 
 export function resolveLocationErrorMessage(

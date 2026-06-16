@@ -62,7 +62,7 @@ export default function BreathCoherenceRoute() {
     <>
       <StatusBar style="light" />
       <CoherenceBreathScreen
-        locale={appLocale === "en" ? "en" : "ru"}
+        locale={appLocale}
         practiceId={practiceId}
         durationMs={durationMs}
         chakra={chakra}

@@ -71,7 +71,7 @@ export const PracticeCard = memo(function PracticeCard({
 }) {
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
-  const strings = useMemo(() => getPracticeCatalogStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
+  const strings = useMemo(() => getPracticeCatalogStrings(appLocale), [appLocale]);
   const minSuffix = strings.locale === "en" ? "min" : "мин";
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;

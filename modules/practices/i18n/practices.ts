@@ -2,6 +2,7 @@ import type { BreathPracticeId } from "@/modules/breath";
 import type { PracticeKind } from "@/modules/practices/core/types";
 
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
 import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 
 export type PracticeLocale = AppContentLocale;
@@ -183,7 +184,7 @@ const en: PracticeCatalogStrings = {
 };
 
 export function getPracticeCatalogStrings(locale: PracticeLocale = "ru"): PracticeCatalogStrings {
-  const base = locale === "en" ? en : ru;
+  const base = inlineBaseLocale(locale) === "en" ? en : ru;
   return mergeTypedLocale("practices", base, locale);
 }
 

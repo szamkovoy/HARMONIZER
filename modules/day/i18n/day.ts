@@ -1,4 +1,5 @@
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { inlineBaseLocale, intlLocaleTag } from "@/modules/i18n/localeCodes";
 import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 
 export type DayLocale = AppContentLocale;
@@ -159,8 +160,25 @@ const en: DayStrings = {
 };
 
 export function getDayStrings(locale: DayLocale = "ru"): DayStrings {
-  const base = locale === "en" ? en : ru;
-  return mergeTypedLocale("day", base, locale);
+  const base = inlineBaseLocale(locale) === "en" ? en : ru;
+  const merged = mergeTypedLocale("day", base, locale) as DayStrings;
+  const intlTag = intlLocaleTag(locale);
+  return {
+    ...merged,
+    locale,
+    formatDateHeader: (localDate, kind) => {
+      const formatted = new Intl.DateTimeFormat(intlTag, { day: "numeric", month: "long" }).format(
+        parseLocalDate(localDate),
+      );
+      if (kind === "yesterday") return `${merged.yesterdayPrefix}, ${formatted}`;
+      return formatted;
+    },
+    formatTime: (value) => {
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return "";
+      return new Intl.DateTimeFormat(intlTag, { hour: "2-digit", minute: "2-digit" }).format(date);
+    },
+  };
 }
 
 export function mapDateLabelKind(kind: string): "today" | "yesterday" | "other" {

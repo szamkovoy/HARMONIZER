@@ -69,8 +69,8 @@ function totalCount(catalog: PracticeCatalog): number {
 export function PracticeCatalogScreen() {
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
-  const strings = useMemo(() => getPracticeCatalogStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
-  const catalogLocale = appLocale === "en" ? "en" : "ru";
+  const strings = useMemo(() => getPracticeCatalogStrings(appLocale), [appLocale]);
+  const catalogLocale = appLocale;
   const CHAKRA_FILTERS = useMemo(() => chakraFilters(strings), [strings]);
   const DURATION_FILTERS = useMemo(() => durationFilters(strings), [strings]);
   const { canUseFeature } = useAccess();

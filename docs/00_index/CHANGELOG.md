@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-16: i18n — **locale plumbing fix:** load all 8 JSON catalogs in `t.ts`; pass full `appLocale` to typed string getters (was `en ? en : ru`); fix nested chakra overlay flatten; life-sphere titles for 8 locales; `UpgradeDialog` catalog strings + new assistant body; `mathLevelI18n` for de/fr/it/es/pt/nl.
 - 2026-06-15: doc-sync pre-push — layer C dialog scaffold (8 locales): `i18n/spec.md` §3/§6/§8, `assistant/spec.md` §2/§3/§4, `dependencies.md` обоих модулей, `history.md`, `open_questions.md`, `i18n_architecture.md` — выровнены с `dialogScaffold/`, `contentLocales.ts`, `i18n-sync.mjs`.
 - 2026-06-15: i18n — **Layer C RU-first sync:** dialog scaffold joins `i18n-sync.mjs` + pre-push hook (`dialog_scaffold/ru.json` → auto-fill 7 targets).
 - 2026-06-15: i18n — **Phase 3 layer C:** dialog deterministic scaffold localized for all 8 locales (`dialog_scaffold` catalogs).

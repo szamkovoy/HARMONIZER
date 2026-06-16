@@ -53,6 +53,19 @@ export function mergeTypedLocale<T extends object>(
 }
 
 /** Flat dotted-key overlay (e.g. chakra short.1) → maps by group */
+function flattenOverlayStrings(obj: Record<string, unknown>, prefix = ""): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(out, flattenOverlayStrings(value as Record<string, unknown>, path));
+    } else if (typeof value === "string") {
+      out[path] = value;
+    }
+  }
+  return out;
+}
+
 export function applyFlatChakraOverlay(
   locale: string | undefined | null,
 ): {
@@ -71,8 +84,7 @@ export function applyFlatChakraOverlay(
   const gen: Record<number, string> = {};
   const display: Record<number, string> = {};
 
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value !== "string") continue;
+  for (const [key, value] of Object.entries(flattenOverlayStrings(raw))) {
     const [group, num] = key.split(".");
     const n = Number.parseInt(num ?? "", 10);
     if (!Number.isFinite(n)) continue;

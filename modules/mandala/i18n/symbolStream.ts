@@ -67,6 +67,6 @@ const en: SymbolStreamStrings = {
 };
 
 export function getSymbolStreamStrings(locale: SymbolStreamLocale = "ru"): SymbolStreamStrings {
-  const base = locale === "en" ? en : ru;
+  const base = locale === "ru" ? ru : en;
   return mergeTypedLocale("mandala", base, locale);
 }

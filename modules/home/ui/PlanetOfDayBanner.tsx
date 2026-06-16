@@ -16,7 +16,7 @@ export function PlanetOfDayBanner({ forecast, strings }: PlanetOfDayBannerProps)
   const theme = useTheme();
   const planet = forecast.planetOfTheDay;
   const meta = useMemo(
-    () => getPlanetChakraMap(strings.locale === "en" ? "en" : "ru")[planet],
+    () => getPlanetChakraMap(strings.locale)[planet],
     [planet, strings.locale],
   );
   const planetLabel = strings.planetLabels[planet];

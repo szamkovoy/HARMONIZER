@@ -36,3 +36,23 @@ export function asContentLocale(value: string | null | undefined): AppContentLoc
 export function languageNameFor(locale: string | null | undefined): string {
   return LANGUAGE_NAMES[asContentLocale(locale) ?? SOURCE_LOCALE];
 }
+
+/** RU/EN inline tables in typed modules; other locales merge EN + overlay. */
+export function inlineBaseLocale(locale: AppContentLocale): "ru" | "en" {
+  return locale === SOURCE_LOCALE ? "ru" : "en";
+}
+
+/** BCP 47 tag for Intl formatters. */
+export function intlLocaleTag(locale: AppContentLocale): string {
+  const tags: Record<AppContentLocale, string> = {
+    ru: "ru-RU",
+    en: "en-US",
+    de: "de-DE",
+    fr: "fr-FR",
+    it: "it-IT",
+    es: "es-ES",
+    pt: "pt-PT",
+    nl: "nl-NL",
+  };
+  return tags[locale] ?? "en-US";
+}

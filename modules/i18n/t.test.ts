@@ -9,8 +9,8 @@ describe("t", () => {
   });
 
   it("falls back to English, then Russian, then the key itself", () => {
-    // de has no catalog yet → falls back to en.
-    expect(t("de", "tabs.day")).toBe("Day");
+    expect(t("de", "tabs.day")).toBe("Tag");
+    expect(t("it", "tabs.profile")).toBe("Profilo");
     // unknown key → returns the key unchanged.
     expect(t("ru", "does.not.exist")).toBe("does.not.exist");
   });

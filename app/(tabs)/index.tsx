@@ -6,6 +6,7 @@ import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
 import { getHomeStrings, resolveLocationErrorMessage, type HomeStrings } from "@/modules/home/i18n/home";
 import { useAppLocale } from "@/modules/i18n";
+import { intlLocaleTag } from "@/modules/i18n/localeCodes";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useDayContent } from "@/modules/home/useDayContent";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
@@ -77,7 +78,7 @@ function HomeHeader({
   forecast: DailyForecast | null;
   strings: HomeStrings;
 }) {
-  const today = new Intl.DateTimeFormat(strings.locale === "ru" ? "ru" : "en", {
+  const today = new Intl.DateTimeFormat(intlLocaleTag(strings.locale), {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -492,10 +493,7 @@ export default function HomeScreen() {
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const { locale: appLocale } = useAppLocale();
-  const strings = useMemo(
-    () => getHomeStrings(appLocale === "en" ? "en" : "ru"),
-    [appLocale],
-  );
+  const strings = useMemo(() => getHomeStrings(appLocale), [appLocale]);
   const [communicatorOpen, setCommunicatorOpen] = useState(false);
   const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);
   const [homeDayPractices, setHomeDayPractices] = useState<DayPlan["sections"][number]["practices"]>([]);

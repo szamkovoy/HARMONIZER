@@ -43,7 +43,7 @@ function hexToRgba(hex: string, opacity: number): string {
 
 export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
   const theme = useTheme();
-  const chakraLocale: ChakraLocale = strings.locale === "en" ? "en" : "ru";
+  const chakraLocale: ChakraLocale = strings.locale;
   const planetChakra = useMemo(() => getPlanetChakraMap(chakraLocale), [chakraLocale]);
   const center = 124;
   const startAngle = 360 / PLANET_ORDER.length;

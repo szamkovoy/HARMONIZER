@@ -1,53 +1,104 @@
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { asContentLocale, SOURCE_LOCALE } from "@/modules/i18n/localeCodes";
 
 export type LifeSphereLocale = AppContentLocale;
 
 type SphereRow = { id: number; title: string };
 
 /** Canonical life-sphere titles — keep in sync with `_legacy_web/data/life_spheres_baseline/`. */
-const RU_SPHERES: readonly SphereRow[] = [
-  { id: 1, title: "Тело и безопасность" },
-  { id: 2, title: "Удовольствия и отдых" },
-  { id: 3, title: "Проявленность и деньги" },
-  { id: 4, title: "Друзья, семья, отношения" },
-  { id: 5, title: "Ценности и самовыражение" },
-  { id: 6, title: "Познание и обучение" },
-  { id: 7, title: "Высшие смыслы, вера" },
-];
+const SPHERE_TITLES: Record<AppContentLocale, Record<number, string>> = {
+  ru: {
+    1: "Тело и безопасность",
+    2: "Удовольствия и отдых",
+    3: "Проявленность и деньги",
+    4: "Друзья, семья, отношения",
+    5: "Ценности и самовыражение",
+    6: "Познание и обучение",
+    7: "Высшие смыслы, вера",
+  },
+  en: {
+    1: "Body and safety",
+    2: "Pleasure and rest",
+    3: "Visibility and money",
+    4: "Friends, family, relationships",
+    5: "Values and self-expression",
+    6: "Knowledge and learning",
+    7: "Higher meaning, faith",
+  },
+  de: {
+    1: "Körper und Sicherheit",
+    2: "Genuss und Erholung",
+    3: "Sichtbarkeit und Geld",
+    4: "Freunde, Familie, Beziehungen",
+    5: "Werte und Selbstausdruck",
+    6: "Wissen und Lernen",
+    7: "Höhere Bedeutung, Glaube",
+  },
+  fr: {
+    1: "Corps et sécurité",
+    2: "Plaisir et repos",
+    3: "Visibilité et argent",
+    4: "Amis, famille, relations",
+    5: "Valeurs et expression de soi",
+    6: "Connaissance et apprentissage",
+    7: "Sens supérieur, foi",
+  },
+  it: {
+    1: "Corpo e sicurezza",
+    2: "Piacere e riposo",
+    3: "Visibilità e denaro",
+    4: "Amici, famiglia, relazioni",
+    5: "Valori ed espressione di sé",
+    6: "Conoscenza e apprendimento",
+    7: "Significati superiori, fede",
+  },
+  es: {
+    1: "Cuerpo y seguridad",
+    2: "Placer y descanso",
+    3: "Visibilidad y dinero",
+    4: "Amigos, familia, relaciones",
+    5: "Valores y autoexpresión",
+    6: "Conocimiento y aprendizaje",
+    7: "Significado superior, fe",
+  },
+  pt: {
+    1: "Corpo e segurança",
+    2: "Prazer e descanso",
+    3: "Visibilidade e dinheiro",
+    4: "Amigos, família, relações",
+    5: "Valores e autoexpressão",
+    6: "Conhecimento e aprendizagem",
+    7: "Significados superiores, fé",
+  },
+  nl: {
+    1: "Lichaam en veiligheid",
+    2: "Genot en rust",
+    3: "Zichtbaarheid en geld",
+    4: "Vrienden, familie, relaties",
+    5: "Waarden en zelfexpressie",
+    6: "Kennis en leren",
+    7: "Hogere betekenis, geloof",
+  },
+};
 
-const EN_SPHERES: readonly SphereRow[] = [
-  { id: 1, title: "Body and safety" },
-  { id: 2, title: "Pleasure and rest" },
-  { id: 3, title: "Visibility and money" },
-  { id: 4, title: "Friends, family, relationships" },
-  { id: 5, title: "Values and self-expression" },
-  { id: 6, title: "Knowledge and learning" },
-  { id: 7, title: "Higher meaning, faith" },
-];
-
-const RU_BY_ID = Object.fromEntries(RU_SPHERES.map((row) => [row.id, row.title]));
-const EN_BY_ID = Object.fromEntries(EN_SPHERES.map((row) => [row.id, row.title]));
-const RU_TITLE_TO_ID = Object.fromEntries(RU_SPHERES.map((row) => [row.title.toLowerCase(), row.id]));
+const RU_BY_ID = SPHERE_TITLES.ru;
+const RU_TITLE_TO_ID = Object.fromEntries(
+  Object.entries(RU_BY_ID).map(([id, title]) => [title.toLowerCase(), Number(id)]),
+);
 
 export function coerceLifeSphereLocale(locale: string | undefined | null): LifeSphereLocale {
-  const normalized = (locale ?? "").trim().toLowerCase();
-  if (normalized.startsWith("en")) return "en";
-  if (normalized.startsWith("de")) return "de";
-  if (normalized.startsWith("fr")) return "fr";
-  if (normalized.startsWith("it")) return "it";
-  if (normalized.startsWith("es")) return "es";
-  if (normalized.startsWith("pt")) return "pt";
-  if (normalized.startsWith("nl")) return "nl";
-  return "ru";
+  return asContentLocale(locale) ?? SOURCE_LOCALE;
 }
 
 export function getLifeSphereTitle(id: number, locale: LifeSphereLocale): string {
-  const map = locale === "ru" ? RU_BY_ID : EN_BY_ID;
-  return map[id] ?? RU_BY_ID[id] ?? String(id);
+  return SPHERE_TITLES[locale]?.[id] ?? SPHERE_TITLES.en[id] ?? RU_BY_ID[id] ?? String(id);
 }
 
 export function getLifeSphereTitles(locale: LifeSphereLocale): readonly SphereRow[] {
-  return locale === "ru" ? RU_SPHERES : EN_SPHERES;
+  const map = SPHERE_TITLES[locale] ?? SPHERE_TITLES.en;
+  return Object.entries(map)
+    .map(([id, title]) => ({ id: Number(id), title }))
+    .sort((a, b) => a.id - b.id);
 }
 
 /** Map API-provided RU title or numeric id to the active locale. */
@@ -56,7 +107,7 @@ export function localizeLifeSphereLabel(
   fallbackTitle: string | undefined,
   locale: LifeSphereLocale,
 ): string {
-  if (id && (RU_BY_ID[id] || EN_BY_ID[id])) return getLifeSphereTitle(id, locale);
+  if (id && (RU_BY_ID[id] || SPHERE_TITLES.en[id])) return getLifeSphereTitle(id, locale);
   const normalized = (fallbackTitle ?? "").trim().toLowerCase();
   const mappedId = RU_TITLE_TO_ID[normalized];
   if (mappedId) return getLifeSphereTitle(mappedId, locale);

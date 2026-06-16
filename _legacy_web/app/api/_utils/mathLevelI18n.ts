@@ -123,7 +123,23 @@ const en: MathLevelStrings = {
   globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, orb=${orb}°`,
 };
 
+import {
+  mathLevelDe,
+  mathLevelEs,
+  mathLevelFr,
+  mathLevelIt,
+  mathLevelNl,
+  mathLevelPt,
+} from "./mathLevelI18nTargets";
+
 export function getMathLevelStrings(locale: AppContentLocale = "ru"): MathLevelStrings {
   if (locale === "ru") return ru;
+  if (locale === "en") return en;
+  if (locale === "it") return mathLevelIt;
+  if (locale === "de") return mathLevelDe;
+  if (locale === "fr") return mathLevelFr;
+  if (locale === "es") return mathLevelEs;
+  if (locale === "pt") return mathLevelPt;
+  if (locale === "nl") return mathLevelNl;
   return en;
 }

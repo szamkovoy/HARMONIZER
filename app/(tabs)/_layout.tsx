@@ -7,13 +7,14 @@ import { useTheme } from "@/modules/ui/theme";
 
 export default function TabLayout() {
   const theme = useTheme();
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const { canUseFeature } = useAccess();
   const canOpenPractices = canUseFeature("practice_catalog");
   const canOpenDay = canUseFeature("day_planning");
 
   return (
     <Tabs
+      key={locale}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.accent,

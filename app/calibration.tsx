@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
+import { useAppLocale } from "@/modules/i18n";
 import { useAuth } from "@/modules/auth";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { extractCalibration, transcribeCommunicatorAudio } from "@/services/communicator-client";
@@ -39,7 +40,7 @@ function phaseLabel(phase: CalibrationPhase): string {
 export default function CalibrationScreen() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
-  const locale = profile?.locale === "en" ? "en" : "ru";
+  const { locale } = useAppLocale();
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const recordingRef = useRef<Audio.Recording | null>(null);

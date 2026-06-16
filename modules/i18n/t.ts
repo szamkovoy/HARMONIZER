@@ -1,17 +1,28 @@
 import type { AppLocale } from "@/modules/i18n/localeStore";
+import deCatalog from "@/modules/i18n/catalog/de.json";
 import enCatalog from "@/modules/i18n/catalog/en.json";
+import esCatalog from "@/modules/i18n/catalog/es.json";
+import frCatalog from "@/modules/i18n/catalog/fr.json";
+import itCatalog from "@/modules/i18n/catalog/it.json";
+import nlCatalog from "@/modules/i18n/catalog/nl.json";
+import ptCatalog from "@/modules/i18n/catalog/pt.json";
 import ruCatalog from "@/modules/i18n/catalog/ru.json";
 
 type Catalog = Record<string, string>;
 
 /**
- * Catalog source of truth is Russian. English is maintained alongside it.
- * Other locales are added by the sync gate (scripts/i18n-sync.mjs) — until a
- * locale file exists, lookups fall back: requested → en → ru → key.
+ * Catalog source of truth is Russian. Targets are filled by the sync gate
+ * (scripts/i18n-sync.mjs). Lookups fall back: requested → en → ru → key.
  */
 const CATALOGS: Partial<Record<AppLocale, Catalog>> = {
   ru: ruCatalog as Catalog,
   en: enCatalog as Catalog,
+  de: deCatalog as Catalog,
+  fr: frCatalog as Catalog,
+  it: itCatalog as Catalog,
+  es: esCatalog as Catalog,
+  pt: ptCatalog as Catalog,
+  nl: nlCatalog as Catalog,
 };
 
 function interpolate(template: string, params?: Record<string, string | number>): string {

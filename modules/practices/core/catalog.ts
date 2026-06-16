@@ -281,7 +281,7 @@ export async function loadPracticeCatalog(
   deps?: LoadPracticeCatalogDeps,
 ): Promise<PracticeCatalog> {
   const startedAt = Date.now();
-  const locale: PracticeLocale = options?.locale === "en" ? "en" : "ru";
+  const locale: PracticeLocale = options?.locale ?? "ru";
   logRuntimeEvent("practice_catalog:load_start", undefined, "debug");
   const meditation = sortPracticesForCatalog(createStaticMeditations(locale));
   const breath = sortPracticesForCatalog(createBreathPractices(locale));

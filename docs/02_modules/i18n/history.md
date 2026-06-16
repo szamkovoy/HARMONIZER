@@ -15,6 +15,13 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-16:** **Locale plumbing fix (8-language UI).** Root cause of mixed RU/EN/IT:
+  `getHomeStrings(appLocale === "en" ? "en" : "ru")` and siblings forced Russian for
+  de/fr/it/es/pt/nl; `t.ts` only loaded ru/en catalogs (tabs fell back to English).
+  Fixed: pass full `appLocale`, `inlineBaseLocale()` for typed bases, all 8 catalog
+  imports, nested chakra overlay flatten, life-sphere titles map, localized
+  `UpgradeDialog`, `mathLevelI18nTargets` for server math markdown.
+
 - **2026-06-15 (3):** **Layer C RU-first sync gate.** Dialog scaffold
   (`_legacy_web/data/dialog_scaffold/ru.json`) joins `i18n-sync.mjs` / pre-push
   hook: edit RU → stale keys auto-translate to en + de/fr/it/es/pt/nl.

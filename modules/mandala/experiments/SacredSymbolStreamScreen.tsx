@@ -76,7 +76,7 @@ export function SacredSymbolStreamScreen({
 }) {
   const { authUser } = useAuth();
   const { locale: appLocale } = useAppLocale();
-  const strings = useMemo(() => getSymbolStreamStrings(appLocale === "en" ? "en" : "ru"), [appLocale]);
+  const strings = useMemo(() => getSymbolStreamStrings(appLocale), [appLocale]);
   const sessionStartedAtRef = useRef(Date.now());
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [completionSaved, setCompletionSaved] = useState(false);
