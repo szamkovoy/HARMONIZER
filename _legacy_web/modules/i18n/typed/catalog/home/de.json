@@ -1,0 +1,123 @@
+{
+  "appTitle": "Harmonizer",
+  "assistantTitle": "Assistent",
+  "astroChartModal": {
+    "titleTransit": "Natal- + Transitkarte",
+    "titleNatal": "Natal-Karte",
+    "subtitle": "Innerer Ring — Geburtsplaneten, äußerer Ring — Tages-Transite.",
+    "housesHiddenHint": "Häuser nicht sichtbar: Genaue Häuserspitzen nur mit genauer Geburtszeit verfügbar.",
+    "mainAspectsTitle": "Hauptaspekte des Tages",
+    "planetStrengthsTitle": "Planetenstärken",
+    "toNatalConnector": "zum Natalen",
+    "orbPrefix": ", Orbis "
+  },
+  "birthDataMessage": "Um eine persönliche Tagesprognose zu erstellen, geben Sie Geburtsdatum, -zeit und -ort ein.",
+  "birthDataTitle": "Geburtsdatum erforderlich",
+  "chakraFlower": {
+    "title": "Blume des Tages",
+    "caption": "Die Größe der Blütenblätter zeigt die Bedeutung der Chakren für heute."
+  },
+  "closeAssistantAccessibilityLabel": "Assistenten schließen",
+  "closeButton": "Schließen",
+  "defaultSystemPrompt": "Du bist ein empathischer Mentor der Harmonizer-App. Antworte kurz und auf den Punkt.",
+  "devLinks": {
+    "biofeedback": "Biofeedback",
+    "mandala": "Mandala",
+    "bindu": "Bindu",
+    "symbols": "Symbole",
+    "breath": "Atem",
+    "calibration": "Kalibrierung"
+  },
+  "devResetDayContent": "Aktualisieren",
+  "emptyTimeLabel": "—",
+  "eventBells": {
+    "title": "Glocken",
+    "empty": "Heute gibt es keine bevorstehenden Astro-Ereignisse mit genauer Zeit.",
+    "aspectTitle": "Aspekt"
+  },
+  "forecastErrorTitle": "Prognose konnte nicht geladen werden",
+  "freeTierBanner": "Unten sehen Sie eine allgemeine Vorhersage für diesen Tag. Natürlich sind individuelle Vorhersagen, die auf Ihrem Geburtsdatum basieren, viel genauer. Wechseln Sie zum kostenpflichtigen Tarif, um sie zu erhalten.",
+  "headerHint": "Die wichtigste Tageseinstellung: Chakren, Fenster der Möglichkeiten und praktische Empfehlung.",
+  "locale": "de",
+  "locationErrorMessage": "Um die Möglichkeitenfenster zu berechnen, benötigen wir Ihren Standort. Bitte erlauben Sie den Zugriff auf die Geoposition und versuchen Sie es erneut.",
+  "locationErrorPermissionMessage": "Der Zugriff auf die Geoposition ist deaktiviert. Bitte öffnen Sie die App-Einstellungen, erlauben Sie die Ortung und kehren Sie hierher zurück.",
+  "locationErrorTimeoutMessage": "Der Standort konnte nicht schnell ermittelt werden. Bitte überprüfen Sie GPS oder WLAN und versuchen Sie es erneut.",
+  "locationErrorTitle": "Standort erforderlich",
+  "longExplanationModal": {
+    "title": "Details",
+    "subtitle": "Ausführliche Erklärung der Tagesempfehlung.",
+    "closeButton": "Schließen",
+    "mathButton": "Berechnungen und Formeln",
+    "mathButtonA11y": "Berechnungen und Formeln der Tagesempfehlung öffnen",
+    "mathCaption": "Exakte Mathematik der Planetenstärke und -harmonie, Aspektgewichte und Wahl des Tagesthemas."
+  },
+  "mathModal": {
+    "title": "Tagesmathematik",
+    "subtitle": "Formeln für Stärke, Harmonie, Transite und Auswahl des Tagesplaneten.",
+    "closeButton": "Zurück",
+    "emptyHint": "Mathematik-Block noch nicht mit Prognose vorhanden. Bitte Tagesprognose nach dem Deployment des Backend-Patches aktualisieren.",
+    "showChartButton": "Geburts- und Transitkarte anzeigen",
+    "chartUnavailableHint": "Die Karte ist nur für Test-/Premium-Nutzer mit Geburtsprofil verfügbar."
+  },
+  "openSettingsButton": "Einstellungen öffnen",
+  "opportunityWindows": {
+    "title": "Fenster der Möglichkeiten",
+    "emptyDetail": "Heute ohne genaues Zeitfenster",
+    "windowTitles": {
+      "sunrise": "Sonnenaufgang",
+      "culmination": "Kulmination",
+      "exactAspect": "Exakter Aspekt"
+    },
+    "aspectLabels": {
+      "conjunction": "Konjunktion",
+      "opposition": "Opposition",
+      "square": "Quadrat",
+      "trine": "Trigon",
+      "sextile": "Sextil"
+    },
+    "reminderModalTitle": "Benachrichtigen",
+    "reminderTextLabel": "Benachrichtigungstext",
+    "reminderModeExact": "genau zu dieser Zeit",
+    "reminderModeBefore5": "5 Minuten vorher",
+    "reminderSave": "Speichern",
+    "reminderCancel": "Abbrechen",
+    "reminderBodyFiveMinPrefix": "5 Minuten vorher",
+    "reminderPastTitle": "Zeitpunkt bereits vorbei",
+    "reminderPastMessage": "Für ein vergangenes Fenster kann keine Benachrichtigung gesetzt werden.",
+    "reminderNotificationsUnavailableTitle": "Benachrichtigungen derzeit nicht verfügbar",
+    "reminderNeedPermissionTitle": "Benachrichtigungen erforderlich",
+    "reminderNeedPermissionMessage": "Erlaube Benachrichtigungen, damit Harmonizer an das Fenster der Möglichkeiten erinnern kann.",
+    "helpButtonAccessibilityLabel": "Erklärung zum Diagramm des Fensters der Möglichkeiten",
+    "helpModalTitle": "Wie man dieses Fenster liest",
+    "helpLoading": "Erläuterung wird geladen...",
+    "reminderNotificationsUnavailableMessage": "Die aktuelle App-Version läuft ohne das native Benachrichtigungsmodul. Nach einem neuen Dev-/Release-Build können die Glöckchen Systembenachrichtigungen einstellen."
+  },
+  "planetBanner": {
+    "eyebrow": "Planet des Tages"
+  },
+  "recommendation": {
+    "title": "Tagesempfehlungen",
+    "loading": "Aktualisiere die Empfehlung in der gewählten Sprache…",
+    "discussButton": "Was tun?",
+    "readMoreButton": "Mehr erfahren"
+  },
+  "refreshAccessibilityLabel": "Tagesprognose aktualisieren",
+  "refreshButton": "Aktualisieren",
+  "refreshingLabel": "...",
+  "retryButton": "Wiederholen",
+  "signOutButton": "Abmelden",
+  "signingOutButton": "Abmelden…",
+  "skeletonText": "Erstelle Tagesprognose und Fenster der Möglichkeiten...",
+  "staleContentMessage": "Aktuelle Daten konnten nicht geladen werden, daher wird die letzte gespeicherte Version für heute angezeigt.",
+  "staleContentTitle": "Zeige gespeicherte Prognose",
+  "toneLabels": {
+    "harmonic": "harmonisch",
+    "neutral": "neutral",
+    "dissonant": "dissonant"
+  },
+  "toneRecommendationVerb": {
+    "harmonic": "sanft verstärken",
+    "neutral": "ruhig einstimmen",
+    "dissonant": "behutsam stabilisieren"
+  }
+}

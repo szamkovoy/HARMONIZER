@@ -6,6 +6,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 const legacyWebRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Vendored `modules/*` live under `_legacy_web/modules` for Vercel Root Directory builds.
+  experimental: { externalDir: true },
   outputFileTracingRoot: legacyWebRoot,
 };
 

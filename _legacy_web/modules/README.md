@@ -1,7 +1,9 @@
 Shared server modules vendored for Vercel deploys from `_legacy_web`.
 
-Vercel CLI uploads the current project directory when running `npx vercel --prod`
-inside `_legacy_web`, so imports that point at `../modules` are not available on
-the build machine. Keep these files in sync with the root `modules/astro-core`,
-`modules/daily-engine`, and `modules/chakra` runtime sources when changing
-astro forecast or chakra label logic.
+Vercel Root Directory is `_legacy_web`, so repo-root `../modules` is not on the build
+machine. Keep these files in sync with the matching root `modules/*` sources when
+changing server i18n or astro/chakra logic.
+
+Vendored trees:
+- `astro-core`, `daily-engine`, `chakra` — astro forecast + chakra labels
+- `i18n`, `breath`, `day`, `life-spheres`, `practices` — `/api/day` and practice selection i18n

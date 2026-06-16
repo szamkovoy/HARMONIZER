@@ -1,0 +1,15 @@
+{
+  "authRequiredMessage": "Votre session a expiré. Fermez et rouvrez l'application ou reconnectez-vous.",
+  "authRequiredTitle": "Vous devez vous reconnecter",
+  "dismissButton": "Fermer",
+  "genericMessage": "Impossible de traiter la demande. Veuillez réessayer un peu plus tard.",
+  "genericTitle": "Quelque chose s'est mal passé",
+  "locale": "fr",
+  "networkMessage": "Vérifiez votre connexion Internet ou Wi‑Fi et réessayez.",
+  "networkTitle": "Impossible de se connecter au serveur",
+  "retryButton": "Réessayer",
+  "serviceBusyMessage": "Veuillez patienter un instant et réessayer.",
+  "serviceBusyTitle": "Service temporairement indisponible",
+  "timeoutMessage": "Le serveur n'a pas répondu à temps. Réessayez ou envoyez une requête plus courte.",
+  "timeoutTitle": "La réponse prend trop de temps"
+}

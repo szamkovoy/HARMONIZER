@@ -21,9 +21,11 @@ out
 /components
 /constants
 /docs
-# Keep `modules/practices/**` available to `_legacy_web` API routes (shared core).
-# Ignore other RN-only module trees to keep CLI uploads lean.
-/modules/breath
+# Server (`_legacy_web` API) imports from repo-root `modules/` — keep i18n slices needed at build time.
+# Ignore RN-only module trees to keep CLI uploads lean.
+/modules/breath/core
+/modules/breath/ui
+/modules/breath/debug
 /modules/communicator
 /modules/mandala
 /modules/ui

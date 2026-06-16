@@ -1,0 +1,19 @@
+{
+  "continueButton": "Continua",
+  "description": "Una breve meditazione visiva per spostare dolcemente l'attenzione e armonizzarsi.",
+  "finishA11y": "Completa la pratica",
+  "finishButton": "Termina",
+  "locale": "it",
+  "moodBetter": "Meglio",
+  "moodSame": "Uguale",
+  "moodWorse": "Peggio",
+  "newLineButton": "Nuova linea",
+  "nextMandalaButton": "Prossimo mandala",
+  "pauseButton": "Pausa",
+  "ratingMessage": "Questa valutazione aiuterà a scegliere meglio le pratiche future.",
+  "ratingTitle": "Come ti senti?",
+  "resumeButton": "Riprendi",
+  "stopConfirmMessage": "Puoi fermarti ora e notare come ti senti dopo la pratica.",
+  "stopConfirmTitle": "Terminare la pratica?",
+  "title": "Lampo"
+}
