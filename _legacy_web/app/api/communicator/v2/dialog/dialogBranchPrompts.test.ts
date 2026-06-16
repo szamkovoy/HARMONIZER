@@ -83,6 +83,23 @@ describe("extractDayFocusFromVisibleFinalize", () => {
     const text = ["Хорошо. Что-то ещё важное на сегодня?"].join("\n");
     expect(extractDayFocusFromVisibleFinalize(text, 1)).toBe("");
   });
+
+  it("salvages a French day-focus paragraph before the numbered list", () => {
+    const text = [
+      "D'accord, je note tout ça.",
+      "",
+      "Aujourd'hui, le troisième chakra passe au premier plan : c'est une bonne journée pour choisir clairement ce que vous faites et avancer avec plus de décision tranquille, sans vous disperser.",
+      "",
+      "1. Acheter un bateau pneumatique avec moteur",
+      "Recommendation: Prenez le temps de comparer calmement.",
+      "",
+      "2. Lire un livre avant de dormir",
+      "Recommendation: Choisissez un passage qui compte pour vous.",
+    ].join("\n");
+    const result = extractDayFocusFromVisibleFinalize(text, 2);
+    expect(result).toContain("troisième chakra");
+    expect(result).not.toContain("Acheter un bateau");
+  });
 });
 
 describe("injectPlanningDayFocus", () => {
@@ -263,6 +280,36 @@ describe("buildPlanningFinalVisibleText", () => {
     expect(result).not.toContain("три главные");
     expect(result).toContain("Проживите дела дня");
     expect(result).toContain("2. Свидание");
+  });
+
+  it("uses the locale-native recommendation label in French", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "D'accord, je note tout ça.",
+        "",
+        "Aujourd'hui, le troisième chakra passe au premier plan : choisissez clairement ce qui compte et avancez avec plus de décision tranquille.",
+        "",
+        "1. Acheter un bateau pneumatique avec moteur",
+        "Recommendation: Prenez le temps de comparer calmement.",
+      ].join("\n"),
+      dayFocus:
+        "Aujourd'hui, le troisième chakra passe au premier plan : choisissez clairement ce qui compte et avancez avec plus de décision tranquille.",
+      locale: "fr",
+      includePracticeQuestion: false,
+      events: [
+        {
+          desc: "Acheter un bateau pneumatique avec moteur",
+          recommendation: "Prenez le temps de comparer calmement.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+    });
+    expect(result).toContain("Recommandation: Prenez le temps de comparer calmement.");
+    expect(result).not.toContain("Recommendation:");
   });
 
   it("uses a substantial short_text (dayFocus) verbatim as the intro, ignoring the model's free intro", () => {

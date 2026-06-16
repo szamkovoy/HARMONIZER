@@ -1702,9 +1702,10 @@ export async function POST(req: Request) {
           }
 
           let cleanText = forcedVisibleText ?? sanitizedVisibleText;
+          let planningMarkersForVisible: ReturnType<typeof filterPracticeLikePlannedEvents> = [];
           if (branchForTurn === "planning" && planningFinalizedThisTurn) {
             const locale = resolveDialogScaffoldLocale(context.user.locale);
-            const planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
+            planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
               .map((marker) => polishPlanningMarker(marker, locale));
             const persistedDayFocus =
               recommendationCorrected && typeof recommendationCorrected.short_text === "string"
@@ -1731,6 +1732,45 @@ export async function POST(req: Request) {
               cleanText = injectPlanningDayFocus(cleanText, dayFocus);
             } else if (planningMarkersForVisible.length > 0) {
               cleanText = injectPlanningActionsVisibleList(cleanText, planningMarkersForVisible, locale);
+            }
+          }
+          if (
+            branchForTurn === "planning"
+            && planningFinalizedThisTurn
+            && !fsmAtTurnStart.noGreeting
+            && !recommendationCorrected
+          ) {
+            const locale = resolveDialogScaffoldLocale(context.user.locale);
+            const persistedFromVisible = extractDayFocusFromVisibleFinalize(
+              cleanText,
+              planningMarkersForVisible.length,
+            );
+            if (persistedFromVisible) {
+              const shortText = prependChakraAttention(
+                ensureSentencePunctuation(persistedFromVisible),
+                brainCtx.targetChakraNumber,
+                locale,
+              );
+              await persistDayFocus({
+                db: routeDb,
+                userId: routeUserId,
+                forecastId: typeof context.forecast?.id === "string" ? context.forecast.id : null,
+                shortText,
+              });
+              recommendationCorrected = {
+                short_text: shortText,
+                newShortText: shortText,
+              };
+              cleanText = planningMarkersForVisible.length > 0
+                ? buildPlanningFinalVisibleText({
+                    visibleText: cleanText,
+                    events: planningMarkersForVisible,
+                    dayFocus: shortText,
+                    locale,
+                    includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                    targetChakraNumber: brainCtx.targetChakraNumber,
+                  })
+                : injectPlanningDayFocus(cleanText, shortText);
             }
           }
           if (branchForTurn === "practice" && practicePicked) {
