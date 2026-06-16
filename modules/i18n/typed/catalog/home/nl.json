@@ -36,8 +36,12 @@
     "aspectTitle": "Aspect"
   },
   "forecastErrorTitle": "Voorspelling kon niet geladen worden",
+  "freeTierBanner": "Hieronder zie je een universele dagvoorspelling. Persoonlijke voorspellingen op basis van jouw geboortedatum zijn vanzelfsprekend veel preciezer. Stap over op een betaald abonnement om ze te ontvangen.",
   "headerHint": "De belangrijkste instelling van de dag: chakra's, kansenvensters en praktisch advies.",
   "locale": "nl",
+  "locationErrorMessage": "Om je kansenvensters te berekenen, hebben we je locatie nodig. Sta locatietoegang toe en probeer het opnieuw.",
+  "locationErrorPermissionMessage": "De locatietoegang is momenteel uitgeschakeld. Open de instellingen van de app, schakel locatie in en kom hier terug.",
+  "locationErrorTimeoutMessage": "We konden je locatie niet snel bepalen. Controleer je gps of wifi en probeer het nog eens.",
   "locationErrorTitle": "Locatie nodig",
   "longExplanationModal": {
     "title": "Meer details",
@@ -85,7 +89,8 @@
     "reminderNeedPermissionMessage": "Sta meldingen toe zodat Harmonizer je kan herinneren aan het kansenvenster.",
     "helpButtonAccessibilityLabel": "Uitleg bij de grafiek van het kansenvenster",
     "helpModalTitle": "Hoe dit venster te lezen",
-    "helpLoading": "Uitleg wordt verzameld..."
+    "helpLoading": "Uitleg wordt verzameld...",
+    "reminderNotificationsUnavailableMessage": "Deze versie draait zonder de native notificatiemodule. Bij een volgende dev- of release-build kunnen de herinneringsbellen systeemmeldingen sturen."
   },
   "planetBanner": {
     "eyebrow": "Planeet van de dag"

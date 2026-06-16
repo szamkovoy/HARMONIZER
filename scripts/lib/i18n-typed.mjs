@@ -18,7 +18,8 @@ export function extractStringTree(sourceText, startMarker, endMarker) {
   let fnBodyDepth = 0;
 
   const lines = block.split("\n");
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
     const trimmed = line.trim();
     if (trimmed.startsWith("//") || trimmed === "{") continue;
 
@@ -37,11 +38,12 @@ export function extractStringTree(sourceText, startMarker, endMarker) {
       continue;
     }
 
-    const nestedStart = trimmed.match(/^(\w+):\s*\{/);
+    const nestedStart = trimmed.match(/^("([^"]+)"|(\w+)):\s*\{/);
     if (nestedStart) {
       const parent = stack[stack.length - 1];
+      const segment = nestedStart[2] ?? nestedStart[3];
       stack.push({
-        prefix: parent.prefix ? `${parent.prefix}.${nestedStart[1]}` : nestedStart[1],
+        prefix: parent.prefix ? `${parent.prefix}.${segment}` : segment,
       });
       continue;
     }
@@ -50,11 +52,29 @@ export function extractStringTree(sourceText, startMarker, endMarker) {
       continue;
     }
 
-    const strMatch = trimmed.match(/^(\w+):\s*"((?:\\.|[^"\\])*)"\s*,?\s*$/);
-    if (strMatch) {
+    const inlineKeyMatch = trimmed.match(/^("([^"]+)"|(\w+)):\s*"((?:\\.|[^"\\])*)"\s*,?\s*$/);
+    if (inlineKeyMatch) {
       const parent = stack[stack.length - 1];
-      const key = parent.prefix ? `${parent.prefix}.${strMatch[1]}` : strMatch[1];
-      flat[key] = strMatch[2].replace(/\\"/g, '"');
+      const segment = inlineKeyMatch[2] ?? inlineKeyMatch[3];
+      const key = parent.prefix ? `${parent.prefix}.${segment}` : segment;
+      flat[key] = inlineKeyMatch[4].replace(/\\"/g, '"');
+      continue;
+    }
+
+    const keyOnlyMatch = trimmed.match(/^("([^"]+)"|(\w+)):\s*,?\s*$/);
+    if (keyOnlyMatch) {
+      for (let j = lineIndex + 1; j < lines.length; j += 1) {
+        const next = lines[j].trim();
+        if (!next || next.startsWith("//")) continue;
+        const valueMatch = next.match(/^"((?:\\.|[^"\\])*)"\s*,?\s*$/);
+        if (valueMatch) {
+          const parent = stack[stack.length - 1];
+          const segment = keyOnlyMatch[2] ?? keyOnlyMatch[3];
+          const key = parent.prefix ? `${parent.prefix}.${segment}` : segment;
+          flat[key] = valueMatch[1].replace(/\\"/g, '"');
+        }
+        break;
+      }
     }
   }
 

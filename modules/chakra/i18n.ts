@@ -135,13 +135,16 @@ export function chakraNumericDisplayLabel(locale: ChakraLocale, chakraNumber: nu
   return NUMERIC_DISPLAY[inline][chakraNumber - 1] ?? NUMERIC_DISPLAY.ru[chakraNumber - 1] ?? String(chakraNumber);
 }
 
-/** Chakra tag for practice cards: «4 чакра» / «4th chakra». */
+/** Chakra tag for practice cards: «4 чакра» / localized short label. */
 export function chakraTagLabel(locale: ChakraLocale, chakraNumber: number): string {
-  if (locale !== "ru") {
+  if (locale === "ru") return `${chakraNumber} чакра`;
+  const overlay = applyFlatChakraOverlay(locale);
+  if (overlay?.nom?.[chakraNumber]) return capitalizeChakraLabel(overlay.nom[chakraNumber]);
+  if (locale === "en") {
     const suffix = chakraNumber === 1 ? "st" : chakraNumber === 2 ? "nd" : chakraNumber === 3 ? "rd" : "th";
     return `${chakraNumber}${suffix} chakra`;
   }
-  return `${chakraNumber} чакра`;
+  return capitalizeChakraLabel(chakraLabel(locale, chakraNumber));
 }
 
 export function formatChakraList(locale: ChakraLocale, chakraIds: readonly number[]): string {

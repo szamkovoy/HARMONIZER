@@ -438,7 +438,14 @@ export function PracticeCatalogScreen() {
                       },
                     ]}
                   >
-                    <AppText variant="sectionTitle" tone={active ? "accentOn" : "primary"}>
+                    <AppText
+                      variant="sectionTitle"
+                      tone={active ? "accentOn" : "primary"}
+                      style={styles.groupTitle}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                    >
                       {getPracticeGroupTitle(group.kind, strings)}
                     </AppText>
                     <AppText variant="technicalCaption" tone={active ? "accentOn" : "muted"}>
@@ -659,17 +666,21 @@ const styles = StyleSheet.create({
   },
   groupGrid: {
     flexDirection: "row",
-    gap: 10,
+    gap: 6,
+    marginHorizontal: -4,
   },
   groupCard: {
     flex: 1,
     minWidth: 0,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
     gap: 4,
     alignItems: "center",
+  },
+  groupTitle: {
+    textAlign: "center",
   },
   filterPanel: {
     borderWidth: StyleSheet.hairlineWidth,

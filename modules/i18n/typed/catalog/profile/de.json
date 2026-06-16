@@ -14,6 +14,7 @@
   "practiceStatsTitle": "Übungsstatistik",
   "practicesNotDone": "Keine Übungen ausgeführt",
   "projectionLoading": "Laden...",
+  "rangeTrendHint": "Jeder Punkt des Graphen spiegelt die Gleichmäßigkeit der bistochastischen Matrix deines Lebens über 7 Tage wider. Durch regelmäßige Übungen sollte sich der Graph nach oben bewegen.",
   "rangeTrendTitle": "Dicke der Lebenslinie",
   "reportLoadError": "Bericht konnte nicht geladen werden.",
   "reportsLoading": "Berichte werden geladen...",

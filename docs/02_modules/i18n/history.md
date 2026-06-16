@@ -15,6 +15,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-16 (4):** **Practices catalog i18n gaps.** Typed extractor now handles
+  hyphenated keys (`nadi-shodhana`) and multiline string values — `breathDescriptions`,
+  `practiceName`, etc. were missing from overlays (EN fallback on IT/DE/NL). Added
+  syncable `practiceCountOne` / `practiceCountWithTotal` / `catalogFooterTemplate`;
+  `chakraTagLabel` uses chakra typed overlays for non-RU/EN; practice group tabs widened.
+
 - **2026-06-16 (3):** **Home recommendation buttons + astro chart i18n.** Typed extractor
   skipped strings after arrow-function bodies (`recommendation.discussButton` landed at
   root in overlays → EN fallback on DE/FR). Fixed `fnBodyDepth` in `extractStringTree`;

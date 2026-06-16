@@ -3,11 +3,13 @@
   "authRequiredError": "Se necesita autenticación de Supabase para consultar al asistente.",
   "cancelRequestAccessibilityLabel": "Cancelar solicitud",
   "collapseAccessibilityLabel": "Contraer",
+  "emptyAssistantReplyFallback": "No recibí la respuesta completa — quizá se cortó la conexión. Vuelve a escribirme, en pocas palabras, qué es lo importante ahora y te seguiré acompañando.",
   "exitDialogButton": "Salir del diálogo",
   "expandAccessibilityLabel": "Expandir",
   "holdToRecordAccessibilityLabel": "Mantén pulsado para grabar",
   "locale": "es",
   "microphonePermissionError": "Sin acceso al micrófono",
+  "postPracticeReplyFallback": "Ya elegiste una práctica. Que te haga bien; cuando quieras volver a conversar, aquí estaré para retomar.",
   "practiceCard": {
     "eyebrow": "Práctica para ahora",
     "fallbackTitle": "Práctica",

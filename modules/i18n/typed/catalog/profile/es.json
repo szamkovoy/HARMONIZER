@@ -14,6 +14,7 @@
   "practiceStatsTitle": "Estadísticas de prácticas",
   "practicesNotDone": "Prácticas no realizadas",
   "projectionLoading": "Cargando...",
+  "rangeTrendHint": "Cada punto del gráfico refleja la uniformidad de la matriz biestocástica de tu vida durante 7 días. Con la práctica regular, el gráfico debería ascender.",
   "rangeTrendTitle": "Grosor de la línea de vida",
   "reportLoadError": "No se pudo cargar el informe.",
   "reportsLoading": "Cargando informes...",

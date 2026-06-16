@@ -3,6 +3,7 @@
   "actionsTitle": "Acciones",
   "addButton": "Agregar acción",
   "asanasLabel": "Asanas",
+  "assistantSystemPrompt": "Eres un mentor empático de la aplicación Harmonizer. Ayuda al usuario a completar o resumir la pestaña «Día».",
   "assistantTitle": "Asistente del día",
   "backLabel": "‹ Atrás",
   "breathLabel": "Respiración",

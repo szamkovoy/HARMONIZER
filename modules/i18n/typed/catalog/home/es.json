@@ -36,8 +36,12 @@
     "aspectTitle": "Aspecto"
   },
   "forecastErrorTitle": "No se pudo cargar el pronóstico",
+  "freeTierBanner": "Abajo verá un pronóstico universal para hoy. Por supuesto, los pronósticos individuales basados en su fecha de nacimiento son mucho más precisos. Pase al plan de pago para recibirlos.",
   "headerHint": "Configuración principal del día: chakras, ventanas de oportunidades y recomendación práctica.",
   "locale": "es",
+  "locationErrorMessage": "Para calcular las ventanas de oportunidad se necesita la geolocalización. Permita el acceso a la ubicación e inténtelo de nuevo.",
+  "locationErrorPermissionMessage": "El acceso a la ubicación está desactivado. Abra los ajustes de la aplicación, permita la geolocalización y vuelva aquí.",
+  "locationErrorTimeoutMessage": "No se pudo determinar la ubicación rápidamente. Compruebe el GPS o Wi‑Fi e inténtelo de nuevo.",
   "locationErrorTitle": "Se necesita geolocalización",
   "longExplanationModal": {
     "title": "Más detalles",
@@ -85,7 +89,8 @@
     "reminderNeedPermissionMessage": "Permite las notificaciones para que Harmonizer te recuerde la ventana de oportunidades.",
     "helpButtonAccessibilityLabel": "Explicación del gráfico de la ventana de oportunidades",
     "helpModalTitle": "Cómo leer esta ventana",
-    "helpLoading": "Preparando la explicación..."
+    "helpLoading": "Preparando la explicación...",
+    "reminderNotificationsUnavailableMessage": "La compilación actual de la aplicación se ejecuta sin el módulo nativo de notificaciones. Después de una nueva compilación de desarrollo/lanzamiento, las campanitas podrán programar notificaciones del sistema."
   },
   "planetBanner": {
     "eyebrow": "Planeta del día"

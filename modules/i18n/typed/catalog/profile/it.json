@@ -14,6 +14,7 @@
   "practiceStatsTitle": "Statistiche delle pratiche",
   "practicesNotDone": "Pratiche non eseguite",
   "projectionLoading": "Caricamento...",
+  "rangeTrendHint": "Ogni punto del grafico riflette l'uniformità della matrice bistocastica della tua vita negli ultimi 7 giorni. Grazie alle pratiche regolari, il grafico dovrebbe salire.",
   "rangeTrendTitle": "Spessore della linea di vita",
   "reportLoadError": "Impossibile caricare il report.",
   "reportsLoading": "Caricamento report...",

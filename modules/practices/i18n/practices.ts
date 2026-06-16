@@ -23,11 +23,17 @@ export interface PracticeCatalogStrings {
   yogaLateLoading: string;
   yogaLateHint: string;
   catalogFooter: (total: number) => string;
+  /** `{total}` placeholder — synced to overlays; wired in `getPracticeCatalogStrings`. */
+  catalogFooterTemplate: string;
   emptyPracticesTitle: string;
   groupMeditation: string;
   groupBreath: string;
   groupYoga: string;
   practiceCount: (count: number) => string;
+  /** Singular label (EN: «1 practice»). */
+  practiceCountOne: string;
+  /** Plural label with `{count}` (RU/EN/…). */
+  practiceCountWithTotal: string;
   emptyGroup: string;
   masterOnly: string;
   remotePlayHint: string;
@@ -75,11 +81,15 @@ const ru: PracticeCatalogStrings = {
   yogaLateLoading: "загружаем...",
   yogaLateHint: "Supabase отвечает медленнее обычного. Каталог уже открыт, а асаны появятся здесь автоматически.",
   catalogFooter: (total) => `Всего в каталоге: ${total}. Запуск идет через существующие экраны практик.`,
+  catalogFooterTemplate:
+    "Всего в каталоге: {total}. Запуск идет через существующие экраны практик.",
   emptyPracticesTitle: "Здесь скоро появятся практики",
   groupMeditation: "Медитации",
   groupBreath: "Дыхание",
   groupYoga: "Асаны",
   practiceCount: (count) => `${count} практик`,
+  practiceCountOne: "1 практика",
+  practiceCountWithTotal: "{count} практик",
   emptyGroup: "пока пусто",
   masterOnly: "только Master",
   remotePlayHint: "Подключите TV, чтобы смотреть видео на большом экране.",
@@ -142,11 +152,14 @@ const en: PracticeCatalogStrings = {
   yogaLateLoading: "loading...",
   yogaLateHint: "Supabase is slower than usual. The catalog is open — asanas will appear here automatically.",
   catalogFooter: (total) => `${total} practices in the catalog. Launch uses the existing practice screens.`,
+  catalogFooterTemplate: "{total} practices in the catalog. Launch uses the existing practice screens.",
   emptyPracticesTitle: "Practices will appear here soon",
   groupMeditation: "Meditation",
   groupBreath: "Breathing",
   groupYoga: "Asanas",
   practiceCount: (count) => (count === 1 ? "1 practice" : `${count} practices`),
+  practiceCountOne: "1 practice",
+  practiceCountWithTotal: "{count} practices",
   emptyGroup: "empty for now",
   masterOnly: "Master only",
   remotePlayHint: "Connect a TV to watch video on the big screen.",
@@ -194,7 +207,16 @@ const en: PracticeCatalogStrings = {
 export function getPracticeCatalogStrings(locale: PracticeLocale = "ru"): PracticeCatalogStrings {
   const base = inlineBaseLocale(locale) === "en" ? en : ru;
   const merged = mergeTypedLocale("practices", base, locale) as PracticeCatalogStrings;
-  return { ...merged, locale };
+  const useEnSingular = inlineBaseLocale(locale) === "en";
+  return {
+    ...merged,
+    locale,
+    practiceCount: (count) =>
+      useEnSingular && count === 1
+        ? merged.practiceCountOne
+        : merged.practiceCountWithTotal.replace("{count}", String(count)),
+    catalogFooter: (total) => merged.catalogFooterTemplate.replace("{total}", String(total)),
+  };
 }
 
 export function getPracticeGroupTitle(kind: PracticeKind, strings: PracticeCatalogStrings): string {

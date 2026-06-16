@@ -36,8 +36,12 @@
     "aspectTitle": "Aspect"
   },
   "forecastErrorTitle": "Impossible de charger la prévision",
+  "freeTierBanner": "Ci-dessous, vous découvrez une prévision générale pour aujourd’hui. Naturellement, les prévisions individuelles, fondées sur votre date de naissance, sont bien plus précises. Passez à la version payante pour en bénéficier.",
   "headerHint": "Réglage principal du jour : chakras, fenêtres d'opportunités et recommandation pratique.",
   "locale": "fr",
+  "locationErrorMessage": "Pour calculer les fenêtres d’opportunité, la géolocalisation est nécessaire. Autorisez l’accès à votre position, puis réessayez.",
+  "locationErrorPermissionMessage": "L’accès à la localisation est désactivé. Veuillez ouvrir les paramètres de l’application, autoriser la géolocalisation, puis revenir ici.",
+  "locationErrorTimeoutMessage": "Impossible de localiser rapidement votre position. Vérifiez votre GPS ou Wi‑Fi, puis réessayez.",
   "locationErrorTitle": "Géolocalisation requise",
   "longExplanationModal": {
     "title": "En savoir plus",
@@ -85,7 +89,8 @@
     "reminderNeedPermissionMessage": "Autorisez les notifications pour qu'Harmonizer puisse vous rappeler la fenêtre d'opportunités.",
     "helpButtonAccessibilityLabel": "Explication du graphique des fenêtres d'opportunités",
     "helpModalTitle": "Comment lire cette fenêtre",
-    "helpLoading": "Préparation de l'explication..."
+    "helpLoading": "Préparation de l'explication...",
+    "reminderNotificationsUnavailableMessage": "La version actuelle de l’application ne dispose pas du module natif de notifications. Après la prochaine compilation (dev/release), les clochettes pourront programmer des notifications système."
   },
   "planetBanner": {
     "eyebrow": "Planète du jour"

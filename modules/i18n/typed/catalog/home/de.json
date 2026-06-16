@@ -36,8 +36,12 @@
     "aspectTitle": "Aspekt"
   },
   "forecastErrorTitle": "Prognose konnte nicht geladen werden",
+  "freeTierBanner": "Unten sehen Sie eine allgemeine Vorhersage für diesen Tag. Natürlich sind individuelle Vorhersagen, die auf Ihrem Geburtsdatum basieren, viel genauer. Wechseln Sie zum kostenpflichtigen Tarif, um sie zu erhalten.",
   "headerHint": "Die wichtigste Tageseinstellung: Chakren, Fenster der Möglichkeiten und praktische Empfehlung.",
   "locale": "de",
+  "locationErrorMessage": "Um die Möglichkeitenfenster zu berechnen, benötigen wir Ihren Standort. Bitte erlauben Sie den Zugriff auf die Geoposition und versuchen Sie es erneut.",
+  "locationErrorPermissionMessage": "Der Zugriff auf die Geoposition ist deaktiviert. Bitte öffnen Sie die App-Einstellungen, erlauben Sie die Ortung und kehren Sie hierher zurück.",
+  "locationErrorTimeoutMessage": "Der Standort konnte nicht schnell ermittelt werden. Bitte überprüfen Sie GPS oder WLAN und versuchen Sie es erneut.",
   "locationErrorTitle": "Standort erforderlich",
   "longExplanationModal": {
     "title": "Details",
@@ -85,7 +89,8 @@
     "reminderNeedPermissionMessage": "Erlaube Benachrichtigungen, damit Harmonizer an das Fenster der Möglichkeiten erinnern kann.",
     "helpButtonAccessibilityLabel": "Erklärung zum Diagramm des Fensters der Möglichkeiten",
     "helpModalTitle": "Wie man dieses Fenster liest",
-    "helpLoading": "Erläuterung wird geladen..."
+    "helpLoading": "Erläuterung wird geladen...",
+    "reminderNotificationsUnavailableMessage": "Die aktuelle App-Version läuft ohne das native Benachrichtigungsmodul. Nach einem neuen Dev-/Release-Build können die Glöckchen Systembenachrichtigungen einstellen."
   },
   "planetBanner": {
     "eyebrow": "Planet des Tages"

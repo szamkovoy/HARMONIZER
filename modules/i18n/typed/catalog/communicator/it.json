@@ -3,11 +3,13 @@
   "authRequiredError": "Necessaria l’autenticazione Supabase per la richiesta all’assistente.",
   "cancelRequestAccessibilityLabel": "Annulla richiesta",
   "collapseAccessibilityLabel": "Comprimi",
+  "emptyAssistantReplyFallback": "Non ho ricevuto il testo completo della risposta — la connessione potrebbe essersi interrotta. Scrivi di nuovo brevemente cosa è importante per te ora, e io continuerò.",
   "exitDialogButton": "Esci dal dialogo",
   "expandAccessibilityLabel": "Espandi",
   "holdToRecordAccessibilityLabel": "Tieni premuto per registrare",
   "locale": "it",
   "microphonePermissionError": "Nessun accesso al microfono",
+  "postPracticeReplyFallback": "La pratica è stata scelta. Che ti faccia bene; se poi vorrai tornare alla conversazione, io riprenderò.",
   "practiceCard": {
     "eyebrow": "Pratica per ora",
     "fallbackTitle": "Pratica",
