@@ -21,8 +21,8 @@ function durationLabel(practice: PracticeSummary, strings: ReturnType<typeof get
   }
   const minutes = Math.max(1, Math.round(practice.defaultDurationSec / 60));
   return practice.durationPolicy === "user_selectable"
-    ? `${strings.locale === "en" ? "from" : "от"} ${minutes} ${strings.locale === "en" ? "min" : "мин"}`
-    : `${minutes} ${strings.locale === "en" ? "min" : "мин"}`;
+    ? `${strings.durationFromPrefix} ${minutes} ${strings.durationMinUnit}`
+    : `${minutes} ${strings.durationMinUnit}`;
 }
 
 function chakraLabelForPractice(practice: PracticeSummary, strings: ReturnType<typeof getPracticeCatalogStrings>): string {
@@ -72,7 +72,7 @@ export const PracticeCard = memo(function PracticeCard({
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
   const strings = useMemo(() => getPracticeCatalogStrings(appLocale), [appLocale]);
-  const minSuffix = strings.locale === "en" ? "min" : "мин";
+  const minSuffix = strings.durationMinUnit;
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
   const yogaThumbnail = videoThumbnail ?? practice.video?.thumbnail ?? fallbackThumbnail;
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);

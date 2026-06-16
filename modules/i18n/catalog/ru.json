@@ -1,5 +1,5 @@
 {
-  "tabs.home": "Home",
+  "tabs.home": "Главная",
   "tabs.day": "День",
   "tabs.practices": "Практики",
   "tabs.profile": "Профиль",
@@ -36,5 +36,16 @@
   "upgrade.feature.asana_practices": "асаны",
   "upgrade.feature.webinar_community": "вебинары и community",
   "upgrade.feature.profile": "профиль",
-  "upgrade.feature.stats": "статистику"
+  "upgrade.feature.stats": "статистику",
+  "startup.fallback": "Завершаем спокойную подготовку",
+  "startup.step.AUTH_secure_session": "Возвращаем вас в приложение",
+  "startup.step.AUTH_users_profile": "Подтягиваем ваши настройки",
+  "startup.step.AUTH_wait_profile_refresh": "Профиль почти на месте",
+  "startup.step.HOME_js_bridge": "Подключаем главный экран",
+  "startup.step.HOME_home_overlay_start": "Сверяем сегодняшний день",
+  "startup.step.HOME_gps_acquire_persist": "Уточняем ваш город",
+  "startup.step.HOME_day_cache_async_read": "Смотрим сохранённый день",
+  "startup.step.HOME_api_global_free": "Собираем общий настрой дня",
+  "startup.step.HOME_api_daily_forecast": "Считаем ваш личный день",
+  "startup.step.HOME_api_morning_monologue": "Добавляем мягкий совет"
 }

@@ -18,7 +18,7 @@ export function extractStringTree(sourceText, startMarker, endMarker) {
   const lines = block.split("\n");
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith("//") || trimmed === "{" || trimmed === "};" || trimmed === "},") continue;
+    if (trimmed.startsWith("//") || trimmed === "{") continue;
 
     const nestedStart = trimmed.match(/^(\w+):\s*\{/);
     if (nestedStart) {
@@ -28,7 +28,7 @@ export function extractStringTree(sourceText, startMarker, endMarker) {
       });
       continue;
     }
-    if (trimmed === "}," || trimmed === "}") {
+    if (trimmed === "}," || trimmed === "}" || trimmed === "};") {
       if (stack.length > 1) stack.pop();
       continue;
     }

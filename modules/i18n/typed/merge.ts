@@ -9,19 +9,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Deep-merge string leaves; overlay wins. Skips functions in base. */
-export function deepMergeTyped<T extends object>(base: T, overlay: Record<string, unknown>): T {
-  const out = { ...base } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(overlay)) {
-    if (isPlainObject(value) && isPlainObject(out[key])) {
-      out[key] = deepMergeTyped(out[key] as Record<string, unknown>, value);
-    } else if (typeof value === "string") {
-      out[key] = value;
-    }
-  }
-  return out as T;
-}
-
 function overlayFor(moduleId: string, locale: AppContentLocale): Record<string, unknown> | null {
   const moduleOverlays = GENERATED_TYPED_OVERLAYS[moduleId];
   if (!moduleOverlays) return null;
@@ -29,9 +16,46 @@ function overlayFor(moduleId: string, locale: AppContentLocale): Record<string, 
   return direct && Object.keys(direct).length ? direct : null;
 }
 
+/** Flat dotted-key overlay (e.g. chakra short.1) → string map. */
+function flattenOverlayStrings(obj: Record<string, unknown>, prefix = ""): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(out, flattenOverlayStrings(value as Record<string, unknown>, path));
+    } else if (typeof value === "string") {
+      out[path] = value;
+    }
+  }
+  return out;
+}
+
+/** Replace string leaves in `base` using flat dotted paths; functions stay from base. */
+function applyFlatStringOverlay<T extends object>(base: T, overlayFlat: Record<string, string>): T {
+  const walk = (node: unknown, prefix: string): unknown => {
+    if (typeof node === "string") {
+      return overlayFlat[prefix] ?? node;
+    }
+    if (!isPlainObject(node)) return node;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (typeof value === "string") {
+        out[key] = overlayFlat[path] ?? value;
+      } else if (isPlainObject(value)) {
+        out[key] = walk(value, path);
+      } else {
+        out[key] = value;
+      }
+    }
+    return out;
+  };
+  return walk(base, "") as T;
+}
+
 /**
  * Apply typed-module overlay JSON for locales beyond inline RU/EN tables.
- * Fallback: requested locale → EN overlay → RU/EN base passed in.
+ * Overlays are merged by flat dotted path (robust to JSON nesting shape).
  */
 export function mergeTypedLocale<T extends object>(
   moduleId: string,
@@ -44,26 +68,17 @@ export function mergeTypedLocale<T extends object>(
   }
 
   const overlay = overlayFor(moduleId, code);
-  if (overlay) return deepMergeTyped(base, overlay);
+  if (overlay) return applyFlatStringOverlay(base, flattenOverlayStrings(overlay));
 
   const enOverlay = overlayFor(moduleId, "en");
-  if (enOverlay) return deepMergeTyped(base, enOverlay);
+  if (enOverlay) return applyFlatStringOverlay(base, flattenOverlayStrings(enOverlay));
 
   return base;
 }
 
-/** Flat dotted-key overlay (e.g. chakra short.1) → maps by group */
-function flattenOverlayStrings(obj: Record<string, unknown>, prefix = ""): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      Object.assign(out, flattenOverlayStrings(value as Record<string, unknown>, path));
-    } else if (typeof value === "string") {
-      out[path] = value;
-    }
-  }
-  return out;
+/** @deprecated Use mergeTypedLocale — kept for callers that pass nested overlay objects. */
+export function deepMergeTyped<T extends object>(base: T, overlay: Record<string, unknown>): T {
+  return applyFlatStringOverlay(base, flattenOverlayStrings(overlay));
 }
 
 export function applyFlatChakraOverlay(

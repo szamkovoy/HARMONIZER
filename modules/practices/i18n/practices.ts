@@ -39,6 +39,10 @@ export interface PracticeCatalogStrings {
   loadCatalogError: string;
   durationSelectable: string;
   durationPending: string;
+  /** Short unit after a number, e.g. «10 мин» / «10 min». */
+  durationMinUnit: string;
+  /** Prefix for selectable duration, e.g. «от» / «from». */
+  durationFromPrefix: string;
   chakraPending: string;
   durationLabel: string;
   chakraLabel: string;
@@ -87,6 +91,8 @@ const ru: PracticeCatalogStrings = {
   loadCatalogError: "Не удалось загрузить каталог практик.",
   durationSelectable: "длительность выбирается",
   durationPending: "длительность уточняется",
+  durationMinUnit: "мин",
+  durationFromPrefix: "от",
   chakraPending: "чакра уточняется",
   durationLabel: "Длительность",
   chakraLabel: "Чакра",
@@ -152,6 +158,8 @@ const en: PracticeCatalogStrings = {
   loadCatalogError: "Could not load the practice catalog.",
   durationSelectable: "duration selectable",
   durationPending: "duration pending",
+  durationMinUnit: "min",
+  durationFromPrefix: "from",
   chakraPending: "chakra pending",
   durationLabel: "Duration",
   chakraLabel: "Chakra",
@@ -185,7 +193,8 @@ const en: PracticeCatalogStrings = {
 
 export function getPracticeCatalogStrings(locale: PracticeLocale = "ru"): PracticeCatalogStrings {
   const base = inlineBaseLocale(locale) === "en" ? en : ru;
-  return mergeTypedLocale("practices", base, locale);
+  const merged = mergeTypedLocale("practices", base, locale) as PracticeCatalogStrings;
+  return { ...merged, locale };
 }
 
 export function getPracticeGroupTitle(kind: PracticeKind, strings: PracticeCatalogStrings): string {

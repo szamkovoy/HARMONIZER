@@ -1,6 +1,7 @@
 import { BREATH_PRACTICES, DEFAULT_CHAKRA, isChakra } from "@/modules/breath";
 import type { BreathPracticeId, Chakra } from "@/modules/breath";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
+import { asContentLocale, inlineBaseLocale, SOURCE_LOCALE } from "@/modules/i18n/localeCodes";
 import { getPracticeCatalogStrings, type PracticeLocale } from "@/modules/practices/i18n/practices";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { getSupabase } from "@/services/supabase";
@@ -47,11 +48,13 @@ function jsonRecord(value: Json | null): Record<string, unknown> {
 
 function localizedText(value: Json | null, fallback: string, locale: PracticeLocale = "ru"): string {
   const record = jsonRecord(value);
-  const ru = record.ru;
+  const code = asContentLocale(locale) ?? SOURCE_LOCALE;
+  const localized = record[code];
+  if (typeof localized === "string" && localized.trim()) return localized.trim();
   const en = record.en;
-  if (locale === "en" && typeof en === "string" && en.trim()) return en.trim();
-  if (typeof ru === "string" && ru.trim()) return ru.trim();
   if (typeof en === "string" && en.trim()) return en.trim();
+  const ru = record.ru;
+  if (typeof ru === "string" && ru.trim()) return ru.trim();
   return fallback;
 }
 
@@ -147,11 +150,14 @@ function createBreathPractices(locale: PracticeLocale): PracticeSummary[] {
 }
 
 function displayYogaTitle(title: string, locale: PracticeLocale): string {
-  if (locale === "en") return title.replace(/(_\d{4})_i.*$/i, "$1").trim();
-  return title
-    .replace(/^Пробуждение/i, "Практика")
-    .replace(/(_\d{4})_и.*$/i, "$1")
-    .trim();
+  if (inlineBaseLocale(locale) === "en") return title.replace(/(_\d{4})_i.*$/i, "$1").trim();
+  if (locale === SOURCE_LOCALE) {
+    return title
+      .replace(/^Пробуждение/i, "Практика")
+      .replace(/(_\d{4})_и.*$/i, "$1")
+      .trim();
+  }
+  return title.trim();
 }
 
 function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): PracticeSummary {

@@ -3,7 +3,7 @@ import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from "
 
 import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
-import { getAppLocale, subscribeAppLocale } from "@/modules/i18n/localeStore";
+import { t, useAppLocale } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
 
 export type AppStartupPhase = "app_loading" | "initializing" | "loading_day";
@@ -26,67 +26,16 @@ type AppStartupContextValue = {
 
 const AppStartupContext = createContext<AppStartupContextValue | null>(null);
 
-/** Короткие уникальные фразы: по скриншоту можно отличить этап, без техно-жаргона. */
-const STEP_COPY: Record<string, { ru: string; en: string }> = {
-  "AUTH/secure_session": {
-    ru: "Возвращаем вас в приложение",
-    en: "Welcoming you back",
-  },
-  "AUTH/users_profile": {
-    ru: "Подтягиваем ваши настройки",
-    en: "Loading your preferences",
-  },
-  "AUTH/wait_profile_refresh": {
-    ru: "Профиль почти на месте",
-    en: "Your profile is almost ready",
-  },
-  "HOME/js_bridge": {
-    ru: "Подключаем главный экран",
-    en: "Opening your Home screen",
-  },
-  "HOME/home_overlay_start": {
-    ru: "Сверяем сегодняшний день",
-    en: "Checking in with today",
-  },
-  "HOME/gps_acquire_persist": {
-    ru: "Уточняем ваш город",
-    en: "Pinning your area gently",
-  },
-  "HOME/day_cache_async_read": {
-    ru: "Смотрим сохранённый день",
-    en: "Recalling your saved day",
-  },
-  "HOME/api_global_free": {
-    ru: "Собираем общий настрой дня",
-    en: "Gathering today’s shared tone",
-  },
-  "HOME/api_daily_forecast": {
-    ru: "Считаем ваш личный день",
-    en: "Shaping your personal day",
-  },
-  "HOME/api_morning_monologue": {
-    ru: "Добавляем мягкий совет",
-    en: "Adding a gentle suggestion",
-  },
-};
-
-function preferredLocale(raw?: string | null): "ru" | "en" {
-  if ((raw ?? "").toLowerCase().startsWith("en")) return "en";
-  try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
-    return locale.toLowerCase().startsWith("en") ? "en" : "ru";
-  } catch {
-    return "ru";
-  }
+/** Maps internal bootstrap step ids to flat catalog keys under `startup.step.*`. */
+function startupStepKey(step: string): string {
+  return `startup.step.${step.replace(/\//g, "_")}`;
 }
 
-function fallbackStepCopy(locale: "ru" | "en"): string {
-  return locale === "en" ? "Finishing a quiet moment" : "Завершаем спокойную подготовку";
-}
-
-function startupFooterText(locale: "ru" | "en", step: string): string {
-  const row = STEP_COPY[step];
-  return row ? (locale === "en" ? row.en : row.ru) : fallbackStepCopy(locale);
+function startupFooterText(locale: string, step: string): string {
+  const key = startupStepKey(step);
+  const copy = t(locale, key);
+  if (copy !== key) return copy;
+  return t(locale, "startup.fallback");
 }
 
 /** Indeterminate progress: 0→80% fast, then slower to 90%, then to 95%, hold until done. */
@@ -141,7 +90,7 @@ function useSplashProgress(visible: boolean, progress: Animated.Value) {
   }, [progress, visible]);
 }
 
-function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: "ru" | "en" }) {
+function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: string }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
@@ -161,7 +110,7 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
           toValue: 1,
           duration: 7200,
           easing: Easing.inOut(Easing.quad),
-          /* opacity родителя + Image.cover: при true на iOS/Fabric возможен неверный scale (виден лишь край). */
+          /* opacity родителя + Image.cover: при true на iOS/Fabric возможен неверный scale (виден лишний край). */
           useNativeDriver: false,
         }),
         Animated.timing(logoBreath, {
@@ -288,9 +237,7 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
 
 export function AppStartupProvider({ children }: { children: ReactNode }) {
   const { initializing, profileLoading } = useAuth();
-  const [locale, setLocale] = useState<"ru" | "en">(() => (getAppLocale() === "en" ? "en" : "ru"));
-
-  useEffect(() => subscribeAppLocale(() => setLocale(getAppLocale() === "en" ? "en" : "ru")), []);
+  const { locale } = useAppLocale();
 
   const [isHomeRoute, setHomeRouteActive] = useState(true);
   const [homeBootstrap, setHomeBootstrap] = useState<HomeBootstrapState>({

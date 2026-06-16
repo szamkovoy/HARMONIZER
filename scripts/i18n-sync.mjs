@@ -11,6 +11,7 @@
  *   node scripts/i18n-sync.mjs check                 # fail if required locales drift
  *   node scripts/i18n-sync.mjs fill --locale en      # LLM-translate missing/stale keys
  *   node scripts/i18n-sync.mjs fill --all            # fill every target locale
+ *   node scripts/i18n-sync.mjs rebuild-typed-overlays # wipe stale typed JSON + refill all overlays
  *
  * `fill` needs an OpenAI-compatible endpoint:
  *   I18N_TRANSLATE_API_URL, I18N_TRANSLATE_API_KEY, I18N_TRANSLATE_MODEL
@@ -21,7 +22,7 @@
  * whole catalog. See docs/04_workspace/i18n_architecture.md.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, unlinkSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -201,29 +202,6 @@ function flatten(obj, prefix = "") {
   return out;
 }
 
-async function runTypedCheck(manifest, hardFailLocales) {
-  const meta = readJson(TYPED_META_FILE, {});
-  let hardFail = false;
-  for (const entry of manifest) {
-    const sourceFlat = extractModuleSource(REPO_ROOT, entry);
-    if (!sourceFlat) {
-      console.warn(`[i18n:typed] skip ${entry.id}: could not extract source`);
-      continue;
-    }
-    for (const locale of TYPED_OVERLAY_TARGETS) {
-      const { missing, stale, orphan } = diffTypedLocale(sourceFlat, meta, entry.id, locale);
-      if (missing.length || stale.length || orphan.length) {
-        const tag = hardFailLocales.includes(locale) ? "FAIL" : "warn";
-        console.log(
-          `[i18n:typed] ${tag} ${entry.id}/${locale}: ${missing.length} missing, ${stale.length} stale, ${orphan.length} orphan`,
-        );
-        if (hardFailLocales.includes(locale)) hardFail = true;
-      }
-    }
-  }
-  return hardFail;
-}
-
 async function runTypedFill(manifest, targets) {
   const meta = readJson(TYPED_META_FILE, {});
   for (const entry of manifest) {
@@ -263,6 +241,49 @@ async function runTypedFill(manifest, targets) {
   }
   writeJson(TYPED_META_FILE, meta);
   writeGeneratedRegistry(REPO_ROOT, manifest);
+}
+
+function resetTypedOverlays(manifest) {
+  const meta = readJson(TYPED_META_FILE, {});
+  for (const entry of manifest) {
+    ensureCatalogDir(REPO_ROOT, entry.id);
+    meta[entry.id] = meta[entry.id] ?? {};
+    const dir = join(REPO_ROOT, "modules/i18n/typed/catalog", entry.id);
+    if (existsSync(dir)) {
+      for (const file of readdirSync(dir)) {
+        if (file.endsWith(".json")) unlinkSync(join(dir, file));
+      }
+    }
+    for (const locale of TYPED_OVERLAY_TARGETS) {
+      delete meta[entry.id][locale];
+    }
+  }
+  writeJson(TYPED_META_FILE, meta);
+  writeGeneratedRegistry(REPO_ROOT, manifest);
+  console.log("[i18n:typed] Cleared overlay JSON + sync meta for all typed modules.");
+}
+
+async function runTypedCheck(manifest, hardFailLocales) {
+  const meta = readJson(TYPED_META_FILE, {});
+  let hardFail = false;
+  for (const entry of manifest) {
+    const sourceFlat = extractModuleSource(REPO_ROOT, entry);
+    if (!sourceFlat) {
+      console.warn(`[i18n:typed] skip ${entry.id}: could not extract source`);
+      continue;
+    }
+    for (const locale of TYPED_OVERLAY_TARGETS) {
+      const { missing, stale, orphan } = diffTypedLocale(sourceFlat, meta, entry.id, locale);
+      if (missing.length || stale.length || orphan.length) {
+        const tag = hardFailLocales.includes(locale) ? "FAIL" : "warn";
+        console.log(
+          `[i18n:typed] ${tag} ${entry.id}/${locale}: ${missing.length} missing, ${stale.length} stale, ${orphan.length} orphan`,
+        );
+        if (hardFailLocales.includes(locale)) hardFail = true;
+      }
+    }
+  }
+  return hardFail;
 }
 
 function resolveTranslateEnv() {
@@ -435,8 +456,16 @@ async function main() {
     return;
   }
 
+  if (command === "rebuild-typed-overlays") {
+    const typedManifest = readTypedManifest(REPO_ROOT);
+    resetTypedOverlays(typedManifest);
+    await runTypedFill(typedManifest, TYPED_OVERLAY_TARGETS);
+    console.log("[i18n] Typed overlay rebuild complete.");
+    return;
+  }
+
   console.error(
-    `[i18n] Unknown command "${command}". Use: check | fill | bootstrap-dialog-scaffold-meta`,
+    `[i18n] Unknown command "${command}". Use: check | fill | rebuild-typed-overlays | bootstrap-dialog-scaffold-meta`,
   );
   process.exit(1);
 }
