@@ -22,6 +22,7 @@ interface ModalMathLevelProps {
   forecast?: DailyForecast | null;
   accessMode: AccessMode;
   strings: HomeStrings["mathModal"];
+  chartStrings: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
 }
 
 const PLANETS: readonly Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
@@ -62,6 +63,7 @@ export function ModalMathLevel({
   forecast,
   accessMode,
   strings,
+  chartStrings,
 }: ModalMathLevelProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -111,6 +113,7 @@ export function ModalMathLevel({
             natalProfile={natalProfile}
             forecast={forecast ?? undefined}
             aspects={aspects}
+            strings={chartStrings}
             presentation="nestedOverlay"
           />
         </Suspense>

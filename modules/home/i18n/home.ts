@@ -117,6 +117,16 @@ export interface HomeStrings {
     showChartButton: string;
     chartUnavailableHint: string;
   };
+  astroChartModal: {
+    titleTransit: string;
+    titleNatal: string;
+    subtitle: string;
+    housesHiddenHint: string;
+    mainAspectsTitle: string;
+    planetStrengthsTitle: string;
+    toNatalConnector: string;
+    orbPrefix: string;
+  };
   formatTime: (value: string) => string;
 }
 
@@ -257,15 +267,15 @@ const ru: HomeStrings = {
   },
   recommendation: {
     title: "Рекомендации на день",
-    meta: (planet, chakraName) => `${planet} · ${chakraName}`,
+    discussButton: "Что делать?",
+    readMoreButton: "Подробнее",
     loading: "Обновляем рекомендацию на выбранном языке…",
+    meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
       const verb = ru.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
       return `Сегодня держите фокус на теме «${meta.label}»: не распыляйтесь, не доказывайте лишнего и не пытайтесь ускорять процессы силой. Полезнее выбрать один ясный шаг и ${verb} качества ${chakraLabelGenitive("ru", meta.chakraNumber)} через тело и дыхание, а в сложных разговорах сначала возвращаться к спокойному ритму. Так день станет не прогнозом, а понятным планом действий.`;
     },
-    discussButton: "Что делать?",
-    readMoreButton: "Подробнее",
     detailParagraphs: (forecast) => {
       const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
       const tone = ru.toneLabels[forecast.todayPlanetState.todayTone];
@@ -310,6 +320,16 @@ const ru: HomeStrings = {
     emptyHint: "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
     showChartButton: "Показать натальную и транзитную карту",
     chartUnavailableHint: "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+  },
+  astroChartModal: {
+    titleTransit: "Натальная + транзитная карта",
+    titleNatal: "Натальная карта",
+    subtitle: "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+    housesHiddenHint: "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+    mainAspectsTitle: "Главные аспекты дня",
+    planetStrengthsTitle: "Силы планет",
+    toNatalConnector: "к натальному",
+    orbPrefix: ", орб ",
   },
   formatTime: (value) => formatTime(value, "ru"),
 };
@@ -421,15 +441,15 @@ const en: HomeStrings = {
   },
   recommendation: {
     title: "Daily recommendation",
-    meta: (planet, chakraName) => `${planet} · ${chakraName}`,
+    discussButton: "What to do?",
+    readMoreButton: "More details",
     loading: "Updating the recommendation in your language…",
+    meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
       const verb = en.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
       return `Today it may help to ${verb} the qualities of Chakra ${meta.chakraNumber}: bring attention to "${meta.label}" and choose a practice without rushing.`;
     },
-    discussButton: "What to do?",
-    readMoreButton: "More details",
     detailParagraphs: (forecast) => {
       const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
       const tone = en.toneLabels[forecast.todayPlanetState.todayTone];
@@ -466,6 +486,16 @@ const en: HomeStrings = {
     emptyHint: "The math block has not arrived with the forecast yet. Refresh the daily forecast after the backend update.",
     showChartButton: "Show natal and transit chart",
     chartUnavailableHint: "The chart is available only for trial/premium users with a natal profile.",
+  },
+  astroChartModal: {
+    titleTransit: "Natal + transit chart",
+    titleNatal: "Natal chart",
+    subtitle: "Inner ring — natal planets, outer ring — today's transits.",
+    housesHiddenHint: "Houses are hidden: exact cusps require an accurate birth time.",
+    mainAspectsTitle: "Main aspects of the day",
+    planetStrengthsTitle: "Planetary strength",
+    toNatalConnector: "to natal",
+    orbPrefix: ", orb ",
   },
   formatTime: (value) => formatTime(value, "en"),
 };

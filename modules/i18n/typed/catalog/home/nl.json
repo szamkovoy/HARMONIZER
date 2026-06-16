@@ -1,6 +1,16 @@
 {
   "appTitle": "Harmonizer",
   "assistantTitle": "Assistent",
+  "astroChartModal": {
+    "titleTransit": "Geboortehoroscoop + transithoroscoop",
+    "titleNatal": "Geboortehoroscoop",
+    "subtitle": "Binnenste ring — geboorteplaneten, buitenste ring — dagtransits.",
+    "housesHiddenHint": "Huizen niet getoond: exacte cuspen zijn alleen beschikbaar bij exacte geboortetijd.",
+    "mainAspectsTitle": "Hoofdaspecten van de dag",
+    "planetStrengthsTitle": "Planetensterktes",
+    "toNatalConnector": "naar geboorte",
+    "orbPrefix": ", orb "
+  },
   "birthDataMessage": "Om je persoonlijke dagvoorspelling te maken, voer je geboortedatum, -tijd en -plaats in.",
   "birthDataTitle": "Geboortedatum nodig",
   "chakraFlower": {
@@ -19,7 +29,6 @@
     "calibration": "Kalibratie"
   },
   "devResetDayContent": "Vernieuwen",
-  "discussButton": "Wat te doen?",
   "emptyTimeLabel": "—",
   "eventBells": {
     "title": "Bellen",
@@ -81,10 +90,11 @@
   "planetBanner": {
     "eyebrow": "Planeet van de dag"
   },
-  "readMoreButton": "Meer lezen",
   "recommendation": {
     "title": "Dagadvies",
-    "loading": "Advies wordt bijgewerkt in de gekozen taal..."
+    "loading": "Advies wordt bijgewerkt in de gekozen taal...",
+    "discussButton": "Wat te doen?",
+    "readMoreButton": "Lees meer"
   },
   "refreshAccessibilityLabel": "Vernieuw dagvoorspelling",
   "refreshButton": "Vernieuwen",

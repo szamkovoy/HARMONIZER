@@ -1146,7 +1146,17 @@
       "mathModal.closeButton": "Назад",
       "mathModal.emptyHint": "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
       "mathModal.showChartButton": "Показать натальную и транзитную карту",
-      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем."
+      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+      "recommendation.discussButton": "Что делать?",
+      "recommendation.readMoreButton": "Подробнее",
+      "astroChartModal.titleTransit": "Натальная + транзитная карта",
+      "astroChartModal.titleNatal": "Натальная карта",
+      "astroChartModal.subtitle": "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+      "astroChartModal.housesHiddenHint": "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+      "astroChartModal.mainAspectsTitle": "Главные аспекты дня",
+      "astroChartModal.planetStrengthsTitle": "Силы планет",
+      "astroChartModal.toNatalConnector": "к натальному",
+      "astroChartModal.orbPrefix": ", орб "
     },
     "fr": {
       "locale": "ru",
@@ -1230,7 +1240,17 @@
       "mathModal.closeButton": "Назад",
       "mathModal.emptyHint": "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
       "mathModal.showChartButton": "Показать натальную и транзитную карту",
-      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем."
+      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+      "recommendation.discussButton": "Что делать?",
+      "recommendation.readMoreButton": "Подробнее",
+      "astroChartModal.titleTransit": "Натальная + транзитная карта",
+      "astroChartModal.titleNatal": "Натальная карта",
+      "astroChartModal.subtitle": "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+      "astroChartModal.housesHiddenHint": "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+      "astroChartModal.mainAspectsTitle": "Главные аспекты дня",
+      "astroChartModal.planetStrengthsTitle": "Силы планет",
+      "astroChartModal.toNatalConnector": "к натальному",
+      "astroChartModal.orbPrefix": ", орб "
     },
     "it": {
       "locale": "ru",
@@ -1314,7 +1334,17 @@
       "mathModal.closeButton": "Назад",
       "mathModal.emptyHint": "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
       "mathModal.showChartButton": "Показать натальную и транзитную карту",
-      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем."
+      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+      "recommendation.discussButton": "Что делать?",
+      "recommendation.readMoreButton": "Подробнее",
+      "astroChartModal.titleTransit": "Натальная + транзитная карта",
+      "astroChartModal.titleNatal": "Натальная карта",
+      "astroChartModal.subtitle": "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+      "astroChartModal.housesHiddenHint": "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+      "astroChartModal.mainAspectsTitle": "Главные аспекты дня",
+      "astroChartModal.planetStrengthsTitle": "Силы планет",
+      "astroChartModal.toNatalConnector": "к натальному",
+      "astroChartModal.orbPrefix": ", орб "
     },
     "es": {
       "locale": "ru",
@@ -1398,7 +1428,17 @@
       "mathModal.closeButton": "Назад",
       "mathModal.emptyHint": "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
       "mathModal.showChartButton": "Показать натальную и транзитную карту",
-      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем."
+      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+      "recommendation.discussButton": "Что делать?",
+      "recommendation.readMoreButton": "Подробнее",
+      "astroChartModal.titleTransit": "Натальная + транзитная карта",
+      "astroChartModal.titleNatal": "Натальная карта",
+      "astroChartModal.subtitle": "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+      "astroChartModal.housesHiddenHint": "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+      "astroChartModal.mainAspectsTitle": "Главные аспекты дня",
+      "astroChartModal.planetStrengthsTitle": "Силы планет",
+      "astroChartModal.toNatalConnector": "к натальному",
+      "astroChartModal.orbPrefix": ", орб "
     },
     "pt": {
       "locale": "ru",
@@ -1482,7 +1522,17 @@
       "mathModal.closeButton": "Назад",
       "mathModal.emptyHint": "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
       "mathModal.showChartButton": "Показать натальную и транзитную карту",
-      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем."
+      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+      "recommendation.discussButton": "Что делать?",
+      "recommendation.readMoreButton": "Подробнее",
+      "astroChartModal.titleTransit": "Натальная + транзитная карта",
+      "astroChartModal.titleNatal": "Натальная карта",
+      "astroChartModal.subtitle": "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+      "astroChartModal.housesHiddenHint": "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+      "astroChartModal.mainAspectsTitle": "Главные аспекты дня",
+      "astroChartModal.planetStrengthsTitle": "Силы планет",
+      "astroChartModal.toNatalConnector": "к натальному",
+      "astroChartModal.orbPrefix": ", орб "
     },
     "nl": {
       "locale": "ru",
@@ -1566,7 +1616,17 @@
       "mathModal.closeButton": "Назад",
       "mathModal.emptyHint": "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
       "mathModal.showChartButton": "Показать натальную и транзитную карту",
-      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем."
+      "mathModal.chartUnavailableHint": "Карта доступна только для trial/premium-пользователей с натальным профилем.",
+      "recommendation.discussButton": "Что делать?",
+      "recommendation.readMoreButton": "Подробнее",
+      "astroChartModal.titleTransit": "Натальная + транзитная карта",
+      "astroChartModal.titleNatal": "Натальная карта",
+      "astroChartModal.subtitle": "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+      "astroChartModal.housesHiddenHint": "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
+      "astroChartModal.mainAspectsTitle": "Главные аспекты дня",
+      "astroChartModal.planetStrengthsTitle": "Силы планет",
+      "astroChartModal.toNatalConnector": "к натальному",
+      "astroChartModal.orbPrefix": ", орб "
     }
   },
   "mandala": {

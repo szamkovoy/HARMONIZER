@@ -1,6 +1,16 @@
 {
   "appTitle": "Harmonizer",
   "assistantTitle": "Assistent",
+  "astroChartModal": {
+    "titleTransit": "Natal- + Transitkarte",
+    "titleNatal": "Natal-Karte",
+    "subtitle": "Innerer Ring — Geburtsplaneten, äußerer Ring — Tages-Transite.",
+    "housesHiddenHint": "Häuser nicht sichtbar: Genaue Häuserspitzen nur mit genauer Geburtszeit verfügbar.",
+    "mainAspectsTitle": "Hauptaspekte des Tages",
+    "planetStrengthsTitle": "Planetenstärken",
+    "toNatalConnector": "zum Natalen",
+    "orbPrefix": ", Orbis "
+  },
   "birthDataMessage": "Um eine persönliche Tagesprognose zu erstellen, geben Sie Geburtsdatum, -zeit und -ort ein.",
   "birthDataTitle": "Geburtsdatum erforderlich",
   "chakraFlower": {
@@ -19,7 +29,6 @@
     "calibration": "Kalibrierung"
   },
   "devResetDayContent": "Aktualisieren",
-  "discussButton": "Was tun?",
   "emptyTimeLabel": "—",
   "eventBells": {
     "title": "Glocken",
@@ -81,10 +90,11 @@
   "planetBanner": {
     "eyebrow": "Planet des Tages"
   },
-  "readMoreButton": "Mehr erfahren",
   "recommendation": {
     "title": "Tagesempfehlungen",
-    "loading": "Aktualisiere die Empfehlung in der gewählten Sprache…"
+    "loading": "Aktualisiere die Empfehlung in der gewählten Sprache…",
+    "discussButton": "Was tun?",
+    "readMoreButton": "Mehr erfahren"
   },
   "refreshAccessibilityLabel": "Tagesprognose aktualisieren",
   "refreshButton": "Aktualisieren",

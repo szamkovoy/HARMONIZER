@@ -1,6 +1,16 @@
 {
   "appTitle": "Harmonizer",
   "assistantTitle": "Assistente",
+  "astroChartModal": {
+    "titleTransit": "Carta Natal + Trânsitos",
+    "titleNatal": "Carta Natal",
+    "subtitle": "Anel interno — planetas natais, externo — trânsitos do dia.",
+    "housesHiddenHint": "Casas não exibidas: cúspides exatas disponíveis apenas com o horário exato de nascimento.",
+    "mainAspectsTitle": "Aspectos principais do dia",
+    "planetStrengthsTitle": "Forças planetárias",
+    "toNatalConnector": "ao natal",
+    "orbPrefix": ", orbe "
+  },
   "birthDataMessage": "Para criar a previsão pessoal do dia, insira data, hora e local de nascimento.",
   "birthDataTitle": "Data de nascimento necessária",
   "chakraFlower": {
@@ -19,7 +29,6 @@
     "calibration": "Calibração"
   },
   "devResetDayContent": "Atualizar",
-  "discussButton": "O que fazer?",
   "emptyTimeLabel": "—",
   "eventBells": {
     "title": "Sinos",
@@ -81,10 +90,11 @@
   "planetBanner": {
     "eyebrow": "Planeta do dia"
   },
-  "readMoreButton": "Saiba mais",
   "recommendation": {
     "title": "Recomendações do dia",
-    "loading": "Atualizando recomendação no idioma selecionado…"
+    "loading": "Atualizando recomendação no idioma selecionado…",
+    "discussButton": "O que fazer?",
+    "readMoreButton": "Saiba mais"
   },
   "refreshAccessibilityLabel": "Atualizar previsão do dia",
   "refreshButton": "Atualizar",

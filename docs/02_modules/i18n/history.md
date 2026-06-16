@@ -15,6 +15,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-16 (3):** **Home recommendation buttons + astro chart i18n.** Typed extractor
+  skipped strings after arrow-function bodies (`recommendation.discussButton` landed at
+  root in overlays → EN fallback on DE/FR). Fixed `fnBodyDepth` in `extractStringTree`;
+  added `astroChartModal` to `home.ts` (natal/transit chart was hardcoded RU in
+  `ModalAstroChart.tsx`). Refilled catalog + home typed overlays for all targets.
+
 - **2026-06-16 (2):** **Startup overlay + typed overlay merge.** `AppStartupProvider`
   dropped inline RU/EN `STEP_COPY`; footer strings live in the JSON catalog
   (`startup.step.*`, `startup.fallback`) and follow `useAppLocale()`. Typed overlays:

@@ -2,7 +2,8 @@ import { Modal, ScrollView, StyleSheet, View, useWindowDimensions, type StylePro
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PLANETS_7, type NatalProfile, type Planet } from "@/modules/astro-core";
-import type { DailyForecast } from "@/modules/daily-engine";
+import type { AspectType, DailyForecast } from "@/modules/daily-engine";
+import type { HomeStrings } from "@/modules/home/i18n/home";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -14,19 +15,32 @@ interface ModalAstroChartProps {
   natalProfile: NatalProfile;
   forecast?: DailyForecast;
   aspects?: AstroChartAspect[];
+  strings: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
   /** Вложенный второй Modal на RN иногда не открывается — используйте overlay внутри родительского Modal. */
   presentation?: "modal" | "nestedOverlay";
 }
 
-const PLANET_LABELS: Record<Planet, string> = {
-  Sun: "Солнце",
-  Moon: "Луна",
-  Mercury: "Меркурий",
-  Venus: "Венера",
-  Mars: "Марс",
-  Jupiter: "Юпитер",
-  Saturn: "Сатурн",
-};
+const ASPECT_TYPES: readonly AspectType[] = ["conjunction", "opposition", "square", "trine", "sextile"];
+
+function isAspectType(value: string): value is AspectType {
+  return (ASPECT_TYPES as readonly string[]).includes(value);
+}
+
+function formatAspectLine(
+  aspect: AstroChartAspect,
+  strings: ModalAstroChartProps["strings"],
+): string {
+  const from = strings.planetLabels[aspect.from as Planet] ?? aspect.from;
+  const to = strings.planetLabels[aspect.to as Planet] ?? aspect.to;
+  const aspectLabel = isAspectType(aspect.type)
+    ? strings.opportunityWindows.aspectLabels[aspect.type]
+    : aspect.type;
+  const orb =
+    typeof aspect.orb === "number"
+      ? `${strings.astroChartModal.orbPrefix}${aspect.orb.toFixed(1)}°`
+      : "";
+  return `${from} ${aspectLabel} ${strings.astroChartModal.toNatalConnector} ${to}${orb}`;
+}
 
 export default function ModalAstroChart({
   visible,
@@ -34,6 +48,7 @@ export default function ModalAstroChart({
   natalProfile,
   forecast,
   aspects,
+  strings,
   presentation = "modal",
 }: ModalAstroChartProps) {
   const theme = useTheme();
@@ -41,6 +56,7 @@ export default function ModalAstroChart({
   const { width } = useWindowDimensions();
   const chartSize = Math.min(380, Math.max(280, width - 40));
   const showHouses = natalProfile.precisionMode === "precise" && Boolean(natalProfile.houseCusps?.length);
+  const chartCopy = strings.astroChartModal;
 
   if (presentation === "nestedOverlay" && !visible) return null;
 
@@ -56,12 +72,14 @@ export default function ModalAstroChart({
     <View style={[shellStyle, { paddingTop: insets.top + 12 }]}>
       <View style={[styles.header, { borderBottomColor: theme.colors.surfaceBorder }]}>
         <View style={styles.headerText}>
-          <AppText variant="sectionTitle">{forecast ? "Натальная + транзитная карта" : "Натальная карта"}</AppText>
+          <AppText variant="sectionTitle">
+            {forecast ? chartCopy.titleTransit : chartCopy.titleNatal}
+          </AppText>
           <AppText variant="technicalCaption" tone="muted">
-            Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.
+            {chartCopy.subtitle}
           </AppText>
         </View>
-        <AppButton label="Закрыть" variant="secondary" onPress={onClose} style={styles.closeButton} />
+        <AppButton label={strings.closeButton} variant="secondary" onPress={onClose} style={styles.closeButton} />
       </View>
 
       <ScrollView
@@ -78,28 +96,27 @@ export default function ModalAstroChart({
           />
           {!showHouses ? (
             <AppText variant="technicalCaption" tone="muted" style={styles.centerText}>
-              Дома не показаны: точные кусписы доступны только при точном времени рождения.
+              {chartCopy.housesHiddenHint}
             </AppText>
           ) : null}
         </View>
 
         {aspects?.length ? (
           <View style={[styles.section, { borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="sectionTitle">Главные аспекты дня</AppText>
+            <AppText variant="sectionTitle">{chartCopy.mainAspectsTitle}</AppText>
             {aspects.slice(0, 8).map((aspect) => (
               <AppText key={`${aspect.from}-${aspect.to}-${aspect.type}`} variant="screenHint" tone="muted">
-                {PLANET_LABELS[aspect.from]} {aspect.type} к натальному {PLANET_LABELS[aspect.to]}
-                {typeof aspect.orb === "number" ? `, орб ${aspect.orb.toFixed(1)}°` : ""}
+                {formatAspectLine(aspect, strings)}
               </AppText>
             ))}
           </View>
         ) : null}
 
         <View style={[styles.section, { borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">Силы планет</AppText>
+          <AppText variant="sectionTitle">{chartCopy.planetStrengthsTitle}</AppText>
           {PLANETS_7.map((planet) => (
             <AppText key={planet} variant="screenHint" tone="muted">
-              {PLANET_LABELS[planet]}: S = {natalProfile.planets[planet].S_initial.toFixed(2)}, H ={" "}
+              {strings.planetLabels[planet]}: S = {natalProfile.planets[planet].S_initial.toFixed(2)}, H ={" "}
               {natalProfile.planets[planet].H_initial.toFixed(2)}
             </AppText>
           ))}

@@ -36,7 +36,7 @@ export function DailyRecommendationCard({
 }: DailyRecommendationCardProps) {
   const theme = useTheme();
   const [modalLevel, setModalLevel] = useState<"none" | "long" | "math">("none");
-  const locale = strings.locale === "ru" ? "ru" : "en";
+  const locale = strings.locale;
   const planetChakra = useMemo(() => getPlanetChakraMap(locale), [locale]);
   const shortText = forecast.recommendationShortText?.trim();
   const text =
@@ -99,6 +99,12 @@ export function DailyRecommendationCard({
         forecast={forecast}
         accessMode={accessMode}
         strings={strings.mathModal}
+        chartStrings={{
+          planetLabels: strings.planetLabels,
+          closeButton: strings.closeButton,
+          opportunityWindows: strings.opportunityWindows,
+          astroChartModal: strings.astroChartModal,
+        }}
       />
     </>
   );

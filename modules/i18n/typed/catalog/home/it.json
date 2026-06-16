@@ -1,6 +1,16 @@
 {
   "appTitle": "Harmonizer",
   "assistantTitle": "Assistente",
+  "astroChartModal": {
+    "titleTransit": "Carta natale + transiti",
+    "titleNatal": "Carta natale",
+    "subtitle": "Anello interno: pianeti natali, anello esterno: transiti del giorno.",
+    "housesHiddenHint": "Case non mostrate: le cuspidi esatte sono disponibili solo con un orario di nascita preciso.",
+    "mainAspectsTitle": "Aspetti principali del giorno",
+    "planetStrengthsTitle": "Forza dei pianeti",
+    "toNatalConnector": "al natale",
+    "orbPrefix": ", orb "
+  },
   "birthDataMessage": "Per creare la previsione personale del giorno, inserisci data, ora e luogo di nascita.",
   "birthDataTitle": "Serve la data di nascita",
   "chakraFlower": {
@@ -19,7 +29,6 @@
     "calibration": "Calibrazione"
   },
   "devResetDayContent": "Aggiorna",
-  "discussButton": "Cosa fare?",
   "emptyTimeLabel": "—",
   "eventBells": {
     "title": "Campanelle",
@@ -81,10 +90,11 @@
   "planetBanner": {
     "eyebrow": "Pianeta del giorno"
   },
-  "readMoreButton": "Dettagli",
   "recommendation": {
     "title": "Raccomandazioni del giorno",
-    "loading": "Aggiornamento della raccomandazione nella lingua selezionata…"
+    "loading": "Aggiornamento della raccomandazione nella lingua selezionata…",
+    "discussButton": "Cosa fare?",
+    "readMoreButton": "Leggi di più"
   },
   "refreshAccessibilityLabel": "Aggiorna previsione del giorno",
   "refreshButton": "Aggiorna",

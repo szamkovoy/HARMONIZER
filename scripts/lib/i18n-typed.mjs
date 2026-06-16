@@ -14,11 +14,28 @@ export function extractStringTree(sourceText, startMarker, endMarker) {
 
   const flat = {};
   const stack = [{ prefix: "" }];
+  /** Brace depth inside `=> { ... }` bodies — avoids mistaking `},` for object close. */
+  let fnBodyDepth = 0;
 
   const lines = block.split("\n");
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith("//") || trimmed === "{") continue;
+
+    if (fnBodyDepth > 0) {
+      const opens = (line.match(/\{/g) ?? []).length;
+      const closes = (line.match(/\}/g) ?? []).length;
+      fnBodyDepth += opens - closes;
+      if (fnBodyDepth <= 0) fnBodyDepth = 0;
+      continue;
+    }
+
+    if (/=>\s*\{/.test(trimmed)) {
+      const opens = (line.match(/\{/g) ?? []).length;
+      const closes = (line.match(/\}/g) ?? []).length;
+      fnBodyDepth = Math.max(opens - closes, 1);
+      continue;
+    }
 
     const nestedStart = trimmed.match(/^(\w+):\s*\{/);
     if (nestedStart) {
