@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.13
+version: 1.14
 updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -86,7 +86,7 @@ code_refs:
 
 ### Интеграция с ассистентом (реализовано в коде)
 
-- Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID). Для не-`default` маркера **`[PRACTICE_PICK]`** id резолвится по полному каталогу; недавние сессии и **`practice_picked`** нормализуются к каноническому **`id`** строки каталога, затем **`selectPracticeCandidate`** исключает повторы **только по этому `id`**. Server fallback-текст карточки (`practiceCardSummary.ts`) для chakra labels в RU использует нумерованные названия в нужном падеже (`зона шестой чакры`) в карточных описаниях, а visible assistant reason отдельно мотивирует выполнить практику сейчас и не дублирует текст карточки.
+- Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID). Для не-`default` маркера **`[PRACTICE_PICK]`** id резолвится по полному каталогу; недавние сессии и **`practice_picked`** нормализуются к каноническому **`id`** строки каталога, затем **`selectPracticeCandidate`** исключает повторы **только по этому `id`**. `practice_picked.name` локализуется по `context.user.locale` (`getCoherenceBreathStrings`, `getPracticeCatalogStrings`, jsonb `title`). Server fallback карточки (`practiceCardSummary.ts`) — generic locale-native copy для всех 8 локалей (meditation/yoga/reason); детальные breath-slug blurbs — RU/EN. Visible assistant reason отдельно мотивирует выполнить практику сейчас и не дублирует текст карточки.
 - Клиент: **`Communicator`** SSE `complete.practicePicked` → общий **`modules/practices/ui/PracticeCard.tsx`** → `launchPractice` с `launchSource: 'assistant'`; отдельного `launchPracticeFromAssistant` на home больше нет.  
   Автоматизированных E2E-тестов полного диалога в репозитории нет — это ограничение процесса QA, не отсутствие кода.
 

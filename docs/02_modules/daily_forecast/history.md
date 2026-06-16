@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.11
-updated: 2026-06-14
+version: 2.12
+updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-16:** `GET /api/day` локализует `sphereStats`, `sphereHint` и practice-log titles по `users.locale` (8 content locales). Клиент Day tab уже использует `useAppLocale()` / `localizeLifeSphereLabel`; server-side copy выровнен с typed i18n helpers.
 
 - **2026-06-15:** Смена языка в Profile → Home обновляет все LLM-тексты дня
   (slogan, recommendation, «Подробнее», math) без ручного Refresh: `scopeKey` кэша

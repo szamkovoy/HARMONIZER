@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.5
-updated: 2026-05-21
+version: 1.6
+updated: 2026-06-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -64,7 +64,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 | Web manifest | `name`, `icons`, `theme_color`, `display` | `_legacy_web/public/manifest.json` |
 | Supabase CLI | `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`, секреты функций | локально `.env.local`; в облаке — Dashboard / secrets |
 | Supabase cron / Edge | `CRON_SECRET`, `verify_jwt = false` для cron-функций, расписание `precompute-global-recommendations` | `DEPLOY.md`, `supabase/config.toml`, SQL-миграции `pg_cron_*` |
-| Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, язык, prompt, `temperature: 0`, `verbose_json` | `_legacy_web/app/api/_utils/whisperTranscription.ts` (не файл MAP, но серверный runtime рядом с API) |
+| Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, optional `language` (8 aliases via `LANGUAGE_ALIASES`; omitted → auto-detect + multilingual domain prompt), `temperature: 0`, `verbose_json` | `_legacy_web/app/api/_utils/whisperTranscription.ts`, `whisperPrompts.ts` |
 | Gemini (Vercel API) | `GEMINI_API_KEY`, `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`, `MAX_DIALOG_LENGTH`, опционально `GEMINI_TIMEOUT_MS`, `ALLOW_LEGACY_GEMINI_MODELS` | Vercel env + `_legacy_web/app/api/_utils/gemini.ts`, `_legacy_web/app/api/_utils/dialogConfig.ts` |
 | Native health | iOS HealthKit entitlement / usage descriptions; Android Health Connect `READ_STEPS`, `READ_ACTIVE_CALORIES_BURNED`, `READ_EXERCISE`, `READ_SLEEP`, minSdk 26, compile/target SDK 35 | `app.config.ts`, `plugins/with-native-health.js`, `services/nativeHealth.ts` |
 

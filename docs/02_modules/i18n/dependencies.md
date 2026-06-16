@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.5
+version: 1.6
 updated: 2026-06-16
 depends_on: [02_modules/i18n/spec]
 code_refs:
@@ -61,7 +61,10 @@ This file lists the contracts so a change here is traceable to its blast radius.
   `resolveContentLocale` / `resolveDialogScaffoldLocale` in `dialog/route.ts` and
   `greeting/route.ts`, and optional **`inputLocale`** in `dialog/route.ts` only
   (for `inputLanguageName` / `inputLanguageDecouplingInstruction` in
-  `dialogBranchPrompts.ts`). Contract: the **request body MAY carry `responseLocale`**
+  `dialogBranchPrompts.ts`). Layer-C visible builders also include
+  `practiceCardSummary.ts`, localized `/api/day` copy (`getDayStrings`,
+  `getLifeSphereTitle`, `getCoherenceBreathStrings`), and `practiceSelection.ts`
+  practice titles. Contract: the **request body MAY carry `responseLocale`**
   and **`inputLocale`**; precedence is env override → body → `users.locale` → `ru`. Layer B uses all 8
   locales; layer C scaffolding uses `_legacy_web/data/dialog_scaffold/*.json` (all 8,
   RU-first sync via `i18n-sync.mjs`).

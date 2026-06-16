@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.6
-updated: 2026-05-21
+version: 1.7
+updated: 2026-06-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
 
 ## Decision Log
+
+- **2026-06-16:** Groq Whisper pipeline: `whisperPrompts.ts` — `LANGUAGE_ALIASES` для 8 локалей, optional `language` (omit → `AUTO_DETECT_DOMAIN_PROMPT`), `normalizeWhisperLanguage` → `string | undefined`; `whisperTranscription.ts` и `/transcribe` клиент пропускают `language` в form, когда hint не задан. Контракт STT — `communicator/spec.md`, `i18n/spec.md` §8.
 
 - **2026-06-09 (4):** Sentry-шум от штатной перегрузки LLM и обрыва SSE снижен: `reportRouteError` логирует «Сервис временно недоступен…» как `warning` (не `error`), `sentry.server.config.ts` фильтрует `failed to pipe response`, dialog SSE при ошибке responder закрывается событием `error` + `controller.close()` вместо `controller.error()`. Аналитика перегрузок остаётся в `user_event_log`.
 - **2026-06-08 (3):** Добавлена follow-up миграция `20260608170000_activate_dialog_system_v3_v6.sql`: она деактивирует старые версии `dialog_system_v3` и явно поднимает `version = 6` в `is_active = true`, чтобы новые окружения не оставались без активного daily-dialog prompt после `db push`.

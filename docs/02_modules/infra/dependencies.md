@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/dependencies
 title: Infra Dependencies
-version: 1.4
-updated: 2026-06-09
+version: 1.5
+updated: 2026-06-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -22,7 +22,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
   `reportRouteError` / `logUserEvent` принимают `SupabaseClient`; запись в `user_event_log` требует рабочей схемы и RLS, описанных в миграциях. Edge Functions и cron из `supabase/README.md` зависят от облачных секретов. Таблица `public.prompts` получает и обновляет runtime prompt **`dialog_system_v3`** цепочкой миграций, начиная с `20260511161000_dialog_system_v3.sql` и далее пакетами «А»/«B» (активная версия и archived v7 prompts — в модуле **`assistant`**, см. `docs/02_modules/assistant/spec.md` и `docs/05_archive/migrated/assistant/dialog_v7_prompts-reference.md`).
 
 - **Groq API**  
-  Косвенно: инфраструктура API включает маршруты транскрипции, использующие `GROQ_API_KEY` и общий util `whisperTranscription.ts` (язык, prompt, verbose_json). Это граница с модулем `communicator`, но env и лимиты провайдера — инфраструктурный контракт сервера.
+  Косвенно: инфраструктура API включает маршруты транскрипции, использующие `GROQ_API_KEY` и общий util `whisperTranscription.ts` / `whisperPrompts.ts` (optional `language` с 8 aliases или auto-detect, domain prompt, verbose_json). Это граница с модулем `communicator`, но env и лимиты провайдера — инфраструктурный контракт сервера.
 
 ## 2. От него зависят
 

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.6
+version: 1.7
 updated: 2026-06-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -304,8 +304,9 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   greetings, planning labels, summary bridges — all eight locales via
   `_legacy_web/data/dialog_scaffold/*.json` and `getDialogScaffoldStrings()`.
   RU source syncs via `node scripts/i18n-sync.mjs fill --all` (same gate as UI
-  catalog). Exception: `practiceCardSummary.ts` breath-slug blurbs still use
-  RU copies / EN fallback for non-RU (not scaffold JSON).
+  catalog). Exception: `practiceCardSummary.ts` detailed breath-slug blurbs remain
+  RU/EN only; generic meditation/yoga/card-reason fallbacks are inline for all 8
+  locales (not scaffold JSON).
 - **Still hardcoded / incremental:** dev diagnostics card on Profile; some Home
   dev-only strings (`NatalBridgeCard`); event banner text if server-supplied;
   `ModalLongExplanation` body comes from LLM (layer B) — UI shell is localized.

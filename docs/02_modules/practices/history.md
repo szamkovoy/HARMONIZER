@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.14
+version: 1.15
 updated: 2026-06-16
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-16 (3):** Assistant practice i18n: `practiceCardSummary.ts` — generic card/reason fallbacks для всех 8 локалей (без chakra-name leakage); `practiceSelection.ts` локализует `practice_picked.name`. `SacredSymbolStreamScreen` — density chip labels через `getSymbolStreamStrings` (`densityAiry`/`densityBalanced`/`densityDense`).
 
 - **2026-06-16 (2):** Typed pluralization/footer: `PracticeCatalogStrings` — `practiceCountOne`, `practiceCountWithTotal`, `catalogFooterTemplate`; `getPracticeCatalogStrings` wires `practiceCount`/`catalogFooter` from overlays (EN singular via `practiceCountOne`). `PracticeCatalogScreen` — group tab titles: `numberOfLines={2}`, `adjustsFontSizeToFit`, tighter grid padding.
 
