@@ -60,8 +60,10 @@ They are NOT required to match. This decoupling powers **test mode**.
 ### 1.2 Test mode (developer)
 `EXPO_PUBLIC_I18N_TEST_MODE` (client) = "speak Russian, see another language".
 When on, transcription stays `ru` while UI + response follow the selected locale,
-so a Russian-speaking developer can spot-check any language. In production both
-follow the selected/detected locale.
+so a Russian-speaking developer can spot-check any language. When off, the app UI
+still follows the selected locale, while the communicator voice path may
+auto-detect the spoken input language and send that as the dialog reply locale for
+that turn only.
 
 ### 1.3 The three text layers — never conflate
 | Layer | What | Goes to LLM? | Policy |
@@ -101,7 +103,8 @@ cost never decides layer-C design.
   - **`getTranscribeLocale()`** — STT language; returns `"ru"` in test mode, else
     the active locale. Sent to dialog POST as **`inputLocale`** so the server can
     remind the model not to mirror the user's input language when it differs from
-    `responseLocale`.
+    `responseLocale`. The communicator voice flow may override both locales per
+    turn after STT auto-detects another spoken language in production mode.
 
 ### 2.2 `t.ts` — translation + plurals
 - JSON catalogs `catalog/{ru,en,de,fr,it,es,pt,nl}.json` are flat dotted-key → string maps.
@@ -309,5 +312,6 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 - **Per-locale checklist when enabling a new language:** JSON catalog (`fill`),
   typed overlay JSON (`fill --all`), layer C builders, Luxon verify, then flip
   `enabled: true`. Run `node scripts/i18n-sync.mjs check`.
-- **Optional later:** auto-detecting input language in production (today the
-  selector drives UI + `responseLocale`; `users.locale` is mirrored on change).
+- **Current production behavior:** communicator voice turns may auto-detect the
+  spoken language and temporarily route the reply there; the profile/app locale
+  remains the source of truth for all non-dialog UI.

@@ -15,12 +15,6 @@ import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { recordPracticeSession, selfRatingFromMood, type PracticeCompletionMood } from "@/services/practiceSessions";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
-const DENSITY_OPTIONS = [
-  { label: "Airy", value: 0.18 },
-  { label: "Balanced", value: 0.5 },
-  { label: "Dense", value: 0.84 },
-] as const;
-
 const DEFAULT_DURATION_MS = 5 * 60_000;
 const DEFAULT_CHAKRA = 6;
 const OVERLAY_AUTOHIDE_MS = 4_000;
@@ -77,6 +71,14 @@ export function SacredSymbolStreamScreen({
   const { authUser } = useAuth();
   const { locale: appLocale } = useAppLocale();
   const strings = useMemo(() => getSymbolStreamStrings(appLocale), [appLocale]);
+  const densityOptions = useMemo(
+    () => [
+      { label: strings.densityAiry, value: 0.18 },
+      { label: strings.densityBalanced, value: 0.5 },
+      { label: strings.densityDense, value: 0.84 },
+    ] as const,
+    [strings.densityAiry, strings.densityBalanced, strings.densityDense],
+  );
   const sessionStartedAtRef = useRef(Date.now());
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [completionSaved, setCompletionSaved] = useState(false);
@@ -249,7 +251,7 @@ export function SacredSymbolStreamScreen({
             {HARMONIZER_TEST_MODE ? (
               <View style={styles.testBlock}>
                 <View style={styles.chipRow}>
-                  {DENSITY_OPTIONS.map((option) => {
+                  {densityOptions.map((option) => {
                     const isActive = Math.abs(option.value - densityBias) < 0.001;
                     return (
                       <Pressable

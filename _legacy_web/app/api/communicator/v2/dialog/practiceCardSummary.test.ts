@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildPracticeAssistantReason, buildPracticeCardSummary } from "./practiceCardSummary";
 
 describe("buildPracticeCardSummary", () => {
-  it("yoga: mentions chakras and body work (ru)", () => {
+  it("yoga: uses localized generic body-work copy (ru)", () => {
     const s = buildPracticeCardSummary({
       kind: "yoga",
       slug: "any",
@@ -12,8 +12,8 @@ describe("buildPracticeCardSummary", () => {
       userMessage: "Волнует разговор с шефом",
       modelCardBlurb: null,
     });
-    expect(s).toContain("пятой чакры");
-    expect(s).toContain("четвёртой чакры");
+    expect(s).toContain("телесную опору");
+    expect(s).toContain("состояние дня");
     expect(s).toContain("асан");
   });
 

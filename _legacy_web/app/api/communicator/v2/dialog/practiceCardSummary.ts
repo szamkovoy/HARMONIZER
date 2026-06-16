@@ -2,37 +2,17 @@
  * Текст для карточки практики в UI.
  * Приоритет: валидированный model-generated `card_blurb` -> server fallback.
  *
- * Локали: все 8 через `asContentLocale`; RU — ru-копии, остальные — en-fallback для breath slug blurbs.
+ * Локали: все 8 через `asContentLocale`; RU/EN хранят более детальные breath-copy,
+ * остальные локали получают короткие locale-native fallback тексты вместо EN leakage.
  */
 
-import { chakraLabelRu } from "@/modules/chakra/labels";
-
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import { asContentLocale, SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
 
 export type PracticeKindForCard = "breath" | "meditation" | "yoga";
 
 const MODEL_CARD_BLURB_MIN_LENGTH = 100;
 const MODEL_CARD_BLURB_MAX_LENGTH = 700;
-
-const CHAKRA_NAME_RU: Record<number, string> = {
-  1: chakraLabelRu(1),
-  2: chakraLabelRu(2),
-  3: chakraLabelRu(3),
-  4: chakraLabelRu(4),
-  5: chakraLabelRu(5),
-  6: chakraLabelRu(6),
-  7: chakraLabelRu(7),
-};
-
-const CHAKRA_NAME_EN: Record<number, string> = {
-  1: "Muladhara",
-  2: "Svadhisthana",
-  3: "Manipura",
-  4: "Anahata",
-  5: "Vishuddha",
-  6: "Ajna",
-  7: "Sahasrara",
-};
 
 /** Краткие карточные тексты по slug дыхательных практик (RU) — согласованы с семью типами в каталоге. */
 const BREATH_CARD_RU: Record<string, string> = {
@@ -69,28 +49,91 @@ const BREATH_CARD_EN: Record<string, string> = {
     "Triangle (apex down) offers a deep reset—an “emergency brake” when anxiety or rumination spikes.",
 };
 
-function chakraLine(ids: readonly number[], locale: "ru" | "en"): string {
-  const map = locale === "en" ? CHAKRA_NAME_EN : CHAKRA_NAME_RU;
-  const unique = [...new Set(ids.filter((n) => Number.isInteger(n) && n >= 1 && n <= 7))];
-  if (!unique.length) return locale === "en" ? "the body’s energy centres" : "энергетические центры";
-  return unique.map((id) => map[id] ?? String(id)).join(locale === "en" ? ", " : " и ");
-}
+const GENERIC_CARD_TEXT: Record<AppContentLocale, Record<PracticeKindForCard, string>> = {
+  ru: {
+    meditation: "Короткая медитация мягко собирает внимание, успокаивает внутренний шум и помогает вернуться к более ровному состоянию.",
+    breath: "Короткая дыхательная практика помогает выровнять ритм, разгрузить нервную систему и вернуть больше внутренней устойчивости.",
+    yoga: "Эта серия асан помогает перевести внутреннюю работу в телесную опору и сделать состояние дня более устойчивым.",
+  },
+  en: {
+    meditation: "A short meditation gathers attention, softens inner noise, and helps you return to a steadier state.",
+    breath: "A short breathing practice can steady the rhythm, calm the nervous system, and restore more inner stability.",
+    yoga: "This asana sequence helps anchor the inner work in the body and make the day's state more stable.",
+  },
+  de: {
+    meditation: "Diese kurze Meditation sammelt die Aufmerksamkeit, beruhigt den inneren Lärm und hilft, wieder in einen ruhigeren Zustand zu kommen.",
+    breath: "Diese kurze Atempraxis stabilisiert den Rhythmus, entlastet das Nervensystem und gibt mehr innere Stabilität.",
+    yoga: "Diese Asana-Sequenz verankert die innere Arbeit im Körper und macht den Zustand des Tages stabiler.",
+  },
+  fr: {
+    meditation: "Cette courte meditation rassemble l'attention, calme le bruit interieur et aide a revenir vers un etat plus stable.",
+    breath: "Cette courte pratique respiratoire retablit le rythme, apaise le systeme nerveux et rend plus de stabilite interieure.",
+    yoga: "Cette sequence d'asanas aide a ancrer le travail interieur dans le corps et a rendre l'etat du jour plus stable.",
+  },
+  it: {
+    meditation: "Questa breve meditazione raccoglie l'attenzione, calma il rumore interiore e aiuta a tornare a uno stato piu stabile.",
+    breath: "Questa breve pratica di respirazione riequilibra il ritmo, calma il sistema nervoso e restituisce piu stabilita interiore.",
+    yoga: "Questa sequenza di asana aiuta a radicare il lavoro interiore nel corpo e a rendere piu stabile lo stato della giornata.",
+  },
+  es: {
+    meditation: "Esta meditacion breve recoge la atencion, calma el ruido interior y ayuda a volver a un estado mas estable.",
+    breath: "Esta practica breve de respiracion regula el ritmo, calma el sistema nervioso y devuelve mas estabilidad interior.",
+    yoga: "Esta secuencia de asanas ayuda a llevar el trabajo interior al cuerpo y a hacer mas estable el estado del dia.",
+  },
+  pt: {
+    meditation: "Esta meditacao curta recolhe a atencao, acalma o ruido interior e ajuda a voltar a um estado mais estavel.",
+    breath: "Esta pratica curta de respiracao regula o ritmo, acalma o sistema nervoso e devolve mais estabilidade interior.",
+    yoga: "Esta sequencia de asanas ajuda a ancorar o trabalho interior no corpo e a tornar o estado do dia mais estavel.",
+  },
+  nl: {
+    meditation: "Deze korte meditatie bundelt de aandacht, maakt innerlijke ruis stiller en helpt om terug te keren naar een stabielere staat.",
+    breath: "Deze korte adempraktijk brengt het ritme terug, kalmeert het zenuwstelsel en geeft meer innerlijke stabiliteit.",
+    yoga: "Deze asana-reeks helpt het innerlijke werk in het lichaam te verankeren en de staat van de dag stabieler te maken.",
+  },
+};
 
-function chakraZoneRu(ids: readonly number[]): string {
-  const unique = [...new Set(ids.filter((n) => Number.isInteger(n) && n >= 1 && n <= 7))];
-  const genitive: Record<number, string> = {
-    1: "первой чакры",
-    2: "второй чакры",
-    3: "третьей чакры",
-    4: "четвёртой чакры",
-    5: "пятой чакры",
-    6: "шестой чакры",
-    7: "седьмой чакры",
-  };
-  if (!unique.length) return "ключевых энергетических центров";
-  if (unique.length === 1) return genitive[unique[0]!] ?? "целевой чакры";
-  return unique.map((id) => genitive[id] ?? `${id}-й чакры`).join(" и ");
-}
+const GENERIC_REASON_TEXT: Record<AppContentLocale, Record<PracticeKindForCard, string>> = {
+  ru: {
+    meditation: "Эта короткая медитация поможет собрать внимание и войти в день спокойнее: меньше суеты, больше тихой ясности.",
+    breath: "Эта дыхательная практика поможет выровнять нервную систему и мягко поддержать фокус дня.",
+    yoga: "Эта практика поможет дать телу опору и сделать фокус дня более живым и устойчивым в реальных действиях.",
+  },
+  en: {
+    meditation: "This short meditation can gather attention and bring a calmer, clearer tone to the rest of the day.",
+    breath: "This breathing practice can steady the nervous system and gently support the day's focus.",
+    yoga: "This practice can give the body more support and make the day's focus easier to live in action.",
+  },
+  de: {
+    meditation: "Diese kurze Meditation sammelt die Aufmerksamkeit und bringt mehr Ruhe und Klarheit in den weiteren Tag.",
+    breath: "Diese Atempraxis stabilisiert das Nervensystem und unterstuetzt sanft den Fokus des Tages.",
+    yoga: "Diese Praxis gibt dem Korper mehr Halt und macht den Fokus des Tages im Handeln greifbarer.",
+  },
+  fr: {
+    meditation: "Cette courte meditation aide a rassembler l'attention et a donner plus de calme et de clarte pour la suite de la journee.",
+    breath: "Cette pratique respiratoire apaise le systeme nerveux et soutient doucement le focus de la journee.",
+    yoga: "Cette pratique donne plus d'appui au corps et rend le focus de la journee plus concret dans l'action.",
+  },
+  it: {
+    meditation: "Questa breve meditazione aiuta a raccogliere l'attenzione e a portare piu calma e chiarezza al resto della giornata.",
+    breath: "Questa pratica di respirazione stabilizza il sistema nervoso e sostiene con delicatezza il focus della giornata.",
+    yoga: "Questa pratica da piu appoggio al corpo e rende il focus della giornata piu concreto nelle azioni.",
+  },
+  es: {
+    meditation: "Esta meditacion breve ayuda a recoger la atencion y a dar mas calma y claridad al resto del dia.",
+    breath: "Esta practica de respiracion calma el sistema nervioso y sostiene con suavidad el foco del dia.",
+    yoga: "Esta practica da mas apoyo al cuerpo y vuelve mas concreto el foco del dia en las acciones.",
+  },
+  pt: {
+    meditation: "Esta meditacao curta ajuda a recolher a atencao e a trazer mais calma e clareza para o resto do dia.",
+    breath: "Esta pratica de respiracao acalma o sistema nervoso e sustenta com suavidade o foco do dia.",
+    yoga: "Esta pratica da mais apoio ao corpo e torna o foco do dia mais concreto nas acoes.",
+  },
+  nl: {
+    meditation: "Deze korte meditatie helpt de aandacht te bundelen en meer rust en helderheid in de rest van de dag te brengen.",
+    breath: "Deze adempraktijk kalmeert het zenuwstelsel en ondersteunt op een zachte manier de focus van de dag.",
+    yoga: "Deze praktijk geeft het lichaam meer steun en maakt de focus van de dag concreter in wat je doet.",
+  },
+};
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -122,25 +165,14 @@ export function buildPracticeCardSummary(params: {
   if (modelCardBlurb) return modelCardBlurb;
 
   const resolved = asContentLocale(params.locale) ?? SOURCE_LOCALE;
-  const locale = resolved === SOURCE_LOCALE ? "ru" : "en";
-  const ch = chakraLine(params.chakraIds, locale);
-
-  if (params.kind === "yoga") {
-    if (locale === "en") {
-      return `This asana sequence focuses on ${ch}—gentle work through the body tends to hold longer than a single conversation.`;
-    }
-    return `Эта серия асан опирается на зону ${chakraZoneRu(params.chakraIds)}: через тело вы возвращаете устойчивость — эффект обычно глубже, чем от одного разговора.`;
+  if (resolved !== SOURCE_LOCALE && resolved !== "en") {
+    return GENERIC_CARD_TEXT[resolved][params.kind];
   }
-
-  if (params.kind === "meditation") {
-    if (locale === "en") {
-      return `A short meditation shifts attention inward—calm, imagery, and balance for the mind.`;
-    }
-    return `Короткая медитация — спокойная работа с вниманием и образом, без давления на результат.`;
-  }
+  if (params.kind === "yoga") return GENERIC_CARD_TEXT[resolved].yoga;
+  if (params.kind === "meditation") return GENERIC_CARD_TEXT[resolved].meditation;
 
   const slug = params.slug.trim();
-  return locale === "en"
+  return resolved === "en"
     ? BREATH_CARD_EN[slug] ?? BREATH_CARD_EN.coherent
     : BREATH_CARD_RU[slug] ?? BREATH_CARD_RU.coherent;
 }
@@ -151,22 +183,5 @@ export function buildPracticeAssistantReason(params: {
   locale: string | null | undefined;
 }): string {
   const resolved = asContentLocale(params.locale) ?? SOURCE_LOCALE;
-  const locale = resolved === SOURCE_LOCALE ? "ru" : "en";
-  const ch = chakraLine(params.chakraIds, locale);
-  if (locale === "en") {
-    if (params.kind === "meditation") {
-      return `This short meditation can help you collect attention and enter the day through ${ch}: less rush, more quiet clarity.`;
-    }
-    if (params.kind === "breath") {
-      return `This breathing practice can steady the nervous system and support ${ch}, so the day's recommendations are easier to live from inside.`;
-    }
-    return `This asana practice can anchor ${ch} through the body, so the day's focus becomes more than an idea.`;
-  }
-  if (params.kind === "meditation") {
-    return `Эта короткая медитация поможет собрать внимание и войти в день спокойнее: меньше суеты, больше тихой ясности.`;
-  }
-  if (params.kind === "breath") {
-    return `Эта дыхательная практика поможет выровнять нервную систему и мягко поддержать фокус дня.`;
-  }
-  return `Хороший выбор: после разговора важно не только понять направление дня, но и дать телу опору. Эта практика поможет собрать энергию и легче удержать ясность в реальных действиях.`;
+  return GENERIC_REASON_TEXT[resolved][params.kind];
 }

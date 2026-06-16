@@ -37,7 +37,7 @@ export async function deleteVoiceRecordingFile(uri: string | null | undefined): 
  */
 export async function transcribeVoiceRecording(params: {
   uri: string;
-  language: string;
+  language?: string;
   signal?: AbortSignal;
 }): Promise<TranscribeAudioResponse> {
   const mimeType = mimeFromRecordingUri(params.uri);

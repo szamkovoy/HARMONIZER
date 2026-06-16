@@ -39,7 +39,7 @@ export function historyHasPracticePicked(history: MessageRecord[]): boolean {
 }
 
 export function userSignalsPlanningDone(text: string): boolean {
-  const normalized = text.trim().toLowerCase();
+  const normalized = text.trim().toLowerCase().replace(/^[\s.!?,…:;-]+/u, "");
   if (!normalized) return false;
   // Bare negation as a standalone reply ("нет", "no", "не, всё") = done adding.
   if (/^(?:нет|не|no|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/i.test(normalized)) {

@@ -10,7 +10,7 @@ code_refs: []
 
 ## `i18n` (multilingual)
 
-- Дизайн и фазовый план — в `docs/04_workspace/i18n_architecture.md`. **Phase 1–3 (каркас + 8-locale layer B + layer C dialog scaffold) внедрены.** Закрыто в Phase 2: запись `users.locale` при смене языка; pre-translate free-tier global content в `text_i18n`; typed sync gate. Закрыто в Phase 3: детерминированные visible-text builders слоя C для всех 8 локалей (`dialog_scaffold` + `getDialogScaffoldStrings`). Открытые вопросы: (a) **миграция контента** оставшихся хардкод-RU экранов (инкрементально); (b) `practiceCardSummary` breath-slug blurbs — пока RU/EN, не scaffold JSON; (c) auto-detect языка ввода в проде; (d) math markdown strings для de–nl (сейчас EN fallback).
+- Дизайн и фазовый план — в `docs/04_workspace/i18n_architecture.md`. **Phase 1–3 (каркас + 8-locale layer B + layer C dialog scaffold) внедрены.** Закрыто в Phase 2: запись `users.locale` при смене языка; pre-translate free-tier global content в `text_i18n`; typed sync gate. Закрыто в Phase 3: детерминированные visible-text builders слоя C для всех 8 локалей (`dialog_scaffold` + `getDialogScaffoldStrings`). Открытые вопросы: (a) **миграция контента** оставшихся хардкод-RU экранов (инкрементально); (b) `practiceCardSummary` breath-slug blurbs — пока RU/EN, не scaffold JSON; (c) math markdown strings для de–nl (сейчас EN fallback).
 
 ## `webinars`
 

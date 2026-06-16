@@ -1,6 +1,7 @@
 import type { DialogueUseCase, OrchestratorDecision } from "@/services/communicator-client";
 
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
 import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 
 export type CommunicatorLocale = AppContentLocale;
@@ -128,6 +129,49 @@ function phaseLabelFor(
   return labels[phase as PhaseId] ?? fallback(phase);
 }
 
+function transcriptionReviewHintForLocale(locale: CommunicatorLocale, confidence?: number): string {
+  if (confidence == null) {
+    switch (locale) {
+      case "de":
+        return "Ich habe keine Einschatzung der Transkriptionsqualitat erhalten. Bitte prufen Sie den Text vor dem Senden.";
+      case "fr":
+        return "Je n'ai pas recu d'estimation de la qualite de la transcription. Verifiez le texte avant l'envoi.";
+      case "it":
+        return "Non ho ricevuto una stima della qualita della trascrizione. Controlla il testo prima di inviarlo.";
+      case "es":
+        return "No recibi una estimacion de la calidad de la transcripcion. Revisa el texto antes de enviarlo.";
+      case "pt":
+        return "Nao recebi uma estimativa da qualidade da transcricao. Revise o texto antes de enviar.";
+      case "nl":
+        return "Ik heb geen inschatting van de transcriptiekwaliteit ontvangen. Controleer de tekst voor het verzenden.";
+      case "en":
+        return "I did not receive a transcription quality score. Please check the text before sending.";
+      default:
+        return "Я не получил оценку качества расшифровки. Проверь текст перед отправкой.";
+    }
+  }
+
+  const percent = Math.round(confidence * 100);
+  switch (locale) {
+    case "de":
+      return `Ich bin nicht ganz sicher, dass ich Sie richtig gehort habe (${percent}%). Korrigieren Sie den Text bei Bedarf.`;
+    case "fr":
+      return `Je ne suis pas certain d'avoir bien compris (${percent} %). Corrigez le texte si besoin.`;
+    case "it":
+      return `Non sono del tutto sicuro di averti capito bene (${percent}%). Correggi il testo se serve.`;
+    case "es":
+      return `No estoy del todo seguro de haberte entendido bien (${percent} %). Corrige el texto si hace falta.`;
+    case "pt":
+      return `Nao tenho certeza de ter entendido voce corretamente (${percent}%). Corrija o texto se precisar.`;
+    case "nl":
+      return `Ik weet niet helemaal zeker of ik je goed heb verstaan (${percent}%). Pas de tekst zo nodig aan.`;
+    case "en":
+      return `I am not fully sure I heard you correctly (${percent}%). Edit the text if needed.`;
+    default:
+      return `Я не уверен, что точно тебя услышал (${percent}%). Поправь текст, если нужно.`;
+  }
+}
+
 const ru: CommunicatorStrings = {
   locale: "ru",
   authRequiredError: "Нужна авторизация Supabase для запроса к ассистенту.",
@@ -235,6 +279,13 @@ const en: CommunicatorStrings = {
 };
 
 export function getCommunicatorStrings(locale: CommunicatorLocale): CommunicatorStrings {
-  const base = locale === "en" ? en : ru;
-  return mergeTypedLocale("communicator", base, locale);
+  const base = inlineBaseLocale(locale) === "en" ? en : ru;
+  const merged = mergeTypedLocale("communicator", base, locale);
+  return {
+    ...merged,
+    locale,
+    typingStatus: (phaseLabel) => (phaseLabel ? `${merged.respondingStatus} · ${phaseLabel}` : merged.respondingStatus),
+    transcriptionReviewHint: (confidence) => transcriptionReviewHintForLocale(locale, confidence),
+    phaseLabelFor: (decision) => phaseLabelFor(decision, merged.phaseLabels, merged.fallbackPhaseLabel),
+  };
 }

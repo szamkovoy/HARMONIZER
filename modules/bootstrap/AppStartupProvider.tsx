@@ -3,7 +3,7 @@ import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from "
 
 import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
-import { t, useAppLocale } from "@/modules/i18n";
+import { coerceAppLocale, t, type AppLocale, useAppLocale } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
 
 export type AppStartupPhase = "app_loading" | "initializing" | "loading_day";
@@ -31,7 +31,7 @@ function startupStepKey(step: string): string {
   return `startup.step.${step.replace(/\//g, "_")}`;
 }
 
-function startupFooterText(locale: string, step: string): string {
+function startupFooterText(locale: AppLocale, step: string): string {
   const key = startupStepKey(step);
   const copy = t(locale, key);
   if (copy !== key) return copy;
@@ -90,7 +90,7 @@ function useSplashProgress(visible: boolean, progress: Animated.Value) {
   }, [progress, visible]);
 }
 
-function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: string }) {
+function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: AppLocale }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
@@ -238,6 +238,7 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
 export function AppStartupProvider({ children }: { children: ReactNode }) {
   const { initializing, profileLoading } = useAuth();
   const { locale } = useAppLocale();
+  const appLocale = coerceAppLocale(locale);
 
   const [isHomeRoute, setHomeRouteActive] = useState(true);
   const [homeBootstrap, setHomeBootstrap] = useState<HomeBootstrapState>({
@@ -304,7 +305,7 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     <AppStartupContext.Provider value={value}>
       <View style={styles.root}>
         {children}
-        <AppStartupOverlay visible={visible} step={footerStep} locale={locale} />
+        <AppStartupOverlay visible={visible} step={footerStep} locale={appLocale} />
       </View>
     </AppStartupContext.Provider>
   );

@@ -1,39 +1,73 @@
 import { DateTime } from "luxon";
 
+import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
+import { getDayStrings } from "@/modules/day/i18n/day";
+import { getLifeSphereTitle } from "@/modules/life-spheres/labels";
 import { asPlanningSphereCells } from "@legacy/app/api/_utils/lifeMatrix";
+import { asContentLocale, SOURCE_LOCALE, type AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import { purgeHistoricalSummarizedPlannedEvents } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
 
-const SPHERE_TITLES_RU = [
-  "Тело и безопасность",
-  "Удовольствия и отдых",
-  "Проявленность и деньги",
-  "Друзья, семья, отношения",
-  "Ценности и самовыражение",
-  "Познание и обучение",
-  "Высшие смыслы, вера",
-] as const;
+const SPHERE_SHORT_TITLES: Record<AppContentLocale, readonly string[]> = {
+  ru: ["тело", "отдых", "деньги/дела", "отношения", "ценности", "обучение", "смысл"],
+  en: ["body", "rest", "money/work", "relationships", "values", "learning", "meaning"],
+  de: ["Korper", "Erholung", "Geld/Aufgaben", "Beziehungen", "Werte", "Lernen", "Sinn"],
+  fr: ["le corps", "le repos", "l'argent/les taches", "les relations", "les valeurs", "l'apprentissage", "le sens"],
+  it: ["il corpo", "il riposo", "denaro/impegni", "le relazioni", "i valori", "l'apprendimento", "il senso"],
+  es: ["el cuerpo", "el descanso", "dinero/tareas", "las relaciones", "los valores", "el aprendizaje", "el sentido"],
+  pt: ["o corpo", "o descanso", "dinheiro/tarefas", "as relacoes", "os valores", "o aprendizado", "o sentido"],
+  nl: ["het lichaam", "rust", "geld/taken", "relaties", "waarden", "leren", "betekenis"],
+};
 
-const SPHERE_SHORT_TITLES_RU = [
-  "тело",
-  "отдых",
-  "деньги/дела",
-  "отношения",
-  "ценности",
-  "обучение",
-  "смысл",
-] as const;
-
-const BREATH_LABEL_RU: Record<string, string> = {
-  coherent: "когерентное",
-  "nadi-shodhana": "попеременное",
-  "surya-bhedana": "солнечное",
-  "chandra-bhedana": "лунное",
-  square: "квадратное",
-  "triangle-up": "треугольное вверх",
-  "triangle-down": "треугольное вниз",
+const SPHERE_HINT_COPY: Record<
+  AppContentLocale,
+  {
+    narrow: (activeText: string, missingText: string, activeCount: number) => string;
+    wide: (missingText: string) => string;
+  }
+> = {
+  ru: {
+    narrow: (activeText, missingText, activeCount) =>
+      `Сейчас сильнее ${activeCount === 1 ? "звучит" : "звучат"} ${activeText}. Для баланса добавьте небольшое действие: ${missingText}.`,
+    wide: (missingText) => `Баланс уже шире. Можно добавить ${missingText} — эта сфера пока почти не звучит.`,
+  },
+  en: {
+    narrow: (activeText, missingText) =>
+      `Right now ${activeText} sounds strongest. To balance the day, add one small action around ${missingText}.`,
+    wide: (missingText) => `The balance is already broader. You can still add ${missingText} - this sphere is barely sounding yet.`,
+  },
+  de: {
+    narrow: (activeText, missingText) =>
+      `Im Moment klingt ${activeText} am starksten. Fur mehr Balance fugen Sie eine kleine Handlung rund um ${missingText} hinzu.`,
+    wide: (missingText) => `Die Balance ist bereits breiter. Sie konnen noch ${missingText} hinzufugen - diese Sphare klingt bisher kaum an.`,
+  },
+  fr: {
+    narrow: (activeText, missingText) =>
+      `Pour l'instant, ${activeText} ressort le plus. Pour equilibrer la journee, ajoutez une petite action autour de ${missingText}.`,
+    wide: (missingText) => `L'equilibre est deja plus large. Vous pouvez encore ajouter ${missingText} - cette sphere reste presque muette.`,
+  },
+  it: {
+    narrow: (activeText, missingText) =>
+      `Per ora emerge soprattutto ${activeText}. Per riequilibrare la giornata, aggiungi una piccola azione intorno a ${missingText}.`,
+    wide: (missingText) => `L'equilibrio e gia piu ampio. Puoi ancora aggiungere ${missingText} - questa sfera si sente ancora molto poco.`,
+  },
+  es: {
+    narrow: (activeText, missingText) =>
+      `Por ahora destaca sobre todo ${activeText}. Para equilibrar el dia, anade una pequena accion alrededor de ${missingText}.`,
+    wide: (missingText) => `El equilibrio ya es mas amplio. Aun puedes anadir ${missingText} - esta esfera casi no suena todavia.`,
+  },
+  pt: {
+    narrow: (activeText, missingText) =>
+      `Por enquanto, ${activeText} aparece com mais forca. Para equilibrar o dia, adicione uma pequena acao em torno de ${missingText}.`,
+    wide: (missingText) => `O equilibrio ja esta mais amplo. Ainda da para adicionar ${missingText} - esta esfera quase nao esta soando.`,
+  },
+  nl: {
+    narrow: (activeText, missingText) =>
+      `Op dit moment klinkt vooral ${activeText} het sterkst. Voeg voor meer balans een kleine actie rond ${missingText} toe.`,
+    wide: (missingText) => `De balans is al breder. Je kunt nog ${missingText} toevoegen - deze sfeer klinkt nog maar heel zacht mee.`,
+  },
 };
 
 function localDayBounds(localDate: string, timezone: string) {
@@ -45,28 +79,37 @@ function localDayBounds(localDate: string, timezone: string) {
   };
 }
 
-function formatPracticeTitle(row: {
+function formatPracticeTitle(
+  row: {
   practice_slug: string;
   duration_sec: number | null;
   started_at: string;
   context: unknown;
-}) {
+},
+  locale: AppContentLocale,
+) {
   const context = row.context && typeof row.context === "object" && !Array.isArray(row.context)
     ? row.context as Record<string, unknown>
     : {};
   const kind = typeof context.practice_kind === "string" ? context.practice_kind : null;
-  if (kind === "breath") return `Дыхание: ${BREATH_LABEL_RU[row.practice_slug] ?? row.practice_slug}`;
-  if (kind === "meditation") return "Медитация";
-  if (kind === "yoga") return "Асаны";
-  if (row.practice_slug === "sacred-symbol-stream") return "Медитация";
-  if (BREATH_LABEL_RU[row.practice_slug]) return `Дыхание: ${BREATH_LABEL_RU[row.practice_slug]}`;
+  const dayStrings = getDayStrings(locale);
+  const breathStrings = getCoherenceBreathStrings(locale);
+  const breathTitle = breathStrings.practiceName[row.practice_slug as keyof typeof breathStrings.practiceName];
+  if (kind === "breath" && typeof breathTitle === "string" && breathTitle.trim()) {
+    return `${dayStrings.breathLabel}: ${breathTitle.trim()}`;
+  }
+  if (kind === "breath") return `${dayStrings.breathLabel}: ${row.practice_slug}`;
+  if (kind === "meditation") return dayStrings.meditationLabel;
+  if (kind === "yoga") return dayStrings.asanasLabel;
+  if (row.practice_slug === "sacred-symbol-stream") return dayStrings.meditationLabel;
+  if (typeof breathTitle === "string" && breathTitle.trim()) return `${dayStrings.breathLabel}: ${breathTitle.trim()}`;
   return row.practice_slug;
 }
 
-function buildSphereStats(actions: Array<{ cells: unknown }>) {
+function buildSphereStats(actions: Array<{ cells: unknown }>, locale: AppContentLocale) {
   const totals = Array.from({ length: 7 }, (_, index) => ({
     id: index + 1,
-    title: SPHERE_TITLES_RU[index] ?? String(index + 1),
+    title: getLifeSphereTitle(index + 1, locale),
     value: 0,
   }));
   for (const action of actions) {
@@ -83,25 +126,26 @@ function buildSphereStats(actions: Array<{ cells: unknown }>) {
   }));
 }
 
-function buildSphereHint(stats: ReturnType<typeof buildSphereStats>) {
+function buildSphereHint(stats: ReturnType<typeof buildSphereStats>, locale: AppContentLocale) {
   const active = stats.filter((item) => item.value > 0.001).sort((left, right) => right.value - left.value);
   const missing = stats.filter((item) => item.value <= 0.001);
   if (!active.length) return null;
   if (active.length >= 5) return null;
+  const shortTitles = SPHERE_SHORT_TITLES[locale] ?? SPHERE_SHORT_TITLES.en;
   const activeNames = active
     .slice(0, 2)
-    .map((item) => SPHERE_SHORT_TITLES_RU[item.id - 1] ?? item.title.toLowerCase());
+    .map((item) => shortTitles[item.id - 1] ?? item.title.toLowerCase());
   const missingNames = missing
     .slice(0, 2)
-    .map((item) => SPHERE_SHORT_TITLES_RU[item.id - 1] ?? item.title.toLowerCase());
-  const primaryMissing = missingNames[0] ?? "другую сферу";
+    .map((item) => shortTitles[item.id - 1] ?? item.title.toLowerCase());
+  const copy = SPHERE_HINT_COPY[locale] ?? SPHERE_HINT_COPY.en;
+  const primaryMissing = missingNames[0] ?? (locale === SOURCE_LOCALE ? "другую сферу" : "another sphere");
   if (active.length <= 2) {
     const activeText = activeNames.length === 1 ? activeNames[0] : activeNames.join(" и ");
     const missingText = missingNames.length >= 2 ? `${missingNames[0]} или ${missingNames[1]}` : primaryMissing;
-    const verb = activeNames.length === 1 ? "звучит" : "звучат";
-    return `Сейчас сильнее ${verb} ${activeText}. Для баланса добавьте небольшое действие: ${missingText}.`;
+    return copy.narrow(activeText, missingText, activeNames.length);
   }
-  return `Баланс уже шире. Можно добавить ${primaryMissing} — эта сфера пока почти не звучит.`;
+  return copy.wide(primaryMissing);
 }
 
 async function loadRecentSphereRows(
@@ -164,6 +208,7 @@ function localDateForStartedAt(iso: string, timezone: string): string {
 function buildPracticeLogsForDates(
   rows: Array<{ id: string; practice_slug: string; started_at: string; ended_at: string | null; duration_sec: number | null; context: unknown }>,
   timezone: string,
+  locale: AppContentLocale,
 ) {
   const grouped = new Map<string, Array<{ id: string; localDate: string; title: string; startedAt: string; endedAt: string | null; durationSec: number | null }>>();
   for (const row of rows) {
@@ -171,7 +216,7 @@ function buildPracticeLogsForDates(
     const item = {
       id: row.id,
       localDate,
-      title: formatPracticeTitle(row),
+      title: formatPracticeTitle(row, locale),
       startedAt: row.started_at,
       endedAt: row.ended_at,
       durationSec: row.duration_sec,
@@ -195,6 +240,7 @@ export async function GET(req: Request) {
     if (userError) throw userError;
 
     const timezone = typeof user?.tz === "string" && user.tz ? user.tz : "UTC";
+    const locale = asContentLocale(user?.locale) ?? SOURCE_LOCALE;
     const nowLocal = DateTime.now().setZone(timezone);
     const today = nowLocal.toFormat("yyyy-MM-dd");
     const yesterday = nowLocal.minus({ days: 1 }).toFormat("yyyy-MM-dd");
@@ -264,7 +310,7 @@ export async function GET(req: Request) {
         .order("started_at", { ascending: true });
       if (practicesRes.error) throw practicesRes.error;
 
-      const practicesByDate = buildPracticeLogsForDates(practicesRes.data ?? [], timezone);
+      const practicesByDate = buildPracticeLogsForDates(practicesRes.data ?? [], timezone, locale);
       const sections = overdueDates.map((date) => {
         const dateRows = overdueRows.filter((row) => row.planned_local_date === date);
         const actions = dateRows
@@ -287,13 +333,13 @@ export async function GET(req: Request) {
             return String(left.plannedAt ?? "").localeCompare(String(right.plannedAt ?? ""));
           })
           .map(({ plannedAt, ...rest }) => rest);
-        const sphereStats = buildSphereStats(dateRows);
+        const sphereStats = buildSphereStats(dateRows, locale);
         return {
           localDate: date,
           dateLabelKind: dateLabelKindFor(date, today, yesterday),
           actions,
           sphereStats,
-          sphereHint: buildSphereHint(sphereStats),
+          sphereHint: buildSphereHint(sphereStats, locale),
           practices: practicesByDate.get(date) ?? [],
         };
       });
@@ -360,17 +406,17 @@ export async function GET(req: Request) {
         return String(left.plannedAt ?? "").localeCompare(String(right.plannedAt ?? ""));
       })
       .map(({ plannedAt, ...rest }) => rest);
-    const sphereStats = buildSphereStats(currentRows);
+    const sphereStats = buildSphereStats(currentRows, locale);
     const recentSphereRows = await loadRecentSphereRows(db, userId, localDate);
-    const sphereHintStats = buildSphereStats(recentSphereRows.length > 0 ? recentSphereRows : currentRows);
-    const practices = buildPracticeLogsForDates(practicesRes.data ?? [], timezone).get(localDate) ?? [];
+    const sphereHintStats = buildSphereStats(recentSphereRows.length > 0 ? recentSphereRows : currentRows, locale);
+    const practices = buildPracticeLogsForDates(practicesRes.data ?? [], timezone, locale).get(localDate) ?? [];
     const canSummarizeCurrentDay = actions.some((action) => action.status === "planned");
     const sections = [{
       localDate,
       dateLabelKind: dateLabelKindFor(localDate, today, yesterday),
       actions,
       sphereStats,
-      sphereHint: buildSphereHint(sphereHintStats),
+      sphereHint: buildSphereHint(sphereHintStats, locale),
       practices,
     }];
 

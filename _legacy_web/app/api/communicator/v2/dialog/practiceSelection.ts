@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
+import { asContentLocale, type AppContentLocale } from "@/modules/i18n/localeCodes";
+import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 import type { PracticeRecommendation } from "@shared/recommendation";
 import { readPracticeVideoThumbnailFromParams } from "@shared/practiceVideo";
 import {
@@ -89,12 +92,31 @@ export type PracticeSelectionContext = {
     planet_of_the_day?: unknown;
     day_target_chakra?: unknown;
   } | null;
+  user?: {
+    locale?: string | null;
+  } | null;
 };
 
-function localizedTitle(value: PracticeCandidate["title"], fallback: string): string {
+function localizedTitle(
+  practice: PracticeCandidate,
+  fallback: string,
+  locale: string | null | undefined,
+): string {
+  const resolved = asContentLocale(locale) ?? "ru";
+  const value = practice.title;
+  if (practice.kind === "meditation" && practice.slug === STATIC_MEDITATION.slug) {
+    return getPracticeCatalogStrings(resolved).meditationFlashTitle;
+  }
+  if (practice.kind === "breath") {
+    const breathStrings = getCoherenceBreathStrings(resolved);
+    const localized = breathStrings.practiceName[practice.slug as keyof typeof breathStrings.practiceName];
+    if (typeof localized === "string" && localized.trim()) return localized.trim();
+  }
   if (typeof value === "string" && value.trim()) return value.trim();
   if (!value || typeof value !== "object") return fallback;
-  return value?.ru?.trim() || value?.en?.trim() || fallback;
+  const requested = value?.[resolved as AppContentLocale];
+  if (typeof requested === "string" && requested.trim()) return requested.trim();
+  return value?.en?.trim() || value?.ru?.trim() || fallback;
 }
 
 function hasLocalizedText(value: PracticeCandidate["description"]): boolean {
@@ -267,6 +289,7 @@ function toPracticePickedPayload(
   reason: string | null | undefined,
   chakraId: number,
   stack: PracticeCandidate[],
+  locale: string | null | undefined,
 ): PracticePickedPayload {
   const chakraIds = (practice.practice_chakras ?? [])
     .map((item) => Number(item.chakra_id))
@@ -275,7 +298,7 @@ function toPracticePickedPayload(
   return {
     id: practice.id,
     slug: practice.slug,
-    name: localizedTitle(practice.title, practice.slug),
+    name: localizedTitle(practice, practice.slug, locale),
     kind: practice.kind,
     reason,
     durationSec: practice.default_duration_sec,
@@ -341,7 +364,13 @@ export async function choosePractice(
   const preferredKind = validation.practiceKind;
   if (isDefaultPracticeMarker(workingMarker) && !preferredKind) {
     return {
-      picked: toPracticePickedPayload(STATIC_COHERENT_BREATH, workingMarker?.reason, chakraId, [STATIC_COHERENT_BREATH]),
+      picked: toPracticePickedPayload(
+        STATIC_COHERENT_BREATH,
+        workingMarker?.reason,
+        chakraId,
+        [STATIC_COHERENT_BREATH],
+        context.user?.locale,
+      ),
       markerIdResolved: true,
       chakraId,
       preferredDurationMin,
@@ -449,6 +478,7 @@ export async function choosePractice(
       workingMarker?.reason ?? marker?.reason,
       chakraId,
       selection.stack.map((practice) => practice.raw),
+      context.user?.locale,
     ),
     markerIdResolved,
     chakraId,

@@ -16,7 +16,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import { getDayStrings, mapDateLabelKind, type DayStrings } from "@/modules/day/i18n/day";
-import { useAppLocale } from "@/modules/i18n";
+import { useAppLocale, type AppLocale } from "@/modules/i18n";
 import { localizeLifeSphereLabel } from "@/modules/life-spheres/labels";
 import { loadPracticeCatalog } from "@/modules/practices";
 import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/types";
@@ -180,7 +180,7 @@ function practiceForDayTarget(practice: PracticeSummary, target: 1 | 2 | 3 | 4 |
   };
 }
 
-function SphereRadialChart({ stats, locale }: { stats: DaySphereStat[]; locale: "ru" | "en" }) {
+function SphereRadialChart({ stats, locale }: { stats: DaySphereStat[]; locale: AppLocale }) {
   const theme = useTheme();
   const size = 220;
   const cx = 110;
@@ -358,7 +358,7 @@ function AssistantModal({
   onPracticeOffered: (practice: PracticeSummary) => void | Promise<void>;
   onAssistantMessage?: (message: { meta?: Record<string, unknown> }) => void;
   strings: DayStrings;
-  appLocale: "ru" | "en";
+  appLocale: AppLocale;
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();

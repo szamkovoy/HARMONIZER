@@ -44,7 +44,7 @@ export async function transcribeGroqAudio(body: TranscribeAudioBody): Promise<Tr
   const form = new FormData();
   form.append("file", file, `audio.${extensionFor(mimeType)}`);
   form.append("model", "whisper-large-v3");
-  form.append("language", language);
+  if (language) form.append("language", language);
   form.append("prompt", getDomainPrompt(language));
   form.append("temperature", "0");
   form.append("response_format", "verbose_json");
@@ -67,7 +67,7 @@ export async function transcribeGroqAudio(body: TranscribeAudioBody): Promise<Tr
 
   return {
     text: data.text ?? "",
-    language: normalizeWhisperLanguage(data.language ?? language),
+    language: normalizeWhisperLanguage(data.language ?? language) ?? "ru",
     durationSeconds: data.duration,
     confidence: confidenceFromSegments(data.segments),
   };

@@ -52,8 +52,8 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |
 | `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
-| `communicator` (`Communicator.tsx`) | `useAppLocale()`, `getTranscribeLocale()` | STT via `getTranscribeLocale()` (`ru` in test mode). Each dialog POST sends explicit **`responseLocale`** + **`inputLocale: transcribeLocale`**. UI strings still come from the host `locale` prop. |
-| `services/communicator-client.ts` | `getResponseLocale()`, `getTranscribeLocale()` | `buildDialogPostBody` adds `responseLocale` and `inputLocale` to every dialog POST (defaults = active / transcribe locale). |
+| `communicator` (`Communicator.tsx`) | `useAppLocale()`, `getTranscribeLocale()` | STT via `getTranscribeLocale()` (`ru` in test mode). Each dialog POST sends **`responseLocale`** + **`inputLocale`**; production voice may auto-detect speech and override both for that turn only. UI strings still come from the host `locale` prop. |
+| `services/communicator-client.ts` | `getResponseLocale()`, `getTranscribeLocale()` | `buildDialogPostBody` adds `responseLocale` and `inputLocale` to every dialog POST (defaults = active / transcribe locale; voice flow may override with detected spoken language). |
 | `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale`; mirrors active locale to Supabase `users.locale`. |
 
 ## Inbound — what i18n depends on

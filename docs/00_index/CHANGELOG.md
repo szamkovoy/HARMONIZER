@@ -10,7 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
-- 2026-06-16: doc-sync pre-push — i18n test mode `inputLocale`: `communicator/{spec,dependencies,history}.md`, `assistant/{spec,dependencies,history}.md`, `i18n/dependencies.md` — dialog POST body, `inputLanguageDecouplingInstruction`, explicit `useAppLocale()` wiring.
+- 2026-06-16: communicator/i18n locale routing — dialog POST carries `inputLocale` + `responseLocale`; test mode keeps STT on RU and replies on profile locale (`inputLanguageDecouplingInstruction`); production voice may auto-detect spoken language and override dialog turn locales only; function-valued communicator strings and deterministic Day/practice copy localized for FR/DE. Synced `i18n/{spec,dependencies,history}.md`, `communicator/{spec,dependencies,history}.md`, `assistant/{spec,history}.md`, `open_questions.md`.
 - 2026-06-16: i18n test mode — dialog POST carries `inputLocale` (`getTranscribeLocale()`); server prompt decouples input language from reply locale when they differ (fixes RU speech + FR UI → RU reply). Client passes explicit `responseLocale`/`inputLocale` from `Communicator`.
 - 2026-06-16: doc-sync pre-push — practices catalog i18n gaps: typed extractor (quoted/hyphenated keys, multiline values), `practiceCountOne`/`practiceCountWithTotal`/`catalogFooterTemplate`, `chakraTagLabel` overlay for de–nl; breath/practices overlay refill. `i18n/spec.md` §4.3, `practices/{spec,dependencies,history}.md`, `chakra/{spec,history}.md`.
 - 2026-06-16: i18n — fix home recommendation buttons on DE/FR (typed extractor + `recommendation.*` overlay paths); localize natal/transit chart (`astroChartModal`); refilled catalog + home typed overlays.

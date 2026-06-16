@@ -15,6 +15,15 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-16 (6):** **Voice auto-detect + non-RU function strings.** Outside
+  `EXPO_PUBLIC_I18N_TEST_MODE`, communicator voice turns no longer force STT to the
+  selected app locale: `/transcribe` may omit `language`, Whisper auto-detects the
+  spoken language, and `Communicator` sends that detected locale as per-turn
+  `inputLocale` + `responseLocale` without changing the app/profile locale. The
+  pending-transcript review path preserves that detected locale on resend. Also
+  fixed function-valued communicator strings (`transcriptionReviewHint`,
+  `typingStatus`) so FR/DE/… no longer fall back to Russian inline TS copy.
+ 
 - **2026-06-16 (5):** **i18n test mode dialog fix.** Client sends `inputLocale`
   (`getTranscribeLocale()`) alongside `responseLocale`; server adds a preamble note
   when input language differs from reply language so the model does not mirror Russian

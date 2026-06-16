@@ -8,6 +8,9 @@ export interface SymbolStreamStrings {
   title: string;
   description: string;
   remaining: (time: string) => string;
+  densityAiry: string;
+  densityBalanced: string;
+  densityDense: string;
   finishButton: string;
   pauseButton: string;
   resumeButton: string;
@@ -29,6 +32,9 @@ const ru: SymbolStreamStrings = {
   title: "Вспышка",
   description: "Короткая визуальная медитация для мягкого переключения внимания и гармонизации.",
   remaining: (time) => `Осталось ${time}`,
+  densityAiry: "Легко",
+  densityBalanced: "Баланс",
+  densityDense: "Плотно",
   finishButton: "Завершить",
   pauseButton: "Пауза",
   resumeButton: "Продолжить",
@@ -50,6 +56,9 @@ const en: SymbolStreamStrings = {
   title: "Flash",
   description: "A short visual meditation for a gentle shift of attention and harmonization.",
   remaining: (time) => `${time} remaining`,
+  densityAiry: "Airy",
+  densityBalanced: "Balanced",
+  densityDense: "Dense",
   finishButton: "Finish",
   pauseButton: "Pause",
   resumeButton: "Resume",
@@ -66,7 +75,32 @@ const en: SymbolStreamStrings = {
   moodWorse: "Worse",
 };
 
+function remainingForLocale(locale: SymbolStreamLocale, time: string): string {
+  switch (locale) {
+    case "ru":
+      return `Осталось ${time}`;
+    case "de":
+      return `Noch ${time}`;
+    case "fr":
+      return `Encore ${time}`;
+    case "it":
+      return `Ancora ${time}`;
+    case "es":
+      return `Quedan ${time}`;
+    case "pt":
+      return `Faltam ${time}`;
+    case "nl":
+      return `Nog ${time}`;
+    default:
+      return `${time} remaining`;
+  }
+}
+
 export function getSymbolStreamStrings(locale: SymbolStreamLocale = "ru"): SymbolStreamStrings {
   const base = locale === "ru" ? ru : en;
-  return mergeTypedLocale("mandala", base, locale);
+  const merged = mergeTypedLocale("mandala", base, locale);
+  return {
+    ...merged,
+    remaining: (time: string) => remainingForLocale(locale, time),
+  };
 }

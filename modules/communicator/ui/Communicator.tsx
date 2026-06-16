@@ -572,7 +572,7 @@ export function Communicator({
 }: CommunicatorProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const { locale: responseLocale, transcribeLocale } = useAppLocale();
+  const { locale: responseLocale, transcribeLocale, testMode } = useAppLocale();
   const { profile, profileLoading } = useAuth();
   const localDialogUserId = profile?.id ?? null;
   const modelAccessTier = useMemo(() => tierLabelFromProfile(profile), [profile]);
@@ -654,6 +654,7 @@ export function Communicator({
   const [txtDraft, setTxtDraft] = useState("");
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
+  const [pendingTranscriptLocale, setPendingTranscriptLocale] = useState<string | undefined>(undefined);
   /** Инкремент для привязки скролла к голосовому пузырю после добавления/замены текста */
   const [voiceAnchorTick, setVoiceAnchorTick] = useState(0);
   /** После голоса не дёргаем авто-якорь к строке стрима ассистента — окно остаётся на месте */
@@ -1290,7 +1291,7 @@ export function Communicator({
         : hydratedComplete?.practicePicked
           ? strings.postPracticeReplyFallback
           : hydratedComplete?.shouldClose
-            ? "Диалог завершён."
+            ? strings.practiceCard.closedWithoutPractice
             : "";
       if (!finalText.length && !fallbackAssistantText && !hydratedComplete?.practicePicked && hydratedComplete?.shouldClose !== true) {
         throw new Error("Assistant reply was empty after hydration");
@@ -1386,9 +1387,13 @@ export function Communicator({
   );
 
   const submitDialogTurn = useCallback(
-    async (userMessageText: string, voiceUserAlreadyCommitted: boolean) => {
+    async (
+      userMessageText: string,
+      voiceUserAlreadyCommitted: boolean,
+      localeOverride?: { responseLocale?: string; inputLocale?: string },
+    ) => {
       retryHandlerRef.current = () => {
-        void submitDialogTurn(userMessageText, voiceUserAlreadyCommitted);
+        void submitDialogTurn(userMessageText, voiceUserAlreadyCommitted, localeOverride);
       };
       if (voiceUserAlreadyCommitted) {
         setSuppressStreamAnchorScroll(true);
@@ -1403,8 +1408,8 @@ export function Communicator({
           triggerMeta: buildRequestTriggerMeta(),
           userMessage: userMessageText,
           userTimezone: timezone,
-          responseLocale,
-          inputLocale: transcribeLocale,
+          responseLocale: localeOverride?.responseLocale ?? responseLocale,
+          inputLocale: localeOverride?.inputLocale ?? transcribeLocale,
           turnHistory: buildClientTurnHistory(
             messagesRef.current,
             userMessageText,
@@ -1499,11 +1504,13 @@ export function Communicator({
         const transcript = await transcribeVoiceRecording({
           uri,
           // Test mode keeps STT in Russian while the dialog answers in the
-          // selected language; production follows the selected locale.
-          language: getTranscribeLocale(),
+          // selected language; production lets STT auto-detect the spoken language.
+          language: testMode ? getTranscribeLocale() : undefined,
         });
         transcriptResolved = true;
         const userMessageText = transcript.text.trim();
+        const detectedInputLocale = transcript.language?.trim().toLowerCase();
+        const detectedResponseLocale = !testMode && detectedInputLocale ? detectedInputLocale : responseLocale;
         setPhase("idle");
 
         if (isSpuriousTranscription(userMessageText)) {
@@ -1520,6 +1527,7 @@ export function Communicator({
           await clearRetainedVoice();
           setPendingTranscript(userMessageText);
           setPendingTranscriptConfidence(transcript.confidence);
+          setPendingTranscriptLocale(detectedInputLocale);
           return;
         }
 
@@ -1554,7 +1562,10 @@ export function Communicator({
         userHasScrolledUpRef.current = false;
         setSuppressStreamAnchorScroll(true);
 
-        await submitDialogTurn(userMessageText, true);
+        await submitDialogTurn(userMessageText, true, {
+          responseLocale: detectedResponseLocale,
+          inputLocale: detectedInputLocale,
+        });
       } catch (e) {
         setPhase("idle");
         if (pendingVoiceId && !transcriptResolved) {
@@ -1578,8 +1589,7 @@ export function Communicator({
           const fallback: CommunicatorHistoryMessage = {
             id: newMessageId(),
             role: "assistant",
-            content:
-              "Я услышал вопрос, но сейчас не смог корректно разобрать ответ сервера. Если коротко: выбери один главный фокус дня, не распыляйся, и начни с практики на 5-10 минут, которая возвращает тело в спокойный ритм. Напиши ещё раз, что именно у тебя сегодня впереди, и я помогу привязать рекомендацию к ситуации.",
+            content: strings.emptyAssistantReplyFallback,
             createdAt: Date.now(),
             meta: { shouldClose: false },
           };
@@ -1598,14 +1608,16 @@ export function Communicator({
       onEmotionSegment,
       onMessage,
       reportError,
+      responseLocale,
       resetChatStream,
       strings.voiceTranscribeFailedBubble,
       submitDialogTurn,
+      testMode,
     ],
   );
 
   const runStream = useCallback(
-    async (input: { type: "text"; text: string }) => {
+    async (input: { type: "text"; text: string; localeOverride?: { responseLocale?: string; inputLocale?: string } }) => {
       try {
         setSuppressStreamAnchorScroll(false);
         const userMessageText = input.text.trim();
@@ -1625,7 +1637,7 @@ export function Communicator({
         setMessages((prev) => [...prev, userMessage]);
         onMessage?.(userMessage);
 
-        await submitDialogTurn(userMessageText, false);
+        await submitDialogTurn(userMessageText, false, input.localeOverride);
       } catch (e) {
         setPhase("error");
         setTimeout(() => setPhase("idle"), 400);
@@ -1634,8 +1646,7 @@ export function Communicator({
           const fallback: CommunicatorHistoryMessage = {
             id: newMessageId(),
             role: "assistant",
-            content:
-              "Я услышал вопрос, но сейчас не смог корректно разобрать ответ сервера. Если коротко: выбери один главный фокус дня, не распыляйся, и начни с практики на 5-10 минут, которая возвращает тело в спокойный ритм. Напиши ещё раз, что именно у тебя сегодня впереди, и я помогу привязать рекомендацию к ситуации.",
+            content: strings.emptyAssistantReplyFallback,
             createdAt: Date.now(),
             meta: { shouldClose: false },
           };
@@ -2030,6 +2041,7 @@ export function Communicator({
   const cancelTranscriptReview = useCallback(() => {
     setPendingTranscript(null);
     setPendingTranscriptConfidence(undefined);
+    setPendingTranscriptLocale(undefined);
   }, []);
 
   const sendReviewedTranscript = useCallback(async () => {
@@ -2037,8 +2049,13 @@ export function Communicator({
     if (!text || streamBusy) return;
     setPendingTranscript(null);
     setPendingTranscriptConfidence(undefined);
-    await runStream({ type: "text", text });
-  }, [pendingTranscript, runStream, streamBusy]);
+    const localeOverride =
+      pendingTranscriptLocale && !testMode
+        ? { responseLocale: pendingTranscriptLocale, inputLocale: pendingTranscriptLocale }
+        : undefined;
+    setPendingTranscriptLocale(undefined);
+    await runStream({ type: "text", text, localeOverride });
+  }, [pendingTranscript, pendingTranscriptLocale, runStream, streamBusy, testMode]);
 
   const toggleMode = useCallback(() => {
     if (!canSwitchInputMode || isBusy) return;

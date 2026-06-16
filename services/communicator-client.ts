@@ -723,7 +723,7 @@ export async function transcribeCommunicatorAudio(
         },
         body: JSON.stringify({
           audio: { mimeType: req.mimeType, base64: req.base64 },
-          language: req.language ?? "ru",
+          ...(req.language ? { language: req.language } : {}),
         }),
         signal: controller.signal,
       });
