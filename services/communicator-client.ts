@@ -103,6 +103,8 @@ export interface SendDialogMessageParams {
   userTimezone: string;
   /** Language the assistant should answer in; defaults to the active app locale. */
   responseLocale?: string;
+  /** STT / typed input language; may differ from responseLocale in i18n test mode. */
+  inputLocale?: string;
   /** Client-side transcript for the active session; server does not persist message text in DB. */
   turnHistory?: DialogTurnHistoryItem[];
   initiateDialog?: boolean;
@@ -354,6 +356,7 @@ function buildDialogPostBody(params: SendDialogMessageParams): Record<string, un
     userMessage: params.initiateDialog ? undefined : params.userMessage,
     userTimezone: params.userTimezone,
     responseLocale: params.responseLocale ?? getResponseLocale(),
+    inputLocale: params.inputLocale ?? getTranscribeLocale(),
     ...(params.turnHistory?.length ? { turnHistory: params.turnHistory } : {}),
     ...(params.initiateDialog ? { initiateDialog: true } : {}),
   };

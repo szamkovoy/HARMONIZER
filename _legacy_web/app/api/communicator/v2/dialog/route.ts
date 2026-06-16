@@ -97,7 +97,12 @@ import {
   type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
-import { resolveResponseLocale, resolveDialogScaffoldLocale, localeToLanguageName } from "@legacy/app/api/_utils/dialogLocale";
+import {
+  asContentLocale,
+  localeToLanguageName,
+  resolveDialogScaffoldLocale,
+  resolveResponseLocale,
+} from "@legacy/app/api/_utils/dialogLocale";
 import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import { getDialogScaffoldStrings } from "@legacy/app/api/_utils/dialogScaffold";
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
@@ -117,6 +122,8 @@ type Body = {
   userTimezone?: string;
   /** Language the assistant should answer in (in-app selector); see dialogLocale.ts. */
   responseLocale?: string;
+  /** STT / typed input language (may differ from responseLocale in i18n test mode). */
+  inputLocale?: string;
   initiateDialog?: boolean;
   turnHistory?: TurnHistoryItem[];
 };
@@ -186,8 +193,13 @@ function chakraStates(chakraNumber: number): { harmonic: string[]; dissonant: st
   };
 }
 
-function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: string | null): BrainPromptContext {
+function buildBrainPromptContext(
+  context: LoadedContext,
+  promptLocalDate?: string | null,
+  inputLocale?: string | null,
+): BrainPromptContext {
   const locale = resolveDialogScaffoldLocale(context.user.locale);
+  const resolvedInputLocale = asContentLocale(inputLocale);
   const now = context.nowLocal;
   const promptHour = promptLocalHour(now.hour);
   const targetChakra = context.targetChakra.chakraNumber;
@@ -199,6 +211,10 @@ function buildBrainPromptContext(context: LoadedContext, promptLocalDate?: strin
   return {
     locale,
     languageName: localeToLanguageName(locale),
+    inputLanguageName:
+      resolvedInputLocale && resolvedInputLocale !== locale
+        ? localeToLanguageName(resolvedInputLocale)
+        : null,
     addressForm: context.user.address_form === "informal" ? "ты" : "вы",
     dayOfWeek: promptDate.setLocale(locale).toFormat("cccc"),
     dateLabel: promptDate.setLocale(locale).toFormat("d LLLL"),
@@ -1069,6 +1085,7 @@ export async function POST(req: Request) {
     const brainCtx = buildBrainPromptContext(
       promptContext,
       fsm.branch === "summarizing" ? workingLocalDate : null,
+      body.inputLocale,
     );
     const due = openDueEvents(context);
     const currentEvent = due[0] ?? null;

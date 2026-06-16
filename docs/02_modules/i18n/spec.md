@@ -99,7 +99,9 @@ cost never decides layer-C design.
   - **`getResponseLocale()`** — locale the assistant should answer in (sent as
     `responseLocale`). Synchronous; safe to call from non-React services.
   - **`getTranscribeLocale()`** — STT language; returns `"ru"` in test mode, else
-    the active locale.
+    the active locale. Sent to dialog POST as **`inputLocale`** so the server can
+    remind the model not to mirror the user's input language when it differs from
+    `responseLocale`.
 
 ### 2.2 `t.ts` — translation + plurals
 - JSON catalogs `catalog/{ru,en,de,fr,it,es,pt,nl}.json` are flat dotted-key → string maps.
@@ -272,7 +274,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
                                         │                       resolveDialogScaffoldLocale (C)
    getResponseLocale() ──▶ ai/monologue + ai/global-content POST.responseLocale
                                         │                       (morning rec + free-tier texts)
-   getTranscribeLocale() ──▶ transcribe language (ru in test mode)
+   getTranscribeLocale() ──▶ dialog POST body.inputLocale (STT language; may differ from responseLocale in test mode)
 ```
 
 ---

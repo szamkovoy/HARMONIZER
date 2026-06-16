@@ -49,6 +49,7 @@ describe("resolveResponseLocale", () => {
     expect(resolveResponseLocale("ru", "en")).toBe("en");
     expect(resolveResponseLocale("en", "ru")).toBe("ru");
     expect(resolveResponseLocale("ru", "it")).toBe("it");
+    expect(resolveResponseLocale("ru", "fr")).toBe("fr");
     expect(resolveResponseLocale("ru", null)).toBe("ru");
   });
 

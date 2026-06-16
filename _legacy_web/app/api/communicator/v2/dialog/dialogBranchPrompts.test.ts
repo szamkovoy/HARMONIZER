@@ -104,6 +104,22 @@ describe("injectPlanningDayFocus", () => {
 });
 
 describe("buildPlanningPrompt", () => {
+  it("reminds the model not to mirror input language when it differs from the reply locale", () => {
+    const { systemInstruction } = buildPlanningPrompt(
+      { ...brainCtx, locale: "fr", languageName: "French", inputLanguageName: "Russian" },
+      {
+        isOpening: true,
+        noPractice: false,
+        noGreeting: false,
+        userSignaledDone: false,
+        planningLocked: false,
+        existingActionCount: 0,
+      },
+    );
+    expect(systemInstruction).toContain("speak or type in Russian");
+    expect(systemInstruction).toContain("entirely in French");
+  });
+
   it("frames day focus as recommendation, not forecast", () => {
     const { userInstruction } = buildPlanningPrompt(brainCtx, {
       isOpening: false,

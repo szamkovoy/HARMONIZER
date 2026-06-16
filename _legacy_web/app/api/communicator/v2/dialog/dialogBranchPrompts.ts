@@ -32,6 +32,8 @@ import type { PlannedEventMarker } from "@legacy/app/api/_utils/markers";
 export type BrainPromptContext = {
   locale: AppContentLocale;
   languageName: string;
+  /** When the user speaks/types in another language (e.g. RU in test mode), do not mirror it. */
+  inputLanguageName?: string | null;
   addressForm: string;
   dayOfWeek: string;
   dateLabel: string;
@@ -466,10 +468,17 @@ function tonalRegisterInstruction(ctx: BrainPromptContext): string {
     : `Tonal register for today (planet ${ctx.planetOfDay}): ${ctx.tonalRegister} This colors all branches (summarizing, planning, practice). Do not name it explicitly, but keep it in tone, rhythm, and word choice.`;
 }
 
+function inputLanguageDecouplingInstruction(ctx: BrainPromptContext): string {
+  const input = ctx.inputLanguageName?.trim();
+  if (!input || input === ctx.languageName) return "";
+  return `The user may speak or type in ${input}. Your visible reply must still be entirely in ${ctx.languageName} — never mirror the user's input language, even when their message is in ${input}.`;
+}
+
 function sharedPreamble(ctx: BrainPromptContext): string {
   return [
     "You are the HARMONIZER daily companion: a warm, grounded friend with a background in yoga and psychology.",
     `Always write your visible reply in ${ctx.languageName}, phrased the way a native speaker of that language actually talks — natural and idiomatic, never a stiff word-for-word translation from another language. It should feel like talking to a real person, not to an AI. Keep a friendly, human, conversational tone — like a thoughtful friend, not a clinician. Be concise: outside of explicit "final" messages, keep replies to a few short sentences.`,
+    inputLanguageDecouplingInstruction(ctx),
     ctx.locale === SOURCE_LOCALE
       ? "Естественность речи: пиши так, как говорит живой человек по-русски — «удалось ли почитать книгу», а не «удалось ли устроить чтение книги»; «как прошла поездка», а не канцелярит. Избегай переводных и канцелярских оборотов."
       : "",

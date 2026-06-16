@@ -60,7 +60,7 @@ import {
 } from "@/modules/communicator/core/dialogTurnHydration";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
-import { getTranscribeLocale } from "@/modules/i18n";
+import { getTranscribeLocale, useAppLocale } from "@/modules/i18n";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { logErrorForDevelopers, resolveUserFacingAlert } from "@/services/userFacingErrors";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
@@ -572,6 +572,7 @@ export function Communicator({
 }: CommunicatorProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const { locale: responseLocale, transcribeLocale } = useAppLocale();
   const { profile, profileLoading } = useAuth();
   const localDialogUserId = profile?.id ?? null;
   const modelAccessTier = useMemo(() => tierLabelFromProfile(profile), [profile]);
@@ -1402,6 +1403,8 @@ export function Communicator({
           triggerMeta: buildRequestTriggerMeta(),
           userMessage: userMessageText,
           userTimezone: timezone,
+          responseLocale,
+          inputLocale: transcribeLocale,
           turnHistory: buildClientTurnHistory(
             messagesRef.current,
             userMessageText,
@@ -1435,8 +1438,10 @@ export function Communicator({
       commitAssistantTurn,
       entrySource,
       hydrateAssistantTurnFromSession,
+      responseLocale,
       runChatStream,
       buildRequestTriggerMeta,
+      transcribeLocale,
       useCase,
     ],
   );
@@ -1682,6 +1687,8 @@ export function Communicator({
         triggerMeta: buildRequestTriggerMeta(),
         userMessage: "__initiate__",
         userTimezone: timezone,
+        responseLocale,
+        inputLocale: transcribeLocale,
         initiateDialog: true,
         turnHistory: [],
       });
@@ -1696,8 +1703,10 @@ export function Communicator({
     commitAssistantTurn,
     entrySource,
     reportError,
+    responseLocale,
     runChatStream,
     buildRequestTriggerMeta,
+    transcribeLocale,
     useCase,
   ]);
 
