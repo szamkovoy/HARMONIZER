@@ -1,11 +1,11 @@
 {
-  "lifeMatrixHint": "La saturación de los colores de las celdas refleja la fuerza de los fragmentos correspondientes de tu psique.",
+  "lifeMatrixHint": "La intensidad de los colores de las celdas refleja la fuerza de las partes correspondientes de tu psique",
   "lifeMatrixTitle": "Matriz de estados",
-  "lifeSpheresHint": "Significado para ti de diferentes áreas de la vida.",
-  "lifeSpheresTitle": "Áreas de vida",
-  "lifeStatesHint": "Tu capacidad de vivir diferentes estados. Cuanto más uniforme sea la distribución, más adecuada será tu interacción con el mundo.",
-  "lifeStatesTitle": "Estados vividos",
-  "matrixNotReady": "El informe aparecerá después de 5 eventos resumidos y 5 días desde el primero de ellos.",
+  "lifeSpheresHint": "Importancia para ti de las diferentes esferas de la vida.",
+  "lifeSpheresTitle": "Esferas de la vida",
+  "lifeStatesHint": "Tu capacidad de experimentar diferentes estados. Cuanto más uniforme sea la distribución, más adecuada será tu interacción con el mundo.",
+  "lifeStatesTitle": "Estados experimentados",
+  "matrixNotReady": "El informe aparecerá después de 5 eventos resumidos y 5 días desde el primero de ellos",
   "openTiersButton": "Ver planes",
   "periodPreset30d": "30d",
   "periodPreset7d": "7d",
@@ -17,8 +17,8 @@
   "rangeTrendTitle": "Grosor de la línea de vida",
   "reportLoadError": "No se pudo cargar el informe.",
   "reportsLoading": "Cargando informes...",
-  "reportsUpgradeHint": "Los informes están disponibles en los planes Práctica y Maestro.",
-  "spheresLegendPrefix": "Áreas de vida:",
+  "reportsUpgradeHint": "Los informes están disponibles en los planes Práctico y Maestro.",
+  "spheresLegendPrefix": "Esferas de la vida:",
   "statsLoading": "Cargando estadísticas...",
-  "statsUpgradeHint": "Las estadísticas están disponibles en los planes Práctica y Maestro."
+  "statsUpgradeHint": "Las estadísticas están disponibles en los planes Práctico y Maestro."
 }

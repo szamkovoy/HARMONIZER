@@ -1,8 +1,8 @@
 {
   "continueButton": "Continua",
-  "description": "Breve meditazione visiva per un delicato spostamento dell'attenzione e armonizzazione.",
+  "description": "Una breve meditazione visiva per spostare dolcemente l'attenzione e armonizzarsi.",
   "finishA11y": "Completa la pratica",
-  "finishButton": "Completa",
+  "finishButton": "Termina",
   "locale": "it",
   "moodBetter": "Meglio",
   "moodSame": "Uguale",
@@ -10,10 +10,10 @@
   "newLineButton": "Nuova linea",
   "nextMandalaButton": "Prossimo mandala",
   "pauseButton": "Pausa",
-  "ratingMessage": "Questa valutazione aiuterà in seguito a selezionare meglio le pratiche.",
+  "ratingMessage": "Questa valutazione aiuterà a scegliere meglio le pratiche future.",
   "ratingTitle": "Come ti senti?",
   "resumeButton": "Riprendi",
-  "stopConfirmMessage": "Puoi fermarti ora e annotare come ti senti dopo la pratica.",
-  "stopConfirmTitle": "Completare la pratica?",
-  "title": "Bagliore"
+  "stopConfirmMessage": "Puoi fermarti ora e notare come ti senti dopo la pratica.",
+  "stopConfirmTitle": "Terminare la pratica?",
+  "title": "Lampo"
 }

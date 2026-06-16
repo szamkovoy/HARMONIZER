@@ -1,11 +1,11 @@
 {
   "alertOk": "OK",
-  "authRequiredError": "Supabase authenticatie is nodig om een verzoek naar de assistent te sturen.",
+  "authRequiredError": "Supabase-authenticatie vereist voor verzoek aan assistent.",
   "cancelRequestAccessibilityLabel": "Verzoek annuleren",
   "collapseAccessibilityLabel": "Inklappen",
   "exitDialogButton": "Dialoog verlaten",
   "expandAccessibilityLabel": "Uitklappen",
-  "holdToRecordAccessibilityLabel": "Ingedrukt houden om op te nemen",
+  "holdToRecordAccessibilityLabel": "Houd vast om op te nemen",
   "locale": "nl",
   "microphonePermissionError": "Geen toegang tot microfoon",
   "practiceCard": {
@@ -17,23 +17,23 @@
     "detailsButton": "Beschrijving",
     "detailsTitle": "Over de oefening",
     "closeDetailsButton": "Begrepen",
-    "instructionVideoLabel": "instructie beschikbaar",
-    "transcribeLanguage": "nl"
+    "instructionVideoLabel": "instructie beschikbaar"
   },
-  "recorderPrepareErrorMessage": "Kon opname niet starten. Probeer opnieuw.",
+  "recorderPrepareErrorMessage": "Opname kon niet worden gestart. Probeer opnieuw.",
   "respondingStatus": "Antwoorden",
   "scrollDownAccessibilityLabel": "Naar beneden scrollen",
   "sendAccessibilityLabel": "Verzenden",
   "sendButton": "Verz.",
   "sendErrorTitle": "Bericht kon niet worden verzonden",
   "switchToTextAccessibilityLabel": "Overschakelen naar tekst",
-  "switchToVoiceAccessibilityLabel": "Overschakelen naar spraak",
+  "switchToVoiceAccessibilityLabel": "Overschakelen naar stem",
   "textPlaceholder": "Bericht...",
   "thinkingStatus": "Denken",
+  "transcribeLanguage": "nl",
   "transcribingStatus": "Transcriberen",
   "transcriptionReviewCancel": "Annuleren",
   "transcriptionReviewSend": "Verzenden",
   "transcriptionReviewTitle": "Controleer de transcriptie",
-  "voiceTranscribeFailedBubble": "Spraakbericht kon niet worden herkend.",
-  "voiceUserBubblePending": "Stem wordt getranscribeerd…"
+  "voiceTranscribeFailedBubble": "Stembericht kon niet worden herkend.",
+  "voiceUserBubblePending": "Stem wordt omgezet…"
 }

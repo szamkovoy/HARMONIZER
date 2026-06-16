@@ -1,8 +1,8 @@
 {
   "continueButton": "Continuar",
-  "description": "Meditação visual breve para redirecionar a atenção suavemente e harmonizar.",
-  "finishA11y": "Concluir a prática",
-  "finishButton": "Concluir",
+  "description": "Meditação visual breve para alternar suavemente a atenção e harmonizar.",
+  "finishA11y": "Finalizar prática",
+  "finishButton": "Finalizar",
   "locale": "pt",
   "moodBetter": "Melhor",
   "moodSame": "Igual",
@@ -10,10 +10,10 @@
   "newLineButton": "Nova linha",
   "nextMandalaButton": "Próxima mandala",
   "pauseButton": "Pausa",
-  "ratingMessage": "Esta avaliação ajudará a recomendar práticas melhores no futuro.",
+  "ratingMessage": "Esta avaliação ajudará a selecionar melhores práticas depois.",
   "ratingTitle": "Como você se sente?",
-  "resumeButton": "Continuar",
-  "stopConfirmMessage": "Pode parar agora e registrar como se sente após a prática.",
-  "stopConfirmTitle": "Concluir a prática?",
-  "title": "Flash"
+  "resumeButton": "Retomar",
+  "stopConfirmMessage": "Você pode parar agora e notar como se sente após a prática.",
+  "stopConfirmTitle": "Finalizar prática?",
+  "title": "Lampejo"
 }

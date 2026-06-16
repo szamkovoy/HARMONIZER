@@ -1,11 +1,11 @@
 {
   "alertOk": "OK",
-  "authRequiredError": "Supabase-Authentifizierung erforderlich.",
+  "authRequiredError": "Supabase-Autorisierung erforderlich, um eine Anfrage an den Assistenten zu stellen.",
   "cancelRequestAccessibilityLabel": "Anfrage abbrechen",
   "collapseAccessibilityLabel": "Einklappen",
   "exitDialogButton": "Dialog verlassen",
   "expandAccessibilityLabel": "Ausklappen",
-  "holdToRecordAccessibilityLabel": "Zum Aufnehmen gedrückt halten",
+  "holdToRecordAccessibilityLabel": "Halte zum Aufnehmen",
   "locale": "de",
   "microphonePermissionError": "Kein Zugriff auf das Mikrofon",
   "practiceCard": {
@@ -16,24 +16,24 @@
     "closedWithoutPractice": "Dialog beendet. Keine Übung ausgewählt.",
     "detailsButton": "Beschreibung",
     "detailsTitle": "Über die Übung",
-    "closeDetailsButton": "Alles klar",
-    "instructionVideoLabel": "Anleitungsvideo vorhanden",
-    "transcribeLanguage": "de"
+    "closeDetailsButton": "Verstanden",
+    "instructionVideoLabel": "Anleitung verfügbar"
   },
-  "recorderPrepareErrorMessage": "Aufnahme konnte nicht gestartet werden. Versuche es bitte erneut.",
+  "recorderPrepareErrorMessage": "Aufnahme konnte nicht gestartet werden. Bitte versuche es noch einmal.",
   "respondingStatus": "Antworte…",
   "scrollDownAccessibilityLabel": "Nach unten scrollen",
-  "sendAccessibilityLabel": "Nachricht senden",
+  "sendAccessibilityLabel": "Senden",
   "sendButton": "Senden",
   "sendErrorTitle": "Nachricht konnte nicht gesendet werden",
   "switchToTextAccessibilityLabel": "Zur Texteingabe wechseln",
-  "switchToVoiceAccessibilityLabel": "Zur Sprachaufnahme wechseln",
+  "switchToVoiceAccessibilityLabel": "Zur Spracheingabe wechseln",
   "textPlaceholder": "Nachricht…",
-  "thinkingStatus": "Denke nach…",
+  "thinkingStatus": "Denke…",
+  "transcribeLanguage": "de",
   "transcribingStatus": "Transkribiere…",
   "transcriptionReviewCancel": "Abbrechen",
   "transcriptionReviewSend": "Senden",
-  "transcriptionReviewTitle": "Transkription überprüfen",
-  "voiceTranscribeFailedBubble": "Sprachnachricht konnte nicht transkribiert werden.",
-  "voiceUserBubblePending": "Transkribiere Sprachnachricht…"
+  "transcriptionReviewTitle": "Überprüfe die Transkription",
+  "voiceTranscribeFailedBubble": "Sprachnachricht konnte nicht erkannt werden.",
+  "voiceUserBubblePending": "Stimme wird transkribiert…"
 }

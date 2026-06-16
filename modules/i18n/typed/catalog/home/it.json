@@ -1,108 +1,108 @@
 {
   "appTitle": "Harmonizer",
   "assistantTitle": "Assistente",
-  "birthDataMessage": "Per generare una previsione giornaliera personalizzata, inserisci data, ora e luogo di nascita.",
-  "birthDataTitle": "Data di nascita necessaria",
+  "birthDataMessage": "Per creare la previsione personale del giorno, inserisci data, ora e luogo di nascita.",
+  "birthDataTitle": "Serve la data di nascita",
+  "chakraFlower": {
+    "title": "Fiore del giorno",
+    "caption": "La dimensione dei petali riflette l'importanza dei chakra oggi."
+  },
   "closeAssistantAccessibilityLabel": "Chiudi assistente",
   "closeButton": "Chiudi",
-  "defaultSystemPrompt": "Sei un mentore empatico dell'app Harmonizer. Rispondi in modo breve e pertinente.",
+  "defaultSystemPrompt": "Sei un mentore empatico dell'app Harmonizer. Rispondi in modo conciso e pertinente.",
+  "devLinks": {
+    "biofeedback": "Biofeedback",
+    "mandala": "Mandala",
+    "bindu": "Bindu",
+    "symbols": "Simboli",
+    "breath": "Respiro",
+    "calibration": "Calibrazione"
+  },
+  "devResetDayContent": "Aggiorna",
+  "discussButton": "Cosa fare?",
   "emptyTimeLabel": "—",
+  "eventBells": {
+    "title": "Campanelle",
+    "empty": "Oggi non ci sono eventi astrologici imminenti con orario preciso.",
+    "aspectTitle": "Aspetto"
+  },
   "forecastErrorTitle": "Impossibile caricare la previsione",
   "headerHint": "Impostazione principale del giorno: chakra, finestre di opportunità e raccomandazione pratica.",
   "locale": "it",
-  "locationErrorTitle": "Necessaria la geolocalizzazione",
+  "locationErrorTitle": "Serve la geolocalizzazione",
+  "longExplanationModal": {
+    "title": "Dettagli",
+    "subtitle": "Spiegazione dettagliata della raccomandazione del giorno.",
+    "closeButton": "Chiudi",
+    "mathButton": "Calcoli e formule",
+    "mathButtonA11y": "Apri calcoli e formule della raccomandazione del giorno",
+    "mathCaption": "Matematica precisa della forza e armonia planetaria, peso degli aspetti e scelta del tema del giorno."
+  },
+  "mathModal": {
+    "title": "Matematica del giorno",
+    "subtitle": "Formule di forza, armonia, transiti e scelta del pianeta del giorno.",
+    "closeButton": "Indietro",
+    "emptyHint": "Il modulo matematico non è ancora stato ricevuto con la previsione. Aggiorna la previsione giornaliera dopo il rilascio della patch lato backend.",
+    "showChartButton": "Mostra carta natale e transiti",
+    "chartUnavailableHint": "La carta è disponibile solo per utenti trial/premium con profilo natale."
+  },
   "openSettingsButton": "Apri impostazioni",
+  "opportunityWindows": {
+    "title": "Finestra di opportunità",
+    "emptyDetail": "Oggi senza finestra precisa",
+    "windowTitles": {
+      "sunrise": "Alba",
+      "culmination": "Culminazione",
+      "exactAspect": "Aspetto esatto"
+    },
+    "aspectLabels": {
+      "conjunction": "congiunzione",
+      "opposition": "opposizione",
+      "square": "quadratura",
+      "trine": "trigono",
+      "sextile": "sestile"
+    },
+    "reminderModalTitle": "Notificare",
+    "reminderTextLabel": "Testo della notifica",
+    "reminderModeExact": "esattamente a quest'ora",
+    "reminderModeBefore5": "5 minuti prima",
+    "reminderSave": "Salva",
+    "reminderCancel": "Annulla",
+    "reminderBodyFiveMinPrefix": "5 minuti prima",
+    "reminderPastTitle": "L'ora è già passata",
+    "reminderPastMessage": "Non è possibile impostare una notifica per una finestra già trascorsa.",
+    "reminderNotificationsUnavailableTitle": "Notifiche al momento non disponibili",
+    "reminderNeedPermissionTitle": "Servono le notifiche",
+    "reminderNeedPermissionMessage": "Consenti le notifiche affinché Harmonizer possa ricordarti la finestra di opportunità.",
+    "helpButtonAccessibilityLabel": "Spiegazione del grafico della finestra di opportunità",
+    "helpModalTitle": "Come leggere questa finestra",
+    "helpLoading": "Sto preparando la spiegazione..."
+  },
+  "planetBanner": {
+    "eyebrow": "Pianeta del giorno"
+  },
+  "readMoreButton": "Dettagli",
+  "recommendation": {
+    "title": "Raccomandazioni del giorno",
+    "loading": "Aggiornamento della raccomandazione nella lingua selezionata…"
+  },
   "refreshAccessibilityLabel": "Aggiorna previsione del giorno",
   "refreshButton": "Aggiorna",
   "refreshingLabel": "...",
   "retryButton": "Riprova",
   "signOutButton": "Esci",
-  "signingOutButton": "Uscita in corso...",
-  "skeletonText": "Sto preparando la previsione del giorno e le finestre di opportunità...",
-  "staleContentMessage": "I dati aggiornati non sono stati caricati, perciò mostro temporaneamente l'ultima previsione salvata per oggi.",
-  "staleContentTitle": "Visualizzazione previsione salvata",
+  "signingOutButton": "Uscendo...",
+  "skeletonText": "Sto raccogliendo la previsione del giorno e le finestre di opportunità...",
+  "staleContentMessage": "I dati aggiornati non sono stati caricati ora, quindi mostro temporaneamente l'ultima versione salvata di oggi.",
+  "staleContentTitle": "Mostro la previsione salvata",
   "toneLabels": {
     "harmonic": "armonico",
-    "neutral": "neutrale",
-    "dissonant": "dissonante",
-    "toneRecommendationVerb": {
-      "harmonic": "potenziare dolcemente",
-      "neutral": "sintonizzare con calma",
-      "dissonant": "stabilizzare con cura",
-      "chakraFlower": {
-        "title": "Fiore del giorno",
-        "caption": "La dimensione dei petali riflette l'importanza dei chakra oggi.",
-        "planetBanner": {
-          "eyebrow": "Pianeta del giorno",
-          "opportunityWindows": {
-            "title": "Finestra di opportunità",
-            "emptyDetail": "Oggi nessuna finestra precisa",
-            "windowTitles": {
-              "sunrise": "Alba",
-              "culmination": "Culmine",
-              "exactAspect": "Aspetto esatto",
-              "aspectLabels": {
-                "conjunction": "congiunzione",
-                "opposition": "opposizione",
-                "square": "quadratura",
-                "trine": "trigono",
-                "sextile": "sestile",
-                "reminderModalTitle": "Notifica",
-                "reminderTextLabel": "Testo della notifica",
-                "reminderModeExact": "all'ora esatta",
-                "reminderModeBefore5": "5 minuti prima",
-                "reminderSave": "Salva",
-                "reminderCancel": "Annulla",
-                "reminderBodyFiveMinPrefix": "5 minuti prima",
-                "reminderPastTitle": "Tempo già passato",
-                "reminderPastMessage": "Non è possibile impostare un promemoria per una finestra passata.",
-                "reminderNotificationsUnavailableTitle": "Notifiche non ancora disponibili",
-                "reminderNeedPermissionTitle": "Notifiche necessarie",
-                "reminderNeedPermissionMessage": "Consenti le notifiche per consentire ad Harmonizer di ricordarti la finestra di opportunità.",
-                "helpButtonAccessibilityLabel": "Spiegazione del grafico della finestra di opportunità",
-                "helpModalTitle": "Come leggere questa finestra",
-                "helpLoading": "Preparo la spiegazione...",
-                "recommendation": {
-                  "title": "Raccomandazioni del giorno",
-                  "loading": "Aggiornamento raccomandazione nella lingua selezionata…",
-                  "discussButton": "Cosa fare?",
-                  "readMoreButton": "Dettagli",
-                  "longExplanationModal": {
-                    "title": "Dettagli",
-                    "subtitle": "Spiegazione dettagliata della raccomandazione del giorno.",
-                    "closeButton": "Chiudi",
-                    "mathButton": "Calcoli e formule",
-                    "mathButtonA11y": "Apri calcoli e formule della raccomandazione del giorno",
-                    "mathCaption": "Matematica esatta della forza e armonia planetaria, pesi degli aspetti e scelta del tema del giorno.",
-                    "eventBells": {
-                      "title": "Campanelle",
-                      "empty": "Nessun evento astrologico imminente con orario preciso oggi.",
-                      "aspectTitle": "Aspetto",
-                      "devLinks": {
-                        "biofeedback": "Biofeedback",
-                        "mandala": "Mandala",
-                        "bindu": "Bindu",
-                        "symbols": "Symbols",
-                        "breath": "Breath",
-                        "calibration": "Calibration",
-                        "devResetDayContent": "Aggiorna",
-                        "mathModal": {
-                          "title": "Matematica del giorno",
-                          "subtitle": "Formule di forza, armonia, transiti e scelta del pianeta del giorno.",
-                          "closeButton": "Indietro",
-                          "emptyHint": "Il blocco matematico non è ancora arrivato con la previsione. Aggiorna la previsione del giorno dopo il deploy del backend del patch.",
-                          "showChartButton": "Mostra carta natale e di transito",
-                          "chartUnavailableHint": "Carta disponibile solo per utenti trial/premium con profilo natale."
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    "neutral": "neutro",
+    "dissonant": "dissonante"
+  },
+  "toneRecommendationVerb": {
+    "harmonic": "rafforzare delicatamente",
+    "neutral": "sintonizzare con calma",
+    "dissonant": "stabilizzare con cura"
   }
 }

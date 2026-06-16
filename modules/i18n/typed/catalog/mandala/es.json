@@ -1,6 +1,6 @@
 {
   "continueButton": "Continuar",
-  "description": "Meditación visual breve para cambiar suavemente la atención y armonizar.",
+  "description": "Breve meditación visual para redirigir suavemente la atención y armonizar.",
   "finishA11y": "Finalizar práctica",
   "finishButton": "Finalizar",
   "locale": "es",
@@ -8,12 +8,12 @@
   "moodSame": "Igual",
   "moodWorse": "Peor",
   "newLineButton": "Nueva línea",
-  "nextMandalaButton": "Siguiente mandala",
+  "nextMandalaButton": "Siguiente mándala",
   "pauseButton": "Pausa",
-  "ratingMessage": "Esta valoración nos ayudará a recomendarte mejores prácticas en el futuro.",
+  "ratingMessage": "Esta valoración te ayudará a elegir mejor las prácticas más adelante.",
   "ratingTitle": "¿Cómo te sientes?",
-  "resumeButton": "Reanudar",
-  "stopConfirmMessage": "Puedes detenerte ahora y notar cómo te sientes después de la práctica.",
+  "resumeButton": "Continuar",
+  "stopConfirmMessage": "Puedes detenerte ahora y observar cómo te sientes después de la práctica.",
   "stopConfirmTitle": "¿Finalizar práctica?",
   "title": "Destello"
 }

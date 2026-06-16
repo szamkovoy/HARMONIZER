@@ -1,108 +1,108 @@
 {
   "appTitle": "Harmonizer",
   "assistantTitle": "Assistant",
-  "birthDataMessage": "Pour établir votre prévision personnelle du jour, veuillez saisir la date, l’heure et le lieu de naissance.",
-  "birthDataTitle": "Date de naissance nécessaire",
+  "birthDataMessage": "Pour générer votre prévision personnelle du jour, entrez la date, l'heure et le lieu de naissance.",
+  "birthDataTitle": "Date de naissance requise",
+  "chakraFlower": {
+    "title": "Fleur du jour",
+    "caption": "La taille des pétales reflète l'importance des chakras pour aujourd'hui."
+  },
   "closeAssistantAccessibilityLabel": "Fermer l'assistant",
   "closeButton": "Fermer",
-  "defaultSystemPrompt": "Tu es un mentor empathique de l’application Harmonizer. Réponds de manière concise et pertinente.",
+  "defaultSystemPrompt": "Tu es un mentor empathique de l'application Harmonizer. Réponds de manière concise et pertinente.",
+  "devLinks": {
+    "biofeedback": "Biofeedback",
+    "mandala": "Mandala",
+    "bindu": "Bindu",
+    "symbols": "Symboles",
+    "breath": "Respiration",
+    "calibration": "Calibration"
+  },
+  "devResetDayContent": "Actualiser",
+  "discussButton": "Que faire ?",
   "emptyTimeLabel": "—",
+  "eventBells": {
+    "title": "Clochettes",
+    "empty": "Aucun événement astro à venir avec heure précise pour aujourd'hui.",
+    "aspectTitle": "Aspect"
+  },
   "forecastErrorTitle": "Impossible de charger la prévision",
-  "headerHint": "Réglage principal du jour : chakras, fenêtres d’opportunité et recommandation pratique.",
-  "locale": "ru",
-  "locationErrorTitle": "Géolocalisation nécessaire",
-  "openSettingsButton": "Ouvrir les réglages",
+  "headerHint": "Réglage principal du jour : chakras, fenêtres d'opportunités et recommandation pratique.",
+  "locale": "fr",
+  "locationErrorTitle": "Géolocalisation requise",
+  "longExplanationModal": {
+    "title": "En savoir plus",
+    "subtitle": "Explication détaillée de la recommandation du jour.",
+    "closeButton": "Fermer",
+    "mathButton": "Calculs et formules",
+    "mathButtonA11y": "Ouvrir les calculs et formules de la recommandation du jour",
+    "mathCaption": "Mathématiques précises de la force et de l'harmonie des planètes, des poids des aspects et du choix du thème du jour."
+  },
+  "mathModal": {
+    "title": "Mathématiques du jour",
+    "subtitle": "Formules de force, d'harmonie, des transits et du choix de la planète du jour.",
+    "closeButton": "Retour",
+    "emptyHint": "Le bloc mathématique n'est pas encore arrivé avec la prévision. Actualisez la prévision du jour après le déploiement de la partie backend du correctif.",
+    "showChartButton": "Afficher la carte natale et des transits",
+    "chartUnavailableHint": "Carte disponible uniquement pour les utilisateurs d'essai/premium avec un profil natal."
+  },
+  "openSettingsButton": "Ouvrir les paramètres",
+  "opportunityWindows": {
+    "title": "Fenêtre d'opportunités",
+    "emptyDetail": "Aujourd'hui sans fenêtre précise",
+    "windowTitles": {
+      "sunrise": "Lever du soleil",
+      "culmination": "Culmination",
+      "exactAspect": "Aspect exact"
+    },
+    "aspectLabels": {
+      "conjunction": "conjonction",
+      "opposition": "opposition",
+      "square": "carré",
+      "trine": "trigone",
+      "sextile": "sextile"
+    },
+    "reminderModalTitle": "Notification",
+    "reminderTextLabel": "Texte de la notification",
+    "reminderModeExact": "exactement à cette heure",
+    "reminderModeBefore5": "5 minutes avant",
+    "reminderSave": "Enregistrer",
+    "reminderCancel": "Annuler",
+    "reminderBodyFiveMinPrefix": "5 minutes avant",
+    "reminderPastTitle": "L'heure est déjà passée",
+    "reminderPastMessage": "Impossible de programmer une notification pour une fenêtre passée.",
+    "reminderNotificationsUnavailableTitle": "Notifications indisponibles pour le moment",
+    "reminderNeedPermissionTitle": "Notifications requises",
+    "reminderNeedPermissionMessage": "Autorisez les notifications pour qu'Harmonizer puisse vous rappeler la fenêtre d'opportunités.",
+    "helpButtonAccessibilityLabel": "Explication du graphique des fenêtres d'opportunités",
+    "helpModalTitle": "Comment lire cette fenêtre",
+    "helpLoading": "Préparation de l'explication..."
+  },
+  "planetBanner": {
+    "eyebrow": "Planète du jour"
+  },
+  "readMoreButton": "En savoir plus",
+  "recommendation": {
+    "title": "Recommandations du jour",
+    "loading": "Mise à jour de la recommandation dans la langue choisie…"
+  },
   "refreshAccessibilityLabel": "Actualiser la prévision du jour",
   "refreshButton": "Actualiser",
   "refreshingLabel": "...",
   "retryButton": "Réessayer",
   "signOutButton": "Déconnexion",
-  "signingOutButton": "Déconnexion en cours…",
-  "skeletonText": "Préparation de la prévision du jour et des fenêtres d’opportunité…",
-  "staleContentMessage": "Les données fraîches n’ont pas pu être chargées ; j’affiche donc temporairement la dernière version sauvegardée pour aujourd’hui.",
-  "staleContentTitle": "Affichage de la prévision sauvegardée",
+  "signingOutButton": "Déconnexion en cours...",
+  "skeletonText": "Je prépare les prévisions du jour et les fenêtres d'opportunités...",
+  "staleContentMessage": "Les données actualisées n'ont pas pu être chargées pour le moment, c'est pourquoi la dernière version enregistrée pour ce jour est temporairement affichée.",
+  "staleContentTitle": "Affichage de la prévision enregistrée",
   "toneLabels": {
     "harmonic": "harmonieux",
     "neutral": "neutre",
-    "dissonant": "dissonant",
-    "toneRecommendationVerb": {
-      "harmonic": "renforcer en douceur",
-      "neutral": "ajuster calmement",
-      "dissonant": "stabiliser avec soin",
-      "chakraFlower": {
-        "title": "Fleur du jour",
-        "caption": "La taille des pétales reflète l’importance des chakras aujourd’hui.",
-        "planetBanner": {
-          "eyebrow": "Planète du jour",
-          "opportunityWindows": {
-            "title": "Fenêtre d’opportunité",
-            "emptyDetail": "Aujourd’hui sans fenêtre précise",
-            "windowTitles": {
-              "sunrise": "Lever du jour",
-              "culmination": "Culmination",
-              "exactAspect": "Aspect exact",
-              "aspectLabels": {
-                "conjunction": "conjonction",
-                "opposition": "opposition",
-                "square": "carré",
-                "trine": "trigone",
-                "sextile": "sextile",
-                "reminderModalTitle": "Notifier",
-                "reminderTextLabel": "Texte de la notification",
-                "reminderModeExact": "exactement à cette heure",
-                "reminderModeBefore5": "5 minutes avant",
-                "reminderSave": "Enregistrer",
-                "reminderCancel": "Annuler",
-                "reminderBodyFiveMinPrefix": "5 minutes avant :",
-                "reminderPastTitle": "L’heure est déjà passée",
-                "reminderPastMessage": "Impossible de programmer une notification pour une fenêtre passée.",
-                "reminderNotificationsUnavailableTitle": "Notifications momentanément indisponibles",
-                "reminderNeedPermissionTitle": "Notifications requises",
-                "reminderNeedPermissionMessage": "Veuillez autoriser les notifications pour que Harmonizer puisse vous rappeler la fenêtre d’opportunité.",
-                "helpButtonAccessibilityLabel": "Explication du graphique de la fenêtre d’opportunité",
-                "helpModalTitle": "Comment lire cette fenêtre",
-                "helpLoading": "Préparation de l’explication…",
-                "recommendation": {
-                  "title": "Recommandations du jour",
-                  "loading": "Mise à jour de la recommandation dans la langue choisie…",
-                  "discussButton": "Que faire ?",
-                  "readMoreButton": "En savoir plus",
-                  "longExplanationModal": {
-                    "title": "En savoir plus",
-                    "subtitle": "Explication détaillée de la recommandation du jour.",
-                    "closeButton": "Fermer",
-                    "mathButton": "Calculs et formules",
-                    "mathButtonA11y": "Ouvrir les calculs et formules de la recommandation du jour",
-                    "mathCaption": "Mathématiques précises de la force et de l’harmonie des planètes, du poids des aspects et du choix du thème du jour.",
-                    "eventBells": {
-                      "title": "Clochettes",
-                      "empty": "Aucun événement astrologique à venir avec heure précise aujourd’hui.",
-                      "aspectTitle": "Aspect",
-                      "devLinks": {
-                        "biofeedback": "Biofeedback",
-                        "mandala": "Mandala",
-                        "bindu": "Bindu",
-                        "symbols": "Symbols",
-                        "breath": "Breath",
-                        "calibration": "Calibration",
-                        "devResetDayContent": "Actualiser",
-                        "mathModal": {
-                          "title": "Mathématiques du jour",
-                          "subtitle": "Formules de force, d’harmonie, des transits et du choix de la planète du jour.",
-                          "closeButton": "Retour",
-                          "emptyHint": "Le bloc mathématique n’est pas encore arrivé avec la prévision. Veuillez actualiser la prévision du jour après le déploiement de la partie backend du patch.",
-                          "showChartButton": "Afficher la carte natale et de transit",
-                          "chartUnavailableHint": "La carte est disponible uniquement pour les utilisateurs trial/premium disposant d’un profil natal."
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    "dissonant": "dissonant"
+  },
+  "toneRecommendationVerb": {
+    "harmonic": "renforcer en douceur",
+    "neutral": "ajuster calmement",
+    "dissonant": "stabiliser avec précaution"
   }
 }

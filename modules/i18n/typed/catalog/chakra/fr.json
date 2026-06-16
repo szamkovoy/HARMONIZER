@@ -1,12 +1,12 @@
 {
   "display": {
-    "1": "Premier Chakra",
-    "2": "Deuxième Chakra",
-    "3": "Troisième Chakra",
-    "4": "Quatrième Chakra",
-    "5": "Cinquième Chakra",
-    "6": "Sixième Chakra",
-    "7": "Septième Chakra"
+    "1": "Premier chakra",
+    "2": "Deuxième chakra",
+    "3": "Troisième chakra",
+    "4": "Quatrième chakra",
+    "5": "Cinquième chakra",
+    "6": "Sixième chakra",
+    "7": "Septième chakra"
   },
   "gen": {
     "1": "du premier chakra",
@@ -27,12 +27,12 @@
     "7": "septième chakra"
   },
   "short": {
-    "1": "Vitalité",
-    "2": "Plaisir",
-    "3": "Pouvoir",
-    "4": "Amour",
-    "5": "Expression",
-    "6": "Sagesse",
+    "1": "vitalité",
+    "2": "euphorie",
+    "3": "force",
+    "4": "amour",
+    "5": "expression",
+    "6": "sagesse",
     "7": "Soi supérieur"
   }
 }

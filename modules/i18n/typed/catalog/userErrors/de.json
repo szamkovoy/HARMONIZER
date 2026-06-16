@@ -1,15 +1,15 @@
 {
-  "authRequiredMessage": "Deine Sitzung ist abgelaufen. Schließe die App und öffne sie erneut, oder melde dich neu an.",
-  "authRequiredTitle": "Erneute Anmeldung erforderlich",
+  "authRequiredMessage": "Deine Sitzung ist abgelaufen. Schließe die App und öffne sie erneut oder melde dich wieder an.",
+  "authRequiredTitle": "Erneut anmelden",
   "dismissButton": "Schließen",
-  "genericMessage": "Anfrage konnte nicht verarbeitet werden. Bitte versuche es später erneut.",
+  "genericMessage": "Die Anfrage konnte nicht bearbeitet werden. Versuche es später noch einmal.",
   "genericTitle": "Etwas ist schiefgelaufen",
   "locale": "ru",
-  "networkMessage": "Bitte überprüfe deine Internet- oder WLAN-Verbindung und versuche es erneut.",
+  "networkMessage": "Überprüfe deine Internet- oder WLAN-Verbindung und versuche es erneut.",
   "networkTitle": "Server nicht erreichbar",
-  "retryButton": "Erneut versuchen",
-  "serviceBusyMessage": "Warte einen Moment und versuche es erneut.",
-  "serviceBusyTitle": "Service vorübergehend ausgelastet",
-  "timeoutMessage": "Der Server hat nicht rechtzeitig geantwortet. Versuche es erneut oder kürze deine Eingabe.",
-  "timeoutTitle": "Antwort dauert zu lange"
+  "retryButton": "Wiederholen",
+  "serviceBusyMessage": "Warte eine Minute und versuche es erneut.",
+  "serviceBusyTitle": "Service momentan beschäftigt",
+  "timeoutMessage": "Der Server hat nicht rechtzeitig geantwortet. Versuche es erneut oder sende eine kürzere Anfrage.",
+  "timeoutTitle": "Antwortzeit überschritten"
 }
