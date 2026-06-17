@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.40
-updated: 2026-06-16
+version: 2.41
+updated: 2026-06-17
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -121,7 +121,7 @@ code_refs:
 - `transcribeCommunicatorAudio(req, options?: { useNetworkRetry?: boolean })` — POST на `/api/communicator/v2/transcribe` (тело `{ audio: { mimeType, base64 }, language? }`); таймаут одной попытки **12 с** (`TRANSCRIBE_TIMEOUT_MS`). По умолчанию — `withTransientNetworkRetry`; голосовой пайплайн передаёт `useNetworkRetry: false` (повторы на уровне `transcribeVoiceRecording`).
 - `extractCalibration(req)` — используется экраном калибровки, не `Communicator.tsx`.
 
-Типы: `DialogueUseCase`, `DialogueEntrySource`, `PracticePicked`, `OrchestratorDecision`, `DialogCompleteEvent`, `DialogTurnArtifactsEvent`, `SendDialogMessageParams` (колбэк `onTurnArtifacts`), `SendDialogMessageResult` (в т.ч. опциональный `streamError?: string` при SSE `error`), `DialogTurnHistoryItem`, и др. — см. файл. `**buildClientTurnHistory**` / `DIALOG_TURN_HISTORY_LIMIT` (40) собирают `turnHistory` из локальной ленты перед POST; для assistant-turn с уже показанной карточкой туда подмешивается минимальный `meta.practicePicked`, чтобы серверный FSM/route при lean storage видел контекст уже показанной карточки.
+Типы: `DialogueUseCase`, `DialogueEntrySource`, `PracticePicked`, `OrchestratorDecision`, `DialogCompleteEvent`, `DialogTurnArtifactsEvent`, `SendDialogMessageParams` (колбэк `onTurnArtifacts`), `SendDialogMessageResult` (в т.ч. опциональный `streamError?: string` при SSE `error`), `DialogTurnHistoryItem`, и др. — см. файл. `**buildClientTurnHistory**` / `DIALOG_TURN_HISTORY_LIMIT` (40) собирают `turnHistory` из локальной ленты перед POST; для assistant-turn туда подмешивается минимальный `meta`: `practicePicked` (если карточка уже показана), плюс `branches` / `dialog_branches` (если ветка известна из `complete` или session-meta), чтобы серверный FSM/route при lean storage видел контекст карточки и мог через `collectPlanningBranchUserHistory` восстановить user-turns planning-ветки.
 
 `**PracticePicked**` — `Partial<PracticeRecommendation> & Pick<PracticeRecommendation, "id">` (реэкспорт контракта каталога практик).
 
@@ -147,7 +147,7 @@ code_refs:
 | Слой | Что хранится | Где |
 | --- | --- | --- |
 | **Устройство (канон текста)** | До 40 последних сообщений ленты, `conversationId`, ключ по локальному календарному дню | `services/dialogSessionCache.ts` — SecureStore (native) / `localStorage` (web); ключ `harmonizer.dialog.session.{userId}.{useCase}.{entrySource}` |
-| **POST на сервер** | Контекст ходов для LLM | `buildClientTurnHistory` → поле `turnHistory` (лимит 40); сервер предпочитает его над пустым `messages.content` |
+| **POST на сервер** | Контекст ходов для LLM | `buildClientTurnHistory` → поле `turnHistory` (лимит 40); assistant-turn может нести `meta.practicePicked` и `meta.branches`/`dialog_branches`; сервер предпочитает его над пустым `messages.content` |
 | **Сервер (не текст)** | `messages.meta`, `planned_events` (`planned` + текущие `summarized`), rollup `daily_matrices`, snapshot `profile_report_snapshots` | `docs/02_modules/assistant/spec.md` |
 | **GET sync** | Проверка `reset`, гидрация `complete`, dev-export | `fetchDialogSession`; на mount **без** `conversationId` из local cache (только проп `Communicator`) |
 
@@ -168,7 +168,7 @@ code_refs:
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EXPO_PUBLIC_COMMUNICATOR_API_URL` (и fallback `EXPO_PUBLIC_BACKEND_API_URL`) | Origin Vercel без суффикса `/api`; см. `services/communicatorConfig.ts`. Отсутствие переменной — ошибка при первом запросе.                                                                                                   |
 | URL диалога                                                                   | `getAiDialogUrl()` если в запросе передан `**scenario_id**`, иначе `getCommunicatorV2DialogUrl()`. Текущий `**Communicator**` не передаёт `scenarioId` в `runChatStream` — главный поток всегда использует **v2 dialog URL**. |
-| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional **`inputLocale`** (язык STT/ввода; по умолчанию `getTranscribeLocale()`; в i18n test mode может отличаться от `responseLocale`), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked`. `Communicator.tsx` передаёт оба locale явно из `useAppLocale()`. |
+| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional **`inputLocale`** (язык STT/ввода; по умолчанию `getTranscribeLocale()`; в i18n test mode может отличаться от `responseLocale`), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked` и/или `meta.branches`/`dialog_branches`. `Communicator.tsx` передаёт оба locale явно из `useAppLocale()`. |
 | Константы UI                                                                  | `MIN_VOICE_MS` (450), `LOW_TRANSCRIPTION_CONFIDENCE` (0.65), лимит текста 8000 символов.                                                                                                                                      |
 | Режим текста                                                                  | `COMMUNICATOR_TEXT_MODE_ENABLED` — если выключен, только голос без переключателя.                                                                                                                                             |
 | Дебаг                                                                         | Подпись `model: …` у бейджа ассистента и кнопка `Export dialog to JSON` — только в `**__DEV__`**.                                                                                                                             |

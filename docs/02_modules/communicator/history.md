@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.36
-updated: 2026-06-16
+version: 2.37
+updated: 2026-06-17
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -18,6 +18,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-17:** `buildClientTurnHistory` / `DialogTurnHistoryItem.meta` теперь прокидывают `branches` и `dialog_branches` для assistant-turn (наряду с `practicePicked` и voice-meta), чтобы серверный planning-backstop (`collectPlanningBranchUserHistory` в `assistant`) мог собрать user-replies всей planning-ветки из client `turnHistory` при lean storage. Docs sync: `communicator/{spec,dependencies,history}.md`.
 
 - **2026-06-16:** Voice locale routing — dialog POST carries explicit **`responseLocale`** / **`inputLocale`** from `Communicator.tsx` (`useAppLocale()` + `getTranscribeLocale()`); `communicator-client.ts` defaults `inputLocale` to `getTranscribeLocale()`. In test mode STT stays on RU while replies follow the selected UI locale; in production voice may omit the STT hint, accept Whisper auto-detect, and submit the detected locale as per-turn `inputLocale` + `responseLocale`. Low-confidence transcript review preserves the detected locale on resend. Communicator i18n no longer leaks Russian inline TS strings into FR/DE sessions. Контракт — `docs/02_modules/i18n/spec.md` §2.1, `assistant/spec.md` §4.
 

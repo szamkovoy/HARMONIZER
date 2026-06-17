@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.16
-updated: 2026-06-16
+version: 1.17
+updated: 2026-06-17
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -36,7 +36,7 @@ code_refs:
 - `**profile**` (через auth)  
 `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
 - `**assistant**` (транспорт daily dialog)  
-`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn после показа карточки туда подмешивается минимальный `meta.practicePicked`, а сервер (`resolveTurnHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport даёт `reconcileDialogPlans({ conversationId, force? })` → POST `/api/ai/dialog/reconcile-plans` (fallback `/api/communicator/v2/dialog/reconcile-plans`): с июня 2026 серверный FSM пишет planning/summary синхронно, endpoint — **совместимый no-op** (`{ applied: false }`); клиент по-прежнему debounce-вызывает его на idle и делает best-effort flush перед `launchPractice(...)` / unmount / кнопкой «Выйти».
+`services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn туда подмешивается минимальный `meta` (`practicePicked` после карточки, `branches`/`dialog_branches` для ветки хода), а сервер (`resolveTurnHistory` → `collectPlanningBranchUserHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport даёт `reconcileDialogPlans({ conversationId, force? })` → POST `/api/ai/dialog/reconcile-plans` (fallback `/api/communicator/v2/dialog/reconcile-plans`): с июня 2026 серверный FSM пишет planning/summary синхронно, endpoint — **совместимый no-op** (`{ applied: false }`); клиент по-прежнему debounce-вызывает его на idle и делает best-effort flush перед `launchPractice(...)` / unmount / кнопкой «Выйти».
 - `**practices**`  
 `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
 `modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams` и `launchPractice(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI. Summary health: `services/summarizingHealthContext.ts` (йога сразу + native health в фоне без стартового таймаута); `app/(tabs)/day.tsx` / `index.tsx` открывают модалку сразу и стартуют сбор; `Communicator` дополнительно бутстрапит сбор при `daySummaryRequested` или первом ответе с веткой `summarizing` и на каждый POST подмешивает `triggerMeta.dayHealthContext` из `getSnapshot()`. `services/dayHealthContext.ts` — thin re-export/legacy blocking helper.
@@ -63,4 +63,4 @@ code_refs:
 - `**triggerMeta.systemPrompt**` — `Communicator` вкладывает переданный снаружи `systemPrompt` в объект метаданных; смена контракта бэкенда к этому ключу потребует правок UI и сервера согласованно.
 - `**fetchDialogSession` fallback** — при 404/405 клиент возвращает пустую сессию с `reset: true`; иначе ошибка пробрасывается в `Alert`.
 - **Транспорт SSE на native** — `sendDialogMessage` не использует `fetch` для тела диалога на iOS/Android (часто буферизует весь ответ до конца); там `**XMLHttpRequest`**. Парсер блоков (`parseSseBlock` / `handleSseEvent`) общий с web.
-- **`turnHistory` / session-cache** — рассинхрон лимита (40), формата ролей/минимального `meta.practicePicked` или ключа кеша (`localDate` в tz) ломает восстановление daily dialog после перезапуска приложения без server-side текста в `messages.content`.
+- **`turnHistory` / session-cache** — рассинхрон лимита (40), формата ролей, минимального `meta.practicePicked`, `meta.branches`/`dialog_branches` (нужны серверу для накопительного planning-backstop) или ключа кеша (`localDate` в tz) ломает восстановление daily dialog после перезапуска приложения без server-side текста в `messages.content`.
