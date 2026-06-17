@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.81
+version: 2.82
 updated: 2026-06-17
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-17: `assistant` — cross-locale salvage of planning markers from visible finalize: `extractPlanningMarkersFromVisibleFinalize` parses locale-native scaffold labels (8 locales, `1.`/`1)`, FR colon spacing, optional markdown-bold); `route.ts` reuses `resolvedPlanningMarkers` for visible-final assembly. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `daily_forecast` / `i18n` — free-tier Home timeout for non-RU locales: `global-content` no longer blocks on on-demand `text_i18n` pretranslate; client SDK fallback for any locale + 25s timeout. Synced `daily_forecast/{spec,history}.md`, `i18n/{spec,history}.md`.
 - 2026-06-17: `assistant` — Day-tab add-flow no longer auto-closes on the first added action; final visible numbered list now backfills missing `planned_events.recommendation_text`, fixing action recommendations on `/api/day`. Synced `assistant/{spec,history}.md`.
 - 2026-06-16: `assistant` — planning finalize post-assembly day-focus backstop: when `[CORRECT_RECOMMENDATION]` is missing and `recommendationCorrected` stays empty after `buildPlanningFinalVisibleText`, `route.ts` re-salvages day focus from assembled `cleanText`, persists via `persistDayFocus`, and rebuilds visible-final; deterministic action labels use locale-native `recommendationLabel` (FR tests). Synced `assistant/{spec,history}.md`.
