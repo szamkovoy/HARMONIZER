@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { initFsmState } from "./dialogFsm";
 import {
@@ -18,6 +19,17 @@ import {
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
 } from "./dialogTurnGuards";
+
+const ALL_RECOMMENDATION_LABELS: Array<{ locale: AppContentLocale; label: string }> = [
+  { locale: "ru", label: "Рекомендация" },
+  { locale: "en", label: "Recommendation" },
+  { locale: "de", label: "Empfehlung" },
+  { locale: "fr", label: "Recommandation" },
+  { locale: "it", label: "Raccomandazione" },
+  { locale: "es", label: "Recomendación" },
+  { locale: "pt", label: "Recomendação" },
+  { locale: "nl", label: "Aanbeveling" },
+];
 
 function assistantMsg(content: string): MessageRecord {
   return { id: "m", role: "assistant", content, transcript: null, meta: null, created_at: null };
@@ -199,6 +211,55 @@ describe("dialogTurnGuards", () => {
     const salvaged = extractPlanningMarkersFromVisibleFinalize(text, "ru");
     expect(salvaged).toHaveLength(2);
     expect(salvaged.map((item) => item.desc)).toEqual(["Прогулка в парке", "Ранний отход ко сну"]);
+  });
+
+  it("salvages French visible planning markers when the label uses typography spacing", () => {
+    const text = [
+      "Aujourd'hui, le troisieme chakra est au premier plan.",
+      "",
+      "1. Aller au magasin voir un bateau",
+      "Recommandation : Comparez calmement sans vous precipiter.",
+      "",
+      "2. Beaucoup travailler",
+      "Recommandation : Gardez une ligne claire et des priorites simples.",
+      "",
+      "3. Regarder un film le soir",
+      "Recommandation : Laissez-le devenir un vrai temps de decompression.",
+      "",
+      "Souhaitez-vous faire une pratique maintenant ?",
+    ].join("\n");
+    const salvaged = extractPlanningMarkersFromVisibleFinalize(text, "fr");
+    expect(salvaged).toHaveLength(3);
+    expect(salvaged.map((item) => item.desc)).toEqual([
+      "Aller au magasin voir un bateau",
+      "Beaucoup travailler",
+      "Regarder un film le soir",
+    ]);
+    expect(salvaged[0]?.recommendation).toBe("Comparez calmement sans vous precipiter.");
+  });
+
+  it("salvages visible planning markers across all scaffold locales", () => {
+    for (const { locale, label } of ALL_RECOMMENDATION_LABELS) {
+      const text = [
+        "Plan du jour:",
+        "",
+        "1) First action",
+        `${label} : Keep it steady.`,
+        "",
+        "2. Second action",
+        `${label}: Stay focused.`,
+        "",
+        "Practice question here?",
+      ].join("\n");
+      const salvaged = extractPlanningMarkersFromVisibleFinalize(text, locale);
+      expect(salvaged, `locale=${locale}`).toHaveLength(2);
+      expect(salvaged.map((item) => item.desc), `locale=${locale}`).toEqual([
+        "First action",
+        "Second action",
+      ]);
+      expect(salvaged[0]?.recommendation, `locale=${locale}`).toBe("Keep it steady.");
+      expect(salvaged[1]?.recommendation, `locale=${locale}`).toBe("Stay focused.");
+    }
   });
 
   it("salvages a long label on a word boundary instead of cutting mid-word", () => {

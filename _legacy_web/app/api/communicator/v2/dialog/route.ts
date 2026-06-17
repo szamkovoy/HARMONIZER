@@ -1286,6 +1286,7 @@ export async function POST(req: Request) {
           let summaryClarifyingDeferred = false;
           let practicePicked: Record<string, unknown> | null = null;
           let recommendationCorrected: Record<string, unknown> | null = null;
+          let resolvedPlanningMarkers: ReturnType<typeof filterPracticeLikePlannedEvents> = [];
           // True only on the turn planning actually finalizes. With incremental
           // persistence, PLANNED_EVENT markers also appear on gathering turns, so the
           // finalize-only visible assembly below must NOT key off "markers present".
@@ -1368,6 +1369,7 @@ export async function POST(req: Request) {
               }
             }
             plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
+            resolvedPlanningMarkers = plannedMarkers;
             if (
               plannedMarkers.length === 0
               && !finalizeIntent
@@ -1711,8 +1713,7 @@ export async function POST(req: Request) {
           let planningMarkersForVisible: ReturnType<typeof filterPracticeLikePlannedEvents> = [];
           if (branchForTurn === "planning" && planningFinalizedThisTurn) {
             const locale = resolveDialogScaffoldLocale(context.user.locale);
-            planningMarkersForVisible = filterPracticeLikePlannedEvents(markers.plannedEvents)
-              .map((marker) => polishPlanningMarker(marker, locale));
+            planningMarkersForVisible = resolvedPlanningMarkers;
             const persistedDayFocus =
               recommendationCorrected && typeof recommendationCorrected.short_text === "string"
                 ? recommendationCorrected.short_text

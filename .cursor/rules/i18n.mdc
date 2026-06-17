@@ -17,6 +17,20 @@ A task touches i18n if it adds/changes any of: user-facing text, alerts, buttons
 placeholders, a new screen; the assistant's reply language; dates/numbers/plurals;
 a server visible-text builder/fallback; or a new response language.
 
+## Bug-fix rule for multilingual regressions
+If QA finds a bug while the app is running in one locale, treat it as a
+potential **cross-locale** defect unless the evidence proves it is locale-specific.
+Do not stop at a one-language patch. Check whether the failure is caused by
+shared locale-sensitive machinery (parsers, visible-text builders, scaffold
+labels, date/number formatting, fallback logic, prompt locale plumbing, or UI
+copy contracts) and fix it at that shared layer when possible.
+
+For i18n-related bug fixes:
+1. Re-check whether the current locale could be part of the root cause.
+2. Prefer a language-agnostic or cross-locale fix over a single-locale patch.
+3. Add regression coverage for the reported locale **and** at least one broader
+   cross-locale/generalized case when feasible.
+
 ## Hard rules
 1. **Never hardcode a user-facing Russian string** in JSX or a server response.
    - New simple UI strings → add to `modules/i18n/catalog/ru.json` and run

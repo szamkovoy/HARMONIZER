@@ -198,15 +198,25 @@ function inferPlanningSpheresFromText(text: string): PlannedEventMarker["cells"]
   return top.map((sphere) => ({ sphere, weight }));
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** Salvage planning markers when the model finalized visibly but forgot invisible markers. */
 export function extractPlanningMarkersFromVisibleFinalize(
   text: string,
   locale: AppContentLocale,
 ): PlannedEventMarker[] {
-  const recommendationLabel = getDialogScaffoldStrings(locale).recommendationLabel;
+  const recommendationLabel = escapeRegExp(getDialogScaffoldStrings(locale).recommendationLabel.trim());
   const pattern = new RegExp(
-    `(\\d+)\\.\\s*([^\\n]+)\\s*\\n\\s*${recommendationLabel}:\\s*([^\\n]+(?:\\n(?!\\d+\\.)[^\\n]+)*)`,
-    "gi",
+    [
+      String.raw`(?:^|\n)\s*(\d+)[.)]\s*([^\n]+?)\s*`,
+      String.raw`\n\s*(?:[-*]\s*)?(?:\*\*|__)?`,
+      recommendationLabel,
+      String.raw`(?:\*\*|__)?\s*:\s*`,
+      String.raw`([^\n]+(?:\n(?!\s*(?:\d+[.)]|\n))[^\\n]+)*)`,
+    ].join(""),
+    "gim",
   );
   const markers: PlannedEventMarker[] = [];
   let match: RegExpExecArray | null = pattern.exec(text);
