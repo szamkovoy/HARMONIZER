@@ -3,8 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
 import { resolveContentLocale, SOURCE_LOCALE, type AppContentLocale, type TargetLocale } from "../../_utils/contentLocales";
 import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel } from "../../_utils/ensureGlobalDailyContent";
-import { ensureGlobalTextI18nPrecomputed, localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
-import type { GlobalTextI18nMap } from "../../_utils/pretranslateGlobalTexts";
+import { localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
+import {
+  pretranslateGlobalTexts,
+  upsertGlobalTextI18n,
+  type GlobalTextI18nMap,
+} from "../../_utils/pretranslateGlobalTexts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -56,6 +60,33 @@ function payloadFromContent(content: Record<string, unknown>, user: UserAccess, 
   };
 }
 
+async function backfillGlobalTextI18n(
+  db: SupabaseClient,
+  forecastDateUtc: string,
+  ru: { slogan: string; short_text: string; long_explanation: string },
+  locales: readonly TargetLocale[],
+): Promise<void> {
+  const partial = await pretranslateGlobalTexts(ru, { locales });
+  if (!Object.keys(partial).length) return;
+
+  const { data: existing, error: readError } = await db
+    .from("global_daily_content")
+    .select("text_i18n")
+    .eq("forecast_date_utc", forecastDateUtc)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const merged: GlobalTextI18nMap = {
+    ...((existing as { text_i18n?: GlobalTextI18nMap } | null)?.text_i18n ?? {}),
+    ...partial,
+  };
+  await upsertGlobalTextI18n(db, forecastDateUtc, merged);
+}
+
+/**
+ * Never block the HTTP response on LLM pre-translation — pickGlobalTexts already
+ * falls back to canonical RU when a locale row is missing.
+ */
 async function ensureRowTextI18n(
   db: SupabaseClient,
   row: Record<string, unknown>,
@@ -66,26 +97,18 @@ async function ensureRowTextI18n(
   const target = locale as TargetLocale;
   if (map?.[target]?.short_text?.trim()) return row;
 
+  const forecastDateUtc = String(row.forecast_date_utc ?? "").trim();
   const ru = {
     slogan: String(row.slogan ?? "").trim(),
     short_text: String(row.short_text ?? "").trim(),
     long_explanation: String(row.long_explanation ?? "").trim(),
   };
-  if (!ru.short_text) return row;
+  if (!ru.short_text || !forecastDateUtc) return row;
 
-  try {
-    await ensureGlobalTextI18nPrecomputed(db, String(row.forecast_date_utc ?? ""), ru);
-    const { data: refreshed, error } = await db
-      .from("global_daily_content")
-      .select("*")
-      .eq("forecast_date_utc", row.forecast_date_utc)
-      .maybeSingle();
-    if (error) throw error;
-    return (refreshed as Record<string, unknown> | null) ?? row;
-  } catch (pretranslateError) {
-    console.error("[global-content] on-demand text_i18n failed", pretranslateError);
-    return row;
-  }
+  void backfillGlobalTextI18n(db, forecastDateUtc, ru, [target]).catch((pretranslateError) => {
+    console.error("[global-content] background text_i18n backfill failed", locale, pretranslateError);
+  });
+  return row;
 }
 
 async function respondWithLocalizedContent(

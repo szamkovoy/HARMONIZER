@@ -18,7 +18,7 @@ code_refs:
 
 ## Decision Log
 
-- **2026-06-16:** `GET /api/day` локализует `sphereStats`, `sphereHint` и practice-log titles по `users.locale` (8 content locales). Клиент Day tab уже использует `useAppLocale()` / `localizeLifeSphereLabel`; server-side copy выровнен с typed i18n helpers.
+- **2026-06-18:** Home timeout на free-tier при non-RU локали (FR и др.): `global-content` больше не блокирует HTTP-ответ на on-demand `pretranslateGlobalTexts` — отдаёт RU через `pickGlobalTexts` и догоняет `text_i18n` в фоне (`backfillGlobalTextI18n` только для запрошенной локали). Клиент `fetchGlobalContent`: таймаут 25s, SDK-fallback для любой локали с выбором `text_i18n` на устройстве. Причина: 15s client timeout + синхронный перевод всех локалей давали постоянную карточку «La réponse prend trop de temps» после reopen.
 
 - **2026-06-15:** Смена языка в Profile → Home обновляет все LLM-тексты дня
   (slogan, recommendation, «Подробнее», math) без ручного Refresh: `scopeKey` кэша

@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-18:** **Global-content serve path (non-blocking i18n).** `POST /api/ai/global-content` no longer awaits `ensureGlobalTextI18nPrecomputed` on cache hit when `text_i18n[locale]` is missing — responds immediately with RU fallback (`pickGlobalTexts`) and schedules single-locale `backfillGlobalTextI18n` in the background. Client `fetchGlobalContent` SDK fallback enabled for all locales (was ru-only). Fixes persistent Home timeout card for FR/DE/etc. users on free tier.
+
 - **2026-06-16 (6):** **Voice auto-detect + non-RU function strings.** Outside
   `EXPO_PUBLIC_I18N_TEST_MODE`, communicator voice turns no longer force STT to the
   selected app locale: `/transcribe` may omit `language`, Whisper auto-detects the

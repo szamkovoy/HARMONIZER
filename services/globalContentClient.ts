@@ -41,7 +41,39 @@ type GlobalContentResponse = {
   error?: unknown;
 };
 
-const GLOBAL_CONTENT_TIMEOUT_MS = 15_000;
+const GLOBAL_CONTENT_TIMEOUT_MS = 25_000;
+
+type GlobalTextFields = {
+  slogan: string;
+  short_text: string;
+  long_explanation: string;
+};
+
+type GlobalTextI18nMap = Partial<Record<string, GlobalTextFields>>;
+
+function asTrimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Mirrors server pickGlobalTexts — reads text_i18n when present, else canonical RU. */
+function pickGlobalTextsFromRow(row: Record<string, unknown>, locale: string): GlobalTextFields {
+  const ru: GlobalTextFields = {
+    slogan: asTrimmedString(row.slogan),
+    short_text: asTrimmedString(row.short_text),
+    long_explanation: asTrimmedString(row.long_explanation),
+  };
+  if (locale === "ru") return ru;
+
+  const localized = (row.text_i18n as GlobalTextI18nMap | undefined)?.[locale];
+  if (localized?.short_text?.trim()) {
+    return {
+      slogan: asTrimmedString(localized.slogan) || ru.slogan,
+      short_text: asTrimmedString(localized.short_text),
+      long_explanation: asTrimmedString(localized.long_explanation) || ru.long_explanation,
+    };
+  }
+  return ru;
+}
 
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
@@ -124,7 +156,11 @@ function timeoutError(timeoutMs: number): Error {
   return new Error(`Global content request timed out after ${Math.round(timeoutMs / 1000)}s.`);
 }
 
-async function fetchGlobalContentDirect(timezone: string, signal?: AbortSignal): Promise<GlobalContentResponse> {
+async function fetchGlobalContentDirect(
+  timezone: string,
+  responseLocale: string,
+  signal?: AbortSignal,
+): Promise<GlobalContentResponse> {
   const localDate = localDateIso(timezone);
   const db = requireSupabase();
   let primaryQuery = db.from("global_daily_content").select("*").eq("forecast_date_utc", localDate);
@@ -147,17 +183,22 @@ async function fetchGlobalContentDirect(timezone: string, signal?: AbortSignal):
     const { data: fallback, error: fallbackError } = await fallbackQuery.maybeSingle();
     if (fallbackError) throw fallbackError;
     if (!fallback) throw new Error("No global content available");
-    return globalResponseFromRow(fallback as Record<string, unknown>, true);
+    return globalResponseFromRow(fallback as Record<string, unknown>, true, responseLocale);
   }
 
-  return globalResponseFromRow(content, false);
+  return globalResponseFromRow(content, false, responseLocale);
 }
 
-function globalResponseFromRow(row: Record<string, unknown>, isFallback: boolean): GlobalContentResponse {
+function globalResponseFromRow(
+  row: Record<string, unknown>,
+  isFallback: boolean,
+  responseLocale: string,
+): GlobalContentResponse {
+  const texts = pickGlobalTextsFromRow(row, responseLocale);
   return {
-    slogan: typeof row.slogan === "string" ? row.slogan : undefined,
-    short_text: typeof row.short_text === "string" ? row.short_text : "",
-    long_explanation: typeof row.long_explanation === "string" ? row.long_explanation : undefined,
+    slogan: texts.slogan || undefined,
+    short_text: texts.short_text,
+    long_explanation: texts.long_explanation || undefined,
     math_level: row.math_level as DailyForecast["mathLevel"],
     primary_planet: row.primary_planet as Planet,
     primary_tone: row.primary_tone as GlobalContentResponse["primary_tone"],
@@ -209,10 +250,11 @@ async function fetchGlobalContentOnce(req: {
     } catch (error) {
       if (req.signal?.aborted) throw error;
       if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
-      if (responseLocale !== "ru") {
-        throw wrapConnectivityFailure(error, "global-content");
+      try {
+        data = await fetchGlobalContentDirect(req.userLocation.timezone, responseLocale, controller.signal);
+      } catch (fallbackError) {
+        throw wrapConnectivityFailure(fallbackError, "global-content");
       }
-      data = await fetchGlobalContentDirect(req.userLocation.timezone, controller.signal);
     }
   } catch (error) {
     if (req.signal?.aborted) throw error;

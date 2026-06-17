@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `daily_forecast` / `i18n` — free-tier Home timeout for non-RU locales: `global-content` no longer blocks on on-demand `text_i18n` pretranslate; client SDK fallback for any locale + 25s timeout. Synced `daily_forecast/{spec,history}.md`, `i18n/{spec,history}.md`.
 - 2026-06-17: `assistant` — Day-tab add-flow no longer auto-closes on the first added action; final visible numbered list now backfills missing `planned_events.recommendation_text`, fixing action recommendations on `/api/day`. Synced `assistant/{spec,history}.md`.
 - 2026-06-16: `assistant` — planning finalize post-assembly day-focus backstop: when `[CORRECT_RECOMMENDATION]` is missing and `recommendationCorrected` stays empty after `buildPlanningFinalVisibleText`, `route.ts` re-salvages day focus from assembled `cleanText`, persists via `persistDayFocus`, and rebuilds visible-final; deterministic action labels use locale-native `recommendationLabel` (FR tests). Synced `assistant/{spec,history}.md`.
 - 2026-06-16: doc-sync pre-push — i18n QA pass: Whisper optional language + 8 aliases; `/api/day` locale-native sphere/hint/practice titles; practiceCardSummary generic fallbacks (8 locales); practiceSelection localized names; communicator transcriptionReviewHint + empty-reply strings. Synced `assistant/spec.md`, `practices/{spec,history,dependencies}.md`, `communicator/spec.md`, `daily_forecast/{spec,history}.md`, `i18n/spec.md`, `infra/{spec,history}.md`, `open_questions.md`.

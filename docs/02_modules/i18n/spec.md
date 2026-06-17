@@ -295,10 +295,11 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   `scenario_cache` keys for `morning_recommendation`. Free-tier
   `global_daily_content`: RU canonical row + precomputed `text_i18n` jsonb
   (`pretranslateGlobalTexts` on upsert / cron). Serve path reads `text_i18n` first;
-  if a target locale is missing, **`POST /api/ai/global-content`** may run
-  **`ensureGlobalTextI18nPrecomputed`** on demand before responding (row-level, not
-  per-user). Client `fetchGlobalContent`: Supabase SDK fallback only when
-  `responseLocale === "ru"`. Math markdown via `getMathLevelStrings(locale)` in
+  if a target locale is missing, **`POST /api/ai/global-content`** returns immediately
+  with RU fallback via `pickGlobalTexts` and schedules **background**
+  `backfillGlobalTextI18n` for the requested locale only (no blocking LLM on the
+  request path). Client `fetchGlobalContent`: Supabase SDK fallback on HTTP
+  failure/timeout for **any** locale, with client-side `text_i18n` pick. Math markdown via `getMathLevelStrings(locale)` in
   `mathLevelI18n.ts` — RU/EN inline; de/fr/it/es/pt/nl in `mathLevelI18nTargets.ts`.
 - **Layer C (deterministic server strings):** dialog branch finals, guards,
   greetings, planning labels, summary bridges — all eight locales via
