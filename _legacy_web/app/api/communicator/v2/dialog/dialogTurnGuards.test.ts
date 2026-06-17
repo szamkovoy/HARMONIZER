@@ -10,6 +10,7 @@ import {
   extractPlanningMarkersFromVisibleFinalize,
   filterPracticeLikePlannedEvents,
   isPracticeLikePlannedEventDesc,
+  mergePlanningMarkersWithVisibleFinalize,
   userAffirmsPracticeOffer,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
@@ -242,5 +243,36 @@ describe("dialogTurnGuards", () => {
     ].join("\n");
     const [salvaged] = extractPlanningMarkersFromVisibleFinalize(text, "ru");
     expect(salvaged.cells.some((cell) => cell.sphere === 4)).toBe(true);
+  });
+
+  it("backfills missing planning recommendations from the visible finalize", () => {
+    const merged = mergePlanningMarkersWithVisibleFinalize(
+      [
+        {
+          desc: "Bike + lac + baignade",
+          recommendation: null,
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 0.8 }, { sphere: 1, weight: 0.2 }],
+          snippets: [],
+        },
+      ],
+      [
+        {
+          desc: "Bike + lac + baignade",
+          recommendation: "Profitez du trajet sans vous presser.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 1 }],
+          snippets: [],
+        },
+      ],
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.recommendation).toBe("Profitez du trajet sans vous presser.");
+    expect(merged[0]?.cells).toEqual([{ sphere: 2, weight: 0.8 }, { sphere: 1, weight: 0.2 }]);
   });
 });

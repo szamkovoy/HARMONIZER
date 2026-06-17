@@ -81,6 +81,7 @@ import {
   filterPracticeLikePlannedEvents,
   historyHasPracticePicked,
   isPostDialogTurn,
+  mergePlanningMarkersWithVisibleFinalize,
   practiceValidationForTurn,
   assistantAskedSummaryClarifyingQuestion,
   buildSummaryClarifyingQuestion,
@@ -1350,16 +1351,21 @@ export async function POST(req: Request) {
                 userSignalsPlanningDone(userMessage)
                 || salvagedFromVisible.length > 0
                 || Boolean(markers.recommendationCorrection?.short_text)
-                // Add flow (from the Day tab) is a one-shot add: finalize as soon as
-                // an action is named, since there is no gather/finalize back-and-forth.
-                || (tabMode === "add" && plannedMarkers.length > 0)
               );
-            if (plannedMarkers.length === 0 && finalizeIntent && salvagedFromVisible.length > 0) {
-              plannedMarkers = salvagedFromVisible;
-              console.warn(
-                "[DIALOG_FSM] Salvaged planning markers from visible finalize",
-                JSON.stringify({ conversationId: conversation.id, count: salvagedFromVisible.length }),
-              );
+            if (finalizeIntent && salvagedFromVisible.length > 0) {
+              const parsedWithoutRecommendationCount = plannedMarkers.filter((marker) => !marker.recommendation?.trim()).length;
+              plannedMarkers = mergePlanningMarkersWithVisibleFinalize(plannedMarkers, salvagedFromVisible);
+              if (plannedMarkers.length === salvagedFromVisible.length && parsedWithoutRecommendationCount === 0) {
+                console.warn(
+                  "[DIALOG_FSM] Salvaged planning markers from visible finalize",
+                  JSON.stringify({ conversationId: conversation.id, count: salvagedFromVisible.length }),
+                );
+              } else if (parsedWithoutRecommendationCount > 0) {
+                console.warn(
+                  "[DIALOG_FSM] Backfilled planning recommendations from visible finalize",
+                  JSON.stringify({ conversationId: conversation.id, count: parsedWithoutRecommendationCount }),
+                );
+              }
             }
             plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
             if (

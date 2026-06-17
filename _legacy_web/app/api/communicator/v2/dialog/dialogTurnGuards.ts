@@ -10,6 +10,7 @@ import {
   interpolate,
   summaryClarifyVariant,
 } from "@legacy/app/api/_utils/dialogScaffold";
+import { samePlannedEventIdentity } from "@legacy/app/api/_utils/plannedEventInference";
 import type { DialogFsmState } from "@legacy/app/api/communicator/v2/dialog/dialogFsm";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
@@ -229,6 +230,41 @@ export function extractPlanningMarkersFromVisibleFinalize(
     match = pattern.exec(text);
   }
   return markers;
+}
+
+/**
+ * Final planning turns can contain both:
+ * 1) incremental marker-backed actions from the current turn, often without
+ *    `recommendation`, and
+ * 2) a visible numbered finalize that *does* contain the recommendations.
+ *
+ * Merge both sources so persistence keeps the reliable invisible markers while
+ * backfilling missing recommendation_text from the visible finalize.
+ */
+export function mergePlanningMarkersWithVisibleFinalize(
+  parsedMarkers: PlannedEventMarker[],
+  salvagedMarkers: PlannedEventMarker[],
+): PlannedEventMarker[] {
+  if (parsedMarkers.length === 0) return [...salvagedMarkers];
+  if (salvagedMarkers.length === 0) return [...parsedMarkers];
+
+  const merged = parsedMarkers.map((marker) => ({ ...marker }));
+  for (const salvaged of salvagedMarkers) {
+    const matchIndex = merged.findIndex((marker) => samePlannedEventIdentity(marker.desc, salvaged.desc));
+    if (matchIndex < 0) {
+      merged.push({ ...salvaged });
+      continue;
+    }
+    const current = merged[matchIndex]!;
+    merged[matchIndex] = {
+      ...current,
+      recommendation: current.recommendation?.trim() ? current.recommendation : salvaged.recommendation,
+      displayOrder: current.displayOrder ?? salvaged.displayOrder,
+      cells: current.cells.length > 0 ? current.cells : salvaged.cells,
+      snippets: current.snippets.length > 0 ? current.snippets : salvaged.snippets,
+    };
+  }
+  return merged;
 }
 
 /**

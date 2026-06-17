@@ -194,6 +194,19 @@ describe("buildPlanningPrompt", () => {
     expect(userInstruction).toMatch(/adding action\(s\) from the Day tab/i);
   });
 
+  it("keeps add-flow in gathering mode until the user says they are done", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 2,
+    });
+    expect(userInstruction).toMatch(/stay in gathering mode/i);
+    expect(userInstruction).toMatch(/Do NOT finalize on the very first added action/i);
+  });
+
   it("includes the life-spheres guide and an anti-parrot spheres rule", () => {
     const { userInstruction } = buildPlanningPrompt(brainCtx, {
       isOpening: false,

@@ -729,7 +729,9 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
         ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)"
         : input.planningLocked
           ? "THIS TURN: the user is answering the practice-offer question from planning finalize — this is NOT planning. Do not emit planning markers."
-          : "THIS TURN: continue from the conversation above; gather or finalize as the rules describe.",
+          : input.noGreeting
+            ? "THIS TURN: continue the Day-tab ADD flow. Unless the user clearly signaled they are done, stay in gathering mode on this turn: briefly acknowledge the newly added action(s), optionally ask whether they want to add one more thing, or warmly offer to assemble what is already there. Do NOT finalize on the very first added action just because it was named."
+            : "THIS TURN: continue from the conversation above; gather or finalize as the rules describe.",
   );
 
   return {

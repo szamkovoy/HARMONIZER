@@ -4,12 +4,13 @@
 
 title: Documentation Changelog
 version: 2.81
-updated: 2026-06-16
+updated: 2026-06-17
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-17: `assistant` — Day-tab add-flow no longer auto-closes on the first added action; final visible numbered list now backfills missing `planned_events.recommendation_text`, fixing action recommendations on `/api/day`. Synced `assistant/{spec,history}.md`.
 - 2026-06-16: `assistant` — planning finalize post-assembly day-focus backstop: when `[CORRECT_RECOMMENDATION]` is missing and `recommendationCorrected` stays empty after `buildPlanningFinalVisibleText`, `route.ts` re-salvages day focus from assembled `cleanText`, persists via `persistDayFocus`, and rebuilds visible-final; deterministic action labels use locale-native `recommendationLabel` (FR tests). Synced `assistant/{spec,history}.md`.
 - 2026-06-16: doc-sync pre-push — i18n QA pass: Whisper optional language + 8 aliases; `/api/day` locale-native sphere/hint/practice titles; practiceCardSummary generic fallbacks (8 locales); practiceSelection localized names; communicator transcriptionReviewHint + empty-reply strings. Synced `assistant/spec.md`, `practices/{spec,history,dependencies}.md`, `communicator/spec.md`, `daily_forecast/{spec,history}.md`, `i18n/spec.md`, `infra/{spec,history}.md`, `open_questions.md`.
 - 2026-06-16: communicator/i18n locale routing — dialog POST carries `inputLocale` + `responseLocale`; test mode keeps STT on RU and replies on profile locale (`inputLanguageDecouplingInstruction`); production voice may auto-detect spoken language and override dialog turn locales only; function-valued communicator strings and deterministic Day/practice copy localized for FR/DE. Synced `i18n/{spec,dependencies,history}.md`, `communicator/{spec,dependencies,history}.md`, `assistant/{spec,history}.md`, `open_questions.md`.
