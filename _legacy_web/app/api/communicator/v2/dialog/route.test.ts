@@ -165,6 +165,7 @@ describe("normalizeTurnHistory", () => {
           content: "Вот практика",
           meta: {
             turnMode: "final_recommendation",
+            branches: ["planning"],
             practicePicked: {
               id: "practice-1",
               kind: "breath",
@@ -178,6 +179,8 @@ describe("normalizeTurnHistory", () => {
         role: "assistant",
         content: "Вот практика",
         meta: {
+          branches: ["planning"],
+          dialog_branches: ["planning"],
           turn_mode: "final_recommendation",
           practicePicked: {
             id: "practice-1",

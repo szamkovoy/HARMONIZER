@@ -18,6 +18,14 @@ export function textFromMessage(message: Pick<MessageRecord, "content" | "transc
   return String(message.content ?? message.transcript ?? "").trim();
 }
 
+function messageBranches(message: Pick<MessageRecord, "meta">): string[] {
+  const rawMeta = message.meta as { branches?: unknown; dialog_branches?: unknown } | null | undefined;
+  const rawBranches = rawMeta?.branches ?? rawMeta?.dialog_branches;
+  return Array.isArray(rawBranches)
+    ? rawBranches.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+}
+
 export function lastAssistantMessage(history: MessageRecord[]): MessageRecord | null {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index];
@@ -37,6 +45,23 @@ export function historyHasPracticePicked(history: MessageRecord[]): boolean {
     const meta = message.meta as { practicePicked?: unknown; practice_picked?: unknown } | null | undefined;
     return Boolean(meta?.practicePicked ?? meta?.practice_picked);
   });
+}
+
+export function collectPlanningBranchUserHistory(history: MessageRecord[]): Array<{ role: "user"; content: string }> {
+  const collected: Array<{ role: "user"; content: string }> = [];
+  let activeBranch: string | null = null;
+  for (const message of history) {
+    if (message.role === "assistant") {
+      const branches = messageBranches(message);
+      if (branches.length > 0) activeBranch = branches[0] ?? null;
+      continue;
+    }
+    if (message.role === "user" && activeBranch === "planning") {
+      const content = textFromMessage(message);
+      if (content) collected.push({ role: "user", content });
+    }
+  }
+  return collected;
 }
 
 export function userSignalsPlanningDone(text: string): boolean {
@@ -181,7 +206,7 @@ function clampPlanningDesc(desc: string, max = 60): string {
  * the old hardcoded sphere-4 default, which mislabeled chores/rest as
  * "friends/family/relationships" in the Day-tab spheres chart.
  */
-function inferPlanningSpheresFromText(text: string): PlannedEventMarker["cells"] {
+export function inferPlanningSpheresFromText(text: string): PlannedEventMarker["cells"] {
   const t = text.toLowerCase();
   const has = (re: RegExp) => re.test(t);
   const scored: number[] = [];

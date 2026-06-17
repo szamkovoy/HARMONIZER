@@ -8,6 +8,7 @@ import {
   assistantOfferedPractice,
   assistantAskedSummaryClarifyingQuestion,
   coerceFsmBeforeTurn,
+  collectPlanningBranchUserHistory,
   extractPlanningMarkersFromVisibleFinalize,
   filterPracticeLikePlannedEvents,
   isPracticeLikePlannedEventDesc,
@@ -106,6 +107,42 @@ describe("dialogTurnGuards", () => {
     });
     expect(next.branch).toBe("planning");
     expect(next.planningFinalized).toBe(false);
+  });
+
+  it("collects only planning-branch user turns from mixed history", () => {
+    const history: MessageRecord[] = [
+      {
+        id: "a1",
+        role: "assistant",
+        content: "Как прошёл вчерашний день?",
+        transcript: null,
+        meta: { dialog_branches: ["summarizing"] },
+        created_at: null,
+      },
+      { id: "u1", role: "user", content: "Я поработал и сходил в магазин.", transcript: null, meta: null, created_at: null },
+      {
+        id: "a2",
+        role: "assistant",
+        content: "Что вы хотите запланировать?",
+        transcript: null,
+        meta: { branches: ["planning"] },
+        created_at: null,
+      },
+      { id: "u2", role: "user", content: "Посмотреть лодку в магазине.", transcript: null, meta: null, created_at: null },
+      {
+        id: "a3",
+        role: "assistant",
+        content: "Что ещё добавить?",
+        transcript: null,
+        meta: { dialog_branches: ["planning"] },
+        created_at: null,
+      },
+      { id: "u3", role: "user", content: "Почитать книгу перед сном.", transcript: null, meta: null, created_at: null },
+    ];
+    expect(collectPlanningBranchUserHistory(history)).toEqual([
+      { role: "user", content: "Посмотреть лодку в магазине." },
+      { role: "user", content: "Почитать книгу перед сном." },
+    ]);
   });
 
   it("detects bare and curated non-occurrence phrasings, without false-positives on happened answers", () => {

@@ -51,8 +51,19 @@ export async function persistPlanningFinalize(params: {
   nowIso: string;
   markers: PlannedEventMarker[];
   appendToExisting?: boolean;
+  deleteOrphans?: boolean;
 }): Promise<PersistedPlannedEvent[]> {
-  const { db, userId, conversationId, workingLocalDate, timezone, nowIso, markers, appendToExisting } = params;
+  const {
+    db,
+    userId,
+    conversationId,
+    workingLocalDate,
+    timezone,
+    nowIso,
+    markers,
+    appendToExisting,
+    deleteOrphans = false,
+  } = params;
   if (markers.length === 0) return [];
 
   const existing = await loadPlannedEventsForLocalDate(db, userId, workingLocalDate);
@@ -156,7 +167,7 @@ export async function persistPlanningFinalize(params: {
   // incremental-save rows the model later reworded (so fuzzy identity matching
   // missed them), which otherwise surface as duplicates in the Day tab — e.g.
   // "Работа над результатами" (early save) + "Поработать для результатов" (final).
-  if (!appendToExisting) {
+  if (!appendToExisting && deleteOrphans) {
     const touchedIds = new Set(
       results.map((item) => item.id).filter((id): id is string => typeof id === "string" && id.length > 0),
     );

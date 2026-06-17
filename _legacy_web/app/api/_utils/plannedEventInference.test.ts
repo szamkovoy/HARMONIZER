@@ -191,6 +191,24 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred.map((item) => item.time)).toEqual(["вечером", "вечером"]);
   });
 
+  it("keeps separate day actions for boat, cinema, and earlier sleep", () => {
+    const nowLocal = DateTime.fromISO("2026-06-18T01:25:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [],
+      pendingUserMessage: "Я хочу посмотреть лодку в магазине, сходить в кино и пораньше лечь спать.",
+      nowLocal,
+      relativeNowLocal: nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred.map((item) => item.desc)).toEqual([
+      "посмотреть лодку в магазине",
+      "сходить в кино",
+      "пораньше лечь спать",
+    ]);
+  });
+
   it("keeps a supportive pair like walk plus fresh air as one event", () => {
     const nowLocal = DateTime.fromISO("2026-06-02T09:00:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({

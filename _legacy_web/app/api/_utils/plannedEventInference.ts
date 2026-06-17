@@ -105,6 +105,11 @@ function leadingVerbStem(value: string): string {
   return normalizedTokens(value)[0]?.slice(0, 6) ?? "";
 }
 
+function looksLikeIndependentActionClause(value: string): boolean {
+  return /^(?:(?:пораньше|раньше|позже|потом|сначала|вечером|утром|днем|днём|ночью|может\s+быть|наверное)\s+){0,2}(?:[A-Za-zА-Яа-яЁё-]*?(?:ть|ться|чь))(?=\s|$|[,.!?])/iu
+    .test(value.trim());
+}
+
 function splitCoordinatedActionSegment(segment: string): string[] {
   if (!/\s+и\s+/i.test(segment)) return [segment];
   const sharedCue = segment.match(
@@ -114,12 +119,21 @@ function splitCoordinatedActionSegment(segment: string): string[] {
 
   const prefix = sharedCue[1]!.trim();
   const body = sharedCue[2]!.trim();
-  const clauses = body.split(/\s+и\s+/i).map((part) => part.trim());
-  if (clauses.length !== 2) return [segment];
+  const clauses = body
+    .split(/,\s+(?=(?:(?:пораньше|раньше|позже|потом|сначала|вечером|утром|днем|днём|ночью)\s+){0,2}(?:[A-Za-zА-Яа-яЁё-]*?(?:ть|ться|чь))(?=\s|$|[,.!?]))/iu)
+    .flatMap((part) =>
+      part.split(/\s+и\s+(?=(?:(?:пораньше|раньше|позже|потом|сначала|вечером|утром|днем|днём|ночью)\s+){0,2}(?:[A-Za-zА-Яа-яЁё-]*?(?:ть|ться|чь))(?=\s|$|[,.!?]))/iu),
+    )
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (clauses.length < 2) return [segment];
+  if (!clauses.every(looksLikeIndependentActionClause)) return [segment];
   if (!clauses.every(clauseCanStandAsSeparateAction)) return [segment];
 
-  const pairKey = `${leadingVerbStem(clauses[0]!)}|${leadingVerbStem(clauses[1]!)}`;
-  if (SUPPORTIVE_COORDINATED_ACTION_PAIRS.has(pairKey)) return [segment];
+  if (clauses.length === 2) {
+    const pairKey = `${leadingVerbStem(clauses[0]!)}|${leadingVerbStem(clauses[1]!)}`;
+    if (SUPPORTIVE_COORDINATED_ACTION_PAIRS.has(pairKey)) return [segment];
+  }
 
   return clauses.map((clause) => `${prefix} ${clause}`.replace(/\s+/g, " ").trim());
 }

@@ -4,12 +4,14 @@
 
 title: Documentation Changelog
 version: 2.82
-updated: 2026-06-17
+updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant` — planning persistence now rebuilds a canonical action list from the whole planning branch (`turnHistory` + current turn), not only from the last user message or final invisible markers; the server upserts that accumulated list on every planning turn, fills deterministic spheres for fallback actions, and excludes `dismissed` rows so cancelled actions do not resurrect in Day. Synced `assistant/{spec,history}.md`.
+- 2026-06-18: `assistant` — planning persistence no longer relies solely on invisible model markers: `route.ts` falls back to inferring actions from the current user message, and main-final orphan cleanup now runs only for explicit marker-backed finals, so a dropped item in the model wrap-up no longer erases already gathered Day actions. Synced `assistant/{spec,history}.md`.
 - 2026-06-17: `assistant` — cross-locale salvage of planning markers from visible finalize: `extractPlanningMarkersFromVisibleFinalize` parses locale-native scaffold labels (8 locales, `1.`/`1)`, FR colon spacing, optional markdown-bold); `route.ts` reuses `resolvedPlanningMarkers` for visible-final assembly. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `daily_forecast` / `i18n` — free-tier Home timeout for non-RU locales: `global-content` no longer blocks on on-demand `text_i18n` pretranslate; client SDK fallback for any locale + 25s timeout. Synced `daily_forecast/{spec,history}.md`, `i18n/{spec,history}.md`.
 - 2026-06-17: `assistant` — Day-tab add-flow no longer auto-closes on the first added action; final visible numbered list now backfills missing `planned_events.recommendation_text`, fixing action recommendations on `/api/day`. Synced `assistant/{spec,history}.md`.

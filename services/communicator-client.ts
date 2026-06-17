@@ -88,6 +88,8 @@ export type DialogTurnHistoryItem = {
   meta?: {
     practicePicked?: PracticePicked;
     practice_picked?: PracticePicked;
+    branches?: string[];
+    dialog_branches?: string[];
     voiceTranscribing?: boolean;
     voiceTranscribeFailed?: boolean;
   };
@@ -374,17 +376,31 @@ export function buildClientTurnHistory(
     .map((message) => ({
       role: message.role as "user" | "assistant",
       content: message.content.trim(),
-      meta:
-        message.meta?.practicePicked && typeof message.meta.practicePicked === "object"
-          ? { practicePicked: message.meta.practicePicked as PracticePicked }
-          : message.meta?.practice_picked && typeof message.meta.practice_picked === "object"
-            ? { practice_picked: message.meta.practice_picked as PracticePicked }
-            : message.meta?.voiceTranscribing || message.meta?.voiceTranscribeFailed
-              ? {
-                  voiceTranscribing: Boolean(message.meta?.voiceTranscribing),
-                  voiceTranscribeFailed: Boolean(message.meta?.voiceTranscribeFailed),
-                }
-              : undefined,
+      meta: (() => {
+        const practicePicked =
+          message.meta?.practicePicked && typeof message.meta.practicePicked === "object"
+            ? (message.meta.practicePicked as PracticePicked)
+            : message.meta?.practice_picked && typeof message.meta.practice_picked === "object"
+              ? (message.meta.practice_picked as PracticePicked)
+              : undefined;
+        const branches = Array.isArray(message.meta?.branches)
+          ? message.meta.branches.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : Array.isArray(message.meta?.dialog_branches)
+            ? message.meta.dialog_branches.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+            : [];
+        const voiceMeta = message.meta?.voiceTranscribing || message.meta?.voiceTranscribeFailed
+          ? {
+              voiceTranscribing: Boolean(message.meta?.voiceTranscribing),
+              voiceTranscribeFailed: Boolean(message.meta?.voiceTranscribeFailed),
+            }
+          : null;
+        if (!practicePicked && branches.length === 0 && !voiceMeta) return undefined;
+        return {
+          ...(practicePicked ? { practicePicked } : {}),
+          ...(branches.length > 0 ? { branches, dialog_branches: branches } : {}),
+          ...(voiceMeta ?? {}),
+        };
+      })(),
     }))
     .filter((message) => {
       if (message.meta?.voiceTranscribing || message.meta?.voiceTranscribeFailed) return false;

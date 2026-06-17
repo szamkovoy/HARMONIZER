@@ -47,6 +47,12 @@ export function normalizeTurnHistory(raw: unknown): TurnHistoryItem[] | undefine
               const turnMode =
                 (rawMeta as { turn_mode?: unknown; turnMode?: unknown }).turn_mode
                 ?? (rawMeta as { turnMode?: unknown }).turnMode;
+              const branchesRaw =
+                (rawMeta as { branches?: unknown; dialog_branches?: unknown }).branches
+                ?? (rawMeta as { dialog_branches?: unknown }).dialog_branches;
+              const branches = Array.isArray(branchesRaw)
+                ? branchesRaw.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+                : [];
               const sanitized: Record<string, unknown> = {};
               if (practicePicked && typeof practicePicked === "object") {
                 sanitized.practicePicked = practicePicked;
@@ -54,6 +60,10 @@ export function normalizeTurnHistory(raw: unknown): TurnHistoryItem[] | undefine
               }
               if (typeof turnMode === "string" && turnMode.trim()) {
                 sanitized.turn_mode = turnMode;
+              }
+              if (branches.length > 0) {
+                sanitized.branches = branches;
+                sanitized.dialog_branches = branches;
               }
               return Object.keys(sanitized).length ? sanitized : undefined;
             })()

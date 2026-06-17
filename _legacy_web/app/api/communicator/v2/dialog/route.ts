@@ -41,6 +41,7 @@ import {
 } from "@legacy/app/api/communicator/v2/dialog/dialogDailyContext";
 import {
   loadDuePlannedEvents,
+  loadPlannedEventsForLocalDate,
   type PlannedEventRow,
 } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import {
@@ -76,10 +77,12 @@ import {
 import {
   assistantFinalizeWithoutMarkers,
   buildPostDialogReply,
+  collectPlanningBranchUserHistory,
   coerceFsmBeforeTurn,
   extractPlanningMarkersFromVisibleFinalize,
   filterPracticeLikePlannedEvents,
   historyHasPracticePicked,
+  inferPlanningSpheresFromText,
   isPostDialogTurn,
   mergePlanningMarkersWithVisibleFinalize,
   practiceValidationForTurn,
@@ -98,6 +101,11 @@ import {
   type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+import {
+  inferPlannedEventsFromUserHistory,
+  samePlannedEventIdentity,
+} from "@legacy/app/api/_utils/plannedEventInference";
+import type { PlannedEventMarker } from "@legacy/app/api/_utils/markers";
 import {
   asContentLocale,
   localeToLanguageName,
@@ -235,6 +243,58 @@ function buildBrainPromptContext(
     planningSphereLens: context.planningSphereLens,
     existingDayFocus: null,
   };
+}
+
+function plannedRowToMarker(row: PlannedEventRow) {
+  return {
+    desc: row.description,
+    time: row.explicit_time_text ?? row.time_phrase_raw ?? null,
+    timeNorm: null,
+    recommendation: row.recommendation_text ?? null,
+    displayOrder: row.display_order ?? null,
+    cells: [],
+    snippets: [],
+  };
+}
+
+function hydrateDeterministicPlanningMarkers(markers: PlannedEventMarker[]): PlannedEventMarker[] {
+  return markers.map((marker, index) => ({
+    ...marker,
+    displayOrder: Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : index + 1,
+    cells: marker.cells.length > 0 ? marker.cells : inferPlanningSpheresFromText(marker.desc),
+  }));
+}
+
+function mergeHistoryPlanningMarkers(
+  accumulatedMarkers: PlannedEventMarker[],
+  currentMarkers: PlannedEventMarker[],
+): PlannedEventMarker[] {
+  if (accumulatedMarkers.length === 0) return [...currentMarkers];
+  if (currentMarkers.length === 0) return [...accumulatedMarkers];
+  const merged = accumulatedMarkers.map((marker) => ({ ...marker }));
+  for (const current of currentMarkers) {
+    const matchIndex = merged.findIndex((marker) => samePlannedEventIdentity(marker.desc, current.desc));
+    if (matchIndex < 0) {
+      merged.push({ ...current });
+      continue;
+    }
+    const previous = merged[matchIndex]!;
+    merged[matchIndex] = {
+      ...previous,
+      ...current,
+      recommendation: current.recommendation?.trim() ? current.recommendation : previous.recommendation,
+      cells: current.cells.length > 0 ? current.cells : previous.cells,
+      snippets: current.snippets.length > 0 ? current.snippets : previous.snippets,
+      displayOrder: previous.displayOrder ?? current.displayOrder,
+    };
+  }
+  return merged;
+}
+
+function filterDismissedPlanningMarkers(markers: PlannedEventMarker[], dismissedRefs: string[]): PlannedEventMarker[] {
+  const cleanedRefs = dismissedRefs.map((ref) => ref.trim()).filter(Boolean);
+  if (cleanedRefs.length === 0) return markers;
+  return markers.filter((marker) => !cleanedRefs.some((ref) => samePlannedEventIdentity(marker.desc, ref)));
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -1336,7 +1396,41 @@ export async function POST(req: Request) {
                 console.error("[DIALOG_FSM] Failed to dismiss planned events", cancelError);
               }
             }
-            let plannedMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
+            const planningInferenceLocale = asContentLocale(body.inputLocale) ?? asContentLocale(context.user.locale) ?? "ru";
+            const rawCurrentPlanningMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
+            const hadExplicitPlanningMarkers = rawCurrentPlanningMarkers.length > 0;
+            const planningHistory = !fsmAtTurnStart.planningFinalized
+              ? collectPlanningBranchUserHistory(history)
+              : [];
+            const inferredFromPlanningHistory = !fsmAtTurnStart.planningFinalized
+              ? hydrateDeterministicPlanningMarkers(
+                  filterPracticeLikePlannedEvents(
+                    inferPlannedEventsFromUserHistory({
+                      history: planningHistory,
+                      pendingUserMessage: userMessage,
+                      nowLocal: context.nowLocal,
+                      relativeNowLocal: context.nowLocal,
+                      tz: userTimezone,
+                      locale: planningInferenceLocale,
+                    }),
+                  ),
+                )
+              : [];
+            const { data: dismissedPlanningRows, error: dismissedPlanningError } = await routeDb
+              .from("planned_events")
+              .select("description")
+              .eq("user_id", routeUserId)
+              .eq("conversation_id", conversation.id)
+              .eq("planned_local_date", context.localDate)
+              .eq("status", "dismissed");
+            if (dismissedPlanningError) throw dismissedPlanningError;
+            const dismissedPlanningRefs = [
+              ...((dismissedPlanningRows ?? []).map((row) => String((row as { description?: unknown }).description ?? "").trim()).filter(Boolean)),
+              ...planningPersistence.cancelled.map((item) => item.title),
+            ];
+            let plannedMarkers = hadExplicitPlanningMarkers
+              ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers)
+              : inferredFromPlanningHistory;
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
             // model finalized this turn even if it forgot the invisible markers or
             // the deterministic done-detector missed the user's phrasing.
@@ -1368,6 +1462,18 @@ export async function POST(req: Request) {
                 );
               }
             }
+            plannedMarkers = filterDismissedPlanningMarkers(plannedMarkers, dismissedPlanningRefs);
+            if (plannedMarkers.length > 0 && inferredFromPlanningHistory.length > 0 && !hadExplicitPlanningMarkers) {
+              console.warn(
+                "[DIALOG_FSM] Inferred accumulated planning markers from history",
+                JSON.stringify({
+                  conversationId: conversation.id,
+                  count: plannedMarkers.length,
+                  historyTurns: planningHistory.length,
+                  finalizeIntent,
+                }),
+              );
+            }
             plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
             resolvedPlanningMarkers = plannedMarkers;
             if (
@@ -1390,14 +1496,14 @@ export async function POST(req: Request) {
               turnMode = "final_without_practice";
               shouldClose = true;
             } else {
-              // INCREMENTAL PERSISTENCE: save planned actions on EVERY turn they are
-              // named, not only at the finalize. persistPlanningFinalize is idempotent
-              // (it updates existing `planned` rows by description identity), so a
-              // re-emit at the finalize just attaches the recommendation. This makes
-              // the plan survive an interrupted dialog the same way summarizing does.
-              // Planning ALWAYS targets the current local day (context.localDate), never
-              // the summary working date: in the overdue "Подытожить" → plan chain the
-              // turn-level workingLocalDate is still the past summarized day.
+              // CANONICAL PERSISTENCE: rebuild the planning list from the whole
+              // planning branch user history on every turn, then upsert that
+              // canonical set. This makes planning survive missing markers in the
+              // final turn and keeps multi-message plans coherent.
+              // Planning ALWAYS targets the current local day (context.localDate),
+              // never the summary working date: in the overdue "Подытожить" →
+              // plan chain the turn-level workingLocalDate is still the past
+              // summarized day.
               if (plannedMarkers.length > 0 && !fsmAtTurnStart.planningFinalized) {
                 const persisted = await persistPlanningFinalize({
                   db: routeDb,
@@ -1407,13 +1513,23 @@ export async function POST(req: Request) {
                   timezone: userTimezone,
                   nowIso,
                   markers: plannedMarkers,
-                  // While still gathering (no finalize intent), append new actions
-                  // after the ones already saved this conversation; the finalize
-                  // re-emit then re-numbers them cleanly by mention order.
-                  appendToExisting: tabMode === "add" || !finalizeIntent,
+                  // "Add" mode keeps pre-existing plan rows from other dialogues.
+                  // Normal planning rewrites this conversation's own canonical list.
+                  appendToExisting: tabMode === "add",
+                  // Canonical history-derived markers are authoritative for rows
+                  // created by this conversation, so stale same-conversation rows
+                  // can be removed even when the model omitted invisible markers.
+                  deleteOrphans: tabMode !== "add",
                 });
                 planningPersistence.inserted.push(...persisted.filter((p) => p.action === "inserted"));
                 planningPersistence.updated.push(...persisted.filter((p) => p.action === "updated"));
+                if (finalizeIntent && !hadExplicitPlanningMarkers) {
+                  const persistedRows = await loadPlannedEventsForLocalDate(routeDb, routeUserId, context.localDate);
+                  resolvedPlanningMarkers = persistedRows
+                    .filter((row) => row.conversation_id === conversation.id && row.status === "planned")
+                    .map(plannedRowToMarker)
+                    .map((marker) => polishPlanningMarker(marker, locale));
+                }
               }
               if (finalizeIntent) {
                 planningFinalizedThisTurn = true;
