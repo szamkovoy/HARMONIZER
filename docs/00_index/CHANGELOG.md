@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.91
+version: 2.92
 updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant` — doc-sync for planning closure refactor: `planningDonePhrases.ts` shared util, `filterPersistablePlanningMarkers` / `collectPlanningBranchDialogHistory` contract points, inference timeline input fix. Synced `assistant/{spec,dependencies}.md`, `MAP.md`.
 - 2026-06-18: `daily_forecast` / `profile` — Day tab persisted cache (`services/dayPlanCache.ts`), instant restore on focus, bearer via `getSupabaseAccessSession` + `rememberSupabaseSession` in `AuthProvider`. Synced `daily_forecast/{spec,dependencies}.md`, `profile/{spec,dependencies,history}.md`, `MAP.md`.
 - 2026-06-19: `assistant` — IT planning QA (`текст-471D-939E-C4-0`): closure replies to “anything else to add?” no longer persist as planned actions; context-first `planningDonePhrases.ts` + closure-echo filter in `filterPersistablePlanningMarkers`, history-aware inference skip, and no pending closure text on finalize. Synced `assistant/{spec,history}.md`.
 - 2026-06-19: `assistant` / `i18n` — follow-up to the IT regression bundle: locale-sensitive summary/practice guards were generalized to all 8 supported locales (RU/EN/DE/FR/IT/ES/PT/NL), scaffold clarifiers no longer ask for “one or two words” in non-RU locales, and the always-on i18n rule now explicitly requires cross-locale verification for locale-sensitive bug fixes. Synced `assistant/{spec,history}.md`, `dialog_scaffold/*`, `.cursor/rules/i18n.mdc`.
