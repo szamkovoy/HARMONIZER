@@ -64,6 +64,17 @@ export function collectPlanningBranchUserHistory(history: MessageRecord[]): Arra
   return collected;
 }
 
+export function assistantAskedPlanningClosure(history: MessageRecord[]): boolean {
+  const text = lastAssistantText(history).trim();
+  if (!text || !/[?？]/.test(text)) return false;
+  const normalized = text.toLowerCase();
+  const asksToAddMore =
+    /(?:добав|ещ[её]|что-то\s+ещ[её]|anything\s+else|something\s+else|add\s+more|add\s+another|aggiung|qualcos['’]altro|altro|plus\s+rien|encore|weiter|noch\s+etwas|meer|más|mais)/iu.test(normalized);
+  const asksToClose =
+    /(?:хватит|достаточно|закры|заверш|собер(?:е|ё)м\s+план|finish|done|close|wrap\s+up|va\s+bene\s+cos[ìi]|chiud|finir|suffi|plan|piano|enough|terminer|clore|reicht|genug|cerrar|fechar)/iu.test(normalized);
+  return asksToAddMore || asksToClose;
+}
+
 function standalonePhrasePattern(phrase: string): RegExp {
   const escaped = escapeRegExp(phrase.trim()).replace(/\\ /g, String.raw`\s+`);
   return new RegExp(String.raw`(?<![\p{L}\p{N}-])${escaped}(?![\p{L}\p{N}-])`, "iu");
@@ -125,7 +136,7 @@ const PLANNING_DONE_PATTERNS = [
   standalonePhrasePattern("nada mais"),
 ];
 
-export function userSignalsPlanningDone(text: string): boolean {
+export function userSignalsPlanningDone(text: string, history: MessageRecord[] = []): boolean {
   const normalized = text.trim().toLowerCase().replace(/^[\s.!?,…:;-]+/u, "");
   if (!normalized) return false;
   // Bare negation as a standalone reply ("нет", "no", "не, всё") = done adding.
@@ -133,9 +144,26 @@ export function userSignalsPlanningDone(text: string): boolean {
     return true;
   }
   if (PLANNING_DONE_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
-  return /(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|da\s+aggiungere|da\s+affrontare)|non\s+voglio\s+affrontare\s+niente|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
+  if (/(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|da\s+aggiungere|da\s+affrontare)|non\s+voglio\s+affrontare\s+niente|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|non\s+aggiung(?:o|i)\s+più\s+niente|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
     normalized,
-  );
+  )) {
+    return true;
+  }
+  if (/(?<![\p{L}\p{N}-])(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)(?![\p{L}\p{N}-])/iu.test(
+    normalized,
+  )) {
+    return true;
+  }
+  if (
+    history.length > 0
+    && assistantAskedPlanningClosure(history)
+    && /^(?:(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|s[iì]|oui|ja|sim)[!.,\s]+)?(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|va\s+bene\s+cos[ìi]|that'?s\s+enough|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)[!.,\s]*$/iu.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
 
 const PRACTICE_OFFER_RE =

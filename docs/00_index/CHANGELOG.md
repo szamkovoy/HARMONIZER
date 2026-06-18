@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant` — Day-tab add-flow finalization is now context-aware: replies like `No, non aggiungi più niente` / `Sì, possiamo finire` close the plan even as answers to the assistant’s own close-question; if the model still stays in gathering mode, the server does one hidden finalize retry, and add-flow persistence now updates the same conversation row by `display_order` instead of duplicating reworded actions. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — add-flow now treats Italian replies like `Non voglio affrontare niente` as a real “done adding” signal, so Day-tab add dialogs close and persist per-action recommendations; the LLM add-opening is also forced to acknowledge that the day already has planned actions before asking what else to add. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — Day-tab add-flow finals now survive cross-locale done-phrases and English `Recommendation:` leaks inside non-EN dialogs, so add-flow closes with `shouldClose` and persists per-action `recommendation_text`; summary health prompt now formats sleep as hours+minutes. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — summarizing mixed-event replies now use one hidden buffered LLM repair retry (`summaryTurnRepair.ts`) instead of server-side visible rewrites; kept cross-locale thin-answer detection. Synced `assistant/{spec,history}.md`.

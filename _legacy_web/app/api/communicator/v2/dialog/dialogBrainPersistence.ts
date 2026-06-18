@@ -32,6 +32,26 @@ export type DismissedPlannedEvent = {
   title: string;
 };
 
+export function findExistingPlanningRowMatch(params: {
+  existing: PlannedEventRow[];
+  desc: string;
+  conversationId: string;
+  displayOrder: number;
+  appendToExisting: boolean;
+}): PlannedEventRow | undefined {
+  const identityMatch = params.existing.find(
+    (row) => row.status === "planned" && samePlannedEventIdentity(row.description, params.desc),
+  );
+  if (identityMatch) return identityMatch;
+  if (!params.appendToExisting) return undefined;
+  return params.existing.find(
+    (row) =>
+      row.status === "planned"
+      && row.conversation_id === params.conversationId
+      && row.display_order === params.displayOrder,
+  );
+}
+
 function endOfLocalDayIso(localDate: string, timezone: string): string {
   const end = DateTime.fromISO(localDate, { zone: timezone || "UTC" }).endOf("day");
   return end.toUTC().toISO() ?? `${localDate}T23:59:59.000Z`;
@@ -91,13 +111,16 @@ export async function persistPlanningFinalize(params: {
     if (duplicateIndex !== -1) seenMarkerIndexes.add(duplicateIndex);
     order += 1;
     const cells: PlanningSphereCell[] = normalizePlanningSphereCells(marker.cells);
-    const match: PlannedEventRow | undefined = existing.find(
-      (row) => row.status === "planned" && samePlannedEventIdentity(row.description, marker.desc),
-    );
     const baseDisplayOrder = Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : order;
-    const displayOrder = appendToExisting && !match
-      ? appendOrderOffset + order
-      : baseDisplayOrder;
+    const appendedDisplayOrder = appendToExisting ? appendOrderOffset + order : baseDisplayOrder;
+    const match = findExistingPlanningRowMatch({
+      existing,
+      desc: marker.desc,
+      conversationId,
+      displayOrder: appendedDisplayOrder,
+      appendToExisting: Boolean(appendToExisting),
+    });
+    const displayOrder = appendToExisting && !match ? appendedDisplayOrder : baseDisplayOrder;
 
     if (match) {
       const resolvedDisplayOrder = appendToExisting ? (match.display_order ?? displayOrder) : displayOrder;

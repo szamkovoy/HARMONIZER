@@ -97,6 +97,10 @@ import {
   visibleTextMentionsEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
 import {
+  buildPlanningFinalizeRepairInstruction,
+  planningFinalizeArtifactsReady,
+} from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
+import {
   buildSummaryRepairInstruction,
   classifySummaryRepairMode,
 } from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
@@ -1171,6 +1175,10 @@ export async function POST(req: Request) {
     const due = openDueEvents(context);
     const currentEvent = due[0] ?? null;
     const nextEvent = due[1] ?? null;
+    const planningDoneIntent =
+      !isInitiate && fsm.branch === "planning"
+        ? userSignalsPlanningDone(userMessage, history)
+        : false;
 
     if (fsm.branch === "summarizing" && due.length === 0) {
       if (!daySummaryRequested) {
@@ -1243,7 +1251,7 @@ export async function POST(req: Request) {
         isOpening,
         noPractice: fsm.noPractice,
         noGreeting: fsm.noGreeting,
-        userSignaledDone: userSignalsPlanningDone(userMessage),
+        userSignaledDone: planningDoneIntent,
         planningLocked: fsm.planningFinalized,
         existingActionCount,
         addFlowSphereBalanceLens,
@@ -1394,6 +1402,44 @@ export async function POST(req: Request) {
           let markers = parseResponseMarkers(fullText);
           let sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
           if (
+            branchForTurn === "planning"
+            && !isOpening
+            && !fsmAtTurnStart.planningFinalized
+            && planningDoneIntent
+            && fsmAtTurnStart.noGreeting
+          ) {
+            const explicitPlanningMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
+            const salvagedPlanningMarkers = filterPracticeLikePlannedEvents(
+              extractPlanningMarkersFromVisibleFinalize(sanitizedVisibleText, resolveDialogScaffoldLocale(context.user.locale)),
+            );
+            const finalizeArtifactsReady = planningFinalizeArtifactsReady({
+              noGreeting: fsmAtTurnStart.noGreeting,
+              explicitMarkers: explicitPlanningMarkers,
+              salvagedVisibleMarkers: salvagedPlanningMarkers,
+              hasDayFocusMarker: Boolean(markers.recommendationCorrection?.short_text),
+            });
+            if (!finalizeArtifactsReady) {
+              try {
+                const repaired = await collectBufferedRetryText(buildPlanningFinalizeRepairInstruction({
+                  baseInstruction: prompt.userInstruction,
+                  noGreeting: fsmAtTurnStart.noGreeting,
+                }));
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                markers = parseResponseMarkers(fullText);
+                sanitizedVisibleText = stripBrainSentinels(
+                  sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)),
+                );
+                console.warn(
+                  "[DIALOG_FSM] Repaired planning finalize that stayed in add-flow gathering mode",
+                  JSON.stringify({ conversationId: conversation.id }),
+                );
+              } catch (repairError) {
+                console.warn("[DIALOG_FSM] Hidden retry for planning finalize failed; keeping original response", repairError);
+              }
+            }
+          }
+          if (
             branchForTurn === "summarizing"
             && !isOpening
             && currentEvent
@@ -1521,7 +1567,7 @@ export async function POST(req: Request) {
             ];
             let plannedMarkers = hadExplicitPlanningMarkers
               ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers, {
-                  preferCurrentByDisplayOrder: preferTargetLocaleMarkers,
+                  preferCurrentByDisplayOrder: preferTargetLocaleMarkers || planningDoneIntent,
                 })
               : inferredFromPlanningHistory;
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
@@ -1536,14 +1582,14 @@ export async function POST(req: Request) {
             const finalizeIntent =
               !fsmAtTurnStart.planningFinalized
               && (
-                userSignalsPlanningDone(userMessage)
+                planningDoneIntent
                 || salvagedFromVisible.length > 0
                 || Boolean(markers.recommendationCorrection?.short_text)
               );
             if (finalizeIntent && salvagedFromVisible.length > 0) {
               const parsedWithoutRecommendationCount = plannedMarkers.filter((marker) => !marker.recommendation?.trim()).length;
               plannedMarkers = mergePlanningMarkersWithVisibleFinalize(plannedMarkers, salvagedFromVisible, {
-                preferCurrentByDisplayOrder: preferTargetLocaleMarkers,
+                preferCurrentByDisplayOrder: preferTargetLocaleMarkers || planningDoneIntent,
               });
               if (plannedMarkers.length === salvagedFromVisible.length && parsedWithoutRecommendationCount === 0) {
                 console.warn(

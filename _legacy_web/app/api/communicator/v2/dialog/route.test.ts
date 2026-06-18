@@ -6,6 +6,14 @@ import {
   normalizeTurnHistory,
   todayLocalDate,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
+import {
+  buildPlanningFinalizeRepairInstruction,
+  planningFinalizeArtifactsReady,
+} from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
+import {
+  buildSummaryRepairInstruction,
+  classifySummaryRepairMode,
+} from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];
@@ -193,6 +201,103 @@ describe("normalizeTurnHistory", () => {
         },
       },
     ]);
+  });
+});
+
+describe("summary repair helpers", () => {
+  it("classifies a mixed clarifying turn as clarify_current_only", () => {
+    const visibleText = [
+      "Bene, un carico di cose da fare. Hai avuto la sensazione di essere focalizzata e precisa, o c'è stato qualche momento di tensione e spinta per portare tutto a termine?",
+      "",
+      "E per andare in negozio per la barca, com'è andata?",
+    ].join("\n");
+
+    expect(classifySummaryRepairMode({
+      visibleText,
+      currentEventDescription: "Lavorare sulle attività lavorative",
+      nextEventDescription: "Andare in negozio per la barca",
+      hasSummaryMarker: true,
+    })).toBe("clarify_current_only");
+  });
+
+  it("classifies a mixed close-and-next turn as close_and_ask_next", () => {
+    const visibleText = [
+      "Capito. Si è concluso bene?",
+      "",
+      "E per andare in negozio per la barca, com'è andata?",
+    ].join("\n");
+
+    expect(classifySummaryRepairMode({
+      visibleText,
+      currentEventDescription: "Lavorare sulle attività lavorative",
+      nextEventDescription: "Andare in negozio per la barca",
+      hasSummaryMarker: true,
+    })).toBe("close_and_ask_next");
+  });
+
+  it("builds a retry instruction that keeps the next event out of a clarifying rewrite", () => {
+    const instruction = buildSummaryRepairInstruction({
+      baseInstruction: "BASE",
+      mode: "clarify_current_only",
+      currentEventDescription: "Lavorare sulle attività lavorative",
+      nextEventDescription: "Andare in negozio per la barca",
+    });
+
+    expect(instruction).toContain("BASE");
+    expect(instruction).toContain("Emit NO [SUMMARIZE_EVENT] marker");
+    expect(instruction).toContain("Do NOT mention or ask about the next event");
+  });
+});
+
+describe("planning repair helpers", () => {
+  it("requires a retry when add-flow finalize still lacks recommendations", () => {
+    expect(planningFinalizeArtifactsReady({
+      noGreeting: true,
+      explicitMarkers: [
+        {
+          desc: "Correre 3 km",
+          recommendation: null,
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      salvagedVisibleMarkers: [],
+      hasDayFocusMarker: false,
+    })).toBe(false);
+  });
+
+  it("accepts add-flow finalize artifacts when recommendations are present", () => {
+    expect(planningFinalizeArtifactsReady({
+      noGreeting: true,
+      explicitMarkers: [
+        {
+          desc: "Correre 3 km",
+          recommendation: "Portala con un ritmo che ti rimette al centro.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      salvagedVisibleMarkers: [],
+      hasDayFocusMarker: false,
+    })).toBe(true);
+  });
+
+  it("builds a retry instruction that forbids more gathering questions", () => {
+    const instruction = buildPlanningFinalizeRepairInstruction({
+      baseInstruction: "BASE",
+      noGreeting: true,
+    });
+
+    expect(instruction).toContain("BASE");
+    expect(instruction).toContain("FINALIZE it now");
+    expect(instruction).toContain("Do NOT ask whether to add anything else");
+    expect(instruction).toContain("Do NOT emit [CORRECT_RECOMMENDATION]");
   });
 });
 

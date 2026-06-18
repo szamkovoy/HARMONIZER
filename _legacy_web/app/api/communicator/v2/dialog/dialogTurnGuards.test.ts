@@ -4,6 +4,7 @@ import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { initFsmState } from "./dialogFsm";
 import {
+  assistantAskedPlanningClosure,
   assistantFinalizeWithoutMarkers,
   assistantOfferedPractice,
   assistantAskedSummaryClarifyingQuestion,
@@ -46,6 +47,8 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Non c'è più niente da aggiungere.")).toBe(true);
     expect(userSignalsPlanningDone("Non voglio affrontare niente.")).toBe(true);
     expect(userSignalsPlanningDone("Niente da affrontare.")).toBe(true);
+    expect(userSignalsPlanningDone("No, non aggiungi più niente.")).toBe(true);
+    expect(userSignalsPlanningDone("Sì, possiamo finire.")).toBe(true);
     expect(userSignalsPlanningDone("NONO")).toBe(true);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
     expect(
@@ -53,6 +56,16 @@ describe("dialogTurnGuards", () => {
         "Сегодня я все-таки хочу съездить в магазин, посмотреть лодки, а потом сходить в кино.",
       ),
     ).toBe(false);
+  });
+
+  it("uses the assistant close-question context for add-flow finish replies", () => {
+    const history = [
+      assistantMsg("Vuoi aggiungere altro o ti va di chiudere qua il piano?"),
+    ];
+    expect(assistantAskedPlanningClosure(history)).toBe(true);
+    expect(userSignalsPlanningDone("Sì, possiamo finire.", history)).toBe(true);
+    expect(userSignalsPlanningDone("No, non aggiungi più niente.", history)).toBe(true);
+    expect(userSignalsPlanningDone("Sì, aggiungo ancora una cosa.", history)).toBe(false);
   });
 
   it("detects practice offer in assistant finalize", () => {
