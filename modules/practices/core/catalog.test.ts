@@ -121,7 +121,7 @@ describe("loadPracticeCatalog", () => {
 
       expect(onLateYogaPractices).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(12_000);
+      await vi.advanceTimersByTimeAsync(30_000);
       expect(onLateYogaPractices).toHaveBeenCalledWith([]);
 
       resolveYoga([YOGA_PRACTICE]);

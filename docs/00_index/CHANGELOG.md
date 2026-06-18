@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `practices` — lighter yoga catalog Supabase query (no heavy `params`), 30s deferred timeout, locale-native empty states. `daily_forecast` — Day tab refresh no longer blocked while assistant is open on first load; `/api/day` client timeout 45s.
 - 2026-06-18: `assistant` — doc-sync: shared `_utils/sphereHint.ts` (Day-tab `sphereHint` + dialog add-flow `addFlowSphereBalanceLens`); removed stray PLANNING § line. Synced `assistant/{spec,dependencies}.md`, `MAP.md`.
 - 2026-06-18: `assistant/spec.md` — doc-sync hygiene: removed stray commit-message line accidentally left in PLANNING § after Day-tab add-flow opening update.
 - 2026-06-18: `assistant` / `i18n` / `communicator` — cross-locale planning-marker merge by `display_order` when inference locale ≠ response locale; `userSignalsPlanningDone` word-boundary matching; `getTranscribeLocale()` always returns active locale; exported `resolveVoiceTurnLocales`. Synced `assistant/{spec,history}.md`, `i18n/spec.md`, `communicator/spec.md`.

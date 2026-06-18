@@ -504,7 +504,7 @@ export function PracticeCatalogScreen() {
                   </View>
                   {chakraFilter !== "any" && !isChakra(chakraFilter) ? (
                     <AppText variant="technicalCaption" tone="warning">
-                      Некорректный фильтр чакры будет проигнорирован.
+                      {strings.invalidChakraFilterHint}
                     </AppText>
                   ) : null}
                 </View>
@@ -549,7 +549,7 @@ export function PracticeCatalogScreen() {
           ]}
         >
           <ActivityIndicator color={theme.colors.accent} />
-          <AppText variant="sectionTitle">Асаны ещё загружаются</AppText>
+          <AppText variant="sectionTitle">{strings.yogaLateLoadingTitle}</AppText>
           <AppText variant="dialogBody" tone="muted">
             {strings.yogaLateHint}
           </AppText>
@@ -569,11 +569,11 @@ export function PracticeCatalogScreen() {
       >
         <AppText variant="sectionTitle">{strings.emptyPracticesTitle}</AppText>
         <AppText variant="dialogBody" tone="muted">
-          Попробуйте другой фильтр или импортируйте Vimeo metadata в practices с kind=yoga.
+          {strings.emptyPracticesHint}
         </AppText>
       </View>
     );
-  }, [selectedKind, state.status, theme.colors.accent, theme.colors.surface, theme.colors.surfaceBorder, yogaLateLoading]);
+  }, [selectedKind, state.status, strings.emptyPracticesHint, strings.emptyPracticesTitle, strings.yogaLateHint, strings.yogaLateLoadingTitle, theme.colors.accent, theme.colors.surface, theme.colors.surfaceBorder, yogaLateLoading]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>

@@ -52,6 +52,8 @@ code_refs:
 
 - **2026-05-07:** **Каталог дыхания vs таблица `practices`.** Дыхательные карточки собираются из констант **`BREATH_PRACTICES`** в коде, а не из строк Supabase с `kind = 'breath'` (таблица при этом допускает `breath` по схеме init — для серверных сценариев/импорта). Йога-асаны — из БД.
 
+- **2026-06-18:** **Yoga catalog load reliability.** `loadYogaPractices` no longer pulls heavy `params` blobs (Vimeo embed JSON) on the catalog path, raises the deferred-load timeout to 30s, and surfaces Supabase errors instead of silently returning an empty list. Practice catalog empty/late states use locale-native strings (removed hardcoded RU dev copy in `PracticeCatalogScreen`).
+
 - **2026-05-07:** **Дефолт длительности «Вспышка».** В `modules/practices/core/catalog.ts` для launch по умолчанию задано **3 мин** (`defaultDurationSec` / `durationMs` в карточке); в **`SacredSymbolStreamScreen`** при отсутствии пропсов используется **5 мин** (`DEFAULT_DURATION_MS`). Поведение зависит от пути входа (каталог передаёт `durationMs`, прямой диплинк — может не передавать).
 
 - **2026-05-07:** **`user_practice_preferences`.** Триггер `practice_sessions_update_prefs` наращивает счётчик только если **`practice_id` не null**; клиент задаёт UUID **`practice_id` для асан**, для дыхания и медитации в типичном пути — нет, поэтому автоматическое ведение предпочтений по UUID для них не срабатывает.

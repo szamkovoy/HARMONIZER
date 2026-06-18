@@ -4,7 +4,7 @@ import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { asContentLocale, inlineBaseLocale, SOURCE_LOCALE } from "@/modules/i18n/localeCodes";
 import { getPracticeCatalogStrings, type PracticeLocale } from "@/modules/practices/i18n/practices";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
-import { getSupabase } from "@/services/supabase";
+import { getSupabase, requireSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
 import { readPracticeVideoThumbnailFromParams } from "@shared/practiceVideo";
 
@@ -22,13 +22,14 @@ type PracticeChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"]
 type YogaCatalogChakraRow = Pick<PracticeChakraRow, "chakra_id" | "is_primary" | "weight">;
 type YogaCatalogRow = Pick<
   PracticeRow,
-  "id" | "slug" | "title" | "default_duration_sec" | "params" | "rating" | "video_provider" | "video_external_id"
+  "id" | "slug" | "title" | "default_duration_sec" | "rating" | "video_provider" | "video_external_id"
 > & {
+  params?: PracticeRow["params"];
   practice_chakras?: YogaCatalogChakraRow[] | null;
 };
 
 const BREATH_DEFAULT_DURATION_SEC = 10 * 60;
-const YOGA_CATALOG_TIMEOUT_MS = 12_000;
+const YOGA_CATALOG_TIMEOUT_MS = 30_000;
 
 const BREATH_PRIMARY_CHAKRA: Record<string, Chakra> = {
   coherent: 4,
@@ -68,6 +69,24 @@ function optionalString(value: unknown): string | undefined {
 
 function durationPolicyFromParams(params: Record<string, unknown>, kind: PracticeKind): PracticeDurationPolicy {
   return params.duration_policy === "fixed" || kind === "yoga" ? "fixed" : "user_selectable";
+}
+
+function chakrasFromParams(params: Record<string, unknown>): YogaCatalogChakraRow[] {
+  const rawIds = params.chakra_ids;
+  if (!Array.isArray(rawIds)) return [];
+  const primaryId = typeof params.primary_chakra_id === "number" ? params.primary_chakra_id : rawIds[0];
+  return rawIds
+    .filter((value): value is number => typeof value === "number" && isChakra(value))
+    .map((chakraId) => ({
+      chakra_id: chakraId,
+      is_primary: chakraId === primaryId,
+      weight: chakraId === primaryId ? 1 : 0.7,
+    }));
+}
+
+function yogaChakraRows(row: Pick<PracticeRow, "params">, embedded: YogaCatalogChakraRow[] | null | undefined): YogaCatalogChakraRow[] {
+  if (embedded?.length) return embedded;
+  return chakrasFromParams(jsonRecord(row.params));
 }
 
 function primaryChakraFor(rows: readonly YogaCatalogChakraRow[]): Chakra | undefined {
@@ -161,8 +180,8 @@ function displayYogaTitle(title: string, locale: PracticeLocale): string {
 }
 
 function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): PracticeSummary {
-  const params = jsonRecord(row.params);
-  const chakraRows = row.practice_chakras ?? [];
+  const params = jsonRecord(row.params ?? null);
+  const chakraRows = yogaChakraRows(row, row.practice_chakras);
   const chakraIds = chakraRows.map((item) => item.chakra_id).filter(isChakra);
   const primaryChakra = primaryChakraFor(chakraRows);
   const durationPolicy = durationPolicyFromParams(params, "yoga");
@@ -222,25 +241,32 @@ export function filterPractices(practices: PracticeSummary[], filters: PracticeC
 }
 
 export async function loadYogaPractices(locale: PracticeLocale = "ru"): Promise<PracticeSummary[]> {
-  const supabase = getSupabase();
-  if (!supabase) return [];
+  const supabase = getSupabase() ?? requireSupabase();
 
   const startedAt = Date.now();
   logRuntimeEvent("practice_catalog:yoga_load_start", undefined, "debug");
   const { data: practices, error } = await supabase
     .from("practices")
     .select(
-      "id,slug,title,default_duration_sec,params,rating,video_provider,video_external_id,practice_chakras(chakra_id,is_primary,weight)",
+      "id,slug,title,default_duration_sec,rating,video_provider,video_external_id,practice_chakras(chakra_id,is_primary,weight)",
     )
     .eq("kind", "yoga")
     .eq("is_active", true)
     .order("rating", { ascending: false, nullsFirst: false });
 
-  if (error || !practices?.length) {
+  if (error) {
+    logRuntimeEvent(
+      "practice_catalog:yoga_load_error",
+      { durationMs: Date.now() - startedAt, error: error.message },
+      "warn",
+    );
+    throw error;
+  }
+  if (!practices?.length) {
     logRuntimeEvent(
       "practice_catalog:yoga_load_empty",
-      { durationMs: Date.now() - startedAt, error: error?.message ?? null },
-      error ? "warn" : "debug",
+      { durationMs: Date.now() - startedAt, error: null },
+      "debug",
     );
     return [];
   }

@@ -446,7 +446,9 @@ export default function DayTabRoute() {
   assistantSessionRef.current = assistantSession;
 
   const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean }) => {
-    if (assistantSessionRef.current && !options?.force) return;
+    // Keep the in-dialog experience stable once the day plan is on screen, but never
+    // block the initial load (or recovery after a failed load) while the modal is open.
+    if (assistantSessionRef.current && !options?.force && planRef.current) return;
     setLoading((current) => (planRef.current && !options?.showRefreshing ? current : true));
     setError(null);
     try {
@@ -456,7 +458,13 @@ export default function DayTabRoute() {
         console.warn("[Day] Background refresh failed", loadError);
         setError(null);
       } else {
-        setError(loadError instanceof Error ? loadError.message : dayStrings.loadDayError);
+        setError(
+          loadError instanceof Error && loadError.message === "DAY_PLAN_TIMEOUT"
+            ? dayStrings.loadDayError
+            : loadError instanceof Error
+              ? loadError.message
+              : dayStrings.loadDayError,
+        );
       }
     } finally {
       setLoading(false);
@@ -467,7 +475,7 @@ export default function DayTabRoute() {
   // dialog or a practice), not on every background data refresh.
   useFocusEffect(
     useCallback(() => {
-      if (assistantSessionRef.current) return;
+      if (assistantSessionRef.current && planRef.current) return;
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       });

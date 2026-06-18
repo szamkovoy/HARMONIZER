@@ -76,13 +76,23 @@ async function getAccessToken(): Promise<string> {
   return token;
 }
 
-async function fetchDayJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+const DAY_PLAN_FETCH_TIMEOUT_MS = 45_000;
+
+async function fetchDayJson<T>(
+  url: string,
+  init: RequestInit = {},
+  options?: { timeoutMs?: number },
+): Promise<T> {
   return withTransientNetworkRetry(async () => {
     const accessToken = await getAccessToken();
+    const timeoutMs = options?.timeoutMs ?? DAY_PLAN_FETCH_TIMEOUT_MS;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     let res: Response;
     try {
       res = await fetch(url, {
         ...init,
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
@@ -90,7 +100,12 @@ async function fetchDayJson<T>(url: string, init: RequestInit = {}): Promise<T> 
         },
       });
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("DAY_PLAN_TIMEOUT");
+      }
       throw wrapConnectivityFailure(error, "day-plan");
+    } finally {
+      clearTimeout(timeoutId);
     }
     if (!res.ok) {
       const message = await res.text().catch(() => `HTTP ${res.status}`);

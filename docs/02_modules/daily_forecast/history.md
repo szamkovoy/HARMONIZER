@@ -18,7 +18,9 @@ code_refs:
 
 ## Decision Log
 
-- **2026-06-18:** Home timeout на free-tier при non-RU локали (FR и др.): `global-content` больше не блокирует HTTP-ответ на on-demand `pretranslateGlobalTexts` — отдаёт RU через `pickGlobalTexts` и догоняет `text_i18n` в фоне (`backfillGlobalTextI18n` только для запрошенной локали). Клиент `fetchGlobalContent`: таймаут 25s, SDK-fallback для любой локали с выбором `text_i18n` на устройстве. Причина: 15s client timeout + синхронный перевод всех локалей давали постоянную карточку «La réponse prend trop de temps» после reopen.
+- **2026-06-18:** Day tab initial load no longer stalls when the assistant modal is open: `refresh()` and tab focus still fetch the plan when `plan` is null; `loadDayPlan` uses a 45s fetch timeout instead of hanging indefinitely on a slow `/api/day` response.
+
+- **2026-06-18:** Home timeout on free-tier при non-RU локали (FR и др.): `global-content` больше не блокирует HTTP-ответ на on-demand `pretranslateGlobalTexts` — отдаёт RU через `pickGlobalTexts` и догоняет `text_i18n` в фоне (`backfillGlobalTextI18n` только для запрошенной локали). Клиент `fetchGlobalContent`: таймаут 25s, SDK-fallback для любой локали с выбором `text_i18n` на устройстве. Причина: 15s client timeout + синхронный перевод всех локалей давали постоянную карточку «La réponse prend trop de temps» после reopen.
 
 - **2026-06-15:** Смена языка в Profile → Home обновляет все LLM-тексты дня
   (slogan, recommendation, «Подробнее», math) без ручного Refresh: `scopeKey` кэша
