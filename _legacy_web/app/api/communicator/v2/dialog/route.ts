@@ -16,6 +16,7 @@ import {
   catalogKindForDurationMin,
   parseResponseMarkers,
   sanitizeAssistantText,
+  userAnsweredPracticeRequest,
   validateHistoryHasDurationAndType,
 } from "@legacy/app/api/_utils/markers";
 import { reportRouteError, toUserFacingStreamErrorMessage } from "@legacy/app/api/_utils/monitoring";
@@ -91,6 +92,7 @@ import {
   practiceValidationForTurn,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
+  userAnswerHasSufficientStateForSummary,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
@@ -101,6 +103,7 @@ import {
   planningFinalizeArtifactsReady,
 } from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
 import {
+  buildSummaryCloseRepairInstruction,
   buildSummaryRepairInstruction,
   classifySummaryRepairMode,
 } from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
@@ -1350,7 +1353,7 @@ export async function POST(req: Request) {
     const bufferPracticeUntilGuards =
       branchForTurn === "practice"
       && !isOpening
-      && (practiceValidationAtTurn?.confident === true || userDeclinesPractice(userMessage));
+      && ((practiceValidationAtTurn ? userAnsweredPracticeRequest(practiceValidationAtTurn) : false) || userDeclinesPractice(userMessage));
     const bufferUntilGuards = bufferSummaryUntilGuards || bufferPlanningUntilGuards || bufferPracticeUntilGuards;
     const maxOutputTokens =
       summarizingFinalTurn ? 4500
@@ -1401,6 +1404,11 @@ export async function POST(req: Request) {
 
           let markers = parseResponseMarkers(fullText);
           let sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
+          const userGaveSufficientSummaryState =
+            branchForTurn === "summarizing"
+            && !isOpening
+            && currentEvent != null
+            && userAnswerHasSufficientStateForSummary(userMessage);
           if (
             branchForTurn === "planning"
             && !isOpening
@@ -1436,6 +1444,35 @@ export async function POST(req: Request) {
                 );
               } catch (repairError) {
                 console.warn("[DIALOG_FSM] Hidden retry for planning finalize failed; keeping original response", repairError);
+              }
+            }
+          }
+          if (
+            branchForTurn === "summarizing"
+            && !isOpening
+            && currentEvent
+            && userGaveSufficientSummaryState
+            && !userSaysEventDidNotHappen(userMessage)
+          ) {
+            const currentSummaryMarker = findSummaryMarkerForEvent(markers, currentEvent);
+            const askedClarifier = assistantVisibleContainsSummaryClarifyingCue(sanitizedVisibleText);
+            if (!currentSummaryMarker || askedClarifier) {
+              try {
+                const repaired = await collectBufferedRetryText(buildSummaryCloseRepairInstruction({
+                  baseInstruction: prompt.userInstruction,
+                  currentEventDescription: currentEvent.description,
+                  nextEventDescription: nextEvent?.description ?? null,
+                }));
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                markers = parseResponseMarkers(fullText);
+                sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
+                console.warn(
+                  "[DIALOG_FSM] Repaired summary turn to close sufficient lived-state answer",
+                  JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id }),
+                );
+              } catch (repairError) {
+                console.warn("[DIALOG_FSM] Hidden retry for sufficient summary close failed; keeping original response", repairError);
               }
             }
           }
@@ -1661,6 +1698,7 @@ export async function POST(req: Request) {
                   // created by this conversation, so stale same-conversation rows
                   // can be removed even when the model omitted invisible markers.
                   deleteOrphans: tabMode !== "add",
+                  deleteSameConversationOrphans: tabMode === "add" && finalizeIntent,
                 });
                 planningPersistence.inserted.push(...persisted.filter((p) => p.action === "inserted"));
                 planningPersistence.updated.push(...persisted.filter((p) => p.action === "updated"));
@@ -1768,6 +1806,7 @@ export async function POST(req: Request) {
               !isOpening
               && summaryMarker
               && currentEvent
+              && !userGaveSufficientSummaryState
               && summaryAskedCount(fsmAtTurnStart, currentEvent.id) < 1
               && assistantVisibleContainsSummaryClarifyingCue(sanitizedVisibleText);
             const remainingAfterCurrent = currentEvent

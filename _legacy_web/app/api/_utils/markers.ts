@@ -472,7 +472,7 @@ export function userAnsweredPracticeRequest(result: ValidationResult): boolean {
   return result.hasDuration && result.hasType;
 }
 
-const DURATION_NUMBER_UNITS = ["минут", "час", "min", "mins", "minute", "minutes", "hour", "hours"];
+const DURATION_NUMBER_UNITS = ["минут", "час", "min", "mins", "minute", "minutes", "minuto", "minuti", "hour", "hours", "ora", "ore"];
 
 const DURATION_PHRASES: Array<{ phrase: string; sec: number }> = [
   { phrase: "полчаса", sec: 30 * 60 },
@@ -500,6 +500,16 @@ const MINIMUM_DURATION_HINT_PATTERNS: RegExp[] = [
   /short/i,
   /minimal/i,
   /minimum/i,
+  /court/i,
+  /courte/i,
+  /breve/i,
+  /kurz/i,
+  /klein/i,
+  /pequen/i,
+  /cort/i,
+  /curt/i,
+  /minim[aeo]/i,
+  /kort/i,
 ];
 
 const NUMBER_WORD_MAP: Record<string, number> = {
@@ -509,11 +519,41 @@ const NUMBER_WORD_MAP: Record<string, number> = {
   "пять": 5, "шесть": 6, "семь": 7, "восемь": 8, "девять": 9,
   "десять": 10, "пятнадцать": 15, "двадцать": 20,
   "тридцать": 30, "сорок": 40, "пятьдесят": 50, "полтора": 1.5,
+  "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+  "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+  "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+  "un": 1, "una": 1, "uno": 1,
+  "due": 2, "tre": 3, "quattro": 4, "cinque": 5,
+  "sei": 6, "sette": 7, "otto": 8, "nove": 9,
+  "dieci": 10, "quindici": 15, "venti": 20,
+  "trenta": 30, "quaranta": 40, "cinquanta": 50,
+  "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,
+  "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10,
+  "quinze": 15, "vingt": 20, "trente": 30, "quarante": 40, "cinquante": 50,
+  "ein": 1, "eine": 1, "eins": 1, "zwei": 2, "drei": 3, "vier": 4, "funf": 5, "fuenf": 5,
+  "sechs": 6, "sieben": 7, "acht": 8, "neun": 9, "zehn": 10, "funfzehn": 15, "fuenfzehn": 15,
+  "zwanzig": 20, "dreissig": 30, "dreißig": 30, "vierzig": 40, "funfzig": 50, "fuenfzig": 50,
+  "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5,
+  "sete": 7, "oito": 8, "nove": 9, "quinze": 15, "vinte": 20, "quarenta": 40,
+  "een": 1, "twee": 2, "drie": 3, "vier": 4, "vijf": 5, "zes": 6,
+  "zeven": 7, "acht": 8, "negen": 9, "tien": 10, "vijftien": 15, "twintig": 20,
+  "dertig": 30, "veertig": 40, "vijftig": 50,
 };
 
-const TYPE_BREATH = ["дыхан", "дыхательн", "пранаям", "подыш", "дыш", "breath", "breathe", "breathwork"];
-const TYPE_MEDITATION = ["медитац", "помедитировать", "посидеть", "успокоиться", "meditat", "meditate"];
-const TYPE_YOGA = ["асан", "йог", "yoga", "asana"];
+const TYPE_BREATH = [
+  "дыхан", "дыхательн", "пранаям", "подыш", "дыш",
+  "breath", "breathe", "breathwork",
+  "respiraz", "respiro", "respiracion", "respiracao",
+  "respiration", "atem", "atmen", "adem", "ademhaling",
+];
+const TYPE_MEDITATION = [
+  "медитац", "помедитировать", "посидеть", "успокоиться",
+  "meditat", "meditate", "meditaz", "meditation", "meditacion", "meditacao",
+];
+const TYPE_YOGA = ["асан", "йог", "yoga", "asana", "asanas"];
+
+const MINUTE_UNITS_PATTERN = String.raw`(?:минут(?:а|ы|у)?|мин\b|minute(?:s)?|minut(?:e|en)?|minuut|minuten|minuto(?:s)?|minuti|minutos?)`;
+const HOUR_UNITS_PATTERN = String.raw`(?:час(?:а|ов)?|hour(?:s)?|ora|ore|heure(?:s)?|stunde(?:n)?|hora(?:s)?|uur|uren)`;
 
 type TextSpan = {
   start: number;
@@ -527,6 +567,22 @@ type DurationMention = TextSpan & {
 type KindMention = TextSpan & {
   kind: PracticeKindInferred;
 };
+
+function normalizeLocaleParsingText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[àáâãäå]/g, "a")
+    .replace(/æ/g, "ae")
+    .replace(/ç/g, "c")
+    .replace(/[èéêë]/g, "e")
+    .replace(/[ìíîï]/g, "i")
+    .replace(/ñ/g, "n")
+    .replace(/[òóôõö]/g, "o")
+    .replace(/œ/g, "oe")
+    .replace(/[ùúûü]/g, "u")
+    .replace(/[ýÿ]/g, "y")
+    .replace(/ß/g, "ss");
+}
 
 /** «Подышать или через тело» — не выбор только дыхания; не перетираем ранее сказанное «йога/асаны». */
 function isBreathVersusOtherParallelOffer(lower: string): boolean {
@@ -545,6 +601,7 @@ function addDurationMention(mentions: DurationMention[], start: number, end: num
 }
 
 function extractKindMentions(text: string): KindMention[] {
+  const normalizedText = normalizeLocaleParsingText(text);
   const mentions: KindMention[] = [];
   const patterns: Array<{ pattern: RegExp; kind: PracticeKindInferred }> = [
     { pattern: /медитац/gi, kind: "meditation" },
@@ -552,6 +609,9 @@ function extractKindMentions(text: string): KindMention[] {
     { pattern: /посидеть/gi, kind: "meditation" },
     { pattern: /успокоиться/gi, kind: "meditation" },
     { pattern: /meditat/gi, kind: "meditation" },
+    { pattern: /meditaz/gi, kind: "meditation" },
+    { pattern: /meditacion/gi, kind: "meditation" },
+    { pattern: /meditacao/gi, kind: "meditation" },
     { pattern: /асан/gi, kind: "yoga" },
     { pattern: /йог/gi, kind: "yoga" },
     { pattern: /yoga/gi, kind: "yoga" },
@@ -564,9 +624,18 @@ function extractKindMentions(text: string): KindMention[] {
     { pattern: /breathwork/gi, kind: "breath" },
     { pattern: /breathe/gi, kind: "breath" },
     { pattern: /breath/gi, kind: "breath" },
+    { pattern: /respiraz/gi, kind: "breath" },
+    { pattern: /respiro/gi, kind: "breath" },
+    { pattern: /respiracion/gi, kind: "breath" },
+    { pattern: /respiracao/gi, kind: "breath" },
+    { pattern: /respiration/gi, kind: "breath" },
+    { pattern: /atmen/gi, kind: "breath" },
+    { pattern: /atem/gi, kind: "breath" },
+    { pattern: /ademhaling/gi, kind: "breath" },
+    { pattern: /adem/gi, kind: "breath" },
   ];
   for (const { pattern, kind } of patterns) {
-    for (const match of text.matchAll(pattern)) {
+    for (const match of normalizedText.matchAll(pattern)) {
       const value = match[0];
       const start = match.index ?? -1;
       if (!value || start < 0) continue;
@@ -574,6 +643,26 @@ function extractKindMentions(text: string): KindMention[] {
     }
   }
   return mentions.sort((a, b) => a.start - b.start);
+}
+
+function hasGenericYogaCue(text: string): boolean {
+  const normalized = normalizeLocaleParsingText(text);
+  return /\byoga\b/i.test(normalized)
+    && !/\basana(?:s)?\b/i.test(normalized)
+    && !TYPE_MEDITATION.some((stem) => normalized.includes(stem))
+    && !TYPE_BREATH.some((stem) => normalized.includes(stem));
+}
+
+function normalizePracticeKindForCatalog(params: {
+  text: string;
+  practiceKind: PracticeKindInferred | null;
+  durationSec: number | null;
+}): PracticeKindInferred | null {
+  const { text, practiceKind, durationSec } = params;
+  if (practiceKind !== "yoga" || durationSec == null) return practiceKind;
+  if (!hasGenericYogaCue(text)) return practiceKind;
+  const routedKind = catalogKindForDurationMin(Math.round(durationSec / 60));
+  return routedKind ?? practiceKind;
 }
 
 function distanceBetweenSpans(a: TextSpan, b: TextSpan): number {
@@ -686,11 +775,12 @@ function shouldPreferMinimumHintOverExplicitDuration(params: {
 }
 
 function extractDurationMentions(text: string): DurationMention[] {
+  const normalizedText = normalizeLocaleParsingText(text);
   const mentions: DurationMention[] = [];
 
   for (const entry of DURATION_PHRASES) {
     const pattern = new RegExp(entry.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    for (const match of text.matchAll(pattern)) {
+    for (const match of normalizedText.matchAll(pattern)) {
       const value = match[0];
       const start = match.index ?? -1;
       if (!value || start < 0) continue;
@@ -698,14 +788,14 @@ function extractDurationMentions(text: string): DurationMention[] {
     }
   }
 
-  for (const match of text.matchAll(/три\s+четверт(?:и|ь)\s*час(?:а|ов)?/gi)) {
+  for (const match of normalizedText.matchAll(/три\s+четверт(?:и|ь)\s*час(?:а|ов)?|three\s+quarters?\s+of\s+an?\s+hour|trois\s+quarts?\s+d[' ]heure|dreiviertel\s+stunde|tres\s+cuartos?\s+de\s+hora|tres\s+quartos?\s+de\s+hora|driekwart\s+uur/gi)) {
     const value = match[0];
     const start = match.index ?? -1;
     if (!value || start < 0) continue;
     addDurationMention(mentions, start, start + value.length, 45 * 60);
   }
 
-  for (const match of text.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})\s*час(?:а|ов)?/gi)) {
+  for (const match of normalizedText.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})\s*(?:час(?:а|ов)?|hour(?:s)?|heure(?:s)?|stunde(?:n)?|hora(?:s)?|uur|uren)/gi)) {
     const start = match.index ?? -1;
     const value = match[0];
     const num = Number.parseInt(match[1] ?? "", 10);
@@ -714,7 +804,7 @@ function extractDurationMentions(text: string): DurationMention[] {
     addDurationMention(mentions, start, start + value.length, (num / den) * 3600);
   }
 
-  for (const match of text.matchAll(/(?:^|\s)минут\s+(\d{1,2})\s*[-–]\s*(\d{1,2})(?:\s|$|хот|[,.])/gi)) {
+  for (const match of normalizedText.matchAll(new RegExp(String.raw`(?:^|\s)${MINUTE_UNITS_PATTERN}\s+(\d{1,2})\s*[-–]\s*(\d{1,2})(?:\s|$|хот|[,.])`, "gi"))) {
     const start = match.index ?? -1;
     const value = match[0];
     const a = Number.parseInt(match[1] ?? "", 10);
@@ -723,7 +813,7 @@ function extractDurationMentions(text: string): DurationMention[] {
     addDurationMention(mentions, start, start + value.length, Math.round((a + b) / 2) * 60);
   }
 
-  for (const match of text.matchAll(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(минут|мин\b)/gi)) {
+  for (const match of normalizedText.matchAll(new RegExp(String.raw`(\d{1,2})\s*[-–]\s*(\d{1,2})\s*${MINUTE_UNITS_PATTERN}`, "gi"))) {
     const start = match.index ?? -1;
     const value = match[0];
     const a = Number.parseInt(match[1] ?? "", 10);
@@ -732,42 +822,42 @@ function extractDurationMentions(text: string): DurationMention[] {
     addDurationMention(mentions, start, start + value.length, Math.round((a + b) / 2) * 60);
   }
 
-  for (const match of text.matchAll(/(минут(?:а|ы|у)?|мин\b|час(?:а|ов)?)\s*(\d{1,3}(?:[.,]\d+)?)/gi)) {
+  for (const match of normalizedText.matchAll(new RegExp(String.raw`(${MINUTE_UNITS_PATTERN}|${HOUR_UNITS_PATTERN})\s*(\d{1,3}(?:[.,]\d+)?)`, "gi"))) {
     const start = match.index ?? -1;
     const value = match[0];
     const unit = match[1] ?? "";
     const num = Number.parseFloat((match[2] ?? "").replace(",", "."));
     if (!value || start < 0 || !Number.isFinite(num) || num <= 0) continue;
-    addDurationMention(mentions, start, start + value.length, /час/i.test(unit) ? num * 3600 : num * 60);
+    addDurationMention(mentions, start, start + value.length, /час|hour|ora|ore|heure|stunde|hora|uur|uren/i.test(unit) ? num * 3600 : num * 60);
   }
 
-  for (const match of text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(минут(?:а|ы|у)?|мин\b|час(?:а|ов)?)/gi)) {
+  for (const match of normalizedText.matchAll(new RegExp(String.raw`(\d{1,3}(?:[.,]\d+)?)\s*(${MINUTE_UNITS_PATTERN}|${HOUR_UNITS_PATTERN})`, "gi"))) {
     const start = match.index ?? -1;
     const value = match[0];
     const num = Number.parseFloat((match[1] ?? "").replace(",", "."));
     const unit = match[2] ?? "";
     if (!value || start < 0 || !Number.isFinite(num) || num <= 0) continue;
-    addDurationMention(mentions, start, start + value.length, /час/i.test(unit) ? num * 3600 : num * 60);
+    addDurationMention(mentions, start, start + value.length, /час|hour|ora|ore|heure|stunde|hora|uur|uren/i.test(unit) ? num * 3600 : num * 60);
   }
 
   const numberWordsAlternation = Object.keys(NUMBER_WORD_MAP)
     .sort((a, b) => b.length - a.length)
     .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join("|");
-  const wordDurationPattern = new RegExp(`(${numberWordsAlternation})\\s*(минут(?:а|ы|у)?|час(?:а|ов)?)`, "gi");
-  for (const match of text.matchAll(wordDurationPattern)) {
+  const wordDurationPattern = new RegExp(`(${numberWordsAlternation})\\s*(${MINUTE_UNITS_PATTERN}|${HOUR_UNITS_PATTERN})`, "gi");
+  for (const match of normalizedText.matchAll(wordDurationPattern)) {
     const start = match.index ?? -1;
     const value = match[0];
     const word = (match[1] ?? "").toLowerCase();
     const unit = match[2] ?? "";
     if (!value || start < 0) continue;
-    if (/час/i.test(unit) && word === "три" && /\bчетверт/i.test(text)) continue;
+    if (/час/i.test(unit) && word === "три" && /\bчетверт/i.test(normalizedText)) continue;
     const num = NUMBER_WORD_MAP[word];
     if (!Number.isFinite(num) || num <= 0) continue;
-    addDurationMention(mentions, start, start + value.length, /час/i.test(unit) ? num * 3600 : num * 60);
+    addDurationMention(mentions, start, start + value.length, /час|hour|ora|ore|heure|stunde|hora|uur|uren/i.test(unit) ? num * 3600 : num * 60);
   }
 
-  for (const match of text.matchAll(/(?:^|[\s,.;:!?()])(час(?:ик|а|ов)?)(?=$|[\s,.;:!?()])/gi)) {
+  for (const match of normalizedText.matchAll(/(?:^|[\s,.;:!?()])(час(?:ик|а|ов)?|hour|ora|heure|stunde|uur)(?=$|[\s,.;:!?()])/gi)) {
     const value = match[1];
     const start = match.index ?? -1;
     if (!value || start < 0) continue;
@@ -789,27 +879,28 @@ function extractDurationMentions(text: string): DurationMention[] {
 }
 
 function inferDurationSecFromText(text: string): number | null {
-  const noisyRussianTrailingMinutes = text.match(
+  const normalizedText = normalizeLocaleParsingText(text);
+  const noisyRussianTrailingMinutes = normalizedText.match(
     /(?:час(?:а|ов)?|\d{1,2}\s*час(?:а|ов)?)\s+(?:дыхан[а-яё]*|дыхательн[а-яё]*|пранаям[а-яё]*|медитац[а-яё]*|асан[а-яё]*|йог[а-яё]*)[\s,;:.!?-]*((?:\d+|[а-яё]+)\s*(?:минут(?:а|ы|у)?|мин\b))/i,
   );
   if (noisyRussianTrailingMinutes?.[1]) {
     const rescueMention = extractDurationMentions(noisyRussianTrailingMinutes[1]).find((mention) => mention.sec < 3600);
     if (rescueMention) return rescueMention.sec;
   }
-  const mentions = extractDurationMentions(text);
-  const kindMentions = extractKindMentions(text);
+  const mentions = extractDurationMentions(normalizedText);
+  const kindMentions = extractKindMentions(normalizedText);
   const selectedKindMention = chooseKindMention(kindMentions, mentions);
-  const targetKind = selectedKindMention?.kind ?? inferKindFromText(text, mentions);
+  const targetKind = selectedKindMention?.kind ?? inferKindFromText(normalizedText, mentions);
   const rescuedTrailingMinute = chooseTrailingMinuteMentionOverLeadingHour({
-    text,
+    text: normalizedText,
     mentions,
     selectedKindMention,
   });
   if (rescuedTrailingMinute) return rescuedTrailingMinute.sec;
   const best = chooseDurationMention(mentions, kindMentions, targetKind);
-  if (targetKind && hasMinimumDurationHint(text)) {
+  if (targetKind && hasMinimumDurationHint(normalizedText)) {
     if (shouldPreferMinimumHintOverExplicitDuration({
-      text,
+      text: normalizedText,
       bestDuration: best,
       selectedKindMention,
       targetKind,
@@ -818,16 +909,16 @@ function inferDurationSecFromText(text: string): number | null {
     }
   }
   if (best) return best.sec;
-  if (targetKind && hasMinimumDurationHint(text)) {
+  if (targetKind && hasMinimumDurationHint(normalizedText)) {
     return minimumDurationSecForKind(targetKind);
   }
   return null;
 }
 
 function inferKindFromText(text: string, durationMentions?: DurationMention[]): PracticeKindInferred | null {
-  const lower = text.toLowerCase();
+  const lower = normalizeLocaleParsingText(text);
   if (isBreathVersusOtherParallelOffer(lower)) return null;
-  const kindMentions = extractKindMentions(text);
+  const kindMentions = extractKindMentions(lower);
   return chooseKindMention(kindMentions, durationMentions ?? extractDurationMentions(text))?.kind ?? null;
 }
 
@@ -867,7 +958,7 @@ export function userDeclinedPracticeInHistory(userTexts: string[]): boolean {
 export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): ValidationResult {
   const userMessages = messages
     .filter((m) => m.role === "user")
-    .map((m) => (m.content ?? "").toLowerCase());
+    .map((m) => normalizeLocaleParsingText(m.content ?? ""));
   const userText = userMessages.join(" ");
 
   const NUMBER_WORDS = Object.keys(NUMBER_WORD_MAP);
@@ -877,11 +968,12 @@ export function validateHistoryHasDurationAndType(messages: MarkerMessage[]): Va
   let latestConsistentPair: { durationSec: number; practiceKind: PracticeKindInferred } | null = null;
   for (const msg of userMessages) {
     const durationMentions = extractDurationMentions(msg);
-    const k = inferKindFromText(msg, durationMentions);
+    let k = inferKindFromText(msg, durationMentions);
     let d = inferDurationSecFromText(msg);
     if (k == null && d !== null && looksLikeClockTimeContext(msg)) {
       d = null;
     }
+    k = normalizePracticeKindForCatalog({ text: msg, practiceKind: k, durationSec: d });
     if (d !== null) durationSec = d;
     if (k !== null) practiceKind = k;
     if (d !== null && k !== null && isCatalogConsistentDurationAndKind(Math.round(d / 60), k)) {

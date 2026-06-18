@@ -209,6 +209,23 @@ describe("inferPlannedEventsFromUserHistory", () => {
     ]);
   });
 
+  it("keeps Italian future work and sleep-goal actions on the first planning turn", () => {
+    const nowLocal = DateTime.fromISO("2026-06-18T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [],
+      pendingUserMessage: "Andrò a lavorare. L'unico obiettivo è non dormire tardi.",
+      nowLocal,
+      relativeNowLocal: nowLocal,
+      tz: TZ,
+      locale: "it",
+    });
+
+    expect(inferred.map((item) => item.desc)).toEqual([
+      "Andrò a lavorare",
+      "non dormire tardi",
+    ]);
+  });
+
   it("keeps a supportive pair like walk plus fresh air as one event", () => {
     const nowLocal = DateTime.fromISO("2026-06-02T09:00:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
@@ -357,6 +374,10 @@ describe("inferPlannedEventsFromUserHistory", () => {
       "в магазин пойти посмотреть моторные лодки",
       "В магазин я пойду",
     )).toBe(true);
+  });
+
+  it("recognises Italian rewordings of the same measured action", () => {
+    expect(samePlannedEventIdentity("Corsa di 3 km", "Correre 3 km")).toBe(true);
   });
 
   it("prefers the model marker when history clarification describes the same event", () => {

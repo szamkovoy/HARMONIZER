@@ -50,3 +50,30 @@ export function buildSummaryRepairInstruction(params: {
   }
   return lines.join("\n");
 }
+
+export function buildSummaryCloseRepairInstruction(params: {
+  baseInstruction: string;
+  currentEventDescription: string;
+  nextEventDescription?: string | null;
+}): string {
+  const lines = [
+    params.baseInstruction,
+    "",
+    "REPAIR THIS TURN ONLY. The user's reply already gave enough lived-state detail, so you must CLOSE the current event now.",
+    `- Close ONLY the current event: "${params.currentEventDescription}".`,
+    "- Emit the [SUMMARIZE_EVENT] marker for the current event on this retry.",
+    "- Do NOT ask any clarifying question about the current event.",
+  ];
+  if (params.nextEventDescription?.trim()) {
+    lines.push(
+      `- After closing the current event, ask exactly ONE short question about the next event: "${params.nextEventDescription}".`,
+      "- Do NOT ask two questions and do NOT mention any third event.",
+    );
+  } else {
+    lines.push(
+      "- This is the last event in summarizing: after the marker, write the branch-final reflection only.",
+      "- Do NOT ask any further question about the closed event.",
+    );
+  }
+  return lines.join("\n");
+}

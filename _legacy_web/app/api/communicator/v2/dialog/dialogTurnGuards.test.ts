@@ -20,6 +20,7 @@ import {
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
   summaryVisibleTextMixesMultipleEvents,
+  userAnswerHasSufficientStateForSummary,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
@@ -49,6 +50,8 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Niente da affrontare.")).toBe(true);
     expect(userSignalsPlanningDone("No, non aggiungi più niente.")).toBe(true);
     expect(userSignalsPlanningDone("Sì, possiamo finire.")).toBe(true);
+    expect(userSignalsPlanningDone("Niente più.")).toBe(true);
+    expect(userSignalsPlanningDone("Niente piu")).toBe(true);
     expect(userSignalsPlanningDone("NONO")).toBe(true);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
     expect(
@@ -65,6 +68,7 @@ describe("dialogTurnGuards", () => {
     expect(assistantAskedPlanningClosure(history)).toBe(true);
     expect(userSignalsPlanningDone("Sì, possiamo finire.", history)).toBe(true);
     expect(userSignalsPlanningDone("No, non aggiungi più niente.", history)).toBe(true);
+    expect(userSignalsPlanningDone("Niente più.", history)).toBe(true);
     expect(userSignalsPlanningDone("Sì, aggiungo ancora una cosa.", history)).toBe(false);
   });
 
@@ -276,10 +280,51 @@ describe("dialogTurnGuards", () => {
   it("treats thin Italian summary answers like other locales", () => {
     expect(userAnswerIsThinForSummary(
       "Ho avuto molte cose da fare oggi. L'obiettivo è fare molte cose, ma bisogna fare le cose in modo corretto.",
-    )).toBe(true);
+    )).toBe(false);
     expect(userAnswerIsThinForSummary(
       "Lo che ho sentito è responsabilità e tensione intellettuale, perché la mia domanda era complicata.",
     )).toBe(false);
+  });
+
+  it("detects Italian non-occurrence and sufficient lived-state answers", () => {
+    expect(userSaysEventDidNotHappen("Non ho letto il libro, non ne ho avuto il tempo.")).toBe(true);
+    expect(userAnswerHasSufficientStateForSummary("Mi è piaciuto molto, mi sono sentito più leggero e soddisfatto.")).toBe(true);
+    expect(userAnswerIsThinForSummary("Sono stato stanco, ma ho sentito anche soddisfazione e un senso di buon lavoro.")).toBe(false);
+  });
+
+  it("treats cross-locale non-occurrence and lived-state answers as shared logic", () => {
+    const cases = [
+      {
+        no: "I didn't read it and ran out of time.",
+        enough: "I felt calm, lighter, and genuinely satisfied.",
+      },
+      {
+        no: "Je ne l'ai pas fait, je n'ai pas eu le temps.",
+        enough: "Je me suis senti calme, soulagé et satisfait.",
+      },
+      {
+        no: "Ich habe es nicht geschafft, ich hatte keine Zeit.",
+        enough: "Ich habe mich ruhig, klar und erleichtert gefühlt.",
+      },
+      {
+        no: "No lo hice, no tuve tiempo.",
+        enough: "Me sentí tranquilo, más ligero y satisfecho.",
+      },
+      {
+        no: "Não fiz isso, não tive tempo.",
+        enough: "Me senti calmo, mais leve e satisfeito.",
+      },
+      {
+        no: "Ik heb het niet gedaan, ik had geen tijd.",
+        enough: "Ik voelde me rustig, lichter en tevreden.",
+      },
+    ];
+
+    for (const sample of cases) {
+      expect(userSaysEventDidNotHappen(sample.no), sample.no).toBe(true);
+      expect(userAnswerHasSufficientStateForSummary(sample.enough), sample.enough).toBe(true);
+      expect(userAnswerIsThinForSummary(sample.enough), sample.enough).toBe(false);
+    }
   });
 
   it("builds a short bridge when an event did not happen", () => {

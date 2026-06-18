@@ -6,7 +6,7 @@ import { router, type Href } from "expo-router";
 import { UpgradeDialog, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import { isChakra, type Chakra } from "@/modules/breath";
 import { useAppLocale } from "@/modules/i18n";
-import { filterPractices, loadPracticeCatalog } from "@/modules/practices/core/catalog";
+import { filterPractices, loadPracticeCatalog, type LateYogaPracticesResult } from "@/modules/practices/core/catalog";
 import type {
   PracticeCatalog,
   PracticeDurationBucket,
@@ -91,8 +91,8 @@ export function PracticeCatalogScreen() {
   });
   const loadSeqRef = useRef(0);
   const requestedThumbnailIdsRef = useRef<Set<string>>(new Set());
-  /** Избегаем гонки: `onLateYogaPractices` может отработать в микрозадаче раньше, чем продолжится `load()` после `await`. */
-  const lateYogaSlotRef = useRef<{ resolved: false } | { resolved: true; yoga: PracticeSummary[] }>({ resolved: false });
+  /** Избегаем гонки: `onLateYogaPractices` может отработать раньше, чем продолжится `load()` после `await`. */
+  const lateYogaSlotRef = useRef<{ resolved: false } | { resolved: true; result: LateYogaPracticesResult }>({ resolved: false });
   /** Медитации+дыхание из последнего `loadPracticeCatalog` — чтобы колбэк йоги мог собрать каталог до `status: ready`. */
   const catalogMeditationBreathRef = useRef<Pick<PracticeCatalog, "meditation" | "breath"> | null>(null);
   /** Йога пришла до того, как ref среза успели записать (редкий порядок микрозадач). */
@@ -116,25 +116,45 @@ export function PracticeCatalogScreen() {
           locale: catalogLocale,
           onLateYogaPractices: (yoga) => {
             if (seq !== loadSeqRef.current) return;
-            lateYogaSlotRef.current = { resolved: true, yoga };
-            setYogaLateLoading(false);
+            lateYogaSlotRef.current = { resolved: true, result: yoga };
             const mb = catalogMeditationBreathRef.current;
             if (!mb) {
-              pendingLateYogaRef.current = yoga;
+              pendingLateYogaRef.current = yoga.practices;
               logRuntimeEvent(
                 "practice_catalog:screen_late_yoga_pending_mb",
-                { seq, yogaCount: yoga.length },
+                { seq, yogaCount: yoga.practices.length, state: yoga.state },
                 "debug",
               );
               return;
             }
             pendingLateYogaRef.current = null;
+            if (yoga.state === "timeout") {
+              setYogaLateLoading(true);
+              logRuntimeEvent("practice_catalog:screen_late_yoga_timeout", { seq }, "warn");
+              return;
+            }
+            setYogaLateLoading(false);
+            if (yoga.state === "error") {
+              setState({
+                status: "error",
+                catalog: { ...mb, yoga: [] },
+                error: yoga.errorMessage ?? strings.loadCatalogError,
+              });
+              logRuntimeEvent("practice_catalog:screen_late_yoga_error", {
+                seq,
+                message: yoga.errorMessage ?? strings.loadCatalogError,
+              }, "warn");
+              return;
+            }
             setState({
               status: "ready",
-              catalog: { ...mb, yoga },
+              catalog: { ...mb, yoga: yoga.practices },
               error: null,
             });
-            logRuntimeEvent("practice_catalog:screen_late_yoga_ready", { seq, yogaCount: yoga.length });
+            logRuntimeEvent("practice_catalog:screen_late_yoga_ready", {
+              seq,
+              yogaCount: yoga.practices.length,
+            });
           },
         });
         catalogMeditationBreathRef.current = {
@@ -144,7 +164,7 @@ export function PracticeCatalogScreen() {
         if (pendingLateYogaRef.current !== null) {
           const pendingYoga = pendingLateYogaRef.current as PracticeSummary[];
           pendingLateYogaRef.current = null;
-          lateYogaSlotRef.current = { resolved: true, yoga: pendingYoga };
+          lateYogaSlotRef.current = { resolved: true, result: { practices: pendingYoga, state: "ready" } };
           setYogaLateLoading(false);
           setState({
             status: "ready",
@@ -156,12 +176,15 @@ export function PracticeCatalogScreen() {
             yogaCount: pendingYoga.length,
           });
         }
-        // Колбэк `onLateYogaPractices` ставится в очередь микрозадач; без yield продолжение `load()`
-        // может выполниться раньше и прочитать `lateYogaSlotRef` до записи → пустой список асан.
-        await Promise.resolve();
+        // Late yoga can arrive on a later microtask/macrotask boundary; flush one
+        // immediate turn before deciding that the list is truly empty.
+        await new Promise<void>((resolve) => setImmediate(resolve));
         if (seq !== loadSeqRef.current) return;
         const late = lateYogaSlotRef.current;
-        const mergedYoga = late.resolved ? late.yoga : catalog.yoga;
+        const mergedYoga =
+          late.resolved && late.result.state === "ready"
+            ? late.result.practices
+            : catalog.yoga;
         logRuntimeEvent("practice_catalog:screen_load_ready", {
           seq,
           durationMs: Date.now() - startedAt,
@@ -169,9 +192,10 @@ export function PracticeCatalogScreen() {
           breathCount: catalog.breath.length,
           yogaCount: mergedYoga.length,
           yogaLateAlready: late.resolved,
+          yogaLateState: late.resolved ? late.result.state : "initial",
         });
         setState({ status: "ready", catalog: { ...catalog, yoga: mergedYoga }, error: null });
-        if (late.resolved) {
+        if (late.resolved && late.result.state !== "timeout") {
           setYogaLateLoading(false);
         }
       } catch (error) {
@@ -219,12 +243,13 @@ export function PracticeCatalogScreen() {
       const pairs = practices
         .map((practice) => ({
           practiceId: practice.id,
+          hasPersistedThumbnail: Boolean(practice.video?.thumbnail?.url),
           videoId:
             practice.kind === "yoga" && practice.video?.provider === "vimeo"
               ? practice.video.externalId?.trim() ?? ""
               : "",
         }))
-        .filter((item) => item.videoId);
+        .filter((item) => item.videoId && !item.hasPersistedThumbnail);
 
       const videoIds = [...new Set(pairs.map((item) => item.videoId))].filter((videoId) => {
         if (requestedThumbnailIdsRef.current.has(videoId)) return false;

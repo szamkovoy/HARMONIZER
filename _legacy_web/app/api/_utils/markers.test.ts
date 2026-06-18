@@ -373,6 +373,95 @@ describe("validateHistoryHasDurationAndType", () => {
     expect(result.confident).toBe(true);
   });
 
+  it("routes generic Italian yoga requests by duration", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "Vorrei un minuto di yoga." },
+    ]);
+    expect(result.durationSec).toBe(60);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("parses explicit Italian meditation requests", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "Vorrei una minuto di meditazione." },
+    ]);
+    expect(result.durationSec).toBe(60);
+    expect(result.practiceKind).toBe("meditation");
+    expect(result.catalogConsistent).toBe(true);
+    expect(result.confident).toBe(true);
+  });
+
+  it("keeps explicit out-of-range breath requests as reconciliation candidates", () => {
+    const result = validateHistoryHasDurationAndType([
+      { role: "user", content: "Vorrei una pratica di respirazione di 25 minuti." },
+    ]);
+    expect(userAnsweredPracticeRequest(result)).toBe(true);
+    expect(result.durationSec).toBe(25 * 60);
+    expect(result.practiceKind).toBe("breath");
+    expect(result.catalogConsistent).toBe(false);
+    expect(result.confident).toBe(false);
+  });
+
+  it("parses one-minute umbrella yoga requests across supported non-RU locales", () => {
+    const samples = [
+      "I want one minute of yoga.",
+      "Je voudrais une minute de yoga.",
+      "Ich möchte eine Minute Yoga.",
+      "Quiero un minuto de yoga.",
+      "Quero um minuto de yoga.",
+      "Ik wil een minuut yoga.",
+    ];
+
+    for (const sample of samples) {
+      const result = validateHistoryHasDurationAndType([{ role: "user", content: sample }]);
+      expect(result.durationSec, sample).toBe(60);
+      expect(result.practiceKind, sample).toBe("meditation");
+      expect(result.catalogConsistent, sample).toBe(true);
+      expect(result.confident, sample).toBe(true);
+    }
+  });
+
+  it("parses explicit one-minute meditation requests across supported non-RU locales", () => {
+    const samples = [
+      "I want one minute of meditation.",
+      "Je voudrais une minute de méditation.",
+      "Ich möchte eine Minute Meditation.",
+      "Quiero un minuto de meditación.",
+      "Quero um minuto de meditação.",
+      "Ik wil een minuut meditatie.",
+    ];
+
+    for (const sample of samples) {
+      const result = validateHistoryHasDurationAndType([{ role: "user", content: sample }]);
+      expect(result.durationSec, sample).toBe(60);
+      expect(result.practiceKind, sample).toBe("meditation");
+      expect(result.catalogConsistent, sample).toBe(true);
+      expect(result.confident, sample).toBe(true);
+    }
+  });
+
+  it("keeps out-of-range breath requests as reconciliation candidates across supported locales", () => {
+    const samples = [
+      "I want a 25 minute breathing practice.",
+      "Je voudrais une pratique de respiration de 25 minutes.",
+      "Ich möchte 25 Minuten Atemübung.",
+      "Quiero una práctica de respiración de 25 minutos.",
+      "Quero uma prática de respiração de 25 minutos.",
+      "Ik wil een ademhalingsoefening van 25 minuten.",
+    ];
+
+    for (const sample of samples) {
+      const result = validateHistoryHasDurationAndType([{ role: "user", content: sample }]);
+      expect(userAnsweredPracticeRequest(result), sample).toBe(true);
+      expect(result.durationSec, sample).toBe(25 * 60);
+      expect(result.practiceKind, sample).toBe("breath");
+      expect(result.catalogConsistent, sample).toBe(false);
+      expect(result.confident, sample).toBe(false);
+    }
+  });
+
   it("returns null for durationSec/practiceKind when not mentioned", () => {
     const result = validateHistoryHasDurationAndType([
       { role: "user", content: "привет, как дела" },

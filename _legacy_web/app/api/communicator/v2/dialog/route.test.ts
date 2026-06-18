@@ -11,6 +11,7 @@ import {
   planningFinalizeArtifactsReady,
 } from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
 import {
+  buildSummaryCloseRepairInstruction,
   buildSummaryRepairInstruction,
   classifySummaryRepairMode,
 } from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
@@ -246,6 +247,19 @@ describe("summary repair helpers", () => {
     expect(instruction).toContain("BASE");
     expect(instruction).toContain("Emit NO [SUMMARIZE_EVENT] marker");
     expect(instruction).toContain("Do NOT mention or ask about the next event");
+  });
+
+  it("builds a retry instruction that forces a close when the state is already sufficient", () => {
+    const instruction = buildSummaryCloseRepairInstruction({
+      baseInstruction: "BASE",
+      currentEventDescription: "Lavorare sulle attività lavorative",
+      nextEventDescription: "Andare in negozio per la barca",
+    });
+
+    expect(instruction).toContain("BASE");
+    expect(instruction).toContain("already gave enough lived-state detail");
+    expect(instruction).toContain("Emit the [SUMMARIZE_EVENT] marker");
+    expect(instruction).toContain("ask exactly ONE short question about the next event");
   });
 });
 

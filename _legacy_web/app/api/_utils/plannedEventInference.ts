@@ -225,8 +225,22 @@ const EVENT_IDENTITY_STOPWORDS = new Set([
   "собираюсь",
 ]);
 
+function extractMeasureIdentityTokens(value: string): string[] {
+  const normalized = normalizeDescription(value);
+  const tokens: string[] = [];
+  const measurePattern = /\b(\d+)\s*(km|min|mins|minutes|minute|pag|pages|page|ora|ore|hour|hours|h)\b/gi;
+  let match: RegExpExecArray | null = measurePattern.exec(normalized);
+  while (match) {
+    const unit = match[2]!.toLowerCase().replace(/s$/, "");
+    tokens.push(`${match[1]}${unit}`);
+    match = measurePattern.exec(normalized);
+  }
+  return tokens;
+}
+
 function identityStem(token: string): string {
   const normalized = token.toLowerCase().replace(/ё/g, "е");
+  if (/^(?:cors|correr)/.test(normalized)) return "corr_it";
   if (/^(?:встреч|встрет)/.test(normalized)) return "встреч";
   if (/^(?:клиент)/.test(normalized)) return "клиент";
   if (/^(?:позавтрак|завтрак)/.test(normalized)) return "завтрак";
@@ -239,6 +253,9 @@ function identityStem(token: string): string {
 
 function eventIdentityTokens(value: string): string[] {
   const seen = new Set<string>();
+  for (const measureToken of extractMeasureIdentityTokens(value)) {
+    seen.add(measureToken);
+  }
   for (const rawToken of normalizeDescription(value).split(/\s+/)) {
     const token = rawToken.trim();
     if (!token || token.length < 4) continue;
@@ -331,7 +348,7 @@ function isPracticeOnlySegment(text: string, nowLocal: DateTime, tz: string, loc
 }
 
 function hasStrongPlanningCue(text: string): boolean {
-  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|планируется|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь)(?=$|[\s,.;:!?()])/i.test(text);
+  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|планируется|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь|voglio|vorrei|andr[òo]|vado|devo|mi\s+aspetta|pianific|programma|obiettivo|goal|i\s+want|i['’]?ll|i\s+will|going\s+to)(?=$|[\s,.;:!?()])/i.test(text);
 }
 
 function looksLikeCompletedOutcomeSegment(text: string): boolean {
@@ -433,6 +450,7 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
     .replace(/\s+и(?:[,.!?;:]*)$/i, "")
     .replace(/(^|[\s,.;:!?()])(?:примерно|где[-\s]*то|около)(?=$|[\s,.;:!?()])/gi, "$1")
     .replace(/^(?:я\s+)?(?:хотелось\s+бы|хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?)\s+/i, "")
+    .replace(/^(?:l['’]unico\s+obiettivo\s+[èe]|il\s+mio\s+obiettivo\s+[èe]|obiettivo:)\s*/i, "")
     .replace(/(?:^|[\s,.;:!?()])(?:сегодня|завтра|послезавтра)(?=$|[\s,.;:!?()])/gi, " ")
     .replace(/(^|[\s,.;:!?()])(?:во-?\s*первых|во-?\s*вторых)(?=$|[\s,.;:!?()])/gi, "$1")
     .replace(/\s+/g, " ")

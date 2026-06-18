@@ -106,6 +106,8 @@ const PLANNING_DONE_PATTERNS = [
   standalonePhrasePattern("questo è sufficiente"),
   standalonePhrasePattern("questo e sufficiente"),
   standalonePhrasePattern("niente altro"),
+  standalonePhrasePattern("niente più"),
+  standalonePhrasePattern("niente piu"),
   standalonePhrasePattern("niente da affrontare"),
   standalonePhrasePattern("nient'altro"),
   standalonePhrasePattern("non c'è più niente da aggiungere"),
@@ -144,7 +146,7 @@ export function userSignalsPlanningDone(text: string, history: MessageRecord[] =
     return true;
   }
   if (PLANNING_DONE_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
-  if (/(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|da\s+aggiungere|da\s+affrontare)|non\s+voglio\s+affrontare\s+niente|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|non\s+aggiung(?:o|i)\s+più\s+niente|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
+  if (/(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|pi[uú]|da\s+aggiungere|da\s+affrontare)|non\s+voglio\s+affrontare\s+niente|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|non\s+aggiung(?:o|i)\s+più\s+niente|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
     normalized,
   )) {
     return true;
@@ -157,7 +159,7 @@ export function userSignalsPlanningDone(text: string, history: MessageRecord[] =
   if (
     history.length > 0
     && assistantAskedPlanningClosure(history)
-    && /^(?:(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|s[iì]|oui|ja|sim)[!.,\s]+)?(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|va\s+bene\s+cos[ìi]|that'?s\s+enough|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)[!.,\s]*$/iu.test(
+    && /^(?:(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|s[iì]|oui|ja|sim)[!.,\s]+)?(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|va\s+bene\s+cos[ìi]|niente\s+pi[uú]|niente\s+altro|nient['’]altro|basta|that'?s\s+enough|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)[!.,\s]*$/iu.test(
       normalized,
     )
   ) {
@@ -457,13 +459,47 @@ const NON_OCCURRENCE_RU =
   /(?:не\s+(?:получи|сложи|вышл|удал|состоя|успе|смог|могла|дош|добра|доеха|сходи|пош[ёе]л|пошл|ходи|езди|поеха|съезди|встрети|позвони|почита|прочита|чита|написа|сдела|занима|заня|погуля|посети|купи|выбра|присту|добрал)|так\s+и\s+не\s+|не\s+до\s+(?:того|этого|них)|не\s+хвати(?:ло)?\s+(?:времени|сил|возможност)|не\s+было\s+(?:времени|сил|возможност|настроени)|не\s+дошли\s+руки|пропусти[лвт]|отмени[лвт]|перен[её]с|отложи[лвт]|забы(?:л|ла|лось))/i;
 const NON_OCCURRENCE_EN =
   /(?:did\s*n[o']?t|didn['’]?t|couldn['’]?t|wasn['’]?t\s+able|never\s+got|no\s+time|ran\s+out\s+of\s+time|skipped?|put\s+it\s+off|postponed?|cancel(?:l?ed)?|forgot)/i;
+const NON_OCCURRENCE_IT =
+  /(?:non\s+(?:ho|l['’]?ho|sono|ci\s+sono)\s+(?:letto|letta|fatto|fatta|fatti|riuscit[oa]|andat[oa]|arrivat[oa]|avuto|potuto)|non\s+(?:sono\s+riuscit[oa]|ci\s+sono\s+riuscit[oa]|ce\s+l['’]?ho\s+fatt[oa]|ha\s+funzionato)|non\s+ha\s+funzionato|non\s+(?:c['’]era|cera)\s+tempo|non\s+avevo\s+tempo|non\s+ne\s+ho\s+avuto\s+tempo|non\s+me\s+la\s+sono\s+sentita|non\s+ce\s+l['’]?ho\s+fatta|non\s+ce\s+l['’]?ho\s+fatto|ho\s+saltato|saltat[oa]|rimandat[oa]|rinviat[oa]|dimenticat[oa])/i;
+const NON_OCCURRENCE_FR =
+  /(?:je\s+n['’]ai\s+pas\s+(?:lu|fait|pu|reussi|reussi|reussi|réussi)|je\s+ne\s+suis\s+pas\s+(?:alle|allee|arrive|arrivee)|je\s+n['’]y\s+suis\s+pas\s+arrive|je\s+ne\s+l['’]ai\s+pas\s+fait|pas\s+eu\s+le\s+temps|je\s+n['’]avais\s+pas\s+le\s+temps|annul[eé]|report[eé]|oubli[eé]|rat[eé])/i;
+const NON_OCCURRENCE_DE =
+  /(?:ich\s+habe\s+(?:es\s+)?nicht\s+(?:gelesen|gemacht|geschafft|getan)|ich\s+bin\s+nicht\s+(?:gegangen|hingegangen)|ich\s+kam\s+nicht\s+dazu|keine\s+zeit|ich\s+hatte\s+keine\s+zeit|nicht\s+geschafft|abgesagt|verschoben|vergessen|ubersprungen|übersprungen)/i;
+const NON_OCCURRENCE_ES =
+  /(?:no\s+(?:lo\s+)?(?:he\s+)?(?:leido|hecho|podido)|no\s+fui|no\s+he\s+podido|no\s+me\s+dio\s+tiempo|no\s+tuve\s+tiempo|pospu(?:se|esto)|cancel(?:e|ado)|olvide|olvid[eé]|salt[eé])/i;
+const NON_OCCURRENCE_PT =
+  /(?:nao\s+(?:o\s+)?(?:fiz|li|consegui|pude)|nao\s+fui|nao\s+deu\s+tempo|nao\s+tive\s+tempo|cancelei|adiei|esqueci|pulei)/i;
+const NON_OCCURRENCE_NL =
+  /(?:ik\s+heb\s+het\s+niet\s+(?:gelezen|gedaan|gered)|ik\s+ben\s+niet\s+gegaan|ik\s+kwam\s+er\s+niet\s+aan\s+toe|geen\s+tijd|ik\s+had\s+geen\s+tijd|uitgesteld|afgezegd|vergeten|overgeslagen)/i;
+
+function normalizeLocaleGuardText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[àáâãäå]/g, "a")
+    .replace(/æ/g, "ae")
+    .replace(/ç/g, "c")
+    .replace(/[èéêë]/g, "e")
+    .replace(/[ìíîï]/g, "i")
+    .replace(/ñ/g, "n")
+    .replace(/[òóôõö]/g, "o")
+    .replace(/œ/g, "oe")
+    .replace(/[ùúûü]/g, "u")
+    .replace(/[ýÿ]/g, "y")
+    .replace(/ß/g, "ss");
+}
 
 export function userSaysEventDidNotHappen(text: string): boolean {
-  const normalized = text.trim().toLowerCase();
+  const normalized = normalizeLocaleGuardText(text.trim());
   if (!normalized) return false;
   if (/^(?:нет|no|нету|не)[.!?,…\s]*$/i.test(normalized)) return true;
   if (NON_OCCURRENCE_RU.test(normalized)) return true;
   if (NON_OCCURRENCE_EN.test(normalized)) return true;
+  if (NON_OCCURRENCE_IT.test(normalized)) return true;
+  if (NON_OCCURRENCE_FR.test(normalized)) return true;
+  if (NON_OCCURRENCE_DE.test(normalized)) return true;
+  if (NON_OCCURRENCE_ES.test(normalized)) return true;
+  if (NON_OCCURRENCE_PT.test(normalized)) return true;
+  if (NON_OCCURRENCE_NL.test(normalized)) return true;
   return false;
 }
 
@@ -627,17 +663,24 @@ export function buildSummaryEventDidNotHappenBridge(
 }
 
 /** User confirms the event happened but names no lived state — needs one clarifying question. */
+export function userAnswerHasSufficientStateForSummary(text: string): boolean {
+  if (userSaysEventDidNotHappen(text)) return false;
+  const normalized = normalizeLocaleGuardText(text.trim());
+  if (!normalized) return false;
+  return /(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected|responsabil|tensione|focalizz|concentr|stress|stanc|soddisf|sentito|sentita|emozion|ansia|calma|seren|tranquill|piaciut|gustos|rinforz|vittori|buon\s+lavoro|mi\s+[èe]\s+piaciut|ho\s+sentit[oa]|sono\s+stat[oa]|mi\s+sono\s+sentit[oa]|emotion|apaise|apais|calme|fatigu|satisfait|soulag|fier|inspire|je\s+me\s+suis\s+senti|ca\s+m['’]a\s+plu|spannung|konzentr|m[uü]d|zufrieden|erleichtert|stolz|ich\s+habe\s+mich|ich\s+fuhlte\s+mich|es\s+hat\s+mir\s+gefallen|ansiedad|relaj|tranquil|cansad|satisfech|alivi|me\s+gusto|me\s+senti|enfocad|claridad|calm|tranquil|cansad|satisfeit|alivi|gostei|me\s+senti|focad|leve|rustig|tevreden|moe|opgelucht|gefocust|helder|ik\s+voelde\s+me|het\s+beviel\s+me)/i.test(
+    normalized,
+  );
+}
+
+/** User confirms the event happened but names no lived state — needs one clarifying question. */
 export function userAnswerIsThinForSummary(text: string): boolean {
   if (userSaysEventDidNotHappen(text)) return false;
-  const normalized = text.trim().toLowerCase();
+  const normalized = normalizeLocaleGuardText(text.trim());
   if (!normalized) return true;
-  const claimsDone = /(?:состоял|получил|сделал|было|хорошо|отлично|удалось|нормально|да|yes|it happened|all good|went well|fatto|riuscito|andato|completato|obiettivo|ho avuto|dovevo fare|j['’]?ai|c['’]?est fait|fait|réussi|terminé|hecho|conseguido|gemacht|geschafft|geland|gelukt)/i.test(
+  const claimsDone = /(?:состоял|получил|сделал|было|хорошо|отлично|удалось|нормально|да|yes|it happened|all good|went well|fatto|riuscito|andato|completato|j['’]?ai|c['’]?est\s+fait|fait|reussi|réussi|termine|terminé|hecho|conseguido|salio\s+bien|salió\s+bien|gemacht|geschafft|geland|gelukt|deu\s+certo|feito|klaar|gedaan)/i.test(
     normalized,
   );
-  const namesState = /(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected|responsabil|tensione|focalizz|concentr|stress|stanc|soddisf|sentito|sentita|emozion|ansia|calma|seren|tranquill|spannung|konzentr|müd|zufrieden|émotion|soulag|détendu|ansiedad|relaj)/i.test(
-    normalized,
-  );
-  return claimsDone && !namesState;
+  return claimsDone && !userAnswerHasSufficientStateForSummary(normalized);
 }
 
 export function practiceValidationForTurn(

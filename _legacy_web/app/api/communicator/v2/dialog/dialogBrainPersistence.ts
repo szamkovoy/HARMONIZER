@@ -38,18 +38,47 @@ export function findExistingPlanningRowMatch(params: {
   conversationId: string;
   displayOrder: number;
   appendToExisting: boolean;
+  markerBatchSize?: number;
 }): PlannedEventRow | undefined {
   const identityMatch = params.existing.find(
-    (row) => row.status === "planned" && samePlannedEventIdentity(row.description, params.desc),
+    (row) =>
+      row.status === "planned"
+      && samePlannedEventIdentity(row.description, params.desc)
+      && (!params.appendToExisting || row.conversation_id === params.conversationId),
   );
   if (identityMatch) return identityMatch;
   if (!params.appendToExisting) return undefined;
-  return params.existing.find(
+  const displayOrderMatch = params.existing.find(
     (row) =>
       row.status === "planned"
       && row.conversation_id === params.conversationId
       && row.display_order === params.displayOrder,
   );
+  if (displayOrderMatch) return displayOrderMatch;
+  // Add-flow rewrites often bump display_order by 1 while refining the same slot.
+  if (
+    (params.markerBatchSize ?? 1) === 1
+    && Number.isInteger(params.displayOrder)
+    && params.displayOrder > 1
+  ) {
+    const priorOrder = params.displayOrder - 1;
+    const bumpedMatch = params.existing.find(
+      (row) =>
+        row.status === "planned"
+        && row.conversation_id === params.conversationId
+        && row.display_order === priorOrder,
+    );
+    if (bumpedMatch) {
+      const alreadyAtTarget = params.existing.some(
+        (row) =>
+          row.status === "planned"
+          && row.conversation_id === params.conversationId
+          && row.display_order === params.displayOrder,
+      );
+      if (!alreadyAtTarget) return bumpedMatch;
+    }
+  }
+  return undefined;
 }
 
 function endOfLocalDayIso(localDate: string, timezone: string): string {
@@ -72,6 +101,7 @@ export async function persistPlanningFinalize(params: {
   markers: PlannedEventMarker[];
   appendToExisting?: boolean;
   deleteOrphans?: boolean;
+  deleteSameConversationOrphans?: boolean;
 }): Promise<PersistedPlannedEvent[]> {
   const {
     db,
@@ -83,6 +113,7 @@ export async function persistPlanningFinalize(params: {
     markers,
     appendToExisting,
     deleteOrphans = false,
+    deleteSameConversationOrphans = false,
   } = params;
   if (markers.length === 0) return [];
 
@@ -119,6 +150,7 @@ export async function persistPlanningFinalize(params: {
       conversationId,
       displayOrder: appendedDisplayOrder,
       appendToExisting: Boolean(appendToExisting),
+      markerBatchSize: markers.length,
     });
     const displayOrder = appendToExisting && !match ? appendedDisplayOrder : baseDisplayOrder;
 
@@ -191,6 +223,32 @@ export async function persistPlanningFinalize(params: {
   // missed them), which otherwise surface as duplicates in the Day tab — e.g.
   // "Работа над результатами" (early save) + "Поработать для результатов" (final).
   if (!appendToExisting && deleteOrphans) {
+    const touchedIds = new Set(
+      results.map((item) => item.id).filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+    if (touchedIds.size > 0) {
+      const orphanIds = existing
+        .filter(
+          (row) =>
+            row.status === "planned"
+            && row.conversation_id === conversationId
+            && typeof row.id === "string"
+            && !row.id.startsWith("pending:")
+            && !touchedIds.has(row.id),
+        )
+        .map((row) => row.id);
+      if (orphanIds.length > 0) {
+        const { error: cleanupError } = await db
+          .from("planned_events")
+          .delete()
+          .eq("user_id", userId)
+          .in("id", orphanIds);
+        if (cleanupError) throw cleanupError;
+      }
+    }
+  }
+
+  if (appendToExisting && deleteSameConversationOrphans) {
     const touchedIds = new Set(
       results.map((item) => item.id).filter((id): id is string => typeof id === "string" && id.length > 0),
     );

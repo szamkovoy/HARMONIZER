@@ -91,10 +91,10 @@ describe("loadPracticeCatalog", () => {
     resolveYoga([YOGA_PRACTICE]);
     await yieldToDeferredCatalogWork();
 
-    expect(onLateYogaPractices).toHaveBeenCalledWith([YOGA_PRACTICE]);
+    expect(onLateYogaPractices).toHaveBeenCalledWith({ practices: [YOGA_PRACTICE], state: "ready" });
   });
 
-  it("invokes onLateYogaPractices with [] when yoga loader rejects", async () => {
+  it("reports a late yoga error when the loader rejects", async () => {
     const onLateYogaPractices = vi.fn();
     await loadPracticeCatalog(
       { onLateYogaPractices },
@@ -105,10 +105,14 @@ describe("loadPracticeCatalog", () => {
       },
     );
     await yieldToDeferredCatalogWork();
-    expect(onLateYogaPractices).toHaveBeenCalledWith([]);
+    expect(onLateYogaPractices).toHaveBeenCalledWith({
+      practices: [],
+      state: "error",
+      errorMessage: "network",
+    });
   });
 
-  it("invokes onLateYogaPractices with [] on timeout then updates when yoga resolves", async () => {
+  it("reports timeout first and then updates when yoga resolves", async () => {
     vi.useFakeTimers();
     try {
       let resolveYoga!: (value: PracticeSummary[]) => void;
@@ -122,13 +126,13 @@ describe("loadPracticeCatalog", () => {
       expect(onLateYogaPractices).not.toHaveBeenCalled();
 
       await vi.advanceTimersByTimeAsync(30_000);
-      expect(onLateYogaPractices).toHaveBeenCalledWith([]);
+      expect(onLateYogaPractices).toHaveBeenCalledWith({ practices: [], state: "timeout" });
 
       resolveYoga([YOGA_PRACTICE]);
       vi.useRealTimers();
       await yieldToDeferredCatalogWork();
 
-      expect(onLateYogaPractices).toHaveBeenLastCalledWith([YOGA_PRACTICE]);
+      expect(onLateYogaPractices).toHaveBeenLastCalledWith({ practices: [YOGA_PRACTICE], state: "ready" });
     } finally {
       vi.useRealTimers();
     }

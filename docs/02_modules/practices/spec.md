@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.15
-updated: 2026-06-18
+version: 1.16
+updated: 2026-06-19
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -35,7 +35,7 @@ code_refs:
 ### Пакет `modules/practices` (`index.ts`)
 
 - **`loadPracticeCatalog(options?, deps?): Promise<PracticeCatalog>`**  
-  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. **`loadYogaPractices(locale?: PracticeLocale)`** (default `"ru"`) — отдельная загрузка йоги; select **без колонки `params`** (облегчённый запрос); чакры — из embedded `practice_chakras`, при пустой связи — fallback `chakrasFromParams` из jsonb `params.chakra_ids` / `primary_chakra_id` (если `params` доступны). При ошибке Supabase **пробрасывает** исключение; клиент без `getSupabase()` — **`requireSupabase()`**. UI-строки каталога — **`getPracticeCatalogStrings(locale)`** (`modules/practices/i18n/practices.ts`, `PracticeLocale = AppContentLocale`). Таймаут отложенной йоги — **30 с**. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк вызывается не позже чем через 30 с (при ошибке или таймауте — `[]`), а если ответ Supabase пришёл после таймаута — возможен повторный вызов с фактическим списком асан.
+  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. **`loadYogaPractices(locale?: PracticeLocale)`** (default `"ru"`) — отдельная загрузка йоги; select больше не тащит тяжёлый полный `params`-blob, а читает только нужные jsonb-поля (`video_thumbnail`, `chakra_ids`, `primary_chakra_id`, `recorded_at`) плюс `practice_chakras`. Этого достаточно, чтобы карточки сразу получали сохранённый thumbnail и chakra-fallback, не завися полностью от live-fetch к Vimeo при каждом открытии каталога. Чакры берутся из embedded `practice_chakras`; при пустой связи остаётся fallback `chakrasFromParams` из `chakra_ids` / `primary_chakra_id`. При ошибке Supabase **пробрасывает** исключение; клиент без `getSupabase()` — **`requireSupabase()`**. UI-строки каталога — **`getPracticeCatalogStrings(locale)`** (`modules/practices/i18n/practices.ts`, `PracticeLocale = AppContentLocale`). Таймаут отложенной йоги — **30 с**. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк получает объект `{ practices, state }`, где `state = "ready" | "timeout" | "error"`. Таймаут больше не маскируется под «настоящий пустой каталог»: экран может продолжать late-loading, а если ответ Supabase пришёл после таймаута — приходит повторный `state: "ready"` с фактическим списком асан.
 
 - **`filterPractices(practices, filters): PracticeSummary[]`** / **`sortPracticesForCatalog(practices): PracticeSummary[]`**  
   Фильтр по чакре и «корзине» длительности; сортировка через `@shared/selector`.
@@ -46,7 +46,7 @@ code_refs:
 - **Типы:** `PracticeCatalog`, `PracticeCatalogFilters`, `PracticeDurationBucket`, `PracticeDurationPolicy`, `PracticeKind`, `PracticeLaunchParams`, `PracticeSummary`, `PracticeVideoMetadata`, `PracticeSelectorCandidate`, и т.д.; **`PracticeRecommendation`**, **`PracticeRecommendationLaunch`** из `@shared/recommendation`.
 
 - **`PracticeCatalogScreen`**  
-  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`. При отложенной йоге (`onLateYogaPractices`) после `await loadPracticeCatalog` выполняется yield микрозадач (`await Promise.resolve()`), затем в состояние подмешивается йога из слота; медитации и дыхание кэшируются в ref, чтобы колбэк мог собрать полный каталог до перехода экрана в `ready` (медленный ответ Supabase).
+  UI вкладки «Практики»: загрузка каталога, фильтры, `launchPractice(..., { launchSource: 'catalog' })`. При отложенной йоге (`onLateYogaPractices`) экран различает `ready / timeout / error`: timeout держит late-loading/hint вместо ложного `emptyGroup`, error показывает partial-catalog state, а `ready` гидрирует `catalog.yoga`. Для race-safe late merge экран кэширует `meditation+breath` в ref, умеет подобрать pending late-yoga даже если колбэк пришёл раньше основного `await`, и делает короткий macrotask-yield перед финальным merge, чтобы locale switch / ordering микрозадач не зафиксировали `catalog.yoga = []` при реально пришедших данных. Prefetch миниатюр Vimeo пропускает карточки, у которых уже есть сохранённый `video_thumbnail` из БД.
 
 - **`launchPractice(launch, options?): boolean`**  
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
@@ -129,7 +129,7 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`. Если пользователь просит **короткую / минимальную** практику без явного числа минут, серверный валидатор (`markers.ts`) берёт нижнюю границу каталога для уже названного типа: медитация 1 мин, дыхание 5 мин, асаны 20 мин.
 
-- **Йога:** выборка активных строк `practices` + связи `practice_chakras` (без тяжёлой колонки `params` в select); превью видео — `readPracticeVideoThumbnailFromParams` только если `params` доступны в строке. Локализованные поля jsonb (`title`, `description`, …) читаются через **`localizedText`** по активному `AppContentLocale` (`asContentLocale`, fallback en → ru); **`displayYogaTitle`** применяет RU-специфичные замены только для `SOURCE_LOCALE`, для EN — суффикс `_i…`, для остальных локалей — trim без трансформаций.
+- **Йога:** выборка активных строк `practices` + связи `practice_chakras` читает только нужные поля jsonb (`video_thumbnail`, `chakra_ids`, `primary_chakra_id`, `recorded_at`) вместо полного `params`, но по-прежнему позволяет каталогу использовать сохранённый thumbnail и chakra-fallback без обязательного live-roundtrip к Vimeo. Локализованные поля jsonb (`title`, `description`, …) читаются через **`localizedText`** по активному `AppContentLocale` (`asContentLocale`, fallback en → ru); **`displayYogaTitle`** применяет RU-специфичные замены только для `SOURCE_LOCALE`, для EN — суффикс `_i…`, для остальных локалей — trim без трансформаций.
 
 - **Сессии и контекст:** в `context` JSON кладутся продуктовые поля (`source`, `launch_source`, `practice_kind`, для асан — `vimeo_id` и т.д.) для аналитики и ассистента.
 - **Ожидающая практика вкладки «День»:** незавершённая карточка хранится не в `practice_sessions`, а в `day_practice_offers` (одна `pending` row на `user_id + local_date`). Источник offer — ручной выбор на вкладке или callback `Communicator.onPracticeOffered(...)` при ассистентской `PRACTICE_PICK`-карточке. Завершённые практики по-прежнему попадают в отчёты только через `practice_sessions`; `GET /api/day` автоматически считает pending offer завершённым, если в этот день появилась matching completed session после создания offer.

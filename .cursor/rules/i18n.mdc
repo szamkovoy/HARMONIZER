@@ -6,8 +6,8 @@ alwaysApply: true
 # i18n is a system invariant
 
 HARMONIZER is multilingual. Russian is the **authoring source of truth**; the app
-must behave identically in every enabled locale (RU/EN now; DE/FR/IT/ES/PT/NL
-later). Treat language as a first-class constraint, not an afterthought.
+must behave identically in **all 8 supported locales: RU, EN, DE, FR, IT, ES,
+PT, NL**. Treat language as a first-class constraint, not an afterthought.
 
 **Canonical docs:** `docs/02_modules/i18n/spec.md` (+ `dependencies.md`). Read them
 before any i18n-touching change. Design/rationale: `docs/04_workspace/i18n_architecture.md`.
@@ -25,11 +25,19 @@ shared locale-sensitive machinery (parsers, visible-text builders, scaffold
 labels, date/number formatting, fallback logic, prompt locale plumbing, or UI
 copy contracts) and fix it at that shared layer when possible.
 
+**Default expectation:** if a bug is in locale-sensitive logic, you must assume
+it can affect **all 8 supported locales** until you verify otherwise.
+
 For i18n-related bug fixes:
 1. Re-check whether the current locale could be part of the root cause.
 2. Prefer a language-agnostic or cross-locale fix over a single-locale patch.
-3. Add regression coverage for the reported locale **and** at least one broader
-   cross-locale/generalized case when feasible.
+3. Explicitly review impact on **RU, EN, DE, FR, IT, ES, PT, NL** when the bug
+   touches shared locale-sensitive logic (parsers, guards, prompt builders,
+   scaffold copy, fallback text, date/number handling, or locale plumbing).
+4. Add regression coverage for the reported locale **and** at least one broader
+   cross-locale/generalized case when feasible; when practical, prefer
+   table-driven tests spanning several supported locales instead of a
+   single-locale assertion.
 
 ## Hard rules
 1. **Never hardcode a user-facing Russian string** in JSX or a server response.

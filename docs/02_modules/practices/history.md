@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.16
-updated: 2026-06-18
+version: 1.17
+updated: 2026-06-19
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-19:** Practices-tab regression follow-up. Root cause was split across data shape and deferred-load semantics: the lighter yoga query had dropped the persisted thumbnail/chakra fallback path, and timeout/error still surfaced to `PracticeCatalogScreen` as a plain empty array. Fix: `catalog.ts` now selects only the needed jsonb slices (`video_thumbnail`, `chakra_ids`, `primary_chakra_id`, `recorded_at`) instead of the full `params` blob, and `onLateYogaPractices` reports `state: "ready" | "timeout" | "error"` so the screen can keep late-loading or show a partial-catalog error instead of silently rendering «нет асан». `PracticeCatalogScreen.tsx` also stopped prefetching Vimeo thumbnails for cards that already have a persisted thumbnail, so the DB path stays authoritative and does not get pointlessly overwritten by null live fetches.
+
+- **2026-06-18 (2):** Yoga catalog again reads `params` from Supabase so `PracticeCard` gets persisted `video_thumbnail` immediately. Root cause: the lighter select without `params` made the catalog depend almost entirely on live thumbnail fetches to Vimeo/backend; when those timed out, covers disappeared even though thumbnails were already stored in DB.
 
 - **2026-06-18:** Yoga catalog load: Supabase select без `params`, таймаут отложенной йоги 12→30 с, `loadYogaPractices` пробрасывает ошибку Supabase; fallback чакр из `params.chakra_ids` при пустом `practice_chakras`. Каталог: typed i18n для empty/late-loading/hint (`emptyPracticesHint`, `yogaLateLoadingTitle`, `invalidChakraFilterHint`) вместо hardcoded RU в `PracticeCatalogScreen`.
 
