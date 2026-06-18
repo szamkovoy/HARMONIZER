@@ -1,16 +1,19 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.14
+version: 2.15
 updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
     app/(tabs)/index.tsx,
+    app/(tabs)/day.tsx,
     modules/home/useDayContent.ts,
     modules/home/stripHomeLlmTexts.ts,
     modules/home/ui/NatalBirthDataModal.tsx,
     services/homeDayContentReloadRequest.ts,
+    services/dayPlan.ts,
+    services/dayPlanCache.ts,
     modules/home/ui/ChakraFlower.tsx,
     services/dailyForecastClient.ts,
     services/dayContentCache.ts,
@@ -64,6 +67,8 @@ code_refs:
 - `fetchDailyForecast(req: DailyForecastRequest): Promise<DailyForecastResult>` (`services/dailyForecastClient.ts`) — POST с JWT; тело: `forecastDate?`, `userLocation`, `recentPlanetsOfDay?`, `forceRefresh?`; нормализация snake_case ↔ camelCase. Контракт допускает быстрый базовый payload без полного набора AI-текстов.
 - `fetchGlobalContent` (`services/globalContentClient.ts`) — собирает `DailyForecast`-совместимый объект для free-режима (в т.ч. `computeWindowsForFreeUser` из `daily-engine`); POST `/api/ai/global-content` передаёт **`responseLocale`** (default `getResponseLocale()`); сервер отдаёт тексты из `global_daily_content.text_i18n` по локали (при отсутствии перевода — **`pickGlobalTexts`** отдаёт canonical RU сразу, а недостающая локаль догоняется **фоновым** `backfillGlobalTextI18n`, без блокировки HTTP-ответа). Клиентский transport: таймаут **`GLOBAL_CONTENT_TIMEOUT_MS` = 25s**; при сбое/таймауте HTTP — fallback-чтение `global_daily_content` через Supabase SDK **для любой локали** с выбором `text_i18n` на клиенте (при отсутствии перевода — RU canonical).
 - `loadDayContentCache` / `saveDayContentCache` / `peekDayContentCache` / **`peekDayContentCacheRelaxed` / `loadDayContentCacheRelaxed`** / `pruneDayContentCache` / `clearDayContentCache` (`services/dayContentCache.ts`) — локальный кэш дня (SecureStore / web storage + manifest), ключ: user + `accessMode` + `accessTier` + `forecastDate` + `scopeKey`; strict-пути дополнительно сверяют координаты записи с текущими, **relaxed** — читают сохранённый день и **`location` из записи** без lat/lon в профиле (offline/stale fallback на home).
+- `loadDayPlan()` / `renameDayAction` / `deleteDayAction` / … (`services/dayPlan.ts`) — GET `/api/day` с Bearer из **`getSupabaseAccessSession()`** (`services/supabase.ts`); после успешного fetch **`saveCachedDayPlan`** по `userId` + **`getResponseLocale()`**.
+- `peekCachedDayPlan` / `loadCachedDayPlan` / `saveCachedDayPlan` / `clearCachedDayPlan` (`services/dayPlanCache.ts`) — persisted кэш **`DayPlan`** (memory + SecureStore chunked / `localStorage`), ключ `harmonizer.dayPlan.v1.{userId}.{locale}`; запись валидна, пока `plan.currentLocalDate` совпадает с локальной датой в `plan.timezone`.
 - Валидация полноты прогноза (`services/dayContentIntegrity.ts`): `isBaseForecastValid` — минимальный набор полей для рендера; `isDayContentReadyForHome` — достаточен ли forecast для показа home (для paid-режима разрешает базовый слой без вторичных текстов); `isDayContentCacheable` — можно ли сохранить в локальный кэш (alias `isDayContentReadyForHome`); `isDayContentComplete` — полная проверка, включая `slogan`, `recommendationShortText`, `recommendationLongText`, `mathLevel`.
 - `loadOpportunityWindowsExplanation` (`services/opportunityWindowsExplanation.ts`) — формирует человекочитаемый текст, объясняющий чарт окна возможностей; используется help-модалом в `OpportunityWindows`. Ветвление по `accessMode`: **free** — упрощённый текст (планета дня, восход, кульминация, без транзитной планеты и точного аспекта); **paid** — полный текст (натальная планета дня, транзитная планета, восход/кульминация/точный аспект с подписями).
 

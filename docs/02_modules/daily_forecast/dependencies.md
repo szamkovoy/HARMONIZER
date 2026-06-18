@@ -1,16 +1,19 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.3
-updated: 2026-06-14
+version: 2.4
+updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
     app/(tabs)/index.tsx,
+    app/(tabs)/day.tsx,
     modules/home/useDayContent.ts,
     modules/home/stripHomeLlmTexts.ts,
     services/dailyForecastClient.ts,
     services/dayContentCache.ts,
+    services/dayPlan.ts,
+    services/dayPlanCache.ts,
     services/homeDayContentReloadRequest.ts,
     services/globalContentClient.ts,
     modules/daily-engine/index.ts,
@@ -47,6 +50,7 @@ code_refs:
 
 - **`profile`**  
   - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey`, режима доступа и автодозапроса геолокации (`acquireAndPersistUserCoordinates` → **`LocationAcquireResult`**, таймаут 12s, last-known; coords в сессии даже при `persisted: false`). Без coords в профиле хук читает **`userLocationProfileCache`**, затем **async `loadDayContentCacheRelaxed`** (на native sync-`peek*` не видит SecureStore); при stale offline-cache home не блокируется пустым `need_location`. Для paid-home именно `users.birth_date` решает, можно ли запускать персональный прогноз; отдельный клиентский fetch `user_natal_charts` больше не считается обязательным блокером первого рендера.  
+  - **`app/(tabs)/day.tsx`** — **`useAuth().authUser.id`** + **`useAppLocale().locale`** для ключа **`dayPlanCache`**; bearer для `/api/day` — через **`getSupabaseAccessSession()`** (`services/supabase.ts`), который **`AuthProvider`** подпитывает **`rememberSupabaseSession`** при каждом `onAuthStateChange`.  
   - `recentPlanetsOfDay` читается сервером из `user_settings.preferences` (см. `loadRecentPlanets` в `daily-forecast/route.ts`).  
   - После смены натала с **`app/(tabs)/profile.tsx`** главный экран может запросить **`refresh` с `blockingReload`** через **`consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`) при фокусе таба Home.
 
@@ -73,3 +77,4 @@ code_refs:
 - **Пустой `recentPlanetsOfDay` на мобильном пути** — смена поведения `chooseFinalPlanet` неочевидна для QA без заполненных preferences.
 - **Дубли формул Node/Deno** — правки только в одной копии дадут расхождение; опора на `daily-engine-parity.test.ts` + ручная осторожность вне покрытия теста.
 - **`forceRefresh` и кэш SecureStore** — должны инвалидироваться согласованно (`clearDayContentCache` в хуке).
+- **`dayPlanCache` vs prefetch snapshot** — короткий `dayPlanReloadRequest` и persisted cache решают разные задачи; смена `locale` или `userId` без инвалидации ключа даст устаревший Day tab до background refresh.

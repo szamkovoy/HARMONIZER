@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.90
-updated: 2026-06-19
+version: 2.91
+updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `daily_forecast` / `profile` — Day tab persisted cache (`services/dayPlanCache.ts`), instant restore on focus, bearer via `getSupabaseAccessSession` + `rememberSupabaseSession` in `AuthProvider`. Synced `daily_forecast/{spec,dependencies}.md`, `profile/{spec,dependencies,history}.md`, `MAP.md`.
 - 2026-06-19: `assistant` / `i18n` — follow-up to the IT regression bundle: locale-sensitive summary/practice guards were generalized to all 8 supported locales (RU/EN/DE/FR/IT/ES/PT/NL), scaffold clarifiers no longer ask for “one or two words” in non-RU locales, and the always-on i18n rule now explicitly requires cross-locale verification for locale-sensitive bug fixes. Synced `assistant/{spec,history}.md`, `dialog_scaffold/*`, `.cursor/rules/i18n.mdc`.
 - 2026-06-18: `assistant` — IT add-flow now closes on `Niente più` and similar close-answers; add persistence no longer duplicates reworded actions when the model bumps `display_order` or renames the verb (`Corsa di 3 km` → `Correre 3 km`), and add-flow finalize deletes stale rows from the same conversation. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — Day-tab add-flow finalization is now context-aware: replies like `No, non aggiungi più niente` / `Sì, possiamo finire` close the plan even as answers to the assistant’s own close-question; if the model still stays in gathering mode, the server does one hidden finalize retry, and add-flow persistence now updates the same conversation row by `display_order` instead of duplicating reworded actions. Synced `assistant/{spec,history}.md`.
