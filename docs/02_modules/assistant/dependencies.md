@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.20
-updated: 2026-06-17
+version: 1.21
+updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
@@ -28,6 +28,9 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`infra`**
   - Next.js API routes, **`gemini`**, мониторинг ошибок маршрутов, переменные окружения на Vercel. Для v3 explicit context caching пока доступен только in-memory store без внешнего Redis.
   - Опциональные серверные `TEST_MODE_*` (см. `docs/04_reference/test_mode.md`); при `NEXT_RUNTIME === "nodejs"` **`instrumentation.ts`** вызывает **`logTestModeStartupWarning`** из **`testMode.ts`**.
+
+- **Shared server util (assistant-internal)**
+  - **`_legacy_web/app/api/_utils/sphereHint.ts`**: `buildSphereStats`, `buildSphereHint`, `buildSphereBalanceLensForPrompt`, `loadRecentSphereRows` — общий расчёт баланса life-spheres по `planned_events.cells` (последние 7 активных локальных дней). Потребители: **`GET /api/day`** (`sphereHint`, `sphereStats`) и dialog add-flow (`resolveAddFlowSphereBalanceLens` → `addFlowSphereBalanceLens` в `buildPlanningPrompt`; compact English lens, не UI-текст Day-tab).
 
 ## 2. От него зависят
 

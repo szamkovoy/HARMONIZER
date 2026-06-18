@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.85
+version: 2.86
 updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant` — doc-sync: shared `_utils/sphereHint.ts` (Day-tab `sphereHint` + dialog add-flow `addFlowSphereBalanceLens`); removed stray PLANNING § line. Synced `assistant/{spec,dependencies}.md`, `MAP.md`.
 - 2026-06-18: `assistant/spec.md` — doc-sync hygiene: removed stray commit-message line accidentally left in PLANNING § after Day-tab add-flow opening update.
 - 2026-06-18: `assistant` / `i18n` / `communicator` — cross-locale planning-marker merge by `display_order` when inference locale ≠ response locale; `userSignalsPlanningDone` word-boundary matching; `getTranscribeLocale()` always returns active locale; exported `resolveVoiceTurnLocales`. Synced `assistant/{spec,history}.md`, `i18n/spec.md`, `communicator/spec.md`.
 - 2026-06-18: `assistant` — Day-tab add-flow opening is LLM-driven again with shared sphere-balance lens (`sphereHint.ts`) instead of fixed `planningAddOpening`. Synced `assistant/{spec,history}.md`.
