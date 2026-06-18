@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.76
+version: 2.77
 updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-06-18 (4):** Cross-locale planning-marker merge + done-signal word boundaries. When `planningInferenceLocale !== responseLocale`, `route.ts` passes `{ preferCurrentByDisplayOrder: true }` into `mergeHistoryPlanningMarkers()` / `mergePlanningMarkersWithVisibleFinalize()` so target-locale salvaged markers replace history-derived items by matching `display_order` instead of fuzzy identity (fixes duplicate RU+IT rows). `mergeHistoryPlanningMarkers` moved from `route.ts` into exported `dialogTurnGuards.ts`. `userSignalsPlanningDone` now matches done-phrases as standalone tokens (Unicode look-arounds), so substrings like «все» inside «все-таки хочу съездить в магазин…» no longer trigger premature finalize. Tests: `dialogTurnGuards.test.ts`.
 
 - **2026-06-18 (3):** Locale-routing contract for voice turns was flipped by product request. Outside `EXPO_PUBLIC_I18N_TEST_MODE` the assistant reply now stays fixed to the selected/profile locale, and `getTranscribeLocale()` again defaults to that locale; test mode becomes the speech-driven QA path where voice STT may auto-detect the spoken language and `Communicator` temporarily sends that locale as both `inputLocale` and `responseLocale`. This keeps production daily dialog profile-driven while preserving a deliberate multilingual test path.
 

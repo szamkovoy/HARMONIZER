@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.8
+version: 1.9
 updated: 2026-06-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -99,11 +99,12 @@ cost never decides layer-C design.
     **enabled** locale (else default). Use this at every boundary.
   - **`getResponseLocale()`** — locale the assistant should answer in (sent as
     `responseLocale`). Synchronous; safe to call from non-React services.
-  - **`getTranscribeLocale()`** — STT language; returns `"ru"` in test mode, else
-    the active locale. Sent to dialog POST as **`inputLocale`** so the server can
+  - **`getTranscribeLocale()`** — default STT/input locale; always returns the
+    active locale. Sent to dialog POST as **`inputLocale`** so the server can
     remind the model not to mirror the user's input language when it differs from
-    `responseLocale`. The communicator voice flow may override both locales per
-    turn after STT auto-detects another spoken language in production mode.
+    `responseLocale`. The communicator voice flow may still override both locales
+    per turn (`resolveVoiceTurnLocales` in i18n test mode after Whisper
+    auto-detect).
 
 ### 2.2 `t.ts` — translation + plurals
 - JSON catalogs `catalog/{ru,en,de,fr,it,es,pt,nl}.json` are flat dotted-key → string maps.
@@ -276,7 +277,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
                                         │                       resolveDialogScaffoldLocale (C)
    getResponseLocale() ──▶ ai/monologue + ai/global-content POST.responseLocale
                                         │                       (morning rec + free-tier texts)
-   getTranscribeLocale() ──▶ dialog POST body.inputLocale (STT language; may differ from responseLocale in test mode)
+   getTranscribeLocale() ──▶ dialog POST body.inputLocale (default STT = active locale; Communicator may override per voice turn in i18n test mode)
 ```
 
 ---

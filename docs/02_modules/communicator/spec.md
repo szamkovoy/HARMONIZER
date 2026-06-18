@@ -2,7 +2,7 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.41
+version: 2.42
 updated: 2026-06-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -10,6 +10,7 @@ code_refs:
     modules/communicator/ui/Communicator.tsx,
     modules/communicator/ui/AssistantBubble.tsx,
     modules/communicator/core/voiceTurnPipeline.ts,
+    modules/communicator/core/voiceTurnLocale.ts,
     modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/core/dialogTurnHydration.ts,
     modules/communicator/core/dialogExportMerge.ts,
@@ -71,6 +72,10 @@ code_refs:
 
 - `transcribeVoiceRecording({ uri, language?, signal? })` — до **`VOICE_TRANSCRIBE_MAX_ATTEMPTS`** (3) попыток по **`VOICE_TRANSCRIBE_ATTEMPT_MS`** (10 с) каждая; внутри вызывает `transcribeCommunicatorAudio` с `{ useNetworkRetry: false }`. В обычном режиме `Communicator.tsx` даёт STT language-hint из **`getTranscribeLocale()`** (активная/profile locale), и reply language остаётся profile-driven. При `EXPO_PUBLIC_I18N_TEST_MODE` язык-hint, наоборот, опускается, Whisper авто-определяет речь, и voice-turn может временно отправиться с override `inputLocale` + `responseLocale`, равным детектированному поддержанному языку, не меняя системную локаль UI.
 - `deleteVoiceRecordingFile(uri)`, тип **`RetainedVoiceRecording`** (URI, длительность, опционально `transcribedText`, `pendingVoiceId`).
+
+### Voice turn locale (`modules/communicator/core/voiceTurnLocale.ts`)
+
+- **`resolveVoiceTurnLocales({ detectedLanguage?, responseLocale, testMode })`** — pure helper: coerces Whisper `detectedLanguage` через `asContentLocale`; вне test mode возвращает profile `responseLocale`, в test mode при поддержанном detected locale временно подменяет `responseLocale` на язык речи для текущего voice-turn.
 
 ### Ошибки сети и UX (`services/userFacingErrors.ts`, `modules/ui/i18n/userErrors.ts`)
 
