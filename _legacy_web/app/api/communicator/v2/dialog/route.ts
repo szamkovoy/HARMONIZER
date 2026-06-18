@@ -84,6 +84,7 @@ import {
   historyHasPracticePicked,
   inferPlanningSpheresFromText,
   isPostDialogTurn,
+  mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
   practiceValidationForTurn,
   assistantAskedSummaryClarifyingQuestion,
@@ -263,32 +264,6 @@ function hydrateDeterministicPlanningMarkers(markers: PlannedEventMarker[]): Pla
     displayOrder: Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : index + 1,
     cells: marker.cells.length > 0 ? marker.cells : inferPlanningSpheresFromText(marker.desc),
   }));
-}
-
-function mergeHistoryPlanningMarkers(
-  accumulatedMarkers: PlannedEventMarker[],
-  currentMarkers: PlannedEventMarker[],
-): PlannedEventMarker[] {
-  if (accumulatedMarkers.length === 0) return [...currentMarkers];
-  if (currentMarkers.length === 0) return [...accumulatedMarkers];
-  const merged = accumulatedMarkers.map((marker) => ({ ...marker }));
-  for (const current of currentMarkers) {
-    const matchIndex = merged.findIndex((marker) => samePlannedEventIdentity(marker.desc, current.desc));
-    if (matchIndex < 0) {
-      merged.push({ ...current });
-      continue;
-    }
-    const previous = merged[matchIndex]!;
-    merged[matchIndex] = {
-      ...previous,
-      ...current,
-      recommendation: current.recommendation?.trim() ? current.recommendation : previous.recommendation,
-      cells: current.cells.length > 0 ? current.cells : previous.cells,
-      snippets: current.snippets.length > 0 ? current.snippets : previous.snippets,
-      displayOrder: previous.displayOrder ?? current.displayOrder,
-    };
-  }
-  return merged;
 }
 
 function filterDismissedPlanningMarkers(markers: PlannedEventMarker[], dismissedRefs: string[]): PlannedEventMarker[] {
@@ -1397,6 +1372,8 @@ export async function POST(req: Request) {
               }
             }
             const planningInferenceLocale = asContentLocale(body.inputLocale) ?? asContentLocale(context.user.locale) ?? "ru";
+            const responseLocale = asContentLocale(context.user.locale) ?? "ru";
+            const preferTargetLocaleMarkers = planningInferenceLocale !== responseLocale;
             const rawCurrentPlanningMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
             const hadExplicitPlanningMarkers = rawCurrentPlanningMarkers.length > 0;
             const planningHistory = !fsmAtTurnStart.planningFinalized
@@ -1429,7 +1406,9 @@ export async function POST(req: Request) {
               ...planningPersistence.cancelled.map((item) => item.title),
             ];
             let plannedMarkers = hadExplicitPlanningMarkers
-              ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers)
+              ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers, {
+                  preferCurrentByDisplayOrder: preferTargetLocaleMarkers,
+                })
               : inferredFromPlanningHistory;
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
             // model finalized this turn even if it forgot the invisible markers or
@@ -1449,7 +1428,9 @@ export async function POST(req: Request) {
               );
             if (finalizeIntent && salvagedFromVisible.length > 0) {
               const parsedWithoutRecommendationCount = plannedMarkers.filter((marker) => !marker.recommendation?.trim()).length;
-              plannedMarkers = mergePlanningMarkersWithVisibleFinalize(plannedMarkers, salvagedFromVisible);
+              plannedMarkers = mergePlanningMarkersWithVisibleFinalize(plannedMarkers, salvagedFromVisible, {
+                preferCurrentByDisplayOrder: preferTargetLocaleMarkers,
+              });
               if (plannedMarkers.length === salvagedFromVisible.length && parsedWithoutRecommendationCount === 0) {
                 console.warn(
                   "[DIALOG_FSM] Salvaged planning markers from visible finalize",

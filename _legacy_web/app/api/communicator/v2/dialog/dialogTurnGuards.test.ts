@@ -12,6 +12,7 @@ import {
   extractPlanningMarkersFromVisibleFinalize,
   filterPracticeLikePlannedEvents,
   isPracticeLikePlannedEventDesc,
+  mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
   userAffirmsPracticeOffer,
   buildSummaryClarifyingQuestion,
@@ -40,6 +41,11 @@ describe("dialogTurnGuards", () => {
   it("detects planning done signals", () => {
     expect(userSignalsPlanningDone("Думаю, достаточно этого.")).toBe(true);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
+    expect(
+      userSignalsPlanningDone(
+        "Сегодня я все-таки хочу съездить в магазин, посмотреть лодки, а потом сходить в кино.",
+      ),
+    ).toBe(false);
   });
 
   it("detects practice offer in assistant finalize", () => {
@@ -372,5 +378,133 @@ describe("dialogTurnGuards", () => {
     expect(merged).toHaveLength(1);
     expect(merged[0]?.recommendation).toBe("Profitez du trajet sans vous presser.");
     expect(merged[0]?.cells).toEqual([{ sphere: 2, weight: 0.8 }, { sphere: 1, weight: 0.2 }]);
+  });
+
+  it("prefers target-locale markers by display order instead of duplicating translated history items", () => {
+    const merged = mergeHistoryPlanningMarkers(
+      [
+        {
+          desc: "Все-таки хочу съездить в магазин, посмотреть лодки",
+          recommendation: null,
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 1, weight: 1 }],
+          snippets: [],
+        },
+        {
+          desc: "Далее хочу сходить в кино",
+          recommendation: null,
+          displayOrder: 2,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 5, weight: 1 }],
+          snippets: [],
+        },
+        {
+          desc: "Но до этого в течение дня нужно очень хорошо поработать",
+          recommendation: null,
+          displayOrder: 3,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 3, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      [
+        {
+          desc: "Andare in negozio per la barca",
+          recommendation: "Confronta le opzioni con calma.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 0.6 }, { sphere: 3, weight: 0.4 }],
+          snippets: [],
+        },
+        {
+          desc: "Andare al cinema",
+          recommendation: "Lascia che diventi un vero cambio di ritmo.",
+          displayOrder: 2,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 5, weight: 1 }],
+          snippets: [],
+        },
+        {
+          desc: "Lavorare sulle attività lavorative",
+          recommendation: "Tieni una linea chiara nelle priorità.",
+          displayOrder: 3,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 3, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      { preferCurrentByDisplayOrder: true },
+    );
+
+    expect(merged).toHaveLength(3);
+    expect(merged.map((item) => item.desc)).toEqual([
+      "Andare in negozio per la barca",
+      "Andare al cinema",
+      "Lavorare sulle attività lavorative",
+    ]);
+    expect(merged.every((item) => item.recommendation)).toBe(true);
+  });
+
+  it("backfills translated visible-final recommendations by display order without doubling items", () => {
+    const merged = mergePlanningMarkersWithVisibleFinalize(
+      [
+        {
+          desc: "Все-таки хочу съездить в магазин, посмотреть лодки",
+          recommendation: null,
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 1, weight: 1 }],
+          snippets: [],
+        },
+        {
+          desc: "Далее хочу сходить в кино",
+          recommendation: null,
+          displayOrder: 2,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 5, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      [
+        {
+          desc: "Andare in negozio per la barca",
+          recommendation: "Confronta le opzioni con calma.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 0.6 }, { sphere: 3, weight: 0.4 }],
+          snippets: [],
+        },
+        {
+          desc: "Andare al cinema",
+          recommendation: "Lascia che diventi un vero cambio di ritmo.",
+          displayOrder: 2,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 5, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      { preferCurrentByDisplayOrder: true },
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged.map((item) => item.desc)).toEqual([
+      "Andare in negozio per la barca",
+      "Andare al cinema",
+    ]);
+    expect(merged.map((item) => item.recommendation)).toEqual([
+      "Confronta le opzioni con calma.",
+      "Lascia che diventi un vero cambio di ritmo.",
+    ]);
   });
 });

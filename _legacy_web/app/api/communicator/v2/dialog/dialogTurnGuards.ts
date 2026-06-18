@@ -64,6 +64,33 @@ export function collectPlanningBranchUserHistory(history: MessageRecord[]): Arra
   return collected;
 }
 
+function standalonePhrasePattern(phrase: string): RegExp {
+  const escaped = escapeRegExp(phrase.trim()).replace(/\\ /g, String.raw`\s+`);
+  return new RegExp(String.raw`(?<![\p{L}\p{N}-])${escaped}(?![\p{L}\p{N}-])`, "iu");
+}
+
+const PLANNING_DONE_PATTERNS = [
+  standalonePhrasePattern("достаточно"),
+  standalonePhrasePattern("хватит"),
+  standalonePhrasePattern("всё"),
+  standalonePhrasePattern("все"),
+  standalonePhrasePattern("это всё"),
+  standalonePhrasePattern("это все"),
+  standalonePhrasePattern("больше ничего"),
+  standalonePhrasePattern("ничего больше"),
+  standalonePhrasePattern("на сегодня всё"),
+  standalonePhrasePattern("на сегодня все"),
+  standalonePhrasePattern("that's enough"),
+  standalonePhrasePattern("that is enough"),
+  standalonePhrasePattern("enough for today"),
+  standalonePhrasePattern("nothing else"),
+  standalonePhrasePattern("nothing more"),
+  standalonePhrasePattern("that's all"),
+  standalonePhrasePattern("that is all"),
+  standalonePhrasePattern("i'm done"),
+  standalonePhrasePattern("i am done"),
+];
+
 export function userSignalsPlanningDone(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/^[\s.!?,…:;-]+/u, "");
   if (!normalized) return false;
@@ -71,7 +98,8 @@ export function userSignalsPlanningDone(text: string): boolean {
   if (/^(?:нет|не|no|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/i.test(normalized)) {
     return true;
   }
-  return /(?:достаточно|хватит|всё|все|это всё|это все|больше ничего|ничего больше|ничего (?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше не\s+(?:надо|нужно|хочу)|на сегодня всё|на сегодня все|that's enough|that is enough|enough for today|nothing else|nothing more|that's all|that is all|i'm done|i am done)/i.test(
+  if (PLANNING_DONE_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
+  return /(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу))(?![\p{L}\p{N}-])/iu.test(
     normalized,
   );
 }
@@ -279,9 +307,37 @@ export function extractPlanningMarkersFromVisibleFinalize(
 export function mergePlanningMarkersWithVisibleFinalize(
   parsedMarkers: PlannedEventMarker[],
   salvagedMarkers: PlannedEventMarker[],
+  options?: { preferCurrentByDisplayOrder?: boolean },
 ): PlannedEventMarker[] {
   if (parsedMarkers.length === 0) return [...salvagedMarkers];
   if (salvagedMarkers.length === 0) return [...parsedMarkers];
+
+  if (options?.preferCurrentByDisplayOrder) {
+    const orderedParsed = [...parsedMarkers]
+      .map((marker, index) => ({ marker: { ...marker }, order: Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : index + 1 }))
+      .sort((left, right) => left.order - right.order);
+    const orderedSalvaged = [...salvagedMarkers]
+      .map((marker, index) => ({ marker: { ...marker }, order: Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : index + 1 }))
+      .sort((left, right) => left.order - right.order);
+    const sameLayout =
+      orderedParsed.length >= 2
+      && orderedParsed.length === orderedSalvaged.length
+      && orderedParsed.every((entry, index) => entry.order === orderedSalvaged[index]?.order);
+    if (sameLayout) {
+      return orderedParsed.map(({ marker }, index) => {
+        const salvaged = orderedSalvaged[index]!.marker;
+        return {
+          ...marker,
+          ...salvaged,
+          desc: salvaged.desc,
+          recommendation: salvaged.recommendation?.trim() ? salvaged.recommendation : marker.recommendation,
+          cells: salvaged.cells.length > 0 ? salvaged.cells : marker.cells,
+          snippets: salvaged.snippets.length > 0 ? salvaged.snippets : marker.snippets,
+          displayOrder: salvaged.displayOrder ?? marker.displayOrder ?? index + 1,
+        };
+      });
+    }
+  }
 
   const merged = parsedMarkers.map((marker) => ({ ...marker }));
   for (const salvaged of salvagedMarkers) {
@@ -300,6 +356,16 @@ export function mergePlanningMarkersWithVisibleFinalize(
     };
   }
   return merged;
+}
+
+export function mergeHistoryPlanningMarkers(
+  accumulatedMarkers: PlannedEventMarker[],
+  currentMarkers: PlannedEventMarker[],
+  options?: { preferCurrentByDisplayOrder?: boolean },
+): PlannedEventMarker[] {
+  if (accumulatedMarkers.length === 0) return [...currentMarkers];
+  if (currentMarkers.length === 0) return [...accumulatedMarkers];
+  return mergePlanningMarkersWithVisibleFinalize(accumulatedMarkers, currentMarkers, options);
 }
 
 /**

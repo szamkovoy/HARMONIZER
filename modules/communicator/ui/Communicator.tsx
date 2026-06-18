@@ -64,6 +64,7 @@ import { getTranscribeLocale, useAppLocale } from "@/modules/i18n";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { logErrorForDevelopers, resolveUserFacingAlert } from "@/services/userFacingErrors";
 import { sliceHistoryForWindow } from "@/modules/communicator/core/session-helpers";
+import { resolveVoiceTurnLocales } from "@/modules/communicator/core/voiceTurnLocale";
 import {
   communicatorRecordingFallbackOptions,
   whisperRecordingOptions,
@@ -1509,8 +1510,11 @@ export function Communicator({
         });
         transcriptResolved = true;
         const userMessageText = transcript.text.trim();
-        const detectedInputLocale = transcript.language?.trim().toLowerCase();
-        const detectedResponseLocale = !testMode && detectedInputLocale ? detectedInputLocale : responseLocale;
+        const { detectedInputLocale, responseLocale: detectedResponseLocale } = resolveVoiceTurnLocales({
+          detectedLanguage: transcript.language,
+          responseLocale,
+          testMode,
+        });
         setPhase("idle");
 
         if (isSpuriousTranscription(userMessageText)) {
