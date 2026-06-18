@@ -8,7 +8,7 @@
   "profile.comingSoon.title": "Bald hier",
   "profile.language.comingSoon": "bald",
   "profile.language.hint": "Sprache der Benutzeroberfläche und der Assistentenantworten.",
-  "profile.language.testModeNote": "Testmodus: Sie sprechen Russisch, aber die Benutzeroberfläche und Antworten sind in der gewählten Sprache.",
+  "profile.language.testModeNote": "Testmodus: Die Oberfläche bleibt in der gewählten Sprache, während der Sprachassistent in der Sprache antwortet, die Sie sprechen.",
   "profile.language.title": "Sprache",
   "profile.subtitle": "Minimaler Bereich für Einstellungen und Zugriffsprüfung für die erste Runde.",
   "profile.title": "Profil",

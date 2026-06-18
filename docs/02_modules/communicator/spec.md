@@ -3,7 +3,7 @@
 id: 02_modules/communicator/spec
 title: Communicator Spec
 version: 2.41
-updated: 2026-06-17
+updated: 2026-06-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -69,7 +69,7 @@ code_refs:
 
 ### Голосовой пайплайн (`modules/communicator/core/voiceTurnPipeline.ts`)
 
-- `transcribeVoiceRecording({ uri, language?, signal? })` — до **`VOICE_TRANSCRIBE_MAX_ATTEMPTS`** (3) попыток по **`VOICE_TRANSCRIBE_ATTEMPT_MS`** (10 с) каждая; внутри вызывает `transcribeCommunicatorAudio` с `{ useNetworkRetry: false }`. В `Communicator.tsx` в тест-режиме STT язык жёстко берётся из **`getTranscribeLocale()`** (`"ru"`), а в проде язык-hint может быть опущен, чтобы Whisper авто-определил речь. После voice STT `Communicator` в проде может отправить текущий turn с override `inputLocale` + `responseLocale`, равным детектированному языку, не меняя системную локаль UI.
+- `transcribeVoiceRecording({ uri, language?, signal? })` — до **`VOICE_TRANSCRIBE_MAX_ATTEMPTS`** (3) попыток по **`VOICE_TRANSCRIBE_ATTEMPT_MS`** (10 с) каждая; внутри вызывает `transcribeCommunicatorAudio` с `{ useNetworkRetry: false }`. В обычном режиме `Communicator.tsx` даёт STT language-hint из **`getTranscribeLocale()`** (активная/profile locale), и reply language остаётся profile-driven. При `EXPO_PUBLIC_I18N_TEST_MODE` язык-hint, наоборот, опускается, Whisper авто-определяет речь, и voice-turn может временно отправиться с override `inputLocale` + `responseLocale`, равным детектированному поддержанному языку, не меняя системную локаль UI.
 - `deleteVoiceRecordingFile(uri)`, тип **`RetainedVoiceRecording`** (URI, длительность, опционально `transcribedText`, `pendingVoiceId`).
 
 ### Ошибки сети и UX (`services/userFacingErrors.ts`, `modules/ui/i18n/userErrors.ts`)
@@ -168,7 +168,7 @@ code_refs:
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EXPO_PUBLIC_COMMUNICATOR_API_URL` (и fallback `EXPO_PUBLIC_BACKEND_API_URL`) | Origin Vercel без суффикса `/api`; см. `services/communicatorConfig.ts`. Отсутствие переменной — ошибка при первом запросе.                                                                                                   |
 | URL диалога                                                                   | `getAiDialogUrl()` если в запросе передан `**scenario_id**`, иначе `getCommunicatorV2DialogUrl()`. Текущий `**Communicator**` не передаёт `scenarioId` в `runChatStream` — главный поток всегда использует **v2 dialog URL**. |
-| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional **`inputLocale`** (язык STT/ввода; по умолчанию `getTranscribeLocale()`; в i18n test mode может отличаться от `responseLocale`), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked` и/или `meta.branches`/`dialog_branches`. `Communicator.tsx` передаёт оба locale явно из `useAppLocale()`. |
+| `sendDialogMessage` body                                                      | `scenario_id`, `conversationId`, `useCase`, `entrySource`, `triggerMeta`, `userMessage`, `userTimezone`, optional **`responseLocale`** (язык ответа ассистента; по умолчанию `getResponseLocale()` из `@/modules/i18n`), optional **`inputLocale`** (язык STT/ввода; по умолчанию `getTranscribeLocale()` = active locale; в i18n test mode voice-turn может отличаться от `responseLocale` после автоопределения речи), optional `turnHistory`, optional `initiateDialog`; внутри `turnHistory` assistant-turn может нести минимальный `meta.practicePicked` и/или `meta.branches`/`dialog_branches`. `Communicator.tsx` передаёт оба locale явно из `useAppLocale()`. |
 | Константы UI                                                                  | `MIN_VOICE_MS` (450), `LOW_TRANSCRIPTION_CONFIDENCE` (0.65), лимит текста 8000 символов.                                                                                                                                      |
 | Режим текста                                                                  | `COMMUNICATOR_TEXT_MODE_ENABLED` — если выключен, только голос без переключателя.                                                                                                                                             |
 | Дебаг                                                                         | Подпись `model: …` у бейджа ассистента и кнопка `Export dialog to JSON` — только в `**__DEV__`**.                                                                                                                             |

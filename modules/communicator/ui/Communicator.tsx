@@ -1504,9 +1504,10 @@ export function Communicator({
         setPhase("transcribing");
         const transcript = await transcribeVoiceRecording({
           uri,
-          // Test mode keeps STT in Russian while the dialog answers in the
-          // selected language; production lets STT auto-detect the spoken language.
-          language: testMode ? getTranscribeLocale() : undefined,
+          // In normal mode STT follows the selected profile locale; in i18n test
+          // mode we omit the hint so Whisper can auto-detect the spoken language
+          // and the reply can follow it for this turn.
+          language: testMode ? undefined : getTranscribeLocale(),
         });
         transcriptResolved = true;
         const userMessageText = transcript.text.trim();
@@ -2054,7 +2055,7 @@ export function Communicator({
     setPendingTranscript(null);
     setPendingTranscriptConfidence(undefined);
     const localeOverride =
-      pendingTranscriptLocale && !testMode
+      pendingTranscriptLocale && testMode
         ? { responseLocale: pendingTranscriptLocale, inputLocale: pendingTranscriptLocale }
         : undefined;
     setPendingTranscriptLocale(undefined);

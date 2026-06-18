@@ -4,12 +4,13 @@
 
 title: Documentation Changelog
 version: 2.83
-updated: 2026-06-17
+updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `i18n` / `communicator` / `assistant` — inverted voice locale routing by product request: outside `EXPO_PUBLIC_I18N_TEST_MODE` replies stay on the selected/profile locale, while test mode becomes the speech-driven QA path (Whisper auto-detect → per-turn reply locale override). Synced `i18n/{spec,dependencies,history}.md`, `communicator/{spec,dependencies,history}.md`, `assistant/{spec,dependencies,history}.md`.
 - 2026-06-17: `communicator` — `buildClientTurnHistory` now forwards assistant `branches`/`dialog_branches` in `turnHistory` meta (alongside `practicePicked`) so server planning-backstop can rebuild multi-message plans under lean storage. Synced `communicator/{spec,dependencies,history}.md`, `assistant/dependencies.md`.
 - 2026-06-18: `assistant` — planning persistence now rebuilds a canonical action list from the whole planning branch (`turnHistory` + current turn), not only from the last user message or final invisible markers; the server upserts that accumulated list on every planning turn, fills deterministic spheres for fallback actions, and excludes `dismissed` rows so cancelled actions do not resurrect in Day. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — planning persistence no longer relies solely on invisible model markers: `route.ts` falls back to inferring actions from the current user message, and main-final orphan cleanup now runs only for explicit marker-backed finals, so a dropped item in the model wrap-up no longer erases already gathered Day actions. Synced `assistant/{spec,history}.md`.

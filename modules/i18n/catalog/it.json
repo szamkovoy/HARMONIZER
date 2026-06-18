@@ -8,7 +8,7 @@
   "profile.comingSoon.title": "Prossimamente",
   "profile.language.comingSoon": "presto",
   "profile.language.hint": "Lingua dell'interfaccia e delle risposte dell'assistente.",
-  "profile.language.testModeNote": "Modalità test: parli in russo, interfaccia e risposte nella lingua selezionata.",
+  "profile.language.testModeNote": "Modalità test: l'interfaccia resta nella lingua selezionata, mentre l'assistente vocale risponde nella lingua in cui parli.",
   "profile.language.title": "Lingua",
   "profile.subtitle": "Area minima per impostazioni e verifica dell'accesso per la prima fase.",
   "profile.title": "Profilo",

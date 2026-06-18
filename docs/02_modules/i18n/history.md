@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.4
-updated: 2026-06-16
+version: 1.5
+updated: 2026-06-18
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-18 (2):** **Test-mode locale routing inverted on purpose.** `EXPO_PUBLIC_I18N_TEST_MODE` no longer means "RU speech + selected-language reply". Instead, voice turns in test mode omit the STT language hint, Whisper auto-detects the spoken language, and `Communicator` routes that turn's reply to the detected supported locale; outside test mode the assistant reply stays fixed to the selected/profile locale, and `getTranscribeLocale()` again defaults to the active locale. Low-confidence transcript review preserves the detected locale only in test mode. Profile language note updated across all 8 UI catalogs.
 
 - **2026-06-18:** **Global-content serve path (non-blocking i18n).** `POST /api/ai/global-content` no longer awaits `ensureGlobalTextI18nPrecomputed` on cache hit when `text_i18n[locale]` is missing — responds immediately with RU fallback (`pickGlobalTexts`) and schedules single-locale `backfillGlobalTextI18n` in the background. Client `fetchGlobalContent` SDK fallback enabled for all locales (was ru-only). Fixes persistent Home timeout card for FR/DE/etc. users on free tier.
 

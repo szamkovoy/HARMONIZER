@@ -3,7 +3,7 @@
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
 version: 1.17
-updated: 2026-06-17
+updated: 2026-06-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -32,7 +32,7 @@ code_refs:
 - `**modules/ui**` (i18n ошибок)  
 `modules/ui/i18n/userErrors.ts` — строки Alert, в т.ч. **`timeoutTitle`** / **`timeoutMessage`**; потребляется через `services/userFacingErrors.ts` в `Communicator` и на других экранах.
 - **`i18n`** (`modules/i18n`, `@/modules/i18n`)  
-`Communicator.tsx` — **`useAppLocale()`** + **`getTranscribeLocale()`**: в test mode STT hint = RU, dialog POST несёт явные **`responseLocale`** (app locale) и **`inputLocale`** (transcribe locale); вне test mode voice path может опустить STT hint, принять Whisper auto-detect и override-ить `responseLocale` + `inputLocale` детектированным языком текущей реплики. Хост-экраны передают prop **`locale`** из **`useAppLocale()`**. `services/communicator-client.ts` — **`getResponseLocale()`** / **`getTranscribeLocale()`** добавляют **`responseLocale`** / **`inputLocale`** в каждый dialog POST (серверный контракт — `docs/02_modules/i18n/dependencies.md` § assistant).
+`Communicator.tsx` — **`useAppLocale()`** + **`getTranscribeLocale()`**: вне test mode STT hint и язык ответа следуют active/profile locale; при `EXPO_PUBLIC_I18N_TEST_MODE` voice path может опустить STT hint, принять Whisper auto-detect и override-ить `responseLocale` + `inputLocale` детектированным языком текущей реплики. Хост-экраны передают prop **`locale`** из **`useAppLocale()`**. `services/communicator-client.ts` — **`getResponseLocale()`** / **`getTranscribeLocale()`** добавляют **`responseLocale`** / **`inputLocale`** в каждый dialog POST (серверный контракт — `docs/02_modules/i18n/dependencies.md` § assistant).
 - `**profile**` (через auth)  
 `modules/communicator/ui/Communicator.tsx` — `useAuth()` / `profile` для подписи уровня доступа к модели в dev/test (`tierLabelFromProfile`) и для ключа локального session-cache (`profile.id` + `useCase` + `entrySource` + локальная дата в tz устройства через `services/dialogSessionCache.ts`), не для гейтинга функций.
 - `**assistant**` (транспорт daily dialog)  

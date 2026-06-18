@@ -7,10 +7,8 @@ import { syncUserLocaleToServer } from "@/services/userLocaleClient";
  *
  * - The selected locale drives UI strings AND the `responseLocale` sent to the
  *   dialog/greeting API.
- * - Transcription (STT) language is derived separately: in TEST MODE the user
- *   keeps speaking Russian (`transcribeLocale = "ru"`) while everything else is
- *   in the selected language; in production the input language follows the
- *   selected locale.
+ * - Transcription (STT) language defaults to the selected locale. The voice
+ *   pipeline may still choose per-turn auto-detect behavior in Communicator.
  *
  * Persistence reuses the app's expo-secure-store / web-localStorage pattern.
  * See docs/04_workspace/i18n_architecture.md.
@@ -40,8 +38,8 @@ export const APP_LOCALE_OPTIONS: readonly AppLocaleOption[] = [
 export const DEFAULT_APP_LOCALE: AppLocale = "ru";
 
 /**
- * Test mode: speak Russian, receive the selected language. Toggled by env so the
- * developer can spot-check other languages without changing how they talk.
+ * Test mode: allow voice turns to follow the spoken language instead of the
+ * selected profile locale. Toggled by env for multilingual QA.
  */
 export const I18N_TEST_MODE: boolean = ((): boolean => {
   const raw = (process.env.EXPO_PUBLIC_I18N_TEST_MODE ?? "").trim().toLowerCase();
@@ -180,7 +178,7 @@ export function getResponseLocale(): AppLocale {
   return currentLocale;
 }
 
-/** Language for STT — stays Russian in test mode so the dev can speak Russian. */
+/** Default STT/input locale follows the selected app locale. */
 export function getTranscribeLocale(): AppLocale {
-  return I18N_TEST_MODE ? "ru" : currentLocale;
+  return currentLocale;
 }

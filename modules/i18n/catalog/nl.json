@@ -8,7 +8,7 @@
   "profile.comingSoon.title": "Binnenkort hier",
   "profile.language.comingSoon": "binnenkort",
   "profile.language.hint": "Taal van de interface en de antwoorden van de assistent.",
-  "profile.language.testModeNote": "Testmodus: je spreekt Russisch, maar de interface en antwoorden zijn in de gekozen taal.",
+  "profile.language.testModeNote": "Testmodus: de interface blijft in de gekozen taal, terwijl de spraakassistent antwoordt in de taal die je spreekt.",
   "profile.language.title": "Taal",
   "profile.subtitle": "Minimale ruimte voor instellingen en toegang voor de eerste ronde.",
   "profile.title": "Profiel",

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.7
-updated: 2026-06-16
+version: 1.8
+updated: 2026-06-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -58,12 +58,11 @@ it is now.
 They are NOT required to match. This decoupling powers **test mode**.
 
 ### 1.2 Test mode (developer)
-`EXPO_PUBLIC_I18N_TEST_MODE` (client) = "speak Russian, see another language".
-When on, transcription stays `ru` while UI + response follow the selected locale,
-so a Russian-speaking developer can spot-check any language. When off, the app UI
-still follows the selected locale, while the communicator voice path may
-auto-detect the spoken input language and send that as the dialog reply locale for
-that turn only.
+`EXPO_PUBLIC_I18N_TEST_MODE` (client) now flips the **voice reply-locale policy**.
+When on, the app UI still follows the selected locale, but voice turns omit the STT
+language hint, Whisper auto-detects the spoken language, and the assistant replies
+in that detected speech language for that turn. When off, both UI and assistant
+reply stay on the selected/profile locale; voice STT defaults to that locale too.
 
 ### 1.3 The three text layers — never conflate
 | Layer | What | Goes to LLM? | Policy |
@@ -314,6 +313,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 - **Per-locale checklist when enabling a new language:** JSON catalog (`fill`),
   typed overlay JSON (`fill --all`), layer C builders, Luxon verify, then flip
   `enabled: true`. Run `node scripts/i18n-sync.mjs check`.
-- **Current production behavior:** communicator voice turns may auto-detect the
-  spoken language and temporarily route the reply there; the profile/app locale
-  remains the source of truth for all non-dialog UI.
+- **Current production behavior:** outside test mode communicator voice turns keep
+  the assistant reply on the shared profile/app locale. `EXPO_PUBLIC_I18N_TEST_MODE`
+  enables the opposite QA path: voice turns may auto-detect the spoken language and
+  temporarily reply there, while the non-dialog UI still follows the shared locale.

@@ -12,9 +12,9 @@ import {
 export interface UseAppLocaleResult {
   /** Active UI + response locale. */
   locale: AppLocale;
-  /** STT language (stays "ru" in test mode). */
+  /** Default STT/input locale. Voice turns may still auto-detect per turn. */
   transcribeLocale: AppLocale;
-  /** Whether RU-input / other-language-output test mode is on. */
+  /** Whether speech-driven reply-language test mode is on. */
   testMode: boolean;
   setLocale: (locale: AppLocale) => void;
 }

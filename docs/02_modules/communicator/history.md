@@ -2,7 +2,7 @@
 id: 02_modules/communicator/history
 title: Communicator History
 version: 2.37
-updated: 2026-06-17
+updated: 2026-06-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -18,6 +18,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-18:** Voice locale routing inverted by product request. `Communicator.tsx` now keeps STT + reply locale profile-driven outside `EXPO_PUBLIC_I18N_TEST_MODE`, while test mode becomes the speech-driven QA path: it omits the STT hint, lets Whisper auto-detect the spoken language, and routes that turn's `responseLocale` there when the locale is supported. Low-confidence transcript review preserves the detected locale only in test mode. Added pure helper `voiceTurnLocale.ts` + regression tests.
 
 - **2026-06-17:** `buildClientTurnHistory` / `DialogTurnHistoryItem.meta` теперь прокидывают `branches` и `dialog_branches` для assistant-turn (наряду с `practicePicked` и voice-meta), чтобы серверный planning-backstop (`collectPlanningBranchUserHistory` в `assistant`) мог собрать user-replies всей planning-ветки из client `turnHistory` при lean storage. Docs sync: `communicator/{spec,dependencies,history}.md`.
 

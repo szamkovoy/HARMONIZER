@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveVoiceTurnLocales } from "./voiceTurnLocale";
 
 describe("resolveVoiceTurnLocales", () => {
-  it("uses a supported detected locale outside test mode", () => {
+  it("keeps the selected response locale outside test mode", () => {
     expect(
       resolveVoiceTurnLocales({
         detectedLanguage: "it-IT",
@@ -12,7 +12,7 @@ describe("resolveVoiceTurnLocales", () => {
       }),
     ).toEqual({
       detectedInputLocale: "it",
-      responseLocale: "it",
+      responseLocale: "fr",
     });
   });
 
@@ -29,7 +29,7 @@ describe("resolveVoiceTurnLocales", () => {
     });
   });
 
-  it("keeps the selected response locale in i18n test mode", () => {
+  it("uses the detected speech locale in i18n test mode", () => {
     expect(
       resolveVoiceTurnLocales({
         detectedLanguage: "ru",
@@ -38,7 +38,7 @@ describe("resolveVoiceTurnLocales", () => {
       }),
     ).toEqual({
       detectedInputLocale: "ru",
-      responseLocale: "it",
+      responseLocale: "ru",
     });
   });
 });

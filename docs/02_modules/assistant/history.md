@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.75
+version: 2.76
 updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-06-18 (3):** Locale-routing contract for voice turns was flipped by product request. Outside `EXPO_PUBLIC_I18N_TEST_MODE` the assistant reply now stays fixed to the selected/profile locale, and `getTranscribeLocale()` again defaults to that locale; test mode becomes the speech-driven QA path where voice STT may auto-detect the spoken language and `Communicator` temporarily sends that locale as both `inputLocale` and `responseLocale`. This keeps production daily dialog profile-driven while preserving a deliberate multilingual test path.
 
 - **2026-06-18 (2):** Planning persistence переведена из «последний turn + marker fallback» в **накопительную каноническую схему по всей planning-ветке**. Корневая проблема после итальянского QA оказалась не только в invisible markers, а в том, что even improved fallback смотрел лишь на **текущую** пользовательскую реплику: если пользователь называл действия в нескольких сообщениях, финальный turn без `[PLANNED_EVENT]` мог сохранить только хвост, а детерминированный fallback не знал ни про более ранние действия, ни про их сферы, ни про уже отменённые пункты. Фикс в `route.ts`/`dialogTurnGuards.ts`: client `turnHistory` теперь сохраняет assistant `branches`, route через `collectPlanningBranchUserHistory()` вытаскивает все user-turns именно planning-ветки, `inferPlannedEventsFromUserHistory(...)` работает по накопленному planning-history, а не по одному сообщению, и `inferPlanningSpheresFromText()` детерминированно заполняет `cells` там, где модель их не дала. Дальше `persistPlanningFinalize` получает уже **канонический список всей ветки** и на каждом planning-ходе upsert-ит его целиком: обычный planning переписывает собственный список беседы (с чисткой stale rows этой беседы), add-flow по-прежнему только дописывает хвост после уже существующего дня. Отдельно накопительный fallback теперь уважает отмены: `dismissed` rows этой беседы исключаются из history-derived списка, чтобы отменённое действие не «воскресало» на следующем ходу. Тесты: `dialogTurnGuards.test.ts`, `route.test.ts`, `plannedEventInference.test.ts`, плюс `tsc -p _legacy_web/tsconfig.json --noEmit` — зелёные. Docs sync: `assistant/spec.md`, `assistant/history.md`, `00_index/CHANGELOG.md`.
 
