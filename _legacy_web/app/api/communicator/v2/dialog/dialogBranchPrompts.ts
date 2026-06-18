@@ -353,10 +353,6 @@ export function countDayTabActionsFromTriggerMeta(
   }).length;
 }
 
-export function planningAddOpeningText(locale: AppContentLocale): string {
-  return getDialogScaffoldStrings(locale).planningAddOpening;
-}
-
 function planningAddIntro(count: number, locale: AppContentLocale): string {
   const s = getDialogScaffoldStrings(locale);
   if (locale === SOURCE_LOCALE) {
@@ -420,6 +416,8 @@ export type PlanningTurnInput = {
   planningLocked: boolean;
   /** Count of actions ALREADY planned for the day at the start of this turn (drives the add-flow opening). */
   existingActionCount: number;
+  /** Sphere-balance facts for Day-tab add opening (optional; same stats as Day-tab sphereHint). */
+  addFlowSphereBalanceLens?: string | null;
 };
 
 export type PracticeTurnInput = {
@@ -685,6 +683,9 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
   if (ctx.planningSphereLens) {
     lines.push(`- Gentle breadth nudge: ${ctx.planningSphereLens}`);
   }
+  if (input.addFlowSphereBalanceLens) {
+    lines.push(`- ${input.addFlowSphereBalanceLens}`);
+  }
   if (input.noGreeting) {
     lines.push("- This is an ADD flow opened from the Day tab: do NOT greet, do NOT restate or rewrite the day focus, and NEVER emit [CORRECT_RECOMMENDATION] in any form. Just help add the new action(s).");
   }
@@ -742,7 +743,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     input.isOpening
       ? (input.noGreeting
         ? (input.existingActionCount > 0
-          ? `THIS TURN: the user opened the Day tab "Add" flow and the day ALREADY has ${input.existingActionCount} planned action(s). Do NOT greet and do NOT plan the day from scratch. In ONE short, warm sentence ask what else they want to ADD to today. Do NOT re-list or restate the existing actions, and do NOT ask "what is planned today?" as if starting over.`
+          ? `THIS TURN: Day-tab Add flow; the day already has ${input.existingActionCount} planned action(s). In 1-2 short warm sentences invite what else to ADD today${input.addFlowSphereBalanceLens ? "; optionally nudge one small action from a barely-present life sphere noted above" : ""}. No greeting; do not re-list existing actions or plan from scratch.`
           : "THIS TURN: the user is adding action(s) from the Day tab — help them name the action(s); do not greet.")
         : "THIS TURN: open the planning — warmly ask what is ahead today.")
       : input.userSignaledDone

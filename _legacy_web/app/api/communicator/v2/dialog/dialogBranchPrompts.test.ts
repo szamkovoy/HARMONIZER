@@ -10,7 +10,6 @@ import {
   extractDayFocusFromVisibleFinalize,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
-  planningAddOpeningText,
   polishPlanningMarker,
   prependChakraAttention,
   replaceSpontaneousEnglishRu,
@@ -179,9 +178,39 @@ describe("buildPlanningPrompt", () => {
       planningLocked: false,
       existingActionCount: 2,
     });
-    expect(userInstruction).toMatch(/ALREADY has 2 planned action/i);
-    expect(userInstruction).toMatch(/what else they want to ADD/i);
-    expect(userInstruction).toMatch(/Do NOT re-list or restate the existing actions/i);
+    expect(userInstruction).toMatch(/already has 2 planned action/i);
+    expect(userInstruction).toMatch(/what else to ADD today/i);
+    expect(userInstruction).toMatch(/do not re-list existing actions/i);
+  });
+
+  it("includes sphere-balance facts in the add-flow opening when provided", () => {
+    const lens = "Sphere balance: already strong in body; barely present: rest.";
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: true,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 2,
+      addFlowSphereBalanceLens: lens,
+    });
+    expect(userInstruction).toContain(lens);
+    expect(userInstruction).toMatch(/optionally nudge one small action/i);
+  });
+
+  it("uses the same add opening via LLM when sphere balance is omitted", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: true,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 3,
+      addFlowSphereBalanceLens: null,
+    });
+    expect(userInstruction).toMatch(/Day-tab Add flow/i);
+    expect(userInstruction).toMatch(/what else to ADD today/i);
+    expect(userInstruction).not.toMatch(/optionally nudge/i);
   });
 
   it("falls back to the plain add-flow opening when the day has no actions yet", () => {
@@ -205,11 +234,6 @@ describe("buildPlanningPrompt", () => {
       ],
     }, "2026-06-18");
     expect(count).toBe(2);
-  });
-
-  it("returns localized deterministic add-flow opening copy", () => {
-    expect(planningAddOpeningText("ru")).toMatch(/Что ещё вы хотите добавить/i);
-    expect(planningAddOpeningText("it")).toMatch(/Cos'altro vuoi aggiungere/i);
   });
 
   it("keeps add-flow in gathering mode until the user says they are done", () => {

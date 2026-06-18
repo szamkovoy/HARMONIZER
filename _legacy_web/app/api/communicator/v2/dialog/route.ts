@@ -60,7 +60,6 @@ import {
   buildPracticePrompt,
   buildSummarizingPrompt,
   countDayTabActionsFromTriggerMeta,
-  planningAddOpeningText,
   buildPlanningAddFinalVisibleText,
   buildPlanningDeclinedReply,
   buildPlanningFinalVisibleText,
@@ -117,6 +116,11 @@ import {
 } from "@legacy/app/api/_utils/dialogLocale";
 import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import { getDialogScaffoldStrings } from "@legacy/app/api/_utils/dialogScaffold";
+import {
+  buildSphereBalanceLensForPrompt,
+  buildSphereStats,
+  loadRecentSphereRows,
+} from "@legacy/app/api/_utils/sphereHint";
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
 
 export const runtime = "nodejs";
@@ -534,6 +538,20 @@ function turnDecisionEvent(mode: TurnMode) {
 /** Planned events that are still open for the working day, in deterministic order. */
 function openDueEvents(context: LoadedContext): PlannedEventRow[] {
   return context.dueEvents.filter((event) => event.status === "planned");
+}
+
+async function resolveAddFlowSphereBalanceLens(
+  db: SupabaseClient,
+  userId: string,
+  workingLocalDate: string,
+  locale: AppContentLocale,
+): Promise<string | null> {
+  const [currentRows, recentRows] = await Promise.all([
+    loadPlannedEventsForLocalDate(db, userId, workingLocalDate),
+    loadRecentSphereRows(db, userId, workingLocalDate),
+  ]);
+  const stats = buildSphereStats(recentRows.length > 0 ? recentRows : currentRows, locale);
+  return buildSphereBalanceLensForPrompt(stats, locale);
 }
 
 function immediateDialogStream(params: {
@@ -1187,6 +1205,15 @@ export async function POST(req: Request) {
       const existingActionCount = fsm.noGreeting
         ? countDayTabActionsFromTriggerMeta(triggerMeta, workingLocalDate)
         : 0;
+      const addFlowSphereBalanceLens =
+        fsm.noGreeting && isOpening && existingActionCount > 0
+          ? await resolveAddFlowSphereBalanceLens(
+            db,
+            userId,
+            workingLocalDate,
+            resolveDialogScaffoldLocale(context.user.locale),
+          )
+          : null;
       prompt = buildPlanningPrompt(brainCtx, {
         isOpening,
         noPractice: fsm.noPractice,
@@ -1194,6 +1221,7 @@ export async function POST(req: Request) {
         userSignaledDone: userSignalsPlanningDone(userMessage),
         planningLocked: fsm.planningFinalized,
         existingActionCount,
+        addFlowSphereBalanceLens,
       });
     }
 
@@ -1259,51 +1287,6 @@ export async function POST(req: Request) {
         targetChakra: context.targetChakra,
         shouldClose: true,
         branches: ["practice"],
-        iteration,
-        messageId: insertedAssistant?.id ?? null,
-      });
-    }
-
-    const planningAddOpeningNeeded =
-      fsm.branch === "planning"
-      && isOpening
-      && fsm.noGreeting
-      && countDayTabActionsFromTriggerMeta(triggerMeta, workingLocalDate) > 0;
-    if (planningAddOpeningNeeded) {
-      const locale = resolveDialogScaffoldLocale(context.user.locale);
-      const openingText = planningAddOpeningText(locale);
-      const { data: insertedAssistant, error: openingInsertError } = await db
-        .from("messages")
-        .insert({
-          user_id: userId,
-          conversation_id: conversation.id,
-          role: "assistant",
-          content: null,
-          content_type: "text",
-          meta: {
-            use_case: useCase,
-            scenario_id: scenarioId,
-            turn_mode: "opening",
-            model_used: DIALOG_MODEL_TIER,
-            latency_ms: Date.now() - requestStartedMs,
-            iteration,
-            ready_marker_triggered: false,
-            dialog_branches: ["planning"],
-            target_chakra: promptContext.targetChakra,
-            phase_time: context.phaseTime,
-          },
-        })
-        .select("id")
-        .single();
-      if (openingInsertError) throw openingInsertError;
-      return immediateDialogStream({
-        conversationId: conversation.id,
-        fullText: openingText,
-        turnMode: "opening",
-        phaseTime: context.phaseTime,
-        targetChakra: context.targetChakra,
-        shouldClose: false,
-        branches: ["planning"],
         iteration,
         messageId: insertedAssistant?.id ?? null,
       });
