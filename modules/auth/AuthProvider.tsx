@@ -22,7 +22,7 @@ import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
-import { requireSupabase } from "@/services/supabase";
+import { rememberSupabaseSession, requireSupabase } from "@/services/supabase";
 import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
 import { rewriteAuthNetworkError } from "./authNetworkErrors";
 import { signInWithApple } from "./sign-in-apple";
@@ -169,6 +169,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         clearTimeout(safetyTimerId);
         safetyTimerId = undefined;
       }
+      rememberSupabaseSession(next);
       sessionRef.current = next;
       setAuthCore({ session: next, initializing: false });
       void syncProfile(next?.user ?? null).catch((error: unknown) => {
@@ -240,6 +241,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       sessionRef.current = next;
+      rememberSupabaseSession(next);
       setAuthCore((prev) => ({ ...prev, session: next }));
       void syncProfile(next?.user ?? null).catch((error: unknown) => {
         // eslint-disable-next-line no-console

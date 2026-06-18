@@ -1,8 +1,10 @@
 import { getDayUrl } from "@/services/communicatorConfig";
-import { requireSupabase } from "@/services/supabase";
+import { getSupabaseAccessSession } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 import type { PracticeSummary } from "@/modules/practices/core/types";
+import { getResponseLocale } from "@/modules/i18n";
+import { saveCachedDayPlan } from "@/services/dayPlanCache";
 
 export type DayAction = {
   id: string;
@@ -68,14 +70,6 @@ export type DayPlan = {
   pendingPractice: DayPracticeOffer | null;
 };
 
-async function getAccessToken(): Promise<string> {
-  const { data, error } = await requireSupabase().auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Нужна авторизация Supabase для загрузки дня.");
-  return token;
-}
-
 const DAY_PLAN_FETCH_TIMEOUT_MS = 45_000;
 
 async function fetchDayJson<T>(
@@ -84,7 +78,8 @@ async function fetchDayJson<T>(
   options?: { timeoutMs?: number },
 ): Promise<T> {
   return withTransientNetworkRetry(async () => {
-    const accessToken = await getAccessToken();
+    const session = await getSupabaseAccessSession();
+    const accessToken = session.access_token;
     const timeoutMs = options?.timeoutMs ?? DAY_PLAN_FETCH_TIMEOUT_MS;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -116,7 +111,13 @@ async function fetchDayJson<T>(
 }
 
 export async function loadDayPlan(): Promise<DayPlan> {
-  return fetchDayJson<DayPlan>(getDayUrl());
+  const plan = await fetchDayJson<DayPlan>(getDayUrl());
+  void saveCachedDayPlan({
+    userId: (await getSupabaseAccessSession()).user.id,
+    locale: getResponseLocale(),
+    plan,
+  });
+  return plan;
 }
 
 export async function renameDayAction(eventId: string, title: string): Promise<void> {

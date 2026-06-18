@@ -14,6 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
+import { useAuth } from "@/modules/auth";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import { getDayStrings, mapDateLabelKind, type DayStrings } from "@/modules/day/i18n/day";
 import { useAppLocale, type AppLocale } from "@/modules/i18n";
@@ -39,6 +40,7 @@ import {
   type DaySphereStat,
 } from "@/services/dayPlan";
 import { consumePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
+import { loadCachedDayPlan, peekCachedDayPlan } from "@/services/dayPlanCache";
 
 type AssistantMode = "plan" | "add" | "summary";
 type PracticeMenuLevel = "closed" | "root" | "breath" | "yoga";
@@ -424,6 +426,7 @@ function chooseYogaByBucket(catalog: PracticeCatalog, bucket: "20-30" | "31-40" 
 
 export default function DayTabRoute() {
   const theme = useTheme();
+  const { authUser } = useAuth();
   const { locale: appLocale } = useAppLocale();
   const dayStrings = useMemo(() => getDayStrings(appLocale), [appLocale]);
   const reportLocale = appLocale;
@@ -476,6 +479,7 @@ export default function DayTabRoute() {
   useFocusEffect(
     useCallback(() => {
       if (assistantSessionRef.current && planRef.current) return;
+      let cancelled = false;
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       });
@@ -484,9 +488,25 @@ export default function DayTabRoute() {
         setPlan(prefetched);
         setError(null);
         setLoading(false);
+      } else if (authUser?.id) {
+        const cached = peekCachedDayPlan({ userId: authUser.id, locale: reportLocale });
+        if (cached) {
+          setPlan(cached);
+          setError(null);
+          setLoading(false);
+        }
+        void loadCachedDayPlan({ userId: authUser.id, locale: reportLocale }).then((persisted) => {
+          if (cancelled || !persisted || planRef.current) return;
+          setPlan(persisted);
+          setError(null);
+          setLoading(false);
+        });
       }
       void refresh();
-    }, [refresh]),
+      return () => {
+        cancelled = true;
+      };
+    }, [authUser?.id, refresh, reportLocale]),
   );
 
   useEffect(() => {

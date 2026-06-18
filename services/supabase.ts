@@ -28,6 +28,7 @@ import { logRuntimeEvent } from "./runtimeDiagnostics";
 
 const EXPO_SB_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const EXPO_SB_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+const ACCESS_TOKEN_EXPIRY_SKEW_MS = 60_000;
 
 function assertExpoPublicSupabaseUrl(url: string): void {
   let parsed: URL;
@@ -183,6 +184,7 @@ function createAuthStorageAdapter(): SupabaseAuthStorage {
 }
 
 const authStorageAdapter = createAuthStorageAdapter();
+let lastKnownSession: Session | null = null;
 
 /** Ключ хранения сессии GoTrue — как в `@supabase/supabase-js` (`sb-<ref>-auth-token`). */
 export function computeSupabaseAuthStorageKey(supabaseUrl: string): string | null {
@@ -221,6 +223,47 @@ export async function readPersistedAuthSessionFromStorage(): Promise<Session | n
   } catch {
     return null;
   }
+}
+
+function sessionHasUsableAccessToken(session: Session | null, allowExpired = false): session is Session {
+  if (!session?.access_token || !session.user?.id) return false;
+  if (allowExpired) return true;
+  const expiresAtMs = typeof session.expires_at === "number" ? session.expires_at * 1000 : null;
+  return !expiresAtMs || expiresAtMs - Date.now() > ACCESS_TOKEN_EXPIRY_SKEW_MS;
+}
+
+export function rememberSupabaseSession(session: Session | null): void {
+  lastKnownSession = session;
+}
+
+export async function getSupabaseSessionSnapshot(options?: { allowExpired?: boolean }): Promise<Session | null> {
+  const allowExpired = options?.allowExpired === true;
+  if (sessionHasUsableAccessToken(lastKnownSession, allowExpired)) {
+    return lastKnownSession;
+  }
+  const disk = await readPersistedAuthSessionFromStorage();
+  if (sessionHasUsableAccessToken(disk, allowExpired)) {
+    rememberSupabaseSession(disk);
+    return disk;
+  }
+  return null;
+}
+
+export async function getSupabaseAccessSession(): Promise<Session> {
+  const snapshot = await getSupabaseSessionSnapshot();
+  if (snapshot) return snapshot;
+
+  const { data, error } = await requireSupabase().auth.getSession();
+  if (error) throw error;
+  rememberSupabaseSession(data.session ?? null);
+  if (data.session?.access_token && data.session.user?.id) {
+    return data.session;
+  }
+  throw new Error("Нужна авторизация Supabase.");
+}
+
+export async function getSupabaseAccessToken(): Promise<string> {
+  return (await getSupabaseAccessSession()).access_token;
 }
 
 type SupabaseFetchInput = string | URL | Request;
