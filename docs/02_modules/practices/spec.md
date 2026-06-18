@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.14
-updated: 2026-06-16
+version: 1.15
+updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -35,7 +35,7 @@ code_refs:
 ### Пакет `modules/practices` (`index.ts`)
 
 - **`loadPracticeCatalog(options?, deps?): Promise<PracticeCatalog>`**  
-  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. **`loadYogaPractices(locale?: PracticeLocale)`** (default `"ru"`) — отдельная загрузка йоги; UI-строки каталога — **`getPracticeCatalogStrings(locale)`** (`modules/practices/i18n/practices.ts`, `PracticeLocale = AppContentLocale`). Таймаут загрузки йоги — 12 с. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк вызывается не позже чем через 12 с (при ошибке или таймауте — `[]`), а если ответ Supabase пришёл после таймаута — возможен повторный вызов с фактическим списком асан.
+  Собирает каталог: статическая медитация «Вспышка», дыхательные практики из `BREATH_PRACTICES` (`modules/breath/core/practices.ts`), асаны из Supabase `practices` с `kind = 'yoga'` и вложенным `practice_chakras`. **`loadYogaPractices(locale?: PracticeLocale)`** (default `"ru"`) — отдельная загрузка йоги; select **без колонки `params`** (облегчённый запрос); чакры — из embedded `practice_chakras`, при пустой связи — fallback `chakrasFromParams` из jsonb `params.chakra_ids` / `primary_chakra_id` (если `params` доступны). При ошибке Supabase **пробрасывает** исключение; клиент без `getSupabase()` — **`requireSupabase()`**. UI-строки каталога — **`getPracticeCatalogStrings(locale)`** (`modules/practices/i18n/practices.ts`, `PracticeLocale = AppContentLocale`). Таймаут отложенной йоги — **30 с**. Без `onLateYogaPractices` при таймауте в возвращаемом объекте йога пустая. С `onLateYogaPractices` каталог возвращается сразу с пустой йогой; колбэк вызывается не позже чем через 30 с (при ошибке или таймауте — `[]`), а если ответ Supabase пришёл после таймаута — возможен повторный вызов с фактическим списком асан.
 
 - **`filterPractices(practices, filters): PracticeSummary[]`** / **`sortPracticesForCatalog(practices): PracticeSummary[]`**  
   Фильтр по чакре и «корзине» длительности; сортировка через `@shared/selector`.
@@ -125,11 +125,11 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **Медитация:** одна статическая карточка, slug `sacred-symbol-stream`; пользовательский диапазон в каталоге/карточке и у ассистента — **1–5 минут**; дефолт launch в **`catalog.ts`** остаётся **3 мин**, а экран **`SacredSymbolStreamScreen`** при отсутствии params использует **5 мин** — расхождение дефолтов зафиксировано в `history.md`.
 
-- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания и group titles каталога — **`getPracticeCatalogStrings(locale)`** (RU/EN inline + typed overlays de–nl). Счётчики и footer каталога: gate-synced шаблоны **`practiceCountOne`**, **`practiceCountWithTotal`** (`{count}`), **`catalogFooterTemplate`** (`{total}`); **`getPracticeCatalogStrings`** собирает `practiceCount`/`catalogFooter` из overlay + для EN при `count === 1` — `practiceCountOne`.
+- **Дыхание:** семь типов (`coherent`, `nadi-shodhana`, `surya-bhedana`, `chandra-bhedana`, `square`, `triangle-up`, `triangle-down`); описания и group titles каталога — **`getPracticeCatalogStrings(locale)`** (RU/EN inline + typed overlays de–nl). Счётчики и footer каталога: gate-synced шаблоны **`practiceCountOne`**, **`practiceCountWithTotal`** (`{count}`), **`catalogFooterTemplate`** (`{total}`); **`getPracticeCatalogStrings`** собирает `practiceCount`/`catalogFooter` из overlay + для EN при `count === 1` — `practiceCountOne`. Empty/late-loading/hint copy каталога — typed поля **`emptyPracticesHint`**, **`yogaLateLoadingTitle`**, **`invalidChakraFilterHint`** (используются в **`PracticeCatalogScreen`**, без hardcoded RU в JSX).
 
 - **Assistant entry:** default marker `id="default"` на сервере резолвится в coherent breathing 600 секунд с чакрой дня; в UI пользователь может поменять duration/chakra перед стартом через общий `PracticeCard`. Если пользователь просит **короткую / минимальную** практику без явного числа минут, серверный валидатор (`markers.ts`) берёт нижнюю границу каталога для уже названного типа: медитация 1 мин, дыхание 5 мин, асаны 20 мин.
 
-- **Йога:** выборка активных строк `practices` + связи `practice_chakras`; превью по `readPracticeVideoThumbnailFromParams` из `params`. Локализованные поля jsonb (`title`, `description`, …) читаются через **`localizedText`** по активному `AppContentLocale` (`asContentLocale`, fallback en → ru); **`displayYogaTitle`** применяет RU-специфичные замены только для `SOURCE_LOCALE`, для EN — суффикс `_i…`, для остальных локалей — trim без трансформаций.
+- **Йога:** выборка активных строк `practices` + связи `practice_chakras` (без тяжёлой колонки `params` в select); превью видео — `readPracticeVideoThumbnailFromParams` только если `params` доступны в строке. Локализованные поля jsonb (`title`, `description`, …) читаются через **`localizedText`** по активному `AppContentLocale` (`asContentLocale`, fallback en → ru); **`displayYogaTitle`** применяет RU-специфичные замены только для `SOURCE_LOCALE`, для EN — суффикс `_i…`, для остальных локалей — trim без трансформаций.
 
 - **Сессии и контекст:** в `context` JSON кладутся продуктовые поля (`source`, `launch_source`, `practice_kind`, для асан — `vimeo_id` и т.д.) для аналитики и ассистента.
 - **Ожидающая практика вкладки «День»:** незавершённая карточка хранится не в `practice_sessions`, а в `day_practice_offers` (одна `pending` row на `user_id + local_date`). Источник offer — ручной выбор на вкладке или callback `Communicator.onPracticeOffered(...)` при ассистентской `PRACTICE_PICK`-карточке. Завершённые практики по-прежнему попадают в отчёты только через `practice_sessions`; `GET /api/day` автоматически считает pending offer завершённым, если в этот день появилась matching completed session после создания offer.

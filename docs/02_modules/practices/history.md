@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.15
-updated: 2026-06-16
+version: 1.16
+updated: 2026-06-18
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-18:** Yoga catalog load: Supabase select без `params`, таймаут отложенной йоги 12→30 с, `loadYogaPractices` пробрасывает ошибку Supabase; fallback чакр из `params.chakra_ids` при пустом `practice_chakras`. Каталог: typed i18n для empty/late-loading/hint (`emptyPracticesHint`, `yogaLateLoadingTitle`, `invalidChakraFilterHint`) вместо hardcoded RU в `PracticeCatalogScreen`.
 
 - **2026-06-16 (3):** Assistant practice i18n: `practiceCardSummary.ts` — generic card/reason fallbacks для всех 8 локалей (без chakra-name leakage); `practiceSelection.ts` локализует `practice_picked.name`. `SacredSymbolStreamScreen` — density chip labels через `getSymbolStreamStrings` (`densityAiry`/`densityBalanced`/`densityDense`).
 
