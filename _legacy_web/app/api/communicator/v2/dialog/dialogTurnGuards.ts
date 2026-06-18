@@ -10,6 +10,12 @@ import {
   interpolate,
   summaryClarifyVariant,
 } from "@legacy/app/api/_utils/dialogScaffold";
+import {
+  filterClosureEchoPlanningMarkers,
+  isPlanningDoneLikeDescription,
+  isPlanningGatheringClosureTurn,
+  type ClosureHistoryMessage,
+} from "@legacy/app/api/_utils/planningDonePhrases";
 import { samePlannedEventIdentity } from "@legacy/app/api/_utils/plannedEventInference";
 import type { DialogFsmState } from "@legacy/app/api/communicator/v2/dialog/dialogFsm";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
@@ -48,12 +54,25 @@ export function historyHasPracticePicked(history: MessageRecord[]): boolean {
 }
 
 export function collectPlanningBranchUserHistory(history: MessageRecord[]): Array<{ role: "user"; content: string }> {
-  const collected: Array<{ role: "user"; content: string }> = [];
+  return collectPlanningBranchDialogHistory(history)
+    .filter((message): message is { role: "user"; content: string } => message.role === "user" && Boolean(message.content?.trim()))
+    .map((message) => ({ role: "user", content: String(message.content).trim() }));
+}
+
+export function collectPlanningBranchDialogHistory(history: MessageRecord[]): ClosureHistoryMessage[] {
+  const collected: ClosureHistoryMessage[] = [];
   let activeBranch: string | null = null;
   for (const message of history) {
     if (message.role === "assistant") {
       const branches = messageBranches(message);
       if (branches.length > 0) activeBranch = branches[0] ?? null;
+      if (activeBranch === "planning") {
+        collected.push({
+          role: "assistant",
+          content: message.content,
+          transcript: message.transcript,
+        });
+      }
       continue;
     }
     if (message.role === "user" && activeBranch === "planning") {
@@ -75,97 +94,13 @@ export function assistantAskedPlanningClosure(history: MessageRecord[]): boolean
   return asksToAddMore || asksToClose;
 }
 
-function standalonePhrasePattern(phrase: string): RegExp {
-  const escaped = escapeRegExp(phrase.trim()).replace(/\\ /g, String.raw`\s+`);
-  return new RegExp(String.raw`(?<![\p{L}\p{N}-])${escaped}(?![\p{L}\p{N}-])`, "iu");
-}
-
-const PLANNING_DONE_PATTERNS = [
-  standalonePhrasePattern("достаточно"),
-  standalonePhrasePattern("хватит"),
-  standalonePhrasePattern("всё"),
-  standalonePhrasePattern("все"),
-  standalonePhrasePattern("это всё"),
-  standalonePhrasePattern("это все"),
-  standalonePhrasePattern("больше ничего"),
-  standalonePhrasePattern("ничего больше"),
-  standalonePhrasePattern("на сегодня всё"),
-  standalonePhrasePattern("на сегодня все"),
-  standalonePhrasePattern("that's enough"),
-  standalonePhrasePattern("that is enough"),
-  standalonePhrasePattern("enough for today"),
-  standalonePhrasePattern("nothing else"),
-  standalonePhrasePattern("nothing more"),
-  standalonePhrasePattern("that's all"),
-  standalonePhrasePattern("that is all"),
-  standalonePhrasePattern("i'm done"),
-  standalonePhrasePattern("i am done"),
-  standalonePhrasePattern("va bene così"),
-  standalonePhrasePattern("va bene cosi"),
-  standalonePhrasePattern("basta"),
-  standalonePhrasePattern("questo è sufficiente"),
-  standalonePhrasePattern("questo e sufficiente"),
-  standalonePhrasePattern("niente altro"),
-  standalonePhrasePattern("niente più"),
-  standalonePhrasePattern("niente piu"),
-  standalonePhrasePattern("niente da affrontare"),
-  standalonePhrasePattern("nient'altro"),
-  standalonePhrasePattern("non c'è più niente da aggiungere"),
-  standalonePhrasePattern("non c e piu niente da aggiungere"),
-  standalonePhrasePattern("non voglio affrontare niente"),
-  standalonePhrasePattern("non voglio aggiungere altro"),
-  standalonePhrasePattern("ça suffit"),
-  standalonePhrasePattern("ca suffit"),
-  standalonePhrasePattern("c'est suffisant"),
-  standalonePhrasePattern("cest suffisant"),
-  standalonePhrasePattern("rien d'autre"),
-  standalonePhrasePattern("plus rien"),
-  standalonePhrasePattern("es reicht"),
-  standalonePhrasePattern("das reicht"),
-  standalonePhrasePattern("nichts mehr"),
-  standalonePhrasePattern("meer niet"),
-  standalonePhrasePattern("dat is genoeg"),
-  standalonePhrasePattern("niets meer"),
-  standalonePhrasePattern("ya está"),
-  standalonePhrasePattern("ya esta"),
-  standalonePhrasePattern("es suficiente"),
-  standalonePhrasePattern("nada más"),
-  standalonePhrasePattern("nada mas"),
-  standalonePhrasePattern("já chega"),
-  standalonePhrasePattern("ja chega"),
-  standalonePhrasePattern("é suficiente"),
-  standalonePhrasePattern("e suficiente"),
-  standalonePhrasePattern("nada mais"),
-];
-
 export function userSignalsPlanningDone(text: string, history: MessageRecord[] = []): boolean {
-  const normalized = text.trim().toLowerCase().replace(/^[\s.!?,…:;-]+/u, "");
-  if (!normalized) return false;
-  // Bare negation as a standalone reply ("нет", "no", "не, всё") = done adding.
-  if (/^(?:(?:нет|не|no|nono|no\s+no)|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/iu.test(normalized)) {
-    return true;
-  }
-  if (PLANNING_DONE_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
-  if (/(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|pi[uú]|da\s+aggiungere|da\s+affrontare)|non\s+voglio\s+affrontare\s+niente|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|non\s+aggiung(?:o|i)\s+più\s+niente|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
-    normalized,
-  )) {
-    return true;
-  }
-  if (/(?<![\p{L}\p{N}-])(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)(?![\p{L}\p{N}-])/iu.test(
-    normalized,
-  )) {
-    return true;
-  }
-  if (
-    history.length > 0
-    && assistantAskedPlanningClosure(history)
-    && /^(?:(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|s[iì]|oui|ja|sim)[!.,\s]+)?(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|va\s+bene\s+cos[ìi]|niente\s+pi[uú]|niente\s+altro|nient['’]altro|basta|that'?s\s+enough|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)[!.,\s]*$/iu.test(
-      normalized,
-    )
-  ) {
-    return true;
-  }
-  return false;
+  const closureHistory: ClosureHistoryMessage[] = history.map((message) => ({
+    role: message.role,
+    content: message.content,
+    transcript: message.transcript,
+  }));
+  return isPlanningGatheringClosureTurn(text, closureHistory);
 }
 
 const PRACTICE_OFFER_RE =
@@ -188,6 +123,20 @@ export function isPracticeLikePlannedEventDesc(desc: string): boolean {
 
 export function filterPracticeLikePlannedEvents(markers: PlannedEventMarker[]): PlannedEventMarker[] {
   return markers.filter((marker) => !isPracticeLikePlannedEventDesc(marker.desc));
+}
+
+export function filterPlanningDoneLikePlannedEvents(markers: PlannedEventMarker[]): PlannedEventMarker[] {
+  return markers.filter((marker) => !isPlanningDoneLikeDescription(marker.desc));
+}
+
+export function filterPersistablePlanningMarkers(
+  markers: PlannedEventMarker[],
+  options?: { closureUserMessage?: string | null },
+): PlannedEventMarker[] {
+  return filterClosureEchoPlanningMarkers(
+    filterPlanningDoneLikePlannedEvents(filterPracticeLikePlannedEvents(markers)),
+    options?.closureUserMessage,
+  );
 }
 
 export function userDeclinesPracticeOffer(text: string): boolean {

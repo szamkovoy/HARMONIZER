@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 
 import type { PlannedEventMarker } from "@legacy/app/api/_utils/markers";
 import { validateHistoryHasDurationAndType } from "@legacy/app/api/_utils/markers";
+import { isPlanningDoneLikeDescription, isPlanningGatheringClosureTurn, looksLikeNewPlannedAction } from "@legacy/app/api/_utils/planningDonePhrases";
 import { parseEventTime } from "@legacy/app/api/_utils/timeParser";
 
 type HistoryMessage = {
@@ -348,7 +349,7 @@ function isPracticeOnlySegment(text: string, nowLocal: DateTime, tz: string, loc
 }
 
 function hasStrongPlanningCue(text: string): boolean {
-  return /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|планируется|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь|voglio|vorrei|andr[òo]|vado|devo|mi\s+aspetta|pianific|programma|obiettivo|goal|i\s+want|i['’]?ll|i\s+will|going\s+to)(?=$|[\s,.;:!?()])/i.test(text);
+  return looksLikeNewPlannedAction(text);
 }
 
 function looksLikeCompletedOutcomeSegment(text: string): boolean {
@@ -553,20 +554,27 @@ export function inferPlannedEventsFromUserHistory(params: {
   tz: string;
   locale: string;
 }): PlannedEventMarker[] {
-  const userTexts = [
-    ...params.history.filter((message) => message.role === "user").map(userText),
-    ...(params.pendingUserMessage?.trim() ? [params.pendingUserMessage.trim()] : []),
-  ]
-    .filter(Boolean)
-    .slice(-MAX_HISTORY_MESSAGES_FOR_PLANNING_INFERENCE);
+  const timeline: HistoryMessage[] = [
+    ...params.history.filter(Boolean),
+    ...(params.pendingUserMessage?.trim()
+      ? [{ role: "user", content: params.pendingUserMessage.trim() }]
+      : []),
+  ].slice(-MAX_HISTORY_MESSAGES_FOR_PLANNING_INFERENCE * 3);
 
   const inferred: PlannedEventMarker[] = [];
   const seen = new Set<string>();
 
-  for (const text of userTexts) {
+  for (let index = 0; index < timeline.length; index += 1) {
+    const message = timeline[index]!;
+    if (message.role !== "user") continue;
+    const text = userText(message);
+    if (!text) continue;
+    const historyBefore = timeline.slice(0, index);
+    if (isPlanningGatheringClosureTurn(text, historyBefore)) continue;
     const segmentCandidates: Array<{ event: PlannedEventMarker; expectedKey: string; descLen: number }> = [];
 
     for (const segment of splitEventSegments(text)) {
+      if (isPlanningGatheringClosureTurn(segment, historyBefore)) continue;
       if (isGenericDayOverviewSegment(segment)) continue;
       if (isPracticeOnlySegment(segment, params.nowLocal, params.tz, params.locale)) continue;
       if (looksLikeCompletedOutcomeSegment(segment) && !hasStrongPlanningCue(segment)) continue;
@@ -593,6 +601,7 @@ export function inferPlannedEventsFromUserHistory(params: {
 
       const desc = buildEventDescription(segment, parsed.matchedPhrase);
       if (!desc) continue;
+      if (isPlanningDoneLikeDescription(desc)) continue;
       if (isGenericDayOverviewDescription(desc) || isBareTimeClarificationDescription(desc)) continue;
 
       const effectiveTimeSource = implicitTimeNorm ?? desc;

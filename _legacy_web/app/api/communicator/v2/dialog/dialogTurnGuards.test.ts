@@ -12,6 +12,7 @@ import {
   coerceFsmBeforeTurn,
   collectPlanningBranchUserHistory,
   extractPlanningMarkersFromVisibleFinalize,
+  filterPersistablePlanningMarkers,
   filterPracticeLikePlannedEvents,
   isPracticeLikePlannedEventDesc,
   mergeHistoryPlanningMarkers,
@@ -47,6 +48,8 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Questo è sufficiente.")).toBe(true);
     expect(userSignalsPlanningDone("Non c'è più niente da aggiungere.")).toBe(true);
     expect(userSignalsPlanningDone("Non voglio affrontare niente.")).toBe(true);
+    expect(userSignalsPlanningDone("Non voglio aggiungere più niente.")).toBe(true);
+    expect(userSignalsPlanningDone("Non voglio aggiungere piu niente.")).toBe(true);
     expect(userSignalsPlanningDone("Niente da affrontare.")).toBe(true);
     expect(userSignalsPlanningDone("No, non aggiungi più niente.")).toBe(true);
     expect(userSignalsPlanningDone("Sì, possiamo finire.")).toBe(true);
@@ -69,7 +72,16 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Sì, possiamo finire.", history)).toBe(true);
     expect(userSignalsPlanningDone("No, non aggiungi più niente.", history)).toBe(true);
     expect(userSignalsPlanningDone("Niente più.", history)).toBe(true);
+    expect(userSignalsPlanningDone("Non voglio aggiungere più niente.", history)).toBe(true);
     expect(userSignalsPlanningDone("Sì, aggiungo ancora una cosa.", history)).toBe(false);
+  });
+
+  it("treats unseen decline phrasing as closure when answering an add-more question", () => {
+    const history = [
+      assistantMsg("C'è altro che vuoi aggiungere al piano per oggi?"),
+    ];
+    expect(userSignalsPlanningDone("No grazie, per oggi basta così.", history)).toBe(true);
+    expect(userSignalsPlanningDone("Anche una riunione alle tre.", history)).toBe(false);
   });
 
   it("detects practice offer in assistant finalize", () => {
@@ -88,6 +100,26 @@ describe("dialogTurnGuards", () => {
     ]);
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.desc).toBe("Прогулка в парке");
+  });
+
+  it("filters planning-done closure phrases from persistable markers", () => {
+    const filtered = filterPersistablePlanningMarkers([
+      { desc: "Lavoro", recommendation: "a", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      { desc: "Non voglio aggiungere più niente", recommendation: "b", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      { desc: "Cinema stasera", recommendation: "c", displayOrder: 2, time: null, timeNorm: null, cells: [], snippets: [] },
+    ]);
+    expect(filtered.map((marker) => marker.desc)).toEqual(["Lavoro", "Cinema stasera"]);
+  });
+
+  it("drops visible markers that echo the user's closure reply", () => {
+    const filtered = filterPersistablePlanningMarkers(
+      [
+        { desc: "Lavoro", recommendation: "a", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+        { desc: "Non voglio aggiungere più niente", recommendation: "b", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+      { closureUserMessage: "Non voglio aggiungere più niente." },
+    );
+    expect(filtered.map((marker) => marker.desc)).toEqual(["Lavoro"]);
   });
 
   it("coerces planning to practice when user names meditation duration", () => {

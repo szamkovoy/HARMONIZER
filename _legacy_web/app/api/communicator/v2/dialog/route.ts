@@ -80,10 +80,11 @@ import {
   assistantFinalizeWithoutMarkers,
   buildPostDialogReply,
   assistantVisibleContainsSummaryClarifyingCue,
+  collectPlanningBranchDialogHistory,
   collectPlanningBranchUserHistory,
   coerceFsmBeforeTurn,
   extractPlanningMarkersFromVisibleFinalize,
-  filterPracticeLikePlannedEvents,
+  filterPersistablePlanningMarkers,
   historyHasPracticePicked,
   inferPlanningSpheresFromText,
   isPostDialogTurn,
@@ -1182,6 +1183,9 @@ export async function POST(req: Request) {
       !isInitiate && fsm.branch === "planning"
         ? userSignalsPlanningDone(userMessage, history)
         : false;
+    const planningMarkerFilterOptions = planningDoneIntent
+      ? { closureUserMessage: userMessage }
+      : undefined;
 
     if (fsm.branch === "summarizing" && due.length === 0) {
       if (!daySummaryRequested) {
@@ -1416,9 +1420,10 @@ export async function POST(req: Request) {
             && planningDoneIntent
             && fsmAtTurnStart.noGreeting
           ) {
-            const explicitPlanningMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
-            const salvagedPlanningMarkers = filterPracticeLikePlannedEvents(
+            const explicitPlanningMarkers = filterPersistablePlanningMarkers(markers.plannedEvents, planningMarkerFilterOptions);
+            const salvagedPlanningMarkers = filterPersistablePlanningMarkers(
               extractPlanningMarkersFromVisibleFinalize(sanitizedVisibleText, resolveDialogScaffoldLocale(context.user.locale)),
+              planningMarkerFilterOptions,
             );
             const finalizeArtifactsReady = planningFinalizeArtifactsReady({
               noGreeting: fsmAtTurnStart.noGreeting,
@@ -1518,7 +1523,7 @@ export async function POST(req: Request) {
           let summaryClarifyingDeferred = false;
           let practicePicked: Record<string, unknown> | null = null;
           let recommendationCorrected: Record<string, unknown> | null = null;
-          let resolvedPlanningMarkers: ReturnType<typeof filterPracticeLikePlannedEvents> = [];
+          let resolvedPlanningMarkers: ReturnType<typeof filterPersistablePlanningMarkers> = [];
           // True only on the turn planning actually finalizes. With incremental
           // persistence, PLANNED_EVENT markers also appear on gathering turns, so the
           // finalize-only visible assembly below must NOT key off "markers present".
@@ -1571,22 +1576,26 @@ export async function POST(req: Request) {
             const planningInferenceLocale = asContentLocale(body.inputLocale) ?? asContentLocale(context.user.locale) ?? "ru";
             const responseLocale = asContentLocale(context.user.locale) ?? "ru";
             const preferTargetLocaleMarkers = planningInferenceLocale !== responseLocale;
-            const rawCurrentPlanningMarkers = filterPracticeLikePlannedEvents(markers.plannedEvents);
+            const planningDialogHistory = !fsmAtTurnStart.planningFinalized
+              ? collectPlanningBranchDialogHistory(history)
+              : [];
+            const rawCurrentPlanningMarkers = filterPersistablePlanningMarkers(markers.plannedEvents, planningMarkerFilterOptions);
             const hadExplicitPlanningMarkers = rawCurrentPlanningMarkers.length > 0;
             const planningHistory = !fsmAtTurnStart.planningFinalized
               ? collectPlanningBranchUserHistory(history)
               : [];
             const inferredFromPlanningHistory = !fsmAtTurnStart.planningFinalized
               ? hydrateDeterministicPlanningMarkers(
-                  filterPracticeLikePlannedEvents(
+                  filterPersistablePlanningMarkers(
                     inferPlannedEventsFromUserHistory({
-                      history: planningHistory,
-                      pendingUserMessage: userMessage,
+                      history: planningDialogHistory,
+                      pendingUserMessage: planningDoneIntent ? null : userMessage,
                       nowLocal: context.nowLocal,
                       relativeNowLocal: context.nowLocal,
                       tz: userTimezone,
                       locale: planningInferenceLocale,
                     }),
+                    planningMarkerFilterOptions,
                   ),
                 )
               : [];
@@ -1610,11 +1619,12 @@ export async function POST(req: Request) {
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
             // model finalized this turn even if it forgot the invisible markers or
             // the deterministic done-detector missed the user's phrasing.
-            const salvagedFromVisible = filterPracticeLikePlannedEvents(
+            const salvagedFromVisible = filterPersistablePlanningMarkers(
               extractPlanningMarkersFromVisibleFinalize(
                 stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale))),
                 locale,
               ),
+              planningMarkerFilterOptions,
             );
             const finalizeIntent =
               !fsmAtTurnStart.planningFinalized
@@ -2006,7 +2016,7 @@ export async function POST(req: Request) {
           }
 
           let cleanText = forcedVisibleText ?? sanitizedVisibleText;
-          let planningMarkersForVisible: ReturnType<typeof filterPracticeLikePlannedEvents> = [];
+          let planningMarkersForVisible: ReturnType<typeof filterPersistablePlanningMarkers> = [];
           if (branchForTurn === "planning" && planningFinalizedThisTurn) {
             const locale = resolveDialogScaffoldLocale(context.user.locale);
             planningMarkersForVisible = resolvedPlanningMarkers;

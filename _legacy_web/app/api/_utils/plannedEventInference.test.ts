@@ -310,6 +310,31 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(descriptions.some((item) => item.includes("лечь спать") || item.includes("спать"))).toBe(true);
   });
 
+  it("does not treat Italian planning-done closure as a planned action", () => {
+    const nowLocal = DateTime.fromISO("2026-06-19T09:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [
+        {
+          role: "user",
+          content:
+            "Oggi mi resta ancora molto lavoro. Oggi d'inverno forse andrò al cinema. Questo è il più importante.",
+        },
+        {
+          role: "assistant",
+          content: "C'è altro che vuoi aggiungere al piano per oggi?",
+        },
+        { role: "user", content: "Non voglio aggiungere più niente." },
+      ],
+      nowLocal,
+      tz: TZ,
+      locale: "it",
+    });
+
+    const descriptions = inferred.map((item) => item.desc.toLowerCase());
+    expect(descriptions.some((item) => item.includes("non voglio aggiungere"))).toBe(false);
+    expect(descriptions.some((item) => item.includes("lavor") || item.includes("cinema"))).toBe(true);
+  });
+
   it("does not turn vague workload talk into a planned event", () => {
     const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
