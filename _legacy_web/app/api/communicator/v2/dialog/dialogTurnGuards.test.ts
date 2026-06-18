@@ -7,6 +7,7 @@ import {
   assistantFinalizeWithoutMarkers,
   assistantOfferedPractice,
   assistantAskedSummaryClarifyingQuestion,
+  assistantVisibleContainsSummaryClarifyingCue,
   coerceFsmBeforeTurn,
   collectPlanningBranchUserHistory,
   extractPlanningMarkersFromVisibleFinalize,
@@ -17,6 +18,7 @@ import {
   userAffirmsPracticeOffer,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
+  summaryVisibleTextMixesMultipleEvents,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
@@ -40,6 +42,9 @@ function assistantMsg(content: string): MessageRecord {
 describe("dialogTurnGuards", () => {
   it("detects planning done signals", () => {
     expect(userSignalsPlanningDone("Думаю, достаточно этого.")).toBe(true);
+    expect(userSignalsPlanningDone("Questo è sufficiente.")).toBe(true);
+    expect(userSignalsPlanningDone("Non c'è più niente da aggiungere.")).toBe(true);
+    expect(userSignalsPlanningDone("NONO")).toBe(true);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
     expect(
       userSignalsPlanningDone(
@@ -229,6 +234,37 @@ describe("dialogTurnGuards", () => {
       "Ясно, тогда закроем это событие. Теперь о рабочих задачах. Как они прошли?",
       "Рабочие задачи",
     )).toBe(false);
+    expect(assistantVisibleContainsSummaryClarifyingCue(
+      "Hai avuto la sensazione di essere focalizzata e precisa, o c'è stato qualche momento di tensione?",
+    )).toBe(true);
+  });
+
+  it("detects mixed summary turns structurally", () => {
+    const mixed = [
+      "Bene, un carico di cose da fare. Hai avuto la sensazione di essere focalizzata e precisa, o c'è stato qualche momento di tensione e spinta per portare tutto a termine?",
+      "",
+      "E per andare in negozio per la barca, com'è andata?",
+    ].join("\n");
+    expect(summaryVisibleTextMixesMultipleEvents(
+      mixed,
+      "Lavorare sulle attività lavorative",
+      "Andare in negozio per la barca",
+    )).toBe(true);
+    expect(assistantVisibleContainsSummaryClarifyingCue(mixed)).toBe(true);
+    expect(summaryVisibleTextMixesMultipleEvents(
+      "Capito. E il cinema? Sei riuscita ad andare?",
+      "Andare in negozio per la barca",
+      "Andare al cinema",
+    )).toBe(false);
+  });
+
+  it("treats thin Italian summary answers like other locales", () => {
+    expect(userAnswerIsThinForSummary(
+      "Ho avuto molte cose da fare oggi. L'obiettivo è fare molte cose, ma bisogna fare le cose in modo corretto.",
+    )).toBe(true);
+    expect(userAnswerIsThinForSummary(
+      "Lo che ho sentito è responsabilità e tensione intellettuale, perché la mia domanda era complicata.",
+    )).toBe(false);
   });
 
   it("builds a short bridge when an event did not happen", () => {
@@ -279,6 +315,23 @@ describe("dialogTurnGuards", () => {
       "Regarder un film le soir",
     ]);
     expect(salvaged[0]?.recommendation).toBe("Comparez calmement sans vous precipiter.");
+  });
+
+  it("salvages visible planning markers even when the model leaks the English label in another locale", () => {
+    const text = [
+      "Perfetto, abbiamo tutto.",
+      "",
+      "1. Raffinatura",
+      "Recommendation: Portala con la stessa determinazione con cui hai deciso di farla.",
+      "",
+      "2. Teatro a notte",
+      "Recommendation: Entra in sala da protagonista, non da spettatore.",
+    ].join("\n");
+    const salvaged = extractPlanningMarkersFromVisibleFinalize(text, "it");
+    expect(salvaged).toHaveLength(2);
+    expect(salvaged[0]?.desc).toBe("Raffinatura");
+    expect(salvaged[0]?.recommendation).toContain("stessa determinazione");
+    expect(salvaged[1]?.desc).toBe("Teatro a notte");
   });
 
   it("salvages visible planning markers across all scaffold locales", () => {

@@ -4,7 +4,7 @@ import {
   type ValidationResult,
 } from "@legacy/app/api/_utils/markers";
 import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
-import { SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
+import { ALL_CONTENT_LOCALES, SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
 import {
   getDialogScaffoldStrings,
   interpolate,
@@ -89,17 +89,49 @@ const PLANNING_DONE_PATTERNS = [
   standalonePhrasePattern("that is all"),
   standalonePhrasePattern("i'm done"),
   standalonePhrasePattern("i am done"),
+  standalonePhrasePattern("va bene così"),
+  standalonePhrasePattern("va bene cosi"),
+  standalonePhrasePattern("basta"),
+  standalonePhrasePattern("questo è sufficiente"),
+  standalonePhrasePattern("questo e sufficiente"),
+  standalonePhrasePattern("niente altro"),
+  standalonePhrasePattern("nient'altro"),
+  standalonePhrasePattern("non c'è più niente da aggiungere"),
+  standalonePhrasePattern("non c e piu niente da aggiungere"),
+  standalonePhrasePattern("non voglio aggiungere altro"),
+  standalonePhrasePattern("ça suffit"),
+  standalonePhrasePattern("ca suffit"),
+  standalonePhrasePattern("c'est suffisant"),
+  standalonePhrasePattern("cest suffisant"),
+  standalonePhrasePattern("rien d'autre"),
+  standalonePhrasePattern("plus rien"),
+  standalonePhrasePattern("es reicht"),
+  standalonePhrasePattern("das reicht"),
+  standalonePhrasePattern("nichts mehr"),
+  standalonePhrasePattern("meer niet"),
+  standalonePhrasePattern("dat is genoeg"),
+  standalonePhrasePattern("niets meer"),
+  standalonePhrasePattern("ya está"),
+  standalonePhrasePattern("ya esta"),
+  standalonePhrasePattern("es suficiente"),
+  standalonePhrasePattern("nada más"),
+  standalonePhrasePattern("nada mas"),
+  standalonePhrasePattern("já chega"),
+  standalonePhrasePattern("ja chega"),
+  standalonePhrasePattern("é suficiente"),
+  standalonePhrasePattern("e suficiente"),
+  standalonePhrasePattern("nada mais"),
 ];
 
 export function userSignalsPlanningDone(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/^[\s.!?,…:;-]+/u, "");
   if (!normalized) return false;
   // Bare negation as a standalone reply ("нет", "no", "не, всё") = done adding.
-  if (/^(?:нет|не|no|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/i.test(normalized)) {
+  if (/^(?:(?:нет|не|no|nono|no\s+no)|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/iu.test(normalized)) {
     return true;
   }
   if (PLANNING_DONE_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
-  return /(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу))(?![\p{L}\p{N}-])/iu.test(
+  return /(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|da\s+aggiungere)|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
     normalized,
   );
 }
@@ -260,12 +292,19 @@ export function extractPlanningMarkersFromVisibleFinalize(
   text: string,
   locale: AppContentLocale,
 ): PlannedEventMarker[] {
-  const recommendationLabel = escapeRegExp(getDialogScaffoldStrings(locale).recommendationLabel.trim());
+  const recommendationLabels = Array.from(new Set([
+    getDialogScaffoldStrings(locale).recommendationLabel.trim(),
+    ...ALL_CONTENT_LOCALES.map((candidateLocale) => getDialogScaffoldStrings(candidateLocale).recommendationLabel.trim()),
+    "Recommendation",
+  ]))
+    .filter(Boolean)
+    .map((label) => escapeRegExp(label))
+    .join("|");
   const pattern = new RegExp(
     [
       String.raw`(?:^|\n)\s*(\d+)[.)]\s*([^\n]+?)\s*`,
       String.raw`\n\s*(?:[-*]\s*)?(?:\*\*|__)?`,
-      recommendationLabel,
+      `(?:${recommendationLabels})`,
       String.raw`(?:\*\*|__)?\s*:\s*`,
       String.raw`([^\n]+(?:\n(?!\s*(?:\d+[.)]|\n))[^\\n]+)*)`,
     ].join(""),
@@ -408,7 +447,7 @@ function summaryEventDomain(eventDescription: string): SummaryEventDomain {
   if (/(?:лечь\s+(?:по)?раньше|лечь\s+спать|пораньше\s+спать|выспаться|вовремя\s+лечь|зарядк|выпить\s+воды|сделать\s+паузу)/i.test(lower)) {
     return "tiny";
   }
-  if (/(?:работ|задач|проект|совещ|клиент|дедлайн|код|разработ|бизнес|дел[ао]\s+по\s+работ)/i.test(lower)) {
+  if (/(?:работ|задач|проект|совещ|клиент|дедлайн|код|разработ|бизнес|дел[ао]\s+по\s+работ|lavor|attivit[aà]\s+lavor|ufficio|progett)/i.test(lower)) {
     return "work";
   }
   if (/(?:озер|природ|прогул|погул|парк|отдых|купан|море|лес|пляж|кафе|сон|поспать|расслаб|баня|саун|поездк)/i.test(lower)) {
@@ -493,6 +532,42 @@ export function buildSummaryClarifyingQuestion(eventDescription: string, locale:
   return variants[seed % variants.length]!;
 }
 
+const SUMMARY_CLARIFYING_QUESTION_RE =
+  /(?:уточн|какие состояния|какое состояние|в какой момент|что вы проживали|что вы проживал|что осталось|как вы себя чувств|матриц|body|mood|mind|relationships|what states|what state|which moment|how did you feel|clarify|matrix|sensazione|focalizz|concentrat|tensione|stati|sentir|sentito|provato|come ti sent|come ti sei sent|senti\b|ressenti|sentiez|fühlt|empfind|estados|estado|sentiste|gevoel|ressenti)/i;
+
+export function visibleTextMentionsEvent(text: string, description: string): boolean {
+  const needle = description.trim().toLowerCase();
+  if (needle.length < 4) return false;
+  return text.toLowerCase().includes(needle);
+}
+
+/** Visible reply asks about two different planned events in the same turn. */
+export function summaryVisibleTextMixesMultipleEvents(
+  text: string,
+  _currentEventDescription: string,
+  nextEventDescription?: string | null,
+): boolean {
+  const next = nextEventDescription?.trim();
+  if (!next || next.length < 4) return false;
+  const normalized = text.trim().toLowerCase();
+  if (!/\?/.test(normalized)) return false;
+  if (!visibleTextMentionsEvent(text, next)) return false;
+
+  const questionCount = (normalized.match(/\?/g) ?? []).length;
+  if (questionCount >= 2) return true;
+
+  const nextIdx = normalized.indexOf(next.toLowerCase());
+  if (nextIdx > 0 && /\?/.test(normalized.slice(0, nextIdx))) return true;
+
+  return false;
+}
+
+export function assistantVisibleContainsSummaryClarifyingCue(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || !/\?/.test(normalized)) return false;
+  return SUMMARY_CLARIFYING_QUESTION_RE.test(normalized);
+}
+
 export function assistantAskedSummaryClarifyingQuestion(
   text: string,
   nextEventDescription?: string | null,
@@ -501,9 +576,7 @@ export function assistantAskedSummaryClarifyingQuestion(
   if (!normalized || !/\?/.test(normalized)) return false;
   const next = nextEventDescription?.trim().toLowerCase();
   if (next && next.length >= 4 && normalized.includes(next)) return false;
-  return /(?:уточн|какие состояния|какое состояние|в какой момент|что вы проживали|что вы проживал|что осталось|как вы себя чувств|матриц|body|mood|mind|relationships|what states|what state|which moment|how did you feel|clarify|matrix)/i.test(
-    normalized,
-  );
+  return assistantVisibleContainsSummaryClarifyingCue(text);
 }
 
 export function buildSummaryEventDidNotHappenBridge(
@@ -528,10 +601,10 @@ export function userAnswerIsThinForSummary(text: string): boolean {
   if (userSaysEventDidNotHappen(text)) return false;
   const normalized = text.trim().toLowerCase();
   if (!normalized) return true;
-  const claimsDone = /(?:состоял|получил|сделал|было|хорошо|отлично|удалось|нормально|да|yes|it happened|all good|went well)/i.test(
+  const claimsDone = /(?:состоял|получил|сделал|было|хорошо|отлично|удалось|нормально|да|yes|it happened|all good|went well|fatto|riuscito|andato|completato|obiettivo|ho avuto|dovevo fare|j['’]?ai|c['’]?est fait|fait|réussi|terminé|hecho|conseguido|gemacht|geschafft|geland|gelukt)/i.test(
     normalized,
   );
-  const namesState = /(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected)/i.test(
+  const namesState = /(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected|responsabil|tensione|focalizz|concentr|stress|stanc|soddisf|sentito|sentita|emozion|ansia|calma|seren|tranquill|spannung|konzentr|müd|zufrieden|émotion|soulag|détendu|ansiedad|relaj)/i.test(
     normalized,
   );
   return claimsDone && !namesState;

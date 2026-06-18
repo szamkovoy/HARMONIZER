@@ -3,13 +3,15 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.86
+version: 2.88
 updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant` — Day-tab add-flow finals now survive cross-locale done-phrases and English `Recommendation:` leaks inside non-EN dialogs, so add-flow closes with `shouldClose` and persists per-action `recommendation_text`; summary health prompt now formats sleep as hours+minutes. Synced `assistant/{spec,history}.md`.
+- 2026-06-18: `assistant` — summarizing mixed-event replies now use one hidden buffered LLM repair retry (`summaryTurnRepair.ts`) instead of server-side visible rewrites; kept cross-locale thin-answer detection. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `practices` — lighter yoga catalog Supabase query (no heavy `params`), 30s deferred timeout, locale-native empty states. `daily_forecast` — Day tab refresh no longer blocked while assistant is open on first load; `/api/day` client timeout 45s.
 - 2026-06-18: `assistant` — doc-sync: shared `_utils/sphereHint.ts` (Day-tab `sphereHint` + dialog add-flow `addFlowSphereBalanceLens`); removed stray PLANNING § line. Synced `assistant/{spec,dependencies}.md`, `MAP.md`.
 - 2026-06-18: `assistant/spec.md` — doc-sync hygiene: removed stray commit-message line accidentally left in PLANNING § after Day-tab add-flow opening update.

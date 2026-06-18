@@ -78,6 +78,7 @@ import {
 import {
   assistantFinalizeWithoutMarkers,
   buildPostDialogReply,
+  assistantVisibleContainsSummaryClarifyingCue,
   collectPlanningBranchUserHistory,
   coerceFsmBeforeTurn,
   extractPlanningMarkersFromVisibleFinalize,
@@ -88,13 +89,17 @@ import {
   mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
   practiceValidationForTurn,
-  assistantAskedSummaryClarifyingQuestion,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
+  visibleTextMentionsEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
+import {
+  buildSummaryRepairInstruction,
+  classifySummaryRepairMode,
+} from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
 import {
   dismissPlannedEvents,
   persistDayFocus,
@@ -295,6 +300,15 @@ function formatMetricForPrompt(label: string, value: unknown): string | null {
   return `${label}: ${Math.round(current)}${averagePart}${comparisonPart}`;
 }
 
+function formatDurationMinutesForPrompt(totalMinutes: number): string {
+  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  if (hours <= 0) return `${roundedMinutes} minutes`;
+  if (minutes === 0) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  return `${hours} hour${hours === 1 ? "" : "s"} ${minutes} min`;
+}
+
 function sleepQualityLabelForPrompt(value: string): string | null {
   const normalized = value.trim().toLowerCase();
   const labels: Record<string, string> = {
@@ -350,7 +364,10 @@ function formatHealthForPrompt(value: unknown): string {
   const stepsLine = formatMetricForPrompt("steps", ctx.activity?.steps);
   const caloriesLine = formatMetricForPrompt("active calories", ctx.activity?.activeCalories);
   const workoutLine = formatMetricForPrompt("workout minutes", ctx.activity?.workoutMinutes);
-  const sleepLine = formatMetricForPrompt("sleep minutes", ctx.sleep?.durationMinutes);
+  const sleepMinutes = numberOrNull(ctx.sleep?.durationMinutes);
+  const sleepLine = sleepMinutes != null
+    ? `sleep duration: ${formatDurationMinutesForPrompt(sleepMinutes)}`
+    : null;
   if (stepsLine) lines.push(stepsLine);
   if (caloriesLine) lines.push(caloriesLine);
   if (workoutLine) lines.push(workoutLine);
@@ -799,12 +816,6 @@ function ensureSummaryToPlanningBridge(visibleText: string, locale: AppContentLo
   return body ? `${body}\n\n${bridge}` : bridge;
 }
 
-function visibleTextMentionsEvent(text: string, description: string): boolean {
-  const needle = description.trim().toLowerCase();
-  if (needle.length < 4) return false;
-  return text.toLowerCase().includes(needle);
-}
-
 function findSummaryMarkerForEvent(
   markers: ReturnType<typeof parseResponseMarkers>,
   event: PlannedEventRow,
@@ -1124,9 +1135,23 @@ export async function POST(req: Request) {
       conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
     }
 
-    if (!isInitiate && fsm.branch === "planning" && !fsm.planningFinalized && assistantFinalizeWithoutMarkers(history)) {
-      fsm = { ...fsm, planningFinalized: true };
-      conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
+    if (!isInitiate && fsm.branch === "planning" && !fsm.planningFinalized) {
+      const lastAssistantText = history[history.length - 1]?.role === "assistant"
+        ? String(history[history.length - 1]?.content ?? history[history.length - 1]?.transcript ?? "")
+        : "";
+      const visibleFinalizeWithoutPractice =
+        fsm.noPractice
+        && extractPlanningMarkersFromVisibleFinalize(
+          stripBrainSentinels(sanitizeAssistantText(lastAssistantText, resolveResponseLocale(context.user.locale))),
+          resolveDialogScaffoldLocale(context.user.locale),
+        ).length > 0;
+      if (visibleFinalizeWithoutPractice) {
+        fsm = { ...fsm, planningFinalized: true, branch: "done", branchIndex: fsm.flow.length };
+        conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
+      } else if (assistantFinalizeWithoutMarkers(history)) {
+        fsm = { ...fsm, planningFinalized: true };
+        conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
+      }
     }
 
     const coercedFsm = coerceFsmBeforeTurn({ fsm, history, userMessage, isInitiate });
@@ -1294,7 +1319,6 @@ export async function POST(req: Request) {
 
     const baseHistory = mapHistoryToGemini(history);
     const currentTurnPrefix: GeminiContent[] = isInitiate ? [] : [{ role: "user", parts: [{ text: userMessage }] }];
-    const directiveTurn: GeminiContent = { role: "user", parts: [{ text: prompt.userInstruction }] };
     const model = getModelByHint(DIALOG_MODEL_TIER);
     const routeDb = db;
     const routeUserId = userId;
@@ -1330,9 +1354,32 @@ export async function POST(req: Request) {
         let fullText = "";
         try {
           let modelUsed = model;
+          const collectBufferedRetryText = async (userInstruction: string) => {
+            let retryFullText = "";
+            let retryModelUsed = modelUsed;
+            for await (const chunk of streamGeminiText({
+              systemInstruction: prompt.systemInstruction,
+              contents: [
+                ...baseHistory,
+                ...currentTurnPrefix,
+                { role: "user", parts: [{ text: userInstruction }] },
+              ],
+              model,
+              temperature: 0.85,
+              maxOutputTokens,
+            })) {
+              retryModelUsed = chunk.modelUsed;
+              retryFullText += chunk.text;
+            }
+            return { fullText: retryFullText, modelUsed: retryModelUsed };
+          };
           for await (const chunk of streamGeminiText({
             systemInstruction: prompt.systemInstruction,
-            contents: [...baseHistory, ...currentTurnPrefix, directiveTurn],
+            contents: [
+              ...baseHistory,
+              ...currentTurnPrefix,
+              { role: "user", parts: [{ text: prompt.userInstruction }] },
+            ],
             model,
             temperature: 0.85,
             maxOutputTokens,
@@ -1344,8 +1391,42 @@ export async function POST(req: Request) {
             }
           }
 
-          const markers = parseResponseMarkers(fullText);
-          const sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
+          let markers = parseResponseMarkers(fullText);
+          let sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
+          if (
+            branchForTurn === "summarizing"
+            && !isOpening
+            && currentEvent
+            && nextEvent
+            && due.length > 1
+          ) {
+            const repairMode = classifySummaryRepairMode({
+              visibleText: sanitizedVisibleText,
+              currentEventDescription: currentEvent.description,
+              nextEventDescription: nextEvent.description,
+              hasSummaryMarker: Boolean(findSummaryMarkerForEvent(markers, currentEvent)),
+            });
+            if (repairMode) {
+              try {
+                const repaired = await collectBufferedRetryText(buildSummaryRepairInstruction({
+                  baseInstruction: prompt.userInstruction,
+                  mode: repairMode,
+                  currentEventDescription: currentEvent.description,
+                  nextEventDescription: nextEvent.description,
+                }));
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                markers = parseResponseMarkers(fullText);
+                sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
+                console.warn(
+                  "[DIALOG_FSM] Repaired mixed summarizing turn with one hidden retry",
+                  JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id, mode: repairMode }),
+                );
+              } catch (repairError) {
+                console.warn("[DIALOG_FSM] Hidden retry for mixed summarizing turn failed; keeping original response", repairError);
+              }
+            }
+          }
 
           // ----- Deterministic FSM transition + persistence per branch -----
           let nextFsm: DialogFsmState = fsmAtTurnStart;
@@ -1642,7 +1723,7 @@ export async function POST(req: Request) {
               && summaryMarker
               && currentEvent
               && summaryAskedCount(fsmAtTurnStart, currentEvent.id) < 1
-              && assistantAskedSummaryClarifyingQuestion(sanitizedVisibleText, nextEvent?.description);
+              && assistantVisibleContainsSummaryClarifyingCue(sanitizedVisibleText);
             const remainingAfterCurrent = currentEvent
               ? due.filter((event) => event.id !== currentEvent.id).length
               : due.length;
