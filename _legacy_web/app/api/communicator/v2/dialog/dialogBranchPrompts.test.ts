@@ -6,9 +6,11 @@ import {
   buildPlanningFinalVisibleText,
   buildSummarizingPrompt,
   capitalizeFirstLetter,
+  countDayTabActionsFromTriggerMeta,
   extractDayFocusFromVisibleFinalize,
   injectPlanningActionsVisibleList,
   injectPlanningDayFocus,
+  planningAddOpeningText,
   polishPlanningMarker,
   prependChakraAttention,
   replaceSpontaneousEnglishRu,
@@ -178,8 +180,8 @@ describe("buildPlanningPrompt", () => {
       existingActionCount: 2,
     });
     expect(userInstruction).toMatch(/ALREADY has 2 planned action/i);
-    expect(userInstruction).toMatch(/what they would like to ADD/i);
-    expect(userInstruction).toMatch(/Vary the wording/i);
+    expect(userInstruction).toMatch(/what else they want to ADD/i);
+    expect(userInstruction).toMatch(/Do NOT re-list or restate the existing actions/i);
   });
 
   it("falls back to the plain add-flow opening when the day has no actions yet", () => {
@@ -192,6 +194,22 @@ describe("buildPlanningPrompt", () => {
       existingActionCount: 0,
     });
     expect(userInstruction).toMatch(/adding action\(s\) from the Day tab/i);
+  });
+
+  it("counts day-tab actions from triggerMeta for add-flow opening", () => {
+    const count = countDayTabActionsFromTriggerMeta({
+      dayActions: [
+        { id: "a1", title: "Walk", status: "planned", localDate: "2026-06-18" },
+        { id: "a2", title: "Read", status: "planned", localDate: "2026-06-18" },
+        { id: "a3", title: "Old", status: "planned", localDate: "2026-06-17" },
+      ],
+    }, "2026-06-18");
+    expect(count).toBe(2);
+  });
+
+  it("returns localized deterministic add-flow opening copy", () => {
+    expect(planningAddOpeningText("ru")).toMatch(/Что ещё вы хотите добавить/i);
+    expect(planningAddOpeningText("it")).toMatch(/Cos'altro vuoi aggiungere/i);
   });
 
   it("keeps add-flow in gathering mode until the user says they are done", () => {

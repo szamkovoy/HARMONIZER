@@ -16,6 +16,7 @@
   "greeting_night": "Buonanotte",
   "planningAddIntro_one": "Fatto — ho aggiunto 1 elemento al piano di oggi:",
   "planningAddIntro_other": "Fatto — ho aggiunto {count} elementi al piano di oggi:",
+  "planningAddOpening": "Cos'altro vuoi aggiungere a questa giornata?",
   "planningDeclined_p1": "Capito — non insisterò. Puoi pianificare più tardi, appena hai un minuto libero.",
   "planningDeclined_p2": "Non è una formalità: quando annoti ciò che conta vivere, l'app impara in quali stati tendi a trovarti e, col tempo, ti aiuta dolcemente ad ampliare quella gamma — così rimani più flessibile e intero. Per ora, lascia che la giornata si dispieghi e nota per quale scopo più grande stai agendo.",
   "planningDeclined_p3": "Torna quando sei pronto a delineare le cose principali.",

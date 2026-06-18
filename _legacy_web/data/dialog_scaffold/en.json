@@ -16,6 +16,7 @@
   "greeting_night": "Good night",
   "planningAddIntro_one": "Done — I added 1 item to today's plan:",
   "planningAddIntro_other": "Done — I added {count} items to today's plan:",
+  "planningAddOpening": "What else would you like to add to today?",
   "planningDeclined_p1": "Got it — I won't push. You can plan later, whenever a free minute appears.",
   "planningDeclined_p2": "It's not a formality: when you note what matters to live through, the app learns which states you tend to be in and, over time, helps you gently widen that range — so you stay more flexible and whole. For now, just let the day unfold and notice what larger purpose you're acting for.",
   "planningDeclined_p3": "Come back whenever you're ready to outline the main things.",

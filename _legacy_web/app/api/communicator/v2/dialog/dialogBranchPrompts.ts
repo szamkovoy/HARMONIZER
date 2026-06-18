@@ -337,6 +337,26 @@ function actionCountWord(count: number, locale: AppContentLocale): string {
   return `${count}`;
 }
 
+/** Day-tab actions the client sends in `triggerMeta.dayActions` for add/plan flows. */
+export function countDayTabActionsFromTriggerMeta(
+  triggerMeta: Record<string, unknown>,
+  workingLocalDate: string,
+): number {
+  const actions = triggerMeta.dayActions;
+  if (!Array.isArray(actions)) return 0;
+  return actions.filter((item) => {
+    if (!item || typeof item !== "object") return false;
+    const row = item as { status?: string; localDate?: string };
+    if (row.localDate && row.localDate !== workingLocalDate) return false;
+    const status = row.status;
+    return status !== "cancelled" && status !== "canceled" && status !== "dismissed";
+  }).length;
+}
+
+export function planningAddOpeningText(locale: AppContentLocale): string {
+  return getDialogScaffoldStrings(locale).planningAddOpening;
+}
+
 function planningAddIntro(count: number, locale: AppContentLocale): string {
   const s = getDialogScaffoldStrings(locale);
   if (locale === SOURCE_LOCALE) {
@@ -722,7 +742,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     input.isOpening
       ? (input.noGreeting
         ? (input.existingActionCount > 0
-          ? `THIS TURN: the user opened the Day tab "Add" flow and the day ALREADY has ${input.existingActionCount} planned action(s). Do NOT greet and do NOT plan the day from scratch. In ONE short, warm, freshly-worded sentence, acknowledge that a plan for today already exists and ask what they would like to ADD to it. Vary the wording every time — never reuse a fixed phrase, never ask "what is planned today?" as if starting over, and do NOT re-list or restate the existing actions.`
+          ? `THIS TURN: the user opened the Day tab "Add" flow and the day ALREADY has ${input.existingActionCount} planned action(s). Do NOT greet and do NOT plan the day from scratch. In ONE short, warm sentence ask what else they want to ADD to today. Do NOT re-list or restate the existing actions, and do NOT ask "what is planned today?" as if starting over.`
           : "THIS TURN: the user is adding action(s) from the Day tab — help them name the action(s); do not greet.")
         : "THIS TURN: open the planning — warmly ask what is ahead today.")
       : input.userSignaledDone

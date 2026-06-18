@@ -59,6 +59,8 @@ import {
   buildPlanningPrompt,
   buildPracticePrompt,
   buildSummarizingPrompt,
+  countDayTabActionsFromTriggerMeta,
+  planningAddOpeningText,
   buildPlanningAddFinalVisibleText,
   buildPlanningDeclinedReply,
   buildPlanningFinalVisibleText,
@@ -1182,13 +1184,16 @@ export async function POST(req: Request) {
         postPracticeReply: historyHasPracticePicked(history),
       });
     } else {
+      const existingActionCount = fsm.noGreeting
+        ? countDayTabActionsFromTriggerMeta(triggerMeta, workingLocalDate)
+        : 0;
       prompt = buildPlanningPrompt(brainCtx, {
         isOpening,
         noPractice: fsm.noPractice,
         noGreeting: fsm.noGreeting,
         userSignaledDone: userSignalsPlanningDone(userMessage),
         planningLocked: fsm.planningFinalized,
-        existingActionCount: due.length,
+        existingActionCount,
       });
     }
 
@@ -1254,6 +1259,51 @@ export async function POST(req: Request) {
         targetChakra: context.targetChakra,
         shouldClose: true,
         branches: ["practice"],
+        iteration,
+        messageId: insertedAssistant?.id ?? null,
+      });
+    }
+
+    const planningAddOpeningNeeded =
+      fsm.branch === "planning"
+      && isOpening
+      && fsm.noGreeting
+      && countDayTabActionsFromTriggerMeta(triggerMeta, workingLocalDate) > 0;
+    if (planningAddOpeningNeeded) {
+      const locale = resolveDialogScaffoldLocale(context.user.locale);
+      const openingText = planningAddOpeningText(locale);
+      const { data: insertedAssistant, error: openingInsertError } = await db
+        .from("messages")
+        .insert({
+          user_id: userId,
+          conversation_id: conversation.id,
+          role: "assistant",
+          content: null,
+          content_type: "text",
+          meta: {
+            use_case: useCase,
+            scenario_id: scenarioId,
+            turn_mode: "opening",
+            model_used: DIALOG_MODEL_TIER,
+            latency_ms: Date.now() - requestStartedMs,
+            iteration,
+            ready_marker_triggered: false,
+            dialog_branches: ["planning"],
+            target_chakra: promptContext.targetChakra,
+            phase_time: context.phaseTime,
+          },
+        })
+        .select("id")
+        .single();
+      if (openingInsertError) throw openingInsertError;
+      return immediateDialogStream({
+        conversationId: conversation.id,
+        fullText: openingText,
+        turnMode: "opening",
+        phaseTime: context.phaseTime,
+        targetChakra: context.targetChakra,
+        shouldClose: false,
+        branches: ["planning"],
         iteration,
         messageId: insertedAssistant?.id ?? null,
       });
