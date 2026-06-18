@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.84
+version: 2.85
 updated: 2026-06-18
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant/spec.md` — doc-sync hygiene: removed stray commit-message line accidentally left in PLANNING § after Day-tab add-flow opening update.
 - 2026-06-18: `assistant` / `i18n` / `communicator` — cross-locale planning-marker merge by `display_order` when inference locale ≠ response locale; `userSignalsPlanningDone` word-boundary matching; `getTranscribeLocale()` always returns active locale; exported `resolveVoiceTurnLocales`. Synced `assistant/{spec,history}.md`, `i18n/spec.md`, `communicator/spec.md`.
 - 2026-06-18: `assistant` — Day-tab add-flow opening: `existingActionCount` now reads `triggerMeta.dayActions` (not overdue due-events); deterministic layer-C `planningAddOpening` for the first turn when the day already has actions. Synced `assistant/{spec,history}.md`, `dialog_scaffold/*`.
 - 2026-06-18: `i18n` / `communicator` / `assistant` — inverted voice locale routing by product request: outside `EXPO_PUBLIC_I18N_TEST_MODE` replies stay on the selected/profile locale, while test mode becomes the speech-driven QA path (Whisper auto-detect → per-turn reply locale override). Synced `i18n/{spec,dependencies,history}.md`, `communicator/{spec,dependencies,history}.md`, `assistant/{spec,dependencies,history}.md`.
