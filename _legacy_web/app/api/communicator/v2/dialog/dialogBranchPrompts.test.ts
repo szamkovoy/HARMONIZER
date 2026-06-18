@@ -179,6 +179,7 @@ describe("buildPlanningPrompt", () => {
       existingActionCount: 2,
     });
     expect(userInstruction).toMatch(/already has 2 planned action/i);
+    expect(userInstruction).toMatch(/FIRST explicitly acknowledge that something is already planned/i);
     expect(userInstruction).toMatch(/what else to ADD today/i);
     expect(userInstruction).toMatch(/do not re-list existing actions/i);
   });

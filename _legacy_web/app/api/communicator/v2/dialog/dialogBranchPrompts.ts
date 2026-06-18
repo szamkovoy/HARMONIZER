@@ -745,7 +745,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     input.isOpening
       ? (input.noGreeting
         ? (input.existingActionCount > 0
-          ? `THIS TURN: Day-tab Add flow; the day already has ${input.existingActionCount} planned action(s). In 1-2 short warm sentences invite what else to ADD today${input.addFlowSphereBalanceLens ? "; optionally nudge one small action from a barely-present life sphere noted above" : ""}. No greeting; do not re-list existing actions or plan from scratch.`
+          ? `THIS TURN: Day-tab Add flow; the day already has ${input.existingActionCount} planned action(s). In 1-2 short warm sentences FIRST explicitly acknowledge that something is already planned for today (you may mention this without naming the exact count), THEN invite what else to ADD today${input.addFlowSphereBalanceLens ? "; optionally nudge one small action from a barely-present life sphere noted above" : ""}. No greeting; do not re-list existing actions or plan from scratch.`
           : "THIS TURN: the user is adding action(s) from the Day tab — help them name the action(s); do not greet.")
         : "THIS TURN: open the planning — warmly ask what is ahead today.")
       : input.userSignaledDone

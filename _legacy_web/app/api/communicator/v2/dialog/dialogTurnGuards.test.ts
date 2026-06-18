@@ -44,6 +44,8 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Думаю, достаточно этого.")).toBe(true);
     expect(userSignalsPlanningDone("Questo è sufficiente.")).toBe(true);
     expect(userSignalsPlanningDone("Non c'è più niente da aggiungere.")).toBe(true);
+    expect(userSignalsPlanningDone("Non voglio affrontare niente.")).toBe(true);
+    expect(userSignalsPlanningDone("Niente da affrontare.")).toBe(true);
     expect(userSignalsPlanningDone("NONO")).toBe(true);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
     expect(

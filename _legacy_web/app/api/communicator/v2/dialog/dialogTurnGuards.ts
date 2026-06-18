@@ -95,9 +95,11 @@ const PLANNING_DONE_PATTERNS = [
   standalonePhrasePattern("questo è sufficiente"),
   standalonePhrasePattern("questo e sufficiente"),
   standalonePhrasePattern("niente altro"),
+  standalonePhrasePattern("niente da affrontare"),
   standalonePhrasePattern("nient'altro"),
   standalonePhrasePattern("non c'è più niente da aggiungere"),
   standalonePhrasePattern("non c e piu niente da aggiungere"),
+  standalonePhrasePattern("non voglio affrontare niente"),
   standalonePhrasePattern("non voglio aggiungere altro"),
   standalonePhrasePattern("ça suffit"),
   standalonePhrasePattern("ca suffit"),
@@ -131,7 +133,7 @@ export function userSignalsPlanningDone(text: string): boolean {
     return true;
   }
   if (PLANNING_DONE_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
-  return /(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|da\s+aggiungere)|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
+  return /(?<![\p{L}\p{N}-])(?:ничего\s+(?:не\s+)?(?:надо|нужно|хочу|добав)|(?:не\s+)?(?:надо|нужно|хочу)\s+(?:ничего|больше)|больше\s+не\s+(?:надо|нужно|хочу)|niente\s+(?:altro|da\s+aggiungere|da\s+affrontare)|non\s+voglio\s+affrontare\s+niente|non\s+c['’]?(?:è|e)\s+più\s+niente\s+da\s+aggiungere|rien\s+d['’]autre|nada\s+(?:más|mas|mais)|niets\s+meer)(?![\p{L}\p{N}-])/iu.test(
     normalized,
   );
 }

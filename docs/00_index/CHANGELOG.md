@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-18: `assistant` — add-flow now treats Italian replies like `Non voglio affrontare niente` as a real “done adding” signal, so Day-tab add dialogs close and persist per-action recommendations; the LLM add-opening is also forced to acknowledge that the day already has planned actions before asking what else to add. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — Day-tab add-flow finals now survive cross-locale done-phrases and English `Recommendation:` leaks inside non-EN dialogs, so add-flow closes with `shouldClose` and persists per-action `recommendation_text`; summary health prompt now formats sleep as hours+minutes. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `assistant` — summarizing mixed-event replies now use one hidden buffered LLM repair retry (`summaryTurnRepair.ts`) instead of server-side visible rewrites; kept cross-locale thin-answer detection. Synced `assistant/{spec,history}.md`.
 - 2026-06-18: `practices` — lighter yoga catalog Supabase query (no heavy `params`), 30s deferred timeout, locale-native empty states. `daily_forecast` — Day tab refresh no longer blocked while assistant is open on first load; `/api/day` client timeout 45s.
