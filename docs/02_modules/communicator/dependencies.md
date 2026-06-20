@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.17
-updated: 2026-06-18
+version: 1.18
+updated: 2026-06-20
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -39,7 +39,7 @@ code_refs:
 `services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn туда подмешивается минимальный `meta` (`practicePicked` после карточки, `branches`/`dialog_branches` для ветки хода), а сервер (`resolveTurnHistory` → `collectPlanningBranchUserHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport даёт `reconcileDialogPlans({ conversationId, force? })` → POST `/api/ai/dialog/reconcile-plans` (fallback `/api/communicator/v2/dialog/reconcile-plans`): с июня 2026 серверный FSM пишет planning/summary синхронно, endpoint — **совместимый no-op** (`{ applied: false }`); клиент по-прежнему debounce-вызывает его на idle и делает best-effort flush перед `launchPractice(...)` / unmount / кнопкой «Выйти».
 - `**practices**`  
 `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
-`modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams` и `launchPractice(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI. Summary health: `services/summarizingHealthContext.ts` (йога сразу + native health в фоне без стартового таймаута); `app/(tabs)/day.tsx` / `index.tsx` открывают модалку сразу и стартуют сбор; `Communicator` дополнительно бутстрапит сбор при `daySummaryRequested` или первом ответе с веткой `summarizing` и на каждый POST подмешивает `triggerMeta.dayHealthContext` из `getSnapshot()`. `services/dayHealthContext.ts` — thin re-export/legacy blocking helper.
+`modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams`, `launchPractice(...)` и `scheduleAssistantOverlayDismiss(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI. Route-обёртки практик сигналят готовность через `useAssistantPracticeOverlayDismiss` → `signalAssistantPracticeScreenMounted`. Summary health: `services/summarizingHealthContext.ts` (йога сразу + native health в фоне без стартового таймаута); `app/(tabs)/day.tsx` / `index.tsx` открывают модалку сразу и стартуют сбор; `Communicator` дополнительно бутстрапит сбор при `daySummaryRequested` или первом ответе с веткой `summarizing` и на каждый POST подмешивает `triggerMeta.dayHealthContext` из `getSnapshot()`. `services/dayHealthContext.ts` — thin re-export/legacy blocking helper.
 - **native health provider**
 `services/nativeHealth.ts` выбирает Apple HealthKit на iOS и Google Health / Android Health Connect на Android, читает только steps, active calories, exercise/workout minutes и sleep duration, а permission prompt регулирует через SecureStore-backoff.
 - `**subscription**` (интеграция на точке входа, не внутри `modules/communicator/*`)  
@@ -52,7 +52,7 @@ code_refs:
 - `**practices**` (потребление DTO и запуск)  
 Карточка использует общий UI каталога; запуск теперь делает сам `Communicator` через `launchPractice(...)`, а `app/(tabs)/index.tsx` больше не содержит отдельный `launchPracticeFromAssistant`.
 - **Приложение (home)**  
-`app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal`, передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` теперь нужен только для побочных UX-эффектов вроде закрытия оверлея. Dev-сброс дня вызывает `clearHomeDailyDialogCache` из `services/dialogSessionCache.ts` (пара `useCase: daily_dialog`, `entrySource: home`).
+`app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal` с раздельным mount (`communicatorMounted`) и видимостью (`communicatorVisible`, `dismissAnimation`, `onDismiss`), передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` закрывает overlay без slide-анимации, дожидаясь mount-signal практики. Dev-сброс дня вызывает `clearHomeDailyDialogCache` из `services/dialogSessionCache.ts` (пара `useCase: daily_dialog`, `entrySource: home`).
 - `**modules/breath`** (опциональная очередь)  
 `modules/breath/ui/CoherenceBreathScreen.tsx` вызывает `enqueueCommunicatorGreeting` из `modules/communicator/core/pending-greeting.ts` перед переходом на главный экран. Потребление очереди на стороне home не зафиксировано в коде главного экрана — см. `docs/04_workspace/open_questions.md` (раздел `communicator`).
 

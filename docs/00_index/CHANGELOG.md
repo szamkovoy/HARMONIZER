@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.92
-updated: 2026-06-18
+version: 2.93
+updated: 2026-06-20
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-20: `assistant` / `communicator` / `practices` — doc-sync for push bundle: planning desc-blob filter (`filterPlanningDescBlobMarkers`), `applyPracticeCardOverridesToPayload` launch sync, assistant overlay dismiss via mount signal + Home `Modal.visible`/`animationType`. Synced `assistant/{spec,dependencies}.md`, `communicator/{spec,dependencies}.md`, `practices/{spec,dependencies}.md`.
 - 2026-06-19: `assistant` — incremental planning blob markers filtered when shorter siblings exist; `practice_picked.launch.params` now match card overrides (`durationMin`/`chakraIndex`). Synced `assistant/history.md`, `practices/history.md`.
 - 2026-06-19: `communicator` / `practices` — assistant practice launch from Home no longer flashes the Home tab: overlay dismiss waits for the practice route mount signal (`assistantPracticeOverlayDismiss.ts`), and Home modal closes with `animationType="none"`. Synced `communicator/{spec,history}.md`, `practices/history.md`.
 - 2026-06-18: `assistant` — doc-sync for planning closure refactor: `planningDonePhrases.ts` shared util, `filterPersistablePlanningMarkers` / `collectPlanningBranchDialogHistory` contract points, inference timeline input fix. Synced `assistant/{spec,dependencies}.md`, `MAP.md`.
