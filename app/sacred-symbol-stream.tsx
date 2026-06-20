@@ -2,6 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams } from "expo-router";
 
 import { SacredSymbolStreamScreen } from "@/modules/mandala/experiments/SacredSymbolStreamScreen";
+import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 function positiveIntParam(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -20,6 +21,9 @@ export default function SacredSymbolStreamRoute() {
     chakra?: string;
     launchSource?: string;
   }>();
+
+  const launchSource = typeof params.launchSource === "string" ? params.launchSource : undefined;
+  useAssistantPracticeOverlayDismiss(launchSource);
 
   return (
     <>

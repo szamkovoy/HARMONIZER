@@ -6,6 +6,7 @@ import { CoherenceBreathScreen } from "@/modules/breath/ui/CoherenceBreathScreen
 import { isChakra, type Chakra } from "@/modules/breath/core/chakra";
 import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
+import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 /**
  * Роут-обёртка для экрана дыхательной практики.
@@ -58,6 +59,9 @@ export default function BreathCoherenceRoute() {
     return isChakra(n) ? n : undefined;
   }, [params.chakra]);
 
+  const launchSource = typeof params.launchSource === "string" ? params.launchSource : undefined;
+  useAssistantPracticeOverlayDismiss(launchSource);
+
   return (
     <>
       <StatusBar style="light" />
@@ -66,7 +70,7 @@ export default function BreathCoherenceRoute() {
         practiceId={practiceId}
         durationMs={durationMs}
         chakra={chakra}
-        launchSource={typeof params.launchSource === "string" ? params.launchSource : undefined}
+        launchSource={launchSource}
         usePulseSensor={params.usePulseSensor !== "false"}
       />
     </>

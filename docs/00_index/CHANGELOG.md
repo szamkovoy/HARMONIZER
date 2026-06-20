@@ -10,6 +10,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-19: `assistant` — incremental planning blob markers filtered when shorter siblings exist; `practice_picked.launch.params` now match card overrides (`durationMin`/`chakraIndex`). Synced `assistant/history.md`, `practices/history.md`.
+- 2026-06-19: `communicator` / `practices` — assistant practice launch from Home no longer flashes the Home tab: overlay dismiss waits for the practice route mount signal (`assistantPracticeOverlayDismiss.ts`), and Home modal closes with `animationType="none"`. Synced `communicator/{spec,history}.md`, `practices/history.md`.
 - 2026-06-18: `assistant` — doc-sync for planning closure refactor: `planningDonePhrases.ts` shared util, `filterPersistablePlanningMarkers` / `collectPlanningBranchDialogHistory` contract points, inference timeline input fix. Synced `assistant/{spec,dependencies}.md`, `MAP.md`.
 - 2026-06-18: `daily_forecast` / `profile` — Day tab persisted cache (`services/dayPlanCache.ts`), instant restore on focus, bearer via `getSupabaseAccessSession` + `rememberSupabaseSession` in `AuthProvider`. Synced `daily_forecast/{spec,dependencies}.md`, `profile/{spec,dependencies,history}.md`, `MAP.md`.
 - 2026-06-19: `assistant` — IT planning QA (`текст-471D-939E-C4-0`): closure replies to “anything else to add?” no longer persist as planned actions; context-first `planningDonePhrases.ts` + closure-echo filter in `filterPersistablePlanningMarkers`, history-aware inference skip, and no pending closure text on finalize. Synced `assistant/{spec,history}.md`.

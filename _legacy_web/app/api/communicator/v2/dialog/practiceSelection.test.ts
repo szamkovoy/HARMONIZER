@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyPracticeCardOverridesToPayload,
   choosePractice,
   publicPracticePickedPayload,
   resolvePracticeKeyToCatalogId,
@@ -414,5 +415,41 @@ describe("practice suggestion phase guard", () => {
         userMessage: "Дай другую практику",
       }),
     ).toBe(true);
+  });
+
+  it("syncs launch params with card overrides for breath and meditation", () => {
+    const meditation = applyPracticeCardOverridesToPayload(
+      {
+        id: "meditation:sacred-symbol-stream",
+        slug: "sacred-symbol-stream",
+        name: "Flash",
+        kind: "meditation",
+        reason: "focus",
+        durationSec: 300,
+        minDurationSec: null,
+        maxDurationSec: null,
+        chakraIds: [6, 7],
+        launch: {
+          route: "/sacred-symbol-stream",
+          params: {
+            durationMs: "300000",
+            chakra: "6",
+            launchSource: "assistant",
+          },
+        },
+        hasDescription: true,
+        hasInstructionVideo: false,
+        video: null,
+      },
+      { durationMin: 2, chakraIndex: 3 },
+    );
+
+    expect(meditation.durationSec).toBe(120);
+    expect(meditation.chakraIds).toEqual([3]);
+    expect(meditation.launch?.params).toEqual({
+      durationMs: "120000",
+      chakra: "3",
+      launchSource: "assistant",
+    });
   });
 });

@@ -389,6 +389,9 @@ function CommunicatorOverlay({
   dayHealthContext,
   dayPractices,
   workingLocalDate,
+  visible,
+  dismissAnimation,
+  onDismiss,
   onClose,
   onPracticeStarted,
   remountKey,
@@ -399,6 +402,9 @@ function CommunicatorOverlay({
   dayHealthContext: DayHealthContext | null;
   dayPractices: DayPlan["sections"][number]["practices"];
   workingLocalDate: string | null;
+  visible: boolean;
+  dismissAnimation: "slide" | "none";
+  onDismiss: () => void;
   onClose: () => void;
   onPracticeStarted: () => void;
   remountKey: number;
@@ -406,7 +412,13 @@ function CommunicatorOverlay({
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   return (
-    <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType={dismissAnimation}
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
       <View style={styles.overlayRoot}>
         <View
           style={[
@@ -494,7 +506,9 @@ export default function HomeScreen() {
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const { locale: appLocale } = useAppLocale();
   const strings = useMemo(() => getHomeStrings(appLocale), [appLocale]);
-  const [communicatorOpen, setCommunicatorOpen] = useState(false);
+  const [communicatorMounted, setCommunicatorMounted] = useState(false);
+  const [communicatorVisible, setCommunicatorVisible] = useState(false);
+  const [communicatorDismissAnimation, setCommunicatorDismissAnimation] = useState<"slide" | "none">("slide");
   const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);
   const [homeDayPractices, setHomeDayPractices] = useState<DayPlan["sections"][number]["practices"]>([]);
   const [homeWorkingLocalDate, setHomeWorkingLocalDate] = useState<string | null>(null);
@@ -651,14 +665,18 @@ export default function HomeScreen() {
         }
       }
       setAssistantRemountKey((k) => k + 1);
-      setCommunicatorOpen(true);
+      setCommunicatorDismissAnimation("slide");
+      setCommunicatorMounted(true);
+      setCommunicatorVisible(true);
     } catch (loadError) {
       console.warn("[Home] Failed to check day plan before assistant", loadError);
       setHomeDayPractices([]);
       setHomeDayHealthContext(null);
       setHomeWorkingLocalDate(null);
       setAssistantRemountKey((k) => k + 1);
-      setCommunicatorOpen(true);
+      setCommunicatorDismissAnimation("slide");
+      setCommunicatorMounted(true);
+      setCommunicatorVisible(true);
     }
   }, [canUseFeature]);
 
@@ -803,7 +821,7 @@ export default function HomeScreen() {
         />
       </ScrollView>
 
-      {communicatorOpen && forecast ? (
+      {communicatorMounted && forecast ? (
         <CommunicatorOverlay
           forecast={forecast}
           accessMode={accessMode}
@@ -812,11 +830,18 @@ export default function HomeScreen() {
           dayPractices={homeDayPractices}
           workingLocalDate={homeWorkingLocalDate}
           remountKey={assistantRemountKey}
+          visible={communicatorVisible}
+          dismissAnimation={communicatorDismissAnimation}
+          onDismiss={() => {
+            setCommunicatorMounted(false);
+            setCommunicatorDismissAnimation("slide");
+          }}
           onPracticeStarted={() => {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setHomeWorkingLocalDate(null);
-            setCommunicatorOpen(false);
+            setCommunicatorDismissAnimation("none");
+            setCommunicatorVisible(false);
             void loadDayPlan()
               .then(storePrefetchedDayPlan)
               .catch((error) => {
@@ -832,7 +857,8 @@ export default function HomeScreen() {
             // reload. Day content was pre-warmed via onMessage during the planning
             // final; this background reload is just a catch-up.
             router.push("/day");
-            setCommunicatorOpen(false);
+            setCommunicatorDismissAnimation("slide");
+            setCommunicatorVisible(false);
             void loadDayPlan()
               .then(storePrefetchedDayPlan)
               .catch((error) => {

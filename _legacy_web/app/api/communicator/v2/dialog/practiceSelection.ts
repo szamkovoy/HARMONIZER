@@ -325,6 +325,43 @@ export function publicPracticePickedPayload(practice: PracticePickedPayload, rea
   return { ...payload, reason: practice.reason ?? reason };
 }
 
+export function applyPracticeCardOverridesToPayload(
+  payload: PracticePickedPayload,
+  overrides?: { durationMin?: number | null; chakraIndex?: number },
+): PracticePickedPayload {
+  if (!overrides || payload.kind === "yoga" || !payload.launch?.params) {
+    return payload;
+  }
+
+  const params = { ...payload.launch.params };
+  let durationSec = payload.durationSec ?? null;
+  let chakraIds = payload.chakraIds ?? [];
+
+  if (typeof overrides.durationMin === "number" && overrides.durationMin > 0) {
+    durationSec = Math.round(overrides.durationMin * 60);
+    params.durationMs = String(Math.round(overrides.durationMin * 60_000));
+  }
+  if (
+    typeof overrides.chakraIndex === "number"
+    && Number.isInteger(overrides.chakraIndex)
+    && overrides.chakraIndex >= 1
+    && overrides.chakraIndex <= 7
+  ) {
+    params.chakra = String(overrides.chakraIndex);
+    chakraIds = [overrides.chakraIndex];
+  }
+
+  return {
+    ...payload,
+    durationSec,
+    chakraIds,
+    launch: {
+      ...payload.launch,
+      params,
+    },
+  };
+}
+
 function isDefaultPracticeMarker(marker: PracticePickMarker | null): boolean {
   const reason = marker?.reason?.toLowerCase() ?? "";
   return marker?.id === "default" || reason.includes("hard_cap_reached") || reason.includes("default_fallback");

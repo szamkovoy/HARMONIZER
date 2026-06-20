@@ -12,6 +12,7 @@ import {
 } from "@legacy/app/api/communicator/v2/dialog/practiceCardSummary";
 import {
   choosePractice,
+  applyPracticeCardOverridesToPayload,
   publicPracticePickedPayload,
   type PracticeSelectionContext,
 } from "@legacy/app/api/communicator/v2/dialog/practiceSelection";
@@ -107,8 +108,12 @@ export async function resolvePracticeCard(params: {
     ? undefined
     : { durationMin: finalDurationMin, chakraIndex: marker?.chakra ?? chakraId };
 
+  const syncedPayload = overrides
+    ? applyPracticeCardOverridesToPayload(publicPayload, overrides)
+    : publicPayload;
+
   return {
-    ...publicPayload,
+    ...syncedPayload,
     ...(overrides ? { overrides } : {}),
     ...(markerIdResolved === false ? { markerIdResolved: false } : {}),
   };

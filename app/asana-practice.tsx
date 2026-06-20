@@ -12,6 +12,7 @@ import { useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession } from "@/services/practiceSessions";
 import { getSupabase } from "@/services/supabase";
 import type { Database } from "@/services/supabase-types";
+import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type ChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -59,6 +60,7 @@ export default function AsanaPracticeRoute() {
   const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
     ? params.launchSource.trim()
     : "practice_screen";
+  useAssistantPracticeOverlayDismiss(launchSource);
 
   const routeDurationMinutes =
     typeof params.durationMs === "string" && Number.parseInt(params.durationMs, 10) > 0

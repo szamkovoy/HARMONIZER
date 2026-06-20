@@ -133,10 +133,68 @@ export function filterPersistablePlanningMarkers(
   markers: PlannedEventMarker[],
   options?: { closureUserMessage?: string | null },
 ): PlannedEventMarker[] {
-  return filterClosureEchoPlanningMarkers(
-    filterPlanningDoneLikePlannedEvents(filterPracticeLikePlannedEvents(markers)),
-    options?.closureUserMessage,
+  return filterPlanningDescBlobMarkers(
+    filterClosureEchoPlanningMarkers(
+      filterPlanningDoneLikePlannedEvents(filterPracticeLikePlannedEvents(markers)),
+      options?.closureUserMessage,
+    ),
   );
+}
+
+const PLANNING_DESC_BLOB_MIN_LENGTH = 55;
+
+function normalizePlanningDesc(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeMultiActionPlanningBlob(desc: string): boolean {
+  const trimmed = desc.trim();
+  if (trimmed.length <= 50) return false;
+  const commaSegments = trimmed
+    .split(/[,;]/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 4);
+  return commaSegments.length >= 3;
+}
+
+function isSupersededPlanningDescBlob(
+  marker: PlannedEventMarker,
+  markers: PlannedEventMarker[],
+): boolean {
+  const desc = marker.desc.trim();
+  if (!desc) return false;
+  const others = markers.filter((item) => item !== marker);
+  if (others.length === 0) return false;
+
+  const normalizedLong = normalizePlanningDesc(desc);
+  if (!normalizedLong) return false;
+
+  const hasMoreSpecificSibling = others.some((other) => {
+    const otherDesc = other.desc.trim();
+    if (!otherDesc || otherDesc.length >= desc.length) return false;
+    if (samePlannedEventIdentity(desc, otherDesc)) return true;
+    const normalizedOther = normalizePlanningDesc(otherDesc);
+    if (normalizedOther && normalizedLong.includes(normalizedOther)) return true;
+    return normalizedOther
+      .split(/\s+/)
+      .filter((token) => token.length >= 4)
+      .some((token) => normalizedLong.includes(token));
+  });
+
+  if (hasMoreSpecificSibling) {
+    return desc.length >= PLANNING_DESC_BLOB_MIN_LENGTH || looksLikeMultiActionPlanningBlob(desc);
+  }
+  return false;
+}
+
+/** Drop model-emitted planning blobs when shorter sibling markers cover the same turn. */
+export function filterPlanningDescBlobMarkers(markers: PlannedEventMarker[]): PlannedEventMarker[] {
+  if (markers.length < 2) return markers;
+  return markers.filter((marker) => !isSupersededPlanningDescBlob(marker, markers));
 }
 
 export function userDeclinesPracticeOffer(text: string): boolean {

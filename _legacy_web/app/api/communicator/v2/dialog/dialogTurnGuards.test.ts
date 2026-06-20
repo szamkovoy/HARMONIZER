@@ -122,6 +122,55 @@ describe("dialogTurnGuards", () => {
     expect(filtered.map((marker) => marker.desc)).toEqual(["Lavoro"]);
   });
 
+  it("drops incremental planning blobs when shorter sibling markers exist", () => {
+    const filtered = filterPersistablePlanningMarkers([
+      {
+        desc: "Oggi è sabato, quindi voglio divertirmi, viaggiare al lago, viaggiare, dipingere, mangiare il salsiccio",
+        recommendation: "",
+        displayOrder: 1,
+        time: null,
+        timeNorm: null,
+        cells: [],
+        snippets: [],
+      },
+      {
+        desc: "Gita al lago",
+        recommendation: "",
+        displayOrder: 1,
+        time: null,
+        timeNorm: null,
+        cells: [],
+        snippets: [],
+      },
+      {
+        desc: "Film e dormire",
+        recommendation: "",
+        displayOrder: 4,
+        time: null,
+        timeNorm: null,
+        cells: [],
+        snippets: [],
+      },
+    ]);
+    expect(filtered.map((marker) => marker.desc)).toEqual(["Gita al lago", "Film e dormire"]);
+  });
+
+  it("keeps a single long planning label when no shorter sibling exists", () => {
+    const longDesc = "Подготовить презентацию для совещания с руководством и собрать все материалы";
+    const filtered = filterPersistablePlanningMarkers([
+      {
+        desc: longDesc,
+        recommendation: "",
+        displayOrder: 1,
+        time: null,
+        timeNorm: null,
+        cells: [],
+        snippets: [],
+      },
+    ]);
+    expect(filtered.map((marker) => marker.desc)).toEqual([longDesc]);
+  });
+
   it("coerces planning to practice when user names meditation duration", () => {
     const fsm = initFsmState({
       tabMode: "plan",

@@ -99,6 +99,7 @@ import { COMMUNICATOR_MODEL_LABEL, COMMUNICATOR_TEXT_MODE_ENABLED, HARMONIZER_TE
 import { useTheme } from "@/modules/ui/theme";
 import type { PracticeLaunchParams, PracticeSummary } from "@/modules/practices/core/types";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
+import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
 import { PracticeCard as SharedPracticeCard } from "@/modules/practices/ui/PracticeCard";
 
 import { AssistantBubble } from "./AssistantBubble";
@@ -2116,13 +2117,10 @@ export function Communicator({
           return;
         }
         // The communicator is a full-screen Modal rendered ABOVE the navigator,
-        // while launchPractice pushes the practice screen BEHIND it. If we close
-        // the modal immediately, its slide-out reveals the Day tab for a frame
-        // before the practice push transition settles (the "Day tab flashes"
-        // bug). Dismiss the communicator only AFTER the navigation/transition
-        // interactions finish, so the practice screen is already in place behind
-        // the modal and the reveal is seamless.
-        InteractionManager.runAfterInteractions(() => {
+        // while launchPractice pushes the practice screen BEHIND it. Dismiss the
+        // overlay only after the practice route has mounted, otherwise Home/Day
+        // flashes for a frame before the practice screen paints.
+        scheduleAssistantOverlayDismiss(() => {
           void Promise.resolve(onPracticePicked?.(picked)).catch((error) => {
             logErrorForDevelopers(
               "Communicator practice picked callback",
