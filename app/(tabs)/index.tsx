@@ -32,7 +32,6 @@ import {
 import { consumeHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile, fetchActiveNatalProfileCached } from "@/services/natalProfileClient";
 import { requireSupabase } from "@/services/supabase";
-import type { PracticePicked } from "@/services/communicator-client";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -343,7 +342,7 @@ function FreeTierBanner({ text }: { text: string }) {
   );
 }
 
-function launchPracticeFromAssistant(_practice: PracticePicked, onPracticeStarted: () => void) {
+function dismissAssistantPracticeOverlay(onPracticeStarted: () => void) {
   onPracticeStarted();
 }
 
@@ -486,7 +485,7 @@ function CommunicatorOverlay({
                 console.warn("[Home] Failed to pre-warm Day during planning final", error);
               });
           }}
-          onPracticePicked={(practice) => launchPracticeFromAssistant(practice, onPracticeStarted)}
+          onPracticePicked={() => dismissAssistantPracticeOverlay(onPracticeStarted)}
           onRequestClose={onClose}
         />
       </View>

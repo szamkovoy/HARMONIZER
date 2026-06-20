@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findExistingPlanningRowMatch } from "./dialogBrainPersistence";
+import { findExistingPlanningRowMatch, dedupePlanningMarkersByIdentity } from "./dialogBrainPersistence";
 
 describe("dialogBrainPersistence", () => {
   it("falls back to same-conversation display_order matching in add-flow", () => {
@@ -48,7 +48,7 @@ describe("dialogBrainPersistence", () => {
     expect(match?.id).toBe("row-1");
   });
 
-  it("does not cross-match another conversation only by display_order", () => {
+  it("matches the same action across conversations by identity, not only display_order", () => {
     const existing = [
       {
         id: "row-1",
@@ -67,6 +67,34 @@ describe("dialogBrainPersistence", () => {
       appendToExisting: true,
     });
 
-    expect(match).toBeUndefined();
+    expect(match?.id).toBe("row-1");
+  });
+
+  it("dedupes planning markers that describe the same action in different words", () => {
+    const deduped = dedupePlanningMarkersByIdentity([
+      {
+        desc: "Studio di inglese per un'ora",
+        time: null,
+        timeNorm: null,
+        recommendation: null,
+        displayOrder: 1,
+        cells: [],
+        snippets: [],
+      },
+      {
+        desc: "Vorrei studiare l'inglese per un'ora",
+        time: null,
+        timeNorm: null,
+        recommendation: "Breve nota",
+        displayOrder: 2,
+        cells: [{ sphere: 3, chakra: 3 }],
+        snippets: ["Vorrei studiare l'inglese per un'ora"],
+      },
+    ] as never);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0]?.desc).toBe("Vorrei studiare l'inglese per un'ora");
+    expect(deduped[0]?.recommendation).toBe("Breve nota");
+    expect(deduped[0]?.cells).toEqual([{ sphere: 3, chakra: 3 }]);
   });
 });

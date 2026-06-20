@@ -236,12 +236,20 @@ function extractMeasureIdentityTokens(value: string): string[] {
     tokens.push(`${match[1]}${unit}`);
     match = measurePattern.exec(normalized);
   }
+  if (/\b(?:un|una|one)\s*(?:'?)?\s*(?:ora|ore|hour|h)\b/.test(normalized)) {
+    tokens.push("1ora");
+  }
   return tokens;
 }
 
 function identityStem(token: string): string {
   const normalized = token.toLowerCase().replace(/ё/g, "е");
   if (/^(?:cors|correr)/.test(normalized)) return "corr_it";
+  if (/^(?:studi|impar|learn|lezione|leccion|lektion|apprend|corso|lesson|studio)/.test(normalized)) return "study";
+  if (/^(?:ingle|english|angl|englisch|anglais|espanol|espagnol|francais|franz)/.test(normalized)) return "lang_study";
+  if (/^(?:bicicl|bici|cicl|bike|cycl|radfahr|velo)/.test(normalized)) return "bike";
+  if (/^(?:parco|park)/.test(normalized)) return "park";
+  if (/^(?:tort|cake|dolce|dessert)/.test(normalized)) return "treat";
   if (/^(?:встреч|встрет)/.test(normalized)) return "встреч";
   if (/^(?:клиент)/.test(normalized)) return "клиент";
   if (/^(?:позавтрак|завтрак)/.test(normalized)) return "завтрак";

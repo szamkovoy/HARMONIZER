@@ -2116,10 +2116,9 @@ export function Communicator({
           await Promise.resolve(onPracticePicked?.(picked));
           return;
         }
-        // The communicator is a full-screen Modal rendered ABOVE the navigator,
-        // while launchPractice pushes the practice screen BEHIND it. Dismiss the
-        // overlay only after the practice route has mounted, otherwise Home/Day
-        // flashes for a frame before the practice screen paints.
+        // Full-screen dialog Modal sits above the navigator. Push the practice
+        // route first and close the overlay only after that screen is ready,
+        // otherwise the tab underneath (Home/Day) flashes for a frame.
         scheduleAssistantOverlayDismiss(() => {
           void Promise.resolve(onPracticePicked?.(picked)).catch((error) => {
             logErrorForDevelopers(

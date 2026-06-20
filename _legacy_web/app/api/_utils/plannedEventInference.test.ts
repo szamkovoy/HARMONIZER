@@ -405,6 +405,13 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(samePlannedEventIdentity("Corsa di 3 km", "Correre 3 km")).toBe(true);
   });
 
+  it("recognises Italian study rewordings of the same one-hour English lesson", () => {
+    expect(samePlannedEventIdentity(
+      "Studio di inglese per un'ora",
+      "Vorrei studiare l'inglese per un'ora",
+    )).toBe(true);
+  });
+
   it("prefers the model marker when history clarification describes the same event", () => {
     const nowLocal = DateTime.fromISO("2026-05-26T09:05:00", { zone: TZ });
     const merged = mergePlannedEventMarkers(

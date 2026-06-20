@@ -27,6 +27,8 @@ code_refs:
 
 - **2026-06-16:** i18n follow-up: `PracticeCatalogStrings` gained `durationMinUnit` / `durationFromPrefix` (typed gate); `PracticeCard` uses them instead of locale ternaries. `catalog.ts` `localizedText` reads yoga jsonb by full `AppContentLocale`; `displayYogaTitle` uses `inlineBaseLocale` + `SOURCE_LOCALE` for RU-only title transforms.
 
+- **2026-06-19 (4):** Assistant overlay dismiss v3: откат cover/`onPracticeLaunchStarted`; закрытие overlay только после `launchPractice` + focus practice route + min-delay 700 ms (без «возврата на Главную» между шагами).
+- **2026-06-19 (3):** Assistant overlay dismiss v2: *(отменено в v3)*
 - **2026-06-19 (2):** Assistant `practice_picked` теперь держит согласованные `launch.params` с card overrides: `applyPracticeCardOverridesToPayload` в `practiceSelection.ts` запекает выбранные `durationMin`/`chakraIndex` в `durationSec`, `chakraIds` и query-параметры launch до SSE/export (раньше overrides жили отдельно от catalog-default launch).
 - **2026-06-19:** Assistant practice dismiss: route-обёртки медитации/дыхания/йоги вызывают `useAssistantPracticeOverlayDismiss(launchSource)` — overlay коммуникатора закрывается только после mount экрана практики (см. `assistantPracticeOverlayDismiss.ts`), убирая flash Home/Day под full-screen Modal.
 - **2026-06-14:** Каталог практик локализован: `modules/practices/i18n/practices.ts` (`getPracticeCatalogStrings`, typed gate); `loadYogaPractices(locale)`; `PracticeCatalogScreen`/`PracticeCard` используют `useAppLocale().locale` и `chakra/i18n` для tag labels.

@@ -41,10 +41,7 @@ export function findExistingPlanningRowMatch(params: {
   markerBatchSize?: number;
 }): PlannedEventRow | undefined {
   const identityMatch = params.existing.find(
-    (row) =>
-      row.status === "planned"
-      && samePlannedEventIdentity(row.description, params.desc)
-      && (!params.appendToExisting || row.conversation_id === params.conversationId),
+    (row) => row.status === "planned" && samePlannedEventIdentity(row.description, params.desc),
   );
   if (identityMatch) return identityMatch;
   if (!params.appendToExisting) return undefined;
@@ -86,6 +83,34 @@ function endOfLocalDayIso(localDate: string, timezone: string): string {
   return end.toUTC().toISO() ?? `${localDate}T23:59:59.000Z`;
 }
 
+function preferPlanningMarker(left: PlannedEventMarker, right: PlannedEventMarker): PlannedEventMarker {
+  const leftScore =
+    (left.recommendation?.trim() ? 4 : 0)
+    + (left.desc.trim().length <= 48 ? 2 : 0)
+    + (left.cells.length > 0 ? 1 : 0);
+  const rightScore =
+    (right.recommendation?.trim() ? 4 : 0)
+    + (right.desc.trim().length <= 48 ? 2 : 0)
+    + (right.cells.length > 0 ? 1 : 0);
+  if (rightScore > leftScore) return right;
+  if (rightScore < leftScore) return left;
+  return right.desc.trim().length <= left.desc.trim().length ? right : left;
+}
+
+export function dedupePlanningMarkersByIdentity(markers: PlannedEventMarker[]): PlannedEventMarker[] {
+  if (markers.length < 2) return markers;
+  const deduped: PlannedEventMarker[] = [];
+  for (const marker of markers) {
+    const existingIndex = deduped.findIndex((item) => samePlannedEventIdentity(item.desc, marker.desc));
+    if (existingIndex === -1) {
+      deduped.push(marker);
+      continue;
+    }
+    deduped[existingIndex] = preferPlanningMarker(deduped[existingIndex]!, marker);
+  }
+  return deduped;
+}
+
 /**
  * Deterministically persist a PLANNING finalize turn into `planned_events`:
  * one row per marker, ordered by mention, de-duplicated against existing rows
@@ -117,6 +142,7 @@ export async function persistPlanningFinalize(params: {
   } = params;
   if (markers.length === 0) return [];
 
+  const canonicalMarkers = dedupePlanningMarkersByIdentity(markers);
   const existing = await loadPlannedEventsForLocalDate(db, userId, workingLocalDate);
   let appendOrderOffset = 0;
   if (appendToExisting) {
@@ -136,8 +162,8 @@ export async function persistPlanningFinalize(params: {
   const seenMarkerIndexes = new Set<number>();
   let order = 0;
 
-  for (const marker of markers) {
-    const duplicateIndex = markers.findIndex((candidate) => samePlannedEventIdentity(candidate.desc, marker.desc));
+  for (const marker of canonicalMarkers) {
+    const duplicateIndex = canonicalMarkers.findIndex((candidate) => samePlannedEventIdentity(candidate.desc, marker.desc));
     if (duplicateIndex !== -1 && seenMarkerIndexes.has(duplicateIndex)) continue;
     if (duplicateIndex !== -1) seenMarkerIndexes.add(duplicateIndex);
     order += 1;
@@ -150,7 +176,7 @@ export async function persistPlanningFinalize(params: {
       conversationId,
       displayOrder: appendedDisplayOrder,
       appendToExisting: Boolean(appendToExisting),
-      markerBatchSize: markers.length,
+      markerBatchSize: canonicalMarkers.length,
     });
     const displayOrder = appendToExisting && !match ? appendedDisplayOrder : baseDisplayOrder;
 

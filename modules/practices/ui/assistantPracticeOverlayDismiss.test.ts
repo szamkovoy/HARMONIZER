@@ -17,11 +17,14 @@ describe("assistantPracticeOverlayDismiss", () => {
     clearAssistantOverlayDismiss();
   });
 
-  it("runs the dismiss callback when the practice screen signals ready", () => {
+  it("runs the dismiss callback after the practice screen signals ready and the min delay elapses", () => {
     const callback = vi.fn();
     scheduleAssistantOverlayDismiss(callback);
 
     signalAssistantPracticeScreenMounted();
+    expect(callback).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(700);
 
     expect(callback).toHaveBeenCalledTimes(1);
   });
@@ -42,6 +45,7 @@ describe("assistantPracticeOverlayDismiss", () => {
     scheduleAssistantOverlayDismiss(second);
 
     signalAssistantPracticeScreenMounted();
+    vi.advanceTimersByTime(700);
 
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
