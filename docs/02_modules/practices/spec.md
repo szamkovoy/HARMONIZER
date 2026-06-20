@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.17
+version: 1.18
 updated: 2026-06-20
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -53,9 +53,9 @@ code_refs:
 - **`launchPractice(launch, options?): boolean`**  
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
 
-- **`assistantPracticeOverlayDismiss.ts`** — `scheduleAssistantOverlayDismiss(callback)`, `signalAssistantPracticeScreenMounted()`, `clearAssistantOverlayDismiss()`; module-level координация закрытия full-screen overlay коммуникатора после mount экрана практики (timeout **2500 ms**).
+- **`assistantPracticeOverlayDismiss.ts`** — `scheduleAssistantOverlayDismiss(callback)`, `signalAssistantPracticeScreenMounted()`, `clearAssistantOverlayDismiss()`; module-level координация закрытия full-screen overlay коммуникатора после mount экрана практики и min-delay **700 ms** (fallback timeout **2500 ms**).
 
-- **`useAssistantPracticeOverlayDismiss(launchSource)`** — hook для route-обёрток (`breath-coherence`, `sacred-symbol-stream`, `asana-practice`): при `launchSource=assistant` после `InteractionManager.runAfterInteractions` + двойного `requestAnimationFrame` вызывает `signalAssistantPracticeScreenMounted()`.
+- **`useAssistantPracticeOverlayDismiss(launchSource)`** — hook для route-обёрток (`breath-coherence`, `sacred-symbol-stream`, `asana-practice`): при `launchSource=assistant` на focus экрана (`useFocusEffect`) после `InteractionManager.runAfterInteractions` + двойного `requestAnimationFrame` вызывает `signalAssistantPracticeScreenMounted()`.
 
 - **`PracticeCard`** (`modules/practices/ui/PracticeCard.tsx`)  
   Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах. Подписи длительности (`от`/`from`, `мин`/`min`) берутся из **`getPracticeCatalogStrings`** (`durationFromPrefix`, `durationMinUnit`), а не из сравнения `locale === "en"`. Значение `overrideDurationMinutes` **клипится** к списку допустимых минут (`**assistantSelectableDurations.ts**`, синхронно с сервером для дыхания 5–20 и медитации 1–5); при клипе — `console.log` с тегом **`[PRACTICE_CARD_MISMATCH]`** (поля в духе серверного JSON плюс **`source: "practice_card_client_sync"`**, `conversationId` обычно `null`). После ручного выбора минут карточка не синхронизирует состояние обратно с catalog/default props, пока не сменилась сама `practice.id`, поэтому пользовательская длительность медитации/дыхания не сбрасывается перед запуском. Дефолт чакры для meditation/breath берётся из `primaryChakra` / `chakraIds`, если поверхность передала дневной фокус.

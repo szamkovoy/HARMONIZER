@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.93
+version: 2.94
 updated: 2026-06-20
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-20: `assistant` / `communicator` / `practices` — doc-sync: planning identity dedupe (`dedupePlanningMarkersByIdentity`, cross-conversation match, `1ora`/study stems) and assistant overlay dismiss min-delay 700 ms + `useFocusEffect`. Synced `assistant/spec.md`, `communicator/spec.md`, `practices/spec.md`.
 - 2026-06-20: `assistant` / `communicator` / `practices` — doc-sync for push bundle: planning desc-blob filter (`filterPlanningDescBlobMarkers`), `applyPracticeCardOverridesToPayload` launch sync, assistant overlay dismiss via mount signal + Home `Modal.visible`/`animationType`. Synced `assistant/{spec,dependencies}.md`, `communicator/{spec,dependencies}.md`, `practices/{spec,dependencies}.md`.
 - 2026-06-19: `assistant` — stronger cross-message planned-action dedupe (`samePlannedEventIdentity` study/lang stems + `1ora`; batch dedupe + cross-conversation identity upsert in add-flow). Synced `assistant/history.md`.
 - 2026-06-19: `communicator` / `practices` — assistant practice launch: close Home dialog only after practice route is ready + min delay (no Home flash). Synced `communicator/history.md`, `practices/history.md`.
