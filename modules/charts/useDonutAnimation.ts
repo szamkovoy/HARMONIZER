@@ -8,6 +8,7 @@ export function useDonutAnimation() {
   const progressRef = useRef(0);
   const frameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
+  const isAnimatingRef = useRef(false);
 
   const setProgressSafe = useCallback((value: number) => {
     const clamped = Math.max(0, Math.min(1, value));
@@ -21,10 +22,13 @@ export function useDonutAnimation() {
       frameRef.current = null;
     }
     startTimeRef.current = null;
+    isAnimatingRef.current = false;
   }, []);
 
   const start = useCallback(() => {
+    if (isAnimatingRef.current || progressRef.current >= 1) return;
     cancel();
+    isAnimatingRef.current = true;
     setProgressSafe(0);
     const tick = (now: number) => {
       if (startTimeRef.current == null) startTimeRef.current = now;
@@ -34,6 +38,7 @@ export function useDonutAnimation() {
         frameRef.current = requestAnimationFrame(tick);
       } else {
         frameRef.current = null;
+        isAnimatingRef.current = false;
         setProgressSafe(1);
       }
     };

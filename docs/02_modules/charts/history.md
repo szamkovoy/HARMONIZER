@@ -11,6 +11,10 @@ code_refs: [modules/charts]
 
 - **2026-06-21:** `getChartStrings` — поле `strengthLabel` (RU/EN inline + overlays de/fr/it/es/pt/nl); потребитель home — `ChakraFlower` (центр: `S_initial` планеты дня + подпись).
 
+- **2026-06-21:** Viewport + focus: `revealSession` (перерисовка при возврате на таб), layout settle 120 ms, min 28 px видимости, сброс reveal при уходе с экрана до старта; стабильный `animationKey` у «Практики по чакрам» во время loading (fix 7д после 30/90).
+
+- **2026-06-21:** Исправлена гонка reveal у «Практики по чакрам»: poll больше не перезапускает `start()` каждые 250 ms (один `onVisible` на `resetKey`, guard в `useDonutAnimation`); убраны stuck/ultimate re-trigger; fallback `complete()` только если chart в viewport. В `ProfileReports` donut не размонтируется при смене периода, пока есть предыдущий `report`.
+
 - **2026-06-21:** Надёжность отрисовки: опрос viewport до завершения анимации, повторный старт при `progress ≈ 0`, fallback `complete()` через 2.4 с; убрана гонка `hasTriggeredRef` + 3 с poll.
 
 - **2026-06-21:** Исправлена отрисовка бубликов: анимация переведена с `useAnimatedReaction` на `requestAnimationFrame` (прогресс не доходил до React), усилена проверка viewport (poll после mount, `onMomentumScrollEnd`, минимальная высота layout).

@@ -12,6 +12,7 @@ import {
   DONUT_TRACK_WIDTH,
   DONUT_VIEW_SIZE,
 } from "@/modules/charts/constants";
+import { useDonutRevealSession } from "@/modules/charts/DonutVisibilityContext";
 import { donutPath, easeOutCubic, strokeArcPath } from "@/modules/charts/donutGeometry";
 import { getChartStrings } from "@/modules/charts/i18n/charts";
 import { useDonutAnimation } from "@/modules/charts/useDonutAnimation";
@@ -28,11 +29,11 @@ type DonutChartProps = {
   animationKey?: string;
 };
 
-const REVEAL_FALLBACK_MS = 2400;
+const REVEAL_FALLBACK_MS = 2600;
 const BALANCE_STROKE_OPACITY = 0.58;
 
 function buildAnimationKey(segments: readonly DonutSegmentInput[]) {
-  return segments.map((segment) => `${segment.id}:${segment.value}:${segment.label}`).join("|");
+  return segments.map((segment) => `${segment.id}:${segment.value}`).join("|");
 }
 
 export function DonutChart({ segments, locale = "ru", animationKey }: DonutChartProps) {
@@ -40,8 +41,10 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
   const strings = getChartStrings(locale);
   const { progress: renderProgress, progressRef, start: startAnimation, reset: resetAnimation, complete } =
     useDonutAnimation();
+  const revealSession = useDonutRevealSession();
   const resolvedAnimationKey = animationKey ?? buildAnimationKey(segments);
-  const revealModeRef = useRef<"animate" | "complete">("animate");
+  const visibilityResetKey = `${revealSession}|${resolvedAnimationKey}`;
+  const isInViewportRef = useRef(false);
 
   const weights = useMemo(() => segmentsToWeights(segments), [segments]);
   const { balance, angle: balanceAngle } = useMemo(() => calcBalance(weights), [weights]);
@@ -49,26 +52,25 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
   const hasData = builtSegments.length > 0;
   const chartEnabled = hasData || balance > 0;
 
-  const handleVisible = useCallback(() => {
-    if (progressRef.current >= 1) return;
-    if (revealModeRef.current === "complete" || progressRef.current > 0.01) {
-      complete();
-      return;
-    }
-    startAnimation();
-  }, [complete, progressRef, startAnimation]);
-
   const handleReset = useCallback(() => {
-    revealModeRef.current = "animate";
     resetAnimation();
   }, [resetAnimation]);
+
+  const handleVisible = useCallback(() => {
+    startAnimation();
+  }, [startAnimation]);
+
+  const handleViewportChange = useCallback((visible: boolean) => {
+    isInViewportRef.current = visible;
+  }, []);
 
   const { containerRef, onLayout } = useDonutVisibilityTrigger({
     onVisible: handleVisible,
     enabled: chartEnabled,
-    resetKey: resolvedAnimationKey,
+    resetKey: visibilityResetKey,
     getProgress: () => progressRef.current,
     onReset: handleReset,
+    onViewportChange: handleViewportChange,
   });
 
   useEffect(() => {
@@ -76,12 +78,12 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
 
     const fallback = setTimeout(() => {
       if (progressRef.current >= 1) return;
-      revealModeRef.current = "complete";
+      if (!isInViewportRef.current) return;
       complete();
     }, REVEAL_FALLBACK_MS);
 
     return () => clearTimeout(fallback);
-  }, [chartEnabled, complete, progressRef, resolvedAnimationKey]);
+  }, [chartEnabled, complete, progressRef, visibilityResetKey]);
 
   const balancePhase = renderProgress < 0.6 ? 0 : easeOutCubic((renderProgress - 0.6) / 0.4);
   const textOpacity = renderProgress < 0.85 ? 0 : Math.min(1, (renderProgress - 0.85) / 0.15);

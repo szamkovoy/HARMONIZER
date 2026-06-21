@@ -11,6 +11,7 @@ code_refs: [docs/_proposal.md]
 ## Changelog
 
 - 2026-06-21: `daily_forecast` / `charts` / `i18n` — `ChakraFlower`: prop `natalProfile`, центр с `S_initial` + `strengthLabel`; цвета `CHAKRA_SEGMENT_COLORS`; `getChartStrings` расширен `strengthLabel`. Synced `daily_forecast/{spec,dependencies,history}.md`, `charts/{spec,dependencies,history}.md`, `i18n/{spec,dependencies}.md`, `chakra/dependencies.md`, `MAP.md`.
+- 2026-06-21: `charts` — donut reveal on viewport entry (layout settle, min visible px), tab-focus re-animate via `revealSession`; stable animation key during chakra period reload (7d fix). Synced `charts/{spec,history}.md`.
 - 2026-06-21: `charts` — doc-sync: `useDonutVisibilityTrigger` options object + progress-aware poll (250 ms / 1.8 s stuck / 5 s ultimate), `useDonutAnimation.complete()` + 2.4 s reveal fallback, center typography and `textMuted` balance stroke. Synced `charts/{spec,dependencies}.md`.
 - 2026-06-21: `charts` — donut viewport animation: RAF via `useDonutAnimation` (replaced reanimated), expanded `useDonutScrollProps` / visibility poll; profile tab mirrors Day focus refresh. Synced `charts/{spec,dependencies}.md`, `profile/dependencies.md`.
 - 2026-06-21: `i18n` / `charts` — doc-sync for push bundle: typed-module gate entry `charts` (`balanceLabel` overlays), consumer contract in `i18n/dependencies.md`; `MAP.md` charts entry points include `app/(tabs)/profile.tsx` and `modules/charts/i18n/charts.ts`.

@@ -4,13 +4,19 @@ import { Dimensions, type View } from "react-native";
 import { useDonutVisibilityContext } from "@/modules/charts/DonutVisibilityContext";
 
 const MIN_LAYOUT_HEIGHT = 8;
+const MIN_VISIBLE_PX = 28;
 const VISIBILITY_POLL_MS = 250;
-const STUCK_VISIBLE_MS = 1800;
-const ULTIMATE_REVEAL_MS = 5000;
+const LAYOUT_SETTLE_MS = 120;
 
-function isInViewport(y: number, height: number) {
+function visibleHeightInWindow(y: number, height: number) {
   const windowHeight = Dimensions.get("window").height;
-  return y + height > 0 && y < windowHeight;
+  const top = Math.max(y, 0);
+  const bottom = Math.min(y + height, windowHeight);
+  return Math.max(0, bottom - top);
+}
+
+function isMeaningfullyVisible(y: number, height: number) {
+  return visibleHeightInWindow(y, height) >= MIN_VISIBLE_PX;
 }
 
 export function useDonutVisibilityTrigger(options: {
@@ -19,53 +25,57 @@ export function useDonutVisibilityTrigger(options: {
   resetKey: string;
   getProgress: () => number;
   onReset?: () => void;
+  onViewportChange?: (visible: boolean) => void;
 }) {
-  const { onVisible, enabled, resetKey, getProgress, onReset } = options;
+  const { onVisible, enabled, resetKey, getProgress, onReset, onViewportChange } = options;
   const context = useDonutVisibilityContext();
   const containerRef = useRef<View>(null);
-  const isVisibleRef = useRef(false);
-  const visibleSinceRef = useRef<number | null>(null);
+  const hasRequestedRevealRef = useRef(false);
+  const isInViewportRef = useRef(false);
+  const layoutReadyRef = useRef(false);
+  const layoutSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onVisibleRef = useRef(onVisible);
   const getProgressRef = useRef(getProgress);
+  const onResetRef = useRef(onReset);
+  const onViewportChangeRef = useRef(onViewportChange);
 
   onVisibleRef.current = onVisible;
   getProgressRef.current = getProgress;
+  onResetRef.current = onReset;
+  onViewportChangeRef.current = onViewportChange;
 
   useEffect(() => {
-    isVisibleRef.current = false;
-    visibleSinceRef.current = null;
-    onReset?.();
-  }, [onReset, resetKey]);
+    hasRequestedRevealRef.current = false;
+    isInViewportRef.current = false;
+    layoutReadyRef.current = false;
+    onResetRef.current?.();
+  }, [resetKey]);
 
   const checkVisibility = useCallback(() => {
     if (!enabled) return;
+    if (!layoutReadyRef.current) return;
     if (getProgressRef.current() >= 1) return;
 
     containerRef.current?.measureInWindow((_x, y, _width, height) => {
       if (height < MIN_LAYOUT_HEIGHT) return;
 
-      const visible = isInViewport(y, height);
-      isVisibleRef.current = visible;
+      const visible = isMeaningfullyVisible(y, height);
+      if (visible !== isInViewportRef.current) {
+        isInViewportRef.current = visible;
+        onViewportChangeRef.current?.(visible);
+      }
 
       if (!visible) {
-        visibleSinceRef.current = null;
+        if (getProgressRef.current() <= 0) {
+          hasRequestedRevealRef.current = false;
+        }
         return;
       }
 
-      if (visibleSinceRef.current == null) {
-        visibleSinceRef.current = Date.now();
-      }
+      if (hasRequestedRevealRef.current) return;
 
-      const progress = getProgressRef.current();
-      if (progress < 0.001) {
-        onVisibleRef.current();
-        return;
-      }
-
-      const visibleForMs = Date.now() - visibleSinceRef.current;
-      if (progress < 1 && visibleForMs >= STUCK_VISIBLE_MS) {
-        onVisibleRef.current();
-      }
+      hasRequestedRevealRef.current = true;
+      onVisibleRef.current();
     });
   }, [enabled]);
 
@@ -87,22 +97,31 @@ export function useDonutVisibilityTrigger(options: {
       checkVisibility();
     }, VISIBILITY_POLL_MS);
 
-    const ultimate = setTimeout(() => {
-      if (getProgressRef.current() < 1) {
-        onVisibleRef.current();
-      }
-    }, ULTIMATE_REVEAL_MS);
-
     return () => {
       cancelAnimationFrame(frame);
       clearInterval(interval);
-      clearTimeout(ultimate);
     };
   }, [checkVisibility, enabled, resetKey]);
 
   const onLayout = useCallback(() => {
-    requestAnimationFrame(checkVisibility);
+    layoutReadyRef.current = false;
+    if (layoutSettleTimerRef.current != null) {
+      clearTimeout(layoutSettleTimerRef.current);
+    }
+    layoutSettleTimerRef.current = setTimeout(() => {
+      layoutReadyRef.current = true;
+      requestAnimationFrame(checkVisibility);
+    }, LAYOUT_SETTLE_MS);
   }, [checkVisibility]);
 
-  return { containerRef, checkVisibility, onLayout };
+  useEffect(
+    () => () => {
+      if (layoutSettleTimerRef.current != null) {
+        clearTimeout(layoutSettleTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  return { containerRef, checkVisibility, onLayout, isInViewportRef };
 }

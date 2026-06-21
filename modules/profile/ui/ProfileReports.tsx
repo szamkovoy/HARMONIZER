@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
@@ -218,6 +218,33 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     void loadReport();
   }, [loadReport]);
 
+  const sortedStats = useMemo(
+    () => (report ? [...report.chakraStats].sort((a, b) => a.chakra - b.chakra) : []),
+    [report],
+  );
+  const total = Math.max(0, report?.totalDurationSec ?? 0);
+  const locale = props.locale ?? "ru";
+  const practiceSegments = useMemo(
+    (): DonutSegmentInput[] =>
+      sortedStats.map((item) => ({
+        id: item.chakra,
+        value: item.durationSec,
+        color: item.color,
+        label: chakraNumericDisplayLabel(locale, item.chakra),
+        legendSuffix: formatDurationClock(item.durationSec),
+      })),
+    [locale, sortedStats],
+  );
+  const stableAnimationKeyRef = useRef("");
+  const practiceAnimationKey = useMemo(() => {
+    const next = `${periodDays}|${practiceSegments.map((item) => `${item.id}:${item.value}`).join("|")}`;
+    if (loading) {
+      return stableAnimationKeyRef.current || next;
+    }
+    stableAnimationKeyRef.current = next;
+    return next;
+  }, [loading, periodDays, practiceSegments]);
+
   if (!props.enabled) {
     return (
       <ProfileReportCard title={strings.practiceByChakraTitle}>
@@ -229,23 +256,12 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     );
   }
 
-  const sortedStats = report ? [...report.chakraStats].sort((a, b) => a.chakra - b.chakra) : [];
-  const total = Math.max(0, report?.totalDurationSec ?? 0);
-  const locale = props.locale ?? "ru";
-  const practiceSegments: DonutSegmentInput[] = sortedStats.map((item) => ({
-    id: item.chakra,
-    value: item.durationSec,
-    color: item.color,
-    label: chakraNumericDisplayLabel(locale, item.chakra),
-    legendSuffix: formatDurationClock(item.durationSec),
-  }));
-
   return (
     <ProfileReportCard
       title={strings.practiceByChakraTitle}
       periodSelector={<PeriodSelector value={periodDays} onChange={setPeriodDays} locale={props.locale ?? "ru"} />}
     >
-      {loading ? (
+      {loading && !report ? (
         <AppText variant="dialogBody" tone="muted">
           {strings.reportsLoading}
         </AppText>
@@ -255,16 +271,12 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
           {error}
         </AppText>
       ) : null}
-      {!loading && !error && report ? (
+      {!error && report ? (
         total > 0 ? (
-          <DonutChart
-            segments={practiceSegments}
-            locale={locale}
-            animationKey={`${periodDays}|${practiceSegments.map((item) => `${item.id}:${item.value}`).join("|")}`}
-          />
-        ) : (
+          <DonutChart segments={practiceSegments} locale={locale} animationKey={practiceAnimationKey} />
+        ) : !loading ? (
           <ProfileEmptyState message={strings.practicesNotDone} />
-        )
+        ) : null
       ) : null}
     </ProfileReportCard>
   );
