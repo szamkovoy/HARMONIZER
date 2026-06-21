@@ -747,7 +747,7 @@ export default function HomeScreen() {
         {forecast ? (
           <>
             {access.tier === "free" ? <FreeTierBanner text={strings.freeTierBanner} /> : null}
-            <ChakraFlower forecast={forecast} strings={strings} />
+            <ChakraFlower forecast={forecast} strings={strings} natalProfile={natalProfile} />
             <DailyRecommendationCard
               forecast={forecast}
               strings={strings}

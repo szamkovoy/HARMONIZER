@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 
+import type { NatalProfile } from "@/modules/astro-core";
+import { CHAKRA_SEGMENT_COLORS } from "@/modules/charts/constants";
+import { getChartStrings } from "@/modules/charts/i18n/charts";
 import { chakraShortLabelDisplay, type ChakraLocale } from "@/modules/chakra/i18n";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -9,9 +12,19 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { PLANET_ORDER } from "../planetChakra";
 
+const DESIGN_SIZE = 248;
+/** ~17% above donut size (164): uses spare width right of legend without re-wrapping long labels. */
+const CANVAS_SIZE = 192;
+const SCALE = CANVAS_SIZE / DESIGN_SIZE;
+
+function scaled(value: number): number {
+  return value * SCALE;
+}
+
 interface ChakraFlowerProps {
   forecast: DailyForecast;
   strings: HomeStrings;
+  natalProfile?: NatalProfile | null;
 }
 
 function selectedGlowOpacity(tone: TodayTone): number {
@@ -41,15 +54,41 @@ function hexToRgba(hex: string, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
-export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
+function chakraColor(chakraNumber: number): string {
+  return CHAKRA_SEGMENT_COLORS[chakraNumber - 1] ?? CHAKRA_SEGMENT_COLORS[0];
+}
+
+function contrastOnHex(hex: string): string {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.58 ? "#111827" : "#FFFFFF";
+}
+
+function formatPlanetStrength(strength: number, tone: TodayTone): string {
+  const percent = Math.round(Math.max(0, Math.min(1, strength)) * 100);
+  if (tone === "dissonant") return `-${percent}%`;
+  return `${percent}%`;
+}
+
+export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerProps) {
   const theme = useTheme();
+  const chartStrings = getChartStrings(strings.locale);
   const chakraLocale: ChakraLocale = strings.locale;
   const planetChakra = useMemo(() => getPlanetChakraMap(chakraLocale), [chakraLocale]);
-  const center = 124;
+  const center = CANVAS_SIZE / 2;
   const startAngle = 360 / PLANET_ORDER.length;
   const { importance, planetOfTheDay } = forecast;
   const todayTone = forecast.todayPlanetState.todayTone;
   const selectedMeta = planetChakra[planetOfTheDay];
+  const selectedColor = chakraColor(selectedMeta.chakraNumber);
+  const centerTextColor = contrastOnHex(selectedColor);
+  const planetStrength = natalProfile?.planets[planetOfTheDay]?.S_initial;
+  const strengthLabel =
+    typeof planetStrength === "number" ? formatPlanetStrength(planetStrength, todayTone) : null;
 
   return (
     <View
@@ -75,13 +114,19 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
           <View style={styles.flowerCanvas} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             {PLANET_ORDER.map((planet, index) => {
               const meta = planetChakra[planet];
+              const color = chakraColor(meta.chakraNumber);
               const n = normalizedImportance(importance, planet);
               const isSelected = planet === planetOfTheDay;
-              const width = 42 + n * 22;
-              const length = 76 + n * 48;
+              const width = scaled(42 + n * 22);
+              const length = scaled(76 + n * 48);
               const angle = startAngle * (index + 1);
               const opacity = petalOpacity(todayTone, isSelected, n);
-              const borderColor = isSelected && todayTone === "dissonant" ? "rgba(17, 24, 39, 0.75)" : hexToRgba(meta.color, 0.95);
+              const borderColor =
+                isSelected && todayTone === "dissonant" ? "rgba(17, 24, 39, 0.75)" : hexToRgba(color, 0.95);
+              const glowPad = scaled(20);
+              const glowExtra = scaled(30);
+              const petalTopInset = scaled(24);
+              const glowTopInset = scaled(8);
               return (
                 <View
                   key={planet}
@@ -98,12 +143,12 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
                       style={[
                         styles.petalGlow,
                         {
-                          backgroundColor: meta.color,
-                          height: length + 30,
-                          left: center - (width + 20) / 2,
+                          backgroundColor: color,
+                          height: length + glowExtra,
+                          left: center - (width + glowPad) / 2,
                           opacity: selectedGlowOpacity(todayTone),
-                          top: center - length - 8,
-                          width: width + 20,
+                          top: center - length - glowTopInset,
+                          width: width + glowPad,
                         },
                       ]}
                     />
@@ -112,38 +157,16 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
                     style={[
                       styles.petal,
                       {
-                        backgroundColor: hexToRgba(meta.color, opacity),
+                        backgroundColor: hexToRgba(color, opacity),
                         borderColor,
                         borderWidth: isSelected ? 2 : 1,
                         height: length,
                         left: center - width / 2,
-                        top: center - length + 24,
+                        top: center - length + petalTopInset,
                         width,
                       },
                     ]}
                   />
-                  <View
-                    style={[
-                      styles.petalNumberWrap,
-                      {
-                        left: center - 12,
-                        top: center - length + 38,
-                      },
-                    ]}
-                  >
-                    <AppText
-                      variant="technicalCaption"
-                      style={[
-                        styles.petalNumber,
-                        {
-                          color: isSelected ? theme.colors.textPrimary : "rgba(255,255,255,0.82)",
-                          transform: [{ rotate: `-${angle}deg` }],
-                        },
-                      ]}
-                    >
-                      {meta.chakraNumber}
-                    </AppText>
-                  </View>
                 </View>
               );
             })}
@@ -152,7 +175,11 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
                 styles.centerOuter,
                 {
                   backgroundColor: theme.colors.screenBg,
-                  borderColor: hexToRgba(selectedMeta.color, 0.24),
+                  borderColor: hexToRgba(selectedColor, 0.24),
+                  height: scaled(82),
+                  left: center - scaled(41),
+                  top: center - scaled(41),
+                  width: scaled(82),
                 },
               ]}
             />
@@ -160,28 +187,63 @@ export function ChakraFlower({ forecast, strings }: ChakraFlowerProps) {
               style={[
                 styles.centerInner,
                 {
-                  backgroundColor: selectedMeta.color,
+                  backgroundColor: selectedColor,
+                  height: scaled(54),
+                  left: center - scaled(27),
+                  top: center - scaled(27),
+                  width: scaled(54),
                 },
               ]}
             />
+            {strengthLabel ? (
+              <View
+                style={[
+                  styles.centerOverlay,
+                  {
+                    height: scaled(54),
+                    left: center - scaled(27),
+                    top: center - scaled(27),
+                    width: scaled(54),
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <AppText
+                  variant="sectionTitle"
+                  style={[styles.strengthValue, { color: centerTextColor }]}
+                >
+                  {strengthLabel}
+                </AppText>
+                <AppText variant="technicalCaption" style={[styles.strengthCaption, { color: centerTextColor }]}>
+                  {chartStrings.strengthLabel}
+                </AppText>
+              </View>
+            ) : null}
           </View>
         </View>
-        <View style={styles.legend}>
+        <View style={styles.legendColumn}>
           {PLANET_ORDER.map((planet) => {
             const meta = planetChakra[planet];
+            const color = chakraColor(meta.chakraNumber);
             const active = planet === planetOfTheDay;
             return (
               <View key={planet} style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: meta.color, opacity: active ? 1 : 0.65 }]} />
+                <View
+                  style={[
+                    styles.legendDot,
+                    {
+                      backgroundColor: color,
+                    },
+                  ]}
+                />
                 <AppText variant="technicalCaption" tone={active ? "primary" : "muted"} style={styles.legendText}>
-                  {meta.chakraNumber} - {chakraShortLabelDisplay(chakraLocale, meta.chakraNumber)}
+                  {chakraShortLabelDisplay(chakraLocale, meta.chakraNumber)}
                 </AppText>
               </View>
             );
           })}
         </View>
       </View>
-
     </View>
   );
 }
@@ -205,25 +267,25 @@ const styles = StyleSheet.create({
   flowerBody: {
     alignItems: "center",
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 14,
-    justifyContent: "center",
+    gap: 10,
   },
   flowerWrap: {
     alignItems: "center",
+    flexShrink: 0,
     justifyContent: "center",
+    width: CANVAS_SIZE,
   },
   flowerCanvas: {
-    height: 248,
+    height: CANVAS_SIZE,
     position: "relative",
-    width: 248,
+    width: CANVAS_SIZE,
   },
   petalLayer: {
-    height: 248,
+    height: CANVAS_SIZE,
     left: 0,
     position: "absolute",
     top: 0,
-    width: 248,
+    width: CANVAS_SIZE,
   },
   petal: {
     borderRadius: 999,
@@ -233,51 +295,49 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     position: "absolute",
   },
-  petalNumberWrap: {
-    alignItems: "center",
-    height: 24,
-    justifyContent: "center",
-    position: "absolute",
-    width: 24,
-  },
-  petalNumber: {
-    fontWeight: "700",
-    textAlign: "center",
-  },
   centerOuter: {
-    borderRadius: 41,
+    borderRadius: 999,
     borderWidth: 1,
-    height: 82,
-    left: 83,
     opacity: 0.92,
     position: "absolute",
-    top: 83,
-    width: 82,
   },
   centerInner: {
-    borderRadius: 27,
-    height: 54,
-    left: 97,
+    borderRadius: 999,
     opacity: 0.84,
     position: "absolute",
-    top: 97,
-    width: 54,
   },
-  legend: {
-    gap: 7,
-    minWidth: 132,
+  centerOverlay: {
+    alignItems: "center",
+    justifyContent: "center",
+    position: "absolute",
+  },
+  strengthValue: {
+    fontSize: scaled(16),
+    lineHeight: scaled(18),
+    marginBottom: -2,
+  },
+  strengthCaption: {
+    fontSize: scaled(11),
+    lineHeight: scaled(13),
+    opacity: 0.92,
+  },
+  legendColumn: {
+    flex: 1,
+    gap: 8,
+    justifyContent: "center",
   },
   legendRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 7,
+    gap: 8,
   },
   legendDot: {
     borderRadius: 999,
-    height: 9,
-    width: 9,
+    height: 10,
+    width: 10,
   },
   legendText: {
+    flex: 1,
     lineHeight: 15,
   },
 });
