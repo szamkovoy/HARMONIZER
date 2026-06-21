@@ -29,6 +29,7 @@ type DonutChartProps = {
 };
 
 const REVEAL_FALLBACK_MS = 2400;
+const BALANCE_STROKE_OPACITY = 0.58;
 
 function buildAnimationKey(segments: readonly DonutSegmentInput[]) {
   return segments.map((segment) => `${segment.id}:${segment.value}:${segment.label}`).join("|");
@@ -117,6 +118,7 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
               <Path
                 d={strokeArcPath(DONUT_CENTER, DONUT_CENTER, trackRadius, visibleBalanceAngle)}
                 stroke={balanceStroke}
+                strokeOpacity={BALANCE_STROKE_OPACITY}
                 strokeWidth={DONUT_TRACK_WIDTH}
                 strokeLinecap="round"
                 fill="none"
