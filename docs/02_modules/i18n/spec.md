@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.10
+version: 1.11
 updated: 2026-06-21
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -288,7 +288,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 - **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
   (`modules/chakra/i18n.ts` — single source for legend text), charts donut center
-  label (`getChartStrings` → `balanceLabel`; overlays `typed/catalog/charts/*`),
+  label (`getChartStrings` → `balanceLabel`, `strengthLabel`; overlays `typed/catalog/charts/*`),
   startup splash footer
   (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`).
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier

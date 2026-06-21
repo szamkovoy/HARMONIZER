@@ -1,7 +1,7 @@
 ---
 id: 02_modules/charts/spec
 title: Charts Spec
-version: 1.2
+version: 1.3
 updated: 2026-06-21
 depends_on: [02_modules/i18n/spec, 02_modules/ui/theme]
 code_refs:
@@ -31,7 +31,7 @@ code_refs:
 - **`buildDonutSegments` / `clipDonutSegmentsForProgress`** — геометрия сегментов с зазором `DONUT_GAP_RAD = 0.04`; неактивные (`value = 0`) не рисуются.
 - **`DonutChart`** — props: `segments`, `locale?`, `animationKey?`. Центр: **`{balance}%`** (`sectionTitle`, 22/24 px) + подпись **`balanceLabel`** из i18n; дуга баланса — `theme.colors.textMuted`. Легенда справа; нулевые пункты приглушены.
 - **`DonutVisibilityProvider`**, **`useDonutScrollProps`**, **`useDonutVisibilityRefresh`** — viewport-триггер анимации (частичная видимость достаточна): внутренний **`useDonutVisibilityTrigger({ onVisible, enabled, resetKey, getProgress, onReset? })`** — `measureInWindow`, layout с высотой < 8 px игнорируется; после mount / смены `resetKey` — `onReset?`, немедленная проверка, rAF и poll **250 ms** до `getProgress() >= 1`; если видим ≥ **1.8 s** при `progress < 1` — повторный `onVisible`; ultimate fallback **`onVisible`** через **5 s**. **`useDonutScrollProps`** → `{ scrollEventThrottle: 16, onScroll, onMomentumScrollEnd, onScrollEndDrag, onContentSizeChange }` на `ScrollView`; **`useDonutVisibilityRefresh()`** — ручной re-check (например `useFocusEffect` на табе). Прогресс — внутренний **`useDonutAnimation`** → `{ progress, progressRef, start, reset, complete }` (`requestAnimationFrame` + `easeOutCubic`, `DONUT_ANIMATION_MS` = 1400; хуки не экспортируются из `index.ts`). **`DonutChart`**: при `onVisible` — `start()` если `progress ≈ 0`, иначе `complete()`; дополнительный fallback **`complete()`** через **2.4 s** (`REVEAL_FALLBACK_MS`).
-- **`getChartStrings(locale)`** — typed i18n (`modules/charts/i18n/charts.ts` + overlays `modules/i18n/typed/catalog/charts/*`).
+- **`getChartStrings(locale)`** — typed i18n (`modules/charts/i18n/charts.ts` + overlays `modules/i18n/typed/catalog/charts/*`): `balanceLabel` (центр `DonutChart`), `strengthLabel` (подпись силы в центре `ChakraFlower` на home).
 
 ## 3. Визуальные константы
 

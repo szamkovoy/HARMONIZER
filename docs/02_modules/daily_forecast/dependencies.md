@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.4
-updated: 2026-06-18
+version: 2.5
+updated: 2026-06-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -58,6 +58,7 @@ code_refs:
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
 
 - **`charts`**  
+  - **`modules/home/ui/ChakraFlower.tsx`**: цвета лепестков — **`CHAKRA_SEGMENT_COLORS`**; подпись силы в центре — **`getChartStrings(locale).strengthLabel`**; значение — `natalProfile.planets[planetOfTheDay].S_initial` (проп с `app/(tabs)/index.tsx`).
   - **`app/(tabs)/day.tsx`**: блок «Сферы жизни» — **`DonutChart`** + **`DonutVisibilityProvider`**; веса из **`sphereStats`** (`GET /api/day`), баланс — **`calcBalance`** на клиенте.
 
 - **`infra`**  

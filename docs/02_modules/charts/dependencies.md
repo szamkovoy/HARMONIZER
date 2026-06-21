@@ -1,10 +1,10 @@
 ---
 id: 02_modules/charts/dependencies
 title: Charts Dependencies
-version: 1.2
+version: 1.3
 updated: 2026-06-21
 depends_on: [02_modules/charts/spec]
-code_refs: [modules/charts/DonutChart.tsx, app/(tabs)/day.tsx, modules/profile/ui/ProfileReports.tsx]
+code_refs: [modules/charts/DonutChart.tsx, modules/home/ui/ChakraFlower.tsx, app/(tabs)/day.tsx, modules/profile/ui/ProfileReports.tsx]
 ---
 
 ## 1. Зависит от
@@ -19,6 +19,7 @@ code_refs: [modules/charts/DonutChart.tsx, app/(tabs)/day.tsx, modules/profile/u
 
 | Потребитель | Использование |
 | --- | --- |
+| `daily_forecast` (home) | `ChakraFlower` — `CHAKRA_SEGMENT_COLORS`, `getChartStrings` (`strengthLabel` в центре при переданном `natalProfile`) |
 | `daily_forecast` (Day tab) | `DonutChart` для блока «Сферы жизни» в `app/(tabs)/day.tsx` |
 | `profile` | `DonutChart` в `ProfileReports.tsx` (сферы, состояния, практики по чakрам) |
 

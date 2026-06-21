@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.13
-updated: 2026-06-18
+version: 2.14
+updated: 2026-06-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-21:** Home UI `ChakraFlower`: опциональный prop `natalProfile`; центр — `S_initial` планеты дня + `strengthLabel` из `charts/i18n`; цвета лепестков — `CHAKRA_SEGMENT_COLORS`; компактный canvas 192×192, легенда без номера чакры.
 
 - **2026-06-20:** Блок «Сферы жизни» на вкладке «День» переведён на общий `DonutChart` (`modules/charts/`): бублик с дугой баланса, процент в центре, легенда справа, анимация при появлении на экране. Веса по-прежнему из `/api/day` → `sphereStats`; перерасчёт и prefetch при закрытии ассистента без изменений контракта API.
 
