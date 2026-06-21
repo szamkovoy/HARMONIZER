@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
@@ -28,6 +28,8 @@ type DonutChartProps = {
   animationKey?: string;
 };
 
+const REVEAL_FALLBACK_MS = 2400;
+
 function buildAnimationKey(segments: readonly DonutSegmentInput[]) {
   return segments.map((segment) => `${segment.id}:${segment.value}:${segment.label}`).join("|");
 }
@@ -35,27 +37,50 @@ function buildAnimationKey(segments: readonly DonutSegmentInput[]) {
 export function DonutChart({ segments, locale = "ru", animationKey }: DonutChartProps) {
   const theme = useTheme();
   const strings = getChartStrings(locale);
-  const { progress: renderProgress, start: startAnimation, reset: resetAnimation } = useDonutAnimation();
+  const { progress: renderProgress, progressRef, start: startAnimation, reset: resetAnimation, complete } =
+    useDonutAnimation();
   const resolvedAnimationKey = animationKey ?? buildAnimationKey(segments);
+  const revealModeRef = useRef<"animate" | "complete">("animate");
 
   const weights = useMemo(() => segmentsToWeights(segments), [segments]);
   const { balance, angle: balanceAngle } = useMemo(() => calcBalance(weights), [weights]);
   const { segments: builtSegments } = useMemo(() => buildDonutSegments(segments), [segments]);
   const hasData = builtSegments.length > 0;
+  const chartEnabled = hasData || balance > 0;
 
   const handleVisible = useCallback(() => {
+    if (progressRef.current >= 1) return;
+    if (revealModeRef.current === "complete" || progressRef.current > 0.01) {
+      complete();
+      return;
+    }
     startAnimation();
-  }, [startAnimation]);
+  }, [complete, progressRef, startAnimation]);
+
+  const handleReset = useCallback(() => {
+    revealModeRef.current = "animate";
+    resetAnimation();
+  }, [resetAnimation]);
+
+  const { containerRef, onLayout } = useDonutVisibilityTrigger({
+    onVisible: handleVisible,
+    enabled: chartEnabled,
+    resetKey: resolvedAnimationKey,
+    getProgress: () => progressRef.current,
+    onReset: handleReset,
+  });
 
   useEffect(() => {
-    resetAnimation();
-  }, [resetAnimation, resolvedAnimationKey]);
+    if (!chartEnabled) return undefined;
 
-  const { containerRef, onLayout } = useDonutVisibilityTrigger(
-    handleVisible,
-    hasData || balance > 0,
-    resolvedAnimationKey,
-  );
+    const fallback = setTimeout(() => {
+      if (progressRef.current >= 1) return;
+      revealModeRef.current = "complete";
+      complete();
+    }, REVEAL_FALLBACK_MS);
+
+    return () => clearTimeout(fallback);
+  }, [chartEnabled, complete, progressRef, resolvedAnimationKey]);
 
   const balancePhase = renderProgress < 0.6 ? 0 : easeOutCubic((renderProgress - 0.6) / 0.4);
   const textOpacity = renderProgress < 0.85 ? 0 : Math.min(1, (renderProgress - 0.85) / 0.15);
@@ -65,7 +90,7 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
   );
   const visibleBalanceAngle = balancePhase * balanceAngle;
   const trackRadius = DONUT_INNER_RADIUS - DONUT_TRACK_GAP;
-  const balanceStroke = theme.scheme === "dark" ? "rgba(255,255,255,0.92)" : "rgba(15,23,42,0.88)";
+  const balanceStroke = theme.colors.textMuted;
   const trackStroke = theme.scheme === "dark" ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.12)";
 
   return (
@@ -99,7 +124,7 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
             ) : null}
           </Svg>
           <View style={styles.centerOverlay} pointerEvents="none">
-            <AppText variant="screenTitle" style={{ opacity: textOpacity }}>
+            <AppText variant="sectionTitle" style={[styles.balanceValue, { opacity: textOpacity }]}>
               {balance}%
             </AppText>
             <AppText variant="technicalCaption" tone="muted" style={{ opacity: textOpacity }}>
@@ -151,7 +176,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    gap: 0,
+  },
+  balanceValue: {
+    fontSize: 22,
+    lineHeight: 24,
+    marginBottom: -3,
   },
   legendColumn: {
     flex: 1,

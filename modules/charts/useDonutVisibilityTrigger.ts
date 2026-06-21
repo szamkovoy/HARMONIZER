@@ -4,33 +4,70 @@ import { Dimensions, type View } from "react-native";
 import { useDonutVisibilityContext } from "@/modules/charts/DonutVisibilityContext";
 
 const MIN_LAYOUT_HEIGHT = 8;
-const VISIBILITY_POLL_MS = 200;
-const VISIBILITY_POLL_WINDOW_MS = 3000;
+const VISIBILITY_POLL_MS = 250;
+const STUCK_VISIBLE_MS = 1800;
+const ULTIMATE_REVEAL_MS = 5000;
 
-export function useDonutVisibilityTrigger(
-  onVisible: () => void,
-  enabled: boolean,
-  resetKey: string,
-) {
+function isInViewport(y: number, height: number) {
+  const windowHeight = Dimensions.get("window").height;
+  return y + height > 0 && y < windowHeight;
+}
+
+export function useDonutVisibilityTrigger(options: {
+  onVisible: () => void;
+  enabled: boolean;
+  resetKey: string;
+  getProgress: () => number;
+  onReset?: () => void;
+}) {
+  const { onVisible, enabled, resetKey, getProgress, onReset } = options;
   const context = useDonutVisibilityContext();
   const containerRef = useRef<View>(null);
-  const hasTriggeredRef = useRef(false);
+  const isVisibleRef = useRef(false);
+  const visibleSinceRef = useRef<number | null>(null);
+  const onVisibleRef = useRef(onVisible);
+  const getProgressRef = useRef(getProgress);
+
+  onVisibleRef.current = onVisible;
+  getProgressRef.current = getProgress;
 
   useEffect(() => {
-    hasTriggeredRef.current = false;
-  }, [resetKey]);
+    isVisibleRef.current = false;
+    visibleSinceRef.current = null;
+    onReset?.();
+  }, [onReset, resetKey]);
 
   const checkVisibility = useCallback(() => {
-    if (!enabled || hasTriggeredRef.current) return;
+    if (!enabled) return;
+    if (getProgressRef.current() >= 1) return;
+
     containerRef.current?.measureInWindow((_x, y, _width, height) => {
       if (height < MIN_LAYOUT_HEIGHT) return;
-      const windowHeight = Dimensions.get("window").height;
-      if (y + height > 0 && y < windowHeight) {
-        hasTriggeredRef.current = true;
-        onVisible();
+
+      const visible = isInViewport(y, height);
+      isVisibleRef.current = visible;
+
+      if (!visible) {
+        visibleSinceRef.current = null;
+        return;
+      }
+
+      if (visibleSinceRef.current == null) {
+        visibleSinceRef.current = Date.now();
+      }
+
+      const progress = getProgressRef.current();
+      if (progress < 0.001) {
+        onVisibleRef.current();
+        return;
+      }
+
+      const visibleForMs = Date.now() - visibleSinceRef.current;
+      if (progress < 1 && visibleForMs >= STUCK_VISIBLE_MS) {
+        onVisibleRef.current();
       }
     });
-  }, [enabled, onVisible]);
+  }, [enabled]);
 
   useEffect(() => {
     if (!context) return undefined;
@@ -39,14 +76,27 @@ export function useDonutVisibilityTrigger(
 
   useEffect(() => {
     if (!enabled) return undefined;
+
     checkVisibility();
     const frame = requestAnimationFrame(checkVisibility);
-    const interval = setInterval(checkVisibility, VISIBILITY_POLL_MS);
-    const stop = setTimeout(() => clearInterval(interval), VISIBILITY_POLL_WINDOW_MS);
+    const interval = setInterval(() => {
+      if (getProgressRef.current() >= 1) {
+        clearInterval(interval);
+        return;
+      }
+      checkVisibility();
+    }, VISIBILITY_POLL_MS);
+
+    const ultimate = setTimeout(() => {
+      if (getProgressRef.current() < 1) {
+        onVisibleRef.current();
+      }
+    }, ULTIMATE_REVEAL_MS);
+
     return () => {
       cancelAnimationFrame(frame);
       clearInterval(interval);
-      clearTimeout(stop);
+      clearTimeout(ultimate);
     };
   }, [checkVisibility, enabled, resetKey]);
 

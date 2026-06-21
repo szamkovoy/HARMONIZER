@@ -5,8 +5,15 @@ import { easeOutCubic } from "@/modules/charts/donutGeometry";
 
 export function useDonutAnimation() {
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
   const frameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
+
+  const setProgressSafe = useCallback((value: number) => {
+    const clamped = Math.max(0, Math.min(1, value));
+    progressRef.current = clamped;
+    setProgress(clamped);
+  }, []);
 
   const cancel = useCallback(() => {
     if (frameRef.current != null) {
@@ -18,27 +25,32 @@ export function useDonutAnimation() {
 
   const start = useCallback(() => {
     cancel();
-    setProgress(0);
+    setProgressSafe(0);
     const tick = (now: number) => {
       if (startTimeRef.current == null) startTimeRef.current = now;
       const raw = Math.min(1, (now - startTimeRef.current) / DONUT_ANIMATION_MS);
-      setProgress(easeOutCubic(raw));
+      setProgressSafe(easeOutCubic(raw));
       if (raw < 1) {
         frameRef.current = requestAnimationFrame(tick);
       } else {
         frameRef.current = null;
-        setProgress(1);
+        setProgressSafe(1);
       }
     };
     frameRef.current = requestAnimationFrame(tick);
-  }, [cancel]);
+  }, [cancel, setProgressSafe]);
+
+  const complete = useCallback(() => {
+    cancel();
+    setProgressSafe(1);
+  }, [cancel, setProgressSafe]);
 
   const reset = useCallback(() => {
     cancel();
-    setProgress(0);
-  }, [cancel]);
+    setProgressSafe(0);
+  }, [cancel, setProgressSafe]);
 
   useEffect(() => cancel, [cancel]);
 
-  return { progress, start, reset };
-}
+  return { progress, progressRef, start, reset, complete };
+};
