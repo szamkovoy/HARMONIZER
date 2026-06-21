@@ -3,6 +3,10 @@ import { Dimensions, type View } from "react-native";
 
 import { useDonutVisibilityContext } from "@/modules/charts/DonutVisibilityContext";
 
+const MIN_LAYOUT_HEIGHT = 8;
+const VISIBILITY_POLL_MS = 200;
+const VISIBILITY_POLL_WINDOW_MS = 3000;
+
 export function useDonutVisibilityTrigger(
   onVisible: () => void,
   enabled: boolean,
@@ -19,6 +23,7 @@ export function useDonutVisibilityTrigger(
   const checkVisibility = useCallback(() => {
     if (!enabled || hasTriggeredRef.current) return;
     containerRef.current?.measureInWindow((_x, y, _width, height) => {
+      if (height < MIN_LAYOUT_HEIGHT) return;
       const windowHeight = Dimensions.get("window").height;
       if (y + height > 0 && y < windowHeight) {
         hasTriggeredRef.current = true;
@@ -34,9 +39,20 @@ export function useDonutVisibilityTrigger(
 
   useEffect(() => {
     if (!enabled) return undefined;
+    checkVisibility();
     const frame = requestAnimationFrame(checkVisibility);
-    return () => cancelAnimationFrame(frame);
+    const interval = setInterval(checkVisibility, VISIBILITY_POLL_MS);
+    const stop = setTimeout(() => clearInterval(interval), VISIBILITY_POLL_WINDOW_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearInterval(interval);
+      clearTimeout(stop);
+    };
   }, [checkVisibility, enabled, resetKey]);
 
-  return { containerRef, checkVisibility };
+  const onLayout = useCallback(() => {
+    requestAnimationFrame(checkVisibility);
+  }, [checkVisibility]);
+
+  return { containerRef, checkVisibility, onLayout };
 }

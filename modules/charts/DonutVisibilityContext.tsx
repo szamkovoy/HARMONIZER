@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
-import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
 type DonutVisibilityContextValue = {
   register: (listener: () => void) => () => void;
@@ -36,11 +35,15 @@ export function useDonutVisibilityContext() {
 
 export function useDonutScrollProps() {
   const context = useDonutVisibilityContext();
+  const notify = useCallback(() => {
+    context?.notifyVisibilityCheck();
+  }, [context]);
   return {
     scrollEventThrottle: 16 as const,
-    onScroll: (_event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      context?.notifyVisibilityCheck();
-    },
+    onScroll: notify,
+    onMomentumScrollEnd: notify,
+    onScrollEndDrag: notify,
+    onContentSizeChange: notify,
   };
 }
 

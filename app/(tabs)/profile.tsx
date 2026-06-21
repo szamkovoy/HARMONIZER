@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
 import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
-import { DonutVisibilityProvider, useDonutScrollProps } from "@/modules/charts";
+import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
 import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
@@ -67,6 +68,7 @@ export default function ProfileTabRoute() {
   const reportLocale = locale;
   const reportStrings = getProfileReportStrings(reportLocale);
   const donutScrollProps = useDonutScrollProps();
+  const refreshDonutVisibility = useDonutVisibilityRefresh();
   const [statsPeriodDays, setStatsPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -99,6 +101,12 @@ export default function ProfileTabRoute() {
   useEffect(() => {
     void loadStats();
   }, [loadStats]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshDonutVisibility();
+    }, [refreshDonutVisibility]),
+  );
 
   const exportDiagnostics = useCallback(() => {
     logRuntimeTap("profile_export_diagnostics");

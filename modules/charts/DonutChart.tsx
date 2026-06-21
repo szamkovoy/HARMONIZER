@@ -1,18 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
-import {
-  Easing,
-  runOnJS,
-  useAnimatedReaction,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
 
 import { buildDonutSegments, clipDonutSegmentsForProgress, type DonutSegmentInput } from "@/modules/charts/buildDonutSegments";
 import { calcBalance, segmentsToWeights } from "@/modules/charts/calcBalance";
 import {
-  DONUT_ANIMATION_MS,
   DONUT_CENTER,
   DONUT_INNER_RADIUS,
   DONUT_OUTER_RADIUS,
@@ -20,9 +12,10 @@ import {
   DONUT_TRACK_WIDTH,
   DONUT_VIEW_SIZE,
 } from "@/modules/charts/constants";
-import { useDonutVisibilityTrigger } from "@/modules/charts/useDonutVisibilityTrigger";
 import { donutPath, easeOutCubic, strokeArcPath } from "@/modules/charts/donutGeometry";
 import { getChartStrings } from "@/modules/charts/i18n/charts";
+import { useDonutAnimation } from "@/modules/charts/useDonutAnimation";
+import { useDonutVisibilityTrigger } from "@/modules/charts/useDonutVisibilityTrigger";
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -42,8 +35,7 @@ function buildAnimationKey(segments: readonly DonutSegmentInput[]) {
 export function DonutChart({ segments, locale = "ru", animationKey }: DonutChartProps) {
   const theme = useTheme();
   const strings = getChartStrings(locale);
-  const progress = useSharedValue(0);
-  const [renderProgress, setRenderProgress] = useState(0);
+  const { progress: renderProgress, start: startAnimation, reset: resetAnimation } = useDonutAnimation();
   const resolvedAnimationKey = animationKey ?? buildAnimationKey(segments);
 
   const weights = useMemo(() => segmentsToWeights(segments), [segments]);
@@ -51,41 +43,33 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
   const { segments: builtSegments } = useMemo(() => buildDonutSegments(segments), [segments]);
   const hasData = builtSegments.length > 0;
 
-  const startAnimation = useCallback(() => {
-    progress.value = 0;
-    progress.value = withTiming(1, {
-      duration: DONUT_ANIMATION_MS,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [progress]);
+  const handleVisible = useCallback(() => {
+    startAnimation();
+  }, [startAnimation]);
 
-  useAnimatedReaction(
-    () => progress.value,
-    (value) => {
-      runOnJS(setRenderProgress)(value);
-    },
-  );
+  useEffect(() => {
+    resetAnimation();
+  }, [resetAnimation, resolvedAnimationKey]);
 
-  const { containerRef, checkVisibility } = useDonutVisibilityTrigger(
-    startAnimation,
+  const { containerRef, onLayout } = useDonutVisibilityTrigger(
+    handleVisible,
     hasData || balance > 0,
     resolvedAnimationKey,
   );
 
-  const donutProgress = easeOutCubic(renderProgress);
-  const balanceProgress = renderProgress < 0.6 ? 0 : easeOutCubic((renderProgress - 0.6) / 0.4);
+  const balancePhase = renderProgress < 0.6 ? 0 : easeOutCubic((renderProgress - 0.6) / 0.4);
   const textOpacity = renderProgress < 0.85 ? 0 : Math.min(1, (renderProgress - 0.85) / 0.15);
   const visibleSegments = useMemo(
-    () => clipDonutSegmentsForProgress(builtSegments, donutProgress),
-    [builtSegments, donutProgress],
+    () => clipDonutSegmentsForProgress(builtSegments, renderProgress),
+    [builtSegments, renderProgress],
   );
-  const visibleBalanceAngle = balanceProgress * balanceAngle;
+  const visibleBalanceAngle = balancePhase * balanceAngle;
   const trackRadius = DONUT_INNER_RADIUS - DONUT_TRACK_GAP;
   const balanceStroke = theme.scheme === "dark" ? "rgba(255,255,255,0.92)" : "rgba(15,23,42,0.88)";
   const trackStroke = theme.scheme === "dark" ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.12)";
 
   return (
-    <View ref={containerRef} style={styles.root} onLayout={checkVisibility}>
+    <View ref={containerRef} style={styles.root} onLayout={onLayout} collapsable={false}>
       <View style={styles.chartColumn}>
         <View style={styles.chartBox}>
           <Svg width={DONUT_VIEW_SIZE} height={DONUT_VIEW_SIZE} viewBox={`0 0 ${DONUT_VIEW_SIZE} ${DONUT_VIEW_SIZE}`}>
