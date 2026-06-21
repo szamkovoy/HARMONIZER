@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.98
+version: 2.99
 updated: 2026-06-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-21: `profile` / `charts` — doc-sync push: `PracticeByChakraReportCard` stable donut + frozen `animationKey` during period reload; `DonutVisibilityProvider` optional `scrollRef`. Synced `profile/{spec,history}.md`, `charts/spec.md`.
 - 2026-06-21: `daily_forecast` / `charts` / `i18n` — `ChakraFlower`: prop `natalProfile`, центр с `S_initial` + `strengthLabel`; цвета `CHAKRA_SEGMENT_COLORS`; `getChartStrings` расширен `strengthLabel`. Synced `daily_forecast/{spec,dependencies,history}.md`, `charts/{spec,dependencies,history}.md`, `i18n/{spec,dependencies}.md`, `chakra/dependencies.md`, `MAP.md`.
 - 2026-06-21: `charts` — donut reveal on viewport entry (layout settle, min visible px), tab-focus re-animate via `revealSession`; stable animation key during chakra period reload (7d fix). Synced `charts/{spec,history}.md`.
 - 2026-06-21: `charts` — doc-sync: `useDonutVisibilityTrigger` options object + progress-aware poll (250 ms / 1.8 s stuck / 5 s ultimate), `useDonutAnimation.complete()` + 2.4 s reveal fallback, center typography and `textMuted` balance stroke. Synced `charts/{spec,dependencies}.md`.

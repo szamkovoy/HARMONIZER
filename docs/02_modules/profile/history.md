@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.15
-updated: 2026-06-18
+version: 1.16
+updated: 2026-06-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-21:** «Практики по чакрам»: при смене периода donut остаётся на экране с предыдущими данными до прихода нового `report`; `animationKey` не меняется во время `loading`, чтобы viewport-анимация не перезапускалась ошибочно (реgress 7д после 30/90).
 
 - **2026-06-20:** Профильные donut-отчёты («Сферы жизни», «Проживаемые состояния», «Практики по чакрам») переведены на общий `DonutChart` с дугой баланса и подписью «balance» в центре; легенда справа. Названия карточек и hint-тексты отчётов без изменений.
 

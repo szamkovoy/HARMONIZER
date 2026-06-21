@@ -1,7 +1,7 @@
 ---
 id: 02_modules/charts/spec
 title: Charts Spec
-version: 1.3
+version: 1.4
 updated: 2026-06-21
 depends_on: [02_modules/i18n/spec, 02_modules/ui/theme]
 code_refs:
@@ -30,7 +30,7 @@ code_refs:
 - **`segmentsToWeights(segments)`** — маппинг `{ id: 1..7, value }[]` в массив весов.
 - **`buildDonutSegments` / `clipDonutSegmentsForProgress`** — геометрия сегментов с зазором `DONUT_GAP_RAD = 0.04`; неактивные (`value = 0`) не рисуются.
 - **`DonutChart`** — props: `segments`, `locale?`, `animationKey?`. Центр: **`{balance}%`** (`sectionTitle`, 22/24 px) + подпись **`balanceLabel`** из i18n; дуга баланса — `theme.colors.textMuted`. Легенда справа; нулевые пункты приглушены.
-- **`DonutVisibilityProvider`**, **`useDonutScrollProps`**, **`useDonutVisibilityRefresh`** — viewport-триггер анимации (частичная видимость ≥ **28 px** достаточна): внутренний **`useDonutVisibilityTrigger({ onVisible, enabled, resetKey, getProgress, onReset?, onViewportChange? })`** — `measureInWindow`, layout с высотой < 8 px игнорируется; проверка только после **120 ms** settle `onLayout`; после mount / смены `resetKey` — `onReset?`, сброс «уже запрошен reveal», poll **250 ms** до `getProgress() >= 1`; **`onVisible` один раз на `resetKey`** при попадании в viewport; при уходе с экрана до старта (`progress = 0`) reveal сбрасывается. **`resetKey` в `DonutChart`** = `{revealSession}|{animationKey}`; **`useDonutVisibilityRefresh()`** на focus таба инкрементирует **`revealSession`** (перерисовка всех бубликов) и вызывает re-check. **`useDonutScrollProps`** → `{ scrollEventThrottle: 16, onScroll (+ scrollY), onMomentumScrollEnd, onScrollEndDrag, onContentSizeChange }`. Прогресс — **`useDonutAnimation`** (`start()` не перезапускает идущую/завершённую анимацию). Fallback **`complete()`** через **2.6 s**, если chart в viewport.
+- **`DonutVisibilityProvider({ children, scrollRef? })`**, **`useDonutScrollProps`**, **`useDonutVisibilityRefresh`** — viewport-триггер анимации (частичная видимость ≥ **28 px** достаточна): внутренний **`useDonutVisibilityTrigger({ onVisible, enabled, resetKey, getProgress, onReset?, onViewportChange? })`** — `measureInWindow`, layout с высотой < 8 px игнорируется; проверка только после **120 ms** settle `onLayout`; после mount / смены `resetKey` — `onReset?`, сброс «уже запрошен reveal», poll **250 ms** до `getProgress() >= 1`; **`onVisible` один раз на `resetKey`** при попадании в viewport; при уходе с экрана до старта (`progress = 0`) reveal сбрасывается. **`resetKey` в `DonutChart`** = `{revealSession}|{animationKey}`; **`useDonutVisibilityRefresh()`** на focus таба инкрементирует **`revealSession`** (перерисовка всех бубликов) и вызывает re-check. **`useDonutScrollProps`** → `{ scrollEventThrottle: 16, onScroll (+ scrollY), onMomentumScrollEnd, onScrollEndDrag, onContentSizeChange }`. Прогресс — **`useDonutAnimation`** (`start()` не перезапускает идущую/завершённую анимацию). Fallback **`complete()`** через **2.6 s**, если chart в viewport.
 - **`getChartStrings(locale)`** — typed i18n (`modules/charts/i18n/charts.ts` + overlays `modules/i18n/typed/catalog/charts/*`): `balanceLabel` (центр `DonutChart`), `strengthLabel` (подпись силы в центре `ChakraFlower` на home).
 
 ## 3. Визуальные константы
