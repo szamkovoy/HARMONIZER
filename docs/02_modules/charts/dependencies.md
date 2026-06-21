@@ -1,8 +1,8 @@
 ---
 id: 02_modules/charts/dependencies
 title: Charts Dependencies
-version: 1.0
-updated: 2026-06-20
+version: 1.1
+updated: 2026-06-21
 depends_on: [02_modules/charts/spec]
 code_refs: [modules/charts/DonutChart.tsx, app/(tabs)/day.tsx, modules/profile/ui/ProfileReports.tsx]
 ---
@@ -14,7 +14,6 @@ code_refs: [modules/charts/DonutChart.tsx, app/(tabs)/day.tsx, modules/profile/u
 | `i18n` | `AppContentLocale`, `mergeTypedLocale`, overlays `charts/*` |
 | `ui/theme` | `AppText`, `useTheme`, палитра light/dark для дуги баланса |
 | `react-native-svg` | `Svg`, `Path`, `Circle` |
-| `react-native-reanimated` | timing + `useAnimatedReaction` для progress |
 
 ## 2. От него зависят
 

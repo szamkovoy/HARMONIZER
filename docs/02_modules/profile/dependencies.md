@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.9
-updated: 2026-06-18
+version: 1.10
+updated: 2026-06-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -41,7 +41,7 @@ code_refs:
   Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
 
 - **`charts`**  
-  Donut-отчёты рендерятся через **`DonutChart`** (`modules/charts/`): сегменты, дуга баланса, центр `{balance}%`, scroll-triggered animation; провайдер **`DonutVisibilityProvider`** на **`app/(tabs)/profile.tsx`**.
+  Donut-отчёты рендерятся через **`DonutChart`** (`modules/charts/`): сегменты, дуга баланса, центр `{balance}%`, scroll-triggered animation; **`app/(tabs)/profile.tsx`** — **`DonutVisibilityProvider`**, **`useDonutScrollProps`** на `ScrollView`, **`useDonutVisibilityRefresh`** + **`useFocusEffect`** при фокусе таба (как на Day tab).
 
 - **`assistant` (новые отчёты HARMONIZER v2)**
   Profile reports через backend routes: `life-matrix` сначала читает `profile_report_snapshots`, а при miss/version-mismatch пересобирает его из compact day-rollup слоя `daily_matrices`; `practice-by-chakra` — завершённые `practice_sessions`. Легенда чакр — **`buildChakraLegend()`** (`planetChakraLegend.ts`), без импорта клиентского `modules/home/planetChakra`.

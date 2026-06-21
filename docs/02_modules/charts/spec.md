@@ -1,8 +1,8 @@
 ---
 id: 02_modules/charts/spec
 title: Charts Spec
-version: 1.0
-updated: 2026-06-20
+version: 1.1
+updated: 2026-06-21
 depends_on: [02_modules/i18n/spec, 02_modules/ui/theme]
 code_refs:
   [
@@ -12,6 +12,8 @@ code_refs:
     modules/charts/buildDonutSegments.ts,
     modules/charts/donutGeometry.ts,
     modules/charts/DonutVisibilityContext.tsx,
+    modules/charts/useDonutAnimation.ts,
+    modules/charts/useDonutVisibilityTrigger.ts,
     modules/charts/i18n/charts.ts,
     app/(tabs)/day.tsx,
     modules/profile/ui/ProfileReports.tsx,
@@ -28,7 +30,7 @@ code_refs:
 - **`segmentsToWeights(segments)`** — маппинг `{ id: 1..7, value }[]` в массив весов.
 - **`buildDonutSegments` / `clipDonutSegmentsForProgress`** — геометрия сегментов с зазором `DONUT_GAP_RAD = 0.04`; неактивные (`value = 0`) не рисуются.
 - **`DonutChart`** — props: `segments`, `locale?`, `animationKey?`. Центр: **`{balance}%`** + подпись **`balanceLabel`** из i18n. Легенда справа; нулевые пункты приглушены.
-- **`DonutVisibilityProvider`**, **`useDonutScrollProps`**, **`useDonutVisibilityRefresh`** — анимация стартует, когда элемент попадает в viewport (частичная видимость достаточна); данные считаются заранее, анимируется только отрисовка (~1400 ms, easeOutCubic).
+- **`DonutVisibilityProvider`**, **`useDonutScrollProps`**, **`useDonutVisibilityRefresh`** — viewport-триггер анимации (частичная видимость достаточна): `measureInWindow`, layout с высотой < 8 px игнорируется; после mount / смены `animationKey` — немедленная проверка, rAF и poll 200 ms в течение 3 s. **`useDonutScrollProps`** → `{ scrollEventThrottle: 16, onScroll, onMomentumScrollEnd, onScrollEndDrag, onContentSizeChange }` на `ScrollView`; **`useDonutVisibilityRefresh()`** — ручной re-check (например `useFocusEffect` на табе). Прогресс — внутренний **`useDonutAnimation`** (`requestAnimationFrame` + `easeOutCubic`, `DONUT_ANIMATION_MS` = 1400, не экспортируется из `index.ts`).
 - **`getChartStrings(locale)`** — typed i18n (`modules/charts/i18n/charts.ts` + overlays `modules/i18n/typed/catalog/charts/*`).
 
 ## 3. Визуальные константы
