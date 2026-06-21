@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.7
-updated: 2026-06-18
+version: 1.8
+updated: 2026-06-21
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -52,6 +52,7 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |
 | `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
+| `charts` (`DonutChart`) | `getChartStrings(locale)` via `mergeTypedLocale("charts", …)` | Center label `balanceLabel`; RU/EN inline in `modules/charts/i18n/charts.ts`, de/fr/it/es/pt/nl in `typed/catalog/charts/*.json`. |
 | `communicator` (`Communicator.tsx`) | `useAppLocale()`, `getTranscribeLocale()` | Default STT via `getTranscribeLocale()` (active locale). Each dialog POST sends **`responseLocale`** + **`inputLocale`**; with `EXPO_PUBLIC_I18N_TEST_MODE` voice turns may auto-detect speech and temporarily route the reply there, while outside test mode the reply stays on the selected/profile locale. UI strings still come from the host `locale` prop. |
 | `services/communicator-client.ts` | `getResponseLocale()`, `getTranscribeLocale()` | `buildDialogPostBody` adds `responseLocale` and `inputLocale` to every dialog POST (defaults = active locale for both); voice flow may still override per turn when test mode intentionally enables speech-driven replies. |
 | `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale`; mirrors active locale to Supabase `users.locale`. |

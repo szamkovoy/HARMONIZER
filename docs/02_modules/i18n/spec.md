@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.9
-updated: 2026-06-18
+version: 1.10
+updated: 2026-06-21
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -201,7 +201,7 @@ Two resolvers — do not conflate layer B and layer C:
 
 ### 4.3 Typed-module gate (same script)
 - Registry: `modules/i18n/typed/manifest.json` (home, profile, day, practices,
-  communicator, breath, mandala, userErrors, chakra).
+  communicator, breath, mandala, userErrors, chakra, charts).
 - Source: inline `const ru:` / `const en:` blocks in TS (or `chakraTypedSource.json`),
   flattened by `scripts/lib/i18n-typed.mjs` (`extractStringTree`): dotted keys,
   quoted/hyphenated object keys (e.g. `"nadi-shodhana"`), key-on-one-line with
@@ -287,7 +287,9 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 - **Enabled now:** RU, EN, DE, FR, IT, ES, PT, NL (UI catalog + typed modules + server layer B + layer C dialog scaffold).
 - **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
-  (`modules/chakra/i18n.ts` — single source for legend text), startup splash footer
+  (`modules/chakra/i18n.ts` — single source for legend text), charts donut center
+  label (`getChartStrings` → `balanceLabel`; overlays `typed/catalog/charts/*`),
+  startup splash footer
   (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`).
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier
   slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;
