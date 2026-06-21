@@ -7,5 +7,6 @@
   { "id": "breath", "file": "modules/breath/i18n/coherence.ts", "start": "const ru:", "end": "const en:" },
   { "id": "mandala", "file": "modules/mandala/i18n/symbolStream.ts", "start": "const ru:", "end": "const en:" },
   { "id": "userErrors", "file": "modules/ui/i18n/userErrors.ts", "start": "const ru:", "end": "const en:" },
-  { "id": "chakra", "file": "modules/chakra/i18n/chakraTypedSource.json", "source": "json" }
+  { "id": "chakra", "file": "modules/chakra/i18n/chakraTypedSource.json", "source": "json" },
+  { "id": "charts", "file": "modules/charts/i18n/charts.ts", "start": "const ru:", "end": "const en:" }
 ]

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
 
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import { chakraNumericDisplayLabel, chakraShortLabelDisplay } from "@/modules/chakra/i18n";
+import {
+  CHAKRA_SEGMENT_COLORS,
+  DonutChart,
+  type DonutSegmentInput,
+} from "@/modules/charts";
 import { localizeLifeSphereLabel } from "@/modules/life-spheres/labels";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
 import { getProfileReportStrings } from "@/modules/profile/i18n/profile";
@@ -27,41 +31,17 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
+function capitalizeFirst(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 function formatDurationClock(totalSeconds: number): string {
   const safe = Math.max(0, Math.round(totalSeconds));
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function polar(cx: number, cy: number, radius: number, angle: number) {
-  const radians = ((angle - 90) * Math.PI) / 180;
-  return {
-    x: cx + radius * Math.cos(radians),
-    y: cy + radius * Math.sin(radians),
-  };
-}
-
-function donutPath(cx: number, cy: number, outerRadius: number, innerRadius: number, startAngle: number, endAngle: number) {
-  const startOuter = polar(cx, cy, outerRadius, endAngle);
-  const endOuter = polar(cx, cy, outerRadius, startAngle);
-  const startInner = polar(cx, cy, innerRadius, startAngle);
-  const endInner = polar(cx, cy, innerRadius, endAngle);
-  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
-
-  return [
-    `M ${startOuter.x} ${startOuter.y}`,
-    `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 0 ${endOuter.x} ${endOuter.y}`,
-    `L ${startInner.x} ${startInner.y}`,
-    `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 1 ${endInner.x} ${endInner.y}`,
-    "Z",
-  ].join(" ");
-}
-
-function capitalizeFirst(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return trimmed;
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
 function chakraRowLabel(chakraNumber: number | undefined, shortLabel: string | undefined, locale: AppContentLocale): string {
@@ -121,57 +101,33 @@ function projectionItemLabel(item: { id: number; label: string }, locale: AppCon
   return capitalizeFirst(localizeLifeSphereLabel(item.id, item.label, locale));
 }
 
+function projectionToDonutSegments(
+  items: NonNullable<LifeMatrixReport["sphereProjection"]>,
+  locale: AppContentLocale,
+  kind: "sphere" | "state",
+): DonutSegmentInput[] {
+  return items.map((item) => ({
+    id: item.id,
+    value: item.value,
+    color: item.color ?? CHAKRA_SEGMENT_COLORS[item.id - 1] ?? CHAKRA_SEGMENT_COLORS[0],
+    label: projectionItemLabel(item, locale, kind),
+  }));
+}
+
 function MatrixProjectionChart(props: {
   items: NonNullable<LifeMatrixReport["sphereProjection"]>;
   locale: AppContentLocale;
   kind: "sphere" | "state";
 }) {
-  const theme = useTheme();
+  const segments = projectionToDonutSegments(props.items, props.locale, props.kind);
   const total = Math.max(0, props.items.reduce((sum, item) => sum + Math.max(0, item.value), 0));
-  let angle = 0;
+  if (total <= 0) return null;
   return (
-    <View style={styles.projectionBlock}>
-      {total > 0 ? (
-        <Svg width="100%" height={190} viewBox="0 0 220 190">
-          {props.items
-            .filter((item) => item.value > 0)
-            .map((item) => {
-              const startAngle = angle;
-              angle += (item.value / total) * 360;
-              return (
-                <Path
-                  key={item.id}
-                  d={donutPath(110, 90, 72, 42, startAngle, angle)}
-                  fill={item.color ?? theme.colors.accent}
-                  stroke={theme.colors.screenBg}
-                  strokeWidth={2}
-                />
-              );
-            })}
-          <Circle cx={110} cy={90} r={28} fill={theme.colors.surface} />
-        </Svg>
-      ) : null}
-      <View style={styles.legendList}>
-        {props.items.map((item) => {
-          const isZero = item.value <= 0;
-          return (
-            <View key={item.id} style={styles.legendRow}>
-              <View
-                style={[
-                  styles.legendSwatch,
-                  {
-                    backgroundColor: isZero ? theme.colors.surfaceBorder : item.color ?? theme.colors.accent,
-                  },
-                ]}
-              />
-              <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"} style={styles.legendLabel}>
-                {projectionItemLabel(item, props.locale, props.kind)}
-              </AppText>
-            </View>
-          );
-        })}
-      </View>
-    </View>
+    <DonutChart
+      segments={segments}
+      locale={props.locale}
+      animationKey={segments.map((item) => `${item.id}:${item.value}`).join("|")}
+    />
   );
 }
 
@@ -241,7 +197,6 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
   const [report, setReport] = useState<PracticeByChakraReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const theme = useTheme();
 
   const loadReport = useCallback(async () => {
     if (!props.enabled) {
@@ -276,7 +231,14 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
 
   const sortedStats = report ? [...report.chakraStats].sort((a, b) => a.chakra - b.chakra) : [];
   const total = Math.max(0, report?.totalDurationSec ?? 0);
-  let angle = 0;
+  const locale = props.locale ?? "ru";
+  const practiceSegments: DonutSegmentInput[] = sortedStats.map((item) => ({
+    id: item.chakra,
+    value: item.durationSec,
+    color: item.color,
+    label: chakraNumericDisplayLabel(locale, item.chakra),
+    legendSuffix: formatDurationClock(item.durationSec),
+  }));
 
   return (
     <ProfileReportCard
@@ -295,47 +257,11 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
       ) : null}
       {!loading && !error && report ? (
         total > 0 ? (
-          <>
-            <Svg width="100%" height={180} viewBox="0 0 220 180">
-              {sortedStats
-                .filter((item) => item.durationSec > 0)
-                .map((item) => {
-                  const startAngle = angle;
-                  angle += (item.durationSec / total) * 360;
-                  return (
-                    <Path
-                      key={item.chakra}
-                      d={donutPath(110, 90, 72, 42, startAngle, angle)}
-                      fill={item.color}
-                      stroke={theme.colors.screenBg}
-                      strokeWidth={2}
-                    />
-                  );
-                })}
-              <Circle cx={110} cy={90} r={28} fill={theme.colors.surface} />
-            </Svg>
-            <View style={styles.legendList}>
-              {sortedStats.map((item) => {
-                const isZero = item.durationSec <= 0;
-                return (
-                  <View key={item.chakra} style={styles.legendRow}>
-                    <View
-                      style={[
-                        styles.legendSwatch,
-                        { backgroundColor: isZero ? theme.colors.surfaceBorder : item.color },
-                      ]}
-                    />
-                    <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"} style={styles.legendLabel}>
-                      {chakraNumericDisplayLabel(props.locale ?? "ru", item.chakra)}
-                    </AppText>
-                    <AppText variant="technicalCaption" tone={isZero ? "faint" : "muted"}>
-                      {formatDurationClock(item.durationSec)}
-                    </AppText>
-                  </View>
-                );
-              })}
-            </View>
-          </>
+          <DonutChart
+            segments={practiceSegments}
+            locale={locale}
+            animationKey={`${periodDays}|${practiceSegments.map((item) => `${item.id}:${item.value}`).join("|")}`}
+          />
         ) : (
           <ProfileEmptyState message={strings.practicesNotDone} />
         )
@@ -519,10 +445,6 @@ const styles = StyleSheet.create({
   heatmapBlock: {
     gap: 4,
   },
-  projectionBlock: {
-    gap: 10,
-    alignItems: "stretch",
-  },
   heatmapHeader: {
     flexDirection: "row",
     gap: 4,
@@ -548,21 +470,5 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     height: HEATMAP_CELL_SIZE,
     width: HEATMAP_CELL_SIZE,
-  },
-  legendList: {
-    gap: 8,
-  },
-  legendRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  legendSwatch: {
-    borderRadius: 999,
-    height: 10,
-    width: 10,
-  },
-  legendLabel: {
-    flex: 1,
   },
 });

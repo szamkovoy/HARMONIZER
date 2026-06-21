@@ -53,6 +53,12 @@ import chakra_fr from "./catalog/chakra/fr.json";
 import chakra_it from "./catalog/chakra/it.json";
 import chakra_nl from "./catalog/chakra/nl.json";
 import chakra_pt from "./catalog/chakra/pt.json";
+import charts_de from "./catalog/charts/de.json";
+import charts_es from "./catalog/charts/es.json";
+import charts_fr from "./catalog/charts/fr.json";
+import charts_it from "./catalog/charts/it.json";
+import charts_nl from "./catalog/charts/nl.json";
+import charts_pt from "./catalog/charts/pt.json";
 
 export const GENERATED_TYPED_OVERLAYS: Record<
   string,
@@ -129,5 +135,13 @@ export const GENERATED_TYPED_OVERLAYS: Record<
     it: chakra_it as Record<string, unknown>,
     nl: chakra_nl as Record<string, unknown>,
     pt: chakra_pt as Record<string, unknown>,
+  },
+  charts: {
+    de: charts_de as Record<string, unknown>,
+    es: charts_es as Record<string, unknown>,
+    fr: charts_fr as Record<string, unknown>,
+    it: charts_it as Record<string, unknown>,
+    nl: charts_nl as Record<string, unknown>,
+    pt: charts_pt as Record<string, unknown>,
   },
 };

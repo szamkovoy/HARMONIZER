@@ -57,6 +57,9 @@ code_refs:
 - **`subscription`**  
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
 
+- **`charts`**  
+  - **`app/(tabs)/day.tsx`**: блок «Сферы жизни» — **`DonutChart`** + **`DonutVisibilityProvider`**; веса из **`sphereStats`** (`GET /api/day`), баланс — **`calcBalance`** на клиенте.
+
 - **`infra`**  
   - Supabase auth для JWT в клиентских fetch, таблицы `user_daily_forecasts`, `user_settings`, Edge/Vercel runtime.
 

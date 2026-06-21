@@ -11,6 +11,7 @@ code_refs: [docs/_proposal.md]
 ## Changelog
 
 - 2026-06-20: `assistant` / `communicator` / `practices` — doc-sync: planning identity dedupe (`dedupePlanningMarkersByIdentity`, cross-conversation match, `1ora`/study stems) and assistant overlay dismiss min-delay 700 ms + `useFocusEffect`. Synced `assistant/spec.md`, `communicator/spec.md`, `practices/spec.md`.
+- 2026-06-20: `charts` (new) — unified balance donut (`modules/charts/`): MAD balance calc, animated segments + balance arc, legend on the right; adopted on Day tab life spheres and all three profile donut reports. Synced `charts/{spec,dependencies,history}.md`, `daily_forecast/history.md`, `profile/{spec,history}.md`, `MAP.md`.
 - 2026-06-20: `assistant` / `communicator` / `practices` — doc-sync for push bundle: planning desc-blob filter (`filterPlanningDescBlobMarkers`), `applyPracticeCardOverridesToPayload` launch sync, assistant overlay dismiss via mount signal + Home `Modal.visible`/`animationType`. Synced `assistant/{spec,dependencies}.md`, `communicator/{spec,dependencies}.md`, `practices/{spec,dependencies}.md`.
 - 2026-06-19: `assistant` — stronger cross-message planned-action dedupe (`samePlannedEventIdentity` study/lang stems + `1ora`; batch dedupe + cross-conversation identity upsert in add-flow). Synced `assistant/history.md`.
 - 2026-06-19: `communicator` / `practices` — assistant practice launch: close Home dialog only after practice route is ready + min delay (no Home flash). Synced `communicator/history.md`, `practices/history.md`.

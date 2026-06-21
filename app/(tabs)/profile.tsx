@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
+import { DonutVisibilityProvider, useDonutScrollProps } from "@/modules/charts";
 import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
@@ -65,6 +66,7 @@ export default function ProfileTabRoute() {
   );
   const reportLocale = locale;
   const reportStrings = getProfileReportStrings(reportLocale);
+  const donutScrollProps = useDonutScrollProps();
   const [statsPeriodDays, setStatsPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [stats, setStats] = useState<DailyPracticeStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -151,9 +153,10 @@ export default function ProfileTabRoute() {
   const maxSeconds = Math.max(60, ...chartItems.map((item) => item.total_practice_seconds ?? 0));
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-      <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
-      <ScrollView contentContainerStyle={styles.content}>
+    <DonutVisibilityProvider>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
+        <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
+        <ScrollView contentContainerStyle={styles.content} {...donutScrollProps}>
         <View style={styles.header}>
           <AppText variant="screenTitle" accessibilityRole="header">
             {t("profile.title")}
@@ -327,6 +330,7 @@ export default function ProfileTabRoute() {
         />
       ) : null}
     </SafeAreaView>
+    </DonutVisibilityProvider>
   );
 }
 

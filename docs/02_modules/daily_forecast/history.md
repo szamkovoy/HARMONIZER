@@ -18,6 +18,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-20:** Блок «Сферы жизни» на вкладке «День» переведён на общий `DonutChart` (`modules/charts/`): бублик с дугой баланса, процент в центре, легенда справа, анимация при появлении на экране. Веса по-прежнему из `/api/day` → `sphereStats`; перерасчёт и prefetch при закрытии ассистента без изменений контракта API.
+
 - **2026-06-18 (2):** Day tab now has a real persisted client cache (`dayPlanCache`) in addition to the short-lived prefetch snapshot. Root cause of the spinning/error state was twofold: `loadDayPlan()` always waited for a fresh bearer via `supabase.auth.getSession()`, and the screen had no durable fallback once that refresh timed out. The client now restores the latest plan from cache first, then refreshes in background; bearer lookup first reuses a usable in-memory/persisted session snapshot.
 
 - **2026-06-18:** Day tab initial load no longer stalls when the assistant modal is open: `refresh()` and tab focus still fetch the plan when `plan` is null; `loadDayPlan` uses a 45s fetch timeout instead of hanging indefinitely on a slow `/api/day` response.

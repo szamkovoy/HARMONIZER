@@ -12,9 +12,16 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "@/modules/auth";
+import {
+  CHAKRA_SEGMENT_COLORS,
+  DonutChart,
+  DonutVisibilityProvider,
+  useDonutScrollProps,
+  useDonutVisibilityRefresh,
+  type DonutSegmentInput,
+} from "@/modules/charts";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import { getDayStrings, mapDateLabelKind, type DayStrings } from "@/modules/day/i18n/day";
 import { useAppLocale, type AppLocale } from "@/modules/i18n";
@@ -105,21 +112,13 @@ function buildAssistantSession(
   };
 }
 
-const SPHERE_COLORS = ["#D32F2F", "#FF6F00", "#FFC107", "#4CAF50", "#03A9F4", "#3F51B5", "#9B5BEB"] as const;
-
-function polar(cx: number, cy: number, radius: number, angle: number) {
-  const radians = ((angle - 90) * Math.PI) / 180;
-  return {
-    x: cx + radius * Math.cos(radians),
-    y: cy + radius * Math.sin(radians),
-  };
-}
-
-function sectorPath(cx: number, cy: number, radius: number, startAngle: number, endAngle: number) {
-  const start = polar(cx, cy, radius, startAngle);
-  const end = polar(cx, cy, radius, endAngle);
-  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
-  return [`M ${cx} ${cy}`, `L ${start.x} ${start.y}`, `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`, "Z"].join(" ");
+function sphereStatsToDonutSegments(stats: DaySphereStat[], locale: AppLocale): DonutSegmentInput[] {
+  return stats.map((item) => ({
+    id: item.id,
+    value: item.value,
+    color: CHAKRA_SEGMENT_COLORS[item.id - 1] ?? CHAKRA_SEGMENT_COLORS[0],
+    label: localizeLifeSphereLabel(item.id, item.title, locale),
+  }));
 }
 
 function formatDayHeaderDateLabel(section: DaySection, strings: DayStrings): string {
@@ -180,46 +179,6 @@ function practiceForDayTarget(practice: PracticeSummary, target: 1 | 2 | 3 | 4 |
       chakra: target,
     } as PracticeSummary["launch"],
   };
-}
-
-function SphereRadialChart({ stats, locale }: { stats: DaySphereStat[]; locale: AppLocale }) {
-  const theme = useTheme();
-  const size = 220;
-  const cx = 110;
-  const cy = 110;
-  const maxRadius = 82;
-  const step = 360 / 7;
-  return (
-    <View style={styles.sphereChartWrap}>
-      <Svg width="100%" height={size} viewBox={`0 0 ${size} ${size}`}>
-        {stats.map((item, index) => {
-          const radius = Math.max(8, item.radius * maxRadius);
-          const start = index * step;
-          const end = start + step - 2;
-          return (
-            <Path
-              key={item.id}
-              d={sectorPath(cx, cy, radius, start, end)}
-              fill={SPHERE_COLORS[index] ?? theme.colors.accent}
-              opacity={item.value > 0 ? 0.82 : 0.12}
-              stroke={theme.colors.surfaceElevated}
-              strokeWidth={1.5}
-            />
-          );
-        })}
-      </Svg>
-      <View style={styles.sphereLegend}>
-        {stats.map((item, index) => (
-          <View key={item.id} style={styles.sphereLegendRow}>
-            <View style={[styles.legendDot, { backgroundColor: SPHERE_COLORS[index] ?? theme.colors.accent, opacity: item.value > 0 ? 1 : 0.25 }]} />
-            <AppText variant="technicalCaption" tone="muted" style={styles.legendText}>
-              {localizeLifeSphereLabel(item.id, item.title, locale)}
-            </AppText>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
 }
 
 function DayActionRow({
@@ -431,6 +390,8 @@ export default function DayTabRoute() {
   const dayStrings = useMemo(() => getDayStrings(appLocale), [appLocale]);
   const reportLocale = appLocale;
   const scrollRef = useRef<ScrollView>(null);
+  const donutScrollProps = useDonutScrollProps();
+  const refreshDonutVisibility = useDonutVisibilityRefresh();
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -509,6 +470,12 @@ export default function DayTabRoute() {
     }, [authUser?.id, refresh, reportLocale]),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      refreshDonutVisibility();
+    }, [refreshDonutVisibility]),
+  );
+
   useEffect(() => {
     if (practiceMenuLevel === "closed" || catalog) return;
     void loadPracticeCatalog({ locale: reportLocale }).then(setCatalog).catch((loadError) => {
@@ -575,9 +542,15 @@ export default function DayTabRoute() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-      <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <DonutVisibilityProvider>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
+        <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          {...donutScrollProps}
+        >
         <View style={styles.header}>
           {plan && plan.mode !== "overdue_summary" && todaySection ? (
             <>
@@ -645,7 +618,11 @@ export default function DayTabRoute() {
                   {plan.mode === "current_day" && activeSphereStats.length ? (
                     <>
                       <AppText variant="sectionTitle" style={styles.innerSectionTitle}>{dayStrings.lifeSpheresTitle}</AppText>
-                      <SphereRadialChart stats={section.sphereStats} locale={reportLocale} />
+                      <DonutChart
+                        segments={sphereStatsToDonutSegments(section.sphereStats, reportLocale)}
+                        locale={reportLocale}
+                        animationKey={section.sphereStats.map((item) => `${item.id}:${item.value}`).join("|")}
+                      />
                       {section.sphereHint ? <AppText variant="dialogBody" tone="muted">{section.sphereHint}</AppText> : null}
                     </>
                   ) : null}
@@ -774,6 +751,7 @@ export default function DayTabRoute() {
         appLocale={reportLocale}
       />
     </SafeAreaView>
+    </DonutVisibilityProvider>
   );
 }
 
@@ -850,27 +828,6 @@ const styles = StyleSheet.create({
   },
   innerSectionTitle: {
     marginTop: 10,
-  },
-  sphereChartWrap: {
-    alignItems: "center",
-    gap: 12,
-  },
-  sphereLegend: {
-    alignSelf: "stretch",
-    gap: 6,
-  },
-  sphereLegendRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  legendDot: {
-    borderRadius: 999,
-    height: 8,
-    width: 8,
-  },
-  legendText: {
-    flex: 1,
   },
   practiceLogList: {
     gap: 6,

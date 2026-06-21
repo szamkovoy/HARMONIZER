@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-06-20:** Профильные donut-отчёты («Сферы жизни», «Проживаемые состояния», «Практики по чакрам») переведены на общий `DonutChart` с дугой баланса и подписью «balance» в центре; легенда справа. Названия карточек и hint-тексты отчётов без изменений.
+
 - **2026-06-18:** `AuthProvider` на каждом `onAuthStateChange` вызывает **`rememberSupabaseSession`**, чтобы **`getSupabaseAccessSession`** / **`getSupabaseAccessToken`** могли отдавать bearer из in-memory или persisted snapshot до fallback на `auth.getSession()`. Цель — убрать зависание Day tab и других authenticated fetch при медленном token refresh; skew 60s до `expires_at`.
 
 - **2026-06-14:** Profile reports i18n — `ProfileLocale = AppContentLocale`, sentence-case titles, `getPeriodPresets(locale)`, locale-aware `RangeTrendChart` axis (`formatAxisLabel` / Luxon), life-sphere labels via `modules/life-spheres/labels.ts`; report cards получают locale из `useAppLocale()`.
