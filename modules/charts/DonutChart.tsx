@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
@@ -23,34 +23,40 @@ import { useTheme } from "@/modules/ui/theme";
 
 export type { DonutSegmentInput };
 
+export type DonutRevealMode = "immediate" | "inViewport";
+
 type DonutChartProps = {
   segments: readonly DonutSegmentInput[];
   locale?: AppContentLocale;
   animationKey?: string;
+  revealMode?: DonutRevealMode;
 };
 
-const REVEAL_FALLBACK_MS = 2600;
 const BALANCE_STROKE_OPACITY = 0.58;
 
 function buildAnimationKey(segments: readonly DonutSegmentInput[]) {
   return segments.map((segment) => `${segment.id}:${segment.value}`).join("|");
 }
 
-export function DonutChart({ segments, locale = "ru", animationKey }: DonutChartProps) {
+export function DonutChart({
+  segments,
+  locale = "ru",
+  animationKey,
+  revealMode = "inViewport",
+}: DonutChartProps) {
   const theme = useTheme();
   const strings = getChartStrings(locale);
-  const { progress: renderProgress, progressRef, start: startAnimation, reset: resetAnimation, complete } =
-    useDonutAnimation();
+  const { progress: renderProgress, progressRef, start: startAnimation, reset: resetAnimation } = useDonutAnimation();
   const revealSession = useDonutRevealSession();
   const resolvedAnimationKey = animationKey ?? buildAnimationKey(segments);
   const visibilityResetKey = `${revealSession}|${resolvedAnimationKey}`;
-  const isInViewportRef = useRef(false);
 
   const weights = useMemo(() => segmentsToWeights(segments), [segments]);
   const { balance, angle: balanceAngle } = useMemo(() => calcBalance(weights), [weights]);
   const { segments: builtSegments } = useMemo(() => buildDonutSegments(segments), [segments]);
   const hasData = builtSegments.length > 0;
   const chartEnabled = hasData || balance > 0;
+  const useViewportReveal = revealMode === "inViewport";
 
   const handleReset = useCallback(() => {
     resetAnimation();
@@ -60,30 +66,19 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
     startAnimation();
   }, [startAnimation]);
 
-  const handleViewportChange = useCallback((visible: boolean) => {
-    isInViewportRef.current = visible;
-  }, []);
-
   const { containerRef, onLayout } = useDonutVisibilityTrigger({
     onVisible: handleVisible,
-    enabled: chartEnabled,
+    enabled: chartEnabled && useViewportReveal,
     resetKey: visibilityResetKey,
     getProgress: () => progressRef.current,
-    onReset: handleReset,
-    onViewportChange: handleViewportChange,
+    onReset: useViewportReveal ? handleReset : undefined,
   });
 
   useEffect(() => {
-    if (!chartEnabled) return undefined;
-
-    const fallback = setTimeout(() => {
-      if (progressRef.current >= 1) return;
-      if (!isInViewportRef.current) return;
-      complete();
-    }, REVEAL_FALLBACK_MS);
-
-    return () => clearTimeout(fallback);
-  }, [chartEnabled, complete, progressRef, visibilityResetKey]);
+    if (!chartEnabled || useViewportReveal) return undefined;
+    startAnimation();
+    return undefined;
+  }, [chartEnabled, startAnimation, useViewportReveal, visibilityResetKey]);
 
   const balancePhase = renderProgress < 0.6 ? 0 : easeOutCubic((renderProgress - 0.6) / 0.4);
   const textOpacity = renderProgress < 0.85 ? 0 : Math.min(1, (renderProgress - 0.85) / 0.15);
@@ -97,7 +92,7 @@ export function DonutChart({ segments, locale = "ru", animationKey }: DonutChart
   const trackStroke = theme.scheme === "dark" ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.12)";
 
   return (
-    <View ref={containerRef} style={styles.root} onLayout={onLayout} collapsable={false}>
+    <View ref={containerRef} style={styles.root} onLayout={useViewportReveal ? onLayout : undefined} collapsable={false}>
       <View style={styles.chartColumn}>
         <View style={styles.chartBox}>
           <Svg width={DONUT_VIEW_SIZE} height={DONUT_VIEW_SIZE} viewBox={`0 0 ${DONUT_VIEW_SIZE} ${DONUT_VIEW_SIZE}`}>

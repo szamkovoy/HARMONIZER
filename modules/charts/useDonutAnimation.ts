@@ -3,10 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DONUT_ANIMATION_MS } from "@/modules/charts/constants";
 import { easeOutCubic } from "@/modules/charts/donutGeometry";
 
+const TICK_MS = 16;
+
 export function useDonutAnimation() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
-  const frameRef = useRef<number | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const isAnimatingRef = useRef(false);
 
@@ -17,32 +19,32 @@ export function useDonutAnimation() {
   }, []);
 
   const cancel = useCallback(() => {
-    if (frameRef.current != null) {
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
+    if (intervalRef.current != null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
     startTimeRef.current = null;
     isAnimatingRef.current = false;
   }, []);
 
   const start = useCallback(() => {
-    if (isAnimatingRef.current || progressRef.current >= 1) return;
     cancel();
     isAnimatingRef.current = true;
     setProgressSafe(0);
-    const tick = (now: number) => {
-      if (startTimeRef.current == null) startTimeRef.current = now;
-      const raw = Math.min(1, (now - startTimeRef.current) / DONUT_ANIMATION_MS);
+    startTimeRef.current = Date.now();
+
+    const tick = () => {
+      if (startTimeRef.current == null) return;
+      const raw = Math.min(1, (Date.now() - startTimeRef.current) / DONUT_ANIMATION_MS);
       setProgressSafe(easeOutCubic(raw));
-      if (raw < 1) {
-        frameRef.current = requestAnimationFrame(tick);
-      } else {
-        frameRef.current = null;
-        isAnimatingRef.current = false;
+      if (raw >= 1) {
+        cancel();
         setProgressSafe(1);
       }
     };
-    frameRef.current = requestAnimationFrame(tick);
+
+    tick();
+    intervalRef.current = setInterval(tick, TICK_MS);
   }, [cancel, setProgressSafe]);
 
   const complete = useCallback(() => {

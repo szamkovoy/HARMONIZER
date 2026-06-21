@@ -622,6 +622,7 @@ export default function DayTabRoute() {
                         segments={sphereStatsToDonutSegments(section.sphereStats, reportLocale)}
                         locale={reportLocale}
                         animationKey={section.sphereStats.map((item) => `${item.id}:${item.value}`).join("|")}
+                        revealMode="immediate"
                       />
                       {section.sphereHint ? <AppText variant="dialogBody" tone="muted">{section.sphereHint}</AppText> : null}
                     </>

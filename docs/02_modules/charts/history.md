@@ -9,6 +9,10 @@ code_refs: [modules/charts]
 
 ## Decision Log
 
+- **2026-06-21:** Fix двойной анимации при смене 7/30/90: `setLoading(true)` синхронно в `handlePeriodChange` (до смены `periodDays`); `animationKey` только из значений сегментов и только когда `!loading`; `start()` всегда перезапускает цикл.
+
+- **2026-06-21:** `revealMode`: `immediate` для «Практики по чакрам» и Day (анимация сразу при смене данных/focus); `inViewport` для нижних отчётов Profile. `useDonutAnimation` → `setInterval`; убран fallback `complete()`; layout settle при смене `resetKey` без повторного `onLayout`; стабильный `animationKey` на время loading.
+
 - **2026-06-21:** `getChartStrings` — поле `strengthLabel` (RU/EN inline + overlays de/fr/it/es/pt/nl); потребитель home — `ChakraFlower` (центр: `S_initial` планеты дня + подпись).
 
 - **2026-06-21:** Viewport + focus: `revealSession` (перерисовка при возврате на таб), layout settle 120 ms, min 28 px видимости, сброс reveal при уходе с экрана до старта; стабильный `animationKey` у «Практики по чакрам» во время loading (fix 7д после 30/90).

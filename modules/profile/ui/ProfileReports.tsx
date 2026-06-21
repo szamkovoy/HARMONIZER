@@ -212,11 +212,17 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     } finally {
       setLoading(false);
     }
-  }, [periodDays, props.enabled]);
+  }, [periodDays, props.enabled, strings.reportLoadError]);
 
   useEffect(() => {
     void loadReport();
   }, [loadReport]);
+
+  const handlePeriodChange = useCallback((days: number) => {
+    if (days === periodDays) return;
+    setLoading(true);
+    setPeriodDays(days);
+  }, [periodDays]);
 
   const sortedStats = useMemo(
     () => (report ? [...report.chakraStats].sort((a, b) => a.chakra - b.chakra) : []),
@@ -237,13 +243,13 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
   );
   const stableAnimationKeyRef = useRef("");
   const practiceAnimationKey = useMemo(() => {
-    const next = `${periodDays}|${practiceSegments.map((item) => `${item.id}:${item.value}`).join("|")}`;
     if (loading) {
-      return stableAnimationKeyRef.current || next;
+      return stableAnimationKeyRef.current || "__pending__";
     }
+    const next = practiceSegments.map((item) => `${item.id}:${item.value}`).join("|");
     stableAnimationKeyRef.current = next;
     return next;
-  }, [loading, periodDays, practiceSegments]);
+  }, [loading, practiceSegments]);
 
   if (!props.enabled) {
     return (
@@ -259,7 +265,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
   return (
     <ProfileReportCard
       title={strings.practiceByChakraTitle}
-      periodSelector={<PeriodSelector value={periodDays} onChange={setPeriodDays} locale={props.locale ?? "ru"} />}
+      periodSelector={<PeriodSelector value={periodDays} onChange={handlePeriodChange} locale={props.locale ?? "ru"} />}
     >
       {loading && !report ? (
         <AppText variant="dialogBody" tone="muted">
@@ -273,7 +279,12 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
       ) : null}
       {!error && report ? (
         total > 0 ? (
-          <DonutChart segments={practiceSegments} locale={locale} animationKey={practiceAnimationKey} />
+          <DonutChart
+            segments={practiceSegments}
+            locale={locale}
+            animationKey={practiceAnimationKey}
+            revealMode="immediate"
+          />
         ) : !loading ? (
           <ProfileEmptyState message={strings.practicesNotDone} />
         ) : null
