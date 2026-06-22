@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
-import { practiceByChakraWindow } from "./route";
+import { practiceByChakraWindow } from "./practiceByChakraWindow";
 
 describe("practiceByChakraWindow", () => {
   it("uses full local calendar days instead of a sliding 24-hour window", () => {
