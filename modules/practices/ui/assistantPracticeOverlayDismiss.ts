@@ -1,6 +1,6 @@
 const ASSISTANT_OVERLAY_DISMISS_TIMEOUT_MS = 2500;
 /** Keep the dialog visible until navigation + first paint can finish. */
-const ASSISTANT_OVERLAY_DISMISS_MIN_DELAY_MS = 700;
+const ASSISTANT_OVERLAY_DISMISS_MIN_DELAY_MS = 200;
 
 let pendingOverlayDismiss: (() => void) | null = null;
 let dismissTimeout: ReturnType<typeof setTimeout> | null = null;

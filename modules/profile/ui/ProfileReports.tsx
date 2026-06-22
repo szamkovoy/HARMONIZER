@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
@@ -17,8 +17,10 @@ import { ProfileReportCard } from "@/modules/profile/ui/ProfileReportCard";
 import { RangeTrendChart } from "@/modules/profile/ui/RangeTrendChart";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { useTheme } from "@/modules/ui/theme";
 import { loadLifeMatrixReport, loadPracticeByChakraReport, type LifeMatrixReport, type PracticeByChakraReport } from "@/services/profileReports";
+import { logErrorForDevelopers, resolveUserFacingMessage } from "@/services/userFacingErrors";
 
 function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex.replace("#", "").trim();
@@ -131,6 +133,17 @@ function MatrixProjectionChart(props: {
   );
 }
 
+function ReportLoadError(props: { message: string; onRetry?: () => void; retryLabel: string }) {
+  return (
+    <View style={styles.errorBlock}>
+      <AppText variant="screenHint" tone="muted">
+        {props.message}
+      </AppText>
+      {props.onRetry ? <AppButton label={props.retryLabel} variant="secondary" onPress={props.onRetry} /> : null}
+    </View>
+  );
+}
+
 function ProjectionReportContent(props: {
   items?: NonNullable<LifeMatrixReport["sphereProjection"]>;
   loading: boolean;
@@ -140,20 +153,24 @@ function ProjectionReportContent(props: {
   locale: AppContentLocale;
   loadingMessage: string;
   loadErrorMessage: string;
+  retryLabel: string;
+  onRetry?: () => void;
   kind: "sphere" | "state";
 }) {
   if (props.loading) {
     return (
-      <AppText variant="dialogBody" tone="muted">
+      <AppText variant="screenHint" tone="muted">
         {props.loadingMessage}
       </AppText>
     );
   }
   if (props.error) {
     return (
-      <AppText variant="dialogBody" tone="muted">
-        {props.error || props.loadErrorMessage}
-      </AppText>
+      <ReportLoadError
+        message={props.error || props.loadErrorMessage}
+        onRetry={props.onRetry}
+        retryLabel={props.retryLabel}
+      />
     );
   }
   if (!props.matrixReady || !props.items?.length) {
@@ -164,6 +181,7 @@ function ProjectionReportContent(props: {
 
 export function useLifeMatrixReport(enabled: boolean, locale: AppContentLocale = "ru") {
   const strings = getProfileReportStrings(locale);
+  const userErrors = getUserErrorStrings(locale);
   const [report, setReport] = useState<LifeMatrixReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +189,7 @@ export function useLifeMatrixReport(enabled: boolean, locale: AppContentLocale =
   const loadReport = useCallback(async () => {
     if (!enabled) {
       setReport(null);
+      setError(null);
       return;
     }
     setLoading(true);
@@ -178,21 +197,24 @@ export function useLifeMatrixReport(enabled: boolean, locale: AppContentLocale =
     try {
       setReport(await loadLifeMatrixReport());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : strings.reportLoadError);
+      logErrorForDevelopers("profile-life-matrix", loadError);
+      setError(resolveUserFacingMessage(loadError, locale, { genericMessage: strings.reportLoadError }));
     } finally {
       setLoading(false);
     }
-  }, [enabled, strings.reportLoadError]);
+  }, [enabled, locale, strings.reportLoadError]);
 
   useEffect(() => {
     void loadReport();
   }, [loadReport]);
 
-  return { report, loading, error };
+  return { report, loading, error, reload: loadReport, retryLabel: userErrors.retryButton };
 }
 
 export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade: () => void; locale?: AppContentLocale }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
+  const userErrors = getUserErrorStrings(props.locale ?? "ru");
+  const locale = props.locale ?? "ru";
   const [periodDays, setPeriodDays] = useState<number>(DEFAULT_PERIOD_DAYS);
   const [report, setReport] = useState<PracticeByChakraReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -201,6 +223,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
   const loadReport = useCallback(async () => {
     if (!props.enabled) {
       setReport(null);
+      setError(null);
       return;
     }
     setLoading(true);
@@ -208,11 +231,12 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     try {
       setReport(await loadPracticeByChakraReport(periodDays));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : strings.reportLoadError);
+      logErrorForDevelopers("profile-practice-by-chakra", loadError);
+      setError(resolveUserFacingMessage(loadError, locale, { genericMessage: strings.reportLoadError }));
     } finally {
       setLoading(false);
     }
-  }, [periodDays, props.enabled, strings.reportLoadError]);
+  }, [locale, periodDays, props.enabled, strings.reportLoadError]);
 
   useEffect(() => {
     void loadReport();
@@ -229,7 +253,6 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     [report],
   );
   const total = Math.max(0, report?.totalDurationSec ?? 0);
-  const locale = props.locale ?? "ru";
   const practiceSegments = useMemo(
     (): DonutSegmentInput[] =>
       sortedStats.map((item) => ({
@@ -241,15 +264,13 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
       })),
     [locale, sortedStats],
   );
-  const stableAnimationKeyRef = useRef("");
   const practiceAnimationKey = useMemo(() => {
     if (loading) {
-      return stableAnimationKeyRef.current || "__pending__";
+      return `period:${periodDays}|loading`;
     }
     const next = practiceSegments.map((item) => `${item.id}:${item.value}`).join("|");
-    stableAnimationKeyRef.current = next;
-    return next;
-  }, [loading, practiceSegments]);
+    return `period:${periodDays}|${next}`;
+  }, [loading, periodDays, practiceSegments]);
 
   if (!props.enabled) {
     return (
@@ -268,14 +289,16 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
       periodSelector={<PeriodSelector value={periodDays} onChange={handlePeriodChange} locale={props.locale ?? "ru"} />}
     >
       {loading && !report ? (
-        <AppText variant="dialogBody" tone="muted">
+        <AppText variant="screenHint" tone="muted">
           {strings.reportsLoading}
         </AppText>
       ) : null}
       {error ? (
-        <AppText variant="dialogBody" tone="muted">
-          {error}
-        </AppText>
+        <ReportLoadError
+          message={error}
+          onRetry={() => void loadReport()}
+          retryLabel={userErrors.retryButton}
+        />
       ) : null}
       {!error && report ? (
         total > 0 ? (
@@ -283,7 +306,8 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
             segments={practiceSegments}
             locale={locale}
             animationKey={practiceAnimationKey}
-            revealMode="immediate"
+            revealMode="inViewport"
+            hideVisualization={loading}
           />
         ) : !loading ? (
           <ProfileEmptyState message={strings.practicesNotDone} />
@@ -300,6 +324,8 @@ export function LifeMatrixReportCard(props: {
   loading: boolean;
   error: string | null;
   locale?: AppContentLocale;
+  onRetry?: () => void;
+  retryLabel?: string;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
 
@@ -319,14 +345,16 @@ export function LifeMatrixReportCard(props: {
   return (
     <ProfileReportCard title={strings.lifeMatrixTitle} subtitle={strings.lifeMatrixHint}>
       {props.loading ? (
-        <AppText variant="dialogBody" tone="muted">
+        <AppText variant="screenHint" tone="muted">
           {strings.reportsLoading}
         </AppText>
       ) : null}
       {props.error ? (
-        <AppText variant="dialogBody" tone="muted">
-          {props.error}
-        </AppText>
+        <ReportLoadError
+          message={props.error}
+          onRetry={props.onRetry}
+          retryLabel={props.retryLabel ?? "Retry"}
+        />
       ) : null}
       {!props.loading && !props.error && props.report ? (
         showMatrix ? (
@@ -350,6 +378,8 @@ export function LifeSpheresReportCard(props: {
   loading: boolean;
   error: string | null;
   locale?: AppContentLocale;
+  onRetry?: () => void;
+  retryLabel?: string;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
   if (!props.enabled) {
@@ -373,6 +403,8 @@ export function LifeSpheresReportCard(props: {
         locale={props.locale ?? "ru"}
         loadingMessage={strings.projectionLoading}
         loadErrorMessage={strings.reportLoadError}
+        retryLabel={props.retryLabel ?? "Retry"}
+        onRetry={props.onRetry}
         kind="sphere"
       />
     </ProfileReportCard>
@@ -386,6 +418,8 @@ export function LifeStatesReportCard(props: {
   loading: boolean;
   error: string | null;
   locale?: AppContentLocale;
+  onRetry?: () => void;
+  retryLabel?: string;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
   if (!props.enabled) {
@@ -409,6 +443,8 @@ export function LifeStatesReportCard(props: {
         locale={props.locale ?? "ru"}
         loadingMessage={strings.projectionLoading}
         loadErrorMessage={strings.reportLoadError}
+        retryLabel={props.retryLabel ?? "Retry"}
+        onRetry={props.onRetry}
         kind="state"
       />
     </ProfileReportCard>
@@ -422,6 +458,8 @@ export function RangeTrendReportCard(props: {
   loading: boolean;
   error: string | null;
   locale?: AppContentLocale;
+  onRetry?: () => void;
+  retryLabel?: string;
 }) {
   const strings = getProfileReportStrings(props.locale ?? "ru");
 
@@ -441,14 +479,16 @@ export function RangeTrendReportCard(props: {
   return (
     <ProfileReportCard title={strings.rangeTrendTitle} subtitle={strings.rangeTrendHint}>
       {props.loading ? (
-        <AppText variant="dialogBody" tone="muted">
+        <AppText variant="screenHint" tone="muted">
           {strings.reportsLoading}
         </AppText>
       ) : null}
       {props.error ? (
-        <AppText variant="dialogBody" tone="muted">
-          {props.error}
-        </AppText>
+        <ReportLoadError
+          message={props.error}
+          onRetry={props.onRetry}
+          retryLabel={props.retryLabel ?? "Retry"}
+        />
       ) : null}
       {!props.loading && !props.error && props.report ? (
         trendReady && trendPoints.length > 0 ? (
@@ -465,6 +505,9 @@ const HEATMAP_LABEL_WIDTH = 108;
 const HEATMAP_CELL_SIZE = 18;
 
 const styles = StyleSheet.create({
+  errorBlock: {
+    gap: 10,
+  },
   heatmapBlock: {
     gap: 4,
   },

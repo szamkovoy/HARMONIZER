@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { AppText } from "@/modules/ui/AppText";
+import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
 import { useTheme } from "@/modules/ui/theme";
 
 export function ProfileReportCard(props: {
@@ -17,7 +18,7 @@ export function ProfileReportCard(props: {
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
       <AppText variant="sectionTitle">{props.title}</AppText>
       {props.subtitle ? (
-        <AppText variant="technicalCaption" tone="muted">
+        <AppText variant="screenHint" tone="muted">
           {props.subtitle}
         </AppText>
       ) : null}
@@ -30,9 +31,9 @@ export function ProfileReportCard(props: {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-    padding: 16,
+    borderRadius: SURFACE_CARD.borderRadius,
+    borderWidth: SURFACE_CARD.borderWidth,
+    gap: SURFACE_CARD.gap,
+    padding: SURFACE_CARD.padding,
   },
 });

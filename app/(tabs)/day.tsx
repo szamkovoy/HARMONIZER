@@ -30,8 +30,11 @@ import { loadPracticeCatalog } from "@/modules/practices";
 import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/types";
 import { PracticeCard } from "@/modules/practices/ui/PracticeCard";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
+import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
+import { AssistantPracticeHandoffCover } from "@/modules/practices/ui/AssistantPracticeHandoffCover";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
 import { useTheme } from "@/modules/ui/theme";
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { startSummarizingHealthCollectionFromPlan } from "@/services/summarizingHealthContext";
@@ -257,7 +260,7 @@ function DayActionRow({
               ]}
             />
           ) : (
-            <AppText variant="dialogBody" tone={summarized ? "faint" : "primary"}>
+            <AppText variant="screenHint" tone={summarized ? "faint" : "primary"}>
               {compactActionTitle(action.explicitTimeText ? `${action.explicitTimeText} ${action.title}` : action.title)}
             </AppText>
           )}
@@ -296,7 +299,7 @@ function DayActionRow({
         </View>
       ) : null}
       {expanded && !editing && !readonly ? (
-        <AppText variant="dialogBody" tone="muted" style={styles.actionRecommendation}>
+        <AppText variant="screenHint" tone="muted" style={styles.actionRecommendation}>
           {action.recommendation ?? strings.actionRecommendationFallback}
         </AppText>
       ) : null}
@@ -310,6 +313,7 @@ function AssistantModal({
   onClose,
   onPracticeOffered,
   onAssistantMessage,
+  onPracticeStarted,
   strings,
   appLocale,
 }: {
@@ -318,14 +322,30 @@ function AssistantModal({
   onClose: () => void;
   onPracticeOffered: (practice: PracticeSummary) => void | Promise<void>;
   onAssistantMessage?: (message: { meta?: Record<string, unknown> }) => void;
+  onPracticeStarted: () => void;
   strings: DayStrings;
   appLocale: AppLocale;
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const [practiceHandoff, setPracticeHandoff] = useState(false);
+
+  const finishPracticeLaunch = useCallback(() => {
+    setPracticeHandoff(false);
+    onPracticeStarted();
+  }, [onPracticeStarted]);
+
+  useEffect(() => {
+    if (visible) return;
+    setPracticeHandoff(false);
+  }, [visible]);
+
   if (!visible || !session) return null;
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      {practiceHandoff ? (
+        <AssistantPracticeHandoffCover />
+      ) : (
       <View style={[styles.modalRoot, { backgroundColor: theme.colors.screenBg }]}>
         <View
           style={[
@@ -358,7 +378,9 @@ function AssistantModal({
           }}
           memoryWindow={24}
           onPracticeOffered={onPracticeOffered}
-          onPracticePicked={onClose}
+          onPracticeLaunchStart={() => setPracticeHandoff(true)}
+          onPracticeLaunchAbort={() => setPracticeHandoff(false)}
+          onPracticePicked={() => scheduleAssistantOverlayDismiss(finishPracticeLaunch)}
           onMessage={(message) => {
             if (message.role === "assistant") {
               onAssistantMessage?.(message);
@@ -367,6 +389,7 @@ function AssistantModal({
           onRequestClose={onClose}
         />
       </View>
+      )}
     </Modal>
   );
 }
@@ -558,7 +581,7 @@ export default function DayTabRoute() {
                 {formatDayHeaderDateLabel(todaySection, dayStrings)}
               </AppText>
               {plan.dayRecommendation?.trim() ? (
-                <AppText variant="dialogBody">{plan.dayRecommendation.trim()}</AppText>
+                <AppText variant="screenHint">{plan.dayRecommendation.trim()}</AppText>
               ) : null}
             </>
           ) : (
@@ -586,7 +609,7 @@ export default function DayTabRoute() {
           <>
             {plan.mode === "overdue_summary" ? (
               <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-                <AppText variant="dialogBody" tone="muted">
+                <AppText variant="screenHint" tone="muted">
                   {dayStrings.overdueSummaryHint}
                 </AppText>
                 <AppButton label={dayStrings.summarizeButton} onPress={() => openAssistant("summary")} />
@@ -611,7 +634,7 @@ export default function DayTabRoute() {
                       />
                     ))
                   ) : (
-                    <AppText variant="dialogBody" tone="muted">
+                    <AppText variant="screenHint" tone="muted">
                       {dayStrings.noActionsHint}
                     </AppText>
                   )}
@@ -622,9 +645,9 @@ export default function DayTabRoute() {
                         segments={sphereStatsToDonutSegments(section.sphereStats, reportLocale)}
                         locale={reportLocale}
                         animationKey={section.sphereStats.map((item) => `${item.id}:${item.value}`).join("|")}
-                        revealMode="immediate"
+                        revealMode="inViewport"
                       />
-                      {section.sphereHint ? <AppText variant="dialogBody" tone="muted">{section.sphereHint}</AppText> : null}
+                      {section.sphereHint ? <AppText variant="screenHint" tone="muted">{section.sphereHint}</AppText> : null}
                     </>
                   ) : null}
                   {plan.mode === "empty_today" || plan.mode === "current_day" ? (
@@ -644,14 +667,14 @@ export default function DayTabRoute() {
                           const time = formatPracticeLineTime(practice.startedAt, dayStrings);
                           const duration = formatPracticeDuration(practice.durationSec, dayStrings);
                           return (
-                            <AppText key={practice.id} variant="dialogBody" tone="muted">
+                            <AppText key={practice.id} variant="screenHint" tone="muted">
                               {time ? `${time} ` : ""}{practice.title}{duration ? ` (${duration})` : ""}
                             </AppText>
                           );
                         })}
                       </View>
                     ) : (
-                      <AppText variant="dialogBody" tone="muted">
+                      <AppText variant="screenHint" tone="muted">
                         {dayStrings.emptyYogaHint}
                       </AppText>
                     )}
@@ -748,6 +771,10 @@ export default function DayTabRoute() {
           });
           void refresh({ force: true });
         }}
+        onPracticeStarted={() => {
+          setAssistantSession(null);
+          void prefetchDayPlan();
+        }}
         strings={dayStrings}
         appLocale={reportLocale}
       />
@@ -772,14 +799,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    gap: 14,
-    padding: 18,
+    borderRadius: SURFACE_CARD.borderRadius,
+    borderWidth: SURFACE_CARD.borderWidth,
+    gap: SURFACE_CARD.gap,
+    padding: SURFACE_CARD.padding,
   },
   actionCard: {
-    gap: 8,
-    paddingVertical: 4,
+    gap: 3,
+    paddingVertical: 1,
   },
   actionMainRow: {
     alignItems: "center",

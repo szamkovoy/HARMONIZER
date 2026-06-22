@@ -6,7 +6,7 @@
   "emptyAssistantReplyFallback": "No recibí la respuesta completa — quizá se cortó la conexión. Vuelve a escribirme, en pocas palabras, qué es lo importante ahora y te seguiré acompañando.",
   "exitDialogButton": "Salir del diálogo",
   "expandAccessibilityLabel": "Expandir",
-  "holdToRecordAccessibilityLabel": "Mantén pulsado para grabar",
+  "holdToRecordAccessibilityLabel": "Toca o mantén pulsado para grabar",
   "locale": "es",
   "microphonePermissionError": "Sin acceso al micrófono",
   "postPracticeReplyFallback": "Ya elegiste una práctica. Que te haga bien; cuando quieras volver a conversar, aquí estaré para retomar.",

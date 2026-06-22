@@ -1,10 +1,15 @@
 import { isLikelyFetchNetworkFailure } from "@/modules/auth/authNetworkErrors";
+import { appUserErrorKind, isAppUserError } from "@/services/userFacingErrors";
 
 const DEFAULT_DELAYS_MS = [450, 900] as const;
 
 function isRetryableNetworkError(error: unknown): boolean {
   if (isLikelyFetchNetworkFailure(error)) return true;
   if (error instanceof Error && /network error for /i.test(error.message)) return true;
+  if (isAppUserError(error) && appUserErrorKind(error) === "network") return true;
+  const cause =
+    isAppUserError(error) && error.causeDetail !== undefined ? error.causeDetail : null;
+  if (cause && isLikelyFetchNetworkFailure(cause)) return true;
   return false;
 }
 

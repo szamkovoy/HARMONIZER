@@ -12,7 +12,9 @@ export function useAssistantPracticeOverlayDismiss(launchSource: string | undefi
       let cancelled = false;
       const task = InteractionManager.runAfterInteractions(() => {
         requestAnimationFrame(() => {
-          if (!cancelled) signalAssistantPracticeScreenMounted();
+          requestAnimationFrame(() => {
+            if (!cancelled) signalAssistantPracticeScreenMounted();
+          });
         });
       });
 

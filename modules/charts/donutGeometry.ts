@@ -15,6 +15,21 @@ export function donutPath(
   endAngle: number,
 ) {
   if (endAngle <= startAngle) return "";
+  if (endAngle - startAngle >= 359.999) {
+    const outerTop = polar(cx, cy, outerRadius, 0);
+    const outerBottom = polar(cx, cy, outerRadius, 180);
+    const innerTop = polar(cx, cy, innerRadius, 0);
+    const innerBottom = polar(cx, cy, innerRadius, 180);
+    return [
+      `M ${outerTop.x} ${outerTop.y}`,
+      `A ${outerRadius} ${outerRadius} 0 1 1 ${outerBottom.x} ${outerBottom.y}`,
+      `A ${outerRadius} ${outerRadius} 0 1 1 ${outerTop.x} ${outerTop.y}`,
+      `L ${innerTop.x} ${innerTop.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 0 ${innerBottom.x} ${innerBottom.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 0 ${innerTop.x} ${innerTop.y}`,
+      "Z",
+    ].join(" ");
+  }
   const startOuter = polar(cx, cy, outerRadius, endAngle);
   const endOuter = polar(cx, cy, outerRadius, startAngle);
   const startInner = polar(cx, cy, innerRadius, startAngle);

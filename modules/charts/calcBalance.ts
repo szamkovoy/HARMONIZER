@@ -1,4 +1,5 @@
 const SPHERE_COUNT = 7;
+const EVENNESS_POWER = 1.6;
 
 export type BalanceResult = {
   balance: number;
@@ -12,19 +13,13 @@ export function calcBalance(weights: readonly number[]): BalanceResult {
   const total = padded.reduce((sum, weight) => sum + weight, 0);
   if (total === 0) return { balance: 0, angle: 0 };
 
-  const active = padded.filter((weight) => weight > 0);
-  const n = active.length;
-
-  if (n === 1) {
-    const balance = Math.round((1 / N) * 100);
-    return { balance, angle: (balance / 100) * 360 };
-  }
-
-  const shares = active.map((weight) => weight / total);
-  const ideal = 1 / n;
-  const mad = shares.reduce((sum, share) => sum + Math.abs(share - ideal), 0) / n;
-  const maxMad = (n - 1) / n;
-  const balance = Math.round((1 - mad / maxMad) * (n / N) * 100);
+  const shares = padded.map((weight) => weight / total);
+  const ideal = 1 / N;
+  const sumSquaredDeviation = shares.reduce((sum, share) => sum + (share - ideal) ** 2, 0);
+  const maxSquaredDeviation = (1 - ideal) ** 2 + (N - 1) * ideal ** 2;
+  const normalizedDeviation = Math.min(1, Math.sqrt(sumSquaredDeviation / maxSquaredDeviation));
+  const evenness = Math.max(0, 1 - normalizedDeviation);
+  const balance = Math.max(1, Math.round(evenness ** EVENNESS_POWER * 100));
   return { balance, angle: (balance / 100) * 360 };
 }
 

@@ -6,7 +6,7 @@
   "emptyAssistantReplyFallback": "Je n’ai pas reçu le texte complet de votre réponse — la connexion a pu se couper. Écrivez-moi de nouveau brièvement ce qui est important pour vous en ce moment, et je reprendrai.",
   "exitDialogButton": "Quitter le dialogue",
   "expandAccessibilityLabel": "Développer",
-  "holdToRecordAccessibilityLabel": "Maintenez pour enregistrer",
+  "holdToRecordAccessibilityLabel": "Appuyez ou maintenez pour enregistrer",
   "locale": "fr",
   "microphonePermissionError": "Nous n'avons pas accès à votre microphone. Veuillez l'autoriser.",
   "postPracticeReplyFallback": "La pratique est déjà choisie. Puisse-t-elle vous être bénéfique ; si par la suite vous souhaitez revenir à la conversation, je reprendrai.",

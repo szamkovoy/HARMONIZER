@@ -10,6 +10,11 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-22: `profile` / `services` — отчёты профиля: retry снова работает для `AppUserError` network; inline-ошибки локализованы (не `[profile-reports] transient network`); кнопка «Повторить».
+- 2026-06-22: `ui` — единый токен `SURFACE_CARD` (padding 18, gap 14) для карточек Day/Profile; интервал между действиями на Day ещё −20%.
+- 2026-06-22: `communicator` / `practices` — assistant practice launch: handoff cover hides chat before Modal dismiss; Day tab uses same delayed dismiss as Home; caption subtitles → `screenHint` on Home/Profile cards.
+- 2026-06-21: `profile` / `charts` — practice-by-chakra now uses the user's local calendar-day window instead of sliding `N*24h`, and `calcBalance` now uses a stricter normalized-distance curve so visibly uneven donuts no longer read like near-perfect `96–97%`. Synced `profile/{spec,history}.md`, `charts/{spec,history}.md`.
+- 2026-06-21: `charts` / `profile` / `daily_forecast` — donut bugfix doc-sync: single-segment full ring no longer disappears; all report donuts use viewport reveal; period reload can clear visualization via `hideVisualization`. Synced `charts/{spec,history}.md`, `profile/{spec,history}.md`, `daily_forecast/history.md`.
 - 2026-06-21: `profile` / `charts` — doc-sync push: `PracticeByChakraReportCard` stable donut + frozen `animationKey` during period reload; `DonutVisibilityProvider` optional `scrollRef`. Synced `profile/{spec,history}.md`, `charts/spec.md`.
 - 2026-06-21: `daily_forecast` / `charts` / `i18n` — `ChakraFlower`: prop `natalProfile`, центр с `S_initial` + `strengthLabel`; цвета `CHAKRA_SEGMENT_COLORS`; `getChartStrings` расширен `strengthLabel`. Synced `daily_forecast/{spec,dependencies,history}.md`, `charts/{spec,dependencies,history}.md`, `i18n/{spec,dependencies}.md`, `chakra/dependencies.md`, `MAP.md`.
 - 2026-06-21: `charts` — `revealMode` immediate/inViewport, interval-based animation, remove static complete fallback; fix period-switch key during loading. Synced `charts/{spec,history}.md`.

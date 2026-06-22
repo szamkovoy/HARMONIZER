@@ -9,6 +9,10 @@ code_refs: [modules/charts]
 
 ## Decision Log
 
+- **2026-06-21:** `calcBalance` ужесточён второй итерацией: вместо coverage-first/MAD используется нормализованное евклидово отклонение от идеала `1/7` по всем семи сегментам + степень `1.6`. Причина: предыдущая правка устранила парадокс `2 сегмента < 1 сегмента`, но всё ещё давала слишком “щедрые” `96–97%` у заметно неровных диаграмм.
+
+- **2026-06-21:** Donut UX sync: все отчётные бублики переведены на viewport-reveal; `DonutChart.hideVisualization` очищает сегменты/баланс/центр во время async reload без снятия легенды, а single-segment `360°` donut теперь рисуется как полноценное кольцо и не исчезает на финальном кадре.
+
 - **2026-06-21:** Fix двойной анимации при смене 7/30/90: `setLoading(true)` синхронно в `handlePeriodChange` (до смены `periodDays`); `animationKey` только из значений сегментов и только когда `!loading`; `start()` всегда перезапускает цикл.
 
 - **2026-06-21:** `revealMode`: `immediate` для «Практики по чакрам» и Day (анимация сразу при смене данных/focus); `inViewport` для нижних отчётов Profile. `useDonutAnimation` → `setInterval`; убран fallback `complete()`; layout settle при смене `resetKey` без повторного `onLayout`; стабильный `animationKey` на время loading.

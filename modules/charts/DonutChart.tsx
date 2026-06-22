@@ -30,6 +30,7 @@ type DonutChartProps = {
   locale?: AppContentLocale;
   animationKey?: string;
   revealMode?: DonutRevealMode;
+  hideVisualization?: boolean;
 };
 
 const BALANCE_STROKE_OPACITY = 0.58;
@@ -43,6 +44,7 @@ export function DonutChart({
   locale = "ru",
   animationKey,
   revealMode = "inViewport",
+  hideVisualization = false,
 }: DonutChartProps) {
   const theme = useTheme();
   const strings = getChartStrings(locale);
@@ -55,7 +57,7 @@ export function DonutChart({
   const { balance, angle: balanceAngle } = useMemo(() => calcBalance(weights), [weights]);
   const { segments: builtSegments } = useMemo(() => buildDonutSegments(segments), [segments]);
   const hasData = builtSegments.length > 0;
-  const chartEnabled = hasData || balance > 0;
+  const chartEnabled = !hideVisualization && (hasData || balance > 0);
   const useViewportReveal = revealMode === "inViewport";
 
   const handleReset = useCallback(() => {
@@ -80,11 +82,12 @@ export function DonutChart({
     return undefined;
   }, [chartEnabled, startAnimation, useViewportReveal, visibilityResetKey]);
 
-  const balancePhase = renderProgress < 0.6 ? 0 : easeOutCubic((renderProgress - 0.6) / 0.4);
-  const textOpacity = renderProgress < 0.85 ? 0 : Math.min(1, (renderProgress - 0.85) / 0.15);
+  const displayProgress = hideVisualization ? 0 : renderProgress;
+  const balancePhase = displayProgress < 0.6 ? 0 : easeOutCubic((displayProgress - 0.6) / 0.4);
+  const textOpacity = displayProgress < 0.85 ? 0 : Math.min(1, (displayProgress - 0.85) / 0.15);
   const visibleSegments = useMemo(
-    () => clipDonutSegmentsForProgress(builtSegments, renderProgress),
-    [builtSegments, renderProgress],
+    () => clipDonutSegmentsForProgress(builtSegments, displayProgress),
+    [builtSegments, displayProgress],
   );
   const visibleBalanceAngle = balancePhase * balanceAngle;
   const trackRadius = DONUT_INNER_RADIUS - DONUT_TRACK_GAP;

@@ -66,6 +66,19 @@
 | `radius.pill` | 999 | Круглые/капсульные элементы (иконочные кнопки, highlighted pill) |
 | `spacing.xs..xl` | 4/8/12/16/24 | Отступы и пробелы |
 
+## Поверхностные карточки (`SURFACE_CARD`)
+
+Единый каркас белых блоков на Home / Day / Profile. Константа — `modules/ui/surfaceCard.ts`, дублируется в `theme.surfaceCard`.
+
+| Поле | Значение | Смысл |
+| --- | --- | --- |
+| `padding` | 18 | Отступ от верхней границы карточки до заголовка блока (`sectionTitle`) |
+| `gap` | 14 | Вертикальный зазор между дочерними элементами внутри карточки |
+| `borderRadius` | 24 | Скругление углов |
+| `borderWidth` | 1 | Толщина рамки |
+
+Импорт: `import { SURFACE_CARD } from "@/modules/ui/surfaceCard"` или `useTheme().surfaceCard`.
+
 ## Правила подключения
 
 1. В корне экрана оборачиваем в `<ThemeProvider value={buildTheme("dark")}>` или `"light"`.

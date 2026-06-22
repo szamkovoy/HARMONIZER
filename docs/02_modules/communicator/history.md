@@ -1,13 +1,14 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.37
-updated: 2026-06-18
+version: 2.38
+updated: 2026-06-22
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
     modules/communicator/ui/Communicator.tsx,
     modules/communicator/core/voiceTurnPipeline.ts,
+    modules/communicator/core/micGesture.ts,
     modules/communicator/ui/AssistantBubble.tsx,
     modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/core/dialogTurnHydration.ts,
@@ -18,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-22:** Voice mic gesture hardening + tap-to-record. Pure helpers `resolveMicPressIn` / `resolveMicPressOut` / `captureModeWhenRecordingStarts` in `micGesture.ts` (14 tests). Two modes: **`tap_toggle`** (tap start/stop) and **`hold`** (record while finger down). Root fix for hold-to-talk: **never remount Pressable** (`micPressResetKey`) while `micFingerDownRef` — recording start used to call `bumpMicPressReset()` mid-hold and iOS lost `onPressOut`.
 
 - **2026-06-18:** Voice locale routing inverted by product request. `Communicator.tsx` now keeps STT + reply locale profile-driven outside `EXPO_PUBLIC_I18N_TEST_MODE`, while test mode becomes the speech-driven QA path: it omits the STT hint, lets Whisper auto-detect the spoken language, and routes that turn's `responseLocale` there when the locale is supported. Low-confidence transcript review preserves the detected locale only in test mode. Added pure helper `voiceTurnLocale.ts` + regression tests.
 

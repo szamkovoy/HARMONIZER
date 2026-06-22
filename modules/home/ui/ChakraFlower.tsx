@@ -103,7 +103,7 @@ export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerPr
       <View style={styles.titleRow}>
         <View>
           <AppText variant="sectionTitle">{strings.chakraFlower.title}</AppText>
-          <AppText variant="technicalCaption" tone="muted" style={styles.caption}>
+          <AppText variant="screenHint" tone="muted" style={styles.caption}>
             {strings.chakraFlower.caption}
           </AppText>
         </View>

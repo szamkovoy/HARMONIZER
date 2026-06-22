@@ -13,6 +13,7 @@ import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
@@ -287,6 +288,8 @@ export default function ProfileTabRoute() {
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
           locale={reportLocale}
+          onRetry={() => void lifeMatrix.reload()}
+          retryLabel={lifeMatrix.retryLabel}
         />
         <LifeSpheresReportCard
           enabled={statsEnabled}
@@ -295,6 +298,8 @@ export default function ProfileTabRoute() {
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
           locale={reportLocale}
+          onRetry={() => void lifeMatrix.reload()}
+          retryLabel={lifeMatrix.retryLabel}
         />
         <LifeStatesReportCard
           enabled={statsEnabled}
@@ -303,6 +308,8 @@ export default function ProfileTabRoute() {
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
           locale={reportLocale}
+          onRetry={() => void lifeMatrix.reload()}
+          retryLabel={lifeMatrix.retryLabel}
         />
         <RangeTrendReportCard
           enabled={statsEnabled}
@@ -311,6 +318,8 @@ export default function ProfileTabRoute() {
           loading={lifeMatrix.loading}
           error={lifeMatrix.error}
           locale={reportLocale}
+          onRetry={() => void lifeMatrix.reload()}
+          retryLabel={lifeMatrix.retryLabel}
         />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
@@ -357,10 +366,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 22,
-    gap: 12,
-    padding: 16,
+    borderRadius: SURFACE_CARD.borderRadius,
+    borderWidth: SURFACE_CARD.borderWidth,
+    gap: SURFACE_CARD.gap,
+    padding: SURFACE_CARD.padding,
   },
   cardHeaderRow: {
     alignItems: "center",

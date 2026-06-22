@@ -58,6 +58,14 @@ import {
   turnModeCarriesPractice,
   type SessionAssistantTurnMeta,
 } from "@/modules/communicator/core/dialogTurnHydration";
+import {
+  captureModeWhenRecordingStarts,
+  isInvalidTranscriptionMediaError,
+  isVoiceRecordingFileTooSmall,
+  resolveMicPressIn,
+  resolveMicPressOut,
+  type MicCaptureMode,
+} from "@/modules/communicator/core/micGesture";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { getTranscribeLocale, useAppLocale } from "@/modules/i18n";
@@ -482,6 +490,10 @@ export interface CommunicatorProps {
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
   onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>;
+  /** Сразу при нажатии «Начать практику» — до router.push (заменить чат на handoff-cover). */
+  onPracticeLaunchStart?: () => void;
+  /** launchPractice не смог открыть маршрут — откат handoff-cover. */
+  onPracticeLaunchAbort?: () => void;
   onPracticePicked?: (practice: PracticePicked) => void | Promise<void>;
   onRequestClose?: () => void | Promise<void>;
   onError?: (err: Error) => void;
@@ -566,6 +578,8 @@ export function Communicator({
   onEmotionSegment,
   onMessage,
   onPracticeOffered,
+  onPracticeLaunchStart,
+  onPracticeLaunchAbort,
   onPracticePicked,
   onRequestClose,
   onError,
@@ -737,7 +751,21 @@ export function Communicator({
   const startRecordingGenerationRef = useRef(0);
   /** Сброс нативного «залипания» Pressable после отмены / отказа в разрешениях */
   const [micPressResetKey, setMicPressResetKey] = useState(0);
+  const phaseRef = useRef(phase);
+  const micPressStartedAtRef = useRef(0);
+  const micCaptureModeRef = useRef<MicCaptureMode | null>(null);
+  /** Палец на кнопке — нельзя remount Pressable (`micPressResetKey`) пока true. */
+  const micFingerDownRef = useRef(false);
   const voiceLevel = useRef(new Animated.Value(0.1)).current;
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  const bumpMicPressReset = useCallback(() => {
+    if (micFingerDownRef.current) return;
+    setMicPressResetKey((k) => k + 1);
+  }, []);
 
   /** Пока нативный рекордер готовится — лёгкая пульсация ауры (фаза `arming`). */
   useEffect(() => {
@@ -1605,6 +1633,22 @@ export function Communicator({
           resetChatStream();
           return;
         }
+        if (pendingVoiceId && !transcriptResolved && isInvalidTranscriptionMediaError(err.message)) {
+          logErrorForDevelopers("Communicator", err);
+          onError?.(err);
+          const userErrors = getUserErrorStrings(strings.locale);
+          Alert.alert(strings.sendErrorTitle, strings.voiceTranscribeFailedBubble, [
+            {
+              text: userErrors.retryButton,
+              onPress: () => {
+                const retry = retryHandlerRef.current;
+                if (retry) retry();
+              },
+            },
+            { text: userErrors.dismissButton, style: "cancel" },
+          ]);
+          return;
+        }
         reportError(err);
       }
     },
@@ -1789,10 +1833,11 @@ export function Communicator({
   const cancelMicWarmup = useCallback(() => {
     startRecordingGenerationRef.current += 1;
     micWarmupRef.current = false;
+    micCaptureModeRef.current = null;
+    void discardRecording();
     setPhase("idle");
-    setMicPressResetKey((k) => k + 1);
-    void resetRecordingAudioMode();
-  }, [resetRecordingAudioMode]);
+    bumpMicPressReset();
+  }, [bumpMicPressReset, discardRecording]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
@@ -1872,7 +1917,7 @@ export function Communicator({
         micWarmupRef.current = false;
         setPhase("idle");
         reportError(new Error(strings.microphonePermissionError));
-        setMicPressResetKey((k) => k + 1);
+        bumpMicPressReset();
         return;
       }
 
@@ -1958,24 +2003,31 @@ export function Communicator({
       });
       recording.setProgressUpdateInterval(90);
       recordStartRef.current = Date.now();
+      micCaptureModeRef.current = captureModeWhenRecordingStarts(
+        micFingerDownRef.current,
+        micCaptureModeRef.current,
+      );
       setPhase("recording");
     } catch (e) {
       if (generation !== startRecordingGenerationRef.current) return;
       micWarmupRef.current = false;
+      micCaptureModeRef.current = null;
       recordingRef.current = null;
       await resetRecordingAudioMode();
       setPhase("idle");
-      setMicPressResetKey((k) => k + 1);
+      bumpMicPressReset();
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
-  }, [discardRecording, phase, reportError, resetRecordingAudioMode, streamBusy, strings.microphonePermissionError, uiMode]);
+  }, [bumpMicPressReset, discardRecording, phase, reportError, resetRecordingAudioMode, streamBusy, strings.microphonePermissionError, uiMode]);
 
   const stopRecordingAndSend = useCallback(async () => {
     const rec = recordingRef.current;
-    if (!rec || phase !== "recording") return;
+    if (!rec) return;
+    if (phaseRef.current === "idle" || phaseRef.current === "transcribing" || phaseRef.current === "error") return;
 
     micWarmupRef.current = false;
+    micCaptureModeRef.current = null;
     recordingRef.current = null;
     let uri: string | null = null;
     try {
@@ -1984,12 +2036,14 @@ export function Communicator({
     } catch {
       await resetRecordingAudioMode();
       setPhase("idle");
+      bumpMicPressReset();
       return;
     }
     await resetRecordingAudioMode();
 
     const durationMs = Date.now() - recordStartRef.current;
     setPhase("idle");
+    bumpMicPressReset();
 
     suppressClickRef.current = true;
     suppressAbortAfterRecordRef.current = true;
@@ -2003,7 +2057,7 @@ export function Communicator({
     try {
       const info = await getInfoAsync(uri);
       const size = info.exists && !info.isDirectory ? info.size : 0;
-      if (size < 16 || durationMs < MIN_VOICE_MS) return;
+      if (isVoiceRecordingFileTooSmall(size, durationMs, MIN_VOICE_MS)) return;
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
@@ -2011,29 +2065,66 @@ export function Communicator({
     }
 
     await processVoiceFromUri(uri, durationMs);
-  }, [phase, processVoiceFromUri, reportError, resetRecordingAudioMode]);
+  }, [bumpMicPressReset, processVoiceFromUri, reportError, resetRecordingAudioMode]);
 
   const onMicPressIn = useCallback(() => {
-    if (isBusy) return;
-    if (uiMode !== "VOICE") return;
-    void startRecording();
-  }, [isBusy, startRecording, uiMode]);
+    micFingerDownRef.current = true;
 
-  const onMicPressOut = useCallback(() => {
-    if (phase === "recording") {
+    const action = resolveMicPressIn({
+      uiMode,
+      phase: phaseRef.current,
+      captureMode: micCaptureModeRef.current,
+      streamBusy,
+      dialogWindDown,
+    });
+
+    if (action.type === "ignore") return;
+
+    if (action.type === "stop_and_send") {
       void stopRecordingAndSend();
       return;
     }
-    if (micWarmupRef.current && awaitingMicPermissionRef.current) {
-      return;
+
+    micPressStartedAtRef.current = Date.now();
+    micCaptureModeRef.current = null;
+    void startRecording();
+  }, [dialogWindDown, startRecording, stopRecordingAndSend, streamBusy, uiMode]);
+
+  const onMicPressOut = useCallback(() => {
+    micFingerDownRef.current = false;
+
+    const action = resolveMicPressOut({
+      pressDurationMs: Date.now() - micPressStartedAtRef.current,
+      phase: phaseRef.current,
+      captureMode: micCaptureModeRef.current,
+      hasActiveRecording: recordingRef.current != null,
+      micWarmup: micWarmupRef.current,
+      awaitingMicPermission: awaitingMicPermissionRef.current,
+    });
+
+    switch (action.type) {
+      case "noop":
+        return;
+      case "enter_tap_toggle":
+        micCaptureModeRef.current = "tap_toggle";
+        bumpMicPressReset();
+        return;
+      case "stop_and_send":
+        bumpMicPressReset();
+        void stopRecordingAndSend();
+        return;
+      case "cancel_warmup":
+        cancelMicWarmup();
+        return;
+      case "reset_pressable":
+        bumpMicPressReset();
+        return;
     }
-    if (micWarmupRef.current) {
-      cancelMicWarmup();
-    }
-  }, [cancelMicWarmup, phase, stopRecordingAndSend]);
+  }, [bumpMicPressReset, cancelMicWarmup, stopRecordingAndSend]);
 
   const onMicPress = useCallback(() => {
     if (suppressClickRef.current || suppressAbortAfterRecordRef.current) return;
+    if (phaseRef.current === "recording" || phaseRef.current === "arming") return;
     if (isBusy) abortRequest();
   }, [abortRequest, isBusy]);
 
@@ -2111,14 +2202,13 @@ export function Communicator({
       }
       void (async () => {
         const picked = summaryToPractice(practice, configured);
+        onPracticeLaunchStart?.();
         const launched = launchPractice(configured.launch, { launchSource: "assistant" });
         if (!launched) {
+          onPracticeLaunchAbort?.();
           await Promise.resolve(onPracticePicked?.(picked));
           return;
         }
-        // Full-screen dialog Modal sits above the navigator. Push the practice
-        // route first and close the overlay only after that screen is ready,
-        // otherwise the tab underneath (Home/Day) flashes for a frame.
         scheduleAssistantOverlayDismiss(() => {
           void Promise.resolve(onPracticePicked?.(picked)).catch((error) => {
             logErrorForDevelopers(
@@ -2129,7 +2219,7 @@ export function Communicator({
         });
       })();
     },
-    [onPracticePicked],
+    [onPracticeLaunchAbort, onPracticeLaunchStart, onPracticePicked],
   );
 
   const handleExitDialog = useCallback(async () => {
@@ -2625,7 +2715,10 @@ export function Communicator({
                 onPressIn={onMicPressIn}
                 onPressOut={onMicPressOut}
                 onPress={onMicPress}
-                style={styles.micHit}
+                style={({ pressed }) => [
+                  styles.micHit,
+                  pressed && phase === "idle" && !streamBusy ? styles.micHitPressed : null,
+                ]}
               >
                 {phase === "recording" || phase === "arming" ? <RecordingAura level={voiceLevel} /> : null}
                 <Image
@@ -2804,6 +2897,9 @@ const styles = StyleSheet.create({
     height: 72,
     alignItems: "center",
     justifyContent: "center",
+  },
+  micHitPressed: {
+    opacity: 0.88,
   },
   recordingAura: {
     position: "absolute",

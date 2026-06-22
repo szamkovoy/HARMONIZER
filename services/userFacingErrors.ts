@@ -113,6 +113,15 @@ export type UserFacingAlertCopy = {
   retryable: boolean;
 };
 
+/** Локализованное сообщение для inline-UI (карточки, баннеры) без Alert. */
+export function resolveUserFacingMessage(
+  error: unknown,
+  locale: AppLocale,
+  context?: UserFacingErrorContext,
+): string {
+  return resolveUserFacingAlert(error, locale, context).message;
+}
+
 export function resolveUserFacingAlert(
   error: unknown,
   locale: AppLocale,

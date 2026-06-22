@@ -14,6 +14,8 @@ import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
+import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
+import { AssistantPracticeHandoffCover } from "@/modules/practices/ui/AssistantPracticeHandoffCover";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -89,7 +91,7 @@ function HomeHeader({
           <Image source={require("@/assets/icons/apple-touch-icon.png")} style={styles.avatar} resizeMode="cover" />
         </View>
         <View style={styles.headerText}>
-          <AppText variant="screenHint" accessibilityRole="header" style={styles.dateText}>
+          <AppText variant="sectionTitle" accessibilityRole="header" style={styles.dateText}>
             {today}
           </AppText>
           {forecast?.slogan?.trim() ? (
@@ -343,42 +345,7 @@ function FreeTierBanner({ text }: { text: string }) {
 }
 
 function dismissAssistantPracticeOverlay(onPracticeStarted: () => void) {
-  onPracticeStarted();
-}
-
-/**
- * True when an assistant turn just persisted planning actions / summary or
- * finalized planning — the moment to pre-warm the Day tab so it is ready
- * instantly when the user closes the dialog. Mirrors the Day-tab handler.
- */
-function assistantMessageTriggersDayPrefetch(meta: Record<string, unknown> | undefined): boolean {
-  const persistence = meta?.planningPersistence as
-    | { inserted?: unknown[]; updated?: unknown[]; summarized?: unknown[] }
-    | null
-    | undefined;
-  const inserted = Array.isArray(persistence?.inserted) ? persistence!.inserted! : [];
-  const updated = Array.isArray(persistence?.updated) ? persistence!.updated! : [];
-  const summarized = Array.isArray(persistence?.summarized) ? persistence!.summarized! : [];
-  const branches = Array.isArray(meta?.branches) ? (meta!.branches as unknown[]) : [];
-  const isFinalWithoutPractice = meta?.turnMode === "final_without_practice";
-  const hasRecommendation = Boolean(meta?.recommendationCorrected);
-  return (
-    inserted.length > 0 ||
-    updated.length > 0 ||
-    summarized.length > 0 ||
-    hasRecommendation ||
-    isFinalWithoutPractice
-  );
-}
-
-function dayPlanHasVisibleContent(plan: Awaited<ReturnType<typeof loadDayPlan>>): boolean {
-  if (plan.mode !== "current_day") return false;
-  const todaySection = plan.sections.find((section) => section.localDate === plan.currentLocalDate) ?? plan.sections[0];
-  // Navigate straight to the Day tab ONLY when the day already has planned/summarized
-  // actions. A leftover pending practice card alone must NOT short-circuit the
-  // dialog: with no actions yet, "Что делать?" should open the communicator and
-  // start the standard flow (summarize due events, else plan today).
-  return (todaySection?.actions.length ?? 0) > 0;
+  scheduleAssistantOverlayDismiss(onPracticeStarted);
 }
 
 function CommunicatorOverlay({
@@ -410,6 +377,18 @@ function CommunicatorOverlay({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const [practiceHandoff, setPracticeHandoff] = useState(false);
+
+  const finishPracticeLaunch = useCallback(() => {
+    setPracticeHandoff(false);
+    onPracticeStarted();
+  }, [onPracticeStarted]);
+
+  useEffect(() => {
+    if (visible) return;
+    setPracticeHandoff(false);
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -418,6 +397,9 @@ function CommunicatorOverlay({
       onRequestClose={onClose}
       onDismiss={onDismiss}
     >
+      {practiceHandoff ? (
+        <AssistantPracticeHandoffCover />
+      ) : (
       <View style={styles.overlayRoot}>
         <View
           style={[
@@ -485,12 +467,49 @@ function CommunicatorOverlay({
                 console.warn("[Home] Failed to pre-warm Day during planning final", error);
               });
           }}
-          onPracticePicked={() => dismissAssistantPracticeOverlay(onPracticeStarted)}
+          onPracticeLaunchStart={() => setPracticeHandoff(true)}
+          onPracticeLaunchAbort={() => setPracticeHandoff(false)}
+          onPracticePicked={() => dismissAssistantPracticeOverlay(finishPracticeLaunch)}
           onRequestClose={onClose}
         />
       </View>
+      )}
     </Modal>
   );
+}
+
+/**
+ * True when an assistant turn just persisted planning actions / summary or
+ * finalized planning — the moment to pre-warm the Day tab so it is ready
+ * instantly when the user closes the dialog. Mirrors the Day-tab handler.
+ */
+function assistantMessageTriggersDayPrefetch(meta: Record<string, unknown> | undefined): boolean {
+  const persistence = meta?.planningPersistence as
+    | { inserted?: unknown[]; updated?: unknown[]; summarized?: unknown[] }
+    | null
+    | undefined;
+  const inserted = Array.isArray(persistence?.inserted) ? persistence!.inserted! : [];
+  const updated = Array.isArray(persistence?.updated) ? persistence!.updated! : [];
+  const summarized = Array.isArray(persistence?.summarized) ? persistence!.summarized! : [];
+  const isFinalWithoutPractice = meta?.turnMode === "final_without_practice";
+  const hasRecommendation = Boolean(meta?.recommendationCorrected);
+  return (
+    inserted.length > 0 ||
+    updated.length > 0 ||
+    summarized.length > 0 ||
+    hasRecommendation ||
+    isFinalWithoutPractice
+  );
+}
+
+function dayPlanHasVisibleContent(plan: Awaited<ReturnType<typeof loadDayPlan>>): boolean {
+  if (plan.mode !== "current_day") return false;
+  const todaySection = plan.sections.find((section) => section.localDate === plan.currentLocalDate) ?? plan.sections[0];
+  // Navigate straight to the Day tab ONLY when the day already has planned/summarized
+  // actions. A leftover pending practice card alone must NOT short-circuit the
+  // dialog: with no actions yet, "Что делать?" should open the communicator and
+  // start the standard flow (summarize due events, else plan today).
+  return (todaySection?.actions.length ?? 0) > 0;
 }
 
 function profileHasBirthData(profile: { birth_date?: string | null } | null | undefined): boolean {
@@ -924,7 +943,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateText: {
-    fontWeight: "700",
     textTransform: "capitalize",
   },
   announcement: {

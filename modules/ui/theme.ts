@@ -15,6 +15,8 @@
 import { createContext, useContext } from "react";
 import type { TextStyle } from "react-native";
 
+import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
+
 /** Настраиваемое семейство шрифта (пока — системный; оставляем поле для будущих Custom fonts). */
 export type FontFamilyName = string | undefined;
 
@@ -109,12 +111,21 @@ export interface SpacingTokens {
   xl: number;
 }
 
+/** Разметка поверхностных карточек (см. `modules/ui/surfaceCard.ts`). */
+export interface SurfaceCardTokens {
+  padding: number;
+  gap: number;
+  borderRadius: number;
+  borderWidth: number;
+}
+
 export type PaletteScheme = "dark" | "light";
 
 export interface Theme {
   scheme: PaletteScheme;
   colors: ColorTokens;
   typography: TypographyTokens;
+  surfaceCard: SurfaceCardTokens;
   radius: RadiusTokens;
   spacing: SpacingTokens;
   fontFamily: FontFamilyName;
@@ -178,7 +189,7 @@ export const defaultTheme: Theme = {
   typography: {
     dialogTitle: { fontSize: 18, lineHeight: 24, fontWeight: "700" },
     dialogBody: { fontSize: 14, lineHeight: 20, fontWeight: "400" },
-    sectionTitle: { fontSize: 16, lineHeight: 22, fontWeight: "600" },
+    sectionTitle: { fontSize: 18, lineHeight: 24, fontWeight: "600" },
     buttonLabel: { fontSize: 15, lineHeight: 20, fontWeight: "600" },
     screenTitle: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
     screenHint: { fontSize: 15, lineHeight: 22, fontWeight: "400" },
@@ -188,6 +199,7 @@ export const defaultTheme: Theme = {
     bannerMessage: { fontSize: 12, lineHeight: 16, fontWeight: "500" },
     numericLarge: { fontSize: 36, lineHeight: 40, fontWeight: "700" },
   },
+  surfaceCard: { ...SURFACE_CARD },
   radius: {
     xs: 4,
     sm: 8,

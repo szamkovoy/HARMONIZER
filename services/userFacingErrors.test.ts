@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AppUserError, resolveUserFacingAlert, wrapConnectivityFailure } from "./userFacingErrors";
+import { AppUserError, resolveUserFacingAlert, resolveUserFacingMessage, wrapConnectivityFailure } from "./userFacingErrors";
 import { withTransientNetworkRetry } from "./withTransientNetworkRetry";
 
 describe("userFacingErrors", () => {
@@ -8,6 +8,15 @@ describe("userFacingErrors", () => {
     const copy = resolveUserFacingAlert(new Error("Network request failed"), "ru");
     expect(copy.title).toBe("Не удалось связаться с сервером");
     expect(copy.retryable).toBe(true);
+  });
+
+  it("resolveUserFacingMessage returns localized body without debug prefix", () => {
+    const message = resolveUserFacingMessage(
+      wrapConnectivityFailure(new TypeError("Network request failed"), "profile-reports"),
+      "ru",
+    );
+    expect(message).toContain("интернет");
+    expect(message).not.toContain("[profile-reports]");
   });
 
   it("maps legacy communicator URL message to network", () => {
@@ -45,6 +54,19 @@ describe("withTransientNetworkRetry", () => {
     const result = await withTransientNetworkRetry(async () => {
       calls += 1;
       if (calls < 2) throw new TypeError("Network request failed");
+      return "ok";
+    });
+    expect(result).toBe("ok");
+    expect(calls).toBe(2);
+  });
+
+  it("retries wrapped AppUserError network failures", async () => {
+    let calls = 0;
+    const result = await withTransientNetworkRetry(async () => {
+      calls += 1;
+      if (calls < 2) {
+        throw wrapConnectivityFailure(new TypeError("Network request failed"), "profile-reports");
+      }
       return "ok";
     });
     expect(result).toBe("ok");
