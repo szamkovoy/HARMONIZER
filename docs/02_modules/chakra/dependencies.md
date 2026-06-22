@@ -16,7 +16,7 @@ code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts]
 - **`daily_forecast` (home UI / i18n)**
   - `modules/home/i18n/home.ts`, `DailyRecommendationCard.tsx` — `chakraLabelGenitive(locale, …)` в fallback-рекомендациях.
   - `modules/home/planetChakra.ts` — **`getPlanetChakraMap(locale)`** для `shortLabel`/`chakraName`; JSON даёт номер/ключ/цвет.
-  - `ChakraFlower`, `PlanetOfDayBanner`, `ModalMathLevel` — locale-aware map/labels; у `ChakraFlower` цвет лепестков — `CHAKRA_SEGMENT_COLORS` из `charts` (не `meta.color` из JSON).
+  - `ChakraFlower`, `PlanetOfDayBanner`, `ModalMathLevel` — locale-aware map/labels; у `ChakraFlower` легенда — **`planetLabels`** из home i18n (не `chakraShortLabelDisplay`); цвет лепестков — `CHAKRA_SEGMENT_COLORS` из `charts` (не `meta.color` из JSON).
 
 - **`practices`** — `PracticeCard` / catalog: `chakraTagLabel`, `chakraShortLabelDisplay`.
 

@@ -19,7 +19,7 @@ code_refs: [modules/charts/DonutChart.tsx, modules/home/ui/ChakraFlower.tsx, app
 
 | Потребитель | Использование |
 | --- | --- |
-| `daily_forecast` (home) | `ChakraFlower` — `CHAKRA_SEGMENT_COLORS`, `getChartStrings` (`strengthLabel` в центре при переданном `natalProfile`) |
+| `daily_forecast` (home) | `ChakraFlower` — `CHAKRA_SEGMENT_COLORS`, `getChartStrings` (`strengthLabel` в центре); сила — `S_initial` или fallback `importance` |
 | `daily_forecast` (Day tab) | `DonutChart` для блока «Сферы жизни» в `app/(tabs)/day.tsx` |
 | `profile` | `DonutChart` в `ProfileReports.tsx` (сферы, состояния, практики по чakрам) |
 

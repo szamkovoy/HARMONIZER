@@ -46,7 +46,8 @@ export interface HomeStrings {
   toneRecommendationVerb: Record<TodayTone, string>;
   chakraFlower: {
     title: string;
-    caption: string;
+    captionFree: string;
+    captionPersonal: string;
   };
   planetBanner: {
     eyebrow: string;
@@ -218,8 +219,10 @@ const ru: HomeStrings = {
     dissonant: "бережно стабилизировать",
   },
   chakraFlower: {
-    title: "Цветок дня",
-    caption: "Размер лепестков отражает важность чакр на сегодня.",
+    title: "Архетипы дня",
+    captionFree: "Психоархетипическая модель, основанная на планетарной динамике в этот день",
+    captionPersonal:
+      "Психоархетипическая модель, основанная на планетарной динамике в этот день лично для вас",
   },
   planetBanner: {
     eyebrow: "Планета дня",
@@ -392,8 +395,9 @@ const en: HomeStrings = {
     dissonant: "carefully stabilize",
   },
   chakraFlower: {
-    title: "State flower",
-    caption: "Petal size reflects today's chakra importance.",
+    title: "Archetypes of the day",
+    captionFree: "A psycho-archetypal model based on planetary dynamics for this day",
+    captionPersonal: "A psycho-archetypal model based on planetary dynamics for this day, tailored to you",
   },
   planetBanner: {
     eyebrow: "Planet of the Day",

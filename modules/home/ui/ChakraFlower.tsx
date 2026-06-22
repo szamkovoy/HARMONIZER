@@ -4,17 +4,21 @@ import { StyleSheet, View } from "react-native";
 import type { NatalProfile } from "@/modules/astro-core";
 import { CHAKRA_SEGMENT_COLORS } from "@/modules/charts/constants";
 import { getChartStrings } from "@/modules/charts/i18n/charts";
-import { chakraShortLabelDisplay, type ChakraLocale } from "@/modules/chakra/i18n";
+import type { ChakraLocale } from "@/modules/chakra/i18n";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+import type { AccessMode } from "@/services/globalContentClient";
 import { PLANET_ORDER } from "../planetChakra";
 
+/** Legend order on home — Sun through Saturn (independent of petal layout order). */
+const LEGEND_PLANET_ORDER: Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
+
 const DESIGN_SIZE = 248;
-/** ~17% above donut size (164): uses spare width right of legend without re-wrapping long labels. */
-const CANVAS_SIZE = 192;
+/** Enlarged canvas; legend is right-aligned so short planet names leave room on the left. */
+const CANVAS_SIZE = 214;
 const SCALE = CANVAS_SIZE / DESIGN_SIZE;
 
 function scaled(value: number): number {
@@ -24,7 +28,18 @@ function scaled(value: number): number {
 interface ChakraFlowerProps {
   forecast: DailyForecast;
   strings: HomeStrings;
+  accessMode: AccessMode;
   natalProfile?: NatalProfile | null;
+}
+
+function resolveCenterPlanetStrength(
+  forecast: DailyForecast,
+  natalProfile: NatalProfile | null | undefined,
+): number {
+  const planet = forecast.planetOfTheDay;
+  const natalStrength = natalProfile?.planets[planet]?.S_initial;
+  if (typeof natalStrength === "number") return natalStrength;
+  return normalizedImportance(forecast.importance, planet);
 }
 
 function selectedGlowOpacity(tone: TodayTone): number {
@@ -74,7 +89,7 @@ function formatPlanetStrength(strength: number, tone: TodayTone): string {
   return `${percent}%`;
 }
 
-export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerProps) {
+export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: ChakraFlowerProps) {
   const theme = useTheme();
   const chartStrings = getChartStrings(strings.locale);
   const chakraLocale: ChakraLocale = strings.locale;
@@ -86,9 +101,10 @@ export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerPr
   const selectedMeta = planetChakra[planetOfTheDay];
   const selectedColor = chakraColor(selectedMeta.chakraNumber);
   const centerTextColor = contrastOnHex(selectedColor);
-  const planetStrength = natalProfile?.planets[planetOfTheDay]?.S_initial;
-  const strengthLabel =
-    typeof planetStrength === "number" ? formatPlanetStrength(planetStrength, todayTone) : null;
+  const planetStrength = resolveCenterPlanetStrength(forecast, natalProfile);
+  const strengthLabel = formatPlanetStrength(planetStrength, todayTone);
+  const caption =
+    accessMode === "free" ? strings.chakraFlower.captionFree : strings.chakraFlower.captionPersonal;
 
   return (
     <View
@@ -104,7 +120,7 @@ export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerPr
         <View>
           <AppText variant="sectionTitle">{strings.chakraFlower.title}</AppText>
           <AppText variant="screenHint" tone="muted" style={styles.caption}>
-            {strings.chakraFlower.caption}
+            {caption}
           </AppText>
         </View>
       </View>
@@ -195,34 +211,29 @@ export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerPr
                 },
               ]}
             />
-            {strengthLabel ? (
-              <View
-                style={[
-                  styles.centerOverlay,
-                  {
-                    height: scaled(54),
-                    left: center - scaled(27),
-                    top: center - scaled(27),
-                    width: scaled(54),
-                  },
-                ]}
-                pointerEvents="none"
-              >
-                <AppText
-                  variant="sectionTitle"
-                  style={[styles.strengthValue, { color: centerTextColor }]}
-                >
-                  {strengthLabel}
-                </AppText>
-                <AppText variant="technicalCaption" style={[styles.strengthCaption, { color: centerTextColor }]}>
-                  {chartStrings.strengthLabel}
-                </AppText>
-              </View>
-            ) : null}
+            <View
+              style={[
+                styles.centerOverlay,
+                {
+                  height: scaled(54),
+                  left: center - scaled(27),
+                  top: center - scaled(27),
+                  width: scaled(54),
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <AppText variant="sectionTitle" style={[styles.strengthValue, { color: centerTextColor }]}>
+                {strengthLabel}
+              </AppText>
+              <AppText variant="technicalCaption" style={[styles.strengthCaption, { color: centerTextColor }]}>
+                {chartStrings.strengthLabel}
+              </AppText>
+            </View>
           </View>
         </View>
         <View style={styles.legendColumn}>
-          {PLANET_ORDER.map((planet) => {
+          {LEGEND_PLANET_ORDER.map((planet) => {
             const meta = planetChakra[planet];
             const color = chakraColor(meta.chakraNumber);
             const active = planet === planetOfTheDay;
@@ -237,7 +248,7 @@ export function ChakraFlower({ forecast, strings, natalProfile }: ChakraFlowerPr
                   ]}
                 />
                 <AppText variant="technicalCaption" tone={active ? "primary" : "muted"} style={styles.legendText}>
-                  {chakraShortLabelDisplay(chakraLocale, meta.chakraNumber)}
+                  {strings.planetLabels[planet]}
                 </AppText>
               </View>
             );
@@ -267,7 +278,8 @@ const styles = StyleSheet.create({
   flowerBody: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 10,
+    justifyContent: "space-between",
+    width: "100%",
   },
   flowerWrap: {
     alignItems: "center",
@@ -322,9 +334,10 @@ const styles = StyleSheet.create({
     opacity: 0.92,
   },
   legendColumn: {
-    flex: 1,
+    flexShrink: 0,
     gap: 8,
     justifyContent: "center",
+    paddingLeft: 4,
   },
   legendRow: {
     alignItems: "center",
@@ -337,7 +350,6 @@ const styles = StyleSheet.create({
     width: 10,
   },
   legendText: {
-    flex: 1,
     lineHeight: 15,
   },
 });

@@ -14,8 +14,18 @@
   "birthDataMessage": "Um eine persönliche Tagesprognose zu erstellen, geben Sie Geburtsdatum, -zeit und -ort ein.",
   "birthDataTitle": "Geburtsdatum erforderlich",
   "chakraFlower": {
-    "title": "Blume des Tages",
-    "caption": "Die Größe der Blütenblätter zeigt die Bedeutung der Chakren für heute."
+    "title": "Tages-Archetypen",
+    "captionFree": "Psychoarchtypisches Modell basierend auf der planetaren Dynamik an diesem Tag",
+    "captionPersonal": "Psychoarchtypisches Modell basierend auf der planetaren Dynamik an diesem Tag, persönlich für Sie"
+  },
+  "planetLabels": {
+    "Sun": "Sonne",
+    "Moon": "Mond",
+    "Mercury": "Merkur",
+    "Venus": "Venus",
+    "Mars": "Mars",
+    "Jupiter": "Jupiter",
+    "Saturn": "Saturn"
   },
   "closeAssistantAccessibilityLabel": "Assistenten schließen",
   "closeButton": "Schließen",

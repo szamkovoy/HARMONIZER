@@ -14,8 +14,18 @@
   "birthDataMessage": "Om je persoonlijke dagvoorspelling te maken, voer je geboortedatum, -tijd en -plaats in.",
   "birthDataTitle": "Geboortedatum nodig",
   "chakraFlower": {
-    "title": "Bloem van de dag",
-    "caption": "De grootte van de bloemblaadjes geeft het belang van de chakra's vandaag aan."
+    "title": "Archetypen van de dag",
+    "captionFree": "Psycho-archetypisch model gebaseerd op de planetaire dynamiek op deze dag",
+    "captionPersonal": "Psycho-archetypisch model gebaseerd op de planetaire dynamiek op deze dag, persoonlijk voor u"
+  },
+  "planetLabels": {
+    "Sun": "Zon",
+    "Moon": "Maan",
+    "Mercury": "Mercurius",
+    "Venus": "Venus",
+    "Mars": "Mars",
+    "Jupiter": "Jupiter",
+    "Saturn": "Saturnus"
   },
   "closeAssistantAccessibilityLabel": "Sluit assistent",
   "closeButton": "Sluiten",

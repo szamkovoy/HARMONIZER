@@ -58,7 +58,7 @@ code_refs:
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
 
 - **`charts`**  
-  - **`modules/home/ui/ChakraFlower.tsx`**: цвета лепестков — **`CHAKRA_SEGMENT_COLORS`**; подпись силы в центре — **`getChartStrings(locale).strengthLabel`**; значение — `natalProfile.planets[planetOfTheDay].S_initial` (проп с `app/(tabs)/index.tsx`).
+  - **`modules/home/ui/ChakraFlower.tsx`**: цвета лепестков — **`CHAKRA_SEGMENT_COLORS`**; подпись силы в центре — **`getChartStrings(locale).strengthLabel`**; значение — `S_initial` планеты дня при наличии `natalProfile`, иначе нормализованная `forecast.importance`; легенда — **`strings.planetLabels`** (порядок Sun→Saturn); заголовок/подзаголовок — **`getHomeStrings` → `chakraFlower.*`**.
   - **`app/(tabs)/day.tsx`**: блок «Сферы жизни» — **`DonutChart`** + **`DonutVisibilityProvider`**; веса из **`sphereStats`** (`GET /api/day`), баланс — **`calcBalance`** на клиенте.
 
 - **`infra`**  
