@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-22: `daily_forecast` / `i18n` — doc-sync: `ChakraFlower` canvas 214×214 in spec; dependencies — `accessMode`, `captionFree`/`captionPersonal`; home typed overlays `planetLabels` + caption keys. Synced `daily_forecast/{spec,dependencies}.md`, `i18n/{dependencies,history}.md`.
 - 2026-06-22: doc-sync pre-push — synced `profile/spec.md`, `communicator/{spec,history}.md`, `practices/{spec,history}.md` with push bundle (report retry UI, practice handoff cover + 200 ms dismiss, mic tap-or-hold, `practice-by-chakra` calendar window already documented).
 - 2026-06-22: `profile` / `services` — отчёты профиля: retry снова работает для `AppUserError` network; inline-ошибки локализованы (не `[profile-reports] transient network`); кнопка «Повторить».
 - 2026-06-22: `ui` — единый токен `SURFACE_CARD` (padding 18, gap 14) для карточек Day/Profile; интервал между действиями на Day ещё −20%.

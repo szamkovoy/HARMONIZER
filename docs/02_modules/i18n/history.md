@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.6
-updated: 2026-06-21
+version: 1.7
+updated: 2026-06-22
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-22:** Home typed overlays (de/fr/it/es/pt/nl): **`planetLabels`** (Sun→Saturn) for `ChakraFlower` legend; **`chakraFlower.caption`** split into **`captionFree`** / **`captionPersonal`** (title «Архетипы дня» / locale equivalents).
 
 - **2026-06-21:** Typed-module gate: registered **`charts`** (`modules/charts/i18n/charts.ts`, overlays `typed/catalog/charts/*`) for DonutChart center label `balanceLabel` across 8 locales.
 
