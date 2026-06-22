@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.17
-updated: 2026-06-21
+version: 1.18
+updated: 2026-06-22
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -55,7 +55,7 @@ code_refs:
 - **`modules/profile/i18n/profile.ts`:** `getProfileReportStrings(locale?: ProfileLocale)` → `ProfileReportStrings` (`ProfileLocale = AppContentLocale`); **`getPeriodPresets(locale)`** для подписей пресетов периода.
 - **`ui/PeriodSelector.tsx`:** `PeriodSelector({ value: number; onChange: (days: number) => void; presets?: readonly PeriodPreset[] })`.
 - **`services/profileReports.ts`:** типы `LifeMatrixReport` (`activeDaysCount`, `summarizedEventsCount`, `firstSummaryLocalDate`, `matrixReady`, `trendReady`, `calendarTrend`, …), `PracticeByChakraReport`; `loadLifeMatrixReport()` без query `days`; `loadPracticeByChakraReport(days)`.
-- **`ui/ProfileReports.tsx`:** `useLifeMatrixReport(enabled, locale?)`, `PracticeByChakraReportCard`, `LifeMatrixReportCard`, `LifeSpheresReportCard`, `LifeStatesReportCard`, `RangeTrendReportCard` (без единого `ProfileReports`-обёртки). Donut-отчёты рендерятся через общий **`DonutChart`** (`modules/charts/`): сегменты по весам, дуга и % баланса в центре, легенда справа, анимация при попадании chart-area в viewport. **`PracticeByChakraReportCard`:** при смене периода donut не размонтируется, пока есть предыдущий `report`; на время `loading` визуализация мгновенно очищается через `hideVisualization`, а новый `animationKey` привязан к периоду (`7/30/90`) и значениям сегментов, чтобы старый donut не зависал до ответа API и новый стартовал заново сразу после появления данных. Life-sphere подписи — **`localizeLifeSphereLabel(id, locale)`** (`modules/life-spheres/labels.ts`).
+- **`ui/ProfileReports.tsx`:** `useLifeMatrixReport(enabled, locale?)` → `{ report, loading, error, reload, retryLabel }`, `PracticeByChakraReportCard`, `LifeMatrixReportCard`, `LifeSpheresReportCard`, `LifeStatesReportCard`, `RangeTrendReportCard` (без единого `ProfileReports`-обёртки). Ошибки загрузки — inline **`ReportLoadError`** с локализованным текстом через **`resolveUserFacingMessage`** (`services/userFacingErrors.ts`, без debug-префиксов в UI) и кнопкой **`retryLabel`** из **`getUserErrorStrings(locale)`**; карточки life-matrix / projection / range-trend принимают опциональные **`onRetry`** / **`retryLabel`**. Donut-отчёты рендерятся через общий **`DonutChart`** (`modules/charts/`): сегменты по весам, дуга и % баланса в центре, легенда справа, анимация при попадании chart-area в viewport. **`PracticeByChakraReportCard`:** при смене периода donut не размонтируется, пока есть предыдущий `report`; на время `loading` визуализация мгновенно очищается через `hideVisualization`, а новый `animationKey` привязан к периоду (`7/30/90`) и значениям сегментов, чтобы старый donut не зависал до ответа API и новый стартовал заново сразу после появления данных. Life-sphere подписи — **`localizeLifeSphereLabel(id, locale)`** (`modules/life-spheres/labels.ts`).
 - **`ui/ProfileReportCard.tsx`**, **`ProfileEmptyState.tsx`**, **`RangeTrendChart.tsx`**, **`core/rangeTrendChart.ts`:** карточки отчётов, пустые состояния, ось/кривая `calendarTrend`; **`formatAxisLabel(localDate, mode, locale?)`** и **`buildCalendarAxisTicks(..., locale?)`** — Luxon с активной локалью.
 
 ## 3. Внутренняя архитектура

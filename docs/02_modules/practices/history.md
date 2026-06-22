@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.17
-updated: 2026-06-19
+version: 1.18
+updated: 2026-06-22
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-22:** Assistant practice handoff v4: вернули opaque cover (`AssistantPracticeHandoffCover`) — родительский Modal (Home/Day) показывает его по `onPracticeLaunchStart` до dismiss; min-delay overlay сокращён **700→200 ms** (двойной `requestAnimationFrame` в `useAssistantPracticeOverlayDismiss`); Day tab использует тот же delayed dismiss, что Home. Причина: flash вкладки под Modal без cover; 700 ms давали лишнюю задержку после paint practice route.
 
 - **2026-06-19:** Practices-tab regression follow-up. Root cause was split across data shape and deferred-load semantics: the lighter yoga query had dropped the persisted thumbnail/chakra fallback path, and timeout/error still surfaced to `PracticeCatalogScreen` as a plain empty array. Fix: `catalog.ts` now selects only the needed jsonb slices (`video_thumbnail`, `chakra_ids`, `primary_chakra_id`, `recorded_at`) instead of the full `params` blob, and `onLateYogaPractices` reports `state: "ready" | "timeout" | "error"` so the screen can keep late-loading or show a partial-catalog error instead of silently rendering «нет асан». `PracticeCatalogScreen.tsx` also stopped prefetching Vimeo thumbnails for cards that already have a persisted thumbnail, so the DB path stays authoritative and does not get pointlessly overwritten by null live fetches.
 

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.38
+version: 2.39
 updated: 2026-06-22
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-22 (2):** Assistant practice handoff v4 — props `onPracticeLaunchStart` / `onPracticeLaunchAbort`; Home/Day Modal показывает `AssistantPracticeHandoffCover` до dismiss; overlay min-delay **700→200 ms**. Day tab (`AssistantModal`) использует тот же `scheduleAssistantOverlayDismiss`, что Home.
 
 - **2026-06-22:** Voice mic gesture hardening + tap-to-record. Pure helpers `resolveMicPressIn` / `resolveMicPressOut` / `captureModeWhenRecordingStarts` in `micGesture.ts` (14 tests). Two modes: **`tap_toggle`** (tap start/stop) and **`hold`** (record while finger down). Root fix for hold-to-talk: **never remount Pressable** (`micPressResetKey`) while `micFingerDownRef` — recording start used to call `bumpMicPressReset()` mid-hold and iOS lost `onPressOut`.
 

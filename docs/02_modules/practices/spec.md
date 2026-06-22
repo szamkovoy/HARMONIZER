@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.18
-updated: 2026-06-20
+version: 1.19
+updated: 2026-06-22
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,7 @@ code_refs:
     modules/practices/ui/PracticeCard.tsx,
     modules/practices/ui/launchPractice.ts,
     modules/practices/ui/assistantPracticeOverlayDismiss.ts,
+    modules/practices/ui/AssistantPracticeHandoffCover.tsx,
     modules/practices/ui/useAssistantPracticeOverlayDismiss.ts,
     modules/breath/index.ts,
     modules/breath/ui/CoherenceBreathScreen.tsx,
@@ -53,7 +54,9 @@ code_refs:
 - **`launchPractice(launch, options?): boolean`**  
   Навигация: поддерживает `PracticeLaunchParams` (каталог) и `PracticeRecommendationLaunch` (объект с `route` + `params` от ассистента). Добавляет `launchSource` в query при необходимости. Возвращает `false`, если нет `launch.route`.
 
-- **`assistantPracticeOverlayDismiss.ts`** — `scheduleAssistantOverlayDismiss(callback)`, `signalAssistantPracticeScreenMounted()`, `clearAssistantOverlayDismiss()`; module-level координация закрытия full-screen overlay коммуникатора после mount экрана практики и min-delay **700 ms** (fallback timeout **2500 ms**).
+- **`assistantPracticeOverlayDismiss.ts`** — `scheduleAssistantOverlayDismiss(callback)`, `signalAssistantPracticeScreenMounted()`, `clearAssistantOverlayDismiss()`; module-level координация закрытия full-screen overlay коммуникатора после mount экрана практики и min-delay **200 ms** (fallback timeout **2500 ms**).
+
+- **`AssistantPracticeHandoffCover.tsx`** — непрозрачный full-screen cover (`ActivityIndicator` на `screenBg`); Home/Day modal показывает его вместо чата между `onPracticeLaunchStart` и dismiss overlay, чтобы под full-screen Modal не мелькала вкладка.
 
 - **`useAssistantPracticeOverlayDismiss(launchSource)`** — hook для route-обёрток (`breath-coherence`, `sacred-symbol-stream`, `asana-practice`): при `launchSource=assistant` на focus экрана (`useFocusEffect`) после `InteractionManager.runAfterInteractions` + двойного `requestAnimationFrame` вызывает `signalAssistantPracticeScreenMounted()`.
 
@@ -93,7 +96,7 @@ code_refs:
 ### Интеграция с ассистентом (реализовано в коде)
 
 - Сервер: **`choosePractice`** / сбор кандидатов и формирование **`launch`** с `practiceId` / slug в `_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts` (в т.ч. статическая медитация `sacred-symbol-stream`, дыхание по slug, йога по UUID). Для не-`default` маркера **`[PRACTICE_PICK]`** id резолвится по полному каталогу; недавние сессии и **`practice_picked`** нормализуются к каноническому **`id`** строки каталога, затем **`selectPracticeCandidate`** исключает повторы **только по этому `id`**. `practice_picked.name` локализуется по `context.user.locale` (`getCoherenceBreathStrings`, `getPracticeCatalogStrings`, jsonb `title`). Server fallback карточки (`practiceCardSummary.ts`) — generic locale-native copy для всех 8 локалей (meditation/yoga/reason); детальные breath-slug blurbs — RU/EN. Visible assistant reason отдельно мотивирует выполнить практику сейчас и не дублирует текст карточки. Перед SSE/export `applyPracticeCardOverridesToPayload` синхронизирует `launch.params` с выбранными `durationMin`/`chakraIndex`.
-- Клиент: **`Communicator`** SSE `complete.practicePicked` → общий **`modules/practices/ui/PracticeCard.tsx`** → `launchPractice` с `launchSource: 'assistant'` → `scheduleAssistantOverlayDismiss` закрывает overlay только после mount route-экрана (см. `useAssistantPracticeOverlayDismiss`); отдельного `launchPracticeFromAssistant` на home больше нет.  
+- Клиент: **`Communicator`** SSE `complete.practicePicked` → общий **`modules/practices/ui/PracticeCard.tsx`** → `onPracticeLaunchStart` (cover) → `launchPractice` с `launchSource: 'assistant'` → `scheduleAssistantOverlayDismiss` закрывает overlay только после mount route-экрана (см. `useAssistantPracticeOverlayDismiss`); при неудачной навигации — `onPracticeLaunchAbort` (откат cover). Отдельного `launchPracticeFromAssistant` на home больше нет.  
   Автоматизированных E2E-тестов полного диалога в репозитории нет — это ограничение процесса QA, не отсутствие кода.
 
 ## 3. Внутренняя архитектура

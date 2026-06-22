@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 2.99
-updated: 2026-06-21
+version: 3.00
+updated: 2026-06-22
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-22: doc-sync pre-push — synced `profile/spec.md`, `communicator/{spec,history}.md`, `practices/{spec,history}.md` with push bundle (report retry UI, practice handoff cover + 200 ms dismiss, mic tap-or-hold, `practice-by-chakra` calendar window already documented).
 - 2026-06-22: `profile` / `services` — отчёты профиля: retry снова работает для `AppUserError` network; inline-ошибки локализованы (не `[profile-reports] transient network`); кнопка «Повторить».
 - 2026-06-22: `ui` — единый токен `SURFACE_CARD` (padding 18, gap 14) для карточек Day/Profile; интервал между действиями на Day ещё −20%.
 - 2026-06-22: `communicator` / `practices` — assistant practice launch: handoff cover hides chat before Modal dismiss; Day tab uses same delayed dismiss as Home; caption subtitles → `screenHint` on Home/Profile cards.
