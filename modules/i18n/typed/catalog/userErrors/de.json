@@ -10,6 +10,6 @@
   "retryButton": "Wiederholen",
   "serviceBusyMessage": "Warte eine Minute und versuche es erneut.",
   "serviceBusyTitle": "Service momentan beschäftigt",
-  "timeoutMessage": "Der Server hat nicht rechtzeitig geantwortet. Versuche es erneut oder sende eine kürzere Anfrage.",
+  "timeoutMessage": "Der Server hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.",
   "timeoutTitle": "Antwortzeit überschritten"
 }

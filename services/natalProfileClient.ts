@@ -24,12 +24,14 @@ interface NatalProfileCacheEntry {
   version: 1;
   userId: string;
   profile: NatalProfile | null;
+  birthFingerprint: string | null;
   savedAt: string;
 }
 
 type SecureStoreLike = typeof import("expo-secure-store");
 
 const NATAL_PROFILE_TIMEOUT_MS = 10_000;
+const NATAL_PROFILE_SAVE_TIMEOUT_MS = 30_000;
 const NATAL_PROFILE_CACHE_VERSION = 1;
 const NATAL_PROFILE_CACHE_PREFIX = "harmonizer.natalProfile.v1";
 const SECURE_STORE_CHUNK_SIZE = 1800;
@@ -173,11 +175,22 @@ function parseJson<T>(raw: string | null): T | null {
   }
 }
 
-async function readCachedNatalProfile(userId: string): Promise<NatalProfile | null | undefined> {
+async function readCachedNatalProfile(
+  userId: string,
+  expectedBirthFingerprint?: string | null,
+): Promise<NatalProfile | null | undefined> {
   const key = cacheKey(userId);
   const entry = natalProfileMemoryCache.get(key) ?? parseJson<NatalProfileCacheEntry>(await getRaw(key));
   if (!entry) return undefined;
   if (entry.version !== NATAL_PROFILE_CACHE_VERSION || entry.userId !== userId) {
+    natalProfileMemoryCache.delete(key);
+    await removeRaw(key);
+    return undefined;
+  }
+  if (
+    expectedBirthFingerprint !== undefined &&
+    (entry.birthFingerprint ?? null) !== (expectedBirthFingerprint ?? null)
+  ) {
     natalProfileMemoryCache.delete(key);
     await removeRaw(key);
     return undefined;
@@ -192,12 +205,39 @@ async function readCachedNatalProfile(userId: string): Promise<NatalProfile | nu
   return entry.profile;
 }
 
-async function saveCachedNatalProfile(userId: string, profile: NatalProfile | null): Promise<void> {
+function birthFingerprintFromParts(params: {
+  date?: string | null;
+  time?: string | null;
+  place?: unknown;
+}): string {
+  const place =
+    typeof params.place === "string" ? params.place : JSON.stringify(params.place ?? null);
+  return [params.date ?? "", params.time ?? "", place].join("|");
+}
+
+function birthFingerprintFromBirthData(birthData: BirthData): string {
+  return birthFingerprintFromParts({
+    date: birthData.date,
+    time: birthData.timeMode === "unknown" ? null : birthData.time ?? null,
+    place: {
+      lat: birthData.location.lat,
+      lon: birthData.location.lng,
+      timezone: birthData.location.timezone,
+    },
+  });
+}
+
+async function saveCachedNatalProfile(
+  userId: string,
+  profile: NatalProfile | null,
+  birthFingerprint?: string | null,
+): Promise<void> {
   const key = cacheKey(userId);
   const entry: NatalProfileCacheEntry = {
     version: NATAL_PROFILE_CACHE_VERSION,
     userId,
     profile,
+    birthFingerprint: birthFingerprint ?? null,
     savedAt: new Date().toISOString(),
   };
   natalProfileMemoryCache.set(key, entry);
@@ -279,6 +319,7 @@ export async function createNatalProfile(birthData: BirthData, signal?: AbortSig
     async () => {
       const { accessToken, userId } = await getAuthContext();
       const url = getAstroNatalUrl();
+      const timeout = mergeAbortSignals(signal, NATAL_PROFILE_SAVE_TIMEOUT_MS);
       let res: Response;
       try {
         res = await fetch(url, {
@@ -288,22 +329,31 @@ export async function createNatalProfile(birthData: BirthData, signal?: AbortSig
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ birthData }),
-          signal,
+          signal: timeout.signal,
         });
       } catch (error) {
+        if (timeout.timedOut()) {
+          throw new Error(`Natal profile save timed out after ${Math.round(NATAL_PROFILE_SAVE_TIMEOUT_MS / 1000)}s.`);
+        }
         throw wrapConnectivityFailure(error, "natal-profile");
+      } finally {
+        timeout.cleanup();
       }
 
       if (!res.ok) throw await readError(res);
       const result = (await res.json()) as CreateNatalProfileResult;
-      await saveCachedNatalProfile(userId, result.profile ?? null);
+      await saveCachedNatalProfile(userId, result.profile ?? null, birthFingerprintFromBirthData(birthData));
       return result;
     },
     { signal },
   );
 }
 
-async function fetchActiveNatalProfileFromNetwork(userId: string, signal?: AbortSignal): Promise<NatalProfile | null> {
+async function fetchActiveNatalProfileFromNetwork(
+  userId: string,
+  signal?: AbortSignal,
+  expectedBirthFingerprint?: string | null,
+): Promise<NatalProfile | null> {
   const timeout = mergeAbortSignals(signal, NATAL_PROFILE_TIMEOUT_MS);
   try {
     const { data, error } = await requireSupabase()
@@ -315,7 +365,7 @@ async function fetchActiveNatalProfileFromNetwork(userId: string, signal?: Abort
       .maybeSingle();
     if (error) throw error;
     const profile = data ? natalProfileFromRow(data as unknown as NatalChartRow) : null;
-    await saveCachedNatalProfile(userId, profile);
+    await saveCachedNatalProfile(userId, profile, expectedBirthFingerprint);
     return profile;
   } catch (error) {
     if (timeout.timedOut()) {
@@ -328,10 +378,13 @@ async function fetchActiveNatalProfileFromNetwork(userId: string, signal?: Abort
   }
 }
 
-function refreshNatalProfileCache(userId: string): Promise<NatalProfile | null> {
+function refreshNatalProfileCache(
+  userId: string,
+  expectedBirthFingerprint?: string | null,
+): Promise<NatalProfile | null> {
   const inFlight = natalProfileRefreshes.get(userId);
   if (inFlight) return inFlight;
-  const request = fetchActiveNatalProfileFromNetwork(userId).finally(() => {
+  const request = fetchActiveNatalProfileFromNetwork(userId, undefined, expectedBirthFingerprint).finally(() => {
     natalProfileRefreshes.delete(userId);
   });
   natalProfileRefreshes.set(userId, request);
@@ -346,20 +399,22 @@ export async function fetchActiveNatalProfile(): Promise<NatalProfile | null> {
 export type FetchActiveNatalProfileCachedOptions = {
   /** Called when a warm cache was shown and a background refresh finishes. */
   onBackgroundRefresh?: (profile: NatalProfile | null) => void;
+  /** Current birth-data fingerprint from `users`; mismatched cached natal must be ignored. */
+  expectedBirthFingerprint?: string | null;
 };
 
 export async function fetchActiveNatalProfileCached(
   userId: string,
   options?: FetchActiveNatalProfileCachedOptions,
 ): Promise<NatalProfile | null> {
-  const cached = await readCachedNatalProfile(userId);
+  const cached = await readCachedNatalProfile(userId, options?.expectedBirthFingerprint);
   if (cached) {
-    void refreshNatalProfileCache(userId)
+    void refreshNatalProfileCache(userId, options?.expectedBirthFingerprint)
       .then((profile) => {
         options?.onBackgroundRefresh?.(profile);
       })
       .catch(() => undefined);
     return cached;
   }
-  return refreshNatalProfileCache(userId);
+  return refreshNatalProfileCache(userId, options?.expectedBirthFingerprint);
 }

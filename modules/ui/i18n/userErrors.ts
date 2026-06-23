@@ -30,7 +30,7 @@ const ru: UserErrorStrings = {
   genericTitle: "Что-то пошло не так",
   genericMessage: "Не удалось выполнить запрос. Попробуйте ещё раз чуть позже.",
   timeoutTitle: "Ответ занимает слишком много времени",
-  timeoutMessage: "Сервер не успел ответить. Попробуйте ещё раз или отправьте короче.",
+  timeoutMessage: "Сервер не успел ответить. Пожалуйста, повторите запрос.",
   retryButton: "Повторить",
   dismissButton: "Закрыть",
 };
@@ -46,7 +46,7 @@ const en: UserErrorStrings = {
   genericTitle: "Something went wrong",
   genericMessage: "The request could not be completed. Please try again in a moment.",
   timeoutTitle: "This is taking too long",
-  timeoutMessage: "The server did not respond in time. Try again or send a shorter message.",
+  timeoutMessage: "The server did not respond in time. Please try again.",
   retryButton: "Try again",
   dismissButton: "Close",
 };

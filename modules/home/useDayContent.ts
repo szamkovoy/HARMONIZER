@@ -184,6 +184,9 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const lastLocalDayRef = useRef<string | null>(null);
   const lastResolvedRequestKeyRef = useRef<string | null>(null);
   const trackedContentLocaleRef = useRef<AppLocale>(getResponseLocale());
+  const latestForecastRef = useRef<DailyForecast | null>(null);
+  const latestSourceRef = useRef<DayContentSource | null>(null);
+  const latestModelUsedRef = useRef<string | null>(null);
 
   const [forecast, setForecast] = useState<DailyForecast | null>(null);
   const [source, setSource] = useState<DayContentSource | null>(null);
@@ -194,6 +197,18 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [homeTextsLoading, setHomeTextsLoading] = useState(false);
   const secondaryRunRef = useRef(0);
+
+  useEffect(() => {
+    latestForecastRef.current = forecast;
+  }, [forecast]);
+
+  useEffect(() => {
+    latestSourceRef.current = source;
+  }, [source]);
+
+  useEffect(() => {
+    latestModelUsedRef.current = modelUsed;
+  }, [modelUsed]);
 
   const userLocation = useMemo(() => {
     if (typeof profile?.lat !== "number" || typeof profile?.lon !== "number") return null;
@@ -516,7 +531,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             // eslint-disable-next-line no-console
             console.log("[dayContent] modelUsed", result.modelUsed ?? "unknown");
           }
-          setAccessMode(result.accessMode);
+          setAccessMode(nextAccessMode);
           if (userId) {
             void saveDayContentCache({
               userId,
@@ -539,12 +554,17 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             forceRefresh: opts?.forceRefresh,
             signal: controller.signal,
           });
+          const shouldForceMorningRefresh = Boolean(opts?.forceRefresh || opts?.localeChange);
+          const hasCompleteServerContent = isDayContentComplete(result.forecast, nextAccessMode);
           let forecastForUi = stripHomeLlmTexts(result.forecast);
           const modelForUi = result.modelUsed;
-          pendingMorningMonologueForceRef.current = true;
+          pendingMorningMonologueForceRef.current = shouldForceMorningRefresh;
           lastHydratedForecastKeyRef.current = null;
           if (!isDayContentReadyForHome(forecastForUi, nextAccessMode)) {
             throw new Error("Personal day content is incomplete.");
+          }
+          if (!shouldForceMorningRefresh && hasCompleteServerContent) {
+            forecastForUi = result.forecast;
           }
           latestCacheContextRef.current = userId
             ? {
@@ -617,6 +637,32 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           completeHomeBootstrap();
           return;
         }
+        if (opts?.localeChange && latestForecastRef.current) {
+          latestCacheContextRef.current = profileId
+            ? {
+                userId: profileId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate: resolvedForecastDate,
+                scopeKey: contentScopeKey,
+                userLocation: locationForRequest,
+              }
+            : null;
+          setForecast(latestForecastRef.current);
+          setSource(latestSourceRef.current);
+          setModelUsed(latestModelUsedRef.current);
+          setError(null);
+          setStatus("ready");
+          setHomeTextsLoading(false);
+          lastResolvedRequestKeyRef.current = resolvedRequestKey;
+          completeHomeBootstrap();
+          logRuntimeEvent(
+            "day_content:locale_refresh_failed_kept_current",
+            { message: err.message, accessMode: nextAccessMode },
+            "warn",
+          );
+          return;
+        }
         setForecast(null);
         setSource(null);
         setModelUsed(null);
@@ -673,8 +719,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       lastHydratedForecastKeyRef.current = null;
       lastResolvedRequestKeyRef.current = null;
       setHomeTextsLoading(true);
-      setForecast((current) => (current ? stripHomeLlmTexts(current) : current));
-      void refresh({ forceRefresh: true, localeChange: true }).catch(() => undefined);
+      setForecast((current) => {
+        const stripped = current ? stripHomeLlmTexts(current) : current;
+        latestForecastRef.current = stripped;
+        return stripped;
+      });
+      void refresh({ localeChange: true }).catch(() => undefined);
     });
   }, [refresh]);
 

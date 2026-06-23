@@ -10,6 +10,6 @@
   "retryButton": "Reintentar",
   "serviceBusyMessage": "Espera un minuto y vuelve a intentarlo.",
   "serviceBusyTitle": "El servicio está temporalmente ocupado",
-  "timeoutMessage": "El servidor no respondió a tiempo. Inténtalo de nuevo o envía una versión más corta.",
+  "timeoutMessage": "El servidor no respondió a tiempo. Por favor, inténtalo de nuevo.",
   "timeoutTitle": "La respuesta está tardando demasiado"
 }

@@ -42,6 +42,7 @@ type GlobalContentResponse = {
 };
 
 const GLOBAL_CONTENT_TIMEOUT_MS = 25_000;
+const GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS = 8_000;
 
 type GlobalTextFields = {
   slogan: string;
@@ -229,12 +230,13 @@ async function fetchGlobalContentOnce(req: {
   responseLocale?: string;
 }): Promise<GlobalContentResult> {
   const token = await getAccessToken();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), GLOBAL_CONTENT_TIMEOUT_MS);
-  req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
-  let data: GlobalContentResponse;
+  let data: GlobalContentResponse | null = null;
   const responseLocale = req.responseLocale ?? getResponseLocale();
+  let routeError: unknown = null;
   try {
+    const routeController = new AbortController();
+    const routeTimeoutId = setTimeout(() => routeController.abort(), GLOBAL_CONTENT_TIMEOUT_MS);
+    req.signal?.addEventListener("abort", () => routeController.abort(), { once: true });
     try {
       const res = await fetch(getAiGlobalContentUrl(), {
         method: "POST",
@@ -243,25 +245,39 @@ async function fetchGlobalContentOnce(req: {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ responseLocale }),
-        signal: controller.signal,
+        signal: routeController.signal,
       });
       if (!res.ok) throw await readError(res);
       data = (await res.json()) as GlobalContentResponse;
     } catch (error) {
       if (req.signal?.aborted) throw error;
-      if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
+      routeError = routeController.signal.aborted ? timeoutError(GLOBAL_CONTENT_TIMEOUT_MS) : error;
+    } finally {
+      clearTimeout(routeTimeoutId);
+    }
+
+    if (routeError) {
+      const fallbackController = new AbortController();
+      const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS);
+      req.signal?.addEventListener("abort", () => fallbackController.abort(), { once: true });
       try {
-        data = await fetchGlobalContentDirect(req.userLocation.timezone, responseLocale, controller.signal);
+        data = await fetchGlobalContentDirect(req.userLocation.timezone, responseLocale, fallbackController.signal);
       } catch (fallbackError) {
+        if (req.signal?.aborted) throw fallbackError;
+        if (fallbackController.signal.aborted) {
+          throw routeError instanceof Error ? routeError : timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
+        }
         throw wrapConnectivityFailure(fallbackError, "global-content");
+      } finally {
+        clearTimeout(fallbackTimeoutId);
       }
     }
   } catch (error) {
     if (req.signal?.aborted) throw error;
-    if (controller.signal.aborted) throw timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
     throw wrapConnectivityFailure(error, "global-content");
-  } finally {
-    clearTimeout(timeoutId);
+  }
+  if (!data) {
+    throw wrapConnectivityFailure(routeError ?? new Error("Global content request failed"), "global-content");
   }
   if (data.error) throw new Error(typeof data.error === "string" ? data.error : "Global content request failed");
 

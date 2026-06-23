@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/history
 title: Astro History
-version: 1.5
-updated: 2026-06-02
+version: 1.6
+updated: 2026-06-23
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-23:** `natalProfileClient.ts`: сохранение натала (`createNatalProfile`) получило клиентский таймаут **30s**, чтобы modal save-path не зависал бесконечно на Home. Локальный warm-cache активной карты теперь хранит fingerprint текущих `users.birth_*`; `fetchActiveNatalProfileCached(..., { expectedBirthFingerprint })` игнорирует запись при несовпадении fingerprint-а и идёт в сеть. Причина: после повторной смены даты рождения и reopen Home мог смешивать новый прогноз дня со старой локальной натальной картой, из-за чего `ChakraFlower` показывал устаревшую силу/центр даже при уже обновлённом forecast.
 
 - **2026-06-02:** `natalProfileClient.ts`: `fetchActiveNatalProfileCached` принимает `FetchActiveNatalProfileCachedOptions` (`onBackgroundRefresh` после warm-cache refresh); кэшированный `profile: null` больше не считается каноном при старте; сетевые ошибки чтения `user_natal_charts` не пишутся в локальный кэш как отсутствие карты. Причина: ложный `need_birth_data` на Home, когда в `users` уже есть `birth_date`, а клиентский fetch натала падал или возвращал устаревшее «нет карты».
 - **2026-05-21:** Исправлен вызов `solar.apparentLongitude`: вместо сырого JDE передаётся `base.J2000Century(jde)` во всех копиях эфемерид (`modules/astro-core/ephemeris.ts`, `_legacy_web/modules/astro-core/ephemeris.ts`, `supabase/functions/_shared/dailyForecast.ts`, `_legacy_web/app/api/_utils/globalTransitMath.ts`). До правки долгота Солнца «прыгала» на коротких интервалах и смещала восход/кульминацию в окнах возможностей; регрессия — `modules/astro-core/solar-ephemeris.test.ts`.

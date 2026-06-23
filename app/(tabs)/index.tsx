@@ -72,6 +72,19 @@ function errorMessage(value: unknown, fallback = "Неизвестная оши�
   return fallback;
 }
 
+function birthFingerprintFromProfile(
+  profile: {
+    birth_date?: string | null;
+    birth_time?: string | null;
+    birth_place?: unknown;
+  } | null | undefined,
+): string | null {
+  if (!profile?.birth_date) return null;
+  const place =
+    typeof profile.birth_place === "string" ? profile.birth_place : JSON.stringify(profile.birth_place ?? null);
+  return [profile.birth_date ?? "", profile.birth_time ?? "", place].join("|");
+}
+
 function HomeHeader({
   forecast,
   strings,
@@ -536,6 +549,15 @@ export default function HomeScreen() {
   const [assistantRemountKey, setAssistantRemountKey] = useState(0);
   const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+  const birthFingerprint = useMemo(
+    () =>
+      birthFingerprintFromProfile({
+        birth_date: profile?.birth_date,
+        birth_time: profile?.birth_time,
+        birth_place: profile?.birth_place,
+      }),
+    [profile?.birth_date, profile?.birth_place, profile?.birth_time],
+  );
   // Personal forecast needs birth fields in `users`, not a successful chart row fetch (chart is UI-only).
   const hasBirthDataForForecast = !needsPersonalForecast
     ? true
@@ -565,6 +587,7 @@ export default function HomeScreen() {
       return;
     }
     fetchActiveNatalProfileCached(profile.id, {
+      expectedBirthFingerprint: birthFingerprint,
       onBackgroundRefresh: (value) => {
         if (!cancelled && value) setNatalProfile(value);
       },
@@ -578,7 +601,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [needsPersonalForecast, profile?.id]);
+  }, [birthFingerprint, needsPersonalForecast, profile?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -608,9 +631,17 @@ export default function HomeScreen() {
         const result = await createNatalProfile(birthData);
         setNatalProfile(result.profile);
         await refreshProfile();
-        await refresh({ forceRefresh: true });
         setNatalBridgeOpen(false);
-        Alert.alert("Готово", "Натальный профиль сохранён. Прогноз дня пересчитан в персональном режиме.");
+        try {
+          await refresh({ forceRefresh: true });
+          Alert.alert("Готово", "Натальный профиль сохранён. Прогноз дня пересчитан в персональном режиме.");
+        } catch (refreshError) {
+          console.warn("[Home] Natal saved, but day refresh failed", refreshError);
+          Alert.alert(
+            "Натальный профиль сохранён",
+            "Данные рождения обновились, но прогноз дня сейчас загружается дольше обычного. Если он не появится сам, нажмите «Повторить».",
+          );
+        }
       } catch (error) {
         const message = errorMessage(error, "Не удалось сохранить натальные данные.");
         Alert.alert("Ошибка сохранения", message);

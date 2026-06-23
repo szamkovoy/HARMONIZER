@@ -56,6 +56,10 @@ code_refs:
 
 - **`subscription`**  
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
+  - `supabase/functions/precompute-daily-forecasts/index.ts` использует серверный premium/personal gate (`membership_tier`, `trial_expires_at`) и больше не прогревает personal path для неактивных пользователей спустя 3 дня.
+
+- **`assistant` (server monologue cache)**
+  - Персональный precompute теперь зависит от сценария `morning_recommendation` и таблицы `scenario_cache`: `supabase/functions/precompute-daily-forecasts/index.ts` заранее строит `slogan` / `short_text` / `long_explanation` / `math_level`, чтобы обычный paid-home reload мог взять их без LLM rerun.
 
 - **`charts`**  
   - **`modules/home/ui/ChakraFlower.tsx`**: prop **`accessMode`**; цвета лепестков — **`CHAKRA_SEGMENT_COLORS`**; подпись силы в центре — **`getChartStrings(locale).strengthLabel`**; значение — `S_initial` планеты дня при наличии `natalProfile`, иначе нормализованная `forecast.importance`; легенда — **`strings.planetLabels`** (порядок Sun→Saturn); заголовок/подзаголовок — **`getHomeStrings` → `chakraFlower.title`**, **`captionFree`** / **`captionPersonal`** по `accessMode`.
@@ -69,6 +73,7 @@ code_refs:
 - **`assistant` (сервер)**  
   - `_legacy_web/app/api/communicator/v2/dialog/route.ts`, `v2/greeting/route.ts`, `v2/recommendation-text/route.ts`, `v2/correct-recommendation/route.ts` читают `user_daily_forecasts` (планета дня, тексты, важность, окна) для контекста ответов. Начиная с HARMONIZER v2 daily dialog также пишет обратно `day_target_chakra`, `day_target_reason`, `day_target_fixed_at`.
   - UI-модуль `communicator` напрямую типы прогноза **не** импортирует; связь идёт через сервер и общий UX главного экрана.
+  - `morning_recommendation` теперь прогревается и из daily cron: `scenario_cache` становится shared contract между `supabase/functions/precompute-daily-forecasts/index.ts` и `_legacy_web/app/api/ai/monologue/route.ts`.
 
 - **`practices`**  
   - `app/(tabs)/index.tsx` вызывает `launchPractice` с контекстом, производным от дня (чакра/практика с главного экрана); карта планета→чакра — **`getPlanetChakraMap(locale)`** (`modules/home/planetChakra.ts`), питается `forecast.planetOfTheDay`.

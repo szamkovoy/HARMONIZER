@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.14
-updated: 2026-06-21
+version: 2.15
+updated: 2026-06-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,12 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-23:** Персональный cron-path упрощён и ускорен: `precompute-daily-forecasts` теперь считает пользователей активными только **3 дня** назад вместо 14 и под локальную полночь прогревает не только `user_daily_forecasts`, но и `scenario_cache` сценария `morning_recommendation` в locale пользователя. `useDayContent` на обычной paid-загрузке больше не насильно ставит `forceRefresh` для утреннего monologue, поэтому warmed `scenario_cache` реально используется; принудительный bypass остался только для явного reload/locale-change/natal-change.
+
+- **2026-06-23:** Исправлен системный timeout при первом переходе в free-path после работы в personal режиме. Корень был в `services/globalContentClient.ts`: спецификация уже обещала direct Supabase fallback при HTTP timeout `global-content`, но фактический код обрывал запрос по 25s таймауту и выбрасывал ошибку раньше, чем доходил до чтения `global_daily_content` напрямую. Теперь timeout серверного route тоже переводит клиента в DB fallback; это особенно важно для первого `premium -> free` переключения в dev/test, когда free-cache на устройстве ещё пуст, а серверный route может подвиснуть на on-demand synthesis или cold start. Заодно `useDayContent` больше не принимает `result.accessMode` из free-response как источник истины при dev tier override — экран остаётся в выбранном `free` режиме, а не прыгает обратно в premium-state после удачного free-fetch.
+
+- **2026-06-22:** Locale switch on Home больше не ведёт себя как hard reload дня. `useDayContent` теперь при `localeChange` не очищает весь same-day cache через `forceRefresh`, а при сетевом/timeout-сбое сохраняет уже показанный structural forecast на экране и даёт локализованные deterministic fallback-тексты вместо красной timeout-карточки. Это выравнивает runtime с контрактом «смена языка = background refresh без blocking splash» и убирает общий сбой для free и personal режимов.
 
 - **2026-06-21:** Day tab donut «Сферы жизни» выровнен с профильными отчётами по reveal-поведению: chart анимируется при входе в viewport и при повторном появлении после focus/refresh, а не только по факту смены данных.
 

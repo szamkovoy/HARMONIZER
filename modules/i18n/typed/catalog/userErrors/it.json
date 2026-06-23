@@ -10,6 +10,6 @@
   "retryButton": "Riprova",
   "serviceBusyMessage": "Attendi un minuto e riprova.",
   "serviceBusyTitle": "Servizio momentaneamente occupato",
-  "timeoutMessage": "Il server non ha risposto in tempo. Riprova o invia un messaggio più breve.",
+  "timeoutMessage": "Il server non ha risposto in tempo. Riprova, per favore.",
   "timeoutTitle": "La risposta sta impiegando troppo tempo"
 }

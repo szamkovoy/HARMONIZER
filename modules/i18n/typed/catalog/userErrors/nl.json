@@ -10,6 +10,6 @@
   "retryButton": "Opnieuw",
   "serviceBusyMessage": "Wacht even en probeer het opnieuw.",
   "serviceBusyTitle": "Service tijdelijk bezet",
-  "timeoutMessage": "De server reageerde niet op tijd. Probeer het opnieuw of stuur een korter verzoek.",
+  "timeoutMessage": "De server reageerde niet op tijd. Probeer het opnieuw.",
   "timeoutTitle": "Het antwoord duurt te lang"
 }

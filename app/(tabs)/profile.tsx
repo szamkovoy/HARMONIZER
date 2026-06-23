@@ -62,7 +62,6 @@ export default function ProfileTabRoute() {
   const handleSetLocale = useCallback(
     (code: AppLocale) => {
       void setLocale(code);
-      markHomeDayContentBlockingReload({ forceRefresh: true });
     },
     [setLocale],
   );
