@@ -17,6 +17,7 @@ code_refs:
 
 - **2026-06-23:** Home typed overlays **`planetLabels`** теперь также питают подпись в центре **`ChakraFlower`** (вместо charts `strengthLabel`).
 
+- **2026-06-23:** Day tab section titles: `actionsTitle` → «Психо-практики» / Psycho-practices (+ de/fr/it/es/pt/nl overlays); `yogaTitle` → «Йога-практики» / Yoga-practices.
 - **2026-06-22:** Home typed overlays (de/fr/it/es/pt/nl): **`planetLabels`** (Sun→Saturn) for `ChakraFlower` legend; **`chakraFlower.caption`** split into **`captionFree`** / **`captionPersonal`** (title «Архетипы дня» / locale equivalents).
 
 - **2026-06-21:** Typed-module gate: registered **`charts`** (`modules/charts/i18n/charts.ts`, overlays `typed/catalog/charts/*`) for DonutChart center label `balanceLabel` across 8 locales.

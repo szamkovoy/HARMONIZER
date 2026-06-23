@@ -1,6 +1,6 @@
 {
   "actionRecommendationFallback": "De aanbeveling verschijnt na het bijwerken van de assistent voor deze actie.",
-  "actionsTitle": "Acties",
+  "actionsTitle": "Psycho-praktijken",
   "addButton": "Actie toevoegen",
   "asanasLabel": "Asana's",
   "assistantSystemPrompt": "Je bent een empathische mentor van de Harmonizer app. Help de gebruiker het tabblad 'Dag' in te vullen of samen te vatten.",
@@ -35,5 +35,5 @@
   "summarizeDayButton": "Deze dag samenvatten",
   "whatToDoButton": "Wat te doen?",
   "yesterdayPrefix": "Gisteren",
-  "yogaTitle": "Yoga"
+  "yogaTitle": "Yoga-praktijken"
 }

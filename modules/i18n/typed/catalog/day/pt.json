@@ -1,6 +1,6 @@
 {
   "actionRecommendationFallback": "A recomendação aparecerá após atualizar o assistente para esta ação.",
-  "actionsTitle": "Ações",
+  "actionsTitle": "Psico-práticas",
   "addButton": "Adicionar ação",
   "asanasLabel": "Ásanas",
   "assistantSystemPrompt": "Você é um mentor empático do aplicativo Harmonizer. Ajude o usuário a preencher ou resumir a aba 'Dia'.",
@@ -35,5 +35,5 @@
   "summarizeDayButton": "Resumir este dia",
   "whatToDoButton": "O que fazer?",
   "yesterdayPrefix": "Ontem",
-  "yogaTitle": "Yoga"
+  "yogaTitle": "Yoga-práticas"
 }
