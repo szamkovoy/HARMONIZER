@@ -26,6 +26,9 @@ export interface PracticeCatalogStrings {
   /** `{total}` placeholder — synced to overlays; wired in `getPracticeCatalogStrings`. */
   catalogFooterTemplate: string;
   emptyPracticesTitle: string;
+  emptyPracticesHint: string;
+  yogaLateLoadingTitle: string;
+  invalidChakraFilterHint: string;
   groupMeditation: string;
   groupBreath: string;
   groupYoga: string;
@@ -84,6 +87,9 @@ const ru: PracticeCatalogStrings = {
   catalogFooterTemplate:
     "Всего в каталоге: {total}. Запуск идет через существующие экраны практик.",
   emptyPracticesTitle: "Здесь скоро появятся практики",
+  emptyPracticesHint: "Попробуйте другой фильтр или проверьте подключение к каталогу.",
+  yogaLateLoadingTitle: "Асаны ещё загружаются",
+  invalidChakraFilterHint: "Некорректный фильтр чакры будет проигнорирован.",
   groupMeditation: "Медитации",
   groupBreath: "Дыхание",
   groupYoga: "Асаны",
@@ -154,6 +160,9 @@ const en: PracticeCatalogStrings = {
   catalogFooter: (total) => `${total} practices in the catalog. Launch uses the existing practice screens.`,
   catalogFooterTemplate: "{total} practices in the catalog. Launch uses the existing practice screens.",
   emptyPracticesTitle: "Practices will appear here soon",
+  emptyPracticesHint: "Try another filter or check your connection to the catalog.",
+  yogaLateLoadingTitle: "Asanas are still loading",
+  invalidChakraFilterHint: "An invalid chakra filter will be ignored.",
   groupMeditation: "Meditation",
   groupBreath: "Breathing",
   groupYoga: "Asanas",
