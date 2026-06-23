@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.00
-updated: 2026-06-22
+version: 3.01
+updated: 2026-06-23
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-23: `daily_forecast` — уточнён free-path transport (отдельный **8s** direct fallback после **25s** route timeout), paid-home reuse complete server LLM fields без monologue rerun, partial-success alert после natal save, Profile locale без blocking Home reload. Synced `daily_forecast/{spec,dependencies,history}.md`.
 - 2026-06-23: `daily_forecast` / `assistant` — personal daily cron now treats users inactive after 3 days instead of 14 and pre-warms `scenario_cache` for `morning_recommendation` (locale-aware slogan/short/long/math). Home paid-path no longer forces `morning_recommendation` refresh on every ordinary load, so warmed cache is actually reused. Synced `daily_forecast/{spec,dependencies,history}.md`, `assistant/dependencies.md`, `MAP.md`.
 - 2026-06-23: `daily_forecast` — free-path timeout fix: `fetchGlobalContent` now really falls back to direct `global_daily_content` read after `global-content` HTTP timeout (matching the documented contract), and Home no longer re-labels a dev-forced `Free` session back to premium after a successful global fetch. Added regression test `services/globalContentClient.test.ts`; synced `daily_forecast/history.md`.
 - 2026-06-23: `astro` / `daily_forecast` — natal save-path on Home now times out after 30s instead of hanging indefinitely, and warm natal cache is keyed against current `users.birth_*` fingerprint so Home no longer mixes a new day forecast with a stale local natal card after birth-date changes/reopen. Synced `astro/{spec,history}.md`.

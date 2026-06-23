@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.15
-updated: 2026-06-22
+version: 2.16
+updated: 2026-06-23
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-23 (2):** Уточнён free-path transport: direct Supabase fallback после сбоя route получил отдельный **8s** timeout (`GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS`), чтобы warm DB-read не наследовал 25s abort route-контроллера. Paid-path на обычной загрузке, если сервер уже отдал полный forecast (`isDayContentComplete`), сразу использует LLM-поля без monologue rerun. Home после `createNatalProfile` показывает partial-success alert, если day refresh упал, но birth-data сохранены. Смена локали на Profile больше не вызывает `markHomeDayContentBlockingReload` — locale refresh идёт только через `subscribeAppLocale` в `useDayContent`.
 
 - **2026-06-23:** Персональный cron-path упрощён и ускорен: `precompute-daily-forecasts` теперь считает пользователей активными только **3 дня** назад вместо 14 и под локальную полночь прогревает не только `user_daily_forecasts`, но и `scenario_cache` сценария `morning_recommendation` в locale пользователя. `useDayContent` на обычной paid-загрузке больше не насильно ставит `forceRefresh` для утреннего monologue, поэтому warmed `scenario_cache` реально используется; принудительный bypass остался только для явного reload/locale-change/natal-change.
 

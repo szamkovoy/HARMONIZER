@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.6
-updated: 2026-06-22
+version: 2.7
+updated: 2026-06-23
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -37,7 +37,7 @@ code_refs:
 
 - **`i18n`**
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
-  - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`.
+  - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`. **`app/(tabs)/profile.tsx`** при смене локали больше не вызывает `markHomeDayContentBlockingReload` — blocking reload остаётся только для смены натала.
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  
@@ -49,7 +49,7 @@ code_refs:
   - Инвалидация кэша прогноза после extract калибровки — парная запись в `docs/02_modules/calibration/dependencies.md` §2.
 
 - **`profile`**  
-  - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey`, режима доступа и автодозапроса геолокации (`acquireAndPersistUserCoordinates` → **`LocationAcquireResult`**, таймаут 12s, last-known; coords в сессии даже при `persisted: false`). Без coords в профиле хук читает **`userLocationProfileCache`**, затем **async `loadDayContentCacheRelaxed`** (на native sync-`peek*` не видит SecureStore); при stale offline-cache home не блокируется пустым `need_location`. Для paid-home именно `users.birth_date` решает, можно ли запускать персональный прогноз; отдельный клиентский fetch `user_natal_charts` больше не считается обязательным блокером первого рендера.  
+  - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey`, режима доступа и автодозапроса геолокации (`acquireAndPersistUserCoordinates` → **`LocationAcquireResult`**, таймаут 12s, last-known; coords в сессии даже при `persisted: false`). Без coords в профиле хук читает **`userLocationProfileCache`**, затем **async `loadDayContentCacheRelaxed`** (на native sync-`peek*` не видит SecureStore); при stale offline-cache home не блокируется пустым `need_location`. Для paid-home именно `users.birth_date` решает, можно ли запускать персональный прогноз; отдельный клиентский fetch `user_natal_charts` больше не считается обязательным блокером первого рендера. **`app/(tabs)/index.tsx`** передаёт `expectedBirthFingerprint` в `fetchActiveNatalProfileCached` для UI-карты.  
   - **`app/(tabs)/day.tsx`** — **`useAuth().authUser.id`** + **`useAppLocale().locale`** для ключа **`dayPlanCache`**; bearer для `/api/day` — через **`getSupabaseAccessSession()`** (`services/supabase.ts`), который **`AuthProvider`** подпитывает **`rememberSupabaseSession`** при каждом `onAuthStateChange`.  
   - `recentPlanetsOfDay` читается сервером из `user_settings.preferences` (см. `loadRecentPlanets` в `daily-forecast/route.ts`).  
   - После смены натала с **`app/(tabs)/profile.tsx`** главный экран может запросить **`refresh` с `blockingReload`** через **`consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`) при фокусе таба Home.
