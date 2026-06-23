@@ -1,13 +1,15 @@
 ---
 id: 02_modules/calibration/history
 title: Calibration History
-version: 1.2
-updated: 2026-06-10
+version: 1.3
+updated: 2026-06-24
 depends_on: [01_foundation/architecture, 02_modules/profile/spec, 02_modules/communicator/spec, 02_modules/assistant/spec, 02_modules/infra/spec]
 code_refs: [app/calibration.tsx, _legacy_web/app/api/calibration/extract/route.ts, _legacy_web/app/api/calibration/extract/forecast-cache-date.ts, _legacy_web/app/api/calibration/transcribe/route.ts, _legacy_web/app/api/_utils/calibration.ts, supabase/functions/auto-calibrate/index.ts, supabase/functions/auto-calibrate/proposal.ts, services/communicator-client.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-24:** `app/calibration.tsx` moved from a bespoke local layout to the shared non-tab UI layer: `StackScreenLayout`, `StackScrollView`, `SurfaceCardView`, `ScreenHeader`, and `AppButton` now own the screen chrome. The extract/transcribe contract is unchanged; this entry records that calibration UI now follows the same theme/safe-area/form-shell ownership as other non-tab screens.
 
 - **2026-06-10:** Расширен `_legacy_web/data/chakra_states_baseline.json`: для чакр 6/5/2/1 добавлены маркеры взаимопонимания, переговоров, отдыха, прогулок и контакта с природой — чтобы extract и matrix-classifier лучше покрывали summary-домены, уже описанные в FSM guardrails ассистента.
 - **Не датировано (источник `docs/05_archive/migrated/calibration/MODULE_3_Calibration_TZ.md`):** Зафиксировано разделение **states_map** (семантические маркеры по планетам/чакрам) и **user_lexicon** (речевые паттерны пользователя); оба поля пишутся из extract и читаются ассистентом для тона и контекста. ТЗ предполагало транскрипцию через `/api/calibration/transcribe`; **в текущем приложении** экран `app/calibration.tsx` использует **`/api/communicator/v2/transcribe`**, а маршрут `calibration/transcribe` остаётся отдельным серверным entry point — расхождение зафиксировано в каноне по коду клиента.

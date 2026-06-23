@@ -215,6 +215,10 @@ function RootLayoutNav() {
             options={{ headerShown: false, animation: "fade" }}
           />
           <Stack.Screen
+            name="calibration"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="mandala-sandbox"
             options={{ title: "Mandala Sandbox", headerBackTitle: "Back" }}
           />

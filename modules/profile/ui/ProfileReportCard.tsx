@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
 
-import { AppText } from "@/modules/ui/AppText";
-import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
-import { useTheme } from "@/modules/ui/theme";
+import { SectionHeader } from "@/modules/ui/ScreenSection";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 
 export function ProfileReportCard(props: {
   title: string;
@@ -12,28 +10,12 @@ export function ProfileReportCard(props: {
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  const theme = useTheme();
-
   return (
-    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
-      <AppText variant="sectionTitle">{props.title}</AppText>
-      {props.subtitle ? (
-        <AppText variant="screenHint" tone="muted">
-          {props.subtitle}
-        </AppText>
-      ) : null}
+    <SurfaceCardView>
+      <SectionHeader title={props.title} subtitle={props.subtitle} />
       {props.periodSelector}
       {props.children}
       {props.footer}
-    </View>
+    </SurfaceCardView>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: SURFACE_CARD.borderRadius,
-    borderWidth: SURFACE_CARD.borderWidth,
-    gap: SURFACE_CARD.gap,
-    padding: SURFACE_CARD.padding,
-  },
-});

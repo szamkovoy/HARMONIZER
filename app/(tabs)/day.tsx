@@ -4,14 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/modules/auth";
 import {
@@ -31,10 +29,12 @@ import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/
 import { PracticeCard } from "@/modules/practices/ui/PracticeCard";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
-import { AssistantPracticeHandoffCover } from "@/modules/practices/ui/AssistantPracticeHandoffCover";
+import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
+import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { startSummarizingHealthCollectionFromPlan } from "@/services/summarizingHealthContext";
@@ -326,8 +326,6 @@ function AssistantModal({
   strings: DayStrings;
   appLocale: AppLocale;
 }) {
-  const insets = useSafeAreaInsets();
-  const theme = useTheme();
   const [practiceHandoff, setPracticeHandoff] = useState(false);
 
   const finishPracticeLaunch = useCallback(() => {
@@ -342,55 +340,41 @@ function AssistantModal({
 
   if (!visible || !session) return null;
   return (
-    <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      {practiceHandoff ? (
-        <AssistantPracticeHandoffCover />
-      ) : (
-      <View style={[styles.modalRoot, { backgroundColor: theme.colors.screenBg }]}>
-        <View
-          style={[
-            styles.modalHeader,
-            {
-              paddingTop: insets.top + 10,
-              borderBottomColor: theme.colors.surfaceBorder,
-            },
-          ]}
-        >
-          <AppText variant="sectionTitle">{strings.assistantTitle}</AppText>
-          <Pressable accessibilityRole="button" onPress={onClose} style={[styles.modalClose, { backgroundColor: theme.colors.controlButtonBg }]}>
-            <AppText variant="buttonLabel">{strings.closeButton}</AppText>
-          </Pressable>
-        </View>
-        <Communicator
-          key={`day-assistant-${session.sessionKey}`}
-          systemPrompt={strings.assistantSystemPrompt}
-          locale={appLocale}
-          useCase="daily_dialog"
-          entrySource="day"
-          startFreshSession
-          triggerMeta={{
-            dayTabMode: session.dayTabMode,
-            workingLocalDate: session.workingLocalDate,
-            daySummaryRequested: session.daySummaryRequested,
-            dayActions: session.dayActions,
-            dayPractices: session.dayPractices,
-            dayHealthContext: session.dayHealthContext,
-          }}
-          memoryWindow={24}
-          onPracticeOffered={onPracticeOffered}
-          onPracticeLaunchStart={() => setPracticeHandoff(true)}
-          onPracticeLaunchAbort={() => setPracticeHandoff(false)}
-          onPracticePicked={() => scheduleAssistantOverlayDismiss(finishPracticeLaunch)}
-          onMessage={(message) => {
-            if (message.role === "assistant") {
-              onAssistantMessage?.(message);
-            }
-          }}
-          onRequestClose={onClose}
-        />
-      </View>
-      )}
-    </Modal>
+    <AssistantModalShell
+      visible={visible}
+      title={strings.assistantTitle}
+      closeLabel={strings.closeButton}
+      handoffVisible={practiceHandoff}
+      onClose={onClose}
+    >
+      <Communicator
+        key={`day-assistant-${session.sessionKey}`}
+        systemPrompt={strings.assistantSystemPrompt}
+        locale={appLocale}
+        useCase="daily_dialog"
+        entrySource="day"
+        startFreshSession
+        triggerMeta={{
+          dayTabMode: session.dayTabMode,
+          workingLocalDate: session.workingLocalDate,
+          daySummaryRequested: session.daySummaryRequested,
+          dayActions: session.dayActions,
+          dayPractices: session.dayPractices,
+          dayHealthContext: session.dayHealthContext,
+        }}
+        memoryWindow={24}
+        onPracticeOffered={onPracticeOffered}
+        onPracticeLaunchStart={() => setPracticeHandoff(true)}
+        onPracticeLaunchAbort={() => setPracticeHandoff(false)}
+        onPracticePicked={() => scheduleAssistantOverlayDismiss(finishPracticeLaunch)}
+        onMessage={(message) => {
+          if (message.role === "assistant") {
+            onAssistantMessage?.(message);
+          }
+        }}
+        onRequestClose={onClose}
+      />
+    </AssistantModalShell>
   );
 }
 
@@ -566,30 +550,21 @@ export default function DayTabRoute() {
 
   return (
     <DonutVisibilityProvider>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-        <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
-        <ScrollView
+      <TabScreenLayout>
+        <TabScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.content}
+          contentOptions={{ horizontalPadding: 24 }}
           keyboardShouldPersistTaps="handled"
           {...donutScrollProps}
         >
-        <View style={styles.header}>
-          {plan && plan.mode !== "overdue_summary" && todaySection ? (
-            <>
-              <AppText variant="screenTitle" accessibilityRole="header">
-                {formatDayHeaderDateLabel(todaySection, dayStrings)}
-              </AppText>
-              {plan.dayRecommendation?.trim() ? (
-                <AppText variant="screenHint">{plan.dayRecommendation.trim()}</AppText>
-              ) : null}
-            </>
-          ) : (
-            <AppText variant="screenTitle" accessibilityRole="header">
-              {dayStrings.screenTitle}
-            </AppText>
-          )}
-        </View>
+        <ScreenHeader
+          title={
+            plan && plan.mode !== "overdue_summary" && todaySection
+              ? formatDayHeaderDateLabel(todaySection, dayStrings)
+              : dayStrings.screenTitle
+          }
+          subtitle={plan && plan.mode !== "overdue_summary" && todaySection ? plan.dayRecommendation?.trim() : undefined}
+        />
 
         {loading && !plan ? <ActivityIndicator color={theme.colors.accent} /> : null}
         {error ? (
@@ -753,7 +728,7 @@ export default function DayTabRoute() {
             ) : null}
           </>
         ) : null}
-      </ScrollView>
+      </TabScrollView>
 
       <AssistantModal
         visible={assistantSession != null}
@@ -778,23 +753,12 @@ export default function DayTabRoute() {
         strings={dayStrings}
         appLocale={reportLocale}
       />
-    </SafeAreaView>
+    </TabScreenLayout>
     </DonutVisibilityProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  content: {
-    gap: 18,
-    padding: 24,
-    paddingBottom: 36,
-  },
-  header: {
-    gap: 6,
-  },
   sectionGroup: {
     gap: 12,
   },

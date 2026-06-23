@@ -19,10 +19,12 @@
 import { useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import * as Location from "expo-location";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppLocale } from "@/modules/i18n";
+import { getOnboardingStrings } from "@/modules/auth/i18n/authScreens";
 import { AppText } from "@/modules/ui/AppText";
 import { AppButton } from "@/modules/ui/AppButton";
+import { FormScreenLayout } from "@/modules/ui/StackScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { requireSupabase } from "@/services/supabase";
@@ -38,7 +40,8 @@ function getDeviceTimeZone(): string {
 
 export default function OnboardingScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
+  const { locale } = useAppLocale();
+  const strings = getOnboardingStrings(locale);
   const { authUser, refreshProfile } = useAuth();
 
   const [busy, setBusy] = useState(false);
@@ -60,9 +63,7 @@ export default function OnboardingScreen() {
         const perm = await Location.requestForegroundPermissionsAsync();
         logRuntimeEvent("location:permission_result", { status: perm.status, canAskAgain: perm.canAskAgain });
         if (perm.status !== "granted") {
-          setErrorText(
-            "Разрешение на геолокацию не получено. Вы можете продолжить без неё — и указать координаты позже в настройках.",
-          );
+          setErrorText(strings.deniedError);
           setBusy(false);
           return;
         }
@@ -112,76 +113,54 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <View
-      style={[
-        styles.root,
-        {
-          backgroundColor: theme.colors.controlButtonBg,
-          paddingTop: insets.top + 24,
-          paddingBottom: insets.bottom + 24,
-        },
-      ]}
+    <FormScreenLayout
+      centered
+      statusBarStyle={theme.scheme === "dark" ? "light" : "dark"}
+      style={styles.root}
+      cardStyle={styles.card}
     >
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.screenBg,
-            borderColor: theme.colors.surfaceBorder,
-          },
-        ]}
-      >
-        <View style={styles.header}>
-          <AppText variant="sectionTitle" style={styles.centerText}>
-            Геолокация
-          </AppText>
-          <AppText variant="screenHint" tone="muted" style={styles.centerText}>
-            Чтобы показывать окна возможностей, нам нужны ваши координаты. Они сохраняются только в профиле.
-          </AppText>
-        </View>
-
-        <View style={styles.actions}>
-          <AppButton
-            label={busy ? "Определяю…" : "Разрешить"}
-            onPress={() => finish({ withLocation: true })}
-            disabled={busy}
-          />
-          <AppButton
-            label="Без геолокации"
-            variant="secondary"
-            onPress={() => finish({ withLocation: false })}
-            disabled={busy}
-          />
-          {busy && (
-            <View style={styles.loader}>
-              <ActivityIndicator color={theme.colors.accent} />
-            </View>
-          )}
-          {errorText && (
-            <AppText variant="technicalCaption" style={[styles.centerText, { color: theme.colors.danger }]}>
-              {errorText}
-            </AppText>
-          )}
-        </View>
+      <View style={styles.header}>
+        <AppText variant="sectionTitle" style={styles.centerText}>
+          {strings.title}
+        </AppText>
+        <AppText variant="screenHint" tone="muted" style={styles.centerText}>
+          {strings.subtitle}
+        </AppText>
       </View>
-    </View>
+
+      <View style={styles.actions}>
+        <AppButton
+          label={busy ? "…" : strings.allowButton}
+          onPress={() => finish({ withLocation: true })}
+          disabled={busy}
+        />
+        <AppButton
+          label={strings.skipButton}
+          variant="secondary"
+          onPress={() => finish({ withLocation: false })}
+          disabled={busy}
+        />
+        {busy ? (
+          <View style={styles.loader}>
+            <ActivityIndicator color={theme.colors.accent} />
+          </View>
+        ) : null}
+        {errorText ? (
+          <AppText variant="technicalCaption" style={[styles.centerText, { color: theme.colors.danger }]}>
+            {errorText}
+          </AppText>
+        ) : null}
+      </View>
+    </FormScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
-    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
   },
   card: {
-    borderRadius: 28,
-    borderWidth: 1,
     gap: 22,
-    maxWidth: 420,
-    padding: 22,
-    width: "100%",
   },
   header: {
     alignItems: "center",

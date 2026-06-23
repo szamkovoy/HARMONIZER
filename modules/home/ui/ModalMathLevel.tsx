@@ -8,6 +8,9 @@ import type { HomeStrings } from "@/modules/home/i18n/home";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FullScreenModalScaffold } from "@/modules/ui/FullScreenModalScaffold";
+import { ScreenSection } from "@/modules/ui/ScreenSection";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 import { MarkdownText } from "./MarkdownText";
 import type { AstroChartAspect } from "./AstroChartSVG";
@@ -73,19 +76,14 @@ export function ModalMathLevel({
 
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
-      <View style={[styles.root, { backgroundColor: theme.colors.screenBg, paddingTop: insets.top + 12 }]}>
-        <View style={[styles.header, { borderBottomColor: theme.colors.surfaceBorder }]}>
-          <View style={styles.headerText}>
-            <AppText variant="sectionTitle">{strings.title}</AppText>
-            <AppText variant="technicalCaption" tone="muted">
-              {strings.subtitle}
-            </AppText>
-          </View>
-          <AppButton label={strings.closeButton} variant="secondary" onPress={onClose} style={styles.closeButton} />
-        </View>
-
+      <FullScreenModalScaffold
+        title={strings.title}
+        subtitle={strings.subtitle}
+        closeLabel={strings.closeButton}
+        onClose={onClose}
+      >
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-          <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+          <SurfaceCardView tone="elevated" style={styles.card}>
             {mathLevel?.markdown ? (
               <MarkdownText source={mathLevel.markdown} />
             ) : (
@@ -93,17 +91,17 @@ export function ModalMathLevel({
                 {strings.emptyHint}
               </AppText>
             )}
-          </View>
+          </SurfaceCardView>
 
           {canShowChart ? (
             <AppButton label={strings.showChartButton} variant="secondary" onPress={() => setShowChart(true)} />
           ) : (
-            <AppText variant="technicalCaption" tone="muted" style={styles.centerText}>
-              {strings.chartUnavailableHint}
-            </AppText>
+            <ScreenSection title={strings.showChartButton} subtitle={strings.chartUnavailableHint} centerHeader>
+              <View />
+            </ScreenSection>
           )}
         </ScrollView>
-      </View>
+      </FullScreenModalScaffold>
 
       {showChart && canShowChart && natalProfile ? (
         <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
@@ -123,34 +121,11 @@ export function ModalMathLevel({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  header: {
-    alignItems: "center",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: "row",
-    gap: 12,
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    paddingHorizontal: 18,
-  },
-  headerText: {
-    flex: 1,
-    gap: 4,
-  },
-  closeButton: {
-    alignSelf: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
   content: {
     gap: 16,
     padding: 20,
   },
   card: {
-    borderRadius: 24,
-    borderWidth: 1,
     padding: 18,
   },
   centerText: {

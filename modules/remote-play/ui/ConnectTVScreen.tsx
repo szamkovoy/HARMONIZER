@@ -2,19 +2,21 @@ import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAppLocale } from "@/modules/i18n";
+import { getConnectTvStrings } from "@/modules/remote-play/i18n/remotePlay";
 import { normalizePairingCode } from "@/modules/remote-play/core/types";
 import { useRemotePlay } from "@/modules/remote-play/useRemotePlay";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { ModalScreenLayout } from "@/modules/ui/StackScreenLayout";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 
 const PIN_LEN = 4;
@@ -26,6 +28,8 @@ function charsFromNormalized(value: string): string[] {
 
 export function ConnectTVScreen() {
   const theme = useTheme();
+  const { locale } = useAppLocale();
+  const strings = getConnectTvStrings(locale);
   const remotePlay = useRemotePlay();
   const [cells, setCells] = useState<string[]>(() => Array.from({ length: PIN_LEN }, () => ""));
   const [focusedPinIndex, setFocusedPinIndex] = useState<number | null>(null);
@@ -92,127 +96,83 @@ export function ConnectTVScreen() {
   const showLinkedLine = remotePlay.connected && !remotePlay.error;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.keyboard}
-      >
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surfaceElevated,
-              borderColor: theme.colors.surfaceBorder,
-            },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Закрыть окно подключения ТВ"
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={({ pressed }) => [
-              styles.closeButton,
-              {
-                backgroundColor: theme.colors.controlButtonBg,
-                opacity: pressed ? 0.72 : 1,
-              },
-            ]}
-          >
-            <AppText variant="sectionTitle">×</AppText>
-          </Pressable>
+    <ModalScreenLayout
+      keyboard
+      overlay={
+        <FloatingCloseButton
+          accessibilityLabel={strings.closeA11y}
+          onPress={() => router.back()}
+        />
+      }
+    >
+      <SurfaceCardView tone="elevated" style={styles.card}>
+        <View style={styles.centerBlock}>
+          <AppText variant="screenTitle" accessibilityRole="header" style={styles.centerText}>
+            {strings.title}
+          </AppText>
+          <AppText variant="screenHint" tone="muted" style={styles.hint}>
+            {strings.description}
+          </AppText>
 
-          <View style={styles.centerBlock}>
-            <AppText variant="screenTitle" accessibilityRole="header" style={styles.centerText}>
-              Подключить ТВ
+          <View style={styles.pinRow}>
+            {cells.map((value, index) => (
+              <TextInput
+                key={index}
+                ref={(el) => {
+                  inputRefs.current[index] = el;
+                }}
+                value={value ? normalizePairingCode(value) : ""}
+                onChangeText={(text) => handleChangeText(index, text)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(index, nativeEvent.key)}
+                onFocus={() => setFocusedPinIndex(index)}
+                onBlur={() =>
+                  setFocusedPinIndex((current) => (current === index ? null : current))
+                }
+                autoCapitalize="characters"
+                autoCorrect={false}
+                keyboardType="ascii-capable"
+                maxLength={1}
+                returnKeyType="done"
+                onSubmitEditing={() => submit()}
+                placeholder={focusedPinIndex === index ? "" : "—"}
+                placeholderTextColor={theme.colors.textFaint}
+                style={[
+                  styles.pinCell,
+                  {
+                    borderColor: remotePlay.error ? theme.colors.warning : theme.colors.surfaceBorder,
+                    color: theme.colors.textPrimary,
+                    backgroundColor: theme.colors.controlButtonBg,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+
+          {remotePlay.busy ? <ActivityIndicator color={theme.colors.accent} /> : null}
+
+          {remotePlay.error ? (
+            <AppText variant="dialogBody" tone="warning" style={styles.feedback}>
+              {remotePlay.error}
             </AppText>
-            <AppText variant="screenHint" tone="muted" style={styles.hint}>
-              Откройте ссылку https://zamkovoi.yoga/tv на телевизоре или на компьютере, и затем введите ниже 4-символьный код, указанный на этой странице.
+          ) : showLinkedLine ? (
+            <AppText variant="sectionTitle" tone="accent" style={styles.feedback}>
+              {strings.linked}
             </AppText>
+          ) : null}
 
-            <View style={styles.pinRow}>
-              {cells.map((value, index) => (
-                <TextInput
-                  key={index}
-                  ref={(el) => {
-                    inputRefs.current[index] = el;
-                  }}
-                  value={value ? normalizePairingCode(value) : ""}
-                  onChangeText={(text) => handleChangeText(index, text)}
-                  onKeyPress={({ nativeEvent }) => handleKeyPress(index, nativeEvent.key)}
-                  onFocus={() => setFocusedPinIndex(index)}
-                  onBlur={() =>
-                    setFocusedPinIndex((current) => (current === index ? null : current))
-                  }
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  keyboardType="ascii-capable"
-                  maxLength={1}
-                  returnKeyType="done"
-                  onSubmitEditing={() => submit()}
-                  placeholder={focusedPinIndex === index ? "" : "—"}
-                  placeholderTextColor={theme.colors.textFaint}
-                  style={[
-                    styles.pinCell,
-                    {
-                      borderColor: remotePlay.error ? theme.colors.warning : theme.colors.surfaceBorder,
-                      color: theme.colors.textPrimary,
-                      backgroundColor: theme.colors.controlButtonBg,
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-
-            {remotePlay.busy ? <ActivityIndicator color={theme.colors.accent} /> : null}
-
-            {remotePlay.error ? (
-              <AppText variant="dialogBody" tone="warning" style={styles.feedback}>
-                {remotePlay.error}
-              </AppText>
-            ) : showLinkedLine ? (
-              <AppText variant="sectionTitle" style={styles.feedbackLinked}>
-                ТВ подключен
-              </AppText>
-            ) : null}
-
-            <View style={styles.actions}>
-              <AppButton label="Подключить" onPress={submit} disabled={!canSubmit} />
-            </View>
+          <View style={styles.actions}>
+            <AppButton label={strings.submitButton} onPress={submit} disabled={!canSubmit} />
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SurfaceCardView>
+    </ModalScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  keyboard: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-  },
   card: {
-    alignSelf: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 22,
     maxWidth: 390,
-    padding: 18,
-    paddingTop: 46,
     width: "100%",
-  },
-  closeButton: {
-    position: "absolute",
-    right: 12,
-    top: 12,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
   },
   centerBlock: {
     alignItems: "center",

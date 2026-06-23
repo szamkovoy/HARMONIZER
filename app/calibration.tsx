@@ -2,13 +2,20 @@ import { Audio } from "expo-av";
 import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
 import { router } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Alert, StyleSheet, TextInput, View } from "react-native";
 
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
 import { useAppLocale } from "@/modules/i18n";
 import { useAuth } from "@/modules/auth";
+import { getCalibrationStrings } from "@/modules/calibration/i18n/calibration";
+import { intlLocaleTag } from "@/modules/i18n/localeCodes";
+import { AppButton } from "@/modules/ui/AppButton";
+import { AppText } from "@/modules/ui/AppText";
+import { ScreenHeader } from "@/modules/ui/ScreenHeader";
+import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
+import { useTheme } from "@/modules/ui/theme";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { extractCalibration, transcribeCommunicatorAudio } from "@/services/communicator-client";
 import { resolveUserFacingAlert } from "@/services/userFacingErrors";
@@ -18,31 +25,11 @@ type CalibrationPhase = "idle" | "recording" | "transcribing" | "editing" | "ext
 const MIN_VOICE_MS = 450;
 const LOW_TRANSCRIPTION_CONFIDENCE = 0.65;
 
-function phaseLabel(phase: CalibrationPhase): string {
-  switch (phase) {
-    case "recording":
-      return "Слушаю обратную связь";
-    case "transcribing":
-      return "Расшифровываю голос";
-    case "editing":
-      return "Проверь текст перед калибровкой";
-    case "extracting":
-      return "Уточняю фундамент";
-    case "complete":
-      return "Фундамент уточнён";
-    case "error":
-      return "Нужна повторная попытка";
-    default:
-      return "Готов к калибровке";
-  }
-}
-
 export default function CalibrationScreen() {
-  const insets = useSafeAreaInsets();
+  const theme = useTheme();
   const { profile } = useAuth();
   const { locale } = useAppLocale();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const strings = getCalibrationStrings(locale);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordStartRef = useRef(0);
   const [phase, setPhase] = useState<CalibrationPhase>("idle");
@@ -54,12 +41,12 @@ export default function CalibrationScreen() {
     (err: Error) => {
       setPhase("error");
       const copy = resolveUserFacingAlert(err, locale, {
-        genericTitle: locale === "en" ? "Calibration not completed" : "Калибровка не завершена",
+        genericTitle: strings.genericFailureTitle,
       });
       const userErrors = getUserErrorStrings(locale);
       Alert.alert(copy.title, copy.message, [{ text: userErrors.dismissButton }]);
     },
-    [locale],
+    [locale, strings.genericFailureTitle],
   );
 
   const startRecording = useCallback(async () => {
@@ -67,7 +54,7 @@ export default function CalibrationScreen() {
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
-        reportError(new Error("Нет доступа к микрофону."));
+        reportError(new Error(strings.microphoneDenied));
         return;
       }
       await Audio.setAudioModeAsync({
@@ -108,7 +95,7 @@ export default function CalibrationScreen() {
       setPhase("transcribing");
       const mimeType = mimeFromRecordingUri(uri);
       const base64 = await readAsStringAsync(uri, { encoding: "base64" });
-      const transcript = await transcribeCommunicatorAudio({ mimeType, base64, language: "ru" });
+      const transcript = await transcribeCommunicatorAudio({ mimeType, base64, language: locale });
       setFeedbackText(transcript.text);
       setTranscriptionConfidence(transcript.confidence);
       setPhase("editing");
@@ -116,18 +103,18 @@ export default function CalibrationScreen() {
       setPhase("editing");
       reportError(
         new Error(
-          `Не удалось расшифровать запись автоматически. Можно вставить текст вручную. ${
+          `${strings.transcribeFallbackPrefix} ${
             e instanceof Error ? e.message : String(e)
           }`,
         ),
       );
     }
-  }, [phase, reportError]);
+  }, [locale, phase, reportError, strings.transcribeFallbackPrefix]);
 
   const runExtraction = useCallback(async () => {
     const text = feedbackText.trim();
     if (!text) {
-      Alert.alert("Добавь текст", "Нужен текст обратной связи, чтобы пересобрать калибровку.");
+      Alert.alert(strings.addTextTitle, strings.addTextMessage);
       return;
     }
 
@@ -136,148 +123,114 @@ export default function CalibrationScreen() {
       const result = await extractCalibration({
         source: "initial",
         feedbackText: text,
-        language: "ru",
+        language: locale,
       });
       const calibration = result.calibration as { version?: number } | undefined;
       const ultraUntil = result.ultraMode?.enabledUntil
-        ? new Date(result.ultraMode.enabledUntil).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
+        ? new Date(result.ultraMode.enabledUntil).toLocaleDateString(intlLocaleTag(locale), {
+            day: "2-digit",
+            month: "2-digit",
+          })
         : null;
-      setSummary(
-        `Калибровка сохранена${calibration?.version ? `, версия ${calibration.version}` : ""}. ${
-          ultraUntil ? `Ultra-режим активен до ${ultraUntil}.` : "Ultra-режим активирован на 3 дня."
-        }`,
-      );
+      setSummary(strings.summarySaved(calibration?.version, ultraUntil));
       setPhase("complete");
     } catch (e) {
       reportError(e instanceof Error ? e : new Error(String(e)));
     }
-  }, [feedbackText, reportError]);
+  }, [feedbackText, locale, reportError, strings.addTextMessage, strings.addTextTitle, strings.summarySaved]);
 
   const busy = phase === "recording" || phase === "transcribing" || phase === "extracting";
 
   return (
-    <ScrollView
-      style={[styles.root, { backgroundColor: isDark ? "#0a0a0a" : "#fafafa" }]}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingTop: Math.max(insets.top + 18, 32),
-          paddingBottom: Math.max(insets.bottom + 24, 40),
-        },
-      ]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Pressable onPress={() => router.back()} style={styles.backButton}>
-        <Text style={{ color: isDark ? "#e5e5e5" : "#262626" }}>Назад</Text>
-      </Pressable>
-
-      <View style={styles.header}>
-        <Text style={[styles.kicker, { color: isDark ? "#a7f3d0" : "#047857" }]}>Calibration</Text>
-        <Text style={[styles.title, { color: isDark ? "#fafafa" : "#111827" }]}>Уточнение фундамента</Text>
-        <Text style={[styles.description, { color: isDark ? "#d4d4d4" : "#525252" }]}>
-          Расскажи голосом или текстом, что в портрете попало точно, что не откликается и что важно добавить.
-        </Text>
-      </View>
-
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: isDark ? "#171717" : "#fff",
-            borderColor: isDark ? "#404040" : "#e5e5e5",
-          },
-        ]}
+    <StackScreenLayout>
+      <StackScrollView
+        keyboardShouldPersistTaps="handled"
+        contentOptions={{ topPadding: 24, bottomPaddingExtra: 40, gap: 20, maxWidth: 720 }}
       >
-        <Text style={[styles.status, { color: isDark ? "#f5f5f5" : "#171717" }]}>{phaseLabel(phase)}</Text>
-        <Text style={[styles.statusHint, { color: isDark ? "#a3a3a3" : "#737373" }]}>
-          {transcriptionConfidence != null && transcriptionConfidence < LOW_TRANSCRIPTION_CONFIDENCE
-            ? `Я не уверен, что точно услышал (${Math.round(transcriptionConfidence * 100)}%). Проверь и поправь текст перед калибровкой.`
-            : phase === "extracting"
-            ? "Сверяю твои слова с картой состояний и пересчитываю силу планет."
-            : "Это не редактирование текста, а настройка основы, из которой строится рекомендация."}
-        </Text>
-
-        <TextInput
-          value={feedbackText}
-          onChangeText={(text) => {
-            setFeedbackText(text);
-            if (phase === "idle" || phase === "error" || phase === "complete") setPhase("editing");
-          }}
-          editable={!busy}
-          multiline
-          placeholder="Например: про голос и самовыражение очень точно, а про тревожность я бы усилил..."
-          placeholderTextColor={isDark ? "#737373" : "#a3a3a3"}
-          style={[
-            styles.input,
-            {
-              color: isDark ? "#fafafa" : "#171717",
-              borderColor: isDark ? "#404040" : "#d4d4d4",
-              backgroundColor: isDark ? "#0f0f0f" : "#fafafa",
-            },
-          ]}
+        <AppButton
+          label={strings.backButton}
+          variant="secondary"
+          onPress={() => router.back()}
+          style={styles.backButton}
         />
 
-        {summary ? <Text style={styles.summary}>{summary}</Text> : null}
-
-        <View style={styles.actions}>
-          <Pressable
-            disabled={busy && phase !== "recording"}
-            onPress={phase === "recording" ? () => void stopRecording() : () => void startRecording()}
-            style={[styles.secondaryButton, busy && phase !== "recording" && styles.disabled]}
-          >
-            <Text style={styles.secondaryButtonText}>{phase === "recording" ? "Завершить запись" : "Записать голос"}</Text>
-          </Pressable>
-          <Pressable disabled={busy || !feedbackText.trim()} onPress={() => void runExtraction()} style={[styles.primaryButton, (busy || !feedbackText.trim()) && styles.disabled]}>
-            <Text style={styles.primaryButtonText}>Уточнить фундамент</Text>
-          </Pressable>
+        <View style={styles.header}>
+          <AppText variant="technicalCaption" tone="accent" style={styles.kicker}>
+            {strings.kicker}
+          </AppText>
+          <ScreenHeader title={strings.title} subtitle={strings.description} />
         </View>
-      </View>
-    </ScrollView>
+
+        <SurfaceCardView tone="elevated" style={styles.card}>
+          <AppText variant="sectionTitle">{strings.phaseLabel[phase]}</AppText>
+          <AppText variant="screenHint" tone="muted">
+            {transcriptionConfidence != null && transcriptionConfidence < LOW_TRANSCRIPTION_CONFIDENCE
+              ? strings.lowConfidenceHint(Math.round(transcriptionConfidence * 100))
+              : phase === "extracting"
+                ? strings.extractingHint
+                : strings.defaultHint}
+          </AppText>
+
+          <TextInput
+            value={feedbackText}
+            onChangeText={(text) => {
+              setFeedbackText(text);
+              if (phase === "idle" || phase === "error" || phase === "complete") setPhase("editing");
+            }}
+            editable={!busy}
+            multiline
+            placeholder={strings.inputPlaceholder}
+            placeholderTextColor={theme.colors.textFaint}
+            style={[
+              styles.input,
+              {
+                color: theme.colors.textPrimary,
+                borderColor: theme.colors.surfaceBorder,
+                backgroundColor: theme.colors.controlButtonBg,
+              },
+            ]}
+          />
+
+          {summary ? (
+            <AppText variant="dialogBody" tone="accent">
+              {summary}
+            </AppText>
+          ) : null}
+
+          <View style={styles.actions}>
+            <AppButton
+              label={phase === "recording" ? strings.stopRecordingButton : strings.recordButton}
+              variant="secondary"
+              disabled={busy && phase !== "recording"}
+              onPress={phase === "recording" ? () => void stopRecording() : () => void startRecording()}
+              style={styles.actionButton}
+            />
+            <AppButton
+              label={busy ? strings.runningButton : strings.runButton}
+              disabled={busy || !feedbackText.trim()}
+              onPress={() => void runExtraction()}
+              style={styles.actionButton}
+            />
+          </View>
+        </SurfaceCardView>
+      </StackScrollView>
+    </StackScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: {
-    paddingHorizontal: 20,
-    gap: 20,
-  },
   backButton: {
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
   },
   header: {
     gap: 8,
   },
   kicker: {
-    fontSize: 13,
-    fontWeight: "800",
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
-  title: {
-    fontSize: 32,
-    lineHeight: 38,
-    fontWeight: "800",
-  },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
   card: {
-    borderRadius: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 18,
     gap: 14,
-  },
-  status: {
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  statusHint: {
-    fontSize: 14,
-    lineHeight: 20,
   },
   input: {
     minHeight: 180,
@@ -289,38 +242,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlignVertical: "top",
   },
-  summary: {
-    color: "#16a34a",
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: "700",
-  },
   actions: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
-  primaryButton: {
-    borderRadius: 999,
-    backgroundColor: "#16a34a",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  primaryButtonText: {
-    color: "#fff",
-    fontWeight: "800",
-  },
-  secondaryButton: {
-    borderRadius: 999,
-    backgroundColor: "#0ea5e9",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
-    color: "#fff",
-    fontWeight: "800",
-  },
-  disabled: {
-    opacity: 0.45,
+  actionButton: {
+    flexGrow: 1,
   },
 });

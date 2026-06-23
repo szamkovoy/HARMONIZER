@@ -32,6 +32,7 @@ export interface PracticeCatalogStrings {
   groupMeditation: string;
   groupBreath: string;
   groupYoga: string;
+  yogaTitlePrefix: string;
   practiceCount: (count: number) => string;
   /** Singular label (EN: «1 practice»). */
   practiceCountOne: string;
@@ -93,6 +94,7 @@ const ru: PracticeCatalogStrings = {
   groupMeditation: "Медитации",
   groupBreath: "Дыхание",
   groupYoga: "Асаны",
+  yogaTitlePrefix: "Практика",
   practiceCount: (count) => `${count} практик`,
   practiceCountOne: "1 практика",
   practiceCountWithTotal: "{count} практик",
@@ -166,6 +168,7 @@ const en: PracticeCatalogStrings = {
   groupMeditation: "Meditation",
   groupBreath: "Breathing",
   groupYoga: "Asanas",
+  yogaTitlePrefix: "Practice",
   practiceCount: (count) => (count === 1 ? "1 practice" : `${count} practices`),
   practiceCountOne: "1 practice",
   practiceCountWithTotal: "{count} practices",

@@ -35,6 +35,8 @@ interface AppTextProps {
   numberOfLines?: number;
   accessibilityRole?: "text" | "header";
   allowFontScaling?: boolean;
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
 }
 
 export function AppText({
@@ -45,6 +47,8 @@ export function AppText({
   numberOfLines,
   accessibilityRole,
   allowFontScaling = true,
+  adjustsFontSizeToFit,
+  minimumFontScale,
 }: AppTextProps) {
   const theme = useTheme();
   const colorMap: Record<AppTextTone, string> = {
@@ -64,6 +68,8 @@ export function AppText({
       numberOfLines={numberOfLines}
       accessibilityRole={accessibilityRole}
       allowFontScaling={allowFontScaling}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      minimumFontScale={minimumFontScale}
     >
       {children}
     </Text>

@@ -17,6 +17,7 @@ import { ProfileReportCard } from "@/modules/profile/ui/ProfileReportCard";
 import { RangeTrendChart } from "@/modules/profile/ui/RangeTrendChart";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { StateCard } from "@/modules/ui/StateCard";
 import { getUserErrorStrings } from "@/modules/ui/i18n/userErrors";
 import { useTheme } from "@/modules/ui/theme";
 import { loadLifeMatrixReport, loadPracticeByChakraReport, type LifeMatrixReport, type PracticeByChakraReport } from "@/services/profileReports";
@@ -135,12 +136,11 @@ function MatrixProjectionChart(props: {
 
 function ReportLoadError(props: { message: string; onRetry?: () => void; retryLabel: string }) {
   return (
-    <View style={styles.errorBlock}>
-      <AppText variant="screenHint" tone="muted">
-        {props.message}
-      </AppText>
-      {props.onRetry ? <AppButton label={props.retryLabel} variant="secondary" onPress={props.onRetry} /> : null}
-    </View>
+    <StateCard
+      message={props.message}
+      actionLabel={props.onRetry ? props.retryLabel : undefined}
+      onAction={props.onRetry}
+    />
   );
 }
 
@@ -158,11 +158,7 @@ function ProjectionReportContent(props: {
   kind: "sphere" | "state";
 }) {
   if (props.loading) {
-    return (
-      <AppText variant="screenHint" tone="muted">
-        {props.loadingMessage}
-      </AppText>
-    );
+    return <StateCard loading message={props.loadingMessage} />;
   }
   if (props.error) {
     return (
@@ -289,9 +285,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
       periodSelector={<PeriodSelector value={periodDays} onChange={handlePeriodChange} locale={props.locale ?? "ru"} />}
     >
       {loading && !report ? (
-        <AppText variant="screenHint" tone="muted">
-          {strings.reportsLoading}
-        </AppText>
+        <StateCard loading message={strings.reportsLoading} />
       ) : null}
       {error ? (
         <ReportLoadError
@@ -345,9 +339,7 @@ export function LifeMatrixReportCard(props: {
   return (
     <ProfileReportCard title={strings.lifeMatrixTitle} subtitle={strings.lifeMatrixHint}>
       {props.loading ? (
-        <AppText variant="screenHint" tone="muted">
-          {strings.reportsLoading}
-        </AppText>
+        <StateCard loading message={strings.reportsLoading} />
       ) : null}
       {props.error ? (
         <ReportLoadError

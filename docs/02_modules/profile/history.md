@@ -1,13 +1,17 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.17
-updated: 2026-06-22
+version: 1.18
+updated: 2026-06-24
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-24 (2):** Profile-facing modal/report surfaces were moved closer to shared UI ownership. `app/onboarding.tsx` now uses the shared centered-card form shell, profile report cards use `SectionHeader` + `StateCard` instead of local heading/error boilerplate, and `NatalBirthDataModal` now renders through the common surface/header language rather than a bespoke modal card.
+
+- **2026-06-24:** Profile tab `ScrollView` переведён с фиксированного нижнего отступа на общий helper `useTabContentBottomPadding(...)` и теперь держит `scrollIndicatorInsets` выше нижней навигации. Это синхронизирует Profile с Home/Day/Practices и убирает риск, что нижние карточки или индикатор скролла визуально залезут под tab bar на устройствах с другой safe-area высотой.
 
 - **2026-06-22:** Ошибки загрузки отчётов: в UI больше не показывается debug-текст `[profile-reports] transient network` — используется `resolveUserFacingMessage`; на карточках кнопка «Повторить». Корневая причина сбоев при кратковременной потере сети: `withTransientNetworkRetry` не повторял запрос после `wrapConnectivityFailure` (исправлено на уровне `services/withTransientNetworkRetry.ts` для всех API-клиентов).
 

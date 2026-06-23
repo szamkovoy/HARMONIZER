@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
 
 import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
@@ -13,7 +11,9 @@ import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
+import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
@@ -162,17 +162,9 @@ export default function ProfileTabRoute() {
 
   return (
     <DonutVisibilityProvider>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-        <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
-        <ScrollView contentContainerStyle={styles.content} {...donutScrollProps}>
-        <View style={styles.header}>
-          <AppText variant="screenTitle" accessibilityRole="header">
-            {t("profile.title")}
-          </AppText>
-          <AppText variant="screenHint" tone="muted">
-            {t("profile.subtitle")}
-          </AppText>
-        </View>
+      <TabScreenLayout>
+        <TabScrollView contentOptions={{ maxWidth: 460 }} {...donutScrollProps}>
+        <ScreenHeader title={t("profile.title")} subtitle={t("profile.subtitle")} />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">{t("profile.access.title")}</AppText>
@@ -327,7 +319,7 @@ export default function ProfileTabRoute() {
             {t("profile.comingSoon.body")}
           </AppText>
         </View>
-      </ScrollView>
+      </TabScrollView>
 
       <NatalBirthDataModal
         visible={natalModalOpen}
@@ -345,15 +337,12 @@ export default function ProfileTabRoute() {
           onClose={() => setUpgradeFeature(null)}
         />
       ) : null}
-    </SafeAreaView>
+    </TabScreenLayout>
     </DonutVisibilityProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   content: {
     alignSelf: "center",
     gap: 18,

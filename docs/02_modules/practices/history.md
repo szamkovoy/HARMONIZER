@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.18
-updated: 2026-06-22
+version: 1.19
+updated: 2026-06-24
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,14 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-24 (4):** Non-tab and fullscreen practice surfaces moved onto shared UI ownership. `app/asana-practice.tsx` now uses shared `StackScreenLayout`, `StackScrollView`, `SurfaceCardView`, `ScreenHeader`, and `FloatingCloseButton`; assistant fullscreen wrappers on Home/Day are routed through one shared `AssistantModalShell`; immersive practice chrome starts converging on shared close / stop-confirm / overlay-autohide primitives instead of per-screen copies.
+
+- **2026-06-24:** Practices catalog yoga path now keeps a per-locale local snapshot (`services/practiceCatalogCache.ts`) and seeds `loadPracticeCatalog({ initialYoga })` from it before hitting Supabase. Result: повторное открытие вкладки «Практики» показывает уже известные асаны мгновенно, фоновой revalidate больше не сбрасывает список в пустое состояние, а object-shaped ошибки Supabase сериализуются в читаемый текст вместо `"[object Object]"`.
+
+- **2026-06-24 (2):** Названия асан сведены к одному алгоритму. Вместо RU-only / EN-only хвостовых замен `catalog.ts` теперь использует общий `resolveYogaPracticeTitle(...)`: helper убирает импортный Vimeo suffix (`_и3`, `_i3`, …) и подставляет locale-native `yogaTitlePrefix` (`Практика`, `Practice`, `Übung`, `Pratique`, …). Тот же helper подключён в `app/asana-practice.tsx`, чтобы каталог и экран самой асаны не расходились. В `PracticeCatalogScreen` нижний отступ списка стал зависеть от реальной высоты tab bar, чтобы контент не уходил под нижнюю навигацию.
+
+- **2026-06-24 (3):** `PracticeCatalogScreen` переведён на общий tab-shell UI-слоя: `TabScreenLayout`, `ScreenHeader`, `StateCard`, `useTabScreenContentProps`. Цель — чтобы safe area, header и state-блоки для вкладки «Практики» больше не эволюционировали отдельно от Home/Day/Profile.
 
 - **2026-06-22:** Assistant practice handoff v4: вернули opaque cover (`AssistantPracticeHandoffCover`) — родительский Modal (Home/Day) показывает его по `onPracticeLaunchStart` до dismiss; min-delay overlay сокращён **700→200 ms** (двойной `requestAnimationFrame` в `useAssistantPracticeOverlayDismiss`); Day tab использует тот же delayed dismiss, что Home. Причина: flash вкладки под Modal без cover; 700 ms давали лишнюю задержку после paint practice route.
 

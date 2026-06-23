@@ -69,12 +69,34 @@ function localizedText(value: Json | null, fallback: string, locale: PracticeLoc
   return fallback;
 }
 
+function stripImportedYogaSuffix(title: string): string {
+  return title.replace(/((?:^|[\s:])\d+_\d{4})_[^\s:]+$/u, "$1").trim();
+}
+
 function optionalPositiveNumber(value: number | null): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+export function formatPracticeCatalogError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim());
+    if (parts.length) return parts.join(" | ");
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
 }
 
 function durationPolicyFromParams(params: Record<string, unknown>, kind: PracticeKind): PracticeDurationPolicy {
@@ -192,15 +214,22 @@ function createBreathPractices(locale: PracticeLocale): PracticeSummary[] {
   });
 }
 
-function displayYogaTitle(title: string, locale: PracticeLocale): string {
-  if (inlineBaseLocale(locale) === "en") return title.replace(/(_\d{4})_i.*$/i, "$1").trim();
-  if (locale === SOURCE_LOCALE) {
-    return title
-      .replace(/^Пробуждение/i, "Практика")
-      .replace(/(_\d{4})_и.*$/i, "$1")
-      .trim();
+export function resolveYogaPracticeTitle(
+  value: Json | null,
+  fallback: string,
+  locale: PracticeLocale = "ru",
+): string {
+  const rawTitle = localizedText(value, fallback, locale).trim();
+  const title = stripImportedYogaSuffix(rawTitle);
+  const practiceWord = getPracticeCatalogStrings(locale).yogaTitlePrefix;
+  const colonIndex = title.indexOf(":");
+  if (colonIndex > 0) {
+    const tail = title.slice(colonIndex + 1).trim();
+    if (/\d+_\d{4}/.test(tail)) return `${practiceWord}: ${tail}`;
   }
-  return title.trim();
+  if (locale === SOURCE_LOCALE) return title.replace(/^Пробуждение/i, practiceWord).trim();
+  if (inlineBaseLocale(locale) === "en") return title.replace(/^Awakening/i, practiceWord).trim();
+  return title;
 }
 
 function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): PracticeSummary {
@@ -223,7 +252,7 @@ function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): Pract
     id: row.id,
     slug: row.slug,
     kind: "yoga",
-    title: displayYogaTitle(localizedText(row.title, row.slug, locale), locale),
+    title: resolveYogaPracticeTitle(row.title, row.slug, locale),
     defaultDurationSec,
     durationPolicy,
     chakraIds,
@@ -325,6 +354,7 @@ async function withTimeout<T>(
 
 type LoadPracticeCatalogOptions = {
   locale?: PracticeLocale;
+  initialYoga?: PracticeSummary[];
   onLateYogaPractices?: (result: LateYogaPracticesResult) => void;
 };
 
@@ -338,6 +368,7 @@ export async function loadPracticeCatalog(
 ): Promise<PracticeCatalog> {
   const startedAt = Date.now();
   const locale: PracticeLocale = options?.locale ?? "ru";
+  const initialYoga = options?.initialYoga ?? [];
   logRuntimeEvent("practice_catalog:load_start", undefined, "debug");
   const meditation = sortPracticesForCatalog(createStaticMeditations(locale));
   const breath = sortPracticesForCatalog(createBreathPractices(locale));
@@ -365,15 +396,16 @@ export async function loadPracticeCatalog(
             onLateYogaPractices({ practices: finalYoga, state: "ready" });
           })
           .catch((error: unknown) => {
+            const errorMessage = formatPracticeCatalogError(error);
             logRuntimeEvent(
               "practice_catalog:yoga_load_late_error",
-              { message: error instanceof Error ? error.message : String(error), afterTimeout: true },
+              { message: errorMessage, afterTimeout: true },
               "warn",
             );
             onLateYogaPractices({
               practices: [],
               state: "error",
-              errorMessage: error instanceof Error ? error.message : String(error),
+              errorMessage,
             });
           });
         return;
@@ -384,28 +416,29 @@ export async function loadPracticeCatalog(
       });
       onLateYogaPractices({ practices: yoga, state: "ready" });
     })().catch((error: unknown) => {
+      const errorMessage = formatPracticeCatalogError(error);
       logRuntimeEvent(
         "practice_catalog:yoga_load_late_error",
-        { message: error instanceof Error ? error.message : String(error) },
+        { message: errorMessage },
         "warn",
       );
       onLateYogaPractices({
         practices: [],
         state: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
+        errorMessage,
       });
     });
     logRuntimeEvent("practice_catalog:load_ready", {
       durationMs: Date.now() - startedAt,
       meditationCount: meditation.length,
       breathCount: breath.length,
-      yogaCount: 0,
+      yogaCount: initialYoga.length,
       yogaDeferred: true,
     });
     return {
       meditation,
       breath,
-      yoga: [],
+      yoga: initialYoga,
     };
   }
 

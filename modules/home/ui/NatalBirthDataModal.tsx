@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BirthData } from "@/modules/astro-core";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { ScreenHeader } from "@/modules/ui/ScreenHeader";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 
 export const NATAL_BRIDGE_DEFAULT_LOCATION: BirthData["location"] = {
@@ -61,21 +63,20 @@ export function NatalBirthDataModal({
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View
+      <View style={[styles.modalBackdrop, { backgroundColor: theme.colors.modalBackdrop }]}>
+        <SurfaceCardView
+          tone="elevated"
           style={[
             styles.modalCard,
             {
-              backgroundColor: theme.colors.screenBg,
-              borderColor: theme.colors.surfaceBorder,
               paddingBottom: insets.bottom + 18,
             },
           ]}
         >
-          <AppText variant="sectionTitle">Натальные данные</AppText>
-          <AppText variant="screenHint" tone="muted">
-            Это временный технический ввод для M1. Место рождения пока фиксировано: Москва, Europe/Moscow.
-          </AppText>
+          <ScreenHeader
+            title="Натальные данные"
+            subtitle="Это временный технический ввод для M1. Место рождения пока фиксировано: Москва, Europe/Moscow."
+          />
           <TextInput
             value={date}
             onChangeText={setDate}
@@ -112,7 +113,7 @@ export function NatalBirthDataModal({
             <AppButton label="Отмена" variant="secondary" onPress={onClose} disabled={saving} />
             <AppButton label={saving ? "Сохраняю..." : "Сохранить"} onPress={submit} disabled={saving} />
           </View>
-        </View>
+        </SurfaceCardView>
       </View>
     </Modal>
   );
@@ -122,14 +123,11 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.45)",
   },
   modalCard: {
-    borderTopWidth: 1,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     gap: 14,
-    padding: 18,
   },
   input: {
     borderWidth: 1,

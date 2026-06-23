@@ -29,6 +29,7 @@
   "groupBreath": "Respiração",
   "groupMeditation": "Meditações",
   "groupYoga": "Asanas",
+  "yogaTitlePrefix": "Prática",
   "loadCatalogError": "Não foi possível carregar o catálogo de práticas.",
   "loadingCatalog": "A carregar o catálogo...",
   "locale": "pt",

@@ -15,9 +15,11 @@ import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCa
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
-import { AssistantPracticeHandoffCover } from "@/modules/practices/ui/AssistantPracticeHandoffCover";
+import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { StateCard } from "@/modules/ui/StateCard";
+import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
@@ -42,14 +44,12 @@ import {
   Alert,
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { resolveUserFacingAlert } from "@/services/userFacingErrors";
 
@@ -160,71 +160,25 @@ function HomeError({
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
 }) {
-  const theme = useTheme();
   return (
-    <View
-      style={[
-        styles.stateCard,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: tone === "warning" ? theme.colors.warning : theme.colors.danger,
-        },
-      ]}
-    >
-      <AppText variant="sectionTitle" tone={tone} style={styles.centerText}>
-        {title}
-      </AppText>
-      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
-        {message}
-      </AppText>
-      {actionLabel && onAction ? <AppButton label={actionLabel} variant="secondary" onPress={onAction} /> : null}
-      {secondaryActionLabel && onSecondaryAction ? (
-        <AppButton label={secondaryActionLabel} variant="secondary" onPress={onSecondaryAction} />
-      ) : null}
-    </View>
+    <StateCard
+      title={title}
+      message={message}
+      tone={tone}
+      actionLabel={actionLabel}
+      onAction={onAction}
+      secondaryActionLabel={secondaryActionLabel}
+      onSecondaryAction={onSecondaryAction}
+    />
   );
 }
 
 function HomeLoadingSkeleton({ text }: { text: string }) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.stateCard,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.surfaceBorder,
-        },
-      ]}
-    >
-      <ActivityIndicator color={theme.colors.accent} />
-      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
-        {text}
-      </AppText>
-    </View>
-  );
+  return <StateCard loading message={text} />;
 }
 
 function HomeStaleNotice({ title, message }: { title: string; message: string }) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.stateCard,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.warning,
-        },
-      ]}
-    >
-      <AppText variant="sectionTitle" tone="warning" style={styles.centerText}>
-        {title}
-      </AppText>
-      <AppText variant="screenHint" tone="muted" style={styles.centerText}>
-        {message}
-      </AppText>
-    </View>
-  );
+  return <StateCard title={title} message={message} tone="warning" />;
 }
 
 /** Только __DEV__: проверка `expo-notifications` без ожидания окна возможностей. */
@@ -388,8 +342,6 @@ function CommunicatorOverlay({
   onPracticeStarted: () => void;
   remountKey: number;
 }) {
-  const insets = useSafeAreaInsets();
-  const theme = useTheme();
   const [practiceHandoff, setPracticeHandoff] = useState(false);
 
   const finishPracticeLaunch = useCallback(() => {
@@ -403,91 +355,62 @@ function CommunicatorOverlay({
   }, [visible]);
 
   return (
-    <Modal
+    <AssistantModalShell
       visible={visible}
       animationType={dismissAnimation}
-      presentationStyle="fullScreen"
-      onRequestClose={onClose}
+      title={strings.assistantTitle}
+      closeLabel={strings.closeButton}
+      closeAccessibilityLabel={strings.closeAssistantAccessibilityLabel}
+      handoffVisible={practiceHandoff}
+      onClose={onClose}
       onDismiss={onDismiss}
     >
-      {practiceHandoff ? (
-        <AssistantPracticeHandoffCover />
-      ) : (
-      <View style={styles.overlayRoot}>
-        <View
-          style={[
-            styles.overlayHeader,
-            {
-              paddingTop: insets.top + 10,
-              backgroundColor: theme.colors.screenBg,
-              borderBottomColor: theme.colors.surfaceBorder,
-            },
-          ]}
-        >
-          <AppText variant="sectionTitle">{strings.assistantTitle}</AppText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={strings.closeAssistantAccessibilityLabel}
-            onPress={onClose}
-            style={({ pressed }) => [
-              styles.closeButton,
-              {
-                backgroundColor: theme.colors.controlButtonBg,
-                opacity: pressed ? 0.72 : 1,
-              },
-            ]}
-          >
-            <AppText variant="buttonLabel">{strings.closeButton}</AppText>
-          </Pressable>
-        </View>
-        <Communicator
-          key={`home-${forecast.date}-${remountKey}`}
-          systemPrompt={strings.defaultSystemPrompt}
-          locale={strings.locale}
-          useCase="daily_dialog"
-          entrySource="home"
-          startFreshSession
-          triggerMeta={{
-            clientGreetingShown: true,
-            forecastDate: forecast.date,
-            planetOfTheDay: forecast.planetOfTheDay,
-            chakraLabel: PLANET_CHAKRA[forecast.planetOfTheDay].chakraName,
-            todayTone: forecast.todayPlanetState.todayTone,
-            harmoniousnessValue: forecast.todayPlanetState.naturalHarmoniousness,
-            harmoniousnessLabel:
-              forecast.todayPlanetState.naturalHarmoniousness > 0.3
-                ? "гармоничная"
-                : forecast.todayPlanetState.naturalHarmoniousness < -0.3
-                  ? "дисгармоничная"
-                  : "смешанная",
-            windowsOfOpportunity: forecast.windowsOfOpportunity,
-            dayPractices,
-            ...(workingLocalDate ? { workingLocalDate } : {}),
-            ...(dayHealthContext ? { dayHealthContext } : {}),
-          }}
-          memoryWindow={24}
-          onPracticeOffered={async (practice) => {
-            await savePendingDayPractice(forecast.date, practice);
-          }}
-          onMessage={(message) => {
-            // Pre-warm the Day tab the moment planning is finalized (recommendation +
-            // actions persisted), so closing the dialog opens Day instantly with content.
-            if (message.role !== "assistant") return;
-            if (!assistantMessageTriggersDayPrefetch(message.meta)) return;
-            void loadDayPlan()
-              .then(storePrefetchedDayPlan)
-              .catch((error) => {
-                console.warn("[Home] Failed to pre-warm Day during planning final", error);
-              });
-          }}
-          onPracticeLaunchStart={() => setPracticeHandoff(true)}
-          onPracticeLaunchAbort={() => setPracticeHandoff(false)}
-          onPracticePicked={() => dismissAssistantPracticeOverlay(finishPracticeLaunch)}
-          onRequestClose={onClose}
-        />
-      </View>
-      )}
-    </Modal>
+      <Communicator
+        key={`home-${forecast.date}-${remountKey}`}
+        systemPrompt={strings.defaultSystemPrompt}
+        locale={strings.locale}
+        useCase="daily_dialog"
+        entrySource="home"
+        startFreshSession
+        triggerMeta={{
+          clientGreetingShown: true,
+          forecastDate: forecast.date,
+          planetOfTheDay: forecast.planetOfTheDay,
+          chakraLabel: PLANET_CHAKRA[forecast.planetOfTheDay].chakraName,
+          todayTone: forecast.todayPlanetState.todayTone,
+          harmoniousnessValue: forecast.todayPlanetState.naturalHarmoniousness,
+          harmoniousnessLabel:
+            forecast.todayPlanetState.naturalHarmoniousness > 0.3
+              ? "гармоничная"
+              : forecast.todayPlanetState.naturalHarmoniousness < -0.3
+                ? "дисгармоничная"
+                : "смешанная",
+          windowsOfOpportunity: forecast.windowsOfOpportunity,
+          dayPractices,
+          ...(workingLocalDate ? { workingLocalDate } : {}),
+          ...(dayHealthContext ? { dayHealthContext } : {}),
+        }}
+        memoryWindow={24}
+        onPracticeOffered={async (practice) => {
+          await savePendingDayPractice(forecast.date, practice);
+        }}
+        onMessage={(message) => {
+          // Pre-warm the Day tab the moment planning is finalized (recommendation +
+          // actions persisted), so closing the dialog opens Day instantly with content.
+          if (message.role !== "assistant") return;
+          if (!assistantMessageTriggersDayPrefetch(message.meta)) return;
+          void loadDayPlan()
+            .then(storePrefetchedDayPlan)
+            .catch((error) => {
+              console.warn("[Home] Failed to pre-warm Day during planning final", error);
+            });
+        }}
+        onPracticeLaunchStart={() => setPracticeHandoff(true)}
+        onPracticeLaunchAbort={() => setPracticeHandoff(false)}
+        onPracticePicked={() => dismissAssistantPracticeOverlay(finishPracticeLaunch)}
+        onRequestClose={onClose}
+      />
+    </AssistantModalShell>
   );
 }
 
@@ -531,7 +454,6 @@ function profileHasBirthData(profile: { birth_date?: string | null } | null | un
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { authUser, profile, signOut, signingIn, refreshProfile, profileLoading } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
@@ -730,17 +652,8 @@ export default function HomeScreen() {
   }, [canUseFeature]);
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
-      <StatusBar style={theme.scheme === "dark" ? "light" : "dark"} />
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingTop: insets.top + 20,
-            paddingBottom: insets.bottom + 32,
-          },
-        ]}
-      >
+    <TabScreenLayout>
+      <TabScrollView contentOptions={{ maxWidth: 460, topPadding: 20, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} />
         <AnnouncementBanner />
 
@@ -873,7 +786,7 @@ export default function HomeScreen() {
           onPress={onSignOut}
           disabled={signingIn}
         />
-      </ScrollView>
+      </TabScrollView>
 
       {communicatorMounted && forecast ? (
         <CommunicatorOverlay
@@ -937,7 +850,7 @@ export default function HomeScreen() {
           onClose={() => setUpgradeFeature(null)}
         />
       ) : null}
-    </View>
+    </TabScreenLayout>
   );
 }
 

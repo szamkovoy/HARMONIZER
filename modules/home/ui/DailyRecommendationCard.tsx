@@ -9,6 +9,8 @@ import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { SectionHeader } from "@/modules/ui/ScreenSection";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 import { ModalLongExplanation } from "./ModalLongExplanation";
 import { ModalMathLevel } from "./ModalMathLevel";
@@ -52,21 +54,13 @@ export function DailyRecommendationCard({
 
   return (
     <>
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.surfaceElevated,
-            borderColor: theme.colors.surfaceBorder,
-          },
-        ]}
-      >
+      <SurfaceCardView tone="elevated" style={styles.card}>
         <View style={styles.headerRow}>
           <View style={styles.header}>
-            <AppText variant="sectionTitle">{strings.recommendation.title}</AppText>
-            <AppText variant="technicalCaption" tone="muted">
-              {strings.recommendation.meta(strings.planetLabels[forecast.planetOfTheDay], meta.chakraName)}
-            </AppText>
+            <SectionHeader
+              title={strings.recommendation.title}
+              subtitle={strings.recommendation.meta(strings.planetLabels[forecast.planetOfTheDay], meta.chakraName)}
+            />
           </View>
         </View>
         <AppText variant="screenHint">{text}</AppText>
@@ -82,7 +76,7 @@ export function DailyRecommendationCard({
         ) : null}
         <AppButton label={strings.recommendation.readMoreButton} variant="secondary" onPress={() => setModalLevel("long")} />
         {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
-      </View>
+      </SurfaceCardView>
       <ModalLongExplanation
         visible={modalLevel === "long"}
         onClose={() => setModalLevel("none")}
@@ -111,12 +105,7 @@ export function DailyRecommendationCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    gap: 14,
-  },
+  card: {},
   header: {
     gap: 4,
     flex: 1,

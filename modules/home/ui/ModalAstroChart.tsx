@@ -6,6 +6,9 @@ import type { AspectType, DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FullScreenModalScaffold } from "@/modules/ui/FullScreenModalScaffold";
+import { ScreenSection } from "@/modules/ui/ScreenSection";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 import { AstroChartSVG, type AstroChartAspect } from "./AstroChartSVG";
 
@@ -66,27 +69,21 @@ export default function ModalAstroChart({
           StyleSheet.absoluteFillObject,
           { zIndex: 100, elevation: 24, backgroundColor: theme.colors.screenBg, flex: 1 },
         ]
-      : [styles.root, { backgroundColor: theme.colors.screenBg }];
+      : [{ flex: 1, backgroundColor: theme.colors.screenBg }];
 
   const inner = (
-    <View style={[shellStyle, { paddingTop: insets.top + 12 }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.surfaceBorder }]}>
-        <View style={styles.headerText}>
-          <AppText variant="sectionTitle">
-            {forecast ? chartCopy.titleTransit : chartCopy.titleNatal}
-          </AppText>
-          <AppText variant="technicalCaption" tone="muted">
-            {chartCopy.subtitle}
-          </AppText>
-        </View>
-        <AppButton label={strings.closeButton} variant="secondary" onPress={onClose} style={styles.closeButton} />
-      </View>
-
+    <FullScreenModalScaffold
+      title={forecast ? chartCopy.titleTransit : chartCopy.titleNatal}
+      subtitle={chartCopy.subtitle}
+      closeLabel={strings.closeButton}
+      onClose={onClose}
+      style={shellStyle}
+    >
       <ScrollView
         style={presentation === "nestedOverlay" ? { flex: 1 } : undefined}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
       >
-        <View style={[styles.chartCard, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+        <SurfaceCardView tone="elevated" style={styles.chartCard}>
           <AstroChartSVG
             natalProfile={natalProfile}
             transitPositions={forecast?.transitChart.planets}
@@ -99,30 +96,28 @@ export default function ModalAstroChart({
               {chartCopy.housesHiddenHint}
             </AppText>
           ) : null}
-        </View>
+        </SurfaceCardView>
 
         {aspects?.length ? (
-          <View style={[styles.section, { borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="sectionTitle">{chartCopy.mainAspectsTitle}</AppText>
+          <ScreenSection title={chartCopy.mainAspectsTitle} style={styles.section}>
             {aspects.slice(0, 8).map((aspect) => (
               <AppText key={`${aspect.from}-${aspect.to}-${aspect.type}`} variant="screenHint" tone="muted">
                 {formatAspectLine(aspect, strings)}
               </AppText>
             ))}
-          </View>
+          </ScreenSection>
         ) : null}
 
-        <View style={[styles.section, { borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">{chartCopy.planetStrengthsTitle}</AppText>
+        <ScreenSection title={chartCopy.planetStrengthsTitle} style={styles.section}>
           {PLANETS_7.map((planet) => (
             <AppText key={planet} variant="screenHint" tone="muted">
               {strings.planetLabels[planet]}: S = {natalProfile.planets[planet].S_initial.toFixed(2)}, H ={" "}
               {natalProfile.planets[planet].H_initial.toFixed(2)}
             </AppText>
           ))}
-        </View>
+        </ScreenSection>
       </ScrollView>
-    </View>
+    </FullScreenModalScaffold>
   );
 
   if (presentation === "nestedOverlay") {
@@ -137,27 +132,6 @@ export default function ModalAstroChart({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  header: {
-    alignItems: "center",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: "row",
-    gap: 12,
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    paddingHorizontal: 18,
-  },
-  headerText: {
-    flex: 1,
-    gap: 4,
-  },
-  closeButton: {
-    alignSelf: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
   content: {
     alignItems: "center",
     gap: 16,
@@ -165,8 +139,6 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     alignItems: "center",
-    borderRadius: 24,
-    borderWidth: 1,
     gap: 10,
     padding: 12,
     width: "100%",
@@ -175,10 +147,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   section: {
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 8,
-    padding: 14,
     width: "100%",
   },
 });

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.16
-updated: 2026-06-23
+version: 2.17
+updated: 2026-06-24
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-24 (2):** Home/Day fullscreen assistant and explainer surfaces now share more of the same UI layer as tabs. Home assistant overlay and Day assistant modal were reduced to one shared `AssistantModalShell`, while recommendation detail / math / astro modals moved onto a common fullscreen modal scaffold plus shared section/surface primitives. The day-forecast data flow is unchanged; this entry only records the new UI ownership boundary for screens that present forecast content.
+
+- **2026-06-24:** Scrollable tab screens Home/Day больше не полагаются на случайные фиксированные нижние отступы. Введён общий helper `useTabContentBottomPadding(...)`, а `app/(tabs)/index.tsx` и `app/(tabs)/day.tsx` теперь считают `paddingBottom` и `scrollIndicatorInsets` от реальной высоты tab bar. Цель — не давать карточкам и индикаторам скролла уходить под нижнюю навигацию на разных iPhone/Android safe-area конфигурациях.
 
 - **2026-06-23 (2):** Уточнён free-path transport: direct Supabase fallback после сбоя route получил отдельный **8s** timeout (`GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS`), чтобы warm DB-read не наследовал 25s abort route-контроллера. Paid-path на обычной загрузке, если сервер уже отдал полный forecast (`isDayContentComplete`), сразу использует LLM-поля без monologue rerun. Home после `createNatalProfile` показывает partial-success alert, если day refresh упал, но birth-data сохранены. Смена локали на Profile больше не вызывает `markHomeDayContentBlockingReload` — locale refresh идёт только через `subscribeAppLocale` в `useDayContent`.
 

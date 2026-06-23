@@ -30,6 +30,7 @@ import type {
   PetalProfile,
 } from "@/modules/mandala/core/types";
 import { useMandalaSession } from "@/modules/mandala/store/useMandalaSession";
+import { ScreenSection } from "@/modules/ui/ScreenSection";
 
 import { MandalaCanvas, type RenderMode } from "./MandalaCanvas";
 
@@ -50,11 +51,9 @@ interface SectionProps {
 
 function Section({ title, subtitle, children }: SectionProps) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+    <ScreenSection title={title} subtitle={subtitle} style={styles.section}>
       {children}
-    </View>
+    </ScreenSection>
   );
 }
 

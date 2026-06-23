@@ -29,6 +29,7 @@
   "groupBreath": "Ademhaling",
   "groupMeditation": "Meditaties",
   "groupYoga": "Asana's",
+  "yogaTitlePrefix": "Oefening",
   "loadCatalogError": "Kon de catalogus met oefeningen niet laden.",
   "loadingCatalog": "Catalogus laden...",
   "locale": "nl",

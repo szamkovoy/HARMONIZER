@@ -11,7 +11,11 @@ import { MandalaSoundProvider, useMandalaSoundSync } from "@/modules/mandala-sou
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { ImmersiveScreenLayout } from "@/modules/ui/ImmersiveScreenLayout";
+import { PracticeStopConfirmDialog } from "@/modules/ui/PracticeStopConfirmDialog";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
+import { useImmersiveOverlayAutohide } from "@/modules/ui/useImmersiveOverlayAutohide";
 import { recordPracticeSession, selfRatingFromMood, type PracticeCompletionMood } from "@/services/practiceSessions";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
@@ -83,11 +87,16 @@ export function SacredSymbolStreamScreen({
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [completionSaved, setCompletionSaved] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [overlayVisible, setOverlayVisible] = useState(true);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const overlayY = useRef(new Animated.Value(0)).current;
-  const overlayHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    overlayVisible,
+    clearOverlayTimer,
+    scheduleOverlayHide,
+    hideOverlay,
+    toggleOverlay,
+  } = useImmersiveOverlayAutohide({ autoHideMs: OVERLAY_AUTOHIDE_MS, initialVisible: true });
 
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState(AppState.currentState);
@@ -96,21 +105,6 @@ export function SacredSymbolStreamScreen({
   const [isPaused, setIsPaused] = useState(false);
   const [sessionSeed, setSessionSeed] = useState(1);
   const isRenderActive = isFocused && appState === "active" && !isPaused && !showRatingDialog && !showStopConfirm;
-
-  const clearOverlayTimer = useCallback(() => {
-    if (overlayHideTimerRef.current) {
-      clearTimeout(overlayHideTimerRef.current);
-      overlayHideTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleOverlayHide = useCallback(() => {
-    clearOverlayTimer();
-    overlayHideTimerRef.current = setTimeout(() => {
-      setOverlayVisible(false);
-      overlayHideTimerRef.current = null;
-    }, OVERLAY_AUTOHIDE_MS);
-  }, [clearOverlayTimer]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -132,7 +126,6 @@ export function SacredSymbolStreamScreen({
   }, [appState, isFocused, isPaused, isRenderActive, showRatingDialog, showStopConfirm]);
 
   useEffect(() => {
-    setOverlayVisible(true);
     scheduleOverlayHide();
     return () => clearOverlayTimer();
   }, [clearOverlayTimer, scheduleOverlayHide]);
@@ -152,11 +145,11 @@ export function SacredSymbolStreamScreen({
       setElapsedMs(Math.min(durationMs, elapsed));
       if (elapsed >= durationMs) {
         setShowRatingDialog(true);
-        setOverlayVisible(false);
+        hideOverlay();
       }
     }, 500);
     return () => clearInterval(id);
-  }, [durationMs, isPaused, showRatingDialog]);
+  }, [durationMs, hideOverlay, isPaused, showRatingDialog]);
 
   const completePractice = useCallback(async (mood: PracticeCompletionMood) => {
     if (!authUser?.id || savingCompletion || completionSaved) return;
@@ -187,13 +180,8 @@ export function SacredSymbolStreamScreen({
   const handleScreenTap = useCallback(() => {
     if (showRatingDialog || showStopConfirm) return;
     logRuntimeTap("meditation_screen", { overlayVisible });
-    setOverlayVisible((current) => {
-      const next = !current;
-      if (next) scheduleOverlayHide();
-      else clearOverlayTimer();
-      return next;
-    });
-  }, [clearOverlayTimer, scheduleOverlayHide, showRatingDialog, showStopConfirm]);
+    toggleOverlay();
+  }, [overlayVisible, showRatingDialog, showStopConfirm, toggleOverlay]);
 
   const requestStop = useCallback(() => {
     logRuntimeTap("meditation_stop_request");
@@ -204,7 +192,7 @@ export function SacredSymbolStreamScreen({
   const remainingMs = Math.max(0, durationMs - elapsedMs);
 
   return (
-    <View style={styles.safeArea}>
+    <ImmersiveScreenLayout style={styles.safeArea} statusBarStyle="light" backgroundColor="#000000">
       <Pressable style={styles.screen} onPress={handleScreenTap}>
         <MandalaSoundProvider
           practiceKind="meditation"
@@ -221,15 +209,11 @@ export function SacredSymbolStreamScreen({
         </MandalaSoundProvider>
 
         {overlayVisible ? (
-          <Pressable
-            accessibilityRole="button"
+          <FloatingCloseButton
             accessibilityLabel={strings.finishA11y}
             onPress={requestStop}
             style={styles.topClose}
-            hitSlop={12}
-          >
-            <Text style={styles.topCloseText}>×</Text>
-          </Pressable>
+          />
         ) : null}
 
         <View pointerEvents="none" style={styles.topOverlay}>
@@ -295,22 +279,17 @@ export function SacredSymbolStreamScreen({
         </Animated.View>
       </Pressable>
 
-      <AppDialog
+      <PracticeStopConfirmDialog
         visible={showStopConfirm}
         title={strings.stopConfirmTitle}
         message={strings.stopConfirmMessage}
-        actions={
-          <>
-            <AppButton label={strings.continueButton} variant="secondary" onPress={() => setShowStopConfirm(false)} />
-            <AppButton
-              label={strings.finishButton}
-              onPress={() => {
-                setShowStopConfirm(false);
-                setShowRatingDialog(true);
-              }}
-            />
-          </>
-        }
+        continueLabel={strings.continueButton}
+        finishLabel={strings.finishButton}
+        onContinue={() => setShowStopConfirm(false)}
+        onFinish={() => {
+          setShowStopConfirm(false);
+          setShowRatingDialog(true);
+        }}
       />
       <AppDialog
         visible={showRatingDialog}
@@ -325,7 +304,7 @@ export function SacredSymbolStreamScreen({
           </>
         }
       />
-    </View>
+    </ImmersiveScreenLayout>
   );
 }
 
@@ -339,23 +318,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
   },
   topClose: {
-    position: "absolute",
-    top: 54,
-    right: 18,
     zIndex: 30,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(18, 24, 40, 0.82)",
     borderWidth: 1,
     borderColor: "rgba(125, 143, 255, 0.24)",
-  },
-  topCloseText: {
-    color: "#ffffff",
-    fontSize: 24,
-    lineHeight: 28,
   },
   topOverlay: {
     position: "absolute",

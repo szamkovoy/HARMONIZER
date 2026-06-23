@@ -1,23 +1,27 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert, StyleSheet, View } from "react-native";
 
+import { useAppLocale } from "@/modules/i18n";
+import { getTvRemoteStrings } from "@/modules/remote-play/i18n/remotePlay";
 import { useRemotePlay } from "@/modules/remote-play/useRemotePlay";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { ModalScreenLayout } from "@/modules/ui/StackScreenLayout";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
-
-function durationLabel(seconds: number | null): string {
-  if (!seconds) return "Длительность уточняется";
-  return `${Math.max(1, Math.round(seconds / 60))} мин`;
-}
 
 export function TVRemoteScreen() {
   const theme = useTheme();
+  const { locale } = useAppLocale();
+  const strings = getTvRemoteStrings(locale);
   const remotePlay = useRemotePlay();
   const params = useLocalSearchParams<{ title?: string; durationSec?: string }>();
-  const title = typeof params.title === "string" && params.title.trim() ? params.title.trim() : "Практика на ТВ";
+  const title =
+    typeof params.title === "string" && params.title.trim()
+      ? params.title.trim()
+      : strings.titleFallback;
   const durationSec = useMemo(() => {
     const parsed = typeof params.durationSec === "string" ? Number.parseInt(params.durationSec, 10) : 0;
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -44,7 +48,7 @@ export function TVRemoteScreen() {
         await remotePlay.pause();
       }
     } catch (error) {
-      Alert.alert("Remote Play", error instanceof Error ? error.message : "Не удалось обновить статус ТВ.");
+      Alert.alert(strings.alertTitle, error instanceof Error ? error.message : strings.pauseFailed);
     }
   };
 
@@ -53,47 +57,30 @@ export function TVRemoteScreen() {
       await remotePlay.stop();
       router.back();
     } catch (error) {
-      Alert.alert("Remote Play", error instanceof Error ? error.message : "Не удалось остановить видео на ТВ.");
+      Alert.alert(strings.alertTitle, error instanceof Error ? error.message : strings.stopFailed);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Закрыть пульт"
-        onPress={() => router.back()}
-        style={({ pressed }) => [
-          styles.floatingClose,
-          {
-            backgroundColor: theme.colors.controlButtonBg,
-            opacity: pressed ? 0.72 : 1,
-          },
-        ]}
-        hitSlop={12}
-      >
-        <AppText variant="sectionTitle">×</AppText>
-      </Pressable>
-
+    <ModalScreenLayout
+      overlay={
+        <FloatingCloseButton
+          accessibilityLabel={strings.closeA11y}
+          onPress={() => router.back()}
+        />
+      }
+    >
       <View style={styles.content}>
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surfaceElevated,
-              borderColor: theme.colors.surfaceBorder,
-            },
-          ]}
-        >
+        <SurfaceCardView tone="elevated" style={styles.card}>
           <View style={styles.header}>
             <AppText variant="technicalCaption" tone="muted">
-              ТВ-пульт · код {remotePlay.session?.pairing_code ?? "не активен"}
+              {strings.meta(remotePlay.session?.pairing_code ?? strings.idleCode)}
             </AppText>
             <AppText variant="screenTitle" accessibilityRole="header">
               {title}
             </AppText>
             <AppText variant="screenHint" tone="muted">
-              Видео запущено на телевизоре. Телефон работает только как пульт управления.
+              {strings.description}
             </AppText>
           </View>
 
@@ -114,61 +101,47 @@ export function TVRemoteScreen() {
                 {Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, "0")}
               </AppText>
               <AppText variant="technicalCaption" tone="muted">
-                {durationLabel(durationSec)}
+                {durationSec
+                  ? strings.durationMinutes(Math.max(1, Math.round(durationSec / 60)))
+                  : strings.durationUnknown}
               </AppText>
             </View>
           </View>
 
           <View style={[styles.statusPill, { borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="inlineStatus">Статус: {status}</AppText>
+            <AppText variant="inlineStatus">{strings.status(status)}</AppText>
           </View>
 
           <View style={styles.actions}>
             <AppButton
-              label={status === "paused" ? "Продолжить" : "Пауза"}
+              label={status === "paused" ? strings.resumeButton : strings.pauseButton}
               onPress={pauseOrResume}
               disabled={!remotePlay.connected || remotePlay.busy || status === "stopped"}
               style={styles.actionButton}
             />
             <AppButton
-              label="Стоп"
+              label={strings.stopButton}
               variant="secondary"
               onPress={stop}
               disabled={!remotePlay.connected || remotePlay.busy}
               style={styles.actionButton}
             />
           </View>
-        </View>
+        </SurfaceCardView>
       </View>
-    </SafeAreaView>
+    </ModalScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  floatingClose: {
-    position: "absolute",
-    top: 54,
-    right: 18,
-    zIndex: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   content: {
     flex: 1,
     justifyContent: "center",
-    padding: 20,
+    width: "100%",
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 24,
     gap: 22,
-    padding: 20,
+    width: "100%",
   },
   header: {
     gap: 8,

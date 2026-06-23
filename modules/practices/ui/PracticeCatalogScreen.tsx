@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
 
 import { UpgradeDialog, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
 import { isChakra, type Chakra } from "@/modules/breath";
 import { useAppLocale } from "@/modules/i18n";
-import { filterPractices, loadPracticeCatalog, type LateYogaPracticesResult } from "@/modules/practices/core/catalog";
+import {
+  filterPractices,
+  formatPracticeCatalogError,
+  loadPracticeCatalog,
+  type LateYogaPracticesResult,
+} from "@/modules/practices/core/catalog";
 import type {
   PracticeCatalog,
   PracticeDurationBucket,
@@ -19,7 +23,11 @@ import { getPracticeCatalogStrings, getPracticeGroupTitle } from "@/modules/prac
 import { useRemotePlay } from "@/modules/remote-play";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { ScreenHeader } from "@/modules/ui/ScreenHeader";
+import { StateCard } from "@/modules/ui/StateCard";
+import { TabScreenLayout, useTabScreenContentProps } from "@/modules/ui/TabScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
+import { loadCachedYogaPractices, peekCachedYogaPractices, saveCachedYogaPractices } from "@/services/practiceCatalogCache";
 import { fetchPracticeVimeoThumbnails } from "@/services/practice-thumbnails";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
@@ -75,6 +83,7 @@ export function PracticeCatalogScreen() {
   const DURATION_FILTERS = useMemo(() => durationFilters(strings), [strings]);
   const { canUseFeature } = useAccess();
   const remotePlay = useRemotePlay();
+  const listContentProps = useTabScreenContentProps({ bottomPaddingExtra: 20 });
   const [selectedKind, setSelectedKind] = useState<PracticeKind>("meditation");
   const [chakraFilter, setChakraFilter] = useState<Chakra | "any">("any");
   const [durationFilter, setDurationFilter] = useState<PracticeDurationBucket>("any");
@@ -90,20 +99,26 @@ export function PracticeCatalogScreen() {
     error: null,
   });
   const loadSeqRef = useRef(0);
+  const visibleCatalogRef = useRef<PracticeCatalog | null>(null);
   const requestedThumbnailIdsRef = useRef<Set<string>>(new Set());
   /** Избегаем гонки: `onLateYogaPractices` может отработать раньше, чем продолжится `load()` после `await`. */
   const lateYogaSlotRef = useRef<{ resolved: false } | { resolved: true; result: LateYogaPracticesResult }>({ resolved: false });
   /** Медитации+дыхание из последнего `loadPracticeCatalog` — чтобы колбэк йоги мог собрать каталог до `status: ready`. */
   const catalogMeditationBreathRef = useRef<Pick<PracticeCatalog, "meditation" | "breath"> | null>(null);
-  /** Йога пришла до того, как ref среза успели записать (редкий порядок микрозадач). */
-  const pendingLateYogaRef = useRef<PracticeSummary[] | null>(null);
+  /** Йога/ошибка пришла до того, как ref среза успели записать (редкий порядок микрозадач). */
+  const pendingLateYogaRef = useRef<LateYogaPracticesResult | null>(null);
+
+  const setCatalogState = useCallback((next: CatalogState) => {
+    visibleCatalogRef.current = next.catalog;
+    setState(next);
+  }, []);
 
   const load = useCallback(
     async () => {
       const seq = ++loadSeqRef.current;
       const startedAt = Date.now();
       logRuntimeEvent("practice_catalog:screen_load_start", { seq });
-      setState({ status: "loading", catalog: null, error: null });
+      setCatalogState({ status: "loading", catalog: null, error: null });
       setYogaLateLoading(false);
       lateYogaSlotRef.current = { resolved: false };
       catalogMeditationBreathRef.current = null;
@@ -111,15 +126,19 @@ export function PracticeCatalogScreen() {
       requestedThumbnailIdsRef.current = new Set();
       setYogaThumbnails({});
       try {
-        setYogaLateLoading(true);
+        const cachedYoga = (peekCachedYogaPractices(catalogLocale) ?? (await loadCachedYogaPractices(catalogLocale))) ?? [];
+        if (seq !== loadSeqRef.current) return;
+        setYogaLateLoading(cachedYoga.length === 0);
         const catalog = await loadPracticeCatalog({
           locale: catalogLocale,
+          initialYoga: cachedYoga,
           onLateYogaPractices: (yoga) => {
             if (seq !== loadSeqRef.current) return;
             lateYogaSlotRef.current = { resolved: true, result: yoga };
             const mb = catalogMeditationBreathRef.current;
+            const visibleYoga = visibleCatalogRef.current?.yoga ?? [];
             if (!mb) {
-              pendingLateYogaRef.current = yoga.practices;
+              pendingLateYogaRef.current = yoga;
               logRuntimeEvent(
                 "practice_catalog:screen_late_yoga_pending_mb",
                 { seq, yogaCount: yoga.practices.length, state: yoga.state },
@@ -129,13 +148,25 @@ export function PracticeCatalogScreen() {
             }
             pendingLateYogaRef.current = null;
             if (yoga.state === "timeout") {
-              setYogaLateLoading(true);
+              setYogaLateLoading(visibleYoga.length === 0);
               logRuntimeEvent("practice_catalog:screen_late_yoga_timeout", { seq }, "warn");
               return;
             }
             setYogaLateLoading(false);
             if (yoga.state === "error") {
-              setState({
+              if (visibleYoga.length > 0) {
+                logRuntimeEvent(
+                  "practice_catalog:screen_late_yoga_error_using_cache",
+                  {
+                    seq,
+                    message: yoga.errorMessage ?? strings.loadCatalogError,
+                    cachedYogaCount: visibleYoga.length,
+                  },
+                  "warn",
+                );
+                return;
+              }
+              setCatalogState({
                 status: "error",
                 catalog: { ...mb, yoga: [] },
                 error: yoga.errorMessage ?? strings.loadCatalogError,
@@ -146,11 +177,13 @@ export function PracticeCatalogScreen() {
               }, "warn");
               return;
             }
-            setState({
+            const nextCatalog = { ...mb, yoga: yoga.practices };
+            setCatalogState({
               status: "ready",
-              catalog: { ...mb, yoga: yoga.practices },
+              catalog: nextCatalog,
               error: null,
             });
+            void saveCachedYogaPractices(catalogLocale, yoga.practices);
             logRuntimeEvent("practice_catalog:screen_late_yoga_ready", {
               seq,
               yogaCount: yoga.practices.length,
@@ -162,19 +195,33 @@ export function PracticeCatalogScreen() {
           breath: catalog.breath,
         };
         if (pendingLateYogaRef.current !== null) {
-          const pendingYoga = pendingLateYogaRef.current as PracticeSummary[];
+          const pendingYoga: LateYogaPracticesResult = pendingLateYogaRef.current;
           pendingLateYogaRef.current = null;
-          lateYogaSlotRef.current = { resolved: true, result: { practices: pendingYoga, state: "ready" } };
-          setYogaLateLoading(false);
-          setState({
-            status: "ready",
-            catalog: { ...catalogMeditationBreathRef.current, yoga: pendingYoga },
-            error: null,
-          });
-          logRuntimeEvent("practice_catalog:screen_late_yoga_flushed_pending", {
-            seq,
-            yogaCount: pendingYoga.length,
-          });
+          lateYogaSlotRef.current = { resolved: true, result: pendingYoga };
+          if (pendingYoga.state === "ready") {
+            setYogaLateLoading(false);
+            const nextCatalog = { ...catalogMeditationBreathRef.current, yoga: pendingYoga.practices };
+            setCatalogState({
+              status: "ready",
+              catalog: nextCatalog,
+              error: null,
+            });
+            void saveCachedYogaPractices(catalogLocale, pendingYoga.practices);
+            logRuntimeEvent("practice_catalog:screen_late_yoga_flushed_pending", {
+              seq,
+              yogaCount: pendingYoga.practices.length,
+            });
+          } else if (pendingYoga.state === "error" && catalog.yoga.length === 0) {
+            setYogaLateLoading(false);
+            setCatalogState({
+              status: "error",
+              catalog,
+              error: pendingYoga.errorMessage ?? strings.loadCatalogError,
+            });
+            return;
+          } else {
+            setYogaLateLoading(catalog.yoga.length === 0);
+          }
         }
         // Late yoga can arrive on a later microtask/macrotask boundary; flush one
         // immediate turn before deciding that the list is truly empty.
@@ -185,6 +232,7 @@ export function PracticeCatalogScreen() {
           late.resolved && late.result.state === "ready"
             ? late.result.practices
             : catalog.yoga;
+        if (late.resolved && late.result.state === "error" && mergedYoga.length === 0) return;
         logRuntimeEvent("practice_catalog:screen_load_ready", {
           seq,
           durationMs: Date.now() - startedAt,
@@ -194,26 +242,29 @@ export function PracticeCatalogScreen() {
           yogaLateAlready: late.resolved,
           yogaLateState: late.resolved ? late.result.state : "initial",
         });
-        setState({ status: "ready", catalog: { ...catalog, yoga: mergedYoga }, error: null });
-        if (late.resolved && late.result.state !== "timeout") {
-          setYogaLateLoading(false);
+        setCatalogState({ status: "ready", catalog: { ...catalog, yoga: mergedYoga }, error: null });
+        if (late.resolved) {
+          setYogaLateLoading(late.result.state === "timeout" && mergedYoga.length === 0);
+        } else {
+          setYogaLateLoading(mergedYoga.length === 0);
         }
       } catch (error) {
         if (seq !== loadSeqRef.current) return;
+        const message = formatPracticeCatalogError(error);
         logRuntimeEvent(
           "practice_catalog:screen_load_error",
-          { seq, durationMs: Date.now() - startedAt, message: error instanceof Error ? error.message : String(error) },
+          { seq, durationMs: Date.now() - startedAt, message },
           "warn",
         );
         setYogaLateLoading(false);
-        setState({
+        setCatalogState({
           status: "error",
           catalog: EMPTY_CATALOG,
-          error: error instanceof Error ? error.message : strings.loadCatalogError,
+          error: message || strings.loadCatalogError,
         });
       }
     },
-    [catalogLocale, strings.loadCatalogError],
+    [catalogLocale, setCatalogState, strings.loadCatalogError],
   );
 
   useEffect(() => {
@@ -400,34 +451,20 @@ export function PracticeCatalogScreen() {
   const listHeader = useMemo(
     () => (
       <View style={styles.headerContent}>
-        <View style={styles.header}>
-          <AppText variant="screenTitle" accessibilityRole="header">
-            {strings.screenTitle}
-          </AppText>
-          <AppText variant="screenHint" tone="muted">
-            {strings.screenSubtitle}
-          </AppText>
-        </View>
+        <ScreenHeader title={strings.screenTitle} subtitle={strings.screenSubtitle} />
 
         {state.status === "loading" ? (
-          <View style={[styles.stateCard, { borderColor: theme.colors.surfaceBorder }]}>
-            <ActivityIndicator color={theme.colors.accent} />
-            <AppText variant="screenHint" tone="muted">
-              {strings.loadingCatalog}
-            </AppText>
-          </View>
+          <StateCard loading message={strings.loadingCatalog} />
         ) : null}
 
         {state.status === "error" ? (
-          <View style={[styles.stateCard, { borderColor: theme.colors.warning }]}>
-            <AppText variant="sectionTitle" tone="warning">
-              {strings.partialCatalogTitle}
-            </AppText>
-            <AppText variant="dialogBody" tone="muted">
-              {state.error}
-            </AppText>
-            <AppButton label={strings.retryButton} variant="secondary" onPress={load} />
-          </View>
+          <StateCard
+            title={strings.partialCatalogTitle}
+            message={state.error}
+            tone="warning"
+            actionLabel={strings.retryButton}
+            onAction={load}
+          />
         ) : null}
 
         {state.status !== "loading" ? (
@@ -564,44 +601,17 @@ export function PracticeCatalogScreen() {
     if (state.status === "loading") return null;
     if (selectedKind === "yoga" && yogaLateLoading) {
       return (
-        <View
-          style={[
-            styles.emptyCard,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.surfaceBorder,
-            },
-          ]}
-        >
-          <ActivityIndicator color={theme.colors.accent} />
-          <AppText variant="sectionTitle">{strings.yogaLateLoadingTitle}</AppText>
-          <AppText variant="dialogBody" tone="muted">
-            {strings.yogaLateHint}
-          </AppText>
-        </View>
+        <StateCard loading title={strings.yogaLateLoadingTitle} message={strings.yogaLateHint} />
       );
     }
 
     return (
-      <View
-        style={[
-          styles.emptyCard,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.surfaceBorder,
-          },
-        ]}
-      >
-        <AppText variant="sectionTitle">{strings.emptyPracticesTitle}</AppText>
-        <AppText variant="dialogBody" tone="muted">
-          {strings.emptyPracticesHint}
-        </AppText>
-      </View>
+      <StateCard title={strings.emptyPracticesTitle} message={strings.emptyPracticesHint} />
     );
-  }, [selectedKind, state.status, strings.emptyPracticesHint, strings.emptyPracticesTitle, strings.yogaLateHint, strings.yogaLateLoadingTitle, theme.colors.accent, theme.colors.surface, theme.colors.surfaceBorder, yogaLateLoading]);
+  }, [selectedKind, state.status, strings.emptyPracticesHint, strings.emptyPracticesTitle, strings.yogaLateHint, strings.yogaLateLoadingTitle, yogaLateLoading]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.screenBg }]}>
+    <TabScreenLayout>
       <FlatList
         data={selectedPractices}
         keyExtractor={(practice) => `${practice.kind}:${practice.slug}`}
@@ -622,12 +632,13 @@ export function PracticeCatalogScreen() {
           ) : null
         }
         ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={listContentProps.contentContainerStyle}
         initialNumToRender={6}
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={50}
         windowSize={5}
         removeClippedSubviews
+        scrollIndicatorInsets={listContentProps.scrollIndicatorInsets}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
       />
@@ -639,7 +650,7 @@ export function PracticeCatalogScreen() {
           onClose={() => setLockedFeature(null)}
         />
       ) : null}
-    </SafeAreaView>
+    </TabScreenLayout>
   );
 }
 
@@ -666,26 +677,12 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   content: {
-    padding: 20,
-    paddingBottom: 28,
+    paddingTop: 20,
   },
   headerContent: {
     gap: 18,
     paddingBottom: 18,
-  },
-  header: {
-    gap: 8,
-  },
-  stateCard: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    padding: 16,
-    gap: 10,
-    alignItems: "flex-start",
   },
   groupGrid: {
     flexDirection: "row",
@@ -742,12 +739,6 @@ const styles = StyleSheet.create({
   },
   itemSeparator: {
     height: 12,
-  },
-  emptyCard: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    padding: 16,
-    gap: 8,
   },
   footer: {
     textAlign: "center",

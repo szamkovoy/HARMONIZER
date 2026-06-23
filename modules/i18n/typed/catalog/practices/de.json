@@ -29,6 +29,7 @@
   "groupBreath": "Atmung",
   "groupMeditation": "Meditationen",
   "groupYoga": "Asanas",
+  "yogaTitlePrefix": "Übung",
   "loadCatalogError": "Der Übungskatalog konnte nicht geladen werden.",
   "loadingCatalog": "Katalog wird geladen...",
   "locale": "de",

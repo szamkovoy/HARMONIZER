@@ -110,8 +110,11 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
 import { CountdownRing } from "@/modules/ui/CountdownRing";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { PracticeStopConfirmDialog } from "@/modules/ui/PracticeStopConfirmDialog";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
+import { useImmersiveOverlayAutohide } from "@/modules/ui/useImmersiveOverlayAutohide";
 import { recordPracticeSession, selfRatingFromMood } from "@/services/practiceSessions";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type { Json } from "@/services/supabase-types";
@@ -826,8 +829,13 @@ function CoherenceBreathScreenInner({
    *  - если тап попал по самой панели / её контролам → таймер бездействия сбрасывается;
    *  - по истечении `OVERLAY_AUTOHIDE_MS` без касаний панель уезжает вниз.
    */
-  const [overlayVisible, setOverlayVisible] = useState(false);
-  const overlayHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    overlayVisible,
+    setOverlayVisible,
+    clearOverlayTimer,
+    scheduleOverlayHide,
+    toggleOverlay,
+  } = useImmersiveOverlayAutohide({ autoHideMs: OVERLAY_AUTOHIDE_MS, initialVisible: false });
   /** Диалог подтверждения досрочного выхода из практики (крестик на панели). */
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const autoStartedRef = useRef(false);
@@ -2113,13 +2121,6 @@ function CoherenceBreathScreenInner({
 
   // ─── Панель управления: auto-hide, тап-по-экрану, клик мимо панели ────────
 
-  const clearOverlayTimer = useCallback(() => {
-    if (overlayHideTimerRef.current != null) {
-      clearTimeout(overlayHideTimerRef.current);
-      overlayHideTimerRef.current = null;
-    }
-  }, []);
-
   /**
    * Полный сброс пайплайна/гибрида после выхода из running (ручной стоп или авто-аборт).
    * Не меняет `phase` — вызывающий обязан перевести экран в `idle` / иначе.
@@ -2234,23 +2235,10 @@ function CoherenceBreathScreenInner({
     return () => sub.remove();
   }, [pipeline]);
 
-  const scheduleOverlayHide = useCallback(() => {
-    clearOverlayTimer();
-    overlayHideTimerRef.current = setTimeout(() => {
-      overlayHideTimerRef.current = null;
-      setOverlayVisible(false);
-    }, OVERLAY_AUTOHIDE_MS);
-  }, [clearOverlayTimer]);
-
   const handleScreenTap = useCallback(() => {
     if (showStopConfirm) return;
-    setOverlayVisible((prev) => {
-      const next = !prev;
-      if (next) scheduleOverlayHide();
-      else clearOverlayTimer();
-      return next;
-    });
-  }, [scheduleOverlayHide, clearOverlayTimer, showStopConfirm]);
+    toggleOverlay();
+  }, [showStopConfirm, toggleOverlay]);
 
   const handleOverlayInteraction = useCallback(() => {
     scheduleOverlayHide();
@@ -3154,17 +3142,11 @@ function CoherenceBreathScreenInner({
             biofeedbackEnabled
           >
             {overlayVisible ? (
-              <Pressable
-                accessibilityRole="button"
+              <FloatingCloseButton
                 accessibilityLabel={str.stopConfirmTitle}
                 onPress={handleRequestStop}
                 style={styles.topCloseButton}
-                hitSlop={12}
-              >
-                <AppText variant="sectionTitle" tone="primary" style={styles.topCloseText}>
-                  ×
-                </AppText>
-              </Pressable>
+              />
             ) : null}
             <BreathPracticeShell
               isBreathTimingActive={isBreathTimingActive}
@@ -3239,34 +3221,22 @@ function CoherenceBreathScreenInner({
       ) : null}
 
       {phase === "running" ? (
-        <AppDialog
+        <PracticeStopConfirmDialog
           visible={showStopConfirm}
           title={str.stopConfirmTitle}
           message={str.stopConfirmMessage}
-          actions={
-            <>
-              <AppButton
-                variant="secondary"
-                label={str.stopConfirmNo}
-                onPress={() => {
-                  setShowStopConfirm(false);
-                  setOverlayVisible(true);
-                  scheduleOverlayHide();
-                }}
-                style={styles.dialogAction}
-              />
-              <AppButton
-                variant="primary"
-                label={str.stopConfirmYes}
-                onPress={() => {
-                  applyHardPracticeExit();
-                  setShowAutoAbortDialog(false);
-                  setPhase("idle");
-                }}
-                style={styles.dialogAction}
-              />
-            </>
-          }
+          continueLabel={str.stopConfirmNo}
+          finishLabel={str.stopConfirmYes}
+          onContinue={() => {
+            setShowStopConfirm(false);
+            setOverlayVisible(true);
+            scheduleOverlayHide();
+          }}
+          onFinish={() => {
+            applyHardPracticeExit();
+            setShowAutoAbortDialog(false);
+            setPhase("idle");
+          }}
         />
       ) : null}
 
@@ -4047,10 +4017,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(18, 24, 40, 0.82)",
     borderWidth: 1,
     borderColor: "rgba(125, 143, 255, 0.24)",
-  },
-  topCloseText: {
-    fontSize: 24,
-    lineHeight: 28,
   },
   /**
    * Чёрная штора поверх всего. В обычное время прозрачна и не ловит касания. Используется

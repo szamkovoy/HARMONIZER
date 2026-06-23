@@ -1,4 +1,3 @@
-/** Единый каркас белых/поверхностных блоков (Home «День», Profile отчёты, Home карточки). */
 export const SURFACE_CARD = {
   padding: 18,
   gap: 14,

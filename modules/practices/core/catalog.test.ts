@@ -38,7 +38,7 @@ vi.mock("@/modules/breath/i18n/coherence", () => ({
 }));
 
 import type { PracticeSummary } from "./types";
-import { loadPracticeCatalog } from "./catalog";
+import { formatPracticeCatalogError, loadPracticeCatalog, resolveYogaPracticeTitle } from "./catalog";
 
 vi.mock("@/services/runtimeDiagnostics", () => ({
   logRuntimeEvent: vi.fn(),
@@ -86,6 +86,27 @@ describe("loadPracticeCatalog", () => {
     expect(catalog.meditation).toHaveLength(1);
     expect(catalog.breath).toHaveLength(7);
     expect(catalog.yoga).toEqual([]);
+    expect(onLateYogaPractices).not.toHaveBeenCalled();
+
+    resolveYoga([YOGA_PRACTICE]);
+    await yieldToDeferredCatalogWork();
+
+    expect(onLateYogaPractices).toHaveBeenCalledWith({ practices: [YOGA_PRACTICE], state: "ready" });
+  });
+
+  it("returns cached yoga immediately while the fresh list is still loading", async () => {
+    let resolveYoga!: (value: PracticeSummary[]) => void;
+    const yogaPromise = new Promise<PracticeSummary[]>((resolve) => {
+      resolveYoga = resolve;
+    });
+    const onLateYogaPractices = vi.fn();
+
+    const catalog = await loadPracticeCatalog(
+      { initialYoga: [YOGA_PRACTICE], onLateYogaPractices },
+      { loadYogaPractices: () => yogaPromise },
+    );
+
+    expect(catalog.yoga).toEqual([YOGA_PRACTICE]);
     expect(onLateYogaPractices).not.toHaveBeenCalled();
 
     resolveYoga([YOGA_PRACTICE]);
@@ -146,5 +167,24 @@ describe("loadPracticeCatalog", () => {
     expect(catalog.meditation).toHaveLength(1);
     expect(catalog.breath).toHaveLength(7);
     expect(catalog.yoga).toEqual([YOGA_PRACTICE]);
+  });
+
+  it("formats object-shaped catalog errors for the UI", () => {
+    expect(
+      formatPracticeCatalogError({
+        message: "Failed to fetch",
+        details: "connection pool timeout",
+        code: "57014",
+      }),
+    ).toBe("Failed to fetch | connection pool timeout | 57014");
+  });
+
+  it("normalizes imported yoga titles to the locale-specific practice prefix", () => {
+    expect(resolveYogaPracticeTitle({ ru: "Пробуждение: 3_0819_и3" } as never, "fallback", "ru")).toBe(
+      "Практика: 3_0819",
+    );
+    expect(resolveYogaPracticeTitle({ ru: "Пробуждение: 3_0819_и3" } as never, "fallback", "de")).toBe(
+      "Übung: 3_0819",
+    );
   });
 });

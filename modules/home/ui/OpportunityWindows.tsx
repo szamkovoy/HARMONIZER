@@ -23,6 +23,8 @@ import type { AccessMode } from "@/services/globalContentClient";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
+import { SectionHeader } from "@/modules/ui/ScreenSection";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 import {
   buildOpportunityAlarmStyleContent,
@@ -780,21 +782,13 @@ export function OpportunityWindows({
   }, [accessMode, planetOfTheDay, windows]);
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.surfaceBorder,
-        },
-      ]}
-    >
+    <SurfaceCardView style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.header}>
-          <AppText variant="sectionTitle">{t.title}</AppText>
-          <AppText variant="technicalCaption" tone="muted">
-            {t.subtitle(strings.planetLabels[planetOfTheDay])}
-          </AppText>
+          <SectionHeader
+            title={t.title}
+            subtitle={t.subtitle(strings.planetLabels[planetOfTheDay])}
+          />
           {graphPlanet !== planetOfTheDay ? (
             <AppText variant="technicalCaption" tone="muted">
               {t.graphTrack(strings.planetLabels[graphPlanet])}
@@ -1022,7 +1016,7 @@ export function OpportunityWindows({
           </View>
         </View>
       </Modal>
-    </View>
+    </SurfaceCardView>
   );
 }
 

@@ -1,18 +1,23 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { UpgradeDialog, requiredTierFor, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
+import { useAppLocale } from "@/modules/i18n";
+import { resolveYogaPracticeTitle } from "@/modules/practices/core/catalog";
+import { getAsanaScreenStrings } from "@/modules/practices/i18n/asanaScreen";
+import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { ScreenHeader } from "@/modules/ui/ScreenHeader";
+import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
+import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession } from "@/services/practiceSessions";
 import { getSupabase } from "@/services/supabase";
 import type { Database } from "@/services/supabase-types";
-import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type ChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -22,29 +27,21 @@ type AsanaMetadata = {
   chakras: ChakraRow[];
 };
 
-function localizedText(value: unknown, fallback: string): string {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (value && typeof value === "object") {
-    const record = value as { ru?: unknown; en?: unknown };
-    if (typeof record.ru === "string" && record.ru.trim()) return record.ru.trim();
-    if (typeof record.en === "string" && record.en.trim()) return record.en.trim();
-  }
-  return fallback;
-}
-
 function paramsRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function durationMinutes(seconds: number | null): string {
-  if (!seconds) return "уточняется";
-  return `${Math.max(1, Math.round(seconds / 60))} мин`;
+function durationMinutes(seconds: number | null, formatMinutes: (minutes: number) => string): string {
+  if (!seconds) return "";
+  return formatMinutes(Math.max(1, Math.round(seconds / 60)));
 }
 
 export default function AsanaPracticeRoute() {
   const theme = useTheme();
   const { canUseFeature } = useAccess();
   const { authUser } = useAuth();
+  const { locale } = useAppLocale();
+  const strings = getAsanaScreenStrings(locale);
   const params = useLocalSearchParams<{
     practiceId?: string;
     durationMs?: string;
@@ -82,7 +79,7 @@ export default function AsanaPracticeRoute() {
           .eq("id", practiceId)
           .maybeSingle();
         if (error) throw error;
-        if (!practice) throw new Error("Практика не найдена.");
+        if (!practice) throw new Error(strings.practiceNotFound);
         const { data: chakras, error: chakraError } = await supabase
           .from("practice_chakras")
           .select("*")
@@ -91,7 +88,9 @@ export default function AsanaPracticeRoute() {
         if (chakraError) throw chakraError;
         if (!cancelled) setMetadata({ practice, chakras: chakras ?? [] });
       } catch (error) {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : "Не удалось загрузить практику.");
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : strings.loadFailed);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -104,12 +103,14 @@ export default function AsanaPracticeRoute() {
 
   const practice = metadata?.practice ?? null;
   const parsedParams = paramsRecord(practice?.params);
-  const title = practice ? localizedText(practice.title, "Практика асан") : "Практика асан";
+  const title = practice
+    ? resolveYogaPracticeTitle(practice.title, strings.defaultTitle, locale)
+    : strings.defaultTitle;
   const vimeoId = practice?.video_external_id ?? null;
   const chakraLabel =
     metadata?.chakras.length
       ? metadata.chakras.map((item) => item.chakra_id).join(", ")
-      : params.chakra ?? "не выбрана";
+      : params.chakra ?? strings.valueNotSelected;
 
   const completePractice = async () => {
     if (!authUser?.id || !practice || completionSaved || savingCompletion) return;
@@ -140,41 +141,15 @@ export default function AsanaPracticeRoute() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Закрыть практику"
+    <StackScreenLayout statusBarStyle="light">
+      <FloatingCloseButton
+        accessibilityLabel={strings.closeA11y}
         onPress={() => router.back()}
-        style={({ pressed }) => [
-          styles.floatingClose,
-          {
-            backgroundColor: theme.colors.controlButtonBg,
-            opacity: pressed ? 0.72 : 1,
-          },
-        ]}
-        hitSlop={12}
-      >
-        <AppText variant="sectionTitle">×</AppText>
-      </Pressable>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surfaceElevated,
-              borderColor: theme.colors.surfaceBorder,
-            },
-          ]}
-        >
+      />
+      <StackScrollView contentOptions={{ topPadding: 40, bottomPaddingExtra: 40, maxWidth: 720 }}>
+        <SurfaceCardView tone="elevated" style={styles.card}>
           {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
-          <AppText variant="screenTitle" accessibilityRole="header">
-            {title}
-          </AppText>
-          <AppText variant="screenHint" tone="muted">
-            Локальный Vimeo-плеер временно отключён: текущий dev-client не содержит native WebView-модуль.
-            Следующий шаг — запуск асан через Remote Play на большом экране.
-          </AppText>
+          <ScreenHeader title={title} subtitle={strings.unavailableNote} />
 
           {loadError ? (
             <AppText variant="dialogBody" tone="warning">
@@ -184,39 +159,56 @@ export default function AsanaPracticeRoute() {
 
           {vimeoId && canUseFeature("asana_practices") ? (
             <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
-              <AppText variant="sectionTitle">Видео готово к удалённому запуску</AppText>
+              <AppText variant="sectionTitle">{strings.videoReadyTitle}</AppText>
               <AppText variant="dialogBody" tone="muted">
-                Vimeo ID: {vimeoId}
+                {strings.metaVimeoId}: {vimeoId}
               </AppText>
             </View>
           ) : null}
 
           <View style={styles.metaBlock}>
-            <MetaRow label="practiceId" value={practiceId ?? "не передан"} />
-            <MetaRow label="Vimeo ID" value={vimeoId ?? "уточняется"} />
-            <MetaRow label="Длительность" value={practice ? durationMinutes(practice.default_duration_sec) : routeDurationMinutes ? `${routeDurationMinutes} мин` : "уточняется"} />
-            <MetaRow label="Чакры" value={chakraLabel} />
-            {typeof parsedParams.recorded_at === "string" ? <MetaRow label="Дата записи" value={parsedParams.recorded_at} /> : null}
-            <MetaRow label="Источник запуска" value={launchSource} />
+            <MetaRow label={strings.metaPracticeId} value={practiceId ?? strings.valueUnknown} />
+            <MetaRow label={strings.metaVimeoId} value={vimeoId ?? strings.valueUnknown} />
+            <MetaRow
+              label={strings.metaDuration}
+              value={
+                practice
+                  ? durationMinutes(practice.default_duration_sec, strings.formatDurationMinutes) || strings.valueUnknown
+                  : routeDurationMinutes
+                    ? strings.formatDurationMinutes(routeDurationMinutes)
+                    : strings.valueUnknown
+              }
+            />
+            <MetaRow label={strings.metaChakras} value={chakraLabel} />
+            {typeof parsedParams.recorded_at === "string" ? (
+              <MetaRow label={strings.metaRecordedAt} value={parsedParams.recorded_at} />
+            ) : null}
+            <MetaRow label={strings.metaLaunchSource} value={launchSource} />
           </View>
 
           <View style={styles.actionRow}>
             <AppButton
-              label={completionSaved ? "Практика сохранена" : savingCompletion ? "Сохраняем..." : "Завершить практику"}
+              label={
+                completionSaved
+                  ? strings.completedButton
+                  : savingCompletion
+                    ? strings.completingButton
+                    : strings.completeButton
+              }
               onPress={completePractice}
               disabled={!practice || !authUser?.id || completionSaved || savingCompletion}
             />
-            <AppButton label="Назад к каталогу" variant="secondary" onPress={() => router.back()} />
+            <AppButton label={strings.backToCatalogButton} variant="secondary" onPress={() => router.back()} />
           </View>
-        </View>
-      </ScrollView>
+        </SurfaceCardView>
+      </StackScrollView>
       <UpgradeDialog
         visible={!canUseFeature("asana_practices")}
         feature="asana_practices"
         requiredTier={requiredTierFor("asana_practices")}
         onClose={() => router.back()}
       />
-    </SafeAreaView>
+    </StackScreenLayout>
   );
 }
 
@@ -232,37 +224,13 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#000000",
-  },
-  content: {
-    padding: 20,
-    flexGrow: 1,
-    justifyContent: "center",
-  },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 24,
-    padding: 20,
     gap: 16,
-  },
-  floatingClose: {
-    position: "absolute",
-    top: 54,
-    right: 18,
-    zIndex: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
   },
   playerPlaceholder: {
     aspectRatio: 16 / 9,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 16,
-    backgroundColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
