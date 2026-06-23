@@ -1,8 +1,8 @@
 ---
 id: 02_modules/chakra/dependencies
 title: Chakra Dependencies
-version: 1.3
-updated: 2026-06-21
+version: 1.4
+updated: 2026-06-23
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts]
 ---
@@ -16,7 +16,7 @@ code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts]
 - **`daily_forecast` (home UI / i18n)**
   - `modules/home/i18n/home.ts`, `DailyRecommendationCard.tsx` — `chakraLabelGenitive(locale, …)` в fallback-рекомендациях.
   - `modules/home/planetChakra.ts` — **`getPlanetChakraMap(locale)`** для `shortLabel`/`chakraName`; JSON даёт номер/ключ/цвет.
-  - `ChakraFlower`, `PlanetOfDayBanner`, `ModalMathLevel` — locale-aware map/labels; у `ChakraFlower` легенда — **`planetLabels`** из home i18n (не `chakraShortLabelDisplay`); цвет лепестков — `CHAKRA_SEGMENT_COLORS` из `charts` (не `meta.color` из JSON).
+  - `ChakraFlower`, `PlanetOfDayBanner`, `ModalMathLevel` — locale-aware map/labels; у `ChakraFlower` легенда и подпись в центре — **`planetLabels`** из home i18n (не `chakraShortLabelDisplay`); цвет лепестков — `CHAKRA_SEGMENT_COLORS` из `charts` (не `meta.color` из JSON).
 
 - **`practices`** — `PracticeCard` / catalog: `chakraTagLabel`, `chakraShortLabelDisplay`.
 

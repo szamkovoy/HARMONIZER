@@ -1,13 +1,15 @@
 ---
 id: 02_modules/charts/history
 title: Charts History
-version: 1.1
-updated: 2026-06-21
+version: 1.2
+updated: 2026-06-23
 depends_on: [02_modules/charts/spec]
 code_refs: [modules/charts]
 ---
 
 ## Decision Log
+
+- **2026-06-23:** Home `ChakraFlower` больше не импортирует `getChartStrings`; центральная подпись — `planetLabels[planetOfTheDay]` из home i18n. Поле `strengthLabel` в typed-модуле charts остаётся без потребителей.
 
 - **2026-06-21:** `calcBalance` ужесточён второй итерацией: вместо coverage-first/MAD используется нормализованное евклидово отклонение от идеала `1/7` по всем семи сегментам + степень `1.6`. Причина: предыдущая правка устранила парадокс `2 сегмента < 1 сегмента`, но всё ещё давала слишком “щедрые” `96–97%` у заметно неровных диаграмм.
 

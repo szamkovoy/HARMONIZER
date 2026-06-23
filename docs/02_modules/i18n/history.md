@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.7
-updated: 2026-06-22
+version: 1.8
+updated: 2026-06-23
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-23:** Home typed overlays **`planetLabels`** теперь также питают подпись в центре **`ChakraFlower`** (вместо charts `strengthLabel`).
 
 - **2026-06-22:** Home typed overlays (de/fr/it/es/pt/nl): **`planetLabels`** (Sun→Saturn) for `ChakraFlower` legend; **`chakraFlower.caption`** split into **`captionFree`** / **`captionPersonal`** (title «Архетипы дня» / locale equivalents).
 

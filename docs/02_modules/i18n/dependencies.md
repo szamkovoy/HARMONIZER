@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.10
-updated: 2026-06-22
+version: 1.11
+updated: 2026-06-23
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -48,11 +48,11 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `subscription` (`modules/access/ui/UpgradeDialog.tsx`) | `useTranslate()` — `tier.*`, `upgrade.*` | Tier/feature labels and body text via JSON catalog (not `TIER_LABELS`). |
 | `life-spheres` (`modules/life-spheres/labels.ts`) | `AppContentLocale`, `asContentLocale` | Client sphere titles for all 8 locales (`SPHERE_TITLES`). |
 | `profile` (`app/(tabs)/profile.tsx`) | `useAppLocale`, `useTranslate`, `APP_LOCALE_OPTIONS`, `setLocale` | Hosts the **language selector**; passes the shared locale into `getProfileReportStrings` and report cards. |
-| `home` (`app/(tabs)/index.tsx`, `ChakraFlower`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + the `<Communicator locale=...>` prop follow the store; typed overlays (de/fr/it/es/pt/nl) include **`planetLabels`** and **`chakraFlower.captionFree`** / **`captionPersonal`**. |
+| `home` (`app/(tabs)/index.tsx`, `ChakraFlower`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + the `<Communicator locale=...>` prop follow the store; typed overlays (de/fr/it/es/pt/nl) include **`planetLabels`** (легенда и подпись в центре `ChakraFlower`) and **`chakraFlower.captionFree`** / **`captionPersonal`**. |
 | `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |
 | `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |
-| `charts` (`DonutChart`, `ChakraFlower`) | `getChartStrings(locale)` via `mergeTypedLocale("charts", …)` | `DonutChart`: center `balanceLabel`; `ChakraFlower` (home): center caption `strengthLabel`. RU/EN inline in `modules/charts/i18n/charts.ts`, de/fr/it/es/pt/nl in `typed/catalog/charts/*.json`. |
+| `charts` (`DonutChart`) | `getChartStrings(locale)` via `mergeTypedLocale("charts", …)` | `DonutChart`: center `balanceLabel`. RU/EN inline in `modules/charts/i18n/charts.ts`, de/fr/it/es/pt/nl in `typed/catalog/charts/*.json`. |
 | `communicator` (`Communicator.tsx`) | `useAppLocale()`, `getTranscribeLocale()` | Default STT via `getTranscribeLocale()` (active locale). Each dialog POST sends **`responseLocale`** + **`inputLocale`**; with `EXPO_PUBLIC_I18N_TEST_MODE` voice turns may auto-detect speech and temporarily route the reply there, while outside test mode the reply stays on the selected/profile locale. UI strings still come from the host `locale` prop. |
 | `services/communicator-client.ts` | `getResponseLocale()`, `getTranscribeLocale()` | `buildDialogPostBody` adds `responseLocale` and `inputLocale` to every dialog POST (defaults = active locale for both); voice flow may still override per turn when test mode intentionally enables speech-driven replies. |
 | `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale`; mirrors active locale to Supabase `users.locale`. |

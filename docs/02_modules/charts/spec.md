@@ -1,8 +1,8 @@
 ---
 id: 02_modules/charts/spec
 title: Charts Spec
-version: 1.4
-updated: 2026-06-21
+version: 1.5
+updated: 2026-06-23
 depends_on: [02_modules/i18n/spec, 02_modules/ui/theme]
 code_refs:
   [
@@ -31,7 +31,7 @@ code_refs:
 - **`buildDonutSegments` / `clipDonutSegmentsForProgress`** — геометрия сегментов с зазором `DONUT_GAP_RAD = 0.04`; неактивные (`value = 0`) не рисуются.
 - **`DonutChart`** — props: `segments`, `locale?`, `animationKey?`, **`revealMode?`** (`immediate` | `inViewport`, default `inViewport`), **`hideVisualization?`**. Центр: **`{balance}%`** (`sectionTitle`, 22/24 px) + **`balanceLabel`**; дуга баланса — `theme.colors.textMuted`. Легенда справа; нулевые пункты приглушены. `hideVisualization` скрывает цветные сегменты, дугу баланса и центральный текст, но оставляет трек/легенду на время async reload. Полный одинарный сегмент (`360°`) рисуется как полноценное кольцо, а не исчезает на финальном кадре. В текущем UI все четыре отчётных donut-карточки (`Profile` + `Day`) используют **`revealMode="inViewport"`**.
 - **`DonutVisibilityProvider({ children, scrollRef? })`**, **`useDonutScrollProps`**, **`useDonutVisibilityRefresh`** — для **`revealMode="inViewport"`**: `useDonutVisibilityTrigger` — `measureInWindow`, min **28 px** видимости, layout settle **80 ms** (в т.ч. при смене `resetKey`, без ожидания повторного `onLayout`); **`onVisible` один раз на `resetKey`**; при уходе с экрана до старта (`progress = 0`) reveal сбрасывается. **`resetKey` в `DonutChart`** = `{revealSession}|{animationKey}`; смена `animationKey` может сразу очистить визуализацию (`hideVisualization`) и затем заново запустить reveal, когда блок видим. **`useDonutVisibilityRefresh()`** на focus таба инкрементирует **`revealSession`**. **`useDonutScrollProps`** → `{ scrollEventThrottle: 16, onScroll (+ scrollY), onMomentumScrollEnd, onScrollEndDrag, onContentSizeChange }`. Прогресс — **`useDonutAnimation`** (`setInterval` 16 ms, `DONUT_ANIMATION_MS` = 1400; `start()` всегда перезапускает цикл).
-- **`getChartStrings(locale)`** — typed i18n (`modules/charts/i18n/charts.ts` + overlays `modules/i18n/typed/catalog/charts/*`): `balanceLabel` (центр `DonutChart`), `strengthLabel` (подпись силы в центре `ChakraFlower` на home).
+- **`getChartStrings(locale)`** — typed i18n (`modules/charts/i18n/charts.ts` + overlays `modules/i18n/typed/catalog/charts/*`): `balanceLabel` (центр `DonutChart`). Поле `strengthLabel` остаётся в typed-модуле, но после снятия импорта из home `ChakraFlower` активных потребителей нет.
 
 ## 3. Визуальные константы
 
