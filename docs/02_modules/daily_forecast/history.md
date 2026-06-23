@@ -28,6 +28,7 @@ code_refs:
 
 - **2026-06-21:** Day tab donut «Сферы жизни» выровнен с профильными отчётами по reveal-поведению: chart анимируется при входе в viewport и при повторном появлении после focus/refresh, а не только по факту смены данных.
 
+- **2026-06-23:** Home `ChakraFlower`: в центре — процент + локализованное имя планеты дня (вместо «сила»); внутренний цветной круг увеличен (68/82 design px, тоньше белое кольцо); легенда с `paddingRight` от края карточки.
 - **2026-06-22:** Home `getHomeStrings` overlays (de/fr/it/es/pt/nl): `planetLabels` для легенды `ChakraFlower` (Soleil, Saturne, …); canvas 214px, легенда прижата вправо.
 - **2026-06-21:** Home UI `ChakraFlower`: опциональный prop `natalProfile`; центр — `S_initial` планеты дня + `strengthLabel` из `charts/i18n`; цвета лепестков — `CHAKRA_SEGMENT_COLORS`; компактный canvas 192×192, легенда без номера чакры.
 
