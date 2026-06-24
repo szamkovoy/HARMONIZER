@@ -128,6 +128,17 @@ function formatDayHeaderDateLabel(section: DaySection, strings: DayStrings): str
   return strings.formatDateHeader(section.localDate, mapDateLabelKind(section.dateLabelKind));
 }
 
+function resolveDayTabHeaderTitle(plan: DayPlan | null, strings: DayStrings): string {
+  if (!plan) return strings.screenTitle;
+
+  if (plan.mode !== "overdue_summary") {
+    const section = currentDaySection(plan);
+    if (section) return formatDayHeaderDateLabel(section, strings);
+  }
+
+  return strings.formatDateHeader(plan.currentLocalDate, "today");
+}
+
 function formatPracticeLineTime(value: string, strings: DayStrings) {
   return strings.formatTime(value);
 }
@@ -558,11 +569,7 @@ export default function DayTabRoute() {
           {...donutScrollProps}
         >
         <ScreenHeader
-          title={
-            plan && plan.mode !== "overdue_summary" && todaySection
-              ? formatDayHeaderDateLabel(todaySection, dayStrings)
-              : dayStrings.screenTitle
-          }
+          title={resolveDayTabHeaderTitle(plan, dayStrings)}
           subtitle={plan && plan.mode !== "overdue_summary" && todaySection ? plan.dayRecommendation?.trim() : undefined}
         />
 

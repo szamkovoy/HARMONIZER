@@ -10,6 +10,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-24: `daily_forecast` — Day tab header shows the localized current date in `overdue_summary` and empty states instead of the static tab label. Synced `daily_forecast/history.md`.
+- 2026-06-24: `ui` / `daily_forecast` / `profile` / `practices` — tab screens: убрана двойная нижняя inset-логика (`SafeAreaView` bottom edge + `useBottomTabBarHeight` padding), из-за которой над tab bar оставалась серая полоска; `TabScreenLayout` теперь inset-ит только top/left/right, а `useTabContentBottomPadding` добавляет лишь небольшой gap. Synced `daily_forecast/history.md`, `profile/history.md`, `ui_kit.md`.
 - 2026-06-24: `ui` / `practices` / `profile` / `daily_forecast` / `biofeedback` / `calibration` — second-wave UI ownership: added shared non-tab shells (`Stack/Modal/Form/Hero`), `AssistantModalShell`, section/header primitives, fullscreen modal scaffold, and initial immersive chrome primitives (`FloatingCloseButton`, `useImmersiveOverlayAutohide`, `PracticeStopConfirmDialog`). Synced `docs/03_rules/ui_kit.md` plus affected module `history.md` files.
 - 2026-06-24: `practices` — yoga catalog now seeds the Practices tab from a per-locale local snapshot and keeps cached cards visible during slow/error Supabase revalidation; catalog errors are serialized into readable text instead of `[object Object]`. Synced `practices/{spec,history}.md`.
 - 2026-06-24: `practices` — yoga titles now go through one shared locale-aware formatter (`resolveYogaPracticeTitle`) in both catalog and asana screen, and the Practices list bottom padding now follows the real tab-bar height to keep cards out from under the lower navigation. Synced `practices/{spec,history}.md`.

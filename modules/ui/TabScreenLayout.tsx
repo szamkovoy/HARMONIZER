@@ -64,11 +64,13 @@ export const TabScrollView = forwardRef<ScrollView, ScrollViewProps & {
   );
 });
 
+const TAB_SCREEN_SAFE_AREA_EDGES: Edge[] = ["top", "left", "right"];
+
 export function TabScreenLayout({
   children,
   style,
   statusBarStyle,
-  edges,
+  edges = TAB_SCREEN_SAFE_AREA_EDGES,
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;

@@ -1,10 +1,9 @@
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-
 /**
  * Bottom padding for scrollable content inside tab screens.
- * Keeps the last card and scroll indicators above the visual tab bar.
+ * Tab navigator already insets screen content above the tab bar, so we only
+ * add a small breathing gap — not the full tab-bar height (that double-counts
+ * and leaves a visible gray strip above the bar).
  */
 export function useTabContentBottomPadding(extra = 24): number {
-  const tabBarHeight = useBottomTabBarHeight();
-  return tabBarHeight + extra;
+  return extra;
 }

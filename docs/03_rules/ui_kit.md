@@ -47,7 +47,7 @@ code_refs:
 - **Section/header primitives:** `modules/ui/ScreenSection.tsx`
 - **Типовая surface-card:** `modules/ui/SurfaceCardView.tsx`
 - **Типовые loading/error/empty state:** `modules/ui/StateCard.tsx`
-- **Bottom padding под tab bar:** `modules/ui/useTabContentBottomPadding.ts`
+- **Bottom padding под tab bar:** `modules/ui/useTabContentBottomPadding.ts` — только небольшой `extra`-gap; tab navigator сам inset-ит контент над bar, полная высота bar в padding не добавляется.
 - **Immersive chrome layer:** `modules/ui/ImmersiveScreenLayout.tsx`, `modules/ui/useImmersiveOverlayAutohide.ts`, `modules/ui/PracticeStopConfirmDialog.tsx`
 
 ## Правила
