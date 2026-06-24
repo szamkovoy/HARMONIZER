@@ -16,7 +16,7 @@ type TabScreenContentOptions = {
 
 export function useTabScreenContentProps(options?: TabScreenContentOptions) {
   const horizontalPadding = options?.horizontalPadding ?? 20;
-  const topPadding = options?.topPadding ?? 0;
+  const topPadding = options?.topPadding ?? 20;
   const bottomPaddingExtra = options?.bottomPaddingExtra ?? 24;
   const gap = options?.gap ?? 18;
   const maxWidth = options?.maxWidth;

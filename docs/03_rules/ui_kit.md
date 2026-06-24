@@ -54,8 +54,8 @@ code_refs:
 
 1. **Типовой экранный каркас не задаётся локально.**  
    Safe area, `StatusBar`, scroll-container для вкладок, `scrollIndicatorInsets`,
-   нижний отступ под tab bar, стандартная ширина контента и базовый vertical rhythm
-   должны идти через общие примитивы `modules/ui/*`.
+   нижний отступ под tab bar, стандартная ширина контента, базовый `paddingTop: 20`
+   и vertical rhythm должны идти через общие примитивы `modules/ui/*`.
 
    Для non-tab экранов это означает:
    - pushed screen → `StackScreenLayout` / `StackScrollView`

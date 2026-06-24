@@ -653,7 +653,7 @@ export default function HomeScreen() {
 
   return (
     <TabScreenLayout>
-      <TabScrollView contentOptions={{ maxWidth: 460, topPadding: 20, bottomPaddingExtra: 32 }}>
+      <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} />
         <AnnouncementBanner />
 
