@@ -46,6 +46,6 @@ export function isDayContentComplete(
   if (!hasText(forecast.slogan)) return false;
   if (!hasText(forecast.recommendationShortText)) return false;
   if (!hasText(forecast.recommendationLongText)) return false;
-  if (accessMode !== "free" && !hasMathLevel(forecast.mathLevel)) return false;
+  if (!hasMathLevel(forecast.mathLevel)) return false;
   return true;
 }

@@ -15,12 +15,14 @@ import { AstroChartSVG, type AstroChartAspect } from "./AstroChartSVG";
 interface ModalAstroChartProps {
   visible: boolean;
   onClose: () => void;
-  natalProfile: NatalProfile;
+  natalProfile?: NatalProfile;
+  transitPositions?: DailyForecast["transitChart"]["planets"];
   forecast?: DailyForecast;
   aspects?: AstroChartAspect[];
   strings: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
   /** Вложенный второй Modal на RN иногда не открывается — используйте overlay внутри родительского Modal. */
   presentation?: "modal" | "nestedOverlay";
+  mode?: "natal_transit" | "transit_only";
 }
 
 const ASPECT_TYPES: readonly AspectType[] = ["conjunction", "opposition", "square", "trine", "sextile"];
@@ -29,9 +31,38 @@ function isAspectType(value: string): value is AspectType {
   return (ASPECT_TYPES as readonly string[]).includes(value);
 }
 
+const ZODIAC_SIGNS = [
+  "Aries",
+  "Taurus",
+  "Gemini",
+  "Cancer",
+  "Leo",
+  "Virgo",
+  "Libra",
+  "Scorpio",
+  "Sagittarius",
+  "Capricorn",
+  "Aquarius",
+  "Pisces",
+] as const;
+
+function normalizeLongitude(longitude: number): number {
+  const normalized = longitude % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function signOf(longitude: number): string {
+  return ZODIAC_SIGNS[Math.floor(normalizeLongitude(longitude) / 30)] ?? "Aries";
+}
+
+function signDegreeOf(longitude: number): number {
+  return normalizeLongitude(longitude) % 30;
+}
+
 function formatAspectLine(
   aspect: AstroChartAspect,
   strings: ModalAstroChartProps["strings"],
+  mode: NonNullable<ModalAstroChartProps["mode"]>,
 ): string {
   const from = strings.planetLabels[aspect.from as Planet] ?? aspect.from;
   const to = strings.planetLabels[aspect.to as Planet] ?? aspect.to;
@@ -42,24 +73,42 @@ function formatAspectLine(
     typeof aspect.orb === "number"
       ? `${strings.astroChartModal.orbPrefix}${aspect.orb.toFixed(1)}°`
       : "";
-  return `${from} ${aspectLabel} ${strings.astroChartModal.toNatalConnector} ${to}${orb}`;
+  return mode === "transit_only"
+    ? `${from} ${aspectLabel} ${to}${orb}`
+    : `${from} ${aspectLabel} ${strings.astroChartModal.toNatalConnector} ${to}${orb}`;
 }
 
 export default function ModalAstroChart({
   visible,
   onClose,
   natalProfile,
+  transitPositions,
   forecast,
   aspects,
   strings,
   presentation = "modal",
+  mode = "natal_transit",
 }: ModalAstroChartProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const chartSize = Math.min(380, Math.max(280, width - 40));
-  const showHouses = natalProfile.precisionMode === "precise" && Boolean(natalProfile.houseCusps?.length);
+  const showHouses =
+    mode === "natal_transit"
+      && natalProfile?.precisionMode === "precise"
+      && Boolean(natalProfile.houseCusps?.length);
   const chartCopy = strings.astroChartModal;
+  const resolvedTransitPositions = transitPositions ?? forecast?.transitChart.planets;
+  const title =
+    mode === "transit_only"
+      ? chartCopy.titleGlobal
+      : forecast
+        ? chartCopy.titleTransit
+        : chartCopy.titleNatal;
+  const subtitle = mode === "transit_only" ? chartCopy.subtitleGlobal : chartCopy.subtitle;
+
+  if (mode === "natal_transit" && !natalProfile) return null;
+  if (mode === "transit_only" && !resolvedTransitPositions) return null;
 
   if (presentation === "nestedOverlay" && !visible) return null;
 
@@ -73,8 +122,8 @@ export default function ModalAstroChart({
 
   const inner = (
     <FullScreenModalScaffold
-      title={forecast ? chartCopy.titleTransit : chartCopy.titleNatal}
-      subtitle={chartCopy.subtitle}
+      title={title}
+      subtitle={subtitle}
       closeLabel={strings.closeButton}
       onClose={onClose}
       style={shellStyle}
@@ -86,12 +135,13 @@ export default function ModalAstroChart({
         <SurfaceCardView tone="elevated" style={styles.chartCard}>
           <AstroChartSVG
             natalProfile={natalProfile}
-            transitPositions={forecast?.transitChart.planets}
+            transitPositions={resolvedTransitPositions}
             aspects={aspects}
             showHouses={showHouses}
             size={chartSize}
+            mode={mode}
           />
-          {!showHouses ? (
+          {mode === "natal_transit" && !showHouses ? (
             <AppText variant="technicalCaption" tone="muted" style={styles.centerText}>
               {chartCopy.housesHiddenHint}
             </AppText>
@@ -102,20 +152,40 @@ export default function ModalAstroChart({
           <ScreenSection title={chartCopy.mainAspectsTitle} style={styles.section}>
             {aspects.slice(0, 8).map((aspect) => (
               <AppText key={`${aspect.from}-${aspect.to}-${aspect.type}`} variant="screenHint" tone="muted">
-                {formatAspectLine(aspect, strings)}
+                {formatAspectLine(aspect, strings, mode)}
               </AppText>
             ))}
           </ScreenSection>
         ) : null}
 
-        <ScreenSection title={chartCopy.planetStrengthsTitle} style={styles.section}>
-          {PLANETS_7.map((planet) => (
-            <AppText key={planet} variant="screenHint" tone="muted">
-              {strings.planetLabels[planet]}: S = {natalProfile.planets[planet].S_initial.toFixed(2)}, H ={" "}
-              {natalProfile.planets[planet].H_initial.toFixed(2)}
-            </AppText>
-          ))}
-        </ScreenSection>
+        {mode === "natal_transit" && natalProfile ? (
+          <ScreenSection title={chartCopy.planetStrengthsTitle} style={styles.section}>
+            {PLANETS_7.map((planet) => (
+              <AppText key={planet} variant="screenHint" tone="muted">
+                {strings.planetLabels[planet]}: S = {natalProfile.planets[planet].S_initial.toFixed(2)}, H ={" "}
+                {natalProfile.planets[planet].H_initial.toFixed(2)}
+              </AppText>
+            ))}
+          </ScreenSection>
+        ) : null}
+
+        {mode === "transit_only" && resolvedTransitPositions ? (
+          <ScreenSection title={chartCopy.planetPositionsTitle} style={styles.section}>
+            {PLANETS_7.map((planet) => {
+              const state = resolvedTransitPositions[planet];
+              const longitude =
+                typeof state?.longitude === "number"
+                  ? state.longitude
+                  : null;
+              if (longitude == null) return null;
+              return (
+                <AppText key={planet} variant="screenHint" tone="muted">
+                  {strings.planetLabels[planet]}: {signOf(longitude)} {signDegreeOf(longitude).toFixed(1)}°
+                </AppText>
+              );
+            })}
+          </ScreenSection>
+        ) : null}
       </ScrollView>
     </FullScreenModalScaffold>
   );

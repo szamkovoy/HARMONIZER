@@ -10,6 +10,9 @@ type GlobalContentRow = {
   short_text?: unknown;
   long_explanation?: unknown;
   math_level?: unknown;
+  primary_planet?: unknown;
+  primary_chakra_number?: unknown;
+  primary_tone?: unknown;
   top_petals?: unknown;
   planet_positions?: unknown;
   text_i18n?: unknown;
@@ -26,12 +29,35 @@ function rebuildGlobalMathLevel(content: GlobalContentRow, locale: AppContentLoc
     (content.top_petals as { planet: string; gravity: number; chakra_number: number; tone: string }[] | undefined) ??
     [];
   const aspects =
-    (structured?.aspects as { from: string; to: string; type: string; orb: number }[] | undefined) ?? [];
+    (structured?.aspects as { from: string; to: string; type: string; orb: number; maxOrb: number }[] | undefined) ?? [];
+  const planetScores =
+    (structured?.planet_scores as
+      | {
+          planet: string;
+          gravity: number;
+          chakra_number: number;
+          tone: string;
+          sign?: string;
+          sign_degree?: number;
+        }[]
+      | undefined) ?? [];
   const planetPositions =
     (structured?.planet_positions as Record<string, unknown> | undefined) ??
     (content.planet_positions as Record<string, unknown> | undefined) ??
     {};
-  return buildGlobalMathLevel({ top_petals: topPetals, aspects, planet_positions: planetPositions }, locale);
+  return buildGlobalMathLevel(
+    {
+      top_petals: topPetals,
+      aspects,
+      planet_positions: planetPositions,
+      primary_planet: typeof content.primary_planet === "string" ? content.primary_planet : undefined,
+      primary_chakra_number:
+        typeof content.primary_chakra_number === "number" ? content.primary_chakra_number : undefined,
+      primary_tone: typeof content.primary_tone === "string" ? content.primary_tone : undefined,
+      planet_scores: planetScores,
+    },
+    locale,
+  );
 }
 
 /**

@@ -4,10 +4,13 @@
   "astroChartModal": {
     "titleTransit": "Geboortehoroscoop + transithoroscoop",
     "titleNatal": "Geboortehoroscoop",
+    "titleGlobal": "Transithoroscoop van de dag",
     "subtitle": "Binnenste ring — geboorteplaneten, buitenste ring — dagtransits.",
+    "subtitleGlobal": "Alleen de transitplaneten van de dag, sterrenbeelden en aspecten ertussen worden getoond.",
     "housesHiddenHint": "Huizen niet getoond: exacte cuspen zijn alleen beschikbaar bij exacte geboortetijd.",
     "mainAspectsTitle": "Hoofdaspecten van de dag",
     "planetStrengthsTitle": "Planetensterktes",
+    "planetPositionsTitle": "Planeetposities",
     "toNatalConnector": "naar geboorte",
     "orbPrefix": ", orb "
   },
@@ -64,9 +67,10 @@
   "mathModal": {
     "title": "Wiskunde van de dag",
     "subtitle": "Formules voor kracht, harmonie, transits en keuze van de planeet van de dag.",
-    "closeButton": "Terug",
+    "closeButton": "Sluiten",
     "emptyHint": "Wiskundeblok nog niet beschikbaar. Vernieuw de dagvoorspelling na de backend update.",
     "showChartButton": "Toon geboorte- en transithoroscoop",
+    "showTransitChartButton": "Toon de transithoroscoop van de dag",
     "chartUnavailableHint": "Horoscoop alleen beschikbaar voor trial/premium-gebruikers met een geboorteprofiel."
   },
   "openSettingsButton": "Open instellingen",

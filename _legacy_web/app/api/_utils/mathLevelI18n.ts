@@ -31,8 +31,15 @@ export type MathLevelStrings = {
   globalIntro: string;
   globalSectionPetals: string;
   globalPetalLine: (planet: string, gravity: number, chakra: number, tone: string) => string;
+  globalMechanicsLine: string;
+  globalSectionWinner: string;
+  globalWinnerLine: (planet: string, chakra: number, tone: string, gravity: string) => string;
+  globalSectionRanking: string;
+  globalRankingLine: (rank: string, planet: string, sign: string, degree: string, gravity: string, tone: string) => string;
   globalSectionAspects: string;
   globalAspectLine: (from: string, type: string, to: string, orb: string) => string;
+  globalSectionAspectWeights: string;
+  globalAspectWeightLine: (from: string, type: string, to: string, orb: string, weight: string) => string;
 };
 
 const ru: MathLevelStrings = {
@@ -75,8 +82,19 @@ const ru: MathLevelStrings = {
   globalSectionPetals: "\n### Топ-3 лепестка\n",
   globalPetalLine: (planet, gravity, chakra, tone) =>
     `- **${planet}**: gravity=${gravity}, chakra ${chakra}, tone=${tone}`,
+  globalMechanicsLine:
+    "Каждая планета получает gravity-оценку: суммируется вклад аспектов с поправкой на тип аспекта, точность орба и «вес» самой транзитной планеты.",
+  globalSectionWinner: "\n### Почему выбрана именно эта тема дня\n",
+  globalWinnerLine: (planet, chakra, tone, gravity) =>
+    `- Главная тема дня: **${planet}** (чакра ${chakra}, tone=${tone}, gravity=${gravity}). Именно эта планета набрала максимальный суммарный вес среди транзитов дня.`,
+  globalSectionRanking: "\n### Полный рейтинг планет на этот момент\n",
+  globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
+    `${rank}. **${planet}** — ${sign} ${degree}°, gravity=${gravity}, tone=${tone}`,
   globalSectionAspects: "\n### Активные аспекты дня\n",
   globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, orb=${orb}°`,
+  globalSectionAspectWeights: "\n### Вес каждого аспекта в общей картине\n",
+  globalAspectWeightLine: (from, type, to, orb, weight) =>
+    `- ${from} ${type} ${to}: orb=${orb}°, contribution=${weight}`,
 };
 
 const en: MathLevelStrings = {
@@ -119,8 +137,19 @@ const en: MathLevelStrings = {
   globalSectionPetals: "\n### Top 3 petals\n",
   globalPetalLine: (planet, gravity, chakra, tone) =>
     `- **${planet}**: gravity=${gravity}, chakra ${chakra}, tone=${tone}`,
+  globalMechanicsLine:
+    "Each planet receives a gravity score: we sum aspect contributions adjusted by aspect type, orb tightness, and the weight of the transiting planet itself.",
+  globalSectionWinner: "\n### Why this became the theme of the day\n",
+  globalWinnerLine: (planet, chakra, tone, gravity) =>
+    `- Main theme of the day: **${planet}** (chakra ${chakra}, tone=${tone}, gravity=${gravity}). It received the highest total weight among today's transits.`,
+  globalSectionRanking: "\n### Full planetary ranking for this moment\n",
+  globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
+    `${rank}. **${planet}** — ${sign} ${degree}°, gravity=${gravity}, tone=${tone}`,
   globalSectionAspects: "\n### Active aspects of the day\n",
   globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, orb=${orb}°`,
+  globalSectionAspectWeights: "\n### Weight of each aspect in the overall picture\n",
+  globalAspectWeightLine: (from, type, to, orb, weight) =>
+    `- ${from} ${type} ${to}: orb=${orb}°, contribution=${weight}`,
 };
 
 import {

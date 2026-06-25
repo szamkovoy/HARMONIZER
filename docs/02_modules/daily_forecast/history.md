@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.17
-updated: 2026-06-24
+version: 2.18
+updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-25:** Free and paid astrology explainers on Home were aligned more tightly. Free `global_daily_content` now expects a complete `mathLevel` too, because the same precomputed payload opens both the formulas modal and a new **transit-only** chart (single ring, no natal houses/ascendant). The fullscreen chain `Подробнее → Расчёты и формулы → Карта` was also unified to a single `Закрыть → Home` exit path, and chart aspect colors were normalized to green for harmonic lines and blue for challenging ones.
 
 - **2026-06-24 (2):** Home/Day fullscreen assistant and explainer surfaces now share more of the same UI layer as tabs. Home assistant overlay and Day assistant modal were reduced to one shared `AssistantModalShell`, while recommendation detail / math / astro modals moved onto a common fullscreen modal scaffold plus shared section/surface primitives. The day-forecast data flow is unchanged; this entry only records the new UI ownership boundary for screens that present forecast content.
 

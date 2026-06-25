@@ -2,11 +2,8 @@ import { Modal, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppButton } from "@/modules/ui/AppButton";
-import { AppText } from "@/modules/ui/AppText";
 import { FullScreenModalScaffold } from "@/modules/ui/FullScreenModalScaffold";
-import { ScreenSection } from "@/modules/ui/ScreenSection";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
-import { useTheme } from "@/modules/ui/theme";
 import { MarkdownText } from "./MarkdownText";
 
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -28,7 +25,6 @@ export function ModalLongExplanation({
   canOpenMath,
   strings,
 }: ModalLongExplanationProps) {
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
@@ -44,15 +40,13 @@ export function ModalLongExplanation({
             <MarkdownText source={longExplanation} />
           </SurfaceCardView>
 
-          <ScreenSection title={strings.mathButton} subtitle={strings.mathCaption} centerHeader>
-            <AppButton
-              label={strings.mathButton}
-              variant="secondary"
-              onPress={onOpenMath}
-              disabled={!canOpenMath}
-              accessibilityLabel={strings.mathButtonA11y}
-            />
-          </ScreenSection>
+          <AppButton
+            label={strings.mathButton}
+            variant="secondary"
+            onPress={onOpenMath}
+            disabled={!canOpenMath}
+            accessibilityLabel={strings.mathButtonA11y}
+          />
         </ScrollView>
       </FullScreenModalScaffold>
     </Modal>

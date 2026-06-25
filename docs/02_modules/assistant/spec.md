@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/spec
 title: Assistant Spec
-version: 3.27
-updated: 2026-06-20
+version: 3.28
+updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/dialog/route.ts, _legacy_web/app/api/day/route.ts, _legacy_web/app/api/_utils/sphereHint.ts, _legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogPracticeCard.ts, _legacy_web/app/api/communicator/v2/dialog/dialogDailyContext.ts, _legacy_web/app/api/communicator/v2/dialog/lifeMatrixPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts, _legacy_web/app/api/_utils/contentLocales.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/app/api/_utils/dialogTimeOfDay.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, _legacy_web/app/api/_utils/testMode.ts, _legacy_web/app/api/_utils/scenarios.ts, _legacy_web/app/api/_utils/prompts.ts, _legacy_web/app/api/_utils/dialogTonalRegisters.ts, _legacy_web/app/api/_utils/dialogConfig.ts, _legacy_web/app/api/_utils/dialogBranching.ts, _legacy_web/app/api/_utils/insightDetection.ts, _legacy_web/app/api/_utils/authorVoice.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/topPetals.ts, _legacy_web/app/api/_utils/mathLevelBuilder.ts, _legacy_web/app/api/_utils/lifeMatrix.ts, _legacy_web/app/api/_utils/lifeSpheresBaseline.ts, _legacy_web/app/api/_utils/timeParser/index.ts, _legacy_web/app/api/_utils/userModelTier.ts, _legacy_web/app/api/_utils/scenarioCache.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts, modules/practices/core/assistantSelectableDurations.ts, _legacy_web/config/contentLengths.ts, services/aiClient.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql, supabase/migrations/20260511161000_dialog_system_v3.sql, supabase/migrations/20260513223000_dialog_system_v3_polish_pack_a.sql, supabase/migrations/20260513224500_dialog_system_v3_polish_pack_a_fix.sql, supabase/migrations/20260515030000_dialog_system_v3_pack_b.sql, supabase/migrations/20260516132000_life_matrix_foundation.sql, supabase/migrations/20260516150000_dialog_system_v3_v5.sql, supabase/migrations/20260519030000_dialog_system_v3_v5_activate.sql, supabase/migrations/20260521120000_dialog_system_v3_v6.sql, supabase/migrations/20260525130000_profile_report_snapshots.sql]
 
@@ -65,6 +65,7 @@ URL и SSE-контракт не изменились (клиент не тро�
 ### Не входят в этот spec
 
 - `**POST /api/ai/global-content**` — раздача прекомпутированного глобального контента по тарифу; связан с подпиской и утренним UX, но не является оркестратором ассистента.
+  - Текущий free-path использует отдельный prompt `global_morning_recommendation`: он остаётся общим (без натала и персонализации), но может работать на premium-tier модели и отдаёт расширенный transit-only `math_level`, который затем открывает formulas modal и общий chart на Home.
 - `**/api/calibration/extract**` — модуль `calibration` (extract / averaging), может использоваться параллельно голосовой калибровке.
 
 ## 3. Внутренняя архитектура

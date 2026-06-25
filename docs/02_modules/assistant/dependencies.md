@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.23
-updated: 2026-06-20
+version: 1.24
+updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
@@ -11,13 +11,14 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 - **`chakra`**
   - `_legacy_web/app/api/_utils/topPetals.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для утреннего монолога `buildTopPetals`.
-  - `_legacy_web/app/api/_utils/globalTransitMath.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для free-tier global math (`buildGlobalMathLevel`).
+  - `_legacy_web/app/api/_utils/globalTransitMath.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для free-tier global math (`buildGlobalMathLevel`), где тот же transit-only payload теперь питает и markdown, и free chart (`chart_mode="transit_only"`).
 
 - **`astro`**
   - `natalProfileFromRow` / `user_natal_charts` в `_legacy_web/app/api/communicator/v2/dialog/route.ts` (`loadContext`) и в `_legacy_web/app/api/ai/monologue/route.ts` (`loadActiveNatalProfile`) для профиля и **`buildMathLevel`** / **`buildTopPetals`**.
 - **`daily_forecast`**
   - Локальная строка **`user_daily_forecasts`** читается монологом утра и daily dialog v5 (`dialogDailyContext.ts`): кроме `planet_of_the_day` и гармоничности, ассистент теперь использует и фиксирует `day_target_chakra`, `day_target_reason`, `day_target_fixed_at`.
   - `supabase/functions/precompute-daily-forecasts/index.ts` теперь заранее прогревает `scenario_cache` сценария **`morning_recommendation`** для personal-forecast пользователей с недавней активностью (<= 3 дней), поэтому monologue route чаще отвечает warmed payload вместо live LLM-run.
+  - `POST /api/ai/global-content` и `global_daily_content` остаются отдельным free-path: глобальный prompt `global_morning_recommendation` теперь может работать на premium-tier модели, но по-прежнему без натала/персонализации и с собственным deterministic `math_level`.
 - **`profile`**
   - **`users`**: `locale`, **`address_form`**, `tz`, `membership_tier`, `trial_expires_at`, `lat`, `lon` для локального времени, обращения, выбора модели и фиксации day-context.
 - **`i18n`**

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/history
 title: Astro History
-version: 1.6
-updated: 2026-06-23
+version: 1.7
+updated: 2026-06-25
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-25:** Free astrology UI on Home now consumes a richer transit-only chart payload from `_legacy_web/app/api/_utils/globalTransitMath.ts` / `supabase/functions/_shared/dailyForecast.ts`. The deterministic global `math_level` structure gained `schema_version = 2`, `chart_mode = "transit_only"`, `planet_scores` and `main_aspects`, so free users can open a single-ring transit chart without natal houses or ascendant while paid users keep the natal+transit view.
 
 - **2026-06-23:** `natalProfileClient.ts`: сохранение натала (`createNatalProfile`) получило клиентский таймаут **30s**, чтобы modal save-path не зависал бесконечно на Home. Локальный warm-cache активной карты теперь хранит fingerprint текущих `users.birth_*`; `fetchActiveNatalProfileCached(..., { expectedBirthFingerprint })` игнорирует запись при несовпадении fingerprint-а и идёт в сеть. Причина: после повторной смены даты рождения и reopen Home мог смешивать новый прогноз дня со старой локальной натальной картой, из-за чего `ChakraFlower` показывал устаревшую силу/центр даже при уже обновлённом forecast.
 

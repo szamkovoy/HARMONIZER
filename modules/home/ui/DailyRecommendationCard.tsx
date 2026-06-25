@@ -87,7 +87,7 @@ export function DailyRecommendationCard({
       />
       <ModalMathLevel
         visible={modalLevel === "math"}
-        onClose={() => setModalLevel("long")}
+        onClose={() => setModalLevel("none")}
         mathLevel={forecast.mathLevel}
         natalProfile={natalProfile}
         forecast={forecast}

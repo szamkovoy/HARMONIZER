@@ -4,10 +4,13 @@
   "astroChartModal": {
     "titleTransit": "Carta Natal + Trânsitos",
     "titleNatal": "Carta Natal",
+    "titleGlobal": "Carta dos trânsitos do dia",
     "subtitle": "Anel interno — planetas natais, externo — trânsitos do dia.",
+    "subtitleGlobal": "São mostrados apenas os planetas em trânsito do dia, os signos do zodíaco e os aspectos entre eles.",
     "housesHiddenHint": "Casas não exibidas: cúspides exatas disponíveis apenas com o horário exato de nascimento.",
     "mainAspectsTitle": "Aspectos principais do dia",
     "planetStrengthsTitle": "Forças planetárias",
+    "planetPositionsTitle": "Posições dos planetas",
     "toNatalConnector": "ao natal",
     "orbPrefix": ", orbe "
   },
@@ -64,9 +67,10 @@
   "mathModal": {
     "title": "Matemática do dia",
     "subtitle": "Fórmulas de força, harmonia, trânsitos e escolha do planeta do dia.",
-    "closeButton": "Voltar",
+    "closeButton": "Fechar",
     "emptyHint": "O bloco de matemática ainda não foi carregado com a previsão. Atualize a previsão do dia após implantar a parte do patch de backend.",
     "showChartButton": "Mostrar mapa natal e de trânsitos",
+    "showTransitChartButton": "Mostrar o horóscopo dos trânsitos do dia",
     "chartUnavailableHint": "Mapa disponível apenas para usuários trial/premium com perfil natal."
   },
   "openSettingsButton": "Abrir configurações",

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.81
-updated: 2026-06-19
+version: 2.82
+updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-06-25:** Free morning astrology content was upgraded without changing its non-personal nature. `global_morning_recommendation` moved to a new richer prompt version and premium-tier model, while `_legacy_web/app/api/_utils/globalTransitMath.ts` / `supabase/functions/_shared/dailyForecast.ts` expanded the deterministic free `math_level` into a transit-only chart payload (`schema_version = 2`, `chart_mode = "transit_only"`, `planet_scores`, `main_aspects`). This keeps free-path copy substantially deeper while preserving the product boundary: no natal data, no personalization, one shared forecast for all free users.
 
 - **2026-06-19 (4):** IT QA follow-up (`текст-44DF-A8E0-25-0`). **Duplicate planned actions from one add-flow utterance:** модель иногда эмитила два `[PLANNED_EVENT]` с одной сутью (`Studio di inglese per un'ora` vs `Vorrei studiare l'inglese per un'ora`) — `samePlannedEventIdentity` видел только один общий токен (`inglese`). Fix: `plannedEventInference.ts` добавляет measure-token `1ora` для `un'ora`, stems `study`/`lang_study` для study+language rewordings; `dialogBrainPersistence.ts` dedupe batch через `dedupePlanningMarkersByIdentity` и матчит existing row по identity **без** ограничения `conversation_id` (add-flow append). Tests: `plannedEventInference.test.ts`, `dialogBrainPersistence.test.ts`.
 

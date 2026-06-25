@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/interpretation_layers
 title: Astro Interpretation Layers
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-06-25
 depends_on: [01_foundation/architecture, 02_modules/daily_forecast/spec]
 code_refs:
   [
@@ -43,10 +43,11 @@ code_refs:
 
 ## 4. Математический слой — `mathLevel` (`math_level`)
 
-- **Смысл:** не LLM-текст «с нуля», а **детерминированная** сборка: markdown + структура для UI и натальной карты.
+- **Смысл:** не LLM-текст «с нуля», а **детерминированная** сборка: markdown + структура для UI и карты.
 - **Источник:** `buildMathLevel` в `_legacy_web/app/api/_utils/mathLevelBuilder.ts` (активация, importance, аспекты, `S`/`H` с натала и дельты калибровки). В ответ monologue поле добавляется сервером рядом с JSON модели (`math_level` в payload).
-- **Формат:** `{ markdown: string; structured?: { natal_strengths, main_aspects, importance_breakdown, calibration_deltas? } }` — см. интерфейс `MathLevelData` в `mathLevelBuilder.ts`.
-- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; кнопка «Подробнее» открывает матслой только если `forecast.mathLevel?.markdown` непустой.
+- **Формат (personal):** `{ markdown: string; structured?: { natal_strengths, main_aspects, importance_breakdown, calibration_deltas? } }` — см. интерфейс `MathLevelData` в `mathLevelBuilder.ts`.
+- **Формат (free/global):** `buildGlobalMathLevel` собирает transit-only payload с `structured.schema_version = 2`, `chart_mode = "transit_only"`, `planet_positions`, `planet_scores`, `top_petals`, `aspects`, `main_aspects`. Этот слой не использует натал и поэтому открывает только общий транзитный круг дня.
+- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; из того же payload открывается либо personal natal+transit chart, либо free transit-only chart.
 
 ## 5. Обогащение на клиенте
 
@@ -55,6 +56,7 @@ code_refs:
 ## 6. Бесплатный тариф (глобальный контент)
 
 - Те же четыре слоя существуют в таблице `global_daily_content` (колонки `slogan`, `short_text`, `long_explanation`, `math_level`) — см. миграцию `supabase/migrations/20260501193000_free_tier_global_content.sql` и клиент `services/globalContentClient.ts`, который мапит ответ в поля `DailyForecast`.
+- Global LLM-тексты строятся отдельным prompt `global_morning_recommendation`: он остаётся неперсональным и без натала, но теперь рассчитан на ту же глубину short/long explanation, что и paid-home, а formulas/chart слой расширен до полноценного transit-only разбора.
 
 ## 7. Связь с астрологическим движком
 

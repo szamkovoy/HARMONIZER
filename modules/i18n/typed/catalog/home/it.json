@@ -4,10 +4,13 @@
   "astroChartModal": {
     "titleTransit": "Carta natale + transiti",
     "titleNatal": "Carta natale",
+    "titleGlobal": "Carta dei transiti del giorno",
     "subtitle": "Anello interno: pianeti natali, anello esterno: transiti del giorno.",
+    "subtitleGlobal": "Sono mostrati solo i pianeti in transito del giorno, i segni zodiacali e gli aspetti tra loro.",
     "housesHiddenHint": "Case non mostrate: le cuspidi esatte sono disponibili solo con un orario di nascita preciso.",
     "mainAspectsTitle": "Aspetti principali del giorno",
     "planetStrengthsTitle": "Forza dei pianeti",
+    "planetPositionsTitle": "Posizioni dei pianeti",
     "toNatalConnector": "al natale",
     "orbPrefix": ", orb "
   },
@@ -64,9 +67,10 @@
   "mathModal": {
     "title": "Matematica del giorno",
     "subtitle": "Formule di forza, armonia, transiti e scelta del pianeta del giorno.",
-    "closeButton": "Indietro",
+    "closeButton": "Chiudi",
     "emptyHint": "Il modulo matematico non è ancora stato ricevuto con la previsione. Aggiorna la previsione giornaliera dopo il rilascio della patch lato backend.",
     "showChartButton": "Mostra carta natale e transiti",
+    "showTransitChartButton": "Mostra l'oroscopo dei transiti del giorno",
     "chartUnavailableHint": "La carta è disponibile solo per utenti trial/premium con profilo natale."
   },
   "openSettingsButton": "Apri impostazioni",

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.8
-updated: 2026-06-23
+version: 2.9
+updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -63,6 +63,7 @@ code_refs:
 
 - **`charts`**  
   - **`modules/home/ui/ChakraFlower.tsx`**: prop **`accessMode`**; цвета лепестков — **`CHAKRA_SEGMENT_COLORS`** (импорт **`getChartStrings`** снят); подпись в центре — **`strings.planetLabels[planetOfTheDay]`**; значение силы — `S_initial` планеты дня при наличии `natalProfile`, иначе нормализованная `forecast.importance`; легенда — **`strings.planetLabels`** (порядок Sun→Saturn); заголовок/подзаголовок — **`getHomeStrings` → `chakraFlower.title`**, **`captionFree`** / **`captionPersonal`** по `accessMode`.
+  - **`modules/home/ui/ModalMathLevel.tsx` / `ModalAstroChart.tsx` / `AstroChartSVG.tsx`**: home explainer-chain читает `forecast.mathLevel.structured` и `forecast.transitChart`; free-path использует `chart_mode="transit_only"` + `planet_scores` / `main_aspects` для транзитного круга без натала, paid-path — natal+transit режим с домами только при точном времени рождения.
   - **`app/(tabs)/day.tsx`**: блок «Сферы жизни» — **`DonutChart`** + **`DonutVisibilityProvider`**; веса из **`sphereStats`** (`GET /api/day`), баланс — **`calcBalance`** на клиенте.
 
 - **`infra`**  

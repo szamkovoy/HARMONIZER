@@ -4,10 +4,13 @@
   "astroChartModal": {
     "titleTransit": "Natal- + Transitkarte",
     "titleNatal": "Natal-Karte",
+    "titleGlobal": "Transitkarte des Tages",
     "subtitle": "Innerer Ring — Geburtsplaneten, äußerer Ring — Tages-Transite.",
+    "subtitleGlobal": "Es werden nur die Transitplaneten des Tages, Tierkreiszeichen und Aspekte zwischen ihnen angezeigt.",
     "housesHiddenHint": "Häuser nicht sichtbar: Genaue Häuserspitzen nur mit genauer Geburtszeit verfügbar.",
     "mainAspectsTitle": "Hauptaspekte des Tages",
     "planetStrengthsTitle": "Planetenstärken",
+    "planetPositionsTitle": "Planetenpositionen",
     "toNatalConnector": "zum Natalen",
     "orbPrefix": ", Orbis "
   },
@@ -64,9 +67,10 @@
   "mathModal": {
     "title": "Tagesmathematik",
     "subtitle": "Formeln für Stärke, Harmonie, Transite und Auswahl des Tagesplaneten.",
-    "closeButton": "Zurück",
+    "closeButton": "Schließen",
     "emptyHint": "Mathematik-Block noch nicht mit Prognose vorhanden. Bitte Tagesprognose nach dem Deployment des Backend-Patches aktualisieren.",
     "showChartButton": "Geburts- und Transitkarte anzeigen",
+    "showTransitChartButton": "Transit-Horoskop des Tages anzeigen",
     "chartUnavailableHint": "Die Karte ist nur für Test-/Premium-Nutzer mit Geburtsprofil verfügbar."
   },
   "openSettingsButton": "Einstellungen öffnen",

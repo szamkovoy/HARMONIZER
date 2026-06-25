@@ -1,6 +1,6 @@
 import type { MathLevelStrings } from "./mathLevelI18n";
 
-function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | "calibratedH" | "transitLine" | "orbLine" | "activationLine" | "importanceLine" | "winnerLine" | "alternativeLine" | "calibrationIntro" | "deltaLine" | "globalPetalLine" | "globalAspectLine"> & {
+function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | "calibratedH" | "transitLine" | "orbLine" | "activationLine" | "importanceLine" | "winnerLine" | "alternativeLine" | "calibrationIntro" | "deltaLine" | "globalPetalLine" | "globalWinnerLine" | "globalRankingLine" | "globalAspectLine" | "globalAspectWeightLine"> & {
   chakraLabel: string;
   calibratedS: string;
   calibratedH: string;
@@ -13,7 +13,10 @@ function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | 
   calibrationIntro: string;
   deltaLine: string;
   globalPetalLine: string;
+  globalWinnerLine: string;
+  globalRankingLine: string;
   globalAspectLine: string;
+  globalAspectWeightLine: string;
 }): MathLevelStrings {
   return {
     ...partial,
@@ -43,8 +46,29 @@ function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | 
         .replace("{gravity}", String(gravity))
         .replace("{chakra}", String(chakra))
         .replace("{tone}", tone),
+    globalWinnerLine: (planet, chakra, tone, gravity) =>
+      partial.globalWinnerLine
+        .replace("{planet}", planet)
+        .replace("{chakra}", String(chakra))
+        .replace("{tone}", tone)
+        .replace("{gravity}", gravity),
+    globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
+      partial.globalRankingLine
+        .replace("{rank}", rank)
+        .replace("{planet}", planet)
+        .replace("{sign}", sign)
+        .replace("{degree}", degree)
+        .replace("{gravity}", gravity)
+        .replace("{tone}", tone),
     globalAspectLine: (from, type, to, orb) =>
       partial.globalAspectLine.replace("{from}", from).replace("{type}", type).replace("{to}", to).replace("{orb}", orb),
+    globalAspectWeightLine: (from, type, to, orb, weight) =>
+      partial.globalAspectWeightLine
+        .replace("{from}", from)
+        .replace("{type}", type)
+        .replace("{to}", to)
+        .replace("{orb}", orb)
+        .replace("{weight}", weight),
   };
 }
 
@@ -83,8 +107,18 @@ export const mathLevelIt: MathLevelStrings = fromEn({
     "La previsione globale è costruita senza carta natale: si usano solo le posizioni di transito delle sette pianeti alle 12:00 UTC del giorno scelto.",
   globalSectionPetals: "\n### Top 3 petali\n",
   globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalMechanicsLine:
+    "Ogni pianeta riceve un punteggio gravity: sommiamo i contributi degli aspetti corretti per tipo di aspetto, precisione dell'orbe e peso del pianeta in transito.",
+  globalSectionWinner: "\n### Perché questo è il tema del giorno\n",
+  globalWinnerLine:
+    "- Tema principale del giorno: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). È il pianeta con il peso complessivo più alto tra i transiti di oggi.",
+  globalSectionRanking: "\n### Classifica completa dei pianeti in questo momento\n",
+  globalRankingLine:
+    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
   globalSectionAspects: "\n### Aspetti attivi del giorno\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+  globalSectionAspectWeights: "\n### Peso di ogni aspetto nel quadro complessivo\n",
+  globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, contributo={weight}",
 });
 
 export const mathLevelDe: MathLevelStrings = fromEn({
@@ -122,8 +156,18 @@ export const mathLevelDe: MathLevelStrings = fromEn({
     "Die globale Prognose wird ohne Natalchart erstellt: nur Transitpositionen der sieben Planeten um 12:00 UTC des gewählten Tages.",
   globalSectionPetals: "\n### Top-3-Blütenblätter\n",
   globalPetalLine: "- **{planet}**: gravity={gravity}, Chakra {chakra}, tone={tone}",
+  globalMechanicsLine:
+    "Jeder Planet erhält einen Gravity-Wert: Beiträge der Aspekte werden nach Aspekttyp, Orbengenauigkeit und Gewicht des Transitplaneten summiert.",
+  globalSectionWinner: "\n### Warum daraus das Tagesthema wurde\n",
+  globalWinnerLine:
+    "- Hauptthema des Tages: **{planet}** (Chakra {chakra}, tone={tone}, gravity={gravity}). Dieser Planet erhielt unter den heutigen Transiten das höchste Gesamtgewicht.",
+  globalSectionRanking: "\n### Vollständiges Planeten-Ranking für diesen Moment\n",
+  globalRankingLine:
+    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
   globalSectionAspects: "\n### Aktive Aspekte des Tages\n",
   globalAspectLine: "- {from} {type} {to}, Orbe={orb}°",
+  globalSectionAspectWeights: "\n### Gewicht jedes Aspekts im Gesamtbild\n",
+  globalAspectWeightLine: "- {from} {type} {to}: Orbe={orb}°, Beitrag={weight}",
 });
 
 export const mathLevelFr: MathLevelStrings = fromEn({
@@ -161,8 +205,18 @@ export const mathLevelFr: MathLevelStrings = fromEn({
     "La prévision globale est construite sans thème natal : seules les positions de transit des sept planètes à 12:00 UTC du jour choisi.",
   globalSectionPetals: "\n### Top 3 pétales\n",
   globalPetalLine: "- **{planet}** : gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalMechanicsLine:
+    "Chaque planète reçoit un score gravity : on additionne les contributions des aspects selon le type d'aspect, la précision de l'orbe et le poids de la planète en transit.",
+  globalSectionWinner: "\n### Pourquoi ce thème a été retenu pour la journée\n",
+  globalWinnerLine:
+    "- Thème principal du jour : **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). C'est la planète qui a reçu le poids total le plus élevé parmi les transits du jour.",
+  globalSectionRanking: "\n### Classement complet des planètes à cet instant\n",
+  globalRankingLine:
+    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
   globalSectionAspects: "\n### Aspects actifs du jour\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+  globalSectionAspectWeights: "\n### Poids de chaque aspect dans l'ensemble\n",
+  globalAspectWeightLine: "- {from} {type} {to} : orbe={orb}°, contribution={weight}",
 });
 
 export const mathLevelEs: MathLevelStrings = fromEn({
@@ -200,8 +254,18 @@ export const mathLevelEs: MathLevelStrings = fromEn({
     "La previsión global se construye sin carta natal: solo posiciones de tránsito de los siete planetas a las 12:00 UTC del día elegido.",
   globalSectionPetals: "\n### Top 3 pétalos\n",
   globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalMechanicsLine:
+    "Cada planeta recibe una puntuación gravity: sumamos las contribuciones de los aspectos ajustadas por el tipo de aspecto, la precisión del orbe y el peso del planeta en tránsito.",
+  globalSectionWinner: "\n### Por qué este se convirtió en el tema del día\n",
+  globalWinnerLine:
+    "- Tema principal del día: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). Es el planeta con el mayor peso total entre los tránsitos de hoy.",
+  globalSectionRanking: "\n### Clasificación completa de planetas en este momento\n",
+  globalRankingLine:
+    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
   globalSectionAspects: "\n### Aspectos activos del día\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+  globalSectionAspectWeights: "\n### Peso de cada aspecto en el conjunto\n",
+  globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, contribución={weight}",
 });
 
 export const mathLevelPt: MathLevelStrings = fromEn({
@@ -239,8 +303,18 @@ export const mathLevelPt: MathLevelStrings = fromEn({
     "A previsão global é construída sem mapa natal: apenas posições de trânsito dos sete planetas às 12:00 UTC do dia escolhido.",
   globalSectionPetals: "\n### Top 3 pétalas\n",
   globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalMechanicsLine:
+    "Cada planeta recebe uma pontuação gravity: somamos as contribuições dos aspectos ajustadas pelo tipo de aspecto, pela precisão do orbe e pelo peso do planeta em trânsito.",
+  globalSectionWinner: "\n### Por que este virou o tema do dia\n",
+  globalWinnerLine:
+    "- Tema principal do dia: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). Foi o planeta com o maior peso total entre os trânsitos de hoje.",
+  globalSectionRanking: "\n### Ranking completo dos planetas neste momento\n",
+  globalRankingLine:
+    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
   globalSectionAspects: "\n### Aspectos ativos do dia\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+  globalSectionAspectWeights: "\n### Peso de cada aspecto no quadro geral\n",
+  globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, contribuição={weight}",
 });
 
 export const mathLevelNl: MathLevelStrings = fromEn({
@@ -278,6 +352,16 @@ export const mathLevelNl: MathLevelStrings = fromEn({
     "De globale voorspelling wordt zonder natalkaart opgebouwd: alleen transitposities van de zeven planeten om 12:00 UTC van de gekozen dag.",
   globalSectionPetals: "\n### Top 3 bloembladen\n",
   globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalMechanicsLine:
+    "Elke planeet krijgt een gravity-score: we tellen aspectbijdragen op, gecorrigeerd voor aspecttype, orb-nauwkeurigheid en het gewicht van de transitplaneet.",
+  globalSectionWinner: "\n### Waarom dit het thema van de dag werd\n",
+  globalWinnerLine:
+    "- Hoofdthema van de dag: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). Deze planeet kreeg het hoogste totale gewicht binnen de transits van vandaag.",
+  globalSectionRanking: "\n### Volledige rangschikking van de planeten op dit moment\n",
+  globalRankingLine:
+    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
   globalSectionAspects: "\n### Actieve aspecten van de dag\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+  globalSectionAspectWeights: "\n### Gewicht van elk aspect in het geheel\n",
+  globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, bijdrage={weight}",
 });

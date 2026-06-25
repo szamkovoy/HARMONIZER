@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
 import { resolveContentLocale, SOURCE_LOCALE, type AppContentLocale, type TargetLocale } from "../../_utils/contentLocales";
-import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel } from "../../_utils/ensureGlobalDailyContent";
+import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel, globalContentNeedsRefresh } from "../../_utils/ensureGlobalDailyContent";
 import { localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
 import {
   pretranslateGlobalTexts,
@@ -168,8 +168,7 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     if (content) {
-      const contentModel = typeof content.llm_model === "string" ? content.llm_model.trim() : "";
-      if (contentModel && contentModel !== expectedModel) {
+      if (globalContentNeedsRefresh(content as Record<string, unknown>, expectedModel)) {
         await ensureGlobalDailyContentRow(db, localDate);
         const { data: refreshed, error: refreshedError } = await db
           .from("global_daily_content")

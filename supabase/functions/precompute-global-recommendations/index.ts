@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
 import { assertCronSecret, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
-import { buildGlobalMathLevel, computeGlobalDailyForecast } from "../_shared/dailyForecast.ts";
+import { buildGlobalMathLevel, computeGlobalDailyForecast, GLOBAL_MATH_SCHEMA_VERSION } from "../_shared/dailyForecast.ts";
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -31,6 +31,10 @@ function contentNeedsRefresh(existing: any, expectedModel: string): boolean {
   if (!hasRequiredText(existing.slogan)) return true;
   if (!hasRequiredText(existing.short_text)) return true;
   if (!hasRequiredText(existing.long_explanation)) return true;
+  const structured = existing.math_level?.structured;
+  if (!structured || structured.schema_version !== GLOBAL_MATH_SCHEMA_VERSION || structured.chart_mode !== "transit_only") {
+    return true;
+  }
   return false;
 }
 
@@ -85,7 +89,7 @@ async function generateForDate(db: any, date: string) {
 
   const { data: existing, error: existingError } = await db
     .from("global_daily_content")
-    .select("forecast_date_utc,llm_model,slogan,short_text,long_explanation")
+    .select("forecast_date_utc,llm_model,slogan,short_text,long_explanation,math_level")
     .eq("forecast_date_utc", date)
     .maybeSingle();
   if (existingError) throw existingError;

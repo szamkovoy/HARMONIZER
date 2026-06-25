@@ -13,11 +13,12 @@ export type AstroChartAspect = {
 };
 
 interface AstroChartSVGProps {
-  natalProfile: NatalProfile;
+  natalProfile?: NatalProfile;
   transitPositions?: Partial<Record<Planet, { longitude?: number; lon?: number }>>;
   aspects?: AstroChartAspect[];
-  showHouses: boolean;
+  showHouses?: boolean;
   size: number;
+  mode?: "natal_transit" | "transit_only";
 }
 
 const ZODIAC_SIGNS = [
@@ -47,10 +48,10 @@ const PLANET_SYMBOLS: Record<Planet, string> = {
 
 const ASPECT_COLORS: Record<string, string> = {
   trine: "#22c55e",
-  sextile: "#38bdf8",
-  square: "#ef4444",
-  opposition: "#f97316",
-  conjunction: "#94a3b8",
+  sextile: "#22c55e",
+  square: "#38bdf8",
+  opposition: "#38bdf8",
+  conjunction: "#22c55e",
 };
 
 function transitLongitude(value: { longitude?: number; lon?: number } | undefined): number | null {
@@ -66,14 +67,22 @@ function segmentPath(x1: number, y1: number, x2: number, y2: number) {
   return p;
 }
 
-export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHouses, size }: AstroChartSVGProps) {
+export function AstroChartSVG({
+  natalProfile,
+  transitPositions,
+  aspects,
+  showHouses = false,
+  size,
+  mode = "natal_transit",
+}: AstroChartSVGProps) {
   const theme = useTheme();
   const cx = size / 2;
   const cy = size / 2;
   const outerRadius = size / 2 - 10;
   const zodiacInnerRadius = outerRadius - 26;
+  const transitOnlyRadius = outerRadius - 44;
   const natalRadius = transitPositions ? outerRadius - 68 : outerRadius - 42;
-  const transitRadius = outerRadius - 42;
+  const transitRadius = mode === "transit_only" ? transitOnlyRadius : outerRadius - 42;
   const houseRadius = natalRadius - 22;
 
   const lonToAngle = (lon: number) => ((180 - lon) % 360) * (Math.PI / 180);
@@ -95,7 +104,11 @@ export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHou
       <Canvas style={{ width: size, height: size }}>
         <Circle cx={cx} cy={cy} r={outerRadius} color={border} style="stroke" strokeWidth={1.2} />
         <Circle cx={cx} cy={cy} r={zodiacInnerRadius} color={border} style="stroke" strokeWidth={1} />
-        <Circle cx={cx} cy={cy} r={natalRadius - 22} color={border} style="stroke" strokeWidth={0.8} />
+        {mode === "natal_transit" ? (
+          <Circle cx={cx} cy={cy} r={natalRadius - 22} color={border} style="stroke" strokeWidth={0.8} />
+        ) : (
+          <Circle cx={cx} cy={cy} r={transitOnlyRadius - 18} color={border} style="stroke" strokeWidth={0.8} />
+        )}
 
         {ZODIAC_SIGNS.map((sign, index) => {
           const signStart = index * 30;
@@ -112,8 +125,9 @@ export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHou
           );
         })}
 
-        {showHouses &&
-          natalProfile.houseCusps?.map((cusp, index) => {
+        {mode === "natal_transit" &&
+          showHouses &&
+          natalProfile?.houseCusps?.map((cusp, index) => {
             const outer = lonToXY(cusp, houseRadius);
             const inner = lonToXY(cusp, 18);
             return (
@@ -129,11 +143,14 @@ export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHou
           })}
 
         {aspects?.map((aspect) => {
-          const natalLon = natalProfile.planets[aspect.to]?.longitude;
-          const transitLon = transitLongitude(transitPositions?.[aspect.from]);
-          if (typeof natalLon !== "number" || transitLon == null) return null;
-          const from = lonToXY(transitLon, transitRadius);
-          const to = lonToXY(natalLon, natalRadius);
+          const fromLon = transitLongitude(transitPositions?.[aspect.from]);
+          const toLon =
+            mode === "transit_only"
+              ? transitLongitude(transitPositions?.[aspect.to])
+              : natalProfile?.planets[aspect.to]?.longitude;
+          if (fromLon == null || typeof toLon !== "number") return null;
+          const from = lonToXY(fromLon, transitRadius);
+          const to = lonToXY(toLon, mode === "transit_only" ? transitRadius : natalRadius);
           const color = ASPECT_COLORS[aspect.type] ?? faint;
           return (
             <Path
@@ -162,8 +179,9 @@ export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHou
           );
         })}
 
-        {showHouses &&
-          natalProfile.houseCusps?.map((cusp, index) => {
+        {mode === "natal_transit" &&
+          showHouses &&
+          natalProfile?.houseCusps?.map((cusp, index) => {
             const label = lonToXY(cusp + 15, Math.max(30, houseRadius - 16));
             return (
               <Text
@@ -175,14 +193,19 @@ export function AstroChartSVG({ natalProfile, transitPositions, aspects, showHou
             );
           })}
 
-        {PLANETS_7.map((planet) => {
-          const xy = lonToXY(natalProfile.planets[planet].longitude, natalRadius);
-          return (
-            <Text key={`n-${planet}`} style={[styles.planetNatal, { left: xy.x - 12, top: xy.y - 14, color: primary }]}>
-              {PLANET_SYMBOLS[planet]}
-            </Text>
-          );
-        })}
+        {mode === "natal_transit" && natalProfile
+          ? PLANETS_7.map((planet) => {
+              const xy = lonToXY(natalProfile.planets[planet].longitude, natalRadius);
+              return (
+                <Text
+                  key={`n-${planet}`}
+                  style={[styles.planetNatal, { left: xy.x - 12, top: xy.y - 14, color: primary }]}
+                >
+                  {PLANET_SYMBOLS[planet]}
+                </Text>
+              );
+            })
+          : null}
 
         {transitPositions
           ? PLANETS_7.map((planet) => {

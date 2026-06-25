@@ -72,7 +72,10 @@ export function ModalMathLevel({
   const insets = useSafeAreaInsets();
   const [showChart, setShowChart] = useState(false);
   const aspects = useMemo(() => chartAspects(mathLevel), [mathLevel]);
-  const canShowChart = accessMode !== "free" && Boolean(natalProfile);
+  const isGlobalForecast = accessMode === "free" || Boolean(forecast?.isGlobal);
+  const hasTransitChart = Boolean(forecast?.transitChart?.planets);
+  const canShowChart = isGlobalForecast ? hasTransitChart : Boolean(natalProfile && hasTransitChart);
+  const chartButtonLabel = isGlobalForecast ? strings.showTransitChartButton : strings.showChartButton;
 
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
@@ -94,25 +97,30 @@ export function ModalMathLevel({
           </SurfaceCardView>
 
           {canShowChart ? (
-            <AppButton label={strings.showChartButton} variant="secondary" onPress={() => setShowChart(true)} />
+            <AppButton label={chartButtonLabel} variant="secondary" onPress={() => setShowChart(true)} />
           ) : (
-            <ScreenSection title={strings.showChartButton} subtitle={strings.chartUnavailableHint} centerHeader>
+            <ScreenSection title={chartButtonLabel} subtitle={strings.chartUnavailableHint} centerHeader>
               <View />
             </ScreenSection>
           )}
         </ScrollView>
       </FullScreenModalScaffold>
 
-      {showChart && canShowChart && natalProfile ? (
+      {showChart && canShowChart ? (
         <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
           <ModalAstroChart
             visible={showChart}
-            onClose={() => setShowChart(false)}
-            natalProfile={natalProfile}
+            onClose={() => {
+              setShowChart(false);
+              onClose();
+            }}
+            natalProfile={natalProfile ?? undefined}
+            transitPositions={forecast?.transitChart?.planets}
             forecast={forecast ?? undefined}
             aspects={aspects}
             strings={chartStrings}
             presentation="nestedOverlay"
+            mode={isGlobalForecast ? "transit_only" : "natal_transit"}
           />
         </Suspense>
       ) : null}

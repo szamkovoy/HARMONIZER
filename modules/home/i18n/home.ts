@@ -116,15 +116,19 @@ export interface HomeStrings {
     closeButton: string;
     emptyHint: string;
     showChartButton: string;
+    showTransitChartButton: string;
     chartUnavailableHint: string;
   };
   astroChartModal: {
     titleTransit: string;
     titleNatal: string;
+    titleGlobal: string;
     subtitle: string;
+    subtitleGlobal: string;
     housesHiddenHint: string;
     mainAspectsTitle: string;
     planetStrengthsTitle: string;
+    planetPositionsTitle: string;
     toNatalConnector: string;
     orbPrefix: string;
   };
@@ -319,18 +323,22 @@ const ru: HomeStrings = {
   mathModal: {
     title: "Математика дня",
     subtitle: "Формулы силы, гармоничности, транзитов и выбора планеты дня.",
-    closeButton: "Назад",
+    closeButton: "Закрыть",
     emptyHint: "Математический блок пока не пришёл с прогнозом. Обновите прогноз дня после деплоя backend-части патча.",
     showChartButton: "Показать натальную и транзитную карту",
+    showTransitChartButton: "Показать транзитный гороскоп дня",
     chartUnavailableHint: "Карта доступна только для trial/premium-пользователей с натальным профилем.",
   },
   astroChartModal: {
     titleTransit: "Натальная + транзитная карта",
     titleNatal: "Натальная карта",
+    titleGlobal: "Транзитный гороскоп дня",
     subtitle: "Внутреннее кольцо — натальные планеты, внешнее — транзиты дня.",
+    subtitleGlobal: "Показаны только транзитные планеты дня, знаки зодиака и аспекты между ними.",
     housesHiddenHint: "Дома не показаны: точные кусписы доступны только при точном времени рождения.",
     mainAspectsTitle: "Главные аспекты дня",
     planetStrengthsTitle: "Силы планет",
+    planetPositionsTitle: "Положения планет",
     toNatalConnector: "к натальному",
     orbPrefix: ", орб ",
   },
@@ -486,18 +494,22 @@ const en: HomeStrings = {
   mathModal: {
     title: "Day mathematics",
     subtitle: "Formulas for strength, harmony, transits, and choosing the planet of the day.",
-    closeButton: "Back",
+    closeButton: "Close",
     emptyHint: "The math block has not arrived with the forecast yet. Refresh the daily forecast after the backend update.",
     showChartButton: "Show natal and transit chart",
+    showTransitChartButton: "Show today's transit chart",
     chartUnavailableHint: "The chart is available only for trial/premium users with a natal profile.",
   },
   astroChartModal: {
     titleTransit: "Natal + transit chart",
     titleNatal: "Natal chart",
+    titleGlobal: "Transit chart of the day",
     subtitle: "Inner ring — natal planets, outer ring — today's transits.",
+    subtitleGlobal: "Only today's transiting planets, zodiac signs, and aspects between them are shown.",
     housesHiddenHint: "Houses are hidden: exact cusps require an accurate birth time.",
     mainAspectsTitle: "Main aspects of the day",
     planetStrengthsTitle: "Planetary strength",
+    planetPositionsTitle: "Planet positions",
     toNatalConnector: "to natal",
     orbPrefix: ", orb ",
   },
