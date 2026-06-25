@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.02
-updated: 2026-06-23
+version: 3.03
+updated: 2026-06-25
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-25: doc-sync pre-push — `communicator/spec.md`, `daily_forecast/{spec,dependencies,history}.md`, `communicator/history.md`, `assistant/spec.md`, `MAP.md`: tariff-scoped Home «Обновить» via `POST /api/ai/dev-day-reset`; morning prompts v4 refs in assistant spec.
 - 2026-06-25: `daily_forecast` / `assistant` — Home test «Обновить» uses tariff-scoped dev reset (`global` vs `personal`); modal subtitles use standard `screenHint` typography; morning prompts v4 fix primary-chakra practice hint and ban chakras in long_explanation.
 - 2026-06-25: `daily_forecast` / `assistant` / `astro` — free Home astrology flow now uses a deeper premium-backed global prompt, requires a complete precomputed `mathLevel`, opens a transit-only chart for free users, and unifies explainer modal closing to `Закрыть → Home`; aspect colors were normalized to green (harmonic) / blue (challenging). Synced `daily_forecast/{spec,dependencies,history}.md`, `assistant/{spec,dependencies,history}.md`, `astro/{history,interpretation_layers}.md`.
 - 2026-06-24: `daily_forecast` — Day tab header shows the localized current date in `overdue_summary` and empty states instead of the static tab label. Synced `daily_forecast/history.md`.

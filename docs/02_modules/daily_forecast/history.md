@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.18
+version: 2.19
 updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-25 (2):** Home test «Обновить» больше не бьёт в `POST /api/ai/global-content` с `devReset: true`. Клиент вызывает `postDevDayContentReset(devResetScopeForAccessMode(...))` → `POST /api/ai/dev-day-reset` (`resetScope: global` для free, `personal` для paid/trial), чтобы paid-path сбрасывал только персональные кэши дня, не удаляя shared `global_daily_content`.
 
 - **2026-06-25:** Free and paid astrology explainers on Home were aligned more tightly. Free `global_daily_content` now expects a complete `mathLevel` too, because the same precomputed payload opens both the formulas modal and a new **transit-only** chart (single ring, no natal houses/ascendant). The fullscreen chain `Подробнее → Расчёты и формулы → Карта` was also unified to a single `Закрыть → Home` exit path, and chart aspect colors were normalized to green for harmonic lines and blue for challenging ones.
 

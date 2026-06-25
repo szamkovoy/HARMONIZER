@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.9
+version: 2.10
 updated: 2026-06-25
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -57,6 +57,7 @@ code_refs:
 - **`subscription`**  
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
   - `supabase/functions/precompute-daily-forecasts/index.ts` использует серверный premium/personal gate (`membership_tier`, `trial_expires_at`) и больше не прогревает personal path для неактивных пользователей спустя 3 дня.
+  - Dev test «Обновить» на Home: `services/devDayContentResetClient.ts` → `POST /api/ai/dev-day-reset` (`resetScope` через `devResetScopeForAccessMode`); legacy `POST /api/ai/global-content` `{ devReset: true }` на сервере остаётся только для `global` scope.
 
 - **`assistant` (server monologue cache)**
   - Персональный precompute теперь зависит от сценария `morning_recommendation` и таблицы `scenario_cache`: `supabase/functions/precompute-daily-forecasts/index.ts` заранее строит `slogan` / `short_text` / `long_explanation` / `math_level`, чтобы обычный paid-home reload мог взять их без LLM rerun.

@@ -2,8 +2,8 @@
 
 id: 00_index/MAP
 title: Documentation Map
-version: 1.45
-updated: 2026-06-21
+version: 1.46
+updated: 2026-06-25
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs:
   [
@@ -58,6 +58,6 @@ code_refs:
 | Что клиент шлёт на POST вместо `messages.content`? | `communicator/spec.md`, `communicator/dependencies.md` | `buildClientTurnHistory`, `turnHistory` в `communicator-client.ts` |
 | Что сервер пишет в БД (без длинного текста)? | `assistant/spec.md` §2 POST, §3 персистенция | `route.ts`, `lifeMatrixPersistence.ts` |
 | Снимки отчётов в профиле | `profile/spec.md` §4 отчёты | `profile_report_snapshots`, миграция `20260525130000_profile_report_snapshots.sql`, `GET /api/profile/life-matrix` |
-| Сброс диалога кнопкой «Обновить» на главной (test UI) | `communicator/spec.md`, `daily_forecast/spec.md` | `clearHomeDailyDialogCache`, `postGlobalContentDevReset`, `app/(tabs)/index.tsx` |
+| Сброс диалога кнопкой «Обновить» на главной (test UI) | `communicator/spec.md`, `daily_forecast/spec.md` | `clearHomeDailyDialogCache`, `postDevDayContentReset`, `devResetScopeForAccessMode`, `app/(tabs)/index.tsx` |
 | Возобновление сессии после reopen / TTL | `assistant/spec.md` GET, `communicator/spec.md` жизненный цикл | `sessionResumeTtlMs`, GET `communicator/v2/dialog/route.ts` |
 | Test mode (сжатые интервалы, фаза дня) | `docs/04_reference/test_mode.md` | `_legacy_web/app/api/_utils/testMode.ts` |
