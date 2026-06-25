@@ -38,7 +38,7 @@ export function FullScreenModalScaffold({
         <View style={styles.headerText}>
           <AppText variant="sectionTitle">{title}</AppText>
           {subtitle ? (
-            <AppText variant="technicalCaption" tone="muted">
+            <AppText variant="screenHint" tone="muted">
               {subtitle}
             </AppText>
           ) : null}

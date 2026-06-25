@@ -22,7 +22,7 @@ import { StateCard } from "@/modules/ui/StateCard";
 import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
-import { postGlobalContentDevReset } from "@/services/devDayContentResetClient";
+import { devResetScopeForAccessMode, postDevDayContentReset } from "@/services/devDayContentResetClient";
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { startSummarizingHealthCollection } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
@@ -580,7 +580,8 @@ export default function HomeScreen() {
       if (authUser?.id) {
         await clearHomeDailyDialogCache(authUser.id);
       }
-      const resetResult = await postGlobalContentDevReset();
+      const resetScope = devResetScopeForAccessMode(accessModeForTier(access.tier));
+      const resetResult = await postDevDayContentReset(resetScope);
       await refresh({ forceRefresh: true });
       setAssistantRemountKey((k) => k + 1);
       const deleted = resetResult?.deleted;
@@ -593,7 +594,7 @@ export default function HomeScreen() {
     } finally {
       setDevDayResetBusy(false);
     }
-  }, [authUser?.id, refresh]);
+  }, [access.tier, authUser?.id, refresh]);
 
   const onOpenAssistantOrDay = useCallback(async () => {
     if (!canUseFeature("assistant_dialog")) {

@@ -145,7 +145,7 @@ export async function POST(req: Request) {
 
     let devResetExtra: { dev_reset?: Awaited<ReturnType<typeof runDevDayContentReset>> } = {};
     if (body.devReset === true) {
-      devResetExtra = { dev_reset: await runDevDayContentReset(db, userId) };
+      devResetExtra = { dev_reset: await runDevDayContentReset(db, userId, "global") };
     }
 
     const { data: user, error: userError } = await db

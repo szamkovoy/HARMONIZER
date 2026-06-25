@@ -38,7 +38,7 @@ code_refs:
 ## 3. Подробное объяснение — `recommendationLongText` (`recommendation_long_text`)
 
 - **Смысл:** развёрнутый текст для модалки «Подробнее».
-- **Источник:** LLM (`long_explanation` в JSON).
+- **Источник:** LLM (`long_explanation` в JSON). В промптах `global_morning_recommendation` v4+ и `monologue_morning_recommendation` v4+ для этого слоя **запрещены** упоминания чакр; планеты и психологические темы — да.
 - **UI:** `ModalLongExplanation` из `DailyRecommendationCard.tsx`; если поля нет, подставляется собранный из шаблонов продуктовый `detailText` на клиенте.
 
 ## 4. Математический слой — `mathLevel` (`math_level`)

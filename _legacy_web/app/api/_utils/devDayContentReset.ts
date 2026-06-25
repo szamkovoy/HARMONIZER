@@ -3,11 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureGlobalDailyContentRow } from "./ensureGlobalDailyContent";
 import { getUserTimezone, todayLocalDate } from "../calibration/extract/forecast-cache-date";
 
-/**
- * Сброс кэшей дня для тестов ИИ (кнопка на главной, POST /api/ai/global-content + devReset).
- * Удаление `global_daily_content` на дату влияет на всех пользователей окружения.
- */
-export async function runDevDayContentReset(db: SupabaseClient, userId: string): Promise<{
+/** Which server-side day caches the dev «Обновить» button should invalidate. */
+export type DevDayContentResetScope = "global" | "personal";
+
+export type DevDayContentResetResult = {
+  scope: DevDayContentResetScope;
   forecast_date: string;
   deleted: {
     scenario_cache: number;
@@ -15,55 +15,76 @@ export async function runDevDayContentReset(db: SupabaseClient, userId: string):
     global_daily_content: number;
     open_home_conversations: number;
   };
-}> {
+};
+
+/**
+ * Test-mode reset for Home «Обновить».
+ * - `global`: shared free-tier row in `global_daily_content` (+ regen via LLM).
+ * - `personal`: per-user forecast + morning monologue cache only (paid/trial path).
+ */
+export async function runDevDayContentReset(
+  db: SupabaseClient,
+  userId: string,
+  scope: DevDayContentResetScope,
+): Promise<DevDayContentResetResult> {
   const tz = await getUserTimezone(db, userId);
   const localDate = todayLocalDate(tz);
+  const deleted = {
+    scenario_cache: 0,
+    user_daily_forecasts: 0,
+    global_daily_content: 0,
+    open_home_conversations: 0,
+  };
 
-  const { count: scenarioCacheCount, error: scErr } = await db
-    .from("scenario_cache")
-    .delete({ count: "exact" })
-    .eq("user_id", userId)
-    .eq("scenario_id", "morning_recommendation");
-  if (scErr) throw scErr;
+  if (scope === "personal") {
+    const { count: scenarioCacheCount, error: scErr } = await db
+      .from("scenario_cache")
+      .delete({ count: "exact" })
+      .eq("user_id", userId)
+      .eq("scenario_id", "morning_recommendation");
+    if (scErr) throw scErr;
+    deleted.scenario_cache = scenarioCacheCount ?? 0;
 
-  const { count: forecastCount, error: udfErr } = await db
-    .from("user_daily_forecasts")
-    .delete({ count: "exact" })
-    .eq("user_id", userId)
-    .eq("forecast_date", localDate);
-  if (udfErr) throw udfErr;
+    const { count: forecastCount, error: udfErr } = await db
+      .from("user_daily_forecasts")
+      .delete({ count: "exact" })
+      .eq("user_id", userId)
+      .eq("forecast_date", localDate);
+    if (udfErr) throw udfErr;
+    deleted.user_daily_forecasts = forecastCount ?? 0;
 
-  const { count: globalContentCount, error: gdcErr } = await db
-    .from("global_daily_content")
-    .delete({ count: "exact" })
-    .eq("forecast_date_utc", localDate);
-  if (gdcErr) throw gdcErr;
+    const { error: giErr } = await db
+      .from("scenario_cache")
+      .delete({ count: "exact" })
+      .eq("user_id", userId)
+      .eq("scenario_id", "global_content_i18n");
+    if (giErr) throw giErr;
 
-  const nowIso = new Date().toISOString();
-  const { count: conversationCount, error: convErr } = await db
-    .from("conversations")
-    .update({ ended_at: nowIso }, { count: "exact" })
-    .eq("user_id", userId)
-    .is("ended_at", null)
-    .eq("entry_source", "home");
-  if (convErr) throw convErr;
+    const nowIso = new Date().toISOString();
+    const { count: conversationCount, error: convErr } = await db
+      .from("conversations")
+      .update({ ended_at: nowIso }, { count: "exact" })
+      .eq("user_id", userId)
+      .is("ended_at", null)
+      .eq("entry_source", "home");
+    if (convErr) throw convErr;
+    deleted.open_home_conversations = conversationCount ?? 0;
+  }
 
-  const { error: giErr } = await db
-    .from("scenario_cache")
-    .delete({ count: "exact" })
-    .eq("user_id", userId)
-    .eq("scenario_id", "global_content_i18n");
-  if (giErr) throw giErr;
+  if (scope === "global") {
+    const { count: globalContentCount, error: gdcErr } = await db
+      .from("global_daily_content")
+      .delete({ count: "exact" })
+      .eq("forecast_date_utc", localDate);
+    if (gdcErr) throw gdcErr;
+    deleted.global_daily_content = globalContentCount ?? 0;
 
-  await ensureGlobalDailyContentRow(db, localDate);
+    await ensureGlobalDailyContentRow(db, localDate);
+  }
 
   return {
+    scope,
     forecast_date: localDate,
-    deleted: {
-      scenario_cache: scenarioCacheCount ?? 0,
-      user_daily_forecasts: forecastCount ?? 0,
-      global_daily_content: globalContentCount ?? 0,
-      open_home_conversations: conversationCount ?? 0,
-    },
+    deleted,
   };
 }
