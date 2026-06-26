@@ -1,7 +1,7 @@
 ---
 id: 02_modules/astro/interpretation_layers
 title: Astro Interpretation Layers
-version: 1.3
+version: 1.4
 updated: 2026-06-26
 depends_on: [01_foundation/architecture, 02_modules/daily_forecast/spec]
 code_refs:
@@ -47,7 +47,7 @@ code_refs:
 - **Источник:** `buildMathLevel` в `_legacy_web/app/api/_utils/mathLevelBuilder.ts` (активация, importance, аспекты, `S`/`H` с натала и дельты калибровки). В ответ monologue поле добавляется сервером рядом с JSON модели (`math_level` в payload).
 - **Формат (personal):** `{ markdown: string; structured?: { natal_strengths, main_aspects, importance_breakdown, calibration_deltas? } }` — см. интерфейс `MathLevelData` в `mathLevelBuilder.ts`.
 - **Формат (free/global):** `buildGlobalMathLevel` собирает transit-only payload с `structured.schema_version = 2`, `chart_mode = "transit_only"`, `planet_positions`, `planet_scores`, `top_petals`, `aspects`, `main_aspects`. Этот слой не использует натал и поэтому открывает только общий транзитный круг дня.
-- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; из Home открывается как **`nestedOverlay`** внутри `ModalLongExplanation` (не отдельный sibling `Modal`). Из того же payload открывается либо personal natal+transit chart, либо free transit-only chart. Планеты, знаки, аспекты, `orb`/`tone`/`gravity` в markdown локализуются по активной locale, а free fallback через прямое чтение `global_daily_content` пересобирает этот markdown из structured payload, чтобы не показывать сырой RU/EN текст.
+- **UI:** `ModalLongExplanation` оркестрирует цепочку `long` → `math` → `chart` через `HomeExplainerLevel`; `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`; math/chart — **`SlideUpModalLayer`** поверх статичного long-слоя (`presentation="stackLayer"`, не sibling RN `Modal`); aspects для chart — **`chartAspectsFromMathLevel`** из `structured.main_aspects`. Из того же payload открывается либо personal natal+transit chart, либо free transit-only chart. Планеты, знаки, аспекты, `orb`/`tone`/`gravity` в markdown локализуются по активной locale, а free fallback через прямое чтение `global_daily_content` пересобирает этот markdown из structured payload, чтобы не показывать сырой RU/EN текст.
 
 ## 5. Обогащение на клиенте
 

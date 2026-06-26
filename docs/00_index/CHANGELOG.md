@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.04
+version: 3.05
 updated: 2026-06-26
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-26: doc-sync pre-push — Home explainer stack: `SlideUpModalLayer`, `HomeExplainerLevel`, `stackLayer` presentation, chart orchestration in `ModalLongExplanation`, export `chartAspectsFromMathLevel`. Synced stale `nestedOverlay` refs in `daily_forecast/dependencies.md`, `astro/interpretation_layers.md` (spec/history already current).
 - 2026-06-26: doc-sync pre-push — completed `recommendationText.ts` / morning prompt v5 alignment in `assistant/{spec,dependencies}.md`, `chakra/{spec,dependencies,history}.md`, `daily_forecast/dependencies.md`, `astro/interpretation_layers.md` (tone-key + §6 normalization, `sanitizeRecommendationDisplay`, math modal nested overlay).
 - 2026-06-26: `daily_forecast` / `assistant` / `i18n` — Home QA: recommendation card shows deterministic fallback (not «Обновляем…») while LLM layer hydrates; `recommendationText.ts` strips English tone keys and §6 «С МОСТИКОМ» from visible copy; math modal opens as nested overlay inside «Подробнее» (fixes dead button); morning prompt v5. Synced `daily_forecast/{spec,history}.md`, `assistant/history.md`.
 - 2026-06-26: doc-sync pre-push — aligned `assistant/spec.md` v4 morning prompt contract (numeric chakra labels, not long_explanation ban); documented server `chakraText.ts` in `chakra/{spec,dependencies,history}.md` and paired `assistant/dependencies.md`, `daily_forecast/dependencies.md`.

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.12
+version: 2.13
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -67,7 +67,7 @@ code_refs:
 
 - **`charts`**  
   - **`modules/home/ui/ChakraFlower.tsx`**: prop **`accessMode`**; цвета лепестков — **`CHAKRA_SEGMENT_COLORS`** (импорт **`getChartStrings`** снят); подпись в центре — **`strings.planetLabels[planetOfTheDay]`**; значение силы — `S_initial` планеты дня при наличии `natalProfile`, иначе нормализованная `forecast.importance`; легенда — **`strings.planetLabels`** (порядок Sun→Saturn); заголовок/подзаголовок — **`getHomeStrings` → `chakraFlower.title`**, **`captionFree`** / **`captionPersonal`** по `accessMode`.
-  - **`modules/home/ui/ModalMathLevel.tsx` / `ModalAstroChart.tsx` / `AstroChartSVG.tsx`**: home explainer-chain читает `forecast.mathLevel.structured` и `forecast.transitChart`; `ModalMathLevel` открывается как `nestedOverlay` внутри `ModalLongExplanation` (не sibling RN `Modal`); free-path использует `chart_mode="transit_only"` + `planet_scores` / `main_aspects` для транзитного круга без натала, paid-path — natal+transit режим с домами только при точном времени рождения.
+  - **`modules/home/ui/ModalLongExplanation.tsx` / `ModalMathLevel.tsx` / `ModalAstroChart.tsx` / `SlideUpModalLayer.tsx` / `AstroChartSVG.tsx`**: home explainer-chain читает `forecast.mathLevel.structured` и `forecast.transitChart`; `ModalLongExplanation` оркестрирует stack (`HomeExplainerLevel`: `long` | `math` | `chart`) в одном RN `Modal` — math/chart через **`SlideUpModalLayer`** (`presentation="stackLayer"`, ~320 ms slide-up), не sibling `Modal`; aspects для chart — export **`chartAspectsFromMathLevel`** из `ModalMathLevel`; free-path использует `chart_mode="transit_only"` + `planet_scores` / `main_aspects` для транзитного круга без натала, paid-path — natal+transit режим с домами только при точном времени рождения.
   - **`app/(tabs)/day.tsx`**: блок «Сферы жизни» — **`DonutChart`** + **`DonutVisibilityProvider`**; веса из **`sphereStats`** (`GET /api/day`), баланс — **`calcBalance`** на клиенте.
 
 - **`infra`**  
