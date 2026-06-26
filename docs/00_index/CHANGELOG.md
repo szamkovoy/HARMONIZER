@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.03
-updated: 2026-06-25
+version: 3.04
+updated: 2026-06-26
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-26: doc-sync pre-push — completed `recommendationText.ts` / morning prompt v5 alignment in `assistant/{spec,dependencies}.md`, `chakra/{spec,dependencies,history}.md`, `daily_forecast/dependencies.md`, `astro/interpretation_layers.md` (tone-key + §6 normalization, `sanitizeRecommendationDisplay`, math modal nested overlay).
 - 2026-06-26: `daily_forecast` / `assistant` / `i18n` — Home QA: recommendation card shows deterministic fallback (not «Обновляем…») while LLM layer hydrates; `recommendationText.ts` strips English tone keys and §6 «С МОСТИКОМ» from visible copy; math modal opens as nested overlay inside «Подробнее» (fixes dead button); morning prompt v5. Synced `daily_forecast/{spec,history}.md`, `assistant/history.md`.
 - 2026-06-26: doc-sync pre-push — aligned `assistant/spec.md` v4 morning prompt contract (numeric chakra labels, not long_explanation ban); documented server `chakraText.ts` in `chakra/{spec,dependencies,history}.md` and paired `assistant/dependencies.md`, `daily_forecast/dependencies.md`.
 - 2026-06-26: `assistant` / `daily_forecast` / `infra` — LLM fallback policy split by workload: interactive recommendation-generation now goes straight from the requested tier model to `AI_MODEL_FALLBACK`, while cron/precompute for personal morning cache and free global content retries the exact primary model 3 times with 60-second pauses before one fallback attempt. Synced `assistant/{spec,history}.md`, `daily_forecast/history.md`, `infra/{spec,history}.md`.

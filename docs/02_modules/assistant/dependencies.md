@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.25
+version: 1.26
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
@@ -12,7 +12,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`chakra`**
   - `_legacy_web/app/api/_utils/topPetals.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для утреннего монолога `buildTopPetals`.
   - `_legacy_web/app/api/_utils/globalTransitMath.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` для free-tier global math (`buildGlobalMathLevel`), где тот же transit-only payload теперь питает и markdown, и free chart (`chart_mode="transit_only"`).
-  - `_legacy_web/app/api/_utils/chakraText.ts` — `normalizeChakraNamesInText` / `normalizeChakraNamesInFields` для post-processing visible recommendation fields (`slogan`, `short_text`, `long_explanation`) после LLM/cache; потребители: `ensureGlobalDailyContent`, `globalContentLocale`, `ai/monologue/route.ts`, `services/globalContentClient.ts`.
+  - `_legacy_web/app/api/_utils/recommendationText.ts` — `normalizeRecommendationText` / `normalizeRecommendationFields` для post-processing visible recommendation fields (`slogan`, `short_text`, `long_explanation`, `math_level.markdown`) после LLM/cache: chakra names (via `chakraText.ts`), English tone keys, §6 header; потребители: `ensureGlobalDailyContent`, `globalContentLocale`, `morningRecommendation.ts`, `ai/monologue/route.ts`, `services/globalContentClient.ts`.
 
 - **`astro`**
   - `natalProfileFromRow` / `user_natal_charts` в `_legacy_web/app/api/communicator/v2/dialog/route.ts` (`loadContext`) и в `_legacy_web/app/api/ai/monologue/route.ts` (`loadActiveNatalProfile`) для профиля и **`buildMathLevel`** / **`buildTopPetals`**.

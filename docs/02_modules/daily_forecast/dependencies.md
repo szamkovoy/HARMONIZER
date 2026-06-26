@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.11
+version: 2.12
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -22,6 +22,7 @@ code_refs:
     modules/home/ui/OpportunityWindows.tsx,
     modules/home/i18n/home.ts,
     modules/home/ui/DailyRecommendationCard.tsx,
+    modules/home/sanitizeRecommendationDisplay.ts,
     modules/chakra/i18n.ts,
     modules/home/planetChakra.ts,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
@@ -37,7 +38,8 @@ code_refs:
 
 - **`i18n`**
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
-  - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/chakraText.ts` and `mathLevelI18n.ts` to normalize legacy chakra names and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
+  - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/recommendationText.ts` and `mathLevelI18n.ts` to normalize legacy tone/chakra vocabulary and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
+  - **`modules/home/sanitizeRecommendationDisplay.ts`** — client-side display pass over `normalizeRecommendationText` in `useDayContent` and `DailyRecommendationCard`.
   - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`. **`app/(tabs)/profile.tsx`** при смене локали больше не вызывает `markHomeDayContentBlockingReload` — blocking reload остаётся только для смены натала.
 
 - **`astro` (типы и движок)**  
@@ -65,7 +67,7 @@ code_refs:
 
 - **`charts`**  
   - **`modules/home/ui/ChakraFlower.tsx`**: prop **`accessMode`**; цвета лепестков — **`CHAKRA_SEGMENT_COLORS`** (импорт **`getChartStrings`** снят); подпись в центре — **`strings.planetLabels[planetOfTheDay]`**; значение силы — `S_initial` планеты дня при наличии `natalProfile`, иначе нормализованная `forecast.importance`; легенда — **`strings.planetLabels`** (порядок Sun→Saturn); заголовок/подзаголовок — **`getHomeStrings` → `chakraFlower.title`**, **`captionFree`** / **`captionPersonal`** по `accessMode`.
-  - **`modules/home/ui/ModalMathLevel.tsx` / `ModalAstroChart.tsx` / `AstroChartSVG.tsx`**: home explainer-chain читает `forecast.mathLevel.structured` и `forecast.transitChart`; free-path использует `chart_mode="transit_only"` + `planet_scores` / `main_aspects` для транзитного круга без натала, paid-path — natal+transit режим с домами только при точном времени рождения.
+  - **`modules/home/ui/ModalMathLevel.tsx` / `ModalAstroChart.tsx` / `AstroChartSVG.tsx`**: home explainer-chain читает `forecast.mathLevel.structured` и `forecast.transitChart`; `ModalMathLevel` открывается как `nestedOverlay` внутри `ModalLongExplanation` (не sibling RN `Modal`); free-path использует `chart_mode="transit_only"` + `planet_scores` / `main_aspects` для транзитного круга без натала, paid-path — natal+transit режим с домами только при точном времени рождения.
   - **`app/(tabs)/day.tsx`**: блок «Сферы жизни» — **`DonutChart`** + **`DonutVisibilityProvider`**; веса из **`sphereStats`** (`GET /api/day`), баланс — **`calcBalance`** на клиенте.
 
 - **`infra`**  

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.5
+version: 1.6
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs:
@@ -39,7 +39,13 @@ code_refs:
 
 - **`normalizeChakraNamesInText(text, locale)`** — заменяет санскритские/transliterated имена чакр (RU/EN regex patterns) на locale-native numeric labels из inline map для всех 8 `AppContentLocale`; сохраняет начальную капитализацию совпадения.
 - **`normalizeChakraNamesInFields(payload, locale, fields?)`** — применяет нормализацию к строковым полям объекта (default: `slogan`, `short_text`, `long_explanation`).
-- Потребители: `ensureGlobalDailyContent`, `globalContentLocale`, `ai/monologue/route.ts` (`morning_recommendation`), `services/globalContentClient.ts` (direct Supabase fallback).
+- Потребители recommendation pipeline теперь идут через **`recommendationText.ts`** (§2.4), который вызывает `normalizeChakraNamesInText` как первый шаг; прямой импорт `chakraText` из transport-слоя снят.
+
+### 2.4 `_legacy_web/app/api/_utils/recommendationText.ts` (server recommendation post-processing)
+
+- **`normalizeRecommendationText(text, locale)`** — chakra names + English tone keys → locale labels + §6 header без bridge wording.
+- **`normalizeRecommendationFields(payload, locale, fields?)`** — применяет к строковым полям и `math_level.markdown`.
+- Потребители: `ensureGlobalDailyContent`, `globalContentLocale`, `morningRecommendation.ts`, `ai/monologue/route.ts`, `services/globalContentClient.ts`, client `modules/home/sanitizeRecommendationDisplay.ts`.
 
 ## 3. Внутренняя архитектура
 

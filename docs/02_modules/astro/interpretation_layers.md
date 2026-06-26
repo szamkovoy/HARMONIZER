@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/interpretation_layers
 title: Astro Interpretation Layers
-version: 1.2
-updated: 2026-06-25
+version: 1.3
+updated: 2026-06-26
 depends_on: [01_foundation/architecture, 02_modules/daily_forecast/spec]
 code_refs:
   [
@@ -33,13 +33,13 @@ code_refs:
 
 - **Смысл:** основной абзац в карточке рекомендации на главной (~целевой размер из `CONTENT_LENGTHS.SHORT_TEXT_TARGET_CHARS`).
 - **Источник:** тот же LLM JSON (`short_text`).
-- **UI:** `getForecastRecommendation` в `modules/home/i18n/home.ts` → `DailyRecommendationCard` показывает этот текст; если пусто — `strings.recommendation.fallback(forecast)`.
+- **UI:** `getForecastRecommendation` в `modules/home/i18n/home.ts` → `DailyRecommendationCard` показывает этот текст через `sanitizeRecommendationDisplay`; если пусто — `strings.recommendation.fallback(forecast)`.
 
 ## 3. Подробное объяснение — `recommendationLongText` (`recommendation_long_text`)
 
 - **Смысл:** развёрнутый текст для модалки «Подробнее».
-- **Источник:** LLM (`long_explanation` в JSON). В промптах `global_morning_recommendation` v4+ и `monologue_morning_recommendation` v4+ chakra-лексика больше не должна использовать санскритские имена: если чакра упоминается, то только в номерной форме (`четвёртая чакра`, `третья чакра` и т.п.).
-- **UI:** `ModalLongExplanation` из `DailyRecommendationCard.tsx`; если поля нет, подставляется собранный из шаблонов продуктовый `detailText` на клиенте.
+- **Источник:** LLM (`long_explanation` в JSON). В промптах `global_morning_recommendation` v4+ и `monologue_morning_recommendation` v5+ chakra-лексика — только номерная форма; v5 additionally bans English tone keys in visible JSON and shortens §6 to «ЗАКЛЮЧЕНИЕ».
+- **UI:** `ModalLongExplanation` из `DailyRecommendationCard.tsx`; LLM-текст проходит `sanitizeRecommendationDisplay`; если поля нет, подставляется собранный из шаблонов продуктовый `detailText` на клиенте.
 
 ## 4. Математический слой — `mathLevel` (`math_level`)
 
@@ -47,7 +47,7 @@ code_refs:
 - **Источник:** `buildMathLevel` в `_legacy_web/app/api/_utils/mathLevelBuilder.ts` (активация, importance, аспекты, `S`/`H` с натала и дельты калибровки). В ответ monologue поле добавляется сервером рядом с JSON модели (`math_level` в payload).
 - **Формат (personal):** `{ markdown: string; structured?: { natal_strengths, main_aspects, importance_breakdown, calibration_deltas? } }` — см. интерфейс `MathLevelData` в `mathLevelBuilder.ts`.
 - **Формат (free/global):** `buildGlobalMathLevel` собирает transit-only payload с `structured.schema_version = 2`, `chart_mode = "transit_only"`, `planet_positions`, `planet_scores`, `top_petals`, `aspects`, `main_aspects`. Этот слой не использует натал и поэтому открывает только общий транзитный круг дня.
-- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; из того же payload открывается либо personal natal+transit chart, либо free transit-only chart. Планеты, знаки, аспекты, `orb`/`tone`/`gravity` в markdown локализуются по активной locale, а free fallback через прямое чтение `global_daily_content` пересобирает этот markdown из structured payload, чтобы не показывать сырой RU/EN текст.
+- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; из Home открывается как **`nestedOverlay`** внутри `ModalLongExplanation` (не отдельный sibling `Modal`). Из того же payload открывается либо personal natal+transit chart, либо free transit-only chart. Планеты, знаки, аспекты, `orb`/`tone`/`gravity` в markdown локализуются по активной locale, а free fallback через прямое чтение `global_daily_content` пересобирает этот markdown из structured payload, чтобы не показывать сырой RU/EN текст.
 
 ## 5. Обогащение на клиенте
 
