@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.13
+version: 2.14
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -38,7 +38,7 @@ code_refs:
 
 - **`i18n`**
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
-  - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/recommendationText.ts` and `mathLevelI18n.ts` to normalize legacy tone/chakra vocabulary and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
+  - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/recommendationText.ts` (`normalizeRecommendationText`, `isCurrentGlobalLongExplanation`) and `mathLevelI18n.ts` to normalize legacy tone/chakra vocabulary, drop unstructured/chakra-heavy `long_explanation`, and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
   - **`modules/home/sanitizeRecommendationDisplay.ts`** — client-side display pass over `normalizeRecommendationText` in `useDayContent` and `DailyRecommendationCard`.
   - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`. **`app/(tabs)/profile.tsx`** при смене локали больше не вызывает `markHomeDayContentBlockingReload` — blocking reload остаётся только для смены натала.
 

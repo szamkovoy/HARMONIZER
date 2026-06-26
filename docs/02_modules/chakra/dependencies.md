@@ -1,7 +1,7 @@
 ---
 id: 02_modules/chakra/dependencies
 title: Chakra Dependencies
-version: 1.6
+version: 1.7
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts, _legacy_web/app/api/_utils/chakraText.ts]
@@ -26,10 +26,10 @@ code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts, _legacy_web/app/ap
   - `_legacy_web/app/api/_utils/topPetals.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` (утренний монолог `buildTopPetals`).
   - `_legacy_web/app/api/_utils/globalTransitMath.ts` — `chakraLabelRu` в `PLANET_TO_CHAKRA.label` (free-tier global math).
   - `_legacy_web/app/api/_utils/chakraText.ts` — chakra-only normalization; consumed internally by `recommendationText.ts`.
-  - `_legacy_web/app/api/_utils/recommendationText.ts` — visible recommendation post-processing (chakra names, tone keys, §6 headers); used by global content upsert/serve, monologue cache, and `services/globalContentClient.ts` direct fallback.
+  - `_legacy_web/app/api/_utils/recommendationText.ts` — visible recommendation post-processing (chakra names, tone keys, §6 headers) plus `isCurrentGlobalLongExplanation` validation for global long text; used by global content upsert/serve/regen and `services/globalContentClient.ts` direct fallback.
 
 - **`daily_forecast` (client transport)**
-  - `services/globalContentClient.ts` — imports `normalizeRecommendationText` and `getMathLevelStrings` for locale-correct free-path direct DB fallback.
+  - `services/globalContentClient.ts` — imports `normalizeRecommendationText`, `isCurrentGlobalLongExplanation`, and `getMathLevelStrings` for locale-correct free-path direct DB fallback (drops legacy unstructured/chakra-heavy `long_explanation`).
   - `modules/home/sanitizeRecommendationDisplay.ts` — client display wrapper over `normalizeRecommendationText` (`useDayContent`, `DailyRecommendationCard`).
 
 ## 3. Контрактные точки риска

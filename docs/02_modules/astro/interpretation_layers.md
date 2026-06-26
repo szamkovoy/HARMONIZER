@@ -1,7 +1,7 @@
 ---
 id: 02_modules/astro/interpretation_layers
 title: Astro Interpretation Layers
-version: 1.4
+version: 1.5
 updated: 2026-06-26
 depends_on: [01_foundation/architecture, 02_modules/daily_forecast/spec]
 code_refs:
@@ -38,7 +38,7 @@ code_refs:
 ## 3. Подробное объяснение — `recommendationLongText` (`recommendation_long_text`)
 
 - **Смысл:** развёрнутый текст для модалки «Подробнее».
-- **Источник:** LLM (`long_explanation` в JSON). В промптах `global_morning_recommendation` v4+ и `monologue_morning_recommendation` v5+ chakra-лексика — только номерная форма; v5 additionally bans English tone keys in visible JSON and shortens §6 to «ЗАКЛЮЧЕНИЕ».
+- **Источник:** LLM (`long_explanation` в JSON). Paid `monologue_morning_recommendation` v5+ — chakra-лексика только номерной формой; запрещены English tone keys в visible JSON; §6 — «ЗАКЛЮЧЕНИЕ». Free `global_morning_recommendation` v5 (`20260626193500_global_morning_prompt_v5_structured_long.sql`) требует literal шесть секций `§1…§6` и **полностью** запрещает chakra-лексику в `long_explanation`; legacy unstructured/chakra-heavy cached rows отбрасываются или форсируют regen через `isCurrentGlobalLongExplanation`.
 - **UI:** `ModalLongExplanation` из `DailyRecommendationCard.tsx`; LLM-текст проходит `sanitizeRecommendationDisplay`; если поля нет, подставляется собранный из шаблонов продуктовый `detailText` на клиенте.
 
 ## 4. Математический слой — `mathLevel` (`math_level`)
@@ -56,7 +56,7 @@ code_refs:
 ## 6. Бесплатный тариф (глобальный контент)
 
 - Те же четыре слоя существуют в таблице `global_daily_content` (колонки `slogan`, `short_text`, `long_explanation`, `math_level`) — см. миграцию `supabase/migrations/20260501193000_free_tier_global_content.sql` и клиент `services/globalContentClient.ts`, который мапит ответ в поля `DailyForecast`.
-- Global LLM-тексты строятся отдельным prompt `global_morning_recommendation`: он остаётся неперсональным и без натала, но теперь рассчитан на ту же глубину short/long explanation, что и paid-home, а formulas/chart слой расширен до полноценного transit-only разбора.
+- Global LLM-тексты строятся отдельным prompt `global_morning_recommendation` (активная v5): он остаётся неперсональным и без натала, но `long_explanation` зеркалит paid explainer (literal `§1…§6`, без chakra в подробном тексте); formulas/chart слой — полноценный transit-only разбор. `ensureGlobalDailyContent`, cron precompute и client direct fallback используют `isCurrentGlobalLongExplanation` для flush legacy rows.
 
 ## 7. Связь с астрологическим движком
 

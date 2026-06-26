@@ -1,7 +1,7 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.6
+version: 1.7
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs:
@@ -45,6 +45,9 @@ code_refs:
 
 - **`normalizeRecommendationText(text, locale)`** — chakra names + English tone keys → locale labels + §6 header без bridge wording.
 - **`normalizeRecommendationFields(payload, locale, fields?)`** — применяет к строковым полям и `math_level.markdown`.
+- **`hasStructuredGlobalLongExplanation(text)`** — проверяет наличие literal маркеров `§1.`…`§6.` после нормализации заголовков.
+- **`hasLegacyGlobalChakraMentions(text)`** — детектирует chakra-лексику (EN `chakra`, RU `чакр`, санскритские имена).
+- **`isCurrentGlobalLongExplanation(text)`** — structured six-section copy без chakra-упоминаний; gate для serve/regen global `long_explanation`.
 - Потребители: `ensureGlobalDailyContent`, `globalContentLocale`, `morningRecommendation.ts`, `ai/monologue/route.ts`, `services/globalContentClient.ts`, client `modules/home/sanitizeRecommendationDisplay.ts`.
 
 ## 3. Внутренняя архитектура

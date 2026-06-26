@@ -1,13 +1,15 @@
 ---
 id: 02_modules/chakra/history
 title: Chakra History
-version: 1.5
+version: 1.6
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-26 (3):** `recommendationText.ts` gained global long-text validators (`hasStructuredGlobalLongExplanation`, `hasLegacyGlobalChakraMentions`, `isCurrentGlobalLongExplanation`) aligned with `global_morning_recommendation` v5; global serve/regen paths drop or refresh legacy unstructured/chakra-heavy `long_explanation` instead of showing stale copy.
 
 - **2026-06-26 (2):** Recommendation post-processing moved to `recommendationText.ts` (tone keys, §6 header, chakra names via `chakraText.ts`). Transport and monologue paths no longer import `chakraText` directly; client display uses `modules/home/sanitizeRecommendationDisplay.ts`.
 

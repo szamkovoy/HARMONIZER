@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.83
+version: 2.84
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-06-26 (3):** Free global morning prompt moved to v5 (`20260626193500_global_morning_prompt_v5_structured_long.sql`): `long_explanation` must mirror paid modal with literal `§1…§6` headings, bans all chakra language in long text, and forbids duplicate second/third planet coverage. `recommendationText.ts` exports `isCurrentGlobalLongExplanation` (+ helpers); `ensureGlobalDailyContent`, `globalContentLocale`, cron `precompute-global-recommendations`, and client `fetchGlobalContent` direct fallback drop or force-regen legacy unstructured/chakra-heavy cached rows instead of serving stale prose.
 
 - **2026-06-26 (2):** Morning prompt v5 (`20260626120000_monologue_morning_prompt_v5_conclusion.sql`) renames long_explanation §6 to «ЗАКЛЮЧЕНИЕ» and forbids English technical tone keys in visible JSON. Server-side `recommendationText.ts` post-processes cached/live monologue payloads (tone keys, §6 header, chakra names) for all eight locales; monologue/global-content paths import it instead of chakra-only normalization.
 
