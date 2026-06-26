@@ -28,7 +28,8 @@ export function globalContentNeedsRefresh(existing: Record<string, unknown> | nu
   if (!hasRequiredText(existing.slogan)) return true;
   if (!hasRequiredText(existing.short_text)) return true;
   if (!hasRequiredText(existing.long_explanation)) return true;
-  if (!isCurrentGlobalLongExplanation(existing.long_explanation)) return true;
+  const longExplanation = typeof existing.long_explanation === "string" ? existing.long_explanation : undefined;
+  if (!isCurrentGlobalLongExplanation(longExplanation)) return true;
   if (!isGlobalMathLevelCurrent(existing.math_level)) return true;
   return false;
 }
