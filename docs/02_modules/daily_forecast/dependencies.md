@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.14
+version: 2.15
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
@@ -26,6 +26,8 @@ code_refs:
     modules/chakra/i18n.ts,
     modules/home/planetChakra.ts,
     _legacy_web/app/api/astro/daily-forecast/route.ts,
+    _legacy_web/app/api/_utils/dailyForecastPayload.ts,
+    _legacy_web/app/api/_utils/morningRecommendation.ts,
     supabase/functions/daily-forecast/index.ts,
   ]
 ---
@@ -40,7 +42,7 @@ code_refs:
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
   - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/recommendationText.ts` (`normalizeRecommendationText`, `isCurrentGlobalLongExplanation`) and `mathLevelI18n.ts` to normalize legacy tone/chakra vocabulary, drop unstructured/chakra-heavy `long_explanation`, and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
   - **`modules/home/sanitizeRecommendationDisplay.ts`** — client-side display pass over `normalizeRecommendationText` in `useDayContent` and `DailyRecommendationCard`.
-  - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`. **`app/(tabs)/profile.tsx`** при смене локали больше не вызывает `markHomeDayContentBlockingReload` — blocking reload остаётся только для смены натала.
+  - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`. **`app/(tabs)/profile.tsx`** при смене локали больше не вызывает `markHomeDayContentBlockingReload` — blocking reload остаётся только для смены натала. **`fetchDailyForecast`** передаёт **`responseLocale`** (`getResponseLocale()`).
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  
@@ -63,7 +65,7 @@ code_refs:
   - Dev test «Обновить» на Home: `services/devDayContentResetClient.ts` → `POST /api/ai/dev-day-reset` (`resetScope` через `devResetScopeForAccessMode`); legacy `POST /api/ai/global-content` `{ devReset: true }` на сервере остаётся только для `global` scope.
 
 - **`assistant` (server monologue cache)**
-  - Персональный precompute теперь зависит от сценария `morning_recommendation` и таблицы `scenario_cache`: `supabase/functions/precompute-daily-forecasts/index.ts` заранее строит `slogan` / `short_text` / `long_explanation` / `math_level`, чтобы обычный paid-home reload мог взять их без LLM rerun.
+  - Персональный precompute зависит от сценария `morning_recommendation` и таблицы `scenario_cache`: `supabase/functions/precompute-daily-forecasts/index.ts` заранее строит `slogan` / `short_text` / `long_explanation` / `math_level`. На обычном load **`POST /api/astro/daily-forecast`** читает тот же cache read-only через **`loadCachedMorningRecommendation`** (`morningRecommendation.ts`); Home payload собирается **`buildClientForecastPayload`** (`dailyForecastPayload.ts`) из monologue-полей, без подмешивания planning-`recommendation_short_text` из строки `user_daily_forecasts`. При `forceRefresh` — **`ensureMorningRecommendation`** (LLM).
 
 - **`charts`**  
   - **`modules/home/ui/ChakraFlower.tsx`**: prop **`accessMode`**; цвета лепестков — **`CHAKRA_SEGMENT_COLORS`** (импорт **`getChartStrings`** снят); подпись в центре — **`strings.planetLabels[planetOfTheDay]`**; значение силы — `S_initial` планеты дня при наличии `natalProfile`, иначе нормализованная `forecast.importance`; легенда — **`strings.planetLabels`** (порядок Sun→Saturn); заголовок/подзаголовок — **`getHomeStrings` → `chakraFlower.title`**, **`captionFree`** / **`captionPersonal`** по `accessMode`.

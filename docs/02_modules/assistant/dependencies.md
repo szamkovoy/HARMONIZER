@@ -1,7 +1,7 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.27
+version: 1.28
 updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
@@ -44,7 +44,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **`profile`**
   - `app/(tabs)/profile.tsx` и backend routes `api/profile/*` читают артефакты ассистента (`daily_matrices`, `planned_events`-derived range) и server helpers для матрицы/сфер; chakra legend в отчётах — `buildChakraLegend()` (`planetChakraLegend.ts`).
 - **`daily_forecast`**
-  - **`modules/home/useDayContent.ts`** вызывает **`callMonologue`** (`services/aiClient.ts`) для сценария **`morning_recommendation`** и **`fetchGlobalContent`** для free-tier контента; домашний экран смешивает forecast API и ассистента.
+  - **`POST /api/astro/daily-forecast`** на paid-path подмешивает cron/monologue cache в `forecastPayload` через **`loadCachedMorningRecommendation`** (`morningRecommendation.ts`); клиент шлёт **`responseLocale`** в body (`fetchDailyForecast` / `useDayContent`). При cache-miss или incomplete payload home догружает через **`callMonologue`** (`services/aiClient.ts`, сценарий **`morning_recommendation`**); free-tier — **`fetchGlobalContent`**.
   - Коррекция текста рекомендации из диалога обновляет **`user_daily_forecasts`** в `dialog/route.ts` при маркере **`CORRECT_RECOMMENDATION`**.
 
 ## 3. Контрактные точки риска

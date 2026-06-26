@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.09
-updated: 2026-06-27
+version: 3.10
+updated: 2026-06-26
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-26: doc-sync pre-push — paired `daily_forecast/dependencies.md` and `assistant/dependencies.md` with `loadCachedMorningRecommendation` / `buildClientForecastPayload` on `POST /api/astro/daily-forecast` (spec/history already current).
 - 2026-06-27: `daily_forecast` — paid Home loads cron morning texts in first `daily-forecast` response (`loadCachedMorningRecommendation`); client skips fallback flash, shows loading only on cache miss. Synced `daily_forecast/{spec,history}.md`.
 - 2026-06-27: `infra` / `daily_forecast` — `precompute-daily-forecasts` bundling: cron deps moved to `supabase/functions/_shared/` (`contentLengths`, `mathLevelI18n*`, `contentLocales`; activation from `dailyForecast.ts`); deploy + paid morning pre-warm restored.
 - 2026-06-27: `infra` / `daily_forecast` — Supabase Edge deploy fix: `_shared/dailyForecast.ts` uses esm.sh for `astronomia` imports so `precompute-global-recommendations` bundles and cron pre-warm works again. Synced `daily_forecast/history.md`, `infra/history.md`.
