@@ -2,11 +2,15 @@
 import { DateTime } from "https://esm.sh/luxon@3.7.2";
 import { assertCronSecret, createServiceClient, daysAgo, isOptions, json } from "../_shared/supabase.ts";
 import { resolveFallbackGeminiModelIdFromEnv, resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
-import { computeDailyForecast, dailyForecastToInsert } from "../_shared/dailyForecast.ts";
-import { computeActivation } from "../../../modules/daily-engine/core/activation";
-import { ASPECT_COEF, TRANSIT_WEIGHT } from "../../../modules/daily-engine/core/constants";
-import { getMathLevelStrings } from "../../../_legacy_web/app/api/_utils/mathLevelI18n";
-import { CONTENT_LENGTHS } from "../../../_legacy_web/config/contentLengths";
+import {
+  ASPECT_COEF,
+  TRANSIT_WEIGHT,
+  computeActivation,
+  computeDailyForecast,
+  dailyForecastToInsert,
+} from "../_shared/dailyForecast.ts";
+import { getMathLevelStrings } from "../_shared/mathLevelI18n.ts";
+import { CONTENT_LENGTHS } from "../_shared/contentLengths.ts";
 
 const BATCH_SIZE = 100;
 const ACTIVE_PRECOMPUTE_DAYS = 3;
@@ -246,10 +250,7 @@ function buildTopPetals(
   topN = 3,
 ) {
   const ranked = Array.isArray(forecast.rankedPlanets) ? forecast.rankedPlanets : [...PLANETS_7];
-  const { contributions } = computeActivation({
-    natalProfile,
-    transitChart: forecast.transitChart,
-  });
+  const { contributions } = computeActivation(natalProfile, forecast.transitChart);
   return ranked.slice(0, topN).map((planet) => {
     const natalPlanet = natalProfile.planets[planet];
     const sCal = calibration?.s_calibrated?.[planet] ?? natalPlanet.S_initial;
@@ -328,7 +329,7 @@ function buildMathLevelForCron(
   }
   md.push(t.section2Title);
   md.push(t.section2Intro);
-  const { contributions } = computeActivation({ natalProfile, transitChart: forecast.transitChart });
+  const { contributions } = computeActivation(natalProfile, forecast.transitChart);
   const topContributions = contributions.sort((a, b) => b.value - a.value).slice(0, 12);
   if (!topContributions.length) {
     md.push(t.noTransitChart);

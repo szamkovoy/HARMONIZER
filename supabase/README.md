@@ -58,6 +58,8 @@ supabase db execute --file supabase/seed.sql
 
 Секреты: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, опционально `CRON_SECRET`, для LLM-анализа `GEMINI_API_KEY`.
 
+**Bundling:** Edge Functions деплоятся только с кодом под `supabase/functions/` (включая `_shared/`). Импорты из `modules/` или `_legacy_web/` на remote bundler не резолвятся — дублируйте нужные контракты в `_shared/` (см. `contentLengths.ts`, `mathLevelI18n*.ts`, `dailyForecast.ts`).
+
 Рекомендуемые расписания в Supabase Scheduled Functions:
 
 ```cron

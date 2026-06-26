@@ -29,8 +29,8 @@ const RAD_TO_DEG = 180 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
-const ASPECT_COEF = { conjunction: 1, opposition: 0.9, square: 0.8, trine: 0.7, sextile: 0.5 };
-const TRANSIT_WEIGHT = { Saturn: 1, Jupiter: 0.9, Mars: 0.8, Sun: 0.7, Venus: 0.5, Mercury: 0.5, Moon: 0.3 };
+export const ASPECT_COEF = { conjunction: 1, opposition: 0.9, square: 0.8, trine: 0.7, sextile: 0.5 };
+export const TRANSIT_WEIGHT = { Saturn: 1, Jupiter: 0.9, Mars: 0.8, Sun: 0.7, Venus: 0.5, Mercury: 0.5, Moon: 0.3 };
 const ASPECT_MAX_ORB = { conjunction: 6, opposition: 6, square: 5, trine: 5, sextile: 3 };
 const ASPECT_EXACT_ANGLE = { conjunction: 0, opposition: 180, trine: 120, square: 90, sextile: 60 };
 const ZODIAC_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];

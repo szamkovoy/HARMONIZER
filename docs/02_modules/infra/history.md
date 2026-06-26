@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-06-27 (2):** `precompute-daily-forecasts` bundling fix: cron function no longer imports `modules/daily-engine` or `_legacy_web/*` across the repo root (Supabase remote bundler cannot resolve those paths). Morning precompute now uses `_shared/dailyForecast.ts` for `computeActivation` / aspect weights, plus Edge copies of `contentLengths`, `mathLevelI18n` (+ targets) and `contentLocales`. Deploy unblocked for paid `scenario_cache` pre-warm.
+
 - **2026-06-27:** Supabase Edge bundler fix for shared ephemeris: `supabase/functions/_shared/dailyForecast.ts` switched `astronomia` imports from bare package paths to `https://esm.sh/astronomia@4.2.0/...`, unblocking deploy of `precompute-global-recommendations` (and any function importing the shared module). `supabase/functions/deno.json` now includes `astronomia/base`; Vitest parity aliases cover the new `base` URL.
 
 - **2026-06-26:** LLM infra fallback contract was tightened. `_legacy_web/app/api/_utils/gemini.ts` no longer silently demotes `premium -> standard` before `AI_MODEL_FALLBACK` on interactive routes; it now tries the exact requested tier once and then falls back directly on retryable overload/timeout. In parallel, Supabase cron functions `precompute-daily-forecasts` and `precompute-global-recommendations` gained their own background retry policy: up to 3 primary-model attempts with 60-second pauses, then one fallback attempt for that generation.
