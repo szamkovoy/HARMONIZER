@@ -2,10 +2,17 @@ import {
   computeDailyForecastWithAstronomia,
   type CalibrationLike,
   type DailyEngineInput,
+  type DailyForecast,
   type Planet,
 } from "../../../../modules/daily-engine";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
+import { buildClientForecastPayload, dailyForecastFromRow } from "../../_utils/dailyForecastPayload";
+import {
+  ensureMorningRecommendation,
+  loadCachedMorningRecommendation,
+  type MorningRecommendationPayload,
+} from "../../_utils/morningRecommendation";
 import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
 
 // Запись в user_daily_forecasts только через service_role (RLS: владелец — SELECT).
@@ -16,6 +23,7 @@ type Body = {
   userLocation?: DailyEngineInput["userLocation"];
   recentPlanetsOfDay?: Planet[];
   forceRefresh?: boolean;
+  responseLocale?: string;
 };
 
 async function loadRecentPlanets(db: ReturnType<typeof createServiceSupabase>, userId: string): Promise<Planet[]> {
@@ -51,7 +59,7 @@ async function cachedForecast(
   db: ReturnType<typeof createServiceSupabase>,
   userId: string,
   forecastDate: string,
-): Promise<unknown | null> {
+): Promise<Record<string, unknown> | null> {
   const { data, error } = await db
     .from("user_daily_forecasts")
     .select("*")
@@ -60,21 +68,63 @@ async function cachedForecast(
     .gt("cache_valid_until", new Date().toISOString())
     .maybeSingle();
   if (error) throw error;
-  return data ?? null;
+  return (data as Record<string, unknown> | null) ?? null;
 }
 
-function mergeStoredContent(forecast: Record<string, unknown>) {
-  return {
-    ...forecast,
-    recommendationShortText:
-      typeof forecast.recommendation_short_text === "string" ? forecast.recommendation_short_text : undefined,
-    recommendationLongText:
-      typeof forecast.recommendation_long_text === "string" ? forecast.recommendation_long_text : undefined,
-    contentPhase:
-      typeof forecast.recommendation_short_text === "string" && forecast.recommendation_short_text.trim()
-        ? "secondary_ready"
-        : "base_ready",
-  };
+async function resolveMorningPayload(params: {
+  db: ReturnType<typeof createServiceSupabase>;
+  userId: string;
+  forecast: DailyForecast;
+  natalProfile: Awaited<ReturnType<typeof loadActiveNatalProfile>>["profile"];
+  calibration: CalibrationLike | null;
+  forceRefresh: boolean;
+  requestedLocale?: string | null;
+}): Promise<MorningRecommendationPayload | null> {
+  if (params.forceRefresh) {
+    return ensureMorningRecommendation({
+      db: params.db,
+      userId: params.userId,
+      forecast: params.forecast,
+      natalProfile: params.natalProfile,
+      calibration: params.calibration,
+      forceRefresh: true,
+      responseLocale: params.requestedLocale ?? undefined,
+    });
+  }
+  return loadCachedMorningRecommendation({
+    db: params.db,
+    userId: params.userId,
+    requestedLocale: params.requestedLocale,
+  });
+}
+
+async function respondWithForecast(params: {
+  db: ReturnType<typeof createServiceSupabase>;
+  userId: string;
+  source: "cache" | "computed";
+  row: Record<string, unknown>;
+  forecast: DailyForecast;
+  natalProfile: Awaited<ReturnType<typeof loadActiveNatalProfile>>["profile"];
+  calibration: CalibrationLike | null;
+  forceRefresh: boolean;
+  requestedLocale?: string | null;
+}) {
+  const morning = await resolveMorningPayload({
+    db: params.db,
+    userId: params.userId,
+    forecast: params.forecast,
+    natalProfile: params.natalProfile,
+    calibration: params.calibration,
+    forceRefresh: params.forceRefresh,
+    requestedLocale: params.requestedLocale,
+  });
+
+  return json({
+    source: params.source,
+    forecast: params.row,
+    forecastPayload: buildClientForecastPayload(params.row, morning),
+    modelUsed: morning?.modelUsed ?? null,
+  });
 }
 
 export async function POST(req: Request) {
@@ -87,24 +137,33 @@ export async function POST(req: Request) {
 
     const db = createServiceSupabase();
     const forecastDate = body.forecastDate ?? todayLocalDate(body.userLocation.timezone);
+    const forceRefresh = body.forceRefresh === true;
 
-    if (!body.forceRefresh) {
+    const [{ profile: natalProfile }, calibration] = await Promise.all([
+      loadActiveNatalProfile(db, userId),
+      loadActiveCalibration(db, userId),
+    ]);
+
+    if (!forceRefresh) {
       const cached = await cachedForecast(db, userId, forecastDate);
       if (cached) {
-        return json({
+        return respondWithForecast({
+          db,
+          userId,
           source: "cache",
-          forecast: cached,
-          forecastPayload: mergeStoredContent(cached as Record<string, unknown>),
-          modelUsed: null,
+          row: cached,
+          forecast: dailyForecastFromRow(cached),
+          natalProfile,
+          calibration,
+          forceRefresh: false,
+          requestedLocale: body.responseLocale,
         });
       }
     }
 
-    const [{ profile: natalProfile }, calibration, recentPlanetsOfDay] = await Promise.all([
-      loadActiveNatalProfile(db, userId),
-      loadActiveCalibration(db, userId),
-      body.recentPlanetsOfDay ? Promise.resolve(body.recentPlanetsOfDay.slice(0, 2)) : loadRecentPlanets(db, userId),
-    ]);
+    const recentPlanetsOfDay = body.recentPlanetsOfDay
+      ? body.recentPlanetsOfDay.slice(0, 2)
+      : await loadRecentPlanets(db, userId);
 
     const forecast = await computeDailyForecastWithAstronomia({
       natalProfile,
@@ -126,7 +185,10 @@ export async function POST(req: Request) {
     if (existingError) throw existingError;
 
     const insertPayload = dailyForecastToInsert(userId, body.userLocation.timezone, forecast);
-    if (existing?.is_corrected_via_dialog === true || (typeof existing?.recommendation_short_text === "string" && existing.recommendation_short_text.trim())) {
+    if (
+      existing?.is_corrected_via_dialog === true
+      || (typeof existing?.recommendation_short_text === "string" && existing.recommendation_short_text.trim())
+    ) {
       insertPayload.recommendation_short_text = existing.recommendation_short_text ?? null;
       insertPayload.recommendation_long_text = existing.recommendation_long_text ?? null;
       insertPayload.is_corrected_via_dialog = existing.is_corrected_via_dialog ?? false;
@@ -141,11 +203,17 @@ export async function POST(req: Request) {
       .select("*")
       .single();
     if (error) throw error;
-    return json({
+
+    return respondWithForecast({
+      db,
+      userId,
       source: "computed",
-      forecast: data,
-      forecastPayload: mergeStoredContent(forecast as unknown as Record<string, unknown>),
-      modelUsed: null,
+      row: data as Record<string, unknown>,
+      forecast,
+      natalProfile,
+      calibration,
+      forceRefresh,
+      requestedLocale: body.responseLocale,
     });
   } catch (error) {
     return errorResponse(error);

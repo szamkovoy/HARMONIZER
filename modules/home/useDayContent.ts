@@ -445,6 +445,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       let staleCache: Awaited<ReturnType<typeof loadDayContentCache>> | null = null;
       let resolvedRequestKey = requestKey;
       let resolvedForecastDate = provisionalForecastDate;
+      let readyForecast: DailyForecast | null = null;
 
       try {
         const forecastDate = localDateIso(locationForRequest.timezone);
@@ -532,6 +533,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
               }
             : null;
           setForecast(result.forecast);
+          readyForecast = result.forecast;
           setSource("global");
           setModelUsed(result.modelUsed);
           if (__DEV__) {
@@ -559,20 +561,30 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             forecastDate,
             userLocation: locationForRequest,
             forceRefresh: opts?.forceRefresh,
+            responseLocale: getResponseLocale(),
             signal: controller.signal,
           });
           const shouldForceMorningRefresh = Boolean(opts?.forceRefresh || opts?.localeChange);
           const hasCompleteServerContent = isDayContentComplete(result.forecast, nextAccessMode);
-          let forecastForUi = stripHomeLlmTexts(result.forecast);
-          const modelForUi = result.modelUsed;
-          pendingMorningMonologueForceRef.current = shouldForceMorningRefresh;
-          lastHydratedForecastKeyRef.current = null;
+          let forecastForUi = result.forecast;
+          pendingMorningMonologueForceRef.current = shouldForceMorningRefresh && !hasCompleteServerContent;
+          if (shouldForceMorningRefresh && !hasCompleteServerContent) {
+            forecastForUi = stripHomeLlmTexts(result.forecast);
+            lastHydratedForecastKeyRef.current = null;
+          } else if (hasCompleteServerContent) {
+            lastHydratedForecastKeyRef.current = [
+              userId ?? "anon",
+              forecastDate,
+              contentScopeKey,
+              forecastForUi.date,
+              forecastForUi.computedAt,
+              nextAccessMode,
+            ].join("|");
+          }
           if (!isDayContentReadyForHome(forecastForUi, nextAccessMode)) {
             throw new Error("Personal day content is incomplete.");
           }
-          if (!shouldForceMorningRefresh && hasCompleteServerContent) {
-            forecastForUi = result.forecast;
-          }
+          const modelForUi = result.modelUsed;
           latestCacheContextRef.current = userId
             ? {
                 userId,
@@ -584,6 +596,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
               }
             : null;
           setForecast(forecastForUi);
+          readyForecast = forecastForUi;
           setSource(result.source);
           setModelUsed(modelForUi);
           if (__DEV__) {
@@ -609,8 +622,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setStatus("ready");
         lastResolvedRequestKeyRef.current = resolvedRequestKey;
         completeHomeBootstrap();
-        if (nextAccessMode === "free" || (!opts?.forceRefresh && !opts?.localeChange)) {
+        if (nextAccessMode === "free") {
           setHomeTextsLoading(false);
+        } else {
+          setHomeTextsLoading(!isDayContentComplete(readyForecast, nextAccessMode));
         }
         logRuntimeEvent("day_content:ready", {
           accessMode: nextAccessMode,

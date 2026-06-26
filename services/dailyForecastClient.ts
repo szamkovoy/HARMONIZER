@@ -15,6 +15,7 @@ export interface DailyForecastRequest {
   };
   recentPlanetsOfDay?: Planet[];
   forceRefresh?: boolean;
+  responseLocale?: string;
   signal?: AbortSignal;
 }
 
@@ -158,6 +159,7 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
             userLocation: req.userLocation,
             recentPlanetsOfDay: req.recentPlanetsOfDay,
             forceRefresh: req.forceRefresh,
+            responseLocale: req.responseLocale,
           }),
           signal: controller.signal,
         });

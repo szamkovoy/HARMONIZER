@@ -32,6 +32,7 @@ export function DailyRecommendationCard({
   accessMode,
   natalProfile,
   modelUsed,
+  homeTextsLoading = false,
 }: DailyRecommendationCardProps) {
   const [modalLevel, setModalLevel] = useState<HomeExplainerLevel>("none");
   const locale = strings.locale;
@@ -40,12 +41,16 @@ export function DailyRecommendationCard({
   const detailText = strings.recommendation.detailParagraphs(forecast).join("\n\n");
   const shortText = useMemo(() => {
     const raw = forecast.recommendationShortText?.trim();
-    return raw ? sanitizeRecommendationDisplay(raw, locale) : fallbackShortText;
-  }, [fallbackShortText, forecast.recommendationShortText, locale]);
+    if (raw) return sanitizeRecommendationDisplay(raw, locale);
+    if (homeTextsLoading) return null;
+    return fallbackShortText;
+  }, [fallbackShortText, forecast.recommendationShortText, homeTextsLoading, locale]);
   const longExplanation = useMemo(() => {
     const raw = forecast.recommendationLongText?.trim();
-    return raw ? sanitizeRecommendationDisplay(raw, locale) : detailText;
-  }, [detailText, forecast.recommendationLongText, locale]);
+    if (raw) return sanitizeRecommendationDisplay(raw, locale);
+    if (homeTextsLoading) return "";
+    return detailText;
+  }, [detailText, forecast.recommendationLongText, homeTextsLoading, locale]);
   const meta = planetChakra[forecast.planetOfTheDay];
   const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
@@ -60,7 +65,9 @@ export function DailyRecommendationCard({
             />
           </View>
         </View>
-        <AppText variant="screenHint">{shortText}</AppText>
+        <AppText variant="screenHint">
+          {shortText ?? strings.recommendation.loading}
+        </AppText>
         {__DEV__ ? (
           <AppText variant="technicalCaption" tone="muted">
             model: {modelUsed ?? "unknown"} · {accessMode}

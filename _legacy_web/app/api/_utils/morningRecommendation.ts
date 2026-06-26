@@ -38,6 +38,39 @@ export type MorningRecommendationPayload = {
   modelUsed: string | null;
 };
 
+function payloadFromCachedMorning(
+  cached: Record<string, unknown>,
+  responseLocale: AppContentLocale,
+): MorningRecommendationPayload {
+  const normalized = normalizeRecommendationFields(cached, responseLocale);
+  return {
+    slogan: String(normalized.slogan ?? "").trim(),
+    short_text: String(normalized.short_text ?? "").trim(),
+    long_explanation: String(normalized.long_explanation ?? "").trim(),
+    math_level: normalized.math_level as ReturnType<typeof buildMathLevel>,
+    modelUsed: typeof normalized.modelUsed === "string" ? normalized.modelUsed : null,
+  };
+}
+
+/** Read cron / monologue cache only — no LLM generation. */
+export async function loadCachedMorningRecommendation(params: {
+  db: SupabaseClient;
+  userId: string;
+  responseLocale?: AppContentLocale;
+  requestedLocale?: string | null;
+}): Promise<MorningRecommendationPayload | null> {
+  const scenario = await getScenario("morning_recommendation", params.db);
+  if (!scenario?.monologue_prompt_key) return null;
+  const prompt = await getActivePrompt(params.db, scenario.monologue_prompt_key);
+  const expectedModel = getModelByHint(prompt.model_hint);
+  const user = await loadUser(params.db, params.userId);
+  const responseLocale = resolveContentLocale(user.locale, params.responseLocale ?? params.requestedLocale);
+  const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db, responseLocale);
+  if (!cached || !isMorningRecommendationCacheValid(cached, expectedModel, responseLocale)) {
+    return null;
+  }
+  return payloadFromCachedMorning(cached, responseLocale);
+}
 
 async function loadUser(db: SupabaseClient, userId: string): Promise<UserRecord> {
   const { data, error } = await db.from("users").select("locale,address_form").eq("id", userId).maybeSingle();
@@ -160,14 +193,7 @@ export async function ensureMorningRecommendation(params: {
   if (!params.forceRefresh) {
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db, cacheSuffix);
     if (cached && isMorningRecommendationCacheValid(cached, expectedModel, responseLocale)) {
-      const normalized = normalizeRecommendationFields(cached, responseLocale);
-      return {
-        slogan: String(normalized.slogan ?? "").trim(),
-        short_text: String(normalized.short_text ?? "").trim(),
-        long_explanation: String(normalized.long_explanation ?? "").trim(),
-        math_level: normalized.math_level as ReturnType<typeof buildMathLevel>,
-        modelUsed: typeof normalized.modelUsed === "string" ? normalized.modelUsed : null,
-      };
+      return payloadFromCachedMorning(cached, responseLocale);
     }
   }
 

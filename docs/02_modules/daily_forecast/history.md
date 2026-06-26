@@ -18,6 +18,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-27 (3):** Paid Home recommendation no longer flashes deterministic fallback before cron text. `POST /api/astro/daily-forecast` now attaches precomputed `morning_recommendation` from `scenario_cache` via `loadCachedMorningRecommendation` (cache-only on normal load; full `ensureMorningRecommendation` only on `forceRefresh`). Client sends `responseLocale`, keeps LLM fields from the first response when complete, and shows `recommendation.loading` instead of chakra fallback while a rare cache-miss hydration runs.
+
 - **2026-06-27 (2):** Paid cron precompute (`precompute-daily-forecasts`) deploy restored: dependencies moved into `supabase/functions/_shared/` so Supabase bundler ships `math_level` builders and activation math with the function again. Hourly pg_cron can redeploy/update the paid morning `scenario_cache` path.
 
 - **2026-06-27:** Edge Function `precompute-global-recommendations` deploy was blocked by Deno bundling of bare `astronomia/*` imports in `_shared/dailyForecast.ts`. Shared ephemeris imports now use `https://esm.sh/astronomia@4.2.0/...` (same pattern as Luxon in other functions); `vitest.config.ts` gained the missing `base` alias. Cron pre-warm for free `global_daily_content` is deployable again.
