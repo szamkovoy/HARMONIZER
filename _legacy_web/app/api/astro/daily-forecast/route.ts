@@ -5,6 +5,7 @@ import {
   type DailyForecast,
   type Planet,
 } from "../../../../modules/daily-engine";
+import { asContentLocale } from "../../_utils/contentLocales";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
 import { buildClientForecastPayload, dailyForecastFromRow } from "../../_utils/dailyForecastPayload";
@@ -88,7 +89,7 @@ async function resolveMorningPayload(params: {
       natalProfile: params.natalProfile,
       calibration: params.calibration,
       forceRefresh: true,
-      responseLocale: params.requestedLocale ?? undefined,
+      responseLocale: asContentLocale(params.requestedLocale) ?? undefined,
     });
   }
   return loadCachedMorningRecommendation({
