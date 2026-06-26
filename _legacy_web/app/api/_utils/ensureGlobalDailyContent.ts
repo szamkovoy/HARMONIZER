@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildGlobalMathLevel, computeGlobalDailyForecast, isGlobalMathLevelCurrent } from "./globalTransitMath";
-import { normalizeChakraNamesInFields } from "./chakraText";
+import { normalizeRecommendationFields } from "./recommendationText";
 import { ensureGlobalTextI18nPrecomputed } from "./globalContentLocale";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { getActivePrompt, renderPrompt } from "./prompts";
@@ -61,7 +61,7 @@ export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDa
     maxOutputTokens: maxOut,
   });
 
-  const row = normalizeChakraNamesInFields({
+  const row = normalizeRecommendationFields({
     forecast_date_utc: forecastDateUtc,
     planet_positions: forecast.planet_positions,
     primary_planet: forecast.primary_planet,

@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-06-26 (2):** Morning prompt v5 (`20260626120000_monologue_morning_prompt_v5_conclusion.sql`) renames long_explanation §6 to «ЗАКЛЮЧЕНИЕ» and forbids English technical tone keys in visible JSON. Server-side `recommendationText.ts` post-processes cached/live monologue payloads (tone keys, §6 header, chakra names) for all eight locales; monologue/global-content paths import it instead of chakra-only normalization.
+
 - **2026-06-26:** LLM fallback policy was split by workload. Interactive recommendation-generation paths (`ai/monologue`, `recommendation-text`, calibration helpers) now keep latency low: they try the exact requested tier model once and then go straight to `AI_MODEL_FALLBACK` on retryable overload/timeout, without silently degrading `premium -> standard` first. Background cron precompute for `morning_recommendation` and free global content now does the opposite: it preserves quality longer by retrying the exact primary model up to **3 consecutive times** with **60s** pauses before using `AI_MODEL_FALLBACK` for that one generation; the next generation starts from the primary tier again.
 
 - **2026-06-25 (3):** Home test «Обновить» now resets cron cache by active tariff: free dev override → `POST /api/ai/dev-day-reset` with `resetScope: global` (delete + LLM regen `global_daily_content`); paid/trial override → `resetScope: personal` (delete `user_daily_forecasts` + `scenario_cache` morning monologue, without wiping shared global row). Legacy `POST /api/ai/global-content` `{ devReset: true }` still regens global only.

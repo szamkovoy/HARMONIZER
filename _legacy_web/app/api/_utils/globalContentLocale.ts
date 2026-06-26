@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AppContentLocale } from "./contentLocales";
 import { SOURCE_LOCALE } from "./contentLocales";
-import { normalizeChakraNamesInText } from "./chakraText";
+import { normalizeRecommendationText } from "./recommendationText";
 import { buildGlobalMathLevel } from "./globalTransitMath";
 import { pickGlobalTexts, pretranslateGlobalTexts, upsertGlobalTextI18n, type GlobalTextFields } from "./pretranslateGlobalTexts";
 
@@ -79,9 +79,9 @@ export function localizeGlobalContentPayloadSync(
 ): LocalizedGlobalPayload {
   const texts = pickGlobalTexts(content, locale);
   return {
-    slogan: normalizeChakraNamesInText(texts.slogan, locale),
-    short_text: normalizeChakraNamesInText(texts.short_text, locale),
-    long_explanation: normalizeChakraNamesInText(texts.long_explanation, locale),
+    slogan: normalizeRecommendationText(texts.slogan, locale),
+    short_text: normalizeRecommendationText(texts.short_text, locale),
+    long_explanation: normalizeRecommendationText(texts.long_explanation, locale),
     math_level: rebuildGlobalMathLevel(content, locale),
   };
 }

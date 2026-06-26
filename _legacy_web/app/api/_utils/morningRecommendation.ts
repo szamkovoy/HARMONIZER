@@ -9,6 +9,7 @@ import { resolveContentLocale, type AppContentLocale } from "./contentLocales";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "./authorVoice";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { buildMathLevel } from "./mathLevelBuilder";
+import { normalizeRecommendationFields } from "./recommendationText";
 import {
   buildOutputLanguageBlock,
   isMorningRecommendationCacheValid,
@@ -159,12 +160,13 @@ export async function ensureMorningRecommendation(params: {
   if (!params.forceRefresh) {
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db, cacheSuffix);
     if (cached && isMorningRecommendationCacheValid(cached, expectedModel, responseLocale)) {
+      const normalized = normalizeRecommendationFields(cached, responseLocale);
       return {
-        slogan: String(cached.slogan ?? "").trim(),
-        short_text: String(cached.short_text ?? "").trim(),
-        long_explanation: String(cached.long_explanation ?? "").trim(),
-        math_level: cached.math_level as ReturnType<typeof buildMathLevel>,
-        modelUsed: typeof cached.modelUsed === "string" ? cached.modelUsed : null,
+        slogan: String(normalized.slogan ?? "").trim(),
+        short_text: String(normalized.short_text ?? "").trim(),
+        long_explanation: String(normalized.long_explanation ?? "").trim(),
+        math_level: normalized.math_level as ReturnType<typeof buildMathLevel>,
+        modelUsed: typeof normalized.modelUsed === "string" ? normalized.modelUsed : null,
       };
     }
   }
@@ -185,12 +187,22 @@ export async function ensureMorningRecommendation(params: {
     maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
   });
 
+  const payloadRecord = normalizeRecommendationFields(
+    {
+      slogan: String(result.json.slogan ?? "").trim(),
+      short_text: String(result.json.short_text ?? "").trim(),
+      long_explanation: String(result.json.long_explanation ?? "").trim(),
+      math_level: prepared.mathLevel,
+      modelUsed: result.modelUsed,
+    },
+    responseLocale,
+  );
   const payload: MorningRecommendationPayload = {
-    slogan: String(result.json.slogan ?? "").trim(),
-    short_text: String(result.json.short_text ?? "").trim(),
-    long_explanation: String(result.json.long_explanation ?? "").trim(),
-    math_level: prepared.mathLevel,
-    modelUsed: result.modelUsed,
+    slogan: String(payloadRecord.slogan ?? "").trim(),
+    short_text: String(payloadRecord.short_text ?? "").trim(),
+    long_explanation: String(payloadRecord.long_explanation ?? "").trim(),
+    math_level: payloadRecord.math_level as ReturnType<typeof buildMathLevel>,
+    modelUsed: typeof payloadRecord.modelUsed === "string" ? payloadRecord.modelUsed : result.modelUsed,
   };
 
   await saveScenarioCache(

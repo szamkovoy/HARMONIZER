@@ -15,6 +15,7 @@ import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCach
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 import { getResponseLocale, subscribeAppLocale, type AppLocale } from "@/modules/i18n/localeStore";
 import { stripHomeLlmTexts } from "@/modules/home/stripHomeLlmTexts";
+import { sanitizeRecommendationDisplay } from "@/modules/home/sanitizeRecommendationDisplay";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 type DayContentStatus =
@@ -133,10 +134,16 @@ async function enrichWithMorningContent(
     responseLocale,
   );
   if (content.error) throw new Error(content.error);
+  const shortText = content.short_text?.trim();
+  const longText = content.long_explanation?.trim();
   return {
     forecast: Object.assign(forecast, {
-      recommendationShortText: content.short_text?.trim() || forecast.recommendationShortText,
-      recommendationLongText: content.long_explanation?.trim() || forecast.recommendationLongText,
+      recommendationShortText: shortText
+        ? sanitizeRecommendationDisplay(shortText, responseLocale)
+        : forecast.recommendationShortText,
+      recommendationLongText: longText
+        ? sanitizeRecommendationDisplay(longText, responseLocale)
+        : forecast.recommendationLongText,
       slogan: content.slogan?.trim() || forecast.slogan,
       mathLevel: content.math_level ?? forecast.mathLevel,
     }),

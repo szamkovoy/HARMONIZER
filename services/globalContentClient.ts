@@ -6,7 +6,7 @@ import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
-import { normalizeChakraNamesInText } from "@/_legacy_web/app/api/_utils/chakraText";
+import { normalizeRecommendationText } from "@/_legacy_web/app/api/_utils/recommendationText";
 import { getMathLevelStrings } from "@/_legacy_web/app/api/_utils/mathLevelI18n";
 
 export type AccessMode = "premium" | "trial" | "free";
@@ -80,18 +80,18 @@ function asTrimmedString(value: unknown): string {
 /** Mirrors server pickGlobalTexts — reads text_i18n when present, else canonical RU. */
 function pickGlobalTextsFromRow(row: Record<string, unknown>, locale: string): GlobalTextFields {
   const ru: GlobalTextFields = {
-    slogan: normalizeChakraNamesInText(asTrimmedString(row.slogan), locale as AppContentLocale),
-    short_text: normalizeChakraNamesInText(asTrimmedString(row.short_text), locale as AppContentLocale),
-    long_explanation: normalizeChakraNamesInText(asTrimmedString(row.long_explanation), locale as AppContentLocale),
+    slogan: normalizeRecommendationText(asTrimmedString(row.slogan), locale as AppContentLocale),
+    short_text: normalizeRecommendationText(asTrimmedString(row.short_text), locale as AppContentLocale),
+    long_explanation: normalizeRecommendationText(asTrimmedString(row.long_explanation), locale as AppContentLocale),
   };
   if (locale === "ru") return ru;
 
   const localized = (row.text_i18n as GlobalTextI18nMap | undefined)?.[locale];
   if (localized?.short_text?.trim()) {
     return {
-      slogan: normalizeChakraNamesInText(asTrimmedString(localized.slogan) || ru.slogan, locale as AppContentLocale),
-      short_text: normalizeChakraNamesInText(asTrimmedString(localized.short_text), locale as AppContentLocale),
-      long_explanation: normalizeChakraNamesInText(
+      slogan: normalizeRecommendationText(asTrimmedString(localized.slogan) || ru.slogan, locale as AppContentLocale),
+      short_text: normalizeRecommendationText(asTrimmedString(localized.short_text), locale as AppContentLocale),
+      long_explanation: normalizeRecommendationText(
         asTrimmedString(localized.long_explanation) || ru.long_explanation,
         locale as AppContentLocale,
       ),

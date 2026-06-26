@@ -1,5 +1,5 @@
 import { Suspense, lazy, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NatalProfile, Planet } from "@/modules/astro-core";
@@ -26,6 +26,8 @@ interface ModalMathLevelProps {
   accessMode: AccessMode;
   strings: HomeStrings["mathModal"];
   chartStrings: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
+  /** Вложенный второй Modal на RN иногда не открывается — используйте overlay внутри родительского Modal. */
+  presentation?: "modal" | "nestedOverlay";
 }
 
 const PLANETS: readonly Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
@@ -67,6 +69,7 @@ export function ModalMathLevel({
   accessMode,
   strings,
   chartStrings,
+  presentation = "modal",
 }: ModalMathLevelProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -77,34 +80,46 @@ export function ModalMathLevel({
   const canShowChart = isGlobalForecast ? hasTransitChart : Boolean(natalProfile && hasTransitChart);
   const chartButtonLabel = isGlobalForecast ? strings.showTransitChartButton : strings.showChartButton;
 
-  return (
-    <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
-      <FullScreenModalScaffold
-        title={strings.title}
-        subtitle={strings.subtitle}
-        closeLabel={strings.closeButton}
-        onClose={onClose}
-      >
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-          <SurfaceCardView tone="elevated" style={styles.card}>
-            {mathLevel?.markdown ? (
-              <MarkdownText source={mathLevel.markdown} />
-            ) : (
-              <AppText variant="screenHint" tone="muted">
-                {strings.emptyHint}
-              </AppText>
-            )}
-          </SurfaceCardView>
+  if (presentation === "nestedOverlay" && !visible) return null;
 
-          {canShowChart ? (
-            <AppButton label={chartButtonLabel} variant="secondary" onPress={() => setShowChart(true)} />
+  const shellStyle: StyleProp<ViewStyle> =
+    presentation === "nestedOverlay"
+      ? [
+          StyleSheet.absoluteFillObject,
+          { zIndex: 100, elevation: 24, backgroundColor: theme.colors.screenBg, flex: 1 },
+        ]
+      : [{ flex: 1, backgroundColor: theme.colors.screenBg }];
+
+  const inner = (
+    <FullScreenModalScaffold
+      title={strings.title}
+      subtitle={strings.subtitle}
+      closeLabel={strings.closeButton}
+      onClose={onClose}
+      style={shellStyle}
+    >
+      <ScrollView
+        style={presentation === "nestedOverlay" ? { flex: 1 } : undefined}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      >
+        <SurfaceCardView tone="elevated" style={styles.card}>
+          {mathLevel?.markdown ? (
+            <MarkdownText source={mathLevel.markdown} />
           ) : (
-            <ScreenSection title={chartButtonLabel} subtitle={strings.chartUnavailableHint} centerHeader>
-              <View />
-            </ScreenSection>
+            <AppText variant="screenHint" tone="muted">
+              {strings.emptyHint}
+            </AppText>
           )}
-        </ScrollView>
-      </FullScreenModalScaffold>
+        </SurfaceCardView>
+
+        {canShowChart ? (
+          <AppButton label={chartButtonLabel} variant="secondary" onPress={() => setShowChart(true)} />
+        ) : (
+          <ScreenSection title={chartButtonLabel} subtitle={strings.chartUnavailableHint} centerHeader>
+            <View />
+          </ScreenSection>
+        )}
+      </ScrollView>
 
       {showChart && canShowChart ? (
         <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
@@ -124,6 +139,16 @@ export function ModalMathLevel({
           />
         </Suspense>
       ) : null}
+    </FullScreenModalScaffold>
+  );
+
+  if (presentation === "nestedOverlay") {
+    return inner;
+  }
+
+  return (
+    <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
+      {inner}
     </Modal>
   );
 }

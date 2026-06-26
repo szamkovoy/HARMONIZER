@@ -7,7 +7,7 @@ import {
   isMorningRecommendationCacheValid,
   MORNING_CACHE_OUTPUT_LOCALE_KEY,
 } from "../../_utils/outputLanguagePrompt";
-import { normalizeChakraNamesInFields } from "../../_utils/chakraText";
+import { normalizeRecommendationFields } from "../../_utils/recommendationText";
 import { resolveContentLocale, type AppContentLocale } from "../../_utils/contentLocales";
 import { loadActiveNatalProfile } from "../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../_utils/authorVoice";
@@ -212,7 +212,7 @@ export async function POST(req: Request) {
     ) {
       const cachedPayload =
         scenario.id === "morning_recommendation"
-          ? normalizeChakraNamesInFields(cached, responseLocale)
+          ? normalizeRecommendationFields(cached, responseLocale)
           : cached;
       return json({
         ...cachedPayload,
@@ -255,7 +255,7 @@ export async function POST(req: Request) {
     };
     const payload =
       scenario.id === "morning_recommendation"
-        ? normalizeChakraNamesInFields(rawPayload, responseLocale)
+        ? normalizeRecommendationFields(rawPayload, responseLocale)
         : rawPayload;
 
     endpointStage = "cache_save";

@@ -4,16 +4,14 @@ import { StyleSheet, View } from "react-native";
 import type { NatalProfile } from "@/modules/astro-core";
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
-import { getForecastRecommendation } from "@/modules/home/i18n/home";
 import { getPlanetChakraMap } from "@/modules/home/planetChakra";
+import { sanitizeRecommendationDisplay } from "@/modules/home/sanitizeRecommendationDisplay";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { SectionHeader } from "@/modules/ui/ScreenSection";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
-import { useTheme } from "@/modules/ui/theme";
 import { ModalLongExplanation } from "./ModalLongExplanation";
-import { ModalMathLevel } from "./ModalMathLevel";
 
 interface DailyRecommendationCardProps {
   forecast: DailyForecast;
@@ -34,22 +32,21 @@ export function DailyRecommendationCard({
   accessMode,
   natalProfile,
   modelUsed,
-  homeTextsLoading = false,
 }: DailyRecommendationCardProps) {
-  const theme = useTheme();
   const [modalLevel, setModalLevel] = useState<"none" | "long" | "math">("none");
   const locale = strings.locale;
   const planetChakra = useMemo(() => getPlanetChakraMap(locale), [locale]);
-  const shortText = forecast.recommendationShortText?.trim();
-  const text =
-    shortText
-    || (homeTextsLoading ? strings.recommendation.loading : strings.recommendation.fallback(forecast));
-  const meta = planetChakra[forecast.planetOfTheDay];
-  const tone = strings.toneLabels[forecast.todayPlanetState.todayTone];
+  const fallbackShortText = strings.recommendation.fallback(forecast);
   const detailText = strings.recommendation.detailParagraphs(forecast).join("\n\n");
-  const longExplanation =
-    forecast.recommendationLongText?.trim()
-    || (homeTextsLoading ? strings.recommendation.loading : detailText);
+  const shortText = useMemo(() => {
+    const raw = forecast.recommendationShortText?.trim();
+    return raw ? sanitizeRecommendationDisplay(raw, locale) : fallbackShortText;
+  }, [fallbackShortText, forecast.recommendationShortText, locale]);
+  const longExplanation = useMemo(() => {
+    const raw = forecast.recommendationLongText?.trim();
+    return raw ? sanitizeRecommendationDisplay(raw, locale) : detailText;
+  }, [detailText, forecast.recommendationLongText, locale]);
+  const meta = planetChakra[forecast.planetOfTheDay];
   const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
   return (
@@ -63,7 +60,7 @@ export function DailyRecommendationCard({
             />
           </View>
         </View>
-        <AppText variant="screenHint">{text}</AppText>
+        <AppText variant="screenHint">{shortText}</AppText>
         {__DEV__ ? (
           <AppText variant="technicalCaption" tone="muted">
             model: {modelUsed ?? "unknown"} · {accessMode}
@@ -84,15 +81,12 @@ export function DailyRecommendationCard({
         onOpenMath={() => setModalLevel("math")}
         canOpenMath={hasMathLevel}
         strings={strings.longExplanationModal}
-      />
-      <ModalMathLevel
-        visible={modalLevel === "math"}
-        onClose={() => setModalLevel("none")}
+        showMath={modalLevel === "math"}
         mathLevel={forecast.mathLevel}
         natalProfile={natalProfile}
         forecast={forecast}
         accessMode={accessMode}
-        strings={strings.mathModal}
+        mathStrings={strings.mathModal}
         chartStrings={{
           planetLabels: strings.planetLabels,
           closeButton: strings.closeButton,
