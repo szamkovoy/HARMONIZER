@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AppContentLocale } from "./contentLocales";
 import { SOURCE_LOCALE } from "./contentLocales";
-import { normalizeRecommendationText } from "./recommendationText";
+import { isCurrentGlobalLongExplanation, normalizeRecommendationText } from "./recommendationText";
 import { buildGlobalMathLevel } from "./globalTransitMath";
 import { pickGlobalTexts, pretranslateGlobalTexts, upsertGlobalTextI18n, type GlobalTextFields } from "./pretranslateGlobalTexts";
 
@@ -78,10 +78,11 @@ export function localizeGlobalContentPayloadSync(
   locale: AppContentLocale,
 ): LocalizedGlobalPayload {
   const texts = pickGlobalTexts(content, locale);
+  const normalizedLongExplanation = normalizeRecommendationText(texts.long_explanation, locale);
   return {
     slogan: normalizeRecommendationText(texts.slogan, locale),
     short_text: normalizeRecommendationText(texts.short_text, locale),
-    long_explanation: normalizeRecommendationText(texts.long_explanation, locale),
+    long_explanation: isCurrentGlobalLongExplanation(normalizedLongExplanation) ? normalizedLongExplanation : "",
     math_level: rebuildGlobalMathLevel(content, locale),
   };
 }

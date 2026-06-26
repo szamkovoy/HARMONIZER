@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildGlobalMathLevel, computeGlobalDailyForecast, isGlobalMathLevelCurrent } from "./globalTransitMath";
-import { normalizeRecommendationFields } from "./recommendationText";
+import { isCurrentGlobalLongExplanation, normalizeRecommendationFields } from "./recommendationText";
 import { ensureGlobalTextI18nPrecomputed } from "./globalContentLocale";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { getActivePrompt, renderPrompt } from "./prompts";
@@ -28,6 +28,7 @@ export function globalContentNeedsRefresh(existing: Record<string, unknown> | nu
   if (!hasRequiredText(existing.slogan)) return true;
   if (!hasRequiredText(existing.short_text)) return true;
   if (!hasRequiredText(existing.long_explanation)) return true;
+  if (!isCurrentGlobalLongExplanation(existing.long_explanation)) return true;
   if (!isGlobalMathLevelCurrent(existing.math_level)) return true;
   return false;
 }

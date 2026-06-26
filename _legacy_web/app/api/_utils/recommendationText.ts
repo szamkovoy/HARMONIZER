@@ -14,6 +14,12 @@ const CONCLUSION_HEADER_REPLACEMENTS: Array<{ pattern: RegExp; replacement: stri
   { pattern: /§\s*6\.?\s*CONCLUSÃO\s+COM\s+PONTE/giu, replacement: "§6. CONCLUSÃO" },
   { pattern: /§\s*6\.?\s*CONCLUSIE\s+MET\s+BRUG/giu, replacement: "§6. CONCLUSIE" },
 ];
+const GLOBAL_LONG_SECTION_MARKERS = ["§1.", "§2.", "§3.", "§4.", "§5.", "§6."] as const;
+const GLOBAL_LONG_CHAKRA_PATTERNS = [
+  /\bchakra(?:s)?\b/iu,
+  /чакр/iu,
+  /анахат|манипур|сахасрар|вишуд|аджн|свадх|муладхар/iu,
+] as const;
 
 function preserveInitialCapital(label: string, match: string): string {
   if (!match) return label;
@@ -56,6 +62,22 @@ export function normalizeRecommendationText(text: string | null | undefined, loc
   next = normalizeTechnicalTermsInText(next, locale);
   next = normalizeLongExplanationSectionHeaders(next);
   return next;
+}
+
+export function hasStructuredGlobalLongExplanation(text: string | null | undefined): boolean {
+  if (typeof text !== "string" || !text.trim()) return false;
+  const normalized = normalizeLongExplanationSectionHeaders(text);
+  return GLOBAL_LONG_SECTION_MARKERS.every((marker) => normalized.includes(marker));
+}
+
+export function hasLegacyGlobalChakraMentions(text: string | null | undefined): boolean {
+  if (typeof text !== "string" || !text.trim()) return false;
+  return GLOBAL_LONG_CHAKRA_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function isCurrentGlobalLongExplanation(text: string | null | undefined): boolean {
+  if (!hasStructuredGlobalLongExplanation(text)) return false;
+  return !hasLegacyGlobalChakraMentions(text);
 }
 
 export function normalizeRecommendationFields<T extends Record<string, unknown>>(

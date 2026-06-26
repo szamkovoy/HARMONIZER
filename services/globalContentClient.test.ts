@@ -18,12 +18,29 @@ vi.mock("@/modules/i18n/localeStore", () => ({
 
 import { fetchGlobalContent } from "./globalContentClient";
 
+function buildStructuredLong(localePrefix: string) {
+  return [
+    `§1. ${localePrefix} one`,
+    "Paragraph.",
+    `§2. ${localePrefix} two`,
+    "Paragraph.",
+    `§3. ${localePrefix} three`,
+    "Paragraph.",
+    `§4. ${localePrefix} four`,
+    "Paragraph.",
+    `§5. ${localePrefix} five`,
+    "Paragraph.",
+    `§6. ${localePrefix} six`,
+    "Paragraph.",
+  ].join("\n\n");
+}
+
 function buildGlobalContentRow() {
   return {
     forecast_date_utc: "2026-06-23",
     slogan: "RU slogan",
     short_text: "RU short",
-    long_explanation: "RU long",
+    long_explanation: buildStructuredLong("RU"),
     math_level: { markdown: "math", structured: {} },
     primary_planet: "Mars",
     primary_tone: "harmonic",
@@ -42,7 +59,7 @@ function buildGlobalContentRow() {
       de: {
         slogan: "DE slogan",
         short_text: "DE short",
-        long_explanation: "DE long",
+        long_explanation: buildStructuredLong("DE"),
       },
     },
   };
@@ -107,7 +124,40 @@ describe("fetchGlobalContent", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.forecast.slogan).toBe("DE slogan");
     expect(result.forecast.recommendationShortText).toBe("DE short");
-    expect(result.forecast.recommendationLongText).toBe("DE long");
+    expect(result.forecast.recommendationLongText).toBe(buildStructuredLong("DE"));
     expect(result.modelUsed).toBe("gemini-test");
+  });
+
+  it("drops legacy long explanation during direct fallback", async () => {
+    const row = buildGlobalContentRow();
+    row.text_i18n = {
+      de: {
+        slogan: "DE slogan",
+        short_text: "DE short",
+        long_explanation: "Mars speaks through chakra language without structured sections.",
+      },
+    };
+    requireSupabaseMock.mockReturnValue(createSupabaseMock(row));
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(Object.assign(new Error("Aborted"), { name: "AbortError" })),
+          { once: true },
+        );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promise = fetchGlobalContent({
+      userLocation: { lat: 52.52, lng: 13.405, timezone: "Europe/Berlin" },
+      responseLocale: "de",
+    });
+
+    await vi.advanceTimersByTimeAsync(25_000);
+    const result = await promise;
+
+    expect(result.forecast.recommendationLongText).toBeUndefined();
+    expect(result.forecast.recommendationShortText).toBe("DE short");
   });
 });

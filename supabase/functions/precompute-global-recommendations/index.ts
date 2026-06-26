@@ -5,6 +5,12 @@ import { buildGlobalMathLevel, computeGlobalDailyForecast, GLOBAL_MATH_SCHEMA_VE
 
 const BACKGROUND_PRIMARY_ATTEMPTS = 3;
 const BACKGROUND_PRIMARY_RETRY_DELAY_MS = 60_000;
+const GLOBAL_LONG_SECTION_MARKERS = ["§1.", "§2.", "§3.", "§4.", "§5.", "§6."];
+const GLOBAL_LONG_CHAKRA_PATTERNS = [
+  /\bchakra(?:s)?\b/iu,
+  /чакр/iu,
+  /анахат|манипур|сахасрар|вишуд|аджн|свадх|муладхар/iu,
+];
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -27,6 +33,19 @@ function hasRequiredText(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function normalizeLongExplanationSectionHeaders(text: string): string {
+  return text.replace(/§\s*6\.?\s*ЗАКЛЮЧЕНИЕ\s+С\s+МОСТИКОМ/giu, "§6. ЗАКЛЮЧЕНИЕ");
+}
+
+function isCurrentGlobalLongExplanation(text: unknown): boolean {
+  if (!hasRequiredText(text)) return false;
+  const value = normalizeLongExplanationSectionHeaders(String(text));
+  if (!GLOBAL_LONG_SECTION_MARKERS.every((marker) => value.includes(marker))) {
+    return false;
+  }
+  return !GLOBAL_LONG_CHAKRA_PATTERNS.some((pattern) => pattern.test(value));
+}
+
 function contentNeedsRefresh(existing: any, expectedModel: string): boolean {
   if (!existing) return true;
   const existingModel = typeof existing.llm_model === "string" ? existing.llm_model.trim() : "";
@@ -34,6 +53,7 @@ function contentNeedsRefresh(existing: any, expectedModel: string): boolean {
   if (!hasRequiredText(existing.slogan)) return true;
   if (!hasRequiredText(existing.short_text)) return true;
   if (!hasRequiredText(existing.long_explanation)) return true;
+  if (!isCurrentGlobalLongExplanation(existing.long_explanation)) return true;
   const structured = existing.math_level?.structured;
   if (!structured || structured.schema_version !== GLOBAL_MATH_SCHEMA_VERSION || structured.chart_mode !== "transit_only") {
     return true;

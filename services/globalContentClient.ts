@@ -6,7 +6,7 @@ import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
-import { normalizeRecommendationText } from "@/_legacy_web/app/api/_utils/recommendationText";
+import { isCurrentGlobalLongExplanation, normalizeRecommendationText } from "@/_legacy_web/app/api/_utils/recommendationText";
 import { getMathLevelStrings } from "@/_legacy_web/app/api/_utils/mathLevelI18n";
 
 export type AccessMode = "premium" | "trial" | "free";
@@ -79,22 +79,24 @@ function asTrimmedString(value: unknown): string {
 
 /** Mirrors server pickGlobalTexts — reads text_i18n when present, else canonical RU. */
 function pickGlobalTextsFromRow(row: Record<string, unknown>, locale: string): GlobalTextFields {
+  const normalizedRuLong = normalizeRecommendationText(asTrimmedString(row.long_explanation), locale as AppContentLocale);
   const ru: GlobalTextFields = {
     slogan: normalizeRecommendationText(asTrimmedString(row.slogan), locale as AppContentLocale),
     short_text: normalizeRecommendationText(asTrimmedString(row.short_text), locale as AppContentLocale),
-    long_explanation: normalizeRecommendationText(asTrimmedString(row.long_explanation), locale as AppContentLocale),
+    long_explanation: isCurrentGlobalLongExplanation(normalizedRuLong) ? normalizedRuLong : "",
   };
   if (locale === "ru") return ru;
 
   const localized = (row.text_i18n as GlobalTextI18nMap | undefined)?.[locale];
   if (localized?.short_text?.trim()) {
+    const normalizedLocalizedLong = normalizeRecommendationText(
+      asTrimmedString(localized.long_explanation) || ru.long_explanation,
+      locale as AppContentLocale,
+    );
     return {
       slogan: normalizeRecommendationText(asTrimmedString(localized.slogan) || ru.slogan, locale as AppContentLocale),
       short_text: normalizeRecommendationText(asTrimmedString(localized.short_text), locale as AppContentLocale),
-      long_explanation: normalizeRecommendationText(
-        asTrimmedString(localized.long_explanation) || ru.long_explanation,
-        locale as AppContentLocale,
-      ),
+      long_explanation: isCurrentGlobalLongExplanation(normalizedLocalizedLong) ? normalizedLocalizedLong : "",
     };
   }
   return ru;
