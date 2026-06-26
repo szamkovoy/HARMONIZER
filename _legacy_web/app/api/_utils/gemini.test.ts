@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { extractJson, getModelByHint } from "./gemini";
+import { extractJson, getModelAttemptChainForTest, getModelByHint } from "./gemini";
 
 const originalStandard = process.env.AI_MODEL_STANDARD;
 const originalPremium = process.env.AI_MODEL_PREMIUM;
@@ -70,6 +70,24 @@ describe("getModelByHint", () => {
     expect(getModelByHint("standard")).toBe("gemini-2.5-flash");
     if (prev === undefined) delete process.env.ALLOW_LEGACY_GEMINI_MODELS;
     else process.env.ALLOW_LEGACY_GEMINI_MODELS = prev;
+  });
+});
+
+describe("getModelAttemptChainForTest", () => {
+  it("keeps premium requests on premium before fallback", () => {
+    process.env.AI_MODEL_STANDARD = "standard-model";
+    process.env.AI_MODEL_PREMIUM = "premium-model";
+    process.env.AI_MODEL_FALLBACK = "fallback-model";
+
+    expect(getModelAttemptChainForTest("premium-model")).toEqual(["premium-model", "fallback-model"]);
+  });
+
+  it("keeps standard requests on standard before fallback", () => {
+    process.env.AI_MODEL_STANDARD = "standard-model";
+    process.env.AI_MODEL_PREMIUM = "premium-model";
+    process.env.AI_MODEL_FALLBACK = "fallback-model";
+
+    expect(getModelAttemptChainForTest("standard-model")).toEqual(["standard-model", "fallback-model"]);
   });
 });
 

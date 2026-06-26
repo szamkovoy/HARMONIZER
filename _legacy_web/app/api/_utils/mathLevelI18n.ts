@@ -1,6 +1,10 @@
 import type { AppContentLocale } from "./contentLocales";
 
 export type MathLevelStrings = {
+  planetLabel: (planet: string) => string;
+  signLabel: (sign: string) => string;
+  aspectLabel: (aspect: string) => string;
+  toneLabel: (tone: string) => string;
   title: string;
   intro: string;
   section1Title: string;
@@ -42,7 +46,98 @@ export type MathLevelStrings = {
   globalAspectWeightLine: (from: string, type: string, to: string, orb: string, weight: string) => string;
 };
 
+type PlanetLabelMap = Record<string, string>;
+type SignLabelMap = Record<string, string>;
+type AspectLabelMap = Record<string, string>;
+type ToneLabelMap = Record<string, string>;
+
+function localizeFromMap(value: string, map: Record<string, string>): string {
+  return map[value] ?? value;
+}
+
+const PLANETS_RU: PlanetLabelMap = {
+  Sun: "Солнце",
+  Moon: "Луна",
+  Mercury: "Меркурий",
+  Venus: "Венера",
+  Mars: "Марс",
+  Jupiter: "Юпитер",
+  Saturn: "Сатурн",
+};
+
+const PLANETS_EN: PlanetLabelMap = {
+  Sun: "Sun",
+  Moon: "Moon",
+  Mercury: "Mercury",
+  Venus: "Venus",
+  Mars: "Mars",
+  Jupiter: "Jupiter",
+  Saturn: "Saturn",
+};
+
+const SIGNS_RU: SignLabelMap = {
+  Aries: "Овен",
+  Taurus: "Телец",
+  Gemini: "Близнецы",
+  Cancer: "Рак",
+  Leo: "Лев",
+  Virgo: "Дева",
+  Libra: "Весы",
+  Scorpio: "Скорпион",
+  Sagittarius: "Стрелец",
+  Capricorn: "Козерог",
+  Aquarius: "Водолей",
+  Pisces: "Рыбы",
+};
+
+const SIGNS_EN: SignLabelMap = {
+  Aries: "Aries",
+  Taurus: "Taurus",
+  Gemini: "Gemini",
+  Cancer: "Cancer",
+  Leo: "Leo",
+  Virgo: "Virgo",
+  Libra: "Libra",
+  Scorpio: "Scorpio",
+  Sagittarius: "Sagittarius",
+  Capricorn: "Capricorn",
+  Aquarius: "Aquarius",
+  Pisces: "Pisces",
+};
+
+const ASPECTS_RU: AspectLabelMap = {
+  conjunction: "соединение",
+  opposition: "оппозиция",
+  square: "квадрат",
+  trine: "трин",
+  sextile: "секстиль",
+};
+
+const ASPECTS_EN: AspectLabelMap = {
+  conjunction: "conjunction",
+  opposition: "opposition",
+  square: "square",
+  trine: "trine",
+  sextile: "sextile",
+};
+
+const TONES_RU: ToneLabelMap = {
+  harmonic: "гармоничный",
+  dissonant: "напряженный",
+  ambivalent_strong: "сильная двойственность",
+};
+
+const TONES_EN: ToneLabelMap = {
+  harmonic: "harmonic",
+  dissonant: "challenging",
+  ambivalent_strong: "strongly ambivalent",
+};
+
 const ru: MathLevelStrings = {
+  planetLabel: (planet) => localizeFromMap(planet, PLANETS_RU),
+  signLabel: (sign) => localizeFromMap(sign, SIGNS_RU),
+  aspectLabel: (aspect) => localizeFromMap(aspect, ASPECTS_RU),
+  toneLabel: (tone) => localizeFromMap(tone, TONES_RU),
   title: "## Математика дня\n",
   intro:
     "Здесь — точный расчёт того, что вы видите на главной странице. Используются методы древнегреческой астрологии (эссенциальные достоинства Птолемея, акцидентальные по Лилли), скорректированные под современную психологическую модель чакр.\n",
@@ -81,23 +176,27 @@ const ru: MathLevelStrings = {
     "Общий прогноз строится без натальной карты: учитываются только транзитные положения семи планет на 12:00 UTC выбранного дня.",
   globalSectionPetals: "\n### Топ-3 лепестка\n",
   globalPetalLine: (planet, gravity, chakra, tone) =>
-    `- **${planet}**: gravity=${gravity}, chakra ${chakra}, tone=${tone}`,
+    `- **${planet}**: вес=${gravity}, чакра ${chakra}, тон=${tone}`,
   globalMechanicsLine:
-    "Каждая планета получает gravity-оценку: суммируется вклад аспектов с поправкой на тип аспекта, точность орба и «вес» самой транзитной планеты.",
+    "Каждая планета получает оценку веса: суммируется вклад аспектов с поправкой на тип аспекта, точность орба и вес самой транзитной планеты.",
   globalSectionWinner: "\n### Почему выбрана именно эта тема дня\n",
   globalWinnerLine: (planet, chakra, tone, gravity) =>
-    `- Главная тема дня: **${planet}** (чакра ${chakra}, tone=${tone}, gravity=${gravity}). Именно эта планета набрала максимальный суммарный вес среди транзитов дня.`,
+    `- Главная тема дня: **${planet}** (чакра ${chakra}, тон=${tone}, вес=${gravity}). Именно эта планета набрала максимальный суммарный вес среди транзитов дня.`,
   globalSectionRanking: "\n### Полный рейтинг планет на этот момент\n",
   globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
-    `${rank}. **${planet}** — ${sign} ${degree}°, gravity=${gravity}, tone=${tone}`,
+    `${rank}. **${planet}** — ${sign} ${degree}°, вес=${gravity}, тон=${tone}`,
   globalSectionAspects: "\n### Активные аспекты дня\n",
-  globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, orb=${orb}°`,
+  globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, орб=${orb}°`,
   globalSectionAspectWeights: "\n### Вес каждого аспекта в общей картине\n",
   globalAspectWeightLine: (from, type, to, orb, weight) =>
-    `- ${from} ${type} ${to}: orb=${orb}°, contribution=${weight}`,
+    `- ${from} ${type} ${to}: орб=${orb}°, вклад=${weight}`,
 };
 
 const en: MathLevelStrings = {
+  planetLabel: (planet) => localizeFromMap(planet, PLANETS_EN),
+  signLabel: (sign) => localizeFromMap(sign, SIGNS_EN),
+  aspectLabel: (aspect) => localizeFromMap(aspect, ASPECTS_EN),
+  toneLabel: (tone) => localizeFromMap(tone, TONES_EN),
   title: "## Day mathematics\n",
   intro:
     "Here is the exact calculation behind what you see on the home screen. We use ancient Greek astrology methods (Ptolemy's essential dignities, Lilly's accidentals), adjusted for the modern psychological chakra model.\n",

@@ -289,7 +289,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
   (`modules/chakra/i18n.ts` — single source for legend text), charts donut center
   label (`getChartStrings` → `balanceLabel`; overlays `typed/catalog/charts/*`), Home
-  `ChakraFlower` center planet name via **`getHomeStrings` → `planetLabels`**, startup splash footer
+  `ChakraFlower` center planet name via **`getHomeStrings` → `planetLabels`**, Home astro-chart zodiac labels via **`getHomeStrings().astroChartModal.zodiacSigns`**, startup splash footer
   (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`).
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier
   slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;
@@ -302,7 +302,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   `backfillGlobalTextI18n` for the requested locale only (no blocking LLM on the
   request path). Client `fetchGlobalContent`: Supabase SDK fallback on HTTP
   failure/timeout for **any** locale, with client-side `text_i18n` pick. Math markdown via `getMathLevelStrings(locale)` in
-  `mathLevelI18n.ts` — RU/EN inline; de/fr/it/es/pt/nl in `mathLevelI18nTargets.ts`.
+  `mathLevelI18n.ts` — RU/EN inline; de/fr/it/es/pt/nl in `mathLevelI18nTargets.ts`. Этот deterministic слой локализует не только заголовки, но и planet/sign/aspect/tone labels, а client direct fallback пересобирает free `math_level.markdown` из `structured.chart_mode="transit_only"`, чтобы route timeout не возвращал mixed-language formulas.
 - **Layer C (deterministic server strings):** dialog branch finals, guards,
   greetings, planning labels, summary bridges — all eight locales via
   `_legacy_web/data/dialog_scaffold/*.json` and `getDialogScaffoldStrings()`.

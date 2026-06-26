@@ -38,7 +38,7 @@ code_refs:
 ## 3. Подробное объяснение — `recommendationLongText` (`recommendation_long_text`)
 
 - **Смысл:** развёрнутый текст для модалки «Подробнее».
-- **Источник:** LLM (`long_explanation` в JSON). В промптах `global_morning_recommendation` v4+ и `monologue_morning_recommendation` v4+ для этого слоя **запрещены** упоминания чакр; планеты и психологические темы — да.
+- **Источник:** LLM (`long_explanation` в JSON). В промптах `global_morning_recommendation` v4+ и `monologue_morning_recommendation` v4+ chakra-лексика больше не должна использовать санскритские имена: если чакра упоминается, то только в номерной форме (`четвёртая чакра`, `третья чакра` и т.п.).
 - **UI:** `ModalLongExplanation` из `DailyRecommendationCard.tsx`; если поля нет, подставляется собранный из шаблонов продуктовый `detailText` на клиенте.
 
 ## 4. Математический слой — `mathLevel` (`math_level`)
@@ -47,7 +47,7 @@ code_refs:
 - **Источник:** `buildMathLevel` в `_legacy_web/app/api/_utils/mathLevelBuilder.ts` (активация, importance, аспекты, `S`/`H` с натала и дельты калибровки). В ответ monologue поле добавляется сервером рядом с JSON модели (`math_level` в payload).
 - **Формат (personal):** `{ markdown: string; structured?: { natal_strengths, main_aspects, importance_breakdown, calibration_deltas? } }` — см. интерфейс `MathLevelData` в `mathLevelBuilder.ts`.
 - **Формат (free/global):** `buildGlobalMathLevel` собирает transit-only payload с `structured.schema_version = 2`, `chart_mode = "transit_only"`, `planet_positions`, `planet_scores`, `top_petals`, `aspects`, `main_aspects`. Этот слой не использует натал и поэтому открывает только общий транзитный круг дня.
-- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; из того же payload открывается либо personal natal+transit chart, либо free transit-only chart.
+- **UI:** `ModalMathLevel` — рендер `mathLevel.markdown` через `MarkdownText`, опционально диаграмма аспектов из `structured.main_aspects`; из того же payload открывается либо personal natal+transit chart, либо free transit-only chart. Планеты, знаки, аспекты, `orb`/`tone`/`gravity` в markdown локализуются по активной locale, а free fallback через прямое чтение `global_daily_content` пересобирает этот markdown из structured payload, чтобы не показывать сырой RU/EN текст.
 
 ## 5. Обогащение на клиенте
 

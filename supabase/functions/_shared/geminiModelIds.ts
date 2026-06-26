@@ -24,3 +24,16 @@ export function resolveGeminiModelIdFromTierEnv(hint: string | null | undefined)
   }
   return INFORMAL_GEMINI_MODEL_IDS[lower] ?? model;
 }
+
+export function resolveFallbackGeminiModelIdFromEnv(): string {
+  const model = Deno.env.get("AI_MODEL_FALLBACK")?.trim();
+  if (!model) {
+    throw new Error("Missing AI_MODEL_FALLBACK");
+  }
+  const lower = model.toLowerCase();
+  if (Deno.env.get("ALLOW_LEGACY_GEMINI_MODELS") === "true") {
+    const upgraded = LEGACY_MODEL_UPGRADES[lower];
+    if (upgraded) return upgraded;
+  }
+  return INFORMAL_GEMINI_MODEL_IDS[lower] ?? model;
+}

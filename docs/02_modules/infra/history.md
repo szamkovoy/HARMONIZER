@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-06-26:** LLM infra fallback contract was tightened. `_legacy_web/app/api/_utils/gemini.ts` no longer silently demotes `premium -> standard` before `AI_MODEL_FALLBACK` on interactive routes; it now tries the exact requested tier once and then falls back directly on retryable overload/timeout. In parallel, Supabase cron functions `precompute-daily-forecasts` and `precompute-global-recommendations` gained their own background retry policy: up to 3 primary-model attempts with 60-second pauses, then one fallback attempt for that generation.
+
 - **2026-06-16:** Groq Whisper pipeline: `whisperPrompts.ts` — `LANGUAGE_ALIASES` для 8 локалей, optional `language` (omit → `AUTO_DETECT_DOMAIN_PROMPT`), `normalizeWhisperLanguage` → `string | undefined`; `whisperTranscription.ts` и `/transcribe` клиент пропускают `language` в form, когда hint не задан. Контракт STT — `communicator/spec.md`, `i18n/spec.md` §8.
 
 - **2026-06-09 (4):** Sentry-шум от штатной перегрузки LLM и обрыва SSE снижен: `reportRouteError` логирует «Сервис временно недоступен…» как `warning` (не `error`), `sentry.server.config.ts` фильтрует `failed to pipe response`, dialog SSE при ошибке responder закрывается событием `error` + `controller.close()` вместо `controller.error()`. Аналитика перегрузок остаётся в `user_event_log`.

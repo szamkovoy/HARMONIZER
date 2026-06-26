@@ -180,7 +180,8 @@ export default function ModalAstroChart({
               if (longitude == null) return null;
               return (
                 <AppText key={planet} variant="screenHint" tone="muted">
-                  {strings.planetLabels[planet]}: {signOf(longitude)} {signDegreeOf(longitude).toFixed(1)}°
+                  {strings.planetLabels[planet]}: {chartCopy.zodiacSigns[signOf(longitude)] ?? signOf(longitude)}{" "}
+                  {signDegreeOf(longitude).toFixed(1)}°
                 </AppText>
               );
             })}

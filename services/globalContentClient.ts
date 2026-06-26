@@ -1,10 +1,13 @@
 import { getResponseLocale } from "@/modules/i18n/localeStore";
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
+import { normalizeChakraNamesInText } from "@/_legacy_web/app/api/_utils/chakraText";
+import { getMathLevelStrings } from "@/_legacy_web/app/api/_utils/mathLevelI18n";
 
 export type AccessMode = "premium" | "trial" | "free";
 
@@ -52,6 +55,24 @@ type GlobalTextFields = {
 
 type GlobalTextI18nMap = Partial<Record<string, GlobalTextFields>>;
 
+const GLOBAL_MATH_SCHEMA_VERSION = 2;
+const GLOBAL_ASPECT_COEF: Record<string, number> = {
+  conjunction: 1,
+  opposition: 0.9,
+  square: 0.8,
+  trine: 0.7,
+  sextile: 0.5,
+};
+const GLOBAL_TRANSIT_WEIGHT: Record<string, number> = {
+  Saturn: 1,
+  Jupiter: 0.9,
+  Mars: 0.8,
+  Sun: 0.7,
+  Venus: 0.5,
+  Mercury: 0.5,
+  Moon: 0.3,
+};
+
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -59,21 +80,121 @@ function asTrimmedString(value: unknown): string {
 /** Mirrors server pickGlobalTexts — reads text_i18n when present, else canonical RU. */
 function pickGlobalTextsFromRow(row: Record<string, unknown>, locale: string): GlobalTextFields {
   const ru: GlobalTextFields = {
-    slogan: asTrimmedString(row.slogan),
-    short_text: asTrimmedString(row.short_text),
-    long_explanation: asTrimmedString(row.long_explanation),
+    slogan: normalizeChakraNamesInText(asTrimmedString(row.slogan), locale as AppContentLocale),
+    short_text: normalizeChakraNamesInText(asTrimmedString(row.short_text), locale as AppContentLocale),
+    long_explanation: normalizeChakraNamesInText(asTrimmedString(row.long_explanation), locale as AppContentLocale),
   };
   if (locale === "ru") return ru;
 
   const localized = (row.text_i18n as GlobalTextI18nMap | undefined)?.[locale];
   if (localized?.short_text?.trim()) {
     return {
-      slogan: asTrimmedString(localized.slogan) || ru.slogan,
-      short_text: asTrimmedString(localized.short_text),
-      long_explanation: asTrimmedString(localized.long_explanation) || ru.long_explanation,
+      slogan: normalizeChakraNamesInText(asTrimmedString(localized.slogan) || ru.slogan, locale as AppContentLocale),
+      short_text: normalizeChakraNamesInText(asTrimmedString(localized.short_text), locale as AppContentLocale),
+      long_explanation: normalizeChakraNamesInText(
+        asTrimmedString(localized.long_explanation) || ru.long_explanation,
+        locale as AppContentLocale,
+      ),
     };
   }
   return ru;
+}
+
+function rebuildLocalizedGlobalMathLevel(
+  mathLevel: DailyForecast["mathLevel"] | undefined,
+  locale: AppContentLocale,
+): DailyForecast["mathLevel"] | undefined {
+  const structured = mathLevel?.structured as
+    | {
+        schema_version?: number;
+        chart_mode?: string;
+        primary_planet?: string;
+        primary_chakra_number?: number;
+        primary_tone?: string;
+        planet_positions?: Record<string, unknown>;
+        aspects?: Array<{ from: string; to: string; type: string; orb: number; maxOrb: number }>;
+        top_petals?: Array<{ planet: string; gravity: number; chakra_number: number; tone: string }>;
+        planet_scores?: Array<{
+          planet: string;
+          gravity: number;
+          chakra_number: number;
+          tone: string;
+          sign?: string;
+          sign_degree?: number;
+        }>;
+      }
+    | undefined;
+  if (!structured || structured.schema_version !== GLOBAL_MATH_SCHEMA_VERSION || structured.chart_mode !== "transit_only") {
+    return mathLevel;
+  }
+
+  const t = getMathLevelStrings(locale);
+  const aspects = Array.isArray(structured.aspects) ? structured.aspects : [];
+  const topPetals = Array.isArray(structured.top_petals) ? structured.top_petals : [];
+  const planetScores = Array.isArray(structured.planet_scores) ? structured.planet_scores : [];
+  const primaryPlanet = structured.primary_planet ?? topPetals[0]?.planet ?? planetScores[0]?.planet ?? "Sun";
+  const primaryPetal =
+    planetScores.find((planet) => planet.planet === primaryPlanet)
+    ?? topPetals.find((planet) => planet.planet === primaryPlanet)
+    ?? planetScores[0]
+    ?? topPetals[0];
+
+  const markdown = [
+    t.globalTitle,
+    t.globalIntro,
+    t.globalMechanicsLine,
+    t.globalSectionWinner,
+    t.globalWinnerLine(
+      t.planetLabel(primaryPlanet),
+      primaryPetal?.chakra_number ?? structured.primary_chakra_number ?? 0,
+      t.toneLabel(primaryPetal?.tone ?? structured.primary_tone ?? "neutral"),
+      typeof primaryPetal?.gravity === "number" ? primaryPetal.gravity.toFixed(3) : "0.000",
+    ),
+    t.globalSectionRanking,
+    ...planetScores.map((planet, index) =>
+      t.globalRankingLine(
+        String(index + 1),
+        t.planetLabel(planet.planet),
+        t.signLabel(planet.sign ?? "Aries"),
+        typeof planet.sign_degree === "number" ? planet.sign_degree.toFixed(1) : "0.0",
+        planet.gravity.toFixed(3),
+        t.toneLabel(planet.tone),
+      ),
+    ),
+    t.globalSectionPetals,
+    ...topPetals.map((petal) =>
+      t.globalPetalLine(t.planetLabel(petal.planet), petal.gravity, petal.chakra_number, t.toneLabel(petal.tone)),
+    ),
+    t.globalSectionAspects,
+    ...aspects.map((aspect) =>
+      t.globalAspectLine(
+        t.planetLabel(aspect.from),
+        t.aspectLabel(aspect.type),
+        t.planetLabel(aspect.to),
+        aspect.orb.toFixed(2),
+      ),
+    ),
+    t.globalSectionAspectWeights,
+    ...aspects.map((aspect) => {
+      const coef = GLOBAL_ASPECT_COEF[aspect.type] ?? 0.5;
+      const weightFrom = GLOBAL_TRANSIT_WEIGHT[aspect.from] ?? 0.5;
+      const weightTo = GLOBAL_TRANSIT_WEIGHT[aspect.to] ?? 0.5;
+      const orbFactor = Math.max(0, 1 - aspect.orb / aspect.maxOrb);
+      const contribution = coef * ((weightFrom + weightTo) / 2) * orbFactor;
+      return t.globalAspectWeightLine(
+        t.planetLabel(aspect.from),
+        t.aspectLabel(aspect.type),
+        t.planetLabel(aspect.to),
+        aspect.orb.toFixed(2),
+        contribution.toFixed(3),
+      );
+    }),
+  ].join("\n");
+
+  return {
+    ...mathLevel,
+    markdown,
+  };
 }
 
 async function getAccessToken(): Promise<string> {
@@ -200,7 +321,7 @@ function globalResponseFromRow(
     slogan: texts.slogan || undefined,
     short_text: texts.short_text,
     long_explanation: texts.long_explanation || undefined,
-    math_level: row.math_level as DailyForecast["mathLevel"],
+    math_level: rebuildLocalizedGlobalMathLevel(row.math_level as DailyForecast["mathLevel"], responseLocale as AppContentLocale),
     primary_planet: row.primary_planet as Planet,
     primary_tone: row.primary_tone as GlobalContentResponse["primary_tone"],
     top_petals: (row.top_petals as GlobalTopPetal[]) ?? [],

@@ -397,29 +397,34 @@ export function buildGlobalMathLevel(
     t.globalMechanicsLine,
     t.globalSectionWinner,
     t.globalWinnerLine(
-      primaryPlanet,
+      t.planetLabel(primaryPlanet),
       primaryPetal?.chakra_number ?? forecast.primary_chakra_number ?? 0,
-      primaryPetal?.tone ?? forecast.primary_tone ?? "neutral",
+      t.toneLabel(primaryPetal?.tone ?? forecast.primary_tone ?? "neutral"),
       typeof primaryPetal?.gravity === "number" ? primaryPetal.gravity.toFixed(3) : "0.000",
     ),
     t.globalSectionRanking,
     ...planetScores.map((planet, index) =>
       t.globalRankingLine(
         String(index + 1),
-        planet.planet,
-        planet.sign ?? "Aries",
+        t.planetLabel(planet.planet),
+        t.signLabel(planet.sign ?? "Aries"),
         typeof planet.sign_degree === "number" ? planet.sign_degree.toFixed(1) : "0.0",
         planet.gravity.toFixed(3),
-        planet.tone,
+        t.toneLabel(planet.tone),
       ),
     ),
     t.globalSectionPetals,
     ...forecast.top_petals.map((petal) =>
-      t.globalPetalLine(petal.planet, petal.gravity, petal.chakra_number, petal.tone),
+      t.globalPetalLine(t.planetLabel(petal.planet), petal.gravity, petal.chakra_number, t.toneLabel(petal.tone)),
     ),
     t.globalSectionAspects,
     ...forecast.aspects.map((aspect) =>
-      t.globalAspectLine(aspect.from, aspect.type, aspect.to, aspect.orb.toFixed(2)),
+      t.globalAspectLine(
+        t.planetLabel(aspect.from),
+        t.aspectLabel(aspect.type),
+        t.planetLabel(aspect.to),
+        aspect.orb.toFixed(2),
+      ),
     ),
     t.globalSectionAspectWeights,
     ...forecast.aspects.map((aspect) => {
@@ -429,9 +434,9 @@ export function buildGlobalMathLevel(
       const orbFactor = Math.max(0, 1 - aspect.orb / aspect.maxOrb);
       const contribution = coef * ((weightFrom + weightTo) / 2) * orbFactor;
       return t.globalAspectWeightLine(
-        aspect.from,
-        aspect.type,
-        aspect.to,
+        t.planetLabel(aspect.from),
+        t.aspectLabel(aspect.type),
+        t.planetLabel(aspect.to),
         aspect.orb.toFixed(2),
         contribution.toFixed(3),
       );

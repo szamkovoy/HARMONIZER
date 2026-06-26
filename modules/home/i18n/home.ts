@@ -131,6 +131,7 @@ export interface HomeStrings {
     planetPositionsTitle: string;
     toNatalConnector: string;
     orbPrefix: string;
+    zodiacSigns: Record<string, string>;
   };
   formatTime: (value: string) => string;
 }
@@ -162,6 +163,36 @@ const enPlanetLabels: Record<Planet, string> = {
   Mars: "Mars",
   Jupiter: "Jupiter",
   Saturn: "Saturn",
+};
+
+const ruZodiacSignLabels: Record<string, string> = {
+  Aries: "Овен",
+  Taurus: "Телец",
+  Gemini: "Близнецы",
+  Cancer: "Рак",
+  Leo: "Лев",
+  Virgo: "Дева",
+  Libra: "Весы",
+  Scorpio: "Скорпион",
+  Sagittarius: "Стрелец",
+  Capricorn: "Козерог",
+  Aquarius: "Водолей",
+  Pisces: "Рыбы",
+};
+
+const enZodiacSignLabels: Record<string, string> = {
+  Aries: "Aries",
+  Taurus: "Taurus",
+  Gemini: "Gemini",
+  Cancer: "Cancer",
+  Leo: "Leo",
+  Virgo: "Virgo",
+  Libra: "Libra",
+  Scorpio: "Scorpio",
+  Sagittarius: "Sagittarius",
+  Capricorn: "Capricorn",
+  Aquarius: "Aquarius",
+  Pisces: "Pisces",
 };
 
 const ru: HomeStrings = {
@@ -319,7 +350,7 @@ const ru: HomeStrings = {
   },
   devResetDayContent: "Обновить",
   freeTierBanner:
-    "Внизу вы видите универсальный прогноз на этот день. Конечно, индивидуальные прогнозы, опирающиеся на вашу дату рождения, гораздо точнее. Перейдите на платный тариф, чтобы их получать.",
+    "Внизу вы видите универсальные рекомендации на этот день. Они помогут вам эффективно проживать каждый день. Однако, индивидуальные рекомендации, опирающиеся на вашу дату, время и место рождения, гораздо точнее и глубже. Перейдите на тариф \"Психолог\", чтобы их получать.",
   mathModal: {
     title: "Математика дня",
     subtitle: "Формулы силы, гармоничности, транзитов и выбора планеты дня.",
@@ -341,6 +372,7 @@ const ru: HomeStrings = {
     planetPositionsTitle: "Положения планет",
     toNatalConnector: "к натальному",
     orbPrefix: ", орб ",
+    zodiacSigns: ruZodiacSignLabels,
   },
   formatTime: (value) => formatTime(value, "ru"),
 };
@@ -512,6 +544,7 @@ const en: HomeStrings = {
     planetPositionsTitle: "Planet positions",
     toNatalConnector: "to natal",
     orbPrefix: ", orb ",
+    zodiacSigns: enZodiacSignLabels,
   },
   formatTime: (value) => formatTime(value, "en"),
 };

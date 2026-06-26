@@ -1,6 +1,10 @@
 import type { MathLevelStrings } from "./mathLevelI18n";
 
-function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | "calibratedH" | "transitLine" | "orbLine" | "activationLine" | "importanceLine" | "winnerLine" | "alternativeLine" | "calibrationIntro" | "deltaLine" | "globalPetalLine" | "globalWinnerLine" | "globalRankingLine" | "globalAspectLine" | "globalAspectWeightLine"> & {
+function fromEn(partial: Omit<MathLevelStrings, "planetLabel" | "signLabel" | "aspectLabel" | "toneLabel" | "chakraLabel" | "calibratedS" | "calibratedH" | "transitLine" | "orbLine" | "activationLine" | "importanceLine" | "winnerLine" | "alternativeLine" | "calibrationIntro" | "deltaLine" | "globalPetalLine" | "globalWinnerLine" | "globalRankingLine" | "globalAspectLine" | "globalAspectWeightLine"> & {
+  planetLabels: Record<string, string>;
+  signLabels: Record<string, string>;
+  aspectLabels: Record<string, string>;
+  toneLabels: Record<string, string>;
   chakraLabel: string;
   calibratedS: string;
   calibratedH: string;
@@ -20,6 +24,10 @@ function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | 
 }): MathLevelStrings {
   return {
     ...partial,
+    planetLabel: (planet) => partial.planetLabels[planet] ?? planet,
+    signLabel: (sign) => partial.signLabels[sign] ?? sign,
+    aspectLabel: (aspect) => partial.aspectLabels[aspect] ?? aspect,
+    toneLabel: (tone) => partial.toneLabels[tone] ?? tone,
     chakraLabel: (n) => partial.chakraLabel.replace("{n}", String(n)),
     calibratedS: (value, delta) => partial.calibratedS.replace("{value}", value).replace("{delta}", delta),
     calibratedH: (value, delta) => partial.calibratedH.replace("{value}", value).replace("{delta}", delta),
@@ -72,7 +80,245 @@ function fromEn(partial: Omit<MathLevelStrings, "chakraLabel" | "calibratedS" | 
   };
 }
 
+const PLANETS_IT = {
+  Sun: "Sole",
+  Moon: "Luna",
+  Mercury: "Mercurio",
+  Venus: "Venere",
+  Mars: "Marte",
+  Jupiter: "Giove",
+  Saturn: "Saturno",
+};
+
+const PLANETS_DE = {
+  Sun: "Sonne",
+  Moon: "Mond",
+  Mercury: "Merkur",
+  Venus: "Venus",
+  Mars: "Mars",
+  Jupiter: "Jupiter",
+  Saturn: "Saturn",
+};
+
+const PLANETS_FR = {
+  Sun: "Soleil",
+  Moon: "Lune",
+  Mercury: "Mercure",
+  Venus: "Venus",
+  Mars: "Mars",
+  Jupiter: "Jupiter",
+  Saturn: "Saturne",
+};
+
+const PLANETS_ES = {
+  Sun: "Sol",
+  Moon: "Luna",
+  Mercury: "Mercurio",
+  Venus: "Venus",
+  Mars: "Marte",
+  Jupiter: "Jupiter",
+  Saturn: "Saturno",
+};
+
+const PLANETS_PT = {
+  Sun: "Sol",
+  Moon: "Lua",
+  Mercury: "Mercurio",
+  Venus: "Venus",
+  Mars: "Marte",
+  Jupiter: "Jupiter",
+  Saturn: "Saturno",
+};
+
+const PLANETS_NL = {
+  Sun: "Zon",
+  Moon: "Maan",
+  Mercury: "Mercurius",
+  Venus: "Venus",
+  Mars: "Mars",
+  Jupiter: "Jupiter",
+  Saturn: "Saturnus",
+};
+
+const SIGNS_IT = {
+  Aries: "Ariete",
+  Taurus: "Toro",
+  Gemini: "Gemelli",
+  Cancer: "Cancro",
+  Leo: "Leone",
+  Virgo: "Vergine",
+  Libra: "Bilancia",
+  Scorpio: "Scorpione",
+  Sagittarius: "Sagittario",
+  Capricorn: "Capricorno",
+  Aquarius: "Acquario",
+  Pisces: "Pesci",
+};
+
+const SIGNS_DE = {
+  Aries: "Widder",
+  Taurus: "Stier",
+  Gemini: "Zwillinge",
+  Cancer: "Krebs",
+  Leo: "Loewe",
+  Virgo: "Jungfrau",
+  Libra: "Waage",
+  Scorpio: "Skorpion",
+  Sagittarius: "Schuetze",
+  Capricorn: "Steinbock",
+  Aquarius: "Wassermann",
+  Pisces: "Fische",
+};
+
+const SIGNS_FR = {
+  Aries: "Belier",
+  Taurus: "Taureau",
+  Gemini: "Gemeaux",
+  Cancer: "Cancer",
+  Leo: "Lion",
+  Virgo: "Vierge",
+  Libra: "Balance",
+  Scorpio: "Scorpion",
+  Sagittarius: "Sagittaire",
+  Capricorn: "Capricorne",
+  Aquarius: "Verseau",
+  Pisces: "Poissons",
+};
+
+const SIGNS_ES = {
+  Aries: "Aries",
+  Taurus: "Tauro",
+  Gemini: "Geminis",
+  Cancer: "Cancer",
+  Leo: "Leo",
+  Virgo: "Virgo",
+  Libra: "Libra",
+  Scorpio: "Escorpio",
+  Sagittarius: "Sagitario",
+  Capricorn: "Capricornio",
+  Aquarius: "Acuario",
+  Pisces: "Piscis",
+};
+
+const SIGNS_PT = {
+  Aries: "Aries",
+  Taurus: "Touro",
+  Gemini: "Gemeos",
+  Cancer: "Cancer",
+  Leo: "Leao",
+  Virgo: "Virgem",
+  Libra: "Libra",
+  Scorpio: "Escorpiao",
+  Sagittarius: "Sagitario",
+  Capricorn: "Capricornio",
+  Aquarius: "Aquario",
+  Pisces: "Peixes",
+};
+
+const SIGNS_NL = {
+  Aries: "Ram",
+  Taurus: "Stier",
+  Gemini: "Tweelingen",
+  Cancer: "Kreeft",
+  Leo: "Leeuw",
+  Virgo: "Maagd",
+  Libra: "Weegschaal",
+  Scorpio: "Schorpioen",
+  Sagittarius: "Boogschutter",
+  Capricorn: "Steenbok",
+  Aquarius: "Waterman",
+  Pisces: "Vissen",
+};
+
+const ASPECTS_IT = {
+  conjunction: "congiunzione",
+  opposition: "opposizione",
+  square: "quadrato",
+  trine: "trigono",
+  sextile: "sestile",
+};
+
+const ASPECTS_DE = {
+  conjunction: "Konjunktion",
+  opposition: "Opposition",
+  square: "Quadrat",
+  trine: "Trigon",
+  sextile: "Sextil",
+};
+
+const ASPECTS_FR = {
+  conjunction: "conjonction",
+  opposition: "opposition",
+  square: "carre",
+  trine: "trigone",
+  sextile: "sextile",
+};
+
+const ASPECTS_ES = {
+  conjunction: "conjuncion",
+  opposition: "oposicion",
+  square: "cuadratura",
+  trine: "trigono",
+  sextile: "sextil",
+};
+
+const ASPECTS_PT = {
+  conjunction: "conjuncao",
+  opposition: "oposicao",
+  square: "quadratura",
+  trine: "trigono",
+  sextile: "sextil",
+};
+
+const ASPECTS_NL = {
+  conjunction: "conjunctie",
+  opposition: "oppositie",
+  square: "vierkant",
+  trine: "driehoek",
+  sextile: "sextiel",
+};
+
+const TONES_IT = {
+  harmonic: "armonico",
+  dissonant: "teso",
+  ambivalent_strong: "fortemente ambivalente",
+};
+
+const TONES_DE = {
+  harmonic: "harmonisch",
+  dissonant: "spannungsreich",
+  ambivalent_strong: "stark ambivalent",
+};
+
+const TONES_FR = {
+  harmonic: "harmonieux",
+  dissonant: "tendu",
+  ambivalent_strong: "fortement ambivalent",
+};
+
+const TONES_ES = {
+  harmonic: "armonico",
+  dissonant: "tenso",
+  ambivalent_strong: "fuertemente ambivalente",
+};
+
+const TONES_PT = {
+  harmonic: "harmonico",
+  dissonant: "tenso",
+  ambivalent_strong: "fortemente ambivalente",
+};
+
+const TONES_NL = {
+  harmonic: "harmonisch",
+  dissonant: "gespannen",
+  ambivalent_strong: "sterk ambivalent",
+};
+
 export const mathLevelIt: MathLevelStrings = fromEn({
+  planetLabels: PLANETS_IT,
+  signLabels: SIGNS_IT,
+  aspectLabels: ASPECTS_IT,
+  toneLabels: TONES_IT,
   title: "## Matematica del giorno\n",
   intro:
     "Qui trovi il calcolo esatto di ciò che vedi nella schermata principale. Usiamo metodi dell'astrologia greca antica (dignità essenziali di Tolomeo, accidentali di Lilly), adattati al modello psicologico moderno dei chakra.\n",
@@ -106,15 +352,15 @@ export const mathLevelIt: MathLevelStrings = fromEn({
   globalIntro:
     "La previsione globale è costruita senza carta natale: si usano solo le posizioni di transito delle sette pianeti alle 12:00 UTC del giorno scelto.",
   globalSectionPetals: "\n### Top 3 petali\n",
-  globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalPetalLine: "- **{planet}**: gravita={gravity}, chakra {chakra}, tono={tone}",
   globalMechanicsLine:
-    "Ogni pianeta riceve un punteggio gravity: sommiamo i contributi degli aspetti corretti per tipo di aspetto, precisione dell'orbe e peso del pianeta in transito.",
+    "Ogni pianeta riceve un punteggio di gravita: sommiamo i contributi degli aspetti corretti per tipo di aspetto, precisione dell'orbe e peso del pianeta in transito.",
   globalSectionWinner: "\n### Perché questo è il tema del giorno\n",
   globalWinnerLine:
-    "- Tema principale del giorno: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). È il pianeta con il peso complessivo più alto tra i transiti di oggi.",
+    "- Tema principale del giorno: **{planet}** (chakra {chakra}, tono={tone}, gravita={gravity}). E il pianeta con il peso complessivo piu alto tra i transiti di oggi.",
   globalSectionRanking: "\n### Classifica completa dei pianeti in questo momento\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
+    "{rank}. **{planet}** — {sign} {degree}°, gravita={gravity}, tono={tone}",
   globalSectionAspects: "\n### Aspetti attivi del giorno\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
   globalSectionAspectWeights: "\n### Peso di ogni aspetto nel quadro complessivo\n",
@@ -122,6 +368,10 @@ export const mathLevelIt: MathLevelStrings = fromEn({
 });
 
 export const mathLevelDe: MathLevelStrings = fromEn({
+  planetLabels: PLANETS_DE,
+  signLabels: SIGNS_DE,
+  aspectLabels: ASPECTS_DE,
+  toneLabels: TONES_DE,
   title: "## Tagesmathematik\n",
   intro:
     "Hier ist die exakte Berechnung hinter dem, was du auf dem Startbildschirm siehst. Wir nutzen Methoden der antiken griechischen Astrologie (Ptolemäus' essenzielle Würden, Lillys Akzidentien), angepasst an das moderne Chakra-Psychologiemodell.\n",
@@ -155,15 +405,15 @@ export const mathLevelDe: MathLevelStrings = fromEn({
   globalIntro:
     "Die globale Prognose wird ohne Natalchart erstellt: nur Transitpositionen der sieben Planeten um 12:00 UTC des gewählten Tages.",
   globalSectionPetals: "\n### Top-3-Blütenblätter\n",
-  globalPetalLine: "- **{planet}**: gravity={gravity}, Chakra {chakra}, tone={tone}",
+  globalPetalLine: "- **{planet}**: Gewicht={gravity}, Chakra {chakra}, Ton={tone}",
   globalMechanicsLine:
-    "Jeder Planet erhält einen Gravity-Wert: Beiträge der Aspekte werden nach Aspekttyp, Orbengenauigkeit und Gewicht des Transitplaneten summiert.",
+    "Jeder Planet erhält einen Gewichts-Wert: Beiträge der Aspekte werden nach Aspekttyp, Orbengenauigkeit und Gewicht des Transitplaneten summiert.",
   globalSectionWinner: "\n### Warum daraus das Tagesthema wurde\n",
   globalWinnerLine:
-    "- Hauptthema des Tages: **{planet}** (Chakra {chakra}, tone={tone}, gravity={gravity}). Dieser Planet erhielt unter den heutigen Transiten das höchste Gesamtgewicht.",
+    "- Hauptthema des Tages: **{planet}** (Chakra {chakra}, Ton={tone}, Gewicht={gravity}). Dieser Planet erhielt unter den heutigen Transiten das höchste Gesamtgewicht.",
   globalSectionRanking: "\n### Vollständiges Planeten-Ranking für diesen Moment\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
+    "{rank}. **{planet}** — {sign} {degree}°, Gewicht={gravity}, Ton={tone}",
   globalSectionAspects: "\n### Aktive Aspekte des Tages\n",
   globalAspectLine: "- {from} {type} {to}, Orbe={orb}°",
   globalSectionAspectWeights: "\n### Gewicht jedes Aspekts im Gesamtbild\n",
@@ -171,6 +421,10 @@ export const mathLevelDe: MathLevelStrings = fromEn({
 });
 
 export const mathLevelFr: MathLevelStrings = fromEn({
+  planetLabels: PLANETS_FR,
+  signLabels: SIGNS_FR,
+  aspectLabels: ASPECTS_FR,
+  toneLabels: TONES_FR,
   title: "## Mathématiques du jour\n",
   intro:
     "Voici le calcul exact derrière ce que vous voyez sur l'écran d'accueil. Nous utilisons l'astrologie grecque antique (dignités essentielles de Ptolémée, accidentelles de Lilly), adaptée au modèle psychologique moderne des chakras.\n",
@@ -204,15 +458,15 @@ export const mathLevelFr: MathLevelStrings = fromEn({
   globalIntro:
     "La prévision globale est construite sans thème natal : seules les positions de transit des sept planètes à 12:00 UTC du jour choisi.",
   globalSectionPetals: "\n### Top 3 pétales\n",
-  globalPetalLine: "- **{planet}** : gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalPetalLine: "- **{planet}** : gravite={gravity}, chakra {chakra}, tonalite={tone}",
   globalMechanicsLine:
-    "Chaque planète reçoit un score gravity : on additionne les contributions des aspects selon le type d'aspect, la précision de l'orbe et le poids de la planète en transit.",
+    "Chaque planete reçoit un score de gravite : on additionne les contributions des aspects selon le type d'aspect, la precision de l'orbe et le poids de la planete en transit.",
   globalSectionWinner: "\n### Pourquoi ce thème a été retenu pour la journée\n",
   globalWinnerLine:
-    "- Thème principal du jour : **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). C'est la planète qui a reçu le poids total le plus élevé parmi les transits du jour.",
+    "- Theme principal du jour : **{planet}** (chakra {chakra}, tonalite={tone}, gravite={gravity}). C'est la planete qui a recu le poids total le plus eleve parmi les transits du jour.",
   globalSectionRanking: "\n### Classement complet des planètes à cet instant\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
+    "{rank}. **{planet}** — {sign} {degree}°, gravite={gravity}, tonalite={tone}",
   globalSectionAspects: "\n### Aspects actifs du jour\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
   globalSectionAspectWeights: "\n### Poids de chaque aspect dans l'ensemble\n",
@@ -220,6 +474,10 @@ export const mathLevelFr: MathLevelStrings = fromEn({
 });
 
 export const mathLevelEs: MathLevelStrings = fromEn({
+  planetLabels: PLANETS_ES,
+  signLabels: SIGNS_ES,
+  aspectLabels: ASPECTS_ES,
+  toneLabels: TONES_ES,
   title: "## Matemáticas del día\n",
   intro:
     "Aquí está el cálculo exacto de lo que ves en la pantalla principal. Usamos métodos de la astrología griega antigua (dignidades esenciales de Ptolomeo, accidentales de Lilly), adaptados al modelo psicológico moderno de los chakras.\n",
@@ -253,15 +511,15 @@ export const mathLevelEs: MathLevelStrings = fromEn({
   globalIntro:
     "La previsión global se construye sin carta natal: solo posiciones de tránsito de los siete planetas a las 12:00 UTC del día elegido.",
   globalSectionPetals: "\n### Top 3 pétalos\n",
-  globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalPetalLine: "- **{planet}**: gravedad={gravity}, chakra {chakra}, tono={tone}",
   globalMechanicsLine:
-    "Cada planeta recibe una puntuación gravity: sumamos las contribuciones de los aspectos ajustadas por el tipo de aspecto, la precisión del orbe y el peso del planeta en tránsito.",
+    "Cada planeta recibe una puntuacion de gravedad: sumamos las contribuciones de los aspectos ajustadas por el tipo de aspecto, la precision del orbe y el peso del planeta en transito.",
   globalSectionWinner: "\n### Por qué este se convirtió en el tema del día\n",
   globalWinnerLine:
-    "- Tema principal del día: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). Es el planeta con el mayor peso total entre los tránsitos de hoy.",
+    "- Tema principal del dia: **{planet}** (chakra {chakra}, tono={tone}, gravedad={gravity}). Es el planeta con el mayor peso total entre los transitos de hoy.",
   globalSectionRanking: "\n### Clasificación completa de planetas en este momento\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
+    "{rank}. **{planet}** — {sign} {degree}°, gravedad={gravity}, tono={tone}",
   globalSectionAspects: "\n### Aspectos activos del día\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
   globalSectionAspectWeights: "\n### Peso de cada aspecto en el conjunto\n",
@@ -269,6 +527,10 @@ export const mathLevelEs: MathLevelStrings = fromEn({
 });
 
 export const mathLevelPt: MathLevelStrings = fromEn({
+  planetLabels: PLANETS_PT,
+  signLabels: SIGNS_PT,
+  aspectLabels: ASPECTS_PT,
+  toneLabels: TONES_PT,
   title: "## Matemática do dia\n",
   intro:
     "Aqui está o cálculo exato por trás do que você vê na tela inicial. Usamos métodos da astrologia grega antiga (dignidades essenciais de Ptolomeu, acidentais de Lilly), ajustados ao modelo psicológico moderno dos chakras.\n",
@@ -302,15 +564,15 @@ export const mathLevelPt: MathLevelStrings = fromEn({
   globalIntro:
     "A previsão global é construída sem mapa natal: apenas posições de trânsito dos sete planetas às 12:00 UTC do dia escolhido.",
   globalSectionPetals: "\n### Top 3 pétalas\n",
-  globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalPetalLine: "- **{planet}**: gravidade={gravity}, chakra {chakra}, tom={tone}",
   globalMechanicsLine:
-    "Cada planeta recebe uma pontuação gravity: somamos as contribuições dos aspectos ajustadas pelo tipo de aspecto, pela precisão do orbe e pelo peso do planeta em trânsito.",
+    "Cada planeta recebe uma pontuacao de gravidade: somamos as contribuicoes dos aspectos ajustadas pelo tipo de aspecto, pela precisao do orbe e pelo peso do planeta em transito.",
   globalSectionWinner: "\n### Por que este virou o tema do dia\n",
   globalWinnerLine:
-    "- Tema principal do dia: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). Foi o planeta com o maior peso total entre os trânsitos de hoje.",
+    "- Tema principal do dia: **{planet}** (chakra {chakra}, tom={tone}, gravidade={gravity}). Foi o planeta com o maior peso total entre os transitos de hoje.",
   globalSectionRanking: "\n### Ranking completo dos planetas neste momento\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
+    "{rank}. **{planet}** — {sign} {degree}°, gravidade={gravity}, tom={tone}",
   globalSectionAspects: "\n### Aspectos ativos do dia\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
   globalSectionAspectWeights: "\n### Peso de cada aspecto no quadro geral\n",
@@ -318,6 +580,10 @@ export const mathLevelPt: MathLevelStrings = fromEn({
 });
 
 export const mathLevelNl: MathLevelStrings = fromEn({
+  planetLabels: PLANETS_NL,
+  signLabels: SIGNS_NL,
+  aspectLabels: ASPECTS_NL,
+  toneLabels: TONES_NL,
   title: "## Dagwiskunde\n",
   intro:
     "Hier is de exacte berekening achter wat je op het startscherm ziet. We gebruiken methoden uit de oude Griekse astrologie (Ptolemaeus' essentiële waardigheid, Lilly's accidentals), aangepast aan het moderne chakra-psychologiemodel.\n",
@@ -351,15 +617,15 @@ export const mathLevelNl: MathLevelStrings = fromEn({
   globalIntro:
     "De globale voorspelling wordt zonder natalkaart opgebouwd: alleen transitposities van de zeven planeten om 12:00 UTC van de gekozen dag.",
   globalSectionPetals: "\n### Top 3 bloembladen\n",
-  globalPetalLine: "- **{planet}**: gravity={gravity}, chakra {chakra}, tone={tone}",
+  globalPetalLine: "- **{planet}**: zwaarte={gravity}, chakra {chakra}, toon={tone}",
   globalMechanicsLine:
-    "Elke planeet krijgt een gravity-score: we tellen aspectbijdragen op, gecorrigeerd voor aspecttype, orb-nauwkeurigheid en het gewicht van de transitplaneet.",
+    "Elke planeet krijgt een zwaarte-score: we tellen aspectbijdragen op, gecorrigeerd voor aspecttype, orb-nauwkeurigheid en het gewicht van de transitplaneet.",
   globalSectionWinner: "\n### Waarom dit het thema van de dag werd\n",
   globalWinnerLine:
-    "- Hoofdthema van de dag: **{planet}** (chakra {chakra}, tone={tone}, gravity={gravity}). Deze planeet kreeg het hoogste totale gewicht binnen de transits van vandaag.",
+    "- Hoofdthema van de dag: **{planet}** (chakra {chakra}, toon={tone}, zwaarte={gravity}). Deze planeet kreeg het hoogste totale gewicht binnen de transits van vandaag.",
   globalSectionRanking: "\n### Volledige rangschikking van de planeten op dit moment\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravity={gravity}, tone={tone}",
+    "{rank}. **{planet}** — {sign} {degree}°, zwaarte={gravity}, toon={tone}",
   globalSectionAspects: "\n### Actieve aspecten van de dag\n",
   globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
   globalSectionAspectWeights: "\n### Gewicht van elk aspect in het geheel\n",

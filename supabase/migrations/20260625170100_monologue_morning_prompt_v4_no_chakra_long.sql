@@ -1,5 +1,5 @@
 -- monologue_morning_recommendation v4:
--- - long_explanation: remove chakra scaffolding; planets and psychology only
+-- - long_explanation: avoid chakra scaffolding; if chakras appear, use numeric labels only
 
 update public.prompts
 set is_active = false
@@ -40,10 +40,14 @@ select
 - Если is_dissonant: почему это вызов с потенциалом развития.$old2$,
           $new2$§2. ГЛАВНАЯ ТЕМА (~300 знаков):
 Углубление в тему {{primary_planet}}. Объясни:
-- Какую психологическую тему эта планета несёт сегодня (без упоминания чакр).
+- Какую психологическую тему эта планета несёт сегодня.
 - Какой именно транзит её активирует и почему это значимо.
 - Если is_harmonic: почему это ресурсный день для этой темы.
-- Если is_dissonant: почему это вызов с потенциалом развития.$new2$
+- Если is_dissonant: почему это вызов с потенциалом развития.
+
+Если упоминаешь чакру, используй ТОЛЬКО номерное название:
+«первая чакра», «третья чакра», «четвёртая чакра» и т.д. Нельзя
+использовать санскритские имена чакр.$new2$
         ),
         $old3$§3. ВТОРОЙ ЛЕПЕСТОК (~200 знаков):
 Как тема {{secondary_planet}} (через чакру {{secondary_chakra_label}})
@@ -67,16 +71,17 @@ select
 учебник по астрологии. Это разговор эксперта, который любит
 дело и хочет поделиться внутренней механикой.
 
-ЗАПРЕТ для long_explanation: не упоминать чакры, номера чакр, «планета в N-й
-чакре», «N-й лепесток — Планета в чакре» и любые синонимы. Чакры допустимы
-только в short_text — и только в самом конце, как указание для практики.$new_tone$
+Если в long_explanation всё же упоминаются чакры, допустимы только номерные
+названия вида «четвёртая чакра», «третья чакра», «седьмая чакра».
+Запрещены санскритские имена чакр, а также конструкции вроде «планета в
+Анахате», «энергия Манипуры», «раскрытие Сахасрары».$new_tone$
   ),
   variables,
   model_hint,
   temperature,
   max_output_tokens,
   response_format,
-  'PATCH: long_explanation without chakra vocabulary; short_text chakra rule unchanged.'
+  'PATCH: long_explanation may mention chakras only by numeric labels; no Sanskrit chakra names.'
 from public.prompts
 where prompt_key = 'monologue_morning_recommendation'
   and version = 3

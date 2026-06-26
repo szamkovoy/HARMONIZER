@@ -7,6 +7,7 @@ import {
   isMorningRecommendationCacheValid,
   MORNING_CACHE_OUTPUT_LOCALE_KEY,
 } from "../../_utils/outputLanguagePrompt";
+import { normalizeChakraNamesInFields } from "../../_utils/chakraText";
 import { resolveContentLocale, type AppContentLocale } from "../../_utils/contentLocales";
 import { loadActiveNatalProfile } from "../../_utils/astro-db";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../_utils/authorVoice";
@@ -209,8 +210,12 @@ export async function POST(req: Request) {
       && (scenario.id !== "morning_recommendation"
         || isMorningRecommendationCacheValid(cached, expectedModel, responseLocale))
     ) {
+      const cachedPayload =
+        scenario.id === "morning_recommendation"
+          ? normalizeChakraNamesInFields(cached, responseLocale)
+          : cached;
       return json({
-        ...cached,
+        ...cachedPayload,
         cached: true,
         scenario_id: scenario.id,
       });
@@ -240,7 +245,7 @@ export async function POST(req: Request) {
       temperature: prompt.temperature,
       maxOutputTokens,
     });
-    const payload = {
+    const rawPayload = {
       ...result.json,
       ...(mathLevel ? { math_level: mathLevel } : {}),
       modelUsed: result.modelUsed,
@@ -248,6 +253,10 @@ export async function POST(req: Request) {
         ? { [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale }
         : {}),
     };
+    const payload =
+      scenario.id === "morning_recommendation"
+        ? normalizeChakraNamesInFields(rawPayload, responseLocale)
+        : rawPayload;
 
     endpointStage = "cache_save";
     await saveScenarioCache(scenario, userId, payload, db, cacheSuffix);

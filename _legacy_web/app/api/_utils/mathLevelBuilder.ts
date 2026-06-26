@@ -91,7 +91,7 @@ export function buildMathLevel(
     const hCal = calibration?.h_calibrated?.[planet];
     const formulaSummary = formulaSummaryFor(natalPlanet);
 
-    md.push(`\n**${planet}** ${t.chakraLabel(PLANET_TO_CHAKRA[planet].number)}:`);
+    md.push(`\n**${t.planetLabel(planet)}** ${t.chakraLabel(PLANET_TO_CHAKRA[planet].number)}:`);
     md.push(`- ${t.natalS}: ${natalPlanet.S_initial.toFixed(2)} (${formulaSummary})`);
     md.push(`- ${t.natalH}: ${natalPlanet.H_initial.toFixed(2)}`);
     if (sCal !== undefined && Math.abs(sCal - natalPlanet.S_initial) > 0.01) {
@@ -124,7 +124,13 @@ export function buildMathLevel(
       const transitWeight = TRANSIT_WEIGHT[contribution.transitPlanet] ?? 0.5;
       const activation = round(contribution.value, 3);
 
-      md.push(t.transitLine(contribution.transitPlanet, contribution.aspect.type, contribution.natalPlanet));
+      md.push(
+        t.transitLine(
+          t.planetLabel(contribution.transitPlanet),
+          t.aspectLabel(contribution.aspect.type),
+          t.planetLabel(contribution.natalPlanet),
+        ),
+      );
       md.push(
         t.orbLine(contribution.aspect.orb.toFixed(2), String(aspectCoef), String(transitWeight)),
       );
@@ -151,7 +157,7 @@ export function buildMathLevel(
     const sEff = calibration?.s_calibrated?.[planet] ?? natal.planets[planet].S_initial;
     const activation = forecast.activation?.[planet] ?? 0;
     const importance = forecast.importance?.[planet] ?? 0;
-    md.push(t.importanceLine(planet, activation.toFixed(3), sEff.toFixed(2), importance.toFixed(3)));
+    md.push(t.importanceLine(t.planetLabel(planet), activation.toFixed(3), sEff.toFixed(2), importance.toFixed(3)));
 
     structured.importance_breakdown.push({
       planet,
@@ -163,7 +169,7 @@ export function buildMathLevel(
 
   const planetOfTheDay = forecast.planet_of_the_day ?? forecast.planetOfTheDay ?? rankedPlanets(forecast)[0];
   md.push(`\n${t.section4Title}`);
-  md.push(t.winnerLine(planetOfTheDay, (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
+  md.push(t.winnerLine(t.planetLabel(planetOfTheDay), (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
   if (forecast.is_alternative_choice ?? forecast.isAlternativeChoice) {
     md.push(
       t.alternativeLine(
@@ -197,7 +203,13 @@ export function buildMathLevel(
       const dS = delta?.dS ?? ((calibration.s_calibrated?.[planet] ?? natal.planets[planet].S_initial) - natal.planets[planet].S_initial);
       const dH = delta?.dH ?? ((calibration.h_calibrated?.[planet] ?? natal.planets[planet].H_initial) - natal.planets[planet].H_initial);
       if (Math.abs(dS) > 0.01 || Math.abs(dH) > 0.01) {
-        md.push(t.deltaLine(planet, `${dS >= 0 ? "+" : ""}${dS.toFixed(2)}`, `${dH >= 0 ? "+" : ""}${dH.toFixed(2)}`));
+        md.push(
+          t.deltaLine(
+            t.planetLabel(planet),
+            `${dS >= 0 ? "+" : ""}${dS.toFixed(2)}`,
+            `${dH >= 0 ? "+" : ""}${dH.toFixed(2)}`,
+          ),
+        );
         structured.calibration_deltas.push({ planet, dS: round(dS, 2), dH: round(dH, 2) });
       }
     }

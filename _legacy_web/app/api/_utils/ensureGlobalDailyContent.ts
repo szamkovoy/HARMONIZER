@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildGlobalMathLevel, computeGlobalDailyForecast, isGlobalMathLevelCurrent } from "./globalTransitMath";
+import { normalizeChakraNamesInFields } from "./chakraText";
 import { ensureGlobalTextI18nPrecomputed } from "./globalContentLocale";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { getActivePrompt, renderPrompt } from "./prompts";
@@ -60,7 +61,7 @@ export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDa
     maxOutputTokens: maxOut,
   });
 
-  const row = {
+  const row = normalizeChakraNamesInFields({
     forecast_date_utc: forecastDateUtc,
     planet_positions: forecast.planet_positions,
     primary_planet: forecast.primary_planet,
@@ -79,7 +80,7 @@ export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDa
     llm_tokens_used: null as number | null,
     llm_model: result.modelUsed,
     expires_at_utc: calcExpiresAt(forecastDateUtc),
-  };
+  }, "ru");
 
   const { error } = await db.from("global_daily_content").upsert(row, { onConflict: "forecast_date_utc" });
   if (error) throw error;

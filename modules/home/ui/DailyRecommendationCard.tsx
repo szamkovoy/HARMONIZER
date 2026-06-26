@@ -78,7 +78,7 @@ export function DailyRecommendationCard({
         {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
       </SurfaceCardView>
       <ModalLongExplanation
-        visible={modalLevel === "long"}
+        visible={modalLevel === "long" || modalLevel === "math"}
         onClose={() => setModalLevel("none")}
         longExplanation={longExplanation}
         onOpenMath={() => setModalLevel("math")}
