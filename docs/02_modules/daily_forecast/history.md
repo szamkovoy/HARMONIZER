@@ -2,7 +2,7 @@
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
 version: 2.20
-updated: 2026-06-26
+updated: 2026-06-27
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-27:** Edge Function `precompute-global-recommendations` deploy was blocked by Deno bundling of bare `astronomia/*` imports in `_shared/dailyForecast.ts`. Shared ephemeris imports now use `https://esm.sh/astronomia@4.2.0/...` (same pattern as Luxon in other functions); `vitest.config.ts` gained the missing `base` alias. Cron pre-warm for free `global_daily_content` is deployable again.
 
 - **2026-06-26 (5):** Free Home detailed recommendation was brought back in line with the paid explainer contract without reusing the paid personal prompt verbatim. `global_morning_recommendation` moved to a new transit-only v5 prompt that requires literal `§1…§6` sections, bans chakra language in `long_explanation`, and explicitly forbids repeating the same planet as both the second and third petal. To flush old bad rows, `global-content` route and `precompute-global-recommendations` no longer treat `llm_model` equality as sufficient: unstructured or chakra-heavy `global_daily_content.long_explanation` now forces regeneration, while client direct DB fallback drops legacy long text and falls back to deterministic modal copy instead of showing malformed cached prose.
 

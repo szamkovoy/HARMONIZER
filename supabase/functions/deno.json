@@ -1,5 +1,6 @@
 {
   "imports": {
+    "astronomia/base": "npm:astronomia@4.2.0/base",
     "astronomia/julian": "npm:astronomia@4.2.0/julian",
     "astronomia/solar": "npm:astronomia@4.2.0/solar",
     "astronomia/moonposition": "npm:astronomia@4.2.0/moonposition",

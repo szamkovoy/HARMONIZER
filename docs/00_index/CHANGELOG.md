@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.06
-updated: 2026-06-26
+version: 3.07
+updated: 2026-06-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-27: `infra` / `daily_forecast` — Supabase Edge deploy fix: `_shared/dailyForecast.ts` uses esm.sh for `astronomia` imports so `precompute-global-recommendations` bundles and cron pre-warm works again. Synced `daily_forecast/history.md`, `infra/history.md`.
 - 2026-06-26: doc-sync pre-push — `global_morning_recommendation` v5 + `isCurrentGlobalLongExplanation` validators: synced `assistant/{spec,history,dependencies}.md`, `chakra/{spec,history,dependencies}.md`, `daily_forecast/dependencies.md`, `astro/interpretation_layers.md` (literal §1–§6 long text, chakra ban in global long_explanation, legacy row flush).
 - 2026-06-26: `daily_forecast` — free Home detailed recommendation stays transit-only but now follows the paid-style six-section explainer shape (`§1…§6`) without chakra language; stale `global_daily_content` rows are regenerated on structure/lexicon mismatch, and direct DB fallback drops legacy long text. Synced `daily_forecast/{spec,history}.md`.
 - 2026-06-26: doc-sync pre-push — Home explainer stack: `SlideUpModalLayer`, `HomeExplainerLevel`, `stackLayer` presentation, chart orchestration in `ModalLongExplanation`, export `chartAspectsFromMathLevel`. Synced stale `nestedOverlay` refs in `daily_forecast/dependencies.md`, `astro/interpretation_layers.md` (spec/history already current).

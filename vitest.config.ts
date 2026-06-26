@@ -17,6 +17,7 @@ export default defineConfig({
       { find: "@", replacement: root },
       { find: "@legacy", replacement: path.join(root, "_legacy_web") },
       { find: "https://esm.sh/luxon@3.7.2", replacement: "luxon" },
+      { find: "https://esm.sh/astronomia@4.2.0/base", replacement: "astronomia/base" },
       { find: "https://esm.sh/astronomia@4.2.0/julian", replacement: "astronomia/julian" },
       { find: "https://esm.sh/astronomia@4.2.0/solar", replacement: "astronomia/solar" },
       { find: "https://esm.sh/astronomia@4.2.0/moonposition", replacement: "astronomia/moonposition" },

@@ -6,21 +6,21 @@
  *
  * Backlog: вынести общий `daily-engine-core` (PATCH 4 Вариант 1) после стабилизации.
  */
-import base from "astronomia/base";
-import julian from "astronomia/julian";
-import solar from "astronomia/solar";
-import moonposition from "astronomia/moonposition";
-import planetposition from "astronomia/planetposition";
-import elliptic from "astronomia/elliptic";
-import nutation from "astronomia/nutation";
-import coord from "astronomia/coord";
-import sidereal from "astronomia/sidereal";
-import vsop87Bearth from "astronomia/data/vsop87Bearth";
-import vsop87Bmercury from "astronomia/data/vsop87Bmercury";
-import vsop87Bvenus from "astronomia/data/vsop87Bvenus";
-import vsop87Bmars from "astronomia/data/vsop87Bmars";
-import vsop87Bjupiter from "astronomia/data/vsop87Bjupiter";
-import vsop87Bsaturn from "astronomia/data/vsop87Bsaturn";
+import base from "https://esm.sh/astronomia@4.2.0/base";
+import julian from "https://esm.sh/astronomia@4.2.0/julian";
+import solar from "https://esm.sh/astronomia@4.2.0/solar";
+import moonposition from "https://esm.sh/astronomia@4.2.0/moonposition";
+import planetposition from "https://esm.sh/astronomia@4.2.0/planetposition";
+import elliptic from "https://esm.sh/astronomia@4.2.0/elliptic";
+import nutation from "https://esm.sh/astronomia@4.2.0/nutation";
+import coord from "https://esm.sh/astronomia@4.2.0/coord";
+import sidereal from "https://esm.sh/astronomia@4.2.0/sidereal";
+import vsop87Bearth from "https://esm.sh/astronomia@4.2.0/data/vsop87Bearth";
+import vsop87Bmercury from "https://esm.sh/astronomia@4.2.0/data/vsop87Bmercury";
+import vsop87Bvenus from "https://esm.sh/astronomia@4.2.0/data/vsop87Bvenus";
+import vsop87Bmars from "https://esm.sh/astronomia@4.2.0/data/vsop87Bmars";
+import vsop87Bjupiter from "https://esm.sh/astronomia@4.2.0/data/vsop87Bjupiter";
+import vsop87Bsaturn from "https://esm.sh/astronomia@4.2.0/data/vsop87Bsaturn";
 
 export const PLANETS_7 = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
 export const GLOBAL_MATH_SCHEMA_VERSION = 2;

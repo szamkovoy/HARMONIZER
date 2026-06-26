@@ -2,12 +2,14 @@
 id: 02_modules/infra/history
 title: Infra History
 version: 1.7
-updated: 2026-06-16
+updated: 2026-06-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
 
 ## Decision Log
+
+- **2026-06-27:** Supabase Edge bundler fix for shared ephemeris: `supabase/functions/_shared/dailyForecast.ts` switched `astronomia` imports from bare package paths to `https://esm.sh/astronomia@4.2.0/...`, unblocking deploy of `precompute-global-recommendations` (and any function importing the shared module). `supabase/functions/deno.json` now includes `astronomia/base`; Vitest parity aliases cover the new `base` URL.
 
 - **2026-06-26:** LLM infra fallback contract was tightened. `_legacy_web/app/api/_utils/gemini.ts` no longer silently demotes `premium -> standard` before `AI_MODEL_FALLBACK` on interactive routes; it now tries the exact requested tier once and then falls back directly on retryable overload/timeout. In parallel, Supabase cron functions `precompute-daily-forecasts` and `precompute-global-recommendations` gained their own background retry policy: up to 3 primary-model attempts with 60-second pauses, then one fallback attempt for that generation.
 
