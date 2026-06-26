@@ -1,13 +1,15 @@
 ---
 id: 02_modules/chakra/history
 title: Chakra History
-version: 1.3
-updated: 2026-06-16
+version: 1.4
+updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs: [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts]
 ---
 
 ## Decision Log
+
+- **2026-06-26:** Server-side `chakraText.ts` normalizes visible recommendation fields (`slogan`, `short_text`, `long_explanation`) by replacing Sanskrit/transliterated chakra names with locale-native numeric labels across all 8 `AppContentLocale`. Complements morning prompt v4 (numeric-only chakra rule) and client `modules/chakra/i18n.ts` labels; used on global content upsert/serve, monologue `morning_recommendation`, and `fetchGlobalContent` direct fallback.
 
 - **2026-06-16:** **`chakraTagLabel` для de–nl.** Не-RU tag на карточках практик берёт `nom[n]` из typed chakra overlay; при отсутствии — capitalized `chakraLabel`. EN по-прежнему ordinal (`4th chakra`); RU — `` `${n} чакра` ``.
 

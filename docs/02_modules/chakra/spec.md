@@ -1,11 +1,11 @@
 ---
 id: 02_modules/chakra/spec
 title: Chakra Spec
-version: 1.4
-updated: 2026-06-16
+version: 1.5
+updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec]
 code_refs:
-  [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts, modules/chakra/i18n/chakraTypedSource.json]
+  [modules/chakra/i18n.ts, modules/chakra/labels.ts, modules/chakra/labels.test.ts, modules/chakra/i18n/chakraTypedSource.json, _legacy_web/app/api/_utils/chakraText.ts]
 ---
 
 ## 1. Назначение
@@ -35,6 +35,12 @@ code_refs:
 
 Тесты: `modules/chakra/labels.test.ts` (vitest).
 
+### 2.3 `_legacy_web/app/api/_utils/chakraText.ts` (server post-processing)
+
+- **`normalizeChakraNamesInText(text, locale)`** — заменяет санскритские/transliterated имена чакр (RU/EN regex patterns) на locale-native numeric labels из inline map для всех 8 `AppContentLocale`; сохраняет начальную капитализацию совпадения.
+- **`normalizeChakraNamesInFields(payload, locale, fields?)`** — применяет нормализацию к строковым полям объекта (default: `slogan`, `short_text`, `long_explanation`).
+- Потребители: `ensureGlobalDailyContent`, `globalContentLocale`, `ai/monologue/route.ts` (`morning_recommendation`), `services/globalContentClient.ts` (direct Supabase fallback).
+
 ## 3. Внутренняя архитектура
 
 - Константа **`RU_CHAKRA_FORMS`** — таблица падежных форм для чакр 1–7.
@@ -51,6 +57,6 @@ code_refs:
 
 ## 5. Известные ограничения
 
-- Серверные утилиты `topPetals.ts` / `globalTransitMath.ts` по-прежнему используют `chakraLabelRu` (RU-only layer B math labels); math markdown для de–nl — нативные строки в `mathLevelI18nTargets.ts` (`getMathLevelStrings`).
+- Серверные утилиты `topPetals.ts` / `globalTransitMath.ts` по-прежнему используют `chakraLabelRu` (RU-only layer B math labels); math markdown для de–nl — нативные строки в `mathLevelI18nTargets.ts` (`getMathLevelStrings`). Visible recommendation copy additionally passes through `chakraText.ts` so Sanskrit names do not leak after LLM generation or cache serve.
 - Edge `dailyForecast.ts` и server `planetChakraLegend.ts` **не** импортируют `i18n.ts` — там inline-строки или JSON `chakra_name_ru`.
 - Расширение на 8+ чакр потребует правки inline maps в `i18n.ts` / `RU_CHAKRA_FORMS` и всех потребителей, завязанных на диапазон 1–7.

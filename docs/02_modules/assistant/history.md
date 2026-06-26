@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.82
-updated: 2026-06-25
+version: 2.83
+updated: 2026-06-26
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
@@ -10,6 +10,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 ## Decision Log
 
 - **2026-06-26 (2):** Morning prompt v5 (`20260626120000_monologue_morning_prompt_v5_conclusion.sql`) renames long_explanation §6 to «ЗАКЛЮЧЕНИЕ» and forbids English technical tone keys in visible JSON. Server-side `recommendationText.ts` post-processes cached/live monologue payloads (tone keys, §6 header, chakra names) for all eight locales; monologue/global-content paths import it instead of chakra-only normalization.
+
+- **2026-06-26 (2, doc-sync):** Morning prompt v4 migrations (`20260625170000_*`, `20260625170100_*`) were patched to allow chakras in visible text only as numeric labels (not a full ban in `long_explanation`). New server util `chakraText.ts` post-processes `slogan`/`short_text`/`long_explanation` on global upsert/serve, monologue `morning_recommendation` cache hit/fresh gen, and client `fetchGlobalContent` direct fallback so legacy Sanskrit names do not leak into UI across 8 locales.
 
 - **2026-06-26:** LLM fallback policy was split by workload. Interactive recommendation-generation paths (`ai/monologue`, `recommendation-text`, calibration helpers) now keep latency low: they try the exact requested tier model once and then go straight to `AI_MODEL_FALLBACK` on retryable overload/timeout, without silently degrading `premium -> standard` first. Background cron precompute for `morning_recommendation` and free global content now does the opposite: it preserves quality longer by retrying the exact primary model up to **3 consecutive times** with **60s** pauses before using `AI_MODEL_FALLBACK` for that one generation; the next generation starts from the primary tier again.
 
