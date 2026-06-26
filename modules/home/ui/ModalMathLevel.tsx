@@ -120,35 +120,41 @@ export function ModalMathLevel({
           </ScreenSection>
         )}
       </ScrollView>
-
-      {showChart && canShowChart ? (
-        <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
-          <ModalAstroChart
-            visible={showChart}
-            onClose={() => {
-              setShowChart(false);
-              onClose();
-            }}
-            natalProfile={natalProfile ?? undefined}
-            transitPositions={forecast?.transitChart?.planets}
-            forecast={forecast ?? undefined}
-            aspects={aspects}
-            strings={chartStrings}
-            presentation="nestedOverlay"
-            mode={isGlobalForecast ? "transit_only" : "natal_transit"}
-          />
-        </Suspense>
-      ) : null}
     </FullScreenModalScaffold>
   );
 
+  const chartModal =
+    showChart && canShowChart ? (
+      <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
+        <ModalAstroChart
+          visible={showChart}
+          onClose={() => {
+            setShowChart(false);
+            onClose();
+          }}
+          natalProfile={natalProfile ?? undefined}
+          transitPositions={forecast?.transitChart?.planets}
+          forecast={forecast ?? undefined}
+          aspects={aspects}
+          strings={chartStrings}
+          mode={isGlobalForecast ? "transit_only" : "natal_transit"}
+        />
+      </Suspense>
+    ) : null;
+
   if (presentation === "nestedOverlay") {
-    return inner;
+    return (
+      <>
+        {inner}
+        {chartModal}
+      </>
+    );
   }
 
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
       {inner}
+      {chartModal}
     </Modal>
   );
 }
