@@ -1,25 +1,31 @@
-import { Modal, ScrollView, StyleSheet } from "react-native";
+import { Suspense, lazy, useMemo } from "react";
+import { ActivityIndicator, Modal, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import type { NatalProfile } from "@/modules/astro-core";
+import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { FullScreenModalScaffold } from "@/modules/ui/FullScreenModalScaffold";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
+import { useTheme } from "@/modules/ui/theme";
 import { MarkdownText } from "./MarkdownText";
-import { ModalMathLevel } from "./ModalMathLevel";
+import { ModalMathLevel, chartAspectsFromMathLevel } from "./ModalMathLevel";
+import { SlideUpModalLayer } from "./SlideUpModalLayer";
 
-import type { NatalProfile } from "@/modules/astro-core";
-import type { DailyForecast } from "@/modules/daily-engine";
+const ModalAstroChart = lazy(() => import("./ModalAstroChart"));
+
+export type HomeExplainerLevel = "none" | "long" | "math" | "chart";
 
 interface ModalLongExplanationProps {
-  visible: boolean;
+  level: HomeExplainerLevel;
   onClose: () => void;
-  longExplanation: string;
   onOpenMath: () => void;
+  onOpenChart: () => void;
+  longExplanation: string;
   canOpenMath: boolean;
   strings: HomeStrings["longExplanationModal"];
-  showMath?: boolean;
   mathLevel?: DailyForecast["mathLevel"] | null;
   natalProfile?: NatalProfile | null;
   forecast?: DailyForecast | null;
@@ -29,13 +35,13 @@ interface ModalLongExplanationProps {
 }
 
 export function ModalLongExplanation({
-  visible,
+  level,
   onClose,
-  longExplanation,
   onOpenMath,
+  onOpenChart,
+  longExplanation,
   canOpenMath,
   strings,
-  showMath = false,
   mathLevel,
   natalProfile,
   forecast,
@@ -43,7 +49,15 @@ export function ModalLongExplanation({
   mathStrings,
   chartStrings,
 }: ModalLongExplanationProps) {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const visible = level !== "none";
+  const showMathLayer = level === "math" || level === "chart";
+  const showChartLayer = level === "chart";
+  const isGlobalForecast = accessMode === "free" || Boolean(forecast?.isGlobal);
+  const hasTransitChart = Boolean(forecast?.transitChart?.planets);
+  const canShowChart = isGlobalForecast ? hasTransitChart : Boolean(natalProfile && hasTransitChart);
+  const aspects = useMemo(() => chartAspectsFromMathLevel(mathLevel), [mathLevel]);
 
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
@@ -68,18 +82,38 @@ export function ModalLongExplanation({
         </ScrollView>
       </FullScreenModalScaffold>
 
-      {showMath && mathStrings && chartStrings ? (
-        <ModalMathLevel
-          visible={showMath}
-          onClose={onClose}
-          mathLevel={mathLevel}
-          natalProfile={natalProfile}
-          forecast={forecast}
-          accessMode={accessMode}
-          strings={mathStrings}
-          chartStrings={chartStrings}
-          presentation="nestedOverlay"
-        />
+      {showMathLayer && mathStrings && chartStrings ? (
+        <SlideUpModalLayer zIndex={100}>
+          <ModalMathLevel
+            visible
+            onClose={onClose}
+            onOpenChart={canShowChart ? onOpenChart : undefined}
+            mathLevel={mathLevel}
+            natalProfile={natalProfile}
+            forecast={forecast}
+            accessMode={accessMode}
+            strings={mathStrings}
+            presentation="stackLayer"
+          />
+        </SlideUpModalLayer>
+      ) : null}
+
+      {showChartLayer && chartStrings && canShowChart ? (
+        <SlideUpModalLayer zIndex={200}>
+          <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
+            <ModalAstroChart
+              visible
+              onClose={onClose}
+              natalProfile={natalProfile ?? undefined}
+              transitPositions={forecast?.transitChart?.planets}
+              forecast={forecast ?? undefined}
+              aspects={aspects}
+              strings={chartStrings}
+              presentation="stackLayer"
+              mode={isGlobalForecast ? "transit_only" : "natal_transit"}
+            />
+          </Suspense>
+        </SlideUpModalLayer>
       ) : null}
     </Modal>
   );
@@ -93,7 +127,8 @@ const styles = StyleSheet.create({
   card: {
     padding: 18,
   },
-  centerText: {
-    textAlign: "center",
+  loader: {
+    flex: 1,
+    justifyContent: "center",
   },
 });

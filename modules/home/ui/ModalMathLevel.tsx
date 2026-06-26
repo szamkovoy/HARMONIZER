@@ -1,5 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { Modal, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NatalProfile, Planet } from "@/modules/astro-core";
@@ -15,19 +14,17 @@ import { useTheme } from "@/modules/ui/theme";
 import { MarkdownText } from "./MarkdownText";
 import type { AstroChartAspect } from "./AstroChartSVG";
 
-const ModalAstroChart = lazy(() => import("./ModalAstroChart"));
-
 interface ModalMathLevelProps {
   visible: boolean;
   onClose: () => void;
+  onOpenChart?: () => void;
   mathLevel?: DailyForecast["mathLevel"] | null;
   natalProfile?: NatalProfile | null;
   forecast?: DailyForecast | null;
   accessMode: AccessMode;
   strings: HomeStrings["mathModal"];
-  chartStrings: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
-  /** Вложенный второй Modal на RN иногда не открывается — используйте overlay внутри родительского Modal. */
-  presentation?: "modal" | "nestedOverlay";
+  /** `stackLayer` — content only, slide animation handled by parent stack. */
+  presentation?: "modal" | "stackLayer";
 }
 
 const PLANETS: readonly Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
@@ -41,7 +38,9 @@ function isAspect(value: unknown): value is AspectType {
   return typeof value === "string" && (ASPECTS as readonly string[]).includes(value);
 }
 
-function chartAspects(mathLevel: DailyForecast["mathLevel"] | null | undefined): AstroChartAspect[] {
+export function chartAspectsFromMathLevel(
+  mathLevel: DailyForecast["mathLevel"] | null | undefined,
+): AstroChartAspect[] {
   const structured = mathLevel?.structured;
   if (!structured || typeof structured !== "object") return [];
   const raw = (structured as { main_aspects?: unknown }).main_aspects;
@@ -63,32 +62,24 @@ function chartAspects(mathLevel: DailyForecast["mathLevel"] | null | undefined):
 export function ModalMathLevel({
   visible,
   onClose,
+  onOpenChart,
   mathLevel,
   natalProfile,
   forecast,
   accessMode,
   strings,
-  chartStrings,
   presentation = "modal",
 }: ModalMathLevelProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [showChart, setShowChart] = useState(false);
-  const aspects = useMemo(() => chartAspects(mathLevel), [mathLevel]);
   const isGlobalForecast = accessMode === "free" || Boolean(forecast?.isGlobal);
   const hasTransitChart = Boolean(forecast?.transitChart?.planets);
   const canShowChart = isGlobalForecast ? hasTransitChart : Boolean(natalProfile && hasTransitChart);
   const chartButtonLabel = isGlobalForecast ? strings.showTransitChartButton : strings.showChartButton;
 
-  if (presentation === "nestedOverlay" && !visible) return null;
+  if (!visible) return null;
 
-  const shellStyle: StyleProp<ViewStyle> =
-    presentation === "nestedOverlay"
-      ? [
-          StyleSheet.absoluteFillObject,
-          { zIndex: 100, elevation: 24, backgroundColor: theme.colors.screenBg, flex: 1 },
-        ]
-      : [{ flex: 1, backgroundColor: theme.colors.screenBg }];
+  const shellStyle: StyleProp<ViewStyle> = [{ flex: 1, backgroundColor: theme.colors.screenBg }];
 
   const inner = (
     <FullScreenModalScaffold
@@ -98,10 +89,7 @@ export function ModalMathLevel({
       onClose={onClose}
       style={shellStyle}
     >
-      <ScrollView
-        style={presentation === "nestedOverlay" ? { flex: 1 } : undefined}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-      >
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <SurfaceCardView tone="elevated" style={styles.card}>
           {mathLevel?.markdown ? (
             <MarkdownText source={mathLevel.markdown} />
@@ -112,8 +100,8 @@ export function ModalMathLevel({
           )}
         </SurfaceCardView>
 
-        {canShowChart ? (
-          <AppButton label={chartButtonLabel} variant="secondary" onPress={() => setShowChart(true)} />
+        {canShowChart && onOpenChart ? (
+          <AppButton label={chartButtonLabel} variant="secondary" onPress={onOpenChart} />
         ) : (
           <ScreenSection title={chartButtonLabel} subtitle={strings.chartUnavailableHint} centerHeader>
             <View />
@@ -123,38 +111,13 @@ export function ModalMathLevel({
     </FullScreenModalScaffold>
   );
 
-  const chartModal =
-    showChart && canShowChart ? (
-      <Suspense fallback={<ActivityIndicator color={theme.colors.accent} style={styles.loader} />}>
-        <ModalAstroChart
-          visible={showChart}
-          onClose={() => {
-            setShowChart(false);
-            onClose();
-          }}
-          natalProfile={natalProfile ?? undefined}
-          transitPositions={forecast?.transitChart?.planets}
-          forecast={forecast ?? undefined}
-          aspects={aspects}
-          strings={chartStrings}
-          mode={isGlobalForecast ? "transit_only" : "natal_transit"}
-        />
-      </Suspense>
-    ) : null;
-
-  if (presentation === "nestedOverlay") {
-    return (
-      <>
-        {inner}
-        {chartModal}
-      </>
-    );
+  if (presentation === "stackLayer") {
+    return inner;
   }
 
   return (
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={onClose}>
       {inner}
-      {chartModal}
     </Modal>
   );
 }
@@ -166,13 +129,5 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: 18,
-  },
-  centerText: {
-    textAlign: "center",
-  },
-  loader: {
-    bottom: 24,
-    position: "absolute",
-    right: 24,
   },
 });

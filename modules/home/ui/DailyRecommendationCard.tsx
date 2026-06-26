@@ -11,7 +11,7 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { SectionHeader } from "@/modules/ui/ScreenSection";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
-import { ModalLongExplanation } from "./ModalLongExplanation";
+import { ModalLongExplanation, type HomeExplainerLevel } from "./ModalLongExplanation";
 
 interface DailyRecommendationCardProps {
   forecast: DailyForecast;
@@ -33,7 +33,7 @@ export function DailyRecommendationCard({
   natalProfile,
   modelUsed,
 }: DailyRecommendationCardProps) {
-  const [modalLevel, setModalLevel] = useState<"none" | "long" | "math">("none");
+  const [modalLevel, setModalLevel] = useState<HomeExplainerLevel>("none");
   const locale = strings.locale;
   const planetChakra = useMemo(() => getPlanetChakraMap(locale), [locale]);
   const fallbackShortText = strings.recommendation.fallback(forecast);
@@ -75,13 +75,13 @@ export function DailyRecommendationCard({
         {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
       </SurfaceCardView>
       <ModalLongExplanation
-        visible={modalLevel === "long" || modalLevel === "math"}
+        level={modalLevel}
         onClose={() => setModalLevel("none")}
         longExplanation={longExplanation}
         onOpenMath={() => setModalLevel("math")}
+        onOpenChart={() => setModalLevel("chart")}
         canOpenMath={hasMathLevel}
         strings={strings.longExplanationModal}
-        showMath={modalLevel === "math"}
         mathLevel={forecast.mathLevel}
         natalProfile={natalProfile}
         forecast={forecast}

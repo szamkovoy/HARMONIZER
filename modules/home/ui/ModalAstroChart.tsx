@@ -20,8 +20,8 @@ interface ModalAstroChartProps {
   forecast?: DailyForecast;
   aspects?: AstroChartAspect[];
   strings: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
-  /** Вложенный второй Modal на RN иногда не открывается — используйте overlay внутри родительского Modal. */
-  presentation?: "modal" | "nestedOverlay";
+  /** `stackLayer` — content only, slide animation handled by parent stack. */
+  presentation?: "modal" | "stackLayer";
   mode?: "natal_transit" | "transit_only";
 }
 
@@ -110,15 +110,9 @@ export default function ModalAstroChart({
   if (mode === "natal_transit" && !natalProfile) return null;
   if (mode === "transit_only" && !resolvedTransitPositions) return null;
 
-  if (presentation === "nestedOverlay" && !visible) return null;
+  if (!visible) return null;
 
-  const shellStyle: StyleProp<ViewStyle> =
-    presentation === "nestedOverlay"
-      ? [
-          StyleSheet.absoluteFillObject,
-          { zIndex: 100, elevation: 24, backgroundColor: theme.colors.screenBg, flex: 1 },
-        ]
-      : [{ flex: 1, backgroundColor: theme.colors.screenBg }];
+  const shellStyle: StyleProp<ViewStyle> = [{ flex: 1, backgroundColor: theme.colors.screenBg }];
 
   const inner = (
     <FullScreenModalScaffold
@@ -128,10 +122,7 @@ export default function ModalAstroChart({
       onClose={onClose}
       style={shellStyle}
     >
-      <ScrollView
-        style={presentation === "nestedOverlay" ? { flex: 1 } : undefined}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-      >
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <SurfaceCardView tone="elevated" style={styles.chartCard}>
           <AstroChartSVG
             natalProfile={natalProfile}
@@ -191,7 +182,7 @@ export default function ModalAstroChart({
     </FullScreenModalScaffold>
   );
 
-  if (presentation === "nestedOverlay") {
+  if (presentation === "stackLayer") {
     return inner;
   }
 
