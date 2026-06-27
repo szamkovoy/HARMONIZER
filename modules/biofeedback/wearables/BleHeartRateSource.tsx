@@ -10,6 +10,7 @@ import {
   parseHeartRateMeasurement,
 } from "@/modules/biofeedback/wearables/heartRateMeasurement";
 import { detectWearableTrustedProfile } from "@/modules/biofeedback/wearables/trustedProfiles";
+import { buildBeatTimestampsFromRrPacket } from "@/modules/biofeedback/wearables/wearableBeatTimeline";
 import type {
   WearableCapabilityTier,
   WearableRuntimeSnapshot,
@@ -131,21 +132,19 @@ export function BleHeartRateSource({
     const ingestRrIntervals = (rrIntervalsMs: readonly number[]) => {
       if (!rrIntervalsMs.length) return;
       const nowMs = Date.now();
-      // Сброс только после паузы между BLE-пакетами (wall clock), а не по
-      // `nowMs - lastBeatTimestampMs`: beat-шкала растёт медленнее wall clock
-      // (~1 RR на пакет), и старое условие периодически «перепрыгивало» timeline,
-      // порождая RR 5–10 с и пустую тахограмму (totalValidDataSeconds≈0).
       const gapSinceLastPacketMs =
         lastRrAtMs == null ? Number.POSITIVE_INFINITY : nowMs - lastRrAtMs;
-      let beatTimestampMs =
-        lastBeatTimestampMs != null && gapSinceLastPacketMs <= RR_TIMELINE_RESET_GAP_MS
-          ? lastBeatTimestampMs
-          : nowMs - rrIntervalsMs.reduce((sum, value) => sum + value, 0);
-      for (const rrMs of rrIntervalsMs) {
-        beatTimestampMs += rrMs;
+      const resetTimeline = gapSinceLastPacketMs > RR_TIMELINE_RESET_GAP_MS;
+      const { beatTimestampsMs, lastBeatTimestampMs: nextLastBeat } =
+        buildBeatTimestampsFromRrPacket(nowMs, rrIntervalsMs, lastBeatTimestampMs, {
+          resetTimeline,
+        });
+      for (const beatTimestampMs of beatTimestampsMs) {
         pipeline.pushBeatEvent(nowMs, beatTimestampMs);
       }
-      lastBeatTimestampMs = beatTimestampMs;
+      if (nextLastBeat != null) {
+        lastBeatTimestampMs = nextLastBeat;
+      }
       lastRrAtMs = nowMs;
     };
 

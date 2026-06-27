@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-28:** Polar H10 metrics follow-up — RR packets now map to beat timestamps via HRS-correct backward reconstruction (`wearableBeatTimeline.ts`), and wearable sessions bypass `PulseBpmEngine` PPG filtering when feeding `CoherenceEngine`/`HrvBeatAccumulator`. Finger-camera filtering and merge path stay unchanged.
+
 - **2026-06-27 (4):** BLE QA follow-up after Polar H10 field tests. `BleHeartRateSource` now resets its RR beat timeline only after a real gap between BLE packets (`lastRrAtMs`), fixing spurious 5–10 s RR jumps that left coherence/HRV metrics withheld despite live BPM in the footer. `useWearableScanner` scans Heart Rate Service with `allowDuplicates: true`, merges partial advertisements into one candidate, and `WearablePickerDialog` waits the full **12 s** window from the moment scanning actually starts before showing «не найден».
 
 - **2026-06-27 (3):** BLE runtime loop and UX were hardened after real-device QA. `BleHeartRateSource` stopped restarting its effect on every parent re-render by decoupling event callbacks from effect deps, and the shared `WearablePickerDialog` became the single BLE chooser for both the catalog card and runtime recovery inside `CoherenceBreathScreen`.

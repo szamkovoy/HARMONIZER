@@ -460,7 +460,12 @@ export class BiofeedbackPipeline {
       });
       this.lastStableRrMs = bpmSnap.medianRrMs || this.lastStableRrMs;
       this.lastMedianRrMs = bpmSnap.medianRrMs || this.lastMedianRrMs;
-      this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;
+      // Chest strap уже отдаёт валидные RR; PPG-фильтр PulseBpmEngine (450–1400 ms,
+      // sequential deviation) здесь только режет длину merged-ленты и ломает coherence.
+      this.canonicalBeats =
+        this.pulseSource === "wearable"
+          ? [...this.mergedBeats]
+          : bpmSnap.filteredBeatTimestampsMs;
       this.bus.publish("pulseBpm", {
         bpm: bpmSnap.bpm,
         rawBpm: bpmSnap.rawBpm,
