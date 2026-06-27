@@ -1,19 +1,22 @@
 ---
 id: 02_modules/biofeedback/dependencies
 title: Biofeedback Dependencies
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-06-27
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
     modules/biofeedback/bus/biofeedback-pipeline.ts,
     modules/biofeedback/bus/channels.ts,
     modules/biofeedback/adapters/MandalaBioFrameAdapter.ts,
+    modules/biofeedback/wearables/BleHeartRateSource.tsx,
+    modules/biofeedback/wearables/preferences.ts,
     modules/breath/ui/CoherenceBreathScreen.tsx,
     modules/mandala-sound/ui/MandalaSoundProvider.tsx,
     modules/breath/ui/BreathBinduMandala.tsx,
     modules/biofeedback/core/metrics.ts,
     modules/biofeedback/engines/coherence-engine.ts,
+    modules/biofeedback/engines/pulse-bpm-engine.ts,
     modules/biofeedback/engines/rsa-engine.ts,
   ]
 ---

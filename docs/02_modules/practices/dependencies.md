@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.11
-updated: 2026-06-20
+version: 1.12
+updated: 2026-06-27
 depends_on:
   [
     01_foundation/product_model,
@@ -70,7 +70,7 @@ code_refs:
 
 - **`FeatureKey`** (`practice_catalog`, `asana_practices`, `stats`) должна оставаться согласованной с `modules/access` и серверными проверками.
 
-- **`PracticeLaunchParams` vs query**: несовпадение имён параметров роутов (`practiceId`, `durationMs`, `chakra`, `usePulseSensor`) ломает диплинки из каталога и из ассистента.
+- **`PracticeLaunchParams` vs query**: несовпадение имён параметров роутов (`practiceId`, `durationMs`, `chakra`, `sensorMode`, `deviceId`, `deviceName`, `provider`, `capabilityTier`, `connectionHint`, `autoReconnect`, legacy `usePulseSensor`) ломает диплинки из каталога и из ассистента.
 - **Общий `PracticeCard`**: любое сужение пропсов/типов `PracticeSummary`, `PracticeLaunchParams`, `PracticeVideoMetadata` теперь одновременно затрагивает каталог и communicator.
 
 - **Два источника дефолта длительности медитации** (каталог vs экран) — риск UX при смешанных входах; см. `history.md`.

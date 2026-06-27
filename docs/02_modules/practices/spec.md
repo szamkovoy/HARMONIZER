@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.19
-updated: 2026-06-22
+version: 1.20
+updated: 2026-06-27
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -129,7 +129,7 @@ services/practiceSessions.ts — Supabase insert/select
 
 - **`bindu`**: визуал мандалы / сукцессия на медитации и дыхании.
 
-- **`biofeedback`**: только в **`CoherenceBreathScreen`** (камера / эмуляция); **`SacredSymbolStreamScreen`** не подключает пайплайн PPG и сохраняет **`metrics: {}`**.
+- **`biofeedback`**: только в **`CoherenceBreathScreen`** (камера / BLE chest strap / эмуляция); **`SacredSymbolStreamScreen`** не подключает пайплайн PPG и сохраняет **`metrics: {}`**.
 
 ## 4. Конфигурация и параметры
 

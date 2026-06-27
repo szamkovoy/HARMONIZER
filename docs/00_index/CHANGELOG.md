@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.10
-updated: 2026-06-26
+version: 3.11
+updated: 2026-06-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-27: doc-sync pre-push — BLE breath sensor path: synced stale sections in `biofeedback/{spec,dependencies}.md`, `practices/{spec,dependencies}.md`, `communicator/{spec,history}.md`, `infra/spec.md` (wearables code_refs, launch-param contract, communicator round-trip).
 - 2026-06-27: `practices` / `biofeedback` / `infra` / `i18n` — breathing gained BLE chest-strap groundwork: richer breath launch contract (`sensorMode` + remembered device metadata), generic Heart Rate Service RR ingestion with trusted Polar path, Expo BLE plugin/permissions, and synced docs/open question for trusted-device thresholds.
 - 2026-06-26: doc-sync pre-push — paired `daily_forecast/dependencies.md` and `assistant/dependencies.md` with `loadCachedMorningRecommendation` / `buildClientForecastPayload` on `POST /api/astro/daily-forecast` (spec/history already current).
 - 2026-06-27: `daily_forecast` — paid Home loads cron morning texts in first `daily-forecast` response (`loadCachedMorningRecommendation`); client skips fallback flash, shows loading only on cache miss. Synced `daily_forecast/{spec,history}.md`.

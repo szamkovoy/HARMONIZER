@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.40
-updated: 2026-06-25
+version: 2.41
+updated: 2026-06-27
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-27:** Breath practice launch from assistant/day cards now round-trips wearable selection through `Communicator.tsx`: `practiceToSummary` / `summaryToPractice` preserve `sensorMode`, remembered BLE device identity, `capabilityTier`, `autoReconnect`, and legacy `usePulseSensor` alongside duration/chakra overrides so pending cards and `launchPractice` stay aligned with catalog sensor choice.
 
 - **2026-06-25:** §3.1 «Обновить» на Home: `postGlobalContentDevReset` заменён на tariff-scoped `postDevDayContentReset` / `POST /api/ai/dev-day-reset`; локальный `clearHomeDailyDialogCache` по-прежнему идёт первым.
 

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/spec
 title: Biofeedback Spec
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-06-27
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -15,6 +15,11 @@ code_refs:
     modules/biofeedback/sensors/FingerPpgCameraSource.tsx,
     modules/biofeedback/sensors/EmulatedPulseSensorSource.tsx,
     modules/biofeedback/sensors/SimulatedSensorSource.tsx,
+    modules/biofeedback/wearables/BleHeartRateSource.tsx,
+    modules/biofeedback/wearables/useWearableScanner.ts,
+    modules/biofeedback/wearables/heartRateMeasurement.ts,
+    modules/biofeedback/wearables/preferences.ts,
+    modules/biofeedback/wearables/trustedProfiles.ts,
     modules/biofeedback/core/metrics.ts,
     modules/biofeedback/adapters/MandalaBioFrameAdapter.ts,
     modules/biofeedback/export/SessionExporter.ts,
@@ -26,7 +31,7 @@ code_refs:
 
 ## 1. Назначение
 
-`biofeedback` — клиентский конвейер **PPG с камеры** (палец на вспышку), извлечение ритма ударов, оценка качества сигнала и публикация метрик в типизированную шину **`BiofeedbackBus`**. Модуль обслуживает дыхательные практики с обратной связью (прежде всего когерентное дыхание), визуализацию мандалы и звуковую модуляцию через подписчиков; тяжёлая математика когерентности/RSA для **итога сессии** живёт в `modules/breath/core/coherence-session-analysis.ts` и вызывается из `CoherenceEngine` при `finalize`, чтобы не дублировать формулы.
+`biofeedback` — клиентский конвейер пульсового сигнала: **PPG с камеры** (палец на вспышку) или **BLE chest strap** (Heart Rate Service `180D` / `2A37`), извлечение ритма ударов, оценка качества сигнала и публикация метрик в типизированную шину **`BiofeedbackBus`**. Модуль обслуживает дыхательные практики с обратной связью (прежде всего когерентное дыхание), визуализацию мандалы и звуковую модуляцию через подписчиков; тяжёлая математика когерентности/RSA для **итога сессии** живёт в `modules/breath/core/coherence-session-analysis.ts` и вызывается из `CoherenceEngine` при `finalize`, чтобы не дублировать формулы.
 
 ## 2. Публичный контракт
 

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.2
-updated: 2026-06-24
+version: 1.3
+updated: 2026-06-27
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
