@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/spec
 title: Biofeedback Spec
-version: 1.2
+version: 1.3
 updated: 2026-06-27
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -16,6 +16,7 @@ code_refs:
     modules/biofeedback/sensors/EmulatedPulseSensorSource.tsx,
     modules/biofeedback/sensors/SimulatedSensorSource.tsx,
     modules/biofeedback/wearables/BleHeartRateSource.tsx,
+    modules/biofeedback/wearables/WearablePickerDialog.tsx,
     modules/biofeedback/wearables/useWearableScanner.ts,
     modules/biofeedback/wearables/heartRateMeasurement.ts,
     modules/biofeedback/wearables/preferences.ts,
@@ -54,6 +55,8 @@ code_refs:
 | `error` | ошибки движка/сенсора |
 
 **React:** `BiofeedbackBusProvider`, `useBiofeedbackBus`, `useBiofeedbackChannel`, `useBiofeedbackSubscribe`, `useBiofeedbackPipeline`, `useBiofeedbackSnapshot` — см. `bus/react.tsx`, `bus/biofeedback-provider.tsx`, `bus/snapshot-adapter.ts`.
+
+**Wearables (barrel `modules/biofeedback/wearables/`):** `useWearableScanner`, `BleHeartRateSource`, общий модальный **`WearablePickerDialog`** (строки через prop `strings`, колбэки `onSelect` / `onClose`), preferences/trusted profiles — реэкспорт из `wearables/index.ts`.
 
 **Агрегация для мандалы:** `MandalaBioFrameAdapter` — подписка на `beat`, `pulseBpm`, `rmssd`, `stress`, `coherence`, `contact`; метод `snapshot()` возвращает `BioSignalFrame` (`modules/mandala/core/types.ts`) с нормализованными полями для шейдера.
 

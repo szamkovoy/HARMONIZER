@@ -10,6 +10,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-27: doc-sync pre-push — `WearablePickerDialog` export and practices↔biofeedback dependency: `biofeedback/spec.md` (§2 wearables barrel), `biofeedback/dependencies.md`, `practices/dependencies.md`, `MAP.md` code_refs.
 - 2026-06-27: `biofeedback` / `practices` — Polar H10 QA: fixed BLE RR timeline reset (metrics no longer withheld by 5–10 s artifact gaps), improved first-scan discovery (`180D` filter, duplicate advertisements, 12 s picker window), and collapsed `PracticeCard` selectors on return from breath screen. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
 - 2026-06-27: doc-sync pre-push — BLE breath sensor path: synced stale sections in `biofeedback/{spec,dependencies}.md`, `practices/{spec,dependencies}.md`, `communicator/{spec,history}.md`, `infra/spec.md` (wearables code_refs, launch-param contract, communicator round-trip).
 - 2026-06-27: `practices` / `biofeedback` — breathing card now uses `Пульс с телефона` / `Пульсометр Bluetooth` / `Без пульсометра`, reuses one shared BLE picker dialog before start and after runtime BLE failures, starts Bluetooth sessions straight in the running screen (without the old prep overlay), and hardens both iOS BLE scan startup and `BleHeartRateSource` effect stability. Synced `practices/{spec,history}.md` and `biofeedback/{spec,history}.md`.

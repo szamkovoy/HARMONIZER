@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/dependencies
 title: Biofeedback Dependencies
-version: 1.2
+version: 1.3
 updated: 2026-06-27
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -10,6 +10,7 @@ code_refs:
     modules/biofeedback/bus/channels.ts,
     modules/biofeedback/adapters/MandalaBioFrameAdapter.ts,
     modules/biofeedback/wearables/BleHeartRateSource.tsx,
+    modules/biofeedback/wearables/WearablePickerDialog.tsx,
     modules/biofeedback/wearables/preferences.ts,
     modules/breath/ui/CoherenceBreathScreen.tsx,
     modules/mandala-sound/ui/MandalaSoundProvider.tsx,
@@ -44,7 +45,7 @@ code_refs:
   `BreathBinduMandala` использует снимок биосигнала через адаптер; в `02_modules/bindu/dependencies.md` перечислена зависимость адаптера от типов mandala.
 
 - **`practices`**  
-  `app/breath-coherence.tsx` → `CoherenceBreathScreen` монтирует весь pipeline и звук/мандалу; `PracticeCard.tsx` читает/saves wearable preferences и передаёт в route `sensorMode`, device identity и capability tier. Парная запись: `docs/02_modules/practices/dependencies.md` §1.
+  `app/breath-coherence.tsx` → `CoherenceBreathScreen` монтирует весь pipeline и звук/мандалу; `PracticeCard.tsx` и `CoherenceBreathScreen` импортируют общий **`WearablePickerDialog`** + читают/save wearable preferences и передают в route `sensorMode`, device identity и capability tier. Парная запись: `docs/02_modules/practices/dependencies.md` §1.
 
 ## 3. Контрактные точки риска
 
