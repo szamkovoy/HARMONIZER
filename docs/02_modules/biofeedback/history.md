@@ -15,6 +15,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-27 (4):** BLE QA follow-up after Polar H10 field tests. `BleHeartRateSource` now resets its RR beat timeline only after a real gap between BLE packets (`lastRrAtMs`), fixing spurious 5–10 s RR jumps that left coherence/HRV metrics withheld despite live BPM in the footer. `useWearableScanner` scans Heart Rate Service with `allowDuplicates: true`, merges partial advertisements into one candidate, and `WearablePickerDialog` waits the full **12 s** window from the moment scanning actually starts before showing «не найден».
+
+- **2026-06-27 (3):** BLE runtime loop and UX were hardened after real-device QA. `BleHeartRateSource` stopped restarting its effect on every parent re-render by decoupling event callbacks from effect deps, and the shared `WearablePickerDialog` became the single BLE chooser for both the catalog card and runtime recovery inside `CoherenceBreathScreen`.
+
+- **2026-06-27 (2):** BLE scan start on iOS was hardened after QA hit a dev-client crash when entering the Bluetooth strap path. `useWearableScanner` now restarts scans defensively and calls `startDeviceScan([], {}, ...)` instead of passing nulls into the native layer; the shared `BleManager` also stopped opting into restoration identifiers because this flow does not use background BLE restoration.
+
 - **2026-06-27:** Added the first BLE chest-strap path without forking downstream metrics. New `modules/biofeedback/wearables/*` handles scan / connect / Heart Rate Service parsing (`180D` / `2A37`), pipes RR into `BiofeedbackPipeline.pushBeatEvent(...)`, and pauses metrics automatically for `guidedOnly` heart-rate-only devices. Trusted Polar profiles (`H10`, `H9`) get a separate `polarEnhanced` capability hint, but still feed the same canonical pipeline/coherence/export path as camera PPG.
 
 - **2026-06-24:** Immersive breath/mandala chrome started moving into shared UI ownership without touching the sensing engines. Close controls, overlay auto-hide and stop-confirm dialog now have shared primitives in `modules/ui/`; `CoherenceBreathScreen` already consumes the shared stop-confirm/close path, while domain logic (PPG pipeline, coherence FSM, export/metrics) stays fully inside `breath`/`biofeedback`.

@@ -4,9 +4,7 @@ let sharedManager: BleManager | null = null;
 
 export function getWearableBleManager(): BleManager {
   if (sharedManager) return sharedManager;
-  const options: BleManagerOptions = {
-    restoreStateIdentifier: "harmonizer.ble.restore",
-  };
+  const options: BleManagerOptions = {};
   sharedManager = new BleManager(options);
   void sharedManager.setLogLevel(__DEV__ ? LogLevel.Warning : LogLevel.Error);
   return sharedManager;

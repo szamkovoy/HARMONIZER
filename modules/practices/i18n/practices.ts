@@ -59,7 +59,19 @@ export interface PracticeCatalogStrings {
   pulseLabel: string;
   sensorCameraOption: string;
   sensorBluetoothOption: string;
+  sensorBluetoothOtherOption: string;
   sensorNoneOption: string;
+  findWearableButton: string;
+  wearablePickerTitle: string;
+  wearablePickerHint: string;
+  wearablePickerFoundHint: string;
+  wearablePickerNotFound: string;
+  wearablePickerBluetoothOff: string;
+  wearablePickerRetry: string;
+  wearablePickerClose: string;
+  wearablePickerSelectButton: string;
+  wearablePickerSignalLabel: string;
+  wearableBluetoothStateLabel: string;
   withPulseSensor: string;
   withoutPulseSensor: string;
   startPractice: string;
@@ -118,9 +130,21 @@ const ru: PracticeCatalogStrings = {
   durationLabel: "Длительность",
   chakraLabel: "Чакра",
   pulseLabel: "Источник пульса",
-  sensorCameraOption: "камера телефона",
+  sensorCameraOption: "пульс с телефона",
   sensorBluetoothOption: "пульсометр Bluetooth",
-  sensorNoneOption: "без сенсора",
+  sensorBluetoothOtherOption: "другой Bluetooth-пульсометр",
+  sensorNoneOption: "без пульсометра",
+  findWearableButton: "Найти пульсометр",
+  wearablePickerTitle: "Поиск пульсометра",
+  wearablePickerHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
+  wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
+  wearablePickerNotFound: "Пульсометр не найден. Попробуйте повторить поиск.",
+  wearablePickerBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
+  wearablePickerRetry: "Повторить поиск",
+  wearablePickerClose: "Закрыть",
+  wearablePickerSelectButton: "Подключить",
+  wearablePickerSignalLabel: "Сигнал",
+  wearableBluetoothStateLabel: "Bluetooth",
   withPulseSensor: "с пульсометром",
   withoutPulseSensor: "без пульсометра",
   startPractice: "Начать практику",
@@ -195,9 +219,21 @@ const en: PracticeCatalogStrings = {
   durationLabel: "Duration",
   chakraLabel: "Chakra",
   pulseLabel: "Pulse source",
-  sensorCameraOption: "phone camera",
-  sensorBluetoothOption: "Bluetooth sensor",
-  sensorNoneOption: "without sensor",
+  sensorCameraOption: "pulse from phone",
+  sensorBluetoothOption: "Bluetooth heart-rate monitor",
+  sensorBluetoothOtherOption: "another Bluetooth heart-rate monitor",
+  sensorNoneOption: "without heart-rate monitor",
+  findWearableButton: "Find heart-rate monitor",
+  wearablePickerTitle: "Find heart-rate monitor",
+  wearablePickerHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
+  wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
+  wearablePickerNotFound: "Heart-rate monitor not found. Try scanning again.",
+  wearablePickerBluetoothOff: "Bluetooth is off. Turn it on and try again.",
+  wearablePickerRetry: "Scan again",
+  wearablePickerClose: "Close",
+  wearablePickerSelectButton: "Connect",
+  wearablePickerSignalLabel: "Signal",
+  wearableBluetoothStateLabel: "Bluetooth",
   withPulseSensor: "with heart-rate sensor",
   withoutPulseSensor: "without heart-rate sensor",
   startPractice: "Start practice",

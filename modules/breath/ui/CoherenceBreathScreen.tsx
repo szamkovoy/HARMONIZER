@@ -60,7 +60,7 @@ import type {
   WearableRuntimeSnapshot,
   WearableScanCandidate,
 } from "@/modules/biofeedback/wearables/types";
-import { useWearableScanner } from "@/modules/biofeedback/wearables/useWearableScanner";
+import { WearablePickerDialog } from "@/modules/biofeedback/wearables/WearablePickerDialog";
 
 import {
   COHERENCE_PREFLIGHT_BUFFER_MS,
@@ -365,8 +365,6 @@ function CoherenceBreathScreenInner({
   const pipeline = useBiofeedbackPipeline();
   const bus = useBiofeedbackBus();
   const wearablePreferences = useWearablePreferences();
-  const { bluetoothState, scanState, scanError, devices: scannedWearables, startScan, stopScan } =
-    useWearableScanner();
   const resolvedSensorMode: BreathSensorMode =
     sensorMode === "ble" || sensorMode === "none" || sensorMode === "fingerCamera"
       ? sensorMode
@@ -406,6 +404,7 @@ function CoherenceBreathScreenInner({
   const [wearableRuntime, setWearableRuntime] = useState<WearableRuntimeSnapshot>({ state: "idle" });
   const [wearableCapabilityTier, setWearableCapabilityTier] =
     useState<WearableCapabilityTier>(initialCapabilityTierResolved);
+  const [showWearablePickerDialog, setShowWearablePickerDialog] = useState(false);
   const snapshot = useBiofeedbackSnapshot();
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
@@ -960,25 +959,46 @@ function CoherenceBreathScreenInner({
     wearablePreferences.lastProvider,
   ]);
 
-  useEffect(() => {
-    if (!isWearableMode || (phase !== "warmup" && phase !== "qualityCheck")) {
-      void stopScan();
-      return;
+  const handleWearableSelected = useCallback((candidate: WearableScanCandidate) => {
+    setSelectedWearableDevice(candidate);
+    setWearableCapabilityTier(candidate.capabilityTier);
+    setWearableRuntime({ state: "idle" });
+    setShowWearablePickerDialog(false);
+    setSourceKey((value) => value + 1);
+    void updateWearablePreferences({
+      preferredSensorMode: "ble",
+      lastDeviceId: candidate.id,
+      lastDeviceName: candidate.name,
+      lastProvider: candidate.provider,
+      lastCapabilityTier: candidate.capabilityTier === "unknown" ? null : candidate.capabilityTier,
+    });
+  }, []);
+
+  const handleWearableRuntimeSnapshot = useCallback((runtime: WearableRuntimeSnapshot) => {
+    setWearableRuntime(runtime);
+  }, []);
+
+  const handleWearableCapabilityResolved = useCallback((tier: WearableCapabilityTier, nextHint?: string) => {
+    setWearableCapabilityTier(tier);
+    if (selectedWearableDevice?.id) {
+      void updateWearablePreferences({
+        preferredSensorMode: "ble",
+        lastDeviceId: selectedWearableDevice.id,
+        lastDeviceName: selectedWearableDevice.name,
+        lastProvider: selectedWearableDevice.provider,
+        lastCapabilityTier: tier,
+      });
     }
-    if (!selectedWearableDevice?.id || wearableRuntime.state === "failed") {
-      void startScan();
-    }
-    return () => {
-      void stopScan();
-    };
-  }, [
-    isWearableMode,
-    phase,
-    selectedWearableDevice?.id,
-    startScan,
-    stopScan,
-    wearableRuntime.state,
-  ]);
+    setSelectedWearableDevice((prev) =>
+      prev
+        ? {
+            ...prev,
+            capabilityTier: tier,
+            connectionHint: nextHint ?? prev.connectionHint,
+          }
+        : prev,
+    );
+  }, [selectedWearableDevice?.id, selectedWearableDevice?.name, selectedWearableDevice?.provider]);
 
   /** Для gating камеры: ре-рендер при смене AppState (ref одного мало). */
   const [practiceAppState, setPracticeAppState] = useState(AppState.currentState);
@@ -1039,6 +1059,14 @@ function CoherenceBreathScreenInner({
       return;
     }
     if (phase === "running") {
+      if (isWearableMode) {
+        blackCurtainSv.value = 0;
+        setSensorUiMounted(false);
+        setRunningUiRevealed(true);
+        setCycleStartMs((prev) => prev ?? Date.now());
+        setIsBreathTimingActive(true);
+        return;
+      }
       const FADE_OUT_MS = 600;
       const FADE_IN_MS = 600;
       // Стартовое состояние: sensor-UI ещё смонтирован, running-UI НЕ смонтирован,
@@ -1074,7 +1102,7 @@ function CoherenceBreathScreenInner({
     setRunningUiRevealed(false);
     setIsBreathTimingActive(false);
     return undefined;
-  }, [phase, blackCurtainSv]);
+  }, [blackCurtainSv, isWearableMode, phase]);
 
   const blackCurtainStyle = useAnimatedStyle(() => ({ opacity: blackCurtainSv.value }));
 
@@ -1520,6 +1548,78 @@ function CoherenceBreathScreenInner({
     fingerAbsentWallMsRef.current = 0;
     practiceBackgroundEnteredAtRef.current = null;
   }, [phase]);
+
+  useEffect(() => {
+    if (!isWearableMode) {
+      setShowWearablePickerDialog(false);
+      return;
+    }
+    if (phase !== "running") return;
+    if (!selectedWearableDevice?.id) {
+      setShowWearablePickerDialog(true);
+      return;
+    }
+    if (wearableCapabilityTier === "fullMetrics" || wearableCapabilityTier === "guidedOnly") {
+      setShowWearablePickerDialog(false);
+      return;
+    }
+    if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected") {
+      setShowWearablePickerDialog(true);
+      return;
+    }
+    if (
+      wearableRuntime.state !== "connecting" &&
+      wearableRuntime.state !== "reconnecting" &&
+      wearableRuntime.state !== "probing" &&
+      wearableRuntime.state !== "idle"
+    ) {
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      if (
+        phaseRef.current === "running" &&
+        (wearableCapabilityTier === "unknown" || wearableCapabilityTier === "unsupported")
+      ) {
+        setShowWearablePickerDialog(true);
+      }
+    }, 2500);
+    return () => clearTimeout(timeoutId);
+  }, [
+    isWearableMode,
+    phase,
+    selectedWearableDevice?.id,
+    wearableCapabilityTier,
+    wearableRuntime.state,
+  ]);
+
+  useEffect(() => {
+    if (!isWearableMode || phase !== "running" || !selectedWearableDevice?.id) return;
+    const timeoutId = setTimeout(() => {
+      if (phaseRef.current !== "running") return;
+      const canonicalBeatCount = pipeline.getCanonicalBeats().length;
+      const liveBpm = pulseBpmLast?.bpm ?? 0;
+      const deviceBpm = wearableRuntime.lastHeartRateBpm ?? 0;
+      const rrPackets = wearableRuntime.rrPacketCount ?? 0;
+      const packets = wearableRuntime.packetCount ?? 0;
+      const looksBroken =
+        (deviceBpm > 0 && liveBpm <= 0) ||
+        canonicalBeatCount < 6 ||
+        (packets >= 4 && rrPackets === 0);
+      if (looksBroken) {
+        setShowWearablePickerDialog(true);
+      }
+    }, 8000);
+    return () => clearTimeout(timeoutId);
+  }, [
+    isWearableMode,
+    phase,
+    pipeline,
+    pulseBpmLast?.bpm,
+    selectedWearableDevice?.id,
+    wearableRuntime.lastHeartRateBpm,
+    wearableRuntime.packetCount,
+    wearableRuntime.rrPacketCount,
+  ]);
 
   // ─── Running: добавляем удары в CoherenceEngine + ведём баннеры качества ─
 
@@ -1995,8 +2095,9 @@ function CoherenceBreathScreenInner({
       const peakDiag = pipeline.getPeakDetectorDiagnostics?.() ?? null;
       const debug: CoherenceExportDebug = {
         fingerSessionKey,
-        sessionTimeBase: useSimulatedPpg ? "unixEpochMs" : "cameraPresentationMs",
-        practicePpgAnchorMs: useSimulatedPpg ? null : sessionStartLogicalMs,
+        sessionTimeBase:
+          useSimulatedPpg || isWearableMode ? "unixEpochMs" : "cameraPresentationMs",
+        practicePpgAnchorMs: useSimulatedPpg || isWearableMode ? null : sessionStartLogicalMs,
         wallClockSessionStartMs: sessionStartWallMs,
         snapshotCallbacksTotal: snapshotCallbacksTotalRef.current,
         snapshotsWhileRunning: snapshotsWhileRunningRef.current,
@@ -2348,6 +2449,22 @@ function CoherenceBreathScreenInner({
     practiceBackgroundEnteredAtRef.current = null;
   }, [clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
 
+  const returnToPracticeOrigin = useCallback(() => {
+    try {
+      router.back();
+    } catch {
+      try {
+        router.replace("/practices");
+      } catch {
+        try {
+          router.replace("/");
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, []);
+
   useEffect(() => {
     applyHardPracticeExitRef.current = applyHardPracticeExit;
   }, [applyHardPracticeExit]);
@@ -2615,6 +2732,7 @@ function CoherenceBreathScreenInner({
       setUseEmulatedPulseMode(forceEmulatedPulse);
       setShowQcFailedDialog(false);
       setShowAutoAbortDialog(false);
+      setShowWearablePickerDialog(false);
       sessionAbortHandledRef.current = false;
       opticalStallAccumMsRef.current = 0;
       lastCameraTsForStallRef.current = null;
@@ -2644,6 +2762,28 @@ function CoherenceBreathScreenInner({
         return;
       }
 
+      if (isWearableMode && selectedWearableDevice?.id && !forceEmulatedPulse) {
+        const now = Date.now();
+        const estCycleMs = computeCycleMsForAnalysis(
+          coherenceShapeRef.current,
+          pulseBpmLast?.medianRrMs,
+        );
+        pipeline.getCoherenceEngine().startSession({
+          sessionStartedAtMs: now,
+          inhaleMs: estCycleMs.inhaleMs,
+          exhaleMs: estCycleMs.exhaleMs,
+          cycleMs: estCycleMs.cycleMs,
+          mode: "test120s",
+          preflightBeats: [],
+          bufferMsBeforeSession: 0,
+        });
+        setSessionStartWallMs(now);
+        setSessionStartLogicalMs(now);
+        setElapsedMs(0);
+        setPhase("running");
+        return;
+      }
+
       warmupStartedAtMs.current = Date.now();
       protocolStartedAtMs.current = Date.now();
       setSessionStartWallMs(null);
@@ -2654,7 +2794,15 @@ function CoherenceBreathScreenInner({
       activationAttemptNumberRef.current = 1;
       setPhase("warmup");
     },
-    [clearPpgBannerUi, isWearableMode, pipeline, pulseBpmLast?.medianRrMs, stopBaselineRamp, useSimulatedPpg],
+    [
+      clearPpgBannerUi,
+      isWearableMode,
+      pipeline,
+      pulseBpmLast?.medianRrMs,
+      selectedWearableDevice?.id,
+      stopBaselineRamp,
+      useSimulatedPpg,
+    ],
   );
 
   useEffect(() => {
@@ -3034,6 +3182,23 @@ function CoherenceBreathScreenInner({
       );
     }
     const elapsedSec = Math.floor(elapsedMs / 1000);
+    if (isWearableMode) {
+      const liveBpm = Math.round(wearableRuntime.lastHeartRateBpm ?? snapshot.pulseRateBpm ?? 0);
+      return (
+        <View style={styles.opticalFooter}>
+          <Text style={styles.opticalCaption}>{selectedWearableDevice?.name ?? str.wearableActivationTitle}</Text>
+          <Text style={styles.opticalMeta}>
+            {str.calibrationPulse}: {liveBpm} уд/мин
+          </Text>
+          <Text style={styles.opticalMetrics}>
+            {wearableCapabilityTier === "guidedOnly" ? str.wearableRunningGuidedOnly : str.wearableReadyFullMetrics}
+          </Text>
+          <Text style={styles.opticalMetricsMuted}>
+            время практики: {elapsedSec} с из {Math.round(practiceTotalMs / 1000)} с
+          </Text>
+        </View>
+      );
+    }
     return (
       <View style={styles.opticalFooter}>
         <Text style={styles.opticalCaption}>{str.opticalSeriesCaption}</Text>
@@ -3056,9 +3221,14 @@ function CoherenceBreathScreenInner({
     snapshot.signalQuality,
     snapshot.fingerDetected,
     snapshot.pulseLockState,
+    isWearableMode,
     liveRsaBpm,
     elapsedMs,
+    practiceTotalMs,
+    selectedWearableDevice?.name,
     str,
+    wearableCapabilityTier,
+    wearableRuntime.lastHeartRateBpm,
   ]);
 
   return (
@@ -3083,28 +3253,8 @@ function CoherenceBreathScreenInner({
           deviceName={selectedWearableDevice?.name}
           initialCapabilityTier={wearableCapabilityTier}
           autoReconnect={autoReconnect}
-          onRuntimeSnapshot={(runtime) => setWearableRuntime(runtime)}
-          onCapabilityResolved={(tier, nextHint) => {
-            setWearableCapabilityTier(tier);
-            if (selectedWearableDevice?.id) {
-              void updateWearablePreferences({
-                preferredSensorMode: "ble",
-                lastDeviceId: selectedWearableDevice.id,
-                lastDeviceName: selectedWearableDevice.name,
-                lastProvider: selectedWearableDevice.provider,
-                lastCapabilityTier: tier,
-              });
-            }
-            setSelectedWearableDevice((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    capabilityTier: tier,
-                    connectionHint: nextHint ?? prev.connectionHint,
-                  }
-                : prev,
-            );
-          }}
+          onRuntimeSnapshot={handleWearableRuntimeSnapshot}
+          onCapabilityResolved={handleWearableCapabilityResolved}
         />
       ) : null}
       {useEmulatedPulseMode && !useSimulatedPpg && !isWearableMode ? (
@@ -3254,11 +3404,9 @@ function CoherenceBreathScreenInner({
                     ? wearableCapabilityTier === "guidedOnly"
                       ? str.wearableReadyGuidedOnly
                       : str.wearableReadyFullMetrics
-                    : scanState === "scanning"
-                      ? str.wearableScanning
-                      : scanError
-                        ? scanError
-                        : str.sensorActivationStableWait
+                    : wearableRuntime.errorMessage
+                      ? wearableRuntime.errorMessage
+                      : str.sensorActivationStableWait
               : str.sensorActivationStableWait}
           </AppText>
           {/*
@@ -3276,69 +3424,21 @@ function CoherenceBreathScreenInner({
             ) : null}
             {isWearableMode ? (
               <View style={styles.wearablePickerCard}>
-                <AppText variant="technicalCaption" tone="muted" style={styles.wearableMetaLine}>
-                  {str.wearableBluetoothLabel}: {bluetoothState}
-                  {selectedWearableDevice?.name ? ` · ${selectedWearableDevice.name}` : ""}
-                  {wearableRuntime.lastHeartRateBpm
-                    ? ` · ${Math.round(wearableRuntime.lastHeartRateBpm)} уд/мин`
-                    : ""}
+                <AppText variant="dialogBody" tone="muted" style={styles.wearableMetaLine}>
+                  {selectedWearableDevice?.name
+                    ? str.wearableActivationSelectedHint(selectedWearableDevice.name)
+                    : str.wearableActivationNoDeviceHint}
                 </AppText>
                 {wearableRuntime.errorMessage ? (
-                  <AppText variant="technicalCaption" tone="muted" style={styles.wearableMetaLine}>
+                  <AppText variant="dialogBody" tone="muted" style={styles.wearableMetaLine}>
                     {wearableRuntime.errorMessage}
-                  </AppText>
-                ) : null}
-                {scannedWearables.slice(0, 6).map((candidate) => {
-                  const active = candidate.id === selectedWearableDevice?.id;
-                  return (
-                    <Pressable
-                      key={candidate.id}
-                      onPress={() => {
-                        setSelectedWearableDevice(candidate);
-                        setWearableCapabilityTier(candidate.capabilityTier);
-                        setWearableRuntime({ state: "idle" });
-                        setSourceKey((value) => value + 1);
-                        void updateWearablePreferences({
-                          preferredSensorMode: "ble",
-                          lastDeviceId: candidate.id,
-                          lastDeviceName: candidate.name,
-                          lastProvider: candidate.provider,
-                          lastCapabilityTier:
-                            candidate.capabilityTier === "unknown" ? null : candidate.capabilityTier,
-                        });
-                      }}
-                      style={[
-                        styles.wearableRow,
-                        {
-                          borderColor: active ? theme.colors.buttonPrimaryBg : theme.colors.surfaceBorder,
-                          backgroundColor: active ? theme.colors.controlButtonBg : theme.colors.surfaceElevated,
-                        },
-                      ]}
-                    >
-                      <AppText variant="dialogBody" tone="primary">
-                        {candidate.name}
-                      </AppText>
-                      <AppText variant="technicalCaption" tone="muted">
-                        {candidate.hasHeartRateService ? "HRS" : "BLE"} · {str.wearableRssiLabel} {candidate.rssi ?? "—"} ·{" "}
-                        {candidate.capabilityTier === "fullMetrics"
-                          ? str.wearableCapabilityMetrics
-                          : candidate.capabilityTier === "guidedOnly"
-                            ? str.wearableCapabilityRhythmOnly
-                            : str.wearableCapabilityProbe}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-                {!scannedWearables.length && scanState !== "scanning" ? (
-                  <AppText variant="technicalCaption" tone="muted" style={styles.wearableMetaLine}>
-                    {str.wearableNoDevicesFound}
                   </AppText>
                 ) : null}
                 <View style={styles.wearableActionRow}>
                   <AppButton
                     variant="secondary"
-                    label={str.wearableRetryScan}
-                    onPress={() => void startScan()}
+                    label={str.wearablePickerTitle}
+                    onPress={() => setShowWearablePickerDialog(true)}
                     style={styles.wearableActionBtn}
                   />
                   <AppButton
@@ -3393,13 +3493,9 @@ function CoherenceBreathScreenInner({
       ) : null}
 
       <AppDialog
-        visible={showQcFailedDialog}
-        title={isWearableMode ? str.wearableQcFailedTitle : str.qcFailedDialogTitle}
-        message={
-          isWearableMode
-            ? str.wearableQcFailedMessage
-            : str.qcFailedDialogMessage
-        }
+        visible={showQcFailedDialog && !isWearableMode}
+        title={str.qcFailedDialogTitle}
+        message={str.qcFailedDialogMessage}
         actionsLayout="column"
         actions={
           <>
@@ -3460,6 +3556,25 @@ function CoherenceBreathScreenInner({
             ) : null}
           </>
         }
+      />
+
+      <WearablePickerDialog
+        visible={showWearablePickerDialog}
+        onClose={() => setShowWearablePickerDialog(false)}
+        onSelect={handleWearableSelected}
+        alertMessage={phase === "running" ? str.wearablePickerFaultyMessage : null}
+        strings={{
+          title: str.wearablePickerTitle,
+          searchHint: str.wearablePickerSearchHint,
+          foundHint: str.wearablePickerFoundHint,
+          notFoundHint: str.wearablePickerNotFoundHint,
+          bluetoothOffHint: str.wearableBluetoothOff,
+          retryButton: str.wearableRetryScan,
+          closeButton: str.wearablePickerCloseButton,
+          selectButton: str.wearablePickerSelectButton,
+          signalLabel: str.wearableRssiLabel,
+          bluetoothStateLabel: str.wearableBluetoothLabel,
+        }}
       />
 
       {phase === "running" && runningUiRevealed ? (
@@ -3571,7 +3686,7 @@ function CoherenceBreathScreenInner({
           onFinish={() => {
             applyHardPracticeExit();
             setShowAutoAbortDialog(false);
-            setPhase("idle");
+            returnToPracticeOrigin();
           }}
         />
       ) : null}
@@ -3601,32 +3716,8 @@ function CoherenceBreathScreenInner({
           launchSource={launchSource}
           onExportJson={exportJson}
           onClose={() => {
-            setPhase("idle");
-            setSessionStartWallMs(null);
-            setSessionStartLogicalMs(null);
-            setAnalysis(null);
-            setExportDebug(null);
-            setFinalRmssdMs(null);
-            setFinalStressPercent(null);
-            setFinalPulseWasEmulated(false);
-            setFinalStartAnalysis(null);
-            setFinalEndAnalysis(null);
-            setFinalStartHrv(null);
-            setFinalEndHrv(null);
-            setFinalStartAvgBpm(null);
-            setFinalEndAvgBpm(null);
-            setFinalStartWindowMs(null);
-            setFinalEndWindowMs(null);
-            hybridPhaseRef.current = "realStart";
-            realStartEndedAtMsRef.current = null;
-            realEndStartedAtMsRef.current = null;
-            hybridControllerRef.current.reset();
-            setElapsedMs(0);
-            try {
-              router.replace("/");
-            } catch {
-              /* если мы не внутри expo-router стека — тихо игнорим */
-            }
+            applyHardPracticeExit();
+            returnToPracticeOrigin();
           }}
         />
       ) : null}

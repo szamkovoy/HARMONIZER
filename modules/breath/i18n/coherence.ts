@@ -142,6 +142,13 @@ export interface CoherenceBreathStrings {
   wearableRunningDisconnected: string;
   wearableQcFailedTitle: string;
   wearableQcFailedMessage: string;
+  wearablePickerTitle: string;
+  wearablePickerSearchHint: string;
+  wearablePickerFoundHint: string;
+  wearablePickerNotFoundHint: string;
+  wearablePickerSelectButton: string;
+  wearablePickerCloseButton: string;
+  wearablePickerFaultyMessage: string;
   /** Отображаемые имена практик (на родном языке). */
   practiceName: Record<BreathPracticeId, string>;
   /** Санскритские подзаголовки практик. */
@@ -295,6 +302,14 @@ const ru: CoherenceBreathStrings = {
   wearableQcFailedTitle: "Пульсометр не готов",
   wearableQcFailedMessage:
     "Не удалось получить устойчивый поток данных от BLE-пульсометра. Вы можете повторить поиск, попробовать другой датчик или продолжить практику без сенсора.",
+  wearablePickerTitle: "Выбор пульсометра",
+  wearablePickerSearchHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
+  wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
+  wearablePickerNotFoundHint: "Пульсометр не найден. Попробуйте повторить поиск.",
+  wearablePickerSelectButton: "Подключить",
+  wearablePickerCloseButton: "Закрыть",
+  wearablePickerFaultyMessage:
+    "Выбранный пульсометр работает некорректно. Чтобы продолжить практику, выберите другой пульсометр.",
   practiceName: {
     coherent: "Когерентное дыхание",
     "nadi-shodhana": "Попеременное дыхание ноздрями",
@@ -439,6 +454,14 @@ const en: CoherenceBreathStrings = {
   wearableQcFailedTitle: "Heart-rate strap is not ready",
   wearableQcFailedMessage:
     "A stable BLE heart-rate stream could not be established. You can retry, try another device, or continue without a sensor.",
+  wearablePickerTitle: "Choose heart-rate monitor",
+  wearablePickerSearchHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
+  wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
+  wearablePickerNotFoundHint: "Heart-rate monitor not found. Try scanning again.",
+  wearablePickerSelectButton: "Connect",
+  wearablePickerCloseButton: "Close",
+  wearablePickerFaultyMessage:
+    "The selected heart-rate monitor is not working correctly. Choose another monitor to continue the practice.",
   practiceName: {
     coherent: "Coherent breathing",
     "nadi-shodhana": "Alternate nostril breathing",

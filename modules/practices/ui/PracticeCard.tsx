@@ -1,5 +1,6 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { clipDurationMinutesToSelectableMinutes } from "@/modules/practices/core/assistantSelectableDurations";
@@ -9,6 +10,8 @@ import {
   updateWearablePreferences,
   useWearablePreferences,
 } from "@/modules/biofeedback/wearables/preferences";
+import { WearablePickerDialog } from "@/modules/biofeedback/wearables/WearablePickerDialog";
+import type { WearableScanCandidate } from "@/modules/biofeedback/wearables/types";
 import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -93,6 +96,13 @@ export const PracticeCard = memo(function PracticeCard({
     practice.kind === "breath" ? wearablePreferences.preferredSensorMode : "fingerCamera",
   );
   const [openField, setOpenField] = useState<SelectField>(null);
+  const [wearablePickerVisible, setWearablePickerVisible] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setOpenField(null);
+    }, []),
+  );
 
   useEffect(() => {
     durationTouchedRef.current = false;
@@ -163,7 +173,37 @@ export const PracticeCard = memo(function PracticeCard({
     return () => controller.abort();
   }, [practice.id, practice.kind, practice.video?.externalId, practice.video?.provider, practice.video?.thumbnail?.url, videoThumbnail?.url]);
 
+  const hasRememberedWearable = Boolean(wearablePreferences.lastDeviceId?.trim());
+  const rememberedWearableName = wearablePreferences.lastDeviceName?.trim() ?? "";
+  const needsWearableSelection =
+    practice.kind === "breath" && selectedSensorMode === "ble" && !hasRememberedWearable;
+
+  const openWearablePicker = () => {
+    setOpenField(null);
+    setWearablePickerVisible(true);
+  };
+
+  const closeWearablePicker = () => {
+    setWearablePickerVisible(false);
+  };
+
+  const selectWearableCandidate = (candidate: WearableScanCandidate) => {
+    setSelectedSensorMode("ble");
+    void updateWearablePreferences({
+      preferredSensorMode: "ble",
+      lastDeviceId: candidate.id,
+      lastDeviceName: candidate.name,
+      lastProvider: candidate.provider,
+      lastCapabilityTier: candidate.capabilityTier === "unknown" ? null : candidate.capabilityTier,
+    });
+    closeWearablePicker();
+  };
+
   const launchConfiguredPractice = () => {
+    if (needsWearableSelection) {
+      openWearablePicker();
+      return;
+    }
     if (practice.kind === "yoga") {
       onLaunch(practice);
       return;
@@ -200,164 +240,198 @@ export const PracticeCard = memo(function PracticeCard({
     selectedSensorMode === "fingerCamera"
       ? strings.sensorCameraOption
       : selectedSensorMode === "ble"
-        ? wearablePreferences.lastDeviceName?.trim()
-          ? wearablePreferences.lastDeviceName.trim()
+        ? rememberedWearableName
+          ? rememberedWearableName
           : strings.sensorBluetoothOption
         : strings.sensorNoneOption;
+  const primaryButtonLabel =
+    practice.kind === "yoga" && remotePlayConnected
+      ? strings.openOnPhone
+      : needsWearableSelection
+        ? strings.findWearableButton
+        : strings.startPractice;
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.colors.surfaceElevated,
-          borderColor: theme.colors.surfaceBorder,
-        },
-      ]}
-    >
-      <View style={styles.headerRow}>
-        <View style={styles.titleBlock}>
-          <AppText variant="sectionTitle">{practice.title}</AppText>
-          {practice.subtitle ? (
-            <AppText variant="technicalCaption" tone="muted">
-              {practice.subtitle}
-            </AppText>
+    <>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            borderColor: theme.colors.surfaceBorder,
+          },
+        ]}
+      >
+        <View style={styles.headerRow}>
+          <View style={styles.titleBlock}>
+            <AppText variant="sectionTitle">{practice.title}</AppText>
+            {practice.subtitle ? (
+              <AppText variant="technicalCaption" tone="muted">
+                {practice.subtitle}
+              </AppText>
+            ) : null}
+          </View>
+        </View>
+
+        {practice.description ? (
+          <AppText variant="dialogBody" tone="muted">
+            {practice.description}
+          </AppText>
+        ) : null}
+
+        {practice.kind === "yoga" ? (
+          <View style={styles.yogaPreviewRow}>
+            <View
+              style={[
+                styles.thumbnailFrame,
+                {
+                  backgroundColor: theme.colors.controlButtonBg,
+                  borderColor: theme.colors.surfaceBorder,
+                },
+              ]}
+            >
+              {yogaThumbnail?.url ? (
+                <Image source={{ uri: yogaThumbnail.url }} style={styles.thumbnailImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.thumbnailPlaceholder}>
+                  <AppText variant="technicalCaption" tone="muted">
+                    {strings.videoLabel}
+                  </AppText>
+                </View>
+              )}
+            </View>
+            <View style={styles.yogaMetaColumn}>
+              <MetaPill label={overrideDurationMinutes ? `${overrideDurationMinutes} ${minSuffix}` : durationLabel(practice, strings)} />
+              <MetaPill label={overrideChakraIndex ? chakraTagLabel(strings.locale, overrideChakraIndex) : chakraLabelForPractice(practice, strings)} />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.options}>
+            <View style={styles.selectableMetaRow}>
+              <DropdownField
+                variant="pill"
+                label={strings.durationLabel}
+                value={`${selectedDurationMin} ${minSuffix}`}
+                open={openField === "duration"}
+                onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
+                options={selectableDurations.map((minutes) => ({
+                  key: String(minutes),
+                  label: `${minutes} ${minSuffix}`,
+                  active: selectedDurationMin === minutes,
+                  onPress: () => {
+                    durationTouchedRef.current = true;
+                    setSelectedDurationMin(minutes);
+                    setOpenField(null);
+                  },
+                }))}
+              />
+              <DropdownField
+                variant="pill"
+                label={strings.chakraLabel}
+                value={chakraTagLabel(strings.locale, selectedChakra)}
+                open={openField === "chakra"}
+                onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
+                options={CHAKRA_OPTIONS.map((chakra) => ({
+                  key: String(chakra),
+                  label: chakraTagLabel(strings.locale, chakra),
+                  active: selectedChakra === chakra,
+                  onPress: () => {
+                    setSelectedChakra(chakra);
+                    setOpenField(null);
+                  },
+                }))}
+              />
+              {practice.kind === "breath" ? (
+                <DropdownField
+                  variant="pill"
+                  label={strings.pulseLabel}
+                  value={sensorDropdownValue}
+                  open={openField === "pulse"}
+                  onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
+                  options={[
+                    {
+                      key: "pulse-camera",
+                      label: strings.sensorCameraOption,
+                      active: selectedSensorMode === "fingerCamera",
+                      onPress: () => {
+                        setSelectedSensorMode("fingerCamera");
+                        void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
+                        setOpenField(null);
+                      },
+                    },
+                    {
+                      key: "pulse-ble",
+                    label: rememberedWearableName || strings.sensorBluetoothOption,
+                      active: selectedSensorMode === "ble",
+                      onPress: () => {
+                        setSelectedSensorMode("ble");
+                        void updateWearablePreferences({ preferredSensorMode: "ble" });
+                        openWearablePicker();
+                      },
+                    },
+                  ...(rememberedWearableName
+                    ? [
+                        {
+                          key: "pulse-ble-other",
+                          label: strings.sensorBluetoothOtherOption,
+                          active: false,
+                          onPress: openWearablePicker,
+                        },
+                      ]
+                    : []),
+                    {
+                      key: "pulse-off",
+                      label: strings.sensorNoneOption,
+                      active: selectedSensorMode === "none",
+                      onPress: () => {
+                        setSelectedSensorMode("none");
+                        void updateWearablePreferences({ preferredSensorMode: "none" });
+                        setOpenField(null);
+                      },
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.buttonRow}>
+          <AppButton
+            label={primaryButtonLabel}
+            onPress={launchConfiguredPractice}
+            style={styles.button}
+          />
+          {practice.kind === "yoga" && remotePlayConnected && onRemotePlay ? (
+            <AppButton
+              label={strings.openOnTv}
+              variant="secondary"
+              onPress={() => onRemotePlay(practice)}
+              disabled={remotePlayDisabled}
+              style={styles.button}
+            />
           ) : null}
         </View>
       </View>
 
-      {practice.description ? (
-        <AppText variant="dialogBody" tone="muted">
-          {practice.description}
-        </AppText>
-      ) : null}
-
-      {practice.kind === "yoga" ? (
-        <View style={styles.yogaPreviewRow}>
-          <View
-            style={[
-              styles.thumbnailFrame,
-              {
-                backgroundColor: theme.colors.controlButtonBg,
-                borderColor: theme.colors.surfaceBorder,
-              },
-            ]}
-          >
-            {yogaThumbnail?.url ? (
-              <Image source={{ uri: yogaThumbnail.url }} style={styles.thumbnailImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.thumbnailPlaceholder}>
-                <AppText variant="technicalCaption" tone="muted">
-                  {strings.videoLabel}
-                </AppText>
-              </View>
-            )}
-          </View>
-          <View style={styles.yogaMetaColumn}>
-            <MetaPill label={overrideDurationMinutes ? `${overrideDurationMinutes} ${minSuffix}` : durationLabel(practice, strings)} />
-            <MetaPill label={overrideChakraIndex ? chakraTagLabel(strings.locale, overrideChakraIndex) : chakraLabelForPractice(practice, strings)} />
-          </View>
-        </View>
-      ) : (
-        <View style={styles.options}>
-          <View style={styles.selectableMetaRow}>
-            <DropdownField
-              variant="pill"
-              label={strings.durationLabel}
-              value={`${selectedDurationMin} ${minSuffix}`}
-              open={openField === "duration"}
-              onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
-              options={selectableDurations.map((minutes) => ({
-                key: String(minutes),
-                label: `${minutes} ${minSuffix}`,
-                active: selectedDurationMin === minutes,
-                onPress: () => {
-                  durationTouchedRef.current = true;
-                  setSelectedDurationMin(minutes);
-                  setOpenField(null);
-                },
-              }))}
-            />
-            <DropdownField
-              variant="pill"
-              label={strings.chakraLabel}
-              value={chakraTagLabel(strings.locale, selectedChakra)}
-              open={openField === "chakra"}
-              onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
-              options={CHAKRA_OPTIONS.map((chakra) => ({
-                key: String(chakra),
-                label: chakraTagLabel(strings.locale, chakra),
-                active: selectedChakra === chakra,
-                onPress: () => {
-                  setSelectedChakra(chakra);
-                  setOpenField(null);
-                },
-              }))}
-            />
-            {practice.kind === "breath" ? (
-              <DropdownField
-                variant="pill"
-                label={strings.pulseLabel}
-                value={sensorDropdownValue}
-                open={openField === "pulse"}
-                onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
-                options={[
-                  {
-                    key: "pulse-camera",
-                    label: strings.sensorCameraOption,
-                    active: selectedSensorMode === "fingerCamera",
-                    onPress: () => {
-                      setSelectedSensorMode("fingerCamera");
-                      void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
-                      setOpenField(null);
-                    },
-                  },
-                  {
-                    key: "pulse-ble",
-                    label: wearablePreferences.lastDeviceName?.trim()
-                      ? `${strings.sensorBluetoothOption} · ${wearablePreferences.lastDeviceName.trim()}`
-                      : strings.sensorBluetoothOption,
-                    active: selectedSensorMode === "ble",
-                    onPress: () => {
-                      setSelectedSensorMode("ble");
-                      void updateWearablePreferences({ preferredSensorMode: "ble" });
-                      setOpenField(null);
-                    },
-                  },
-                  {
-                    key: "pulse-off",
-                    label: strings.sensorNoneOption,
-                    active: selectedSensorMode === "none",
-                    onPress: () => {
-                      setSelectedSensorMode("none");
-                      void updateWearablePreferences({ preferredSensorMode: "none" });
-                      setOpenField(null);
-                    },
-                  },
-                ]}
-              />
-            ) : null}
-          </View>
-        </View>
-      )}
-
-      <View style={styles.buttonRow}>
-        <AppButton
-          label={practice.kind === "yoga" && remotePlayConnected ? strings.openOnPhone : strings.startPractice}
-          onPress={launchConfiguredPractice}
-          style={styles.button}
-        />
-        {practice.kind === "yoga" && remotePlayConnected && onRemotePlay ? (
-          <AppButton
-            label={strings.openOnTv}
-            variant="secondary"
-            onPress={() => onRemotePlay(practice)}
-            disabled={remotePlayDisabled}
-            style={styles.button}
-          />
-        ) : null}
-      </View>
-    </View>
+      <WearablePickerDialog
+        visible={wearablePickerVisible}
+        onClose={closeWearablePicker}
+        onSelect={selectWearableCandidate}
+        strings={{
+          title: strings.wearablePickerTitle,
+          searchHint: strings.wearablePickerHint,
+          foundHint: strings.wearablePickerFoundHint,
+          notFoundHint: strings.wearablePickerNotFound,
+          bluetoothOffHint: strings.wearablePickerBluetoothOff,
+          retryButton: strings.wearablePickerRetry,
+          closeButton: strings.wearablePickerClose,
+          selectButton: strings.wearablePickerSelectButton,
+          signalLabel: strings.wearablePickerSignalLabel,
+          bluetoothStateLabel: strings.wearableBluetoothStateLabel,
+        }}
+      />
+    </>
   );
 });
 

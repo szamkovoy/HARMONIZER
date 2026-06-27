@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { State } from "@sfourdrinier/react-native-ble-plx";
 
 import { getWearableBleManager } from "@/modules/biofeedback/wearables/bleManager";
-import { hasHeartRateServiceUuid } from "@/modules/biofeedback/wearables/heartRateMeasurement";
+import {
+  hasHeartRateServiceUuid,
+  HEART_RATE_SERVICE_UUID,
+} from "@/modules/biofeedback/wearables/heartRateMeasurement";
 import { describeWearableCandidate } from "@/modules/biofeedback/wearables/trustedProfiles";
 import type {
   WearableConnectionState,
@@ -12,6 +15,9 @@ import type {
 
 const NAME_HINT_RE = /(polar|magene|coospo|heart|hrm|h10|h9|h6|h303|h808)/i;
 
+/** iOS часто отдаёт неполный adv-пакет в первый раз; duplicates + окно скана дают полное имя/UUID. */
+const BLE_SCAN_OPTIONS = { allowDuplicates: true } as const;
+
 export function useWearableScanner() {
   const manager = useMemo(() => getWearableBleManager(), []);
   const [bluetoothState, setBluetoothState] = useState<keyof typeof State>("Unknown");
@@ -19,10 +25,17 @@ export function useWearableScanner() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [devices, setDevices] = useState<WearableScanCandidate[]>([]);
   const seenMapRef = useRef<Map<string, WearableScanCandidate>>(new Map());
+  const pendingAutoStartRef = useRef(false);
+  const startScanRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     const subscription = manager.onStateChange((nextState) => {
       setBluetoothState(nextState);
+      if (pendingAutoStartRef.current && nextState === "PoweredOn") {
+        pendingAutoStartRef.current = false;
+        void startScanRef.current?.();
+        return;
+      }
       if (nextState !== "PoweredOn" && scanState === "scanning") {
         setScanState("waitingForBluetooth");
       }
@@ -31,6 +44,7 @@ export function useWearableScanner() {
   }, [manager, scanState]);
 
   const stopScan = useCallback(async () => {
+    pendingAutoStartRef.current = false;
     try {
       await manager.stopDeviceScan();
     } catch {
@@ -43,14 +57,21 @@ export function useWearableScanner() {
     setScanError(null);
     seenMapRef.current = new Map();
     setDevices([]);
+    try {
+      await manager.stopDeviceScan();
+    } catch {
+      // ignore restart races
+    }
     const state = await manager.state();
     setBluetoothState(state);
     if (state !== "PoweredOn") {
+      pendingAutoStartRef.current = true;
       setScanState("waitingForBluetooth");
       return;
     }
+    pendingAutoStartRef.current = false;
     setScanState("scanning");
-    await manager.startDeviceScan(null, null, (error, scannedDevice) => {
+    await manager.startDeviceScan([HEART_RATE_SERVICE_UUID], BLE_SCAN_OPTIONS, (error, scannedDevice) => {
       if (error) {
         setScanError(error.message);
         setScanState("failed");
@@ -62,14 +83,18 @@ export function useWearableScanner() {
       if (!hasHrService && !NAME_HINT_RE.test(name)) {
         return;
       }
+      const previous = seenMapRef.current.get(scannedDevice.id);
       const candidate = describeWearableCandidate({
         id: scannedDevice.id,
-        name,
-        localName: scannedDevice.localName,
-        rssi: scannedDevice.rssi,
-        hasHeartRateService: hasHrService,
-        isConnectable: scannedDevice.isConnectable,
+        name: name || previous?.name || "",
+        localName: scannedDevice.localName ?? previous?.localName,
+        rssi: scannedDevice.rssi ?? previous?.rssi ?? null,
+        hasHeartRateService: hasHrService || (previous?.hasHeartRateService ?? false),
+        isConnectable: scannedDevice.isConnectable ?? previous?.isConnectable ?? null,
       });
+      if (!candidate.name.trim() && !candidate.hasHeartRateService) {
+        return;
+      }
       seenMapRef.current.set(candidate.id, candidate);
       const next = [...seenMapRef.current.values()].sort((left, right) => {
         const leftHr = left.hasHeartRateService ? 1 : 0;
@@ -82,7 +107,12 @@ export function useWearableScanner() {
   }, [manager]);
 
   useEffect(() => {
+    startScanRef.current = startScan;
+  }, [startScan]);
+
+  useEffect(() => {
     return () => {
+      pendingAutoStartRef.current = false;
       void manager.stopDeviceScan();
     };
   }, [manager]);

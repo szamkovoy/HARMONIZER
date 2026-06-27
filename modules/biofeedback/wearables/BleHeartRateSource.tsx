@@ -27,6 +27,7 @@ type BleHeartRateSourceProps = {
 
 const RECONNECT_DELAY_MS = 1500;
 const GUIDED_ONLY_PROBE_PACKETS = 4;
+const RR_TIMELINE_RESET_GAP_MS = 30_000;
 
 export function BleHeartRateSource({
   isActive,
@@ -39,10 +40,21 @@ export function BleHeartRateSource({
 }: BleHeartRateSourceProps) {
   const pipeline = useBiofeedbackPipeline();
   const managerRef = useRef(getWearableBleManager());
+  const runtimeSnapshotHandlerRef = useRef(onRuntimeSnapshot);
+  const capabilityResolvedHandlerRef = useRef(onCapabilityResolved);
+  const initialCapabilityTierRef = useRef(initialCapabilityTier);
+
+  useEffect(() => {
+    runtimeSnapshotHandlerRef.current = onRuntimeSnapshot;
+  }, [onRuntimeSnapshot]);
+
+  useEffect(() => {
+    capabilityResolvedHandlerRef.current = onCapabilityResolved;
+  }, [onCapabilityResolved]);
 
   useEffect(() => {
     if (!isActive || !deviceId) {
-      onRuntimeSnapshot?.({ state: "idle" });
+      runtimeSnapshotHandlerRef.current?.({ state: "idle" });
       return;
     }
 
@@ -52,7 +64,7 @@ export function BleHeartRateSource({
     let disconnectSub: Subscription | null = null;
     let hrMonitorSub: Subscription | null = null;
     let guidedBeatTimer: ReturnType<typeof setInterval> | null = null;
-    let resolvedTier: WearableCapabilityTier = initialCapabilityTier;
+    let resolvedTier: WearableCapabilityTier = initialCapabilityTierRef.current;
     let packetCount = 0;
     let rrPacketCount = 0;
     let disconnectCount = 0;
@@ -66,7 +78,7 @@ export function BleHeartRateSource({
       state: WearableRuntimeSnapshot["state"],
       extra: Partial<WearableRuntimeSnapshot> = {},
     ) => {
-      onRuntimeSnapshot?.({
+      runtimeSnapshotHandlerRef.current?.({
         state,
         deviceId,
         deviceName: deviceName ?? undefined,
@@ -86,7 +98,7 @@ export function BleHeartRateSource({
     const applyCapabilityTier = (nextTier: WearableCapabilityTier, connectionHint?: string) => {
       resolvedTier = nextTier;
       pipeline.setMetricsCapturePaused(nextTier === "guidedOnly" || nextTier === "unsupported");
-      onCapabilityResolved?.(nextTier, connectionHint);
+      capabilityResolvedHandlerRef.current?.(nextTier, connectionHint);
       emitSnapshot(nextTier === "fullMetrics" ? "ready" : "probing", {
         capabilityTier: nextTier,
         connectionHint,
@@ -119,8 +131,14 @@ export function BleHeartRateSource({
     const ingestRrIntervals = (rrIntervalsMs: readonly number[]) => {
       if (!rrIntervalsMs.length) return;
       const nowMs = Date.now();
+      // Сброс только после паузы между BLE-пакетами (wall clock), а не по
+      // `nowMs - lastBeatTimestampMs`: beat-шкала растёт медленнее wall clock
+      // (~1 RR на пакет), и старое условие периодически «перепрыгивало» timeline,
+      // порождая RR 5–10 с и пустую тахограмму (totalValidDataSeconds≈0).
+      const gapSinceLastPacketMs =
+        lastRrAtMs == null ? Number.POSITIVE_INFINITY : nowMs - lastRrAtMs;
       let beatTimestampMs =
-        lastBeatTimestampMs != null && nowMs - lastBeatTimestampMs <= 5000
+        lastBeatTimestampMs != null && gapSinceLastPacketMs <= RR_TIMELINE_RESET_GAP_MS
           ? lastBeatTimestampMs
           : nowMs - rrIntervalsMs.reduce((sum, value) => sum + value, 0);
       for (const rrMs of rrIntervalsMs) {
@@ -159,6 +177,8 @@ export function BleHeartRateSource({
       disconnectSub = connection.onDisconnected((error) => {
         if (disposed) return;
         disconnectCount += 1;
+        lastBeatTimestampMs = null;
+        lastRrAtMs = null;
         emitSnapshot("disconnected", {
           errorMessage: error?.message ?? null,
         });
@@ -233,10 +253,7 @@ export function BleHeartRateSource({
     autoReconnect,
     deviceId,
     deviceName,
-    initialCapabilityTier,
     isActive,
-    onCapabilityResolved,
-    onRuntimeSnapshot,
     pipeline,
   ]);
 

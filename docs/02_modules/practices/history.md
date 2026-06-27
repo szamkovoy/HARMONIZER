@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.19
-updated: 2026-06-24
+version: 1.20
+updated: 2026-06-27
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,12 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-27 (4):** `PracticeCard` now collapses inline duration/chakra/pulse selectors on screen focus (`useFocusEffect`), so returning from a prematurely stopped breath session no longer leaves the duration grid expanded in the catalog or communicator card.
+
+- **2026-06-27 (3):** BLE breathing launch was tightened after device QA. The remembered/just-picked strap path no longer shows the old warmup / quality-check screen: `CoherenceBreathScreen` goes straight to the running practice, while Bluetooth failures within the first seconds now reopen the same shared `WearablePickerDialog` that the catalog card uses. This also removed the duplicated BLE picker UI between the card and the practice screen.
+
+- **2026-06-27 (2):** Breath-card BLE UX moved one step earlier. The pulse-source labels were renamed to `Пульс с телефона` / `Пульсометр Bluetooth` / `Без пульсометра`, and choosing BLE without a remembered strap no longer jumps straight into practice start. `PracticeCard` now swaps the CTA to «Найти пульсометр», opens a small in-card modal scanner, lets the user pick a found model, persists that device into wearable preferences, and only then returns to the normal «Начать практику» flow.
 
 - **2026-06-27:** Breath launch contract moved from binary `usePulseSensor` toward explicit sensor selection: `sensorMode`, remembered BLE device identity (`deviceId` / `deviceName` / `provider`), `capabilityTier`, `autoReconnect`, with `usePulseSensor` kept only for backward-compatible deep links. `PracticeCard` now surfaces `camera / Bluetooth / without sensor`, persists the preferred mode through wearable preferences, and the route `app/breath-coherence.tsx` forwards the richer query payload to `CoherenceBreathScreen`.
 
