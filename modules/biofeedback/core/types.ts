@@ -62,7 +62,7 @@ export interface FrequencyBand {
 
 /** Конфигурация захвата сигнала источником. */
 export interface BiofeedbackCaptureConfig {
-  source: Extract<BiofeedbackSourceKind, "fingerCamera" | "faceCamera">;
+  source: Extract<BiofeedbackSourceKind, "fingerCamera" | "faceCamera" | "wearable">;
   targetFps: number;
   requiresTorch: boolean;
   pulseBand: FrequencyBand;
@@ -104,6 +104,19 @@ export const FACE_CAMERA_CAPTURE_CONFIG: BiofeedbackCaptureConfig = {
   breathBand: { minHz: 0.08, maxHz: 0.5 },
   minPulseBpm: 40,
   maxPulseBpm: 180,
+  minBreathBpm: 5,
+  maxBreathBpm: 30,
+};
+
+/** Дефолтная конфигурация для BLE chest-strap / готовых beat-источников. */
+export const WEARABLE_CAPTURE_CONFIG: BiofeedbackCaptureConfig = {
+  source: "wearable",
+  targetFps: 1,
+  requiresTorch: false,
+  pulseBand: { minHz: 0.5, maxHz: 4.0 },
+  breathBand: { minHz: 0.08, maxHz: 0.6 },
+  minPulseBpm: 30,
+  maxPulseBpm: 220,
   minBreathBpm: 5,
   maxBreathBpm: 30,
 };

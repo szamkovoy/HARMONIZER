@@ -62,7 +62,7 @@ code_refs:
 - **`useAssistantPracticeOverlayDismiss(launchSource)`** — hook для route-обёрток (`breath-coherence`, `sacred-symbol-stream`, `asana-practice`): при `launchSource=assistant` на focus экрана (`useFocusEffect`) после `InteractionManager.runAfterInteractions` + двойного `requestAnimationFrame` вызывает `signalAssistantPracticeScreenMounted()`.
 
 - **`PracticeCard`** (`modules/practices/ui/PracticeCard.tsx`)  
-  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах. Подписи длительности (`от`/`from`, `мин`/`min`) берутся из **`getPracticeCatalogStrings`** (`durationFromPrefix`, `durationMinUnit`), а не из сравнения `locale === "en"`. Значение `overrideDurationMinutes` **клипится** к списку допустимых минут (`**assistantSelectableDurations.ts**`, синхронно с сервером для дыхания 5–20 и медитации 1–5); при клипе — `console.log` с тегом **`[PRACTICE_CARD_MISMATCH]`** (поля в духе серверного JSON плюс **`source: "practice_card_client_sync"`**, `conversationId` обычно `null`). После ручного выбора минут карточка не синхронизирует состояние обратно с catalog/default props, пока не сменилась сама `practice.id`, поэтому пользовательская длительность медитации/дыхания не сбрасывается перед запуском. Дефолт чакры для meditation/breath берётся из `primaryChakra` / `chakraIds`, если поверхность передала дневной фокус.
+  Единый UI-компонент карточки практики для каталога и коммуникатора. Поддерживает override `duration` и, для практик без жёсткой привязки к видео, override `chakra`; локализация и кнопка запуска одинаковы в обоих входах. Подписи длительности (`от`/`from`, `мин`/`min`) берутся из **`getPracticeCatalogStrings`** (`durationFromPrefix`, `durationMinUnit`), а не из сравнения `locale === "en"`. Значение `overrideDurationMinutes` **клипится** к списку допустимых минут (`**assistantSelectableDurations.ts**`, синхронно с сервером для дыхания 5–20 и медитации 1–5); при клипе — `console.log` с тегом **`[PRACTICE_CARD_MISMATCH]`** (поля в духе серверного JSON плюс **`source: "practice_card_client_sync"`**, `conversationId` обычно `null`). После ручного выбора минут карточка не синхронизирует состояние обратно с catalog/default props, пока не сменилась сама `practice.id`, поэтому пользовательская длительность медитации/дыхания не сбрасывается перед запуском. Дефолт чакры для meditation/breath берётся из `primaryChakra` / `chakraIds`, если поверхность передала дневной фокус. Для дыхания карточка теперь дополнительно выбирает `sensorMode = "fingerCamera" | "ble" | "none"`; BLE-вариант подставляет сохранённый `deviceId` / `deviceName` / `provider` / `capabilityTier` / `autoReconnect` из локальных wearable preferences и оставляет старый `usePulseSensor` только как legacy-совместимость для старых deep-link/assistant payload.
 
 ### Утилита `modules/practices/core/assistantSelectableDurations.ts`
 
@@ -82,7 +82,7 @@ code_refs:
 
 ### Роуты приложения (контракт query-параметров)
 
-- **`app/breath-coherence.tsx`** → `CoherenceBreathScreen`: `practiceId` (`BreathPracticeId`), `durationMs`, `chakra` (1–7), `launchSource`, `usePulseSensor` (`"false"` отключает сценарий с пульсометром; иначе по умолчанию включено).
+- **`app/breath-coherence.tsx`** → `CoherenceBreathScreen`: `practiceId` (`BreathPracticeId`), `durationMs`, `chakra` (1–7), `launchSource`, новый launch-контракт `sensorMode`, `deviceId`, `deviceName`, `provider`, `capabilityTier`, `connectionHint`, `autoReconnect`; `usePulseSensor` остаётся backward-compatible флагом (`"false"` трактуется как `sensorMode = "none"`).
 
 - **`app/sacred-symbol-stream.tsx`** → `SacredSymbolStreamScreen`: `durationMs`, `chakra`, `launchSource`. Параметр **`practiceId` из каталога не читается** (в каталоге одна медитация). При `launchSource = "assistant" | "day"` завершение медитации возвращает пользователя на `/day`, а не назад на предыдущий экран, чтобы после ассистентской рекомендации пользователь попадал во вкладку «День».
 
@@ -90,7 +90,7 @@ code_refs:
 
 ### Дыхательный движок `modules/breath` (исполнение, не barrel `practices`)
 
-- **`CoherenceBreathScreen`** (пропсы см. компонент): мандала + звук + опционально PPG; по завершении пишет **`metrics`** из исхода дыхания (`outcomeToCommunicatorPayload`) в `practice_sessions`.
+- **`CoherenceBreathScreen`** (пропсы см. компонент): мандала + звук + сенсорный режим `fingerCamera | ble | none`; BLE-сценарий может стартовать с remembered chest strap, сканировать стандартный Heart Rate Service на самом экране активации и по завершении так же пишет **`metrics`** из исхода дыхания (`outcomeToCommunicatorPayload`) в `practice_sessions`.
 
 - Экспортируемые типы/константы для каталога и роутов: **`BreathPracticeId`**, **`Chakra`**, **`BREATH_PRACTICES`**, **`isChakra`**, и т.д. (`modules/breath/index.ts`).
 

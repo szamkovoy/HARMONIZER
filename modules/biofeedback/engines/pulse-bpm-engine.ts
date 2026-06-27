@@ -33,6 +33,7 @@ export interface PulseBpmInput {
   timestampMs: number;
   /** Полный отсортированный merged-ряд ударов. */
   mergedBeats: readonly number[];
+  sourceKind?: "fingerCamera" | "wearable" | "simulated" | "emulated" | "none";
 }
 
 export interface PulseBpmSnapshot {
@@ -82,10 +83,16 @@ export function buildRrMeasurements(beats: readonly number[]): RrMeasurement[] {
  * жёсткий диапазон + последовательный фильтр (после `RR_SEQUENCE_MIN_CONTEXT` принятых,
  * каждый следующий проверяется по медиане окна `RR_SEQUENCE_WINDOW_SIZE`).
  */
-export function filterPulseRrMeasurements(measurements: readonly RrMeasurement[]): RrMeasurement[] {
+export function filterPulseRrMeasurements(
+  measurements: readonly RrMeasurement[],
+  sourceKind: PulseBpmInput["sourceKind"] = "fingerCamera",
+): RrMeasurement[] {
   const accepted: RrMeasurement[] = [];
+  const hardMin = sourceKind === "wearable" ? 300 : PULSE_RR_MIN_MS;
+  const hardMax = sourceKind === "wearable" ? 2000 : PULSE_RR_MAX_MS;
+  const deviationRatio = sourceKind === "wearable" ? 0.22 : PULSE_RR_DEVIATION_RATIO;
   for (const m of measurements) {
-    if (m.intervalMs < PULSE_RR_MIN_MS || m.intervalMs > PULSE_RR_MAX_MS) {
+    if (m.intervalMs < hardMin || m.intervalMs > hardMax) {
       continue;
     }
     if (accepted.length >= RR_SEQUENCE_MIN_CONTEXT) {
@@ -93,7 +100,7 @@ export function filterPulseRrMeasurements(measurements: readonly RrMeasurement[]
       const med = median(recent);
       const allowed = Math.max(
         RR_SEQUENCE_MIN_ALLOWED_DELTA_MS,
-        med * PULSE_RR_DEVIATION_RATIO,
+        med * deviationRatio,
       );
       if (Math.abs(m.intervalMs - med) > allowed) {
         continue;
@@ -147,9 +154,9 @@ export class PulseBpmEngine {
   private recentDisplayCandidates: Array<{ timestampMs: number; bpm: number; reliable: boolean }> = [];
 
   push(input: PulseBpmInput): PulseBpmSnapshot {
-    const { timestampMs, mergedBeats } = input;
+    const { timestampMs, mergedBeats, sourceKind = "fingerCamera" } = input;
     const all = buildRrMeasurements(mergedBeats);
-    const filtered = filterPulseRrMeasurements(all);
+    const filtered = filterPulseRrMeasurements(all, sourceKind);
     const filteredBeatTimestampsMs = buildFilteredBeatTimestamps(filtered);
     const window = selectRecentRrMeasurements(filtered, timestampMs, PULSE_WINDOW_MS);
 

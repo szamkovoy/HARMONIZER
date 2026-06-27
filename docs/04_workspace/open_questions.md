@@ -64,6 +64,13 @@ code_refs: []
 
 - После переноса источников в `docs/05_archive/migrated/bindu/` в репозитории остаются **устаревшие пути** в инвентарных файлах (например `docs/_audit.md`), где ещё перечислены `docs/meditation_video_generator_spec.md`, `docs/modules/bindu_succession_lab.md`, `docs/modules/visual_module_map.md`. Нужна отдельная правка аудита или ссылка на новый канон `docs/02_modules/bindu/`*, вне scope одной миграции модуля.
 
+## `biofeedback` / `practices`
+
+- **Порог trusted accuracy для generic BLE HRM пока продуктово не закреплён**  
+**Контекст:** `modules/biofeedback/wearables/trustedProfiles.ts` даёт `fullMetrics` только для явно доверенных Polar-профилей, а все прочие BLE chest straps идут через generic probe (`RR -> fullMetrics`, HR-only -> `guidedOnly`). UI и pipeline уже умеют работать по capability tiers, но сами пороги доверия и список «точно validated» устройств пока intentionally conservative.  
+**Проявление:** Magene / Coospo и другие совместимые ремни могут фактически давать пригодный RR для дыхания и даже для HRV, но сейчас приложение не обещает им тот же уровень доверия, что Polar H10/H9, пока не появятся собственные сравнительные замеры с Kubios / внешними приложениями.  
+**Действие:** после серии реальных тестов (Polar H10 как baseline, затем Magene / Coospo / прочие) решить, какие модели переводим в trusted profiles, нужны ли отдельные thresholds для `fullMetrics`, и документировать это решение синхронно в `biofeedback/spec.md` и `practices/spec.md`.
+
 ## `audio` / `bindu` (пакетные границы)
 
 - **Встречные импорты `mandala-sound` ↔ `modules/mandala`**  

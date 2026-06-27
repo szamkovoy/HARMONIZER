@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-27:** Practices/Breath typed strings now cover BLE pulse-source selection and chest-strap activation copy in the breathing flow. The implementation intentionally relies on the existing typed EN-base fallback for locales whose dedicated overlays were not expanded yet, so the UI stays coherent across all 8 locales while device-specific wording is still being refined.
+
 - **2026-06-26:** Free astrology localization hardening. `mathLevelI18n.ts` / `mathLevelI18nTargets.ts` now localize deterministic free-math labels all the way down to planets, zodiac signs, aspects, `orb`, `gravity`, and tone names across RU/EN/DE/FR/IT/ES/PT/NL, while `ModalAstroChart` reads zodiac sign names from `home.ts` typed strings instead of hardcoded English. `fetchGlobalContent` direct DB fallback mirrors the same locale behavior by rebuilding transit-only `math_level.markdown` from the structured payload and normalizing legacy chakra proper names to numeric labels in visible text.
 
 - **2026-06-23:** Home typed overlays **`planetLabels`** теперь также питают подпись в центре **`ChakraFlower`** (вместо charts `strengthLabel`).

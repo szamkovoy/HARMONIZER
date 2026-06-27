@@ -18,6 +18,13 @@ function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, st
       practiceId: launch.practiceId,
       durationMs: String(launch.durationMs),
       chakra: String(launch.chakra),
+      ...(launch.sensorMode ? { sensorMode: launch.sensorMode } : {}),
+      ...(launch.deviceId ? { deviceId: launch.deviceId } : {}),
+      ...(launch.deviceName ? { deviceName: launch.deviceName } : {}),
+      ...(launch.provider ? { provider: launch.provider } : {}),
+      ...(launch.capabilityTier ? { capabilityTier: launch.capabilityTier } : {}),
+      ...(launch.connectionHint ? { connectionHint: launch.connectionHint } : {}),
+      ...(typeof launch.autoReconnect === "boolean" ? { autoReconnect: String(launch.autoReconnect) } : {}),
       ...(typeof launch.usePulseSensor === "boolean" ? { usePulseSensor: String(launch.usePulseSensor) } : {}),
     };
   }

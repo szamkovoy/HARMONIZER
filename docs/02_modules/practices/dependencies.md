@@ -36,7 +36,7 @@ code_refs:
   Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` forecast-метаданные дня; серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня и вернуть coherent breathing на чакру дня. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
 
 - **`biofeedback`**  
-  `app/breath-coherence.tsx` → **`CoherenceBreathScreen`** — PPG / pipeline и запись **`metrics`** в `practice_sessions`. Медитация **`SacredSymbolStreamScreen`** biofeedback не использует. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.
+  `app/breath-coherence.tsx` → **`CoherenceBreathScreen`** — PPG / BLE pipeline, wearable preferences (`modules/biofeedback/wearables/preferences.ts`) и запись **`metrics`** в `practice_sessions`. `PracticeCard.tsx` читает remembered BLE-датчик из biofeedback-модуля, чтобы запекать `sensorMode/deviceId/capabilityTier` в launch-контракт. Медитация **`SacredSymbolStreamScreen`** biofeedback не использует. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.
 
 - **`audio`**  
   `CoherenceBreathScreen` и `SacredSymbolStreamScreen` монтируют **`MandalaSoundProvider`**; план фаз (`PlannedCycle`) — из **`modules/breath/core/breath-phase-planner.ts`** (подсценарий practices). Парная запись: `docs/02_modules/audio/dependencies.md` §1.

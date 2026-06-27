@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-27:** Breath launch contract moved from binary `usePulseSensor` toward explicit sensor selection: `sensorMode`, remembered BLE device identity (`deviceId` / `deviceName` / `provider`), `capabilityTier`, `autoReconnect`, with `usePulseSensor` kept only for backward-compatible deep links. `PracticeCard` now surfaces `camera / Bluetooth / without sensor`, persists the preferred mode through wearable preferences, and the route `app/breath-coherence.tsx` forwards the richer query payload to `CoherenceBreathScreen`.
+
 - **2026-06-24 (4):** Non-tab and fullscreen practice surfaces moved onto shared UI ownership. `app/asana-practice.tsx` now uses shared `StackScreenLayout`, `StackScrollView`, `SurfaceCardView`, `ScreenHeader`, and `FloatingCloseButton`; assistant fullscreen wrappers on Home/Day are routed through one shared `AssistantModalShell`; immersive practice chrome starts converging on shared close / stop-confirm / overlay-autohide primitives instead of per-screen copies.
 
 - **2026-06-24:** Practices catalog yoga path now keeps a per-locale local snapshot (`services/practiceCatalogCache.ts`) and seeds `loadPracticeCatalog({ initialYoga })` from it before hitting Supabase. Result: повторное открытие вкладки «Практики» показывает уже известные асаны мгновенно, фоновой revalidate больше не сбрасывает список в пустое состояние, а object-shaped ошибки Supabase сериализуются в читаемый текст вместо `"[object Object]"`.

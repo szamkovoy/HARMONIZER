@@ -6,6 +6,7 @@ import { CoherenceBreathScreen } from "@/modules/breath/ui/CoherenceBreathScreen
 import { isChakra, type Chakra } from "@/modules/breath/core/chakra";
 import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
+import type { WearableDeviceProvider } from "@/modules/practices/core/types";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 /**
@@ -26,6 +27,13 @@ export default function BreathCoherenceRoute() {
     durationMs?: string;
     chakra?: string;
     launchSource?: string;
+    sensorMode?: string;
+    deviceId?: string;
+    deviceName?: string;
+    provider?: string;
+    capabilityTier?: string;
+    connectionHint?: string;
+    autoReconnect?: string;
     usePulseSensor?: string;
   }>();
   const { locale: appLocale } = useAppLocale();
@@ -71,6 +79,25 @@ export default function BreathCoherenceRoute() {
         durationMs={durationMs}
         chakra={chakra}
         launchSource={launchSource}
+        sensorMode={
+          params.sensorMode === "ble" || params.sensorMode === "none" || params.sensorMode === "fingerCamera"
+            ? params.sensorMode
+            : undefined
+        }
+        deviceId={typeof params.deviceId === "string" ? params.deviceId : undefined}
+        deviceName={typeof params.deviceName === "string" ? params.deviceName : undefined}
+        provider={
+          params.provider === "polar" ||
+          params.provider === "magene" ||
+          params.provider === "coospo" ||
+          params.provider === "genericHrs" ||
+          params.provider === "unknown"
+            ? (params.provider as WearableDeviceProvider)
+            : undefined
+        }
+        capabilityTier={typeof params.capabilityTier === "string" ? params.capabilityTier : undefined}
+        connectionHint={typeof params.connectionHint === "string" ? params.connectionHint : undefined}
+        autoReconnect={params.autoReconnect !== "false"}
         usePulseSensor={params.usePulseSensor !== "false"}
       />
     </>

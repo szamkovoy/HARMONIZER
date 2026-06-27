@@ -348,6 +348,17 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
         practiceId: (launchParams.practiceId ?? slug) as never,
         durationMs: overrideDurationSec != null ? overrideDurationSec * 1000 : durationMs ?? (practice.durationSec ?? 600) * 1000,
         chakra: (chakra ?? baseChakra ?? 4) as NonNullable<PracticeLaunchParams["chakra"]>,
+        sensorMode:
+          launchParams.sensorMode === "ble" || launchParams.sensorMode === "none" || launchParams.sensorMode === "fingerCamera"
+            ? launchParams.sensorMode
+            : undefined,
+        deviceId: typeof launchParams.deviceId === "string" ? launchParams.deviceId : undefined,
+        deviceName: typeof launchParams.deviceName === "string" ? launchParams.deviceName : undefined,
+        provider: typeof launchParams.provider === "string" ? launchParams.provider as never : undefined,
+        capabilityTier:
+          typeof launchParams.capabilityTier === "string" ? launchParams.capabilityTier as never : undefined,
+        connectionHint: typeof launchParams.connectionHint === "string" ? launchParams.connectionHint : undefined,
+        autoReconnect: launchParams.autoReconnect !== "false",
         usePulseSensor: launchParams.usePulseSensor !== "false",
       },
     };
@@ -425,6 +436,15 @@ function summaryToPractice(practice: PracticePicked, configured: PracticeSummary
           practiceId: configured.launch.practiceId,
           durationMs: String(configured.launch.durationMs),
           chakra: String(configured.launch.chakra),
+          ...(configured.launch.sensorMode ? { sensorMode: configured.launch.sensorMode } : {}),
+          ...(configured.launch.deviceId ? { deviceId: configured.launch.deviceId } : {}),
+          ...(configured.launch.deviceName ? { deviceName: configured.launch.deviceName } : {}),
+          ...(configured.launch.provider ? { provider: configured.launch.provider } : {}),
+          ...(configured.launch.capabilityTier ? { capabilityTier: configured.launch.capabilityTier } : {}),
+          ...(configured.launch.connectionHint ? { connectionHint: configured.launch.connectionHint } : {}),
+          ...(typeof configured.launch.autoReconnect === "boolean"
+            ? { autoReconnect: String(configured.launch.autoReconnect) }
+            : {}),
           ...(typeof configured.launch.usePulseSensor === "boolean"
             ? { usePulseSensor: String(configured.launch.usePulseSensor) }
             : {}),

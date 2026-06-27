@@ -423,7 +423,7 @@ export class CoherenceEngine {
   buildExportJson(
     sessionEndedAtMs: number,
     options?: {
-      dataSource?: "fingerPpg" | "simulated";
+      dataSource?: "fingerPpg" | "simulated" | "wearable";
       debug?: CoherenceExportDebug;
       pulseLog?: readonly CoherencePulseLogEntry[];
     },

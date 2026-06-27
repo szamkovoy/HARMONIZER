@@ -23,6 +23,7 @@
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/native": "^7.1.8",
     "@sentry/react-native": "^8.9.2",
+    "@sfourdrinier/react-native-ble-plx": "^3.7.10",
     "@shopify/flash-list": "^2.0.3",
     "@shopify/react-native-skia": "2.2.12",
     "@supabase/supabase-js": "^2.101.1",

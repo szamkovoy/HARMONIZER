@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-06-27 (3):** Expo prebuild contract expanded for BLE chest straps. `package.json` now includes `@sfourdrinier/react-native-ble-plx`, and `app.config.ts` wires the BLE config plugin plus iOS `NSBluetoothAlwaysUsageDescription` and Android `BLUETOOTH(_SCAN/_CONNECT)` permissions. Result: Polar/generic BLE HRM support is available in dev-client / prebuild builds, while Expo Go remains unsupported for that path.
+
 - **2026-06-27 (2):** `precompute-daily-forecasts` bundling fix: cron function no longer imports `modules/daily-engine` or `_legacy_web/*` across the repo root (Supabase remote bundler cannot resolve those paths). Morning precompute now uses `_shared/dailyForecast.ts` for `computeActivation` / aspect weights, plus Edge copies of `contentLengths`, `mathLevelI18n` (+ targets) and `contentLocales`. Deploy unblocked for paid `scenario_cache` pre-warm.
 
 - **2026-06-27:** Supabase Edge bundler fix for shared ephemeris: `supabase/functions/_shared/dailyForecast.ts` switched `astronomia` imports from bare package paths to `https://esm.sh/astronomia@4.2.0/...`, unblocking deploy of `precompute-global-recommendations` (and any function importing the shared module). `supabase/functions/deno.json` now includes `astronomia/base`; Vitest parity aliases cover the new `base` URL.

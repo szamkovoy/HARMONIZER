@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-27:** Added the first BLE chest-strap path without forking downstream metrics. New `modules/biofeedback/wearables/*` handles scan / connect / Heart Rate Service parsing (`180D` / `2A37`), pipes RR into `BiofeedbackPipeline.pushBeatEvent(...)`, and pauses metrics automatically for `guidedOnly` heart-rate-only devices. Trusted Polar profiles (`H10`, `H9`) get a separate `polarEnhanced` capability hint, but still feed the same canonical pipeline/coherence/export path as camera PPG.
+
 - **2026-06-24:** Immersive breath/mandala chrome started moving into shared UI ownership without touching the sensing engines. Close controls, overlay auto-hide and stop-confirm dialog now have shared primitives in `modules/ui/`; `CoherenceBreathScreen` already consumes the shared stop-confirm/close path, while domain logic (PPG pipeline, coherence FSM, export/metrics) stays fully inside `breath`/`biofeedback`.
 
 - **2026-05:** Архитектура «сенсор → signal/quality → отдельные engines → `BiofeedbackBus` → React» зафиксирована в коде и ранее описана в перенесённом `docs/05_archive/migrated/biofeedback/biofeedback-architecture.md`; канон остаётся в репозитории модулей, не в корневых `docs/*.md`.

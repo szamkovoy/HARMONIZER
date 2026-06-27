@@ -119,6 +119,29 @@ export interface CoherenceBreathStrings {
   practicePickerTitle: string;
   /** Универсальная кнопка «Отменить». */
   cancelButton: string;
+  wearableIdleHint: string;
+  wearableIdleStartButton: string;
+  wearableActivationTitle: string;
+  wearableActivationSelectedHint: (deviceName: string) => string;
+  wearableActivationNoDeviceHint: string;
+  wearableBluetoothOff: string;
+  wearableConnecting: string;
+  wearableReadyGuidedOnly: string;
+  wearableReadyFullMetrics: string;
+  wearableScanning: string;
+  wearableBluetoothLabel: string;
+  wearableRssiLabel: string;
+  wearableCapabilityMetrics: string;
+  wearableCapabilityRhythmOnly: string;
+  wearableCapabilityProbe: string;
+  wearableNoDevicesFound: string;
+  wearableRetryScan: string;
+  wearableUseCamera: string;
+  wearableRunningReconnect: string;
+  wearableRunningGuidedOnly: string;
+  wearableRunningDisconnected: string;
+  wearableQcFailedTitle: string;
+  wearableQcFailedMessage: string;
   /** Отображаемые имена практик (на родном языке). */
   practiceName: Record<BreathPracticeId, string>;
   /** Санскритские подзаголовки практик. */
@@ -245,6 +268,33 @@ const ru: CoherenceBreathStrings = {
   baseBeatsAccessibilityLabel: "Количество ударов пульса на фазу дыхания",
   practicePickerTitle: "Тип дыхательной практики",
   cancelButton: "Отменить",
+  wearableIdleHint: "Подключите нагрудный BLE-пульсометр или переключитесь на камеру телефона.",
+  wearableIdleStartButton: "Подключить пульсометр",
+  wearableActivationTitle: "Подключение пульсометра",
+  wearableActivationSelectedHint: (deviceName) =>
+    `Выбран датчик: ${deviceName}. Держите ремень на груди и дождитесь устойчивого потока пульса.`,
+  wearableActivationNoDeviceHint:
+    "Найдите и выберите BLE-пульсометр. Подключение выполняется внутри приложения, а не через системный список Bluetooth-устройств.",
+  wearableBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
+  wearableConnecting: "Подключаемся к датчику...",
+  wearableReadyGuidedOnly: "Датчик подключен. Будем вести практику по пульсу без HRV-метрик.",
+  wearableReadyFullMetrics: "Датчик подключен. Полные биометрические метрики доступны.",
+  wearableScanning: "Ищем совместимые пульсометры поблизости...",
+  wearableBluetoothLabel: "Bluetooth",
+  wearableRssiLabel: "RSSI",
+  wearableCapabilityMetrics: "метрики",
+  wearableCapabilityRhythmOnly: "только ритм",
+  wearableCapabilityProbe: "проверка",
+  wearableNoDevicesFound:
+    "Подходящие BLE-пульсометры пока не найдены. Повторите поиск или выберите камеру телефона.",
+  wearableRetryScan: "Повторить поиск",
+  wearableUseCamera: "Камера",
+  wearableRunningReconnect: "Пульсометр переподключается…",
+  wearableRunningGuidedOnly: "Метрики HRV отключены: датчик ведёт только ритм дыхания.",
+  wearableRunningDisconnected: "Связь с пульсометром потеряна.",
+  wearableQcFailedTitle: "Пульсометр не готов",
+  wearableQcFailedMessage:
+    "Не удалось получить устойчивый поток данных от BLE-пульсометра. Вы можете повторить поиск, попробовать другой датчик или продолжить практику без сенсора.",
   practiceName: {
     coherent: "Когерентное дыхание",
     "nadi-shodhana": "Попеременное дыхание ноздрями",
@@ -362,6 +412,33 @@ const en: CoherenceBreathStrings = {
   baseBeatsAccessibilityLabel: "Pulse beats per breathing phase",
   practicePickerTitle: "Breathing practice",
   cancelButton: "Cancel",
+  wearableIdleHint: "Connect a BLE chest strap or switch back to the phone camera.",
+  wearableIdleStartButton: "Connect heart strap",
+  wearableActivationTitle: "Connect heart-rate strap",
+  wearableActivationSelectedHint: (deviceName) =>
+    `Selected device: ${deviceName}. Keep the strap on your chest and wait for a stable pulse stream.`,
+  wearableActivationNoDeviceHint:
+    "Scan and select a BLE heart-rate strap. Connection is handled inside the app, not through the system Bluetooth device list.",
+  wearableBluetoothOff: "Bluetooth is off. Turn it on and try scanning again.",
+  wearableConnecting: "Connecting to the sensor...",
+  wearableReadyGuidedOnly: "Sensor connected. Breathing will follow pulse, but HRV metrics stay off.",
+  wearableReadyFullMetrics: "Sensor connected. Full biometric metrics are available.",
+  wearableScanning: "Scanning for compatible heart-rate straps nearby...",
+  wearableBluetoothLabel: "Bluetooth",
+  wearableRssiLabel: "RSSI",
+  wearableCapabilityMetrics: "metrics",
+  wearableCapabilityRhythmOnly: "rhythm only",
+  wearableCapabilityProbe: "probe",
+  wearableNoDevicesFound:
+    "No suitable BLE heart-rate straps have been found yet. Retry the scan or switch to the phone camera.",
+  wearableRetryScan: "Scan again",
+  wearableUseCamera: "Camera",
+  wearableRunningReconnect: "Heart-rate strap is reconnecting…",
+  wearableRunningGuidedOnly: "HRV metrics are paused: this sensor currently drives rhythm only.",
+  wearableRunningDisconnected: "Connection to the heart-rate strap was lost.",
+  wearableQcFailedTitle: "Heart-rate strap is not ready",
+  wearableQcFailedMessage:
+    "A stable BLE heart-rate stream could not be established. You can retry, try another device, or continue without a sensor.",
   practiceName: {
     coherent: "Coherent breathing",
     "nadi-shodhana": "Alternate nostril breathing",

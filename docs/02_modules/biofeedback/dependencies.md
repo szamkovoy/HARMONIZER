@@ -21,7 +21,7 @@ code_refs:
 ## 1. Зависит от
 
 - **`infra`**  
-  Expo/React Native: `expo-camera`, torch, `expo-file-system` для экспорта сессий, `expo-keep-awake`, Reanimated, runtime diagnostics. Опционально нативный пакет `modules/biofeedback-finger-frame-processor` (JSI) — см. импорты в `CoherenceBreathScreen.tsx`.
+  Expo/React Native: `expo-camera`, torch, `expo-file-system` для экспорта сессий, `expo-keep-awake`, Reanimated, runtime diagnostics и BLE runtime `@sfourdrinier/react-native-ble-plx` (config plugin + native permissions в `app.config.ts`). Опционально нативный пакет `modules/biofeedback-finger-frame-processor` (JSI) — см. импорты в `CoherenceBreathScreen.tsx`.
 
 - **`bindu` (типовой контракт)**  
   `MandalaBioFrameAdapter` импортирует `BioSignalFrame` из `modules/mandala/core/types.ts`. Слой mandala не импортирует biofeedback обратно; связь односторонняя от адаптера к типам визуализации.
@@ -41,7 +41,7 @@ code_refs:
   `BreathBinduMandala` использует снимок биосигнала через адаптер; в `02_modules/bindu/dependencies.md` перечислена зависимость адаптера от типов mandala.
 
 - **`practices`**  
-  `app/breath-coherence.tsx` → `CoherenceBreathScreen` монтирует весь pipeline и звук/мандалу.
+  `app/breath-coherence.tsx` → `CoherenceBreathScreen` монтирует весь pipeline и звук/мандалу; `PracticeCard.tsx` читает/saves wearable preferences и передаёт в route `sensorMode`, device identity и capability tier. Парная запись: `docs/02_modules/practices/dependencies.md` §1.
 
 ## 3. Контрактные точки риска
 

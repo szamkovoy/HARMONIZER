@@ -2,6 +2,9 @@ import type { Chakra } from "@/modules/breath";
 import type { BreathPracticeId } from "@/modules/breath";
 
 export type PracticeKind = "meditation" | "breath" | "yoga";
+export type BreathSensorMode = "fingerCamera" | "ble" | "none";
+export type WearableCapabilityTier = "unknown" | "fullMetrics" | "guidedOnly" | "unsupported";
+export type WearableDeviceProvider = "genericHrs" | "polar" | "magene" | "coospo" | "unknown";
 
 export type PracticeDurationPolicy = "fixed" | "user_selectable";
 
@@ -27,6 +30,16 @@ export interface PracticeVideoThumbnail {
   height: number;
 }
 
+export interface BreathWearableSelection {
+  sensorMode: BreathSensorMode;
+  deviceId?: string;
+  deviceName?: string;
+  provider?: WearableDeviceProvider;
+  capabilityTier?: WearableCapabilityTier;
+  connectionHint?: string;
+  autoReconnect?: boolean;
+}
+
 export type PracticeLaunchParams =
   | {
       kind: "breath";
@@ -34,6 +47,14 @@ export type PracticeLaunchParams =
       practiceId: BreathPracticeId;
       durationMs: number;
       chakra: Chakra;
+      sensorMode?: BreathSensorMode;
+      deviceId?: string;
+      deviceName?: string;
+      provider?: WearableDeviceProvider;
+      capabilityTier?: WearableCapabilityTier;
+      connectionHint?: string;
+      autoReconnect?: boolean;
+      /** Legacy param kept for existing deep links and assistant payloads. */
       usePulseSensor?: boolean;
     }
   | {

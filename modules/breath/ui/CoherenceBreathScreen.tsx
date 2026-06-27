@@ -40,11 +40,27 @@ import {
   computePracticeHrvMetricsFullSession,
   type PracticeHrvMetricsResult,
 } from "@/modules/biofeedback/core/metrics";
-import { FINGER_CAMERA_CAPTURE_CONFIG } from "@/modules/biofeedback/core/types";
+import {
+  FINGER_CAMERA_CAPTURE_CONFIG,
+  WEARABLE_CAPTURE_CONFIG,
+} from "@/modules/biofeedback/core/types";
 import { EmulatedPulseSensorSource } from "@/modules/biofeedback/sensors/EmulatedPulseSensorSource";
 import { FingerPpgCameraSource } from "@/modules/biofeedback/sensors/FingerPpgCameraSource";
 import { SimulatedSensorSource } from "@/modules/biofeedback/sensors/SimulatedSensorSource";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
+import { BleHeartRateSource } from "@/modules/biofeedback/wearables/BleHeartRateSource";
+import {
+  updateWearablePreferences,
+  useWearablePreferences,
+} from "@/modules/biofeedback/wearables/preferences";
+import type {
+  BreathSensorMode,
+  WearableCapabilityTier,
+  WearableDeviceProvider,
+  WearableRuntimeSnapshot,
+  WearableScanCandidate,
+} from "@/modules/biofeedback/wearables/types";
+import { useWearableScanner } from "@/modules/biofeedback/wearables/useWearableScanner";
 
 import {
   COHERENCE_PREFLIGHT_BUFFER_MS,
@@ -306,6 +322,13 @@ function CoherenceBreathScreenInner({
   durationMs,
   chakra,
   launchSource,
+  sensorMode,
+  deviceId,
+  deviceName,
+  provider,
+  capabilityTier,
+  connectionHint,
+  autoReconnect = true,
   usePulseSensor = true,
 }: {
   locale: BreathLocale;
@@ -313,6 +336,13 @@ function CoherenceBreathScreenInner({
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
   launchSource?: string;
+  sensorMode?: BreathSensorMode;
+  deviceId?: string;
+  deviceName?: string;
+  provider?: WearableDeviceProvider;
+  capabilityTier?: string;
+  connectionHint?: string;
+  autoReconnect?: boolean;
   usePulseSensor?: boolean;
 }) {
   /**
@@ -334,6 +364,48 @@ function CoherenceBreathScreenInner({
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
   const pipeline = useBiofeedbackPipeline();
   const bus = useBiofeedbackBus();
+  const wearablePreferences = useWearablePreferences();
+  const { bluetoothState, scanState, scanError, devices: scannedWearables, startScan, stopScan } =
+    useWearableScanner();
+  const resolvedSensorMode: BreathSensorMode =
+    sensorMode === "ble" || sensorMode === "none" || sensorMode === "fingerCamera"
+      ? sensorMode
+      : usePulseSensor === false
+        ? "none"
+        : "fingerCamera";
+  const isWearableMode = resolvedSensorMode === "ble";
+  const initialCapabilityTierResolved: WearableCapabilityTier =
+    capabilityTier === "fullMetrics" ||
+    capabilityTier === "guidedOnly" ||
+    capabilityTier === "unsupported" ||
+    capabilityTier === "unknown"
+      ? capabilityTier
+      : wearablePreferences.lastCapabilityTier ?? "unknown";
+  const [selectedWearableDevice, setSelectedWearableDevice] = useState<WearableScanCandidate | null>(
+    resolvedSensorMode === "ble" && (deviceId || wearablePreferences.lastDeviceId)
+      ? {
+          id: deviceId ?? wearablePreferences.lastDeviceId ?? "",
+          name: deviceName ?? wearablePreferences.lastDeviceName ?? "BLE HR",
+          localName: deviceName ?? wearablePreferences.lastDeviceName,
+          rssi: null,
+          hasHeartRateService: true,
+          isConnectable: true,
+          provider:
+            provider === "polar" ||
+            provider === "magene" ||
+            provider === "coospo" ||
+            provider === "genericHrs" ||
+            provider === "unknown"
+              ? provider
+              : wearablePreferences.lastProvider ?? "genericHrs",
+          capabilityTier: initialCapabilityTierResolved,
+          connectionHint: connectionHint ?? undefined,
+        }
+      : null,
+  );
+  const [wearableRuntime, setWearableRuntime] = useState<WearableRuntimeSnapshot>({ state: "idle" });
+  const [wearableCapabilityTier, setWearableCapabilityTier] =
+    useState<WearableCapabilityTier>(initialCapabilityTierResolved);
   const snapshot = useBiofeedbackSnapshot();
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
@@ -865,6 +937,49 @@ function CoherenceBreathScreenInner({
     phaseRef.current = phase;
   }, [phase]);
 
+  useEffect(() => {
+    if (!isWearableMode) return;
+    if (selectedWearableDevice?.id) return;
+    if (!wearablePreferences.lastDeviceId) return;
+    setSelectedWearableDevice({
+      id: wearablePreferences.lastDeviceId,
+      name: wearablePreferences.lastDeviceName ?? "BLE HR",
+      localName: wearablePreferences.lastDeviceName,
+      rssi: null,
+      hasHeartRateService: true,
+      isConnectable: true,
+      provider: wearablePreferences.lastProvider ?? "genericHrs",
+      capabilityTier: wearablePreferences.lastCapabilityTier ?? "unknown",
+    });
+  }, [
+    isWearableMode,
+    selectedWearableDevice?.id,
+    wearablePreferences.lastCapabilityTier,
+    wearablePreferences.lastDeviceId,
+    wearablePreferences.lastDeviceName,
+    wearablePreferences.lastProvider,
+  ]);
+
+  useEffect(() => {
+    if (!isWearableMode || (phase !== "warmup" && phase !== "qualityCheck")) {
+      void stopScan();
+      return;
+    }
+    if (!selectedWearableDevice?.id || wearableRuntime.state === "failed") {
+      void startScan();
+    }
+    return () => {
+      void stopScan();
+    };
+  }, [
+    isWearableMode,
+    phase,
+    selectedWearableDevice?.id,
+    startScan,
+    stopScan,
+    wearableRuntime.state,
+  ]);
+
   /** Для gating камеры: ре-рендер при смене AppState (ref одного мало). */
   const [practiceAppState, setPracticeAppState] = useState(AppState.currentState);
 
@@ -987,7 +1102,7 @@ function CoherenceBreathScreenInner({
   // ─── Warmup → QC → Running переход ────────────────────────────────────────
 
   useEffect(() => {
-    if (phase !== "warmup" || useSimulatedPpg) return;
+    if (phase !== "warmup" || useSimulatedPpg || isWearableMode) return;
     const id = setInterval(() => {
       if (Date.now() - (warmupStartedAtMs.current ?? 0) >= COHERENCE_WARMUP_MS) {
         qcStartLogicalMsRef.current = null;
@@ -995,10 +1110,10 @@ function CoherenceBreathScreenInner({
       }
     }, 200);
     return () => clearInterval(id);
-  }, [phase]);
+  }, [isWearableMode, phase]);
 
   useEffect(() => {
-    if ((phase !== "warmup" && phase !== "qualityCheck") || useSimulatedPpg) return;
+    if ((phase !== "warmup" && phase !== "qualityCheck") || useSimulatedPpg || isWearableMode) return;
     const id = setInterval(() => {
       if (Date.now() - (protocolStartedAtMs.current ?? 0) > COHERENCE_PROTOCOL_MAX_MS) {
         Alert.alert(str.calibrationTitle, str.calibrationTimeout);
@@ -1006,7 +1121,7 @@ function CoherenceBreathScreenInner({
       }
     }, 2000);
     return () => clearInterval(id);
-  }, [phase, str.calibrationTimeout, str.calibrationTitle]);
+  }, [isWearableMode, phase, str.calibrationTimeout, str.calibrationTitle]);
 
   // ─── Live optical preview для warmup/QC/running ───────────────────────────
 
@@ -1021,7 +1136,7 @@ function CoherenceBreathScreenInner({
    */
   useEffect(() => {
     if (phase !== "warmup" && phase !== "qualityCheck") return;
-    if (useSimulatedPpg) return;
+    if (useSimulatedPpg || isWearableMode) return;
     // Буфер preview привязан ко ВРЕМЕНИ (≈6 сек), а не к фиксированному числу
     // сэмплов. Раньше стояло N=72, и при увеличении fps 15→25→30 окно
     // схлопывалось (72/30 = 2.4 с), диаграмма «неслась». Теперь размер окна
@@ -1096,12 +1211,12 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [bus, pipeline]);
+  }, [bus, isWearableMode, pipeline]);
 
   // ─── QC окно 10 с (camera time) — ОДНА попытка, затем диалог ──────────────
 
   useEffect(() => {
-    if (phase !== "qualityCheck" || useSimulatedPpg) return;
+    if (phase !== "qualityCheck" || useSimulatedPpg || isWearableMode) return;
     const id = setInterval(() => {
       const camTs = pipeline.getLastSourceTimestampMs();
       if (camTs <= 0) {
@@ -1322,7 +1437,59 @@ function CoherenceBreathScreenInner({
       clearInterval(id);
       setQcSecondsLeft(null);
     };
-  }, [phase, pipeline, clearPpgBannerUi]);
+  }, [clearPpgBannerUi, isWearableMode, phase, pipeline]);
+
+  useEffect(() => {
+    if (!isWearableMode) return;
+    if (phase === "warmup" && selectedWearableDevice?.id && wearableRuntime.state !== "idle") {
+      setPhase("qualityCheck");
+      return;
+    }
+    if (phase !== "qualityCheck") return;
+    if (
+      wearableCapabilityTier !== "fullMetrics" &&
+      wearableCapabilityTier !== "guidedOnly"
+    ) {
+      if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected") {
+        setShowQcFailedDialog(true);
+      }
+      return;
+    }
+    const anchor = Date.now();
+    const estCycleMs = computeCycleMsForAnalysis(
+      coherenceShapeRef.current,
+      pulseBpmLast?.medianRrMs,
+    );
+    const preflightBeats = pipeline
+      .getCanonicalBeats()
+      .filter((timestampMs) => timestampMs >= anchor - COHERENCE_QUALITY_WINDOW_MS);
+    pipeline.getCoherenceEngine().startSession({
+      sessionStartedAtMs: anchor,
+      inhaleMs: estCycleMs.inhaleMs,
+      exhaleMs: estCycleMs.exhaleMs,
+      cycleMs: estCycleMs.cycleMs,
+      mode: "test120s",
+      preflightBeats,
+      bufferMsBeforeSession: COHERENCE_PREFLIGHT_BUFFER_MS,
+    });
+    qualityBadAccumMsRef.current = 0;
+    fingerAbsentAccumMsRef.current = 0;
+    lastSampleMsRef.current = anchor;
+    clearPpgBannerUi();
+    setSessionStartWallMs(Date.now());
+    setSessionStartLogicalMs(anchor);
+    setElapsedMs(0);
+    setPhase("running");
+  }, [
+    clearPpgBannerUi,
+    isWearableMode,
+    phase,
+    pipeline,
+    pulseBpmLast?.medianRrMs,
+    selectedWearableDevice?.id,
+    wearableCapabilityTier,
+    wearableRuntime.state,
+  ]);
 
   // ─── Круговой обратный отсчёт прогрев+QC (warmup 10 с + QC 10 с = 20 с) ───
 
@@ -1331,7 +1498,7 @@ function CoherenceBreathScreenInner({
       setPrepSecondsLeft(null);
       return;
     }
-    if (useSimulatedPpg) {
+    if (useSimulatedPpg && !isWearableMode) {
       setPrepSecondsLeft(null);
       return;
     }
@@ -1342,7 +1509,7 @@ function CoherenceBreathScreenInner({
       setPrepSecondsLeft(left);
     }, 200);
     return () => clearInterval(id);
-  }, [phase]);
+  }, [isWearableMode, phase]);
 
   useEffect(() => {
     if (phase !== "running") return;
@@ -1357,7 +1524,7 @@ function CoherenceBreathScreenInner({
   // ─── Running: добавляем удары в CoherenceEngine + ведём баннеры качества ─
 
   useEffect(() => {
-    if (phase !== "running" || useSimulatedPpg) return;
+    if (phase !== "running" || useSimulatedPpg || isWearableMode) return;
     // ВАЖНО: читаем поля `snapshot` через `snapshotRef`, а не из замыкания,
     // чтобы deps этого useEffect были стабильными. Иначе каждые 250 мс (темп
     // обновления snapshot-адаптера) мы пересоздавали setInterval — это и есть
@@ -1506,6 +1673,7 @@ function CoherenceBreathScreenInner({
     }, 250);
     return () => clearInterval(id);
   }, [
+    isWearableMode,
     phase,
     pipeline,
     sessionStartLogicalMs,
@@ -1513,6 +1681,19 @@ function CoherenceBreathScreenInner({
     str.ppgWeakSignalMessage,
     str.ppgBiometryPausedMessage,
   ]);
+
+  useEffect(() => {
+    if (!isWearableMode || phase !== "running") return;
+    let message: string | null = null;
+    if (wearableRuntime.state === "reconnecting" || wearableRuntime.state === "connecting") {
+      message = str.wearableRunningReconnect;
+    } else if (wearableCapabilityTier === "guidedOnly") {
+      message = str.wearableRunningGuidedOnly;
+    } else if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected") {
+      message = str.wearableRunningDisconnected;
+    }
+    setPpgOverlayMessage(message);
+  }, [isWearableMode, phase, str.wearableRunningDisconnected, str.wearableRunningGuidedOnly, str.wearableRunningReconnect, wearableCapabilityTier, wearableRuntime.state]);
 
   // ─── Thermal state: подписка на native event + первичный опрос ──────────
   //
@@ -2442,7 +2623,7 @@ function CoherenceBreathScreenInner({
       practiceBackgroundEnteredAtRef.current = null;
       clearPpgBannerUi();
 
-      if (useSimulatedPpg || forceEmulatedPulse) {
+      if (!isWearableMode && (useSimulatedPpg || forceEmulatedPulse)) {
         const now = Date.now();
         const estCycleMs = computeCycleMsForAnalysis(
           coherenceShapeRef.current,
@@ -2473,14 +2654,14 @@ function CoherenceBreathScreenInner({
       activationAttemptNumberRef.current = 1;
       setPhase("warmup");
     },
-    [pipeline, clearPpgBannerUi, stopBaselineRamp],
+    [clearPpgBannerUi, isWearableMode, pipeline, pulseBpmLast?.medianRrMs, stopBaselineRamp, useSimulatedPpg],
   );
 
   useEffect(() => {
     if (autoStartedRef.current || phase !== "idle" || !durationMs) return;
     autoStartedRef.current = true;
-    beginFromIdle(!usePulseSensor);
-  }, [beginFromIdle, durationMs, phase, usePulseSensor]);
+    beginFromIdle(resolvedSensorMode === "none");
+  }, [beginFromIdle, durationMs, phase, resolvedSensorMode]);
 
   /**
    * TAG_REMOVE_PERF_DIAGNOSTICS
@@ -2600,7 +2781,7 @@ function CoherenceBreathScreenInner({
     if (analysis == null || sessionStartWallMs == null || sessionStartLogicalMs == null) return;
     const analysisEndLogicalMs = sessionStartLogicalMs + practiceTotalMs;
     const payload = pipeline.getCoherenceEngine().buildExportJson(analysisEndLogicalMs, {
-      dataSource: useSimulatedPpg ? "simulated" : "fingerPpg",
+      dataSource: isWearableMode ? "wearable" : useSimulatedPpg ? "simulated" : "fingerPpg",
       debug: exportDebug ?? undefined,
       pulseLog: useSimulatedPpg
         ? undefined
@@ -2626,7 +2807,7 @@ function CoherenceBreathScreenInner({
     } catch (e: unknown) {
       Alert.alert("Экспорт", String(e));
     }
-  }, [analysis, exportDebug, pipeline, sessionStartLogicalMs, sessionStartWallMs]);
+  }, [analysis, exportDebug, isWearableMode, pipeline, sessionStartLogicalMs, sessionStartWallMs, useSimulatedPpg]);
 
   /**
    * Индекс активной фазы текущего плана. Обновляется ~15 Гц от **того же** таймбейза,
@@ -2882,7 +3063,7 @@ function CoherenceBreathScreenInner({
 
   return (
     <SafeAreaView style={styles.safe}>
-      {!isExpoGo && !useSimulatedPpg && !useEmulatedPulseMode ? (
+      {!isWearableMode && !isExpoGo && !useSimulatedPpg && !useEmulatedPulseMode ? (
         <FingerPpgCameraSource
           key={`finger-${sourceKey}`}
           isActive={cameraActive}
@@ -2891,10 +3072,42 @@ function CoherenceBreathScreenInner({
           captureRateHint={phase === "warmup" || phase === "qualityCheck" ? "highPrecision" : "normal"}
         />
       ) : null}
-      {useSimulatedPpg ? (
+      {!isWearableMode && useSimulatedPpg ? (
         <SimulatedSensorSource key={`sim-${sourceKey}`} isActive={cameraActive} />
       ) : null}
-      {useEmulatedPulseMode && !useSimulatedPpg ? (
+      {isWearableMode ? (
+        <BleHeartRateSource
+          key={`ble-${sourceKey}-${selectedWearableDevice?.id ?? "none"}`}
+          isActive={cameraActive}
+          deviceId={selectedWearableDevice?.id}
+          deviceName={selectedWearableDevice?.name}
+          initialCapabilityTier={wearableCapabilityTier}
+          autoReconnect={autoReconnect}
+          onRuntimeSnapshot={(runtime) => setWearableRuntime(runtime)}
+          onCapabilityResolved={(tier, nextHint) => {
+            setWearableCapabilityTier(tier);
+            if (selectedWearableDevice?.id) {
+              void updateWearablePreferences({
+                preferredSensorMode: "ble",
+                lastDeviceId: selectedWearableDevice.id,
+                lastDeviceName: selectedWearableDevice.name,
+                lastProvider: selectedWearableDevice.provider,
+                lastCapabilityTier: tier,
+              });
+            }
+            setSelectedWearableDevice((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    capabilityTier: tier,
+                    connectionHint: nextHint ?? prev.connectionHint,
+                  }
+                : prev,
+            );
+          }}
+        />
+      ) : null}
+      {useEmulatedPulseMode && !useSimulatedPpg && !isWearableMode ? (
         <EmulatedPulseSensorSource key={`emu-${sourceKey}`} isActive={cameraActive} />
       ) : null}
 
@@ -2907,7 +3120,7 @@ function CoherenceBreathScreenInner({
             {str.practiceSanskritName[practiceId]}
           </AppText>
           <AppText variant="screenHint" tone="primary" style={styles.idleHint}>
-            {str.fingerHint}
+            {isWearableMode ? str.wearableIdleHint : str.fingerHint}
           </AppText>
           {useSimulatedPpg ? (
             <AppText variant="bannerMessage" tone="muted" style={styles.simNote}>
@@ -2957,7 +3170,7 @@ function CoherenceBreathScreenInner({
           </View>
           <AppButton
             variant="primary"
-            label={str.startButton}
+            label={isWearableMode ? str.wearableIdleStartButton : str.startButton}
             onPress={() => beginFromIdle(false)}
             style={styles.idleStartBtn}
           />
@@ -3012,10 +3225,14 @@ function CoherenceBreathScreenInner({
           pointerEvents={phase === "running" ? "none" : "auto"}
         >
           <AppText variant="screenTitle" tone="primary" style={styles.sensorTitle}>
-            {str.sensorActivationTitle}
+            {isWearableMode ? str.wearableActivationTitle : str.sensorActivationTitle}
           </AppText>
           <AppText variant="screenHint" tone="primary" style={styles.sensorHint}>
-            {str.sensorActivationHint}
+            {isWearableMode
+              ? selectedWearableDevice?.name
+                ? str.wearableActivationSelectedHint(selectedWearableDevice.name)
+                : str.wearableActivationNoDeviceHint
+              : str.sensorActivationHint}
           </AppText>
           <View style={styles.sensorTimerWrap}>
             {protocolStartedAtMs.current != null ? (
@@ -3028,7 +3245,21 @@ function CoherenceBreathScreenInner({
             ) : null}
           </View>
           <AppText variant="technicalCaption" tone="muted" style={styles.sensorStatus}>
-            {str.sensorActivationStableWait}
+            {isWearableMode
+              ? wearableRuntime.state === "waitingForBluetooth"
+                ? str.wearableBluetoothOff
+                : wearableRuntime.state === "connecting" || wearableRuntime.state === "reconnecting"
+                  ? str.wearableConnecting
+                  : wearableRuntime.state === "ready"
+                    ? wearableCapabilityTier === "guidedOnly"
+                      ? str.wearableReadyGuidedOnly
+                      : str.wearableReadyFullMetrics
+                    : scanState === "scanning"
+                      ? str.wearableScanning
+                      : scanError
+                        ? scanError
+                        : str.sensorActivationStableWait
+              : str.sensorActivationStableWait}
           </AppText>
           {/*
            * График показываем всё время, пока sensor-UI смонтирован (включая фазу
@@ -3037,11 +3268,108 @@ function CoherenceBreathScreenInner({
            * подтягивался вверх, что визуально ощущалось как «дёрганье окна».
            */}
           <View style={styles.sensorChartWrap}>
-            {!useSimulatedPpg ? (
+            {!isWearableMode && !useSimulatedPpg ? (
               <PpgMiniChart
                 samples={opticalPreviewSamples}
                 beatTimestampsMs={snapshot.mergedBeats}
               />
+            ) : null}
+            {isWearableMode ? (
+              <View style={styles.wearablePickerCard}>
+                <AppText variant="technicalCaption" tone="muted" style={styles.wearableMetaLine}>
+                  {str.wearableBluetoothLabel}: {bluetoothState}
+                  {selectedWearableDevice?.name ? ` · ${selectedWearableDevice.name}` : ""}
+                  {wearableRuntime.lastHeartRateBpm
+                    ? ` · ${Math.round(wearableRuntime.lastHeartRateBpm)} уд/мин`
+                    : ""}
+                </AppText>
+                {wearableRuntime.errorMessage ? (
+                  <AppText variant="technicalCaption" tone="muted" style={styles.wearableMetaLine}>
+                    {wearableRuntime.errorMessage}
+                  </AppText>
+                ) : null}
+                {scannedWearables.slice(0, 6).map((candidate) => {
+                  const active = candidate.id === selectedWearableDevice?.id;
+                  return (
+                    <Pressable
+                      key={candidate.id}
+                      onPress={() => {
+                        setSelectedWearableDevice(candidate);
+                        setWearableCapabilityTier(candidate.capabilityTier);
+                        setWearableRuntime({ state: "idle" });
+                        setSourceKey((value) => value + 1);
+                        void updateWearablePreferences({
+                          preferredSensorMode: "ble",
+                          lastDeviceId: candidate.id,
+                          lastDeviceName: candidate.name,
+                          lastProvider: candidate.provider,
+                          lastCapabilityTier:
+                            candidate.capabilityTier === "unknown" ? null : candidate.capabilityTier,
+                        });
+                      }}
+                      style={[
+                        styles.wearableRow,
+                        {
+                          borderColor: active ? theme.colors.buttonPrimaryBg : theme.colors.surfaceBorder,
+                          backgroundColor: active ? theme.colors.controlButtonBg : theme.colors.surfaceElevated,
+                        },
+                      ]}
+                    >
+                      <AppText variant="dialogBody" tone="primary">
+                        {candidate.name}
+                      </AppText>
+                      <AppText variant="technicalCaption" tone="muted">
+                        {candidate.hasHeartRateService ? "HRS" : "BLE"} · {str.wearableRssiLabel} {candidate.rssi ?? "—"} ·{" "}
+                        {candidate.capabilityTier === "fullMetrics"
+                          ? str.wearableCapabilityMetrics
+                          : candidate.capabilityTier === "guidedOnly"
+                            ? str.wearableCapabilityRhythmOnly
+                            : str.wearableCapabilityProbe}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+                {!scannedWearables.length && scanState !== "scanning" ? (
+                  <AppText variant="technicalCaption" tone="muted" style={styles.wearableMetaLine}>
+                    {str.wearableNoDevicesFound}
+                  </AppText>
+                ) : null}
+                <View style={styles.wearableActionRow}>
+                  <AppButton
+                    variant="secondary"
+                    label={str.wearableRetryScan}
+                    onPress={() => void startScan()}
+                    style={styles.wearableActionBtn}
+                  />
+                  <AppButton
+                    variant="secondary"
+                    label={str.wearableUseCamera}
+                    onPress={() => {
+                      void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
+                      router.replace({
+                        pathname: "/breath-coherence",
+                        params: {
+                          practiceId: practiceIdRef.current,
+                          durationMs: String(practiceTotalMs),
+                          chakra: String(chakra ?? 4),
+                          launchSource: launchSource ?? "catalog",
+                          sensorMode: "fingerCamera",
+                        },
+                      });
+                    }}
+                    style={styles.wearableActionBtn}
+                  />
+                  <AppButton
+                    variant="secondary"
+                    label={str.startWithoutSensorButton}
+                    onPress={() => {
+                      void updateWearablePreferences({ preferredSensorMode: "none" });
+                      beginFromIdle(true);
+                    }}
+                    style={styles.wearableActionBtn}
+                  />
+                </View>
+              </View>
             ) : null}
           </View>
           <AppButton
@@ -3066,8 +3394,12 @@ function CoherenceBreathScreenInner({
 
       <AppDialog
         visible={showQcFailedDialog}
-        title={str.qcFailedDialogTitle}
-        message={str.qcFailedDialogMessage}
+        title={isWearableMode ? str.wearableQcFailedTitle : str.qcFailedDialogTitle}
+        message={
+          isWearableMode
+            ? str.wearableQcFailedMessage
+            : str.qcFailedDialogMessage
+        }
         actionsLayout="column"
         actions={
           <>
@@ -3083,6 +3415,10 @@ function CoherenceBreathScreenInner({
                 setOpticalPreviewSamples([]);
                 warmupStartedAtMs.current = Date.now();
                 protocolStartedAtMs.current = Date.now();
+                if (isWearableMode) {
+                  setWearableRuntime({ state: "idle" });
+                  setSourceKey((value) => value + 1);
+                }
                 // TAG_REMOVE_PERF_DIAGNOSTICS — повторная попытка в рамках
                 // той же сессии: sessionId сохраняем, attemptNumber += 1.
                 activationAttemptNumberRef.current += 1;
@@ -3109,7 +3445,7 @@ function CoherenceBreathScreenInner({
              * `diagnosticBtn` на экране активации, чтобы не ломать
              * визуальную гармонию дизайна диалога.
              */}
-            {DEBUG_ACTIVATION_EXPORT_ENABLED && !useSimulatedPpg ? (
+            {DEBUG_ACTIVATION_EXPORT_ENABLED && !useSimulatedPpg && !isWearableMode ? (
               <Pressable
                 onPress={() =>
                   void exportActivationDiagnosticRef.current?.("qc_failed_manual_share")
@@ -3647,6 +3983,13 @@ export interface CoherenceBreathScreenProps {
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
   launchSource?: string;
+  sensorMode?: BreathSensorMode;
+  deviceId?: string;
+  deviceName?: string;
+  provider?: WearableDeviceProvider;
+  capabilityTier?: string;
+  connectionHint?: string;
+  autoReconnect?: boolean;
   usePulseSensor?: boolean;
 }
 
@@ -3656,17 +3999,32 @@ export function CoherenceBreathScreen({
   durationMs,
   chakra,
   launchSource,
+  sensorMode,
+  deviceId,
+  deviceName,
+  provider,
+  capabilityTier,
+  connectionHint,
+  autoReconnect = true,
   usePulseSensor,
 }: CoherenceBreathScreenProps) {
+  const providerConfig = sensorMode === "ble" ? WEARABLE_CAPTURE_CONFIG : FINGER_CAMERA_CAPTURE_CONFIG;
   return (
     <ThemeProvider value={defaultTheme}>
-      <BiofeedbackProvider config={FINGER_CAMERA_CAPTURE_CONFIG}>
+      <BiofeedbackProvider config={providerConfig}>
         <CoherenceBreathScreenInner
           locale={locale}
           initialPracticeId={practiceId}
           durationMs={durationMs}
           chakra={chakra}
           launchSource={launchSource}
+          sensorMode={sensorMode}
+          deviceId={deviceId}
+          deviceName={deviceName}
+          provider={provider}
+          capabilityTier={capabilityTier}
+          connectionHint={connectionHint}
+          autoReconnect={autoReconnect}
           usePulseSensor={usePulseSensor}
         />
       </BiofeedbackProvider>
@@ -4067,6 +4425,27 @@ const styles = StyleSheet.create({
     minHeight: 72, // совпадает с `height` у PpgMiniChart — резервирует место, чтобы
     // содержимое окна активации не «прыгало», даже если график временно не отрисуется.
     marginBottom: 32,
+  },
+  wearablePickerCard: {
+    gap: 10,
+  },
+  wearableRow: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  wearableMetaLine: {
+    textAlign: "center",
+  },
+  wearableActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  wearableActionBtn: {
+    flex: 1,
   },
   sensorBackBtn: {
     alignSelf: "stretch",

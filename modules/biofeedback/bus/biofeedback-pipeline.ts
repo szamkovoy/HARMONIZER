@@ -456,6 +456,7 @@ export class BiofeedbackPipeline {
       const bpmSnap = this.pulseBpm.push({
         timestampMs,
         mergedBeats: this.mergedBeats,
+        sourceKind: this.pulseSource,
       });
       this.lastStableRrMs = bpmSnap.medianRrMs || this.lastStableRrMs;
       this.lastMedianRrMs = bpmSnap.medianRrMs || this.lastMedianRrMs;
@@ -779,6 +780,7 @@ export class BiofeedbackPipeline {
       bpmSnap = this.pulseBpm.push({
         timestampMs: sample.timestampMs,
         mergedBeats: merged,
+        sourceKind: this.config.source === "wearable" ? "wearable" : "fingerCamera",
       });
       this.lastPulseBpmSnapshot = bpmSnap;
       this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;

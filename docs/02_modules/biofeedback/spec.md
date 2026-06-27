@@ -30,9 +30,9 @@ code_refs:
 
 ## 2. Публичный контракт
 
-**Вход (сенсор):** поток `RawOpticalSample` с камеры (`timestampMs`, усреднённый канал яркости и др.) — см. `modules/biofeedback/sensors/types.ts`. Источники: `FingerPpgCameraSource` (Expo `Camera` + torch), `EmulatedPulseSensorSource`, `SimulatedSensorSource`; опционально нативный модуль `modules/biofeedback-finger-frame-processor` для ускоренной обработки кадра, если доступен.
+**Вход (сенсор):** либо поток `RawOpticalSample` с камеры (`timestampMs`, усреднённый канал яркости и др.) — см. `modules/biofeedback/sensors/types.ts`, либо готовые beat/RR события от BLE chest strap через `modules/biofeedback/wearables/BleHeartRateSource.tsx`. Источники: `FingerPpgCameraSource` (Expo `Camera` + torch), `EmulatedPulseSensorSource`, `SimulatedSensorSource`, `BleHeartRateSource`; опционально нативный модуль `modules/biofeedback-finger-frame-processor` для ускоренной обработки кадра, если доступен.
 
-**Ядро:** `BiofeedbackPipeline.pushOpticalSample(sample)` — единая точка входа (см. комментарии в `biofeedback-pipeline.ts`). На выходе в шину публикуются события по каналам из `channels.ts`:
+**Ядро:** `BiofeedbackPipeline.pushOpticalSample(sample)` остаётся входом для камеры, а `pushBeatEvent(timestampMs, beatTimestampMs)` — каноническим входом для wearable RR / synthetic beats. На выходе в шину публикуются события по каналам из `channels.ts`:
 
 | Канал | Назначение (кратко) |
 | --- | --- |
@@ -52,18 +52,21 @@ code_refs:
 
 **Агрегация для мандалы:** `MandalaBioFrameAdapter` — подписка на `beat`, `pulseBpm`, `rmssd`, `stress`, `coherence`, `contact`; метод `snapshot()` возвращает `BioSignalFrame` (`modules/mandala/core/types.ts`) с нормализованными полями для шейдера.
 
-**Итог сессии (HRV):** `computePracticeHrvMetricsFullSession` в `core/metrics.ts` — RMSSD и индекс Баевского по **полной** серии валидных ударов после практики (см. комментарий в коде про отказ от раздельных initial/final для дыхания). Функция `updateHrvMetrics` в том же файле **не используется** текущим PPG-пайплайном (помечена для альтернативных источников RR).
+**Итог сессии (HRV):** `computePracticeHrvMetricsFullSession` в `core/metrics.ts` — RMSSD и индекс Баевского по **полной** серии валидных ударов после практики (см. комментарий в коде про отказ от раздельных initial/final для дыхания). Функция `updateHrvMetrics` в том же файле **не используется** текущим PPG-пайплайном (помечена для альтернативных источников RR). BLE-capability tiers: `fullMetrics` — RR пришёл и downstream-метрики считаются как обычно; `guidedOnly` — есть только heart-rate pacing, pipeline ставит `metricsCapturePaused`; `unsupported` — UI не должен запускать метрики/биометрию.
 
 ## 3. Внутренняя архитектура
 
 - **Слои:** сенсор → `OpticalRingBuffer` / bandpass → `ContactMonitor` → `SignalQualityMonitor` → `CalibrationStateMachine` → `LivePulseChannel` + merge пиков → `PulseBpmEngine`, `HrvBeatAccumulator` + `HrvEngine`, `StressEngine`, `CoherenceEngine`, `RsaEngine` — см. заголовок класса `BiofeedbackPipeline`.
+- **Wearable path:** `useWearableScanner` ищет BLE-устройства по Heart Rate Service / имени, `BleHeartRateSource` подключается через `@sfourdrinier/react-native-ble-plx`, парсит characteristic `0x2A37`, конвертирует RR (`1/1024 s`) в beat timestamps и отдаёт их в тот же pipeline. Для trusted Polar-профилей (`Polar H10`, `Polar H9`) UI помечает источник как `polarEnhanced`, но downstream-метрики остаются общими.
 - **Потоки и троттлинг:** пиковый детектор и публикации BPM/HRV/stress/coherence намеренно **редуцируются по времени** (см. константы в `BiofeedbackPipeline`) ради CPU и батареи на длинных сессиях.
+- **RR filtering policy:** `PulseBpmEngine` теперь различает `fingerCamera` и `wearable`. Для BLE-источника окно валидных RR расширено (`300..2000 ms`) и ослаблен deviation ratio, чтобы не обрезать чистый chest-strap сигнал теми же guard'ами, что были подобраны под noisy PPG.
 - **Когерентность live vs финал:** в `CoherenceEngine` во время сессии не гоняется полный секундный FFT-пайплайн; для live нужен прежде всего прогресс RSA по циклам дыхания; полный `runCoherenceSessionAnalysis` — при `finalize()` (см. комментарии в `coherence-engine.ts`).
 - **RSA:** `RsaEngine` — тонкая обёртка над уже посчитанным `CoherenceSessionResult` из breath-модуля (`rsa-engine.ts`).
 
 ## 4. Конфигурация и параметры
 
 - **Камера:** `FINGER_CAMERA_CAPTURE_CONFIG` и логика в `FingerPpgCameraSource.tsx` (частота кадров, torch, разрешения).
+- **Wearable BLE:** `WEARABLE_CAPTURE_CONFIG` + `BleHeartRateSource`; стандартный UUID `180D / 2A37`, generic probe path и trusted profile registry для Polar. Локальные wearable preferences хранят `preferredSensorMode`, `lastDeviceId`, `lastDeviceName`, `lastProvider`, `lastCapabilityTier`, `autoReconnect`.
 - **Режим без пальца / демо:** `EmulatedPulseSensorSource` / `SimulatedSensorSource`; в `computePulseSync` (`modules/mandala-sound/core/sync.ts`) при отсутствии свежих ударов используются LFO **0.33 Гц** (дыхание) и **1.1 Гц** (пульс) — см. `FALLBACK_BREATH_HZ` / `FALLBACK_PULSE_HZ`; продуктовый смысл слоёв IBAA — в `docs/04_reference/audio/ibaa_layered_audio.md`.
 - **Эмуляция пульса на шине:** канал `pulseSource`; потребители могут подавлять метрики при эмуляции (см. описание канала в `channels.ts`).
 

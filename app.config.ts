@@ -60,6 +60,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         ...(base.ios?.infoPlist ?? {}),
         ...(config.ios?.infoPlist ?? {}),
+        NSBluetoothAlwaysUsageDescription:
+          "Harmonizer использует Bluetooth для подключения нагрудных пульсометров и синхронизации дыхательной практики с сердечным ритмом.",
         NSLocationWhenInUseUsageDescription:
           "Harmonizer использует геолокацию для точного расчёта астрономических окон возможностей — восходов/заходов Солнца, Луны и планет в вашем месте.",
       },
@@ -78,6 +80,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ...new Set([
           ...((base.android as { permissions?: string[] } | undefined)?.permissions ?? []),
           ...((config.android as { permissions?: string[] } | undefined)?.permissions ?? []),
+          "android.permission.BLUETOOTH",
+          "android.permission.BLUETOOTH_ADMIN",
+          "android.permission.BLUETOOTH_SCAN",
+          "android.permission.BLUETOOTH_CONNECT",
           "android.permission.health.READ_STEPS",
           "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
           "android.permission.health.READ_EXERCISE",
@@ -102,6 +108,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             compileSdkVersion: 35,
             targetSdkVersion: 35,
           },
+        },
+      ],
+      [
+        "@sfourdrinier/react-native-ble-plx",
+        {
+          neverForLocation: true,
+          bluetoothAlwaysPermission:
+            "Harmonizer использует Bluetooth для подключения совместимых нагрудных пульсометров и получения точных ударов R-R.",
         },
       ],
       "react-native-health-connect",

@@ -290,7 +290,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   (`modules/chakra/i18n.ts` — single source for legend text), charts donut center
   label (`getChartStrings` → `balanceLabel`; overlays `typed/catalog/charts/*`), Home
   `ChakraFlower` center planet name via **`getHomeStrings` → `planetLabels`**, Home astro-chart zodiac labels via **`getHomeStrings().astroChartModal.zodiacSigns`**, startup splash footer
-  (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`).
+  (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`). Practices/Breath typed strings now also cover BLE-specific source labels (`camera / Bluetooth / no sensor`) and the reusable activation copy for the breathing screen; locales without explicit typed overlay continue to fall back to EN base strings until dedicated overlays are filled.
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier
   slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;
   server uses `resolveContentLocale` (all 8 locales) and **locale-suffixed**

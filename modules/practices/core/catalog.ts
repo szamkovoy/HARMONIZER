@@ -208,6 +208,7 @@ function createBreathPractices(locale: PracticeLocale): PracticeSummary[] {
         practiceId: practice.id,
         durationMs: BREATH_DEFAULT_DURATION_SEC * 1000,
         chakra: primaryChakra,
+        sensorMode: "fingerCamera",
         usePulseSensor: true,
       },
     };

@@ -5,6 +5,10 @@ import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practice
 import { clipDurationMinutesToSelectableMinutes } from "@/modules/practices/core/assistantSelectableDurations";
 import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 import { useAppLocale } from "@/modules/i18n";
+import {
+  updateWearablePreferences,
+  useWearablePreferences,
+} from "@/modules/biofeedback/wearables/preferences";
 import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -71,6 +75,7 @@ export const PracticeCard = memo(function PracticeCard({
 }) {
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
+  const wearablePreferences = useWearablePreferences();
   const strings = useMemo(() => getPracticeCatalogStrings(appLocale), [appLocale]);
   const minSuffix = strings.durationMinUnit;
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
@@ -84,12 +89,19 @@ export const PracticeCard = memo(function PracticeCard({
   const [selectedChakra, setSelectedChakra] = useState<number>(() =>
     overrideChakraIndex ?? defaultSelectableChakra(practice),
   );
-  const [usePulseSensor, setUsePulseSensor] = useState(true);
+  const [selectedSensorMode, setSelectedSensorMode] = useState<"fingerCamera" | "ble" | "none">(
+    practice.kind === "breath" ? wearablePreferences.preferredSensorMode : "fingerCamera",
+  );
   const [openField, setOpenField] = useState<SelectField>(null);
 
   useEffect(() => {
     durationTouchedRef.current = false;
   }, [practice.id]);
+
+  useEffect(() => {
+    if (practice.kind !== "breath") return;
+    setSelectedSensorMode(wearablePreferences.preferredSensorMode);
+  }, [practice.id, practice.kind, wearablePreferences.preferredSensorMode]);
 
   useEffect(() => {
     if (practice.kind === "yoga" || !selectableDurations.length) return;
@@ -160,10 +172,38 @@ export const PracticeCard = memo(function PracticeCard({
       ...practice.launch,
       durationMs: selectedDurationMin * 60_000,
       chakra: selectedChakra,
-      ...(practice.kind === "breath" ? { usePulseSensor } : {}),
+      ...(practice.kind === "breath"
+        ? {
+            sensorMode: selectedSensorMode,
+            deviceId:
+              selectedSensorMode === "ble" ? wearablePreferences.lastDeviceId ?? undefined : undefined,
+            deviceName:
+              selectedSensorMode === "ble" ? wearablePreferences.lastDeviceName ?? undefined : undefined,
+            provider:
+              selectedSensorMode === "ble" ? wearablePreferences.lastProvider ?? undefined : undefined,
+            capabilityTier:
+              selectedSensorMode === "ble"
+                ? wearablePreferences.lastCapabilityTier ?? undefined
+                : selectedSensorMode === "none"
+                  ? "unsupported"
+                  : undefined,
+            autoReconnect:
+              selectedSensorMode === "ble" ? wearablePreferences.autoReconnect : undefined,
+            usePulseSensor: selectedSensorMode !== "none",
+          }
+        : {}),
     } as PracticeSummary["launch"];
     onLaunch({ ...practice, launch });
   };
+
+  const sensorDropdownValue =
+    selectedSensorMode === "fingerCamera"
+      ? strings.sensorCameraOption
+      : selectedSensorMode === "ble"
+        ? wearablePreferences.lastDeviceName?.trim()
+          ? wearablePreferences.lastDeviceName.trim()
+          : strings.sensorBluetoothOption
+        : strings.sensorNoneOption;
 
   return (
     <View
@@ -258,25 +298,39 @@ export const PracticeCard = memo(function PracticeCard({
               <DropdownField
                 variant="pill"
                 label={strings.pulseLabel}
-                value={usePulseSensor ? strings.withPulseSensor : strings.withoutPulseSensor}
+                value={sensorDropdownValue}
                 open={openField === "pulse"}
                 onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
                 options={[
                   {
-                    key: "pulse-on",
-                    label: strings.withPulseSensor,
-                    active: usePulseSensor,
+                    key: "pulse-camera",
+                    label: strings.sensorCameraOption,
+                    active: selectedSensorMode === "fingerCamera",
                     onPress: () => {
-                      setUsePulseSensor(true);
+                      setSelectedSensorMode("fingerCamera");
+                      void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
+                      setOpenField(null);
+                    },
+                  },
+                  {
+                    key: "pulse-ble",
+                    label: wearablePreferences.lastDeviceName?.trim()
+                      ? `${strings.sensorBluetoothOption} · ${wearablePreferences.lastDeviceName.trim()}`
+                      : strings.sensorBluetoothOption,
+                    active: selectedSensorMode === "ble",
+                    onPress: () => {
+                      setSelectedSensorMode("ble");
+                      void updateWearablePreferences({ preferredSensorMode: "ble" });
                       setOpenField(null);
                     },
                   },
                   {
                     key: "pulse-off",
-                    label: strings.withoutPulseSensor,
-                    active: !usePulseSensor,
+                    label: strings.sensorNoneOption,
+                    active: selectedSensorMode === "none",
                     onPress: () => {
-                      setUsePulseSensor(false);
+                      setSelectedSensorMode("none");
+                      void updateWearablePreferences({ preferredSensorMode: "none" });
                       setOpenField(null);
                     },
                   },

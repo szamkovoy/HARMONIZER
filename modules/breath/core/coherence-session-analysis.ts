@@ -807,7 +807,7 @@ export function buildCoherenceExportJson(
   input: CoherenceSessionInput,
   result: CoherenceSessionResult,
   options?: {
-    dataSource?: "fingerPpg" | "simulated";
+    dataSource?: "fingerPpg" | "simulated" | "wearable";
     debug?: CoherenceExportDebug;
     /** ~2 Гц: пульс и контракт по кадрам (как ориентир рядом с RR). */
     pulseLog?: readonly CoherencePulseLogEntry[];

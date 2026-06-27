@@ -27,8 +27,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 **Корень монорепозитория**
 
-- `package.json` — Expo SDK 54, скрипты `expo start` / dev-client / EAS, `vitest run`, зависимости клиента включая `@sentry/react-native`, `@kingstinct/react-native-healthkit`, `react-native-nitro-modules`, `react-native-health-connect` и `expo-build-properties` для native health provider.
-- `app.config.ts` + `plugins/with-native-health.js` — prebuild-конфиг для Apple HealthKit и Android Health Connect: iOS добавляет HealthKit entitlement и usage descriptions, Android добавляет `android.permission.health.READ_*`, `HealthConnectPermissionDelegate` в `MainActivity` и SDK 35 / minSdk 26 через `expo-build-properties`.
+- `package.json` — Expo SDK 54, скрипты `expo start` / dev-client / EAS, `vitest run`, зависимости клиента включая `@sentry/react-native`, `@kingstinct/react-native-healthkit`, `react-native-nitro-modules`, `react-native-health-connect`, `@sfourdrinier/react-native-ble-plx` и `expo-build-properties` для native health / BLE provider.
+- `app.config.ts` + `plugins/with-native-health.js` — prebuild-конфиг для Apple HealthKit, Android Health Connect и BLE heart-rate monitors: iOS добавляет HealthKit entitlement, usage descriptions и `NSBluetoothAlwaysUsageDescription`; Android добавляет `android.permission.health.READ_*`, `BLUETOOTH(_SCAN/_CONNECT)`, `HealthConnectPermissionDelegate` в `MainActivity` и SDK 35 / minSdk 26 через `expo-build-properties`. BLE работает только в dev-client / prebuild build, не в Expo Go.
 - `sentry.client.config.ts` — `Sentry.init` для React Native: `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_APP_ENV`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` (дефолт выборки `0.05`). Файл лежит в корне; факт подключения к entry-point приложения нужно сверять с текущим `app/` (см. `history.md`).
 
 **Vercel**
@@ -67,6 +67,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 | Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, optional `language` (8 aliases via `LANGUAGE_ALIASES`; omitted → auto-detect + multilingual domain prompt), `temperature: 0`, `verbose_json` | `_legacy_web/app/api/_utils/whisperTranscription.ts`, `whisperPrompts.ts` |
 | Gemini (Vercel API) | `GEMINI_API_KEY`, `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`, `MAX_DIALOG_LENGTH`, опционально `GEMINI_TIMEOUT_MS`, `ALLOW_LEGACY_GEMINI_MODELS` | Vercel env + `_legacy_web/app/api/_utils/gemini.ts`, `_legacy_web/app/api/_utils/dialogConfig.ts`; interactive paths use `requested tier -> fallback`, cron/precompute retries the requested tier 3x before fallback |
 | Native health | iOS HealthKit entitlement / usage descriptions; Android Health Connect `READ_STEPS`, `READ_ACTIVE_CALORIES_BURNED`, `READ_EXERCISE`, `READ_SLEEP`, minSdk 26, compile/target SDK 35 | `app.config.ts`, `plugins/with-native-health.js`, `services/nativeHealth.ts` |
+| BLE chest straps | iOS `NSBluetoothAlwaysUsageDescription`; Android `BLUETOOTH`, `BLUETOOTH_ADMIN`, `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`; Expo config plugin `@sfourdrinier/react-native-ble-plx`; dev-client/prebuild only | `app.config.ts`, `package.json`, `modules/biofeedback/wearables/*` |
 
 Корневой `package.json` не описывает Next-скрипты: они живут в `_legacy_web/package.json` (`next dev`, `next build`, `next lint`).
 

@@ -57,6 +57,9 @@ export interface PracticeCatalogStrings {
   durationLabel: string;
   chakraLabel: string;
   pulseLabel: string;
+  sensorCameraOption: string;
+  sensorBluetoothOption: string;
+  sensorNoneOption: string;
   withPulseSensor: string;
   withoutPulseSensor: string;
   startPractice: string;
@@ -114,7 +117,10 @@ const ru: PracticeCatalogStrings = {
   chakraPending: "чакра уточняется",
   durationLabel: "Длительность",
   chakraLabel: "Чакра",
-  pulseLabel: "Пульсометр",
+  pulseLabel: "Источник пульса",
+  sensorCameraOption: "камера телефона",
+  sensorBluetoothOption: "пульсометр Bluetooth",
+  sensorNoneOption: "без сенсора",
   withPulseSensor: "с пульсометром",
   withoutPulseSensor: "без пульсометра",
   startPractice: "Начать практику",
@@ -188,7 +194,10 @@ const en: PracticeCatalogStrings = {
   chakraPending: "chakra pending",
   durationLabel: "Duration",
   chakraLabel: "Chakra",
-  pulseLabel: "Heart rate",
+  pulseLabel: "Pulse source",
+  sensorCameraOption: "phone camera",
+  sensorBluetoothOption: "Bluetooth sensor",
+  sensorNoneOption: "without sensor",
   withPulseSensor: "with heart-rate sensor",
   withoutPulseSensor: "without heart-rate sensor",
   startPractice: "Start practice",
