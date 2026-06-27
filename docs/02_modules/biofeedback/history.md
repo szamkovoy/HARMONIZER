@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-28 (2):** Polar multi-RR BLE packets — `wearableBeatTimeline.ts` now commits only beat timestamps strictly after the last merged beat, so streaming notifies no longer re-insert historical RR and trigger coherence withhold (`rrBadFraction` ≥ 20%) on an otherwise full 5-minute strap session.
+
 - **2026-06-28:** Polar H10 metrics follow-up — RR packets now map to beat timestamps via HRS-correct backward reconstruction (`wearableBeatTimeline.ts`), and wearable sessions bypass `PulseBpmEngine` PPG filtering when feeding `CoherenceEngine`/`HrvBeatAccumulator`. Finger-camera filtering and merge path stay unchanged.
 
 - **2026-06-27 (4):** BLE QA follow-up after Polar H10 field tests. `BleHeartRateSource` now resets its RR beat timeline only after a real gap between BLE packets (`lastRrAtMs`), fixing spurious 5–10 s RR jumps that left coherence/HRV metrics withheld despite live BPM in the footer. `useWearableScanner` scans Heart Rate Service with `allowDuplicates: true`, merges partial advertisements into one candidate, and `WearablePickerDialog` waits the full **12 s** window from the moment scanning actually starts before showing «не найден».

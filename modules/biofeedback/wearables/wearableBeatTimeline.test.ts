@@ -30,6 +30,12 @@ describe("buildBeatTimestampsFromRrPacket", () => {
     expect(result.lastBeatTimestampMs).toBe(3000);
   });
 
+  it("does not re-insert historical beats from multi-RR Polar packets", () => {
+    const result = buildBeatTimestampsFromRrPacket(3000, [837, 795], 2000);
+    expect(result.beatTimestampsMs).toEqual([3000]);
+    expect(result.lastBeatTimestampMs).toBe(3000);
+  });
+
   it("ignores stale last beat after timeline reset", () => {
     const result = buildBeatTimestampsFromRrPacket(
       30_000,

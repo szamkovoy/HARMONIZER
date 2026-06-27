@@ -4,8 +4,9 @@ import { COHERENCE_BEAT_DEDUPE_MS } from "@/modules/breath/core/coherence-consta
  * Строит абсолютные метки ударов из одного BLE Heart Rate Measurement пакета.
  *
  * По HRS rr[0] — самый старый интервал, rr[n-1] — последний перед текущим ударом;
- * текущий удар ≈ `nowMs`. Старый forward-accumulate от `lastBeat` давал RR 3–5 с
- * при нормальном chest-strap и ломал тахограмму/coherence.
+ * текущий удар ≈ `nowMs`. Из пакета берутся только метки **после** последнего
+ * committed beat — иначе multi-RR notify (Polar) повторно вставляет историю и
+ * ломает RR-пилу (rrBadFraction ≥ 20%).
  */
 export function buildBeatTimestampsFromRrPacket(
   nowMs: number,
@@ -28,18 +29,19 @@ export function buildBeatTimestampsFromRrPacket(
     packetBeats.unshift(t);
   }
 
-  const beatTimestampsMs: number[] = [];
-  let lastTs = dedupeAnchor;
-  for (const beatTs of packetBeats) {
-    if (lastTs != null && beatTs <= lastTs + dedupeMs) {
-      continue;
-    }
-    beatTimestampsMs.push(beatTs);
-    lastTs = beatTs;
-  }
+  // BLE-стрим (Polar H10 и др.) часто присылает 2+ RR в одном notify; backward-chain
+  // включает интервалы, уже закоммиченные прошлым пакетом → «пила» 750/250 ms и rrBadFraction>20%.
+  const cutoffMs =
+    dedupeAnchor == null ? Number.NEGATIVE_INFINITY : dedupeAnchor + dedupeMs;
+  const beatTimestampsMs = packetBeats.filter((beatTs) => beatTs > cutoffMs);
+
+  const nextLastBeat =
+    beatTimestampsMs.length > 0
+      ? beatTimestampsMs[beatTimestampsMs.length - 1]!
+      : dedupeAnchor;
 
   return {
     beatTimestampsMs,
-    lastBeatTimestampMs: lastTs ?? lastBeatTimestampMs,
+    lastBeatTimestampMs: nextLastBeat ?? lastBeatTimestampMs,
   };
 }
