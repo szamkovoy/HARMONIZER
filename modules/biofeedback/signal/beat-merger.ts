@@ -62,6 +62,25 @@ function median(values: readonly number[]): number {
   return sorted[Math.floor(sorted.length / 2)]!;
 }
 
+function collectRecentPhysioRr(
+  beats: readonly number[],
+  endExclusive: number,
+  maxCount: number = 8,
+): number[] {
+  const out: number[] = [];
+  for (let i = Math.max(1, endExclusive - maxCount); i < endExclusive; i += 1) {
+    const rr = beats[i]! - beats[i - 1]!;
+    if (rr >= 500 && rr <= 1_500) {
+      out.push(rr);
+    }
+  }
+  return out;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 /**
  * Пост-очистка уже смёрженного глобального ряда:
  * если один реальный RR расколот на `короткий + длинный`, убираем внутренний beat.
@@ -107,6 +126,115 @@ export function collapseSplitMergedBeats(
     }
   }
   return { beats: out, removedCount };
+}
+
+/**
+ * Восстанавливает очевидно пропущенные удары в finger-цепочке, если один длинный RR
+ * близок к 2-3 локальным нормальным RR. Это нужно именно для PPG: при шуме/просадке
+ * яркости один систолический пик может не детектироваться, и тогда RMSSD/стресс/кохерентность
+ * считают одну «дыру» вместо 2-3 физиологических интервалов.
+ *
+ * Алгоритм консервативный:
+ *  - смотрим только на интервалы существенно длиннее локальной медианы;
+ *  - вставляем 1-2 synthetic beat'а, только если `gap / N` хорошо попадает в локальный RR;
+ *  - никогда не трогаем короткие/обычные интервалы и не выходим за 3 сегмента.
+ */
+export function repairMissedMergedBeats(
+  merged: readonly number[],
+): { beats: number[]; insertedCount: number } {
+  if (merged.length < 2) {
+    return { beats: [...merged], insertedCount: 0 };
+  }
+
+  const out: number[] = [merged[0]!];
+  let insertedCount = 0;
+
+  for (let i = 1; i < merged.length; i += 1) {
+    const next = merged[i]!;
+    const prev = out[out.length - 1]!;
+    const gap = next - prev;
+    const recentIntervals = collectRecentPhysioRr(out, out.length);
+    const medianRr = median(recentIntervals);
+
+    if (medianRr > 0 && gap > medianRr * 1.55 && gap < medianRr * 3.4) {
+      const segmentCount = Math.round(gap / medianRr);
+      if (segmentCount >= 2 && segmentCount <= 3) {
+        const segmentRr = gap / segmentCount;
+        const matchesLocalRhythm =
+          Math.abs(segmentRr - medianRr) <= Math.max(70, medianRr * 0.18);
+        if (matchesLocalRhythm) {
+          for (let step = 1; step < segmentCount; step += 1) {
+            out.push(prev + segmentRr * step);
+            insertedCount += 1;
+          }
+        }
+      }
+    }
+
+    out.push(next);
+  }
+
+  return { beats: out, insertedCount };
+}
+
+/**
+ * Подавляет характерный для PPG alternating jitter: два соседних RR уходят в разные
+ * стороны (`короткий/длинный` или `длинный/короткий`), но их средний период хорошо
+ * совпадает с локальным ритмом. В таком случае двигаем внутреннюю метку удара на
+ * ограниченную величину, сохраняя сумму пары и не ломая медленную дыхательную волну.
+ */
+export function stabilizeAlternatingJitterBeats(
+  merged: readonly number[],
+): { beats: number[]; adjustedCount: number } {
+  if (merged.length < 3) {
+    return { beats: [...merged], adjustedCount: 0 };
+  }
+
+  const out = [...merged];
+  let adjustedCount = 0;
+
+  for (let i = 1; i < out.length - 1; i += 1) {
+    const recentIntervals = collectRecentPhysioRr(out, i);
+    const medianRr = median(recentIntervals);
+    if (medianRr <= 0) {
+      continue;
+    }
+
+    const rrLeft = out[i]! - out[i - 1]!;
+    const rrRight = out[i + 1]! - out[i]!;
+    if (!(rrLeft >= 500 && rrLeft <= 1_500 && rrRight >= 500 && rrRight <= 1_500)) {
+      continue;
+    }
+
+    const leftDeviation = rrLeft - medianRr;
+    const rightDeviation = rrRight - medianRr;
+    const oppositeSides = leftDeviation * rightDeviation < 0;
+    if (!oppositeSides) {
+      continue;
+    }
+
+    const pairMean = (rrLeft + rrRight) / 2;
+    const pairMatchesRhythm =
+      Math.abs(pairMean - medianRr) <= Math.max(35, medianRr * 0.06);
+    if (!pairMatchesRhythm) {
+      continue;
+    }
+
+    const imbalance = Math.abs(rrLeft - rrRight);
+    if (imbalance < Math.max(50, medianRr * 0.08)) {
+      continue;
+    }
+
+    const shiftMs = clamp(((rrRight - rrLeft) / 2) * 0.6, -35, 35);
+    if (Math.abs(shiftMs) < 1) {
+      continue;
+    }
+
+    out[i] = out[i]! + shiftMs;
+    adjustedCount += 1;
+  }
+
+  return { beats: out, adjustedCount };
 }
 
 /**

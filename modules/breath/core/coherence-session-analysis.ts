@@ -30,6 +30,7 @@ import {
   cleanRrSequenceCoherence,
   type RrBeatEvent,
 } from "@/modules/breath/core/tachogram-4hz";
+import type { BiofeedbackSignalTrustSummary } from "@/modules/biofeedback/core/signal-trust";
 import type { PerfDiagSample } from "@/modules/breath/debug/session-runtime-diagnostics";
 
 export type BreathAnalysisMode = "production" | "test120s";
@@ -768,6 +769,8 @@ export type CoherenceExportDebug = {
   practiceStressPercent?: number | null;
   /** Число валидных ударов в full-session HRV-накопителе. */
   practiceHrvBeatCount?: number;
+  /** Итоговое решение quality gate для finger-PGG биометрии. */
+  signalTrust?: BiofeedbackSignalTrustSummary;
   /** Диагностика детектора пиков (агрегированно за сессию). */
   peakDetector?: {
     dicroticRejectedTotal: number;

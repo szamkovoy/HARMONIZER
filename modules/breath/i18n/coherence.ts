@@ -84,6 +84,14 @@ export interface CoherenceBreathStrings {
   startWithoutSensorButton: string;
   /** Пояснение на экране результатов, когда пульс был эмулирован. */
   emulatedPulseResultsNote: string;
+  /** Finger-сигнал годится для пульса и HRV, но не для coherence/RSA. */
+  guidedLimitedResultsNote: string;
+  /** Finger-сигнал слишком нестабилен для финальной биометрии. */
+  pulseOnlyResultsNote: string;
+  /** Общая сессия испортилась, но сохранён последний надёжный хвост HRV. */
+  recoveredTailHrvResultsNote: string;
+  /** Общая сессия испортилась, но coherence/RSA сохранены по tail-окну. */
+  recoveredTailCoherenceResultsNote: (minutes: number, seconds: number) => string;
   backButton: string;
   approximateMetricsNote: string;
   fingerHint: string;
@@ -247,6 +255,14 @@ const ru: CoherenceBreathStrings = {
   startWithoutSensorButton: "Начать без пульсометра",
   emulatedPulseResultsNote:
     "Пульс эмулировался (датчик не использовался) — метрики HRV, стресса, когерентности и RSA не рассчитываются.",
+  guidedLimitedResultsNote:
+    "Сигнал пальца был нестабилен: практика продолжалась по базовому пульсу, RMSSD и стресс сохранены, а когерентность и RSA скрыты.",
+  pulseOnlyResultsNote:
+    "Сигнал пальца оказался слишком нестабилен для итоговой биометрии: практика продолжалась по пульсу, но финальные метрики скрыты.",
+  recoveredTailHrvResultsNote:
+    "К концу практики сигнал пальца испортился, поэтому сохранены последние надёжные значения RMSSD и индекса стресса из чистого хвоста измерения.",
+  recoveredTailCoherenceResultsNote: (m, s) =>
+    `К концу практики сигнал пальца испортился, поэтому когерентность и RSA сохранены по последнему надёжному фрагменту ${m}:${s.toString().padStart(2, "0")}.`,
   backButton: "Закрыть",
   approximateMetricsNote:
     "Режим короткой сессии: метрики оценочные (окно анализа сокращено; см. JSON).",
@@ -399,6 +415,14 @@ const en: CoherenceBreathStrings = {
   startWithoutSensorButton: "Start without pulse sensor",
   emulatedPulseResultsNote:
     "Pulse was emulated (no sensor used) — HRV, stress, coherence, and RSA are not computed.",
+  guidedLimitedResultsNote:
+    "Finger signal was unstable: the practice continued on baseline pulse, RMSSD and stress were kept, but coherence and RSA are hidden.",
+  pulseOnlyResultsNote:
+    "Finger signal was too unstable for final biometrics: the practice continued on pulse guidance, but final metrics are hidden.",
+  recoveredTailHrvResultsNote:
+    "Finger signal degraded near the end of the practice, so the last reliable RMSSD and stress values were preserved from the clean tail of the measurement.",
+  recoveredTailCoherenceResultsNote: (m, s) =>
+    `Finger signal degraded near the end of the practice, so coherence and RSA were preserved from the last reliable ${m}:${s.toString().padStart(2, "0")} tail window.`,
   backButton: "Close",
   approximateMetricsNote:
     "Short session mode: metrics are approximate (reduced analysis window; see JSON).",

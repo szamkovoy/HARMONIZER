@@ -40,6 +40,10 @@ import {
   computePracticeHrvMetricsFullSession,
   type PracticeHrvMetricsResult,
 } from "@/modules/biofeedback/core/metrics";
+import type {
+  BiofeedbackSignalTrustLevel,
+  BiofeedbackSignalTrustSummary,
+} from "@/modules/biofeedback/core/signal-trust";
 import {
   FINGER_CAMERA_CAPTURE_CONFIG,
   WEARABLE_CAPTURE_CONFIG,
@@ -138,6 +142,104 @@ import type { Json } from "@/services/supabase-types";
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
 
 const TIMING = DEFAULT_COHERENCE_TEST_TIMING;
+
+function trustLevelRank(level: BiofeedbackSignalTrustLevel): number {
+  switch (level) {
+    case "full_biometrics":
+      return 0;
+    case "guided_limited":
+      return 1;
+    case "pulse_only":
+      return 2;
+  }
+}
+
+function worstSignalTrust(
+  ...summaries: Array<BiofeedbackSignalTrustSummary | null>
+): BiofeedbackSignalTrustSummary | null {
+  let worst: BiofeedbackSignalTrustSummary | null = null;
+  for (const summary of summaries) {
+    if (summary == null) continue;
+    if (worst == null || trustLevelRank(summary.level) > trustLevelRank(worst.level)) {
+      worst = summary;
+    }
+  }
+  return worst;
+}
+
+function suppressPracticeHrvMetrics(result: PracticeHrvMetricsResult): PracticeHrvMetricsResult {
+  return {
+    ...result,
+    showRmssd: false,
+    showStress: false,
+    rmssdApproximate: false,
+    stressApproximate: false,
+    rmssdMs: 0,
+    stressPercent: 0,
+    stressRaw: 0,
+    initialRmssdMs: 0,
+    initialStressPercent: 0,
+    initialStressRaw: 0,
+    finalRmssdMs: 0,
+    finalStressPercent: 0,
+    finalStressRaw: 0,
+  };
+}
+
+function suppressCoherenceMetrics(result: CoherenceSessionResult): CoherenceSessionResult {
+  return {
+    ...result,
+    coherenceAveragePercent: null,
+    coherenceMaxPercent: null,
+    rsaAmplitudeBpm: null,
+    rsaNormalizedPercent: null,
+    entryTimeSec: null,
+  };
+}
+
+function findRecoverableCoherenceTail(params: {
+  pipeline: ReturnType<typeof useBiofeedbackPipeline>;
+  coherenceEngine: ReturnType<ReturnType<typeof useBiofeedbackPipeline>["getCoherenceEngine"]>;
+  sessionStartMs: number;
+  sessionEndMs: number;
+}): {
+  result: CoherenceSessionResult;
+  windowMs: number;
+  trust: BiofeedbackSignalTrustSummary;
+} | null {
+  const { pipeline, coherenceEngine, sessionStartMs, sessionEndMs } = params;
+  if (pipeline.getPulseSource() !== "fingerCamera") {
+    return null;
+  }
+
+  const candidateWindowsMs = [180_000, 150_000, 120_000] as const;
+  const minValidDataSeconds = 90;
+  for (const windowMs of candidateWindowsMs) {
+    if (sessionEndMs - sessionStartMs < windowMs) {
+      continue;
+    }
+    const startMs = sessionEndMs - windowMs;
+    const trust = pipeline.getSignalTrustSummary({ startMs, endMs: sessionEndMs });
+    if (trust.level === "pulse_only") {
+      continue;
+    }
+    if (trust.gapEventCount > 0 || trust.longestGapMs > 2_000) {
+      continue;
+    }
+    const result = coherenceEngine.analyzeWindow(startMs, sessionEndMs);
+    if (result.metricsWithheldDueToInsufficientData) {
+      continue;
+    }
+    if (result.totalValidDataSeconds < minValidDataSeconds) {
+      continue;
+    }
+    if (result.coherenceAveragePercent == null || result.rsaAmplitudeBpm == null) {
+      continue;
+    }
+    return { result, windowMs, trust };
+  }
+  return null;
+}
 /** Начальный BPM для seed-а planner-а, пока не пришли реальные удары. */
 const INITIAL_SEED_BPM = 60;
 /** Максимум времени в прогреве + QC до отмены (защита от зависания). */
@@ -439,6 +541,11 @@ function CoherenceBreathScreenInner({
    * следующей сессии раньше, чем пользователь уйдёт с results).
    */
   const [finalPulseWasEmulated, setFinalPulseWasEmulated] = useState(false);
+  const [finalSignalTrust, setFinalSignalTrust] =
+    useState<BiofeedbackSignalTrustSummary | null>(null);
+  const [finalHrvRecoveredFromTail, setFinalHrvRecoveredFromTail] = useState(false);
+  const [finalCoherenceRecoveredFromTail, setFinalCoherenceRecoveredFromTail] = useState(false);
+  const [finalCoherenceTailWindowMs, setFinalCoherenceTailWindowMs] = useState<number | null>(null);
 
   // ─── Гибридный режим измерения ─────────────────────────────────────────
   //
@@ -2034,6 +2141,12 @@ function CoherenceBreathScreenInner({
 
       let finalResult: CoherenceSessionResult;
       let practiceHrv: PracticeHrvMetricsResult;
+      let finalTrust: BiofeedbackSignalTrustSummary | null = null;
+      let recoveredHrvFromTail = false;
+      let recoveredCoherenceFromTail = false;
+      let recoveredCoherenceTailWindowMs: number | null = null;
+      let startTrust: BiofeedbackSignalTrustSummary | null = null;
+      let endTrust: BiofeedbackSignalTrustSummary | null = null;
       // Диагностика распределения beats по двум окнам гибрида (см.
       // CoherenceExportDebug.hybridWindowStats). Заполняется только в
       // hybrid-режиме, иначе null.
@@ -2042,23 +2155,42 @@ function CoherenceBreathScreenInner({
       if (isHybridSession) {
         const startR = coherenceEngine.analyzeWindow(sessionStartLogicalMs, rs);
         const endR = coherenceEngine.analyzeWindow(re, analysisEndLogicalMs);
-        finalResult = mergeHybridCoherenceSessionResults(startR, endR);
-        coherenceEngine.finalizePrecomputed(finalResult);
-
-        const allBeats = pipeline.getHrvAccumulator().getBeats();
-        const startBeats = allBeats.filter((t) => t >= sessionStartLogicalMs && t <= rs);
-        const endBeats = allBeats.filter((t) => t >= re && t <= analysisEndLogicalMs);
+        const startBeats = pipeline.getMetricBeatTimestampsInRange(sessionStartLogicalMs, rs);
+        const endBeats = pipeline.getMetricBeatTimestampsInRange(re, analysisEndLogicalMs);
+        startTrust = pipeline.getSignalTrustSummary({
+          startMs: sessionStartLogicalMs,
+          endMs: rs,
+          applyInitialGraceWindow: true,
+        });
+        endTrust = pipeline.getSignalTrustSummary({
+          startMs: re,
+          endMs: analysisEndLogicalMs,
+          applyInitialGraceWindow: true,
+        });
         hybridWindowStats = {
-          allBeatsCount: allBeats.length,
+          allBeatsCount: pipeline.getHrvAccumulator().getBeats().length,
           startWindowBeatsCount: startBeats.length,
           endWindowBeatsCount: endBeats.length,
           startWindowMs: rs - sessionStartLogicalMs,
           endWindowMs: analysisEndLogicalMs - re,
         };
-        setFinalStartAnalysis(startR);
-        setFinalEndAnalysis(endR);
-        setFinalStartHrv(computePracticeHrvMetricsFullSession(startBeats));
-        setFinalEndHrv(computePracticeHrvMetricsFullSession(endBeats));
+        const gatedStartAnalysis =
+          startTrust.level === "full_biometrics" ? startR : suppressCoherenceMetrics(startR);
+        const gatedEndAnalysis =
+          endTrust.level === "full_biometrics" ? endR : suppressCoherenceMetrics(endR);
+        const startHrvRaw = computePracticeHrvMetricsFullSession(startBeats);
+        const endHrvRaw = computePracticeHrvMetricsFullSession(endBeats);
+        const gatedStartHrv =
+          startTrust.level === "pulse_only" ? suppressPracticeHrvMetrics(startHrvRaw) : startHrvRaw;
+        const gatedEndHrv =
+          endTrust.level === "pulse_only" ? suppressPracticeHrvMetrics(endHrvRaw) : endHrvRaw;
+        finalResult = mergeHybridCoherenceSessionResults(gatedStartAnalysis, gatedEndAnalysis);
+        coherenceEngine.finalizePrecomputed(finalResult);
+
+        setFinalStartAnalysis(gatedStartAnalysis);
+        setFinalEndAnalysis(gatedEndAnalysis);
+        setFinalStartHrv(gatedStartHrv);
+        setFinalEndHrv(gatedEndHrv);
         setFinalStartAvgBpm(computeMedianBpmFromBeats(startBeats));
         setFinalEndAvgBpm(computeMedianBpmFromBeats(endBeats));
         setFinalStartWindowMs(rs - sessionStartLogicalMs);
@@ -2066,11 +2198,16 @@ function CoherenceBreathScreenInner({
 
         const hybridHrvBeats = [...startBeats, ...endBeats].sort((a, b) => a - b);
         practiceHrv = computePracticeHrvMetricsFullSession(hybridHrvBeats);
+        finalTrust = worstSignalTrust(startTrust, endTrust);
       } else {
         finalResult = coherenceEngine.finalize(analysisEndLogicalMs);
-        practiceHrv = computePracticeHrvMetricsFullSession(
-          pipeline.getHrvAccumulator().getBeats(),
-        );
+        const metricBeats = pipeline.getMetricBeatTimestamps();
+        practiceHrv = computePracticeHrvMetricsFullSession(metricBeats);
+        finalTrust = pipeline.getSignalTrustSummary({
+          startMs: sessionStartLogicalMs,
+          endMs: analysisEndLogicalMs,
+          applyInitialGraceWindow: true,
+        });
         setFinalStartAnalysis(null);
         setFinalEndAnalysis(null);
         setFinalStartHrv(null);
@@ -2079,6 +2216,53 @@ function CoherenceBreathScreenInner({
         setFinalEndAvgBpm(null);
         setFinalStartWindowMs(null);
         setFinalEndWindowMs(null);
+      }
+
+      if (finalTrust == null) {
+        finalTrust = pipeline.getSignalTrustSummary();
+      }
+
+      if (finalTrust.level !== "full_biometrics") {
+        const recoveredCoherenceTail =
+          !isHybridSession
+            ? findRecoverableCoherenceTail({
+                pipeline,
+                coherenceEngine,
+                sessionStartMs: sessionStartLogicalMs,
+                sessionEndMs: analysisEndLogicalMs,
+              })
+            : null;
+        if (recoveredCoherenceTail != null) {
+          finalResult = {
+            ...recoveredCoherenceTail.result,
+            metricsApproximate: true,
+            warnings: [
+              ...recoveredCoherenceTail.result.warnings,
+              str.recoveredTailCoherenceResultsNote(
+                Math.floor(recoveredCoherenceTail.windowMs / 60_000),
+                Math.round((recoveredCoherenceTail.windowMs % 60_000) / 1000),
+              ),
+            ],
+          };
+          recoveredCoherenceFromTail = true;
+          recoveredCoherenceTailWindowMs = recoveredCoherenceTail.windowMs;
+        } else {
+          finalResult = suppressCoherenceMetrics(finalResult);
+        }
+      }
+      if (finalTrust.level === "pulse_only") {
+        const fallbackMetricBeats = !isHybridSession ? pipeline.getRecentReliableMetricBeats() : null;
+        if (fallbackMetricBeats != null) {
+          const recovered = computePracticeHrvMetricsFullSession(fallbackMetricBeats);
+          practiceHrv = {
+            ...recovered,
+            rmssdApproximate: true,
+            stressApproximate: true,
+          };
+          recoveredHrvFromTail = true;
+        } else {
+          practiceHrv = suppressPracticeHrvMetrics(practiceHrv);
+        }
       }
 
       const finalRes = useSimulatedPpg
@@ -2163,6 +2347,7 @@ function CoherenceBreathScreenInner({
           })),
         },
         qcOutcome: qcOutcomeRef.current,
+        signalTrust: finalTrust,
         practiceRmssdMs: practiceHrv.showRmssd ? practiceHrv.rmssdMs : null,
         practiceStressPercent: practiceHrv.showStress ? practiceHrv.stressPercent : null,
         practiceHrvBeatCount: practiceHrv.validBeatCount,
@@ -2178,6 +2363,10 @@ function CoherenceBreathScreenInner({
       setFinalRmssdMs(practiceHrv.showRmssd ? practiceHrv.rmssdMs : null);
       setFinalStressPercent(practiceHrv.showStress ? practiceHrv.stressPercent : null);
       setFinalPulseWasEmulated(pipeline.isPulseEmulated());
+      setFinalSignalTrust(finalTrust);
+      setFinalHrvRecoveredFromTail(recoveredHrvFromTail);
+      setFinalCoherenceRecoveredFromTail(recoveredCoherenceFromTail);
+      setFinalCoherenceTailWindowMs(recoveredCoherenceTailWindowMs);
 
       setPhase("results");
     }, UI_TICK_MS);
@@ -2215,6 +2404,9 @@ function CoherenceBreathScreenInner({
     if (phase !== "running") return;
     const planner = plannerRef.current;
     return bus.subscribe("pulseBpm", (event) => {
+      if (pipeline.getSignalTrustSummary().level !== "full_biometrics") {
+        planner.clearLastRsaCycle();
+      }
       const medianRr = event.medianRrMs;
       const bpm = medianRr > 0 ? 60_000 / medianRr : event.bpm;
       if (bpm > 0) {
@@ -2241,7 +2433,7 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [phase, bus, sessionStartWallMs]);
+  }, [phase, bus, pipeline, sessionStartWallMs]);
 
   /** Подписка на coherence → подавать planner последний завершённый RSA-цикл. */
   useEffect(() => {
@@ -2249,6 +2441,10 @@ function CoherenceBreathScreenInner({
     const planner = plannerRef.current;
     let lastCycleKey = "";
     return bus.subscribe("coherence", (event) => {
+      if (pipeline.getSignalTrustSummary().level !== "full_biometrics") {
+        planner.clearLastRsaCycle();
+        return;
+      }
       const cycle = event.lastCompletedRsaCycle;
       if (!cycle) return;
       planner.ingestCompletedRsaCycle(cycle);
@@ -2267,7 +2463,7 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [phase, bus]);
+  }, [phase, bus, pipeline]);
 
   /**
    * Вызывается shell-ом на каждой границе фаз.
@@ -2438,6 +2634,11 @@ function CoherenceBreathScreenInner({
     setFinalRmssdMs(null);
     setFinalStressPercent(null);
     setFinalPulseWasEmulated(false);
+    setFinalSignalTrust(null);
+    setFinalHrvRecoveredFromTail(false);
+    setFinalCoherenceRecoveredFromTail(false);
+    setFinalCoherenceTailWindowMs(null);
+    setFinalSignalTrust(null);
     setElapsedMs(0);
     setCurrentPlan(null);
     setCycleStartMs(null);
@@ -2726,6 +2927,10 @@ function CoherenceBreathScreenInner({
       setFinalRmssdMs(null);
       setFinalStressPercent(null);
       setFinalPulseWasEmulated(false);
+      setFinalSignalTrust(null);
+      setFinalHrvRecoveredFromTail(false);
+      setFinalCoherenceRecoveredFromTail(false);
+      setFinalCoherenceTailWindowMs(null);
       setSessionStartLogicalMs(null);
       setCurrentPlan(null);
       setCycleStartMs(null);
@@ -3699,6 +3904,10 @@ function CoherenceBreathScreenInner({
           finalRmssdMs={finalRmssdMs}
           finalStressPercent={finalStressPercent}
           finalPulseWasEmulated={finalPulseWasEmulated}
+          finalSignalTrust={finalSignalTrust}
+          finalHrvRecoveredFromTail={finalHrvRecoveredFromTail}
+          finalCoherenceRecoveredFromTail={finalCoherenceRecoveredFromTail}
+          finalCoherenceTailWindowMs={finalCoherenceTailWindowMs}
           finalStartAnalysis={finalStartAnalysis}
           finalEndAnalysis={finalEndAnalysis}
           finalStartHrv={finalStartHrv}
@@ -3751,6 +3960,10 @@ function ResultsView(props: {
   finalRmssdMs: number | null;
   finalStressPercent: number | null;
   finalPulseWasEmulated: boolean;
+  finalSignalTrust: BiofeedbackSignalTrustSummary | null;
+  finalHrvRecoveredFromTail: boolean;
+  finalCoherenceRecoveredFromTail: boolean;
+  finalCoherenceTailWindowMs: number | null;
   finalStartAnalysis: CoherenceSessionResult | null;
   finalEndAnalysis: CoherenceSessionResult | null;
   finalStartHrv: PracticeHrvMetricsResult | null;
@@ -3776,6 +3989,10 @@ function ResultsView(props: {
     finalRmssdMs,
     finalStressPercent,
     finalPulseWasEmulated,
+    finalSignalTrust,
+    finalHrvRecoveredFromTail,
+    finalCoherenceRecoveredFromTail,
+    finalCoherenceTailWindowMs,
     finalStartAnalysis,
     finalEndAnalysis,
     finalStartHrv,
@@ -3799,6 +4016,13 @@ function ResultsView(props: {
   const [stage, setStage] = useState<"mood" | "details">("mood");
   const moodRef = useRef<ResultsMood | null>(null);
   const savedSessionRef = useRef(false);
+  const trustLevel = finalSignalTrust?.level ?? "full_biometrics";
+  const showCoherenceResults =
+    !finalPulseWasEmulated &&
+    (trustLevel === "full_biometrics" || finalCoherenceRecoveredFromTail) &&
+    !analysis?.metricsWithheldDueToInsufficientData;
+  const showHrvResults =
+    !finalPulseWasEmulated && (trustLevel !== "pulse_only" || finalHrvRecoveredFromTail);
 
   const buildOutcome = useCallback((): BreathPracticeOutcome => {
     const summary: BreathPracticeSummary = {
@@ -3808,13 +4032,13 @@ function ResultsView(props: {
         finalStartAvgBpm != null && finalEndAvgBpm != null
           ? Math.round((finalStartAvgBpm + finalEndAvgBpm) / 2)
           : (finalStartAvgBpm ?? finalEndAvgBpm ?? null),
-      coherenceAveragePercent: analysis?.coherenceAveragePercent ?? null,
-      coherenceMaxPercent: analysis?.coherenceMaxPercent ?? null,
-      rsaAmplitudeBpm: analysis?.rsaAmplitudeBpm ?? null,
-      rsaNormalizedPercent: analysis?.rsaNormalizedPercent ?? null,
-      rmssdMs: finalRmssdMs,
-      stressPercent: finalStressPercent,
-      entryTimeSec: analysis?.entryTimeSec ?? null,
+      coherenceAveragePercent: showCoherenceResults ? (analysis?.coherenceAveragePercent ?? null) : null,
+      coherenceMaxPercent: showCoherenceResults ? (analysis?.coherenceMaxPercent ?? null) : null,
+      rsaAmplitudeBpm: showCoherenceResults ? (analysis?.rsaAmplitudeBpm ?? null) : null,
+      rsaNormalizedPercent: showCoherenceResults ? (analysis?.rsaNormalizedPercent ?? null) : null,
+      rmssdMs: showHrvResults ? finalRmssdMs : null,
+      stressPercent: showHrvResults ? finalStressPercent : null,
+      entryTimeSec: showCoherenceResults ? (analysis?.entryTimeSec ?? null) : null,
     };
     const hybrid: BreathHybridBreakdown | null =
       finalStartAnalysis != null && finalEndAnalysis != null
@@ -3848,6 +4072,7 @@ function ResultsView(props: {
     finalEndHrv,
     finalEndWindowMs,
     finalPulseWasEmulated,
+    finalSignalTrust,
     finalRmssdMs,
     finalStartAnalysis,
     finalStartAvgBpm,
@@ -3857,6 +4082,8 @@ function ResultsView(props: {
     locale,
     practiceId,
     practiceTotalMs,
+    showCoherenceResults,
+    showHrvResults,
     useSimulatedPpg,
   ]);
 
@@ -3966,6 +4193,23 @@ function ResultsView(props: {
       {finalPulseWasEmulated && !useSimulatedPpg ? (
         <Text style={styles.warnBox}>{str.emulatedPulseResultsNote}</Text>
       ) : null}
+      {!finalPulseWasEmulated && trustLevel === "guided_limited" ? (
+        <Text style={styles.warnBox}>{str.guidedLimitedResultsNote}</Text>
+      ) : null}
+      {!finalPulseWasEmulated && trustLevel === "pulse_only" ? (
+        <Text style={styles.warnBox}>{str.pulseOnlyResultsNote}</Text>
+      ) : null}
+      {finalHrvRecoveredFromTail ? (
+        <Text style={styles.warnBox}>{str.recoveredTailHrvResultsNote}</Text>
+      ) : null}
+      {finalCoherenceRecoveredFromTail ? (
+        <Text style={styles.warnBox}>
+          {str.recoveredTailCoherenceResultsNote(
+            Math.floor((finalCoherenceTailWindowMs ?? 0) / 60_000),
+            Math.round(((finalCoherenceTailWindowMs ?? 0) % 60_000) / 1000),
+          )}
+        </Text>
+      ) : null}
       {analysis?.warnings?.length ? (
         <Text style={styles.warnBox}>{analysis.warnings.join("\n")}</Text>
       ) : null}
@@ -4003,40 +4247,39 @@ function ResultsView(props: {
             endWindowMs={finalEndWindowMs}
           />
         </>
-      ) : analysis?.metricsWithheldDueToInsufficientData || finalPulseWasEmulated ? (
-        <Text style={styles.metricLine}>
-          {str.coherenceAvgLabel}: — · {str.coherenceMaxLabel}: — · {str.rsaLabel}: — ·{" "}
-          {str.rsaNormalizedLabel}: — · {str.entryTimeLabel}: — · {str.rmssdLabel}: — ·{" "}
-          {str.stressLabel}: —
-        </Text>
       ) : (
         <>
           <Text style={styles.metricLine}>
             {str.coherenceAvgLabel}:{" "}
-            {formatCoherencePercent(analysis?.coherenceAveragePercent)}
+            {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceAveragePercent) : "—"}
           </Text>
           <Text style={styles.metricLine}>
             {str.coherenceMaxLabel}:{" "}
-            {formatCoherencePercent(analysis?.coherenceMaxPercent)}
+            {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceMaxPercent) : "—"}
           </Text>
           <Text style={styles.metricLine}>
             {str.rsaLabel}:{" "}
-            {analysis?.rsaAmplitudeBpm != null ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин` : "—"}
+            {showCoherenceResults && analysis?.rsaAmplitudeBpm != null
+              ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин`
+              : "—"}
           </Text>
           <Text style={styles.metricLine}>
             {str.rsaNormalizedLabel}:{" "}
-            {analysis?.rsaNormalizedPercent != null
+            {showCoherenceResults && analysis?.rsaNormalizedPercent != null
               ? `${Math.round(analysis.rsaNormalizedPercent)} %`
               : "—"}
           </Text>
           <Text style={styles.metricLine}>
-            {str.entryTimeLabel}: {analysis?.entryTimeSec != null ? `${analysis.entryTimeSec} с` : "—"}
+            {str.entryTimeLabel}:{" "}
+            {showCoherenceResults && analysis?.entryTimeSec != null ? `${analysis.entryTimeSec} с` : "—"}
           </Text>
           <Text style={styles.metricLine}>
-            {str.rmssdLabel}: {finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
+            {str.rmssdLabel}:{" "}
+            {showHrvResults && finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
           </Text>
           <Text style={styles.metricLine}>
-            {str.stressLabel}: {finalStressPercent != null ? `${Math.round(finalStressPercent)}%` : "—"}
+            {str.stressLabel}:{" "}
+            {showHrvResults && finalStressPercent != null ? `${Math.round(finalStressPercent)}%` : "—"}
           </Text>
         </>
       )}

@@ -342,6 +342,7 @@ const ru: HomeStrings = {
   },
   devLinks: {
     biofeedback: "Biofeedback",
+    biofeedbackParity: "Biofeedback Parity",
     mandala: "Mandala",
     bindu: "Bindu",
     symbols: "Symbols",

@@ -27,6 +27,8 @@ import { detectBeats } from "@/modules/biofeedback/signal/peak-detector";
 import {
   collapseSplitMergedBeats,
   mergeBeatTimestampsPhase1,
+  repairMissedMergedBeats,
+  stabilizeAlternatingJitterBeats,
   syncEligibilityByNearestTime,
   trimBeatHistory,
 } from "@/modules/biofeedback/signal/beat-merger";
@@ -64,6 +66,11 @@ import type {
   BiofeedbackCaptureConfig,
   PulseLockState,
 } from "@/modules/biofeedback/core/types";
+import {
+  summarizeFingerSignalTrust,
+  type BiofeedbackSignalTrustSummary,
+} from "@/modules/biofeedback/core/signal-trust";
+import { smoothBeatTimestampsMedian3ForMetrics } from "@/modules/biofeedback/core/rr-smoothing";
 import type { PulseSourceKind } from "@/modules/biofeedback/engines/types";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 
@@ -110,6 +117,12 @@ export class BiofeedbackPipeline {
   private beatEligible: boolean[] = [];
   private lastStableRrMs = 0;
   private lastMedianRrMs = 0;
+  private readonly sessionFingerGapEvents: Array<{
+    resumeBeatTimestampMs: number;
+    gapMs: number;
+  }> = [];
+  private mirroredAccumulatorGapEventCount = 0;
+  private sessionFingerLostAtMs: number | null = null;
   private lockState: PulseLockState = "searching";
   private lastPulseBpmPublishMs = 0;
   private lastCoherenceSnapshotMs = 0;
@@ -255,6 +268,124 @@ export class BiofeedbackPipeline {
   /** Получает доступ к накопителю HRV (для экспорта v3). */
   getHrvAccumulator(): HrvBeatAccumulator {
     return this.hrvAccumulator;
+  }
+
+  /**
+   * Beat-series used for final HRV/stress diagnostics. Finger camera goes through an
+   * additional median-of-3 RR smoothing pass; wearable/other beat sources stay raw.
+   */
+  getMetricBeatTimestamps(): readonly number[] {
+    const beats = this.hrvAccumulator.getBeats();
+    return this.pulseSource === "fingerCamera"
+      ? smoothBeatTimestampsMedian3ForMetrics(beats)
+      : beats;
+  }
+
+  getMetricBeatTimestampsInRange(startMs: number, endMs: number): readonly number[] {
+    const beats = this.hrvAccumulator
+      .getBeats()
+      .filter((beat) => beat >= startMs - 1 && beat <= endMs + 1);
+    return this.pulseSource === "fingerCamera"
+      ? smoothBeatTimestampsMedian3ForMetrics(beats)
+      : beats;
+  }
+
+  getMetricBeatTimestampsInTailWindow(windowMs: number): readonly number[] {
+    const beats = this.getMetricBeatTimestamps();
+    if (beats.length < 2 || windowMs <= 0) {
+      return beats;
+    }
+    const endMs = beats[beats.length - 1]!;
+    const startMs = endMs - windowMs;
+    const startIndex = beats.findIndex((beat) => beat >= startMs);
+    return startIndex <= 0 ? beats : beats.slice(startIndex);
+  }
+
+  getRecentReliableMetricBeats(options?: {
+    candidateWindowMs?: readonly number[];
+    minWindowMs?: number;
+  }): readonly number[] | null {
+    const beats = this.getMetricBeatTimestamps();
+    if (beats.length < 2) {
+      return null;
+    }
+    if (this.pulseSource !== "fingerCamera") {
+      return beats;
+    }
+
+    const candidateWindowMs = options?.candidateWindowMs ?? [180_000, 120_000, 90_000];
+    const minWindowMs = options?.minWindowMs ?? 90_000;
+    const fullStartMs = beats[0]!;
+    const fullEndMs = beats[beats.length - 1]!;
+    const fullDurationMs = fullEndMs - fullStartMs;
+    if (fullDurationMs < minWindowMs) {
+      return null;
+    }
+
+    for (const windowMs of candidateWindowMs) {
+      if (windowMs < minWindowMs || windowMs > fullDurationMs + 1) {
+        continue;
+      }
+      const tailBeats = this.getMetricBeatTimestampsInTailWindow(windowMs);
+      if (tailBeats.length < 30) {
+        continue;
+      }
+      const tailStartMs = tailBeats[0]!;
+      const tailEndMs = tailBeats[tailBeats.length - 1]!;
+      const trust = this.getSignalTrustSummary({
+        startMs: tailStartMs,
+        endMs: tailEndMs,
+      });
+      if (trust.level !== "pulse_only") {
+        return tailBeats;
+      }
+    }
+
+    return null;
+  }
+
+  getSignalTrustSummary(range?: {
+    startMs: number;
+    endMs: number;
+    applyInitialGraceWindow?: boolean;
+  }): BiofeedbackSignalTrustSummary {
+    if (this.pulseSource !== "fingerCamera") {
+      const beats = range
+        ? this.hrvAccumulator
+            .getBeats()
+            .filter((beat) => beat >= range.startMs - 1 && beat <= range.endMs + 1)
+        : this.hrvAccumulator.getBeats();
+      return {
+        level: "full_biometrics",
+        gapEventCount: 0,
+        totalGapMs: 0,
+        longestGapMs: 0,
+        rawBeatCount: beats.length,
+        metricBeatCount: beats.length,
+        meanAbsDrrRawMs: 0,
+        p90AbsDrrRawMs: 0,
+        meanAbsDrrMetricMs: 0,
+        p90AbsDrrMetricMs: 0,
+        reasons: [],
+      };
+    }
+
+    const rawBeats = range
+      ? this.hrvAccumulator
+          .getBeats()
+          .filter((beat) => beat >= range.startMs - 1 && beat <= range.endMs + 1)
+      : this.hrvAccumulator.getBeats();
+    const metricBeats = range
+      ? this.getMetricBeatTimestampsInRange(range.startMs, range.endMs)
+      : this.getMetricBeatTimestamps();
+    return summarizeFingerSignalTrust({
+      rawBeats,
+      metricBeats,
+      gapEvents: this.getSessionFingerGapEvents(),
+      startMs: range?.startMs ?? null,
+      endMs: range?.endMs ?? null,
+      applyInitialGraceWindow: range?.applyInitialGraceWindow ?? !range,
+    });
   }
 
   /** Текущий источник ударов пульса. */
@@ -556,6 +687,7 @@ export class BiofeedbackPipeline {
 
   /** Для beat-источников (симулятор, watch): пометить калибровку готовой вручную. */
   markCalibrationCompleteForBeatSource(timestampMs: number): void {
+    this.mirroredAccumulatorGapEventCount = 0;
     this.hrvAccumulator.markCalibrationComplete(timestampMs);
   }
 
@@ -743,6 +875,12 @@ export class BiofeedbackPipeline {
       const collapsed = collapseSplitMergedBeats(merged);
       merged = collapsed.beats;
       this.splitArtifactRejectedTotal += collapsed.removedCount;
+      if (this.config.source === "fingerCamera") {
+        const repaired = repairMissedMergedBeats(merged);
+        merged = repaired.beats;
+        const stabilized = stabilizeAlternatingJitterBeats(merged);
+        merged = stabilized.beats;
+      }
       mergedChanged = true;
     } else {
       // Новых ударов в этом кадре нет — просто поддерживаем окно истории.
@@ -850,6 +988,14 @@ export class BiofeedbackPipeline {
     });
     this.maybePublishSessionEvent(sample.timestampMs, calSnap);
     if (calSnap.becameReady) {
+      if (this.sessionFingerLostAtMs != null && sample.timestampMs > this.sessionFingerLostAtMs) {
+        this.sessionFingerGapEvents.push({
+          resumeBeatTimestampMs: sample.timestampMs,
+          gapMs: sample.timestampMs - this.sessionFingerLostAtMs,
+        });
+      }
+      this.sessionFingerLostAtMs = null;
+      this.mirroredAccumulatorGapEventCount = 0;
       this.hrvAccumulator.markCalibrationComplete(sample.timestampMs);
     }
 
@@ -864,6 +1010,7 @@ export class BiofeedbackPipeline {
       !this.metricsCapturePaused
     ) {
       this.hrvAccumulator.ingest(this.canonicalBeats, canonicalEligible, sample.timestampMs);
+      this.syncSessionFingerGapEventsFromAccumulator();
     }
 
     // 7) Live pulse channel — нужен только когда реально трекаем пульс
@@ -925,10 +1072,11 @@ export class BiofeedbackPipeline {
         BiofeedbackPipeline.HRV_STRESS_LIVE_INTERVAL_MS
     ) {
       this.lastHrvStressComputeMs = sample.timestampMs;
-      const beats = this.hrvAccumulator.getBeats();
+      const beats = this.getMetricBeatTimestamps();
+      const trust = this.getSignalTrustSummary();
       const hrvSnap = this.hrv.push(beats);
       const stressSnap = this.stress.push(beats);
-      if (hrvSnap.tier !== "none") {
+      if (trust.level !== "pulse_only" && hrvSnap.tier !== "none") {
         this.bus.publish("rmssd", {
           rmssdMs: hrvSnap.rmssdMs,
           segment: hrvSnap.showInitialFinal ? "final" : "all",
@@ -937,7 +1085,7 @@ export class BiofeedbackPipeline {
           approximate: hrvSnap.approximate,
         });
       }
-      if (stressSnap.tier !== "none") {
+      if (trust.level !== "pulse_only" && stressSnap.tier !== "none") {
         const tier =
           stressSnap.tier === "beats_180_plus" || stressSnap.tier === "beats_90_119"
             ? "stable90"
@@ -955,10 +1103,9 @@ export class BiofeedbackPipeline {
     // 10) Coherence (только если активна сессия). Appendим новые удары только
     // когда они действительно появились: за сессию это 20-60 закрытий циклов,
     // а не 36 000 кадров.
-    if (this.coherence.isActive()) {
-      if (mergedChanged) {
-        this.coherence.appendBeats(this.canonicalBeats);
-      }
+    const trust = this.getSignalTrustSummary();
+    if (this.coherence.isActive() && trust.level === "full_biometrics") {
+      this.coherence.appendBeats(this.hrvAccumulator.getBeats());
       if (sample.timestampMs - this.lastCoherenceSnapshotMs >= 1000) {
         this.lastCoherenceSnapshotMs = sample.timestampMs;
         this.publishCoherenceIfNew(sample.timestampMs);
@@ -1011,6 +1158,9 @@ export class BiofeedbackPipeline {
     timestampMs: number,
     calSnap: CalibrationSnapshot,
   ): void {
+    if (calSnap.becameLost) {
+      this.sessionFingerLostAtMs = timestampMs;
+    }
     const phaseChanged = calSnap.phase !== this.lastSessionEventPhase;
     const heartbeatDue =
       timestampMs - this.lastSessionEventMs >= BiofeedbackPipeline.SESSION_HEARTBEAT_MS;
@@ -1063,6 +1213,7 @@ export class BiofeedbackPipeline {
     this.lastMedianRrInPeakWindowMs = 0;
     this.perfDiagnosticOpticalPushCount = 0;
     this.metricsCapturePaused = false;
+    this.mirroredAccumulatorGapEventCount = 0;
   }
 
   /** Полный сброс — между экранами / при unmount. */
@@ -1072,6 +1223,27 @@ export class BiofeedbackPipeline {
     this.coherence.reset();
     this.opticalPaused = false;
     this.metricsCapturePaused = false;
+    this.sessionFingerGapEvents.length = 0;
+    this.sessionFingerLostAtMs = null;
+  }
+
+  private syncSessionFingerGapEventsFromAccumulator(): void {
+    const gapEvents = this.hrvAccumulator.getGapEvents();
+    if (gapEvents.length < this.mirroredAccumulatorGapEventCount) {
+      this.mirroredAccumulatorGapEventCount = gapEvents.length;
+      return;
+    }
+    if (gapEvents.length === this.mirroredAccumulatorGapEventCount) {
+      return;
+    }
+    for (const event of gapEvents.slice(this.mirroredAccumulatorGapEventCount)) {
+      this.sessionFingerGapEvents.push(event);
+    }
+    this.mirroredAccumulatorGapEventCount = gapEvents.length;
+  }
+
+  private getSessionFingerGapEvents() {
+    return this.sessionFingerGapEvents;
   }
 
   /** Проверка валидности RR (для UI / отладки). */

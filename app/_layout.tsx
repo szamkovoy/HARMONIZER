@@ -227,6 +227,10 @@ function RootLayoutNav() {
             options={{ title: "Biofeedback Probe", headerBackTitle: "Back" }}
           />
           <Stack.Screen
+            name="biofeedback-parity"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="bindu-succession-lab"
             options={{ title: "Bindu Succession Lab", headerBackTitle: "Back" }}
           />

@@ -258,6 +258,7 @@ function DevLinks({ strings, leadingAccessory }: { strings: HomeStrings; leading
   const theme = useTheme();
   const links = [
     { label: strings.devLinks.biofeedback, href: "/biofeedback-probe" },
+    { label: strings.devLinks.biofeedbackParity, href: "/biofeedback-parity" },
     { label: strings.devLinks.mandala, href: "/mandala-sandbox" },
     { label: strings.devLinks.bindu, href: "/bindu-succession-lab" },
     { label: strings.devLinks.symbols, href: "/sacred-symbol-stream" },

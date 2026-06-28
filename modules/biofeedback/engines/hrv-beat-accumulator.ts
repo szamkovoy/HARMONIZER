@@ -23,22 +23,32 @@ import { BEAT_DUPLICATE_TOLERANCE_MS } from "@/modules/biofeedback/constants";
  */
 const HRV_MAX_BEAT_GAP_MS = 2_000;
 
+export interface HrvGapEvent {
+  resumeBeatTimestampMs: number;
+  gapMs: number;
+}
+
 export class HrvBeatAccumulator {
   private readonly beats: number[] = [];
+  private readonly gapEvents: HrvGapEvent[] = [];
   private accumulationStartMs = 0;
   private calibrationComplete = false;
   /** Сколько раз пришёл удар после «дыры» > HRV_MAX_BEAT_GAP_MS (для withholding). */
   private gapEventCount = 0;
   /** Суммарная длительность дыр в мс (для отладки). */
   private totalGapMs = 0;
+  /** Самая длинная дыра за сессию. */
+  private longestGapMs = 0;
 
   /** Вызывается из CalibrationStateMachine при переходе settle → ready. */
   markCalibrationComplete(timestampMs: number): void {
     this.calibrationComplete = true;
     this.accumulationStartMs = timestampMs;
     this.beats.length = 0;
+    this.gapEvents.length = 0;
     this.gapEventCount = 0;
     this.totalGapMs = 0;
+    this.longestGapMs = 0;
   }
 
   /** Сколько раз приходил удар после дыры > 2 с (используется для withholding). */
@@ -49,6 +59,14 @@ export class HrvBeatAccumulator {
   /** Суммарное время провалов в мс. */
   getTotalGapMs(): number {
     return this.totalGapMs;
+  }
+
+  getLongestGapMs(): number {
+    return this.longestGapMs;
+  }
+
+  getGapEvents(): readonly HrvGapEvent[] {
+    return this.gapEvents;
   }
 
   /**
@@ -88,6 +106,11 @@ export class HrvBeatAccumulator {
         if (last > 0 && gap > HRV_MAX_BEAT_GAP_MS) {
           this.gapEventCount += 1;
           this.totalGapMs += gap;
+          this.longestGapMs = Math.max(this.longestGapMs, gap);
+          this.gapEvents.push({
+            resumeBeatTimestampMs: t,
+            gapMs: gap,
+          });
           last = t;
           continue;
         }
@@ -113,9 +136,11 @@ export class HrvBeatAccumulator {
 
   reset(): void {
     this.beats.length = 0;
+    this.gapEvents.length = 0;
     this.accumulationStartMs = 0;
     this.calibrationComplete = false;
     this.gapEventCount = 0;
     this.totalGapMs = 0;
+    this.longestGapMs = 0;
   }
 }

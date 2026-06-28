@@ -71,6 +71,8 @@ export function buildSessionExportV3(opts: SessionExportV3Options) {
 
   const merged = pipeline.getMergedBeats();
   const hrvValidBeats = pipeline.getHrvAccumulator().getBeats();
+  const metricBeats = pipeline.getMetricBeatTimestamps();
+  const signalTrust = pipeline.getSignalTrustSummary();
   const coherenceEngine = pipeline.getCoherenceEngine();
 
   let coherence: unknown = null;
@@ -124,6 +126,9 @@ export function buildSessionExportV3(opts: SessionExportV3Options) {
       mergedBeats: [...merged],
       hrvValidBeatsCount: hrvValidBeats.length,
       hrvValidBeats: [...hrvValidBeats],
+      metricBeatsCount: metricBeats.length,
+      metricBeats: [...metricBeats],
+      signalTrust,
       lastSourceTimestampMs: pipeline.getLastSourceTimestampMs(),
       lastStableRrMs: pipeline.getLastStableRrMs(),
       lockState: pipeline.getLockState(),

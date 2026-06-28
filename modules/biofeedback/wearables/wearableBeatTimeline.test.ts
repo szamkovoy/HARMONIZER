@@ -32,8 +32,8 @@ describe("buildBeatTimestampsFromRrPacket", () => {
 
   it("does not re-insert historical beats from multi-RR Polar packets", () => {
     const result = buildBeatTimestampsFromRrPacket(3000, [837, 795], 2000);
-    expect(result.beatTimestampsMs).toEqual([3000]);
-    expect(result.lastBeatTimestampMs).toBe(3000);
+    expect(result.beatTimestampsMs).toEqual([2795]);
+    expect(result.lastBeatTimestampMs).toBe(2795);
   });
 
   it("ignores stale last beat after timeline reset", () => {
@@ -45,5 +45,26 @@ describe("buildBeatTimestampsFromRrPacket", () => {
     );
     expect(result.beatTimestampsMs).toEqual([29_000, 30_000]);
     expect(result.lastBeatTimestampMs).toBe(30_000);
+  });
+
+  it("commits two genuinely new beats when packet spans missed notifies", () => {
+    const result = buildBeatTimestampsFromRrPacket(10_000, [995, 1005], 7_800);
+    expect(result.beatTimestampsMs).toEqual([8_795, 9_800]);
+    expect(result.lastBeatTimestampMs).toBe(9_800);
+  });
+
+  it("prefers RR continuity over notify arrival jitter", () => {
+    let last: number | null = null;
+    const first = buildBeatTimestampsFromRrPacket(1_060, [800], last);
+    expect(first.beatTimestampsMs).toEqual([260, 1060]);
+    last = first.lastBeatTimestampMs;
+
+    const second = buildBeatTimestampsFromRrPacket(2_040, [795], last);
+    expect(second.beatTimestampsMs).toEqual([1855]);
+    expect(second.lastBeatTimestampMs).toBe(1855);
+
+    const third = buildBeatTimestampsFromRrPacket(3_030, [837, 795], second.lastBeatTimestampMs);
+    expect(third.beatTimestampsMs).toEqual([2650]);
+    expect(third.lastBeatTimestampMs).toBe(2650);
   });
 });

@@ -226,6 +226,10 @@ export class BreathPhasePlanner {
     return this.lastRsaCycle;
   }
 
+  clearLastRsaCycle(): void {
+    this.lastRsaCycle = null;
+  }
+
   /**
    * Построить план следующего цикла.
    *

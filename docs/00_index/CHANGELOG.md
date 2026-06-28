@@ -3,13 +3,24 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.11
-updated: 2026-06-27
+version: 3.13
+updated: 2026-06-29
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-29: `biofeedback` / `practices` — refined finger grace-window (evaluate from session start when clean, after last early gap, or from minute two if failures persisted); parity coherence/RSA now computed on trimmed `metricBeats` like RMSSD/stress; hybrid breath windows use the same grace; finger pipeline feeds full HRV beats to `CoherenceEngine`. Synced `biofeedback/{spec,history}.md`, `practices/history.md`.
+- 2026-06-29: `biofeedback` / `practices` — parity bench now starts debug coherence only after the first real sensor timestamp (fixing blank camera `coherence/RSA`), shows `—` instead of false `0` when the post-trim wearable HRV window is still too short, and whole-session finger trust now forgives early first-minute gap/jitter damage when a long clean tail follows. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
+- 2026-06-28: `biofeedback` — parity bench source panels now also surface live `coherence` average and `RSA` from a debug `CoherenceEngine` session, while still withholding those fields whenever session trust falls below `full_biometrics`. Synced `biofeedback/{spec,history}.md`.
+- 2026-06-28: `biofeedback` — finger metric smoothing now applies a second conservative median-of-3 RR pass, and session-level signal trust no longer resets to “clean” after a repeated finger re-attach. This makes Polar parity on synchronized tail windows tighter for clean/short-gap cases and prevents long-gap sessions from falsely re-entering `full_biometrics`. Synced `biofeedback/{spec,history}.md`.
+- 2026-06-28: `biofeedback` / `practices` — late finger-camera degradation no longer has to erase HRV completely: if the final session trust falls to `pulse_only`, the app now preserves `RMSSD` / stress from the latest reliable 180/120/90-second tail window when available, while still withholding coherence/RSA. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
+- 2026-06-28: `biofeedback` / `practices` — coherence/RSA now also get a late-session tail fallback, but through a stricter path than HRV: only continuous 180/150/120-second finger tail windows with no local gap events and a passing coherence-analysis gate may surface recovered coherence/RSA. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
+- 2026-06-28: `biofeedback` / `practices` — finger-camera sessions now compute an explicit `SignalTrustLevel` from gap events plus post-filter RR jitter. Breath results use it to separate `full_biometrics`, `guided_limited`, and `pulse_only`, hiding coherence/RSA or all final biometrics when the camera signal degrades instead of showing misleading numbers. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
+- 2026-06-28: `biofeedback` — finger-camera beat merge now both repairs obvious missed optical beats and damps alternating short/long timestamp jitter before coherence/HRV/stress, so PPG timing noise less aggressively inflates RMSSD versus Polar. Synced `biofeedback/{spec,history}.md`.
+- 2026-06-28: `biofeedback` — parity bench metrics no longer compare second-zero wearable accumulation against post-`ready` finger accumulation: the chest-strap debug panel trims the initial 20 s (`warmup + settle`) before showing RMSSD / stress. Synced `biofeedback/{spec,history}.md`.
+- 2026-06-28: `biofeedback` — finger-only metric path now applies median-of-3 RR smoothing before RMSSD / Baevsky stress, and the parity bench/export were switched to the same `metricBeats` series so visual comparison matches the numbers being shown. Synced `biofeedback/{spec,history}.md`.
+- 2026-06-28: `biofeedback` — Polar RR reconstruction now extends from the last committed beat instead of re-anchoring every notify to packet arrival time, and a new debug parity bench (`biofeedback-parity`) compares live `BPM` / `RR` from finger camera vs BLE chest strap. Synced `biofeedback/{spec,history}.md`.
 - 2026-06-28: `biofeedback` — BLE multi-RR packets commit only new beat timestamps after the last merged beat, fixing Polar strap RR sawtooth and coherence withhold on full sessions. Synced `biofeedback/{spec,history}.md`.
 - 2026-06-28: `biofeedback` — BLE RR packets now reconstruct beat timestamps per HRS (backward from packet time); wearable path skips PPG PulseBpm filter when appending to coherence/HRV so chest-strap metrics match finger pipeline output. Synced `biofeedback/{spec,history}.md`.
 - 2026-06-27: doc-sync pre-push — `WearablePickerDialog` export and practices↔biofeedback dependency: `biofeedback/spec.md` (§2 wearables barrel), `biofeedback/dependencies.md`, `practices/dependencies.md`, `MAP.md` code_refs.

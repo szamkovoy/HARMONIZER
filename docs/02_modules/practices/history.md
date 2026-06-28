@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.20
-updated: 2026-06-27
+version: 1.21
+updated: 2026-06-29
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,14 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-29:** Breath final trust now tolerates shaky finger placement at the very beginning better than before. Grace-window logic: no blind discard of minute one — start evaluation after last early recovery or from minute two if failures persisted; hybrid start/end measurement windows each use `applyInitialGraceWindow: true` like the whole-session path.
+
+- **2026-06-28 (5):** Breath results no longer expose finger-camera biometrics as all-or-nothing. `CoherenceBreathScreen` now reads `SignalTrustLevel` from the biofeedback pipeline: `guided_limited` keeps the practice on real pulse/baseline guidance and stores only RMSSD/stress, while `pulse_only` withholds final biometrics instead of pretending that degraded finger signal can still support coherence/RSA.
+
+- **2026-06-28 (6):** Breath results gained a late-session fallback for finger-camera HRV. If the overall session ends in `pulse_only`, but the tail of the measurement still contains a sufficiently long clean segment, `CoherenceBreathScreen` now preserves `RMSSD` / stress from that reliable tail instead of dropping them to `—`; coherence and RSA stay hidden.
+
+- **2026-06-28 (7):** Breath results no longer hide coherence/RSA by default once the full session degrades. `CoherenceBreathScreen` now performs a second, stricter fallback pass for coherence/RSA on the latest continuous 180/150/120-second tail window; only windows with no local gap events and with a passing coherence-analysis gate are allowed to surface recovered coherence/RSA.
 
 - **2026-06-27 (4):** `PracticeCard` now collapses inline duration/chakra/pulse selectors on screen focus (`useFocusEffect`), so returning from a prematurely stopped breath session no longer leaves the duration grid expanded in the catalog or communicator card.
 
