@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/spec
 title: Biofeedback Spec
-version: 1.6
-updated: 2026-06-29
+version: 1.7
+updated: 2026-06-28
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -58,6 +58,8 @@ code_refs:
 | `error` | ошибки движка/сенсора |
 
 **React:** `BiofeedbackBusProvider`, `useBiofeedbackBus`, `useBiofeedbackChannel`, `useBiofeedbackSubscribe`, `useBiofeedbackPipeline`, `useBiofeedbackSnapshot` — см. `bus/react.tsx`, `bus/biofeedback-provider.tsx`, `bus/snapshot-adapter.ts`.
+
+**Pipeline introspection (finger / wearable):** `BiofeedbackPipeline.getMetricBeatTimestamps()`, `getMetricBeatTimestampsInRange(startMs, endMs)`, `getMetricBeatTimestampsInTailWindow(windowMs)`, `getRecentReliableMetricBeats(...)`, `getSignalTrustSummary(range?)` — metric beat-series (finger-only RR smoothing), session-level `SignalTrustLevel` и late-tail HRV fallback; wearable path возвращает `full_biometrics` без finger-only фильтров.
 
 **Wearables (barrel `modules/biofeedback/wearables/`):** `useWearableScanner`, `BleHeartRateSource`, общий модальный **`WearablePickerDialog`** (строки через prop `strings`, колбэки `onSelect` / `onClose`), preferences/trusted profiles — реэкспорт из `wearables/index.ts`.
 

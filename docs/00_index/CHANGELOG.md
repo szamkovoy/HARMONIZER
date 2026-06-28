@@ -3,13 +3,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.13
-updated: 2026-06-29
+version: 3.14
+updated: 2026-06-28
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-06-28: doc-sync pre-push — finger signal-trust / metric-beats push: deduped `practices/spec.md` `CoherenceBreathScreen` bullet; added `BiofeedbackPipeline` introspection API to `biofeedback/spec.md` §2; synced reverse breath↔biofeedback type coupling and parity route in `biofeedback/dependencies.md`.
 - 2026-06-29: `biofeedback` / `practices` — refined finger grace-window (evaluate from session start when clean, after last early gap, or from minute two if failures persisted); parity coherence/RSA now computed on trimmed `metricBeats` like RMSSD/stress; hybrid breath windows use the same grace; finger pipeline feeds full HRV beats to `CoherenceEngine`. Synced `biofeedback/{spec,history}.md`, `practices/history.md`.
 - 2026-06-29: `biofeedback` / `practices` — parity bench now starts debug coherence only after the first real sensor timestamp (fixing blank camera `coherence/RSA`), shows `—` instead of false `0` when the post-trim wearable HRV window is still too short, and whole-session finger trust now forgives early first-minute gap/jitter damage when a long clean tail follows. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
 - 2026-06-28: `biofeedback` — parity bench source panels now also surface live `coherence` average and `RSA` from a debug `CoherenceEngine` session, while still withholding those fields whenever session trust falls below `full_biometrics`. Synced `biofeedback/{spec,history}.md`.
