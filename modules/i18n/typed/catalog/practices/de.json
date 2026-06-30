@@ -55,5 +55,6 @@
   "withPulseSensor": "mit Pulsmesser",
   "withoutPulseSensor": "ohne Pulsmesser",
   "yogaLateHint": "Supabase antwortet langsamer als gewöhnlich. Der Katalog ist bereits geöffnet und die Asanas erscheinen hier automatisch.",
-  "yogaLateLoading": "wird geladen..."
+  "yogaLateLoading": "wird geladen...",
+  "wearablePickerNotFoundTips": "Bei einem Brustgurt-Pulsmesser: Befeuchte die Kontakte, presse ihn auf die Haut und warte 5–10 Sekunden. Stelle sicher, dass Bluetooth eingeschaltet ist, und schließe andere Apps, die diesen Pulsmesser nutzen. Wenn der Sensor noch nicht mit dem Telefon gekoppelt ist, öffne die App des Herstellers und warte auf die Kopplung. Starte das Telefon bei Bedarf neu."
 }

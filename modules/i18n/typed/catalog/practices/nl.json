@@ -55,5 +55,6 @@
   "withPulseSensor": "met hartslagmeter",
   "withoutPulseSensor": "zonder hartslagmeter",
   "yogaLateHint": "Supabase reageert trager dan normaal. De catalogus is al geopend en de asana's verschijnen hier automatisch.",
-  "yogaLateLoading": "laden..."
+  "yogaLateLoading": "laden...",
+  "wearablePickerNotFoundTips": "Bij een borstband-hartslagmeter: bevochtig de contacten, druk hem op de huid en wacht 5–10 seconden, controleer of Bluetooth aan is en sluit andere apps die deze hartslagmeter gebruiken. Als de sensor nog niet met de telefoon gekoppeld is, open de app van de fabrikant en wacht op koppeling. Herstart de telefoon indien nodig."
 }

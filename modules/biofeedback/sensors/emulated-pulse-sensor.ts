@@ -18,11 +18,25 @@ export const EMULATED_PULSE_START_BPM = 75;
 export const EMULATED_PULSE_END_BPM = 65;
 export const EMULATED_PULSE_RAMP_DURATION_MS = 3 * 60 * 1000;
 
+function clampFixedEmulatedBpm(bpm: number | null | undefined): number | null {
+  if (bpm == null || !Number.isFinite(bpm) || bpm <= 0) {
+    return null;
+  }
+  return Math.min(140, Math.max(40, bpm));
+}
+
 /**
  * Текущий целевой BPM на момент `sinceStartMs` от старта эмуляции.
  * Линейная интерполяция 75 → 65 за 180 с, затем плато 65.
  */
-export function emulatedBpmAt(sinceStartMs: number): number {
+export function emulatedBpmAt(
+  sinceStartMs: number,
+  options?: { fixedBpm?: number | null },
+): number {
+  const fixedBpm = clampFixedEmulatedBpm(options?.fixedBpm);
+  if (fixedBpm != null) {
+    return fixedBpm;
+  }
   if (sinceStartMs <= 0) {
     return EMULATED_PULSE_START_BPM;
   }
@@ -44,6 +58,7 @@ export function generateEmulatedPulseBeats(
   fromMs: number,
   toMs: number,
   phaseAtFrom: number,
+  options?: { fixedBpm?: number | null },
 ): { beats: number[]; phaseAtTo: number } {
   if (toMs <= fromMs) {
     return { beats: [], phaseAtTo: phaseAtFrom };
@@ -54,7 +69,7 @@ export function generateEmulatedPulseBeats(
   let t = fromMs;
   while (t < toMs) {
     const tNext = Math.min(t + STEP_MS, toMs);
-    const bpmMid = emulatedBpmAt(((t + tNext) / 2) - emulationStartMs);
+    const bpmMid = emulatedBpmAt(((t + tNext) / 2) - emulationStartMs, options);
     const dPhase = (bpmMid / 60000) * (tNext - t);
     const newPhase = prevPhase + dPhase;
     // Сколько целых «ударов» пересекли между prevPhase и newPhase.

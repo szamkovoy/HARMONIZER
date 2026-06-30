@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.48
-updated: 2026-06-27
+version: 2.50
+updated: 2026-06-30
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -65,6 +65,13 @@ code_refs:
 ### Очередь «обсудить из другого экрана» (`modules/communicator/core/pending-greeting.ts`)
 
 - `enqueueCommunicatorGreeting`, `consumeCommunicatorGreeting`, `peekCommunicatorGreeting`, `subscribePendingGreeting`
+- Legacy utility: текущий breath results flow больше **не** опирается на эту очередь; inline interpretation живёт отдельно через `POST /api/communicator/v2/practice-interpretation`.
+
+### Inline practice interpretation (`POST /api/communicator/v2/practice-interpretation`)
+
+- Маршрут принимает Bearer-authenticated JSON `{ outcome, subjectiveMood?, responseLocale? }`, где `outcome` совместим с `outcomeToCommunicatorPayload(...)` из `modules/breath/core/practice-io.ts`; для breath results клиент может дополнительно вложить `seriesInsights` (сжатые start/mid/end + min/max summaries по pulse / coherence / RMSSD / stress / RSA), не меняя persist-контракт `practice_sessions.metrics`.
+- Сервер выбирает язык через `resolveResponseLocale(user.locale, body.responseLocale)`, вызывает `STANDARD`-модель (`getModelByHint("standard")` + `generateGeminiText`) и возвращает короткий текст `{ text, modelUsed, responseLocale }`.
+- Клиентский helper: `services/breathPracticeInterpretation.ts`. Он не открывает `Communicator`, а используется локально внутри results-modal дыхательной практики. `CoherenceBreathScreen` показывает кнопку `Интерпретация` только когда сессия действительно дала биометрические метрики; camera guidance-only results и BLE-сессии без пригодной биометрии вместо этого остаются в локальном results UI без LLM-запроса.
 
 ### Локализация (`modules/communicator/i18n/communicator.ts`)
 

@@ -75,6 +75,12 @@ type Props = {
    *    пренебрежимо мало для теплового бюджета.
    */
   captureRateHint?: "normal" | "highPrecision";
+  /**
+   * When true, keep the VisionCamera session alive while the route is blurred
+   * (e.g. user switches to another in-app screen). OS background/inactive is
+   * still allowed — only React Navigation focus is ignored.
+   */
+  persistCaptureWhenBlurred?: boolean;
 };
 
 /**
@@ -221,6 +227,7 @@ const TURN_OFF_TORCH_DEBOUNCE_MS = 450;
  */
 function FingerPpgCameraSourceImpl({
   isActive,
+  persistCaptureWhenBlurred = false,
   style,
   visible = false,
   silent = false,
@@ -272,10 +279,15 @@ function FingerPpgCameraSourceImpl({
    */
   const isRenderActive =
     isActive &&
-    (isFocused || appState === "inactive" || appState === "background");
+    (persistCaptureWhenBlurred ||
+      isFocused ||
+      appState === "inactive" ||
+      appState === "background");
   const isRenderActiveRef = useRef(isRenderActive);
   isRenderActiveRef.current = isRenderActive;
+  const prevRenderActiveRef = useRef(isRenderActive);
   const isCameraSessionActive = isRenderActive;
+  const [cameraGeneration, setCameraGeneration] = useState(0);
   const device = useCameraDevice("back", { physicalDevices: ["wide-angle-camera"] });
   /**
    * Для PPG-камеры выбираем САМОЕ лёгкое возможное разрешение и самый низкий
@@ -422,6 +434,7 @@ function FingerPpgCameraSourceImpl({
    */
   const onFrameStatsRef = useRef<typeof onFrameStats>(onFrameStats);
   onFrameStatsRef.current = onFrameStats;
+  const cameraReadyRef = useRef(false);
 
   // Один раз на монтирование создаём стабильный мост «worklet → JS».
   // `reportFrame` ссылочно не меняется, поэтому useFrameProcessor ниже тоже
@@ -449,7 +462,15 @@ function FingerPpgCameraSourceImpl({
     // Worklets из require() стабилен между рендерами; создаём мост один раз.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const cameraReadyRef = useRef(false);
+
+  useEffect(() => {
+    const wasRenderActive = prevRenderActiveRef.current;
+    if (!wasRenderActive && isRenderActive) {
+      cameraReadyRef.current = false;
+      setCameraGeneration((value) => value + 1);
+    }
+    prevRenderActiveRef.current = isRenderActive;
+  }, [isRenderActive]);
 
   /**
    * SharedValue для worklet-gate: когда `silent=true`, worklet немедленно
@@ -553,6 +574,7 @@ function FingerPpgCameraSourceImpl({
   return (
     <View style={containerStyle as ViewStyle} pointerEvents="none">
       <Camera
+        key={`finger-ppg-${cameraGeneration}`}
         style={visible ? styles.cameraVisible : styles.camera}
         device={device}
         format={format}

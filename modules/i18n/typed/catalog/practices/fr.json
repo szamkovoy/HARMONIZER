@@ -55,5 +55,6 @@
   "withPulseSensor": "avec pulsomètre",
   "withoutPulseSensor": "sans pulsomètre",
   "yogaLateHint": "Supabase répond plus lentement que d'habitude. Le catalogue est déjà ouvert, les asanas apparaîtront ici automatiquement.",
-  "yogaLateLoading": "Chargement…"
+  "yogaLateLoading": "Chargement…",
+  "wearablePickerNotFoundTips": "Pour un cardiofréquencemètre thoracique : humidifiez les contacts, pressez-le sur la peau et attendez 5 à 10 secondes, vérifiez que le Bluetooth est activé et fermez les autres applications qui utilisent ce capteur. Si le capteur n'est pas encore associé au téléphone, ouvrez l'application du fabricant et attendez l'association. Redémarrez le téléphone si nécessaire."
 }

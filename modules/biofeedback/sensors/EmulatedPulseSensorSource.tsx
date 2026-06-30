@@ -23,9 +23,10 @@ import { generateEmulatedPulseBeats } from "@/modules/biofeedback/sensors/emulat
 
 type Props = {
   isActive: boolean;
+  seedBpm?: number | null;
 };
 
-export function EmulatedPulseSensorSource({ isActive }: Props) {
+export function EmulatedPulseSensorSource({ isActive, seedBpm = null }: Props) {
   const pipeline = useBiofeedbackPipeline();
   const emulationStartMsRef = useRef<number | null>(null);
   const phaseRef = useRef(0);
@@ -50,6 +51,7 @@ export function EmulatedPulseSensorSource({ isActive }: Props) {
         lastEmittedMsRef.current,
         nowMs,
         phaseRef.current,
+        { fixedBpm: seedBpm },
       );
       phaseRef.current = phaseAtTo;
       lastEmittedMsRef.current = nowMs;
@@ -61,7 +63,7 @@ export function EmulatedPulseSensorSource({ isActive }: Props) {
     return () => {
       clearInterval(id);
     };
-  }, [isActive, pipeline]);
+  }, [isActive, pipeline, seedBpm]);
 
   return null;
 }

@@ -13,7 +13,7 @@ import { readJsHeapUsedBytes } from "@/modules/breath/debug/session-runtime-diag
 
 type RuntimeDiagnosticsLevel = "debug" | "info" | "warn" | "error";
 
-type RuntimeDiagnosticsEvent = {
+export type RuntimeDiagnosticsEvent = {
   seq: number;
   at: string;
   tMs: number;
@@ -86,6 +86,17 @@ export function clearRuntimeDiagnostics(): void {
   events = [];
   sequence = 0;
   logRuntimeEvent("diagnostics:cleared");
+}
+
+export function getRuntimeDiagnosticsCurrentSeq(): number {
+  return sequence;
+}
+
+export function getRuntimeDiagnosticsEventsSince(seqExclusive: number): RuntimeDiagnosticsEvent[] {
+  if (!Number.isFinite(seqExclusive) || seqExclusive < 0) {
+    return events.slice();
+  }
+  return events.filter((event) => event.seq > seqExclusive);
 }
 
 async function sampleDevice(): Promise<void> {

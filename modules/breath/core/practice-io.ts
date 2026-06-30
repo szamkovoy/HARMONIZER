@@ -23,8 +23,12 @@ export interface BreathPracticeInput {
   /**
    * Длительность практики в миллисекундах. По умолчанию —
    * `DEFAULT_COHERENCE_TEST_TIMING.totalMs` (20 мин).
-   * Для ≥ 10 мин автоматически включается hybrid-режим (split metrics
-   * по окнам начала/конца).
+   *
+   * Историческое примечание: старый camera-only hybrid start/end режим
+   * действительно включался на длинных практиках (от 10 мин), чтобы
+   * уменьшить перегрев телефона. В текущем production-flow он выключен:
+   * `fingerCamera` работает как guidance-only без advanced metrics, а BLE
+   * считает метрики по живому RR-ряду без split-окон.
    */
   durationMs?: number;
   /**
@@ -87,8 +91,9 @@ export interface BreathPracticeSummary {
 /**
  * Разбивка результатов на два окна: начало и конец практики.
  *
- * Именно это показывает таблица «В НАЧАЛЕ / В КОНЦЕ» на экране результатов.
- * Если hybrid-режим не активировался (короткая практика), всё поле `null`.
+ * Это legacy-контракт для старого hybrid camera path. Поле остаётся в
+ * payload-е совместимости, но в текущем production-flow обычно `null`:
+ * camera advanced metrics выключены, BLE считает один непрерывный ряд.
  */
 export interface BreathHybridBreakdown {
   start: BreathWindowMetrics;

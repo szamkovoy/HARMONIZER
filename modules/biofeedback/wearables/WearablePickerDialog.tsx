@@ -14,6 +14,7 @@ export interface WearablePickerDialogStrings {
   searchHint: string;
   foundHint: string;
   notFoundHint: string;
+  notFoundTips?: string;
   bluetoothOffHint: string;
   retryButton: string;
   closeButton: string;
@@ -117,6 +118,11 @@ export function WearablePickerDialog({
           <AppText variant="dialogBody" tone="muted">
             {bodyMessage}
           </AppText>
+          {searchFinished && scannedWearables.length === 0 && strings.notFoundTips ? (
+            <AppText variant="technicalCaption" tone="muted">
+              {strings.notFoundTips}
+            </AppText>
+          ) : null}
           {scanError ? (
             <AppText variant="dialogBody" tone="muted">
               {scanError}

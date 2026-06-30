@@ -426,9 +426,10 @@ export class CoherenceEngine {
       dataSource?: "fingerPpg" | "simulated" | "wearable";
       debug?: CoherenceExportDebug;
       pulseLog?: readonly CoherencePulseLogEntry[];
+      resultOverride?: CoherenceSessionResult;
     },
   ) {
-    const result = this.cachedResult ?? this.finalize(sessionEndedAtMs);
+    const result = options?.resultOverride ?? this.cachedResult ?? this.finalize(sessionEndedAtMs);
     const input: CoherenceSessionInput = {
       sessionStartedAtMs: this.sessionStartedAtMs,
       sessionEndedAtMs,

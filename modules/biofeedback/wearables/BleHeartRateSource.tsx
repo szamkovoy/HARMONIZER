@@ -22,6 +22,7 @@ type BleHeartRateSourceProps = {
   deviceName?: string | null;
   initialCapabilityTier?: WearableCapabilityTier;
   autoReconnect?: boolean;
+  suppressBeatEvents?: boolean;
   onRuntimeSnapshot?: (snapshot: WearableRuntimeSnapshot) => void;
   onCapabilityResolved?: (tier: WearableCapabilityTier, connectionHint?: string) => void;
 };
@@ -29,6 +30,9 @@ type BleHeartRateSourceProps = {
 const RECONNECT_DELAY_MS = 1500;
 const GUIDED_ONLY_PROBE_PACKETS = 4;
 const RR_TIMELINE_RESET_GAP_MS = 30_000;
+/** No HR/RR packets while connected — treat as signal loss and reconnect. */
+const PACKET_STALL_MS = 10_000;
+const STALL_CHECK_INTERVAL_MS = 2_000;
 
 export function BleHeartRateSource({
   isActive,
@@ -36,6 +40,7 @@ export function BleHeartRateSource({
   deviceName,
   initialCapabilityTier = "unknown",
   autoReconnect = true,
+  suppressBeatEvents = false,
   onRuntimeSnapshot,
   onCapabilityResolved,
 }: BleHeartRateSourceProps) {
@@ -44,6 +49,7 @@ export function BleHeartRateSource({
   const runtimeSnapshotHandlerRef = useRef(onRuntimeSnapshot);
   const capabilityResolvedHandlerRef = useRef(onCapabilityResolved);
   const initialCapabilityTierRef = useRef(initialCapabilityTier);
+  const suppressBeatEventsRef = useRef(suppressBeatEvents);
 
   useEffect(() => {
     runtimeSnapshotHandlerRef.current = onRuntimeSnapshot;
@@ -52,6 +58,14 @@ export function BleHeartRateSource({
   useEffect(() => {
     capabilityResolvedHandlerRef.current = onCapabilityResolved;
   }, [onCapabilityResolved]);
+
+  useEffect(() => {
+    initialCapabilityTierRef.current = initialCapabilityTier;
+  }, [initialCapabilityTier]);
+
+  useEffect(() => {
+    suppressBeatEventsRef.current = suppressBeatEvents;
+  }, [suppressBeatEvents]);
 
   useEffect(() => {
     if (!isActive || !deviceId) {
@@ -64,14 +78,19 @@ export function BleHeartRateSource({
     let connection: Device | null = null;
     let disconnectSub: Subscription | null = null;
     let hrMonitorSub: Subscription | null = null;
+    let btStateSub: Subscription | null = null;
     let guidedBeatTimer: ReturnType<typeof setInterval> | null = null;
     let resolvedTier: WearableCapabilityTier = initialCapabilityTierRef.current;
     let packetCount = 0;
     let rrPacketCount = 0;
     let disconnectCount = 0;
+    let beatSourceCalibrated = false;
     let lastHeartRateBpm: number | null = null;
     let lastBeatTimestampMs: number | null = null;
     let lastRrAtMs: number | null = null;
+    let lastSensorContactDetected: boolean | null = null;
+    let lastPacketAtMs: number | null = null;
+    let stallWatchdog: ReturnType<typeof setInterval> | null = null;
     const trustedProfile = detectWearableTrustedProfile(deviceName ?? undefined);
     const provider = trustedProfile?.provider ?? "genericHrs";
 
@@ -89,6 +108,7 @@ export function BleHeartRateSource({
           trustedProfile?.prefersPairInAppOnly === true ? "pairInAppOnly" : extra.connectionHint,
         lastHeartRateBpm,
         lastRrAtMs,
+        sensorContactDetected: lastSensorContactDetected,
         packetCount,
         rrPacketCount,
         disconnectCount,
@@ -100,7 +120,7 @@ export function BleHeartRateSource({
       resolvedTier = nextTier;
       pipeline.setMetricsCapturePaused(nextTier === "guidedOnly" || nextTier === "unsupported");
       capabilityResolvedHandlerRef.current?.(nextTier, connectionHint);
-      emitSnapshot(nextTier === "fullMetrics" ? "ready" : "probing", {
+      emitSnapshot(nextTier === "unsupported" || nextTier === "unknown" ? "probing" : "ready", {
         capabilityTier: nextTier,
         connectionHint,
       });
@@ -109,9 +129,61 @@ export function BleHeartRateSource({
     const clearTimers = () => {
       if (guidedBeatTimer) clearInterval(guidedBeatTimer);
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (stallWatchdog) clearInterval(stallWatchdog);
       guidedBeatTimer = null;
       reconnectTimer = null;
+      stallWatchdog = null;
     };
+
+    const scheduleReconnect = (reason: WearableRuntimeSnapshot["state"], errorMessage?: string | null) => {
+      if (disposed) return;
+      emitSnapshot(reason, { errorMessage: errorMessage ?? null });
+      if (!autoReconnect) return;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        if (!disposed) {
+          void connect().catch((connectError: unknown) => {
+            emitSnapshot("failed", {
+              errorMessage: connectError instanceof Error ? connectError.message : String(connectError),
+            });
+          });
+        }
+      }, RECONNECT_DELAY_MS);
+    };
+
+    const restartConnection = (reason: WearableRuntimeSnapshot["state"], errorMessage?: string | null) => {
+      if (disposed) return;
+      hrMonitorSub?.remove();
+      disconnectSub?.remove();
+      hrMonitorSub = null;
+      disconnectSub = null;
+      const activeConnection = connection;
+      connection = null;
+      if (activeConnection) {
+        void activeConnection.cancelConnection().catch(() => undefined);
+      }
+      scheduleReconnect(reason, errorMessage);
+    };
+
+    const startStallWatchdog = () => {
+      if (stallWatchdog) clearInterval(stallWatchdog);
+      stallWatchdog = setInterval(() => {
+        if (disposed || !connection) return;
+        const nowMs = Date.now();
+        const lastActivityMs = lastPacketAtMs ?? lastRrAtMs;
+        if (lastActivityMs == null) {
+          if (packetCount === 0 && nowMs - (connectStartedAtMs ?? nowMs) > PACKET_STALL_MS) {
+            void connection?.cancelConnection().catch(() => undefined);
+          }
+          return;
+        }
+        if (nowMs - lastActivityMs > PACKET_STALL_MS) {
+          void connection?.cancelConnection().catch(() => undefined);
+        }
+      }, STALL_CHECK_INTERVAL_MS);
+    };
+
+    let connectStartedAtMs: number | null = null;
 
     const ensureGuidedBeatTimer = () => {
       if (guidedBeatTimer) return;
@@ -119,12 +191,20 @@ export function BleHeartRateSource({
         if (disposed || resolvedTier !== "guidedOnly" || !lastHeartRateBpm || lastHeartRateBpm <= 0) return;
         const intervalMs = 60_000 / lastHeartRateBpm;
         const nowMs = Date.now();
+        if (!suppressBeatEventsRef.current && !beatSourceCalibrated) {
+          pipeline.setPulseSource("wearable");
+          pipeline.markCalibrationCompleteForBeatSource(nowMs);
+          beatSourceCalibrated = true;
+        }
         if (lastBeatTimestampMs == null) {
           lastBeatTimestampMs = nowMs - intervalMs;
         }
         while (lastBeatTimestampMs + intervalMs <= nowMs) {
           lastBeatTimestampMs += intervalMs;
-          pipeline.pushBeatEvent(nowMs, lastBeatTimestampMs);
+          if (!suppressBeatEventsRef.current) {
+            pipeline.setPulseSource("wearable");
+            pipeline.pushBeatEvent(nowMs, lastBeatTimestampMs);
+          }
         }
       }, 200);
     };
@@ -139,8 +219,15 @@ export function BleHeartRateSource({
         buildBeatTimestampsFromRrPacket(nowMs, rrIntervalsMs, lastBeatTimestampMs, {
           resetTimeline,
         });
+      if (!suppressBeatEventsRef.current && !beatSourceCalibrated) {
+        pipeline.setPulseSource("wearable");
+        pipeline.markCalibrationCompleteForBeatSource(nowMs);
+        beatSourceCalibrated = true;
+      }
       for (const beatTimestampMs of beatTimestampsMs) {
-        pipeline.pushBeatEvent(nowMs, beatTimestampMs);
+        if (!suppressBeatEventsRef.current) {
+          pipeline.pushBeatEvent(nowMs, beatTimestampMs);
+        }
       }
       if (nextLastBeat != null) {
         lastBeatTimestampMs = nextLastBeat;
@@ -150,16 +237,27 @@ export function BleHeartRateSource({
 
     const connect = async () => {
       clearTimers();
+      connectStartedAtMs = Date.now();
+      lastSensorContactDetected = null;
       emitSnapshot(disconnectCount > 0 ? "reconnecting" : "connecting");
       const manager = managerRef.current;
       const state = await manager.state();
       if (state !== "PoweredOn") {
         emitSnapshot("waitingForBluetooth");
+        btStateSub?.remove();
+        btStateSub = manager.onStateChange((nextState) => {
+          if (disposed) return;
+          if (nextState === "PoweredOn") {
+            btStateSub?.remove();
+            btStateSub = null;
+            void connect().catch((error: unknown) => {
+              scheduleReconnect("failed", error instanceof Error ? error.message : String(error));
+            });
+          }
+        }, false);
         return;
       }
 
-      pipeline.setPulseSource("wearable");
-      pipeline.markCalibrationCompleteForBeatSource(Date.now());
       pipeline.setMetricsCapturePaused(initialCapabilityTier === "guidedOnly");
 
       connection = await manager.connectToDevice(deviceId, {
@@ -172,26 +270,24 @@ export function BleHeartRateSource({
       connection = await connection.discoverAllServicesAndCharacteristics();
       if (disposed) return;
       emitSnapshot("connected");
+      startStallWatchdog();
 
       disconnectSub = connection.onDisconnected((error) => {
         if (disposed) return;
         disconnectCount += 1;
+        const lastPacketBeforeDisconnect = lastPacketAtMs;
         lastBeatTimestampMs = null;
         lastRrAtMs = null;
-        emitSnapshot("disconnected", {
-          errorMessage: error?.message ?? null,
-        });
-        if (autoReconnect) {
-          reconnectTimer = setTimeout(() => {
-            if (!disposed) {
-              void connect().catch((connectError: unknown) => {
-                emitSnapshot("failed", {
-                  errorMessage: connectError instanceof Error ? connectError.message : String(connectError),
-                });
-              });
-            }
-          }, RECONNECT_DELAY_MS);
-        }
+        lastSensorContactDetected = null;
+        lastPacketAtMs = null;
+        if (stallWatchdog) clearInterval(stallWatchdog);
+        stallWatchdog = null;
+        const stallLikely =
+          error == null &&
+          packetCount > 0 &&
+          lastPacketBeforeDisconnect != null &&
+          Date.now() - lastPacketBeforeDisconnect > PACKET_STALL_MS / 2;
+        scheduleReconnect(stallLikely ? "signalLost" : "disconnected", error?.message ?? null);
       });
 
       emitSnapshot("probing");
@@ -201,12 +297,18 @@ export function BleHeartRateSource({
         (error, characteristic) => {
           if (disposed) return;
           if (error) {
-            emitSnapshot("failed", { errorMessage: error.message });
+            restartConnection("failed", error.message);
             return;
           }
           if (!characteristic?.value) return;
+          lastPacketAtMs = Date.now();
           const packet = parseHeartRateMeasurement(characteristic.value);
+          lastSensorContactDetected = packet.sensorContactDetected;
           packetCount += 1;
+          if (packet.sensorContactDetected === false) {
+            emitSnapshot("signalLost");
+            return;
+          }
           if (packet.heartRateBpm != null && packet.heartRateBpm > 0) {
             lastHeartRateBpm = packet.heartRateBpm;
           }
@@ -226,6 +328,9 @@ export function BleHeartRateSource({
           if (packetCount >= GUIDED_ONLY_PROBE_PACKETS && resolvedTier !== "guidedOnly") {
             applyCapabilityTier("guidedOnly", "heartRateOnly");
           }
+          emitSnapshot(
+            resolvedTier === "guidedOnly" || resolvedTier === "fullMetrics" ? "ready" : "probing",
+          );
           ensureGuidedBeatTimer();
         },
         `wearable-hr-${deviceId}`,
@@ -233,9 +338,7 @@ export function BleHeartRateSource({
     };
 
     void connect().catch((error: unknown) => {
-      emitSnapshot("failed", {
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
+      scheduleReconnect("failed", error instanceof Error ? error.message : String(error));
     });
 
     return () => {
@@ -243,6 +346,7 @@ export function BleHeartRateSource({
       clearTimers();
       hrMonitorSub?.remove();
       disconnectSub?.remove();
+      btStateSub?.remove();
       if (deviceId) {
         void managerRef.current.cancelDeviceConnection(deviceId).catch(() => undefined);
         void managerRef.current.cancelTransaction(`wearable-hr-${deviceId}`).catch(() => undefined);

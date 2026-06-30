@@ -571,7 +571,7 @@ function FingerSourceScope({
       <SourcePanel
         active={active}
         title={strings.fingerSourceTitle}
-        sourceNode={<FingerPpgCameraSource isActive={active} visible={false} />}
+        sourceNode={<FingerPpgCameraSource isActive={active} visible={false} persistCaptureWhenBlurred={active} />}
         strings={strings}
         sessionKey={sessionKey}
         exportDataRef={exportDataRef}
@@ -610,6 +610,7 @@ function WearableSourceScope({
             deviceId={device?.id ?? null}
             deviceName={device?.name ?? null}
             initialCapabilityTier={device?.capabilityTier ?? "unknown"}
+            autoReconnect={true}
             onRuntimeSnapshot={onRuntimeSnapshot}
           />
         }
@@ -738,6 +739,7 @@ export function BiofeedbackParityScreen() {
       searchHint: breathStrings.wearablePickerSearchHint,
       foundHint: breathStrings.wearablePickerFoundHint,
       notFoundHint: breathStrings.wearablePickerNotFoundHint,
+      notFoundTips: breathStrings.wearablePickerNotFoundTips,
       bluetoothOffHint: breathStrings.wearableBluetoothOff,
       retryButton: breathStrings.wearableRetryScan,
       closeButton: breathStrings.wearablePickerCloseButton,

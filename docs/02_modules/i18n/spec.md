@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.12
-updated: 2026-06-23
+version: 1.13
+updated: 2026-06-29
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -290,7 +290,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   (`modules/chakra/i18n.ts` — single source for legend text), charts donut center
   label (`getChartStrings` → `balanceLabel`; overlays `typed/catalog/charts/*`), Home
   `ChakraFlower` center planet name via **`getHomeStrings` → `planetLabels`**, Home astro-chart zodiac labels via **`getHomeStrings().astroChartModal.zodiacSigns`**, startup splash footer
-  (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`). Practices/Breath typed strings now also cover BLE-specific source labels (`camera / Bluetooth / no sensor`) and the reusable activation copy for the breathing screen; locales without explicit typed overlay continue to fall back to EN base strings until dedicated overlays are filled.
+  (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`). Practices/Breath typed strings now also cover BLE-specific source labels (`camera / Bluetooth / no sensor`), the reusable activation copy for the breathing screen, and results-modal interpretation states (`Interpretation`, loading, retry/error). Locales without explicit typed overlay continue to fall back to EN base strings until dedicated overlays are filled.
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier
   slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;
   server uses `resolveContentLocale` (all 8 locales) and **locale-suffixed**

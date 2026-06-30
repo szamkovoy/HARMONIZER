@@ -3,7 +3,15 @@ import { cacheDirectory, getContentUriAsync, writeAsStringAsync } from "expo-fil
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   Animated as RNAnimated,
@@ -12,6 +20,7 @@ import {
   Platform,
   Pressable,
   Share,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -23,6 +32,7 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Line, Polyline } from "react-native-svg";
 
 import {
   getBatteryLevelPct,
@@ -120,7 +130,6 @@ import {
   type BreathPracticeOutcome,
   type BreathPracticeSummary,
 } from "@/modules/breath/core/practice-io";
-import { enqueueCommunicatorGreeting } from "@/modules/communicator/core/pending-greeting";
 import { useAuth } from "@/modules/auth";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
 import { MandalaSoundProvider, useMandalaSoundFrame, useMandalaSoundSync } from "@/modules/mandala-sound";
@@ -135,8 +144,13 @@ import { PracticeStopConfirmDialog } from "@/modules/ui/PracticeStopConfirmDialo
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
 import { useImmersiveOverlayAutohide } from "@/modules/ui/useImmersiveOverlayAutohide";
+import { fetchBreathPracticeInterpretation } from "@/services/breathPracticeInterpretation";
 import { recordPracticeSession, selfRatingFromMood } from "@/services/practiceSessions";
-import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
+import {
+  getRuntimeDiagnosticsCurrentSeq,
+  getRuntimeDiagnosticsEventsSince,
+  logRuntimeEvent,
+} from "@/services/runtimeDiagnostics";
 import type { Json } from "@/services/supabase-types";
 
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
@@ -253,10 +267,8 @@ const UI_TICK_MS = 500;
 const PLANNER_BASELINE_TICK_MS = 250;
 /** Панель управления: через сколько мс бездействия автоматически скрыть панель. */
 const OVERLAY_AUTOHIDE_MS = 4_000;
-/** Пороги независимых конечных автоматов: палец / качество (мс по шкале камеры). */
-const PPG_FINGER_LOST_OVERLAY_MS = 1000;
-const PPG_QUALITY_GRADE_B_MS = 2000;
-const PPG_QUALITY_GRADE_C_MS = 7000;
+/** Порог мягкого напоминания в camera guidance-only режиме. */
+const CAMERA_GUIDANCE_REMINDER_TRIGGER_MS = 5000;
 /** Совпадает с длительностью практики (`TIMING.totalMs`), иначе forceSecondBpmZero не покрывает хвост сессии. */
 const PPG_SESSION_SECONDS = Math.round(TIMING.totalMs / 1000);
 /**
@@ -292,11 +304,15 @@ const PERF_DIAG_SAMPLE_MS = 10_000;
 // `@/modules/breath/config/debug-flags` в блоке импортов сверху. Чтобы
 // включить/выключить весь «тестовый режим», переключай `BREATH_TESTING_MODE`
 // в этом файле — ничего другого править не нужно.
-/** Длительность одного показа баннера ППГ (секунды × 1000). */
-const PPG_BANNER_DISPLAY_MS = 4000;
+const CAMERA_RECOVERY_PROBE_EVERY_MS = 6_000;
+const CAMERA_RECOVERY_PROBE_WINDOW_MS = 2_500;
+const CAMERA_RECOVERY_MIN_SIGNAL_QUALITY = 0.55;
+const WEARABLE_EMULATED_FALLBACK_DELAY_MS = 3_000;
+const WEARABLE_RECOVERY_RR_FRESH_MS = 4_000;
 
 const isExpoGo = Constants.executionEnvironment === "storeClient";
 const useSimulatedPpg = isExpoGo || !isFingerFrameProcessorAvailable();
+const ENABLE_FINGER_CAMERA_ADVANCED_METRICS = false;
 
 type Phase = "idle" | "warmup" | "qualityCheck" | "running" | "results";
 
@@ -367,6 +383,190 @@ function computeCycleMsForAnalysis(
 function formatCoherencePercent(value: number | null | undefined): string {
   if (value == null) return "—";
   return value >= 99.5 ? "≥99%" : `${Math.round(value)}%`;
+}
+
+type BreathResultsSeriesPoint = {
+  tMs: number;
+  value: number;
+};
+
+type BreathResultsSeriesSummary = {
+  unit: "bpm" | "percent" | "ms";
+  sampleCount: number;
+  startMean: number | null;
+  midMean: number | null;
+  endMean: number | null;
+  min: number | null;
+  max: number | null;
+  endMinusStart: number | null;
+  peakAtSec: number | null;
+  troughAtSec: number | null;
+};
+
+type BreathResultsGraphsSnapshot = {
+  measuredPulseBpm: BreathResultsSeriesPoint[];
+  guidancePulseBpm: BreathResultsSeriesPoint[];
+  coherencePercent: BreathResultsSeriesPoint[];
+  rmssdMs: BreathResultsSeriesPoint[];
+  stressPercent: BreathResultsSeriesPoint[];
+  rsaBpm: BreathResultsSeriesPoint[];
+};
+
+function formatMinutesSeconds(totalMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(totalMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function decimateSeries(
+  points: readonly BreathResultsSeriesPoint[],
+  maxPoints: number,
+): BreathResultsSeriesPoint[] {
+  if (points.length <= maxPoints) return points.slice();
+  const out: BreathResultsSeriesPoint[] = [];
+  const step = (points.length - 1) / Math.max(1, maxPoints - 1);
+  for (let i = 0; i < maxPoints; i += 1) {
+    const idx = Math.min(points.length - 1, Math.round(i * step));
+    const point = points[idx];
+    if (point == null) continue;
+    const prev = out[out.length - 1];
+    if (prev?.tMs === point.tMs && prev.value === point.value) continue;
+    out.push(point);
+  }
+  return out;
+}
+
+function summarizeSeries(
+  points: readonly BreathResultsSeriesPoint[],
+  unit: BreathResultsSeriesSummary["unit"],
+): BreathResultsSeriesSummary | null {
+  if (points.length === 0) return null;
+  const values = points.map((point) => point.value).filter((value) => Number.isFinite(value));
+  if (values.length === 0) return null;
+  const mean = (items: readonly number[]) =>
+    items.length > 0 ? items.reduce((sum, value) => sum + value, 0) / items.length : null;
+  const bucketSize = Math.max(1, Math.round(points.length / 3));
+  const startValues = points.slice(0, bucketSize).map((point) => point.value);
+  const midStart = Math.max(0, Math.floor((points.length - bucketSize) / 2));
+  const midValues = points.slice(midStart, midStart + bucketSize).map((point) => point.value);
+  const endValues = points.slice(-bucketSize).map((point) => point.value);
+  let peak = points[0]!;
+  let trough = points[0]!;
+  for (const point of points) {
+    if (point.value > peak.value) peak = point;
+    if (point.value < trough.value) trough = point;
+  }
+  const startMean = mean(startValues);
+  const endMean = mean(endValues);
+  return {
+    unit,
+    sampleCount: points.length,
+    startMean,
+    midMean: mean(midValues),
+    endMean,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    endMinusStart:
+      startMean != null && endMean != null ? endMean - startMean : null,
+    peakAtSec: Math.round(peak.tMs / 100) / 10,
+    troughAtSec: Math.round(trough.tMs / 100) / 10,
+  };
+}
+
+function buildPulseSeriesFromLog(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+  mode: "measured" | "guidance",
+): BreathResultsSeriesPoint[] {
+  const points: BreathResultsSeriesPoint[] = [];
+  for (const entry of entries) {
+    const tMs = Math.max(0, entry.wallClockMs - sessionStartWallMs);
+    const wearableLike = entry.pulseSource === "wearable" || entry.wearableState != null;
+    const wearableContactOk = entry.wearableSensorContactDetected !== false;
+    const measuredValue =
+      entry.emulatedActive
+        ? 0
+        : wearableLike
+          ? (
+              entry.pulseReady && wearableContactOk
+                ? (
+                    entry.measuredPulseRateBpm
+                    ?? entry.wearableHeartRateBpm
+                    ?? entry.pulseRateBpm
+                  )
+                : 0
+            )
+          : (entry.measuredPulseRateBpm ?? entry.pulseRateBpm);
+    const guidanceValue = entry.guidancePulseRateBpm ?? entry.pulseRateBpm;
+    const value = mode === "measured" ? measuredValue : guidanceValue;
+    if (!Number.isFinite(value)) continue;
+    points.push({ tMs, value });
+  }
+  return points;
+}
+
+function seriesDifferMeaningfully(
+  left: readonly BreathResultsSeriesPoint[],
+  right: readonly BreathResultsSeriesPoint[],
+): boolean {
+  if (left.length !== right.length) return true;
+  for (let i = 0; i < left.length; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (a == null || b == null) return true;
+    if (Math.abs(a.tMs - b.tMs) > 1) return true;
+    if (Math.abs(a.value - b.value) > 0.5) return true;
+  }
+  return false;
+}
+
+function prepareSeriesForDisplay(
+  points: readonly BreathResultsSeriesPoint[],
+  totalMs: number,
+  options?: {
+    trimZeroEdges?: boolean;
+    extendStart?: boolean;
+    extendEnd?: boolean;
+  },
+): BreathResultsSeriesPoint[] {
+  let series = points
+    .filter((point) => Number.isFinite(point.value))
+    .map((point) => ({ ...point }));
+  if (options?.trimZeroEdges) {
+    while (series.length > 0 && Math.abs(series[0]!.value) < 0.001) series = series.slice(1);
+    while (series.length > 0 && Math.abs(series[series.length - 1]!.value) < 0.001) {
+      series = series.slice(0, -1);
+    }
+  }
+  if (series.length === 0) return [];
+  const extendStart = options?.extendStart ?? true;
+  const extendEnd = options?.extendEnd ?? true;
+  if (extendStart && series[0]!.tMs > 0) {
+    series.unshift({ tMs: 0, value: series[0]!.value });
+  }
+  if (extendEnd && series[series.length - 1]!.tMs < totalMs) {
+    series.push({ tMs: totalMs, value: series[series.length - 1]!.value });
+  }
+  return series;
+}
+
+function pushSeriesPoint(
+  seriesRef: MutableRefObject<BreathResultsSeriesPoint[]>,
+  point: BreathResultsSeriesPoint,
+  options?: { minDeltaMs?: number; maxPoints?: number },
+): void {
+  const minDeltaMs = options?.minDeltaMs ?? 0;
+  const maxPoints = options?.maxPoints ?? 1200;
+  const prev = seriesRef.current[seriesRef.current.length - 1];
+  if (prev != null && point.tMs - prev.tMs < minDeltaMs) {
+    seriesRef.current[seriesRef.current.length - 1] = point;
+  } else {
+    seriesRef.current.push(point);
+  }
+  if (seriesRef.current.length > maxPoints) {
+    seriesRef.current = seriesRef.current.slice(-maxPoints);
+  }
 }
 
 function SyncedBreathBinduMandala({
@@ -474,6 +674,10 @@ function CoherenceBreathScreenInner({
         ? "none"
         : "fingerCamera";
   const isWearableMode = resolvedSensorMode === "ble";
+  const isFingerCameraMode = resolvedSensorMode === "fingerCamera";
+  const allowAdvancedMetrics =
+    isWearableMode || (isFingerCameraMode && ENABLE_FINGER_CAMERA_ADVANCED_METRICS);
+  const cameraGuidanceOnlyMode = isFingerCameraMode && !allowAdvancedMetrics;
   const initialCapabilityTierResolved: WearableCapabilityTier =
     capabilityTier === "fullMetrics" ||
     capabilityTier === "guidedOnly" ||
@@ -506,6 +710,10 @@ function CoherenceBreathScreenInner({
   const [wearableRuntime, setWearableRuntime] = useState<WearableRuntimeSnapshot>({ state: "idle" });
   const [wearableCapabilityTier, setWearableCapabilityTier] =
     useState<WearableCapabilityTier>(initialCapabilityTierResolved);
+  const wearableRuntimeRef = useRef(wearableRuntime);
+  wearableRuntimeRef.current = wearableRuntime;
+  const wearableCapabilityTierRef = useRef(wearableCapabilityTier);
+  wearableCapabilityTierRef.current = wearableCapabilityTier;
   const [showWearablePickerDialog, setShowWearablePickerDialog] = useState(false);
   const snapshot = useBiofeedbackSnapshot();
   const snapshotRef = useRef(snapshot);
@@ -521,10 +729,21 @@ function CoherenceBreathScreenInner({
   // snapshot-кэш канала оставался заполненным).
   useBiofeedbackChannel("pulseSource");
   const [useEmulatedPulseMode, setUseEmulatedPulseMode] = useState(false);
+  const [emulatedPulseSeedBpm, setEmulatedPulseSeedBpm] = useState<number | null>(null);
+  const [emulatedFallbackSource, setEmulatedFallbackSource] =
+    useState<"camera" | "wearable" | null>(null);
+  const [cameraRecoveryProbeActive, setCameraRecoveryProbeActive] = useState(false);
   const useEmulatedPulseModeRef = useRef(false);
+  const emulatedPulseSeedBpmRef = useRef<number | null>(null);
   useEffect(() => {
     useEmulatedPulseModeRef.current = useEmulatedPulseMode;
   }, [useEmulatedPulseMode]);
+  useEffect(() => {
+    emulatedPulseSeedBpmRef.current = emulatedPulseSeedBpm;
+  }, [emulatedPulseSeedBpm]);
+  useEffect(() => {
+    pipeline.setMetricsCapturePaused(!allowAdvancedMetrics);
+  }, [allowAdvancedMetrics, pipeline]);
   const [phase, setPhase] = useState<Phase>("idle");
   const phaseRef = useRef<Phase>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -571,6 +790,8 @@ function CoherenceBreathScreenInner({
   // важен на слабых устройствах) — достаточно поставить флаг в `true`,
   // никакие другие места править не нужно.
   const ENABLE_HYBRID_EMULATION = false;
+  const hybridMeasurementEnabled =
+    allowAdvancedMetrics && !isWearableMode && !useSimulatedPpg;
 
   const hybridControllerRef = useRef<HybridMeasurementController>(new HybridMeasurementController());
   /**
@@ -604,6 +825,7 @@ function CoherenceBreathScreenInner({
   const [finalEndAvgBpm, setFinalEndAvgBpm] = useState<number | null>(null);
   const [finalStartWindowMs, setFinalStartWindowMs] = useState<number | null>(null);
   const [finalEndWindowMs, setFinalEndWindowMs] = useState<number | null>(null);
+  const [resultsGraphs, setResultsGraphs] = useState<BreathResultsGraphsSnapshot | null>(null);
 
   /**
    * Рамп-таймер плавного перехода baselineBpm при переходе в emulated.
@@ -736,8 +958,10 @@ function CoherenceBreathScreenInner({
   const baselineBpmSeriesRef = useRef<{ tMs: number; bpm: number }[]>([]);
   /** Сводка по завершённым RSA-циклам. */
   const rsaCyclesSummaryRef = useRef<
-    { hrInhale: number; hrExhale: number; rsaBpm: number; durationMs: number }[]
+    { tMs: number; hrInhale: number; hrExhale: number; rsaBpm: number; durationMs: number }[]
   >([]);
+  const rmssdSeriesRef = useRef<BreathResultsSeriesPoint[]>([]);
+  const stressSeriesRef = useRef<BreathResultsSeriesPoint[]>([]);
   const [sourceKey, setSourceKey] = useState(0);
   /** Уникальный счётчик «сессий PPG» для legacy совместимости в debug-метаполях. */
   const fingerSessionKey = sourceKey;
@@ -808,8 +1032,12 @@ function CoherenceBreathScreenInner({
   const opticalPreviewBufferRef = useRef<RawOpticalSample[]>([]);
   const lastOpticalPreviewRefreshWallMsRef = useRef(0);
   const lastPulseLogWallClockRef = useRef(0);
+  const lastFreshBeatSourceTsRef = useRef<number | null>(null);
+  const lastFreshBeatWallClockRef = useRef<number | null>(null);
+  const finalPulseLogExportRef = useRef<CoherencePulseLogEntry[] | null>(null);
   const snapshotCallbacksTotalRef = useRef(0);
   const snapshotsWhileRunningRef = useRef(0);
+  const runtimeDiagnosticsStartSeqRef = useRef(0);
 
   /**
    * Счётчики активности для диагностики накопительного торможения.
@@ -1033,15 +1261,297 @@ function CoherenceBreathScreenInner({
 
   /** UI banners. */
   const [ppgOverlayMessage, setPpgOverlayMessage] = useState<string | null>(null);
-  const ppgBannerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fingerLostBannerShownThisEpisodeRef = useRef(false);
-  const weakSignalBannerShownThisEpisodeRef = useRef(false);
+  const cameraGuidanceReminderShownRef = useRef(false);
   const prevFingerDetectedForBannerRef = useRef(true);
   const prevBadSignalForBannerRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  const appendPulseLogMarker = useCallback((entry: {
+    measuredPulseRateBpm: number;
+    guidancePulseRateBpm: number;
+    pulseReady: boolean;
+    emulatedActive: boolean;
+    pulseSource: "fingerCamera" | "wearable" | "emulated";
+    wearableState?: string | null;
+    wearableHeartRateBpm?: number | null;
+    wearableLastRrAgeMs?: number | null;
+    wearableSensorContactDetected?: boolean | null;
+  }) => {
+    if (phaseRef.current !== "running" || sessionStartLogicalMs == null || sessionStartWallMs == null) {
+      return;
+    }
+    const wall = Date.now();
+    const logTimestampMs = sessionStartLogicalMs + (wall - sessionStartWallMs);
+    pulseLogRef.current.push({
+      cameraTimestampMs: logTimestampMs,
+      wallClockMs: wall,
+      pulseRateBpm: entry.measuredPulseRateBpm,
+      measuredPulseRateBpm: entry.measuredPulseRateBpm,
+      guidancePulseRateBpm: entry.guidancePulseRateBpm,
+      signalQuality: snapshotRef.current.signalQuality,
+      pulseReady: entry.pulseReady,
+      fingerDetected: snapshotRef.current.fingerDetected,
+      pulseLockState: snapshotRef.current.pulseLockState,
+      beatTimestampsCount: pipeline.getMergedBeats().length,
+      lastBeatTimestampMs: lastFreshBeatSourceTsRef.current,
+      lastBeatAgeMs:
+        lastFreshBeatSourceTsRef.current != null
+          ? Math.max(0, logTimestampMs - lastFreshBeatSourceTsRef.current)
+          : null,
+      pulseSource: entry.pulseSource,
+      emulatedActive: entry.emulatedActive,
+      wearableState: entry.wearableState ?? null,
+      wearableCapabilityTier: isWearableMode ? wearableCapabilityTierRef.current : null,
+      wearableHeartRateBpm: entry.wearableHeartRateBpm ?? null,
+      wearableLastRrAgeMs: entry.wearableLastRrAgeMs ?? null,
+      wearableSensorContactDetected: entry.wearableSensorContactDetected ?? null,
+      wearablePacketCount: isWearableMode ? (wearableRuntimeRef.current.packetCount ?? null) : null,
+      wearableRrPacketCount: isWearableMode ? (wearableRuntimeRef.current.rrPacketCount ?? null) : null,
+    });
+  }, [isWearableMode, pipeline, sessionStartLogicalMs, sessionStartWallMs]);
+
+  const switchToEmulatedPulse = useCallback((source: "camera" | "wearable", reason: string) => {
+    if (useSimulatedPpg || useEmulatedPulseModeRef.current) {
+      return;
+    }
+    const stableRrMs = pipeline.getLastStableRrMs();
+    const wearableBpm = wearableRuntime.lastHeartRateBpm ?? null;
+    const fallbackBpm =
+      source === "wearable"
+        ? (wearableBpm ?? (stableRrMs > 0 ? 60_000 / stableRrMs : snapshotRef.current.pulseRateBpm))
+        : (stableRrMs > 0 ? 60_000 / stableRrMs : snapshotRef.current.pulseRateBpm);
+    const seedBpm = Number.isFinite(fallbackBpm) && fallbackBpm > 0
+      ? Math.round(fallbackBpm)
+      : null;
+    setEmulatedPulseSeedBpm(seedBpm);
+    setEmulatedFallbackSource(source);
+    setCameraRecoveryProbeActive(false);
+    setUseEmulatedPulseMode(true);
+    if (source === "camera") {
+      pipeline.setOpticalPaused(true);
+    }
+    if (source === "camera") {
+      cameraGuidanceReminderShownRef.current = true;
+      setPpgOverlayMessage(str.ppgFingerLostMessage);
+    } else {
+      setPpgOverlayMessage(null);
+    }
+    autoAbortAccumMsRef.current = 0;
+    fingerAbsentWallMsRef.current = 0;
+    opticalStallAccumMsRef.current = 0;
+    sessionAbortHandledRef.current = true;
+    appendPulseLogMarker({
+      measuredPulseRateBpm: 0,
+      guidancePulseRateBpm: seedBpm ?? snapshotRef.current.pulseRateBpm,
+      pulseReady: false,
+      emulatedActive: true,
+      pulseSource: "emulated",
+      wearableState: source === "wearable" ? wearableRuntimeRef.current.state : null,
+      wearableHeartRateBpm: source === "wearable" ? (wearableRuntimeRef.current.lastHeartRateBpm ?? null) : null,
+      wearableLastRrAgeMs:
+        source === "wearable" && wearableRuntimeRef.current.lastRrAtMs != null
+          ? Math.max(0, Date.now() - wearableRuntimeRef.current.lastRrAtMs)
+          : null,
+      wearableSensorContactDetected:
+        source === "wearable" ? (wearableRuntimeRef.current.sensorContactDetected ?? null) : null,
+    });
+    logRuntimeEvent("breath:session_emulated_fallback", { source, reason, seedBpm }, "info");
+  }, [appendPulseLogMarker, pipeline, str.ppgFingerLostMessage, useSimulatedPpg, wearableRuntime.lastHeartRateBpm]);
+
+  const switchBackToLivePulse = useCallback((
+    source: "camera" | "wearable",
+    targetBpm?: number | null,
+  ) => {
+    if (!useEmulatedPulseModeRef.current || emulatedFallbackSource !== source) {
+      return;
+    }
+    const nextBpm = targetBpm != null && Number.isFinite(targetBpm) && targetBpm > 0
+      ? targetBpm
+      : null;
+    pipeline.setPulseSource(source === "camera" ? "fingerCamera" : "wearable");
+    if (source === "camera") {
+      pipeline.setOpticalPaused(false);
+    }
+    setUseEmulatedPulseMode(false);
+    setEmulatedPulseSeedBpm(null);
+    setEmulatedFallbackSource(null);
+    setCameraRecoveryProbeActive(false);
+    setPpgOverlayMessage(null);
+    autoAbortAccumMsRef.current = 0;
+    fingerAbsentWallMsRef.current = 0;
+    opticalStallAccumMsRef.current = 0;
+    sessionAbortHandledRef.current = false;
+    if (nextBpm != null) {
+      startBaselineRampTo(nextBpm);
+    }
+    appendPulseLogMarker({
+      measuredPulseRateBpm:
+        source === "wearable"
+          ? (wearableRuntimeRef.current.lastHeartRateBpm ?? nextBpm ?? 0)
+          : (nextBpm ?? snapshotRef.current.pulseRateBpm),
+      guidancePulseRateBpm: nextBpm ?? snapshotRef.current.pulseRateBpm,
+      pulseReady: true,
+      emulatedActive: false,
+      pulseSource: source === "camera" ? "fingerCamera" : "wearable",
+      wearableState: source === "wearable" ? wearableRuntimeRef.current.state : null,
+      wearableHeartRateBpm: source === "wearable" ? (wearableRuntimeRef.current.lastHeartRateBpm ?? null) : null,
+      wearableLastRrAgeMs:
+        source === "wearable" && wearableRuntimeRef.current.lastRrAtMs != null
+          ? Math.max(0, Date.now() - wearableRuntimeRef.current.lastRrAtMs)
+          : null,
+      wearableSensorContactDetected:
+        source === "wearable" ? (wearableRuntimeRef.current.sensorContactDetected ?? null) : null,
+    });
+    logRuntimeEvent("breath:session_real_signal_restored", { source, targetBpm: nextBpm }, "info");
+  }, [appendPulseLogMarker, emulatedFallbackSource, pipeline, startBaselineRampTo]);
+
+  useEffect(() => {
+    if (
+      phase !== "running" ||
+      !cameraGuidanceOnlyMode ||
+      !useEmulatedPulseMode ||
+      emulatedFallbackSource !== "camera" ||
+      useSimulatedPpg ||
+      cameraRecoveryProbeActive
+    ) {
+      return;
+    }
+    const id = setTimeout(() => {
+      if (phaseRef.current === "running" && useEmulatedPulseModeRef.current) {
+        pipeline.setPulseSource("fingerCamera");
+        pipeline.setOpticalPaused(false);
+        setCameraRecoveryProbeActive(true);
+      }
+    }, CAMERA_RECOVERY_PROBE_EVERY_MS);
+    return () => clearTimeout(id);
+  }, [
+    cameraGuidanceOnlyMode,
+    cameraRecoveryProbeActive,
+    emulatedFallbackSource,
+    phase,
+    pipeline,
+    useEmulatedPulseMode,
+    useSimulatedPpg,
+  ]);
+
+  useEffect(() => {
+    if (
+      phase !== "running" ||
+      !cameraGuidanceOnlyMode ||
+      !useEmulatedPulseMode ||
+      emulatedFallbackSource !== "camera" ||
+      !cameraRecoveryProbeActive
+    ) {
+      return;
+    }
+    const tryRestore = () => {
+      const snap = snapshotRef.current;
+      const looksRecovered =
+        snap.fingerDetected &&
+        snap.pulseLockState === "tracking" &&
+        snap.signalQuality >= CAMERA_RECOVERY_MIN_SIGNAL_QUALITY &&
+        snap.pulseRateBpm > 0;
+      if (looksRecovered) {
+        switchBackToLivePulse("camera", snap.pulseRateBpm);
+        return true;
+      }
+      return false;
+    };
+    if (tryRestore()) {
+      return;
+    }
+    const id = setTimeout(() => {
+      if (!tryRestore()) {
+        pipeline.setOpticalPaused(true);
+        setCameraRecoveryProbeActive(false);
+      }
+    }, CAMERA_RECOVERY_PROBE_WINDOW_MS);
+    return () => clearTimeout(id);
+  }, [
+    cameraGuidanceOnlyMode,
+    cameraRecoveryProbeActive,
+    emulatedFallbackSource,
+    phase,
+    switchBackToLivePulse,
+    useEmulatedPulseMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isWearableMode ||
+      phase !== "running" ||
+      useSimulatedPpg ||
+      useEmulatedPulseMode ||
+      (
+        wearableRuntime.state !== "signalLost" &&
+        wearableRuntime.state !== "disconnected" &&
+        wearableRuntime.state !== "failed"
+      )
+    ) {
+      return;
+    }
+    const id = setTimeout(() => {
+      if (
+        phaseRef.current === "running" &&
+        !useEmulatedPulseModeRef.current &&
+        (
+          wearableRuntime.state === "signalLost" ||
+          wearableRuntime.state === "disconnected" ||
+          wearableRuntime.state === "failed"
+        )
+      ) {
+        switchToEmulatedPulse("wearable", "wearable_signal_lost");
+      }
+    }, WEARABLE_EMULATED_FALLBACK_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [
+    isWearableMode,
+    phase,
+    switchToEmulatedPulse,
+    useEmulatedPulseMode,
+    useSimulatedPpg,
+    wearableRuntime.state,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isWearableMode ||
+      phase !== "running" ||
+      !useEmulatedPulseMode ||
+      emulatedFallbackSource !== "wearable"
+    ) {
+      return;
+    }
+    const rrRecovered =
+      wearableCapabilityTier === "fullMetrics" &&
+      wearableRuntime.lastRrAtMs != null &&
+      Date.now() - wearableRuntime.lastRrAtMs <= WEARABLE_RECOVERY_RR_FRESH_MS;
+    const heartRateRecovered =
+      wearableCapabilityTier === "guidedOnly" &&
+      wearableRuntime.state === "ready" &&
+      (wearableRuntime.lastHeartRateBpm ?? 0) > 0;
+    if (!rrRecovered && !heartRateRecovered) {
+      return;
+    }
+    switchBackToLivePulse(
+      "wearable",
+      wearableRuntime.lastHeartRateBpm ?? pulseBpmLast?.bpm ?? null,
+    );
+  }, [
+    emulatedFallbackSource,
+    isWearableMode,
+    phase,
+    pulseBpmLast?.bpm,
+    switchBackToLivePulse,
+    useEmulatedPulseMode,
+    wearableCapabilityTier,
+    wearableRuntime.lastHeartRateBpm,
+    wearableRuntime.lastRrAtMs,
+    wearableRuntime.state,
+  ]);
 
   useEffect(() => {
     if (!isWearableMode) return;
@@ -1138,13 +1648,31 @@ function CoherenceBreathScreenInner({
   useEffect(() => {
     if (phase !== "warmup" && phase !== "qualityCheck" && phase !== "running") return;
     const tag = "harmonizer-practice";
-    void activateKeepAwakeAsync(tag).catch(() => {
-      // silently ignore — старые версии Expo Go / web могут не поддерживать
-    });
-    return () => {
-      void deactivateKeepAwake(tag).catch(() => {
-        // swallow — compat с web/unsupported платформами
+    logRuntimeEvent("breath:keep_awake_requested", { tag, phase }, "debug");
+    void activateKeepAwakeAsync(tag)
+      .then(() => {
+        logRuntimeEvent("breath:keep_awake_activated", { tag, phase }, "debug");
+      })
+      .catch((error: unknown) => {
+        logRuntimeEvent(
+          "breath:keep_awake_failed",
+          { tag, phase, message: error instanceof Error ? error.message : String(error) },
+          "warn",
+        );
       });
+    return () => {
+      logRuntimeEvent("breath:keep_awake_release_requested", { tag, phase }, "debug");
+      void deactivateKeepAwake(tag)
+        .then(() => {
+          logRuntimeEvent("breath:keep_awake_released", { tag, phase }, "debug");
+        })
+        .catch((error: unknown) => {
+          logRuntimeEvent(
+            "breath:keep_awake_release_failed",
+            { tag, phase, message: error instanceof Error ? error.message : String(error) },
+            "warn",
+          );
+        });
     };
   }, [phase]);
 
@@ -1215,12 +1743,6 @@ function CoherenceBreathScreenInner({
 
   const clearPpgBannerUi = useCallback(() => {
     setPpgOverlayMessage(null);
-    if (ppgBannerHideTimerRef.current != null) {
-      clearTimeout(ppgBannerHideTimerRef.current);
-      ppgBannerHideTimerRef.current = null;
-    }
-    fingerLostBannerShownThisEpisodeRef.current = false;
-    weakSignalBannerShownThisEpisodeRef.current = false;
     prevFingerDetectedForBannerRef.current = true;
     prevBadSignalForBannerRef.current = false;
   }, []);
@@ -1305,7 +1827,14 @@ function CoherenceBreathScreenInner({
     return bus.subscribe("pulseBpm", (event) => {
       snapshotCallbacksTotalRef.current += 1;
       const cameraTimestampMs = pipeline.getLastSourceTimestampMs();
+      const mergedBeats = pipeline.getMergedBeats();
+      const lastMergedBeatTs = mergedBeats[mergedBeats.length - 1] ?? null;
       const snap = snapshotRef.current;
+      const wall = Date.now();
+      if (event.hasFreshBeat && lastMergedBeatTs != null) {
+        lastFreshBeatSourceTsRef.current = lastMergedBeatTs;
+        lastFreshBeatWallClockRef.current = wall;
+      }
       if (phaseRef.current === "warmup" || phaseRef.current === "qualityCheck") {
         qcPulseSamplesRef.current.push({
           cameraTimestampMs,
@@ -1323,18 +1852,84 @@ function CoherenceBreathScreenInner({
       }
       if (phaseRef.current === "running") {
         snapshotsWhileRunningRef.current += 1;
-        const wall = Date.now();
         if (wall - lastPulseLogWallClockRef.current >= 500) {
           lastPulseLogWallClockRef.current = wall;
+          const wearableRuntimeNow = wearableRuntimeRef.current;
+          const wearableLastRrAgeMs =
+            isWearableMode && wearableRuntimeNow.lastRrAtMs != null
+              ? Math.max(0, wall - wearableRuntimeNow.lastRrAtMs)
+              : null;
+          const useWallClockTimebaseForLog =
+            !isWearableMode &&
+            useEmulatedPulseModeRef.current &&
+            sessionStartLogicalMs != null &&
+            sessionStartWallMs != null;
+          const logTimestampMs = useWallClockTimebaseForLog
+            ? sessionStartLogicalMs + (wall - sessionStartWallMs)
+            : cameraTimestampMs;
+          const logLastBeatTimestampMs =
+            useWallClockTimebaseForLog && lastFreshBeatWallClockRef.current != null
+              ? sessionStartLogicalMs + (lastFreshBeatWallClockRef.current - sessionStartWallMs)
+              : lastFreshBeatSourceTsRef.current;
+          const beatAgeMs =
+            logLastBeatTimestampMs != null
+              ? Math.max(0, logTimestampMs - logLastBeatTimestampMs)
+              : null;
+          const wearableContactOk = wearableRuntimeNow.sensorContactDetected !== false;
+          const wearableReadyForLog =
+            isWearableMode
+              ? (
+                  wearableContactOk &&
+                  (
+                    wearableCapabilityTierRef.current === "fullMetrics"
+                      ? wearableLastRrAgeMs != null && wearableLastRrAgeMs <= WEARABLE_RECOVERY_RR_FRESH_MS
+                      : (wearableRuntimeNow.lastHeartRateBpm ?? 0) > 0
+                  )
+                )
+              : event.hasFreshBeat;
+          const guidancePulseRateBpm =
+            event.bpm > 0
+              ? event.bpm
+              : (
+                  useEmulatedPulseModeRef.current
+                    ? (
+                        emulatedPulseSeedBpmRef.current
+                        ?? wearableRuntimeNow.lastHeartRateBpm
+                        ?? snapshotRef.current.pulseRateBpm
+                        ?? 0
+                      )
+                    : (
+                        isWearableMode
+                          ? (wearableRuntimeNow.lastHeartRateBpm ?? event.bpm)
+                          : event.bpm
+                      )
+                );
+          const measuredPulseRateBpm =
+            isWearableMode && wearableRuntimeNow.lastHeartRateBpm != null
+              ? wearableRuntimeNow.lastHeartRateBpm
+              : event.bpm;
           pulseLogRef.current.push({
-            cameraTimestampMs: pipeline.getLastSourceTimestampMs(),
+            cameraTimestampMs: logTimestampMs,
             wallClockMs: wall,
-            pulseRateBpm: event.bpm,
+            pulseRateBpm: measuredPulseRateBpm,
+            measuredPulseRateBpm,
+            guidancePulseRateBpm,
             signalQuality: snap.signalQuality,
-            pulseReady: event.hasFreshBeat,
+            pulseReady: wearableReadyForLog,
             fingerDetected: snap.fingerDetected,
             pulseLockState: event.lockState,
-            beatTimestampsCount: pipeline.getMergedBeats().length,
+            beatTimestampsCount: mergedBeats.length,
+            lastBeatTimestampMs: logLastBeatTimestampMs,
+            lastBeatAgeMs: beatAgeMs,
+            pulseSource: pipeline.getPulseSource(),
+            emulatedActive: useEmulatedPulseModeRef.current,
+            wearableState: isWearableMode ? wearableRuntimeNow.state : null,
+            wearableCapabilityTier: isWearableMode ? wearableCapabilityTierRef.current : null,
+            wearableHeartRateBpm: isWearableMode ? (wearableRuntimeNow.lastHeartRateBpm ?? null) : null,
+            wearableLastRrAgeMs,
+            wearableSensorContactDetected: isWearableMode ? (wearableRuntimeNow.sensorContactDetected ?? null) : null,
+            wearablePacketCount: isWearableMode ? (wearableRuntimeNow.packetCount ?? null) : null,
+            wearableRrPacketCount: isWearableMode ? (wearableRuntimeNow.rrPacketCount ?? null) : null,
           });
           // Cap буфера на 60 минут × 2 записи/с = 7200. Длинные практики (60+ мин)
           // не должны съедать память; при экспорте всё равно попадут последние
@@ -1346,7 +1941,7 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [bus, isWearableMode, pipeline]);
+  }, [bus, isWearableMode, pipeline, sessionStartLogicalMs, sessionStartWallMs]);
 
   // ─── QC окно 10 с (camera time) — ОДНА попытка, затем диалог ──────────────
 
@@ -1585,7 +2180,7 @@ function CoherenceBreathScreenInner({
       wearableCapabilityTier !== "fullMetrics" &&
       wearableCapabilityTier !== "guidedOnly"
     ) {
-      if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected") {
+      if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected" || wearableRuntime.state === "signalLost") {
         setShowQcFailedDialog(true);
       }
       return;
@@ -1777,6 +2372,12 @@ function CoherenceBreathScreenInner({
       const fingerOk = snap.fingerDetected;
       const badSignal =
         snap.pulseLockState === "searching" || snap.signalQuality < 0.5;
+      const mergedBeats = pipeline.getMergedBeats();
+      const lastLiveBeatTs =
+        lastFreshBeatSourceTsRef.current ?? (mergedBeats[mergedBeats.length - 1] ?? null);
+      const liveBeatStaleMs =
+        lastLiveBeatTs != null ? Math.max(0, now - lastLiveBeatTs) : Number.POSITIVE_INFINITY;
+      const lockTracking = snap.pulseLockState === "tracking";
 
       if (!fingerOk) {
         fingerAbsentAccumMsRef.current += advance;
@@ -1791,7 +2392,7 @@ function CoherenceBreathScreenInner({
 
       const qualitySustainedBad =
         fingerOk &&
-        qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS &&
+        qualityBadAccumMsRef.current >= CAMERA_GUIDANCE_REMINDER_TRIGGER_MS &&
         badSignal;
 
       if (opticalLive && sessionStartLogicalMs != null) {
@@ -1805,26 +2406,31 @@ function CoherenceBreathScreenInner({
         }
       }
 
-      // Детерминированный расчёт желаемого сообщения. Приоритеты от сильного к слабому:
-      //   1) «палец потерян»   — если finger absent ≥ 1 с;
-      //   2) «биометрия приостановлена» — если finger есть, но плохой сигнал ≥ 7 с;
-      //   3) «слабый сигнал»   — если finger есть, но плохой сигнал ≥ 2 с.
-      let desired: string | null = null;
-      if (!fingerOk && fingerAbsentAccumMsRef.current >= PPG_FINGER_LOST_OVERLAY_MS) {
-        desired = str.ppgFingerLostMessage;
-      } else if (fingerOk && badSignal) {
-        if (qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_C_MS) {
-          desired = str.ppgBiometryPausedMessage;
-        } else if (qualityBadAccumMsRef.current >= PPG_QUALITY_GRADE_B_MS) {
-          desired = str.ppgWeakSignalMessage;
-        }
+      const sustainedLivePulseLoss = liveBeatStaleMs >= CAMERA_GUIDANCE_REMINDER_TRIGGER_MS;
+
+      const shouldShowCameraGuidanceReminder =
+        cameraGuidanceOnlyMode &&
+        !cameraGuidanceReminderShownRef.current &&
+        (
+          fingerAbsentAccumMsRef.current >= CAMERA_GUIDANCE_REMINDER_TRIGGER_MS ||
+          qualityBadAccumMsRef.current >= CAMERA_GUIDANCE_REMINDER_TRIGGER_MS ||
+          sustainedLivePulseLoss
+        );
+      if (shouldShowCameraGuidanceReminder) {
+        cameraGuidanceReminderShownRef.current = true;
+        setPpgOverlayMessage(str.ppgFingerLostMessage);
+      } else if (
+        cameraGuidanceOnlyMode &&
+        !sustainedLivePulseLoss &&
+        fingerOk &&
+        !badSignal
+      ) {
+        setPpgOverlayMessage((prev) => (prev === str.ppgFingerLostMessage ? null : prev));
       }
-      setPpgOverlayMessage((prev) => (prev === desired ? prev : desired));
 
       const hybridEmulated =
         hybridPhaseRef.current === "emulated" && pipeline.isOpticalPaused();
       const appStateNow = appStateRef.current;
-      const lockTracking = snap.pulseLockState === "tracking";
       const stallHard = opticalStallAccumMsRef.current >= BREATH_OPTICAL_STALL_HARD_MS;
       const fg = appStateNow === "active" || appStateNow === "inactive";
       /** В фоне накапливаем только «палец убран»; stall по кадрам в фоне даёт ложные срабатывания. */
@@ -1841,11 +2447,18 @@ function CoherenceBreathScreenInner({
       if (!hybridEmulated && !useSimulatedPpg && !useEmulatedPulseModeRef.current) {
         const fingerAbortReady =
           !fingerOk && fingerAbsentWallMsRef.current >= BREATH_SESSION_SIGNAL_ABORT_MS;
-        if (fingerAbortReady) {
+        const liveBeatAbortReady = liveBeatStaleMs >= BREATH_SESSION_SIGNAL_ABORT_MS;
+        if (fingerAbortReady || liveBeatAbortReady) {
           abortStress = true;
         } else if (fg && fingerOk && stallHard && !lockTracking) {
           abortStress = true;
         }
+      }
+
+      if (cameraGuidanceOnlyMode && abortStress && phaseRef.current === "running") {
+        switchToEmulatedPulse("camera", "camera_signal_lost");
+        autoAbortAccumMsRef.current = 0;
+        return;
       }
 
       if (abortStress) {
@@ -1859,48 +2472,60 @@ function CoherenceBreathScreenInner({
         autoAbortAccumMsRef.current >= BREATH_SESSION_SIGNAL_ABORT_MS &&
         phaseRef.current === "running"
       ) {
-        sessionAbortHandledRef.current = true;
-        logRuntimeEvent(
-          "breath:session_auto_abort",
-          {
-            appState: appStateNow,
-            stallMs: opticalStallAccumMsRef.current,
-            fingerOk,
-            lockState: snap.pulseLockState,
-            hybridEmulated,
-          },
-          "info",
-        );
-        setTimeout(() => {
-          applyHardPracticeExitRef.current();
-          setPhase("idle");
-          setShowAutoAbortDialog(true);
-        }, 0);
+        if (cameraGuidanceOnlyMode) {
+          switchToEmulatedPulse("camera", "camera_signal_lost");
+        } else {
+          sessionAbortHandledRef.current = true;
+          logRuntimeEvent(
+            "breath:session_auto_abort",
+            {
+              appState: appStateNow,
+              stallMs: opticalStallAccumMsRef.current,
+              fingerOk,
+              lockState: snap.pulseLockState,
+              hybridEmulated,
+            },
+            "info",
+          );
+          setTimeout(() => {
+            applyHardPracticeExitRef.current();
+            setPhase("idle");
+            setShowAutoAbortDialog(true);
+          }, 0);
+        }
       }
     }, 250);
     return () => clearInterval(id);
   }, [
+    cameraGuidanceOnlyMode,
     isWearableMode,
     phase,
     pipeline,
     sessionStartLogicalMs,
     str.ppgFingerLostMessage,
-    str.ppgWeakSignalMessage,
-    str.ppgBiometryPausedMessage,
+    switchToEmulatedPulse,
   ]);
 
   useEffect(() => {
     if (!isWearableMode || phase !== "running") return;
     let message: string | null = null;
-    if (wearableRuntime.state === "reconnecting" || wearableRuntime.state === "connecting") {
+    if (
+      wearableRuntime.state === "reconnecting" &&
+      (wearableRuntime.disconnectCount ?? 0) > 0
+    ) {
       message = str.wearableRunningReconnect;
-    } else if (wearableCapabilityTier === "guidedOnly") {
-      message = str.wearableRunningGuidedOnly;
-    } else if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected") {
+    } else if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected" || wearableRuntime.state === "signalLost") {
       message = str.wearableRunningDisconnected;
     }
     setPpgOverlayMessage(message);
-  }, [isWearableMode, phase, str.wearableRunningDisconnected, str.wearableRunningGuidedOnly, str.wearableRunningReconnect, wearableCapabilityTier, wearableRuntime.state]);
+  }, [
+    isWearableMode,
+    phase,
+    str.wearableRunningDisconnected,
+    str.wearableRunningReconnect,
+    wearableRuntime.disconnectCount,
+    wearableRuntime.state,
+  ]);
 
   // ─── Thermal state: подписка на native event + первичный опрос ──────────
   //
@@ -1936,7 +2561,7 @@ function CoherenceBreathScreenInner({
     if (phase !== "running" || sessionStartWallMs == null || sessionStartLogicalMs == null) {
       return;
     }
-    if (practiceTotalMs < MIN_TOTAL_MS_FOR_HYBRID) return;
+    if (!hybridMeasurementEnabled || practiceTotalMs < MIN_TOTAL_MS_FOR_HYBRID) return;
 
     const controller = hybridControllerRef.current;
     const pipelineLocal = pipeline;
@@ -2012,6 +2637,7 @@ function CoherenceBreathScreenInner({
     }, HYBRID_TICK_MS);
     return () => clearInterval(id);
   }, [
+    hybridMeasurementEnabled,
     phase,
     sessionStartWallMs,
     sessionStartLogicalMs,
@@ -2134,6 +2760,7 @@ function CoherenceBreathScreenInner({
       const rs = realStartEndedAtMsRef.current;
       const re = realEndStartedAtMsRef.current;
       const isHybridSession =
+        hybridMeasurementEnabled &&
         !useSimulatedPpg &&
         rs != null &&
         re != null &&
@@ -2151,8 +2778,27 @@ function CoherenceBreathScreenInner({
       // CoherenceExportDebug.hybridWindowStats). Заполняется только в
       // hybrid-режиме, иначе null.
       let hybridWindowStats: CoherenceExportDebug["hybridWindowStats"] = null;
+      finalPulseLogExportRef.current = pulseLogRef.current
+        .filter((p) => p.wallClockMs >= sessionStartWallMs)
+        .map((p) => ({ ...p }));
 
-      if (isHybridSession) {
+      if (cameraGuidanceOnlyMode) {
+        finalResult = {
+          ...suppressCoherenceMetrics(coherenceEngine.finalize(analysisEndLogicalMs)),
+          warnings: [],
+        };
+        practiceHrv = suppressPracticeHrvMetrics(
+          computePracticeHrvMetricsFullSession([]),
+        );
+        setFinalStartAnalysis(null);
+        setFinalEndAnalysis(null);
+        setFinalStartHrv(null);
+        setFinalEndHrv(null);
+        setFinalStartAvgBpm(null);
+        setFinalEndAvgBpm(null);
+        setFinalStartWindowMs(null);
+        setFinalEndWindowMs(null);
+      } else if (isHybridSession) {
         const startR = coherenceEngine.analyzeWindow(sessionStartLogicalMs, rs);
         const endR = coherenceEngine.analyzeWindow(re, analysisEndLogicalMs);
         const startBeats = pipeline.getMetricBeatTimestampsInRange(sessionStartLogicalMs, rs);
@@ -2218,11 +2864,11 @@ function CoherenceBreathScreenInner({
         setFinalEndWindowMs(null);
       }
 
-      if (finalTrust == null) {
+      if (!cameraGuidanceOnlyMode && finalTrust == null) {
         finalTrust = pipeline.getSignalTrustSummary();
       }
 
-      if (finalTrust.level !== "full_biometrics") {
+      if (!cameraGuidanceOnlyMode && finalTrust != null && finalTrust.level !== "full_biometrics") {
         const recoveredCoherenceTail =
           !isHybridSession
             ? findRecoverableCoherenceTail({
@@ -2250,7 +2896,7 @@ function CoherenceBreathScreenInner({
           finalResult = suppressCoherenceMetrics(finalResult);
         }
       }
-      if (finalTrust.level === "pulse_only") {
+      if (!cameraGuidanceOnlyMode && finalTrust != null && finalTrust.level === "pulse_only") {
         const fallbackMetricBeats = !isHybridSession ? pipeline.getRecentReliableMetricBeats() : null;
         if (fallbackMetricBeats != null) {
           const recovered = computePracticeHrvMetricsFullSession(fallbackMetricBeats);
@@ -2347,7 +2993,7 @@ function CoherenceBreathScreenInner({
           })),
         },
         qcOutcome: qcOutcomeRef.current,
-        signalTrust: finalTrust,
+        signalTrust: finalTrust ?? undefined,
         practiceRmssdMs: practiceHrv.showRmssd ? practiceHrv.rmssdMs : null,
         practiceStressPercent: practiceHrv.showStress ? practiceHrv.stressPercent : null,
         practiceHrvBeatCount: practiceHrv.validBeatCount,
@@ -2356,6 +3002,7 @@ function CoherenceBreathScreenInner({
         // чтобы последующая очистка `perfDiagnosticsRef` (см. useEffect
         // на phase==="results") не повлияла на уже отданный экспорт.
         runtimeDiagnostics: perfDiagnosticsRef.current.getSeries().slice(),
+        runtimeEvents: getRuntimeDiagnosticsEventsSince(runtimeDiagnosticsStartSeqRef.current),
         hybridWindowStats,
       };
       setExportDebug(debug);
@@ -2367,15 +3014,44 @@ function CoherenceBreathScreenInner({
       setFinalHrvRecoveredFromTail(recoveredHrvFromTail);
       setFinalCoherenceRecoveredFromTail(recoveredCoherenceFromTail);
       setFinalCoherenceTailWindowMs(recoveredCoherenceTailWindowMs);
+      const pulseLogForGraphs = finalPulseLogExportRef.current ?? [];
+      setResultsGraphs({
+        measuredPulseBpm: decimateSeries(
+          buildPulseSeriesFromLog(pulseLogForGraphs, sessionStartWallMs, "measured"),
+          240,
+        ),
+        guidancePulseBpm: decimateSeries(
+          buildPulseSeriesFromLog(pulseLogForGraphs, sessionStartWallMs, "guidance"),
+          240,
+        ),
+        coherencePercent: decimateSeries(
+          (finalRes.perSecondSmoothed ?? []).filter((point) => {
+            const rawPoint = finalRes.perSecond[point.secondIndex];
+            return rawPoint != null && !rawPoint.insufficientCoverage;
+          }).map((point) => ({
+            tMs: point.secondIndex * 1000,
+            value: point.coherenceMappedPercent,
+          })),
+          240,
+        ),
+        rmssdMs: decimateSeries(rmssdSeriesRef.current, 120),
+        stressPercent: decimateSeries(stressSeriesRef.current, 120),
+        rsaBpm: decimateSeries(
+          rsaCyclesSummaryRef.current.map((point) => ({ tMs: point.tMs, value: point.rsaBpm })),
+          120,
+        ),
+      });
 
       setPhase("results");
     }, UI_TICK_MS);
     return () => clearInterval(id);
   }, [
+    cameraGuidanceOnlyMode,
     phase,
     sessionStartWallMs,
     sessionStartLogicalMs,
     fingerSessionKey,
+    hybridMeasurementEnabled,
     pipeline,
     str.simulatedMetricsNote,
   ]);
@@ -2404,7 +3080,7 @@ function CoherenceBreathScreenInner({
     if (phase !== "running") return;
     const planner = plannerRef.current;
     return bus.subscribe("pulseBpm", (event) => {
-      if (pipeline.getSignalTrustSummary().level !== "full_biometrics") {
+      if (allowAdvancedMetrics && pipeline.getSignalTrustSummary().level !== "full_biometrics") {
         planner.clearLastRsaCycle();
       }
       const medianRr = event.medianRrMs;
@@ -2433,14 +3109,17 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [phase, bus, pipeline, sessionStartWallMs]);
+  }, [allowAdvancedMetrics, phase, bus, pipeline, sessionStartWallMs]);
 
   /** Подписка на coherence → подавать planner последний завершённый RSA-цикл. */
   useEffect(() => {
-    if (phase !== "running") return;
+    if (phase !== "running" || !allowAdvancedMetrics) return;
     const planner = plannerRef.current;
     let lastCycleKey = "";
     return bus.subscribe("coherence", (event) => {
+      if (useEmulatedPulseModeRef.current) {
+        return;
+      }
       if (pipeline.getSignalTrustSummary().level !== "full_biometrics") {
         planner.clearLastRsaCycle();
         return;
@@ -2452,6 +3131,7 @@ function CoherenceBreathScreenInner({
       if (key !== lastCycleKey) {
         lastCycleKey = key;
         rsaCyclesSummaryRef.current.push({
+          tMs: sessionStartWallMs != null ? Math.max(0, Date.now() - sessionStartWallMs) : 0,
           hrInhale: cycle.hrInhale,
           hrExhale: cycle.hrExhale,
           rsaBpm: cycle.rsaBpm,
@@ -2463,7 +3143,40 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [phase, bus, pipeline]);
+  }, [allowAdvancedMetrics, phase, bus, pipeline, sessionStartWallMs]);
+
+  useEffect(() => {
+    if (phase !== "running" || !allowAdvancedMetrics || sessionStartWallMs == null) return;
+    return bus.subscribe("rmssd", (event) => {
+      if (useEmulatedPulseModeRef.current) return;
+      if (!(event.rmssdMs > 0)) return;
+      pushSeriesPoint(
+        rmssdSeriesRef,
+        {
+          tMs: Math.max(0, Date.now() - sessionStartWallMs),
+          value: event.rmssdMs,
+        },
+        { minDeltaMs: 5_000, maxPoints: 720 },
+      );
+    });
+  }, [allowAdvancedMetrics, bus, phase, sessionStartWallMs]);
+
+  useEffect(() => {
+    if (phase !== "running" || !allowAdvancedMetrics || sessionStartWallMs == null) return;
+    return bus.subscribe("stress", (event) => {
+      if (useEmulatedPulseModeRef.current) return;
+      if (!(event.percent >= 0)) return;
+      if (stressSeriesRef.current.length === 0 && event.percent === 0) return;
+      pushSeriesPoint(
+        stressSeriesRef,
+        {
+          tMs: Math.max(0, Date.now() - sessionStartWallMs),
+          value: event.percent,
+        },
+        { minDeltaMs: 5_000, maxPoints: 720 },
+      );
+    });
+  }, [allowAdvancedMetrics, bus, phase, sessionStartWallMs]);
 
   /**
    * Вызывается shell-ом на каждой границе фаз.
@@ -2605,6 +3318,10 @@ function CoherenceBreathScreenInner({
    */
   const applyHardPracticeExit = useCallback(() => {
     clearPpgBannerUi();
+    cameraGuidanceReminderShownRef.current = false;
+    lastFreshBeatSourceTsRef.current = null;
+    lastFreshBeatWallClockRef.current = null;
+    finalPulseLogExportRef.current = null;
     clearOverlayTimer();
     setOverlayVisible(false);
     setShowStopConfirm(false);
@@ -2612,7 +3329,7 @@ function CoherenceBreathScreenInner({
     pipeline.getCoherenceEngine().reset();
     plannerRef.current.reset();
     pipeline.setOpticalPaused(false);
-    pipeline.setMetricsCapturePaused(false);
+    pipeline.setMetricsCapturePaused(!allowAdvancedMetrics);
     hybridControllerRef.current.reset();
     realStartEndedAtMsRef.current = null;
     realEndStartedAtMsRef.current = null;
@@ -2631,6 +3348,7 @@ function CoherenceBreathScreenInner({
     setSessionStartLogicalMs(null);
     setAnalysis(null);
     setExportDebug(null);
+    setResultsGraphs(null);
     setFinalRmssdMs(null);
     setFinalStressPercent(null);
     setFinalPulseWasEmulated(false);
@@ -2642,13 +3360,18 @@ function CoherenceBreathScreenInner({
     setElapsedMs(0);
     setCurrentPlan(null);
     setCycleStartMs(null);
+    setEmulatedPulseSeedBpm(null);
+    setEmulatedFallbackSource(null);
+    setCameraRecoveryProbeActive(false);
     setUseEmulatedPulseMode(false);
+    rmssdSeriesRef.current = [];
+    stressSeriesRef.current = [];
     opticalStallAccumMsRef.current = 0;
     lastCameraTsForStallRef.current = null;
     autoAbortAccumMsRef.current = 0;
     fingerAbsentWallMsRef.current = 0;
     practiceBackgroundEnteredAtRef.current = null;
-  }, [clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
+  }, [allowAdvancedMetrics, clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
 
   const returnToPracticeOrigin = useCallback(() => {
     try {
@@ -2684,6 +3407,7 @@ function CoherenceBreathScreenInner({
 
     const sub = AppState.addEventListener("change", (next) => {
       const prev = appStateRef.current;
+      logRuntimeEvent("breath:practice_app_state_changed", { prev, next, phase: phaseRef.current }, "debug");
 
       const hybridEmulated =
         hybridPhaseRef.current === "emulated" && pipeline.isOpticalPaused();
@@ -2695,34 +3419,68 @@ function CoherenceBreathScreenInner({
 
       if (prev !== "background" && next === "background" && realPpgRunning) {
         practiceBackgroundEnteredAtRef.current = Date.now();
+        logRuntimeEvent(
+          "breath:practice_background_entered",
+          { phase: phaseRef.current, pulseLockState: snapshotRef.current.pulseLockState },
+          "info",
+        );
       }
 
       if (prev === "background" && next === "active") {
         const t0 = practiceBackgroundEnteredAtRef.current;
         practiceBackgroundEnteredAtRef.current = null;
+        logRuntimeEvent(
+          "breath:practice_background_resumed",
+          {
+            phase: phaseRef.current,
+            backgroundMs: t0 != null ? Date.now() - t0 : null,
+            pulseLockState: snapshotRef.current.pulseLockState,
+          },
+          "info",
+        );
         if (
           t0 != null &&
           !sessionAbortHandledRef.current &&
           phaseRef.current === "running" &&
           realPpgRunning
         ) {
-          const snap = snapshotRef.current;
-          if (!snap.fingerDetected) {
-            sessionAbortHandledRef.current = true;
+          if (isWearableMode) {
             logRuntimeEvent(
-              "breath:session_auto_abort",
+              "breath:wearable_background_resume_ignored",
               {
-                reason: "resume_from_background_no_finger",
                 backgroundMs: Date.now() - t0,
-                lockState: snap.pulseLockState,
+                wearableState: wearableRuntimeRef.current.state,
+                lastHeartRateBpm: wearableRuntimeRef.current.lastHeartRateBpm ?? null,
+                lastRrAgeMs:
+                  wearableRuntimeRef.current.lastRrAtMs != null
+                    ? Math.max(0, Date.now() - wearableRuntimeRef.current.lastRrAtMs)
+                    : null,
               },
               "info",
             );
-            setTimeout(() => {
-              applyHardPracticeExitRef.current();
-              setPhase("idle");
-              setShowAutoAbortDialog(true);
-            }, 0);
+          } else {
+          const snap = snapshotRef.current;
+          if (!snap.fingerDetected) {
+            if (cameraGuidanceOnlyMode) {
+              switchToEmulatedPulse("camera", "resume_from_background_no_finger");
+            } else {
+              sessionAbortHandledRef.current = true;
+              logRuntimeEvent(
+                "breath:session_auto_abort",
+                {
+                  reason: "resume_from_background_no_finger",
+                  backgroundMs: Date.now() - t0,
+                  lockState: snap.pulseLockState,
+                },
+                "info",
+              );
+              setTimeout(() => {
+                applyHardPracticeExitRef.current();
+                setPhase("idle");
+                setShowAutoAbortDialog(true);
+              }, 0);
+            }
+          }
           }
         }
       }
@@ -2732,7 +3490,7 @@ function CoherenceBreathScreenInner({
     });
 
     return () => sub.remove();
-  }, [pipeline]);
+  }, [cameraGuidanceOnlyMode, pipeline, switchToEmulatedPulse]);
 
   const handleScreenTap = useCallback(() => {
     if (showStopConfirm) return;
@@ -2821,6 +3579,8 @@ function CoherenceBreathScreenInner({
     // exportDebug уже владеет слайсами этих массивов — мы отдаём оригиналы GC.
     baselineBpmSeriesRef.current = [];
     rsaCyclesSummaryRef.current = [];
+    rmssdSeriesRef.current = [];
+    stressSeriesRef.current = [];
     phaseDurationsHistoryRef.current = [];
     opticalPreviewBufferRef.current = [];
     qcPulseSamplesRef.current = [];
@@ -2857,8 +3617,10 @@ function CoherenceBreathScreenInner({
   useEffect(() => {
     if (phase !== "results") return;
     const sub = AppState.addEventListener("change", (next) => {
-      if (next !== "background" && next !== "inactive") return;
+      if (next !== "background") return;
       pulseLogRef.current = [];
+      lastFreshBeatSourceTsRef.current = null;
+      lastFreshBeatWallClockRef.current = null;
       try {
         pipeline.softReset();
       } catch {
@@ -2878,10 +3640,13 @@ function CoherenceBreathScreenInner({
       fingerAbsentAccumMsRef.current = 0;
       lastSampleMsRef.current = null;
       pulseLogRef.current = [];
+      finalPulseLogExportRef.current = null;
       qcPulseSamplesRef.current = [];
       opticalPreviewBufferRef.current = [];
       lastOpticalPreviewRefreshWallMsRef.current = 0;
       lastPulseLogWallClockRef.current = 0;
+      lastFreshBeatSourceTsRef.current = null;
+      lastFreshBeatWallClockRef.current = null;
       snapshotCallbacksTotalRef.current = 0;
       snapshotsWhileRunningRef.current = 0;
       phaseDurationsHistoryRef.current = [];
@@ -2908,7 +3673,7 @@ function CoherenceBreathScreenInner({
       realEndStartedAtMsRef.current = null;
       stopBaselineRamp();
       pipeline.setOpticalPaused(false);
-      pipeline.setMetricsCapturePaused(false);
+      pipeline.setMetricsCapturePaused(!allowAdvancedMetrics);
       plannerRef.current.unfreezeBaseline();
       hybridPhaseRef.current = "realStart";
       setCameraSilent(false);
@@ -2923,6 +3688,7 @@ function CoherenceBreathScreenInner({
       setSourceKey((k) => k + 1);
       setExportDebug(null);
       setAnalysis(null);
+      setResultsGraphs(null);
       setOpticalPreviewSamples([]);
       setFinalRmssdMs(null);
       setFinalStressPercent(null);
@@ -2934,16 +3700,23 @@ function CoherenceBreathScreenInner({
       setSessionStartLogicalMs(null);
       setCurrentPlan(null);
       setCycleStartMs(null);
+      setEmulatedPulseSeedBpm(null);
+      setEmulatedFallbackSource(null);
+      setCameraRecoveryProbeActive(false);
       setUseEmulatedPulseMode(forceEmulatedPulse);
       setShowQcFailedDialog(false);
       setShowAutoAbortDialog(false);
       setShowWearablePickerDialog(false);
+      rmssdSeriesRef.current = [];
+      stressSeriesRef.current = [];
+      cameraGuidanceReminderShownRef.current = false;
       sessionAbortHandledRef.current = false;
       opticalStallAccumMsRef.current = 0;
       lastCameraTsForStallRef.current = null;
       autoAbortAccumMsRef.current = 0;
       fingerAbsentWallMsRef.current = 0;
       practiceBackgroundEnteredAtRef.current = null;
+      runtimeDiagnosticsStartSeqRef.current = getRuntimeDiagnosticsCurrentSeq();
       clearPpgBannerUi();
 
       if (!isWearableMode && (useSimulatedPpg || forceEmulatedPulse)) {
@@ -2968,24 +3741,12 @@ function CoherenceBreathScreenInner({
       }
 
       if (isWearableMode && selectedWearableDevice?.id && !forceEmulatedPulse) {
-        const now = Date.now();
-        const estCycleMs = computeCycleMsForAnalysis(
-          coherenceShapeRef.current,
-          pulseBpmLast?.medianRrMs,
-        );
-        pipeline.getCoherenceEngine().startSession({
-          sessionStartedAtMs: now,
-          inhaleMs: estCycleMs.inhaleMs,
-          exhaleMs: estCycleMs.exhaleMs,
-          cycleMs: estCycleMs.cycleMs,
-          mode: "test120s",
-          preflightBeats: [],
-          bufferMsBeforeSession: 0,
-        });
-        setSessionStartWallMs(now);
-        setSessionStartLogicalMs(now);
+        warmupStartedAtMs.current = Date.now();
+        protocolStartedAtMs.current = Date.now();
+        setSessionStartWallMs(null);
+        setSessionStartLogicalMs(null);
         setElapsedMs(0);
-        setPhase("running");
+        setPhase("warmup");
         return;
       }
 
@@ -3000,6 +3761,7 @@ function CoherenceBreathScreenInner({
       setPhase("warmup");
     },
     [
+      allowAdvancedMetrics,
       clearPpgBannerUi,
       isWearableMode,
       pipeline,
@@ -3133,12 +3895,51 @@ function CoherenceBreathScreenInner({
   const exportJson = useCallback(async () => {
     if (analysis == null || sessionStartWallMs == null || sessionStartLogicalMs == null) return;
     const analysisEndLogicalMs = sessionStartLogicalMs + practiceTotalMs;
+    const measuredPulseByTime = new Map(
+      (resultsGraphs?.measuredPulseBpm ?? []).map((point) => [point.tMs, point.value] as const),
+    );
+    const guidancePulseFallbackPoints =
+      resultsGraphs?.guidancePulseBpm.length ? resultsGraphs.guidancePulseBpm : (resultsGraphs?.measuredPulseBpm ?? []);
+    const fallbackPulseLogFromGraphs =
+      guidancePulseFallbackPoints.length > 0
+        ? guidancePulseFallbackPoints.map((point) => {
+            const measuredPulseRateBpm = measuredPulseByTime.get(point.tMs) ?? point.value;
+            const emulatedActive = Math.abs(measuredPulseRateBpm - point.value) > 0.5;
+            return {
+            cameraTimestampMs: sessionStartLogicalMs + point.tMs,
+            wallClockMs: sessionStartWallMs + point.tMs,
+            pulseRateBpm: measuredPulseRateBpm,
+            measuredPulseRateBpm,
+            guidancePulseRateBpm: point.value,
+            signalQuality: 0,
+            pulseReady: measuredPulseRateBpm > 0,
+            fingerDetected: !isWearableMode && measuredPulseRateBpm > 0,
+            pulseLockState: "tracking" as const,
+            beatTimestampsCount: 0,
+            lastBeatTimestampMs: null,
+            lastBeatAgeMs: null,
+            pulseSource: isWearableMode ? "wearable" : "fingerCamera",
+            emulatedActive,
+            wearableState: null,
+            wearableCapabilityTier: null,
+            wearableHeartRateBpm: isWearableMode ? measuredPulseRateBpm : null,
+            wearableLastRrAgeMs: null,
+            wearablePacketCount: null,
+            wearableRrPacketCount: null,
+            };
+          })
+        : undefined;
+    const pulseLogForExport =
+      finalPulseLogExportRef.current
+      ?? fallbackPulseLogFromGraphs
+      ?? (useSimulatedPpg
+        ? undefined
+        : pulseLogRef.current.filter((p) => p.wallClockMs >= sessionStartWallMs));
     const payload = pipeline.getCoherenceEngine().buildExportJson(analysisEndLogicalMs, {
       dataSource: isWearableMode ? "wearable" : useSimulatedPpg ? "simulated" : "fingerPpg",
       debug: exportDebug ?? undefined,
-      pulseLog: useSimulatedPpg
-        ? undefined
-        : pulseLogRef.current.filter((p) => p.wallClockMs >= sessionStartWallMs),
+      resultOverride: analysis,
+      pulseLog: pulseLogForExport,
     });
     const json = JSON.stringify(payload, null, 2);
     const base = cacheDirectory;
@@ -3160,7 +3961,7 @@ function CoherenceBreathScreenInner({
     } catch (e: unknown) {
       Alert.alert("Экспорт", String(e));
     }
-  }, [analysis, exportDebug, isWearableMode, pipeline, sessionStartLogicalMs, sessionStartWallMs, useSimulatedPpg]);
+  }, [analysis, exportDebug, isWearableMode, pipeline, practiceTotalMs, resultsGraphs, sessionStartLogicalMs, sessionStartWallMs, useSimulatedPpg]);
 
   /**
    * Индекс активной фазы текущего плана. Обновляется ~15 Гц от **того же** таймбейза,
@@ -3361,12 +4162,16 @@ function CoherenceBreathScreenInner({
       setLiveRsaBpm(null);
       return;
     }
+    if (!allowAdvancedMetrics) {
+      setLiveRsaBpm(null);
+      return;
+    }
     const id = setInterval(() => {
       const live = pipeline.getCoherenceEngine().getLiveSnapshot();
       setLiveRsaBpm(live?.rsaMedianBpmRecent ?? null);
     }, 1000);
     return () => clearInterval(id);
-  }, [phase, pipeline]);
+  }, [allowAdvancedMetrics, phase, pipeline]);
 
   /**
    * Футер во время практики: показываем ТОЛЬКО живые метрики, которые реально
@@ -3413,7 +4218,9 @@ function CoherenceBreathScreenInner({
           {snapshot.fingerDetected ? "палец" : "нет пальца"} · {snapshot.pulseLockState}
         </Text>
         <Text style={styles.opticalMetrics}>
-          RSA: {liveRsaBpm != null ? `${Math.round(liveRsaBpm)} уд/мин` : "—"}
+          {cameraGuidanceOnlyMode
+            ? str.cameraRunningGuidanceOnly
+            : `RSA: ${liveRsaBpm != null ? `${Math.round(liveRsaBpm)} уд/мин` : "—"}`}
         </Text>
         <Text style={styles.opticalMetricsMuted}>
           время практики: {elapsedSec} с из {Math.round(practiceTotalMs / 1000)} с
@@ -3421,6 +4228,7 @@ function CoherenceBreathScreenInner({
       </View>
     );
   }, [
+    cameraGuidanceOnlyMode,
     phase,
     snapshot.pulseRateBpm,
     snapshot.signalQuality,
@@ -3438,7 +4246,7 @@ function CoherenceBreathScreenInner({
 
   return (
     <SafeAreaView style={styles.safe}>
-      {!isWearableMode && !isExpoGo && !useSimulatedPpg && !useEmulatedPulseMode ? (
+      {!isWearableMode && !isExpoGo && !useSimulatedPpg ? (
         <FingerPpgCameraSource
           key={`finger-${sourceKey}`}
           isActive={cameraActive}
@@ -3458,12 +4266,17 @@ function CoherenceBreathScreenInner({
           deviceName={selectedWearableDevice?.name}
           initialCapabilityTier={wearableCapabilityTier}
           autoReconnect={autoReconnect}
+          suppressBeatEvents={useEmulatedPulseMode}
           onRuntimeSnapshot={handleWearableRuntimeSnapshot}
           onCapabilityResolved={handleWearableCapabilityResolved}
         />
       ) : null}
-      {useEmulatedPulseMode && !useSimulatedPpg && !isWearableMode ? (
-        <EmulatedPulseSensorSource key={`emu-${sourceKey}`} isActive={cameraActive} />
+      {useEmulatedPulseMode && !useSimulatedPpg ? (
+        <EmulatedPulseSensorSource
+          key={`emu-${sourceKey}`}
+          isActive={cameraActive && (isWearableMode || !cameraRecoveryProbeActive)}
+          seedBpm={emulatedPulseSeedBpm}
+        />
       ) : null}
 
       {phase === "idle" ? (
@@ -3773,6 +4586,7 @@ function CoherenceBreathScreenInner({
           searchHint: str.wearablePickerSearchHint,
           foundHint: str.wearablePickerFoundHint,
           notFoundHint: str.wearablePickerNotFoundHint,
+          notFoundTips: str.wearablePickerNotFoundTips,
           bluetoothOffHint: str.wearableBluetoothOff,
           retryButton: str.wearableRetryScan,
           closeButton: str.wearablePickerCloseButton,
@@ -3901,10 +4715,12 @@ function CoherenceBreathScreenInner({
           str={str}
           analysis={analysis}
           exportDebug={exportDebug}
+          resultsGraphs={resultsGraphs}
           finalRmssdMs={finalRmssdMs}
           finalStressPercent={finalStressPercent}
           finalPulseWasEmulated={finalPulseWasEmulated}
           finalSignalTrust={finalSignalTrust}
+          cameraGuidanceOnlyMode={cameraGuidanceOnlyMode}
           finalHrvRecoveredFromTail={finalHrvRecoveredFromTail}
           finalCoherenceRecoveredFromTail={finalCoherenceRecoveredFromTail}
           finalCoherenceTailWindowMs={finalCoherenceTailWindowMs}
@@ -3936,31 +4752,137 @@ function CoherenceBreathScreenInner({
 
 /**
  * Экран результатов: двухэтапный.
- *
- *   1. Стадия `mood` — короткий опрос «Как изменилось ваше состояние?» с тремя
- *      смайликами. Выбор сохраняется локально (в проде отправим на сервер
- *      для оценки эффективности практик; сейчас не сохраняется никуда).
- *   2. Стадия `details` — таблица метрик + кнопки «Обсудить» / «Закрыть».
- *
- * «Обсудить» ставит в очередь коммуникатора приветственное сообщение с
- * JSON-результатами и навигирует на экран коммуникатора (`/`). Там
- * автоматически отправляется первое сообщение от имени пользователя, и ИИ
- * комментирует результаты. См. `pending-greeting.ts`.
- *
- * «Закрыть» — возвращает на главный экран приложения (тот же `/`). Главного
- * экрана пока нет, поэтому просто используется tab-index. Когда появится
- * настоящий home — достаточно будет поправить путь в `router.replace`.
  */
+function buildInterpretationOutcomePayload(
+  basePayload: Record<string, unknown>,
+  graphs: BreathResultsGraphsSnapshot | null,
+): Record<string, unknown> {
+  if (graphs == null) return basePayload;
+  return {
+    ...basePayload,
+    seriesInsights: {
+      pulseBpm: summarizeSeries(graphs.measuredPulseBpm, "bpm"),
+      coherencePercent: summarizeSeries(graphs.coherencePercent, "percent"),
+      rmssdMs: summarizeSeries(graphs.rmssdMs, "ms"),
+      stressPercent: summarizeSeries(graphs.stressPercent, "percent"),
+      rsaAmplitudeBpm: summarizeSeries(graphs.rsaBpm, "bpm"),
+    },
+  };
+}
+
+function formatChartValue(value: number | null, unit: BreathResultsSeriesSummary["unit"]): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const rounded = unit === "percent" ? Math.round(value) : Math.round(value * 10) / 10;
+  switch (unit) {
+    case "bpm":
+      return `${rounded} bpm`;
+    case "ms":
+      return `${rounded} ms`;
+    case "percent":
+      return `${Math.round(value)}%`;
+  }
+}
+
+function ResultsMetricChart(props: {
+  title: string;
+  points: readonly BreathResultsSeriesPoint[];
+  color: string;
+  unit: BreathResultsSeriesSummary["unit"];
+  fixedMin?: number;
+  fixedMax?: number;
+}) {
+  const { title, points, color, unit, fixedMin, fixedMax } = props;
+  const chartPoints = useMemo(() => decimateSeries(points, 120), [points]);
+  const summary = useMemo(() => summarizeSeries(chartPoints, unit), [chartPoints, unit]);
+  const geometry = useMemo(() => {
+    if (chartPoints.length < 2) return null;
+    const width = 260;
+    const height = 96;
+    const padX = 10;
+    const padY = 8;
+    const values = chartPoints.map((point) => point.value);
+    let min = fixedMin ?? Math.min(...values);
+    let max = fixedMax ?? Math.max(...values);
+    if (!(max > min)) {
+      const center = max || min || 0;
+      min = center - 1;
+      max = center + 1;
+    }
+    const durationMs = Math.max(1, chartPoints[chartPoints.length - 1]!.tMs - chartPoints[0]!.tMs);
+    const pointsAttr = chartPoints
+      .map((point) => {
+        const x = padX + ((point.tMs - chartPoints[0]!.tMs) / durationMs) * (width - padX * 2);
+        const y = padY + (1 - (point.value - min) / (max - min)) * (height - padY * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    return {
+      width,
+      height,
+      min,
+      max,
+      durationMs: chartPoints[chartPoints.length - 1]!.tMs,
+      pointsAttr,
+      midY: height / 2,
+      topY: padY,
+      bottomY: height - padY,
+    };
+  }, [chartPoints, fixedMax, fixedMin]);
+  if (geometry == null || summary == null) return null;
+  return (
+    <View style={styles.resultChartCard}>
+      <View style={styles.resultChartHeader}>
+        <Text style={styles.resultChartTitle}>{title}</Text>
+        <Text style={styles.resultChartSummary}>
+          {formatChartValue(summary.startMean, unit)} → {formatChartValue(summary.endMean, unit)}
+        </Text>
+      </View>
+      <View style={styles.resultChartRow}>
+        <View style={styles.resultChartYAxis}>
+          <Text style={styles.resultChartAxisLabel}>{formatChartValue(geometry.max, unit)}</Text>
+          <Text style={styles.resultChartAxisLabel}>{formatChartValue(geometry.min, unit)}</Text>
+        </View>
+        <View style={styles.resultChartPlot}>
+          <Svg width={geometry.width} height={geometry.height} viewBox={`0 0 ${geometry.width} ${geometry.height}`}>
+            <Line x1="0" y1={geometry.topY} x2={geometry.width} y2={geometry.topY} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+            <Line x1="0" y1={geometry.midY} x2={geometry.width} y2={geometry.midY} stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
+            <Line x1="0" y1={geometry.bottomY} x2={geometry.width} y2={geometry.bottomY} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+            <Polyline
+              points={geometry.pointsAttr}
+              fill="none"
+              stroke={color}
+              strokeWidth="3"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </Svg>
+          <View style={styles.resultChartXAxis}>
+            <Text style={styles.resultChartAxisLabel}>0:00</Text>
+            <Text style={styles.resultChartAxisLabel}>{formatMinutesSeconds(geometry.durationMs)}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 type ResultsMood = "better" | "same" | "worse";
+type ResultsDetailsViewMode =
+  | "metrics"
+  | "loadingInterpretation"
+  | "interpretation"
+  | "interpretationError";
 
 function ResultsView(props: {
   str: ReturnType<typeof getCoherenceBreathStrings>;
   analysis: CoherenceSessionResult | null;
   exportDebug: CoherenceExportDebug | null;
+  resultsGraphs: BreathResultsGraphsSnapshot | null;
   finalRmssdMs: number | null;
   finalStressPercent: number | null;
   finalPulseWasEmulated: boolean;
   finalSignalTrust: BiofeedbackSignalTrustSummary | null;
+  cameraGuidanceOnlyMode: boolean;
   finalHrvRecoveredFromTail: boolean;
   finalCoherenceRecoveredFromTail: boolean;
   finalCoherenceTailWindowMs: number | null;
@@ -3986,10 +4908,12 @@ function ResultsView(props: {
     str,
     analysis,
     exportDebug,
+    resultsGraphs,
     finalRmssdMs,
     finalStressPercent,
     finalPulseWasEmulated,
     finalSignalTrust,
+    cameraGuidanceOnlyMode,
     finalHrvRecoveredFromTail,
     finalCoherenceRecoveredFromTail,
     finalCoherenceTailWindowMs,
@@ -4014,15 +4938,83 @@ function ResultsView(props: {
 
   const { authUser } = useAuth();
   const [stage, setStage] = useState<"mood" | "details">("mood");
+  const [detailsViewMode, setDetailsViewMode] = useState<ResultsDetailsViewMode>("metrics");
+  const [interpretationText, setInterpretationText] = useState<string | null>(null);
+  const [interpretationErrorDetail, setInterpretationErrorDetail] = useState<string | null>(null);
   const moodRef = useRef<ResultsMood | null>(null);
   const savedSessionRef = useRef(false);
+  const interpretationAbortRef = useRef<AbortController | null>(null);
   const trustLevel = finalSignalTrust?.level ?? "full_biometrics";
   const showCoherenceResults =
+    !cameraGuidanceOnlyMode &&
     !finalPulseWasEmulated &&
     (trustLevel === "full_biometrics" || finalCoherenceRecoveredFromTail) &&
     !analysis?.metricsWithheldDueToInsufficientData;
   const showHrvResults =
+    !cameraGuidanceOnlyMode &&
     !finalPulseWasEmulated && (trustLevel !== "pulse_only" || finalHrvRecoveredFromTail);
+  const measuredPulseGraphPoints = useMemo(
+    () => prepareSeriesForDisplay(resultsGraphs?.measuredPulseBpm ?? [], practiceTotalMs),
+    [practiceTotalMs, resultsGraphs?.measuredPulseBpm],
+  );
+  const guidancePulseGraphPoints = useMemo(
+    () => prepareSeriesForDisplay(resultsGraphs?.guidancePulseBpm ?? [], practiceTotalMs),
+    [practiceTotalMs, resultsGraphs?.guidancePulseBpm],
+  );
+  const showSeparateGuidancePulseGraph = seriesDifferMeaningfully(
+    measuredPulseGraphPoints,
+    guidancePulseGraphPoints,
+  );
+  const coherenceGraphPoints = useMemo(
+    () => (
+      !cameraGuidanceOnlyMode
+        ? prepareSeriesForDisplay(resultsGraphs?.coherencePercent ?? [], practiceTotalMs, {
+            trimZeroEdges: true,
+            extendStart: false,
+          })
+        : []
+    ),
+    [cameraGuidanceOnlyMode, practiceTotalMs, resultsGraphs?.coherencePercent],
+  );
+  const rmssdGraphPoints = useMemo(
+    () => (
+      !cameraGuidanceOnlyMode
+        ? prepareSeriesForDisplay(resultsGraphs?.rmssdMs ?? [], practiceTotalMs, {
+            extendStart: false,
+          })
+        : []
+    ),
+    [cameraGuidanceOnlyMode, practiceTotalMs, resultsGraphs?.rmssdMs],
+  );
+  const stressGraphPoints = useMemo(
+    () => (
+      !cameraGuidanceOnlyMode
+        ? prepareSeriesForDisplay(resultsGraphs?.stressPercent ?? [], practiceTotalMs, {
+            extendStart: false,
+          })
+        : []
+    ),
+    [cameraGuidanceOnlyMode, practiceTotalMs, resultsGraphs?.stressPercent],
+  );
+  const rsaGraphPoints = useMemo(
+    () => (
+      !cameraGuidanceOnlyMode
+        ? prepareSeriesForDisplay(resultsGraphs?.rsaBpm ?? [], practiceTotalMs, {
+            extendStart: false,
+          })
+        : []
+    ),
+    [cameraGuidanceOnlyMode, practiceTotalMs, resultsGraphs?.rsaBpm],
+  );
+  const canRequestInterpretation =
+    !cameraGuidanceOnlyMode &&
+    !finalPulseWasEmulated &&
+    [
+      analysis?.coherenceAveragePercent,
+      analysis?.rsaAmplitudeBpm,
+      finalRmssdMs,
+      finalStressPercent,
+    ].some((value) => value != null);
 
   const buildOutcome = useCallback((): BreathPracticeOutcome => {
     const summary: BreathPracticeSummary = {
@@ -4090,6 +5082,9 @@ function ResultsView(props: {
   const handleMoodSelect = useCallback((mood: ResultsMood) => {
     moodRef.current = mood;
     setStage("details");
+    setDetailsViewMode("metrics");
+    setInterpretationText(null);
+    setInterpretationErrorDetail(null);
 
     if (!authUser?.id || savedSessionRef.current) return;
     savedSessionRef.current = true;
@@ -4114,13 +5109,21 @@ function ResultsView(props: {
     });
   }, [authUser?.id, buildOutcome, chakra, launchSource, practiceId, practiceTotalMs, sessionStartWallMs]);
 
-  const handleDiscuss = useCallback(() => {
-    // Собираем summary и hybrid breakdown в plain-JSON payload.
+  const requestInterpretation = useCallback(async () => {
+    interpretationAbortRef.current?.abort();
+    const controller = new AbortController();
+    interpretationAbortRef.current = controller;
+    setDetailsViewMode("loadingInterpretation");
+    setInterpretationText(null);
+    setInterpretationErrorDetail(null);
+
     const outcome = buildOutcome();
-    const payload = outcomeToCommunicatorPayload(outcome);
-    // Лёгкая метка настроения идёт рядом с payload-ом — ИИ может учесть.
+    const payload = buildInterpretationOutcomePayload(
+      outcomeToCommunicatorPayload(outcome),
+      resultsGraphs,
+    );
     const mood = moodRef.current;
-    const moodText =
+    const moodLabel =
       mood === "better"
         ? str.resultsMoodBetter
         : mood === "same"
@@ -4128,30 +5131,57 @@ function ResultsView(props: {
           : mood === "worse"
             ? str.resultsMoodWorse
             : null;
-    const userText =
-      `${str.resultsDiscussUserIntro}\n\n` +
-      (moodText ? `Субъективно: ${moodText}.\n\n` : "") +
-      "```json\n" +
-      JSON.stringify(payload, null, 2) +
-      "\n```";
-    enqueueCommunicatorGreeting({
-      source: "breath:coherence",
-      systemPrompt: str.resultsDiscussSystemPrompt,
-      userText,
-    });
     try {
-      router.replace("/");
-    } catch {
-      /* если мы не внутри expo-router — тихо игнорируем */
+      const response = await fetchBreathPracticeInterpretation(
+        {
+          outcome: payload,
+          subjectiveMood:
+            mood != null && moodLabel != null
+              ? { id: mood, label: moodLabel }
+              : null,
+          responseLocale: locale,
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setInterpretationText(response.text.trim());
+      setDetailsViewMode("interpretation");
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      logRuntimeEvent(
+        "breath:practice_interpretation_failed",
+        { message: error instanceof Error ? error.message : String(error) },
+        "warn",
+      );
+      setInterpretationText(null);
+      setInterpretationErrorDetail(error instanceof Error ? error.message : String(error));
+      setDetailsViewMode("interpretationError");
+    } finally {
+      if (interpretationAbortRef.current === controller) {
+        interpretationAbortRef.current = null;
+      }
     }
   }, [
     buildOutcome,
-    str,
+    locale,
+    str.resultsMoodBetter,
+    str.resultsMoodSame,
+    resultsGraphs,
+    str.resultsMoodWorse,
   ]);
+
+  useEffect(() => {
+    return () => {
+      interpretationAbortRef.current?.abort();
+      interpretationAbortRef.current = null;
+    };
+  }, []);
+
+  const showingInterpretation = detailsViewMode !== "metrics";
 
   if (stage === "mood") {
     return (
-      <View style={styles.results}>
+      <View style={[styles.results, styles.resultsCentered]}>
         <Text style={styles.resultsMoodQuestion}>{str.resultsMoodQuestion}</Text>
         <View style={styles.moodRow}>
           <Pressable
@@ -4185,113 +5215,209 @@ function ResultsView(props: {
 
   return (
     <View style={styles.results}>
-      <Text style={styles.resultsTitle}>{str.resultsMetricsHeader}</Text>
-      {analysis?.metricsApproximate ? (
-        <Text style={styles.approx}>{str.approximateMetricsNote}</Text>
-      ) : null}
-      {useSimulatedPpg ? <Text style={styles.approx}>{str.simulatedMetricsNote}</Text> : null}
-      {finalPulseWasEmulated && !useSimulatedPpg ? (
-        <Text style={styles.warnBox}>{str.emulatedPulseResultsNote}</Text>
-      ) : null}
-      {!finalPulseWasEmulated && trustLevel === "guided_limited" ? (
-        <Text style={styles.warnBox}>{str.guidedLimitedResultsNote}</Text>
-      ) : null}
-      {!finalPulseWasEmulated && trustLevel === "pulse_only" ? (
-        <Text style={styles.warnBox}>{str.pulseOnlyResultsNote}</Text>
-      ) : null}
-      {finalHrvRecoveredFromTail ? (
-        <Text style={styles.warnBox}>{str.recoveredTailHrvResultsNote}</Text>
-      ) : null}
-      {finalCoherenceRecoveredFromTail ? (
-        <Text style={styles.warnBox}>
-          {str.recoveredTailCoherenceResultsNote(
-            Math.floor((finalCoherenceTailWindowMs ?? 0) / 60_000),
-            Math.round(((finalCoherenceTailWindowMs ?? 0) % 60_000) / 1000),
-          )}
-        </Text>
-      ) : null}
-      {analysis?.warnings?.length ? (
-        <Text style={styles.warnBox}>{analysis.warnings.join("\n")}</Text>
-      ) : null}
-      {DEBUG_ACTIVATION_EXPORT_ENABLED && exportDebug ? (
-        <Text style={styles.debugMini}>
-          {exportDebug.sessionTimeBase === "cameraPresentationMs"
-            ? str.debugTimeBaseCamera
-            : str.debugTimeBaseUnix}
-          {" · "}
-          {str.debugBeatsInWindow}: {exportDebug.beatsAfterSessionWindowFilter}
-          {exportDebug.beatsAfterDedupeMs != null ? (
-            <>
-              {" · "}
-              {str.debugBeatsAfterDedupe}: {exportDebug.beatsAfterDedupeMs}
-            </>
-          ) : null}
-        </Text>
-      ) : null}
-      <Text style={styles.metricLine}>
-        {str.durationLabel}:{" "}
-        {sessionStartWallMs != null ? (practiceTotalMs / 1000).toFixed(0) : "—"} с
+      <Text style={styles.resultsTitle}>
+        {showingInterpretation ? str.resultsDiscussButton : str.resultsMetricsHeader}
       </Text>
-      {finalStartAnalysis != null && finalEndAnalysis != null ? (
-        <>
-          <Text style={styles.approx}>{str.hybridEmulatedMidNote}</Text>
-          <HybridResultsTable
-            str={str}
-            startAnalysis={finalStartAnalysis}
-            endAnalysis={finalEndAnalysis}
-            startHrv={finalStartHrv}
-            endHrv={finalEndHrv}
-            startAvgBpm={finalStartAvgBpm}
-            endAvgBpm={finalEndAvgBpm}
-            startWindowMs={finalStartWindowMs}
-            endWindowMs={finalEndWindowMs}
-          />
-        </>
-      ) : (
-        <>
-          <Text style={styles.metricLine}>
-            {str.coherenceAvgLabel}:{" "}
-            {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceAveragePercent) : "—"}
-          </Text>
-          <Text style={styles.metricLine}>
-            {str.coherenceMaxLabel}:{" "}
-            {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceMaxPercent) : "—"}
-          </Text>
-          <Text style={styles.metricLine}>
-            {str.rsaLabel}:{" "}
-            {showCoherenceResults && analysis?.rsaAmplitudeBpm != null
-              ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин`
-              : "—"}
-          </Text>
-          <Text style={styles.metricLine}>
-            {str.rsaNormalizedLabel}:{" "}
-            {showCoherenceResults && analysis?.rsaNormalizedPercent != null
-              ? `${Math.round(analysis.rsaNormalizedPercent)} %`
-              : "—"}
-          </Text>
-          <Text style={styles.metricLine}>
-            {str.entryTimeLabel}:{" "}
-            {showCoherenceResults && analysis?.entryTimeSec != null ? `${analysis.entryTimeSec} с` : "—"}
-          </Text>
-          <Text style={styles.metricLine}>
-            {str.rmssdLabel}:{" "}
-            {showHrvResults && finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
-          </Text>
-          <Text style={styles.metricLine}>
-            {str.stressLabel}:{" "}
-            {showHrvResults && finalStressPercent != null ? `${Math.round(finalStressPercent)}%` : "—"}
-          </Text>
-        </>
-      )}
-      {DEBUG_ACTIVATION_EXPORT_ENABLED ? (
-        <Pressable onPress={() => onExportJson()} style={styles.secondaryBtn}>
-          <Text style={styles.secondaryBtnText}>{str.exportButton}</Text>
-        </Pressable>
-      ) : null}
+      <ScrollView
+        style={styles.resultsScroll}
+        contentContainerStyle={styles.resultsScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {showingInterpretation ? (
+          <>
+            {detailsViewMode === "loadingInterpretation" ? (
+              <Text style={styles.interpretationBody}>{str.resultsInterpretationLoading}</Text>
+            ) : null}
+            {detailsViewMode === "interpretationError" ? (
+              <>
+                <Text style={styles.warnBox}>{str.resultsInterpretationError}</Text>
+                {__DEV__ && interpretationErrorDetail ? (
+                  <Text style={styles.metricNote}>{interpretationErrorDetail}</Text>
+                ) : null}
+              </>
+            ) : null}
+            {detailsViewMode === "interpretation" && interpretationText ? (
+              <Text style={styles.interpretationBody}>{interpretationText}</Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {analysis?.metricsApproximate ? (
+              <Text style={styles.approx}>{str.approximateMetricsNote}</Text>
+            ) : null}
+            {useSimulatedPpg ? <Text style={styles.approx}>{str.simulatedMetricsNote}</Text> : null}
+            {cameraGuidanceOnlyMode ? (
+              <Text style={styles.warnBox}>{str.cameraGuidanceOnlyResultsNote}</Text>
+            ) : null}
+            {finalPulseWasEmulated && !useSimulatedPpg ? (
+              <Text style={styles.warnBox}>{str.emulatedPulseResultsNote}</Text>
+            ) : null}
+            {!finalPulseWasEmulated && trustLevel === "guided_limited" ? (
+              <Text style={styles.warnBox}>{str.guidedLimitedResultsNote}</Text>
+            ) : null}
+            {!finalPulseWasEmulated && trustLevel === "pulse_only" ? (
+              <Text style={styles.warnBox}>{str.pulseOnlyResultsNote}</Text>
+            ) : null}
+            {finalHrvRecoveredFromTail ? (
+              <Text style={styles.warnBox}>{str.recoveredTailHrvResultsNote}</Text>
+            ) : null}
+            {finalCoherenceRecoveredFromTail ? (
+              <Text style={styles.warnBox}>
+                {str.recoveredTailCoherenceResultsNote(
+                  Math.floor((finalCoherenceTailWindowMs ?? 0) / 60_000),
+                  Math.round(((finalCoherenceTailWindowMs ?? 0) % 60_000) / 1000),
+                )}
+              </Text>
+            ) : null}
+            {analysis?.warnings?.length ? (
+              <Text style={styles.warnBox}>{analysis.warnings.join("\n")}</Text>
+            ) : null}
+            {DEBUG_ACTIVATION_EXPORT_ENABLED && exportDebug ? (
+              <Text style={styles.debugMini}>
+                {exportDebug.sessionTimeBase === "cameraPresentationMs"
+                  ? str.debugTimeBaseCamera
+                  : str.debugTimeBaseUnix}
+                {" · "}
+                {str.debugBeatsInWindow}: {exportDebug.beatsAfterSessionWindowFilter}
+                {exportDebug.beatsAfterDedupeMs != null ? (
+                  <>
+                    {" · "}
+                    {str.debugBeatsAfterDedupe}: {exportDebug.beatsAfterDedupeMs}
+                  </>
+                ) : null}
+              </Text>
+            ) : null}
+            <Text style={styles.metricLine}>
+              {str.durationLabel}:{" "}
+              {sessionStartWallMs != null ? (practiceTotalMs / 1000).toFixed(0) : "—"} с
+            </Text>
+            {finalStartAnalysis != null && finalEndAnalysis != null ? (
+              <>
+                <Text style={styles.approx}>{str.hybridEmulatedMidNote}</Text>
+                <HybridResultsTable
+                  str={str}
+                  startAnalysis={finalStartAnalysis}
+                  endAnalysis={finalEndAnalysis}
+                  startHrv={finalStartHrv}
+                  endHrv={finalEndHrv}
+                  startAvgBpm={finalStartAvgBpm}
+                  endAvgBpm={finalEndAvgBpm}
+                  startWindowMs={finalStartWindowMs}
+                  endWindowMs={finalEndWindowMs}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.metricLine}>
+                  {str.coherenceAvgLabel}:{" "}
+                  {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceAveragePercent) : "—"}
+                </Text>
+                <Text style={styles.metricLine}>
+                  {str.coherenceMaxLabel}:{" "}
+                  {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceMaxPercent) : "—"}
+                </Text>
+                <Text style={styles.metricLine}>
+                  {str.rsaLabel}:{" "}
+                  {showCoherenceResults && analysis?.rsaAmplitudeBpm != null
+                    ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин`
+                    : "—"}
+                </Text>
+                <Text style={styles.metricLine}>
+                  {str.rsaNormalizedLabel}:{" "}
+                  {showCoherenceResults && analysis?.rsaNormalizedPercent != null
+                    ? `${Math.round(analysis.rsaNormalizedPercent)} %`
+                    : "—"}
+                </Text>
+                <Text style={styles.metricLine}>
+                  {str.entryTimeLabel}:{" "}
+                  {showCoherenceResults && analysis?.entryTimeSec != null ? `${analysis.entryTimeSec} с` : "—"}
+                </Text>
+                <Text style={styles.metricLine}>
+                  {str.rmssdLabel}:{" "}
+                  {showHrvResults && finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
+                </Text>
+                <Text style={styles.metricLine}>
+                  {str.stressLabel}:{" "}
+                  {showHrvResults && finalStressPercent != null ? `${Math.round(finalStressPercent)}%` : "—"}
+                </Text>
+              </>
+            )}
+            {measuredPulseGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={showSeparateGuidancePulseGraph ? str.resultsMeasuredPulseLabel : str.calibrationPulse}
+                points={measuredPulseGraphPoints}
+                color="#60a5fa"
+                unit="bpm"
+              />
+            ) : null}
+            {showSeparateGuidancePulseGraph && guidancePulseGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={str.resultsGuidancePulseLabel}
+                points={guidancePulseGraphPoints}
+                color="#34d399"
+                unit="bpm"
+              />
+            ) : null}
+            {coherenceGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={str.coherenceAvgLabel}
+                points={coherenceGraphPoints}
+                color="#22c55e"
+                unit="percent"
+                fixedMin={0}
+                fixedMax={100}
+              />
+            ) : null}
+            {rsaGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={str.rsaLabel}
+                points={rsaGraphPoints}
+                color="#a78bfa"
+                unit="bpm"
+              />
+            ) : null}
+            {rmssdGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={str.rmssdLabel}
+                points={rmssdGraphPoints}
+                color="#f59e0b"
+                unit="ms"
+              />
+            ) : null}
+            {stressGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={str.stressLabel}
+                points={stressGraphPoints}
+                color="#f87171"
+                unit="percent"
+                fixedMin={0}
+                fixedMax={100}
+              />
+            ) : null}
+            {cameraGuidanceOnlyMode ? (
+              <Text style={styles.infoBox}>{str.resultsInterpretationRequiresBleNote}</Text>
+            ) : !canRequestInterpretation ? (
+              <Text style={styles.infoBox}>{str.resultsInterpretationRequiresMetricsNote}</Text>
+            ) : null}
+            {DEBUG_ACTIVATION_EXPORT_ENABLED ? (
+              <Pressable onPress={() => onExportJson()} style={styles.secondaryBtn}>
+                <Text style={styles.secondaryBtnText}>{str.exportButton}</Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
       <View style={styles.resultsActionsRow}>
-        <Pressable onPress={handleDiscuss} style={styles.resultsDiscussBtn}>
-          <Text style={styles.resultsDiscussBtnText}>{str.resultsDiscussButton}</Text>
-        </Pressable>
+        {!showingInterpretation && canRequestInterpretation ? (
+          <Pressable onPress={() => void requestInterpretation()} style={styles.resultsDiscussBtn}>
+            <Text style={styles.resultsDiscussBtnText}>{str.resultsDiscussButton}</Text>
+          </Pressable>
+        ) : null}
+        {detailsViewMode === "interpretationError" ? (
+          <Pressable onPress={() => void requestInterpretation()} style={styles.resultsDiscussBtn}>
+            <Text style={styles.resultsDiscussBtnText}>{str.resultsInterpretationRetryButton}</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={onClose} style={styles.resultsCloseBtn}>
           <Text style={styles.resultsCloseBtnText}>{str.resultsCloseButton}</Text>
         </Pressable>
@@ -4609,12 +5735,44 @@ const styles = StyleSheet.create({
   instructionBlock: { alignItems: "center" },
   inhaleTitle: { textAlign: "center" },
   secHint: { marginTop: 8, textAlign: "center" },
-  results: { flex: 1, padding: 24, justifyContent: "center" },
+  results: { flex: 1, padding: 24 },
+  resultsCentered: { justifyContent: "center" },
   resultsTitle: { color: "#f8fafc", fontSize: 20, fontWeight: "700", marginBottom: 12 },
   approx: { color: "#fbbf24", marginBottom: 12, fontSize: 13 },
   warnBox: { color: "#fca5a5", fontSize: 12, marginBottom: 12 },
+  infoBox: { color: "#93c5fd", fontSize: 12, marginBottom: 12, lineHeight: 18 },
   debugMini: { color: "#64748b", fontSize: 11, marginBottom: 10, lineHeight: 15 },
   metricLine: { color: "#e2e8f0", fontSize: 16, marginBottom: 8 },
+  metricNote: { color: "#94a3b8", fontSize: 12, marginBottom: 12, lineHeight: 18 },
+  interpretationBody: { color: "#e2e8f0", fontSize: 16, lineHeight: 24, marginBottom: 12 },
+  resultsScroll: { flex: 1 },
+  resultsScrollContent: { paddingBottom: 4 },
+  resultChartCard: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.16)",
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 12,
+  },
+  resultChartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  resultChartTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "600", flex: 1 },
+  resultChartSummary: { color: "#cbd5e1", fontSize: 12 },
+  resultChartRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
+  resultChartYAxis: { justifyContent: "space-between", paddingVertical: 8 },
+  resultChartPlot: { flex: 1 },
+  resultChartXAxis: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  resultChartAxisLabel: { color: "#94a3b8", fontSize: 11 },
   resultsMoodQuestion: {
     color: "#f8fafc",
     fontSize: 22,

@@ -656,11 +656,24 @@ export type CoherencePulseLogEntry = {
   cameraTimestampMs: number;
   wallClockMs: number;
   pulseRateBpm: number;
+  measuredPulseRateBpm?: number | null;
+  guidancePulseRateBpm?: number | null;
   signalQuality: number;
   pulseReady: boolean;
   fingerDetected: boolean;
   pulseLockState: string;
   beatTimestampsCount: number;
+  lastBeatTimestampMs?: number | null;
+  lastBeatAgeMs?: number | null;
+  pulseSource?: string;
+  emulatedActive?: boolean;
+  wearableState?: string | null;
+  wearableCapabilityTier?: string | null;
+  wearableHeartRateBpm?: number | null;
+  wearableLastRrAgeMs?: number | null;
+  wearableSensorContactDetected?: boolean | null;
+  wearablePacketCount?: number | null;
+  wearableRrPacketCount?: number | null;
 };
 
 export type CoherenceExportDebug = {
@@ -804,6 +817,15 @@ export type CoherenceExportDebug = {
    * Удалить вместе с `session-runtime-diagnostics.ts`.
    */
   runtimeDiagnostics?: readonly PerfDiagSample[];
+  /** Runtime-события текущей практики: AppState, keep-awake, fallback/restore и т.п. */
+  runtimeEvents?: readonly {
+    seq: number;
+    at: string;
+    tMs: number;
+    level: string;
+    name: string;
+    data?: Record<string, unknown>;
+  }[];
 };
 
 export function buildCoherenceExportJson(

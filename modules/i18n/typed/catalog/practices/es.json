@@ -55,5 +55,6 @@
   "withPulseSensor": "con pulsómetro",
   "withoutPulseSensor": "sin pulsómetro",
   "yogaLateHint": "Supabase está respondiendo más lento de lo normal. El catálogo ya está abierto, las asanas aparecerán aquí automáticamente.",
-  "yogaLateLoading": "cargando..."
+  "yogaLateLoading": "cargando...",
+  "wearablePickerNotFoundTips": "Con un pulsómetro de pecho: humedece los contactos, presiónalo contra la piel y espera 5–10 segundos, comprueba que el Bluetooth está activado y cierra otras apps que usen este pulsómetro. Si el sensor aún no está vinculado al teléfono, abre la aplicación del fabricante y espera a que se vincule. Si es necesario, reinicia el teléfono."
 }

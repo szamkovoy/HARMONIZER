@@ -33,6 +33,7 @@ export class HrvBeatAccumulator {
   private readonly gapEvents: HrvGapEvent[] = [];
   private accumulationStartMs = 0;
   private calibrationComplete = false;
+  private lastProcessedBeatTimestampMs = 0;
   /** Сколько раз пришёл удар после «дыры» > HRV_MAX_BEAT_GAP_MS (для withholding). */
   private gapEventCount = 0;
   /** Суммарная длительность дыр в мс (для отладки). */
@@ -49,6 +50,7 @@ export class HrvBeatAccumulator {
     this.gapEventCount = 0;
     this.totalGapMs = 0;
     this.longestGapMs = 0;
+    this.lastProcessedBeatTimestampMs = 0;
   }
 
   /** Сколько раз приходил удар после дыры > 2 с (используется для withholding). */
@@ -83,7 +85,7 @@ export class HrvBeatAccumulator {
     }
     const startMs =
       this.accumulationStartMs > 0 ? this.accumulationStartMs : nowTimestampMs;
-    let last = this.beats[this.beats.length - 1] ?? 0;
+    let last = this.lastProcessedBeatTimestampMs || (this.beats[this.beats.length - 1] ?? 0);
     let added = 0;
     const minGap = BEAT_DUPLICATE_TOLERANCE_MS * 0.35;
 
@@ -119,6 +121,7 @@ export class HrvBeatAccumulator {
         added += 1;
       }
     }
+    this.lastProcessedBeatTimestampMs = last;
     return added;
   }
 
@@ -139,6 +142,7 @@ export class HrvBeatAccumulator {
     this.gapEvents.length = 0;
     this.accumulationStartMs = 0;
     this.calibrationComplete = false;
+    this.lastProcessedBeatTimestampMs = 0;
     this.gapEventCount = 0;
     this.totalGapMs = 0;
     this.longestGapMs = 0;

@@ -20,6 +20,7 @@ export type WearableConnectionState =
   | "ready"
   | "reconnecting"
   | "disconnected"
+  | "signalLost"
   | "failed";
 
 export interface WearableTrustedProfile {
@@ -61,6 +62,7 @@ export interface WearableRuntimeSnapshot {
   connectionHint?: string;
   lastHeartRateBpm?: number | null;
   lastRrAtMs?: number | null;
+  sensorContactDetected?: boolean | null;
   packetCount?: number;
   rrPacketCount?: number;
   disconnectCount?: number;

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.41
-updated: 2026-06-27
+version: 2.43
+updated: 2026-06-30
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-30:** Breath inline interpretation became chart-aware without bloating persisted practice metrics. `CoherenceBreathScreen` now sends the same compact `outcomeToCommunicatorPayload(...)` plus optional `seriesInsights` (start/mid/end summaries for pulse / coherence / RSA / RMSSD / stress) to `POST /api/communicator/v2/practice-interpretation`, and the results modal hides the CTA entirely when no usable biometrics were produced.
+
+- **2026-06-29:** Breath results no longer rely on the dead `pending-greeting` handoff. A dedicated authenticated route `POST /api/communicator/v2/practice-interpretation` now turns `outcomeToCommunicatorPayload(...)` + subjective mood into a short STANDARD-model summary, and `CoherenceBreathScreen` shows that text inline in the results modal instead of navigating back to Home.
 
 - **2026-06-27:** Breath practice launch from assistant/day cards now round-trips wearable selection through `Communicator.tsx`: `practiceToSummary` / `summaryToPractice` preserve `sensorMode`, remembered BLE device identity, `capabilityTier`, `autoReconnect`, and legacy `usePulseSensor` alongside duration/chakra overrides so pending cards and `launchPractice` stay aligned with catalog sensor choice.
 

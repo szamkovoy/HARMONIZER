@@ -66,6 +66,7 @@ export interface PracticeCatalogStrings {
   wearablePickerHint: string;
   wearablePickerFoundHint: string;
   wearablePickerNotFound: string;
+  wearablePickerNotFoundTips: string;
   wearablePickerBluetoothOff: string;
   wearablePickerRetry: string;
   wearablePickerClose: string;
@@ -139,6 +140,8 @@ const ru: PracticeCatalogStrings = {
   wearablePickerHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
   wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
   wearablePickerNotFound: "Пульсометр не найден. Попробуйте повторить поиск.",
+  wearablePickerNotFoundTips:
+    "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
   wearablePickerBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
   wearablePickerRetry: "Повторить поиск",
   wearablePickerClose: "Закрыть",
@@ -228,6 +231,8 @@ const en: PracticeCatalogStrings = {
   wearablePickerHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
   wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
   wearablePickerNotFound: "Heart-rate monitor not found. Try scanning again.",
+  wearablePickerNotFoundTips:
+    "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
   wearablePickerBluetoothOff: "Bluetooth is off. Turn it on and try again.",
   wearablePickerRetry: "Scan again",
   wearablePickerClose: "Close",

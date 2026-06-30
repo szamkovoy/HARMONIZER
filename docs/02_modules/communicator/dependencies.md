@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.18
-updated: 2026-06-20
+version: 1.19
+updated: 2026-06-29
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -53,8 +53,8 @@ code_refs:
 Карточка использует общий UI каталога; запуск теперь делает сам `Communicator` через `launchPractice(...)`, а `app/(tabs)/index.tsx` больше не содержит отдельный `launchPracticeFromAssistant`.
 - **Приложение (home)**  
 `app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal` с раздельным mount (`communicatorMounted`) и видимостью (`communicatorVisible`, `dismissAnimation`, `onDismiss`), передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` закрывает overlay без slide-анимации, дожидаясь mount-signal практики. Dev-сброс дня вызывает `clearHomeDailyDialogCache` из `services/dialogSessionCache.ts` (пара `useCase: daily_dialog`, `entrySource: home`).
-- `**modules/breath`** (опциональная очередь)  
-`modules/breath/ui/CoherenceBreathScreen.tsx` вызывает `enqueueCommunicatorGreeting` из `modules/communicator/core/pending-greeting.ts` перед переходом на главный экран. Потребление очереди на стороне home не зафиксировано в коде главного экрана — см. `docs/04_workspace/open_questions.md` (раздел `communicator`).
+- `**modules/breath`** (inline interpretation route)  
+`modules/breath/ui/CoherenceBreathScreen.tsx` больше не использует dead-end очередь `pending-greeting` для кнопки результатов. Вместо этого breath results вызывают `services/breathPracticeInterpretation.ts` → `POST /api/communicator/v2/practice-interpretation`, передавая `outcomeToCommunicatorPayload(...)`, subjective mood и `responseLocale`; communicator-модуль отвечает коротким STANDARD-model summary без открытия chat overlay.
 
 ## 3. Контрактные точки риска
 

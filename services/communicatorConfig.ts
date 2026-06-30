@@ -49,6 +49,10 @@ export function getCommunicatorV2TranscribeUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/transcribe`;
 }
 
+export function getCommunicatorV2PracticeInterpretationUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/communicator/v2/practice-interpretation`;
+}
+
 export function getCalibrationExtractUrl(): string {
   return `${getCommunicatorApiBaseUrl()}/api/calibration/extract`;
 }

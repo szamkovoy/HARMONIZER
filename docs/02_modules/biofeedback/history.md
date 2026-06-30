@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.6
-updated: 2026-06-29
+version: 1.7
+updated: 2026-06-30
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -14,6 +14,32 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-06-30 (6):** BLE runtime now honors the Heart Rate Measurement `sensorContactDetected` flag instead of treating every incoming packet as valid body contact. If a chest strap keeps broadcasting off-body, `BleHeartRateSource` now reports `signalLost` rather than `ready`, so downstream practice graphs can drop measured pulse to zero and enter synthetic guidance only after a real contact loss instead of pretending that stale RR still means trustworthy biometrics.
+
+- **2026-06-30 (5):** Source switches between camera CMTime and wall-clock synthetic beats now reset the pipeline's time-based throttles instead of inheriting incompatible timestamps. Without this, a camera session that briefly entered `emulated` could recover real beats correctly but stop publishing `pulseBpm`/derived chart points forever after the switch back.
+
+- **2026-06-30 (4):** Breath `pulseLog` became explicitly dual-track. Runtime/export entries now distinguish `measuredPulseRateBpm` from `guidancePulseRateBpm`, so field analysis can tell the difference between a sensor that truly stopped measuring and a practice that intentionally kept breathing guidance alive on fallback/emulated BPM. The results modal uses the same split to render separate measured/guidance pulse charts when they diverge.
+
+- **2026-06-30 (3):** Breath export gained a last-resort pulse-log fallback from the already rendered results graph. If the live `pulseLog` has been cleared by the time the user exports JSON, `CoherenceBreathScreen` now serializes the decimated pulse series that was actually shown on the results screen instead of emitting an empty array and losing the main diagnostic trace.
+
+- **2026-06-30 (2):** BLE full-session HRV accumulation was repaired after field exports exposed a hidden tail-freeze. `BiofeedbackPipeline.pushBeatEvent(...)` no longer reuses the optical reanalysis merge for committed wearable beats, and `HrvBeatAccumulator` now remembers the resume-beat after a `>2 s` gap so RMSSD/stress continue accumulating after the hole instead of freezing near the first long detach. The same pass also formalized lightweight runtime series capture for post-practice charts (pulse, RMSSD, stress, RSA).
+
+- **2026-06-29 (5):** BLE reconnect/runtime branch was flattened around explicit `ready` semantics: `guidedOnly` and `fullMetrics` now both surface as ready-states after capability resolution, monitor-characteristic failures go back through the same reconnect path, and `waitingForBluetooth` can auto-resume once the adapter turns on. `CoherenceBreathScreen` also gained a two-way emulated fallback: after sustained live-signal loss it can switch to seeded synthetic pulse, keep watching the original source, and automatically return to live camera/BLE pulse once recovery is confirmed.
+
+- **2026-06-29 (6):** BLE HRV accumulation no longer re-arms calibration on every incoming RR/HR packet. A regression in the reconnect cleanup briefly caused the wearable path to clear `HrvBeatAccumulator` repeatedly, which left coherent BLE sessions with valid coherence/RSA but blank `RMSSD` / stress on the result screen and in debug export. Calibration for beat-sources is now initialized once per live wearable session instead of once per packet.
+
+- **2026-06-29 (7):** Breath debug export no longer blindly serializes the raw cached result from `CoherenceEngine` when the screen already replaced it with a gated/suppressed `analysis`. This matters especially for camera guidance-only mode: JSON export now reflects the same final result state the user saw on screen instead of leaking legacy coherence warnings/fields from the engine cache.
+
+- **2026-06-29 (8):** `pulseLog` in breath export was extended with explicit runtime context (`pulseSource`, `emulatedActive`, wearable runtime state and capability tier). This makes field analysis of signal-loss scenarios possible without reverse-engineering fallback transitions from RR gaps alone, especially on BLE sessions where raw analyzed beats can contain only edge gaps around `live <-> emulated` handoffs.
+
+- **2026-06-29 (9):** Breath runtime/export diagnostics were tightened again around real beat loss. Camera guidance-only startup now reapplies `metricsCapturePaused` after each screen reset so the heavy HRV/coherence branch stays truly off for `fingerCamera`, long-loss fallback keys off the age of the last fresh beat instead of the current contact snapshot alone, and debug export gained `pulseLog.lastBeatTimestampMs/lastBeatAgeMs` plus per-session `runtimeEvents` (AppState / keep-awake / fallback lifecycle).
+
+- **2026-06-30:** BLE breath diagnostics showed that lock/sleep could still falsely trip the shared background-resume guard: `CoherenceBreathScreen` was reusing camera `fingerDetected` semantics even in wearable mode. The resume path now skips that camera-only auto-abort for BLE and logs wearable-specific resume context instead; debug `pulseLog` also gained wearable HR/RR freshness fields so future exports can distinguish “strap kept sending coherent RR” from real reconnect/fallback events.
+
+- **2026-06-29 (4):** Breath production-flow now treats `fingerCamera` as a guidance-only source. `CoherenceBreathScreen` keeps camera pulse/BPM for live pacing, pauses the heavy HRV/coherence/RSA branch (`metricsCapturePaused`), stops feeding live RSA planning/results from camera sessions, and on long camera-signal loss switches the practice to emulated pulse seeded from the last stable BPM instead of hard auto-abort. Advanced metrics remain available for BLE RR devices and for parity/debug tooling.
+
+- **2026-06-29 (3):** BLE runtime now treats silent connected straps as `signalLost` after a packet stall, auto-reconnects, and parity bench keeps finger capture during in-app navigation (`persistCaptureWhenBlurred`). Finger camera remounts on capture resume to avoid frozen PPG after blur. `useRememberedWearableProbe` lets practice cards hide stale saved chest straps until a short scan sees them advertising; wearable picker not-found state now includes troubleshooting tips.
 
 - **2026-06-29:** Finger trust grace-window semantics refined: the first minute is not blindly discarded — evaluation starts at session start when grace had no gaps, after the last early recovery when gaps occurred, or from minute two when failures never settled. Parity bench coherence/RSA now use `runCoherenceSessionAnalysis` on trimmed `metricBeats` (same series as RMSSD/stress); finger pipeline appends full HRV beats to `CoherenceEngine` each sample. Hybrid breath start/end windows now also pass `applyInitialGraceWindow: true`.
 

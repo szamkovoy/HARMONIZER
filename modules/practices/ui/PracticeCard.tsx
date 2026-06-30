@@ -12,6 +12,7 @@ import {
 } from "@/modules/biofeedback/wearables/preferences";
 import { WearablePickerDialog } from "@/modules/biofeedback/wearables/WearablePickerDialog";
 import type { WearableScanCandidate } from "@/modules/biofeedback/wearables/types";
+import { useRememberedWearableProbe } from "@/modules/biofeedback/wearables/useRememberedWearableProbe";
 import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -175,8 +176,30 @@ export const PracticeCard = memo(function PracticeCard({
 
   const hasRememberedWearable = Boolean(wearablePreferences.lastDeviceId?.trim());
   const rememberedWearableName = wearablePreferences.lastDeviceName?.trim() ?? "";
+  const rememberedWearableProbe = useRememberedWearableProbe(
+    wearablePreferences.lastDeviceId,
+    practice.kind === "breath",
+  );
+  const rememberedWearableVisible =
+    hasRememberedWearable && rememberedWearableProbe.available === true;
   const needsWearableSelection =
-    practice.kind === "breath" && selectedSensorMode === "ble" && !hasRememberedWearable;
+    practice.kind === "breath" && selectedSensorMode === "ble" && !rememberedWearableVisible;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (practice.kind === "breath") {
+        rememberedWearableProbe.refresh();
+      }
+    }, [practice.kind, rememberedWearableProbe.refresh]),
+  );
+
+  useEffect(() => {
+    if (practice.kind !== "breath") return;
+    if (rememberedWearableProbe.available === false && selectedSensorMode === "ble") {
+      setSelectedSensorMode("fingerCamera");
+      void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
+    }
+  }, [practice.kind, rememberedWearableProbe.available, selectedSensorMode]);
 
   const openWearablePicker = () => {
     setOpenField(null);
@@ -240,9 +263,9 @@ export const PracticeCard = memo(function PracticeCard({
     selectedSensorMode === "fingerCamera"
       ? strings.sensorCameraOption
       : selectedSensorMode === "ble"
-        ? rememberedWearableName
+        ? rememberedWearableVisible && rememberedWearableName
           ? rememberedWearableName
-          : strings.sensorBluetoothOption
+          : strings.findWearableButton
         : strings.sensorNoneOption;
   const primaryButtonLabel =
     practice.kind === "yoga" && remotePlayConnected
@@ -359,26 +382,29 @@ export const PracticeCard = memo(function PracticeCard({
                         setOpenField(null);
                       },
                     },
+                    ...(rememberedWearableVisible && rememberedWearableName
+                      ? [
+                          {
+                            key: "pulse-ble-saved",
+                            label: rememberedWearableName,
+                            active: selectedSensorMode === "ble",
+                            onPress: () => {
+                              setSelectedSensorMode("ble");
+                              void updateWearablePreferences({ preferredSensorMode: "ble" });
+                              setOpenField(null);
+                            },
+                          },
+                        ]
+                      : []),
                     {
-                      key: "pulse-ble",
-                    label: rememberedWearableName || strings.sensorBluetoothOption,
-                      active: selectedSensorMode === "ble",
+                      key: "pulse-ble-find",
+                      label: strings.findWearableButton,
+                      active: false,
                       onPress: () => {
-                        setSelectedSensorMode("ble");
-                        void updateWearablePreferences({ preferredSensorMode: "ble" });
+                        setOpenField(null);
                         openWearablePicker();
                       },
                     },
-                  ...(rememberedWearableName
-                    ? [
-                        {
-                          key: "pulse-ble-other",
-                          label: strings.sensorBluetoothOtherOption,
-                          active: false,
-                          onPress: openWearablePicker,
-                        },
-                      ]
-                    : []),
                     {
                       key: "pulse-off",
                       label: strings.sensorNoneOption,
@@ -423,6 +449,7 @@ export const PracticeCard = memo(function PracticeCard({
           searchHint: strings.wearablePickerHint,
           foundHint: strings.wearablePickerFoundHint,
           notFoundHint: strings.wearablePickerNotFound,
+          notFoundTips: strings.wearablePickerNotFoundTips,
           bluetoothOffHint: strings.wearablePickerBluetoothOff,
           retryButton: strings.wearablePickerRetry,
           closeButton: strings.wearablePickerClose,

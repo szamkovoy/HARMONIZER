@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.13
-updated: 2026-06-27
+version: 1.14
+updated: 2026-06-29
 depends_on:
   [
     01_foundation/product_model,
@@ -62,7 +62,7 @@ code_refs:
   Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts` — localized `name` via `getCoherenceBreathStrings` / `getPracticeCatalogStrings` + `context.user.locale`; **`route.ts`** с импортом **`@shared/assistantSelectableDurations`** — `_legacy_web/shared_core/assistantSelectableDurations.ts`, копия клиентского **`assistantSelectableDurations.ts`** — для карточки, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и использует общий `PracticeCard` + `launchPractice`. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).
 
 - **`communicator` / вкладка «День»**  
-  `modules/communicator/ui/Communicator.tsx` импортирует `scheduleAssistantOverlayDismiss`; route-обёртки практик — `useAssistantPracticeOverlayDismiss`. `services/dayHealthContext.ts` читает `user_daily_stats` и завершённые практики дня из `DayPlan`, чтобы перед summary-веткой передать ассистенту временный контекст йоги: сколько минут/практик было сегодня и выше/ниже ли это обычной практики пользователя.
+  `modules/communicator/ui/Communicator.tsx` импортирует `scheduleAssistantOverlayDismiss`; route-обёртки практик — `useAssistantPracticeOverlayDismiss`. `services/dayHealthContext.ts` читает `user_daily_stats` и завершённые практики дня из `DayPlan`, чтобы перед summary-веткой передать ассистенту временный контекст йоги: сколько минут/практик было сегодня и выше/ниже ли это обычной практики пользователя. Дополнительно breath results теперь вызывают `services/breathPracticeInterpretation.ts` → `POST /api/communicator/v2/practice-interpretation`: тот же `outcomeToCommunicatorPayload(...)` интерпретируется локально в results-modal через STANDARD-модель, без навигации на home/overlay communicator.
 
 ## 3. Контрактные точки риска
 

@@ -48,6 +48,7 @@ import {
 } from "@/modules/biofeedback/quality/calibration-state-machine";
 
 import {
+  BEAT_DUPLICATE_TOLERANCE_MS,
   HRV_RR_HARD_MAX_MS,
   HRV_RR_HARD_MIN_MS,
 } from "@/modules/biofeedback/constants";
@@ -410,6 +411,17 @@ export class BiofeedbackPipeline {
   setPulseSource(kind: PulseSourceKind): void {
     if (this.pulseSource === kind) return;
     this.pulseSource = kind;
+    // Different pulse sources may report timestamps in different time bases
+    // (camera CMTime vs wall-clock synthetic/BLE beats). Reset time-based throttles
+    // so a source switch cannot freeze downstream publications on a large backward jump.
+    this.lastPulseBpmPublishMs = 0;
+    this.lastPulseBpmComputeMs = 0;
+    this.lastHrvStressComputeMs = 0;
+    this.lastCoherenceSnapshotMs = 0;
+    this.lastSessionEventMs = 0;
+    this.lastContactEventMs = 0;
+    this.lastPulseBpmSnapshot = null;
+    this.pulseBpm.reset();
     this.bus.publish("pulseSource", {
       kind,
       isEmulated: kind === "emulated",
@@ -560,11 +572,24 @@ export class BiofeedbackPipeline {
    *  - eligibility = `true` для каждого удара (это уже валидированный источник).
    */
   pushBeatEvent(timestampMs: number, beatTimestampMs: number): void {
-    const merged = mergeBeatTimestampsPhase1(
-      this.mergedBeats,
-      [beatTimestampMs],
-      this.mergedBeats[0] ?? beatTimestampMs,
-    );
+    const merged = [...this.mergedBeats];
+    const lastMergedBeat = merged[merged.length - 1];
+    // Готовые beat-источники (BLE / watch / synthetic) уже приходят как единичные
+    // committed timestamps. Им не нужен phase-1 reanalysis merge, который уместен
+    // для оптики и исторически пересобирает «хвост окна». Иначе wearable-path
+    // схлопывает merged-ленту почти до одного удара и HRV перестаёт накапливать
+    // полный ряд на длинной практике.
+    if (
+      lastMergedBeat == null ||
+      beatTimestampMs - lastMergedBeat > BEAT_DUPLICATE_TOLERANCE_MS
+    ) {
+      merged.push(beatTimestampMs);
+    } else if (
+      Math.abs(beatTimestampMs - lastMergedBeat) <= BEAT_DUPLICATE_TOLERANCE_MS &&
+      beatTimestampMs > lastMergedBeat
+    ) {
+      merged[merged.length - 1] = beatTimestampMs;
+    }
     this.mergedBeats = trimBeatHistory(merged, timestampMs);
     this.canonicalBeats = [...this.mergedBeats];
     this.beatEligible = this.mergedBeats.map(() => true);

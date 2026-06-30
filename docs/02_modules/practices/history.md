@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.21
-updated: 2026-06-29
+version: 1.22
+updated: 2026-06-30
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,7 +15,33 @@ code_refs:
 
 ## Decision Log
 
+- **2026-06-30 (6):** Breath BLE startup no longer jumps straight into `running` with an unavoidable first `0 bpm` sample. The screen now waits in the wearable activation/preparation path until the strap actually reaches `guidedOnly/fullMetrics` readiness, remembered chest straps are re-validated by a short live BLE probe instead of `manager.devices()` cache alone, and results charts stop fabricating left-edge plateaus for coherence/RSA/RMSSD/stress before those metrics have really started computing.
+
+- **2026-06-30 (5):** Breath results charts were hardened against warmup/recovery artifacts. BLE metric series no longer disappear just because the final aggregate session later fails a trust/coverage gate, chart x-axes are extended to the full practice duration instead of stopping at the last sparse sample, and camera pulse graphs no longer freeze forever after an `emulated -> live` return caused by mixed source time bases.
+
+- **2026-06-30 (4):** Breath results stopped tying time-series charts to the exact same final gates as the aggregate summary. BLE sessions can now still show the captured `RMSSD` / stress / RSA / coherence graphs for the reliable part of the run even if the final aggregate row and interpretation CTA are withheld later, and pulse charts split into `measured` vs `guidance` whenever fallback pacing diverges from the real live sensor trace.
+
+- **2026-06-30 (3):** Camera guidance-only long-loss fallback was tightened again after fresh field exports: once the camera path has already crossed the hard “signal lost” conditions, `CoherenceBreathScreen` now switches to emulated pulse immediately instead of waiting through a second identical timeout. This keeps a ~20-second finger removal on continuous pacing while still allowing short 3-second detachments to stay on the honest live/holding graph.
+
+- **2026-06-30 (2):** Breath results became graph-first. Camera guidance-only sessions now show only a pulse chart and an explicit note that LLM-style biometric interpretation requires a BLE RR source; BLE results render pulse plus every reliably available metric chart (coherence, RSA, RMSSD, stress) and only show the `Интерпретация` CTA when at least some real biometrics survived the session.
+
+- **2026-06-29 (3):** Breath practice camera mode was simplified into guidance-only runtime: the phone camera now drives breathing from live pulse/BPM, long camera-signal loss falls back to emulated pulse instead of aborting the session, and advanced HRV/coherence/RSA results are reserved for BLE devices that actually deliver RR. Running/results copy now explicitly tells the user to switch to a Bluetooth heart-rate sensor for detailed biometrics.
+
+- **2026-06-29 (2):** Practice cards now probe whether a remembered BLE chest strap is actually advertising before showing it as a selectable pulse source; unavailable devices fall back to phone camera and the picker shows actionable troubleshooting when scan finds nothing.
+
 - **2026-06-29:** Breath final trust now tolerates shaky finger placement at the very beginning better than before. Grace-window logic: no blind discard of minute one — start evaluation after last early recovery or from minute two if failures persisted; hybrid start/end measurement windows each use `applyInitialGraceWindow: true` like the whole-session path.
+
+- **2026-06-29 (2):** Breath running-flow learned a bidirectional fallback. After sustained camera or BLE signal loss `CoherenceBreathScreen` can seed emulated pulse from the latest stable BPM, keep the practice continuous, and then automatically return to the live source once camera recovery-probe or wearable HR/RR recovery confirms that the real signal is back.
+
+- **2026-06-29 (4):** Camera guidance-only UX stopped surfacing multiple low-level signal states during the practice. Instead, `CoherenceBreathScreen` now shows one soft reminder at most once per session, and only after about 5 seconds of sustained camera-signal loss/instability, so users still see that pulse guidance is real without being distracted by technical banner churn.
+
+- **2026-06-29 (5):** Camera guidance-only reminder/fallback now keys off the age of the last real detected beat, not only `fingerDetected`. This fixes the case where frames kept arriving after the finger was removed, but the app failed to show the soft reminder or enter `emulated` fallback because contact heuristics stayed ambiguous while no fresh live pulse was actually coming in.
+
+- **2026-06-29 (6):** BLE running UX was simplified for production breathing. The practice screen no longer shows a misleading “strap is reconnecting” banner during the initial connect path, and transient `guidedOnly` downgrades (for example while a full-metrics strap is re-establishing contact) no longer flash an HRV-paused warning over the breathing session.
+
+- **2026-06-29 (7):** Breath results no longer hand off to a dead communicator queue. The old `Обсудить` path was replaced with an inline `Интерпретация` state inside the same results modal: it sends the already-saved `outcomeToCommunicatorPayload(...)` plus the user's post-practice mood to a dedicated `POST /api/communicator/v2/practice-interpretation` endpoint and swaps the metrics table for a short STANDARD-model summary without navigating away from the practice.
+
+- **2026-06-30:** BLE sleep/resume follow-up: the shared background guard in `CoherenceBreathScreen` no longer treats wearable sessions like camera sessions by checking `fingerDetected` after a background round-trip. On BLE this could surface the “Практика приостановлена” flow even without a JS crash; resume now leaves recovery to the wearable HR/RR path and emits better runtime diagnostics for the next export.
 
 - **2026-06-28 (5):** Breath results no longer expose finger-camera biometrics as all-or-nothing. `CoherenceBreathScreen` now reads `SignalTrustLevel` from the biofeedback pipeline: `guided_limited` keeps the practice on real pulse/baseline guidance and stores only RMSSD/stress, while `pulse_only` withholds final biometrics instead of pretending that degraded finger signal can still support coherence/RSA.
 

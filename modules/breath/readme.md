@@ -38,7 +38,7 @@ import type { BreathPracticeInput, BreathPracticeOutcome } from "@/modules/breat
 | Поле | Тип | Дефолт | Смысл |
 |------|-----|--------|-------|
 | `practiceId` | `BreathPracticeId` | `"coherent"` | Какая практика: когерентное / канальные (nadi-shodhana / surya-bhedana / chandra-bhedana) / square / triangle-up / triangle-down. Полный список — `BREATH_PRACTICES` (`modules/breath/core/practices.ts`). |
-| `durationMs` | `number` | 20 мин (`DEFAULT_COHERENCE_TEST_TIMING.totalMs`) | Полная длительность практики. От 10 мин автоматически включается hybrid-режим (split метрик на окна «начало/конец»). |
+| `durationMs` | `number` | 20 мин (`DEFAULT_COHERENCE_TEST_TIMING.totalMs`) | Полная длительность практики. Исторически long camera sessions (`>=10 мин`) включали hybrid split «начало/конец», но в текущем production-flow этот режим выключен: телефонная камера работает как guidance-only без advanced metrics, а BLE считает один непрерывный RR-ряд. |
 | `chakra` | `1..7` (`Chakra`) | `3` | Выбор цветового профиля мандалы. Модуль MANDALA реализует 7 пресетов (`DEFAULT_BINDU_SUCCESSION_VISUAL_PRESETS`); `chakra N` → индекс `N-1`. Мэппинг в `modules/breath/core/chakra.ts`. |
 | `locale` | `"ru" \| "en"` | `"ru"` | Локаль UI. |
 
@@ -60,7 +60,7 @@ router.push({ pathname: "/breath-coherence", params: { practiceId: "coherent", d
 
 Определён в `modules/breath/core/practice-io.ts`. Используется:
 
-- при нажатии «Обсудить» — сериализуется в `outcomeToCommunicatorPayload()` и отправляется в модуль `communicator`;
+- при нажатии «Интерпретация» — сериализуется в `outcomeToCommunicatorPayload()` и локально уходит в `POST /api/communicator/v2/practice-interpretation`;
 - при нажатии «Экспорт JSON (отладка)» — кладётся в `exportDebug` вместе с диагностикой.
 
 Поля:
@@ -69,7 +69,7 @@ router.push({ pathname: "/breath-coherence", params: { practiceId: "coherent", d
 interface BreathPracticeOutcome {
   input:      { practiceId, durationMs, chakra, locale };
   summary:    BreathPracticeSummary;      // короткая сводка — см. ниже
-  hybrid:     BreathHybridBreakdown | null; // split «начало / конец» если hybrid-режим был
+  hybrid:     BreathHybridBreakdown | null; // legacy split «начало / конец»; в текущем production-flow обычно null
   diagnostics: unknown | null;            // null в проде; JSON-блоб в тестовом режиме
 }
 ```
@@ -180,6 +180,6 @@ BREATH_TESTING_MODE            // мастер-выключатель
 
 1. **PPG → Beats → Метрики.** Камера-фронт с вспышкой через `FingerPpgCameraSource` → пайплайн `modules/biofeedback/bus/biofeedback-pipeline.ts` → канал `pulseBeats` + `hrvValidBeats` → финальная обработка в `CoherenceBreathScreen.finalize()`.
 
-2. **Результаты → Communicator.** На кнопке «Обсудить» собирается `BreathPracticeOutcome`, сериализуется через `outcomeToCommunicatorPayload()`, помещается в синглтон `modules/communicator/core/pending-greeting.ts`, и `router.replace("/")` уводит пользователя на экран коммуникатора. Там `<Communicator />` потребляет greeting из синглтона и автоматически отправляет первое сообщение через `autoSendInitialMessage`.
+2. **Результаты → локальная интерпретация.** На кнопке «Интерпретация» собирается `BreathPracticeOutcome`, сериализуется через `outcomeToCommunicatorPayload()` и отправляется в `POST /api/communicator/v2/practice-interpretation`. Ответ STANDARD-модели показывается прямо в results-modal, без перехода на Home/Communicator.
 
 3. **Результаты → Экспорт JSON.** Кнопка «Экспорт JSON (отладка)» (видна только при `DEBUG_ACTIVATION_EXPORT_ENABLED=true`) — пишет файл в `FileSystem.cacheDirectory` и предлагает Share. Эти файлы пользователи присылают разработчику; формат — см. `docs/user-diagnostic-json-reception.md`.

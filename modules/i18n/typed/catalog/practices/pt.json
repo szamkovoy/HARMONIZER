@@ -55,5 +55,6 @@
   "withPulseSensor": "com pulsômetro",
   "withoutPulseSensor": "sem pulsômetro",
   "yogaLateHint": "O Supabase está a responder mais devagar do que o habitual. O catálogo já está aberto e as asanas aparecerão aqui automaticamente.",
-  "yogaLateLoading": "a carregar..."
+  "yogaLateLoading": "a carregar...",
+  "wearablePickerNotFoundTips": "Com um monitor cardíaco de peito: humedeça os contatos, pressione-o contra a pele e aguarde 5–10 segundos, verifique se o Bluetooth está ligado e feche outras apps que usam este monitor. Se o sensor ainda não está emparelhado com o telefone, abra o app do fabricante e aguarde o emparelhamento. Se necessário, reinicie o telefone."
 }

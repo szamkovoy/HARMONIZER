@@ -55,5 +55,6 @@
   "withPulseSensor": "Con pulsometro",
   "withoutPulseSensor": "Senza pulsometro",
   "yogaLateHint": "Supabase sta rispondendo più lentamente del solito. Il catalogo è già aperto e le asana appariranno qui automaticamente.",
-  "yogaLateLoading": "Caricamento..."
+  "yogaLateLoading": "Caricamento...",
+  "wearablePickerNotFoundTips": "Con un cardiofrequenzimetro da petto: inumidite i contatti, premilo sulla pelle e attendete 5–10 secondi, verificate che il Bluetooth sia attivo e chiudete le altre app che usano questo cardiofrequenzimetro. Se il sensore non è ancora associato al telefono, aprite l'app del produttore e attendete l'associazione. Se necessario, riavviate il telefono."
 }
