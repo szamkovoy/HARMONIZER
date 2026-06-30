@@ -97,7 +97,9 @@ import {
 } from "@/modules/breath/core/hybrid-measurement-controller";
 import {
   BREATH_BLE_PREP_MIN_LIVE_PULSE_MS,
+  BREATH_BLE_PREP_SPIN_MS,
   BREATH_CAMERA_EMULATED_FALLBACK_MS,
+  BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS,
   BREATH_OPTICAL_STALL_HARD_MS,
   BREATH_SESSION_SIGNAL_ABORT_MS,
 } from "@/modules/breath/core/breath-session-signal-policy";
@@ -105,9 +107,11 @@ import {
   bridgeSeriesAcrossNonLiveGaps,
   buildPulseSeriesFromLog,
   collectNonLiveIntervalsFromLog,
+  filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
   preparePulseSeriesForDisplay,
   prepareSeriesForDisplay,
+  RSA_RESULTS_OUTLIER_BPM,
   WEARABLE_LIVE_RR_FRESH_MS,
   type BreathResultsSeriesPoint,
 } from "@/modules/breath/core/breath-results-series";
@@ -325,6 +329,10 @@ const WEARABLE_RECOVERY_RR_FRESH_MS = 4_000;
 const isExpoGo = Constants.executionEnvironment === "storeClient";
 const useSimulatedPpg = isExpoGo || !isFingerFrameProcessorAvailable();
 const ENABLE_FINGER_CAMERA_ADVANCED_METRICS = false;
+/** Keep measured + guidance pulse charts visible while validating signal policies. */
+const SHOW_BOTH_PULSE_RESULT_GRAPHS = true;
+
+const RSA_CYCLE_MAX_PLAUSIBLE_BPM = 120;
 
 type Phase = "idle" | "warmup" | "qualityCheck" | "running" | "results";
 
@@ -977,6 +985,8 @@ function CoherenceBreathScreenInner({
   const opticalPreviewBufferRef = useRef<RawOpticalSample[]>([]);
   const lastOpticalPreviewRefreshWallMsRef = useRef(0);
   const lastPulseLogWallClockRef = useRef(0);
+  const lastLoggedMeasuredBpmRef = useRef(0);
+  const lastLoggedGuidanceBpmRef = useRef(0);
   const lastFreshBeatSourceTsRef = useRef<number | null>(null);
   const lastFreshBeatWallClockRef = useRef<number | null>(null);
   const finalPulseLogExportRef = useRef<CoherencePulseLogEntry[] | null>(null);
@@ -1862,9 +1872,14 @@ function CoherenceBreathScreenInner({
               ? Math.max(0, logTimestampMs - logLastBeatTimestampMs)
               : null;
           const wearableContactOk = wearableRuntimeNow.sensorContactDetected !== false;
+          const wearableLinkOk =
+            wearableRuntimeNow.state !== "signalLost" &&
+            wearableRuntimeNow.state !== "disconnected" &&
+            wearableRuntimeNow.state !== "failed";
           const wearableReadyForLog =
             isWearableMode
               ? (
+                  wearableLinkOk &&
                   wearableContactOk &&
                   (
                     wearableCapabilityTierRef.current === "fullMetrics"
@@ -1872,8 +1887,13 @@ function CoherenceBreathScreenInner({
                       : (wearableRuntimeNow.lastHeartRateBpm ?? 0) > 0
                   )
                 )
-              : event.hasFreshBeat;
-          const guidancePulseRateBpm =
+              : (
+                  event.hasFreshBeat &&
+                  beatAgeMs != null &&
+                  beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
+                  event.bpm > 0
+                );
+          let guidancePulseRateBpm =
             event.bpm > 0
               ? event.bpm
               : (
@@ -1881,22 +1901,33 @@ function CoherenceBreathScreenInner({
                     ? (
                         emulatedPulseSeedBpmRef.current
                         ?? snapshotRef.current.pulseRateBpm
+                        ?? lastLoggedGuidanceBpmRef.current
                         ?? 0
                       )
                     : (
                         isWearableMode
-                          ? (snapshotRef.current.pulseRateBpm ?? event.bpm)
-                          : event.bpm
+                          ? (snapshotRef.current.pulseRateBpm ?? event.bpm ?? lastLoggedGuidanceBpmRef.current ?? 0)
+                          : (lastLoggedGuidanceBpmRef.current ?? event.bpm ?? 0)
                       )
                 );
-          const measuredPulseRateBpm =
+          if (guidancePulseRateBpm > 0) {
+            lastLoggedGuidanceBpmRef.current = guidancePulseRateBpm;
+          }
+          let measuredPulseRateBpm =
             isWearableMode
               ? (
                   wearableReadyForLog
                     ? (wearableRuntimeNow.lastHeartRateBpm ?? event.bpm)
                     : 0
                 )
-              : (useEmulatedPulseModeRef.current ? 0 : event.bpm);
+              : (
+                  useEmulatedPulseModeRef.current
+                    ? 0
+                    : (event.bpm > 0 ? event.bpm : (lastLoggedMeasuredBpmRef.current ?? 0))
+                );
+          if (measuredPulseRateBpm > 0) {
+            lastLoggedMeasuredBpmRef.current = measuredPulseRateBpm;
+          }
           const draftEntry: CoherencePulseLogEntry = {
             cameraTimestampMs: logTimestampMs,
             wallClockMs: wall,
@@ -2192,6 +2223,9 @@ function CoherenceBreathScreenInner({
     if (!heartRateReady || !rrFresh || prepElapsedMs < BREATH_BLE_PREP_MIN_LIVE_PULSE_MS) {
       return;
     }
+    if (prepElapsedMs < BREATH_BLE_PREP_SPIN_MS) {
+      return;
+    }
     const anchor = Date.now();
     const estCycleMs = computeCycleMsForAnalysis(
       coherenceShapeRef.current,
@@ -2216,6 +2250,8 @@ function CoherenceBreathScreenInner({
     setSessionStartWallMs(Date.now());
     setSessionStartLogicalMs(anchor);
     setElapsedMs(0);
+    lastLoggedMeasuredBpmRef.current = 0;
+    lastLoggedGuidanceBpmRef.current = 0;
     setPhase("running");
   }, [
     clearPpgBannerUi,
@@ -2386,6 +2422,10 @@ function CoherenceBreathScreenInner({
         lastFreshBeatSourceTsRef.current ?? (mergedBeats[mergedBeats.length - 1] ?? null);
       const liveBeatStaleMs =
         lastLiveBeatTs != null ? Math.max(0, now - lastLiveBeatTs) : Number.POSITIVE_INFINITY;
+      const wallBeatAgeMs =
+        lastFreshBeatWallClockRef.current != null
+          ? Math.max(0, Date.now() - lastFreshBeatWallClockRef.current)
+          : Number.POSITIVE_INFINITY;
       const lockTracking = snap.pulseLockState === "tracking";
 
       if (!fingerOk) {
@@ -2457,7 +2497,10 @@ function CoherenceBreathScreenInner({
         const fingerAbortReady =
           !fingerOk && fingerAbsentWallMsRef.current >= BREATH_CAMERA_EMULATED_FALLBACK_MS;
         const liveBeatAbortReady =
-          liveBeatStaleMs >= BREATH_CAMERA_EMULATED_FALLBACK_MS &&
+          (
+            liveBeatStaleMs >= BREATH_CAMERA_EMULATED_FALLBACK_MS ||
+            wallBeatAgeMs >= BREATH_CAMERA_EMULATED_FALLBACK_MS
+          ) &&
           (!fingerOk || fingerAbsentWallMsRef.current >= 3_000);
         if (fingerAbortReady || liveBeatAbortReady) {
           abortStress = true;
@@ -3038,10 +3081,13 @@ function CoherenceBreathScreenInner({
       }));
       const rmssdSeries = rmssdSeriesRef.current.slice();
       const stressSeries = stressSeriesRef.current.slice();
-      const rsaSeries = rsaCyclesSummaryRef.current.map((point) => ({
-        tMs: point.tMs,
-        value: point.rsaBpm,
-      }));
+      const rsaSeries = filterOutlierMetricPoints(
+        rsaCyclesSummaryRef.current.map((point) => ({
+          tMs: point.tMs,
+          value: point.rsaBpm,
+        })),
+        RSA_RESULTS_OUTLIER_BPM,
+      );
       setResultsGraphs({
         measuredPulseBpm: decimateSeries(measuredPulseSeries, 240),
         guidancePulseBpm: decimateSeries(guidancePulseSeries, 240),
@@ -3147,6 +3193,32 @@ function CoherenceBreathScreenInner({
       }
       const cycle = event.lastCompletedRsaCycle;
       if (!cycle) return;
+      if (
+        cycle.rsaBpm > RSA_RESULTS_OUTLIER_BPM ||
+        cycle.hrInhale > RSA_CYCLE_MAX_PLAUSIBLE_BPM ||
+        cycle.hrExhale > RSA_CYCLE_MAX_PLAUSIBLE_BPM ||
+        cycle.hrInhale <= 0 ||
+        cycle.hrExhale <= 0
+      ) {
+        return;
+      }
+      if (isWearableMode) {
+        const runtime = wearableRuntimeRef.current;
+        const rrAgeMs =
+          runtime.lastRrAtMs != null
+            ? Math.max(0, Date.now() - runtime.lastRrAtMs)
+            : Number.POSITIVE_INFINITY;
+        const wearableLive =
+          runtime.state !== "signalLost" &&
+          runtime.state !== "disconnected" &&
+          runtime.state !== "failed" &&
+          runtime.sensorContactDetected !== false &&
+          (
+            wearableCapabilityTierRef.current !== "fullMetrics" ||
+            rrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
+          );
+        if (!wearableLive) return;
+      }
       planner.ingestCompletedRsaCycle(cycle);
       const key = `${cycle.durationMs.toFixed(0)}|${cycle.hrInhale.toFixed(2)}|${cycle.hrExhale.toFixed(2)}`;
       if (key !== lastCycleKey) {
@@ -4413,14 +4485,23 @@ function CoherenceBreathScreenInner({
           style={styles.calib}
           pointerEvents={phase === "running" ? "none" : "auto"}
         >
+          {isWearableMode && (phase === "warmup" || phase === "qualityCheck") ? (
+            <View style={styles.blePrepWheelWrap}>
+              {protocolStartedAtMs.current != null ? (
+                <CountdownRing
+                  startedAtMs={protocolStartedAtMs.current}
+                  totalSeconds={Math.max(1, Math.round(BREATH_BLE_PREP_SPIN_MS / 1000))}
+                  size={168}
+                  strokeWidth={5}
+                  showCenterNumber={false}
+                />
+              ) : null}
+            </View>
+          ) : (
+            <>
           <AppText variant="screenTitle" tone="primary" style={styles.sensorTitle}>
             {isWearableMode ? str.wearableActivationTitle : str.sensorActivationTitle}
           </AppText>
-          {isWearableMode && (phase === "warmup" || phase === "qualityCheck") ? (
-            <AppText variant="screenHint" tone="primary" style={styles.sensorHint}>
-              {str.sessionPreparationLabel}
-            </AppText>
-          ) : null}
           <AppText variant="screenHint" tone="primary" style={styles.sensorHint}>
             {isWearableMode
               ? selectedWearableDevice?.name
@@ -4533,6 +4614,8 @@ function CoherenceBreathScreenInner({
               </AppText>
             </Pressable>
           ) : null}
+            </>
+          )}
         </View>
       ) : null}
 
@@ -4987,10 +5070,9 @@ function ResultsView(props: {
     () => preparePulseSeriesForDisplay(resultsGraphs?.guidancePulseBpm ?? [], practiceTotalMs),
     [practiceTotalMs, resultsGraphs?.guidancePulseBpm],
   );
-  const showSeparateGuidancePulseGraph = seriesDifferMeaningfully(
-    measuredPulseGraphPoints,
-    guidancePulseGraphPoints,
-  );
+  const showSeparateGuidancePulseGraph =
+    SHOW_BOTH_PULSE_RESULT_GRAPHS ||
+    seriesDifferMeaningfully(measuredPulseGraphPoints, guidancePulseGraphPoints);
   const coherenceGraphPoints = useMemo(
     () => (
       !cameraGuidanceOnlyMode
@@ -5941,6 +6023,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 28,
+  },
+  blePrepWheelWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 220,
   },
   sensorStatus: {
     textAlign: "center",

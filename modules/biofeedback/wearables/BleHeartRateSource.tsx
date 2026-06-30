@@ -11,6 +11,10 @@ import {
 } from "@/modules/biofeedback/wearables/heartRateMeasurement";
 import { detectWearableTrustedProfile } from "@/modules/biofeedback/wearables/trustedProfiles";
 import { buildBeatTimestampsFromRrPacket } from "@/modules/biofeedback/wearables/wearableBeatTimeline";
+import {
+  filterOnBodyWearableRrIntervals,
+  isWearableRrPacketTrustworthy,
+} from "@/modules/biofeedback/wearables/wearableRrQuality";
 import type {
   WearableCapabilityTier,
   WearableRuntimeSnapshot,
@@ -222,11 +226,20 @@ export function BleHeartRateSource({
     const ingestRrIntervals = (rrIntervalsMs: readonly number[]) => {
       if (!rrIntervalsMs.length) return;
       const nowMs = Date.now();
+      if (!isWearableRrPacketTrustworthy(rrIntervalsMs)) {
+        emitSnapshot("signalLost");
+        return;
+      }
+      const onBodyRr = filterOnBodyWearableRrIntervals(rrIntervalsMs);
+      if (!onBodyRr.length) {
+        emitSnapshot("signalLost");
+        return;
+      }
       const gapSinceLastPacketMs =
         lastRrAtMs == null ? Number.POSITIVE_INFINITY : nowMs - lastRrAtMs;
       const resetTimeline = gapSinceLastPacketMs > RR_TIMELINE_RESET_GAP_MS;
       const { beatTimestampsMs, lastBeatTimestampMs: nextLastBeat } =
-        buildBeatTimestampsFromRrPacket(nowMs, rrIntervalsMs, lastBeatTimestampMs, {
+        buildBeatTimestampsFromRrPacket(nowMs, onBodyRr, lastBeatTimestampMs, {
           resetTimeline,
         });
       if (!suppressBeatEventsRef.current && !beatSourceCalibrated) {

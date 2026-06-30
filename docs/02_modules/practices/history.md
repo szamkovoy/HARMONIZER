@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-01 (2):** Field-test follow-up for camera/BLE breath exports. Camera pulse logging now holds the last BPM through brief `event.bpm=0` gaps, treats beats older than 2.5 s as non-live (removing false recovery dips), and triggers emulated fallback from wall-clock beat age so a 20 s finger-off cannot be reset by flickering `fingerDetected`. Results always show measured + guidance pulse charts during validation. BLE prep is a single large ring (2.5 s rotation) without long copy; RSA live cycles and chart points above 20 bpm are discarded as off-body artifacts.
+
 - **2026-07-01:** Breath results pulse/metric charts were reworked around explicit live-vs-synthetic intervals. Camera short finger-off gaps now stay on interpolation/hold instead of triggering emulated fallback at 12 s, measured pulse only zeroes during true emulated/long-loss windows, BLE measured pulse zeroes when RR is stale even if Polar keeps streaming HR-only packets, metric charts bridge non-live gaps with straight lines (fixing RSA spikes), BLE prep waits for the first live HR/RR before `running`, and practice interpretation now times out instead of hanging silently.
 
 - **2026-06-30 (6):** Breath BLE startup no longer jumps straight into `running` with an unavoidable first `0 bpm` sample. The screen now waits in the wearable activation/preparation path until the strap actually reaches `guidedOnly/fullMetrics` readiness, remembered chest straps are re-validated by a short live BLE probe instead of `manager.devices()` cache alone, and results charts stop fabricating left-edge plateaus for coherence/RSA/RMSSD/stress before those metrics have really started computing.

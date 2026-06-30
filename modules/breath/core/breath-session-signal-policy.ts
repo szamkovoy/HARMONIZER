@@ -15,6 +15,12 @@ export const BREATH_CAMERA_EMULATED_FALLBACK_MS = 20_000;
 /** Minimum BLE prep time after the strap first reports live HR/RR before `running` starts. */
 export const BREATH_BLE_PREP_MIN_LIVE_PULSE_MS = 2_000;
 
+/** BLE prep UI: one full ring rotation before auto-start (ms). */
+export const BREATH_BLE_PREP_SPIN_MS = 2_500;
+
+/** Camera: beat older than this is not treated as a live measurement (hold/interpolate instead). */
+export const BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS = 2_500;
+
 /**
  * Если логическое время камеры (`getLastSourceTimestampMs`) не двигается дольше этого,
  * считаем поток optical «застывшим» (ОС/троттлинг), мс.

@@ -1,4 +1,5 @@
 import type { CoherencePulseLogEntry } from "@/modules/breath/core/coherence-session-analysis";
+import { BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS } from "@/modules/breath/core/breath-session-signal-policy";
 
 export type BreathResultsSeriesPoint = {
   tMs: number;
@@ -8,12 +9,20 @@ export type BreathResultsSeriesPoint = {
 /** Fresh RR required for Polar/fullMetrics to count as a live chest-strap measurement. */
 export const WEARABLE_LIVE_RR_FRESH_MS = 3_500;
 
+/** RSA cycle amplitudes above this are treated as off-body / synthetic artifacts. */
+export const RSA_RESULTS_OUTLIER_BPM = 20;
+
+const NON_LIVE_WEARABLE_STATES = new Set(["signalLost", "disconnected", "failed", "reconnecting"]);
+
 export function isPulseLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry): boolean {
   if (entry.emulatedActive) return false;
   const wearableLike =
     entry.pulseSource === "wearable" || entry.wearableState != null;
   if (wearableLike) {
     if (entry.wearableSensorContactDetected === false) return false;
+    if (entry.wearableState != null && NON_LIVE_WEARABLE_STATES.has(entry.wearableState)) {
+      return false;
+    }
     if (entry.wearableCapabilityTier === "fullMetrics") {
       const rrAgeMs = entry.wearableLastRrAgeMs;
       if (rrAgeMs == null || rrAgeMs > WEARABLE_LIVE_RR_FRESH_MS) return false;
@@ -24,6 +33,10 @@ export function isPulseLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry)
       ?? entry.pulseRateBpm
       ?? 0;
     return entry.pulseReady && measured > 0;
+  }
+  const beatAgeMs = entry.lastBeatAgeMs;
+  if (beatAgeMs != null && beatAgeMs > BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS) {
+    return false;
   }
   const measured = entry.measuredPulseRateBpm ?? entry.pulseRateBpm ?? 0;
   return entry.pulseReady && measured > 0;
@@ -212,4 +225,11 @@ export function preparePulseSeriesForDisplay(
     extendStart: true,
     extendEnd: true,
   });
+}
+
+export function filterOutlierMetricPoints(
+  points: readonly BreathResultsSeriesPoint[],
+  maxValue: number,
+): BreathResultsSeriesPoint[] {
+  return points.filter((point) => Number.isFinite(point.value) && point.value <= maxValue);
 }

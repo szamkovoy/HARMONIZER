@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   bridgeSeriesAcrossNonLiveGaps,
   buildPulseSeriesFromLog,
+  filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
   type NonLiveInterval,
+  RSA_RESULTS_OUTLIER_BPM,
 } from "@/modules/breath/core/breath-results-series";
 import type { CoherencePulseLogEntry } from "@/modules/breath/core/coherence-session-analysis";
 
@@ -83,5 +85,28 @@ describe("breath-results-series", () => {
     expect(bridged.some((point) => point.tMs === 10_000 && point.value === 12)).toBe(true);
     expect(bridged.some((point) => point.tMs === 25_000 && point.value === 11)).toBe(true);
     expect(bridged.some((point) => point.value === 90)).toBe(false);
+  });
+
+  it("treats stale camera beat age as non-live measurement", () => {
+    const sample = entry(1_000, {
+      measuredPulseRateBpm: 63,
+      pulseReady: true,
+      lastBeatAgeMs: 4_000,
+    });
+    expect(isPulseLogEntryLiveForMeasurement(sample)).toBe(false);
+    const log = [
+      entry(1_000, { measuredPulseRateBpm: 70, guidancePulseRateBpm: 70, pulseReady: true, lastBeatAgeMs: 800 }),
+      entry(4_000, { measuredPulseRateBpm: 63, guidancePulseRateBpm: 63, pulseReady: true, lastBeatAgeMs: 4_000 }),
+    ];
+    const measured = buildPulseSeriesFromLog(log, 0, "measured");
+    expect(measured[1]?.value).toBe(70);
+  });
+
+  it("filters RSA outliers from metric charts", () => {
+    const filtered = filterOutlierMetricPoints(
+      [{ tMs: 0, value: 8 }, { tMs: 1000, value: 58 }, { tMs: 2000, value: 9 }],
+      RSA_RESULTS_OUTLIER_BPM,
+    );
+    expect(filtered.map((point) => point.value)).toEqual([8, 9]);
   });
 });

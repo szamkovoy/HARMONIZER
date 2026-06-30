@@ -34,6 +34,8 @@ interface CountdownRingProps {
   color?: string;
   /** Цвет «трека» (неактивной части). */
   trackColor?: string;
+  /** Показывать число секунд в центре. */
+  showCenterNumber?: boolean;
 }
 
 function arcPath(size: number, strokeWidth: number, progress: number): SkPath {
@@ -67,6 +69,7 @@ export function CountdownRing({
   strokeWidth = 4,
   color,
   trackColor,
+  showCenterNumber = true,
 }: CountdownRingProps) {
   const theme = useTheme();
   const resolvedColor = color ?? theme.colors.accent;
@@ -124,9 +127,11 @@ export function CountdownRing({
         />
       </Canvas>
       <View style={styles.centerText}>
-        <AppText variant="numericLarge" tone="primary">
-          {secondsLeft}
-        </AppText>
+        {showCenterNumber ? (
+          <AppText variant="numericLarge" tone="primary">
+            {secondsLeft}
+          </AppText>
+        ) : null}
       </View>
     </View>
   );

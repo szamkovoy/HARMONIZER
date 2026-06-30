@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-01 (2):** Polar off-body follow-up — `wearableRrQuality.ts` rejects BLE RR packets whose minimum interval drops below 400 ms. `BleHeartRateSource` skips ingesting those beats and stops refreshing `lastRrAtMs`, allowing `signalLost`, measured-pulse zeroing, and suppression of garbage RSA cycles during strap-off periods.
+
 - **2026-07-01:** Polar/fullMetrics BLE off-body detection no longer trusts HR-only packets after RR goes stale: `BleHeartRateSource` emits `signalLost` when `lastRrAtMs` exceeds ~3.5 s, and breath `pulseLog` now records `liveMeasurementActive` / `interpolationHoldActive` so exports explain measured vs guidance vs synthetic segments without guesswork.
 
 - **2026-06-30 (6):** BLE runtime now honors the Heart Rate Measurement `sensorContactDetected` flag instead of treating every incoming packet as valid body contact. If a chest strap keeps broadcasting off-body, `BleHeartRateSource` now reports `signalLost` rather than `ready`, so downstream practice graphs can drop measured pulse to zero and enter synthetic guidance only after a real contact loss instead of pretending that stale RR still means trustworthy biometrics.
