@@ -59,6 +59,8 @@ code_refs:
 
 **React:** `BiofeedbackBusProvider`, `useBiofeedbackBus`, `useBiofeedbackChannel`, `useBiofeedbackSubscribe`, `useBiofeedbackPipeline`, `useBiofeedbackSnapshot` — см. `bus/react.tsx`, `bus/biofeedback-provider.tsx`, `bus/snapshot-adapter.ts`.
 
+**Pipeline introspection (finger / wearable):** `BiofeedbackPipeline.getMetricBeatTimestamps()`, `getMetricBeatTimestampsInRange(startMs, endMs)`, `getMetricBeatTimestampsInTailWindow(windowMs)`, `getRecentReliableMetricBeats(...)`, `getSignalTrustSummary(range?)` — metric beat-series (finger-only RR smoothing), session-level `SignalTrustLevel` и late-tail HRV fallback; wearable path возвращает `full_biometrics` без finger-only фильтров.
+
 **Wearables (barrel `modules/biofeedback/wearables/`):** `useWearableScanner`, `BleHeartRateSource`, общий модальный **`WearablePickerDialog`** (строки через prop `strings`, колбэки `onSelect` / `onClose`), preferences/trusted profiles — реэкспорт из `wearables/index.ts`.
 
 **Агрегация для мандалы:** `MandalaBioFrameAdapter` — подписка на `beat`, `pulseBpm`, `rmssd`, `stress`, `coherence`, `contact`; метод `snapshot()` возвращает `BioSignalFrame` (`modules/mandala/core/types.ts`) с нормализованными полями для шейдера.
