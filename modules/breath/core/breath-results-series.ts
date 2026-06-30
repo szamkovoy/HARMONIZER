@@ -233,3 +233,103 @@ export function filterOutlierMetricPoints(
 ): BreathResultsSeriesPoint[] {
   return points.filter((point) => Number.isFinite(point.value) && point.value <= maxValue);
 }
+
+const ZERO_PULSE_EPSILON = 0.5;
+
+function isNearZero(value: number): boolean {
+  return Math.abs(value) < ZERO_PULSE_EPSILON;
+}
+
+function findZeroRuns(points: readonly BreathResultsSeriesPoint[]): NonLiveInterval[] {
+  const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+  const runs: NonLiveInterval[] = [];
+  let openStart: number | null = null;
+  for (const point of sorted) {
+    if (isNearZero(point.value)) {
+      if (openStart == null) openStart = point.tMs;
+    } else if (openStart != null) {
+      runs.push({ startMs: openStart, endMs: point.tMs });
+      openStart = null;
+    }
+  }
+  if (openStart != null && sorted.length > 0) {
+    runs.push({ startMs: openStart, endMs: sorted[sorted.length - 1]!.tMs });
+  }
+  return runs;
+}
+
+/** Insert vertical edges at zero plateaus so pulse-loss gaps render with full width. */
+export function applyPulseChartVerticalSteps(
+  points: readonly BreathResultsSeriesPoint[],
+): BreathResultsSeriesPoint[] {
+  if (points.length < 2) return [...points];
+  const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+  const zeroRuns = findZeroRuns(sorted);
+  if (zeroRuns.length === 0) return sorted;
+
+  const out: BreathResultsSeriesPoint[] = [];
+  for (const run of zeroRuns) {
+    const before = sorted.filter((point) => point.tMs <= run.startMs && !isNearZero(point.value)).at(-1);
+    const after = sorted.find((point) => point.tMs >= run.endMs && !isNearZero(point.value));
+    if (before != null) {
+      out.push({ tMs: run.startMs, value: before.value });
+      out.push({ tMs: run.startMs, value: 0 });
+    }
+    out.push({ tMs: run.endMs, value: 0 });
+    if (after != null) {
+      out.push({ tMs: run.endMs, value: 0 });
+      out.push({ tMs: run.endMs, value: after.value });
+    }
+  }
+
+  for (const point of sorted) {
+    const insideZero = zeroRuns.some(
+      (run) => point.tMs > run.startMs + 1 && point.tMs < run.endMs - 1 && isNearZero(point.value),
+    );
+    if (!insideZero) out.push(point);
+  }
+
+  const deduped = new Map<string, BreathResultsSeriesPoint>();
+  for (const point of out) {
+    deduped.set(`${point.tMs}|${point.value.toFixed(3)}`, point);
+  }
+  return [...deduped.values()].sort((a, b) => a.tMs - b.tMs || a.value - b.value);
+}
+
+/** Remove single-sample spikes sandwiched between similar neighbors (garbage beats). */
+export function filterIsolatedMetricSpikes(
+  points: readonly BreathResultsSeriesPoint[],
+  options?: { minSpikeDelta?: number; maxNeighborDelta?: number },
+): BreathResultsSeriesPoint[] {
+  if (points.length < 3) return [...points];
+  const minSpikeDelta = options?.minSpikeDelta ?? 4;
+  const maxNeighborDelta = options?.maxNeighborDelta ?? 2.5;
+  const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+  const keep = sorted.map(() => true);
+
+  for (let i = 1; i < sorted.length - 1; i += 1) {
+    const prev = sorted[i - 1]!;
+    const cur = sorted[i]!;
+    const next = sorted[i + 1]!;
+    const neighborsClose = Math.abs(prev.value - next.value) <= maxNeighborDelta;
+    const curSpike =
+      Math.abs(cur.value - prev.value) >= minSpikeDelta &&
+      Math.abs(cur.value - next.value) >= minSpikeDelta;
+    if (neighborsClose && curSpike) {
+      keep[i] = false;
+    }
+  }
+
+  return sorted.filter((_, index) => keep[index]);
+}
+
+export function buildMeasuredPulseChartSeries(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+  totalMs: number,
+): BreathResultsSeriesPoint[] {
+  const base = buildPulseSeriesFromLog(entries, sessionStartWallMs, "measured");
+  const withSteps = applyPulseChartVerticalSteps(base);
+  const withoutSpikes = filterIsolatedMetricSpikes(withSteps, { minSpikeDelta: 5, maxNeighborDelta: 3 });
+  return preparePulseSeriesForDisplay(withoutSpikes, totalMs);
+}

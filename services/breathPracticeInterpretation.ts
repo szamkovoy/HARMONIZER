@@ -39,11 +39,15 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   linkAbortSignal(externalSignal, controller);
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error) {
-    if (controller.signal.aborted && !(externalSignal?.aborted)) {
+    if (timedOut) {
       throw new Error("Превышено время ожидания интерпретации. Попробуйте ещё раз.");
     }
     throw error;

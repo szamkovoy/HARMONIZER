@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyPulseChartVerticalSteps,
   bridgeSeriesAcrossNonLiveGaps,
   buildPulseSeriesFromLog,
+  filterIsolatedMetricSpikes,
   filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
   type NonLiveInterval,
@@ -108,5 +110,29 @@ describe("breath-results-series", () => {
       RSA_RESULTS_OUTLIER_BPM,
     );
     expect(filtered.map((point) => point.value)).toEqual([8, 9]);
+  });
+
+  it("adds vertical steps at zero pulse plateaus", () => {
+    const stepped = applyPulseChartVerticalSteps([
+      { tMs: 0, value: 70 },
+      { tMs: 200_000, value: 70 },
+      { tMs: 210_000, value: 0 },
+      { tMs: 230_000, value: 0 },
+      { tMs: 240_000, value: 72 },
+    ]);
+    expect(stepped.some((point) => point.tMs === 210_000 && point.value === 70)).toBe(true);
+    expect(stepped.some((point) => point.tMs === 210_000 && point.value === 0)).toBe(true);
+    expect(stepped.some((point) => point.tMs === 240_000 && point.value === 0)).toBe(true);
+    expect(stepped.some((point) => point.tMs === 240_000 && point.value === 72)).toBe(true);
+  });
+
+  it("removes isolated metric spikes", () => {
+    const filtered = filterIsolatedMetricSpikes([
+      { tMs: 0, value: 20 },
+      { tMs: 5000, value: 20 },
+      { tMs: 10000, value: 35 },
+      { tMs: 15000, value: 20 },
+    ]);
+    expect(filtered.map((point) => point.value)).toEqual([20, 20, 20]);
   });
 });

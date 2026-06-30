@@ -15,7 +15,9 @@ code_refs:
 
 ## Decision Log
 
-- **2026-07-01 (2):** Field-test follow-up for camera/BLE breath exports. Camera pulse logging now holds the last BPM through brief `event.bpm=0` gaps, treats beats older than 2.5 s as non-live (removing false recovery dips), and triggers emulated fallback from wall-clock beat age so a 20 s finger-off cannot be reset by flickering `fingerDetected`. Results always show measured + guidance pulse charts during validation. BLE prep is a single large ring (2.5 s rotation) without long copy; RSA live cycles and chart points above 20 bpm are discarded as off-body artifacts.
+- **2026-07-01 (3):** BLE prep→practice transition no longer flashes the full sensor-activation screen for one frame; RMSSD/stress/RSA result charts drop single-point garbage spikes from off-body beats, RSA stops bridging across signal-loss gaps, and camera/BLE measured pulse charts render vertical edges at zero plateaus so loss duration reads correctly.
+
+- **2026-07-01 (2):** Field-test follow-up for camera/BLE breath exports.
 
 - **2026-07-01:** Breath results pulse/metric charts were reworked around explicit live-vs-synthetic intervals. Camera short finger-off gaps now stay on interpolation/hold instead of triggering emulated fallback at 12 s, measured pulse only zeroes during true emulated/long-loss windows, BLE measured pulse zeroes when RR is stale even if Polar keeps streaming HR-only packets, metric charts bridge non-live gaps with straight lines (fixing RSA spikes), BLE prep waits for the first live HR/RR before `running`, and practice interpretation now times out instead of hanging silently.
 

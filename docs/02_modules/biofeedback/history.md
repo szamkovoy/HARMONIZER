@@ -15,7 +15,9 @@ code_refs:
 
 ## Decision Log
 
-- **2026-07-01 (2):** Polar off-body follow-up — `wearableRrQuality.ts` rejects BLE RR packets whose minimum interval drops below 400 ms. `BleHeartRateSource` skips ingesting those beats and stops refreshing `lastRrAtMs`, allowing `signalLost`, measured-pulse zeroing, and suppression of garbage RSA cycles during strap-off periods.
+- **2026-07-01 (3):** Interpretation timeout no longer leaves the results modal stuck on «Готовлю интерпретацию…» — client abort from timeout now surfaces an error instead of silently returning. Pulse charts insert vertical edges at zero plateaus; RMSSD/stress/RSA filter isolated garbage-beat spikes; RSA charts no longer bridge across non-live gaps (fixes false mid-session flatlines).
+
+- **2026-07-01 (2):** Polar off-body follow-up — `wearableRrQuality.ts` rejects BLE RR packets whose minimum interval drops below 400 ms.
 
 - **2026-07-01:** Polar/fullMetrics BLE off-body detection no longer trusts HR-only packets after RR goes stale: `BleHeartRateSource` emits `signalLost` when `lastRrAtMs` exceeds ~3.5 s, and breath `pulseLog` now records `liveMeasurementActive` / `interpolationHoldActive` so exports explain measured vs guidance vs synthetic segments without guesswork.
 

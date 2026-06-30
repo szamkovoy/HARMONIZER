@@ -105,8 +105,10 @@ import {
 } from "@/modules/breath/core/breath-session-signal-policy";
 import {
   bridgeSeriesAcrossNonLiveGaps,
+  buildMeasuredPulseChartSeries,
   buildPulseSeriesFromLog,
   collectNonLiveIntervalsFromLog,
+  filterIsolatedMetricSpikes,
   filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
   preparePulseSeriesForDisplay,
@@ -2252,6 +2254,8 @@ function CoherenceBreathScreenInner({
     setElapsedMs(0);
     lastLoggedMeasuredBpmRef.current = 0;
     lastLoggedGuidanceBpmRef.current = 0;
+    setSensorUiMounted(false);
+    setRunningUiRevealed(true);
     setPhase("running");
   }, [
     clearPpgBannerUi,
@@ -3070,7 +3074,11 @@ function CoherenceBreathScreenInner({
       setFinalCoherenceTailWindowMs(recoveredCoherenceTailWindowMs);
       const pulseLogForGraphs = finalPulseLogExportRef.current ?? [];
       const nonLiveIntervals = collectNonLiveIntervalsFromLog(pulseLogForGraphs, sessionStartWallMs);
-      const measuredPulseSeries = buildPulseSeriesFromLog(pulseLogForGraphs, sessionStartWallMs, "measured");
+      const measuredPulseSeries = buildMeasuredPulseChartSeries(
+        pulseLogForGraphs,
+        sessionStartWallMs,
+        practiceTotalMs,
+      );
       const guidancePulseSeries = buildPulseSeriesFromLog(pulseLogForGraphs, sessionStartWallMs, "guidance");
       const coherenceSeries = (finalRes.perSecondSmoothed ?? []).filter((point) => {
         const rawPoint = finalRes.perSecond[point.secondIndex];
@@ -3079,14 +3087,20 @@ function CoherenceBreathScreenInner({
         tMs: point.secondIndex * 1000,
         value: point.coherenceMappedPercent,
       }));
-      const rmssdSeries = rmssdSeriesRef.current.slice();
-      const stressSeries = stressSeriesRef.current.slice();
-      const rsaSeries = filterOutlierMetricPoints(
-        rsaCyclesSummaryRef.current.map((point) => ({
-          tMs: point.tMs,
-          value: point.rsaBpm,
-        })),
-        RSA_RESULTS_OUTLIER_BPM,
+      const rmssdSeries = filterIsolatedMetricSpikes(
+        bridgeSeriesAcrossNonLiveGaps(rmssdSeriesRef.current.slice(), nonLiveIntervals, practiceTotalMs),
+      );
+      const stressSeries = filterIsolatedMetricSpikes(
+        bridgeSeriesAcrossNonLiveGaps(stressSeriesRef.current.slice(), nonLiveIntervals, practiceTotalMs),
+      );
+      const rsaSeries = filterIsolatedMetricSpikes(
+        filterOutlierMetricPoints(
+          rsaCyclesSummaryRef.current.map((point) => ({
+            tMs: point.tMs,
+            value: point.rsaBpm,
+          })),
+          RSA_RESULTS_OUTLIER_BPM,
+        ),
       );
       setResultsGraphs({
         measuredPulseBpm: decimateSeries(measuredPulseSeries, 240),
@@ -3104,7 +3118,7 @@ function CoherenceBreathScreenInner({
           120,
         ),
         rsaBpm: decimateSeries(
-          bridgeSeriesAcrossNonLiveGaps(rsaSeries, nonLiveIntervals, practiceTotalMs),
+          prepareSeriesForDisplay(rsaSeries, practiceTotalMs, { extendStart: false }),
           120,
         ),
       });
@@ -3242,6 +3256,23 @@ function CoherenceBreathScreenInner({
     if (phase !== "running" || !allowAdvancedMetrics || sessionStartWallMs == null) return;
     return bus.subscribe("rmssd", (event) => {
       if (useEmulatedPulseModeRef.current) return;
+      if (isWearableMode) {
+        const runtime = wearableRuntimeRef.current;
+        const rrAgeMs =
+          runtime.lastRrAtMs != null
+            ? Math.max(0, Date.now() - runtime.lastRrAtMs)
+            : Number.POSITIVE_INFINITY;
+        const wearableLive =
+          runtime.state !== "signalLost" &&
+          runtime.state !== "disconnected" &&
+          runtime.state !== "failed" &&
+          runtime.sensorContactDetected !== false &&
+          (
+            wearableCapabilityTierRef.current !== "fullMetrics" ||
+            rrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
+          );
+        if (!wearableLive) return;
+      }
       if (!(event.rmssdMs > 0)) return;
       pushSeriesPoint(
         rmssdSeriesRef,
@@ -3252,12 +3283,29 @@ function CoherenceBreathScreenInner({
         { minDeltaMs: 5_000, maxPoints: 720 },
       );
     });
-  }, [allowAdvancedMetrics, bus, phase, sessionStartWallMs]);
+  }, [allowAdvancedMetrics, bus, isWearableMode, phase, sessionStartWallMs]);
 
   useEffect(() => {
     if (phase !== "running" || !allowAdvancedMetrics || sessionStartWallMs == null) return;
     return bus.subscribe("stress", (event) => {
       if (useEmulatedPulseModeRef.current) return;
+      if (isWearableMode) {
+        const runtime = wearableRuntimeRef.current;
+        const rrAgeMs =
+          runtime.lastRrAtMs != null
+            ? Math.max(0, Date.now() - runtime.lastRrAtMs)
+            : Number.POSITIVE_INFINITY;
+        const wearableLive =
+          runtime.state !== "signalLost" &&
+          runtime.state !== "disconnected" &&
+          runtime.state !== "failed" &&
+          runtime.sensorContactDetected !== false &&
+          (
+            wearableCapabilityTierRef.current !== "fullMetrics" ||
+            rrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
+          );
+        if (!wearableLive) return;
+      }
       if (!(event.percent >= 0)) return;
       if (stressSeriesRef.current.length === 0 && event.percent === 0) return;
       pushSeriesPoint(
@@ -3269,7 +3317,7 @@ function CoherenceBreathScreenInner({
         { minDeltaMs: 5_000, maxPoints: 720 },
       );
     });
-  }, [allowAdvancedMetrics, bus, phase, sessionStartWallMs]);
+  }, [allowAdvancedMetrics, bus, isWearableMode, phase, sessionStartWallMs]);
 
   /**
    * Вызывается shell-ом на каждой границе фаз.
@@ -4480,7 +4528,10 @@ function CoherenceBreathScreenInner({
         />
       ) : null}
 
-      {sensorUiMounted ? (
+      {sensorUiMounted &&
+      (phase === "warmup" ||
+        phase === "qualityCheck" ||
+        (!isWearableMode && phase === "running")) ? (
         <View
           style={styles.calib}
           pointerEvents={phase === "running" ? "none" : "auto"}
@@ -5063,8 +5114,8 @@ function ResultsView(props: {
     !cameraGuidanceOnlyMode &&
     !finalPulseWasEmulated && (trustLevel !== "pulse_only" || finalHrvRecoveredFromTail);
   const measuredPulseGraphPoints = useMemo(
-    () => preparePulseSeriesForDisplay(resultsGraphs?.measuredPulseBpm ?? [], practiceTotalMs),
-    [practiceTotalMs, resultsGraphs?.measuredPulseBpm],
+    () => resultsGraphs?.measuredPulseBpm ?? [],
+    [resultsGraphs?.measuredPulseBpm],
   );
   const guidancePulseGraphPoints = useMemo(
     () => preparePulseSeriesForDisplay(resultsGraphs?.guidancePulseBpm ?? [], practiceTotalMs),
@@ -5259,7 +5310,9 @@ function ResultsView(props: {
       setInterpretationText(text);
       setDetailsViewMode("interpretation");
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted && interpretationAbortRef.current !== controller) {
+        return;
+      }
       logRuntimeEvent(
         "breath:practice_interpretation_failed",
         { message: error instanceof Error ? error.message : String(error) },
