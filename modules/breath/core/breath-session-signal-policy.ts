@@ -7,6 +7,15 @@
 export const BREATH_SESSION_SIGNAL_ABORT_MS = 12_000;
 
 /**
+ * Camera guidance-only: sustained signal loss before switching to emulated pacing.
+ * Shorter finger-off gaps stay on interpolation/hold and must not zero measured pulse.
+ */
+export const BREATH_CAMERA_EMULATED_FALLBACK_MS = 20_000;
+
+/** Minimum BLE prep time after the strap first reports live HR/RR before `running` starts. */
+export const BREATH_BLE_PREP_MIN_LIVE_PULSE_MS = 2_000;
+
+/**
  * Если логическое время камеры (`getLastSourceTimestampMs`) не двигается дольше этого,
  * считаем поток optical «застывшим» (ОС/троттлинг), мс.
  */

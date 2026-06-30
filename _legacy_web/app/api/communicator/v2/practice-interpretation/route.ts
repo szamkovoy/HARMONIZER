@@ -79,8 +79,13 @@ export async function POST(req: Request) {
       prompt,
     });
 
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return json({ error: "Empty interpretation text from model." }, { status: 502 });
+    }
+
     return json({
-      text: text.trim(),
+      text: trimmed,
       modelUsed,
       responseLocale: locale,
     });

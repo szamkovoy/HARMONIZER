@@ -137,6 +137,8 @@ export interface CoherenceBreathStrings {
   wearableIdleHint: string;
   wearableIdleStartButton: string;
   wearableActivationTitle: string;
+  /** Short label shown while BLE prep waits for the first live pulse. */
+  sessionPreparationLabel: string;
   wearableActivationSelectedHint: (deviceName: string) => string;
   wearableActivationNoDeviceHint: string;
   wearableBluetoothOff: string;
@@ -319,6 +321,7 @@ const ru: CoherenceBreathStrings = {
   wearableIdleHint: "Подключите нагрудный BLE-пульсометр или переключитесь на камеру телефона.",
   wearableIdleStartButton: "Подключить пульсометр",
   wearableActivationTitle: "Подключение пульсометра",
+  sessionPreparationLabel: "Подготовка",
   wearableActivationSelectedHint: (deviceName) =>
     `Выбран датчик: ${deviceName}. Держите ремень на груди и дождитесь устойчивого потока пульса.`,
   wearableActivationNoDeviceHint:
@@ -495,6 +498,7 @@ const en: CoherenceBreathStrings = {
   wearableIdleHint: "Connect a BLE chest strap or switch back to the phone camera.",
   wearableIdleStartButton: "Connect heart strap",
   wearableActivationTitle: "Connect heart-rate strap",
+  sessionPreparationLabel: "Preparation",
   wearableActivationSelectedHint: (deviceName) =>
     `Selected device: ${deviceName}. Keep the strap on your chest and wait for a stable pulse stream.`,
   wearableActivationNoDeviceHint:

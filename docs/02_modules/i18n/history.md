@@ -25,6 +25,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-01:** Breath prep/results copy gained `sessionPreparationLabel` («Подготовка» / «Preparation») for the BLE activation screen while the strap reaches its first live pulse.
+
 - **2026-06-29:** Breath typed strings gained explicit camera guidance-only copy across RU/EN plus typed de/fr/it/es/pt/nl overlays. The breath runtime can now explain in every supported locale that phone camera mode gives pulse-guided breathing, while advanced HRV/coherence/RSA metrics require a compatible BLE heart-rate sensor.
 
 - **2026-06-27:** Practices/Breath typed strings now cover BLE pulse-source selection and chest-strap activation copy in the breathing flow. The implementation intentionally relies on the existing typed EN-base fallback for locales whose dedicated overlays were not expanded yet, so the UI stays coherent across all 8 locales while device-specific wording is still being refined.

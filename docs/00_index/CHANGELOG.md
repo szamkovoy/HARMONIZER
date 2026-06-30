@@ -12,12 +12,13 @@
 
 title: Documentation Changelog
 version: 3.14
-updated: 2026-06-30
+updated: 2026-07-01
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-07-01: `biofeedback` / `practices` / `communicator` / `i18n` — breath results charts now distinguish live measurement, short camera interpolation, and synthetic fallback: camera emulated pacing waits ~20 s, BLE measured pulse zeroes when RR is stale, RSA/RMSSD/stress/coherence bridge non-live gaps, BLE prep shows «Подготовка» until the first live pulse, interpretation requests time out with a visible error instead of hanging, and `pulseLog` exports `liveMeasurementActive` / `interpolationHoldActive`. Synced `biofeedback/history.md`, `practices/history.md`.
 - 2026-06-30: `biofeedback` / `practices` / `communicator` — camera guidance fallback stopped reconfiguring the whole PPG capture session on every synthetic window and now pauses only the optical pipeline, reducing the risk of torch flicker during fallback/recovery. BLE startup again waits for a real ready state before the practice begins, off-body H10 packets can now downgrade runtime to `signalLost` via `sensorContactDetected`, remembered wearables are re-validated by a short live probe instead of BLE cache alone, metric charts no longer draw fake left-edge plateaus, and practice-interpretation client errors now explicitly flag “HTML instead of JSON” as a missing/outdated backend route symptom. Synced `biofeedback/spec.md`, `biofeedback/history.md`, `practices/spec.md`, `practices/history.md`.
 - 2026-06-30: `biofeedback` / `practices` — camera `emulated -> live` returns no longer leave post-fallback pulse charts frozen because the pipeline now resets time-based throttles on source switches between camera CMTime and wall-clock synthetic beats. Breath results charts were also padded to the full session duration so sparse BLE RMSSD/stress/RSA tails no longer end at `4:52` just because the last live sample arrived a few seconds early. Synced `biofeedback/history.md`, `practices/history.md`.
 - 2026-06-30: `biofeedback` / `practices` / `i18n` — breath results no longer hide partial BLE metric charts just because the final aggregate session failed the trust/coverage gate, and pulse charts now split into explicit measured vs guidance series when fallback pacing diverges from the live sensor. Debug `pulseLog` was extended with `measuredPulseRateBpm` / `guidancePulseRateBpm`, and all 8 locales gained labels for the two pulse-series states. Synced `biofeedback/spec.md`, `biofeedback/history.md`, `practices/spec.md`, `practices/history.md`, `i18n/history.md`.

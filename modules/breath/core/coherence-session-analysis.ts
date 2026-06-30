@@ -674,6 +674,10 @@ export type CoherencePulseLogEntry = {
   wearableSensorContactDetected?: boolean | null;
   wearablePacketCount?: number | null;
   wearableRrPacketCount?: number | null;
+  /** True when this sample reflects a live sensor measurement (not emulated / stale RR). */
+  liveMeasurementActive?: boolean;
+  /** True when guidance/measured is being held across a short camera gap. */
+  interpolationHoldActive?: boolean;
 };
 
 export type CoherenceExportDebug = {

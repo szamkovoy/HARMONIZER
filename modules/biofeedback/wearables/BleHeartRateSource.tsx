@@ -32,6 +32,8 @@ const GUIDED_ONLY_PROBE_PACKETS = 4;
 const RR_TIMELINE_RESET_GAP_MS = 30_000;
 /** No HR/RR packets while connected — treat as signal loss and reconnect. */
 const PACKET_STALL_MS = 10_000;
+/** Polar H10 may keep streaming HR without RR when off-body; treat as signal loss. */
+const RR_STALE_SIGNAL_LOST_MS = 3_500;
 const STALL_CHECK_INTERVAL_MS = 2_000;
 
 export function BleHeartRateSource({
@@ -170,6 +172,14 @@ export function BleHeartRateSource({
       stallWatchdog = setInterval(() => {
         if (disposed || !connection) return;
         const nowMs = Date.now();
+        if (
+          resolvedTier === "fullMetrics" &&
+          lastRrAtMs != null &&
+          nowMs - lastRrAtMs > RR_STALE_SIGNAL_LOST_MS
+        ) {
+          emitSnapshot("signalLost");
+          return;
+        }
         const lastActivityMs = lastPacketAtMs ?? lastRrAtMs;
         if (lastActivityMs == null) {
           if (packetCount === 0 && nowMs - (connectStartedAtMs ?? nowMs) > PACKET_STALL_MS) {
@@ -322,6 +332,15 @@ export function BleHeartRateSource({
             }
             ingestRrIntervals(packet.rrIntervalsMs);
             emitSnapshot("ready");
+            return;
+          }
+
+          if (
+            resolvedTier === "fullMetrics" &&
+            lastRrAtMs != null &&
+            Date.now() - lastRrAtMs > RR_STALE_SIGNAL_LOST_MS
+          ) {
+            emitSnapshot("signalLost");
             return;
           }
 

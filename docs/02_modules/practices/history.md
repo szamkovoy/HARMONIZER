@@ -2,7 +2,7 @@
 id: 02_modules/practices/history
 title: Practices History
 version: 1.22
-updated: 2026-06-30
+updated: 2026-07-01
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-01:** Breath results pulse/metric charts were reworked around explicit live-vs-synthetic intervals. Camera short finger-off gaps now stay on interpolation/hold instead of triggering emulated fallback at 12 s, measured pulse only zeroes during true emulated/long-loss windows, BLE measured pulse zeroes when RR is stale even if Polar keeps streaming HR-only packets, metric charts bridge non-live gaps with straight lines (fixing RSA spikes), BLE prep waits for the first live HR/RR before `running`, and practice interpretation now times out instead of hanging silently.
 
 - **2026-06-30 (6):** Breath BLE startup no longer jumps straight into `running` with an unavoidable first `0 bpm` sample. The screen now waits in the wearable activation/preparation path until the strap actually reaches `guidedOnly/fullMetrics` readiness, remembered chest straps are re-validated by a short live BLE probe instead of `manager.devices()` cache alone, and results charts stop fabricating left-edge plateaus for coherence/RSA/RMSSD/stress before those metrics have really started computing.
 

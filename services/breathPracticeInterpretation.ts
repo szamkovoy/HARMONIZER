@@ -20,6 +20,38 @@ export type BreathPracticeInterpretationResponse = {
   modelUsed?: string;
 };
 
+const INTERPRETATION_REQUEST_TIMEOUT_MS = 120_000;
+
+function linkAbortSignal(parent: AbortSignal | undefined, child: AbortController): void {
+  if (parent == null) return;
+  if (parent.aborted) {
+    child.abort();
+    return;
+  }
+  parent.addEventListener("abort", () => child.abort(), { once: true });
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  externalSignal?: AbortSignal,
+): Promise<Response> {
+  const controller = new AbortController();
+  linkAbortSignal(externalSignal, controller);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted && !(externalSignal?.aborted)) {
+      throw new Error("Превышено время ожидания интерпретации. Попробуйте ещё раз.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
@@ -53,24 +85,32 @@ export async function fetchBreathPracticeInterpretation(
       const responseLocale = request.responseLocale ?? getResponseLocale();
       let res: Response;
       try {
-        res = await fetch(getCommunicatorV2PracticeInterpretationUrl(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+        res = await fetchWithTimeout(
+          getCommunicatorV2PracticeInterpretationUrl(),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              outcome: request.outcome,
+              subjectiveMood: request.subjectiveMood ?? null,
+              responseLocale,
+            }),
           },
-          body: JSON.stringify({
-            outcome: request.outcome,
-            subjectiveMood: request.subjectiveMood ?? null,
-            responseLocale,
-          }),
+          INTERPRETATION_REQUEST_TIMEOUT_MS,
           signal,
-        });
+        );
       } catch (error) {
         throw wrapConnectivityFailure(error, "breath-practice-interpretation");
       }
       if (!res.ok) throw await readError(res);
-      return (await res.json()) as BreathPracticeInterpretationResponse;
+      const payload = (await res.json()) as BreathPracticeInterpretationResponse;
+      if (!payload.text?.trim()) {
+        throw new Error("Сервер вернул пустой текст интерпретации.");
+      }
+      return payload;
     },
     { signal },
   );

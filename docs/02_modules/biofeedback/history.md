@@ -2,7 +2,7 @@
 id: 02_modules/biofeedback/history
 title: Biofeedback History
 version: 1.7
-updated: 2026-06-30
+updated: 2026-07-01
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-01:** Polar/fullMetrics BLE off-body detection no longer trusts HR-only packets after RR goes stale: `BleHeartRateSource` emits `signalLost` when `lastRrAtMs` exceeds ~3.5 s, and breath `pulseLog` now records `liveMeasurementActive` / `interpolationHoldActive` so exports explain measured vs guidance vs synthetic segments without guesswork.
 
 - **2026-06-30 (6):** BLE runtime now honors the Heart Rate Measurement `sensorContactDetected` flag instead of treating every incoming packet as valid body contact. If a chest strap keeps broadcasting off-body, `BleHeartRateSource` now reports `signalLost` rather than `ready`, so downstream practice graphs can drop measured pulse to zero and enter synthetic guidance only after a real contact loss instead of pretending that stale RR still means trustworthy biometrics.
 
