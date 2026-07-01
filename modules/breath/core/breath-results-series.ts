@@ -13,6 +13,7 @@ export const WEARABLE_LIVE_RR_FRESH_MS = 3_500;
 export const RSA_RESULTS_OUTLIER_BPM = 20;
 
 const NON_LIVE_WEARABLE_STATES = new Set(["signalLost", "disconnected", "failed", "reconnecting"]);
+const PULSE_RESULT_STABLE_RECOVERY_MS = 8_000;
 
 /** Shared wearable live-measurement gate (Polar RR freshness when RR was ever seen). */
 export function isWearableLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry): boolean {
@@ -54,6 +55,28 @@ export type NonLiveInterval = {
   endMs: number;
 };
 
+export function mergeNearbyNonLiveIntervals(
+  intervals: readonly NonLiveInterval[],
+  stableRecoveryMs = PULSE_RESULT_STABLE_RECOVERY_MS,
+): NonLiveInterval[] {
+  if (intervals.length < 2) return [...intervals];
+  const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs);
+  const merged: NonLiveInterval[] = [{ ...sorted[0]! }];
+  for (const interval of sorted.slice(1)) {
+    const current = merged[merged.length - 1]!;
+    if (interval.startMs - current.endMs <= stableRecoveryMs) {
+      current.endMs = Math.max(current.endMs, interval.endMs);
+    } else {
+      merged.push({ ...interval });
+    }
+  }
+  return merged;
+}
+
+function isInsideNonLiveInterval(tMs: number, intervals: readonly NonLiveInterval[]): boolean {
+  return intervals.some((interval) => tMs >= interval.startMs && tMs < interval.endMs);
+}
+
 export function collectNonLiveIntervalsFromLog(
   entries: readonly CoherencePulseLogEntry[],
   sessionStartWallMs: number,
@@ -77,7 +100,7 @@ export function collectNonLiveIntervalsFromLog(
     );
     intervals.push({ startMs: openStart, endMs: lastT });
   }
-  return intervals;
+  return mergeNearbyNonLiveIntervals(intervals);
 }
 
 function collectFlaggedIntervalsFromLog(
@@ -103,7 +126,7 @@ function collectFlaggedIntervalsFromLog(
     );
     intervals.push({ startMs: openStart, endMs: lastT });
   }
-  return intervals;
+  return mergeNearbyNonLiveIntervals(intervals);
 }
 
 /** Gaps where measured pulse was not live (camera hold, BLE stale RR, emulated). */
@@ -164,16 +187,20 @@ export function buildPulseSeriesFromLog(
   const points: BreathResultsSeriesPoint[] = [];
   let lastLiveMeasured = 0;
   let lastLiveGuidance = 0;
+  let lastAcceptedGuidance = 0;
+  let recentAcceptedGuidance: number[] = [];
+  const effectiveNonLiveIntervals = collectNonLiveIntervalsFromLog(entries, sessionStartWallMs);
 
   for (const entry of entries) {
     const tMs = Math.max(0, entry.wallClockMs - sessionStartWallMs);
-    const live = isPulseLogEntryLiveForMeasurement(entry);
+    const live =
+      isPulseLogEntryLiveForMeasurement(entry) &&
+      !isInsideNonLiveInterval(tMs, effectiveNonLiveIntervals);
     const measuredRaw = rawMeasuredValue(entry);
     const guidanceRaw = rawGuidanceValue(entry);
 
     if (live) {
       if (measuredRaw > 0) lastLiveMeasured = measuredRaw;
-      if (guidanceRaw > 0) lastLiveGuidance = guidanceRaw;
     }
 
     let value: number;
@@ -188,7 +215,18 @@ export function buildPulseSeriesFromLog(
     } else if (live) {
       value = guidanceRaw;
     } else {
-      value = guidanceRaw > 0 ? guidanceRaw : (lastLiveGuidance > 0 ? lastLiveGuidance : 0);
+      value = lastLiveGuidance > 0 ? lastLiveGuidance : (guidanceRaw > 0 ? guidanceRaw : 0);
+    }
+
+    if (mode === "guidance" && value > 0) {
+      value = sanitizeBreathGuidanceBpm(value, lastAcceptedGuidance, {
+        recentAccepted: recentAcceptedGuidance,
+      });
+      lastAcceptedGuidance = value;
+      recentAcceptedGuidance = [...recentAcceptedGuidance, value].slice(-3);
+      if (live) {
+        lastLiveGuidance = value;
+      }
     }
 
     if (!Number.isFinite(value)) continue;
@@ -381,6 +419,42 @@ export function filterIsolatedMetricSpikes(
   return sorted.filter((_, index) => keep[index]);
 }
 
+function filterShortMetricSpikeRuns(
+  points: readonly BreathResultsSeriesPoint[],
+  options?: { minSpikeDelta?: number; maxNeighborDelta?: number; maxRunDurationMs?: number },
+): BreathResultsSeriesPoint[] {
+  if (points.length < 4) return [...points];
+  const minSpikeDelta = options?.minSpikeDelta ?? 5;
+  const maxNeighborDelta = options?.maxNeighborDelta ?? 3;
+  const maxRunDurationMs = options?.maxRunDurationMs ?? 2_500;
+  const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+  const keep = sorted.map(() => true);
+
+  for (let start = 1; start < sorted.length - 2; start += 1) {
+    const prev = sorted[start - 1]!;
+    for (let end = start; end < sorted.length - 1; end += 1) {
+      const runDurationMs = sorted[end]!.tMs - sorted[start]!.tMs;
+      if (runDurationMs > maxRunDurationMs) break;
+
+      const next = sorted[end + 1]!;
+      if (Math.abs(prev.value - next.value) > maxNeighborDelta) continue;
+
+      const lowNeighbor = Math.min(prev.value, next.value);
+      const highNeighbor = Math.max(prev.value, next.value);
+      const run = sorted.slice(start, end + 1);
+      const highRun = run.every((point) => point.value >= highNeighbor + minSpikeDelta);
+      const lowRun = run.every((point) => point.value <= lowNeighbor - minSpikeDelta);
+      if (highRun || lowRun) {
+        for (let index = start; index <= end; index += 1) {
+          keep[index] = false;
+        }
+      }
+    }
+  }
+
+  return sorted.filter((_, index) => keep[index]);
+}
+
 /** Split a series into drawable segments (break at zero = missing measurement). */
 export function splitPulseChartSeriesSegments(
   points: readonly BreathResultsSeriesPoint[],
@@ -416,6 +490,9 @@ export function sanitizeBreathGuidanceBpm(
   const maxStep = options?.maxStepBpm ?? 6;
   const minSpikeDelta = options?.minSpikeDelta ?? 3.5;
   const delta = candidate - previous;
+  if (Math.abs(delta) >= minSpikeDelta && Math.abs(delta) > maxStep) {
+    return previous + Math.sign(delta) * maxStep;
+  }
   const recent = (options?.recentAccepted ?? []).filter((value) => value > 0);
   if (recent.length >= 2) {
     const spread = Math.max(...recent) - Math.min(...recent);
@@ -423,9 +500,6 @@ export function sanitizeBreathGuidanceBpm(
     if (spread <= 3 && jump >= minSpikeDelta) {
       return previous;
     }
-  }
-  if (Math.abs(delta) >= minSpikeDelta && Math.abs(delta) > maxStep) {
-    return previous + Math.sign(delta) * maxStep;
   }
   return candidate;
 }
@@ -436,7 +510,10 @@ export function buildMeasuredPulseChartSeries(
   totalMs: number,
 ): BreathResultsSeriesPoint[] {
   const base = buildPulseSeriesFromLog(entries, sessionStartWallMs, "measured");
-  const withoutSpikes = filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 });
+  const withoutSpikes = filterShortMetricSpikeRuns(
+    filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 }),
+    { minSpikeDelta: 4, maxNeighborDelta: 3 },
+  );
   return preparePulseSeriesForDisplay(withoutSpikes, totalMs);
 }
 
@@ -446,7 +523,10 @@ export function buildGuidancePulseChartSeries(
   totalMs: number,
 ): BreathResultsSeriesPoint[] {
   const base = buildPulseSeriesFromLog(entries, sessionStartWallMs, "guidance");
-  const withoutSpikes = filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 });
+  const withoutSpikes = filterShortMetricSpikeRuns(
+    filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 }),
+    { minSpikeDelta: 4, maxNeighborDelta: 3 },
+  );
   return preparePulseSeriesForDisplay(withoutSpikes, totalMs);
 }
 

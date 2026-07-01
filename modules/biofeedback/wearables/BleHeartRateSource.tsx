@@ -12,8 +12,10 @@ import {
 import { detectWearableTrustedProfile } from "@/modules/biofeedback/wearables/trustedProfiles";
 import { buildBeatTimestampsFromRrPacket } from "@/modules/biofeedback/wearables/wearableBeatTimeline";
 import {
+  deriveBpmFromWearableRrIntervals,
   filterOnBodyWearableRrIntervals,
   isWearableRrPacketTrustworthy,
+  resolveWearableHeartRateBpm,
 } from "@/modules/biofeedback/wearables/wearableRrQuality";
 import type {
   WearableCapabilityTier,
@@ -224,17 +226,17 @@ export function BleHeartRateSource({
       }, 200);
     };
 
-    const ingestRrIntervals = (rrIntervalsMs: readonly number[]) => {
-      if (!rrIntervalsMs.length) return;
+    const ingestRrIntervals = (rrIntervalsMs: readonly number[]): boolean => {
+      if (!rrIntervalsMs.length) return false;
       const nowMs = Date.now();
       if (!isWearableRrPacketTrustworthy(rrIntervalsMs)) {
         emitSnapshot("signalLost");
-        return;
+        return false;
       }
       const onBodyRr = filterOnBodyWearableRrIntervals(rrIntervalsMs);
       if (!onBodyRr.length) {
         emitSnapshot("signalLost");
-        return;
+        return false;
       }
       const gapSinceLastPacketMs =
         lastRrAtMs == null ? Number.POSITIVE_INFINITY : nowMs - lastRrAtMs;
@@ -257,6 +259,7 @@ export function BleHeartRateSource({
         lastBeatTimestampMs = nextLastBeat;
       }
       lastRrAtMs = nowMs;
+      return true;
     };
 
     const connect = async () => {
@@ -333,8 +336,13 @@ export function BleHeartRateSource({
             emitSnapshot("signalLost");
             return;
           }
-          if (packet.heartRateBpm != null && packet.heartRateBpm > 0) {
-            lastHeartRateBpm = packet.heartRateBpm;
+          const rrDerivedBpm = deriveBpmFromWearableRrIntervals(packet.rrIntervalsMs);
+          const resolvedHeartRateBpm = resolveWearableHeartRateBpm(
+            packet.heartRateBpm,
+            rrDerivedBpm,
+          );
+          if (resolvedHeartRateBpm != null && resolvedHeartRateBpm > 0) {
+            lastHeartRateBpm = Math.round(resolvedHeartRateBpm);
           }
           if (packet.rrIntervalsMs.length > 0) {
             rrPacketCount += 1;
@@ -344,7 +352,9 @@ export function BleHeartRateSource({
                 trustedProfile?.enhancedMode === "polar" ? "polarEnhanced" : "genericRr",
               );
             }
-            ingestRrIntervals(packet.rrIntervalsMs);
+            if (!ingestRrIntervals(packet.rrIntervalsMs)) {
+              return;
+            }
             emitSnapshot("ready");
             return;
           }

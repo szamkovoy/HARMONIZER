@@ -11,13 +11,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.14
+version: 3.15
 updated: 2026-07-01
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-07-01 (7): `biofeedback` / `practices` — Polar recovery now prefers RR-derived BPM over raw HR when they disagree, rejects impossible long-RR reconnect packets without falling through to `ready`, keeps synthetic fallback beats out of final metric beat-series after BLE recovery, prevents camera guidance BPM from freezing into false plateaus during large real pulse changes, holds camera guidance/planner steady during non-live interpolation windows, debounces camera hard-loss recovery and result pulse gaps so a brief false tracking blip does not split a long finger removal, filters short PPG recovery spike-runs in pulse charts, and renders all breath result charts on the fixed practice-duration axis. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
 - 2026-07-01 (6): `biofeedback` / `practices` — align pulse-chart highlight bands on a fixed session timeline, retry BLE reconnect after failed connect, show interpretation when partial metric series exist, equal-width wearable not-found buttons.
 - 2026-07-01 (5): `practices` / `biofeedback` — fix missing breath pulse chart lines after decimation (segment split only at zero samples, not sampling interval); wearable search shows Close-only while scanning.
 - 2026-07-01 (4): `biofeedback` / `practices` — measured vs guidance breath pulse charts diverge correctly (measured breaks/shades non-live gaps; guidance keeps hold/emulated pacing with spike filtering), BLE guidedOnly stale RR zeroes measured pulse, export adds `pulseLockTransitions`, BLE prep fades via the shared black curtain, and wearable not-found dialog uses primary retry in one row.

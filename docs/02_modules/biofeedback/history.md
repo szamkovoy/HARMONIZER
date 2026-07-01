@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.7
+version: 1.8
 updated: 2026-07-01
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-01 (7):** Polar/off-body recovery filtering tightened again: BLE RR packets with impossible long intervals are rejected and no longer fall through into an immediate `ready` snapshot, raw HR is replaced by RR-derived BPM when they sharply disagree (fixing `163 bpm -> 64 bpm` recovery spikes), and `BiofeedbackPipeline` now keeps `emulated` / `guidedOnly` beats out of metric-eligible `canonicalBeats` after a live wearable returns. Synthetic fallback can still guide breathing, but no longer contaminates final coherence/RSA/RMSSD/stress beat-series.
 
 - **2026-07-01 (6):** `BleHeartRateSource` schedules another reconnect after a failed connect attempt; wearable picker not-found buttons share equal width via flex wrappers.
 

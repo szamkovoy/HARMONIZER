@@ -61,4 +61,32 @@ describe("BiofeedbackPipeline pushBeatEvent", () => {
     expect(publishCountBeforeSwitch).toBeGreaterThan(0);
     expect(publishedBpmTimestamps.length).toBeGreaterThan(publishCountBeforeSwitch);
   });
+
+  it("keeps emulated fallback beats out of wearable metric beats after recovery", () => {
+    const pipeline = new BiofeedbackPipeline(new BiofeedbackBus(), WEARABLE_CAPTURE_CONFIG);
+    pipeline.setPulseSource("wearable");
+    pipeline.markCalibrationCompleteForBeatSource(0);
+
+    for (const beat of [0, 1_000, 2_000, 3_000]) {
+      pipeline.pushBeatEvent(beat, beat);
+    }
+
+    pipeline.setPulseSource("emulated");
+    for (const beat of [4_000, 5_000, 6_000, 7_000]) {
+      pipeline.pushBeatEvent(beat, beat);
+    }
+
+    pipeline.setPulseSource("wearable");
+    for (const beat of [8_000, 9_000, 10_000]) {
+      pipeline.pushBeatEvent(beat, beat);
+    }
+
+    expect(pipeline.getMergedBeats()).toEqual([
+      0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000, 8_000, 9_000, 10_000,
+    ]);
+    expect(pipeline.getMetricBeatTimestamps()).toEqual([
+      1_000, 2_000, 3_000, 9_000, 10_000,
+    ]);
+    expect(pipeline.getCoherenceEngine().getSessionBeats()).not.toContain(4_000);
+  });
 });

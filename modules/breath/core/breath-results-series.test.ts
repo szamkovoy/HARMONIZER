@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyPulseChartVerticalSteps,
   bridgeSeriesAcrossNonLiveGaps,
+  buildMeasuredPulseChartSeries,
   buildPulseSeriesFromLog,
   collectGuidancePulseHighlightIntervals,
   collectMeasuredPulseHighlightIntervals,
@@ -49,7 +50,7 @@ describe("breath-results-series", () => {
     const measured = buildPulseSeriesFromLog(log, start, "measured");
     expect(measured.map((point) => point.value)).toEqual([74, 0, 76]);
     const guidance = buildPulseSeriesFromLog(log, start, "guidance");
-    expect(guidance.map((point) => point.value)).toEqual([74, 70, 76]);
+    expect(guidance.map((point) => point.value)).toEqual([74, 74, 76]);
   });
 
   it("zeros measured pulse during emulated camera loss", () => {
@@ -119,6 +120,13 @@ describe("breath-results-series", () => {
     expect(filtered).toBe(79);
   });
 
+  it("ramps large real guidance changes instead of freezing the old baseline", () => {
+    const filtered = sanitizeBreathGuidanceBpm(60.5, 70, {
+      recentAccepted: [69.8, 70, 70.1],
+    });
+    expect(filtered).toBe(64);
+  });
+
   it("filters RSA outliers from metric charts", () => {
     const filtered = filterOutlierMetricPoints(
       [{ tMs: 0, value: 8 }, { tMs: 1000, value: 58 }, { tMs: 2000, value: 9 }],
@@ -149,6 +157,18 @@ describe("breath-results-series", () => {
       { tMs: 15000, value: 20 },
     ]);
     expect(filtered.map((point) => point.value)).toEqual([20, 20, 20]);
+  });
+
+  it("removes short measured pulse spike runs after recovery", () => {
+    const start = 1_000;
+    const log = [
+      entry(start + 1_000, { measuredPulseRateBpm: 66, guidancePulseRateBpm: 66 }),
+      entry(start + 1_600, { measuredPulseRateBpm: 72, guidancePulseRateBpm: 72 }),
+      entry(start + 2_200, { measuredPulseRateBpm: 72, guidancePulseRateBpm: 72 }),
+      entry(start + 3_000, { measuredPulseRateBpm: 65, guidancePulseRateBpm: 65 }),
+    ];
+    const measured = buildMeasuredPulseChartSeries(log, start, 5_000);
+    expect(measured.map((point) => point.value)).not.toContain(72);
   });
 
   it("keeps decimated pulse chart segments drawable", () => {
@@ -190,5 +210,34 @@ describe("breath-results-series", () => {
     const shared = collectSharedPulseHighlightIntervals(log, start);
     expect(measured).toEqual(guidance);
     expect(measured).toEqual(shared);
+  });
+
+  it("merges short false recovery islands inside one pulse-loss window", () => {
+    const start = 1_000;
+    const log = [
+      entry(start + 1_000, { measuredPulseRateBpm: 70, guidancePulseRateBpm: 70, pulseReady: true }),
+      entry(start + 10_000, {
+        measuredPulseRateBpm: 0,
+        guidancePulseRateBpm: 70,
+        pulseReady: false,
+        interpolationHoldActive: true,
+        lastBeatAgeMs: 4_000,
+      }),
+      entry(start + 14_000, { measuredPulseRateBpm: 82, guidancePulseRateBpm: 82, pulseReady: true }),
+      entry(start + 18_000, {
+        measuredPulseRateBpm: 0,
+        guidancePulseRateBpm: 70,
+        pulseReady: false,
+        interpolationHoldActive: true,
+        lastBeatAgeMs: 4_000,
+      }),
+      entry(start + 30_000, { measuredPulseRateBpm: 72, guidancePulseRateBpm: 72, pulseReady: true }),
+    ];
+    const highlights = collectSharedPulseHighlightIntervals(log, start);
+    expect(highlights).toEqual([{ startMs: 10_000, endMs: 30_000 }]);
+    const measured = buildPulseSeriesFromLog(log, start, "measured");
+    const guidance = buildPulseSeriesFromLog(log, start, "guidance");
+    expect(measured.map((point) => point.value)).toEqual([70, 0, 0, 0, 72]);
+    expect(guidance.map((point) => point.value)).toEqual([70, 70, 70, 70, 72]);
   });
 });

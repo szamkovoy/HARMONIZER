@@ -49,6 +49,7 @@ import {
 
 import {
   BEAT_DUPLICATE_TOLERANCE_MS,
+  BEAT_HISTORY_WINDOW_MS,
   HRV_RR_HARD_MAX_MS,
   HRV_RR_HARD_MIN_MS,
 } from "@/modules/biofeedback/constants";
@@ -573,7 +574,9 @@ export class BiofeedbackPipeline {
    */
   pushBeatEvent(timestampMs: number, beatTimestampMs: number): void {
     const merged = [...this.mergedBeats];
+    const eligible = [...this.beatEligible];
     const lastMergedBeat = merged[merged.length - 1];
+    const metricEligible = this.pulseSource !== "emulated" && !this.metricsCapturePaused;
     // Готовые beat-источники (BLE / watch / synthetic) уже приходят как единичные
     // committed timestamps. Им не нужен phase-1 reanalysis merge, который уместен
     // для оптики и исторически пересобирает «хвост окна». Иначе wearable-path
@@ -584,15 +587,28 @@ export class BiofeedbackPipeline {
       beatTimestampMs - lastMergedBeat > BEAT_DUPLICATE_TOLERANCE_MS
     ) {
       merged.push(beatTimestampMs);
+      eligible.push(metricEligible);
     } else if (
       Math.abs(beatTimestampMs - lastMergedBeat) <= BEAT_DUPLICATE_TOLERANCE_MS &&
       beatTimestampMs > lastMergedBeat
     ) {
       merged[merged.length - 1] = beatTimestampMs;
+      eligible[eligible.length - 1] = (eligible[eligible.length - 1] ?? false) || metricEligible;
     }
-    this.mergedBeats = trimBeatHistory(merged, timestampMs);
-    this.canonicalBeats = [...this.mergedBeats];
-    this.beatEligible = this.mergedBeats.map(() => true);
+    const cutoffMs = timestampMs - BEAT_HISTORY_WINDOW_MS;
+    const trimmedMerged: number[] = [];
+    const trimmedEligible: boolean[] = [];
+    for (let i = 0; i < merged.length; i += 1) {
+      const beat = merged[i]!;
+      if (beat >= cutoffMs) {
+        trimmedMerged.push(beat);
+        trimmedEligible.push(eligible[i] ?? metricEligible);
+      }
+    }
+    this.mergedBeats = trimmedMerged;
+    this.beatEligible = trimmedEligible;
+    const metricBeats = this.mergedBeats.filter((_, index) => this.beatEligible[index]);
+    this.canonicalBeats = this.pulseSource === "wearable" ? metricBeats : [...this.mergedBeats];
 
     // Live pulse: для готовых источников всегда tracking.
     const liveSnap = this.livePulse.push({
@@ -620,7 +636,7 @@ export class BiofeedbackPipeline {
       // sequential deviation) здесь только режет длину merged-ленты и ломает coherence.
       this.canonicalBeats =
         this.pulseSource === "wearable"
-          ? [...this.mergedBeats]
+          ? metricBeats
           : bpmSnap.filteredBeatTimestampsMs;
       this.bus.publish("pulseBpm", {
         bpm: bpmSnap.bpm,
@@ -645,7 +661,11 @@ export class BiofeedbackPipeline {
       this.pulseSource === "emulated" || this.metricsCapturePaused;
 
     if (this.hrvAccumulator.isReady() && !shouldSkipDerivedMetrics) {
-      this.hrvAccumulator.ingest(this.canonicalBeats, this.beatEligible, timestampMs);
+      this.hrvAccumulator.ingest(
+        this.canonicalBeats,
+        this.canonicalBeats.map(() => true),
+        timestampMs,
+      );
       if (
         timestampMs - this.lastHrvStressComputeMs >=
         BiofeedbackPipeline.HRV_STRESS_LIVE_INTERVAL_MS

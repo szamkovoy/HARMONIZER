@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.22
+version: 1.23
 updated: 2026-07-01
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-01 (7):** Breath guidance spike filtering no longer freezes the old BPM during a large real pulse change: small isolated jumps are still suppressed, but larger shifts are step-limited so camera guidance does not form a false plateau while measured pulse is moving. During short camera hold/interpolation windows, non-live `pulseBpm` no longer updates either the visible guidance series or `BreathPhasePlanner`; guidance holds the last accepted live BPM until real pulse or emulated fallback returns. Camera long-loss fallback now requires a stable recovery window before clearing the hard-loss accumulator, and result pulse charts apply the same 8-second stable-recovery merge, so a brief false `tracking` blip cannot split a ~20 s finger removal into multiple short gaps. Result pulse charts also replay guidance through the current sanitizer and remove short PPG recovery spike-runs, while HRV/RSA/coherence calculations remain unchanged. Advanced result charts now share the same fixed `0…practiceTotalMs` x-axis as pulse charts, so 5-minute BLE reports keep the correct 0:00→5:00 scale even when the first real metric point appears later.
 
 - **2026-07-01 (6):** Pulse chart shading now uses one shared non-live interval on measured and guidance graphs with a fixed 0…session-duration time axis; BLE reconnect retries after failed connect instead of stopping at `failed`; interpretation button appears when partial metric series exist even if the session ended emulated.
 

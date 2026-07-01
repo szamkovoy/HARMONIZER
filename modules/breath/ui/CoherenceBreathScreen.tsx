@@ -64,6 +64,7 @@ import { FingerPpgCameraSource } from "@/modules/biofeedback/sensors/FingerPpgCa
 import { SimulatedSensorSource } from "@/modules/biofeedback/sensors/SimulatedSensorSource";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 import { BleHeartRateSource } from "@/modules/biofeedback/wearables/BleHeartRateSource";
+import { resolveWearableHeartRateBpm } from "@/modules/biofeedback/wearables/wearableRrQuality";
 import {
   updateWearablePreferences,
   useWearablePreferences,
@@ -331,6 +332,7 @@ const PERF_DIAG_SAMPLE_MS = 10_000;
 const CAMERA_RECOVERY_PROBE_EVERY_MS = 6_000;
 const CAMERA_RECOVERY_PROBE_WINDOW_MS = 2_500;
 const CAMERA_RECOVERY_MIN_SIGNAL_QUALITY = 0.55;
+const CAMERA_SIGNAL_RECOVERY_RESET_MS = 8_000;
 const WEARABLE_EMULATED_FALLBACK_DELAY_MS = 3_000;
 const WEARABLE_RECOVERY_RR_FRESH_MS = 4_000;
 
@@ -1110,6 +1112,7 @@ function CoherenceBreathScreenInner({
   const autoAbortAccumMsRef = useRef(0);
   /** Нет пальца: накопление по wall-clock (только foreground), мс. */
   const fingerAbsentWallMsRef = useRef(0);
+  const fingerRecoveredWallMsRef = useRef(0);
   /** Время ухода в `background` во время running (для логики при возврате). */
   const practiceBackgroundEnteredAtRef = useRef<number | null>(null);
   const sessionAbortHandledRef = useRef(false);
@@ -1311,6 +1314,7 @@ function CoherenceBreathScreenInner({
     }
     autoAbortAccumMsRef.current = 0;
     fingerAbsentWallMsRef.current = 0;
+    fingerRecoveredWallMsRef.current = 0;
     opticalStallAccumMsRef.current = 0;
     sessionAbortHandledRef.current = true;
     appendPulseLogMarker({
@@ -1352,6 +1356,7 @@ function CoherenceBreathScreenInner({
     setPpgOverlayMessage(null);
     autoAbortAccumMsRef.current = 0;
     fingerAbsentWallMsRef.current = 0;
+    fingerRecoveredWallMsRef.current = 0;
     opticalStallAccumMsRef.current = 0;
     sessionAbortHandledRef.current = false;
     if (nextBpm != null) {
@@ -1360,7 +1365,7 @@ function CoherenceBreathScreenInner({
     appendPulseLogMarker({
       measuredPulseRateBpm:
         source === "wearable"
-          ? (wearableRuntimeRef.current.lastHeartRateBpm ?? nextBpm ?? 0)
+          ? (nextBpm ?? wearableRuntimeRef.current.lastHeartRateBpm ?? 0)
           : (nextBpm ?? snapshotRef.current.pulseRateBpm),
       guidancePulseRateBpm: nextBpm ?? snapshotRef.current.pulseRateBpm,
       pulseReady: true,
@@ -1549,7 +1554,7 @@ function CoherenceBreathScreenInner({
     }
     switchBackToLivePulse(
       "wearable",
-      wearableRuntime.lastHeartRateBpm ?? pulseBpmLast?.bpm ?? null,
+      pulseBpmLast?.bpm ?? wearableRuntime.lastHeartRateBpm ?? null,
     );
   }, [
     emulatedFallbackSource,
@@ -1909,25 +1914,36 @@ function CoherenceBreathScreenInner({
                 );
           const liveMeasurementNow = wearableReadyForLog;
           const wearableLiveBpm = isWearableMode
-            ? (wearableRuntimeNow.lastHeartRateBpm ?? 0)
+            ? (
+                resolveWearableHeartRateBpm(
+                  wearableRuntimeNow.lastHeartRateBpm,
+                  wearableRrFresh ? event.bpm : null,
+                ) ?? 0
+              )
             : 0;
+          const cameraHoldGuidance =
+            !isWearableMode &&
+            !useEmulatedPulseModeRef.current &&
+            !liveMeasurementNow;
           let guidancePulseRateBpm =
-            event.bpm > 0
-              ? event.bpm
-              : (
-                  useEmulatedPulseModeRef.current
-                    ? (
-                        emulatedPulseSeedBpmRef.current
-                        ?? snapshotRef.current.pulseRateBpm
-                        ?? lastLoggedGuidanceBpmRef.current
-                        ?? 0
-                      )
-                    : (
-                        isWearableMode
-                          ? (snapshotRef.current.pulseRateBpm ?? event.bpm ?? lastLoggedGuidanceBpmRef.current ?? 0)
-                          : (lastLoggedGuidanceBpmRef.current ?? event.bpm ?? 0)
-                      )
-                );
+            cameraHoldGuidance
+              ? (lastLoggedGuidanceBpmRef.current || snapshotRef.current.pulseRateBpm || 0)
+              : event.bpm > 0
+                ? event.bpm
+                : (
+                    useEmulatedPulseModeRef.current
+                      ? (
+                          emulatedPulseSeedBpmRef.current
+                          ?? snapshotRef.current.pulseRateBpm
+                          ?? lastLoggedGuidanceBpmRef.current
+                          ?? 0
+                        )
+                      : (
+                          isWearableMode
+                            ? (snapshotRef.current.pulseRateBpm ?? event.bpm ?? lastLoggedGuidanceBpmRef.current ?? 0)
+                            : (lastLoggedGuidanceBpmRef.current ?? event.bpm ?? 0)
+                        )
+                  );
           if (
             isWearableMode &&
             liveMeasurementNow &&
@@ -1957,7 +1973,7 @@ function CoherenceBreathScreenInner({
             liveMeasurementNow
               ? (
                   isWearableMode
-                    ? (wearableRuntimeNow.lastHeartRateBpm ?? event.bpm)
+                    ? (wearableLiveBpm || event.bpm)
                     : event.bpm
                 )
               : 0;
@@ -2330,6 +2346,7 @@ function CoherenceBreathScreenInner({
     opticalStallAccumMsRef.current = 0;
     lastCameraTsForStallRef.current = null;
     fingerAbsentWallMsRef.current = 0;
+    fingerRecoveredWallMsRef.current = 0;
     practiceBackgroundEnteredAtRef.current = null;
   }, [phase]);
 
@@ -2523,10 +2540,18 @@ function CoherenceBreathScreenInner({
       const fingerWallTick =
         appStateNow === "active" || appStateNow === "inactive" || appStateNow === "background";
 
+      const liveCameraRecovered = fingerOk && !badSignal && lockTracking;
       if (fingerWallTick && !fingerOk) {
         fingerAbsentWallMsRef.current += 250;
+        fingerRecoveredWallMsRef.current = 0;
+      } else if (fg && liveCameraRecovered) {
+        fingerRecoveredWallMsRef.current += 250;
+        if (fingerRecoveredWallMsRef.current >= CAMERA_SIGNAL_RECOVERY_RESET_MS) {
+          fingerAbsentWallMsRef.current = 0;
+          fingerRecoveredWallMsRef.current = 0;
+        }
       } else if (fg && fingerOk) {
-        fingerAbsentWallMsRef.current = 0;
+        fingerRecoveredWallMsRef.current = 0;
       }
 
       let abortStress = false;
@@ -3211,6 +3236,25 @@ function CoherenceBreathScreenInner({
       if (allowAdvancedMetrics && pipeline.getSignalTrustSummary().level !== "full_biometrics") {
         planner.clearLastRsaCycle();
       }
+      if (
+        cameraGuidanceOnlyMode &&
+        !useEmulatedPulseModeRef.current &&
+        !isWearableMode
+      ) {
+        const nowSourceMs = pipeline.getLastSourceTimestampMs();
+        const lastFreshBeatMs = lastFreshBeatSourceTsRef.current;
+        const liveBeatAgeMs =
+          lastFreshBeatMs != null
+            ? Math.max(0, nowSourceMs - lastFreshBeatMs)
+            : Number.POSITIVE_INFINITY;
+        const cameraLiveForGuidance =
+          event.hasFreshBeat &&
+          event.bpm > 0 &&
+          liveBeatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS;
+        if (!cameraLiveForGuidance) {
+          return;
+        }
+      }
       const medianRr = event.medianRrMs;
       const instantBpm = medianRr > 0 && (event.looksCoherent || event.rrCount >= 4)
         ? 60_000 / medianRr
@@ -3244,7 +3288,15 @@ function CoherenceBreathScreenInner({
         }
       }
     });
-  }, [allowAdvancedMetrics, phase, bus, pipeline, sessionStartWallMs]);
+  }, [
+    allowAdvancedMetrics,
+    cameraGuidanceOnlyMode,
+    isWearableMode,
+    phase,
+    bus,
+    pipeline,
+    sessionStartWallMs,
+  ]);
 
   /** Подписка на coherence → подавать planner последний завершённый RSA-цикл. */
   useEffect(() => {
@@ -3565,6 +3617,7 @@ function CoherenceBreathScreenInner({
     lastCameraTsForStallRef.current = null;
     autoAbortAccumMsRef.current = 0;
     fingerAbsentWallMsRef.current = 0;
+    fingerRecoveredWallMsRef.current = 0;
     practiceBackgroundEnteredAtRef.current = null;
   }, [allowAdvancedMetrics, clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
 
@@ -3910,6 +3963,7 @@ function CoherenceBreathScreenInner({
       lastCameraTsForStallRef.current = null;
       autoAbortAccumMsRef.current = 0;
       fingerAbsentWallMsRef.current = 0;
+      fingerRecoveredWallMsRef.current = 0;
       practiceBackgroundEnteredAtRef.current = null;
       runtimeDiagnosticsStartSeqRef.current = getRuntimeDiagnosticsCurrentSeq();
       clearPpgBannerUi();
@@ -4134,12 +4188,16 @@ function CoherenceBreathScreenInner({
       pulseLogForExport && sessionStartWallMs != null
         ? summarizePulseLockTransitions(pulseLogForExport, sessionStartWallMs)
         : undefined;
+    const debugForExport: CoherenceExportDebug | undefined =
+      exportDebug != null
+        ? {
+            ...exportDebug,
+            pulseLockTransitions,
+          }
+        : undefined;
     const payload = pipeline.getCoherenceEngine().buildExportJson(analysisEndLogicalMs, {
       dataSource: isWearableMode ? "wearable" : useSimulatedPpg ? "simulated" : "fingerPpg",
-      debug: {
-        ...(exportDebug ?? {}),
-        pulseLockTransitions,
-      },
+      debug: debugForExport,
       resultOverride: analysis,
       pulseLog: pulseLogForExport,
     });
@@ -5672,6 +5730,8 @@ function ResultsView(props: {
                 unit="percent"
                 fixedMin={0}
                 fixedMax={100}
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
               />
             ) : null}
             {rsaGraphPoints.length >= 2 ? (
@@ -5680,6 +5740,8 @@ function ResultsView(props: {
                 points={rsaGraphPoints}
                 color="#a78bfa"
                 unit="bpm"
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
               />
             ) : null}
             {rmssdGraphPoints.length >= 2 ? (
@@ -5688,6 +5750,8 @@ function ResultsView(props: {
                 points={rmssdGraphPoints}
                 color="#f59e0b"
                 unit="ms"
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
               />
             ) : null}
             {stressGraphPoints.length >= 2 ? (
@@ -5698,6 +5762,8 @@ function ResultsView(props: {
                 unit="percent"
                 fixedMin={0}
                 fixedMax={100}
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
               />
             ) : null}
             {cameraGuidanceOnlyMode ? (
