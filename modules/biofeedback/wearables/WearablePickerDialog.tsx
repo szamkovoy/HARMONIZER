@@ -176,23 +176,19 @@ export function WearablePickerDialog({
           ) : null}
           <View style={[styles.actions, showNotFoundTips ? styles.actionsAfterTips : null]}>
             {showRetryButton ? (
-              <View style={styles.actionButtonWrap}>
-                <AppButton
-                  variant="primary"
-                  label={strings.retryButton}
-                  onPress={() => setScanAttempt((value) => value + 1)}
-                  style={styles.actionButtonFill}
-                />
-              </View>
-            ) : null}
-            <View style={showRetryButton ? styles.actionButtonWrap : undefined}>
               <AppButton
-                variant="secondary"
-                label={strings.closeButton}
-                onPress={onClose}
-                style={showRetryButton ? styles.actionButtonFill : styles.actionButtonSolo}
+                variant="primary"
+                label={strings.retryButton}
+                onPress={() => setScanAttempt((value) => value + 1)}
+                style={styles.actionButtonEqual}
               />
-            </View>
+            ) : null}
+            <AppButton
+              variant="secondary"
+              label={strings.closeButton}
+              onPress={onClose}
+              style={showRetryButton ? styles.actionButtonEqual : styles.actionButtonSolo}
+            />
           </View>
         </View>
       </View>
@@ -235,6 +231,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
+    alignItems: "stretch",
     gap: 8,
     flexWrap: "nowrap",
   },
@@ -244,12 +241,10 @@ const styles = StyleSheet.create({
   notFoundTips: {
     marginBottom: 0,
   },
-  actionButtonWrap: {
+  actionButtonEqual: {
     flex: 1,
+    flexBasis: 0,
     minWidth: 0,
-  },
-  actionButtonFill: {
-    width: "100%",
   },
   actionButtonSolo: {
     alignSelf: "flex-start",
