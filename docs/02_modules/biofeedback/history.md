@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-01 (6):** `BleHeartRateSource` schedules another reconnect after a failed connect attempt; wearable picker not-found buttons share equal width via flex wrappers.
+
 - **2026-07-01 (5):** Wearable picker hides the retry button during an active scan and restores the two-button row only after not-found; tips-to-actions spacing matches tips-to-body spacing.
 
 - **2026-07-01 (4):** `WearablePickerDialog` not-found state: tips use `dialogBody`, retry is `variant="primary"` on the same row as Close, and breath measured-pulse live detection now keys off stale RR for Polar `guidedOnly` as well as `fullMetrics`.

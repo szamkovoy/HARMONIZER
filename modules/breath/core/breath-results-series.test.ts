@@ -4,6 +4,9 @@ import {
   applyPulseChartVerticalSteps,
   bridgeSeriesAcrossNonLiveGaps,
   buildPulseSeriesFromLog,
+  collectGuidancePulseHighlightIntervals,
+  collectMeasuredPulseHighlightIntervals,
+  collectSharedPulseHighlightIntervals,
   filterIsolatedMetricSpikes,
   filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
@@ -167,5 +170,25 @@ describe("breath-results-series", () => {
     ]);
     expect(segments.length).toBe(1);
     expect(segments[0]!.map((point) => point.value)).toEqual([72, 71]);
+  });
+
+  it("uses the same highlight intervals for measured and guidance pulse charts", () => {
+    const start = 1_000;
+    const log = [
+      entry(start + 1_000, { measuredPulseRateBpm: 74, guidancePulseRateBpm: 74, pulseReady: true }),
+      entry(start + 4_000, {
+        measuredPulseRateBpm: 0,
+        guidancePulseRateBpm: 70,
+        pulseReady: false,
+        interpolationHoldActive: true,
+        lastBeatAgeMs: 4_000,
+      }),
+      entry(start + 7_000, { measuredPulseRateBpm: 76, guidancePulseRateBpm: 76, pulseReady: true }),
+    ];
+    const measured = collectMeasuredPulseHighlightIntervals(log, start);
+    const guidance = collectGuidancePulseHighlightIntervals(log, start);
+    const shared = collectSharedPulseHighlightIntervals(log, start);
+    expect(measured).toEqual(guidance);
+    expect(measured).toEqual(shared);
   });
 });

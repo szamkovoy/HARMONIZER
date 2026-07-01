@@ -149,9 +149,10 @@ export function BleHeartRateSource({
       reconnectTimer = setTimeout(() => {
         if (!disposed) {
           void connect().catch((connectError: unknown) => {
-            emitSnapshot("failed", {
-              errorMessage: connectError instanceof Error ? connectError.message : String(connectError),
-            });
+            scheduleReconnect(
+              "failed",
+              connectError instanceof Error ? connectError.message : String(connectError),
+            );
           });
         }
       }, RECONNECT_DELAY_MS);

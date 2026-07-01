@@ -111,15 +111,19 @@ export function collectMeasuredPulseHighlightIntervals(
   entries: readonly CoherencePulseLogEntry[],
   sessionStartWallMs: number,
 ): NonLiveInterval[] {
-  return collectFlaggedIntervalsFromLog(
-    entries,
-    sessionStartWallMs,
-    (entry) => entry.emulatedActive || !isPulseLogEntryLiveForMeasurement(entry),
-  );
+  return collectSharedPulseHighlightIntervals(entries, sessionStartWallMs);
 }
 
-/** Segments where guidance used hold/emulated pacing instead of live beats. */
+/** Same intervals as measured — marks hold/emulated/non-live guidance segments. */
 export function collectGuidancePulseHighlightIntervals(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+): NonLiveInterval[] {
+  return collectSharedPulseHighlightIntervals(entries, sessionStartWallMs);
+}
+
+/** Shared pulse-chart shading for any non-live / hold / emulated window. */
+export function collectSharedPulseHighlightIntervals(
   entries: readonly CoherencePulseLogEntry[],
   sessionStartWallMs: number,
 ): NonLiveInterval[] {
@@ -128,10 +132,8 @@ export function collectGuidancePulseHighlightIntervals(
     sessionStartWallMs,
     (entry) =>
       entry.emulatedActive ||
-      (
-        entry.interpolationHoldActive === true &&
-        !isPulseLogEntryLiveForMeasurement(entry)
-      ),
+      entry.interpolationHoldActive === true ||
+      !isPulseLogEntryLiveForMeasurement(entry),
   );
 }
 

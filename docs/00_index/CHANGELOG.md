@@ -18,6 +18,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-07-01 (6): `biofeedback` / `practices` — align pulse-chart highlight bands on a fixed session timeline, retry BLE reconnect after failed connect, show interpretation when partial metric series exist, equal-width wearable not-found buttons.
 - 2026-07-01 (5): `practices` / `biofeedback` — fix missing breath pulse chart lines after decimation (segment split only at zero samples, not sampling interval); wearable search shows Close-only while scanning.
 - 2026-07-01 (4): `biofeedback` / `practices` — measured vs guidance breath pulse charts diverge correctly (measured breaks/shades non-live gaps; guidance keeps hold/emulated pacing with spike filtering), BLE guidedOnly stale RR zeroes measured pulse, export adds `pulseLockTransitions`, BLE prep fades via the shared black curtain, and wearable not-found dialog uses primary retry in one row.
 - 2026-07-01 (3): `biofeedback` / `practices` — breath chart rendering now uses vertical steps at pulse-loss plateaus, filters isolated RMSSD/stress/RSA spikes during strap-off garbage beats, skips RSA gap-bridging that caused false flatlines, removes BLE prep→practice UI flash, and fixes interpretation timeout leaving the loading state stuck forever.

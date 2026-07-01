@@ -1532,13 +1532,17 @@ function CoherenceBreathScreenInner({
     ) {
       return;
     }
+    const hadRr = (wearableRuntime.rrPacketCount ?? 0) > 0;
     const rrRecovered =
-      wearableCapabilityTier === "fullMetrics" &&
+      wearableRuntime.state === "ready" &&
+      wearableRuntime.sensorContactDetected !== false &&
+      hadRr &&
       wearableRuntime.lastRrAtMs != null &&
       Date.now() - wearableRuntime.lastRrAtMs <= WEARABLE_RECOVERY_RR_FRESH_MS;
     const heartRateRecovered =
-      wearableCapabilityTier === "guidedOnly" &&
       wearableRuntime.state === "ready" &&
+      wearableRuntime.sensorContactDetected !== false &&
+      !hadRr &&
       (wearableRuntime.lastHeartRateBpm ?? 0) > 0;
     if (!rrRecovered && !heartRateRecovered) {
       return;
@@ -1554,9 +1558,10 @@ function CoherenceBreathScreenInner({
     pulseBpmLast?.bpm,
     switchBackToLivePulse,
     useEmulatedPulseMode,
-    wearableCapabilityTier,
     wearableRuntime.lastHeartRateBpm,
     wearableRuntime.lastRrAtMs,
+    wearableRuntime.rrPacketCount,
+    wearableRuntime.sensorContactDetected,
     wearableRuntime.state,
   ]);
 
@@ -1903,6 +1908,9 @@ function CoherenceBreathScreenInner({
                   event.bpm > 0
                 );
           const liveMeasurementNow = wearableReadyForLog;
+          const wearableLiveBpm = isWearableMode
+            ? (wearableRuntimeNow.lastHeartRateBpm ?? 0)
+            : 0;
           let guidancePulseRateBpm =
             event.bpm > 0
               ? event.bpm
@@ -1920,6 +1928,17 @@ function CoherenceBreathScreenInner({
                           : (lastLoggedGuidanceBpmRef.current ?? event.bpm ?? 0)
                       )
                 );
+          if (
+            isWearableMode &&
+            liveMeasurementNow &&
+            wearableLiveBpm > 0 &&
+            (
+              guidancePulseRateBpm <= 0 ||
+              Math.abs(guidancePulseRateBpm - wearableLiveBpm) > 8
+            )
+          ) {
+            guidancePulseRateBpm = wearableLiveBpm;
+          }
           if (guidancePulseRateBpm > 0) {
             guidancePulseRateBpm = sanitizeBreathGuidanceBpm(
               guidancePulseRateBpm,
@@ -4985,8 +5004,20 @@ function ResultsMetricChart(props: {
   fixedMin?: number;
   fixedMax?: number;
   highlightIntervals?: readonly NonLiveInterval[];
+  domainStartMs?: number;
+  domainEndMs?: number;
 }) {
-  const { title, points, color, unit, fixedMin, fixedMax, highlightIntervals = [] } = props;
+  const {
+    title,
+    points,
+    color,
+    unit,
+    fixedMin,
+    fixedMax,
+    highlightIntervals = [],
+    domainStartMs = 0,
+    domainEndMs,
+  } = props;
   const chartPoints = useMemo(() => decimateSeries(points, 120), [points]);
   const lineSegments = useMemo(
     () => splitPulseChartSeriesSegments(chartPoints),
@@ -5010,11 +5041,11 @@ function ResultsMetricChart(props: {
       min = center - 1;
       max = center + 1;
     }
-    const startMs = chartPoints[0]!.tMs;
-    const endMs = chartPoints[chartPoints.length - 1]!.tMs;
-    const durationMs = Math.max(1, endMs - startMs);
+    const chartEndMs = domainEndMs ?? chartPoints[chartPoints.length - 1]!.tMs;
+    const chartStartMs = domainStartMs;
+    const durationMs = Math.max(1, chartEndMs - chartStartMs);
     const xForTime = (tMs: number) =>
-      padX + ((tMs - startMs) / durationMs) * (width - padX * 2);
+      padX + ((tMs - chartStartMs) / durationMs) * (width - padX * 2);
     const yForValue = (value: number) =>
       padY + (1 - (value - min) / (max - min)) * (height - padY * 2);
     const segmentsAttr = lineSegments.map((segment) =>
@@ -5023,24 +5054,24 @@ function ResultsMetricChart(props: {
         .join(" "),
     );
     const highlights = highlightIntervals
-      .filter((gap) => gap.endMs > startMs && gap.startMs < endMs)
+      .filter((gap) => gap.endMs > chartStartMs && gap.startMs < chartEndMs)
       .map((gap) => ({
-        x1: xForTime(Math.max(gap.startMs, startMs)),
-        x2: xForTime(Math.min(gap.endMs, endMs)),
+        x1: xForTime(Math.max(gap.startMs, chartStartMs)),
+        x2: xForTime(Math.min(gap.endMs, chartEndMs)),
       }));
     return {
       width,
       height,
       min,
       max,
-      durationMs: endMs,
+      durationMs: chartEndMs,
       segmentsAttr,
       highlights,
       midY: height / 2,
       topY: padY,
       bottomY: height - padY,
     };
-  }, [chartPoints, fixedMax, fixedMin, highlightIntervals, lineSegments]);
+  }, [chartPoints, domainEndMs, domainStartMs, fixedMax, fixedMin, highlightIntervals, lineSegments, unit]);
   if (geometry == null || summary == null) return null;
   return (
     <View style={styles.resultChartCard}>
@@ -5263,13 +5294,18 @@ function ResultsView(props: {
   );
   const canRequestInterpretation =
     !cameraGuidanceOnlyMode &&
-    !finalPulseWasEmulated &&
-    [
-      analysis?.coherenceAveragePercent,
-      analysis?.rsaAmplitudeBpm,
-      finalRmssdMs,
-      finalStressPercent,
-    ].some((value) => value != null);
+    (
+      [
+        analysis?.coherenceAveragePercent,
+        analysis?.rsaAmplitudeBpm,
+        finalRmssdMs,
+        finalStressPercent,
+      ].some((value) => value != null) ||
+      coherenceGraphPoints.length >= 2 ||
+      rmssdGraphPoints.length >= 2 ||
+      rsaGraphPoints.length >= 2 ||
+      stressGraphPoints.length >= 2
+    );
 
   const buildOutcome = useCallback((): BreathPracticeOutcome => {
     const summary: BreathPracticeSummary = {
@@ -5613,6 +5649,8 @@ function ResultsView(props: {
                 color="#60a5fa"
                 unit="bpm"
                 highlightIntervals={measuredPulseHighlights}
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
               />
             ) : null}
             {showSeparateGuidancePulseGraph && guidancePulseGraphPoints.length >= 2 ? (
@@ -5622,6 +5660,8 @@ function ResultsView(props: {
                 color="#34d399"
                 unit="bpm"
                 highlightIntervals={guidancePulseHighlights}
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
               />
             ) : null}
             {coherenceGraphPoints.length >= 2 ? (

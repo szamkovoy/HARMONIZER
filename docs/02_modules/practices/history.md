@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-01 (6):** Pulse chart shading now uses one shared non-live interval on measured and guidance graphs with a fixed 0…session-duration time axis; BLE reconnect retries after failed connect instead of stopping at `failed`; interpretation button appears when partial metric series exist even if the session ended emulated.
+
 - **2026-07-01 (5):** Breath results pulse polylines disappeared after decimation because segment splitting treated ~2.5 s chart sampling as signal loss; charts now break only at zero measured samples. Wearable search hides «Повторить поиск» while scanning.
 
 - **2026-07-01 (4):** Breath results pulse charts now split measured vs guidance data at the source: measured series breaks on non-live samples and highlights gap bands with vertical edges + translucent shading; guidance keeps hold/emulated pacing and filters isolated BPM spikes before they reach the planner. BLE `guidedOnly` sessions treat stale RR the same as `fullMetrics` when RR was ever seen, JSON export adds `debug.pulseLockTransitions`, BLE prep uses the shared black-curtain fade into practice, and the wearable not-found dialog puts primary retry + close on one row.
