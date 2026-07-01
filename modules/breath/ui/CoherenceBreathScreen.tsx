@@ -4999,9 +4999,12 @@ function ResultsMetricChart(props: {
     const height = 96;
     const padX = 10;
     const padY = 8;
-    const values = chartPoints.map((point) => point.value);
-    let min = fixedMin ?? Math.min(...values);
-    let max = fixedMax ?? Math.max(...values);
+    const values = chartPoints
+      .map((point) => point.value)
+      .filter((value) => (unit === "bpm" ? value > 0.5 : Number.isFinite(value)));
+    const scaleValues = values.length > 0 ? values : chartPoints.map((point) => point.value);
+    let min = fixedMin ?? Math.min(...scaleValues);
+    let max = fixedMax ?? Math.max(...scaleValues);
     if (!(max > min)) {
       const center = max || min || 0;
       min = center - 1;

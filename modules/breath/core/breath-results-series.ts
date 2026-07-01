@@ -379,9 +379,7 @@ export function filterIsolatedMetricSpikes(
   return sorted.filter((_, index) => keep[index]);
 }
 
-const SERIES_SEGMENT_BREAK_MS = 1_500;
-
-/** Split a series into drawable segments (breaks where samples are sparse or values are zero). */
+/** Split a series into drawable segments (break at zero = missing measurement). */
 export function splitPulseChartSeriesSegments(
   points: readonly BreathResultsSeriesPoint[],
 ): BreathResultsSeriesPoint[][] {
@@ -394,11 +392,6 @@ export function splitPulseChartSeriesSegments(
       if (current.length >= 2) segments.push(current);
       current = [];
       continue;
-    }
-    const prev = current[current.length - 1];
-    if (prev != null && point.tMs - prev.tMs > SERIES_SEGMENT_BREAK_MS) {
-      if (current.length >= 2) segments.push(current);
-      current = [];
     }
     current.push(point);
   }

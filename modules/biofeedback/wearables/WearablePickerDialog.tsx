@@ -94,6 +94,10 @@ export function WearablePickerDialog({
         : searchFinished
           ? strings.notFoundHint
           : strings.searchHint;
+  const showNotFoundTips =
+    searchFinished && scannedWearables.length === 0 && strings.notFoundTips != null;
+  const showRetryButton =
+    showNotFoundTips && bluetoothState === "PoweredOn" && scanState !== "scanning";
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
@@ -118,7 +122,7 @@ export function WearablePickerDialog({
           <AppText variant="dialogBody" tone="muted">
             {bodyMessage}
           </AppText>
-          {searchFinished && scannedWearables.length === 0 && strings.notFoundTips ? (
+          {showNotFoundTips ? (
             <AppText variant="dialogBody" tone="muted" style={styles.notFoundTips}>
               {strings.notFoundTips}
             </AppText>
@@ -170,18 +174,20 @@ export function WearablePickerDialog({
               ))}
             </View>
           ) : null}
-          <View style={styles.actions}>
-            <AppButton
-              variant="primary"
-              label={strings.retryButton}
-              onPress={() => setScanAttempt((value) => value + 1)}
-              style={styles.actionButton}
-            />
+          <View style={[styles.actions, showNotFoundTips ? styles.actionsAfterTips : null]}>
+            {showRetryButton ? (
+              <AppButton
+                variant="primary"
+                label={strings.retryButton}
+                onPress={() => setScanAttempt((value) => value + 1)}
+                style={styles.actionButton}
+              />
+            ) : null}
             <AppButton
               variant="secondary"
               label={strings.closeButton}
               onPress={onClose}
-              style={styles.actionButton}
+              style={showRetryButton ? styles.actionButton : styles.actionButtonSolo}
             />
           </View>
         </View>
@@ -227,7 +233,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     flexWrap: "nowrap",
-    marginTop: 0,
+  },
+  actionsAfterTips: {
+    marginTop: 12,
   },
   notFoundTips: {
     marginBottom: 0,
@@ -235,5 +243,9 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     minWidth: 0,
+  },
+  actionButtonSolo: {
+    alignSelf: "flex-start",
+    minWidth: 140,
   },
 });

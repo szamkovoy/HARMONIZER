@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-01 (5):** Breath results pulse polylines disappeared after decimation because segment splitting treated ~2.5 s chart sampling as signal loss; charts now break only at zero measured samples. Wearable search hides «Повторить поиск» while scanning.
+
 - **2026-07-01 (4):** Breath results pulse charts now split measured vs guidance data at the source: measured series breaks on non-live samples and highlights gap bands with vertical edges + translucent shading; guidance keeps hold/emulated pacing and filters isolated BPM spikes before they reach the planner. BLE `guidedOnly` sessions treat stale RR the same as `fullMetrics` when RR was ever seen, JSON export adds `debug.pulseLockTransitions`, BLE prep uses the shared black-curtain fade into practice, and the wearable not-found dialog puts primary retry + close on one row.
 
 - **2026-07-01 (3):** BLE prep→practice transition no longer flashes the full sensor-activation screen for one frame; RMSSD/stress/RSA result charts drop single-point garbage spikes from off-body beats, RSA stops bridging across signal-loss gaps, and camera/BLE measured pulse charts render vertical edges at zero plateaus so loss duration reads correctly.

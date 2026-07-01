@@ -8,6 +8,7 @@ import {
   filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
   sanitizeBreathGuidanceBpm,
+  splitPulseChartSeriesSegments,
   type NonLiveInterval,
   RSA_RESULTS_OUTLIER_BPM,
 } from "@/modules/breath/core/breath-results-series";
@@ -145,5 +146,26 @@ describe("breath-results-series", () => {
       { tMs: 15000, value: 20 },
     ]);
     expect(filtered.map((point) => point.value)).toEqual([20, 20, 20]);
+  });
+
+  it("keeps decimated pulse chart segments drawable", () => {
+    const points = Array.from({ length: 120 }, (_, index) => ({
+      tMs: index * 2_500,
+      value: 60 + index * 0.1,
+    }));
+    const segments = splitPulseChartSeriesSegments(points);
+    expect(segments.length).toBe(1);
+    expect(segments[0]!.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("omits zero samples from pulse chart segments", () => {
+    const segments = splitPulseChartSeriesSegments([
+      { tMs: 0, value: 70 },
+      { tMs: 1_000, value: 0 },
+      { tMs: 2_000, value: 72 },
+      { tMs: 3_000, value: 71 },
+    ]);
+    expect(segments.length).toBe(1);
+    expect(segments[0]!.map((point) => point.value)).toEqual([72, 71]);
   });
 });
