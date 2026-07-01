@@ -14,25 +14,32 @@ export const RSA_RESULTS_OUTLIER_BPM = 20;
 
 const NON_LIVE_WEARABLE_STATES = new Set(["signalLost", "disconnected", "failed", "reconnecting"]);
 
+/** Shared wearable live-measurement gate (Polar RR freshness when RR was ever seen). */
+export function isWearableLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry): boolean {
+  if (entry.wearableSensorContactDetected === false) return false;
+  if (entry.wearableState != null && NON_LIVE_WEARABLE_STATES.has(entry.wearableState)) {
+    return false;
+  }
+  const measured =
+    entry.measuredPulseRateBpm
+    ?? entry.wearableHeartRateBpm
+    ?? entry.pulseRateBpm
+    ?? 0;
+  if (!(entry.pulseReady && measured > 0)) return false;
+  const rrAgeMs = entry.wearableLastRrAgeMs;
+  const hadRr = (entry.wearableRrPacketCount ?? 0) > 0 || rrAgeMs != null;
+  if (hadRr && (rrAgeMs == null || rrAgeMs > WEARABLE_LIVE_RR_FRESH_MS)) {
+    return false;
+  }
+  return true;
+}
+
 export function isPulseLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry): boolean {
   if (entry.emulatedActive) return false;
   const wearableLike =
     entry.pulseSource === "wearable" || entry.wearableState != null;
   if (wearableLike) {
-    if (entry.wearableSensorContactDetected === false) return false;
-    if (entry.wearableState != null && NON_LIVE_WEARABLE_STATES.has(entry.wearableState)) {
-      return false;
-    }
-    if (entry.wearableCapabilityTier === "fullMetrics") {
-      const rrAgeMs = entry.wearableLastRrAgeMs;
-      if (rrAgeMs == null || rrAgeMs > WEARABLE_LIVE_RR_FRESH_MS) return false;
-    }
-    const measured =
-      entry.measuredPulseRateBpm
-      ?? entry.wearableHeartRateBpm
-      ?? entry.pulseRateBpm
-      ?? 0;
-    return entry.pulseReady && measured > 0;
+    return isWearableLogEntryLiveForMeasurement(entry);
   }
   const beatAgeMs = entry.lastBeatAgeMs;
   if (beatAgeMs != null && beatAgeMs > BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS) {
@@ -71,6 +78,61 @@ export function collectNonLiveIntervalsFromLog(
     intervals.push({ startMs: openStart, endMs: lastT });
   }
   return intervals;
+}
+
+function collectFlaggedIntervalsFromLog(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+  isInside: (entry: CoherencePulseLogEntry) => boolean,
+): NonLiveInterval[] {
+  const intervals: NonLiveInterval[] = [];
+  let openStart: number | null = null;
+  for (const entry of entries) {
+    const tMs = Math.max(0, entry.wallClockMs - sessionStartWallMs);
+    if (isInside(entry)) {
+      if (openStart == null) openStart = tMs;
+    } else if (openStart != null) {
+      intervals.push({ startMs: openStart, endMs: tMs });
+      openStart = null;
+    }
+  }
+  if (openStart != null && entries.length > 0) {
+    const lastT = Math.max(
+      0,
+      entries[entries.length - 1]!.wallClockMs - sessionStartWallMs,
+    );
+    intervals.push({ startMs: openStart, endMs: lastT });
+  }
+  return intervals;
+}
+
+/** Gaps where measured pulse was not live (camera hold, BLE stale RR, emulated). */
+export function collectMeasuredPulseHighlightIntervals(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+): NonLiveInterval[] {
+  return collectFlaggedIntervalsFromLog(
+    entries,
+    sessionStartWallMs,
+    (entry) => entry.emulatedActive || !isPulseLogEntryLiveForMeasurement(entry),
+  );
+}
+
+/** Segments where guidance used hold/emulated pacing instead of live beats. */
+export function collectGuidancePulseHighlightIntervals(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+): NonLiveInterval[] {
+  return collectFlaggedIntervalsFromLog(
+    entries,
+    sessionStartWallMs,
+    (entry) =>
+      entry.emulatedActive ||
+      (
+        entry.interpolationHoldActive === true &&
+        !isPulseLogEntryLiveForMeasurement(entry)
+      ),
+  );
 }
 
 function rawMeasuredValue(entry: CoherencePulseLogEntry): number {
@@ -114,23 +176,17 @@ export function buildPulseSeriesFromLog(
 
     let value: number;
     if (mode === "measured") {
-      if (entry.emulatedActive) {
+      if (entry.emulatedActive || !live) {
         value = 0;
-      } else if (live) {
-        value = measuredRaw;
       } else {
-        const wearableLike =
-          entry.pulseSource === "wearable" || entry.wearableState != null;
-        value = wearableLike
-          ? 0
-          : (lastLiveMeasured > 0 ? lastLiveMeasured : 0);
+        value = measuredRaw;
       }
     } else if (entry.emulatedActive) {
       value = guidanceRaw > 0 ? guidanceRaw : (lastLiveGuidance > 0 ? lastLiveGuidance : 0);
     } else if (live) {
       value = guidanceRaw;
     } else {
-      value = lastLiveGuidance > 0 ? lastLiveGuidance : (guidanceRaw > 0 ? guidanceRaw : 0);
+      value = guidanceRaw > 0 ? guidanceRaw : (lastLiveGuidance > 0 ? lastLiveGuidance : 0);
     }
 
     if (!Number.isFinite(value)) continue;
@@ -323,13 +379,117 @@ export function filterIsolatedMetricSpikes(
   return sorted.filter((_, index) => keep[index]);
 }
 
+const SERIES_SEGMENT_BREAK_MS = 1_500;
+
+/** Split a series into drawable segments (breaks where samples are sparse or values are zero). */
+export function splitPulseChartSeriesSegments(
+  points: readonly BreathResultsSeriesPoint[],
+): BreathResultsSeriesPoint[][] {
+  if (points.length === 0) return [];
+  const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+  const segments: BreathResultsSeriesPoint[][] = [];
+  let current: BreathResultsSeriesPoint[] = [];
+  for (const point of sorted) {
+    if (isNearZero(point.value)) {
+      if (current.length >= 2) segments.push(current);
+      current = [];
+      continue;
+    }
+    const prev = current[current.length - 1];
+    if (prev != null && point.tMs - prev.tMs > SERIES_SEGMENT_BREAK_MS) {
+      if (current.length >= 2) segments.push(current);
+      current = [];
+    }
+    current.push(point);
+  }
+  if (current.length >= 2) segments.push(current);
+  return segments;
+}
+
+/** Reject single-tick BPM spikes fed into breath guidance / planner. */
+export function sanitizeBreathGuidanceBpm(
+  candidate: number,
+  previous: number | null | undefined,
+  options?: {
+    maxStepBpm?: number;
+    minSpikeDelta?: number;
+    recentAccepted?: readonly number[];
+  },
+): number {
+  if (!(candidate > 0) || !Number.isFinite(candidate)) return candidate;
+  if (previous == null || !(previous > 0)) return candidate;
+  const maxStep = options?.maxStepBpm ?? 6;
+  const minSpikeDelta = options?.minSpikeDelta ?? 3.5;
+  const delta = candidate - previous;
+  const recent = (options?.recentAccepted ?? []).filter((value) => value > 0);
+  if (recent.length >= 2) {
+    const spread = Math.max(...recent) - Math.min(...recent);
+    const jump = Math.abs(candidate - previous);
+    if (spread <= 3 && jump >= minSpikeDelta) {
+      return previous;
+    }
+  }
+  if (Math.abs(delta) >= minSpikeDelta && Math.abs(delta) > maxStep) {
+    return previous + Math.sign(delta) * maxStep;
+  }
+  return candidate;
+}
+
 export function buildMeasuredPulseChartSeries(
   entries: readonly CoherencePulseLogEntry[],
   sessionStartWallMs: number,
   totalMs: number,
 ): BreathResultsSeriesPoint[] {
   const base = buildPulseSeriesFromLog(entries, sessionStartWallMs, "measured");
-  const withSteps = applyPulseChartVerticalSteps(base);
-  const withoutSpikes = filterIsolatedMetricSpikes(withSteps, { minSpikeDelta: 5, maxNeighborDelta: 3 });
+  const withoutSpikes = filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 });
   return preparePulseSeriesForDisplay(withoutSpikes, totalMs);
+}
+
+export function buildGuidancePulseChartSeries(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+  totalMs: number,
+): BreathResultsSeriesPoint[] {
+  const base = buildPulseSeriesFromLog(entries, sessionStartWallMs, "guidance");
+  const withoutSpikes = filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 });
+  return preparePulseSeriesForDisplay(withoutSpikes, totalMs);
+}
+
+export function summarizePulseLockTransitions(
+  entries: readonly CoherencePulseLogEntry[],
+  sessionStartWallMs: number,
+): Array<{
+  tSec: number;
+  from: string | null;
+  to: string;
+  fingerDetected: boolean | null;
+  liveMeasurementActive: boolean | null;
+  interpolationHoldActive: boolean | null;
+  emulatedActive: boolean | null;
+}> {
+  const transitions: Array<{
+    tSec: number;
+    from: string | null;
+    to: string;
+    fingerDetected: boolean | null;
+    liveMeasurementActive: boolean | null;
+    interpolationHoldActive: boolean | null;
+    emulatedActive: boolean | null;
+  }> = [];
+  let prevLock: string | null = null;
+  for (const entry of entries) {
+    const lock = entry.pulseLockState ?? "unknown";
+    if (lock === prevLock) continue;
+    transitions.push({
+      tSec: Math.round(Math.max(0, entry.wallClockMs - sessionStartWallMs) / 100) / 10,
+      from: prevLock,
+      to: lock,
+      fingerDetected: entry.fingerDetected ?? null,
+      liveMeasurementActive: entry.liveMeasurementActive ?? null,
+      interpolationHoldActive: entry.interpolationHoldActive ?? null,
+      emulatedActive: entry.emulatedActive ?? null,
+    });
+    prevLock = lock;
+  }
+  return transitions;
 }

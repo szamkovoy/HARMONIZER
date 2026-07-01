@@ -7,6 +7,7 @@ import {
   filterIsolatedMetricSpikes,
   filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
+  sanitizeBreathGuidanceBpm,
   type NonLiveInterval,
   RSA_RESULTS_OUTLIER_BPM,
 } from "@/modules/breath/core/breath-results-series";
@@ -34,15 +35,17 @@ function entry(
 }
 
 describe("breath-results-series", () => {
-  it("holds camera measured pulse across short gaps", () => {
+  it("zeros camera measured pulse during short non-live gaps", () => {
     const start = 1_000;
     const log = [
       entry(start + 1_000, { measuredPulseRateBpm: 74, guidancePulseRateBpm: 74, pulseReady: true }),
-      entry(start + 4_000, { measuredPulseRateBpm: 0, guidancePulseRateBpm: 70, pulseReady: false }),
+      entry(start + 4_000, { measuredPulseRateBpm: 0, guidancePulseRateBpm: 70, pulseReady: false, lastBeatAgeMs: 4_000 }),
       entry(start + 7_000, { measuredPulseRateBpm: 76, guidancePulseRateBpm: 76, pulseReady: true }),
     ];
     const measured = buildPulseSeriesFromLog(log, start, "measured");
-    expect(measured.map((point) => point.value)).toEqual([74, 74, 76]);
+    expect(measured.map((point) => point.value)).toEqual([74, 0, 76]);
+    const guidance = buildPulseSeriesFromLog(log, start, "guidance");
+    expect(guidance.map((point) => point.value)).toEqual([74, 70, 76]);
   });
 
   it("zeros measured pulse during emulated camera loss", () => {
@@ -64,10 +67,11 @@ describe("breath-results-series", () => {
     const sample = entry(1_000, {
       pulseSource: "wearable",
       wearableState: "ready",
-      wearableCapabilityTier: "fullMetrics",
+      wearableCapabilityTier: "guidedOnly",
       wearableHeartRateBpm: 84,
       measuredPulseRateBpm: 84,
       wearableLastRrAgeMs: 9_000,
+      wearableRrPacketCount: 12,
       pulseReady: true,
     });
     expect(isPulseLogEntryLiveForMeasurement(sample)).toBe(false);
@@ -101,7 +105,14 @@ describe("breath-results-series", () => {
       entry(4_000, { measuredPulseRateBpm: 63, guidancePulseRateBpm: 63, pulseReady: true, lastBeatAgeMs: 4_000 }),
     ];
     const measured = buildPulseSeriesFromLog(log, 0, "measured");
-    expect(measured[1]?.value).toBe(70);
+    expect(measured[1]?.value).toBe(0);
+  });
+
+  it("rejects isolated realtime guidance spikes", () => {
+    const filtered = sanitizeBreathGuidanceBpm(82.5, 79, {
+      recentAccepted: [78.8, 79, 79.4],
+    });
+    expect(filtered).toBe(79);
   });
 
   it("filters RSA outliers from metric charts", () => {

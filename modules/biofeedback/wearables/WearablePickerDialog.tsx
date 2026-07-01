@@ -119,7 +119,7 @@ export function WearablePickerDialog({
             {bodyMessage}
           </AppText>
           {searchFinished && scannedWearables.length === 0 && strings.notFoundTips ? (
-            <AppText variant="technicalCaption" tone="muted">
+            <AppText variant="dialogBody" tone="muted" style={styles.notFoundTips}>
               {strings.notFoundTips}
             </AppText>
           ) : null}
@@ -172,7 +172,7 @@ export function WearablePickerDialog({
           ) : null}
           <View style={styles.actions}>
             <AppButton
-              variant="secondary"
+              variant="primary"
               label={strings.retryButton}
               onPress={() => setScanAttempt((value) => value + 1)}
               style={styles.actionButton}
@@ -226,9 +226,14 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     gap: 8,
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
+    marginTop: 0,
+  },
+  notFoundTips: {
+    marginBottom: 0,
   },
   actionButton: {
-    minWidth: 140,
+    flex: 1,
+    minWidth: 0,
   },
 });

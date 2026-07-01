@@ -830,6 +830,16 @@ export type CoherenceExportDebug = {
     name: string;
     data?: Record<string, unknown>;
   }[];
+  /** Сводка смен `pulseLockState` (Searching/Holding/Tracking) с контекстом live/hold/emulated. */
+  pulseLockTransitions?: readonly {
+    tSec: number;
+    from: string | null;
+    to: string;
+    fingerDetected: boolean | null;
+    liveMeasurementActive: boolean | null;
+    interpolationHoldActive: boolean | null;
+    emulatedActive: boolean | null;
+  }[];
 };
 
 export function buildCoherenceExportJson(

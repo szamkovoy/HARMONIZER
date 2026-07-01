@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated as RNAnimated,
   AppState,
@@ -32,7 +33,7 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Line, Polyline } from "react-native-svg";
+import Svg, { Line, Polyline, Rect } from "react-native-svg";
 
 import {
   getBatteryLevelPct,
@@ -105,17 +106,22 @@ import {
 } from "@/modules/breath/core/breath-session-signal-policy";
 import {
   bridgeSeriesAcrossNonLiveGaps,
+  buildGuidancePulseChartSeries,
   buildMeasuredPulseChartSeries,
-  buildPulseSeriesFromLog,
+  collectGuidancePulseHighlightIntervals,
+  collectMeasuredPulseHighlightIntervals,
   collectNonLiveIntervalsFromLog,
   filterIsolatedMetricSpikes,
   filterOutlierMetricPoints,
   isPulseLogEntryLiveForMeasurement,
-  preparePulseSeriesForDisplay,
   prepareSeriesForDisplay,
   RSA_RESULTS_OUTLIER_BPM,
+  sanitizeBreathGuidanceBpm,
+  summarizePulseLockTransitions,
   WEARABLE_LIVE_RR_FRESH_MS,
   type BreathResultsSeriesPoint,
+  splitPulseChartSeriesSegments,
+  type NonLiveInterval,
 } from "@/modules/breath/core/breath-results-series";
 import {
   DEBUG_ACTIVATION_EXPORT_ENABLED,
@@ -423,6 +429,8 @@ type BreathResultsSeriesSummary = {
 type BreathResultsGraphsSnapshot = {
   measuredPulseBpm: BreathResultsSeriesPoint[];
   guidancePulseBpm: BreathResultsSeriesPoint[];
+  measuredPulseHighlights: NonLiveInterval[];
+  guidancePulseHighlights: NonLiveInterval[];
   coherencePercent: BreathResultsSeriesPoint[];
   rmssdMs: BreathResultsSeriesPoint[];
   stressPercent: BreathResultsSeriesPoint[];
@@ -989,6 +997,7 @@ function CoherenceBreathScreenInner({
   const lastPulseLogWallClockRef = useRef(0);
   const lastLoggedMeasuredBpmRef = useRef(0);
   const lastLoggedGuidanceBpmRef = useRef(0);
+  const recentGuidanceBpmRef = useRef<number[]>([]);
   const lastFreshBeatSourceTsRef = useRef<number | null>(null);
   const lastFreshBeatWallClockRef = useRef<number | null>(null);
   const finalPulseLogExportRef = useRef<CoherencePulseLogEntry[] | null>(null);
@@ -1692,14 +1701,6 @@ function CoherenceBreathScreenInner({
       return;
     }
     if (phase === "running") {
-      if (isWearableMode) {
-        blackCurtainSv.value = 0;
-        setSensorUiMounted(false);
-        setRunningUiRevealed(true);
-        setCycleStartMs((prev) => prev ?? Date.now());
-        setIsBreathTimingActive(true);
-        return;
-      }
       const FADE_OUT_MS = 600;
       const FADE_IN_MS = 600;
       // Стартовое состояние: sensor-UI ещё смонтирован, running-UI НЕ смонтирован,
@@ -1878,23 +1879,30 @@ function CoherenceBreathScreenInner({
             wearableRuntimeNow.state !== "signalLost" &&
             wearableRuntimeNow.state !== "disconnected" &&
             wearableRuntimeNow.state !== "failed";
+          const hadWearableRr =
+            (wearableRuntimeNow.rrPacketCount ?? 0) > 0 || wearableRuntimeNow.lastRrAtMs != null;
+          const wearableRrFresh =
+            !hadWearableRr ||
+            (
+              wearableLastRrAgeMs != null &&
+              wearableLastRrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
+            );
           const wearableReadyForLog =
             isWearableMode
               ? (
                   wearableLinkOk &&
                   wearableContactOk &&
-                  (
-                    wearableCapabilityTierRef.current === "fullMetrics"
-                      ? wearableLastRrAgeMs != null && wearableLastRrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
-                      : (wearableRuntimeNow.lastHeartRateBpm ?? 0) > 0
-                  )
+                  (wearableRuntimeNow.lastHeartRateBpm ?? 0) > 0 &&
+                  wearableRrFresh
                 )
               : (
+                  !useEmulatedPulseModeRef.current &&
                   event.hasFreshBeat &&
                   beatAgeMs != null &&
                   beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
                   event.bpm > 0
                 );
+          const liveMeasurementNow = wearableReadyForLog;
           let guidancePulseRateBpm =
             event.bpm > 0
               ? event.bpm
@@ -1913,20 +1921,27 @@ function CoherenceBreathScreenInner({
                       )
                 );
           if (guidancePulseRateBpm > 0) {
-            lastLoggedGuidanceBpmRef.current = guidancePulseRateBpm;
+            guidancePulseRateBpm = sanitizeBreathGuidanceBpm(
+              guidancePulseRateBpm,
+              lastLoggedGuidanceBpmRef.current,
+              { recentAccepted: recentGuidanceBpmRef.current },
+            );
           }
-          let measuredPulseRateBpm =
-            isWearableMode
+          if (guidancePulseRateBpm > 0) {
+            lastLoggedGuidanceBpmRef.current = guidancePulseRateBpm;
+            recentGuidanceBpmRef.current = [
+              ...recentGuidanceBpmRef.current,
+              guidancePulseRateBpm,
+            ].slice(-3);
+          }
+          const measuredPulseRateBpm =
+            liveMeasurementNow
               ? (
-                  wearableReadyForLog
+                  isWearableMode
                     ? (wearableRuntimeNow.lastHeartRateBpm ?? event.bpm)
-                    : 0
+                    : event.bpm
                 )
-              : (
-                  useEmulatedPulseModeRef.current
-                    ? 0
-                    : (event.bpm > 0 ? event.bpm : (lastLoggedMeasuredBpmRef.current ?? 0))
-                );
+              : 0;
           if (measuredPulseRateBpm > 0) {
             lastLoggedMeasuredBpmRef.current = measuredPulseRateBpm;
           }
@@ -1937,7 +1952,7 @@ function CoherenceBreathScreenInner({
             measuredPulseRateBpm,
             guidancePulseRateBpm,
             signalQuality: snap.signalQuality,
-            pulseReady: wearableReadyForLog,
+            pulseReady: liveMeasurementNow,
             fingerDetected: snap.fingerDetected,
             pulseLockState: event.lockState,
             beatTimestampsCount: mergedBeats.length,
@@ -2254,8 +2269,7 @@ function CoherenceBreathScreenInner({
     setElapsedMs(0);
     lastLoggedMeasuredBpmRef.current = 0;
     lastLoggedGuidanceBpmRef.current = 0;
-    setSensorUiMounted(false);
-    setRunningUiRevealed(true);
+    recentGuidanceBpmRef.current = [];
     setPhase("running");
   }, [
     clearPpgBannerUi,
@@ -3074,12 +3088,24 @@ function CoherenceBreathScreenInner({
       setFinalCoherenceTailWindowMs(recoveredCoherenceTailWindowMs);
       const pulseLogForGraphs = finalPulseLogExportRef.current ?? [];
       const nonLiveIntervals = collectNonLiveIntervalsFromLog(pulseLogForGraphs, sessionStartWallMs);
+      const measuredPulseHighlights = collectMeasuredPulseHighlightIntervals(
+        pulseLogForGraphs,
+        sessionStartWallMs,
+      );
+      const guidancePulseHighlights = collectGuidancePulseHighlightIntervals(
+        pulseLogForGraphs,
+        sessionStartWallMs,
+      );
       const measuredPulseSeries = buildMeasuredPulseChartSeries(
         pulseLogForGraphs,
         sessionStartWallMs,
         practiceTotalMs,
       );
-      const guidancePulseSeries = buildPulseSeriesFromLog(pulseLogForGraphs, sessionStartWallMs, "guidance");
+      const guidancePulseSeries = buildGuidancePulseChartSeries(
+        pulseLogForGraphs,
+        sessionStartWallMs,
+        practiceTotalMs,
+      );
       const coherenceSeries = (finalRes.perSecondSmoothed ?? []).filter((point) => {
         const rawPoint = finalRes.perSecond[point.secondIndex];
         return rawPoint != null && !rawPoint.insufficientCoverage;
@@ -3105,6 +3131,8 @@ function CoherenceBreathScreenInner({
       setResultsGraphs({
         measuredPulseBpm: decimateSeries(measuredPulseSeries, 240),
         guidancePulseBpm: decimateSeries(guidancePulseSeries, 240),
+        measuredPulseHighlights: measuredPulseHighlights,
+        guidancePulseHighlights: guidancePulseHighlights,
         coherencePercent: decimateSeries(
           bridgeSeriesAcrossNonLiveGaps(coherenceSeries, nonLiveIntervals, practiceTotalMs),
           240,
@@ -3165,7 +3193,14 @@ function CoherenceBreathScreenInner({
         planner.clearLastRsaCycle();
       }
       const medianRr = event.medianRrMs;
-      const bpm = medianRr > 0 ? 60_000 / medianRr : event.bpm;
+      const instantBpm = medianRr > 0 && (event.looksCoherent || event.rrCount >= 4)
+        ? 60_000 / medianRr
+        : event.bpm;
+      const bpm = sanitizeBreathGuidanceBpm(
+        instantBpm,
+        lastLoggedGuidanceBpmRef.current,
+        { recentAccepted: recentGuidanceBpmRef.current },
+      );
       if (bpm > 0) {
         const now = Date.now();
         planner.updateBaseline(now, bpm);
@@ -4076,9 +4111,16 @@ function CoherenceBreathScreenInner({
       ?? (useSimulatedPpg
         ? undefined
         : pulseLogRef.current.filter((p) => p.wallClockMs >= sessionStartWallMs));
+    const pulseLockTransitions =
+      pulseLogForExport && sessionStartWallMs != null
+        ? summarizePulseLockTransitions(pulseLogForExport, sessionStartWallMs)
+        : undefined;
     const payload = pipeline.getCoherenceEngine().buildExportJson(analysisEndLogicalMs, {
       dataSource: isWearableMode ? "wearable" : useSimulatedPpg ? "simulated" : "fingerPpg",
-      debug: exportDebug ?? undefined,
+      debug: {
+        ...(exportDebug ?? {}),
+        pulseLockTransitions,
+      },
       resultOverride: analysis,
       pulseLog: pulseLogForExport,
     });
@@ -4538,15 +4580,7 @@ function CoherenceBreathScreenInner({
         >
           {isWearableMode && (phase === "warmup" || phase === "qualityCheck") ? (
             <View style={styles.blePrepWheelWrap}>
-              {protocolStartedAtMs.current != null ? (
-                <CountdownRing
-                  startedAtMs={protocolStartedAtMs.current}
-                  totalSeconds={Math.max(1, Math.round(BREATH_BLE_PREP_SPIN_MS / 1000))}
-                  size={168}
-                  strokeWidth={5}
-                  showCenterNumber={false}
-                />
-              ) : null}
+              <ActivityIndicator color={theme.colors.accent} size="small" />
             </View>
           ) : (
             <>
@@ -4950,9 +4984,14 @@ function ResultsMetricChart(props: {
   unit: BreathResultsSeriesSummary["unit"];
   fixedMin?: number;
   fixedMax?: number;
+  highlightIntervals?: readonly NonLiveInterval[];
 }) {
-  const { title, points, color, unit, fixedMin, fixedMax } = props;
+  const { title, points, color, unit, fixedMin, fixedMax, highlightIntervals = [] } = props;
   const chartPoints = useMemo(() => decimateSeries(points, 120), [points]);
+  const lineSegments = useMemo(
+    () => splitPulseChartSeriesSegments(chartPoints),
+    [chartPoints],
+  );
   const summary = useMemo(() => summarizeSeries(chartPoints, unit), [chartPoints, unit]);
   const geometry = useMemo(() => {
     if (chartPoints.length < 2) return null;
@@ -4968,26 +5007,37 @@ function ResultsMetricChart(props: {
       min = center - 1;
       max = center + 1;
     }
-    const durationMs = Math.max(1, chartPoints[chartPoints.length - 1]!.tMs - chartPoints[0]!.tMs);
-    const pointsAttr = chartPoints
-      .map((point) => {
-        const x = padX + ((point.tMs - chartPoints[0]!.tMs) / durationMs) * (width - padX * 2);
-        const y = padY + (1 - (point.value - min) / (max - min)) * (height - padY * 2);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
+    const startMs = chartPoints[0]!.tMs;
+    const endMs = chartPoints[chartPoints.length - 1]!.tMs;
+    const durationMs = Math.max(1, endMs - startMs);
+    const xForTime = (tMs: number) =>
+      padX + ((tMs - startMs) / durationMs) * (width - padX * 2);
+    const yForValue = (value: number) =>
+      padY + (1 - (value - min) / (max - min)) * (height - padY * 2);
+    const segmentsAttr = lineSegments.map((segment) =>
+      segment
+        .map((point) => `${xForTime(point.tMs).toFixed(1)},${yForValue(point.value).toFixed(1)}`)
+        .join(" "),
+    );
+    const highlights = highlightIntervals
+      .filter((gap) => gap.endMs > startMs && gap.startMs < endMs)
+      .map((gap) => ({
+        x1: xForTime(Math.max(gap.startMs, startMs)),
+        x2: xForTime(Math.min(gap.endMs, endMs)),
+      }));
     return {
       width,
       height,
       min,
       max,
-      durationMs: chartPoints[chartPoints.length - 1]!.tMs,
-      pointsAttr,
+      durationMs: endMs,
+      segmentsAttr,
+      highlights,
       midY: height / 2,
       topY: padY,
       bottomY: height - padY,
     };
-  }, [chartPoints, fixedMax, fixedMin]);
+  }, [chartPoints, fixedMax, fixedMin, highlightIntervals, lineSegments]);
   if (geometry == null || summary == null) return null;
   return (
     <View style={styles.resultChartCard}>
@@ -5007,14 +5057,49 @@ function ResultsMetricChart(props: {
             <Line x1="0" y1={geometry.topY} x2={geometry.width} y2={geometry.topY} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
             <Line x1="0" y1={geometry.midY} x2={geometry.width} y2={geometry.midY} stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
             <Line x1="0" y1={geometry.bottomY} x2={geometry.width} y2={geometry.bottomY} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-            <Polyline
-              points={geometry.pointsAttr}
-              fill="none"
-              stroke={color}
-              strokeWidth="3"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            {geometry.highlights.map((gap, index) => (
+              <Rect
+                key={`gap-${index}`}
+                x={gap.x1}
+                y={geometry.topY}
+                width={Math.max(1, gap.x2 - gap.x1)}
+                height={geometry.bottomY - geometry.topY}
+                fill="rgba(255,255,255,0.08)"
+              />
+            ))}
+            {geometry.highlights.map((gap, index) => (
+              <Line
+                key={`gap-edge-${index}`}
+                x1={gap.x1}
+                y1={geometry.topY}
+                x2={gap.x1}
+                y2={geometry.bottomY}
+                stroke="rgba(255,255,255,0.22)"
+                strokeWidth="1"
+              />
+            ))}
+            {geometry.highlights.map((gap, index) => (
+              <Line
+                key={`gap-edge-end-${index}`}
+                x1={gap.x2}
+                y1={geometry.topY}
+                x2={gap.x2}
+                y2={geometry.bottomY}
+                stroke="rgba(255,255,255,0.22)"
+                strokeWidth="1"
+              />
+            ))}
+            {geometry.segmentsAttr.map((pointsAttr, index) => (
+              <Polyline
+                key={`segment-${index}`}
+                points={pointsAttr}
+                fill="none"
+                stroke={color}
+                strokeWidth="3"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ))}
           </Svg>
           <View style={styles.resultChartXAxis}>
             <Text style={styles.resultChartAxisLabel}>0:00</Text>
@@ -5118,8 +5203,16 @@ function ResultsView(props: {
     [resultsGraphs?.measuredPulseBpm],
   );
   const guidancePulseGraphPoints = useMemo(
-    () => preparePulseSeriesForDisplay(resultsGraphs?.guidancePulseBpm ?? [], practiceTotalMs),
-    [practiceTotalMs, resultsGraphs?.guidancePulseBpm],
+    () => resultsGraphs?.guidancePulseBpm ?? [],
+    [resultsGraphs?.guidancePulseBpm],
+  );
+  const measuredPulseHighlights = useMemo(
+    () => resultsGraphs?.measuredPulseHighlights ?? [],
+    [resultsGraphs?.measuredPulseHighlights],
+  );
+  const guidancePulseHighlights = useMemo(
+    () => resultsGraphs?.guidancePulseHighlights ?? [],
+    [resultsGraphs?.guidancePulseHighlights],
   );
   const showSeparateGuidancePulseGraph =
     SHOW_BOTH_PULSE_RESULT_GRAPHS ||
@@ -5516,6 +5609,7 @@ function ResultsView(props: {
                 points={measuredPulseGraphPoints}
                 color="#60a5fa"
                 unit="bpm"
+                highlightIntervals={measuredPulseHighlights}
               />
             ) : null}
             {showSeparateGuidancePulseGraph && guidancePulseGraphPoints.length >= 2 ? (
@@ -5524,6 +5618,7 @@ function ResultsView(props: {
                 points={guidancePulseGraphPoints}
                 color="#34d399"
                 unit="bpm"
+                highlightIntervals={guidancePulseHighlights}
               />
             ) : null}
             {coherenceGraphPoints.length >= 2 ? (
