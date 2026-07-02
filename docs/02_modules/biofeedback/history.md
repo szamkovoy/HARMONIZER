@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.18
+version: 1.19
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (10):** Reverted `TARGET_PPG_FPS` 10 → 15 after the 10 Hz setting broke detection. Field test `1783024540644` (algoVer 1.2.4, freshly rebuilt via `eas build`) showed the camera delivering only ~6 fps at `TARGET = 10` (fps dist: 6→321, 7→132) vs ~10 fps at `TARGET = 15`: `useCameraFormat({fps:10})` on iPhone 14 selects a lower-max-fps format, so the camera runs at ~6 fps. At 6 fps the 12 s window holds only ~72 samples and `pickSosForSampleRateHz(6)` clamps to the 9 Hz floor → FS_10 coefficients (designed for 10 Hz) mismatch the real 6 fps stream, the peak detector cannot find beats, and ~75 % of the session is `holding` despite a healthy signal (`fingerPresenceConfidence 0.70`, `SQ 0.69–0.83`, finger on the whole time). `TARGET = 15` selects the higher-max-fps format; the camera then self-limits to ~10 fps via iOS auto-exposure under torch, and `pickSosForSampleRateHz(~10)` → matched FS_10. Heat note: at `TARGET = 15` the camera actually captures ~10 fps (exposure-capped), so ISP heat is driven by the real ~10 fps, not the nominal 15 — `TARGET = 10` did NOT reduce heat, it only broke the format. Future heat reduction must come from adaptive fps / exposure-lock, not from lowering `TARGET` (which corrupts format selection).
 
 - **2026-07-02 (9):** Lowered `TARGET_PPG_FPS` 15 → 10 to cut heat on long sessions. Raw optical diagnostics (test 1783020943996) proved the camera delivers only ~10 fps under torch regardless of `TARGET` (iOS auto-exposure caps the frame rate on the bright finger-on-lens frame), so `TARGET = 15` made the ISP capture 15 frames/s while the JS processor only handled ~10 — wasted capture load + heat with no sample-density benefit. At `TARGET = 10` capture and processing align at ~10 fps, heat drops, and the matched `BUTTERWORTH_PPG_SOS_FS_10` + 9 Hz `pickSosForSampleRateHz` floor keep the bandpass correct for the real rate. The `cadenceScore = scoreRange(fps, 12, 32)` was already 0 at the real ~10 fps, so SQ is unchanged. `HIGH_PRECISION_PPG_FPS = 30` still covers the ≤20 s warmup/QC phase.
 
