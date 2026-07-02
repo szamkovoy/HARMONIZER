@@ -312,6 +312,27 @@ export class OpticalRingBuffer {
     this.baselineValidAtMs = 0;
   }
 
+  /**
+   * Drop every sample with `timestampMs >= sinceMs` — i.e. the samples acquired while the
+   * finger was off the lens — but KEEP the pre-absence clean history. Unlike `reset()`, this
+   * preserves the ~9 s of clean PPG before the lift, so the zero-phase bandpass can resume
+   * producing usable peaks within ~2 s of new clean samples instead of waiting ~12 s for a
+   * full window refill (critical at the ~10 fps the camera actually delivers under torch,
+   * where a full 12 s window refill costs 12 s of `holding`).
+   */
+  dropSamplesSince(sinceMs: number): void {
+    if (this.samples.length === 0) return;
+    let keep = this.samples.length;
+    while (keep > 0 && this.samples[keep - 1]!.timestampMs >= sinceMs) {
+      keep -= 1;
+    }
+    if (keep < this.samples.length) {
+      this.samples.length = keep;
+      this.baselineCached = 0;
+      this.baselineValidAtMs = 0;
+    }
+  }
+
   private computeBaseline(): number {
     const n = this.samples.length;
     if (n === 0) return 0;

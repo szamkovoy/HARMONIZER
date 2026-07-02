@@ -884,22 +884,22 @@ export class BiofeedbackPipeline {
     const contactPresent = contactSnap.state === "present";
     const calibrationPhaseBefore = this.calibration.getPhase();
 
-    // Flush the optical ring buffer when the finger returns after a real removal
-    // (≥ CONTACT_REGAIN_FLUSH_MS). While the finger is off, the 12 s sliding window fills with
-    // "no-finger" noise; the zero-phase bandpass then processes a mix of garbage + clean PPG and
-    // its transient masks the pulse waveform for ~12 s until the garbage ages out — so even with
-    // peak detection enabled (debounced contactLost keeps the FSM in `ready`), no beats are found
-    // for ~15 s after a 3 s lift. Resetting the buffer on regain lets the bandpass start fresh on
-    // clean samples and re-locks in ~2 s. Momentary presence dips (< threshold) are NOT flushed
-    // (the bandpass tolerates a sub-second glitch without a full refill).
+    // On finger return after a real removal (≥ CONTACT_REGAIN_FLUSH_MS), drop only the
+    // "poisoned" samples acquired while the finger was off — NOT the whole buffer. While the
+    // finger is off, the 12 s sliding window fills with no-finger noise that corrupts the
+    // zero-phase bandpass; but the pre-absence ~9 s of clean PPG is still valid. Dropping only
+    // the poison (and keeping the clean history) lets the bandpass resume usable peaks within
+    // ~2 s of new clean samples. A full `reset()` would force a 12 s refill (at the ~10 fps the
+    // camera delivers under torch), causing ~16 s of `holding` after a 3 s lift. We do NOT
+    // clear mergedBeats: the BPM engine's reacquire gate already handles the gap, and keeping
+    // the pre-absence beats gives continuity. Momentary presence dips (< threshold) are skipped.
     if (contactPresent) {
       if (
         !this.prevContactPresent &&
         this.lastContactAbsentForMs >= CONTACT_REGAIN_FLUSH_MS
       ) {
-        this.optical.reset();
-        this.mergedBeats = [];
-        this.beatEligible = [];
+        const poisonSinceMs = sample.timestampMs - this.lastContactAbsentForMs;
+        this.optical.dropSamplesSince(poisonSinceMs);
       }
       this.lastContactAbsentForMs = 0;
     } else {

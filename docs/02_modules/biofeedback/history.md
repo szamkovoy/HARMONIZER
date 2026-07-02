@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.16
+version: 1.17
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (8):** Optical recovery — drop poisoned samples, not the whole buffer. Field test `1783020943996` (algoVer 1.2.2, raw optical diagnostics) showed the (5) full-buffer flush on finger return caused ~14–16 s `holding` after 3 s lifts: the camera actually delivers only ~10 fps under torch (auto-exposure caps the frame rate, regardless of `TARGET_PPG_FPS = 15`), so a full 12 s window refill costs 12 s before the zero-phase bandpass can produce usable peaks again. Replaced `optical.reset()` on regain with `OpticalRingBuffer.dropSamplesSince(regainTs − absentForMs)`: only the no-finger "poison" samples are removed, the ~9 s of clean pre-lift PPG stays, and the bandpass resumes usable peaks within ~2 s of new clean samples. `mergedBeats` are no longer cleared (the BPM reacquire gate handles the gap, and keeping pre-absence beats gives continuity). The same test confirmed presence detection now correctly flips to finger-off during lifts (`redMean`/`lumaMean`/`saturationRatio` → 1.0, `fingerPresenceConfidence` → 0.16–0.36) — the earlier "20 s lift not detected" failure did not recur. Covered by `optical-pipeline.test.ts`. Camera fps finding logged for future work (exposure-limited ~10 fps; adaptive fps / exposure lock is a separate task).
 
 - **2026-07-02 (7):** Post-gap RR-drift reacquire gate + raw optical diagnostics. Field test `1783016809239` (algoVer 1.2.1, 15 Hz) showed two residual optical issues: (a) a single-snapshot "needle" spike to 53 bpm around 1:50 — after the 3 s finger lift at 100 s the first post-gap beats had artifactual long RR (~1063–1078 ms), the existing gap-reacquire gate cleared after 3 RR, and those bogus RR pulled `displayBpm` down via the candidate pool; (b) the 20 s lift at 200 s was not recognised as finger-off (`fingerDetected=1`, SQ 0.85–0.90 throughout) so the peak detector tracked ambient-light noise as bogus 54–69 bpm. Fix for (a): `PulseBpmEngine` now tracks `lastStableMedianRrMs` (only updated when a coherent median is within ±25 % of the previous baseline, so a sustained bogus rhythm cannot become "stable") and holds `displayBpm` when the window median RR deviates >25 % from that baseline — this keeps the gate active past the 3-RR gap threshold until post-gap RR return within band. The `reacquiring` flag already suppresses both the measured-chart plot and the guidance BPM feed. For (b): added raw optical diagnostics to the debug export — `pulseLog` now carries `opticalRedMean/GreenMean/BlueMean/LumaMean/RedDominance/DarknessRatio/SaturationRatio/Motion/Amplitude/Fps` + `fingerPresenceConfidence` (via `BiofeedbackPipeline.getLastOpticalDiagnostic()`), so the next field test shows exactly why `calculateFingerPresenceConfidence` stays high during a direct-torch lift and lets us calibrate the presence thresholds precisely. Covered by `pulse-bpm-engine.reacquire.test.ts` (post-gap bogus-long-RR case).
 
