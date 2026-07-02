@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.14
+version: 1.15
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (6):** Reverted `TARGET_PPG_FPS` 12 → 15 Hz. Three field-test rounds at 12 Hz (with matched FS_12 bandpass, debounced `contactLost`, and buffer-flush-on-regain all applied) still showed short 4–9 s `holding` bursts with the finger on the lens and SQ 0.69–0.83: at 12 Hz the 12 s sliding window holds only 144 samples (vs 180 at 15 Hz), and the zero-phase `sosfiltfilt` edge effect + adaptive prominence threshold intermittently eat marginal pulse peaks, so the peak detector misses a few beats and `lastBeatAgeMs` exceeds the 4.2 s freshness gate. 15 Hz was empirically reliable across the prior test corpus and is reinstated as the verified reliability/heat compromise. Heat on 20-min sessions is the known tradeoff; future work — adaptive fps (15 Hz during acquire/re-lock, 10 Hz in steady-state). The FS_12/FS_10 matched SOS and `pickSosForSampleRateHz` floor (9 Hz) are kept — they remain correct for any future lower-fps mode and are no-ops at 15 Hz.
 
 - **2026-07-02 (5):** Optical re-acquisition — flush poisoned buffer on finger return. The (4) debounce fixed the 10 s warmup, but a 3 s finger lift still left ~12–15 s of `holding` with the finger back on and SQ 0.82–0.83: while the finger is off, the 12 s sliding optical window fills with no-finger noise, and the zero-phase bandpass (`sosfiltFiltfilt`) then processes a mix of garbage + clean PPG whose transient masks the pulse waveform until the garbage ages out (~12 s). Added `CONTACT_REGAIN_FLUSH_MS = 1 500` (`constants.ts`); `BiofeedbackPipeline.pushOpticalSample` now tracks the absent→present contact transition and, on regain after ≥1.5 s absence, calls `optical.reset()` + clears `mergedBeats`/`beatEligible` so the bandpass starts fresh on clean samples and re-locks in ~2 s. Momentary presence dips (<1.5 s, motion/jiggle) are NOT flushed — the bandpass tolerates a sub-second glitch without a full refill. `prevContactPresent`/`lastContactAbsentForMs` reset in `softReset`.
 
