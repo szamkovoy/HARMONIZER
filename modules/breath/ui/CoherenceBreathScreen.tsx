@@ -48,7 +48,11 @@ import { BiofeedbackProvider, useBiofeedbackPipeline } from "@/modules/biofeedba
 import { useBiofeedbackBus, useBiofeedbackChannel } from "@/modules/biofeedback/bus/react";
 import { useBiofeedbackSnapshot } from "@/modules/biofeedback/bus/snapshot-adapter";
 import {
+  calculateBaevskyStressIndexRaw,
   computePracticeHrvMetricsFullSession,
+  computeRmssdStandardFromRrIntervals,
+  hampelFilterRrIntervals,
+  mapBaevskyStressToPercent,
   type PracticeHrvMetricsResult,
 } from "@/modules/biofeedback/core/metrics";
 import type {
@@ -233,6 +237,85 @@ function suppressCoherenceMetrics(result: CoherenceSessionResult): CoherenceSess
     rsaNormalizedPercent: null,
     entryTimeSec: null,
   };
+}
+
+/** Physiologic RR bounds (ms) for dense HRV windows: 300 ms = 200 bpm, 1500 ms = 40 bpm. */
+const DENSE_HRV_RR_MIN_MS = 300;
+const DENSE_HRV_RR_MAX_MS = 1500;
+/** Trailing window for per-second RMSSD (short-term HRV) and Baevsky stress index. */
+const DENSE_RMSSD_WINDOW_MS = 30_000;
+const DENSE_STRESS_WINDOW_MS = 60_000;
+const DENSE_RMSSD_MIN_INTERVALS = 8;
+const DENSE_STRESS_MIN_INTERVALS = 20;
+/** Practice-plausible RMSSD ceiling (ms) — mirrors HRV_PRACTICE_RMSSD_ABS_MAX_MS in metrics. */
+const DENSE_RMSSD_ABS_MAX_MS = 160;
+
+/**
+ * Builds dense (1 Hz) RMSSD and stress-index series from the analyzed beat stream.
+ *
+ * Why here and not from the live bus: the bus snapshots are throttled to one point every few
+ * seconds, so the RMSSD result graph degenerated into a handful of straight segments. RSA is
+ * already dense (per-second, from the tachogram), so RMSSD/stress looked broken by comparison.
+ * This recomputes both per second over a trailing window that grows from t=0 (curve appears within
+ * ~10–25 s instead of at 1:00) and skips any second inside a real signal-loss gap so the gaps line
+ * up with the pulse gray bands and the coherence/RSA graphs.
+ */
+function buildDenseHrvSeriesFromBeats(
+  beatTimestampsMs: readonly number[],
+  sessionStartMs: number,
+  practiceTotalMs: number,
+  nonLiveIntervals: readonly NonLiveInterval[],
+): { rmssdMs: BreathResultsSeriesPoint[]; stressPercent: BreathResultsSeriesPoint[] } {
+  const rmssdMs: BreathResultsSeriesPoint[] = [];
+  const stressPercent: BreathResultsSeriesPoint[] = [];
+  if (beatTimestampsMs.length < 3) return { rmssdMs, stressPercent };
+
+  const beats = [...beatTimestampsMs].sort((a, b) => a - b);
+  // RR events tagged with the (offset) time of the closing beat, physiologic values only.
+  const rr: { tMs: number; rr: number }[] = [];
+  for (let i = 1; i < beats.length; i += 1) {
+    const d = beats[i]! - beats[i - 1]!;
+    if (d >= DENSE_HRV_RR_MIN_MS && d <= DENSE_HRV_RR_MAX_MS) {
+      rr.push({ tMs: beats[i]! - sessionStartMs, rr: d });
+    }
+  }
+  if (rr.length < DENSE_RMSSD_MIN_INTERVALS) return { rmssdMs, stressPercent };
+
+  const insideGap = (tMs: number) =>
+    nonLiveIntervals.some((iv) => tMs >= iv.startMs && tMs <= iv.endMs);
+
+  // Drop RR whose closing beat lands inside a signal-loss gap up front: while a Polar strap is
+  // off-body it still emits frozen/repeated RR (e.g. a constant 697 ms) and reconnect-transient
+  // beats. If the trailing window reached back across the gap into that garbage, the very first
+  // post-gap seconds inherited a huge fake ΔRR and RMSSD spiked to ~120 ms right after recovery.
+  const liveRr = rr.filter((ev) => !insideGap(ev.tMs));
+
+  const practiceSec = Math.floor(practiceTotalMs / 1000);
+  for (let s = 1; s <= practiceSec; s += 1) {
+    const tMs = s * 1000;
+    if (insideGap(tMs)) continue;
+    const rmssdWin: number[] = [];
+    const stressWin: number[] = [];
+    for (const ev of liveRr) {
+      if (ev.tMs <= tMs && ev.tMs > tMs - DENSE_RMSSD_WINDOW_MS) rmssdWin.push(ev.rr);
+      if (ev.tMs <= tMs && ev.tMs > tMs - DENSE_STRESS_WINDOW_MS) stressWin.push(ev.rr);
+    }
+    if (rmssdWin.length >= DENSE_RMSSD_MIN_INTERVALS) {
+      // Hampel-clean the window first: a single missed/merged beat (a ~2× doubled RR, e.g. 946 ms
+      // between 484/478) or a reconnect-transient short RR (376 ms) otherwise injects one huge ΔRR
+      // and spikes RMSSD to 90–135 ms for exactly one window, then it snaps back — the artifact the
+      // user flagged. Replacing those local outliers with the running median (same policy as the
+      // final practice RMSSD) removes the spike while preserving real beat-to-beat variability.
+      const cleaned = hampelFilterRrIntervals(rmssdWin);
+      const v = Math.min(DENSE_RMSSD_ABS_MAX_MS, computeRmssdStandardFromRrIntervals(cleaned));
+      if (v > 0) rmssdMs.push({ tMs, value: v });
+    }
+    if (stressWin.length >= DENSE_STRESS_MIN_INTERVALS) {
+      const raw = calculateBaevskyStressIndexRaw(hampelFilterRrIntervals(stressWin));
+      if (raw > 0) stressPercent.push({ tMs, value: mapBaevskyStressToPercent(raw) });
+    }
+  }
+  return { rmssdMs, stressPercent };
 }
 
 function findRecoverableCoherenceTail(params: {
@@ -1943,16 +2026,17 @@ function CoherenceBreathScreenInner({
                             : (lastLoggedGuidanceBpmRef.current ?? event.bpm ?? 0)
                         )
                   );
-          if (
-            isWearableMode &&
-            liveMeasurementNow &&
-            wearableLiveBpm > 0 &&
-            (
-              guidancePulseRateBpm <= 0 ||
-              Math.abs(guidancePulseRateBpm - wearableLiveBpm) > 8
-            )
-          ) {
-            guidancePulseRateBpm = wearableLiveBpm;
+          // Single source of truth for a live wearable: the RR-derived pipeline bpm (event.bpm)
+          // that actually paces breathing. The integer strap HR field (`wearableLiveBpm`) is
+          // quantized and update-lagged — using it for the measured graph while guidance used
+          // event.bpm produced flat plateaus on "Пульс (измерение)" and divergence between the
+          // two graphs outside gray zones. Now both graphs log the same number when live.
+          const wearableUnifiedBpm =
+            isWearableMode && liveMeasurementNow
+              ? (event.bpm > 0 ? event.bpm : wearableLiveBpm)
+              : 0;
+          if (isWearableMode && liveMeasurementNow && wearableUnifiedBpm > 0) {
+            guidancePulseRateBpm = wearableUnifiedBpm;
           }
           if (guidancePulseRateBpm > 0) {
             guidancePulseRateBpm = sanitizeBreathGuidanceBpm(
@@ -1967,7 +2051,7 @@ function CoherenceBreathScreenInner({
             liveMeasurementNow
               ? (
                   isWearableMode
-                    ? (wearableLiveBpm || event.bpm)
+                    ? wearableUnifiedBpm
                     : event.bpm
                 )
               : 0;
@@ -3155,12 +3239,18 @@ function CoherenceBreathScreenInner({
         sessionStartWallMs,
         practiceTotalMs,
       );
+      const metricInsideGap = (tMs: number) =>
+        nonLiveIntervals.some((iv) => tMs >= iv.startMs && tMs <= iv.endMs);
       const coherenceSeries = (finalRes.perSecondSmoothed ?? []).filter((point) => {
         // `perSecond` is 0-indexed but `secondIndex` is 1-based (perSecond[0].secondIndex === 1),
         // so the matching coverage checkpoint is at `secondIndex - 1`. Using `secondIndex`
         // directly looked one second ahead and mislabeled boundary seconds as (in)sufficient.
         const rawPoint = finalRes.perSecond[point.secondIndex - 1];
-        return rawPoint != null && !rawPoint.insufficientCoverage;
+        return (
+          rawPoint != null &&
+          !rawPoint.insufficientCoverage &&
+          !metricInsideGap(point.secondIndex * 1000)
+        );
       }).map((point) => ({
         tMs: point.secondIndex * 1000,
         value: point.coherenceMappedPercent,
@@ -3171,13 +3261,35 @@ function CoherenceBreathScreenInner({
       // (gapped) points and let the chart break the line across the gap (see
       // splitPulseChartSeriesSegments). This is the "graphs must honestly show what was computed"
       // requirement.
-      const rmssdSeries = filterIsolatedMetricSpikes(rmssdSeriesRef.current.slice());
-      const stressSeries = filterIsolatedMetricSpikes(stressSeriesRef.current.slice());
+      // Dense per-second RMSSD & stress from the analyzed beat stream — NOT the sparse
+      // (~1 pt / 5–10 s) live-bus snapshots that made RMSSD "ломаной из 3 отрезков". Both use a
+      // trailing window that GROWS from t=0 (so the curve starts within ~10–25 s, not at 1:00) and
+      // are gated to the same signal-loss gaps as the pulse graph (nonLiveIntervals) so every
+      // metric graph breaks at exactly the gray bands, never at a different place.
+      const denseHrv = buildDenseHrvSeriesFromBeats(
+        finalRes.beatTimestampsMsAnalyzed,
+        sessionStartLogicalMs,
+        practiceTotalMs,
+        nonLiveIntervals,
+      );
+      const rmssdSeries =
+        denseHrv.rmssdMs.length >= 2
+          ? filterIsolatedMetricSpikes(denseHrv.rmssdMs)
+          : filterIsolatedMetricSpikes(rmssdSeriesRef.current.slice());
+      const stressSeries =
+        denseHrv.stressPercent.length >= 2
+          ? filterIsolatedMetricSpikes(denseHrv.stressPercent)
+          : filterIsolatedMetricSpikes(stressSeriesRef.current.slice());
       // RSA amplitude is now a DENSE per-second series from the final analysis (max−min BPM over
       // one breath window), not the sparse per-cycle summary (~1 point / 10 s → the "ломаная из
       // 5 отрезков"). Falls back to the per-cycle summary only if per-second is unavailable.
       const rsaPerSecond = (finalRes.perSecond ?? [])
         .filter((point) => point.rsaAmplitudeBpm != null)
+        // Gate RSA to the SAME signal-loss gaps as the pulse/RMSSD/stress graphs. RSA is derived
+        // from the analyzed beat stream, which still contains the sporadic buffered beats a Polar
+        // strap emits while off-body — so without this it drew a (garbage) RSA point inside the gray
+        // band. Gating makes every metric graph break at exactly the gray bands, never beside them.
+        .filter((point) => !metricInsideGap(point.secondIndex * 1000))
         .map((point) => ({ tMs: point.secondIndex * 1000, value: point.rsaAmplitudeBpm as number }));
       const rsaSource =
         rsaPerSecond.length >= 2

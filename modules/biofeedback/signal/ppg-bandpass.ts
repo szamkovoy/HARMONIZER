@@ -6,6 +6,20 @@
  * Перенесено из `modules/biofeedback/core/ppg-bandpass.ts` без изменения коэффициентов.
  */
 
+export const BUTTERWORTH_PPG_SOS_FS_10 = [
+  [2.77865722436902822e-2, 5.55731444873805644e-2, 2.77865722436902822e-2, 1.0, -3.89592187909039100e-1, 2.46261816790513843e-1],
+  [1.0, 2.0, 1.0, 1.0, -1.10808962134392974e0, 4.27250642735851893e-1],
+  [1.0, -2.0, 1.0, 1.0, -4.90596766095188069e-2, 6.25724242954534438e-1],
+  [1.0, -2.0, 1.0, 1.0, -1.56045473329916118e0, 7.95457218004771760e-1],
+] as const;
+
+export const BUTTERWORTH_PPG_SOS_FS_12 = [
+  [1.54114240438697932e-2, 3.08228480877395863e-2, 1.54114240438697932e-2, 1.0, -6.93753619367069141e-1, 3.21855864164653727e-1],
+  [1.0, 2.0, 1.0, 1.0, -1.27248446543181970e0, 5.10015998604459564e-1],
+  [1.0, -2.0, 1.0, 1.0, -4.73537021012405079e-1, 6.51429721609593226e-1],
+  [1.0, -2.0, 1.0, 1.0, -1.66359261384149426e0, 8.31315427324202494e-1],
+] as const;
+
 export const BUTTERWORTH_PPG_SOS_FS_15 = [
   [7.36416457340664018e-3, 1.47283291468132804e-2, 7.36416457340664018e-3, 1.0, -9.86278848359422589e-1, 4.14742960894420198e-1],
   [1.0, 2.0, 1.0, 1.0, -1.43395963507059876e0, 5.95863283613348615e-1],
@@ -45,8 +59,14 @@ type SosRow = readonly [number, number, number, number, number, number];
 type Sos = readonly SosRow[];
 
 function pickSosForSampleRateHz(sampleRateHz: number): Sos {
-  const fs = Math.min(45, Math.max(12, sampleRateHz));
+  // Floor at 9 Hz so a 10 Hz capture keeps a matched filter. Previously the floor was 12 Hz
+  // and the lowest bucket 15 Hz, so a 10 Hz stream was filtered with 15-Hz-designed coefficients:
+  // the digital passband shifted to ≈0.53–1.67 Hz and mangled the pulse waveform, which made the
+  // peak detector intermittently lose lock (finger on lens, good SQ, yet `holding` for 20+ s).
+  const fs = Math.min(45, Math.max(9, sampleRateHz));
   const buckets: Array<{ hz: number; sos: Sos }> = [
+    { hz: 10, sos: BUTTERWORTH_PPG_SOS_FS_10 },
+    { hz: 12, sos: BUTTERWORTH_PPG_SOS_FS_12 },
     { hz: 15, sos: BUTTERWORTH_PPG_SOS_FS_15 },
     { hz: 20, sos: BUTTERWORTH_PPG_SOS_FS_20 },
     { hz: 24, sos: BUTTERWORTH_PPG_SOS_FS_24 },

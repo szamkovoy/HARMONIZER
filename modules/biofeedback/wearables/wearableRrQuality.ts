@@ -3,14 +3,19 @@
  * Polar H10 may keep streaming HR with garbage RR (≈300 ms) when the strap is off-body.
  */
 
-/** Minimum RR (ms) treated as a live chest-strap beat for metrics and graphs. */
-export const WEARABLE_ON_BODY_RR_MIN_MS = 450;
+/**
+ * Minimum RR (ms) treated as a live chest-strap beat for metrics and graphs.
+ *
+ * 350 ms = 171 bpm. The previous 450 ms floor (133 bpm) silently dropped every genuine
+ * high-HR beat during exertion — e.g. a field test with push-ups peaked at 134 bpm (≈448 ms
+ * RR) and those real beats were discarded, tearing spurious signal-loss gaps into an on-body
+ * Polar stream and leaving holes in the tachogram (RSA/coherence breaks). Off-body Polar
+ * garbage is a *sustained* burst of ~200–320 ms RR, which still sits below this floor.
+ */
+export const WEARABLE_ON_BODY_RR_MIN_MS = 350;
 
-/** Maximum RR (ms) treated as a live chest-strap beat for metrics and graphs. */
+/** Maximum RR (ms) treated as a live chest-strap beat for metrics and graphs (≈40 bpm). */
 export const WEARABLE_ON_BODY_RR_MAX_MS = 1_500;
-
-/** RR above this is physiologically impossible for this flow and marks a broken packet. */
-const WEARABLE_RR_PACKET_HARD_MAX_MS = 3_000;
 
 const HEART_RATE_RR_DISAGREEMENT_BPM = 20;
 
@@ -53,14 +58,17 @@ export function resolveWearableHeartRateBpm(
 }
 
 /**
- * Returns false when the packet contains off-body artifacts (very short RR bursts).
- * A single borderline interval is tolerated; sustained 300 ms RR indicates strap off skin.
+ * Returns false only when the packet has **no** usable on-body RR at all (whole packet is
+ * off-body garbage / a physiologically impossible burst).
+ *
+ * IMPORTANT: a single bad interval must not discard the whole packet. Polar occasionally emits
+ * one implausible RR (a missed/merged beat → e.g. an 8.7 s interval, or a sub-350 ms double
+ * beat) inside an otherwise clean multi-RR notification, especially while HR is changing fast.
+ * We drop just those intervals via {@link filterOnBodyWearableRrIntervals} and keep the good
+ * ones; only a packet where *nothing* is plausible is treated as untrustworthy. Sustained loss
+ * (strap removed) is detected separately by the RR-staleness watchdog, not by one packet.
  */
 export function isWearableRrPacketTrustworthy(rrIntervalsMs: readonly number[]): boolean {
   if (rrIntervalsMs.length === 0) return false;
-  if (rrIntervalsMs.some((rr) => rr > WEARABLE_RR_PACKET_HARD_MAX_MS)) return false;
-  const minRr = Math.min(...rrIntervalsMs);
-  if (minRr < 400) return false;
-  const plausible = filterOnBodyWearableRrIntervals(rrIntervalsMs);
-  return plausible.length > 0;
+  return filterOnBodyWearableRrIntervals(rrIntervalsMs).length > 0;
 }

@@ -15,6 +15,57 @@ export const RSA_RESULTS_OUTLIER_BPM = 20;
 const NON_LIVE_WEARABLE_STATES = new Set(["signalLost", "disconnected", "failed", "reconnecting"]);
 const PULSE_RESULT_STABLE_RECOVERY_MS = 8_000;
 
+/**
+ * A BLE chest strap on-body does not produce short real signal-loss gaps: brief RR staleness or a
+ * single fast-HR / missed-beat packet is a transport/parsing hiccup, not the strap coming off. Any
+ * wearable non-live run shorter than this is folded back into the live line (measured value held
+ * across it) instead of drawing a gray band and zeroing the pulse. Genuine removals (BLE
+ * disconnect, sustained loss) last far longer and are kept. Camera finger-off gaps are NOT
+ * debounced here — they are real and must stay visible (see `isWearableLikeLog`).
+ */
+const WEARABLE_MIN_REAL_GAP_MS = 8_000;
+
+function isWearableLikeLog(entries: readonly CoherencePulseLogEntry[]): boolean {
+  return entries.some((entry) => entry.pulseSource === "wearable" || entry.wearableState != null);
+}
+
+/** For wearable logs, discard non-live runs shorter than `WEARABLE_MIN_REAL_GAP_MS` (transport blips). */
+function dropShortWearableGaps(
+  intervals: NonLiveInterval[],
+  entries: readonly CoherencePulseLogEntry[],
+): NonLiveInterval[] {
+  if (!isWearableLikeLog(entries)) return intervals;
+  return intervals.filter((iv) => iv.endMs - iv.startMs >= WEARABLE_MIN_REAL_GAP_MS);
+}
+
+/**
+ * A live "island" shorter than this, sitting between two wearable signal-loss bands, is treated as
+ * reconnect flapping (Polar keeps emitting a few buffered/settling RR for several seconds after the
+ * strap is pulled and again while re-pairing) rather than genuine recovered biometry — so the two
+ * bands are fused into one. This is why a single strap removal previously drew TWO gray bands with
+ * an ~8 s sliver of "pulse" between them; a real recovery lasts far longer than this.
+ */
+const WEARABLE_RECONNECT_ISLAND_MAX_MS = 15_000;
+
+/** For wearable logs, fuse loss bands separated only by a short reconnect-flapping live island. */
+function mergeWearableReconnectIslands(
+  intervals: NonLiveInterval[],
+  entries: readonly CoherencePulseLogEntry[],
+): NonLiveInterval[] {
+  if (!isWearableLikeLog(entries) || intervals.length < 2) return intervals;
+  const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs);
+  const out: NonLiveInterval[] = [{ ...sorted[0]! }];
+  for (const iv of sorted.slice(1)) {
+    const cur = out[out.length - 1]!;
+    if (iv.startMs - cur.endMs <= WEARABLE_RECONNECT_ISLAND_MAX_MS) {
+      cur.endMs = Math.max(cur.endMs, iv.endMs);
+    } else {
+      out.push({ ...iv });
+    }
+  }
+  return out;
+}
+
 /** Shared wearable live-measurement gate (Polar RR freshness when RR was ever seen). */
 export function isWearableLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry): boolean {
   if (entry.wearableSensorContactDetected === false) return false;
@@ -109,7 +160,10 @@ export function collectNonLiveIntervalsFromLog(
     );
     intervals.push({ startMs: openStart, endMs: lastT });
   }
-  return mergeNearbyNonLiveIntervals(intervals);
+  return dropShortWearableGaps(
+    mergeWearableReconnectIslands(mergeNearbyNonLiveIntervals(intervals), entries),
+    entries,
+  );
 }
 
 function collectFlaggedIntervalsFromLog(
@@ -139,7 +193,10 @@ function collectFlaggedIntervalsFromLog(
     );
     intervals.push({ startMs: openStart, endMs: lastT });
   }
-  return mergeNearbyNonLiveIntervals(intervals);
+  return dropShortWearableGaps(
+    mergeWearableReconnectIslands(mergeNearbyNonLiveIntervals(intervals), entries),
+    entries,
+  );
 }
 
 /** Gaps where measured pulse was not live (camera hold, BLE stale RR, emulated). */
@@ -202,13 +259,28 @@ export function buildPulseSeriesFromLog(
   let lastLiveGuidance = 0;
   const effectiveNonLiveIntervals = collectNonLiveIntervalsFromLog(entries, sessionStartWallMs);
 
-  for (const entry of entries) {
+  // Precompute liveness so a wearable transport blip can be bridged ONLY when it is genuinely
+  // surrounded by live readings on both sides (strap on-body). A lone/trailing non-live sample
+  // has no live neighbour after it → treated as real loss → measured 0 (contract preserved).
+  const entryLiveFlags = entries.map((e) => isPulseLogEntryLiveForMeasurement(e));
+  const hasLiveAfterWithinWindow = (index: number, tMs: number): boolean => {
+    for (let j = index + 1; j < entries.length; j += 1) {
+      const jt = Math.max(0, entries[j]!.wallClockMs - sessionStartWallMs);
+      if (jt - tMs > WEARABLE_MIN_REAL_GAP_MS) return false;
+      if (entryLiveFlags[j]) return true;
+    }
+    return false;
+  };
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index]!;
     const tMs = Math.max(0, entry.wallClockMs - sessionStartWallMs);
-    const live =
-      isPulseLogEntryLiveForMeasurement(entry) &&
-      !isInsideNonLiveInterval(tMs, effectiveNonLiveIntervals);
+    const insideRealGap = isInsideNonLiveInterval(tMs, effectiveNonLiveIntervals);
+    const entryLive = entryLiveFlags[index]!;
+    const live = entryLive && !insideRealGap;
     const measuredRaw = rawMeasuredValue(entry);
     const guidanceRaw = rawGuidanceValue(entry);
+    const wearableLike = entry.pulseSource === "wearable" || entry.wearableState != null;
 
     if (live) {
       if (measuredRaw > 0) lastLiveMeasured = measuredRaw;
@@ -216,10 +288,22 @@ export function buildPulseSeriesFromLog(
 
     let value: number;
     if (mode === "measured") {
-      if (entry.emulatedActive || !live) {
+      if (entry.emulatedActive || insideRealGap) {
+        // Genuine loss (real gap band / emulated pacing): no measured pulse.
         value = 0;
-      } else {
+      } else if (entryLive) {
         value = measuredRaw;
+      } else if (
+        wearableLike &&
+        lastLiveMeasured > 0 &&
+        hasLiveAfterWithinWindow(index, tMs)
+      ) {
+        // Short wearable transport blip flanked by live readings (strap on-body): hold the last
+        // live value across it rather than drawing a phantom dip to 0. Camera finger-off gaps and
+        // real (unflanked) losses fall through to 0 below.
+        value = lastLiveMeasured;
+      } else {
+        value = 0;
       }
     } else if (entry.emulatedActive) {
       // During signal loss the practice paces breathing from a synthetic beat train at the

@@ -14,7 +14,6 @@ import { buildBeatTimestampsFromRrPacket } from "@/modules/biofeedback/wearables
 import {
   deriveBpmFromWearableRrIntervals,
   filterOnBodyWearableRrIntervals,
-  isWearableRrPacketTrustworthy,
   resolveWearableHeartRateBpm,
 } from "@/modules/biofeedback/wearables/wearableRrQuality";
 import type {
@@ -229,13 +228,13 @@ export function BleHeartRateSource({
     const ingestRrIntervals = (rrIntervalsMs: readonly number[]): boolean => {
       if (!rrIntervalsMs.length) return false;
       const nowMs = Date.now();
-      if (!isWearableRrPacketTrustworthy(rrIntervalsMs)) {
-        emitSnapshot("signalLost");
-        return false;
-      }
+      // Keep only usable on-body intervals; a single implausible RR (missed/merged beat) is
+      // dropped without discarding the packet or flipping the runtime to `signalLost`. Losing a
+      // couple of beats must NOT read as a signal-loss gap on-body. Sustained loss is handled by
+      // the RR-staleness watchdog (`RR_STALE_SIGNAL_LOST_MS`) and the sensor-contact bit.
       const onBodyRr = filterOnBodyWearableRrIntervals(rrIntervalsMs);
       if (!onBodyRr.length) {
-        emitSnapshot("signalLost");
+        // Nothing usable this packet — skip it, but stay `ready`; the watchdog decides real loss.
         return false;
       }
       const gapSinceLastPacketMs =
@@ -352,9 +351,12 @@ export function BleHeartRateSource({
                 trustedProfile?.enhancedMode === "polar" ? "polarEnhanced" : "genericRr",
               );
             }
-            if (!ingestRrIntervals(packet.rrIntervalsMs)) {
-              return;
-            }
+            // Ingest whatever on-body RR the packet carries. Even if this specific packet had no
+            // usable RR (a rare all-garbage burst), the link is still up, so we stay `ready` and
+            // let the RR-staleness watchdog declare a real loss only if it persists. This stops
+            // single fast-HR / missed-beat packets from tearing 1–4 s "signal lost" bands into an
+            // on-body Polar stream.
+            ingestRrIntervals(packet.rrIntervalsMs);
             emitSnapshot("ready");
             return;
           }

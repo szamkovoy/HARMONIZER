@@ -51,10 +51,12 @@ export function cleanRrSequenceCoherence(
   }
 
   const isBad: boolean[] = [];
+  const localMedian: number[] = [];
   for (let i = 0; i < events.length; i += 1) {
     const prev = events.slice(Math.max(0, i - 9), i).map((e) => e.rrMs);
     const medianPrev =
       prev.length === 0 ? events[i]!.rrMs : medianSorted([...prev].sort((a, b) => a - b));
+    localMedian.push(medianPrev);
     const rr = events[i]!.rrMs;
     isBad.push(medianPrev > 0 && Math.abs(rr - medianPrev) / medianPrev > deviationRatio);
   }
@@ -62,14 +64,21 @@ export function cleanRrSequenceCoherence(
   const goodRr = events
     .map((e, i) => (!isBad[i] ? e.rrMs : null))
     .filter((x): x is number => x != null);
-  const meanRr =
+  const globalMeanRr =
     goodRr.length > 0
       ? goodRr.reduce((s, v) => s + v, 0) / goodRr.length
       : events.reduce((s, e) => s + e.rrMs, 0) / events.length;
 
+  // Replace a flagged RR with the LOCAL median (the same baseline it was judged against), not the
+  // session-wide mean. When HR moves a lot within a session (push-ups, recovery, reconnect), the
+  // global mean sits far from the local level, so substituting it injects a large fake beat-to-beat
+  // swing exactly at the artifact — which then showed up as a false RSA burst (37–46 bpm) and RMSSD
+  // spike right where a single beat was missed or the strap re-paired. The local median keeps the
+  // tachogram continuous at the true local rate. Fall back to the global mean only at the very start
+  // where no local baseline exists yet.
   const cleaned = events.map((e, i) => ({
     timeMs: e.timeMs,
-    rrMs: isBad[i] ? meanRr : e.rrMs,
+    rrMs: isBad[i] ? (localMedian[i]! > 0 ? localMedian[i]! : globalMeanRr) : e.rrMs,
   }));
 
   const badCount = isBad.filter(Boolean).length;

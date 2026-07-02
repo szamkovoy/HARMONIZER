@@ -1,4 +1,5 @@
 import {
+  ARTIFACT_RR_BRIDGE_MAX_MS,
   COHERENCE_ALGORITHM_VERSION,
   COHERENCE_BEAT_DEDUPE_MS,
   COHERENCE_ENTRY_THRESHOLD_PERCENT,
@@ -20,6 +21,7 @@ import {
   RR_COHERENCE_WARN_FRACTION,
   RSA_CYCLE_MIN_BPM,
   SMOOTH_WINDOW_SECONDS,
+  TACHO_MAX_INTERBEAT_GAP_MS,
   TACHO_SAMPLE_RATE_HZ,
   TEST120_WINDOW_SECONDS,
   TEST120_WINDOW_SKIP_SECONDS,
@@ -152,6 +154,51 @@ export function dedupeBeatTimestampsMs(values: readonly number[], toleranceMs: n
  * дедуплицирован; флаг `sortIfNeeded=false` позволяет live-пути на «горячем» тике
  * не пересортировывать массив каждую секунду.
  */
+/**
+ * Восстанавливает удары внутри одиночного аномально длинного интервала (артефакт RR-буфера Polar).
+ * См. {@link ARTIFACT_RR_BRIDGE_MAX_MS}: разрыв в (TACHO_MAX_INTERBEAT_GAP_MS; ARTIFACT_RR_BRIDGE_MAX_MS]
+ * делится на равные части по локальному медианному RR, чтобы тахограмма не рвалась там, где пульс
+ * на самом деле шёл непрерывно. Более длинные разрывы (реальная потеря контакта) остаются как есть.
+ */
+export function bridgeArtifactRrGaps(beats: readonly number[]): number[] {
+  if (beats.length < 3) return [...beats];
+  const sorted = [...beats].sort((a, b) => a - b);
+  const out: number[] = [sorted[0]!];
+  const recentRr: number[] = [];
+  const pushRr = (rr: number) => {
+    if (rr >= 300 && rr <= 1500) {
+      recentRr.push(rr);
+      if (recentRr.length > 8) recentRr.shift();
+    }
+  };
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1]!;
+    const curr = sorted[i]!;
+    const gap = curr - prev;
+    if (
+      gap > TACHO_MAX_INTERBEAT_GAP_MS &&
+      gap <= ARTIFACT_RR_BRIDGE_MAX_MS &&
+      recentRr.length >= 3
+    ) {
+      const localMedian = median([...recentRr]) ?? gap;
+      const expected = Math.min(1500, Math.max(300, localMedian));
+      const parts = Math.round(gap / expected);
+      if (parts >= 2) {
+        const step = gap / parts;
+        for (let k = 1; k < parts; k += 1) {
+          out.push(prev + step * k);
+        }
+        pushRr(step);
+        out.push(curr);
+        continue;
+      }
+    }
+    pushRr(gap);
+    out.push(curr);
+  }
+  return out;
+}
+
 export function beatsToEvents(
   beats: readonly number[],
   options: { sortIfNeeded?: boolean } = {},
@@ -361,7 +408,11 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     );
   }
 
-  const events = beatsToEvents(beatsDeduped);
+  // Bridge single artifact RR "voids" (Polar buffer glitch) BEFORE building the tachogram so
+  // RSA/coherence stay continuous where the pulse actually kept beating. The exported
+  // `beatTimestampsMsAnalyzed` remains the untouched deduped stream for fidelity.
+  const beatsForTacho = bridgeArtifactRrGaps(beatsDeduped);
+  const events = beatsToEvents(beatsForTacho);
   const { cleaned, badFraction } = cleanRrSequenceCoherence(events, RR_ARTIFACT_DEVIATION);
   if (badFraction >= RR_COHERENCE_WARN_FRACTION) {
     warnings.push(
@@ -422,6 +473,12 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
   const rsaWindowMs = Math.max(4_000, input.cycleMs ?? inhaleMs + exhaleMs);
   const rsaExpectedSamples = Math.max(1, Math.round((rsaWindowMs / 1000) * TACHO_SAMPLE_RATE_HZ));
   const rsaMinSamples = Math.ceil(rsaExpectedSamples * 0.8);
+  // Skip RSA for the first window+settle: at session start HR is still settling (e.g. 84→64 bpm),
+  // and the very first breath window that becomes "covered" straddles that ramp, so it reports a
+  // large NON-respiratory swing — the too-high leading point the user flagged. RSA can only be
+  // measured once a full breath window of tachogram exists anyway (~one cycle), so starting a few
+  // seconds later costs nothing real and removes the startup artifact.
+  const rsaStartupSkipSec = Math.ceil(rsaWindowMs / 1000) + 4;
 
   const stepMs = 1000;
   for (let s = 1; s <= Math.floor(practiceDurationSec); s += 1) {
@@ -461,20 +518,50 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     // breath-cycle window. Excludes masked/zero samples so a gap edge cannot inflate the range.
     let rsaAmplitudeBpm: number | null = null;
     const rsaWindowStartMs = windowEndMs - rsaWindowMs;
-    let rsaMax = -Infinity;
-    let rsaMin = Infinity;
-    let rsaCount = 0;
-    for (let i = 0; i < fullTacho.timesMs.length; i += 1) {
+    const rsaTimes: number[] = [];
+    const rsaVals: number[] = [];
+    for (let i = 0; s >= rsaStartupSkipSec && i < fullTacho.timesMs.length; i += 1) {
       const tm = fullTacho.timesMs[i]!;
       if (tm < rsaWindowStartMs || tm > windowEndMs) continue;
       const v = fullBpm[i]!;
       if (!(v > BPM_ZERO_EPS)) continue;
-      rsaCount += 1;
-      if (v > rsaMax) rsaMax = v;
-      if (v < rsaMin) rsaMin = v;
+      rsaTimes.push(tm);
+      rsaVals.push(v);
     }
-    if (rsaCount >= rsaMinSamples && rsaMax >= rsaMin) {
-      rsaAmplitudeBpm = rsaMax - rsaMin;
+    if (rsaVals.length >= rsaMinSamples) {
+      // RSA is the *respiratory* (oscillatory) swing of HR, not the slow baseline drift. At session
+      // start the pulse is still settling (e.g. 84→64 bpm over ~15 s) and right after a gap/exercise
+      // it trends steeply; a raw max−min over such a window reports that ramp as a huge false RSA
+      // (the inflated leading point the user flagged, and drift-poisoned points elsewhere). We remove
+      // the linear trend inside the breath window first, so amplitude reflects the oscillation around
+      // the local trend. For a clean respiratory sine this is ~unchanged; for a monotonic ramp it
+      // collapses toward 0.
+      const n = rsaVals.length;
+      let sx = 0;
+      let sy = 0;
+      let sxx = 0;
+      let sxy = 0;
+      for (let i = 0; i < n; i += 1) {
+        const x = rsaTimes[i]!;
+        const y = rsaVals[i]!;
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        sxy += x * y;
+      }
+      const denom = n * sxx - sx * sx;
+      const slope = denom !== 0 ? (n * sxy - sx * sy) / denom : 0;
+      const intercept = (sy - slope * sx) / n;
+      let resMax = -Infinity;
+      let resMin = Infinity;
+      for (let i = 0; i < n; i += 1) {
+        const residual = rsaVals[i]! - (slope * rsaTimes[i]! + intercept);
+        if (residual > resMax) resMax = residual;
+        if (residual < resMin) resMin = residual;
+      }
+      if (resMax >= resMin) {
+        rsaAmplitudeBpm = resMax - resMin;
+      }
     }
 
     perSecond.push({
