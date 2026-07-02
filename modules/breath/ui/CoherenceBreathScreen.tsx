@@ -411,8 +411,10 @@ const PERF_DIAG_SAMPLE_MS = 10_000;
 // `@/modules/breath/config/debug-flags` в блоке импортов сверху. Чтобы
 // включить/выключить весь «тестовый режим», переключай `BREATH_TESTING_MODE`
 // в этом файле — ничего другого править не нужно.
-const CAMERA_RECOVERY_PROBE_EVERY_MS = 6_000;
+const CAMERA_RECOVERY_PROBE_EVERY_MS = 3_000;
 const CAMERA_RECOVERY_PROBE_WINDOW_MS = 2_500;
+const CAMERA_RECOVERY_PROBE_POLL_MS = 400;
+const CAMERA_RECOVERY_PROBE_MAX_CONTINUOUS_MS = 12_000;
 const CAMERA_RECOVERY_MIN_SIGNAL_QUALITY = 0.55;
 const CAMERA_SIGNAL_RECOVERY_RESET_MS = 8_000;
 const WEARABLE_EMULATED_FALLBACK_DELAY_MS = 3_000;
@@ -1507,6 +1509,7 @@ function CoherenceBreathScreenInner({
     ) {
       return;
     }
+    let cancelled = false;
     const tryRestore = () => {
       const snap = snapshotRef.current;
       const probeStartedAtWallMs = cameraRecoveryProbeStartedAtWallMsRef.current;
@@ -1529,19 +1532,62 @@ function CoherenceBreathScreenInner({
     if (tryRestore()) {
       return;
     }
-    const id = setTimeout(() => {
-      if (!tryRestore()) {
-        pipeline.setOpticalPaused(true);
-        cameraRecoveryProbeStartedAtWallMsRef.current = null;
-        setCameraRecoveryProbeActive(false);
+    const shouldKeepProbeAlive = () => {
+      const probeStartedAtWallMs = cameraRecoveryProbeStartedAtWallMsRef.current;
+      if (probeStartedAtWallMs == null) {
+        return false;
       }
-    }, CAMERA_RECOVERY_PROBE_WINDOW_MS);
-    return () => clearTimeout(id);
+      const probeAgeMs = Date.now() - probeStartedAtWallMs;
+      if (probeAgeMs >= CAMERA_RECOVERY_PROBE_MAX_CONTINUOUS_MS) {
+        return false;
+      }
+      const snap = snapshotRef.current;
+      const optical = pipeline.getLastOpticalDiagnostic();
+      const seeingFingerAgain =
+        snap.fingerDetected ||
+        snap.signalQuality >= CAMERA_RECOVERY_MIN_SIGNAL_QUALITY ||
+        (optical?.fingerPresenceConfidence ?? 0) >= 0.68;
+      const opticalFlowAlive =
+        (optical?.fps ?? 0) >= 4.5 ||
+        (optical?.amplitude ?? 0) >= 0.008;
+      return seeingFingerAgain || opticalFlowAlive;
+    };
+    const id = setInterval(() => {
+      if (cancelled) {
+        return;
+      }
+      if (tryRestore()) {
+        cancelled = true;
+        clearInterval(id);
+        return;
+      }
+      const probeStartedAtWallMs = cameraRecoveryProbeStartedAtWallMsRef.current;
+      if (probeStartedAtWallMs == null) {
+        return;
+      }
+      const probeAgeMs = Date.now() - probeStartedAtWallMs;
+      if (
+        probeAgeMs < CAMERA_RECOVERY_PROBE_WINDOW_MS ||
+        shouldKeepProbeAlive()
+      ) {
+        return;
+      }
+      cancelled = true;
+      clearInterval(id);
+      pipeline.setOpticalPaused(true);
+      cameraRecoveryProbeStartedAtWallMsRef.current = null;
+      setCameraRecoveryProbeActive(false);
+    }, CAMERA_RECOVERY_PROBE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [
-    cameraGuidanceOnlyMode,
     cameraRecoveryProbeActive,
+    cameraGuidanceOnlyMode,
     emulatedFallbackSource,
     phase,
+    pipeline,
     switchBackToLivePulse,
     useEmulatedPulseMode,
   ]);

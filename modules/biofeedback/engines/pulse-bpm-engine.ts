@@ -85,12 +85,40 @@ const POST_GAP_REACQUIRE_MIN_GAP_MS = 2_500;
  */
 const POST_GAP_MIN_RR = 5;
 
-/** Метка первого удара после самого свежего разрыва > minGapMs (или null, если разрывов нет). */
-function findLastGapResumeBeatTs(beats: readonly number[], minGapMs: number): number | null {
+interface GapResumeBeat {
+  resumeTs: number;
+  gapMs: number;
+}
+
+/** Последний разрыв > minGapMs и первый beat после него (или null, если разрывов нет). */
+function findLastGapResumeBeat(
+  beats: readonly number[],
+  minGapMs: number,
+): GapResumeBeat | null {
   for (let i = beats.length - 1; i >= 1; i -= 1) {
-    if (beats[i]! - beats[i - 1]! > minGapMs) return beats[i]!;
+    const gapMs = beats[i]! - beats[i - 1]!;
+    if (gapMs > minGapMs) {
+      return { resumeTs: beats[i]!, gapMs };
+    }
   }
   return null;
+}
+
+const SHORT_GAP_INTERPOLATION_MISSED_BEATS = 4.5;
+const SHORT_GAP_INTERPOLATION_MIN_MS = 2_800;
+const SHORT_GAP_INTERPOLATION_MAX_MS = 5_000;
+
+function getMaxInterpolatedGapMs(lastStableMedianRrMs: number): number {
+  if (lastStableMedianRrMs <= 0 || !Number.isFinite(lastStableMedianRrMs)) {
+    return SHORT_GAP_INTERPOLATION_MIN_MS;
+  }
+  return Math.min(
+    SHORT_GAP_INTERPOLATION_MAX_MS,
+    Math.max(
+      SHORT_GAP_INTERPOLATION_MIN_MS,
+      lastStableMedianRrMs * SHORT_GAP_INTERPOLATION_MISSED_BEATS,
+    ),
+  );
 }
 
 interface RrMeasurement {
@@ -201,12 +229,16 @@ export class PulseBpmEngine {
     // пока не накопится POST_GAP_MIN_RR чистых пост-гэп RR. Wearable RR точны — не гейтим.
     let reacquiring = false;
     if (sourceKind === "fingerCamera") {
-      const resumeTs = findLastGapResumeBeatTs(mergedBeats, POST_GAP_REACQUIRE_MIN_GAP_MS);
-      if (resumeTs != null) {
-        const postGapAll = filtered.filter((m) => m.startTimestampMs >= resumeTs);
-        window = window.filter((m) => m.startTimestampMs >= resumeTs);
-        if (postGapAll.length < POST_GAP_MIN_RR) {
-          reacquiring = true;
+      const gap = findLastGapResumeBeat(mergedBeats, POST_GAP_REACQUIRE_MIN_GAP_MS);
+      if (gap != null) {
+        const maxInterpolatedGapMs = getMaxInterpolatedGapMs(this.lastStableMedianRrMs);
+        const requiresHardReacquire = gap.gapMs > maxInterpolatedGapMs;
+        if (requiresHardReacquire) {
+          const postGapAll = filtered.filter((m) => m.startTimestampMs >= gap.resumeTs);
+          window = window.filter((m) => m.startTimestampMs >= gap.resumeTs);
+          if (postGapAll.length < POST_GAP_MIN_RR) {
+            reacquiring = true;
+          }
         }
       }
     }

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.30
-updated: 2026-07-02
+version: 1.31
+updated: 2026-07-03
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-03 (1):** Camera guidance/runtime now matches the intended “delay a few beats, then decide” behavior. Field test `1783032655745` showed that one 3 s finger lift already behaved correctly, but two other 3 s lifts still turned into a second gray segment after the finger had returned, because the runtime eventually received `reacquiring` from the source layer and zeroed measured pulse again. At the same time the 20 s lift fell into `emulated`, but the camera never restored before session end because recovery only got a series of short 2.5 s optical probes. User-visible fix: short gaps that are still plausibly only a few missed beats no longer trigger the hard reacquire path at the source, so practice guidance/results keep the pre-gap BPM context and slide back onto real pulse instead of dropping into a fake post-return `holding + 0 bpm` band. For real long-loss fallback, camera recovery probes now retry sooner and can stay alive continuously while the optical path is clearly seeing finger/signal signs, so emulated guidance has a realistic chance to hand back to live pulse before the practice ends.
 
 - **2026-07-02 (6):** Camera short-gap behavior in practice results/runtime now follows the intended interpolation contract. Field test `1783030499402` showed that 3 s finger lifts still produced wide gray bands even after the low-fps bandpass fix, because `CoherenceBreathScreen` zeroed `measuredPulseRateBpm` too early: it only treated a camera sample as live when a very fresh beat had just arrived, while the runtime still legitimately sat in `holding`/recent `tracking` with a usable held BPM. The practice layer now treats recent camera `holding`/`tracking` (non-emulated, non-reacquiring, `event.bpm > 0`, beat age ≤ 5 s) as a live measured pulse. In practice this means short finger lifts ride through as interpolation/hold instead of immediately drawing a large gray band, while truly stale camera data still degrades to non-live and then emulated pacing. The export/runtime contract was also tightened so emulated fallback writes `pulseSource="emulated"` + `pulseLockState="searching"` instead of leaking probe-only internal camera states into result logs.
 

@@ -154,6 +154,37 @@ describe("PulseBpmEngine post-gap reacquire gate (fingerCamera)", () => {
     expect(released.bpm).toBeLessThan(72);
   });
 
+  it("treats a short 3-second finger lift as interpolable instead of hard reacquire", () => {
+    const engine = new PulseBpmEngine();
+    const stable = beatTrain(0, 18, 900); // ~66.7 bpm
+    let stableSnap = { bpm: 0, reacquiring: false };
+    for (const b of stable) {
+      const snap = engine.push({
+        timestampMs: b,
+        mergedBeats: stable.filter((x) => x <= b),
+        sourceKind: "fingerCamera",
+      });
+      stableSnap = { bpm: snap.bpm, reacquiring: snap.reacquiring };
+    }
+    expect(stableSnap.bpm).toBeGreaterThan(64);
+    expect(stableSnap.bpm).toBeLessThan(69);
+
+    const gapEnd = stable[stable.length - 1]!;
+    const resumed = [
+      gapEnd + 3_550,
+      gapEnd + 4_450,
+      gapEnd + 5_350,
+    ];
+    const allBeats = [...stable, ...resumed];
+    const firstAfterReturn = engine.push({
+      timestampMs: resumed[0]! + 10,
+      mergedBeats: allBeats.filter((x) => x <= resumed[0]! + 10),
+      sourceKind: "fingerCamera",
+    });
+    expect(firstAfterReturn.reacquiring).toBe(false);
+    expect(firstAfterReturn.bpm).toBeCloseTo(stableSnap.bpm, 1);
+  });
+
   it("does not gate wearable RR (chest strap RR is trusted)", () => {
     const engine = new PulseBpmEngine();
     const beats = [0, 900, 1_800, 12_000, 12_850]; // 8s+ gap in the middle
