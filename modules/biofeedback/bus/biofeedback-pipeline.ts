@@ -51,6 +51,7 @@ import {
   BEAT_DUPLICATE_TOLERANCE_MS,
   BEAT_HISTORY_WINDOW_MS,
   CONTACT_LOST_GRACE_MS,
+  CONTACT_REGAIN_FLUSH_MS,
   HRV_RR_HARD_MAX_MS,
   HRV_RR_HARD_MIN_MS,
 } from "@/modules/biofeedback/constants";
@@ -120,6 +121,9 @@ export class BiofeedbackPipeline {
   private beatEligible: boolean[] = [];
   private lastStableRrMs = 0;
   private lastMedianRrMs = 0;
+  /** Tracks the absent→present contact transition to flush poisoned optical samples on finger return. */
+  private prevContactPresent = true;
+  private lastContactAbsentForMs = 0;
   private readonly sessionFingerGapEvents: Array<{
     resumeBeatTimestampMs: number;
     gapMs: number;
@@ -848,6 +852,29 @@ export class BiofeedbackPipeline {
     const contactPresent = contactSnap.state === "present";
     const calibrationPhaseBefore = this.calibration.getPhase();
 
+    // Flush the optical ring buffer when the finger returns after a real removal
+    // (≥ CONTACT_REGAIN_FLUSH_MS). While the finger is off, the 12 s sliding window fills with
+    // "no-finger" noise; the zero-phase bandpass then processes a mix of garbage + clean PPG and
+    // its transient masks the pulse waveform for ~12 s until the garbage ages out — so even with
+    // peak detection enabled (debounced contactLost keeps the FSM in `ready`), no beats are found
+    // for ~15 s after a 3 s lift. Resetting the buffer on regain lets the bandpass start fresh on
+    // clean samples and re-locks in ~2 s. Momentary presence dips (< threshold) are NOT flushed
+    // (the bandpass tolerates a sub-second glitch without a full refill).
+    if (contactPresent) {
+      if (
+        !this.prevContactPresent &&
+        this.lastContactAbsentForMs >= CONTACT_REGAIN_FLUSH_MS
+      ) {
+        this.optical.reset();
+        this.mergedBeats = [];
+        this.beatEligible = [];
+      }
+      this.lastContactAbsentForMs = 0;
+    } else {
+      this.lastContactAbsentForMs = contactSnap.absentForMs;
+    }
+    this.prevContactPresent = contactPresent;
+
     // ---- FAST-PATH после обновления ring-буфера: пальца всё ещё нет, но
     // mergedBeats не пуст — надо лишь «додонести» калибровку, а пиковую
     // обработку пропустить (см. подробный комментарий ниже).
@@ -1257,6 +1284,8 @@ export class BiofeedbackPipeline {
     this.beatEligible = [];
     this.lastStableRrMs = 0;
     this.lastMedianRrMs = 0;
+    this.prevContactPresent = true;
+    this.lastContactAbsentForMs = 0;
     this.lockState = "searching";
     this.lastPulseBpmPublishMs = 0;
     this.lastCoherenceSnapshotMs = 0;

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.13
+version: 1.14
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (5):** Optical re-acquisition — flush poisoned buffer on finger return. The (4) debounce fixed the 10 s warmup, but a 3 s finger lift still left ~12–15 s of `holding` with the finger back on and SQ 0.82–0.83: while the finger is off, the 12 s sliding optical window fills with no-finger noise, and the zero-phase bandpass (`sosfiltFiltfilt`) then processes a mix of garbage + clean PPG whose transient masks the pulse waveform until the garbage ages out (~12 s). Added `CONTACT_REGAIN_FLUSH_MS = 1 500` (`constants.ts`); `BiofeedbackPipeline.pushOpticalSample` now tracks the absent→present contact transition and, on regain after ≥1.5 s absence, calls `optical.reset()` + clears `mergedBeats`/`beatEligible` so the bandpass starts fresh on clean samples and re-locks in ~2 s. Momentary presence dips (<1.5 s, motion/jiggle) are NOT flushed — the bandpass tolerates a sub-second glitch without a full refill. `prevContactPresent`/`lastContactAbsentForMs` reset in `softReset`.
 
 - **2026-07-02 (4):** Optical re-acquisition fix. Field re-test (5 min finger-PPG, 3× 3 s finger-off + one 20 s off) showed the 12 Hz + matched-SOS fix from (3) works — tracking is solid while the finger is on — but a **3 s finger removal still produced a ~15 s gray band**. Root cause: `BiofeedbackPipeline` passed `contactLost: !contactPresent` to the calibration FSM, which fired on the **first** absent frame and routed `ready → lost → contactSearch → warmup(10 s) → settle(10 s)`, disabling peak detection for ~15 s. A 3 s removal is not a real contact loss — it's a brief lift. Added `CONTACT_LOST_GRACE_MS = 4 000` (`constants.ts`); `contactLost` now requires `contactSnap.absentForMs > CONTACT_LOST_GRACE_MS` (`biofeedback-pipeline.ts`). Brief removals (≤4 s) keep the FSM in `ready`, so peak detection stays enabled and re-locks within ~2–3 s on fresh samples once the finger is back; only sustained absence (the 20 s removal) still routes to `lost → warmup`. The ultra-fast-path `contactLost: true` is untouched — it only runs when `mergedBeats` is empty (pre-practice), where the FSM isn't in `ready` anyway.
 
