@@ -175,6 +175,7 @@ export function buildFilteredBeatTimestamps(
 export class PulseBpmEngine {
   private displayBpm = 0;
   private lastReliableBpmTs = 0;
+  private lastStableMedianRrMs = 0;
   private recentDisplayCandidates: Array<{ timestampMs: number; bpm: number; reliable: boolean }> = [];
 
   push(input: PulseBpmInput): PulseBpmSnapshot {
@@ -203,6 +204,24 @@ export class PulseBpmEngine {
     const intervals = window.map((m) => m.intervalMs);
     const medianRr = median(intervals);
     const jitter = median(intervals.map((v) => Math.abs(v - medianRr)));
+
+    // RR-drift reacquire gate (finger PPG). A gap > 2.5 s is caught above, but a short
+    // detection lapse (a few missed beats, no big gap) can still let stale/long RR enter the
+    // window and pull the median BPM off by >25 % in one snapshot (e.g. 73 → 53 bpm). Real HR
+    // never jumps that fast, so when the window median deviates >25 % from the last stable
+    // median we hold the previous displayBpm until the window returns within the band and
+    // re-stabilises. This suppresses the single-point "needle" spikes after brief detection
+    // drops. Wearable RR is trusted and never gated.
+    if (
+      sourceKind === "fingerCamera" &&
+      !reacquiring &&
+      this.lastStableMedianRrMs > 0 &&
+      medianRr > 0 &&
+      Math.abs(medianRr - this.lastStableMedianRrMs) / this.lastStableMedianRrMs > 0.25
+    ) {
+      reacquiring = true;
+    }
+
     const looksCoherent =
       !reacquiring &&
       intervals.length >= 5 &&
@@ -234,6 +253,17 @@ export class PulseBpmEngine {
     const poolBpm = pool.map((sample) => sample.bpm).filter((value) => value > 0);
     if (looksCoherent && candidateBpm > 0) {
       this.lastReliableBpmTs = timestampMs;
+      // Only accept a new stable baseline when it is within ±25 % of the previous one (or
+      // there is no baseline yet). Otherwise a sustained bogus rhythm (e.g. noise-driven
+      // long RR after a detection lapse) would become "stable" by virtue of its own low
+      // jitter, the drift gate would clear, and the bogus BPM would leak through. Real HR
+      // drifts gradually, so a >25 % single-snapshot jump is never a legitimate new baseline.
+      if (
+        this.lastStableMedianRrMs === 0 ||
+        Math.abs(medianRr - this.lastStableMedianRrMs) / this.lastStableMedianRrMs <= 0.25
+      ) {
+        this.lastStableMedianRrMs = medianRr;
+      }
     }
     if (reacquiring) {
       // hold previous displayBpm; do not let the stale/settling RR move it
@@ -274,6 +304,7 @@ export class PulseBpmEngine {
   reset(): void {
     this.displayBpm = 0;
     this.lastReliableBpmTs = 0;
+    this.lastStableMedianRrMs = 0;
     this.recentDisplayCandidates = [];
   }
 }

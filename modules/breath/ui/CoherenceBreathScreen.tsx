@@ -2080,6 +2080,17 @@ function CoherenceBreathScreenInner({
             wearableSensorContactDetected: isWearableMode ? (wearableRuntimeNow.sensorContactDetected ?? null) : null,
             wearablePacketCount: isWearableMode ? (wearableRuntimeNow.packetCount ?? null) : null,
             wearableRrPacketCount: isWearableMode ? (wearableRuntimeNow.rrPacketCount ?? null) : null,
+            opticalRedMean: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.redMean ?? null),
+            opticalGreenMean: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.greenMean ?? null),
+            opticalBlueMean: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.blueMean ?? null),
+            opticalLumaMean: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.lumaMean ?? null),
+            opticalRedDominance: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.redDominance ?? null),
+            opticalDarknessRatio: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.darknessRatio ?? null),
+            opticalSaturationRatio: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.saturationRatio ?? null),
+            opticalMotion: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.motion ?? null),
+            opticalAmplitude: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.amplitude ?? null),
+            opticalFps: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.fps ?? null),
+            fingerPresenceConfidence: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.fingerPresenceConfidence ?? null),
           };
           draftEntry.liveMeasurementActive = isPulseLogEntryLiveForMeasurement(draftEntry);
           draftEntry.interpolationHoldActive =

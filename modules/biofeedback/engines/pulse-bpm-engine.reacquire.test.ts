@@ -60,6 +60,43 @@ describe("PulseBpmEngine post-gap reacquire gate (fingerCamera)", () => {
     expect(final.bpm).toBeLessThan(72);
   });
 
+  it("suppresses a post-gap bogus-long-RR spike (73 → 53 bpm after a finger lift)", () => {
+    const engine = new PulseBpmEngine();
+    // Stable ~73 bpm (RR 822ms) for 15 s.
+    const stable = beatTrain(0, 18, 822);
+    let last = { bpm: 0, reacquiring: false };
+    for (const b of stable) {
+      const snap = engine.push({
+        timestampMs: b,
+        mergedBeats: stable.filter((x) => x <= b),
+        sourceKind: "fingerCamera",
+      });
+      last = { bpm: snap.bpm, reacquiring: snap.reacquiring };
+    }
+    const stableBpm = last.bpm;
+    expect(stableBpm).toBeGreaterThan(70);
+    expect(stableBpm).toBeLessThan(76);
+
+    // 3 s finger lift → gap > 2.5 s. On return the first post-gap RR are artifactual long
+    // (~1063 ms → 56 bpm) because the peak detector re-locks against a stale beat. The
+    // gap-reacquire gate clears after 3 post-gap RR, but those RR are bogus; without the
+    // drift guard they would pull displayBpm down to ~53. The drift guard must keep holding
+    // the pre-gap BPM until post-gap RR return within ±25 % of the stable baseline.
+    const gapEnd = stable[stable.length - 1]!;
+    const resume = [gapEnd + 3_000, gapEnd + 4_063, gapEnd + 5_126, gapEnd + 6_189, gapEnd + 7_009];
+    const allBeats = [...stable, ...resume];
+    let drifted = { bpm: 0, reacquiring: false };
+    for (const b of resume) {
+      const snap = engine.push({
+        timestampMs: b + 10,
+        mergedBeats: allBeats.filter((x) => x <= b + 10),
+        sourceKind: "fingerCamera",
+      });
+      drifted = { bpm: snap.bpm, reacquiring: snap.reacquiring };
+    }
+    expect(drifted.bpm).toBeGreaterThan(stableBpm - 5); // held near 73, not pulled to 53
+  });
+
   it("does not gate wearable RR (chest strap RR is trusted)", () => {
     const engine = new PulseBpmEngine();
     const beats = [0, 900, 1_800, 12_000, 12_850]; // 8s+ gap in the middle

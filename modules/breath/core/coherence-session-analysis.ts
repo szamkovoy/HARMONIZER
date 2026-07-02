@@ -801,6 +801,18 @@ export type CoherencePulseLogEntry = {
   liveMeasurementActive?: boolean;
   /** True when guidance/measured is being held across a short camera gap. */
   interpolationHoldActive?: boolean;
+  /** Сырая оптика с камеры (для диагностики finger-presence при снятиях пальца). */
+  opticalRedMean?: number | null;
+  opticalGreenMean?: number | null;
+  opticalBlueMean?: number | null;
+  opticalLumaMean?: number | null;
+  opticalRedDominance?: number | null;
+  opticalDarknessRatio?: number | null;
+  opticalSaturationRatio?: number | null;
+  opticalMotion?: number | null;
+  opticalAmplitude?: number | null;
+  opticalFps?: number | null;
+  fingerPresenceConfidence?: number | null;
 };
 
 export type CoherenceExportDebug = {

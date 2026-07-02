@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.15
+version: 1.16
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (7):** Post-gap RR-drift reacquire gate + raw optical diagnostics. Field test `1783016809239` (algoVer 1.2.1, 15 Hz) showed two residual optical issues: (a) a single-snapshot "needle" spike to 53 bpm around 1:50 — after the 3 s finger lift at 100 s the first post-gap beats had artifactual long RR (~1063–1078 ms), the existing gap-reacquire gate cleared after 3 RR, and those bogus RR pulled `displayBpm` down via the candidate pool; (b) the 20 s lift at 200 s was not recognised as finger-off (`fingerDetected=1`, SQ 0.85–0.90 throughout) so the peak detector tracked ambient-light noise as bogus 54–69 bpm. Fix for (a): `PulseBpmEngine` now tracks `lastStableMedianRrMs` (only updated when a coherent median is within ±25 % of the previous baseline, so a sustained bogus rhythm cannot become "stable") and holds `displayBpm` when the window median RR deviates >25 % from that baseline — this keeps the gate active past the 3-RR gap threshold until post-gap RR return within band. The `reacquiring` flag already suppresses both the measured-chart plot and the guidance BPM feed. For (b): added raw optical diagnostics to the debug export — `pulseLog` now carries `opticalRedMean/GreenMean/BlueMean/LumaMean/RedDominance/DarknessRatio/SaturationRatio/Motion/Amplitude/Fps` + `fingerPresenceConfidence` (via `BiofeedbackPipeline.getLastOpticalDiagnostic()`), so the next field test shows exactly why `calculateFingerPresenceConfidence` stays high during a direct-torch lift and lets us calibrate the presence thresholds precisely. Covered by `pulse-bpm-engine.reacquire.test.ts` (post-gap bogus-long-RR case).
 
 - **2026-07-02 (6):** Reverted `TARGET_PPG_FPS` 12 → 15 Hz. Three field-test rounds at 12 Hz (with matched FS_12 bandpass, debounced `contactLost`, and buffer-flush-on-regain all applied) still showed short 4–9 s `holding` bursts with the finger on the lens and SQ 0.69–0.83: at 12 Hz the 12 s sliding window holds only 144 samples (vs 180 at 15 Hz), and the zero-phase `sosfiltfilt` edge effect + adaptive prominence threshold intermittently eat marginal pulse peaks, so the peak detector misses a few beats and `lastBeatAgeMs` exceeds the 4.2 s freshness gate. 15 Hz was empirically reliable across the prior test corpus and is reinstated as the verified reliability/heat compromise. Heat on 20-min sessions is the known tradeoff; future work — adaptive fps (15 Hz during acquire/re-lock, 10 Hz in steady-state). The FS_12/FS_10 matched SOS and `pickSosForSampleRateHz` floor (9 Hz) are kept — they remain correct for any future lower-fps mode and are no-ops at 15 Hz.
 

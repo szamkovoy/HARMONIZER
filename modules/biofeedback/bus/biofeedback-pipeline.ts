@@ -131,6 +131,20 @@ export class BiofeedbackPipeline {
   private mirroredAccumulatorGapEventCount = 0;
   private sessionFingerLostAtMs: number | null = null;
   private lockState: PulseLockState = "searching";
+  /** Последний оптический результат (для диагностики finger-presence в pulseLog). */
+  private lastOpticalDiagnostic: {
+    redMean: number;
+    greenMean: number;
+    blueMean: number;
+    lumaMean: number;
+    redDominance: number;
+    darknessRatio: number;
+    saturationRatio: number;
+    motion: number;
+    amplitude: number;
+    fps: number;
+    fingerPresenceConfidence: number;
+  } | null = null;
   private lastPulseBpmPublishMs = 0;
   private lastCoherenceSnapshotMs = 0;
   /** Последнее опубликованное `revision` live-снимка CoherenceEngine — чтобы не дублировать. */
@@ -567,6 +581,11 @@ export class BiofeedbackPipeline {
     return Math.max(last, lastBeat);
   }
 
+  /** Последний оптический диагноз (сырые RGB/luma/saturation + амплитуда/присутствие). */
+  getLastOpticalDiagnostic() {
+    return this.lastOpticalDiagnostic;
+  }
+
   /**
    * Источник готовых ударов (симулятор / Apple Watch / BLE / Edge-AI). Минует все стадии
    * signal/quality, кроме merge — сразу обновляет mergedBeats и engines, для которых
@@ -821,6 +840,19 @@ export class BiofeedbackPipeline {
     // monitoring. Единственное, что мы делаем всегда — это обрабатываем
     // сэмпл через ring buffer.
     const opt = this.optical.push(sample);
+    this.lastOpticalDiagnostic = {
+      redMean: sample.redMean,
+      greenMean: sample.greenMean,
+      blueMean: sample.blueMean,
+      lumaMean: sample.lumaMean,
+      redDominance: sample.redDominance,
+      darknessRatio: sample.darknessRatio,
+      saturationRatio: sample.saturationRatio,
+      motion: sample.motion,
+      amplitude: opt.amplitude,
+      fps: opt.fps,
+      fingerPresenceConfidence: opt.fingerPresenceConfidence,
+    };
     // Публикуем optical ТОЛЬКО при присутствии пальца. Без пальца — шум, и
     // единственный подписчик (optical-превью в warmup/qualityCheck) до
     // этой фазы ещё не доходит. Так мы дополнительно отрезаем нейтральные
