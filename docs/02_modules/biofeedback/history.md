@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.17
+version: 1.18
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (9):** Lowered `TARGET_PPG_FPS` 15 → 10 to cut heat on long sessions. Raw optical diagnostics (test 1783020943996) proved the camera delivers only ~10 fps under torch regardless of `TARGET` (iOS auto-exposure caps the frame rate on the bright finger-on-lens frame), so `TARGET = 15` made the ISP capture 15 frames/s while the JS processor only handled ~10 — wasted capture load + heat with no sample-density benefit. At `TARGET = 10` capture and processing align at ~10 fps, heat drops, and the matched `BUTTERWORTH_PPG_SOS_FS_10` + 9 Hz `pickSosForSampleRateHz` floor keep the bandpass correct for the real rate. The `cadenceScore = scoreRange(fps, 12, 32)` was already 0 at the real ~10 fps, so SQ is unchanged. `HIGH_PRECISION_PPG_FPS = 30` still covers the ≤20 s warmup/QC phase.
 
 - **2026-07-02 (8):** Optical recovery — drop poisoned samples, not the whole buffer. Field test `1783020943996` (algoVer 1.2.2, raw optical diagnostics) showed the (5) full-buffer flush on finger return caused ~14–16 s `holding` after 3 s lifts: the camera actually delivers only ~10 fps under torch (auto-exposure caps the frame rate, regardless of `TARGET_PPG_FPS = 15`), so a full 12 s window refill costs 12 s before the zero-phase bandpass can produce usable peaks again. Replaced `optical.reset()` on regain with `OpticalRingBuffer.dropSamplesSince(regainTs − absentForMs)`: only the no-finger "poison" samples are removed, the ~9 s of clean pre-lift PPG stays, and the bandpass resumes usable peaks within ~2 s of new clean samples. `mergedBeats` are no longer cleared (the BPM reacquire gate handles the gap, and keeping pre-absence beats gives continuity). The same test confirmed presence detection now correctly flips to finger-off during lifts (`redMean`/`lumaMean`/`saturationRatio` → 1.0, `fingerPresenceConfidence` → 0.16–0.36) — the earlier "20 s lift not detected" failure did not recur. Covered by `optical-pipeline.test.ts`. Camera fps finding logged for future work (exposure-limited ~10 fps; adaptive fps / exposure lock is a separate task).
 
