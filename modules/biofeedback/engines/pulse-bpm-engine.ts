@@ -72,8 +72,18 @@ export interface PulseBpmSnapshot {
  * лишь понимаем, где начался пост-гэп ряд.
  */
 const POST_GAP_REACQUIRE_MIN_GAP_MS = 2_500;
-/** Сколько чистых пост-гэп RR нужно накопить, прежде чем снова доверять BPM (≈ 2-4 удара). */
-const POST_GAP_MIN_RR = 3;
+/**
+ * Сколько чистых пост-гэп RR нужно накопить, прежде чем снова доверять BPM.
+ * Первые 1-2 пост-гэп RR часто оказываются артефактно короткими (~822 мс при истинных ~857 мс):
+ * zero-phase bandpass звенит на разрыве `dropSamplesSince` (чистая пре-гэп история → скачок DC →
+ * новые сэмплы), и пиковый детектор ловит первый пик чуть раньше истинного систолического. При
+ * пороге 3 такие короткие RR задавают медиану и дают одиночный «пиковый» BPM (например 73 при
+ * реальных 70), который потом резко падает — тот самый «одна точка вверху и летит вниз» на
+ * графике. При 5 RR два артефактных интервала перевешиваются тремя истинными, медиана выходит на
+ * реальный ритм, и первый опубликованный BPM сразу чистый. Цена — ~1.7 с дополнительного
+ * `holding` на быстром восстановлении, что приемлемо относительно собственно серой полосы.
+ */
+const POST_GAP_MIN_RR = 5;
 
 /** Метка первого удара после самого свежего разрыва > minGapMs (или null, если разрывов нет). */
 function findLastGapResumeBeatTs(beats: readonly number[], minGapMs: number): number | null {
@@ -280,9 +290,15 @@ export class PulseBpmEngine {
       this.displayBpm = candidateBpm;
     } else if (
       this.displayBpm > 0 &&
-      timestampMs - this.lastReliableBpmTs > 4_500 &&
+      timestampMs - this.lastReliableBpmTs > 8_000 &&
       poolBpm.length === 0
     ) {
+      // Hold the last known BPM for up to ~8 s of total signal loss before declaring 0. The
+      // reacquire gate already holds displayBpm across a gap and the post-gap settling window;
+      // this fallback only fires in non-reacquiring lost-signal states (e.g. finger off with no
+      // post-gap beat yet). A longer hold avoids the live readout flashing "0" during brief
+      // mid-practice dropouts — the chart's gray band is driven by `liveMeasurementActive`, not
+      // by this value, so holding here does not hide the gap on the graph.
       this.displayBpm = 0;
     }
 

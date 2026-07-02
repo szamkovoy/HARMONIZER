@@ -49,7 +49,7 @@ code_refs:
 | `contact` | присутствие пальца, уверенность |
 | `session` | фазы `CalibrationStateMachine` (warmup / settle / ready / lost) |
 | `beat` | удар: `BeatEvent` (`timestampMs`, `source`: `detected` \| `extrapolated`, `confidence`) |
-| `pulseBpm` | скользящий BPM; поле `reacquiring` (только finger PPG) = короткая пост-гэп реакквизиция: сигнал только вернулся, чистых RR ещё мало, BPM удерживается на прошлом значении и кадр не считается живым измерением |
+| `pulseBpm` | скользящий BPM; поле `reacquiring` (только finger PPG) = пост-гэп реакквизиция: сигнал только вернулся, чистых RR ещё мало, BPM удерживается на прошлом значении и кадр не считается живым измерением. Gate держит `reacquiring=true` пока не накопится `POST_GAP_MIN_RR = 5` чистых пост-гэп RR (первые 1-2 RR часто артефактно короткие из-за ringing'a zero-phase bandpass на разрыве `dropSamplesSince` — без 5-RR порога они задавали бы медиану и давали ложный «пиковый» BPM сразу после серой полосы); плюс RR-drift gate удерживает BPM при отклонении медианы >25 % от последнего стабильного RR. Вне реакквизиции `displayBpm` держит последнее значение до ~8 с полной потери сигнала перед обнулением (читстый live-readout, не график — серые полосы на графике ведёт `liveMeasurementActive`). |
 | `rmssd` | RMSSD (мс), сегмент, тир, approximate-флаги |
 | `stress` | индекс стресса (проценты + сырое) |
 | `coherence` | снимок когерентности (в т.ч. `currentPercent`, `entryTimeSec`, агрегаты сессии) |
