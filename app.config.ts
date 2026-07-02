@@ -103,6 +103,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         "expo-build-properties",
         {
+          ios: {
+            // AppCheckCore 11.3+ pulls RecaptchaInterop, which breaks Expo static pod
+            // integration without modular headers. Pin to the last known-good release.
+            extraPods: [{ name: "AppCheckCore", version: "11.2.0" }],
+          },
           android: {
             minSdkVersion: 26,
             compileSdkVersion: 35,
