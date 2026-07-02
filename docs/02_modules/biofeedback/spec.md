@@ -49,7 +49,7 @@ code_refs:
 | `contact` | присутствие пальца, уверенность |
 | `session` | фазы `CalibrationStateMachine` (warmup / settle / ready / lost) |
 | `beat` | удар: `BeatEvent` (`timestampMs`, `source`: `detected` \| `extrapolated`, `confidence`) |
-| `pulseBpm` | скользящий BPM |
+| `pulseBpm` | скользящий BPM; поле `reacquiring` (только finger PPG) = короткая пост-гэп реакквизиция: сигнал только вернулся, чистых RR ещё мало, BPM удерживается на прошлом значении и кадр не считается живым измерением |
 | `rmssd` | RMSSD (мс), сегмент, тир, approximate-флаги |
 | `stress` | индекс стресса (проценты + сырое) |
 | `coherence` | снимок когерентности (в т.ч. `currentPercent`, `entryTimeSec`, агрегаты сессии) |

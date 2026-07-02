@@ -1,3 +1,5 @@
+- 2026-07-02 (2): `modules/breath/core/breath-results-series.ts`, `modules/breath/ui/CoherenceBreathScreen.tsx`, `docs/02_modules/practices/*` — fixed camera `CoherenceEngine.finalize() without active session` crash at 5:00; anchored pulse-chart gap band to the last live sample so the measured line no longer ends before the gray zone; guidance chart now draws continuously across the hold band; documented that coherence/RMSSD/stress warm-up is inherent to each metric's window, not a legacy optical artifact.
+- 2026-07-02: `modules/biofeedback/bus/biofeedback-pipeline.ts`, `modules/breath/core/{coherence-session-analysis,breath-results-series}.ts`, `modules/breath/ui/CoherenceBreathScreen.tsx`, `docs/02_modules/{biofeedback,practices}/*` — camera guidance-only overheating fix (trust/coherence work moved off the per-frame path, coherence session not started in camera mode), honest metric charts (no bridging across gaps, no flat tail, fixed-width Y gutter so gap bands align), dense per-second RSA amplitude, guidance step-limiter rewrite (removes phantom plateau), and correct post-gap measured-pulse artifact folding.
 - 2026-06-29: `modules/breath/core/coherence-session-analysis.ts`, `modules/breath/ui/CoherenceBreathScreen.tsx`, `docs/02_modules/{biofeedback,i18n}/history.md` — export `pulseLog` now records explicit `pulseSource`/`emulated`/BLE runtime context for loss-analysis, and the camera reminder string was updated to “рисунок дыхания точно соответствовал вашему пульсу”.
 - 2026-06-29: `modules/biofeedback/engines/coherence-engine.ts`, `modules/breath/ui/CoherenceBreathScreen.tsx`, `docs/02_modules/biofeedback/history.md` — debug JSON export now uses the final screen-level `analysis` override, so camera guidance-only exports match what the user actually saw instead of leaking raw cached coherence-engine output.
 - 2026-06-29: `modules/breath/ui/CoherenceBreathScreen.tsx`, `docs/02_modules/practices/history.md` — removed misleading BLE running banners for initial connect and transient HR-only downgrades, and tightened camera loss detection around the age of the last real beat so reminder/fallback trigger when live pulse actually stops.
@@ -11,13 +13,14 @@
 ## id: 00_index/CHANGELOG
 
 title: Documentation Changelog
-version: 3.15
-updated: 2026-07-01
+version: 3.18
+updated: 2026-07-02
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-07-01 (8): `biofeedback` / `practices` — camera (finger PPG) post-gap reacquire gate in `PulseBpmEngine` (holds BPM + new `pulseBpm.reacquiring` flag until clean post-gap RR accumulate, wearable RR untouched); breath result charts stop re-sanitizing guidance (removes the phantom horizontal plateau), drop the false post-gap ~58 BPM measured point via `dropPostGapMeasuredArtifacts`, hold guidance flat during emulated gaps (removes the phantom downward dip), and fix the coherence `perSecond` off-by-one coverage lookup. Added `pulse-bpm-engine.reacquire.test.ts`; synced `biofeedback/{spec,history}.md`, `practices/history.md`.
 - 2026-07-01 (7): `biofeedback` / `practices` — Polar recovery now prefers RR-derived BPM over raw HR when they disagree, rejects impossible long-RR reconnect packets without falling through to `ready`, keeps synthetic fallback beats out of final metric beat-series after BLE recovery, prevents camera guidance BPM from freezing into false plateaus during large real pulse changes, holds camera guidance/planner steady during non-live interpolation windows, debounces camera hard-loss recovery and result pulse gaps so a brief false tracking blip does not split a long finger removal, filters short PPG recovery spike-runs in pulse charts, and renders all breath result charts on the fixed practice-duration axis. Synced `biofeedback/{spec,history}.md`, `practices/{spec,history}.md`.
 - 2026-07-01 (6): `biofeedback` / `practices` — align pulse-chart highlight bands on a fixed session timeline, retry BLE reconnect after failed connect, show interpretation when partial metric series exist, equal-width wearable not-found buttons.
 - 2026-07-01 (5): `practices` / `biofeedback` — fix missing breath pulse chart lines after decimation (segment split only at zero samples, not sampling interval); wearable search shows Close-only while scanning.

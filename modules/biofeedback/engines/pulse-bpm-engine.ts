@@ -57,6 +57,30 @@ export interface PulseBpmSnapshot {
   lastBeatTimestampMs: number;
   /** Канонический поток ударов после pulse RR filter. */
   filteredBeatTimestampsMs: number[];
+  /**
+   * True (только для finger PPG) в короткий период после разрыва сигнала, пока не накопится
+   * несколько чистых пост-гэп RR. В это время BPM удерживается на прошлом значении и не
+   * считается «живым»: первый удар после тишины меряется относительно устаревшего удара и
+   * даёт ложный BPM (артефактный скачок вниз/вверх). Wearable RR точны и не гейтятся.
+   */
+  reacquiring: boolean;
+}
+
+/**
+ * Интервал между соседними ударами, который трактуется как разрыв сигнала. Заведомо больше
+ * `PULSE_RR_MAX_MS` (1400 мс), поэтому сам «перекрывающий» RR уже отброшен hard-фильтром, а мы
+ * лишь понимаем, где начался пост-гэп ряд.
+ */
+const POST_GAP_REACQUIRE_MIN_GAP_MS = 2_500;
+/** Сколько чистых пост-гэп RR нужно накопить, прежде чем снова доверять BPM (≈ 2-4 удара). */
+const POST_GAP_MIN_RR = 3;
+
+/** Метка первого удара после самого свежего разрыва > minGapMs (или null, если разрывов нет). */
+function findLastGapResumeBeatTs(beats: readonly number[], minGapMs: number): number | null {
+  for (let i = beats.length - 1; i >= 1; i -= 1) {
+    if (beats[i]! - beats[i - 1]! > minGapMs) return beats[i]!;
+  }
+  return null;
 }
 
 interface RrMeasurement {
@@ -158,13 +182,32 @@ export class PulseBpmEngine {
     const all = buildRrMeasurements(mergedBeats);
     const filtered = filterPulseRrMeasurements(all, sourceKind);
     const filteredBeatTimestampsMs = buildFilteredBeatTimestamps(filtered);
-    const window = selectRecentRrMeasurements(filtered, timestampMs, PULSE_WINDOW_MS);
+    let window = selectRecentRrMeasurements(filtered, timestampMs, PULSE_WINDOW_MS);
+
+    // Finger PPG post-gap reacquire gate. После разрыва сигнала первые RR меряются
+    // относительно устаревшего удара до гэпа и дают ложный BPM (например, фантомные 58,
+    // а потом скачок к реальным ~69). Исключаем пре-гэп RR из окна и удерживаем прошлый BPM,
+    // пока не накопится POST_GAP_MIN_RR чистых пост-гэп RR. Wearable RR точны — не гейтим.
+    let reacquiring = false;
+    if (sourceKind === "fingerCamera") {
+      const resumeTs = findLastGapResumeBeatTs(mergedBeats, POST_GAP_REACQUIRE_MIN_GAP_MS);
+      if (resumeTs != null) {
+        const postGapAll = filtered.filter((m) => m.startTimestampMs >= resumeTs);
+        window = window.filter((m) => m.startTimestampMs >= resumeTs);
+        if (postGapAll.length < POST_GAP_MIN_RR) {
+          reacquiring = true;
+        }
+      }
+    }
 
     const intervals = window.map((m) => m.intervalMs);
     const medianRr = median(intervals);
     const jitter = median(intervals.map((v) => Math.abs(v - medianRr)));
     const looksCoherent =
-      intervals.length >= 5 && medianRr > 0 && jitter <= Math.max(110, medianRr * 0.2);
+      !reacquiring &&
+      intervals.length >= 5 &&
+      medianRr > 0 &&
+      jitter <= Math.max(110, medianRr * 0.2);
 
     const rawBpm =
       intervals.length >= 4
@@ -172,7 +215,9 @@ export class PulseBpmEngine {
         : calculatePulseRateBpm(intervals);
 
     const candidateBpm = medianRr > 0 ? 60_000 / medianRr : rawBpm;
-    if (candidateBpm > 0 && Number.isFinite(candidateBpm)) {
+    // Во время реакквизиции не подкармливаем display-пул: копим только чистые пост-гэп RR,
+    // а прошлый displayBpm держим замороженным до выхода из гейта.
+    if (!reacquiring && candidateBpm > 0 && Number.isFinite(candidateBpm)) {
       this.recentDisplayCandidates.push({
         timestampMs,
         bpm: candidateBpm,
@@ -190,7 +235,9 @@ export class PulseBpmEngine {
     if (looksCoherent && candidateBpm > 0) {
       this.lastReliableBpmTs = timestampMs;
     }
-    if (poolBpm.length >= 3) {
+    if (reacquiring) {
+      // hold previous displayBpm; do not let the stale/settling RR move it
+    } else if (poolBpm.length >= 3) {
       this.displayBpm = median(poolBpm);
     } else if (this.displayBpm <= 0 && candidateBpm > 0 && intervals.length >= 3) {
       this.displayBpm = candidateBpm;
@@ -220,6 +267,7 @@ export class PulseBpmEngine {
       looksCoherent,
       lastBeatTimestampMs: mergedBeats[mergedBeats.length - 1] ?? 0,
       filteredBeatTimestampsMs,
+      reacquiring,
     };
   }
 

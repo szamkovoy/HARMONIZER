@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.8
-updated: 2026-07-01
+version: 1.10
+updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -14,6 +14,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02:** Camera guidance-only overheating fix + dense per-second RSA. (1) In `BiofeedbackPipeline.pushOpticalSample` the expensive `getSignalTrustSummary()` + `coherence.appendBeats()` were being run on **every** camera frame (~30 Hz), even though camera mode is guidance-only and never publishes advanced metrics. They now run only inside the 1 Hz coherence-snapshot branch, and `CoherenceBreathScreen` no longer calls `coherenceEngine.startSession()` at all in `cameraGuidanceOnlyMode` — this was the main source of the extra heat over a 5-minute finger-PPG run. (2) `runCoherenceSessionAnalysis` now emits a per-second `rsaAmplitudeBpm` on `CoherenceSecondCheckpoint`, measured as max−min BPM over a trailing single breath-cycle window (≥4 s) rather than only the sparse per-cycle RSA summary. This gives the RSA result chart a dense ~1 pt/s series that actually reflects continuous respiratory sinus arrhythmia, replacing the old 5-segment broken line. Wearable RR remains the trusted source; camera mode still computes no HRV/coherence/RSA/stress.
+
+- **2026-07-01 (8):** Camera (finger PPG) post-gap reacquire gate added to `PulseBpmEngine`. After a signal gap (`RR > 2.5 s`) the first ~2 beats are measured against a stale pre-gap beat and produce a phantom BPM (e.g. a false 58 then a jump to the real ~69), which leaked into `pulseLog` and the measured-pulse chart. The engine now excludes pre-gap RR from the window, holds the previous `displayBpm`, and forces `looksCoherent=false` until `POST_GAP_MIN_RR` (3) clean post-gap RR accumulate. It exposes this via a new `PulseBpmSnapshot.reacquiring` flag, propagated to the `pulseBpm` bus event as `reacquiring` and consumed by breath so a reacquiring frame is not treated as a live measurement/guidance beat. **Wearable RR is trusted and never gated.** Covered by `pulse-bpm-engine.reacquire.test.ts`.
 
 - **2026-07-01 (7):** Polar/off-body recovery filtering tightened again: BLE RR packets with impossible long intervals are rejected and no longer fall through into an immediate `ready` snapshot, raw HR is replaced by RR-derived BPM when they sharply disagree (fixing `163 bpm -> 64 bpm` recovery spikes), and `BiofeedbackPipeline` now keeps `emulated` / `guidedOnly` beats out of metric-eligible `canonicalBeats` after a live wearable returns. Synthetic fallback can still guide breathing, but no longer contaminates final coherence/RSA/RMSSD/stress beat-series.
 

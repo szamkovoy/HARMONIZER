@@ -74,7 +74,10 @@ export function mergeNearbyNonLiveIntervals(
 }
 
 function isInsideNonLiveInterval(tMs: number, intervals: readonly NonLiveInterval[]): boolean {
-  return intervals.some((interval) => tMs >= interval.startMs && tMs < interval.endMs);
+  // Left edge is exclusive: a gap now starts exactly at the last live sample's timestamp
+  // (see collectNonLiveIntervalsFromLog). That boundary sample must keep its measured value
+  // so the live line touches the band edge, while every sample strictly inside is folded away.
+  return intervals.some((interval) => tMs > interval.startMs && tMs < interval.endMs);
 }
 
 export function collectNonLiveIntervalsFromLog(
@@ -83,15 +86,21 @@ export function collectNonLiveIntervalsFromLog(
 ): NonLiveInterval[] {
   const intervals: NonLiveInterval[] = [];
   let openStart: number | null = null;
+  let prevTMs: number | null = null;
   for (const entry of entries) {
     const tMs = Math.max(0, entry.wallClockMs - sessionStartWallMs);
     const live = isPulseLogEntryLiveForMeasurement(entry);
     if (!live) {
-      if (openStart == null) openStart = tMs;
+      // Anchor the gap's LEFT edge to the last live sample, not to this first non-live
+      // entry: when the sensor drops the log can go silent for several seconds before a
+      // non-live sample is recorded, which would otherwise leave an unshaded slice between
+      // where the live line breaks and where the gray band starts.
+      if (openStart == null) openStart = prevTMs != null ? prevTMs : tMs;
     } else if (openStart != null) {
       intervals.push({ startMs: openStart, endMs: tMs });
       openStart = null;
     }
+    prevTMs = tMs;
   }
   if (openStart != null && entries.length > 0) {
     const lastT = Math.max(
@@ -110,14 +119,18 @@ function collectFlaggedIntervalsFromLog(
 ): NonLiveInterval[] {
   const intervals: NonLiveInterval[] = [];
   let openStart: number | null = null;
+  let prevTMs: number | null = null;
   for (const entry of entries) {
     const tMs = Math.max(0, entry.wallClockMs - sessionStartWallMs);
     if (isInside(entry)) {
-      if (openStart == null) openStart = tMs;
+      // See collectNonLiveIntervalsFromLog: anchor to the last live sample so the shaded
+      // band's left edge coincides with the point where the live pulse line breaks.
+      if (openStart == null) openStart = prevTMs != null ? prevTMs : tMs;
     } else if (openStart != null) {
       intervals.push({ startMs: openStart, endMs: tMs });
       openStart = null;
     }
+    prevTMs = tMs;
   }
   if (openStart != null && entries.length > 0) {
     const lastT = Math.max(
@@ -187,8 +200,6 @@ export function buildPulseSeriesFromLog(
   const points: BreathResultsSeriesPoint[] = [];
   let lastLiveMeasured = 0;
   let lastLiveGuidance = 0;
-  let lastAcceptedGuidance = 0;
-  let recentAcceptedGuidance: number[] = [];
   const effectiveNonLiveIntervals = collectNonLiveIntervalsFromLog(entries, sessionStartWallMs);
 
   for (const entry of entries) {
@@ -211,22 +222,26 @@ export function buildPulseSeriesFromLog(
         value = measuredRaw;
       }
     } else if (entry.emulatedActive) {
-      value = guidanceRaw > 0 ? guidanceRaw : (lastLiveGuidance > 0 ? lastLiveGuidance : 0);
+      // During signal loss the practice paces breathing from a synthetic beat train at the
+      // LAST known pulse rate, so guidance must read as a flat hold at `lastLiveGuidance` —
+      // not follow a decaying/off-body emulated value (which would draw a phantom dip inside
+      // the gray gap band, e.g. the downward spike seen on the BLE guidance chart).
+      value = lastLiveGuidance > 0 ? lastLiveGuidance : (guidanceRaw > 0 ? guidanceRaw : 0);
     } else if (live) {
       value = guidanceRaw;
     } else {
       value = lastLiveGuidance > 0 ? lastLiveGuidance : (guidanceRaw > 0 ? guidanceRaw : 0);
     }
 
-    if (mode === "guidance" && value > 0) {
-      value = sanitizeBreathGuidanceBpm(value, lastAcceptedGuidance, {
-        recentAccepted: recentAcceptedGuidance,
-      });
-      lastAcceptedGuidance = value;
-      recentAcceptedGuidance = [...recentAcceptedGuidance, value].slice(-3);
-      if (live) {
-        lastLiveGuidance = value;
-      }
+    // NB: `guidancePulseRateBpm` in the log is ALREADY the runtime-sanitized breathing
+    // tempo. Re-running `sanitizeBreathGuidanceBpm` here is double-processing and, right
+    // after a hold/gap, the "recent accepted" history collapses to a single repeated value
+    // (spread 0). Its spike-rejection rule then permanently rejects every real ≥3.5 BPM
+    // change, freezing the guidance chart at the pre-gap value (the phantom plateau). We
+    // plot the logged guidance faithfully and rely on the isolated/short-run spike filters
+    // in `buildGuidancePulseChartSeries` for cosmetic noise removal.
+    if (mode === "guidance" && live && value > 0) {
+      lastLiveGuidance = value;
     }
 
     if (!Number.isFinite(value)) continue;
@@ -455,53 +470,137 @@ function filterShortMetricSpikeRuns(
   return sorted.filter((_, index) => keep[index]);
 }
 
-/** Split a series into drawable segments (break at zero = missing measurement). */
+/**
+ * Split a series into drawable segments. The line breaks:
+ *   1. at a zero value (missing pulse measurement), and
+ *   2. across a *time gap* larger than the series' own cadence (missing data / signal loss).
+ *
+ * Rule 2 is what keeps a chart honest: when a metric could not be computed for a stretch
+ * (sensor off, insufficient coherence coverage, warm-up), there are simply no points there.
+ * Without a break the polyline would connect the last pre-gap point straight to the first
+ * post-gap point — a long diagonal/flat line that looks like real (flat) data when in fact
+ * nothing was measured. We break instead so the gap reads as a gap.
+ *
+ * The gap threshold is adaptive by default (≈3.5× the median sample spacing, floored at 6 s) so
+ * it works for dense 1 Hz coherence, 5 s RMSSD/stress and sparse per-breath RSA alike, while
+ * normal jitter never triggers a spurious break. Pass `maxGapMs` to override.
+ */
 export function splitPulseChartSeriesSegments(
   points: readonly BreathResultsSeriesPoint[],
+  options?: { maxGapMs?: number },
 ): BreathResultsSeriesPoint[][] {
   if (points.length === 0) return [];
   const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+
+  let gapLimitMs = options?.maxGapMs;
+  if (gapLimitMs == null) {
+    const spacings: number[] = [];
+    for (let i = 1; i < sorted.length; i += 1) {
+      const dt = sorted[i]!.tMs - sorted[i - 1]!.tMs;
+      if (dt > 0) spacings.push(dt);
+    }
+    if (spacings.length >= 2) {
+      spacings.sort((a, b) => a - b);
+      const medianSpacing = spacings[Math.floor(spacings.length / 2)]!;
+      gapLimitMs = Math.max(6_000, medianSpacing * 3.5);
+    } else {
+      gapLimitMs = Number.POSITIVE_INFINITY;
+    }
+  }
+
   const segments: BreathResultsSeriesPoint[][] = [];
   let current: BreathResultsSeriesPoint[] = [];
+  let prevTs: number | null = null;
   for (const point of sorted) {
     if (isNearZero(point.value)) {
       if (current.length >= 2) segments.push(current);
       current = [];
+      prevTs = point.tMs;
       continue;
     }
+    if (prevTs != null && point.tMs - prevTs > gapLimitMs && current.length > 0) {
+      if (current.length >= 2) segments.push(current);
+      current = [];
+    }
     current.push(point);
+    prevTs = point.tMs;
   }
   if (current.length >= 2) segments.push(current);
   return segments;
 }
 
-/** Reject single-tick BPM spikes fed into breath guidance / planner. */
+/**
+ * Rate-limit the breathing-guidance BPM so it tracks the live pulse smoothly.
+ *
+ * A single detector tick can jump wildly (optical noise, first beat after a gap). We cap the
+ * per-tick change to `maxStepBpm` toward the new value: a one-off spike is bounded and reverts
+ * on the next tick, while a *sustained* real change keeps ramping `maxStep`/tick until guidance
+ * reaches it.
+ *
+ * We deliberately do NOT hard-reject changes. The previous "reject the jump if the last few
+ * samples were tight (spread ≤ 3)" rule latched guidance at the pre-change value indefinitely:
+ * once it rejected, the rejected value fed back into the recent buffer (spread stayed 0), so
+ * every subsequent real change was rejected too — the frozen guidance plateau seen on the chart
+ * while the measured pulse had clearly moved on (e.g. guidance stuck at 76 while pulse sat at
+ * ~71 for 15 s). Breathing tempo is additionally smoothed by `BreathPhasePlanner`'s slow EMA,
+ * so bounded per-tick tracking here is all that is needed.
+ */
 export function sanitizeBreathGuidanceBpm(
   candidate: number,
   previous: number | null | undefined,
   options?: {
     maxStepBpm?: number;
-    minSpikeDelta?: number;
-    recentAccepted?: readonly number[];
   },
 ): number {
   if (!(candidate > 0) || !Number.isFinite(candidate)) return candidate;
   if (previous == null || !(previous > 0)) return candidate;
   const maxStep = options?.maxStepBpm ?? 6;
-  const minSpikeDelta = options?.minSpikeDelta ?? 3.5;
   const delta = candidate - previous;
-  if (Math.abs(delta) >= minSpikeDelta && Math.abs(delta) > maxStep) {
+  if (Math.abs(delta) > maxStep) {
     return previous + Math.sign(delta) * maxStep;
   }
-  const recent = (options?.recentAccepted ?? []).filter((value) => value > 0);
-  if (recent.length >= 2) {
-    const spread = Math.max(...recent) - Math.min(...recent);
-    const jump = Math.abs(candidate - previous);
-    if (spread <= 3 && jump >= minSpikeDelta) {
-      return previous;
+  return candidate;
+}
+
+/**
+ * Fold the first live sample(s) right after a measurement gap back into the gap when they
+ * deviate strongly from the stabilized signal that follows.
+ *
+ * The first beat detected after an optical signal gap has an unreliable RR (it is measured
+ * against a stale beat from before the gap, or against a still-settling detector), so it
+ * shows up as a lone dip/spike immediately after the gray gap band — e.g. a false 58 BPM
+ * point wedged between a gap and a stable ~69 BPM run. Physiologically the heart rate cannot
+ * teleport for a single sample and jump back, so we treat such a leading sample as
+ * still-reacquiring and drop it instead of drawing a phantom pulse.
+ */
+export function dropPostGapMeasuredArtifacts(
+  points: readonly BreathResultsSeriesPoint[],
+  options?: { maxDeviationBpm?: number; lookahead?: number },
+): BreathResultsSeriesPoint[] {
+  const maxDeviationBpm = options?.maxDeviationBpm ?? 4;
+  const lookahead = options?.lookahead ?? 3;
+  const out = points.map((point) => ({ ...point }));
+  for (let i = 0; i < out.length; i += 1) {
+    const cur = out[i]!;
+    if (isNearZero(cur.value)) continue;
+    const prev = i > 0 ? out[i - 1]! : null;
+    // A post-gap artifact requires an actual preceding gap (a near-zero sample right before).
+    // The very first sample of the series (prev == null) is the session start, not a recovery,
+    // so it must never be folded away here.
+    const afterGap = prev != null && isNearZero(prev.value);
+    if (!afterGap) continue;
+    const nextVals: number[] = [];
+    for (let k = i + 1; k < out.length && nextVals.length < lookahead; k += 1) {
+      if (!isNearZero(out[k]!.value)) nextVals.push(out[k]!.value);
+    }
+    if (nextVals.length === 0) continue;
+    const sorted = [...nextVals].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)]!;
+    if (Math.abs(cur.value - med) > maxDeviationBpm) {
+      cur.value = 0;
     }
   }
-  return candidate;
+  return out;
 }
 
 export function buildMeasuredPulseChartSeries(
@@ -510,8 +609,9 @@ export function buildMeasuredPulseChartSeries(
   totalMs: number,
 ): BreathResultsSeriesPoint[] {
   const base = buildPulseSeriesFromLog(entries, sessionStartWallMs, "measured");
+  const deGapped = dropPostGapMeasuredArtifacts(base);
   const withoutSpikes = filterShortMetricSpikeRuns(
-    filterIsolatedMetricSpikes(base, { minSpikeDelta: 5, maxNeighborDelta: 3 }),
+    filterIsolatedMetricSpikes(deGapped, { minSpikeDelta: 5, maxNeighborDelta: 3 }),
     { minSpikeDelta: 4, maxNeighborDelta: 3 },
   );
   return preparePulseSeriesForDisplay(withoutSpikes, totalMs);

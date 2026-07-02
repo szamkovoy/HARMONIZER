@@ -113,18 +113,27 @@ describe("breath-results-series", () => {
     expect(measured[1]?.value).toBe(0);
   });
 
-  it("rejects isolated realtime guidance spikes", () => {
-    const filtered = sanitizeBreathGuidanceBpm(82.5, 79, {
-      recentAccepted: [78.8, 79, 79.4],
-    });
-    expect(filtered).toBe(79);
+  it("passes small guidance changes through (tracks the live pulse)", () => {
+    // A modest change (≤ maxStep) must be followed, not rejected — rejecting it was what
+    // latched guidance at the pre-change value and froze the guidance chart.
+    expect(sanitizeBreathGuidanceBpm(82.5, 79)).toBe(82.5);
+    expect(sanitizeBreathGuidanceBpm(71.6, 76.1)).toBe(71.6);
   });
 
-  it("ramps large real guidance changes instead of freezing the old baseline", () => {
-    const filtered = sanitizeBreathGuidanceBpm(60.5, 70, {
-      recentAccepted: [69.8, 70, 70.1],
-    });
-    expect(filtered).toBe(64);
+  it("rate-limits large guidance jumps toward the target instead of freezing", () => {
+    // Big jump is capped to maxStep (6) toward the target, never hard-rejected.
+    expect(sanitizeBreathGuidanceBpm(60.5, 70)).toBe(64);
+    expect(sanitizeBreathGuidanceBpm(90, 70)).toBe(76);
+  });
+
+  it("never latches: a sustained real step is reached within a few ticks", () => {
+    // Simulates the logged latch case (measured stepped 76 -> 71.6 and held). Guidance must
+    // converge to the new level, not stay frozen at 76.
+    let guidance = 76.1;
+    for (let i = 0; i < 5; i += 1) {
+      guidance = sanitizeBreathGuidanceBpm(71.6, guidance);
+    }
+    expect(guidance).toBeCloseTo(71.6, 5);
   });
 
   it("filters RSA outliers from metric charts", () => {
@@ -234,10 +243,41 @@ describe("breath-results-series", () => {
       entry(start + 30_000, { measuredPulseRateBpm: 72, guidancePulseRateBpm: 72, pulseReady: true }),
     ];
     const highlights = collectSharedPulseHighlightIntervals(log, start);
-    expect(highlights).toEqual([{ startMs: 10_000, endMs: 30_000 }]);
+    // The gap's left edge is anchored to the last live sample (t=1000), not the first
+    // logged non-live sample (t=10000): during a real drop the log can go silent for a few
+    // seconds before a non-live sample lands, and the shaded band must begin exactly where
+    // the live pulse line breaks (no unshaded slice between the line end and the band).
+    expect(highlights).toEqual([{ startMs: 1_000, endMs: 30_000 }]);
     const measured = buildPulseSeriesFromLog(log, start, "measured");
     const guidance = buildPulseSeriesFromLog(log, start, "guidance");
     expect(measured.map((point) => point.value)).toEqual([70, 0, 0, 0, 72]);
     expect(guidance.map((point) => point.value)).toEqual([70, 70, 70, 70, 72]);
+  });
+
+  it("anchors the gap band to the last live sample when the log goes silent on a drop", () => {
+    const start = 0;
+    // Live at 5 s, then the sensor drops and the log records nothing for 8 s before the
+    // first emulated sample at 13 s; recovery at 20 s. The band must start at 5 s (where the
+    // live line ends), not at 13 s (first logged non-live sample).
+    const log = [
+      entry(5_000, { measuredPulseRateBpm: 75, guidancePulseRateBpm: 75, pulseReady: true }),
+      entry(13_000, {
+        measuredPulseRateBpm: 0,
+        guidancePulseRateBpm: 75,
+        pulseReady: false,
+        emulatedActive: true,
+      }),
+      entry(20_000, { measuredPulseRateBpm: 84, guidancePulseRateBpm: 84, pulseReady: true }),
+    ];
+    const highlights = collectSharedPulseHighlightIntervals(log, start);
+    expect(highlights).toEqual([{ startMs: 5_000, endMs: 20_000 }]);
+    const measured = buildPulseSeriesFromLog(log, start, "measured");
+    // The last live sample keeps its value (band left edge is exclusive), and the resumed
+    // live value is the honest post-gap reading.
+    expect(measured).toEqual([
+      { tMs: 5_000, value: 75 },
+      { tMs: 13_000, value: 0 },
+      { tMs: 20_000, value: 84 },
+    ]);
   });
 });

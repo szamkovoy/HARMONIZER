@@ -82,6 +82,13 @@ export interface CoherenceSecondCheckpoint {
   ptotal: number;
   coherenceRatio: number;
   coherenceMappedPercent: number;
+  /**
+   * RSA-амплитуда (уд/мин) в этой секунде: размах (max−min) BPM по тахограмме за одно
+   * последнее дыхательное окно (~cycleMs). `null`, если окно покрыто реальными точками
+   * недостаточно. В отличие от `rsaCycles` (одна точка на цикл, ~раз в 10 с) это даёт
+   * плотную посекундную кривую для графика амплитуды RSA.
+   */
+  rsaAmplitudeBpm: number | null;
 }
 
 export interface CoherenceSessionResult {
@@ -409,6 +416,13 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     expectedSamplesPerWindow * COHERENCE_WINDOW_MIN_COVERAGE_FRAC,
   );
 
+  // RSA amplitude is measured over ONE breath cycle (short window), not the 60 s coherence
+  // window — so it stays valid and dense even while the long coherence window is still filling
+  // or partly poisoned by a gap.
+  const rsaWindowMs = Math.max(4_000, input.cycleMs ?? inhaleMs + exhaleMs);
+  const rsaExpectedSamples = Math.max(1, Math.round((rsaWindowMs / 1000) * TACHO_SAMPLE_RATE_HZ));
+  const rsaMinSamples = Math.ceil(rsaExpectedSamples * 0.8);
+
   const stepMs = 1000;
   for (let s = 1; s <= Math.floor(practiceDurationSec); s += 1) {
     const wallClockMs = sessionStartedAtMs + s * stepMs;
@@ -442,6 +456,27 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
       ? 0
       : mapCoherenceRatioToPercent(coherenceRatio);
     coherenceRawSeries.push(coherenceMappedPercent);
+
+    // Per-second RSA amplitude: max−min of real (non-masked) tachogram BPM over the last
+    // breath-cycle window. Excludes masked/zero samples so a gap edge cannot inflate the range.
+    let rsaAmplitudeBpm: number | null = null;
+    const rsaWindowStartMs = windowEndMs - rsaWindowMs;
+    let rsaMax = -Infinity;
+    let rsaMin = Infinity;
+    let rsaCount = 0;
+    for (let i = 0; i < fullTacho.timesMs.length; i += 1) {
+      const tm = fullTacho.timesMs[i]!;
+      if (tm < rsaWindowStartMs || tm > windowEndMs) continue;
+      const v = fullBpm[i]!;
+      if (!(v > BPM_ZERO_EPS)) continue;
+      rsaCount += 1;
+      if (v > rsaMax) rsaMax = v;
+      if (v < rsaMin) rsaMin = v;
+    }
+    if (rsaCount >= rsaMinSamples && rsaMax >= rsaMin) {
+      rsaAmplitudeBpm = rsaMax - rsaMin;
+    }
+
     perSecond.push({
       secondIndex: s,
       wallClockMs,
@@ -457,6 +492,7 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
       ptotal,
       coherenceRatio,
       coherenceMappedPercent,
+      rsaAmplitudeBpm,
     });
   }
 

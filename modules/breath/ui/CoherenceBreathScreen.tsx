@@ -106,7 +106,6 @@ import {
   BREATH_SESSION_SIGNAL_ABORT_MS,
 } from "@/modules/breath/core/breath-session-signal-policy";
 import {
-  bridgeSeriesAcrossNonLiveGaps,
   buildGuidancePulseChartSeries,
   buildMeasuredPulseChartSeries,
   collectGuidancePulseHighlightIntervals,
@@ -999,7 +998,6 @@ function CoherenceBreathScreenInner({
   const lastPulseLogWallClockRef = useRef(0);
   const lastLoggedMeasuredBpmRef = useRef(0);
   const lastLoggedGuidanceBpmRef = useRef(0);
-  const recentGuidanceBpmRef = useRef<number[]>([]);
   const lastFreshBeatSourceTsRef = useRef<number | null>(null);
   const lastFreshBeatWallClockRef = useRef<number | null>(null);
   const finalPulseLogExportRef = useRef<CoherencePulseLogEntry[] | null>(null);
@@ -1908,6 +1906,7 @@ function CoherenceBreathScreenInner({
               : (
                   !useEmulatedPulseModeRef.current &&
                   event.hasFreshBeat &&
+                  event.reacquiring !== true &&
                   beatAgeMs != null &&
                   beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
                   event.bpm > 0
@@ -1959,15 +1958,10 @@ function CoherenceBreathScreenInner({
             guidancePulseRateBpm = sanitizeBreathGuidanceBpm(
               guidancePulseRateBpm,
               lastLoggedGuidanceBpmRef.current,
-              { recentAccepted: recentGuidanceBpmRef.current },
             );
           }
           if (guidancePulseRateBpm > 0) {
             lastLoggedGuidanceBpmRef.current = guidancePulseRateBpm;
-            recentGuidanceBpmRef.current = [
-              ...recentGuidanceBpmRef.current,
-              guidancePulseRateBpm,
-            ].slice(-3);
           }
           const measuredPulseRateBpm =
             liveMeasurementNow
@@ -2206,19 +2200,25 @@ function CoherenceBreathScreenInner({
       if (ok) {
         qcOutcomeRef.current = "ok";
         const anchor = probeEnd;
-        const estCycleMs = computeCycleMsForAnalysis(
-          coherenceShapeRef.current,
-          pulseBpmLast?.medianRrMs,
-        );
-        pipeline.getCoherenceEngine().startSession({
-          sessionStartedAtMs: anchor,
-          inhaleMs: estCycleMs.inhaleMs,
-          exhaleMs: estCycleMs.exhaleMs,
-          cycleMs: estCycleMs.cycleMs,
-          mode: "test120s",
-          preflightBeats: beatsInWin,
-          bufferMsBeforeSession: COHERENCE_PREFLIGHT_BUFFER_MS,
-        });
+        // Камера в guidance-only режиме НЕ считает coherence/RSA/HRV — практика ведётся
+        // только по BPM. Не открываем сессию coherence вовсе: иначе pipeline на каждом
+        // кадре гоняет тяжёлый signal-trust/сглаживание ради неиспользуемого результата
+        // (это и есть источник прогрессирующего перегрева на длинных камерных практиках).
+        if (!cameraGuidanceOnlyMode) {
+          const estCycleMs = computeCycleMsForAnalysis(
+            coherenceShapeRef.current,
+            pulseBpmLast?.medianRrMs,
+          );
+          pipeline.getCoherenceEngine().startSession({
+            sessionStartedAtMs: anchor,
+            inhaleMs: estCycleMs.inhaleMs,
+            exhaleMs: estCycleMs.exhaleMs,
+            cycleMs: estCycleMs.cycleMs,
+            mode: "test120s",
+            preflightBeats: beatsInWin,
+            bufferMsBeforeSession: COHERENCE_PREFLIGHT_BUFFER_MS,
+          });
+        }
         qualityBadAccumMsRef.current = 0;
         fingerAbsentAccumMsRef.current = 0;
         lastSampleMsRef.current = anchor;
@@ -2245,7 +2245,7 @@ function CoherenceBreathScreenInner({
       clearInterval(id);
       setQcSecondsLeft(null);
     };
-  }, [clearPpgBannerUi, isWearableMode, phase, pipeline]);
+  }, [cameraGuidanceOnlyMode, clearPpgBannerUi, isWearableMode, phase, pipeline]);
 
   useEffect(() => {
     if (!isWearableMode) return;
@@ -2304,7 +2304,6 @@ function CoherenceBreathScreenInner({
     setElapsedMs(0);
     lastLoggedMeasuredBpmRef.current = 0;
     lastLoggedGuidanceBpmRef.current = 0;
-    recentGuidanceBpmRef.current = [];
     setPhase("running");
   }, [
     clearPpgBannerUi,
@@ -2899,8 +2898,14 @@ function CoherenceBreathScreenInner({
         .map((p) => ({ ...p }));
 
       if (cameraGuidanceOnlyMode) {
+        // Камера в guidance-only режиме НЕ открывает coherence-сессию (перф/нагрев),
+        // поэтому engine здесь неактивен и finalize() бросил бы исключение. Берём
+        // пустой результат через side-effect-free analyzeWindow (sessionBeats пуст).
+        const cameraBaseResult = coherenceEngine.isActive()
+          ? coherenceEngine.finalize(analysisEndLogicalMs)
+          : coherenceEngine.analyzeWindow(sessionStartLogicalMs, analysisEndLogicalMs);
         finalResult = {
-          ...suppressCoherenceMetrics(coherenceEngine.finalize(analysisEndLogicalMs)),
+          ...suppressCoherenceMetrics(cameraBaseResult),
           warnings: [],
         };
         practiceHrv = suppressPracticeHrvMetrics(
@@ -3151,48 +3156,45 @@ function CoherenceBreathScreenInner({
         practiceTotalMs,
       );
       const coherenceSeries = (finalRes.perSecondSmoothed ?? []).filter((point) => {
-        const rawPoint = finalRes.perSecond[point.secondIndex];
+        // `perSecond` is 0-indexed but `secondIndex` is 1-based (perSecond[0].secondIndex === 1),
+        // so the matching coverage checkpoint is at `secondIndex - 1`. Using `secondIndex`
+        // directly looked one second ahead and mislabeled boundary seconds as (in)sufficient.
+        const rawPoint = finalRes.perSecond[point.secondIndex - 1];
         return rawPoint != null && !rawPoint.insufficientCoverage;
       }).map((point) => ({
         tMs: point.secondIndex * 1000,
         value: point.coherenceMappedPercent,
       }));
-      const rmssdSeries = filterIsolatedMetricSpikes(
-        bridgeSeriesAcrossNonLiveGaps(rmssdSeriesRef.current.slice(), nonLiveIntervals, practiceTotalMs),
-      );
-      const stressSeries = filterIsolatedMetricSpikes(
-        bridgeSeriesAcrossNonLiveGaps(stressSeriesRef.current.slice(), nonLiveIntervals, practiceTotalMs),
-      );
+      // Metric series are NOT bridged across signal-loss gaps anymore. Bridging drew a straight
+      // line across regions where the metric genuinely could not be computed (sensor off,
+      // insufficient coherence coverage), which read as fake flat data. Instead we keep the real
+      // (gapped) points and let the chart break the line across the gap (see
+      // splitPulseChartSeriesSegments). This is the "graphs must honestly show what was computed"
+      // requirement.
+      const rmssdSeries = filterIsolatedMetricSpikes(rmssdSeriesRef.current.slice());
+      const stressSeries = filterIsolatedMetricSpikes(stressSeriesRef.current.slice());
+      // RSA amplitude is now a DENSE per-second series from the final analysis (max−min BPM over
+      // one breath window), not the sparse per-cycle summary (~1 point / 10 s → the "ломаная из
+      // 5 отрезков"). Falls back to the per-cycle summary only if per-second is unavailable.
+      const rsaPerSecond = (finalRes.perSecond ?? [])
+        .filter((point) => point.rsaAmplitudeBpm != null)
+        .map((point) => ({ tMs: point.secondIndex * 1000, value: point.rsaAmplitudeBpm as number }));
+      const rsaSource =
+        rsaPerSecond.length >= 2
+          ? rsaPerSecond
+          : rsaCyclesSummaryRef.current.map((point) => ({ tMs: point.tMs, value: point.rsaBpm }));
       const rsaSeries = filterIsolatedMetricSpikes(
-        filterOutlierMetricPoints(
-          rsaCyclesSummaryRef.current.map((point) => ({
-            tMs: point.tMs,
-            value: point.rsaBpm,
-          })),
-          RSA_RESULTS_OUTLIER_BPM,
-        ),
+        filterOutlierMetricPoints(rsaSource, RSA_RESULTS_OUTLIER_BPM),
       );
       setResultsGraphs({
         measuredPulseBpm: decimateSeries(measuredPulseSeries, 240),
         guidancePulseBpm: decimateSeries(guidancePulseSeries, 240),
         measuredPulseHighlights: measuredPulseHighlights,
         guidancePulseHighlights: guidancePulseHighlights,
-        coherencePercent: decimateSeries(
-          bridgeSeriesAcrossNonLiveGaps(coherenceSeries, nonLiveIntervals, practiceTotalMs),
-          240,
-        ),
-        rmssdMs: decimateSeries(
-          bridgeSeriesAcrossNonLiveGaps(rmssdSeries, nonLiveIntervals, practiceTotalMs),
-          120,
-        ),
-        stressPercent: decimateSeries(
-          bridgeSeriesAcrossNonLiveGaps(stressSeries, nonLiveIntervals, practiceTotalMs),
-          120,
-        ),
-        rsaBpm: decimateSeries(
-          prepareSeriesForDisplay(rsaSeries, practiceTotalMs, { extendStart: false }),
-          120,
-        ),
+        coherencePercent: decimateSeries(coherenceSeries, 240),
+        rmssdMs: decimateSeries(rmssdSeries, 120),
+        stressPercent: decimateSeries(stressSeries, 120),
+        rsaBpm: decimateSeries(rsaSeries, 120),
       });
 
       setPhase("results");
@@ -3249,6 +3251,7 @@ function CoherenceBreathScreenInner({
             : Number.POSITIVE_INFINITY;
         const cameraLiveForGuidance =
           event.hasFreshBeat &&
+          event.reacquiring !== true &&
           event.bpm > 0 &&
           liveBeatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS;
         if (!cameraLiveForGuidance) {
@@ -3262,7 +3265,6 @@ function CoherenceBreathScreenInner({
       const bpm = sanitizeBreathGuidanceBpm(
         instantBpm,
         lastLoggedGuidanceBpmRef.current,
-        { recentAccepted: recentGuidanceBpmRef.current },
       );
       if (bpm > 0) {
         const now = Date.now();
@@ -5064,6 +5066,7 @@ function ResultsMetricChart(props: {
   highlightIntervals?: readonly NonLiveInterval[];
   domainStartMs?: number;
   domainEndMs?: number;
+  continuousAcrossGaps?: boolean;
 }) {
   const {
     title,
@@ -5075,11 +5078,19 @@ function ResultsMetricChart(props: {
     highlightIntervals = [],
     domainStartMs = 0,
     domainEndMs,
+    continuousAcrossGaps = false,
   } = props;
   const chartPoints = useMemo(() => decimateSeries(points, 120), [points]);
   const lineSegments = useMemo(
-    () => splitPulseChartSeriesSegments(chartPoints),
-    [chartPoints],
+    // Guidance is always defined (live → hold → emulated), so it draws as one continuous
+    // line across the gray band; only a true zero breaks it. Measured/metric charts keep
+    // breaking at time gaps so missing data reads honestly as a gap.
+    () =>
+      splitPulseChartSeriesSegments(
+        chartPoints,
+        continuousAcrossGaps ? { maxGapMs: Number.POSITIVE_INFINITY } : undefined,
+      ),
+    [chartPoints, continuousAcrossGaps],
   );
   const summary = useMemo(() => summarizeSeries(chartPoints, unit), [chartPoints, unit]);
   const geometry = useMemo(() => {
@@ -5315,6 +5326,7 @@ function ResultsView(props: {
         ? prepareSeriesForDisplay(resultsGraphs?.coherencePercent ?? [], practiceTotalMs, {
             trimZeroEdges: true,
             extendStart: false,
+            extendEnd: false,
           })
         : []
     ),
@@ -5325,6 +5337,7 @@ function ResultsView(props: {
       !cameraGuidanceOnlyMode
         ? prepareSeriesForDisplay(resultsGraphs?.rmssdMs ?? [], practiceTotalMs, {
             extendStart: false,
+            extendEnd: false,
           })
         : []
     ),
@@ -5335,6 +5348,7 @@ function ResultsView(props: {
       !cameraGuidanceOnlyMode
         ? prepareSeriesForDisplay(resultsGraphs?.stressPercent ?? [], practiceTotalMs, {
             extendStart: false,
+            extendEnd: false,
           })
         : []
     ),
@@ -5345,6 +5359,7 @@ function ResultsView(props: {
       !cameraGuidanceOnlyMode
         ? prepareSeriesForDisplay(resultsGraphs?.rsaBpm ?? [], practiceTotalMs, {
             extendStart: false,
+            extendEnd: false,
           })
         : []
     ),
@@ -5720,6 +5735,7 @@ function ResultsView(props: {
                 highlightIntervals={guidancePulseHighlights}
                 domainStartMs={0}
                 domainEndMs={practiceTotalMs}
+                continuousAcrossGaps
               />
             ) : null}
             {coherenceGraphPoints.length >= 2 ? (
@@ -6137,7 +6153,12 @@ const styles = StyleSheet.create({
   resultChartTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "600", flex: 1 },
   resultChartSummary: { color: "#cbd5e1", fontSize: 12 },
   resultChartRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
-  resultChartYAxis: { justifyContent: "space-between", paddingVertical: 8 },
+  // Fixed-width, right-aligned gutter so EVERY chart's plot starts at the same x.
+  // Without a fixed width the gutter grew/shrank with the label text ("100%" vs
+  // "22.8 ms" vs "80 bpm"), shifting the flex:1 plot — and with it the gridlines and
+  // gap bands — by a different amount per chart. That was the cross-chart "полоски
+  // сдвинуты" misalignment.
+  resultChartYAxis: { width: 52, alignItems: "flex-end", justifyContent: "space-between", paddingVertical: 8 },
   resultChartPlot: { flex: 1 },
   resultChartXAxis: {
     flexDirection: "row",

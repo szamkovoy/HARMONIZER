@@ -649,6 +649,7 @@ export class BiofeedbackPipeline {
         rrCount: bpmSnap.rrCount,
         jitterMs: bpmSnap.jitterMs,
         looksCoherent: bpmSnap.looksCoherent,
+        reacquiring: false,
       });
     }
 
@@ -988,6 +989,7 @@ export class BiofeedbackPipeline {
         looksCoherent: false,
         lastBeatTimestampMs: 0,
         filteredBeatTimestampsMs: [],
+        reacquiring: false,
       };
     }
 
@@ -1102,6 +1104,7 @@ export class BiofeedbackPipeline {
         rrCount: bpmSnap.rrCount,
         jitterMs: bpmSnap.jitterMs,
         looksCoherent: bpmSnap.looksCoherent,
+        reacquiring: bpmSnap.reacquiring === true,
       });
     }
 
@@ -1145,14 +1148,23 @@ export class BiofeedbackPipeline {
       }
     }
 
-    // 10) Coherence (только если активна сессия). Appendим новые удары только
-    // когда они действительно появились: за сессию это 20-60 закрытий циклов,
-    // а не 36 000 кадров.
-    const trust = this.getSignalTrustSummary();
-    if (this.coherence.isActive() && trust.level === "full_biometrics") {
-      this.coherence.appendBeats(this.hrvAccumulator.getBeats());
-      if (sample.timestampMs - this.lastCoherenceSnapshotMs >= 1000) {
-        this.lastCoherenceSnapshotMs = sample.timestampMs;
+    // 10) Coherence (только если активна сессия).
+    //
+    // ГОРЯЧИЙ ПУТЬ / ПЕРЕГРЕВ: `getSignalTrustSummary()` для fingerCamera прогоняет
+    // `smoothBeatTimestampsMedian3ForMetrics` по ВСЕЙ растущей истории ударов + считает
+    // drr/gap-статистику — это O(N) с аллокациями. Раньше он вызывался на КАЖДЫЙ кадр
+    // камеры (~30 Гц) и с ростом сессии всё сильнее грел процессор, хотя нужен лишь как
+    // гейт для 1-Гц публикации coherence. Теперь и trust, и `appendBeats` считаются
+    // только на такте снапшота (≤1 Гц) и только когда сессия coherence реально активна.
+    // Для camera-guidance-only сессия coherence вообще не стартует (экран её не открывает),
+    // поэтому весь блок пропускается и горячий путь остаётся минимальным.
+    if (
+      this.coherence.isActive() &&
+      sample.timestampMs - this.lastCoherenceSnapshotMs >= 1000
+    ) {
+      this.lastCoherenceSnapshotMs = sample.timestampMs;
+      if (this.getSignalTrustSummary().level === "full_biometrics") {
+        this.coherence.appendBeats(this.hrvAccumulator.getBeats());
         this.publishCoherenceIfNew(sample.timestampMs);
       }
     }

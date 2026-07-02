@@ -46,6 +46,12 @@ export interface PulseBpmChannelEvent {
   jitterMs: number;
   /** Окно выглядит достаточно устойчивым для tracking/QC. */
   looksCoherent: boolean;
+  /**
+   * True (только finger PPG) — короткая пост-гэп реакквизиция: сигнал только вернулся,
+   * чистых RR ещё мало, BPM удерживается на прошлом значении и не считается «живым».
+   * Потребители (экран дыхания) не должны трактовать этот кадр как живое измерение.
+   */
+  reacquiring?: boolean;
 }
 
 export interface RmssdChannelEvent {
