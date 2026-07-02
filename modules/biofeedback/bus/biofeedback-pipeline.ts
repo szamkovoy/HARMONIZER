@@ -441,7 +441,16 @@ export class BiofeedbackPipeline {
     this.lastSessionEventMs = 0;
     this.lastContactEventMs = 0;
     this.lastPulseBpmSnapshot = null;
+    // Clear the beat history from the previous source. Without this, emulated beats
+    // (e.g. 75 bpm synthetic) linger in `mergedBeats` after a `camera` source restore and
+    // contaminate the BPM engine's window for ~10 s, pinning `displayBpm` at the emulated
+    // value (the "horizontal plateau after a long gap" artifact) until they age out. The
+    // reacquire gate handles the unavoidable gap before the new source's first clean beats.
+    this.mergedBeats = [];
+    this.canonicalBeats = [];
+    this.beatEligible = [];
     this.pulseBpm.reset();
+    this.livePulse.reset();
     this.bus.publish("pulseSource", {
       kind,
       isEmulated: kind === "emulated",

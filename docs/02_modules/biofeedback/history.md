@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.19
+version: 1.20
 updated: 2026-07-02
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-02 (11):** Emulated→live handoff plateau fix. Field test `1783025857120` (algoVer 1.2.5, `TARGET = 15`) showed a flat ~75 bpm shelf for ~9 s on both the measured and guidance pulse charts after the 20 s finger-lift gray band: the camera fully stalled during the lift (no frames, `opticalFps = 0` from t≈210–220), the app fell to `emulated` pacing (~75 bpm synthetic beats), then when real optical frames resumed (t≈228.8, `amplitude 0.094`, `opticalFps` ramping 1→10) `displayBpm` stayed pinned at exactly 75 until the first real beat at t≈237.7. Root cause: `BiofeedbackPipeline.setPulseSource` reset only the BPM engine (`pulseBpm.reset()`) but left `mergedBeats`/`canonicalBeats`/`beatEligible` untouched, so the synthetic 75 bpm beats lingered in the sliding window for ~10 s and recomputed `displayBpm ≈ 75` after the restore. Fix: `setPulseSource` now clears `mergedBeats`/`canonicalBeats`/`beatEligible` and resets `livePulse` on every source switch, so the new source starts clean and the existing post-gap reacquire gate reintroduces real beats (no calibration reset — `softReset` is not called, so no 10 s warmup). The same test also showed a brief ~2.5 s spontaneous `holding` band at t≈143 (finger on, `fingerPresenceConfidence 0.69–0.70`, `SQ 0.80`, `amplitude 0.016→0.010` — a weak-waveform moment at the exposure-limited ~10 fps) followed by a single-point 65 bpm dip vs the surrounding 67–69; the dip is a mild (-6 %) post-gap first-beat artifact that the ±25 % RR-drift reacquire gate intentionally does NOT suppress (it would fire on real HR changes), and 65 vs 69 is within normal HR variation. algoVer → 1.2.6.
 
 - **2026-07-02 (10):** Reverted `TARGET_PPG_FPS` 10 → 15 after the 10 Hz setting broke detection. Field test `1783024540644` (algoVer 1.2.4, freshly rebuilt via `eas build`) showed the camera delivering only ~6 fps at `TARGET = 10` (fps dist: 6→321, 7→132) vs ~10 fps at `TARGET = 15`: `useCameraFormat({fps:10})` on iPhone 14 selects a lower-max-fps format, so the camera runs at ~6 fps. At 6 fps the 12 s window holds only ~72 samples and `pickSosForSampleRateHz(6)` clamps to the 9 Hz floor → FS_10 coefficients (designed for 10 Hz) mismatch the real 6 fps stream, the peak detector cannot find beats, and ~75 % of the session is `holding` despite a healthy signal (`fingerPresenceConfidence 0.70`, `SQ 0.69–0.83`, finger on the whole time). `TARGET = 15` selects the higher-max-fps format; the camera then self-limits to ~10 fps via iOS auto-exposure under torch, and `pickSosForSampleRateHz(~10)` → matched FS_10. Heat note: at `TARGET = 15` the camera actually captures ~10 fps (exposure-capped), so ISP heat is driven by the real ~10 fps, not the nominal 15 — `TARGET = 10` did NOT reduce heat, it only broke the format. Future heat reduction must come from adaptive fps / exposure-lock, not from lowering `TARGET` (which corrupts format selection).
 
