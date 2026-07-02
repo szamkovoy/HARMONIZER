@@ -50,6 +50,7 @@ import {
 import {
   BEAT_DUPLICATE_TOLERANCE_MS,
   BEAT_HISTORY_WINDOW_MS,
+  CONTACT_LOST_GRACE_MS,
   HRV_RR_HARD_MAX_MS,
   HRV_RR_HARD_MIN_MS,
 } from "@/modules/biofeedback/constants";
@@ -1027,11 +1028,17 @@ export class BiofeedbackPipeline {
     }
 
     // 5) Calibration FSM.
+    // `contactLost` is debounced: a momentary finger-off (3 s) must NOT collapse the
+    // calibration into a full 10 s warmup. Only sustained absence (> CONTACT_LOST_GRACE_MS)
+    // is treated as a real loss and routes the FSM to `lost → warmup`. Brief removals keep
+    // the FSM in `ready`, so peak detection stays enabled and re-locks within 2–3 s once the
+    // finger is back instead of ~15 s.
     const calSnap = this.calibration.push({
       timestampMs: sample.timestampMs,
       contactPresent,
       goodSettleTick: trackingNow,
-      contactLost: !contactPresent,
+      contactLost:
+        !contactPresent && contactSnap.absentForMs > CONTACT_LOST_GRACE_MS,
     });
     this.maybePublishSessionEvent(sample.timestampMs, calSnap);
     if (calSnap.becameReady) {
