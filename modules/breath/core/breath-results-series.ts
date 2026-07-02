@@ -20,8 +20,9 @@ const PULSE_RESULT_STABLE_RECOVERY_MS = 8_000;
  * single fast-HR / missed-beat packet is a transport/parsing hiccup, not the strap coming off. Any
  * wearable non-live run shorter than this is folded back into the live line (measured value held
  * across it) instead of drawing a gray band and zeroing the pulse. Genuine removals (BLE
- * disconnect, sustained loss) last far longer and are kept. Camera finger-off gaps are NOT
- * debounced here — they are real and must stay visible (see `isWearableLikeLog`).
+ * disconnect, sustained loss) last far longer and are kept. Camera finger-off gaps still become
+ * honest gaps eventually, but short camera hold/interpolation windows are now treated as live by
+ * the shared `BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS` gate before they ever reach this stage.
  */
 const WEARABLE_MIN_REAL_GAP_MS = 8_000;
 

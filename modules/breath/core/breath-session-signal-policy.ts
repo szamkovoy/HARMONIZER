@@ -18,8 +18,14 @@ export const BREATH_BLE_PREP_MIN_LIVE_PULSE_MS = 2_000;
 /** BLE prep UI: one full ring rotation before auto-start (ms). */
 export const BREATH_BLE_PREP_SPIN_MS = 2_500;
 
-/** Camera: beat older than this is not treated as a live measurement (hold/interpolate instead). */
-export const BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS = 2_500;
+/**
+ * Camera: up to this beat age we still treat `holding`/recent `tracking` as a live measured pulse
+ * for the practice UI/results. This is intentionally longer than a single-beat freshness check:
+ * short finger lifts (~3 s) should stay on interpolation/hold instead of immediately turning into
+ * a full gray gap while the optical path is re-locking. Genuine long losses still fall through to
+ * non-live/emulated once this window expires.
+ */
+export const BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS = 5_000;
 
 /**
  * Если логическое время камеры (`getLastSourceTimestampMs`) не двигается дольше этого,

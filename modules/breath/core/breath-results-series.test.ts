@@ -98,19 +98,28 @@ describe("breath-results-series", () => {
     expect(bridged.some((point) => point.value === 90)).toBe(false);
   });
 
-  it("treats stale camera beat age as non-live measurement", () => {
+  it("keeps short camera hold/interpolation windows live", () => {
     const sample = entry(1_000, {
       measuredPulseRateBpm: 63,
       pulseReady: true,
       lastBeatAgeMs: 4_000,
     });
-    expect(isPulseLogEntryLiveForMeasurement(sample)).toBe(false);
+    expect(isPulseLogEntryLiveForMeasurement(sample)).toBe(true);
     const log = [
       entry(1_000, { measuredPulseRateBpm: 70, guidancePulseRateBpm: 70, pulseReady: true, lastBeatAgeMs: 800 }),
       entry(4_000, { measuredPulseRateBpm: 63, guidancePulseRateBpm: 63, pulseReady: true, lastBeatAgeMs: 4_000 }),
     ];
     const measured = buildPulseSeriesFromLog(log, 0, "measured");
-    expect(measured[1]?.value).toBe(0);
+    expect(measured[1]?.value).toBe(63);
+  });
+
+  it("still treats genuinely stale camera beat age as non-live measurement", () => {
+    const sample = entry(1_000, {
+      measuredPulseRateBpm: 63,
+      pulseReady: true,
+      lastBeatAgeMs: 6_000,
+    });
+    expect(isPulseLogEntryLiveForMeasurement(sample)).toBe(false);
   });
 
   it("passes small guidance changes through (tracks the live pulse)", () => {

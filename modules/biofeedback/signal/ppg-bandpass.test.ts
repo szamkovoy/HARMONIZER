@@ -31,7 +31,7 @@ describe("ppg-bandpass matched filter across capture rates", () => {
   const seconds = 12;
   const expectedCycles = (bpm / 60) * seconds;
 
-  for (const fps of [10, 12, 15, 30]) {
+  for (const fps of [6, 8, 10, 12, 15, 30]) {
     it(`extracts the pulse at ${fps} Hz (matched SOS, not a mismatched bucket)`, () => {
       const raw = makePulse(fps, seconds, bpm);
       const filtered = bandpassPpgForPeakDetection(raw, fps);

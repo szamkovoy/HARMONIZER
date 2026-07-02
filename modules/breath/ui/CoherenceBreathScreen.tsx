@@ -782,6 +782,7 @@ function CoherenceBreathScreenInner({
   const [cameraRecoveryProbeActive, setCameraRecoveryProbeActive] = useState(false);
   const useEmulatedPulseModeRef = useRef(false);
   const emulatedPulseSeedBpmRef = useRef<number | null>(null);
+  const cameraRecoveryProbeStartedAtWallMsRef = useRef<number | null>(null);
   useEffect(() => {
     useEmulatedPulseModeRef.current = useEmulatedPulseMode;
   }, [useEmulatedPulseMode]);
@@ -1383,6 +1384,7 @@ function CoherenceBreathScreenInner({
     setEmulatedPulseSeedBpm(seedBpm);
     setEmulatedFallbackSource(source);
     setCameraRecoveryProbeActive(false);
+    cameraRecoveryProbeStartedAtWallMsRef.current = null;
     setUseEmulatedPulseMode(true);
     if (source === "camera") {
       pipeline.setOpticalPaused(true);
@@ -1434,6 +1436,7 @@ function CoherenceBreathScreenInner({
     setEmulatedPulseSeedBpm(null);
     setEmulatedFallbackSource(null);
     setCameraRecoveryProbeActive(false);
+    cameraRecoveryProbeStartedAtWallMsRef.current = null;
     setPpgOverlayMessage(null);
     autoAbortAccumMsRef.current = 0;
     fingerAbsentWallMsRef.current = 0;
@@ -1479,6 +1482,7 @@ function CoherenceBreathScreenInner({
       if (phaseRef.current === "running" && useEmulatedPulseModeRef.current) {
         pipeline.setPulseSource("fingerCamera");
         pipeline.setOpticalPaused(false);
+        cameraRecoveryProbeStartedAtWallMsRef.current = Date.now();
         setCameraRecoveryProbeActive(true);
       }
     }, CAMERA_RECOVERY_PROBE_EVERY_MS);
@@ -1505,10 +1509,16 @@ function CoherenceBreathScreenInner({
     }
     const tryRestore = () => {
       const snap = snapshotRef.current;
+      const probeStartedAtWallMs = cameraRecoveryProbeStartedAtWallMsRef.current;
+      const freshBeatAfterProbe =
+        probeStartedAtWallMs != null &&
+        lastFreshBeatWallClockRef.current != null &&
+        lastFreshBeatWallClockRef.current >= probeStartedAtWallMs;
       const looksRecovered =
         snap.fingerDetected &&
         snap.pulseLockState === "tracking" &&
         snap.signalQuality >= CAMERA_RECOVERY_MIN_SIGNAL_QUALITY &&
+        freshBeatAfterProbe &&
         snap.pulseRateBpm > 0;
       if (looksRecovered) {
         switchBackToLivePulse("camera", snap.pulseRateBpm);
@@ -1522,6 +1532,7 @@ function CoherenceBreathScreenInner({
     const id = setTimeout(() => {
       if (!tryRestore()) {
         pipeline.setOpticalPaused(true);
+        cameraRecoveryProbeStartedAtWallMsRef.current = null;
         setCameraRecoveryProbeActive(false);
       }
     }, CAMERA_RECOVERY_PROBE_WINDOW_MS);
@@ -1978,6 +1989,14 @@ function CoherenceBreathScreenInner({
               wearableLastRrAgeMs != null &&
               wearableLastRrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
             );
+          const cameraReadyForLog =
+            !isWearableMode &&
+            !useEmulatedPulseModeRef.current &&
+            event.reacquiring !== true &&
+            beatAgeMs != null &&
+            beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
+            event.bpm > 0 &&
+            event.lockState !== "searching";
           const wearableReadyForLog =
             isWearableMode
               ? (
@@ -1986,14 +2005,7 @@ function CoherenceBreathScreenInner({
                   (wearableRuntimeNow.lastHeartRateBpm ?? 0) > 0 &&
                   wearableRrFresh
                 )
-              : (
-                  !useEmulatedPulseModeRef.current &&
-                  event.hasFreshBeat &&
-                  event.reacquiring !== true &&
-                  beatAgeMs != null &&
-                  beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
-                  event.bpm > 0
-                );
+              : cameraReadyForLog;
           const liveMeasurementNow = wearableReadyForLog;
           const wearableLiveBpm = isWearableMode
             ? (
@@ -2058,6 +2070,12 @@ function CoherenceBreathScreenInner({
           if (measuredPulseRateBpm > 0) {
             lastLoggedMeasuredBpmRef.current = measuredPulseRateBpm;
           }
+          const loggedPulseSource = useEmulatedPulseModeRef.current
+            ? "emulated"
+            : pipeline.getPulseSource();
+          const loggedLockState = useEmulatedPulseModeRef.current
+            ? ("searching" as const)
+            : event.lockState;
           const draftEntry: CoherencePulseLogEntry = {
             cameraTimestampMs: logTimestampMs,
             wallClockMs: wall,
@@ -2067,11 +2085,11 @@ function CoherenceBreathScreenInner({
             signalQuality: snap.signalQuality,
             pulseReady: liveMeasurementNow,
             fingerDetected: snap.fingerDetected,
-            pulseLockState: event.lockState,
+            pulseLockState: loggedLockState,
             beatTimestampsCount: mergedBeats.length,
             lastBeatTimestampMs: logLastBeatTimestampMs,
             lastBeatAgeMs: beatAgeMs,
-            pulseSource: pipeline.getPulseSource(),
+            pulseSource: loggedPulseSource,
             emulatedActive: useEmulatedPulseModeRef.current,
             wearableState: isWearableMode ? wearableRuntimeNow.state : null,
             wearableCapabilityTier: isWearableMode ? wearableCapabilityTierRef.current : null,

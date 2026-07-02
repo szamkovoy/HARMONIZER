@@ -13,6 +13,20 @@ export const BUTTERWORTH_PPG_SOS_FS_10 = [
   [1.0, -2.0, 1.0, 1.0, -1.56045473329916118e0, 7.95457218004771760e-1],
 ] as const;
 
+export const BUTTERWORTH_PPG_SOS_FS_8 = [
+  [5.63975783490770627e-2, 1.12795156698154125e-1, 5.63975783490770627e-2, 1.0, 9.31408430209873378e-2, 1.73424437380748059e-1],
+  [1.0, -2.0, 1.0, 1.0, -8.69439368704638893e-1, 3.08751300095340464e-1],
+  [1.0, 2.0, 1.0, 1.0, 5.78669060297587690e-1, 6.20367511425285012e-1],
+  [1.0, -2.0, 1.0, 1.0, -1.38757116278909431e0, 7.37642164575838200e-1],
+] as const;
+
+export const BUTTERWORTH_PPG_SOS_FS_6 = [
+  [1.39420257062766728e-1, -2.78840514125533456e-1, 1.39420257062766728e-1, 1.0, -6.11751576854925982e-1, 1.58046578710086899e-1],
+  [1.0, 2.0, 1.0, 1.0, 1.05460855856599345e0, 3.20101315356289218e-1],
+  [1.0, -2.0, 1.0, 1.0, -1.06551551757671925e0, 6.24124744596492365e-1],
+  [1.0, 2.0, 1.0, 1.0, 1.48745816250855456e0, 7.29444265977537198e-1],
+] as const;
+
 export const BUTTERWORTH_PPG_SOS_FS_12 = [
   [1.54114240438697932e-2, 3.08228480877395863e-2, 1.54114240438697932e-2, 1.0, -6.93753619367069141e-1, 3.21855864164653727e-1],
   [1.0, 2.0, 1.0, 1.0, -1.27248446543181970e0, 5.10015998604459564e-1],
@@ -59,12 +73,15 @@ type SosRow = readonly [number, number, number, number, number, number];
 type Sos = readonly SosRow[];
 
 function pickSosForSampleRateHz(sampleRateHz: number): Sos {
-  // Floor at 9 Hz so a 10 Hz capture keeps a matched filter. Previously the floor was 12 Hz
-  // and the lowest bucket 15 Hz, so a 10 Hz stream was filtered with 15-Hz-designed coefficients:
-  // the digital passband shifted to ≈0.53–1.67 Hz and mangled the pulse waveform, which made the
-  // peak detector intermittently lose lock (finger on lens, good SQ, yet `holding` for 20+ s).
-  const fs = Math.min(45, Math.max(9, sampleRateHz));
+  // Floor at 6 Hz so short post-gap exposure stalls (camera briefly falling to ~5–6 fps) still
+  // keep a roughly matched bandpass instead of bypassing filtering entirely. The earlier 9 Hz
+  // floor fixed the 10-Hz steady-state mismatch; the missing low-fps buckets left recovery
+  // windows unfiltered right when the optical signal is dominated by exposure drift, producing
+  // 8–12 s of `holding` after finger return.
+  const fs = Math.min(45, Math.max(6, sampleRateHz));
   const buckets: Array<{ hz: number; sos: Sos }> = [
+    { hz: 6, sos: BUTTERWORTH_PPG_SOS_FS_6 },
+    { hz: 8, sos: BUTTERWORTH_PPG_SOS_FS_8 },
     { hz: 10, sos: BUTTERWORTH_PPG_SOS_FS_10 },
     { hz: 12, sos: BUTTERWORTH_PPG_SOS_FS_12 },
     { hz: 15, sos: BUTTERWORTH_PPG_SOS_FS_15 },
@@ -134,7 +151,7 @@ export function bandpassPpgForPeakDetection(
   detrendedSeries: readonly number[],
   sampleRateHz: number,
 ): number[] {
-  if (detrendedSeries.length < 16 || sampleRateHz < 8) {
+  if (detrendedSeries.length < 16 || sampleRateHz < 5) {
     return [...detrendedSeries];
   }
   const sos = pickSosForSampleRateHz(sampleRateHz);

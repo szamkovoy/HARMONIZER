@@ -125,11 +125,13 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
     const contact = bus.getLast("contact");
     const session = bus.getLast("session");
     const pulse = bus.getLast("pulseBpm");
+    const pulseSource = bus.getLast("pulseSource");
     const rmssd = bus.getLast("rmssd");
     const stress = bus.getLast("stress");
     const coh = bus.getLast("coherence");
 
     const lastOptical = bus.getLast("optical");
+    const emulatedSnapshot = pulseSource?.isEmulated === true;
     return {
       timestampMs: lastOptical?.timestampMs ?? 0,
       pulseRateBpm: pulse?.bpm ?? 0,
@@ -138,10 +140,13 @@ export function useBiofeedbackSnapshot(): BiofeedbackSnapshot {
           ? Math.min(1, Math.max(0, contact.signalQuality))
           : 0,
       fingerDetected: contact?.state === "present",
-      pulseLockState: pulse?.lockState ?? "searching",
+      // During emulated fallback the user has no real live measurement, so surfacing `tracking`
+      // from synthetic beats is misleading ("tracking with 0 bpm"). Keep guidance BPM intact, but
+      // expose the lock state as `searching` and suppress `hasFreshBeat` until a real source wins.
+      pulseLockState: emulatedSnapshot ? "searching" : (pulse?.lockState ?? "searching"),
       contactState: contact?.state ?? "absent",
       calibrationPhase: session?.phase ?? "idle",
-      hasFreshBeat: pulse?.hasFreshBeat ?? false,
+      hasFreshBeat: emulatedSnapshot ? false : (pulse?.hasFreshBeat ?? false),
       mergedBeats: pipeline.getMergedBeats(),
       opticalSamples: EMPTY_OPTICAL_SAMPLES,
       currentCoherencePercent: coh?.currentPercent ?? null,
