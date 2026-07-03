@@ -801,6 +801,12 @@ export type CoherencePulseLogEntry = {
   liveMeasurementActive?: boolean;
   /** True when guidance/measured is being held across a short camera gap. */
   interpolationHoldActive?: boolean;
+  /**
+   * True (camera) when the engine is bridging a short signal gap by interpolating beats on the
+   * last stable rate. Such samples stay LIVE even though the real beat age exceeds the plain
+   * freshness window — the pulse is reconstructed, not lost.
+   */
+  bridgingShortGap?: boolean;
   /** Сырая оптика с камеры (для диагностики finger-presence при снятиях пальца). */
   opticalRedMean?: number | null;
   opticalGreenMean?: number | null;

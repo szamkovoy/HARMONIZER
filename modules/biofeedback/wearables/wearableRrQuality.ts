@@ -72,3 +72,36 @@ export function isWearableRrPacketTrustworthy(rrIntervalsMs: readonly number[]):
   if (rrIntervalsMs.length === 0) return false;
   return filterOnBodyWearableRrIntervals(rrIntervalsMs).length > 0;
 }
+
+/**
+ * Frozen-RR detection (off-body chest strap). When a Polar H10 (or similar) is lifted off the
+ * chest it keeps emitting HR/RR packets, but the RR intervals collapse to a near-constant value
+ * (field test 1783096820335: a stream of exact 659 ms RR → bogus 91 bpm) because there is no real
+ * cardiac waveform to time. Real RR always varies beat-to-beat (even at very low HRV the
+ * beat-to-beat jitter is ~10–20 ms); a run of N consecutive RR within `toleranceMs` of each other
+ * is physiologically impossible and is a reliable off-body signature. Range filtering
+ * (`filterOnBodyWearableRrIntervals`) cannot catch this because 659 ms is in range — only
+ * run-level variance can.
+ *
+ * `recentRrMs` is the rolling RR history (across packets, plausible-only). Returns true when the
+ * tail of that history is a frozen run: the last `minCount` intervals all lie within
+ * `toleranceMs` of their mean.
+ */
+export const FROZEN_RR_RUN_MIN_COUNT = 6;
+export const FROZEN_RR_RUN_TOLERANCE_MS = 8;
+
+export function isFrozenRrRun(
+  recentRrMs: readonly number[],
+  minCount: number = FROZEN_RR_RUN_MIN_COUNT,
+  toleranceMs: number = FROZEN_RR_RUN_TOLERANCE_MS,
+): boolean {
+  if (recentRrMs.length < minCount) return false;
+  const tail = recentRrMs.slice(-minCount);
+  let sum = 0;
+  for (const v of tail) sum += v;
+  const mean = sum / tail.length;
+  for (const v of tail) {
+    if (Math.abs(v - mean) > toleranceMs) return false;
+  }
+  return true;
+}

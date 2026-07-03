@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.29
-updated: 2026-06-16
+version: 1.30
+updated: 2026-07-03
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -61,6 +61,11 @@ code_refs: []
 - После переноса источников в `docs/05_archive/migrated/bindu/` в репозитории остаются **устаревшие пути** в инвентарных файлах (например `docs/_audit.md`), где ещё перечислены `docs/meditation_video_generator_spec.md`, `docs/modules/bindu_succession_lab.md`, `docs/modules/visual_module_map.md`. Нужна отдельная правка аудита или ссылка на новый канон `docs/02_modules/bindu/`*, вне scope одной миграции модуля.
 
 ## `biofeedback` / `practices`
+
+- **Peak-detector не восстанавливается после сильного сигнала на маргинальном PPG**
+**Контекст:** Field test `1783084493476` (algoVer 1.2.12) — палец на объективе всю сессию, но амплитуда PPG была маргинальной (0.007–0.013). При этом в окне t≈16–25 с сигнал кратко усилился до 0.06–0.085, пик-детектор залочился, а когда амплитуда вернулась к ~0.010, он уже не находил пики до конца практики (4+ мин), хотя в самом начале при той же амплитуде 0.010 трекинг был. Похоже на адаптивный prominence-threshold, поднявшийся под сильный сигнал и не сбрасывающийся обратно. Подтверждено export-ами `1783088279299` (algoVer 1.2.14: старт ~9 с трекинг, затем ~22 с потеря на амплитуде 0.005–0.014) и `1783091581263` (algoVer 1.2.16: пик-детектор потерял захват ~11 с ДО старта `running` (warmup tail) и восстановился только на t≈13 с — стартовая серая полоса ~24 с). С 2026-07-03 (5–8) короткая часть таких потерь (≤ 8 с) прикрывается empty-window bridge-rescue + pipeline safety net на plausible baseline, а с 2026-07-03 (8) `detectBeats.relaxThresholds` (re-acquire sweep при ≥ 2.5 с без ударов) ослабляет пороги height/prominence, пере-открывая детектор для маргинального пульса. Стартовая полоса >8 с от последнего trusted beat дополнительно прикрывается start-grace emulated fallback (practices 2026-07-03 (9), 4 с вместо 20 с). Глубинный root — если пульс-осцилляции находятся ниже bandpassed noise floor (холодный палец / слабая перфузия), никакая настройка порогов их не восстановит; эти случаи честно уходят в synthetic pacing.
+**Проявление:** На «холоднопалых»/слабоперфузийных сессиях пик-детектор теряет захват и держит `holding` минутами; практика корректно уходит в emulated (фикс 2026-07-03 (3)), но реальный пульс не восстанавливается, хотя сырой сигнал формально присутствует.
+**Действие:** исследовать `modules/biofeedback/signal/optical-pipeline.ts` (адаптивный prominence/порог детектора пиков) — должен ли порог пересчитываться вниз при длительном отсутствии детектированных пиков, или нужен отдельный re-acquire sweep по сниженному порогу. Сначала убедиться по raw-оптике, что сигнал действительно содержит пульс, а не только шум. **Частично выполнено 2026-07-03 (8):** `detectBeats.relaxThresholds` — re-acquire sweep при ≥ `OPTICAL_REACQUIRE_RELAX_MS` (2.5 с) без ударов ослабляет пороги. Оставшееся — случаи, где пульс ниже bandpassed noise floor (нужен raw-optical replay для верификации).
 
 - **Порог trusted accuracy для generic BLE HRM пока продуктово не закреплён**  
 **Контекст:** `modules/biofeedback/wearables/trustedProfiles.ts` даёт `fullMetrics` только для явно доверенных Polar-профилей, а все прочие BLE chest straps идут через generic probe (`RR -> fullMetrics`, HR-only -> `guidedOnly`). UI и pipeline уже умеют работать по capability tiers, но сами пороги доверия и список «точно validated» устройств пока intentionally conservative.  

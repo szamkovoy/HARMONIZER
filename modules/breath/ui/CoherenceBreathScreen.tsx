@@ -105,6 +105,7 @@ import {
   BREATH_BLE_PREP_MIN_LIVE_PULSE_MS,
   BREATH_BLE_PREP_SPIN_MS,
   BREATH_CAMERA_EMULATED_FALLBACK_MS,
+  BREATH_CAMERA_EMULATED_START_GRACE_MS,
   BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS,
   BREATH_OPTICAL_STALL_HARD_MS,
   BREATH_SESSION_SIGNAL_ABORT_MS,
@@ -242,6 +243,17 @@ function suppressCoherenceMetrics(result: CoherenceSessionResult): CoherenceSess
 /** Physiologic RR bounds (ms) for dense HRV windows: 300 ms = 200 bpm, 1500 ms = 40 bpm. */
 const DENSE_HRV_RR_MIN_MS = 300;
 const DENSE_HRV_RR_MAX_MS = 1500;
+/**
+ * Sequential-deviation гейт для dense-HRV RR (как в PulseBpmEngine для wearable, ratio 0.22).
+ * Polar H10 при движении (отжимания, съём/надевание) шлёт зашумлённые RR — ошибки детекции
+ * R-пика: ряд скачет 576↔717↔499↔691 мс при реальном ~730 мс. Эти значения проходят жёсткий
+ * фильтр 300–1500 и не ловятся Hampel (они не одиночные, а bursts), поэтому RMSSD взлетала до
+ * 56 мс, а индекс стресса падал к 0 (огромный MxDMn). Гейт режет RR, отклоняющиеся от бегущей
+ * медианы контекста больше чем на max(110, med·0.22) — ровно то же правило, что фильтрует BPM.
+ */
+const DENSE_HRV_DEVIATION_RATIO = 0.22;
+const DENSE_HRV_DEVIATION_MIN_DELTA_MS = 110;
+const DENSE_HRV_DEVIATION_CONTEXT = 12;
 /** Trailing window for per-second RMSSD (short-term HRV) and Baevsky stress index. */
 const DENSE_RMSSD_WINDOW_MS = 30_000;
 const DENSE_STRESS_WINDOW_MS = 60_000;
@@ -272,12 +284,35 @@ function buildDenseHrvSeriesFromBeats(
 
   const beats = [...beatTimestampsMs].sort((a, b) => a - b);
   // RR events tagged with the (offset) time of the closing beat, physiologic values only.
-  const rr: { tMs: number; rr: number }[] = [];
+  const rrRaw: { tMs: number; rr: number }[] = [];
   for (let i = 1; i < beats.length; i += 1) {
     const d = beats[i]! - beats[i - 1]!;
     if (d >= DENSE_HRV_RR_MIN_MS && d <= DENSE_HRV_RR_MAX_MS) {
-      rr.push({ tMs: beats[i]! - sessionStartMs, rr: d });
+      rrRaw.push({ tMs: beats[i]! - sessionStartMs, rr: d });
     }
+  }
+  if (rrRaw.length < DENSE_RMSSD_MIN_INTERVALS) return { rmssdMs, stressPercent };
+
+  // Sequential-deviation гейт: режет motion-зашумлённые RR Polar (отжимания/съём), которые
+  // проходят жёсткий диапазон 300–1500, но дают огромные ΔRR → фейковый всплеск RMSSD и провал
+  // стресса. Контекст — бегущая медиана последних принятых RR (см. константы выше).
+  const rr: { tMs: number; rr: number }[] = [];
+  const ctx: number[] = [];
+  const ctxMedian = (vals: number[]): number => {
+    const s = [...vals].sort((a, b) => a - b);
+    const n = s.length;
+    return n % 2 === 1 ? s[(n - 1) >> 1]! : (s[n / 2 - 1]! + s[n / 2]!) / 2;
+  };
+  for (const ev of rrRaw) {
+    if (ctx.length >= 4) {
+      const med = ctxMedian(ctx.slice(-DENSE_HRV_DEVIATION_CONTEXT));
+      const allowed = Math.max(DENSE_HRV_DEVIATION_MIN_DELTA_MS, med * DENSE_HRV_DEVIATION_RATIO);
+      if (Math.abs(ev.rr - med) > allowed) {
+        continue;
+      }
+    }
+    rr.push(ev);
+    ctx.push(ev.rr);
   }
   if (rr.length < DENSE_RMSSD_MIN_INTERVALS) return { rmssdMs, stressPercent };
 
@@ -363,6 +398,16 @@ function findRecoverableCoherenceTail(params: {
 }
 /** Начальный BPM для seed-а planner-а, пока не пришли реальные удары. */
 const INITIAL_SEED_BPM = 60;
+/**
+ * Camera guidance-only: seed BPM для emulated-синтетики и для стартового seed-а
+ * planner-а, когда когерентный baseline ещё не построен или недоступен. Это
+ * безопасный ритм покоя, чтобы дыхательная практика не уходила в нереалистично
+ * медленный/быстрый темп на шуме с оптического датчика. Значения используются
+ * единообразно и для emulated-fallback, и для planner-seed на старте running.
+ */
+const CAMERA_EMULATED_SEED_DEFAULT_BPM = 65;
+const CAMERA_EMULATED_SEED_MIN_BPM = 50;
+const CAMERA_EMULATED_SEED_MAX_BPM = 90;
 /** Максимум времени в прогреве + QC до отмены (защита от зависания). */
 const COHERENCE_PROTOCOL_MAX_MS = 180_000;
 const UI_TICK_MS = 500;
@@ -548,6 +593,14 @@ function decimateSeries(
   return out;
 }
 
+/**
+ * Window (мс) для header-значений «start → end» графиков результатов: среднее по первой и
+ * последней минуте РЕАЛЬНО измерённых точек ряда (а не треть точек — на длинных сессиях треть
+ * это ~3–4 мин, что не отражает «пульс на старте/финише»). 60 с — баланс между стабильностью
+ * (один шумовый пик не перекосит) и локальностью (реально отражает начало/конец).
+ */
+const RESULTS_HEADER_WINDOW_MS = 60_000;
+
 function summarizeSeries(
   points: readonly BreathResultsSeriesPoint[],
   unit: BreathResultsSeriesSummary["unit"],
@@ -557,19 +610,25 @@ function summarizeSeries(
   if (values.length === 0) return null;
   const mean = (items: readonly number[]) =>
     items.length > 0 ? items.reduce((sum, value) => sum + value, 0) / items.length : null;
+  // Time-based start/end windows: первая и последняя минута измеренного ряда.
+  const firstT = points[0]!.tMs;
+  const lastT = points[points.length - 1]!.tMs;
+  const startCutoff = firstT + RESULTS_HEADER_WINDOW_MS;
+  const endCutoff = lastT - RESULTS_HEADER_WINDOW_MS;
+  const startValues = points.filter((p) => p.tMs <= startCutoff).map((p) => p.value);
+  const endValues = points.filter((p) => p.tMs >= endCutoff).map((p) => p.value);
+  // Средняя треть по-прежнему для midMean (не в header, только служебное).
   const bucketSize = Math.max(1, Math.round(points.length / 3));
-  const startValues = points.slice(0, bucketSize).map((point) => point.value);
   const midStart = Math.max(0, Math.floor((points.length - bucketSize) / 2));
   const midValues = points.slice(midStart, midStart + bucketSize).map((point) => point.value);
-  const endValues = points.slice(-bucketSize).map((point) => point.value);
   let peak = points[0]!;
   let trough = points[0]!;
   for (const point of points) {
     if (point.value > peak.value) peak = point;
     if (point.value < trough.value) trough = point;
   }
-  const startMean = mean(startValues);
-  const endMean = mean(endValues);
+  const startMean = mean(startValues.length > 0 ? startValues : [points[0]!.value]);
+  const endMean = mean(endValues.length > 0 ? endValues : [points[points.length - 1]!.value]);
   return {
     unit,
     sampleCount: points.length,
@@ -1086,6 +1145,16 @@ function CoherenceBreathScreenInner({
   const lastLoggedGuidanceBpmRef = useRef(0);
   const lastFreshBeatSourceTsRef = useRef<number | null>(null);
   const lastFreshBeatWallClockRef = useRef<number | null>(null);
+  /**
+   * True once a trusted (coherent/bridging) beat has arrived DURING the `running` phase.
+   * Until then, the emulated-fallback uses a short start-grace instead of the full 20 s:
+   * on a marginal-PPG start the peak detector can lose lock in settle's tail (last beat
+   * ~10 s before `running`), so staleness at t=0 is already ~10 s and the 20 s threshold
+   * would leave ~10 s of gray non-pacing measurement at start. The product spec wants a
+   * long loss to switch to a synthetic sine wave; at start there's no prior live running
+   * beat to "recover" to, so the short grace is safe. Reset to false on each running start.
+   */
+  const runningLiveBeatSeenRef = useRef(false);
   const finalPulseLogExportRef = useRef<CoherencePulseLogEntry[] | null>(null);
   const snapshotCallbacksTotalRef = useRef(0);
   const snapshotsWhileRunningRef = useRef(0);
@@ -1371,7 +1440,22 @@ function CoherenceBreathScreenInner({
       return;
     }
     const stableRrMs = pipeline.getLastStableRrMs();
+    const plausibleBpm = pipeline.getLastPlausibleBpm();
     const wearableBpm = wearableRuntime.lastHeartRateBpm ?? null;
+    // Camera seed: prefer the last COHERENT baseline RR (only updated when the engine saw a
+    // low-jitter window). If there is none yet (session lived entirely on marginal-PPG
+    // tracking), fall back to the last PLAUSIBLE displayBpm (50–110, slew-limited — noise
+    // ~46 bpm сюда не попадает) before the safe resting default. Do NOT seed from the current
+    // noisy `pulseRateBpm` — that gave ~46 bpm synthetic pacing. Clamp to physiological range
+    // so a bogus low/high outlier can't drive breathing absurdly slow or fast.
+    const cameraSeedRaw =
+      stableRrMs > 0
+        ? 60_000 / stableRrMs
+        : (plausibleBpm > 0 ? plausibleBpm : CAMERA_EMULATED_SEED_DEFAULT_BPM);
+    const cameraSeedClamped = Math.max(
+      CAMERA_EMULATED_SEED_MIN_BPM,
+      Math.min(CAMERA_EMULATED_SEED_MAX_BPM, cameraSeedRaw),
+    );
     const fallbackBpm =
       source === "wearable"
         ? (
@@ -1379,7 +1463,7 @@ function CoherenceBreathScreenInner({
             ?? (stableRrMs > 0 ? 60_000 / stableRrMs : null)
             ?? wearableBpm
           )
-        : (stableRrMs > 0 ? 60_000 / stableRrMs : snapshotRef.current.pulseRateBpm);
+        : cameraSeedClamped;
     const seedBpm = Number.isFinite(fallbackBpm) && fallbackBpm > 0
       ? Math.round(fallbackBpm)
       : null;
@@ -1978,17 +2062,24 @@ function CoherenceBreathScreenInner({
       const lastMergedBeatTs = mergedBeats[mergedBeats.length - 1] ?? null;
       const snap = snapshotRef.current;
       const wall = Date.now();
+      // A "trusted fresh beat" must be COHERENT (or a bridge on a previously-coherent baseline),
+      // not merely `tracking`. On marginal PPG (cold finger / weak perfusion) the peak detector
+      // can flicker `tracking` on noise and produce bogus BPM (e.g. 44→77 climbing in 7 s) with
+      // high jitter — `looksCoherent` is false there. Trusting those flickers reset the loss
+      // clock and the emulated-fallback never fired, so the practice was paced by noise for
+      // minutes. Requiring coherence makes noise accumulate staleness → emulated synthetic sine
+      // takes over; real coherent pulse (stable BPM, low jitter) resets it as before. The brief
+      // onset window before 5 RR accumulate is covered by the 20 s fallback threshold + bridge.
       const trustedFreshBeat =
         event.hasFreshBeat &&
         lastMergedBeatTs != null &&
-        (
-          event.lockState === "tracking" ||
-          event.bridgingShortGap === true ||
-          event.looksCoherent === true
-        );
+        (event.looksCoherent === true || event.bridgingShortGap === true);
       if (trustedFreshBeat) {
         lastFreshBeatSourceTsRef.current = lastMergedBeatTs;
         lastFreshBeatWallClockRef.current = wall;
+        if (phaseRef.current === "running") {
+          runningLiveBeatSeenRef.current = true;
+        }
       }
       if (phaseRef.current === "warmup" || phaseRef.current === "qualityCheck") {
         qcPulseSamplesRef.current.push({
@@ -2048,7 +2139,10 @@ function CoherenceBreathScreenInner({
             !useEmulatedPulseModeRef.current &&
             (event.reacquiring !== true || event.bridgingShortGap === true) &&
             beatAgeMs != null &&
-            beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
+            // A bridged short gap is reconstructed pulse (interpolated on the last stable rate),
+            // so it stays live even though the last REAL beat is older than the plain freshness
+            // window. The engine already bounds the bridge, so we don't need the age cap here.
+            (beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS || event.bridgingShortGap === true) &&
             event.bpm > 0 &&
             (
               event.lockState === "tracking" ||
@@ -2077,9 +2171,25 @@ function CoherenceBreathScreenInner({
             !isWearableMode &&
             !useEmulatedPulseModeRef.current &&
             !liveMeasurementNow;
+          // On the START hold (before any live beat), `lastLoggedGuidanceBpmRef` is 0 and the
+          // fallback was `snapshot.pulseRateBpm` — which on a marginal-PPG start is a NOISY
+          // warmup value (e.g. ~55 bpm while the user's real pulse is ~80). That painted a
+          // bogus "floor" on the guidance graph for the first ~15-20 s. Prefer the coherent
+          // baseline (`lastStableRrMs`) — it is only updated on low-jitter windows and holds
+          // the user's true rate through the loss — so the hold shows the real ~80 bpm and
+          // transitions seamlessly into live/emulated. Mid-session holds already have
+          // `lastLoggedGuidanceBpmRef` set, so this baseline term only participates at start.
+          const holdStableBpm = (() => {
+            const rr = pipeline.getLastStableRrMs();
+            if (rr > 0) return 60_000 / rr;
+            const plausible = pipeline.getLastPlausibleBpm();
+            return plausible > 0 ? plausible : 0;
+          })();
           let guidancePulseRateBpm =
             cameraHoldGuidance
-              ? (lastLoggedGuidanceBpmRef.current || snapshotRef.current.pulseRateBpm || 0)
+              ? (lastLoggedGuidanceBpmRef.current
+                  || (holdStableBpm > 0 ? holdStableBpm : 0)
+                  || CAMERA_EMULATED_SEED_DEFAULT_BPM)
               : event.bpm > 0
                 ? event.bpm
                 : (
@@ -2168,6 +2278,8 @@ function CoherenceBreathScreenInner({
             opticalFps: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.fps ?? null),
             fingerPresenceConfidence: isWearableMode ? null : (pipeline.getLastOpticalDiagnostic()?.fingerPresenceConfidence ?? null),
           };
+          draftEntry.bridgingShortGap =
+            !isWearableMode && !useEmulatedPulseModeRef.current && event.bridgingShortGap === true;
           draftEntry.liveMeasurementActive = isPulseLogEntryLiveForMeasurement(draftEntry);
           draftEntry.interpolationHoldActive =
             !draftEntry.emulatedActive &&
@@ -2739,12 +2851,32 @@ function CoherenceBreathScreenInner({
       if (!hybridEmulated && !useSimulatedPpg && !useEmulatedPulseModeRef.current) {
         const fingerAbortReady =
           !fingerOk && fingerAbsentWallMsRef.current >= BREATH_CAMERA_EMULATED_FALLBACK_MS;
+        // Beat-staleness fallback fires on its OWN, regardless of finger presence. A finger can
+        // be firmly detected (high presence confidence) yet produce NO usable beats for minutes
+        // — cold finger / weak perfusion / marginal PPG amplitude — and that is exactly the
+        // "палец есть, пульс не считывается" case the product spec says must switch to a
+        // synthetic sine wave so the practice keeps breathing. The old `(!fingerOk || absent≥3s)`
+        // guard blocked this path forever when the finger stayed detected, stranding the practice
+        // on a stale held BPM. Brief hiccups are already absorbed upstream: the engine bridges
+        // gaps ≤ ~8 s and holds BPM through reacquire, and BREATH_CAMERA_EMULATED_FALLBACK_MS
+        // (20 s) is well past that, so pure staleness at this threshold is an unambiguous real
+        // loss. The wall-clock variant is gated by finger absence to stay immune to bg/fg jumps.
+        //
+        // START-of-running grace: until a trusted beat has arrived IN `running`
+        // (`runningLiveBeatSeenRef`), use the shorter `BREATH_CAMERA_EMULATED_START_GRACE_MS`.
+        // On a marginal-PPG start the peak detector can lose lock in settle's tail (last beat
+        // ~10 s before `running`), so staleness at t=0 is already ~10 s and the 20 s threshold
+        // would leave ~10 s of gray non-pacing measurement at start — the product spec wants a
+        // long loss to switch to a synthetic sine wave, and at start there's no prior live
+        // running beat to recover to. Once a trusted beat arrives, the full 20 s threshold
+        // resumes (mid-session brief losses stay on bridge/hold).
+        const emulatedFallbackMs = runningLiveBeatSeenRef.current
+          ? BREATH_CAMERA_EMULATED_FALLBACK_MS
+          : BREATH_CAMERA_EMULATED_START_GRACE_MS;
         const liveBeatAbortReady =
-          (
-            liveBeatStaleMs >= BREATH_CAMERA_EMULATED_FALLBACK_MS ||
-            wallBeatAgeMs >= BREATH_CAMERA_EMULATED_FALLBACK_MS
-          ) &&
-          (!fingerOk || fingerAbsentWallMsRef.current >= 3_000);
+          liveBeatStaleMs >= emulatedFallbackMs ||
+          (wallBeatAgeMs >= BREATH_CAMERA_EMULATED_FALLBACK_MS &&
+            (!fingerOk || fingerAbsentWallMsRef.current >= 3_000));
         if (fingerAbortReady || liveBeatAbortReady) {
           abortStress = true;
         } else if (fg && fingerOk && stallHard && !lockTracking) {
@@ -3428,8 +3560,36 @@ function CoherenceBreathScreenInner({
    */
   useEffect(() => {
     if (phase !== "running") return;
+    // Reset the start-grace flag: until a trusted beat arrives IN running, the emulated
+    // fallback uses BREATH_CAMERA_EMULATED_START_GRACE_MS (not the full 20 s) so a
+    // marginal-PPG start doesn't sit on a gray non-pacing graph for ~10 s.
+    runningLiveBeatSeenRef.current = false;
     const planner = plannerRef.current;
-    const seedBpm = snapshot.pulseRateBpm > 0 ? snapshot.pulseRateBpm : INITIAL_SEED_BPM;
+    // Seed the planner from the last COHERENT baseline RR when available, NOT from
+    // `snapshot.pulseRateBpm`. On a marginal-PPG start (cold finger / weak perfusion) the
+    // peak detector can flicker `tracking` on noise during warmup and leave
+    // `snapshot.pulseRateBpm` pinned at a bogus value (e.g. ~55 bpm while the user's real
+    // pulse is ~80). Seeding the planner from that noise paced the first ~15-20 s of
+    // breathing far too slowly until live signal arrived. The coherent baseline
+    // (`lastStableRrMs`, only updated on low-jitter windows) reflects the user's true rate;
+    // clamp to the physiological camera-seed range so a stale outlier can't run away. For
+    // wearable we trust the strap's `pulseRateBpm` directly (it is not noise-polluted).
+    const stableRrMs = pipeline.getLastStableRrMs();
+    const stableBpm = stableRrMs > 0 ? 60_000 / stableRrMs : 0;
+    const plausibleBpm = pipeline.getLastPlausibleBpm();
+    const seedBpm = isWearableMode
+      ? (snapshot.pulseRateBpm > 0 ? snapshot.pulseRateBpm : (stableBpm > 0 ? stableBpm : INITIAL_SEED_BPM))
+      : Math.max(
+          CAMERA_EMULATED_SEED_MIN_BPM,
+          Math.min(
+            CAMERA_EMULATED_SEED_MAX_BPM,
+            stableBpm > 0
+              ? stableBpm
+              : (plausibleBpm > 0
+                  ? plausibleBpm
+                  : (snapshot.pulseRateBpm > 0 ? snapshot.pulseRateBpm : CAMERA_EMULATED_SEED_DEFAULT_BPM)),
+          ),
+        );
     planner.seedBaseline(seedBpm);
     const firstPlan = planner.planNextCycle(coherenceShapeRef.current);
     setCurrentPlan(firstPlan);
@@ -3780,6 +3940,7 @@ function CoherenceBreathScreenInner({
     cameraGuidanceReminderShownRef.current = false;
     lastFreshBeatSourceTsRef.current = null;
     lastFreshBeatWallClockRef.current = null;
+    runningLiveBeatSeenRef.current = false;
     finalPulseLogExportRef.current = null;
     clearOverlayTimer();
     setOverlayVisible(false);
@@ -4081,6 +4242,7 @@ function CoherenceBreathScreenInner({
       pulseLogRef.current = [];
       lastFreshBeatSourceTsRef.current = null;
       lastFreshBeatWallClockRef.current = null;
+      runningLiveBeatSeenRef.current = false;
       try {
         pipeline.softReset();
       } catch {
@@ -4107,6 +4269,7 @@ function CoherenceBreathScreenInner({
       lastPulseLogWallClockRef.current = 0;
       lastFreshBeatSourceTsRef.current = null;
       lastFreshBeatWallClockRef.current = null;
+      runningLiveBeatSeenRef.current = false;
       snapshotCallbacksTotalRef.current = 0;
       snapshotsWhileRunningRef.current = 0;
       phaseDurationsHistoryRef.current = [];
@@ -5235,20 +5398,33 @@ function CoherenceBreathScreenInner({
 
 /**
  * Экран результатов: двухэтапный.
+ *
+ * `seriesInsights` считаются по тем же display-prepared точкам, что и header'ы графиков
+ * (`prepareSeriesForDisplay` → `summarizeSeries`), чтобы числа, которые видит пользователь на
+ * графиках (start → end), и числа, уходящие в LLM-интерпретацию, совпадали. Раньше здесь
+ * использовался сырой `resultsGraphs` (с ведущими нулями у coherence и без decimation), из-за чего
+ * `startMean` у coherence утягивался к 0, хотя на графике старт рисуется с первого реального
+ * измерения.
  */
 function buildInterpretationOutcomePayload(
   basePayload: Record<string, unknown>,
-  graphs: BreathResultsGraphsSnapshot | null,
+  preparedSeries: {
+    measuredPulseBpm: readonly BreathResultsSeriesPoint[];
+    coherencePercent: readonly BreathResultsSeriesPoint[];
+    rmssdMs: readonly BreathResultsSeriesPoint[];
+    stressPercent: readonly BreathResultsSeriesPoint[];
+    rsaBpm: readonly BreathResultsSeriesPoint[];
+  } | null,
 ): Record<string, unknown> {
-  if (graphs == null) return basePayload;
+  if (preparedSeries == null) return basePayload;
   return {
     ...basePayload,
     seriesInsights: {
-      pulseBpm: summarizeSeries(graphs.measuredPulseBpm, "bpm"),
-      coherencePercent: summarizeSeries(graphs.coherencePercent, "percent"),
-      rmssdMs: summarizeSeries(graphs.rmssdMs, "ms"),
-      stressPercent: summarizeSeries(graphs.stressPercent, "percent"),
-      rsaAmplitudeBpm: summarizeSeries(graphs.rsaBpm, "bpm"),
+      pulseBpm: summarizeSeries(preparedSeries.measuredPulseBpm, "bpm"),
+      coherencePercent: summarizeSeries(preparedSeries.coherencePercent, "percent"),
+      rmssdMs: summarizeSeries(preparedSeries.rmssdMs, "ms"),
+      stressPercent: summarizeSeries(preparedSeries.stressPercent, "percent"),
+      rsaAmplitudeBpm: summarizeSeries(preparedSeries.rsaBpm, "bpm"),
     },
   };
 }
@@ -5273,6 +5449,8 @@ function ResultsMetricChart(props: {
   unit: BreathResultsSeriesSummary["unit"];
   fixedMin?: number;
   fixedMax?: number;
+  /** Доля headroom-а сверху при auto-scale (когда `fixedMax` не задан): max × (1 + headroom). */
+  autoMaxHeadroom?: number;
   highlightIntervals?: readonly NonLiveInterval[];
   domainStartMs?: number;
   domainEndMs?: number;
@@ -5285,6 +5463,7 @@ function ResultsMetricChart(props: {
     unit,
     fixedMin,
     fixedMax,
+    autoMaxHeadroom = 0,
     highlightIntervals = [],
     domainStartMs = 0,
     domainEndMs,
@@ -5315,6 +5494,9 @@ function ResultsMetricChart(props: {
     const scaleValues = values.length > 0 ? values : chartPoints.map((point) => point.value);
     let min = fixedMin ?? Math.min(...scaleValues);
     let max = fixedMax ?? Math.max(...scaleValues);
+    if (autoMaxHeadroom > 0 && fixedMax == null && max > 0) {
+      max = max * (1 + autoMaxHeadroom);
+    }
     if (!(max > min)) {
       const center = max || min || 0;
       min = center - 1;
@@ -5350,7 +5532,7 @@ function ResultsMetricChart(props: {
       topY: padY,
       bottomY: height - padY,
     };
-  }, [chartPoints, domainEndMs, domainStartMs, fixedMax, fixedMin, highlightIntervals, lineSegments, unit]);
+  }, [chartPoints, domainEndMs, domainStartMs, fixedMax, fixedMin, autoMaxHeadroom, highlightIntervals, lineSegments, unit]);
   if (geometry == null || summary == null) return null;
   return (
     <View style={styles.resultChartCard}>
@@ -5694,7 +5876,13 @@ function ResultsView(props: {
     const outcome = buildOutcome();
     const payload = buildInterpretationOutcomePayload(
       outcomeToCommunicatorPayload(outcome),
-      resultsGraphs,
+      {
+        measuredPulseBpm: measuredPulseGraphPoints,
+        coherencePercent: coherenceGraphPoints,
+        rmssdMs: rmssdGraphPoints,
+        stressPercent: stressGraphPoints,
+        rsaBpm: rsaGraphPoints,
+      },
     );
     const mood = moodRef.current;
     const moodLabel =
@@ -5955,7 +6143,7 @@ function ResultsView(props: {
                 color="#22c55e"
                 unit="percent"
                 fixedMin={0}
-                fixedMax={100}
+                autoMaxHeadroom={0.25}
                 domainStartMs={0}
                 domainEndMs={practiceTotalMs}
               />

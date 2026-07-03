@@ -12,6 +12,20 @@ export const BREATH_SESSION_SIGNAL_ABORT_MS = 12_000;
  */
 export const BREATH_CAMERA_EMULATED_FALLBACK_MS = 20_000;
 
+/**
+ * Camera guidance-only: START-of-running grace. If the practice has just entered `running`
+ * and NO trusted (coherent/bridging) beat has arrived yet, switch to emulated pacing after
+ * this much beat-staleness instead of waiting the full 20 s. Reason: on a marginal-PPG start
+ * the peak detector can lose lock during settle's tail (last beat ~10 s before `running`),
+ * so by t=0 the staleness clock is already ~10 s — the practice would otherwise sit on a
+ * gray, non-pacing measurement graph for ~10 s until the 20 s threshold fires. The product
+ * spec says a long loss must switch to a synthetic sine wave so breathing continues; at
+ * start there is no "brief hiccup to recover from" (no prior live running beat), so a short
+ * grace is safe and matches the spec. Once a trusted beat arrives in running, the full 20 s
+ * threshold resumes for the rest of the session (mid-session brief losses stay on bridge/hold).
+ */
+export const BREATH_CAMERA_EMULATED_START_GRACE_MS = 4_000;
+
 /** Minimum BLE prep time after the strap first reports live HR/RR before `running` starts. */
 export const BREATH_BLE_PREP_MIN_LIVE_PULSE_MS = 2_000;
 

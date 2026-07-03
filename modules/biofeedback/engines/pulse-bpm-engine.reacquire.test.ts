@@ -26,10 +26,11 @@ describe("PulseBpmEngine post-gap reacquire gate (fingerCamera)", () => {
     expect(stableBpm).toBeGreaterThan(60);
     expect(stableBpm).toBeLessThan(68);
 
-    // 8 s gap, then resume with a first bogus-looking long RR then clean ~69 bpm (RR 870ms).
+    // 14 s gap (beyond the 12 s interpolation budget → hard loss), then resume with a first
+    // bogus-looking long RR then clean ~69 bpm (RR 870ms).
     const gapEnd = preGap[preGap.length - 1]!; // ~14070
-    // First post-gap beat lands ~8s later; the very next interval is a bogus long one (1030ms → 58bpm).
-    const resume1 = gapEnd + 8_000;
+    // First post-gap beat lands ~14s later; the very next interval is a bogus long one (1030ms → 58bpm).
+    const resume1 = gapEnd + 14_000;
     const resume2 = resume1 + 1_030; // bogus 58 bpm interval
     const cleanTrain = beatTrain(resume2, 12, 870); // real ~69 bpm
     const postBeats = [resume1, ...cleanTrain];
@@ -152,6 +153,57 @@ describe("PulseBpmEngine post-gap reacquire gate (fingerCamera)", () => {
     // near the true ~70, within ±2 bpm of the pre-gap stable value.
     expect(Math.abs(released.bpm - stableBpm)).toBeLessThan(2.5);
     expect(released.bpm).toBeLessThan(72);
+  });
+
+  it("anchors BPM to baseline during a bridged gap (no post-gap edge spike)", () => {
+    // Field scenario (export 1783093877906, 130 s lift): pre-gap ~71.6 bpm (RR 838 ms),
+    // 3 s finger lift, then post-gap beats with artifactualy short RR (~713 ms → 84 bpm) from
+    // bandpass ring/motion on finger return. The bridge flag stays true while the gap is in the
+    // 10 s window; without anchoring, the mixed median (synthetic 838 + real 713) let the real
+    // short RR pull BPM up to ~84 — a sharp edge spike on the chart. During bridging the
+    // candidate MUST be anchored to stableRr so BPM holds at the pre-gap baseline until the gap
+    // ages out of the window and the (now settled) real beats take over.
+    const engine = new PulseBpmEngine();
+    const stable = beatTrain(0, 18, 838); // ~71.6 bpm
+    let stableSnap = { bpm: 0, reacquiring: false };
+    for (const b of stable) {
+      const snap = engine.push({
+        timestampMs: b,
+        mergedBeats: stable.filter((x) => x <= b),
+        sourceKind: "fingerCamera",
+      });
+      stableSnap = { bpm: snap.bpm, reacquiring: snap.reacquiring };
+    }
+    const stableBpm = stableSnap.bpm;
+    expect(stableBpm).toBeGreaterThan(69);
+    expect(stableBpm).toBeLessThan(74);
+
+    const gapEnd = stable[stable.length - 1]!;
+    // 3 s lift, then post-gap beats at artifactual short RR 713 ms (→ ~84 bpm).
+    const resume = [
+      gapEnd + 3_000,
+      gapEnd + 3_713,
+      gapEnd + 4_426,
+      gapEnd + 5_139,
+      gapEnd + 5_852,
+      gapEnd + 6_565,
+    ];
+    const allBeats = [...stable, ...resume];
+    let maxBpmDuringBridge = stableBpm;
+    for (const b of resume) {
+      const snap = engine.push({
+        timestampMs: b + 10,
+        mergedBeats: allBeats.filter((x) => x <= b + 10),
+        sourceKind: "fingerCamera",
+      });
+      // While the gap is still in the 10 s window the engine must be bridging (not reacquiring)
+      // and BPM must stay anchored near the pre-gap baseline — no ~84 spike.
+      if (snap.bridgingShortGap) {
+        maxBpmDuringBridge = Math.max(maxBpmDuringBridge, snap.bpm);
+        expect(snap.reacquiring).toBe(false);
+      }
+    }
+    expect(maxBpmDuringBridge).toBeLessThan(stableBpm + 4); // no +13 bpm edge spike
   });
 
   it("treats a short 3-second finger lift as interpolable instead of hard reacquire", () => {

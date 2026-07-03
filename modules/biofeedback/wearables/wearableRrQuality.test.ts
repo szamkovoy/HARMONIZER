@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveBpmFromWearableRrIntervals,
   filterOnBodyWearableRrIntervals,
+  isFrozenRrRun,
   isWearableRrIntervalOnBodyPlausible,
   isWearableRrPacketTrustworthy,
   resolveWearableHeartRateBpm,
@@ -39,5 +40,28 @@ describe("wearableRrQuality", () => {
     const rrBpm = deriveBpmFromWearableRrIntervals([869, 870, 869]);
     expect(Math.round(rrBpm ?? 0)).toBe(69);
     expect(Math.round(resolveWearableHeartRateBpm(163, rrBpm) ?? 0)).toBe(69);
+  });
+
+  it("detects an off-body frozen RR run (Polar H10 lifted off chest)", () => {
+    // Field test 1783096820335: after the strap was lifted it streamed a run of exact 659 ms RR
+    // (bogus 91 bpm). Range filtering passes 659 ms; only run-level variance detects off-body.
+    const frozen = [659, 659, 659, 659, 659, 659, 659];
+    expect(isFrozenRrRun(frozen)).toBe(true);
+  });
+
+  it("does not flag low-HRV on-body RR as frozen", () => {
+    // Real resting RR vary beat-to-beat by ~10–30 ms even at low HRV — must NOT trip the detector.
+    const lowHrv = [812, 826, 819, 833, 821, 828, 815];
+    expect(isFrozenRrRun(lowHrv)).toBe(false);
+  });
+
+  it("requires the minimum run length before flagging frozen", () => {
+    expect(isFrozenRrRun([659, 659, 659])).toBe(false);
+  });
+
+  it("clears the frozen flag once real variability returns", () => {
+    const recent = [659, 659, 659, 659, 659, 659, 712, 698, 705, 690];
+    // Tail of 6 (712,698,705,690,...) varies → not frozen anymore.
+    expect(isFrozenRrRun(recent)).toBe(false);
   });
 });

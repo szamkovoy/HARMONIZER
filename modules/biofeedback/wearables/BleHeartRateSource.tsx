@@ -14,6 +14,7 @@ import { buildBeatTimestampsFromRrPacket } from "@/modules/biofeedback/wearables
 import {
   deriveBpmFromWearableRrIntervals,
   filterOnBodyWearableRrIntervals,
+  isFrozenRrRun,
   resolveWearableHeartRateBpm,
 } from "@/modules/biofeedback/wearables/wearableRrQuality";
 import type {
@@ -97,6 +98,11 @@ export function BleHeartRateSource({
     let lastRrAtMs: number | null = null;
     let lastSensorContactDetected: boolean | null = null;
     let lastPacketAtMs: number | null = null;
+    // Rolling history of plausible RR (across packets) for off-body frozen-run detection.
+    let recentRrMs: number[] = [];
+    // Latched while the strap is emitting a frozen RR stream (off-body); cleared when real
+    // beat-to-beat variability returns.
+    let frozenRunActive = false;
     let stallWatchdog: ReturnType<typeof setInterval> | null = null;
     const trustedProfile = detectWearableTrustedProfile(deviceName ?? undefined);
     const provider = trustedProfile?.provider ?? "genericHrs";
@@ -237,6 +243,27 @@ export function BleHeartRateSource({
         // Nothing usable this packet — skip it, but stay `ready`; the watchdog decides real loss.
         return false;
       }
+      // Off-body frozen-run detection: Polar H10 lifted off the chest keeps streaming a
+      // near-constant RR (field test 1783096820335: exact 659 ms → bogus 91 bpm) with no real
+      // cardiac waveform. The range filter above cannot catch it (659 ms is in range); only
+      // beat-to-beat variance can. Accumulate the plausible RR into a rolling history and, once a
+      // frozen run is detected, stop ingesting beats and latch `signalLost` so the pipeline falls
+      // through to emulated synthetic pacing instead of recording fake beats (which previously
+      // produced the ~91 bpm spike and the post-gap RMSSD/RSA artifacts). Real RR vary ≥10 ms
+      // beat-to-beat, so a tight tolerance cleanly separates off-body from low-HRV on-body.
+      recentRrMs = [...recentRrMs, ...onBodyRr].slice(-24);
+      if (isFrozenRrRun(recentRrMs)) {
+        frozenRunActive = true;
+        recentRrMs = [];
+        emitSnapshot("signalLost");
+        return false;
+      }
+      if (frozenRunActive) {
+        // Was frozen; the new packet's RR vary again → real signal returned. Reset the timeline
+        // so the off-body frozen beats don't seed the post-return timeline.
+        frozenRunActive = false;
+        lastBeatTimestampMs = null;
+      }
       const gapSinceLastPacketMs =
         lastRrAtMs == null ? Number.POSITIVE_INFINITY : nowMs - lastRrAtMs;
       const resetTimeline = gapSinceLastPacketMs > RR_TIMELINE_RESET_GAP_MS;
@@ -306,6 +333,8 @@ export function BleHeartRateSource({
         lastRrAtMs = null;
         lastSensorContactDetected = null;
         lastPacketAtMs = null;
+        recentRrMs = [];
+        frozenRunActive = false;
         if (stallWatchdog) clearInterval(stallWatchdog);
         stallWatchdog = null;
         const stallLikely =

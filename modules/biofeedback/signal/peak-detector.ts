@@ -208,6 +208,18 @@ export function detectBeats(
   detrendedValues: readonly number[],
   config: BiofeedbackCaptureConfig,
   fps: number,
+  /**
+   * Re-acquire sweep: when the pipeline has seen no accepted beat for a sustained period
+   * (≥ `OPTICAL_REACQUIRE_RELAX_MS`) while the finger is present, the detector relaxes its
+   * height/prominence thresholds so a marginal-PPG pulse (cold finger / weak perfusion) can
+   * re-lock instead of sitting in `holding` for 10–20 s. The percentile terms (which float
+   * with the noise floor and can block marginal peaks when noise local-maxima are few) are
+   * dropped, and the robustScale fractions are halved. The downstream RR filter and the
+   * engine's coherence gate still reject erratic noise beats, so a relax sweep cannot seed
+   * bogus pacing — it only re-opens the door to real pulse oscillations that were just below
+   * the nominal threshold.
+   */
+  relaxThresholds = false,
 ): PeakDetectionResult {
   const N = detrendedValues.length;
   if (N < 20 || fps < 4) {
@@ -283,16 +295,26 @@ export function detectBeats(
   const robustScale = calculateRobustScale(detrendedValues);
   const positiveValues = localMaxima.map((p) => p.value).filter((v) => v > 0);
   const positiveProminences = localMaxima.map((p) => p.prominence).filter((v) => v > 0);
-  const heightThreshold = Math.max(
-    MIN_ACCEPTED_PEAK_VALUE,
-    robustScale * 0.22,
-    percentile(positiveValues, 0.35) * 0.6,
-  );
-  const prominenceThreshold = Math.max(
-    MIN_ACCEPTED_PEAK_PROMINENCE,
-    robustScale * 0.18,
-    percentile(positiveProminences, 0.35) * 0.65,
-  );
+  // Nominal thresholds: robustScale floor + 35th-percentile-of-local-maxima term. The
+  // percentile term adapts the threshold to the current signal scale, but on a marginal-PPG
+  // re-acquire it can float with a sparse noise floor and block real pulse peaks. In
+  // `relaxThresholds` mode (sustained no-peak) we drop the percentile term and halve the
+  // robustScale fractions, opening the door to sub-threshold pulse oscillations; downstream
+  // RR/coherence filtering still rejects noise.
+  const heightThreshold = relaxThresholds
+    ? Math.max(MIN_ACCEPTED_PEAK_VALUE, robustScale * 0.11)
+    : Math.max(
+        MIN_ACCEPTED_PEAK_VALUE,
+        robustScale * 0.22,
+        percentile(positiveValues, 0.35) * 0.6,
+      );
+  const prominenceThreshold = relaxThresholds
+    ? Math.max(MIN_ACCEPTED_PEAK_PROMINENCE, robustScale * 0.09)
+    : Math.max(
+        MIN_ACCEPTED_PEAK_PROMINENCE,
+        robustScale * 0.18,
+        percentile(positiveProminences, 0.35) * 0.65,
+      );
 
   const candidatePeaks: FingerPeakDiagnostic[] = [];
   const acceptedPeaks: FingerPeakDiagnostic[] = [];

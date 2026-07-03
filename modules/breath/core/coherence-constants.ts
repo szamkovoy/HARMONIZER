@@ -156,4 +156,4 @@ export const RSA_CYCLE_MIN_BPM = 2;
 /** Минимум секунд с BPM &gt; 0 на тахограмме для расчёта итоговых метрик (режим test120s). */
 export const COHERENCE_MIN_VALID_SECONDS_FOR_METRICS = 60;
 
-export const COHERENCE_ALGORITHM_VERSION = "1.2.10";
+export const COHERENCE_ALGORITHM_VERSION = "1.2.22";

@@ -95,7 +95,14 @@ export function isPulseLogEntryLiveForMeasurement(entry: CoherencePulseLogEntry)
     return isWearableLogEntryLiveForMeasurement(entry);
   }
   const beatAgeMs = entry.lastBeatAgeMs;
-  if (beatAgeMs != null && beatAgeMs > BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS) {
+  // A bridged short gap is reconstructed (interpolated) pulse, not a lost signal: it stays live
+  // even though the last REAL beat is older than the plain freshness window. Only fall back to the
+  // beat-age gate when the engine is NOT bridging.
+  if (
+    entry.bridgingShortGap !== true &&
+    beatAgeMs != null &&
+    beatAgeMs > BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS
+  ) {
     return false;
   }
   const measured = entry.measuredPulseRateBpm ?? entry.pulseRateBpm ?? 0;

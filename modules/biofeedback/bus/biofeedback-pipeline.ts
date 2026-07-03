@@ -54,10 +54,16 @@ import {
   CONTACT_REGAIN_FLUSH_MS,
   HRV_RR_HARD_MAX_MS,
   HRV_RR_HARD_MIN_MS,
+  OPTICAL_FINGER_OFF_BRIDGE_CAP_MS,
+  OPTICAL_REACQUIRE_RELAX_MS,
 } from "@/modules/biofeedback/constants";
 
 import { LivePulseChannel } from "@/modules/biofeedback/engines/live-pulse-channel";
-import { PulseBpmEngine } from "@/modules/biofeedback/engines/pulse-bpm-engine";
+import {
+  PulseBpmEngine,
+  OPTICAL_OPEN_BRIDGE_MAX_MS,
+  type PulseBpmSnapshot,
+} from "@/modules/biofeedback/engines/pulse-bpm-engine";
 import { HrvBeatAccumulator } from "@/modules/biofeedback/engines/hrv-beat-accumulator";
 import { HrvEngine, HRV_ENGINE_VERSION } from "@/modules/biofeedback/engines/hrv-engine";
 import { StressEngine, STRESS_ENGINE_VERSION } from "@/modules/biofeedback/engines/stress-engine";
@@ -101,6 +107,77 @@ export const PIPELINE_ENGINE_VERSIONS: PipelineEngineVersions = {
   rsa: RSA_ENGINE_VERSION,
 };
 
+/**
+ * Pipeline-level short-gap bridge safety net (чистая функция для тестируемости).
+ *
+ * На маргинальном PPG RR-фильтр может переотбраковать весь erratic остаточный ряд, и
+ * engine-bridge (`reconstructOpticalBeatWindow`) не срабатывает — кадр уходит в `holding`
+ * с `bpm = 0`, короткая спонтанная потеря рисует серую полосу, хотя правдоподобный ритм
+ * только что был. Если engine НЕ забриджил и НЕ в reacquire и его bpm=0 (движок выпал),
+ * но разрыв от последнего plausible anchor в бюджет 8 с и baseline есть — возвращаем
+ * bridge-снимок на baseline RR; иначе `null`. Дискриминатор `bpm <= 0` гарантирует, что
+ * живые кадры (bpm>0) не трогаются; длинные потери (>8 с) уходят в reacquire/emulated.
+ *
+ * `bridgeRrMs` / `bridgeAnchorTs` — это coherence-gated baseline, если он есть, иначе
+ * последний правдоподобный displayBpm (см. `lastPlausibleBpm` в pipeline): coherence-gate
+ * на маргинальном PPG часто не срабатывает, и без этого fallback-а bridge не на чём строить.
+ */
+export function computePipelineBridgeOverride(args: {
+  snapshot: PulseBpmSnapshot;
+  nowMs: number;
+  bridgeRrMs: number;
+  bridgeAnchorTs: number;
+  isEmulated: boolean;
+  isWearable: boolean;
+}): PulseBpmSnapshot | null {
+  const { snapshot, nowMs, bridgeRrMs, bridgeAnchorTs, isEmulated, isWearable } = args;
+  if (isEmulated || isWearable) return null;
+  if (snapshot.bridgingShortGap === true || snapshot.reacquiring === true) return null;
+  if (snapshot.bpm > 0) return null; // engine is producing a usable bpm — leave it alone
+  if (bridgeRrMs <= 0 || bridgeAnchorTs <= 0) return null;
+  const gapSinceAnchor = nowMs - bridgeAnchorTs;
+  if (gapSinceAnchor > OPTICAL_OPEN_BRIDGE_MAX_MS) return null;
+  // Паузо-устойчивый clamp: baseline-RR должен быть физиологичным (50–120 bpm).
+  const safeRr = Math.max(500, Math.min(1_200, bridgeRrMs));
+  const bridgeBpm = 60_000 / safeRr;
+  return {
+    ...snapshot,
+    bridgingShortGap: true,
+    reacquiring: false,
+    bpm: bridgeBpm,
+    medianRrMs: safeRr,
+  };
+}
+
+/**
+ * Finger-off bridge cap (оптика). Bridge — интерполяция короткой потери: пока палец на месте,
+ * но сигнал маргинален, уместно держать синтетику до `OPTICAL_OPEN_BRIDGE_MAX_MS` (12 с). Но
+ * когда палец **снят намеренно** (`!contactPresent`), длинный bridge рисует ровное платно как
+ * «живой» пульс (полка перед серой полосой 20-с lift-а) — артефакт. Укорачиваем bridge до
+ * `capMs` во время finger-off. Возвращает снимок с `bridgingShortGap=false, reacquiring=true,
+ * bpm=0` (→ серое), либо `null` если cap не применим (палец на месте / не bridge / в пределах
+ * cap). Чистая функция — тестируется отдельно.
+ */
+export function applyFingerOffBridgeCap(args: {
+  snapshot: PulseBpmSnapshot;
+  contactPresent: boolean;
+  nowMs: number;
+  capMs: number;
+}): PulseBpmSnapshot | null {
+  const { snapshot, contactPresent, nowMs, capMs } = args;
+  if (contactPresent) return null;
+  if (snapshot.bridgingShortGap !== true) return null;
+  if (snapshot.lastBeatTimestampMs <= 0) return null;
+  const gapSinceLastBeat = nowMs - snapshot.lastBeatTimestampMs;
+  if (gapSinceLastBeat <= capMs) return null;
+  return {
+    ...snapshot,
+    bridgingShortGap: false,
+    reacquiring: true,
+    bpm: 0,
+  };
+}
+
 export class BiofeedbackPipeline {
   // Stateful слои:
   private readonly optical = new OpticalRingBuffer();
@@ -120,6 +197,17 @@ export class BiofeedbackPipeline {
   private canonicalBeats: number[] = [];
   private beatEligible: boolean[] = [];
   private lastStableRrMs = 0;
+  /** Wall-clock-of-source timestamp of the last sample that updated `lastStableRrMs` (a coherent window). */
+  private lastStableBeatTs = 0;
+  /**
+   * Looser "plausible" baseline for the short-gap bridge safety net. На маргинальном PPG
+   * coherence-gate (`jitter ≤ 0.2×RR`) часто не срабатывает, `lastStableRrMs` остаётся 0, и
+   * bridge не на чём строить. Здесь копим последний правдоподобный displayBpm (50–110,
+   * уже slew-limited движком) — он даёт bridge реальный ритм пользователя даже без
+   * когерентного окна. Coherence-gated `lastStableRrMs` остаётся только для emulated-seed.
+   */
+  private lastPlausibleBpm = 0;
+  private lastPlausibleBpmTs = 0;
   private lastMedianRrMs = 0;
   /** Tracks the absent→present contact transition to flush poisoned optical samples on finger return. */
   private prevContactPresent = true;
@@ -519,6 +607,17 @@ export class BiofeedbackPipeline {
     return this.lastStableRrMs;
   }
 
+  /**
+   * Последний правдоподобный displayBpm (50–110, slew-limited). Для emulated-seed fallback,
+   * когда coherent baseline (`lastStableRrMs`) ещё не построен (маргинальный PPG): даёт
+   * синтетике реальный ритм пользователя вместо дефолта 65. Безопасен, т.к. копится только
+   * из уже ограниченного по slew-rate displayBpm и только в физиологичном диапазоне — шумовые
+   * ~46 bpm сюда не попадают.
+   */
+  getLastPlausibleBpm(): number {
+    return this.lastPlausibleBpm;
+  }
+
   /** Текущий медианный RR (мс) из PulseBpmEngine — для планировщика дыхания. */
   getLastMedianRrMs(): number {
     return this.lastMedianRrMs;
@@ -824,8 +923,20 @@ export class BiofeedbackPipeline {
       const contactSnap = this.contact.push(sample.timestampMs, quickPresenceConfidence);
       if (contactSnap.shouldHardReset) {
         // softReset в нашем случае бесплатен — всё и так уже пусто, но
-        // сбрасывает optical-кэш и calibration-таймеры.
+        // сбрасывает optical-кэш и calibration-таймеры. Сохраняем
+        // `lastStableRrMs`: это когерентный baseline последнего живого пульса,
+        // который нужен как seed для emulated-синтетики во время длительной
+        // потери пальца. Без этого softReset обнуляет его → emulated падает на
+        // дефолт 65 bpm вместо реального пульса пользователя (~80).
+        const preservedStableRrMs = this.lastStableRrMs;
+        const preservedStableBeatTs = this.lastStableBeatTs;
+        const preservedPlausibleBpm = this.lastPlausibleBpm;
+        const preservedPlausibleBpmTs = this.lastPlausibleBpmTs;
         this.softReset();
+        this.lastStableRrMs = preservedStableRrMs;
+        this.lastStableBeatTs = preservedStableBeatTs;
+        this.lastPlausibleBpm = preservedPlausibleBpm;
+        this.lastPlausibleBpmTs = preservedPlausibleBpmTs;
       }
       this.maybePublishContactEvent(
         sample.timestampMs,
@@ -875,7 +986,16 @@ export class BiofeedbackPipeline {
     const contactSnap = this.contact.push(sample.timestampMs, opt.fingerPresenceConfidence);
 
     if (contactSnap.shouldHardReset) {
+      // Сохраняем когерентный baseline (seed для emulated) — см. комментарий выше.
+      const preservedStableRrMs = this.lastStableRrMs;
+      const preservedStableBeatTs = this.lastStableBeatTs;
+      const preservedPlausibleBpm = this.lastPlausibleBpm;
+      const preservedPlausibleBpmTs = this.lastPlausibleBpmTs;
       this.softReset();
+      this.lastStableRrMs = preservedStableRrMs;
+      this.lastStableBeatTs = preservedStableBeatTs;
+      this.lastPlausibleBpm = preservedPlausibleBpm;
+      this.lastPlausibleBpmTs = preservedPlausibleBpmTs;
     }
 
     const qualitySnap = this.quality.push(
@@ -894,22 +1014,23 @@ export class BiofeedbackPipeline {
     const contactPresent = contactSnap.state === "present";
     const calibrationPhaseBefore = this.calibration.getPhase();
 
-    // On finger return after a real removal (≥ CONTACT_REGAIN_FLUSH_MS), drop only the
-    // "poisoned" samples acquired while the finger was off — NOT the whole buffer. While the
-    // finger is off, the 12 s sliding window fills with no-finger noise that corrupts the
-    // zero-phase bandpass; but the pre-absence ~9 s of clean PPG is still valid. Dropping only
-    // the poison (and keeping the clean history) lets the bandpass resume usable peaks within
-    // ~2 s of new clean samples. A full `reset()` would force a 12 s refill (at the ~10 fps the
-    // camera delivers under torch), causing ~16 s of `holding` after a 3 s lift. We do NOT
-    // clear mergedBeats: the BPM engine's reacquire gate already handles the gap, and keeping
-    // the pre-absence beats gives continuity. Momentary presence dips (< threshold) are skipped.
+    // On finger return after a real removal (≥ CONTACT_REGAIN_FLUSH_MS), FLUSH the optical window
+    // entirely instead of keeping the pre-absence history. Keeping pre-lift samples (the earlier
+    // `dropSamplesSince` approach) leaves a multi-second TIME HOLE in the 12 s window: the
+    // zero-phase bandpass then rings across that discontinuity for as long as the pre-lift samples
+    // remain in the window (up to ~12 s), starving the peak detector — this was the real cause of
+    // the 10–15 s re-lock after a 3 s lift, not the refill cost. A clean flush lets the bandpass
+    // run on CONTIGUOUS post-return samples: it bypasses filtering under 16 samples and then uses a
+    // matched SOS, so usable peaks reappear within ~2–3 s. The short refill is invisible to the
+    // practice because `PulseBpmEngine` bridges the open gap (holds the stable BPM on synthetic
+    // beats) until the first real post-return beats arrive. We do NOT clear mergedBeats: the BPM
+    // engine interpolates the finger-off gap for continuity. Momentary dips (< threshold) are kept.
     if (contactPresent) {
       if (
         !this.prevContactPresent &&
         this.lastContactAbsentForMs >= CONTACT_REGAIN_FLUSH_MS
       ) {
-        const poisonSinceMs = sample.timestampMs - this.lastContactAbsentForMs;
-        this.optical.dropSamplesSince(poisonSinceMs);
+        this.optical.reset();
       }
       this.lastContactAbsentForMs = 0;
     } else {
@@ -959,7 +1080,15 @@ export class BiofeedbackPipeline {
       const detrendedValues = this.optical.getDetrendedValues();
       const bandpassed = bandpassPpgForPeakDetection(detrendedValues, opt.fps);
       const smoothed = movingAverage3(bandpassed);
-      const result = detectBeats(samples, smoothed, this.config, opt.fps);
+      // Re-acquire sweep: если контакт есть, но принятых ударов нет уже > порога,
+      // ослабляем пороги peak-detector-а, чтобы пере-захватить маргинальный PPG.
+      const prevMergedTail = this.mergedBeats[this.mergedBeats.length - 1];
+      const noPeakForMs =
+        prevMergedTail != null
+          ? sample.timestampMs - prevMergedTail
+          : Number.POSITIVE_INFINITY;
+      const relaxThresholds = noPeakForMs >= OPTICAL_REACQUIRE_RELAX_MS;
+      const result = detectBeats(samples, smoothed, this.config, opt.fps, relaxThresholds);
       detectedBeatsThisFrame = result.beatTimestampsMs;
       this.dicroticRejectedTotal += result.dicroticRejectedCount;
       this.splitArtifactRejectedTotal += result.splitArtifactRejectedCount;
@@ -1040,6 +1169,8 @@ export class BiofeedbackPipeline {
         timestampMs: sample.timestampMs,
         mergedBeats: merged,
         sourceKind: this.config.source === "wearable" ? "wearable" : "fingerCamera",
+        pipelineStableRrMs: this.lastStableRrMs,
+        lastTrustedBeatTs: this.lastStableBeatTs,
       });
       this.lastPulseBpmSnapshot = bpmSnap;
       this.canonicalBeats = bpmSnap.filteredBeatTimestampsMs;
@@ -1062,6 +1193,55 @@ export class BiofeedbackPipeline {
         reacquiring: false,
         bridgingShortGap: false,
       };
+    }
+
+    // Копим «правдоподобный» baseline для bridge safety-net: на маргинальном PPG
+    // coherence-gate часто не срабатывает и `lastStableRrMs` остаётся 0; этот baseline
+    // (любой slew-limited displayBpm в 50–110) даёт bridge реальный ритм даже без
+    // когерентного окна. Берём ОРИГИНАЛЬНЫЙ engine-bpm (до override), чтобы не зациклиться
+    // на собственном bridge-значении.
+    if (bpmSnap.bpm >= 50 && bpmSnap.bpm <= 110) {
+      this.lastPlausibleBpm = bpmSnap.bpm;
+      this.lastPlausibleBpmTs = sample.timestampMs;
+    }
+    const plausibleBridgeRrMs =
+      this.lastStableRrMs > 0
+        ? this.lastStableRrMs
+        : (this.lastPlausibleBpm > 0 ? 60_000 / this.lastPlausibleBpm : 0);
+    const plausibleBridgeTs =
+      this.lastStableBeatTs > 0 ? this.lastStableBeatTs : this.lastPlausibleBpmTs;
+
+    // Pipeline-level short-gap bridge safety net (оптика). Engine-bridge может не сработать
+    // на маргинальном PPG: RR-фильтр переотбраковывает erratic остаточные удары →
+    // `filteredBeatTimestampsMs` пуст/короток, open-tail bridge не запускается, кадр уходит
+    // в `holding` с bpm=0, и короткая (1–3 с) спонтанная потеря рисует серую полосу, хотя
+    // правдоподобный ритм только что был. Если engine НЕ забриджил и НЕ в reacquire, bpm=0
+    // (движок выпал), но разрыв от последнего plausible anchor ≤ 8 с и baseline есть —
+    // публикуем bridge-снимок. Дискриминатор `bpm <= 0` гарантирует, что живые кадры
+    // (bpm>0) не трогаются; длинные потери (>8 с) уходят в reacquire/emulated.
+    const override = computePipelineBridgeOverride({
+      snapshot: bpmSnap,
+      nowMs: sample.timestampMs,
+      bridgeRrMs: plausibleBridgeRrMs,
+      bridgeAnchorTs: plausibleBridgeTs,
+      isEmulated: this.isPulseEmulated(),
+      isWearable: this.config.source === "wearable",
+    });
+    if (override) {
+      bpmSnap = override;
+      this.lastPulseBpmSnapshot = bpmSnap;
+    }
+
+    // Finger-off bridge cap (оптика) — см. `applyFingerOffBridgeCap`.
+    const fingerOffCap = applyFingerOffBridgeCap({
+      snapshot: bpmSnap,
+      contactPresent,
+      nowMs: sample.timestampMs,
+      capMs: OPTICAL_FINGER_OFF_BRIDGE_CAP_MS,
+    });
+    if (fingerOffCap) {
+      bpmSnap = fingerOffCap;
+      this.lastPulseBpmSnapshot = bpmSnap;
     }
 
     // canonicalEligible пересчитываем только когда реально что-то поменялось в
@@ -1106,7 +1286,14 @@ export class BiofeedbackPipeline {
     }
     if (trackingNow) {
       this.lockState = "tracking";
-      this.lastStableRrMs = bpmSnap.medianRrMs;
+      // Only a COHERENT window updates the stable-baseline RR. On marginal PPG the detector can
+      // flicker `tracking` on noise (erratic BPM, high jitter) — recording those medians here
+      // would seed the emulated synthetic sine wave with a bogus rate (e.g. ~46 bpm) when the
+      // practice later falls back. `looksCoherent` (low jitter, ≥5 RR) is the trust gate.
+      if (bpmSnap.looksCoherent) {
+        this.lastStableRrMs = bpmSnap.medianRrMs;
+        this.lastStableBeatTs = sample.timestampMs;
+      }
     } else if (this.lockState === "tracking") {
       this.lockState = "holding";
     }
@@ -1341,6 +1528,9 @@ export class BiofeedbackPipeline {
     this.canonicalBeats = [];
     this.beatEligible = [];
     this.lastStableRrMs = 0;
+    this.lastStableBeatTs = 0;
+    this.lastPlausibleBpm = 0;
+    this.lastPlausibleBpmTs = 0;
     this.lastMedianRrMs = 0;
     this.prevContactPresent = true;
     this.lastContactAbsentForMs = 0;

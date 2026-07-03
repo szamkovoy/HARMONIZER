@@ -193,13 +193,23 @@ export const PracticeCard = memo(function PracticeCard({
     }, [practice.kind, rememberedWearableProbe.refresh]),
   );
 
+  // Reflect probe availability on the UI selection WITHOUT wiping the persisted preference.
+  // The persisted `preferredSensorMode` is the user's INTENT (last manually chosen source); a
+  // transient probe failure (e.g. right after returning from a BLE practice — the strap was just
+  // disconnected and may not advertise within the 4 s probe window) must NOT overwrite it, or the
+  // choice silently resets to "phone camera" forever (the catalog-restoration bug). When the strap
+  // is genuinely unavailable we fall back the UI to camera for this view; when the probe succeeds
+  // again (next focus / app open) we restore the "ble" selection. Manual dropdown changes still
+  // write the preference via their own handlers.
   useEffect(() => {
     if (practice.kind !== "breath") return;
-    if (rememberedWearableProbe.available === false && selectedSensorMode === "ble") {
+    if (wearablePreferences.preferredSensorMode !== "ble") return; // user wants camera/none — leave
+    if (rememberedWearableProbe.available === true) {
+      setSelectedSensorMode("ble");
+    } else if (rememberedWearableProbe.available === false) {
       setSelectedSensorMode("fingerCamera");
-      void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
     }
-  }, [practice.kind, rememberedWearableProbe.available, selectedSensorMode]);
+  }, [practice.kind, wearablePreferences.preferredSensorMode, rememberedWearableProbe.available]);
 
   const openWearablePicker = () => {
     setOpenField(null);
