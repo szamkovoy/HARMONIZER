@@ -182,6 +182,7 @@ describe("PulseBpmEngine post-gap reacquire gate (fingerCamera)", () => {
       sourceKind: "fingerCamera",
     });
     expect(firstAfterReturn.reacquiring).toBe(false);
+    expect(firstAfterReturn.bridgingShortGap).toBe(true);
     expect(firstAfterReturn.bpm).toBeCloseTo(stableSnap.bpm, 1);
   });
 

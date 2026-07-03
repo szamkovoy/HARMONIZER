@@ -1978,7 +1978,15 @@ function CoherenceBreathScreenInner({
       const lastMergedBeatTs = mergedBeats[mergedBeats.length - 1] ?? null;
       const snap = snapshotRef.current;
       const wall = Date.now();
-      if (event.hasFreshBeat && lastMergedBeatTs != null) {
+      const trustedFreshBeat =
+        event.hasFreshBeat &&
+        lastMergedBeatTs != null &&
+        (
+          event.lockState === "tracking" ||
+          event.bridgingShortGap === true ||
+          event.looksCoherent === true
+        );
+      if (trustedFreshBeat) {
         lastFreshBeatSourceTsRef.current = lastMergedBeatTs;
         lastFreshBeatWallClockRef.current = wall;
       }
@@ -2038,11 +2046,15 @@ function CoherenceBreathScreenInner({
           const cameraReadyForLog =
             !isWearableMode &&
             !useEmulatedPulseModeRef.current &&
-            event.reacquiring !== true &&
+            (event.reacquiring !== true || event.bridgingShortGap === true) &&
             beatAgeMs != null &&
             beatAgeMs <= BREATH_CAMERA_LIVE_BEAT_MAX_AGE_MS &&
             event.bpm > 0 &&
-            event.lockState !== "searching";
+            (
+              event.lockState === "tracking" ||
+              event.bridgingShortGap === true ||
+              event.looksCoherent === true
+            );
           const wearableReadyForLog =
             isWearableMode
               ? (
@@ -2309,7 +2321,20 @@ function CoherenceBreathScreenInner({
       const peakDiag = pipeline.getPeakDetectorDiagnostics();
       const peakMedianRrMs = peakDiag.lastMedianRrInPeakWindowMs;
       const peakBpm = peakMedianRrMs > 0 ? 60_000 / peakMedianRrMs : 0;
-      const snapBpm = snap.pulseRateBpm > 0 ? snap.pulseRateBpm : 0;
+      // For QC agreement we must compare the peak-detector window against the *current* pulse
+      // estimate from that same live window, not against `snapshot.pulseRateBpm` which is the
+      // UI-friendly held/display BPM. After short-gap interpolation the display value may
+      // intentionally lag the current optical window for a moment; using it here can falsely fail
+      // activation even when the present signal is already clean.
+      const latestStablePulseSample =
+        [...stdevSource]
+          .reverse()
+          .find((sample) => (sample.rawBpm > 0 || sample.bpm > 0)) ?? null;
+      const snapBpm = latestStablePulseSample != null
+        ? (latestStablePulseSample.rawBpm > 0
+            ? latestStablePulseSample.rawBpm
+            : latestStablePulseSample.bpm)
+        : (snap.pulseRateBpm > 0 ? snap.pulseRateBpm : 0);
       const bpmDiff = peakBpm > 0 && snapBpm > 0 ? Math.abs(peakBpm - snapBpm) : 0;
       const bpmAgreement = peakBpm > 0 && snapBpm > 0 ? bpmDiff : null;
       const BPM_AGREEMENT_MAX = 8;
@@ -2629,9 +2654,7 @@ function CoherenceBreathScreenInner({
       const fingerOk = snap.fingerDetected;
       const badSignal =
         snap.pulseLockState === "searching" || snap.signalQuality < 0.5;
-      const mergedBeats = pipeline.getMergedBeats();
-      const lastLiveBeatTs =
-        lastFreshBeatSourceTsRef.current ?? (mergedBeats[mergedBeats.length - 1] ?? null);
+      const lastLiveBeatTs = lastFreshBeatSourceTsRef.current;
       const liveBeatStaleMs =
         lastLiveBeatTs != null ? Math.max(0, now - lastLiveBeatTs) : Number.POSITIVE_INFINITY;
       const wallBeatAgeMs =

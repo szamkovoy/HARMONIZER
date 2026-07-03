@@ -52,6 +52,12 @@ export interface PulseBpmChannelEvent {
    * Потребители (экран дыхания) не должны трактовать этот кадр как живое измерение.
    */
   reacquiring?: boolean;
+  /**
+   * True (только finger PPG) — последний gap был коротким и продуктово считается
+   * интерполируемым: UI может продолжать live/track-state на удержанном BPM, пока
+   * source-level окно ещё дособирает post-gap beats.
+   */
+  bridgingShortGap?: boolean;
 }
 
 export interface RmssdChannelEvent {

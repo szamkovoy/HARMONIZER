@@ -683,6 +683,7 @@ export class BiofeedbackPipeline {
         jitterMs: bpmSnap.jitterMs,
         looksCoherent: bpmSnap.looksCoherent,
         reacquiring: false,
+        bridgingShortGap: false,
       });
     }
 
@@ -1059,6 +1060,7 @@ export class BiofeedbackPipeline {
         lastBeatTimestampMs: 0,
         filteredBeatTimestampsMs: [],
         reacquiring: false,
+        bridgingShortGap: false,
       };
     }
 
@@ -1078,12 +1080,26 @@ export class BiofeedbackPipeline {
       merged.length > 0 && sample.timestampMs - merged[merged.length - 1]! <= 4_200;
     const hasValidBpm =
       bpmSnap.bpm >= this.config.minPulseBpm && bpmSnap.bpm <= this.config.maxPulseBpm;
+    // `looksCoherent` is intentionally stricter than "usable live pulse": it is a trust/jitter
+    // signal, not a lock-state signal. Field runs showed that with fresh beats, valid BPM and
+    // good contact/SQ the source could still stay in `holding` for tens of seconds simply because
+    // the RR window did not satisfy the tighter coherence heuristic on every snapshot. That froze
+    // the runtime on a stale guidance BPM and prevented long-loss fallback from ever triggering.
+    // For lock-state we only need a live, plausible beat window; hard long-gap reacquire is still
+    // blocked by `reacquiring`, while short-gap bridge remains allowed explicitly.
+    const liveWindowUsableForTracking =
+      bpmSnap.bridgingShortGap === true ||
+      (
+        bpmSnap.reacquiring !== true &&
+        bpmSnap.rrCount >= 4 &&
+        bpmSnap.medianRrMs > 0
+      );
     const trackingNow =
       contactPresent &&
       qualitySnap.enoughForTracking &&
       hasFreshBeat &&
       hasValidBpm &&
-      bpmSnap.looksCoherent;
+      liveWindowUsableForTracking;
 
     if (bpmSnap.medianRrMs > 0) {
       this.lastMedianRrMs = bpmSnap.medianRrMs;
@@ -1180,6 +1196,7 @@ export class BiofeedbackPipeline {
         jitterMs: bpmSnap.jitterMs,
         looksCoherent: bpmSnap.looksCoherent,
         reacquiring: bpmSnap.reacquiring === true,
+        bridgingShortGap: bpmSnap.bridgingShortGap === true,
       });
     }
 

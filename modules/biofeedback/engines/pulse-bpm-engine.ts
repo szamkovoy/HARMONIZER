@@ -64,6 +64,12 @@ export interface PulseBpmSnapshot {
    * даёт ложный BPM (артефактный скачок вниз/вверх). Wearable RR точны и не гейтятся.
    */
   reacquiring: boolean;
+  /**
+   * True when the latest gap is still considered short/interpolable at the product level.
+   * The BPM may still be held while the post-gap RR window settles, but consumers should not
+   * treat this the same way as a hard long-gap reacquire.
+   */
+  bridgingShortGap: boolean;
 }
 
 /**
@@ -107,6 +113,7 @@ function findLastGapResumeBeat(
 const SHORT_GAP_INTERPOLATION_MISSED_BEATS = 4.5;
 const SHORT_GAP_INTERPOLATION_MIN_MS = 2_800;
 const SHORT_GAP_INTERPOLATION_MAX_MS = 5_000;
+const SHORT_GAP_BRIDGE_EXTRA_MS = 3_000;
 
 function getMaxInterpolatedGapMs(lastStableMedianRrMs: number): number {
   if (lastStableMedianRrMs <= 0 || !Number.isFinite(lastStableMedianRrMs)) {
@@ -228,11 +235,15 @@ export class PulseBpmEngine {
     // а потом скачок к реальным ~69). Исключаем пре-гэп RR из окна и удерживаем прошлый BPM,
     // пока не накопится POST_GAP_MIN_RR чистых пост-гэп RR. Wearable RR точны — не гейтим.
     let reacquiring = false;
+    let bridgingShortGap = false;
     if (sourceKind === "fingerCamera") {
       const gap = findLastGapResumeBeat(mergedBeats, POST_GAP_REACQUIRE_MIN_GAP_MS);
       if (gap != null) {
         const maxInterpolatedGapMs = getMaxInterpolatedGapMs(this.lastStableMedianRrMs);
         const requiresHardReacquire = gap.gapMs > maxInterpolatedGapMs;
+        const bridgeWindowMs = Math.min(8_000, maxInterpolatedGapMs + SHORT_GAP_BRIDGE_EXTRA_MS);
+        bridgingShortGap =
+          !requiresHardReacquire && timestampMs - gap.resumeTs <= bridgeWindowMs;
         if (requiresHardReacquire) {
           const postGapAll = filtered.filter((m) => m.startTimestampMs >= gap.resumeTs);
           window = window.filter((m) => m.startTimestampMs >= gap.resumeTs);
@@ -346,6 +357,7 @@ export class PulseBpmEngine {
       lastBeatTimestampMs: mergedBeats[mergedBeats.length - 1] ?? 0,
       filteredBeatTimestampsMs,
       reacquiring,
+      bridgingShortGap,
     };
   }
 
