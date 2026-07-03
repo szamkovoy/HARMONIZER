@@ -65,6 +65,7 @@ import {
 } from "@/modules/biofeedback/core/types";
 import { EmulatedPulseSensorSource } from "@/modules/biofeedback/sensors/EmulatedPulseSensorSource";
 import { FingerPpgCameraSource } from "@/modules/biofeedback/sensors/FingerPpgCameraSource";
+import { OPTICAL_OPEN_BRIDGE_MAX_MS } from "@/modules/biofeedback/engines/pulse-bpm-engine";
 import { SimulatedSensorSource } from "@/modules/biofeedback/sensors/SimulatedSensorSource";
 import type { RawOpticalSample } from "@/modules/biofeedback/sensors/types";
 import { BleHeartRateSource } from "@/modules/biofeedback/wearables/BleHeartRateSource";
@@ -2073,7 +2074,7 @@ function CoherenceBreathScreenInner({
       const trustedFreshBeat =
         event.hasFreshBeat &&
         lastMergedBeatTs != null &&
-        (event.looksCoherent === true || event.bridgingShortGap === true);
+        event.looksCoherent === true;
       if (trustedFreshBeat) {
         lastFreshBeatSourceTsRef.current = lastMergedBeatTs;
         lastFreshBeatWallClockRef.current = wall;
@@ -2134,9 +2135,21 @@ function CoherenceBreathScreenInner({
               wearableLastRrAgeMs != null &&
               wearableLastRrAgeMs <= WEARABLE_LIVE_RR_FRESH_MS
             );
+          const lastStableBeatTs = pipeline.getLastStableBeatTs();
+          const coherentBeatAgeMs =
+            lastStableBeatTs > 0 && cameraTimestampMs > lastStableBeatTs
+              ? cameraTimestampMs - lastStableBeatTs
+              : null;
+          const bridgeWithinCoherentBudget =
+            event.bridgingShortGap !== true ||
+            (
+              coherentBeatAgeMs != null &&
+              coherentBeatAgeMs <= OPTICAL_OPEN_BRIDGE_MAX_MS
+            );
           const cameraReadyForLog =
             !isWearableMode &&
             !useEmulatedPulseModeRef.current &&
+            bridgeWithinCoherentBudget &&
             (event.reacquiring !== true || event.bridgingShortGap === true) &&
             beatAgeMs != null &&
             // A bridged short gap is reconstructed pulse (interpolated on the last stable rate),

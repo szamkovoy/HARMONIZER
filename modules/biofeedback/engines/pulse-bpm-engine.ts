@@ -385,6 +385,9 @@ export class PulseBpmEngine {
   private lastStableMedianRrMs = 0;
   private lastDisplayUpdateTs = 0;
   private recentDisplayCandidates: Array<{ timestampMs: number; bpm: number; reliable: boolean }> = [];
+  /** RR (ms) captured when a bridge episode starts — frozen anchor for the whole bridge. */
+  private bridgeAnchorRrMs = 0;
+  private wasBridging = false;
 
   push(input: PulseBpmInput): PulseBpmSnapshot {
     const { timestampMs, mergedBeats, sourceKind = "fingerCamera", pipelineStableRrMs = 0, lastTrustedBeatTs = 0 } = input;
@@ -497,6 +500,25 @@ export class PulseBpmEngine {
     let reacquiring = recon.reacquiring;
     const bridging = recon.bridging && !reacquiring;
 
+    if (bridging && !this.wasBridging) {
+      // Freeze anchor at bridge onset — marginal PPG can inject bogus short RR during the
+      // episode; letting stableRr shrink (618 ms → 97 bpm) caused the field spike/plateau.
+      const anchorRr =
+        this.lastStableMedianRrMs > 0
+          ? this.lastStableMedianRrMs
+          : realMedianRr > 0
+            ? realMedianRr
+            : pipelineStableRrMs;
+      if (anchorRr > 0) this.bridgeAnchorRrMs = anchorRr;
+    }
+    if (!bridging) {
+      this.bridgeAnchorRrMs = 0;
+    }
+    this.wasBridging = bridging;
+
+    const bridgeStableRr =
+      bridging && this.bridgeAnchorRrMs > 0 ? this.bridgeAnchorRrMs : stableRr;
+
     // RR-drift gate: только реальный ряд может «увести» базовый RR. Резкий (>25 %) сдвиг
     // медианы реального окна при живом сигнале — признак не физиологии, а мусорных RR,
     // удерживаем прошлый BPM. Интерполяция обычно уже сняла краевой артефакт, поэтому
@@ -530,8 +552,8 @@ export class PulseBpmEngine {
     // гэп устареет из 10-с окна, bridging=false и реальные удары (уже устаканившиеся) снова
     // ведут BPM.
     let candidateBpm = medianRr > 0 ? 60_000 / medianRr : rawBpm;
-    if (bridging && stableRr > 0) {
-      candidateBpm = 60_000 / stableRr;
+    if (bridging && bridgeStableRr > 0) {
+      candidateBpm = 60_000 / bridgeStableRr;
     }
     if (!reacquiring) {
       this.pushDisplayCandidate(
@@ -545,7 +567,9 @@ export class PulseBpmEngine {
 
     // Обновляем базовый RR только по РЕАЛЬНОМУ когерентному окну (не по интерполяции) и только
     // если сдвиг ≤ 25 % — иначе стойкий мусорный ритм «узаконил» бы себя своим же низким джиттером.
-    if (looksCoherent && realMedianRr > 0) {
+    // Never update during bridge/reacquire: garbage short RR during marginal PPG must not shrink
+    // the anchor that the next bridge episode will freeze.
+    if (looksCoherent && realMedianRr > 0 && !bridging && !reacquiring) {
       this.lastReliableBpmTs = timestampMs;
       if (
         this.lastStableMedianRrMs === 0 ||
@@ -659,5 +683,7 @@ export class PulseBpmEngine {
     this.lastStableMedianRrMs = 0;
     this.lastDisplayUpdateTs = 0;
     this.recentDisplayCandidates = [];
+    this.bridgeAnchorRrMs = 0;
+    this.wasBridging = false;
   }
 }

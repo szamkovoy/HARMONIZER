@@ -607,6 +607,11 @@ export class BiofeedbackPipeline {
     return this.lastStableRrMs;
   }
 
+  /** Camera/source timestamp of the last coherent beat that updated `lastStableRrMs`. */
+  getLastStableBeatTs(): number {
+    return this.lastStableBeatTs;
+  }
+
   /**
    * Последний правдоподобный displayBpm (50–110, slew-limited). Для emulated-seed fallback,
    * когда coherent baseline (`lastStableRrMs`) ещё не построен (маргинальный PPG): даёт

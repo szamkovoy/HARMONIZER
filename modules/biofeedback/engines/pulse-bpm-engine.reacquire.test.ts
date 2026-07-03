@@ -206,6 +206,40 @@ describe("PulseBpmEngine post-gap reacquire gate (fingerCamera)", () => {
     expect(maxBpmDuringBridge).toBeLessThan(stableBpm + 4); // no +13 bpm edge spike
   });
 
+  it("freezes bridge anchor RR when marginal PPG injects bogus short beats", () => {
+    // Field export 1783118620906: stable ~70 bpm, then marginal amplitude + garbage short RR
+    // during an open bridge pulled stableRr down (618 ms → 97 bpm plateau). Bridge anchor
+    // must freeze at onset and ignore subsequent short RR in the real window.
+    const engine = new PulseBpmEngine();
+    const stable = beatTrain(0, 18, 857); // ~70 bpm
+    for (const b of stable) {
+      engine.push({
+        timestampMs: b,
+        mergedBeats: stable.filter((x) => x <= b),
+        sourceKind: "fingerCamera",
+      });
+    }
+    const gapEnd = stable[stable.length - 1]!;
+    // Open gap: no beats for 2.5 s, then bogus short RR (~618 ms) while bridge active.
+    const bogusResume = [
+      gapEnd + 2_500,
+      gapEnd + 3_118,
+      gapEnd + 3_736,
+    ];
+    const allBeats = [...stable, ...bogusResume];
+    let maxBpm = 0;
+    for (const b of bogusResume) {
+      const snap = engine.push({
+        timestampMs: b + 10,
+        mergedBeats: allBeats.filter((x) => x <= b + 10),
+        sourceKind: "fingerCamera",
+      });
+      if (snap.bridgingShortGap) maxBpm = Math.max(maxBpm, snap.bpm);
+    }
+    expect(maxBpm).toBeGreaterThan(67);
+    expect(maxBpm).toBeLessThan(74);
+  });
+
   it("treats a short 3-second finger lift as interpolable instead of hard reacquire", () => {
     const engine = new PulseBpmEngine();
     const stable = beatTrain(0, 18, 900); // ~66.7 bpm
