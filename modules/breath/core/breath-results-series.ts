@@ -9,8 +9,16 @@ export type BreathResultsSeriesPoint = {
 /** Fresh RR required for Polar/fullMetrics to count as a live chest-strap measurement. */
 export const WEARABLE_LIVE_RR_FRESH_MS = 3_500;
 
-/** RSA cycle amplitudes above this are treated as off-body / synthetic artifacts. */
-export const RSA_RESULTS_OUTLIER_BPM = 20;
+/**
+ * RSA cycle amplitudes above this are treated as off-body / synthetic artifacts.
+ * Set at 28 bpm: a real RSA swing during mild exertion (HR moving ~70→100 bpm inside
+ * one breath window) legitimately reaches ~20–25 bpm amplitude, and the field test
+ * `1783158512492` showed a genuine 21 bpm RSA point during push-ups that the previous
+ * 20 cap deleted — punching a small gap into the RSA chart right where HR rose. Off-body
+ * / synthetic garbage instead reads near 0 (no variability) or >50, so 28 keeps the
+ * real exercise peaks while still rejecting the artifacts.
+ */
+export const RSA_RESULTS_OUTLIER_BPM = 28;
 
 const NON_LIVE_WEARABLE_STATES = new Set(["signalLost", "disconnected", "failed", "reconnecting"]);
 const PULSE_RESULT_STABLE_RECOVERY_MS = 8_000;

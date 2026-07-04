@@ -89,11 +89,38 @@ export function isWearableRrPacketTrustworthy(rrIntervalsMs: readonly number[]):
  */
 export const FROZEN_RR_RUN_MIN_COUNT = 6;
 export const FROZEN_RR_RUN_TOLERANCE_MS = 8;
+/**
+ * Max HR-field swing (max − min over the same window) that is still consistent with a real
+ * low-HRV on-body run (bhastrika / deep meditation). Off-body Polar HR field jumps wildly
+ * (field 1783096820335: 115/120/75/85/140/150/169/91 → swing >80), while a real low-HRV run
+ * holds the HR field within a few bpm (field 1783123388556 bhastrika: 66–68 → swing 2).
+ */
+export const FROZEN_RR_RUN_HR_STABLE_SPAN_BPM = 6;
+/** Max |HR field − RR-derived bpm| for them to be "consistent" (real on-body). */
+export const FROZEN_RR_RUN_HR_DISAGREEMENT_BPM = 12;
 
+/**
+ * Frozen-RR detection (off-body chest strap). See module doc.
+ *
+ * `recentRrMs` is the rolling RR history (across packets, plausible-only). Returns true when the
+ * tail of that history is a frozen run: the last `minCount` intervals all lie within
+ * `toleranceMs` of their mean.
+ *
+ * **HR-field guard (1.2.25):** a real low-HRV on-body run (bhastrika, deep meditation) can hold
+ * RR within ±8 ms beat-to-beat on a high-precision strap like the Polar H10, which previously
+ * tripped a false frozen → `signalLost` → a mid-practice gray band even though the strap was on
+ * the chest (field 1783123388556). Off-body frozen is distinguished from real low-HRV by the HR
+ * field: off-body HR swings wildly and disagrees with the frozen RR-derived bpm; real low-HRV HR
+ * is stable and consistent with RR. When `recentHeartRateBpm` is supplied, a frozen-looking RR
+ * run is treated as real (returns false) if the HR field is stable
+ * (span ≤ `FROZEN_RR_RUN_HR_STABLE_SPAN_BPM`) AND consistent with the RR-derived bpm
+ * (|hr − 60_000/rrMean| ≤ `FROZEN_RR_RUN_HR_DISAGREEMENT_BPM`).
+ */
 export function isFrozenRrRun(
   recentRrMs: readonly number[],
   minCount: number = FROZEN_RR_RUN_MIN_COUNT,
   toleranceMs: number = FROZEN_RR_RUN_TOLERANCE_MS,
+  recentHeartRateBpm?: readonly number[],
 ): boolean {
   if (recentRrMs.length < minCount) return false;
   const tail = recentRrMs.slice(-minCount);
@@ -102,6 +129,30 @@ export function isFrozenRrRun(
   const mean = sum / tail.length;
   for (const v of tail) {
     if (Math.abs(v - mean) > toleranceMs) return false;
+  }
+  // RR looks frozen. Distinguish off-body (wild/disagreeing HR field) from real low-HRV
+  // (stable, consistent HR field) using the HR-field guard.
+  if (recentHeartRateBpm != null && recentHeartRateBpm.length >= minCount) {
+    const hrTail = recentHeartRateBpm.slice(-minCount);
+    let hrMin = Infinity;
+    let hrMax = -Infinity;
+    let hrSum = 0;
+    for (const hr of hrTail) {
+      if (hr < hrMin) hrMin = hr;
+      if (hr > hrMax) hrMax = hr;
+      hrSum += hr;
+    }
+    const hrSpan = hrMax - hrMin;
+    const hrMean = hrSum / hrTail.length;
+    const rrDerivedBpm = mean > 0 ? 60_000 / mean : 0;
+    const hrStable = hrSpan <= FROZEN_RR_RUN_HR_STABLE_SPAN_BPM;
+    const hrConsistent =
+      rrDerivedBpm > 0 && Math.abs(hrMean - rrDerivedBpm) <= FROZEN_RR_RUN_HR_DISAGREEMENT_BPM;
+    if (hrStable && hrConsistent) {
+      // Real low-HRV on-body run (e.g. bhastrika): RR is genuinely near-constant AND the HR
+      // field agrees — not an off-body signature.
+      return false;
+    }
   }
   return true;
 }

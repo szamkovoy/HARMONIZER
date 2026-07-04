@@ -254,6 +254,13 @@ const DENSE_HRV_RR_MAX_MS = 1500;
 const DENSE_HRV_DEVIATION_RATIO = 0.22;
 const DENSE_HRV_DEVIATION_MIN_DELTA_MS = 110;
 const DENSE_HRV_DEVIATION_CONTEXT = 12;
+// Min per-step RR change for the trend-aware escape hatch: each consecutive accepted RR
+// must differ from its predecessor by at least this many ms in the SAME direction (and the
+// candidate must continue the run) before a rejected RR is admitted as a real HR ramp
+// rather than motion noise. 8 ms ≈ ~1 bpm at 75 bpm; small enough to admit a genuine ramp,
+// large enough that a flat 730,730,730,730 baseline does NOT count as a trend (so a lone
+// 576 among stable 730 is still rejected).
+const DENSE_HRV_TREND_MIN_STEP_MS = 8;
 /** Trailing window for per-second RMSSD (short-term HRV) and Baevsky stress index. */
 const DENSE_RMSSD_WINDOW_MS = 30_000;
 const DENSE_STRESS_WINDOW_MS = 60_000;
@@ -296,6 +303,15 @@ function buildDenseHrvSeriesFromBeats(
   // Sequential-deviation гейт: режет motion-зашумлённые RR Polar (отжимания/съём), которые
   // проходят жёсткий диапазон 300–1500, но дают огромные ΔRR → фейковый всплеск RMSSD и провал
   // стресса. Контекст — бегущая медиана последних принятых RR (см. константы выше).
+  //
+  // Trend-aware escape hatch: если RR отклоняется больше `allowed`, но последние четыре
+  // принятых RR монотонно убывают/возрастают с реальным шагом (≥ DENSE_HRV_TREND_MIN_STEP_MS
+  // на каждый переход) И новый RR продолжает этот тренд — принимаем. Это отличает реальный
+  // подъём/спад HR (отжимания, бег — RR плавно 838→580 за 30 с) от motion-шума (одиночные
+  // 576/499 среди стабильных 730). Без этой лазейки gate вырезал ВЕСЬ тренд восхождения HR,
+  // окно RMSSD пустело <8 интервалов и на графике появлялись серые разрывы ровно там, где
+  // пульс учащался (field test `1783158512492`: 63 окна с <8 RR → большие gaps в RMSSD/stress
+  // при отжиманиях). С лазейкой — 0 таких окон, дикие одиночные выбросы всё равно режутся.
   const rr: { tMs: number; rr: number }[] = [];
   const ctx: number[] = [];
   const ctxMedian = (vals: number[]): number => {
@@ -303,12 +319,28 @@ function buildDenseHrvSeriesFromBeats(
     const n = s.length;
     return n % 2 === 1 ? s[(n - 1) >> 1]! : (s[n / 2 - 1]! + s[n / 2]!) / 2;
   };
+  const continuesTrend = (last4: number[], candidate: number): boolean => {
+    if (last4.length < 4) return false;
+    const dec = last4[0]! - last4[1]! >= DENSE_HRV_TREND_MIN_STEP_MS
+      && last4[1]! - last4[2]! >= DENSE_HRV_TREND_MIN_STEP_MS
+      && last4[2]! - last4[3]! >= DENSE_HRV_TREND_MIN_STEP_MS
+      && last4[3]! - candidate >= DENSE_HRV_TREND_MIN_STEP_MS;
+    if (dec) return true;
+    const inc = last4[1]! - last4[0]! >= DENSE_HRV_TREND_MIN_STEP_MS
+      && last4[2]! - last4[1]! >= DENSE_HRV_TREND_MIN_STEP_MS
+      && last4[3]! - last4[2]! >= DENSE_HRV_TREND_MIN_STEP_MS
+      && candidate - last4[3]! >= DENSE_HRV_TREND_MIN_STEP_MS;
+    return inc;
+  };
   for (const ev of rrRaw) {
     if (ctx.length >= 4) {
       const med = ctxMedian(ctx.slice(-DENSE_HRV_DEVIATION_CONTEXT));
       const allowed = Math.max(DENSE_HRV_DEVIATION_MIN_DELTA_MS, med * DENSE_HRV_DEVIATION_RATIO);
       if (Math.abs(ev.rr - med) > allowed) {
-        continue;
+        const last4 = ctx.slice(-4);
+        if (!continuesTrend(last4, ev.rr)) {
+          continue;
+        }
       }
     }
     rr.push(ev);
@@ -5994,7 +6026,9 @@ function ResultsView(props: {
         {showingInterpretation ? (
           <>
             {detailsViewMode === "loadingInterpretation" ? (
-              <Text style={styles.interpretationBody}>{str.resultsInterpretationLoading}</Text>
+              <View style={styles.interpretationLoadingWrap}>
+                <ActivityIndicator color={defaultTheme.colors.accent} size="small" />
+              </View>
             ) : null}
             {detailsViewMode === "interpretationError" ? (
               <>
@@ -6531,6 +6565,11 @@ const styles = StyleSheet.create({
   metricLine: { color: "#e2e8f0", fontSize: 16, marginBottom: 8 },
   metricNote: { color: "#94a3b8", fontSize: 12, marginBottom: 12, lineHeight: 18 },
   interpretationBody: { color: "#e2e8f0", fontSize: 16, lineHeight: 24, marginBottom: 12 },
+  interpretationLoadingWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
   resultsScroll: { flex: 1 },
   resultsScrollContent: { paddingBottom: 4 },
   resultChartCard: {

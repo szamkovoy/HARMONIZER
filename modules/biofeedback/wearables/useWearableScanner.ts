@@ -71,6 +71,42 @@ export function useWearableScanner() {
     }
     pendingAutoStartRef.current = false;
     setScanState("scanning");
+    // Seed the candidate list with peripherals already known to the OS BLE stack
+    // (remembered / system-paired) BEFORE relying on advertisements. A Polar H10 that
+    // the user just re-wore is often still bound to the OS (and may not advertise while
+    // another Central has it, or for the first second after re-power). Without this,
+    // "Найти пульсометр" repeatedly reports "не найден" even though the strap is on and
+    // the system dropdown shows it — the reconnect loop the user reported.
+    try {
+      const known = await manager.devices([HEART_RATE_SERVICE_UUID]);
+      const connected = await manager.connectedDevices([HEART_RATE_SERVICE_UUID]);
+      for (const device of [...connected, ...known]) {
+        const name = device.localName?.trim() || device.name?.trim() || "";
+        const hasHrService = hasHeartRateServiceUuid(device.serviceUUIDs) || NAME_HINT_RE.test(name);
+        if (!name && !hasHrService) continue;
+        // Skip peripherals the OS reports as non-connectable (stale remembered entries).
+        if (device.isConnectable === false) continue;
+        const candidate = describeWearableCandidate({
+          id: device.id,
+          name,
+          localName: device.localName ?? null,
+          rssi: device.rssi ?? null,
+          hasHeartRateService: hasHrService,
+          isConnectable: device.isConnectable ?? null,
+        });
+        if (!candidate.name.trim() && !candidate.hasHeartRateService) continue;
+        seenMapRef.current.set(candidate.id, candidate);
+      }
+      const next = [...seenMapRef.current.values()].sort((left, right) => {
+        const leftHr = left.hasHeartRateService ? 1 : 0;
+        const rightHr = right.hasHeartRateService ? 1 : 0;
+        if (rightHr !== leftHr) return rightHr - leftHr;
+        return (right.rssi ?? -200) - (left.rssi ?? -200);
+      });
+      if (next.length > 0) setDevices(next);
+    } catch {
+      // best-effort; scan below still runs
+    }
     await manager.startDeviceScan([HEART_RATE_SERVICE_UUID], BLE_SCAN_OPTIONS, (error, scannedDevice) => {
       if (error) {
         setScanError(error.message);

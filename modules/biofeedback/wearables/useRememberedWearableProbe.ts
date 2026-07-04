@@ -82,6 +82,39 @@ export function useRememberedWearableProbe(
           return;
         }
 
+        // Fall back to OS-known peripherals: a Polar H10 that the user just re-wore may
+        // be system-paired/remembered but not yet advertising (another Central holds it,
+        // or it is in its post-reconnect settle). If the OS still lists it as a
+        // connectable HR-service peripheral, treat it as available — the scan below is
+        // only needed when the strap is genuinely unknown to the stack. This prevents the
+        // catalog probe from flipping to "не найден" right after the picker found it,
+        // which was forcing the sensor-mode dropdown back to camera (the "loop").
+        try {
+          const known = await manager.devices([HEART_RATE_SERVICE_UUID]);
+          if (probeGenerationRef.current !== generation) return;
+          const knownMatch = known.find(
+            (entry) => entry.id === trimmedId && entry.isConnectable !== false,
+          );
+          if (knownMatch) {
+            const name = knownMatch.localName?.trim() || knownMatch.name?.trim() || "";
+            setProbing(false);
+            setAvailable(true);
+            setCandidate(
+              describeWearableCandidate({
+                id: knownMatch.id,
+                name,
+                localName: knownMatch.localName,
+                rssi: knownMatch.rssi ?? null,
+                hasHeartRateService: true,
+                isConnectable: knownMatch.isConnectable ?? null,
+              }),
+            );
+            return;
+          }
+        } catch {
+          // best-effort; fall through to live scan
+        }
+
         let finished = false;
         const finishUnavailable = async () => {
           if (finished || probeGenerationRef.current !== generation) return;

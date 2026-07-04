@@ -64,4 +64,31 @@ describe("wearableRrQuality", () => {
     // Tail of 6 (712,698,705,690,...) varies → not frozen anymore.
     expect(isFrozenRrRun(recent)).toBe(false);
   });
+
+  it("does NOT flag a real low-HRV on-body run (bhastrika) when the HR field is stable and consistent", () => {
+    // Field 1783123388556: during bhastrika the Polar H10 RR was genuinely near-constant
+    // (~991 ms, jitter <8 ms) while the strap was on the chest, and the HR field was stable
+    // (~67 bpm) and consistent with the RR-derived bpm (~60.5). Without the HR-field guard this
+    // tripped a false signalLost and tore a mid-practice gray band. With the guard it must read
+    // as a real on-body run.
+    const rr = [991, 991, 991, 991, 991, 991];
+    const hr = [67, 67, 68, 67, 67, 67];
+    expect(isFrozenRrRun(rr, undefined, undefined, hr)).toBe(false);
+  });
+
+  it("flags an off-body frozen run when the HR field is wild (Polar H10 lifted off chest)", () => {
+    // Field 1783096820335: frozen 659 ms RR paired with a wildly swinging HR field
+    // (115/120/75/85/140/150) — the off-body signature. The HR-field guard must NOT rescue it.
+    const rr = [659, 659, 659, 659, 659, 659];
+    const hr = [115, 120, 75, 85, 140, 150];
+    expect(isFrozenRrRun(rr, undefined, undefined, hr)).toBe(true);
+  });
+
+  it("flags an off-body frozen run when the stable HR field disagrees with RR-derived bpm", () => {
+    // Frozen 659 ms RR → 91 bpm, but a stable HR field of 67 (max−min 2) disagrees by 24 bpm →
+    // the RR is not a real cardiac rhythm; treat as off-body.
+    const rr = [659, 659, 659, 659, 659, 659];
+    const hr = [67, 67, 67, 67, 67, 67];
+    expect(isFrozenRrRun(rr, undefined, undefined, hr)).toBe(true);
+  });
 });
