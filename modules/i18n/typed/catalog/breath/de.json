@@ -93,7 +93,7 @@
   "simulatedMetricsNote": "Metriken basierend auf simulierten RR (kein natives PPG oder Expo Go-Modus).",
   "startButton": "Starten",
   "startWithoutSensorButton": "Ohne Pulsmesser starten",
-  "stopConfirmMessage": "Die Übung wird gestoppt und die Ergebnisse des aktuellen Abschnitts werden nicht berechnet.",
+  "stopConfirmMessage": "Die Übung wird gestoppt und die Ergebnisse des bisherigen Abschnitts werden nicht angerechnet.",
   "stopConfirmNo": "Fortsetzen",
   "stopConfirmTitle": "Übung beenden?",
   "stopConfirmYes": "Beenden",

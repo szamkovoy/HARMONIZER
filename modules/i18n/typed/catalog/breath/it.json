@@ -93,7 +93,7 @@
   "simulatedMetricsNote": "Metriche basate su RR simulato (nessun PPG nativo o modalità Expo Go).",
   "startButton": "Inizia",
   "startWithoutSensorButton": "Inizia senza pulsometro",
-  "stopConfirmMessage": "La pratica verrà interrotta e i risultati del segmento attuale non saranno calcolati.",
+  "stopConfirmMessage": "La pratica verrà interrotta e i risultati del segmento trascorso non saranno conteggiati.",
   "stopConfirmNo": "Continua",
   "stopConfirmTitle": "Terminare la pratica?",
   "stopConfirmYes": "Termina",

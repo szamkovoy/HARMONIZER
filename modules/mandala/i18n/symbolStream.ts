@@ -20,6 +20,8 @@ export interface SymbolStreamStrings {
   stopConfirmTitle: string;
   stopConfirmMessage: string;
   continueButton: string;
+  /** Короткая единица длительности для панели управления («минут»/«min»). */
+  minutesShort: string;
   ratingTitle: string;
   ratingMessage: string;
   moodBetter: string;
@@ -42,8 +44,9 @@ const ru: SymbolStreamStrings = {
   nextMandalaButton: "Следующая мандала",
   finishA11y: "Завершить практику",
   stopConfirmTitle: "Завершить практику?",
-  stopConfirmMessage: "Можно остановиться сейчас и отметить, как вы себя чувствуете после практики.",
+  stopConfirmMessage: "Можно остановиться сейчас — практика закроется плавно и вы вернётесь обратно.",
   continueButton: "Продолжить",
+  minutesShort: "минут",
   ratingTitle: "Как вы себя чувствуете?",
   ratingMessage: "Эта оценка поможет позже лучше подбирать практики.",
   moodBetter: "Лучше",
@@ -66,8 +69,9 @@ const en: SymbolStreamStrings = {
   nextMandalaButton: "Next mandala",
   finishA11y: "Finish practice",
   stopConfirmTitle: "Finish practice?",
-  stopConfirmMessage: "You can stop now and note how you feel after the practice.",
+  stopConfirmMessage: "You can stop now — the practice will close smoothly and you will return.",
   continueButton: "Continue",
+  minutesShort: "min",
   ratingTitle: "How do you feel?",
   ratingMessage: "This rating helps us suggest better practices later.",
   moodBetter: "Better",

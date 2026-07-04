@@ -93,7 +93,7 @@
   "simulatedMetricsNote": "Métricas de RR simulado (sem PPG nativo ou modo Expo Go).",
   "startButton": "Iniciar",
   "startWithoutSensorButton": "Iniciar sem sensor de batimentos",
-  "stopConfirmMessage": "A prática será interrompida e os resultados do trecho atual não serão calculados.",
+  "stopConfirmMessage": "A prática será interrompida e os resultados do trecho decorrido não serão contabilizados.",
   "stopConfirmNo": "Continuar",
   "stopConfirmTitle": "Encerrar a prática?",
   "stopConfirmYes": "Encerrar",

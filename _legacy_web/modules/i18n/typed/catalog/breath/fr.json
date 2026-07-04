@@ -84,7 +84,7 @@
   "simulatedMetricsNote": "Métriques issues du RR simulé (pas de PPG natif ou mode Expo Go).",
   "startButton": "Commencer",
   "startWithoutSensorButton": "Commencer sans le capteur cardiaque",
-  "stopConfirmMessage": "La pratique sera arrêtée et les résultats du segment en cours ne seront pas calculés.",
+  "stopConfirmMessage": "La pratique sera arrêtée et les résultats du segment écoulé ne seront pas comptabilisés.",
   "stopConfirmNo": "Continuer",
   "stopConfirmTitle": "Terminer la pratique ?",
   "stopConfirmYes": "Terminer",

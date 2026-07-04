@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.24
-updated: 2026-07-03
+version: 1.25
+updated: 2026-07-05
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -79,13 +79,13 @@ code_refs:
   Чтение `user_daily_stats`: `user_id`, `local_date`, `total_practice_seconds`, `practice_count`, `chakras_touched`, `updated_at`.
   Дополнительно вкладка «День» через `services/dayHealthContext.ts` читает последние строки `user_daily_stats`, чтобы перед summary-веткой дать ассистенту compact-сравнение йоги за подытоживаемый день с обычной практикой пользователя. Текущее baseline-сравнение берётся по 7 последним дням как реальное дневное среднее (нулевые дни тоже учитываются); если исторической базы нет, server prompt использует мягкий ориентир достаточности около 30 минут практики в день.
 
-- **`selfRatingFromMood(mood)`** — маппинг настроения на `self_rating`. Сохранён для совместимости; экран результатов дыхательной практики больше не показывает mood-picker (см. history 2026-07-04 (16)) и записывает сессию с `self_rating = null` автоматически при появлении результатов.
+- **`selfRatingFromMood(mood)`** — маппинг настроения на `self_rating`. Сохранён для совместимости; ни экран результатов дыхательной практики, ни медитация «Вспышка» больше не показывают mood-picker (см. history 2026-07-04 (16) и 2026-07-05 (17)) и записывают сессию с `self_rating = null` — дыхание при появлении результатов, медитация в момент `elapsed >= durationMs`.
 
 ### Роуты приложения (контракт query-параметров)
 
 - **`app/breath-coherence.tsx`** → `CoherenceBreathScreen`: `practiceId` (`BreathPracticeId`), `durationMs`, `chakra` (1–7), `launchSource`, новый launch-контракт `sensorMode`, `deviceId`, `deviceName`, `provider`, `capabilityTier`, `connectionHint`, `autoReconnect`; `usePulseSensor` остаётся backward-compatible флагом (`"false"` трактуется как `sensorMode = "none"`).
 
-- **`app/sacred-symbol-stream.tsx`** → `SacredSymbolStreamScreen`: `durationMs`, `chakra`, `launchSource`. Параметр **`practiceId` из каталога не читается** (в каталоге одна медитация). При `launchSource = "assistant" | "day"` завершение медитации возвращает пользователя на `/day`, а не назад на предыдущий экран, чтобы после ассистентской рекомендации пользователь попадал во вкладку «День».
+- **`app/sacred-symbol-stream.tsx`** → `SacredSymbolStreamScreen`: `durationMs`, `chakra`, `launchSource`. Параметр **`practiceId` из каталога не читается** (в каталоге одна медитация). UI медитации унифицирован с дыхательной практикой через общий шелл **`modules/ui/PracticeOverlayPanel.tsx`** (slide-up/down, themed card, заголовок, полоса прогресса, слот `controls`); экран полностью чёрный + canvas, без верхнего заголовка/описания. Оверлей стартует **скрытым** (`initialVisible: false`) и автоматически всплывает через **5000 мс** после открытия экрана (`OVERLAY_HINT_DELAY_MS`), затем уезжает вниз через те же **4000 мс** авто-скрытия (`OVERLAY_AUTOHIDE_MS`), что и у дыхания (`useImmersiveOverlayAutohide`); тап по экрану toggles оверлей так же. Карточка панели полупрозрачная (`PANEL_CARD_BACKGROUND = "rgba(20,22,28,0.72)"`, общий шелл — единая полу-прозрачность для дыхания и медитации), slide 320 мс с bezier-easing. Сверху-справа `FloatingCloseButton` пока панель видна, зафиксирован на `top: 54, right: 18` — та же позиция, что у дыхательной практики. По тапу всплывает панель (title "Вспышка" + кнопка «Завершить» в слоте `controls`). Mood/rating-диалог удалён — **отметка завершения** (`recordPracticeSession`, `completionPct: 100`, `selfRating: null`) ставится в elapsed-tick эффекте в момент `elapsed >= durationMs` (до закрытия окна), не в окне оценки. **Окно подтверждения остановки** использует те же строки, что и дыхательная практика (`getCoherenceBreathStrings(locale)` — title/message/continue/finish), с единым текстом сообщения «Практика будет остановлена, а результаты по прошедшему отрезку не будут засчитаны.» (RU + 7 локалей). По завершению экран плавно затемняется в чёрное (600 мс) и возвращает пользователя: при `launchSource = "assistant" | "day"` → `/day`, иначе `router.back()` (каталог/карточка или вкладка «День»).
 
 - **`app/asana-practice.tsx`**: `practiceId` (UUID строки практики), опционально `durationMs`, `chakra`, `launchSource`.
 

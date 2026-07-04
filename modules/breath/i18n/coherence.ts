@@ -312,7 +312,7 @@ const ru: CoherenceBreathStrings = {
   autoAbortExit: "Выйти",
   stopConfirmTitle: "Завершить практику?",
   stopConfirmMessage:
-    "Практика будет остановлена, а результаты по текущему отрезку не будут рассчитаны.",
+    "Практика будет остановлена, а результаты по прошедшему отрезку не будут засчитаны.",
   stopConfirmYes: "Завершить",
   stopConfirmNo: "Продолжить",
   baseBeatsAccessibilityLabel: "Количество ударов пульса на фазу дыхания",
@@ -489,7 +489,7 @@ const en: CoherenceBreathStrings = {
   autoAbortExit: "Exit",
   stopConfirmTitle: "End practice?",
   stopConfirmMessage:
-    "The session will be stopped and results for the current run will not be computed.",
+    "The session will be stopped and results for the elapsed segment will not be counted.",
   stopConfirmYes: "End",
   stopConfirmNo: "Continue",
   baseBeatsAccessibilityLabel: "Pulse beats per breathing phase",

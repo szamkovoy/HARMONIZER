@@ -84,7 +84,7 @@
   "simulatedMetricsNote": "Metrieken op basis van gesimuleerde RR (geen native PPG of Expo Go-modus).",
   "startButton": "Start",
   "startWithoutSensorButton": "Start zonder hartslagmeter",
-  "stopConfirmMessage": "De oefening wordt gestopt en de resultaten voor het huidige segment worden niet berekend.",
+  "stopConfirmMessage": "De oefening wordt gestopt en de resultaten van het verstreken segment worden niet meegeteld.",
   "stopConfirmNo": "Doorgaan",
   "stopConfirmTitle": "Oefening beëindigen?",
   "stopConfirmYes": "Beëindigen",
