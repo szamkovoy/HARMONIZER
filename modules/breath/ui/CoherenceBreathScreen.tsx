@@ -174,7 +174,7 @@ import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { defaultTheme, ThemeProvider, useTheme } from "@/modules/ui/theme";
 import { useImmersiveOverlayAutohide } from "@/modules/ui/useImmersiveOverlayAutohide";
 import { fetchBreathPracticeInterpretation } from "@/services/breathPracticeInterpretation";
-import { recordPracticeSession, selfRatingFromMood } from "@/services/practiceSessions";
+import { recordPracticeSession } from "@/services/practiceSessions";
 import {
   getRuntimeDiagnosticsCurrentSeq,
   getRuntimeDiagnosticsEventsSince,
@@ -1987,11 +1987,32 @@ function CoherenceBreathScreenInner({
         clearTimeout(breathTimer);
       };
     }
-    // idle / results
-    blackCurtainSv.value = 0;
-    setSensorUiMounted(false);
-    setRunningUiRevealed(false);
-    setIsBreathTimingActive(false);
+    // idle
+    if (phase === "idle") {
+      blackCurtainSv.value = 0;
+      setSensorUiMounted(false);
+      setRunningUiRevealed(false);
+      setIsBreathTimingActive(false);
+      return undefined;
+    }
+    // results: проявляем экран результатов из черноты.
+    // Практика заканчивается — штора моментально закрывается в чёрное, под ней
+    // монтируется ResultsView, затем штора плавно открывается (результаты
+    // проявляются из темноты, как и просил пользователь).
+    if (phase === "results") {
+      setSensorUiMounted(false);
+      setRunningUiRevealed(false);
+      setIsBreathTimingActive(false);
+      blackCurtainSv.value = 1;
+      const RESULTS_FADE_IN_MS = 600;
+      const revealTimer = setTimeout(() => {
+        blackCurtainSv.value = withTiming(0, {
+          duration: RESULTS_FADE_IN_MS,
+          easing: Easing.inOut(Easing.quad),
+        });
+      }, 60);
+      return () => clearTimeout(revealTimer);
+    }
     return undefined;
   }, [blackCurtainSv, isWearableMode, phase]);
 
@@ -5443,15 +5464,45 @@ function buildInterpretationOutcomePayload(
   } | null,
 ): Record<string, unknown> {
   if (preparedSeries == null) return basePayload;
+  // Передаём в LLM только метрики с положительной или нейтральной динамикой
+  // (start → end). Метрики, ухудшившиеся за практику, исключаются — интерпретация
+  // должна обнадёживать, а не фиксировать негатив. Пульс передаём всегда: это
+  // базовый маркер, нужен для контекста, и его снижение = успокоение.
+  const summaries = {
+    pulseBpm: summarizeSeries(preparedSeries.measuredPulseBpm, "bpm"),
+    coherencePercent: summarizeSeries(preparedSeries.coherencePercent, "percent"),
+    rmssdMs: summarizeSeries(preparedSeries.rmssdMs, "ms"),
+    stressPercent: summarizeSeries(preparedSeries.stressPercent, "percent"),
+    rsaAmplitudeBpm: summarizeSeries(preparedSeries.rsaBpm, "bpm"),
+  };
+  const NOISE = 0.1; // защитный порог от дробового джиттера
+  const isNeutralOrBetter = (
+    s: BreathResultsSeriesSummary | null,
+    direction: "higherBetter" | "lowerBetter",
+  ): boolean => {
+    if (s == null || s.startMean == null || s.endMean == null) return true;
+    const delta = s.endMean - s.startMean;
+    if (direction === "higherBetter") return delta >= -NOISE;
+    return delta <= NOISE;
+  };
+  const seriesInsights: Record<string, BreathResultsSeriesSummary> = {};
+  // pulse — всегда (базовый контекст)
+  if (summaries.pulseBpm) seriesInsights.pulseBpm = summaries.pulseBpm;
+  if (isNeutralOrBetter(summaries.coherencePercent, "higherBetter") && summaries.coherencePercent) {
+    seriesInsights.coherencePercent = summaries.coherencePercent;
+  }
+  if (isNeutralOrBetter(summaries.rmssdMs, "higherBetter") && summaries.rmssdMs) {
+    seriesInsights.rmssdMs = summaries.rmssdMs;
+  }
+  if (isNeutralOrBetter(summaries.stressPercent, "lowerBetter") && summaries.stressPercent) {
+    seriesInsights.stressPercent = summaries.stressPercent;
+  }
+  if (isNeutralOrBetter(summaries.rsaAmplitudeBpm, "higherBetter") && summaries.rsaAmplitudeBpm) {
+    seriesInsights.rsaAmplitudeBpm = summaries.rsaAmplitudeBpm;
+  }
   return {
     ...basePayload,
-    seriesInsights: {
-      pulseBpm: summarizeSeries(preparedSeries.measuredPulseBpm, "bpm"),
-      coherencePercent: summarizeSeries(preparedSeries.coherencePercent, "percent"),
-      rmssdMs: summarizeSeries(preparedSeries.rmssdMs, "ms"),
-      stressPercent: summarizeSeries(preparedSeries.stressPercent, "percent"),
-      rsaAmplitudeBpm: summarizeSeries(preparedSeries.rsaBpm, "bpm"),
-    },
+    seriesInsights,
   };
 }
 
@@ -5632,7 +5683,6 @@ function ResultsMetricChart(props: {
   );
 }
 
-type ResultsMood = "better" | "same" | "worse";
 type ResultsDetailsViewMode =
   | "metrics"
   | "loadingInterpretation"
@@ -5703,11 +5753,9 @@ function ResultsView(props: {
   } = props;
 
   const { authUser } = useAuth();
-  const [stage, setStage] = useState<"mood" | "details">("mood");
   const [detailsViewMode, setDetailsViewMode] = useState<ResultsDetailsViewMode>("metrics");
   const [interpretationText, setInterpretationText] = useState<string | null>(null);
   const [interpretationErrorDetail, setInterpretationErrorDetail] = useState<string | null>(null);
-  const moodRef = useRef<ResultsMood | null>(null);
   const savedSessionRef = useRef(false);
   const interpretationAbortRef = useRef<AbortController | null>(null);
   const trustLevel = finalSignalTrust?.level ?? "full_biometrics";
@@ -5861,13 +5909,8 @@ function ResultsView(props: {
     useSimulatedPpg,
   ]);
 
-  const handleMoodSelect = useCallback((mood: ResultsMood) => {
-    moodRef.current = mood;
-    setStage("details");
-    setDetailsViewMode("metrics");
-    setInterpretationText(null);
-    setInterpretationErrorDetail(null);
-
+  // Session recording happens once on results mount (no mood-picker screen anymore).
+  useEffect(() => {
     if (!authUser?.id || savedSessionRef.current) return;
     savedSessionRef.current = true;
     const fallbackStartedAt = Date.now() - practiceTotalMs;
@@ -5878,7 +5921,7 @@ function ResultsView(props: {
       practiceSlug: practiceId,
       startedAt: new Date(startedAtMs).toISOString(),
       endedAt: new Date(startedAtMs + practiceTotalMs).toISOString(),
-      selfRating: selfRatingFromMood(mood),
+      selfRating: null,
       completionPct: 100,
       metrics: outcomeToCommunicatorPayload(outcome) as Json,
       chakraFocusIds: [chakra],
@@ -5910,23 +5953,10 @@ function ResultsView(props: {
         rsaBpm: rsaGraphPoints,
       },
     );
-    const mood = moodRef.current;
-    const moodLabel =
-      mood === "better"
-        ? str.resultsMoodBetter
-        : mood === "same"
-          ? str.resultsMoodSame
-          : mood === "worse"
-            ? str.resultsMoodWorse
-            : null;
     try {
       const response = await fetchBreathPracticeInterpretation(
         {
           outcome: payload,
-          subjectiveMood:
-            mood != null && moodLabel != null
-              ? { id: mood, label: moodLabel }
-              : null,
           responseLocale: locale,
         },
         controller.signal,
@@ -5958,10 +5988,7 @@ function ResultsView(props: {
   }, [
     buildOutcome,
     locale,
-    str.resultsMoodBetter,
-    str.resultsMoodSame,
     resultsGraphs,
-    str.resultsMoodWorse,
   ]);
 
   useEffect(() => {
@@ -5972,40 +5999,6 @@ function ResultsView(props: {
   }, []);
 
   const showingInterpretation = detailsViewMode !== "metrics";
-
-  if (stage === "mood") {
-    return (
-      <View style={[styles.results, styles.resultsCentered]}>
-        <Text style={styles.resultsMoodQuestion}>{str.resultsMoodQuestion}</Text>
-        <View style={styles.moodRow}>
-          <Pressable
-            onPress={() => handleMoodSelect("better")}
-            style={styles.moodCell}
-            accessibilityLabel={str.resultsMoodBetter}
-          >
-            <Text style={styles.moodEmoji}>🙂</Text>
-            <Text style={styles.moodCaption}>{str.resultsMoodBetter}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleMoodSelect("same")}
-            style={styles.moodCell}
-            accessibilityLabel={str.resultsMoodSame}
-          >
-            <Text style={styles.moodEmoji}>😐</Text>
-            <Text style={styles.moodCaption}>{str.resultsMoodSame}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleMoodSelect("worse")}
-            style={styles.moodCell}
-            accessibilityLabel={str.resultsMoodWorse}
-          >
-            <Text style={styles.moodEmoji}>🙁</Text>
-            <Text style={styles.moodCaption}>{str.resultsMoodWorse}</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.results}>
@@ -6550,7 +6543,6 @@ const styles = StyleSheet.create({
   inhaleTitle: { textAlign: "center" },
   secHint: { marginTop: 8, textAlign: "center" },
   results: { flex: 1, padding: 24 },
-  resultsCentered: { justifyContent: "center" },
   resultsTitle: { color: "#f8fafc", fontSize: 20, fontWeight: "700", marginBottom: 12 },
   approx: { color: "#fbbf24", marginBottom: 12, fontSize: 13 },
   warnBox: { color: "#fca5a5", fontSize: 12, marginBottom: 12 },
@@ -6597,35 +6589,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   resultChartAxisLabel: { color: "#94a3b8", fontSize: 11 },
-  resultsMoodQuestion: {
-    color: "#f8fafc",
-    fontSize: 22,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  moodRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  moodCell: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    borderRadius: 18,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.25)",
-  },
-  moodEmoji: { fontSize: 44, marginBottom: 8 },
-  moodCaption: {
-    color: "#e2e8f0",
-    fontSize: 14,
-    textAlign: "center",
-  },
   resultsActionsRow: {
     flexDirection: "row",
     gap: 12,

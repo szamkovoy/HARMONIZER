@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.43
-updated: 2026-06-30
+version: 2.44
+updated: 2026-07-04
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-04:** Practice-interpretation prompt: drop subjective mood, restrict to positive/neutral seriesInsights, forbid "new technique" framing. `_legacy_web/app/api/communicator/v2/practice-interpretation/route.ts` `buildPrompt` no longer takes `subjectiveMood` and the "Subjective feeling after practice" line is removed (the client `services/breathPracticeInterpretation.ts` no longer sends `subjectiveMood`; the mood-picker screen was removed from the breath results flow — see practices history 2026-07-04 (16)). The prompt now instructs the model to use ONLY metrics present in `seriesInsights` and to NOT mention or read metrics absent from `seriesInsights` elsewhere in the payload (the client now omits worsened metrics from `seriesInsights`). Added an explicit prohibition: "NEVER claim or imply that the user is a beginner, that this is a new technique for them, or that they are first learning the practice" — the model had invented "не редкость при первых попытках освоить новую технику" from a falling RMSSD. Tone set for a woman 35–60, encouraging. Paired with practices history 2026-07-04 (16) and biofeedback history 2026-07-04 (18).
 
 - **2026-06-30:** Breath inline interpretation became chart-aware without bloating persisted practice metrics. `CoherenceBreathScreen` now sends the same compact `outcomeToCommunicatorPayload(...)` plus optional `seriesInsights` (start/mid/end summaries for pulse / coherence / RSA / RMSSD / stress) to `POST /api/communicator/v2/practice-interpretation`, and the results modal hides the CTA entirely when no usable biometrics were produced.
 

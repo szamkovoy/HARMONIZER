@@ -1,7 +1,7 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.36
+version: 1.37
 updated: 2026-07-04
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-04 (18):** Stress-index rescale (10–90 band). Field test `1783174144609` (BLE 20 min, algoVer 1.2.27) showed the stress line hugging ~85–95 % because the user's RMSSD was genuinely low (~8 ms) → high Baevsky raw I (~420–585) → `100·(1−e^(−I/220))` saturates. The physiology is correct (low HRV = high stress); the visual scale was the issue. `mapBaevskyStressToPercent` remapped to `10 + 80·(1−e^(−I/275))` (floor 10, span 80, divisor 220→275): 95 %→~83 %, 90 %→~75 %, 20 %→~23 %. Typical sessions now live in 20–80 %, extremes reach 10/90. Raw I and the "low HRV = higher stress" direction unchanged — pure scale cosmetics. Paired with practices history 2026-07-04 (16) UI/LLM refactor. algoVer → 1.2.28.
 
 - **2026-07-04 (17):** Keep-awake fix (no biofeedback-engine change; tracked here for pairing). Field test `1783165022235` (BLE 5 min, sensor removed 110→150 s, algoVer 1.2.26) showed the phone sleeping during practice — two pulseLog timestamp gaps (+8.3 s at ~41 s, +10.0 s at ~113 s) suspended the JS/VC loop and stretched the sensor-off gap from 40 s to ~108 s (sensor returned at 150 s, wearable reconnected at 221 s). Root cause was in the breath UI: keep-awake used a manual `activateKeepAwakeAsync` in `useEffect` with async `deactivateKeepAwake` cleanup — React 18 Strict Mode mount→cleanup→mount let the first cleanup's async deactivate resolve after the second mount's activate, dropping the tag. Fix lives in `CoherenceBreathScreen.tsx`: a conditional `<PracticeKeepAwake>` component using the `useKeepAwake(tag)` hook (mounted only during `warmup|qualityCheck|running`) + an `AppState` listener that re-activates on `active`. Same round confirms 1.2.26 holds on the algorithm side: `1783164624005` (camera) — metrics correctly withheld, only deliberate-lift nonLive periods; `1783165720980` (BLE push-ups) — trend-aware gate gives continuous RMSSD/stress/RSA through the 70→131 ramp, only 0.9 s nonLive at startup. algoVer → 1.2.27 (paired with practices history 2026-07-04 (15)).
 

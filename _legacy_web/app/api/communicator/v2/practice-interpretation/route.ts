@@ -12,36 +12,29 @@ export const runtime = "nodejs";
 
 type InterpretationRequestBody = {
   outcome?: Record<string, unknown> | null;
-  subjectiveMood?: {
-    id?: "better" | "same" | "worse";
-    label?: string;
-  } | null;
   responseLocale?: string | null;
 };
 
 function buildPrompt(input: {
   outcome: Record<string, unknown>;
-  subjectiveMood?: { id?: string; label?: string } | null;
   languageName: string;
 }): string {
-  const moodLine = input.subjectiveMood?.label
-    ? `${input.subjectiveMood.label} (${input.subjectiveMood.id ?? "unknown"})`
-    : "not provided";
   return [
     `OUTPUT LANGUAGE: ${input.languageName}.`,
     `Write the entire answer in ${input.languageName}.`,
     "",
-    "You are an empathetic HARMONIZER breathing-practice mentor interpreting one completed session.",
+    "You are an empathetic HARMONIZER breathing-practice mentor interpreting one completed session for a woman aged 35–60.",
+    "Your goal is to encourage her and gently motivate continued practice — the text should feel warm, hopeful, and supportive.",
     "Use only the supplied JSON. Do not invent metrics, symptoms, or causal claims.",
-    "If hybrid.start and hybrid.end are present, briefly compare how the state changed from the beginning to the end.",
-    "If seriesInsights are present, use them carefully: compare start/mid/end averages and mention at most 1-2 clear dynamics, only when they are actually supported by the numbers.",
+    "If seriesInsights are present, use ONLY the metrics that appear in seriesInsights. Compare start/mid/end averages and mention at most 1–2 clear POSITIVE or NEUTRAL dynamics. Do NOT mention, reference, or speculate about any metric that is absent from seriesInsights — if a metric is missing from seriesInsights it was intentionally excluded and you must not read its value from elsewhere in the payload.",
+    "If hybrid.start and hybrid.end are present, briefly compare how the state changed from the beginning to the end, only when supported by the numbers.",
     "Do not turn every metric into a mini-report. Prefer one concise takeaway over listing all ranges.",
     "If detailed biometrics are missing, hidden, or null, say that clearly and avoid pretending that HRV/coherence/RSA were measured.",
     "If this looks like camera guidance-only mode, explain that the rhythm could still guide breathing but advanced biometrics were unavailable in this session.",
+    "NEVER claim or imply that the user is a beginner, that this is a new technique for them, or that they are 'first learning' the practice. You do not know their experience level.",
     "Keep the tone calm, warm, and grounded. No diagnosis, no treatment advice, no headings, no bullet list, no markdown.",
-    "Reply in 4-7 sentences, ideally split into 2 short paragraphs.",
+    "Reply in 4–7 sentences, ideally split into 2 short paragraphs.",
     "",
-    `Subjective feeling after practice: ${moodLine}`,
     "Practice result payload:",
     JSON.stringify(input.outcome, null, 2),
   ].join("\n");
@@ -68,7 +61,6 @@ export async function POST(req: Request) {
     const model = getModelByHint("standard");
     const prompt = buildPrompt({
       outcome,
-      subjectiveMood: body?.subjectiveMood ?? null,
       languageName,
     });
 

@@ -44,7 +44,7 @@
 | Хампель окно / nσ | `HRV_HAMPEL_WINDOW_SIZE` / `HRV_HAMPEL_NSIGMA` | 13 / 3 |
 | Trim ratio для RMSSD | `HRV_PRACTICE_RMSSD_TRIM` | 0.12 |
 | Потолок RMSSD сегмента | `HRV_PRACTICE_RMSSD_ABS_MAX_MS` | 160 ms |
-| Divisor для % Баевского | `BAEVSKY_STRESS_PERCENT_DIVISOR` | 220 |
+| Divisor для % Баевского | `BAEVSKY_STRESS_PERCENT_DIVISOR` | 275 (шкала 10–90, пол 10, размах 80) |
 | EMA τ для дисплея RMSSD | `HRV_RMSSD_DISPLAY_TAU_MS` | 12 s |
 | EMA τ для дисплея стресса | `HRV_STRESS_DISPLAY_TAU_MS` | 12 s |
 | Hold для RMSSD | `HRV_HOLD_MS` | 9 s |

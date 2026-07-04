@@ -4,14 +4,8 @@ import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
-type SubjectiveMoodPayload = {
-  id: "better" | "same" | "worse";
-  label: string;
-};
-
 export type BreathPracticeInterpretationRequest = {
   outcome: Record<string, unknown>;
-  subjectiveMood?: SubjectiveMoodPayload | null;
   responseLocale?: string;
 };
 
@@ -99,7 +93,6 @@ export async function fetchBreathPracticeInterpretation(
             },
             body: JSON.stringify({
               outcome: request.outcome,
-              subjectiveMood: request.subjectiveMood ?? null,
               responseLocale,
             }),
           },

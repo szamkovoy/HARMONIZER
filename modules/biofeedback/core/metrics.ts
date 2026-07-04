@@ -1188,16 +1188,33 @@ export function calculateBaevskyStressIndexRaw(
 }
 
 /**
- * Нормировка сырого индекса Баевского в 0–100.
- * Делитель больше 180 → мягче кривая (меньше «залипание» у 90+ на узком RR PPG — не баг, а шкала).
+ * Нормировка сырого индекса Баевского в процентную шкалу.
+ *
+ * Шкала намеренно смещена в диапазон ~10–90 % (пол 10, потолок 90), чтобы
+ * типичные значения «жили» в полосе 20–80 %, а не залипали у 0 или 100:
+ * при низкой HRV (RMSSD ~8 мс, сырой I ~420–600) старая кривая
+ * `100·(1−e^(−I/220))` давала 85–95 %, что выглядело пугающе; при высокой HRV
+ * (I~20–50) — 9–20 %. Формула `10 + 80·(1−e^(−I/275))` переводит:
+ *   95 % → ~83 %, 90 % → ~75 %, 20 % → ~23 %, 10 % → ~16 %.
+ * Явные экстремумы могут выйти за полосу (вверх до 90, вниз до 10), но
+ * основная масса сессий попадает в 20–80 %. Это косметика шкалы, не смена
+ * физиологической модели — сырой I и направление «низкая HRV = выше стресс»
+ * сохранены.
  */
-export const BAEVSKY_STRESS_PERCENT_DIVISOR = 220;
+export const BAEVSKY_STRESS_PERCENT_DIVISOR = 275;
+export const BAEVSKY_STRESS_PERCENT_FLOOR = 10;
+export const BAEVSKY_STRESS_PERCENT_SPAN = 80;
 
 export function mapBaevskyStressToPercent(rawStressIndex: number) {
   if (rawStressIndex <= 0) {
-    return 0;
+    return BAEVSKY_STRESS_PERCENT_FLOOR;
   }
-  return clamp(100 * (1 - Math.exp(-rawStressIndex / BAEVSKY_STRESS_PERCENT_DIVISOR)), 0, 100);
+  const scaled = 1 - Math.exp(-rawStressIndex / BAEVSKY_STRESS_PERCENT_DIVISOR);
+  return clamp(
+    BAEVSKY_STRESS_PERCENT_FLOOR + BAEVSKY_STRESS_PERCENT_SPAN * scaled,
+    BAEVSKY_STRESS_PERCENT_FLOOR,
+    BAEVSKY_STRESS_PERCENT_FLOOR + BAEVSKY_STRESS_PERCENT_SPAN,
+  );
 }
 
 export function normalizePulseRate(pulseRateBpm: number) {
