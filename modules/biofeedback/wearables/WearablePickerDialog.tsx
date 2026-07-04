@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, LayoutChangeEvent, Modal, Pressable, StyleSheet, View } from "react-native";
 
 import type { WearableScanCandidate } from "@/modules/biofeedback/wearables/types";
 import { useWearableScanner } from "@/modules/biofeedback/wearables/useWearableScanner";
@@ -42,6 +42,15 @@ export function WearablePickerDialog({
   const [scanAttempt, setScanAttempt] = useState(0);
   const [searchFinished, setSearchFinished] = useState(false);
   const scanStartedAtMsRef = useRef<number | null>(null);
+  const [actionsWidth, setActionsWidth] = useState(0);
+  const ACTION_BUTTON_GAP = 8;
+
+  const onActionsLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) setActionsWidth(w);
+  };
+  // Each button gets exactly half the container width minus the gap between them.
+  const equalButtonWidth = actionsWidth > 0 ? (actionsWidth - ACTION_BUTTON_GAP) / 2 : 0;
 
   useEffect(() => {
     if (!visible) {
@@ -174,27 +183,24 @@ export function WearablePickerDialog({
               ))}
             </View>
           ) : null}
-          <View style={[styles.actions, showNotFoundTips ? styles.actionsAfterTips : null]}>
+          <View
+            style={[styles.actions, showNotFoundTips ? styles.actionsAfterTips : null]}
+            onLayout={onActionsLayout}
+          >
             {showRetryButton ? (
-              <View style={styles.actionButtonWrap}>
-                <AppButton
-                  variant="primary"
-                  label={strings.retryButton}
-                  onPress={() => setScanAttempt((value) => value + 1)}
-                  style={styles.actionButtonFill}
-                />
-              </View>
-            ) : null}
-            <View
-              style={showRetryButton ? styles.actionButtonWrap : styles.actionButtonSoloWrap}
-            >
               <AppButton
-                variant="secondary"
-                label={strings.closeButton}
-                onPress={onClose}
-                style={styles.actionButtonFill}
+                variant="primary"
+                label={strings.retryButton}
+                onPress={() => setScanAttempt((value) => value + 1)}
+                style={{ width: equalButtonWidth, marginRight: ACTION_BUTTON_GAP }}
               />
-            </View>
+            ) : null}
+            <AppButton
+              variant="secondary"
+              label={strings.closeButton}
+              onPress={onClose}
+              style={equalButtonWidth > 0 ? { width: equalButtonWidth } : undefined}
+            />
           </View>
         </View>
       </View>
@@ -237,34 +243,12 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    alignItems: "stretch",
-    gap: 8,
-    flexWrap: "nowrap",
+    alignSelf: "stretch",
   },
   actionsAfterTips: {
     marginTop: 12,
   },
   notFoundTips: {
     marginBottom: 0,
-  },
-  actionButtonWrap: {
-    flex: 1,
-    flexBasis: 0,
-    minWidth: 0,
-  },
-  actionButtonSoloWrap: {
-    alignSelf: "stretch",
-  },
-  actionButtonFill: {
-    width: "100%",
-  },
-  actionButtonEqual: {
-    flex: 1,
-    flexBasis: 0,
-    minWidth: 0,
-  },
-  actionButtonSolo: {
-    alignSelf: "flex-start",
-    minWidth: 140,
   },
 });
