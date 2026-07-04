@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import { cacheDirectory, getContentUriAsync, writeAsStringAsync } from "expo-file-system/legacy";
-import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import { activateKeepAwakeAsync, useKeepAwake } from "expo-keep-awake";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -742,6 +742,19 @@ function SyncedPracticeFooter({ baseFooter }: { baseFooter: ReactNode }) {
       </View>
     </>
   );
+}
+
+/**
+ * Условный keep-awake: монтируется только во время активной фазы практики
+ * (warmup/qualityCheck/running). Использует `useKeepAwake` hook (а не ручной
+ * `activateKeepAwakeAsync` в `useEffect`), потому что hook корректно переживает
+ * React 18 Strict Mode double-invoke (dev-client) — manual cleanup с async
+ * `deactivateKeepAwake` мог отменить активацию после повторного mount.
+ * Когда фаза практики заканчивается — компонент unmount, keep-awake снимается.
+ */
+function PracticeKeepAwake({ tag }: { tag: string }) {
+  useKeepAwake(tag);
+  return null;
 }
 
 /**
@@ -1898,54 +1911,34 @@ function CoherenceBreathScreenInner({
    * на экране остаётся только анимированная мандала + индикатор дыхания —
    * пользователь не прикасается к дисплею, и iOS/Android через 30–120 с
    * (в зависимости от настроек) погружают устройство в сон. Это приводит к
-   * нескольким неприятным побочным эффектам:
-   *  - сбрасывается torch у модели FingerPpgCameraSource (даже при нашем
-   *    2-Hz heartbeat, если устройство реально в спящем режиме);
-   *  - JS/VC-циклы приостанавливаются → гибридный контроллер не тикает,
-   *    фаза `emulated` не завершится вовремя, `realEnd` стартует
-   *    позже запланированного;
-   *  - пользователь, не видя индикатор, сбивается с ритма дыхания.
+   * сбросу torch, остановке JS-циклов и сбою ритма дыхания.
    *
-   * Активируем только во время `warmup|qualityCheck|running`; на `idle` и
-   * `results` экран может спать свободно — пользователь там в любой момент
-   * может уйти с экрана. `deactivateKeepAwake` в cleanup гарантирует
-   * снятие блокировки даже при размонтировании компонента в процессе
-   * практики (например, навигация назад).
+   * Реализация: условный `<PracticeKeepAwake>` компонент (см. выше) монтируется
+   * только во время `warmup|qualityCheck|running`. Он использует `useKeepAwake`
+   * hook, который корректно переживает React 18 Strict Mode double-invoke
+   * (dev-client) — в отличие от ручного `activateKeepAwakeAsync`+cleanup, где
+   * async `deactivateKeepAwake` из первого cleanup мог выполниться после
+   * повторного `activateKeepAwakeAsync` и снять блокировку (field test
+   * `1783165022235`: телефон заснул через ~41 с после начала практики).
    *
-   * TAG_ANDROID_ADAPTATION: expo-keep-awake работает и на Android
-   * (использует `Window.setKeepScreenOn`), без дополнительных разрешений.
-   * Cм. `docs/android-adaptation-notes.md`.
+   * Дополнительная страховка: при возврате из background (AppState "active")
+   * ре-активируем keep-awake — iOS может сбросить idle timer при backgrounding.
    */
+  const keepAwakeTag = "harmonizer-practice";
+  const isPracticePhase =
+    phase === "warmup" || phase === "qualityCheck" || phase === "running";
+
   useEffect(() => {
-    if (phase !== "warmup" && phase !== "qualityCheck" && phase !== "running") return;
-    const tag = "harmonizer-practice";
-    logRuntimeEvent("breath:keep_awake_requested", { tag, phase }, "debug");
-    void activateKeepAwakeAsync(tag)
-      .then(() => {
-        logRuntimeEvent("breath:keep_awake_activated", { tag, phase }, "debug");
-      })
-      .catch((error: unknown) => {
-        logRuntimeEvent(
-          "breath:keep_awake_failed",
-          { tag, phase, message: error instanceof Error ? error.message : String(error) },
-          "warn",
-        );
-      });
-    return () => {
-      logRuntimeEvent("breath:keep_awake_release_requested", { tag, phase }, "debug");
-      void deactivateKeepAwake(tag)
-        .then(() => {
-          logRuntimeEvent("breath:keep_awake_released", { tag, phase }, "debug");
-        })
-        .catch((error: unknown) => {
-          logRuntimeEvent(
-            "breath:keep_awake_release_failed",
-            { tag, phase, message: error instanceof Error ? error.message : String(error) },
-            "warn",
-          );
+    if (!isPracticePhase) return;
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void activateKeepAwakeAsync(keepAwakeTag).catch(() => {
+          // best-effort re-activation; useKeepAwake already holds the tag
         });
-    };
-  }, [phase]);
+      }
+    });
+    return () => sub.remove();
+  }, [isPracticePhase, keepAwakeTag]);
 
   /**
    * Переход «sensor → running» через чёрную штору:
@@ -4913,6 +4906,7 @@ function CoherenceBreathScreenInner({
 
   return (
     <SafeAreaView style={styles.safe}>
+      {isPracticePhase ? <PracticeKeepAwake tag={keepAwakeTag} /> : null}
       {!isWearableMode && !isExpoGo && !useSimulatedPpg ? (
         <FingerPpgCameraSource
           key={`finger-${sourceKey}`}
