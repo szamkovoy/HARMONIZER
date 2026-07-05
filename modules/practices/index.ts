@@ -1,4 +1,5 @@
 export { filterPractices, loadPracticeCatalog, sortPracticesForCatalog } from "@/modules/practices/core/catalog";
+export { vimeoAudiotrackForLocale, vimeoEmbedHtml, vimeoEmbedUrl, VIMEO_DEFAULT_AUDIOTRACK, VIMEO_EMBED_BASE_URL } from "@/modules/practices/core/vimeo";
 export {
   practiceDurationDistance,
   practiceQuality,

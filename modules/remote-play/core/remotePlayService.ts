@@ -1,7 +1,7 @@
 import { requireSupabase } from "@/services/supabase";
 import { isTvSessionActive, normalizePairingCode, RemotePlayError, type TvSessionRow, type TvSessionStatus } from "./types";
 
-const ACTIVE_SELECT = "id,pairing_code,vimeo_id,status,user_id,expires_at,created_at,updated_at";
+const ACTIVE_SELECT = "id,pairing_code,vimeo_id,audiotrack,locale,status,user_id,expires_at,created_at,updated_at";
 
 function assertVimeoId(vimeoId: string | null | undefined): string {
   const trimmed = vimeoId?.trim();
@@ -40,7 +40,7 @@ export async function getActiveRemotePlaySession(userId: string): Promise<TvSess
   return data && isTvSessionActive(data) ? data : null;
 }
 
-export async function linkDevice(pairingCode: string, userId: string): Promise<TvSessionRow> {
+export async function linkDevice(pairingCode: string, userId: string, locale?: string | null): Promise<TvSessionRow> {
   const code = normalizeCodeOrThrow(pairingCode);
   const supabase = requireSupabase();
 
@@ -59,9 +59,10 @@ export async function linkDevice(pairingCode: string, userId: string): Promise<T
     throw new RemotePlayError("already_linked", "Этот ТВ-код уже привязан к другому пользователю.");
   }
 
+  const nextLocale = locale?.trim() || null;
   const { data: updated, error: updateError } = await supabase
     .from("tv_sessions")
-    .update({ user_id: userId })
+    .update({ user_id: userId, locale: nextLocale })
     .eq("id", session.id)
     .select(ACTIVE_SELECT)
     .single();
@@ -70,12 +71,21 @@ export async function linkDevice(pairingCode: string, userId: string): Promise<T
   return updated;
 }
 
-export async function playVimeoOnRemote(sessionId: string, vimeoId: string): Promise<TvSessionRow> {
+export async function playVimeoOnRemote(
+  sessionId: string,
+  vimeoId: string,
+  audiotrack?: string,
+  locale?: string | null,
+): Promise<TvSessionRow> {
   const supabase = requireSupabase();
+  const track = audiotrack?.trim() || null;
+  const nextLocale = locale?.trim() || null;
   const { data, error } = await supabase
     .from("tv_sessions")
     .update({
       vimeo_id: assertVimeoId(vimeoId),
+      audiotrack: track,
+      locale: nextLocale,
       status: "playing",
     })
     .eq("id", sessionId)

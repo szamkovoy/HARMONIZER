@@ -1581,9 +1581,11 @@ export type Database = {
       }
       tv_sessions: {
         Row: {
+          audiotrack: string | null
           created_at: string
           expires_at: string
           id: string
+          locale: string | null
           pairing_code: string
           status: string
           updated_at: string
@@ -1591,9 +1593,11 @@ export type Database = {
           vimeo_id: string | null
         }
         Insert: {
+          audiotrack?: string | null
           created_at?: string
           expires_at?: string
           id?: string
+          locale?: string | null
           pairing_code: string
           status?: string
           updated_at?: string
@@ -1601,9 +1605,11 @@ export type Database = {
           vimeo_id?: string | null
         }
         Update: {
+          audiotrack?: string | null
           created_at?: string
           expires_at?: string
           id?: string
+          locale?: string | null
           pairing_code?: string
           status?: string
           updated_at?: string

@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.30
-updated: 2026-07-03
+version: 1.31
+updated: 2026-07-05
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -142,9 +142,8 @@ code_refs: []
 ## `practices`
 
 - **Воспроизведение видео асан (Vimeo) в мобильном клиенте**  
-**Контекст:** `app/asana-practice.tsx` явно сообщает, что локальный Vimeo-плеер отключён из‑за отсутствия native WebView в текущем dev-client; показываются метаданные и кнопка завершения с записью сессии.  
-**Проявление:** пользователь не смотрит видео внутри приложения до появления WebView, встроенного Vimeo SDK или сценария Remote Play на внешнем экране.  
-**Действие:** продуктово зафиксировать целевой сценарий (WebView vs Remote Play vs гибрид) и реализовать; до этого ограничение остаётся в `spec.md` §5.
+**Контекст:** `app/asana-practice.tsx` явно сообщал, что локальный Vimeo-плеер отключён из‑за отсутствия native WebView в текущем dev-client; показывались метаданные и кнопка завершения с записью сессии.  
+**Решено 2026-07-05:** реализованы два режима воспроизведения через сегмент «Телефон / ТВ». **Телефон** — встроенный Vimeo-плеер на `react-native-webview` (пакет уже был в зависимостях). **ТВ** — Remote Play через `modules/remote-play` (`useRemotePlay`, роуты `connect-tv` / `tv-remote`). Embed URL жёстко `?audiotrack=ru` (`modules/practices/core/vimeo.ts`). См. `docs/02_modules/practices/spec.md` §2/§5 и `history.md` 2026-07-05 (20).
 - **Биометрия для медитации «Вспышка»**  
 **Контекст:** дыхательная практика пишет итоговые `**metrics`** из PPG; `**SacredSymbolStreamScreen`** сохраняет `**metrics: {}**` и не подключает biofeedback.  
 **Вопрос:** нужен ли в следующих версиях тот же класс метрик, что и для дыхания, или медитация намеренно остаётся «лёгкой» без пульса.  

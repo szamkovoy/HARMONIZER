@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.14
-updated: 2026-06-29
+version: 1.15
+updated: 2026-07-05
 depends_on:
   [
     01_foundation/product_model,
@@ -16,6 +16,8 @@ code_refs:
   [
     modules/practices/ui/PracticeCatalogScreen.tsx,
     modules/practices/core/catalog.ts,
+    modules/practices/core/vimeo.ts,
+    modules/remote-play/index.ts,
     app/(tabs)/practices.tsx,
     app/(tabs)/index.tsx,
     app/asana-practice.tsx,
@@ -46,6 +48,9 @@ code_refs:
 
 - **`infra`**  
   Expo Router, Supabase-клиент для каталога асан и для **`services/practiceSessions.ts`** (`practice_sessions`, `user_daily_stats`).
+
+- **`remote-play`**  
+  `app/asana-practice.tsx` использует **`useRemotePlay()`** (`modules/remote-play`) и роуты `/connect-tv`, `/tv-remote` для режима «ТВ» сегмента воспроизведения асаны: «Запустить на ТВ» → `playVimeo(vimeoId)` → навигация на пульт; «Подключить ТВ» → ввод PIN. Контракт `tv_sessions` (статусы `waiting/playing/paused/stopped/closed`, `pairing_code`, `expires_at`, Realtime) описан в `docs/remote-play/README.md` и миграции `20260503014500_remote_play_tv_sessions.sql`. Парная запись: `docs/02_modules/remote-play/dependencies.md` §2 (после добавления модуля в MAP).
 
 - **`i18n`**  
   `getPracticeCatalogStrings(locale)` (typed gate + overlays; поля `durationMinUnit`, `durationFromPrefix`, `practiceCountOne` / `practiceCountWithTotal` / `catalogFooterTemplate`); `catalog.ts` — `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` для jsonb-полей йоги; `PracticeCard` / `PracticeCatalogScreen` — `useAppLocale().locale`. Парная запись: `docs/02_modules/i18n/dependencies.md` §2.

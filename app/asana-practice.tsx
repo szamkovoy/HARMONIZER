@@ -1,16 +1,22 @@
 import { router, useLocalSearchParams } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, View } from "react-native";
+import { WebView } from "react-native-webview";
 
 import { UpgradeDialog, requiredTierFor, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
+import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
 import { resolveYogaPracticeTitle } from "@/modules/practices/core/catalog";
-import { getAsanaScreenStrings } from "@/modules/practices/i18n/asanaScreen";
+import { vimeoAudiotrackForLocale, vimeoEmbedHtml, VIMEO_EMBED_BASE_URL } from "@/modules/practices/core/vimeo";
+import { getAsanaScreenStrings, type AsanaPlaybackMode } from "@/modules/practices/i18n/asanaScreen";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
+import { useRemotePlay } from "@/modules/remote-play";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { PracticeStopConfirmDialog } from "@/modules/ui/PracticeStopConfirmDialog";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
@@ -27,13 +33,34 @@ type AsanaMetadata = {
   chakras: ChakraRow[];
 };
 
-function paramsRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+const MODE_STORAGE_KEY = "harmonizer.asana.playback_mode.v1";
+
+function readStoredMode(): AsanaPlaybackMode | null {
+  if (Platform.OS === "web") return null;
+  try {
+    const raw = SecureStore.getItem(MODE_STORAGE_KEY);
+    return raw === "tv" || raw === "phone" ? raw : null;
+  } catch {
+    return null;
+  }
 }
 
-function durationMinutes(seconds: number | null, formatMinutes: (minutes: number) => string): string {
-  if (!seconds) return "";
-  return formatMinutes(Math.max(1, Math.round(seconds / 60)));
+function writeStoredMode(mode: AsanaPlaybackMode) {
+  if (Platform.OS === "web") return;
+  try {
+    SecureStore.setItem(MODE_STORAGE_KEY, mode);
+  } catch {
+    /* ignore — UI preference is non-critical */
+  }
+}
+
+function exitAfterPractice(launchSource: string) {
+  const normalized = launchSource.trim().toLowerCase();
+  if (normalized === "assistant" || normalized === "day") {
+    router.replace("/day");
+    return;
+  }
+  router.back();
 }
 
 export default function AsanaPracticeRoute() {
@@ -42,6 +69,8 @@ export default function AsanaPracticeRoute() {
   const { authUser } = useAuth();
   const { locale } = useAppLocale();
   const strings = getAsanaScreenStrings(locale);
+  const stopConfirm = getCoherenceBreathStrings(locale);
+  const remotePlay = useRemotePlay();
   const params = useLocalSearchParams<{
     practiceId?: string;
     durationMs?: string;
@@ -52,7 +81,10 @@ export default function AsanaPracticeRoute() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingCompletion, setSavingCompletion] = useState(false);
-  const [completionSaved, setCompletionSaved] = useState(false);
+  const [mode, setMode] = useState<AsanaPlaybackMode>("phone");
+  const [modeHydrated, setModeHydrated] = useState(false);
+  const [launchingTv, setLaunchingTv] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
   const practiceId = typeof params.practiceId === "string" ? params.practiceId : null;
   const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
     ? params.launchSource.trim()
@@ -63,6 +95,17 @@ export default function AsanaPracticeRoute() {
     typeof params.durationMs === "string" && Number.parseInt(params.durationMs, 10) > 0
       ? Math.round(Number.parseInt(params.durationMs, 10) / 60_000)
       : null;
+
+  useEffect(() => {
+    const stored = readStoredMode();
+    if (stored) setMode(stored);
+    setModeHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!modeHydrated) return;
+    writeStoredMode(mode);
+  }, [mode, modeHydrated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,57 +142,101 @@ export default function AsanaPracticeRoute() {
     return () => {
       cancelled = true;
     };
-  }, [canUseFeature, practiceId]);
+  }, [canUseFeature, practiceId, strings.loadFailed, strings.practiceNotFound]);
 
   const practice = metadata?.practice ?? null;
-  const parsedParams = paramsRecord(practice?.params);
   const title = practice
     ? resolveYogaPracticeTitle(practice.title, strings.defaultTitle, locale)
     : strings.defaultTitle;
   const vimeoId = practice?.video_external_id ?? null;
-  const chakraLabel =
-    metadata?.chakras.length
-      ? metadata.chakras.map((item) => item.chakra_id).join(", ")
-      : params.chakra ?? strings.valueNotSelected;
+  const audiotrack = vimeoAudiotrackForLocale(locale);
+  const durationSec =
+    practice?.default_duration_sec ?? (routeDurationMinutes ? routeDurationMinutes * 60 : 0);
 
-  const completePractice = async () => {
-    if (!authUser?.id || !practice || completionSaved || savingCompletion) return;
-    setSavingCompletion(true);
-    const durationSec = practice.default_duration_sec ?? (routeDurationMinutes ? routeDurationMinutes * 60 : 0);
-    const endedAt = Date.now();
-    const startedAt = endedAt - Math.max(1, durationSec) * 1000;
-    const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
-    const savedId = await recordPracticeSession({
-      userId: authUser.id,
-      practiceId: practice.id,
-      practiceSlug: practice.slug,
-      practiceVersion: practice.version ?? 1,
-      startedAt: new Date(startedAt).toISOString(),
-      endedAt: new Date(endedAt).toISOString(),
-      completionPct: 100,
-      chakraFocusIds: chakraIds,
-      metrics: {},
-      context: {
-        source: "asana",
-        launch_source: launchSource,
-        practice_kind: "yoga",
-        vimeo_id: vimeoId,
-      },
-    });
-    setCompletionSaved(Boolean(savedId));
-    setSavingCompletion(false);
+  const requestStop = () => {
+    if (!practice || !authUser?.id || savingCompletion) return;
+    setShowStopConfirm(true);
   };
+
+  const confirmFinish = async () => {
+    if (!authUser?.id || !practice || savingCompletion) return;
+    setSavingCompletion(true);
+    try {
+      const effectiveDurationSec = durationSec || 0;
+      const endedAt = Date.now();
+      const startedAt = endedAt - Math.max(1, effectiveDurationSec) * 1000;
+      const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
+      await recordPracticeSession({
+        userId: authUser.id,
+        practiceId: practice.id,
+        practiceSlug: practice.slug,
+        practiceVersion: practice.version ?? 1,
+        startedAt: new Date(startedAt).toISOString(),
+        endedAt: new Date(endedAt).toISOString(),
+        completionPct: 100,
+        chakraFocusIds: chakraIds,
+        metrics: {},
+        context: {
+          source: "asana",
+          launch_source: launchSource,
+          practice_kind: "yoga",
+          vimeo_id: vimeoId,
+          playback_mode: mode,
+          audiotrack,
+        },
+      });
+    } catch {
+      /* swallow — still navigate away; the session row is best-effort */
+    } finally {
+      setSavingCompletion(false);
+      setShowStopConfirm(false);
+      exitAfterPractice(launchSource);
+    }
+  };
+
+  const launchOnTv = async () => {
+    if (!vimeoId || launchingTv || remotePlay.busy) return;
+    if (!remotePlay.connected) {
+      router.push("/connect-tv");
+      return;
+    }
+    setLaunchingTv(true);
+    try {
+      await remotePlay.playVimeo(vimeoId, audiotrack);
+      router.push({
+        pathname: "/tv-remote",
+        params: {
+          title,
+          ...(durationSec > 0 ? { durationSec: String(durationSec) } : {}),
+        },
+      } as never);
+    } catch (error) {
+      Alert.alert("Remote Play", error instanceof Error ? error.message : strings.loadFailed);
+    } finally {
+      setLaunchingTv(false);
+    }
+  };
+
+  const openRemote = () => {
+    router.push({
+      pathname: "/tv-remote",
+      params: {
+        title,
+        ...(durationSec > 0 ? { durationSec: String(durationSec) } : {}),
+      },
+    } as never);
+  };
+
+  const tvStatus = remotePlay.session?.status ?? "waiting";
+  const hasActiveTvVideo = Boolean(remotePlay.session?.vimeo_id);
 
   return (
     <StackScreenLayout statusBarStyle="light">
-      <FloatingCloseButton
-        accessibilityLabel={strings.closeA11y}
-        onPress={() => router.back()}
-      />
+      <FloatingCloseButton accessibilityLabel={strings.closeA11y} onPress={requestStop} />
       <StackScrollView contentOptions={{ topPadding: 40, bottomPaddingExtra: 40, maxWidth: 720 }}>
         <SurfaceCardView tone="elevated" style={styles.card}>
           {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
-          <ScreenHeader title={title} subtitle={strings.unavailableNote} />
+          <ScreenHeader title={title} subtitle={strings.subtitle} />
 
           {loadError ? (
             <AppText variant="dialogBody" tone="warning">
@@ -157,51 +244,50 @@ export default function AsanaPracticeRoute() {
             </AppText>
           ) : null}
 
-          {vimeoId && canUseFeature("asana_practices") ? (
-            <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
-              <AppText variant="sectionTitle">{strings.videoReadyTitle}</AppText>
-              <AppText variant="dialogBody" tone="muted">
-                {strings.metaVimeoId}: {vimeoId}
-              </AppText>
-            </View>
-          ) : null}
+          <ModeSegmented
+            mode={mode}
+            onChange={setMode}
+            phoneLabel={strings.modePhone}
+            tvLabel={strings.modeTv}
+          />
 
-          <View style={styles.metaBlock}>
-            <MetaRow label={strings.metaPracticeId} value={practiceId ?? strings.valueUnknown} />
-            <MetaRow label={strings.metaVimeoId} value={vimeoId ?? strings.valueUnknown} />
-            <MetaRow
-              label={strings.metaDuration}
-              value={
-                practice
-                  ? durationMinutes(practice.default_duration_sec, strings.formatDurationMinutes) || strings.valueUnknown
-                  : routeDurationMinutes
-                    ? strings.formatDurationMinutes(routeDurationMinutes)
-                    : strings.valueUnknown
-              }
+          {mode === "phone" ? (
+            <PhonePlayer vimeoId={vimeoId} audiotrack={audiotrack} strings={strings} />
+          ) : (
+            <TvPanel
+              strings={strings}
+              vimeoId={vimeoId}
+              connected={remotePlay.connected}
+              loading={remotePlay.loading}
+              busy={remotePlay.busy || launchingTv}
+              pairingCode={remotePlay.session?.pairing_code ?? null}
+              status={tvStatus}
+              hasActiveVideo={hasActiveTvVideo}
+              error={remotePlay.error}
+              onConnect={() => router.push("/connect-tv")}
+              onLaunch={launchOnTv}
+              onOpenRemote={openRemote}
             />
-            <MetaRow label={strings.metaChakras} value={chakraLabel} />
-            {typeof parsedParams.recorded_at === "string" ? (
-              <MetaRow label={strings.metaRecordedAt} value={parsedParams.recorded_at} />
-            ) : null}
-            <MetaRow label={strings.metaLaunchSource} value={launchSource} />
-          </View>
+          )}
 
-          <View style={styles.actionRow}>
-            <AppButton
-              label={
-                completionSaved
-                  ? strings.completedButton
-                  : savingCompletion
-                    ? strings.completingButton
-                    : strings.completeButton
-              }
-              onPress={completePractice}
-              disabled={!practice || !authUser?.id || completionSaved || savingCompletion}
-            />
-            <AppButton label={strings.backToCatalogButton} variant="secondary" onPress={() => router.back()} />
-          </View>
+          <AppButton
+            label={strings.completeButton}
+            onPress={requestStop}
+            disabled={!practice || !authUser?.id || savingCompletion}
+          />
         </SurfaceCardView>
       </StackScrollView>
+
+      <PracticeStopConfirmDialog
+        visible={showStopConfirm}
+        title={stopConfirm.stopConfirmTitle}
+        message={stopConfirm.stopConfirmMessage}
+        continueLabel={stopConfirm.stopConfirmNo}
+        finishLabel={savingCompletion ? strings.completingButton : stopConfirm.stopConfirmYes}
+        onContinue={() => setShowStopConfirm(false)}
+        onFinish={confirmFinish}
+      />
+
       <UpgradeDialog
         visible={!canUseFeature("asana_practices")}
         feature="asana_practices"
@@ -212,13 +298,158 @@ export default function AsanaPracticeRoute() {
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+function ModeSegmented({
+  mode,
+  onChange,
+  phoneLabel,
+  tvLabel,
+}: {
+  mode: AsanaPlaybackMode;
+  onChange: (next: AsanaPlaybackMode) => void;
+  phoneLabel: string;
+  tvLabel: string;
+}) {
+  const theme = useTheme();
   return (
-    <View style={styles.metaRow}>
-      <AppText variant="technicalCaption" tone="muted" style={styles.metaLabel}>
-        {label}
-      </AppText>
-      <AppText variant="dialogBody">{value}</AppText>
+    <View
+      style={[
+        styles.segmentTrack,
+        { backgroundColor: theme.colors.controlButtonBg, borderColor: theme.colors.surfaceBorder },
+      ]}
+    >
+      {(["phone", "tv"] as const).map((value) => {
+        const active = value === mode;
+        return (
+          <Pressable
+            key={value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(value)}
+            style={[
+              styles.segment,
+              active
+                ? { backgroundColor: theme.colors.buttonPrimaryBg }
+                : { backgroundColor: "transparent" },
+            ]}
+          >
+            <AppText variant="buttonLabel" tone={active ? "accentOn" : "primary"}>
+              {value === "phone" ? phoneLabel : tvLabel}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function PhonePlayer({
+  vimeoId,
+  audiotrack,
+  strings,
+}: {
+  vimeoId: string | null;
+  audiotrack: string;
+  strings: ReturnType<typeof getAsanaScreenStrings>;
+}) {
+  const theme = useTheme();
+  if (!vimeoId) {
+    return (
+      <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
+        <AppText variant="dialogBody" tone="muted" style={styles.centerText}>
+          {strings.phoneVideoMissing}
+        </AppText>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.webViewWrap, { backgroundColor: "#000" }]}>
+      <WebView
+        source={{ html: vimeoEmbedHtml(vimeoId, audiotrack), baseUrl: VIMEO_EMBED_BASE_URL }}
+        style={styles.webView}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        allowsFullscreenVideo
+        nestedScrollEnabled
+      />
+    </View>
+  );
+}
+
+function TvPanel({
+  strings,
+  vimeoId,
+  connected,
+  loading,
+  busy,
+  pairingCode,
+  status,
+  hasActiveVideo,
+  error,
+  onConnect,
+  onLaunch,
+  onOpenRemote,
+}: {
+  strings: ReturnType<typeof getAsanaScreenStrings>;
+  vimeoId: string | null;
+  connected: boolean;
+  loading: boolean;
+  busy: boolean;
+  pairingCode: string | null;
+  status: string;
+  hasActiveVideo: boolean;
+  error: string | null;
+  onConnect: () => void;
+  onLaunch: () => void;
+  onOpenRemote: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.tvPanel, { borderColor: theme.colors.surfaceBorder }]}>
+      {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
+
+      {!connected ? (
+        <>
+          <AppText variant="sectionTitle">{strings.videoReadyTitle}</AppText>
+          <AppText variant="dialogBody" tone="muted">
+            {strings.tvNotConnectedHint}
+          </AppText>
+        </>
+      ) : (
+        <>
+          <AppText variant="sectionTitle" tone="accent">
+            {pairingCode ? strings.tvConnectedMeta(pairingCode) : strings.tvConnectedHint}
+          </AppText>
+          <AppText variant="dialogBody" tone="muted">
+            {strings.tvConnectedHint}
+          </AppText>
+          <View style={[styles.statusPill, { borderColor: theme.colors.surfaceBorder }]}>
+            <AppText variant="inlineStatus">{strings.tvStatus(status)}</AppText>
+          </View>
+        </>
+      )}
+
+      {error ? (
+        <AppText variant="dialogBody" tone="warning">
+          {error}
+        </AppText>
+      ) : null}
+
+      <View style={styles.tvActions}>
+        {!connected ? (
+          <AppButton label={strings.connectTvButton} onPress={onConnect} />
+        ) : (
+          <>
+            <AppButton
+              label={busy ? strings.launchingButton : strings.launchOnTvButton}
+              onPress={onLaunch}
+              disabled={busy || !vimeoId}
+            />
+            {hasActiveVideo ? (
+              <AppButton label={strings.openRemoteButton} variant="secondary" onPress={onOpenRemote} />
+            ) : null}
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -226,6 +457,20 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   card: {
     gap: 16,
+  },
+  segmentTrack: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
   },
   playerPlaceholder: {
     aspectRatio: 16 / 9,
@@ -236,17 +481,33 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 16,
   },
-  metaBlock: {
-    gap: 8,
+  webViewWrap: {
+    aspectRatio: 16 / 9,
+    borderRadius: 16,
+    overflow: "hidden",
   },
-  actionRow: {
-    alignItems: "flex-start",
+  webView: {
+    flex: 1,
+  },
+  tvPanel: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  statusPill: {
+    alignSelf: "flex-start",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  tvActions: {
+    alignItems: "stretch",
     gap: 10,
+    marginTop: 4,
   },
-  metaRow: {
-    gap: 2,
-  },
-  metaLabel: {
-    textTransform: "uppercase",
+  centerText: {
+    textAlign: "center",
   },
 });

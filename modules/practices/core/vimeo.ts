@@ -1,0 +1,68 @@
+/**
+ * Vimeo embed helpers for the asana practice screen.
+ *
+ * Per `docs/remote-play/README.md` the Vimeo videos are domain-locked to
+ * `zamkovoi.yoga` / `zamkovoi.ru` (Vimeo "Where can this be embedded?" =
+ * specific domains). A direct WebView load of `player.vimeo.com/video/<id>`
+ * has no `Referer` from an allowed domain and Vimeo returns `PrivacyError`
+ * ("Because of its privacy settings, this video cannot be played here").
+ *
+ * Two helpers:
+ * - `vimeoEmbedUrl(vimeoId, audiotrack)` — the canonical iframe `src`:
+ *   `https://player.vimeo.com/video/<id>?audiotrack=ru`. No other query params
+ *   (otherwise the Russian audio track breaks — see migration
+ *   `20260503075500_fix_vimeo_ru_audiotrack.sql`). Used by the TV page.
+ * - `vimeoEmbedHtml(vimeoId, audiotrack)` — a full HTML document that mounts
+ *   that iframe, intended to be loaded via
+ *   `WebView source={{ html, baseUrl: VIMEO_EMBED_BASE_URL }}`. The `baseUrl`
+ *   makes the WebView document originate from `https://zamkovoi.yoga/`, so the
+ *   iframe request to `player.vimeo.com` carries `Referer: https://zamkovoi.yoga/`
+ *   and passes Vimeo's domain privacy check on iOS (WKWebView baseURL) and
+ *   Android (loadDataWithBaseURL).
+ *
+ * Audio language: the asana videos ship exactly two Vimeo audio tracks —
+ * Russian (`ru`) and English (`en`); see `scripts/import-vimeo-asanas.mjs`
+ * `vimeo_embed.audiotrack_by_locale` (`ru → ru`, `en → en`). The app exposes
+ * 8 content locales, so the locale→track mapping collapses to: RU → `ru`,
+ * every other locale (EN/DE/FR/IT/ES/PT/NL) → `en`. Use
+ * `vimeoAudiotrackForLocale(locale)` to derive the slug and pass it to both
+ * helpers; the phone player and the TV launch path must agree on it so a
+ * non-Russian app locale plays the English track on both surfaces.
+ */
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
+
+const VIMEO_PLAYER_BASE = "https://player.vimeo.com/video";
+export const VIMEO_DEFAULT_AUDIOTRACK = "ru";
+export const VIMEO_RU_AUDIOTRACK = "ru";
+export const VIMEO_EN_AUDIOTRACK = "en";
+export const VIMEO_EMBED_BASE_URL = "https://zamkovoi.yoga/";
+
+export function vimeoAudiotrackForLocale(locale: AppContentLocale): string {
+  return locale === "ru" ? VIMEO_RU_AUDIOTRACK : VIMEO_EN_AUDIOTRACK;
+}
+
+export function vimeoEmbedUrl(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK): string {
+  const trimmedId = vimeoId.trim();
+  const track = (audiotrack ?? VIMEO_DEFAULT_AUDIOTRACK).trim() || VIMEO_DEFAULT_AUDIOTRACK;
+  return `${VIMEO_PLAYER_BASE}/${encodeURIComponent(trimmedId)}?audiotrack=${encodeURIComponent(track)}`;
+}
+
+export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK): string {
+  const src = vimeoEmbedUrl(vimeoId, audiotrack);
+  return [
+    "<!DOCTYPE html>",
+    "<html>",
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">',
+    "<style>",
+    "html,body,iframe{margin:0;padding:0;border:0;width:100%;height:100%;background:#000;overflow:hidden;}",
+    "body{display:block;}",
+    "</style>",
+    "</head>",
+    "<body>",
+    `<iframe src="${src}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; encrypted-media" allowfullscreen></iframe>`,
+    "</body>",
+    "</html>",
+  ].join("");
+}

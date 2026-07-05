@@ -1,10 +1,10 @@
 <!-- HARMONIZER Remote Play TV page. Paste into a WordPress Custom HTML block. -->
 <div id="harmonizer-remote-play" class="hrp-shell">
   <div class="hrp-card">
-    <div class="hrp-eyebrow">HARMONIZER Remote Play</div>
+    <div id="hrp-eyebrow" class="hrp-eyebrow">HARMONIZER Remote Play</div>
     <div id="hrp-code" class="hrp-code">....</div>
     <div id="hrp-status" class="hrp-status">Создаём код подключения...</div>
-    <div id="hrp-player" class="hrp-player" aria-label="Vimeo player"></div>
+    <div id="hrp-player" class="hrp-player" aria-label="Video player"></div>
   </div>
 </div>
 
@@ -15,10 +15,178 @@
   const SUPABASE_URL = "https://vsdmphhczmcgfrvbwodp.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_8edV2weU2e0ab__u1vEVFg_MFdt8VeF";
 
+  // ---- i18n: only the resource strings differ per locale. ------------------
+  // `appName` is the localized product name; "Remote Play" stays as the Latin
+  // feature brand in the eyebrow. The page picks the locale from the paired
+  // tv_sessions row (`row.locale`, written by the mobile app on linkDevice);
+  // before pairing it falls back to a browser-language detection (default ru).
+  const STRINGS = {
+    ru: {
+      appName: "Гармонизатор",
+      creatingCode: "Создаём код подключения...",
+      waitConnection: "Ожидаем подключение из приложения",
+      connectedIdle: "Подключено. Выберите практику в приложении.",
+      starting: "Запускаем видео на ТВ...",
+      playing: "Видео запущено",
+      paused: "Пауза",
+      expired: "Сессия истекла. Обновите страницу, чтобы получить новый код.",
+      closed: "Сессия закрыта. Обновите страницу, чтобы получить новый код.",
+      unavailable: "Remote Play недоступен.",
+      codeError: "Не удалось создать уникальный код. Обновите страницу.",
+      vimeoDenied: "Vimeo не разрешил воспроизведение.",
+      vimeoCheckPrivacy: "Проверьте Privacy / Embed domains у этого Vimeo-ролика.",
+      playerAriaLabel: "Видеоплеер",
+    },
+    en: {
+      appName: "Harmonizer",
+      creatingCode: "Creating connection code...",
+      waitConnection: "Waiting for the app to connect",
+      connectedIdle: "Connected. Choose a practice in the app.",
+      starting: "Starting video on TV...",
+      playing: "Video playing",
+      paused: "Paused",
+      expired: "Session expired. Refresh the page to get a new code.",
+      closed: "Session closed. Refresh the page to get a new code.",
+      unavailable: "Remote Play is unavailable.",
+      codeError: "Could not create a unique code. Refresh the page.",
+      vimeoDenied: "Vimeo refused to play this video.",
+      vimeoCheckPrivacy: "Check the Privacy / Embed domains for this Vimeo video.",
+      playerAriaLabel: "Video player",
+    },
+    de: {
+      appName: "Harmonisator",
+      creatingCode: "Verbindungscode wird erstellt...",
+      waitConnection: "Warten auf Verbindung aus der App",
+      connectedIdle: "Verbunden. Wählen Sie eine Praxis in der App.",
+      starting: "Video wird auf dem TV gestartet...",
+      playing: "Video läuft",
+      paused: "Pause",
+      expired: "Sitzung abgelaufen. Aktualisieren Sie die Seite für einen neuen Code.",
+      closed: "Sitzung geschlossen. Aktualisieren Sie die Seite für einen neuen Code.",
+      unavailable: "Remote Play ist nicht verfügbar.",
+      codeError: "Eindeutiger Code konnte nicht erstellt werden. Aktualisieren Sie die Seite.",
+      vimeoDenied: "Vimeo hat die Wiedergabe abgelehnt.",
+      vimeoCheckPrivacy: "Prüfen Sie Privacy / Embed domains für dieses Vimeo-Video.",
+      playerAriaLabel: "Videoplayer",
+    },
+    fr: {
+      appName: "Harmoniseur",
+      creatingCode: "Création du code de connexion...",
+      waitConnection: "En attente de connexion depuis l'application",
+      connectedIdle: "Connecté. Choisissez une pratique dans l'application.",
+      starting: "Démarrage de la vidéo sur la TV...",
+      playing: "Vidéo en cours",
+      paused: "Pause",
+      expired: "Session expirée. Actualisez la page pour obtenir un nouveau code.",
+      closed: "Session fermée. Actualisez la page pour obtenir un nouveau code.",
+      unavailable: "Remote Play est indisponible.",
+      codeError: "Impossible de créer un code unique. Actualisez la page.",
+      vimeoDenied: "Vimeo a refusé la lecture.",
+      vimeoCheckPrivacy: "Vérifiez Privacy / Embed domains pour cette vidéo Vimeo.",
+      playerAriaLabel: "Lecteur vidéo",
+    },
+    it: {
+      appName: "Armonizzatore",
+      creatingCode: "Creazione del codice di connessione...",
+      waitConnection: "In attesa di connessione dall'app",
+      connectedIdle: "Connesso. Scegli una pratica nell'app.",
+      starting: "Avvio del video sulla TV...",
+      playing: "Video in riproduzione",
+      paused: "Pausa",
+      expired: "Sessione scaduta. Aggiorna la pagina per un nuovo codice.",
+      closed: "Sessione chiusa. Aggiorna la pagina per un nuovo codice.",
+      unavailable: "Remote Play non disponibile.",
+      codeError: "Impossibile creare un codice univoco. Aggiorna la pagina.",
+      vimeoDenied: "Vimeo ha rifiutato la riproduzione.",
+      vimeoCheckPrivacy: "Verifica Privacy / Embed domains per questo video Vimeo.",
+      playerAriaLabel: "Lettore video",
+    },
+    es: {
+      appName: "Armonizador",
+      creatingCode: "Creando código de conexión...",
+      waitConnection: "Esperando la conexión desde la app",
+      connectedIdle: "Conectado. Elige una práctica en la app.",
+      starting: "Iniciando vídeo en la TV...",
+      playing: "Vídeo en reproducción",
+      paused: "Pausa",
+      expired: "Sesión caducada. Actualiza la página para un nuevo código.",
+      closed: "Sesión cerrada. Actualiza la página para un nuevo código.",
+      unavailable: "Remote Play no disponible.",
+      codeError: "No se pudo crear un código único. Actualiza la página.",
+      vimeoDenied: "Vimeo rechazó la reproducción.",
+      vimeoCheckPrivacy: "Verifica Privacy / Embed domains para este vídeo de Vimeo.",
+      playerAriaLabel: "Reproductor de vídeo",
+    },
+    pt: {
+      appName: "Harmonizador",
+      creatingCode: "Criando código de conexão...",
+      waitConnection: "Aguardando conexão do app",
+      connectedIdle: "Conectado. Escolha uma prática no app.",
+      starting: "Iniciando o vídeo na TV...",
+      playing: "Vídeo em reprodução",
+      paused: "Pausa",
+      expired: "Sessão expirada. Atualize a página para um novo código.",
+      closed: "Sessão encerrada. Atualize a página para um novo código.",
+      unavailable: "Remote Play indisponível.",
+      codeError: "Não foi possível criar um código único. Atualize a página.",
+      vimeoDenied: "Vimeo recusou a reprodução.",
+      vimeoCheckPrivacy: "Verifique Privacy / Embed domains deste vídeo do Vimeo.",
+      playerAriaLabel: "Reprodutor de vídeo",
+    },
+    nl: {
+      appName: "Harmoniseerder",
+      creatingCode: "Verbindingscode maken...",
+      waitConnection: "Wachten op verbinding vanuit de app",
+      connectedIdle: "Verbonden. Kies een oefening in de app.",
+      starting: "Video starten op de TV...",
+      playing: "Video speelt",
+      paused: "Pauze",
+      expired: "Sessie verlopen. Vernieuw de pagina voor een nieuwe code.",
+      closed: "Sessie gesloten. Vernieuw de pagina voor een nieuwe code.",
+      unavailable: "Remote Play is niet beschikbaar.",
+      codeError: "Kon geen unieke code maken. Vernieuw de pagina.",
+      vimeoDenied: "Vimeo weigerde afspelen.",
+      vimeoCheckPrivacy: "Controleer Privacy / Embed domains voor deze Vimeo-video.",
+      playerAriaLabel: "Videospeler",
+    },
+  };
+  const SUPPORTED = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"];
+  function pickLocale(value) {
+    const prefix = String(value ?? "").trim().slice(0, 2).toLowerCase();
+    return SUPPORTED.includes(prefix) ? prefix : "ru";
+  }
+  function detectLocale() {
+    const nav = (navigator.languages && navigator.languages[0]) || navigator.language || "ru";
+    return pickLocale(nav);
+  }
+  function stringsFor(locale) {
+    return STRINGS[locale] || STRINGS.ru;
+  }
+
+  let currentLocale = detectLocale();
+  function t(key) {
+    return stringsFor(currentLocale)[key];
+  }
+  function applyLocale(next) {
+    const locale = pickLocale(next);
+    if (locale === currentLocale) return;
+    currentLocale = locale;
+    renderStatic();
+  }
+  function renderStatic() {
+    eyebrowEl.textContent = `${t("appName")} Remote Play`;
+    playerEl.setAttribute("aria-label", t("playerAriaLabel"));
+  }
+
+  // ---- Remote Play wiring. -------------------------------------------------
   const codeEl = document.getElementById("hrp-code");
   const statusEl = document.getElementById("hrp-status");
   const playerEl = document.getElementById("hrp-player");
+  const eyebrowEl = document.getElementById("hrp-eyebrow");
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  // Fallback audio track when the mobile client did not write `audiotrack` on
+  // the session row (legacy rows / anonymous waiting sessions). The mobile
+  // client normally writes "ru" or "en" based on the active app locale.
   const VIMEO_AUDIO_TRACK = "ru";
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,16 +201,12 @@
   let lastVideoKey = null;
   let lastPlayerError = "";
 
-  const MSG_WAIT = "Ожидаем подключение из приложения";
-  const MSG_IDLE = "Подключено. Выберите практику в приложении.";
-  const MSG_STARTING = "Запускаем видео на ТВ...";
-  const MSG_PLAYING = "Видео запущено";
-  const MSG_PAUSED = "Пауза";
-
   let lastStatusText = "";
   let lastConnectedClass = false;
   let lastFingerprint = "";
   let applyChain = Promise.resolve();
+
+  renderStatic();
 
   function setStatusStable(text, connected = false) {
     if (text === lastStatusText && connected === lastConnectedClass) return;
@@ -53,7 +217,7 @@
   }
 
   function fingerprint(row) {
-    return [row.id, row.status, row.vimeo_id ?? "", row.user_id ?? "", row.expires_at].join("\u001f");
+    return [row.id, row.status, row.vimeo_id ?? "", row.audiotrack ?? "", row.locale ?? "", row.user_id ?? "", row.expires_at].join("\u001f");
   }
 
   function enqueueApply(next) {
@@ -70,17 +234,18 @@
       const { data, error } = await client
         .from("tv_sessions")
         .insert({ pairing_code })
-        .select("id,pairing_code,vimeo_id,status,user_id,expires_at")
+        .select("id,pairing_code,vimeo_id,audiotrack,locale,status,user_id,expires_at")
         .single();
 
       if (!error && data) return data;
       if (!String(error && error.message).includes("duplicate key")) throw error;
     }
-    throw new Error("Не удалось создать уникальный код. Обновите страницу.");
+    throw new Error(t("codeError"));
   }
 
-  function vimeoEmbedUrl(vimeoId) {
-    return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?audiotrack=${encodeURIComponent(VIMEO_AUDIO_TRACK)}`;
+  function vimeoEmbedUrl(vimeoId, audiotrack) {
+    const track = (audiotrack && String(audiotrack).trim()) || VIMEO_AUDIO_TRACK;
+    return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?audiotrack=${encodeURIComponent(track)}`;
   }
 
   async function destroyPlayer() {
@@ -97,14 +262,14 @@
     }
   }
 
-  async function mountPlayerIfNeeded(vimeoId) {
+  async function mountPlayerIfNeeded(vimeoId, audiotrack) {
     if (!vimeoId) return false;
-    const wantKey = String(vimeoId);
+    const wantKey = `${vimeoId}|${(audiotrack && String(audiotrack).trim()) || VIMEO_AUDIO_TRACK}`;
     if (player && lastVideoKey === wantKey) return !lastPlayerError;
 
     await destroyPlayer();
     const iframe = document.createElement("iframe");
-    iframe.src = vimeoEmbedUrl(vimeoId);
+    iframe.src = vimeoEmbedUrl(vimeoId, audiotrack);
     iframe.setAttribute("width", "640");
     iframe.setAttribute("height", "360");
     iframe.setAttribute("title", `Vimeo ${vimeoId}`);
@@ -115,8 +280,8 @@
     player = new Vimeo.Player(iframe);
     lastVideoKey = wantKey;
     player.on("error", (error) => {
-      lastPlayerError = error && error.message ? error.message : "Vimeo не разрешил воспроизведение.";
-      setStatusStable(`Ошибка Vimeo: ${lastPlayerError}`, true);
+      lastPlayerError = error && error.message ? error.message : t("vimeoDenied");
+      setStatusStable(`${t("vimeoDenied")} ${lastPlayerError}`, true);
     });
     try {
       await player.ready();
@@ -127,8 +292,8 @@
       iframe?.requestFullscreen?.().catch(() => {});
       return !lastPlayerError;
     } catch {
-      lastPlayerError = "Проверьте Privacy / Embed domains у этого Vimeo-ролика.";
-      setStatusStable(`Ошибка Vimeo: ${lastPlayerError}`, true);
+      lastPlayerError = t("vimeoCheckPrivacy");
+      setStatusStable(`${t("vimeoDenied")} ${lastPlayerError}`, true);
       return false;
     }
   }
@@ -139,11 +304,12 @@
     if (fp === lastFingerprint) return;
 
     session = next;
+    if (next.locale) applyLocale(next.locale);
     const connected = Boolean(next.user_id);
 
     if (next.status === "closed" || new Date(next.expires_at).getTime() <= Date.now()) {
       lastFingerprint = fp;
-      setStatusStable("Сессия истекла. Обновите страницу, чтобы получить новый код.", false);
+      setStatusStable(t("expired"), false);
       await destroyPlayer();
       return;
     }
@@ -151,15 +317,15 @@
     if (next.status === "stopped") {
       lastFingerprint = fp;
       await destroyPlayer();
-      setStatusStable(connected ? MSG_IDLE : MSG_WAIT, connected);
+      setStatusStable(connected ? t("connectedIdle") : t("waitConnection"), connected);
       return;
     }
 
     if (next.status === "playing" && next.vimeo_id) {
-      const wantKey = String(next.vimeo_id);
+      const wantKey = `${next.vimeo_id}|${(next.audiotrack && String(next.audiotrack).trim()) || VIMEO_AUDIO_TRACK}`;
       const already = player && lastVideoKey === wantKey;
-      if (!already) setStatusStable(MSG_STARTING, true);
-      const mounted = await mountPlayerIfNeeded(next.vimeo_id);
+      if (!already) setStatusStable(t("starting"), true);
+      const mounted = await mountPlayerIfNeeded(next.vimeo_id, next.audiotrack);
       if (!mounted) {
         lastFingerprint = fp;
         return;
@@ -167,32 +333,32 @@
       if (!player || lastVideoKey !== wantKey) return;
       if (already) await player.play().catch(() => {});
       lastFingerprint = fp;
-      setStatusStable(MSG_PLAYING, true);
+      setStatusStable(t("playing"), true);
       return;
     }
 
     if (next.status === "paused" && next.vimeo_id) {
-      const wantKey = String(next.vimeo_id);
-      const mounted = await mountPlayerIfNeeded(next.vimeo_id);
+      const wantKey = `${next.vimeo_id}|${(next.audiotrack && String(next.audiotrack).trim()) || VIMEO_AUDIO_TRACK}`;
+      const mounted = await mountPlayerIfNeeded(next.vimeo_id, next.audiotrack);
       if (!mounted) {
         lastFingerprint = fp;
         return;
       }
       if (!player || lastVideoKey !== wantKey) return;
       lastFingerprint = fp;
-      setStatusStable(MSG_PAUSED, true);
+      setStatusStable(t("paused"), true);
       if (player) await player.pause().catch(() => {});
       return;
     }
 
     lastFingerprint = fp;
     if (!connected) {
-      setStatusStable(MSG_WAIT, false);
+      setStatusStable(t("waitConnection"), false);
       return;
     }
     if (!next.vimeo_id) {
       await destroyPlayer();
-      setStatusStable(MSG_IDLE, true);
+      setStatusStable(t("connectedIdle"), true);
     }
   }
 
@@ -215,7 +381,7 @@
     if (!session || !session.id) return;
     const { data, error } = await client
       .from("tv_sessions")
-      .select("id,pairing_code,vimeo_id,status,user_id,expires_at")
+      .select("id,pairing_code,vimeo_id,audiotrack,locale,status,user_id,expires_at")
       .eq("id", session.id)
       .maybeSingle();
     if (!error && data) enqueueApply(data);
@@ -232,7 +398,7 @@
       codeEl.textContent = session.pairing_code;
       lastStatusText = "";
       lastConnectedClass = false;
-      setStatusStable(MSG_WAIT, false);
+      setStatusStable(t("waitConnection"), false);
 
       channel = client
         .channel(`tv-session-${session.id}`)
@@ -244,7 +410,7 @@
         }, (payload) => {
           if (payload.eventType === "DELETE") {
             lastFingerprint = "";
-            setStatusStable("Сессия закрыта. Обновите страницу, чтобы получить новый код.", false);
+            setStatusStable(t("closed"), false);
             return;
           }
           enqueueApply(payload.new);
@@ -254,7 +420,7 @@
       startPolling();
     } catch (error) {
       lastStatusText = "";
-      setStatusStable(error && error.message ? error.message : "Remote Play недоступен.", false);
+      setStatusStable(error && error.message ? error.message : t("unavailable"), false);
     }
   }
 

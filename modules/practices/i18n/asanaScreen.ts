@@ -3,72 +3,77 @@ import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
 
 export type AsanaScreenLocale = AppContentLocale;
 
+export type AsanaPlaybackMode = "phone" | "tv";
+
 export type AsanaScreenStrings = {
   defaultTitle: string;
   closeA11y: string;
-  unavailableNote: string;
+  subtitle: string;
   practiceNotFound: string;
   loadFailed: string;
+  modePhone: string;
+  modeTv: string;
+  phoneHint: string;
+  phoneVideoMissing: string;
+  tvNotConnectedHint: string;
+  tvConnectedHint: string;
+  tvConnectedMeta: (pairingCode: string) => string;
+  tvStatus: (value: string) => string;
+  connectTvButton: string;
+  launchOnTvButton: string;
+  launchingButton: string;
+  openRemoteButton: string;
   videoReadyTitle: string;
-  metaPracticeId: string;
-  metaVimeoId: string;
-  metaDuration: string;
-  metaChakras: string;
-  metaRecordedAt: string;
-  metaLaunchSource: string;
-  valueUnknown: string;
-  valueNotSelected: string;
-  formatDurationMinutes: (minutes: number) => string;
   completeButton: string;
   completingButton: string;
-  completedButton: string;
-  backToCatalogButton: string;
 };
 
 const ru: AsanaScreenStrings = {
   defaultTitle: "Практика асан",
   closeA11y: "Закрыть практику",
-  unavailableNote:
-    "Локальный Vimeo-плеер временно отключён: текущий dev-client не содержит native WebView-модуль. Следующий шаг — запуск асан через Remote Play на большом экране.",
+  subtitle: "Выберите, где смотреть практику: на телефоне или на телевизоре через Remote Play.",
   practiceNotFound: "Практика не найдена.",
   loadFailed: "Не удалось загрузить практику.",
-  videoReadyTitle: "Видео готово к удалённому запуску",
-  metaPracticeId: "practiceId",
-  metaVimeoId: "Vimeo ID",
-  metaDuration: "Длительность",
-  metaChakras: "Чакры",
-  metaRecordedAt: "Дата записи",
-  metaLaunchSource: "Источник запуска",
-  valueUnknown: "уточняется",
-  valueNotSelected: "не выбрана",
-  formatDurationMinutes: (minutes) => `${minutes} мин`,
+  modePhone: "Телефон",
+  modeTv: "ТВ",
+  phoneHint: "Видео откроется во встроенном плеере Vimeo прямо на экране.",
+  phoneVideoMissing: "У этой практики пока нет Vimeo ID — воспроизведение недоступно.",
+  tvNotConnectedHint:
+    "Откройте zamkovoi.yoga/tv на телевизоре или компьютере и введите код подключения.",
+  tvConnectedHint: "ТВ подключён. Нажмите «Запустить на ТВ», и видео начнётся на большом экране.",
+  tvConnectedMeta: (pairingCode) => `ТВ подключён · код ${pairingCode}`,
+  tvStatus: (value) => `Статус: ${value}`,
+  connectTvButton: "Подключить ТВ",
+  launchOnTvButton: "Запустить на ТВ",
+  launchingButton: "Запускаем...",
+  openRemoteButton: "Открыть пульт",
+  videoReadyTitle: "Видео готово к запуску на ТВ",
   completeButton: "Завершить практику",
   completingButton: "Сохраняем...",
-  completedButton: "Практика сохранена",
-  backToCatalogButton: "Назад к каталогу",
 };
 
 const en: AsanaScreenStrings = {
   defaultTitle: "Asana practice",
   closeA11y: "Close practice",
-  unavailableNote:
-    "The local Vimeo player is temporarily disabled because the current dev client does not include a native WebView module. The next step is launching asanas through Remote Play on a larger screen.",
+  subtitle: "Choose where to watch: on the phone or on the TV via Remote Play.",
   practiceNotFound: "Practice not found.",
   loadFailed: "Could not load the practice.",
-  videoReadyTitle: "Video is ready for remote launch",
-  metaPracticeId: "Practice ID",
-  metaVimeoId: "Vimeo ID",
-  metaDuration: "Duration",
-  metaChakras: "Chakras",
-  metaRecordedAt: "Recorded at",
-  metaLaunchSource: "Launch source",
-  valueUnknown: "pending",
-  valueNotSelected: "not selected",
-  formatDurationMinutes: (minutes) => `${minutes} min`,
+  modePhone: "Phone",
+  modeTv: "TV",
+  phoneHint: "The video opens in the built-in Vimeo player right on this screen.",
+  phoneVideoMissing: "This practice has no Vimeo ID yet — playback is unavailable.",
+  tvNotConnectedHint:
+    "Open zamkovoi.yoga/tv on your TV or computer and enter the pairing code shown there.",
+  tvConnectedHint: "TV is connected. Press “Launch on TV” and the video will start on the big screen.",
+  tvConnectedMeta: (pairingCode) => `TV connected · code ${pairingCode}`,
+  tvStatus: (value) => `Status: ${value}`,
+  connectTvButton: "Connect TV",
+  launchOnTvButton: "Launch on TV",
+  launchingButton: "Launching...",
+  openRemoteButton: "Open remote",
+  videoReadyTitle: "Video is ready to launch on TV",
   completeButton: "Complete practice",
   completingButton: "Saving...",
-  completedButton: "Practice saved",
-  backToCatalogButton: "Back to catalog",
 };
 
 export function getAsanaScreenStrings(locale: AsanaScreenLocale = "ru"): AsanaScreenStrings {

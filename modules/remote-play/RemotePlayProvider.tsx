@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react";
 
 import { useAuth } from "@/modules/auth";
+import { useAppLocale } from "@/modules/i18n";
 import { getSupabase } from "@/services/supabase";
 import {
   getActiveRemotePlaySession,
@@ -20,7 +21,7 @@ interface RemotePlayContextValue {
   error: string | null;
   refreshSession: () => Promise<void>;
   linkDevice: (pairingCode: string) => Promise<TvSessionRow>;
-  playVimeo: (vimeoId: string) => Promise<TvSessionRow>;
+  playVimeo: (vimeoId: string, audiotrack?: string) => Promise<TvSessionRow>;
   pause: () => Promise<TvSessionRow>;
   resume: () => Promise<TvSessionRow>;
   stop: () => Promise<TvSessionRow>;
@@ -35,6 +36,7 @@ function notConnected(): RemotePlayError {
 
 export function RemotePlayProvider({ children }: { children: ReactNode }) {
   const { authUser } = useAuth();
+  const { locale } = useAppLocale();
   const [session, setSession] = useState<TvSessionRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -106,7 +108,7 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
       setBusy(true);
       setError(null);
       try {
-        const linked = await linkRemoteDevice(pairingCode, userId);
+        const linked = await linkRemoteDevice(pairingCode, userId, locale);
         applySession(linked);
         return linked;
       } catch (unknownError) {
@@ -115,16 +117,16 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
         setBusy(false);
       }
     },
-    [applySession, capture, userId],
+    [applySession, capture, locale, userId],
   );
 
   const playVimeo = useCallback(
-    async (vimeoId: string) => {
+    async (vimeoId: string, audiotrack?: string) => {
       if (!session?.id) throw notConnected();
       setBusy(true);
       setError(null);
       try {
-        const updated = await playVimeoOnRemote(session.id, vimeoId);
+        const updated = await playVimeoOnRemote(session.id, vimeoId, audiotrack, locale);
         applySession(updated);
         return updated;
       } catch (unknownError) {
@@ -133,7 +135,7 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
         setBusy(false);
       }
     },
-    [applySession, capture, session?.id],
+    [applySession, capture, locale, session?.id],
   );
 
   const pause = useCallback(async () => {
