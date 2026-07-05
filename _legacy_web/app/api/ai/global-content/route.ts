@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
 import { resolveContentLocale, SOURCE_LOCALE, type AppContentLocale, type TargetLocale } from "../../_utils/contentLocales";
-import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel, globalContentNeedsRefresh } from "../../_utils/ensureGlobalDailyContent";
+import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel, globalContentNeedsRefresh, writeStructuralGlobalRow } from "../../_utils/ensureGlobalDailyContent";
 import { localizeGlobalContentPayloadSync } from "../../_utils/globalContentLocale";
 import {
   pretranslateGlobalTexts,
@@ -37,6 +37,35 @@ function hasPremiumAccess(user: UserAccess, now = new Date()): boolean {
     return new Date(user.trial_expires_at).getTime() > now.getTime();
   }
   return false;
+}
+
+function hasText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * Строку можно ОТДАТЬ клиенту (структурный прогноз + минимальные тексты есть),
+ * даже если она устарела по модели/структуре — свежесть догонит фоновый refresh.
+ */
+function isUsableGlobalRow(row: Record<string, unknown> | null | undefined): row is Record<string, unknown> {
+  return Boolean(row && hasText(row.slogan) && hasText(row.short_text) && hasText(row.long_explanation));
+}
+
+/**
+ * Троттлинг фоновой регенерации, чтобы всплеск free-запросов не запускал десятки
+ * параллельных LLM-вызовов на одну и ту же дату. Best-effort в рамках инстанса.
+ */
+const backgroundRefreshAttempts = new Map<string, number>();
+const BACKGROUND_REFRESH_MIN_INTERVAL_MS = 60_000;
+
+function triggerBackgroundGlobalRefresh(db: SupabaseClient, localDate: string): void {
+  const now = Date.now();
+  const last = backgroundRefreshAttempts.get(localDate) ?? 0;
+  if (now - last < BACKGROUND_REFRESH_MIN_INTERVAL_MS) return;
+  backgroundRefreshAttempts.set(localDate, now);
+  void ensureGlobalDailyContentRow(db, localDate).catch((refreshError) => {
+    console.error("[global-content] background refresh failed", localDate, refreshError);
+  });
 }
 
 function payloadFromContent(content: Record<string, unknown>, user: UserAccess, isFallback: boolean) {
@@ -167,29 +196,33 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (error) throw error;
 
-    if (content) {
-      if (globalContentNeedsRefresh(content as Record<string, unknown>, expectedModel)) {
-        await ensureGlobalDailyContentRow(db, localDate);
-        const { data: refreshed, error: refreshedError } = await db
-          .from("global_daily_content")
-          .select("*")
-          .eq("forecast_date_utc", localDate)
-          .maybeSingle();
-        if (refreshedError) throw refreshedError;
-        if (refreshed) {
-          return respondWithLocalizedContent(
-            db,
-            refreshed as Record<string, unknown>,
-            userAccess,
-            false,
-            responseLocale,
-            devResetExtra,
-          );
-        }
+    // 1) Есть пригодная строка на сегодня → отдаём немедленно. Если она устарела
+    //    (сменилась модель / структура текста), догоняем свежесть фоново, НЕ блокируя
+    //    и НЕ роняя ответ, если LLM сейчас недоступна.
+    if (isUsableGlobalRow(content as Record<string, unknown> | null)) {
+      const row = content as Record<string, unknown>;
+      if (globalContentNeedsRefresh(row, expectedModel)) {
+        triggerBackgroundGlobalRefresh(db, localDate);
       }
+      return respondWithLocalizedContent(db, row, userAccess, false, responseLocale, devResetExtra);
+    }
+
+    // 2) Строки на сегодня нет (или она непригодна) → БЫСТРО пишем детерминированную
+    //    structural-строку (без LLM, ~1–2s) и сразу отдаём её. Настоящие LLM-тексты
+    //    догоняет фоновый refresh — клиент не ждёт DeepSeek/Gemini и не попадает в
+    //    25s клиентский таймаут на холодном free-заходе.
+    let structuralRow: Record<string, unknown> | null = null;
+    try {
+      structuralRow = await writeStructuralGlobalRow(db, localDate);
+    } catch (synthError) {
+      console.error("[global-content] structural row write failed", synthError);
+    }
+
+    if (structuralRow) {
+      triggerBackgroundGlobalRefresh(db, localDate);
       return respondWithLocalizedContent(
         db,
-        content as Record<string, unknown>,
+        structuralRow,
         userAccess,
         false,
         responseLocale,
@@ -197,6 +230,8 @@ export async function POST(req: Request) {
       );
     }
 
+    // 3) Последний рубеж: отдать самую свежую доступную строку из прошлого,
+    //    чтобы экран всё равно открылся (пометив её как fallback).
     const { data: fallback, error: fallbackError } = await db
       .from("global_daily_content")
       .select("*")
@@ -204,40 +239,19 @@ export async function POST(req: Request) {
       .limit(1)
       .maybeSingle();
     if (fallbackError) throw fallbackError;
-    if (!fallback) {
-      try {
-        await ensureGlobalDailyContentRow(db, localDate);
-      } catch (synthError) {
-        console.error("[global-content] on-demand synthesis failed", synthError);
-        return json({ error: "No global content available", ...devResetExtra }, { status: 503 });
-      }
-      const { data: created, error: createdError } = await db
-        .from("global_daily_content")
-        .select("*")
-        .eq("forecast_date_utc", localDate)
-        .maybeSingle();
-      if (createdError) throw createdError;
-      if (created) {
-        return respondWithLocalizedContent(
-          db,
-          created as Record<string, unknown>,
-          userAccess,
-          false,
-          responseLocale,
-          devResetExtra,
-        );
-      }
-      return json({ error: "No global content available", ...devResetExtra }, { status: 503 });
+    if (isUsableGlobalRow(fallback as Record<string, unknown> | null)) {
+      triggerBackgroundGlobalRefresh(db, localDate);
+      return respondWithLocalizedContent(
+        db,
+        fallback as Record<string, unknown>,
+        userAccess,
+        true,
+        responseLocale,
+        devResetExtra,
+      );
     }
 
-    return respondWithLocalizedContent(
-      db,
-      fallback as Record<string, unknown>,
-      userAccess,
-      true,
-      responseLocale,
-      devResetExtra,
-    );
+    return json({ error: "No global content available", ...devResetExtra }, { status: 503 });
   } catch (error) {
     return errorResponse(error);
   }

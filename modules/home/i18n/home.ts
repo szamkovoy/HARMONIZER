@@ -307,7 +307,7 @@ const ru: HomeStrings = {
     title: "Рекомендации на день",
     discussButton: "Что делать?",
     readMoreButton: "Подробнее",
-    loading: "Обновляем рекомендацию на выбранном языке…",
+    loading: "Загружаю текст рекомендации на этот день",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
@@ -488,7 +488,7 @@ const en: HomeStrings = {
     title: "Daily recommendation",
     discussButton: "What to do?",
     readMoreButton: "More details",
-    loading: "Updating the recommendation in your language…",
+    loading: "Loading today’s recommendation…",
     meta: (planet, chakraName) => `${planet} · ${chakraName}`,
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];

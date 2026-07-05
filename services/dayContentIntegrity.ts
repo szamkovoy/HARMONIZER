@@ -22,20 +22,46 @@ export function isBaseForecastValid(forecast: DailyForecast | null | undefined):
   );
 }
 
+/**
+ * Минимум, достаточный чтобы ОТРИСОВАТЬ free-экран: структурный прогноз + слоган +
+ * короткий текст + math_level (все детерминированные, кроме текстов). Развёрнутый
+ * `long_explanation` НЕ обязателен: если LLM недоступна и сервер отдал заглушку без
+ * §-структуры (её локализатор обнуляет), карточка покажет детерминированный detail
+ * fallback вместо жёсткой ошибки «Не удалось загрузить прогноз».
+ */
+export function isFreeDayContentRenderable(
+  forecast: DailyForecast | null | undefined,
+): forecast is DailyForecast {
+  if (!isBaseForecastValid(forecast)) return false;
+  if (!hasText(forecast.slogan)) return false;
+  if (!hasText(forecast.recommendationShortText)) return false;
+  if (!hasMathLevel(forecast.mathLevel)) return false;
+  return true;
+}
+
 export function isDayContentReadyForHome(
+  forecast: DailyForecast | null | undefined,
+  accessMode: AccessMode,
+): forecast is DailyForecast {
+  if (!isBaseForecastValid(forecast)) return false;
+  if (accessMode === "free") return isFreeDayContentRenderable(forecast);
+  return true;
+}
+
+/**
+ * Кэшировать (persist) можно только ПОЛНОЦЕННЫЙ контент. Для free это значит
+ * complete (включая `long_explanation`), чтобы детерминированная заглушка (LLM
+ * недоступна) НЕ оседала в кэше на весь день, а самозалечивалась при следующем
+ * fetch, когда сервер догенерирует настоящий текст. Для paid достаточно базового
+ * прогноза — вторичные тексты догружаются отдельным слоем.
+ */
+export function isDayContentCacheable(
   forecast: DailyForecast | null | undefined,
   accessMode: AccessMode,
 ): forecast is DailyForecast {
   if (!isBaseForecastValid(forecast)) return false;
   if (accessMode === "free") return isDayContentComplete(forecast, accessMode);
   return true;
-}
-
-export function isDayContentCacheable(
-  forecast: DailyForecast | null | undefined,
-  accessMode: AccessMode,
-): forecast is DailyForecast {
-  return isDayContentReadyForHome(forecast, accessMode);
 }
 
 export function isDayContentComplete(

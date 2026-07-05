@@ -28,6 +28,18 @@ export type MorningRecommendationResponse = MonologueResponse<{
   math_level: MathLevelResponse;
 }>;
 
+/**
+ * Верхняя граница ожидания монолога на клиенте. Серверная retry/fallback-цепочка
+ * `generateGeminiJson` может длиться до ~90s в худшем случае: primary-модель из
+ * `AI_MODEL_STANDARD/PREMIUM` (DeepSeek — `DEFAULT_DEEPSEEK_TIMEOUT_MS` 60s, либо
+ * Gemini 30s) → при retryable-сбое `AI_MODEL_FALLBACK` (ещё до 30–60s) — модель
+ * берётся из `.env.local`, хардкода нет. Плюс DB-обвязка. 105s даёт запас поверх
+ * 90s серверной цепочки + DB; по истечении бросаем ошибку, которую фоновый слой
+ * Home ловит и заменяет на детерминированный fallback-текст. Сервер при этом может
+ * ещё дозаписать cache — следующий откроет уже настоящий текст.
+ */
+const MONOLOGUE_TIMEOUT_MS = 105_000;
+
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
@@ -60,6 +72,9 @@ export async function callMonologue<T extends Record<string, unknown> = Record<s
     async () => {
       const token = await getAccessToken();
       const locale = responseLocale ?? getResponseLocale();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MONOLOGUE_TIMEOUT_MS);
+      signal?.addEventListener("abort", () => controller.abort(), { once: true });
       let res: Response;
       try {
         res = await fetch(getAiMonologueUrl(), {
@@ -73,10 +88,17 @@ export async function callMonologue<T extends Record<string, unknown> = Record<s
             responseLocale: locale,
             variables,
           }),
-          signal,
+          signal: controller.signal,
         });
       } catch (error) {
+        if (controller.signal.aborted && !signal?.aborted) {
+          throw new Error(
+            `AI monologue request timed out after ${Math.round(MONOLOGUE_TIMEOUT_MS / 1000)}s.`,
+          );
+        }
         throw wrapConnectivityFailure(error, "ai-monologue");
+      } finally {
+        clearTimeout(timeoutId);
       }
       if (!res.ok) throw await readError(res);
       return (await res.json()) as MonologueResponse<T>;

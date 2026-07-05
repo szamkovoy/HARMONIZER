@@ -39,29 +39,78 @@ export async function getExpectedGlobalDailyContentModel(db: SupabaseClient): Pr
   return getModelByHint(prompt.model_hint);
 }
 
+/** Детерминированные тексты-заглушки, когда LLM недоступна. */
+const GLOBAL_FALLBACK_SLOGAN = "День приглашает настроиться и двигаться в своём темпе.";
+const GLOBAL_FALLBACK_SHORT_TEXT =
+  "Сегодня полезно удерживать внимание на теле и дыхании, не форсируя решения.";
+const GLOBAL_FALLBACK_LONG_EXPLANATION =
+  "Транзитная картина дня собрана из положений семи классических планет; развёрнутый текст временно короткий — обновите экран позже.";
+
+type GlobalLlmTexts = {
+  slogan: string;
+  short_text: string;
+  long_explanation: string;
+  modelUsed: string | null;
+  isFallback: boolean;
+};
+
 /**
- * Если в `global_daily_content` нет строки на дату — считаем эфемериды, зовём Gemini,
- * upsert в БД (идемпотентно при гонках).
+ * Пытается сгенерировать тексты через Gemini. При сбое LLM (таймаут, перегрузка,
+ * недоступность модели) НЕ бросает, а возвращает детерминированные заглушки с
+ * `llm_model = null`, чтобы строка всё равно записалась и free-экран получил
+ * структурный прогноз. Пустой `llm_model` держит `globalContentNeedsRefresh`
+ * истинным — тексты сами до-генерируются, когда LLM восстановится.
+ */
+async function generateGlobalTexts(
+  db: SupabaseClient,
+  forecast: ReturnType<typeof computeGlobalDailyForecast>,
+): Promise<GlobalLlmTexts> {
+  const prompt = await getActivePrompt(db, GLOBAL_PROMPT_KEY);
+  const maxOut = Math.max(prompt.max_output_tokens ?? 2200, GLOBAL_LLM_MIN_OUTPUT_TOKENS);
+  try {
+    const result = await generateGeminiJson<{
+      slogan?: string;
+      short_text?: string;
+      long_explanation?: string;
+    }>({
+      prompt: renderPrompt(prompt.template, {
+        top_petals_json: JSON.stringify(forecast.top_petals, null, 2),
+        aspects_json: JSON.stringify(forecast.aspects, null, 2),
+      }),
+      model: getModelByHint(prompt.model_hint),
+      temperature: prompt.temperature ?? 0.85,
+      maxOutputTokens: maxOut,
+    });
+    return {
+      slogan: String(result.json.slogan ?? "").trim() || GLOBAL_FALLBACK_SLOGAN,
+      short_text: String(result.json.short_text ?? "").trim() || GLOBAL_FALLBACK_SHORT_TEXT,
+      long_explanation: String(result.json.long_explanation ?? "").trim() || GLOBAL_FALLBACK_LONG_EXPLANATION,
+      modelUsed: result.modelUsed,
+      isFallback: false,
+    };
+  } catch (llmError) {
+    console.error("[ensureGlobalDailyContentRow] LLM generation failed, writing structural fallback row", llmError);
+    return {
+      slogan: GLOBAL_FALLBACK_SLOGAN,
+      short_text: GLOBAL_FALLBACK_SHORT_TEXT,
+      long_explanation: GLOBAL_FALLBACK_LONG_EXPLANATION,
+      modelUsed: null,
+      isFallback: true,
+    };
+  }
+}
+
+/**
+ * Если в `global_daily_content` нет строки на дату — считаем эфемериды (детерминированно),
+ * пробуем сгенерировать тексты через LLM и upsert в БД (идемпотентно при гонках).
+ * Строка записывается ВСЕГДА, даже если LLM недоступна: структурный прогноз (планеты,
+ * лепестки, math_level) не зависит от LLM, а тексты в этом случае — детерминированные
+ * заглушки, которые самозалечиваются при следующем успешном прогоне.
  */
 export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDateUtc: string): Promise<void> {
   const forecast = computeGlobalDailyForecast(forecastDateUtc);
   const mathLevel = buildGlobalMathLevel(forecast);
-  const prompt = await getActivePrompt(db, GLOBAL_PROMPT_KEY);
-
-  const maxOut = Math.max(prompt.max_output_tokens ?? 2200, GLOBAL_LLM_MIN_OUTPUT_TOKENS);
-  const result = await generateGeminiJson<{
-    slogan?: string;
-    short_text?: string;
-    long_explanation?: string;
-  }>({
-    prompt: renderPrompt(prompt.template, {
-      top_petals_json: JSON.stringify(forecast.top_petals, null, 2),
-      aspects_json: JSON.stringify(forecast.aspects, null, 2),
-    }),
-    model: getModelByHint(prompt.model_hint),
-    temperature: prompt.temperature ?? 0.85,
-    maxOutputTokens: maxOut,
-  });
+  const texts = await generateGlobalTexts(db, forecast);
 
   const row = normalizeRecommendationFields({
     forecast_date_utc: forecastDateUtc,
@@ -70,22 +119,21 @@ export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDa
     primary_chakra_number: forecast.primary_chakra_number,
     primary_tone: forecast.primary_tone,
     top_petals: forecast.top_petals,
-    slogan: String(result.json.slogan ?? "").trim() || "День приглашает настроиться и двигаться в своём темпе.",
-    short_text:
-      String(result.json.short_text ?? "").trim() ||
-      "Сегодня полезно удерживать внимание на теле и дыхании, не форсируя решения.",
-    long_explanation:
-      String(result.json.long_explanation ?? "").trim() ||
-      "Транзитная картина дня собрана из положений семи классических планет; развёрнутый текст временно короткий — обновите экран позже.",
+    slogan: texts.slogan,
+    short_text: texts.short_text,
+    long_explanation: texts.long_explanation,
     math_level: mathLevel,
     generated_at: new Date().toISOString(),
     llm_tokens_used: null as number | null,
-    llm_model: result.modelUsed,
+    llm_model: texts.modelUsed,
     expires_at_utc: calcExpiresAt(forecastDateUtc),
   }, "ru");
 
   const { error } = await db.from("global_daily_content").upsert(row, { onConflict: "forecast_date_utc" });
   if (error) throw error;
+
+  // Переводы заглушек бессмысленны (и снова упрутся в недоступную LLM) — пропускаем.
+  if (texts.isFallback) return;
 
   try {
     await ensureGlobalTextI18nPrecomputed(db, forecastDateUtc, {
@@ -96,4 +144,40 @@ export async function ensureGlobalDailyContentRow(db: SupabaseClient, forecastDa
   } catch (pretranslateError) {
     console.error("[ensureGlobalDailyContentRow] text_i18n pretranslate failed", pretranslateError);
   }
+}
+
+/**
+ * БЫСТРЫЙ детерминированный путь: считает эфемериды + math_level и сразу upsert строку
+ * с fallback-текстами и `llm_model = null` (без LLM-вызова). Возвращает её, чтобы роут
+ * мог ответить клиенту за ~1–2s — далеко в пределах `GLOBAL_CONTENT_TIMEOUT_MS = 25s`,
+ * даже когда DeepSeek/Gemini холодный или недоступен. Настоящие LLM-тексты догоняет
+ * фоновый `ensureGlobalDailyContentRow` (через `globalContentNeedsRefresh` → true,
+ * потому что `llm_model = null`). Идемпотентна при гонках.
+ */
+export async function writeStructuralGlobalRow(
+  db: SupabaseClient,
+  forecastDateUtc: string,
+): Promise<Record<string, unknown>> {
+  const forecast = computeGlobalDailyForecast(forecastDateUtc);
+  const mathLevel = buildGlobalMathLevel(forecast);
+  const row = normalizeRecommendationFields({
+    forecast_date_utc: forecastDateUtc,
+    planet_positions: forecast.planet_positions,
+    primary_planet: forecast.primary_planet,
+    primary_chakra_number: forecast.primary_chakra_number,
+    primary_tone: forecast.primary_tone,
+    top_petals: forecast.top_petals,
+    slogan: GLOBAL_FALLBACK_SLOGAN,
+    short_text: GLOBAL_FALLBACK_SHORT_TEXT,
+    long_explanation: GLOBAL_FALLBACK_LONG_EXPLANATION,
+    math_level: mathLevel,
+    generated_at: new Date().toISOString(),
+    llm_tokens_used: null as number | null,
+    llm_model: null,
+    expires_at_utc: calcExpiresAt(forecastDateUtc),
+  }, "ru");
+
+  const { error } = await db.from("global_daily_content").upsert(row, { onConflict: "forecast_date_utc" });
+  if (error) throw error;
+  return row;
 }

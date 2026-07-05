@@ -9,7 +9,7 @@ import { callMonologue, type MorningRecommendationResponse } from "@/services/ai
 import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communicatorConfig";
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
 import { clearDayContentCache, loadDayContentCache, loadDayContentCacheRelaxed, peekDayContentCache, peekDayContentCacheRelaxed, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
-import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome } from "@/services/dayContentIntegrity";
+import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome, isFreeDayContentRenderable } from "@/services/dayContentIntegrity";
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
@@ -519,7 +519,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             signal: controller.signal,
             responseLocale: getResponseLocale(),
           });
-          if (!isDayContentComplete(result.forecast, "free")) {
+          if (!isFreeDayContentRenderable(result.forecast)) {
             throw new Error("Global day content is incomplete.");
           }
           latestCacheContextRef.current = userId

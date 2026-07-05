@@ -111,7 +111,7 @@
   },
   "recommendation": {
     "title": "Recommandations du jour",
-    "loading": "Mise à jour de la recommandation dans la langue choisie…",
+    "loading": "Chargement de la recommandation du jour…",
     "discussButton": "Que faire ?",
     "readMoreButton": "En savoir plus"
   },

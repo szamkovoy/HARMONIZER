@@ -111,7 +111,7 @@
   },
   "recommendation": {
     "title": "Dagadvies",
-    "loading": "Advies wordt bijgewerkt in de gekozen taal...",
+    "loading": "Aanbeveling voor vandaag wordt geladen…",
     "discussButton": "Wat te doen?",
     "readMoreButton": "Lees meer"
   },
