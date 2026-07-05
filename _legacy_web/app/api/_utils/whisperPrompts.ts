@@ -26,12 +26,21 @@ const AUTO_DETECT_DOMAIN_PROMPT =
   "Context: a conversation about yoga, psychology, chakras, meditation, pranayama, planets, natal charts and spiritual practices. Terms may appear in Russian, English or other European languages: Muladhara, Svadhishthana, Manipura, Anahata, Vishuddha, Ajna, Sahasrara, chakra, meditation, breathing, asana, planet of the day, transit, aspect, harmony, dissonance.";
 
 export function getDomainPrompt(language?: string): string {
-  if (!language) return AUTO_DETECT_DOMAIN_PROMPT;
-  return WHISPER_DOMAIN_PROMPTS[language] ?? AUTO_DETECT_DOMAIN_PROMPT;
+  // Отсутствие языка → русский (i18n: русский — источник истины и конечный fallback).
+  if (!language) return WHISPER_DOMAIN_PROMPTS.ru;
+  if (WHISPER_DOMAIN_PROMPTS[language]) return WHISPER_DOMAIN_PROMPTS[language]!;
+  // Поддерживаемая европейская локаль без dedicated-промпта (de/fr/it/es/pt/nl) →
+  // мультиязычный авто-детект-намёк (термины на нескольких языках).
+  if (SUPPORTED_WHISPER_LOCALES.has(language)) return AUTO_DETECT_DOMAIN_PROMPT;
+  // Неизвестная локаль → русский.
+  return WHISPER_DOMAIN_PROMPTS.ru;
 }
 
-export function normalizeWhisperLanguage(language: string | undefined): string | undefined {
+const SUPPORTED_WHISPER_LOCALES = new Set(["de", "fr", "it", "es", "pt", "nl"]);
+
+export function normalizeWhisperLanguage(language: string | undefined): string {
   const normalized = language?.trim().toLowerCase();
-  if (!normalized) return undefined;
-  return LANGUAGE_ALIASES[normalized] ?? LANGUAGE_ALIASES[normalized.slice(0, 2)];
+  // Отсутствие языка → русский (i18n: конечный fallback — ru).
+  if (!normalized) return "ru";
+  return LANGUAGE_ALIASES[normalized] ?? LANGUAGE_ALIASES[normalized.slice(0, 2)] ?? "ru";
 }

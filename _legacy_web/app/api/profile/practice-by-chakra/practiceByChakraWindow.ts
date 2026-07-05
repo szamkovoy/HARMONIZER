@@ -1,6 +1,10 @@
 import { DateTime } from "luxon";
 
-export function practiceByChakraWindow(days: number, timezone: string, now = DateTime.utc()) {
+export function practiceByChakraWindow(
+  days: number,
+  timezone: string,
+  now: DateTime<boolean> = DateTime.utc(),
+) {
   const zone = timezone?.trim() || "UTC";
   const zonedNow = now.setZone(zone);
   const endLocalExclusive = zonedNow.startOf("day").plus({ days: 1 });

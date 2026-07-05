@@ -28,6 +28,20 @@ describe("getAuthorVoice", () => {
     expect(voice.preferred_lexicon.openers_neutral).toContain("Слушай");
   });
 
+  it("reuses EN cadence for supported European locales without a native profile", () => {
+    // de/fr/it/es/pt/nl: авторский голос только RU/EN — европейские локали переиспользуют EN-каденс.
+    for (const locale of ["de", "fr", "it", "es", "pt", "nl"]) {
+      const voice = getAuthorVoice(locale);
+      expect(voice.archetype).toBe(getAuthorVoice("en").archetype);
+      expect(voice.preferred_lexicon.openers_neutral).toContain("Listen");
+    }
+  });
+
+  it("falls back to Russian for missing locale", () => {
+    expect(getAuthorVoice(undefined).preferred_lexicon.openers_neutral).toContain("Слушай");
+    expect(getAuthorVoice("").preferred_lexicon.openers_neutral).toContain("Слушай");
+  });
+
   it("contains all few-shot examples", () => {
     const voice = getAuthorVoice("ru");
 

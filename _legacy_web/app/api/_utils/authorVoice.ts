@@ -37,12 +37,23 @@ type AuthorVoiceJson = {
 
 const data = authorVoiceData as AuthorVoiceJson;
 
+/** Локали, под которые есть профиль авторского голоса (ru) или переиспользуется EN-каденс. */
+const VOICE_SUPPORTED_LOCALES = new Set(["ru", "en", "de", "fr", "it", "es", "pt", "nl"]);
+
 function normalizeLanguage(language: string | null | undefined): SupportedLanguage {
   const normalized = language?.trim().toLowerCase() ?? "";
-  if (normalized.startsWith("en")) return "en";
   if (normalized.startsWith("ru")) return "ru";
-  // Author voice JSON is RU/EN only; European locales reuse EN cadence in prompts.
-  return "en";
+  // EN-каденс переиспользуется для самого EN и поддерживаемых европейских локалей
+  // без нативного профиля (de/fr/it/es/pt/nl).
+  if (
+    normalized.startsWith("en") ||
+    VOICE_SUPPORTED_LOCALES.has(normalized) ||
+    VOICE_SUPPORTED_LOCALES.has(normalized.slice(0, 2))
+  ) {
+    return "en";
+  }
+  // Неизвестная/отсутствующая локаль → русский (i18n: русский — источник истины и конечный fallback).
+  return "ru";
 }
 
 export function getAuthorVoice(language: string | null | undefined): AuthorVoiceProfile {

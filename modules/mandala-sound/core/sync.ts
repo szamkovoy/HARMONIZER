@@ -104,14 +104,33 @@ export function computePulseSync({
   };
 }
 
-export function detectGongTransition(
-  previousBand: MandalaSoundBand | null,
-  currentBand: MandalaSoundBand,
+/**
+ * Резонанс Шумана 7.83 Гц — глубокая граница альфа→тета; символический
+ * якорь для первой точки гонга. Чуть ниже физиологической границы 8 Гц,
+ * поэтому по сути маркирует вход в тета-диапазон.
+ */
+export const SCHUMANN_RESONANCE_HZ = 7.83;
+const THETA_DELTA_BOUNDARY_HZ = 4;
+
+/**
+ * Гонги маркируют только две намеренные точки снижения частоты:
+ *   1. Пересечение 7.83 Гц (резонанс Шумана, альфа→тета) → средний гонг.
+ *   2. Пересечение 4 Гц (тета→дельта) → большой низкочастотный гонг.
+ * Первый кадр сессии (previousHz == null) гонгом не отмечается.
+ * Случайные «события» удалены — только эти два намеренных маркера.
+ */
+export function detectGongCrossing(
+  previousHz: number | null,
+  currentHz: number,
 ): AudioBandTrigger["id"] | null {
-  if (previousBand === currentBand || currentBand === "beta") {
-    return null;
+  if (previousHz == null) return null;
+  if (previousHz >= SCHUMANN_RESONANCE_HZ && currentHz < SCHUMANN_RESONANCE_HZ) {
+    return "theta";
   }
-  return currentBand;
+  if (previousHz >= THETA_DELTA_BOUNDARY_HZ && currentHz < THETA_DELTA_BOUNDARY_HZ) {
+    return "delta";
+  }
+  return null;
 }
 
 export function buildMandalaSoundFrame({
@@ -122,7 +141,7 @@ export function buildMandalaSoundFrame({
   cycleStartMs,
   lastBeat,
   lastRrMs,
-  previousBand,
+  previousTargetHz,
   hueMain = 220,
   zoomVelocity = 0.35,
 }: {
@@ -133,7 +152,7 @@ export function buildMandalaSoundFrame({
   cycleStartMs?: number | null;
   lastBeat?: BeatEvent | null;
   lastRrMs?: number | null;
-  previousBand: MandalaSoundBand | null;
+  previousTargetHz?: number | null;
   hueMain?: number;
   zoomVelocity?: number;
 }): MandalaSoundSyncFrame {
@@ -146,6 +165,12 @@ export function buildMandalaSoundFrame({
   const pulseWave = Math.sin(pulse.phase * Math.PI * 2);
   const breathBrightness = clamp01(0.24 + breath.phase * 0.76);
   const pulseDepth = pulse.source === "detected" ? 0.028 : pulse.source === "extrapolated" ? 0.014 : 0.008;
+
+  // Глубина мерцания плавно затухает к концу сессии (адаптация зрительной
+  // системы к темноте, мягкое погружение в глубокий покой). Начало ~1.0,
+  // финиш ~0.6 — мерцание остаётся видимым, но становится приглушённым.
+  const progress = clamp01(elapsedMs / Math.max(1, durationMs));
+  const flickerAmplitudeDecay = 1 - 0.4 * progress;
 
   return {
     nowMs,
@@ -160,7 +185,7 @@ export function buildMandalaSoundFrame({
     textureGain: clamp01(0.025 + breathBrightness * 0.105),
     binauralGain: clamp01(0.035 + (1 - breath.phase) * 0.018),
     flickerHz: targetHz,
-    flickerIntensity: clamp01(0.14 + breath.phase * 0.12 + pulse.confidence * 0.06),
-    gongTrigger: detectGongTransition(previousBand, band),
+    flickerIntensity: clamp01((0.14 + breath.phase * 0.12 + pulse.confidence * 0.06) * flickerAmplitudeDecay),
+    gongTrigger: detectGongCrossing(previousTargetHz ?? null, targetHz),
   };
 }

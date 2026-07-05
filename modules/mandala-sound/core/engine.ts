@@ -1,17 +1,18 @@
 import { Audio } from "expo-av";
 
 import { MANDALA_SOUND_ASSETS } from "@/modules/mandala-sound/core/assets";
+import { binauralCrossfadeGains } from "@/modules/mandala-sound/core/binaural";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type {
   MandalaSoundAssetPreset,
-  MandalaSoundBand,
   MandalaSoundEngineControls,
   MandalaSoundSyncFrame,
 } from "@/modules/mandala-sound/core/types";
 
 type SoundHandle = InstanceType<typeof Audio.Sound>;
 
-const EVENT_COOLDOWN_MS = 42_000;
+type BinauralHandle = { sound: SoundHandle; beatHz: number };
+
 const MIN_VOLUME_DELTA = 0.008;
 
 function chakraIndex(chakra: number): number {
@@ -37,12 +38,11 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
   private drone: SoundHandle | null = null;
   private textureA: SoundHandle | null = null;
   private textureB: SoundHandle | null = null;
-  private binaural: Partial<Record<MandalaSoundBand, SoundHandle>> = {};
+  private binaural: BinauralHandle[] = [];
   private lastDroneVolume = 0;
   private lastTextureAVolume = 0;
   private lastTextureBVolume = 0;
-  private lastBinauralVolumes: Partial<Record<MandalaSoundBand, number>> = {};
-  private lastEventAtMs = 0;
+  private lastBinauralVolumes: number[] = [];
   private started = false;
   private updateCount = 0;
   private updateInFlight = false;
@@ -97,22 +97,20 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
       }
 
       await Promise.all(
-        (Object.entries(this.assets.binaural) as [MandalaSoundBand, number][]).map(
-          async ([band, asset]) => {
-            const { sound } = await Audio.Sound.createAsync(asset, {
-              isLooping: true,
-              volume: 0,
-              shouldPlay: true,
-            });
-            this.binaural[band] = sound;
-            this.lastBinauralVolumes[band] = 0;
-          },
-        ),
+        this.assets.binaural.map(async (loop) => {
+          const { sound } = await Audio.Sound.createAsync(loop.asset, {
+            isLooping: true,
+            volume: 0,
+            shouldPlay: true,
+          });
+          this.binaural.push({ sound, beatHz: loop.beatHz });
+        }),
       );
+      this.lastBinauralVolumes = new Array(this.binaural.length).fill(0);
       logRuntimeEvent("mandala_sound:start_ready", {
         id: this.diagnosticId,
         durationMs: Date.now() - startedAt,
-        binauralLoops: Object.keys(this.binaural).length,
+        binauralLoops: this.binaural.length,
         hasDrone: Boolean(this.drone),
         hasTextureA: Boolean(this.textureA),
         hasTextureB: Boolean(this.textureB),
@@ -149,32 +147,28 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
           updateCount: this.updateCount,
           skippedUpdates: this.skippedUpdates,
           band: frame.band,
+          targetHz: Math.round(frame.targetHz * 1000) / 1000,
           droneGain: Math.round(frame.droneGain * 1000) / 1000,
           binauralGain: Math.round(frame.binauralGain * 1000) / 1000,
         }, "debug");
       }
 
+      const binauralGains = binauralCrossfadeGains(
+        frame.targetHz,
+        this.binaural.map((entry) => entry.beatHz),
+      );
+
       await Promise.all([
         this.setLoopVolume("drone", frame.droneGain),
         this.setLoopVolume("textureA", frame.textureGain * frame.textureBrightness),
         this.setLoopVolume("textureB", frame.textureGain * (1 - frame.textureBrightness) * 0.74),
-        ...this.setBinauralVolumes(frame.band, frame.binauralGain),
+        ...this.binaural.map((entry, index) =>
+          this.setBinauralVolume(index, binauralGains[index]! * frame.binauralGain),
+        ),
       ]);
 
       if (frame.gongTrigger) {
         void this.playOneShot(this.assets.gongs[frame.gongTrigger], 0.11);
-      }
-
-      if (
-        this.assets.events.length > 0 &&
-        frame.nowMs - this.lastEventAtMs > EVENT_COOLDOWN_MS &&
-        Math.random() < 0.0025
-      ) {
-        this.lastEventAtMs = frame.nowMs;
-        const event = this.assets.events[Math.floor(Math.random() * this.assets.events.length)];
-        if (event) {
-          void this.playOneShot(event, 0.075);
-        }
       }
     } finally {
       this.updateInFlight = false;
@@ -189,16 +183,16 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
       unload(this.drone),
       unload(this.textureA),
       unload(this.textureB),
-      ...Object.values(this.binaural).map((sound) => unload(sound ?? null)),
+      ...this.binaural.map((entry) => unload(entry.sound)),
     ]);
     this.drone = null;
     this.textureA = null;
     this.textureB = null;
-    this.binaural = {};
+    this.binaural = [];
     this.lastDroneVolume = 0;
     this.lastTextureAVolume = 0;
     this.lastTextureBVolume = 0;
-    this.lastBinauralVolumes = {};
+    this.lastBinauralVolumes = [];
     this.updateCount = 0;
     this.updateInFlight = false;
     this.skippedUpdates = 0;
@@ -236,22 +230,16 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     }
   }
 
-  private setBinauralVolumes(activeBand: MandalaSoundBand, gain: number): Promise<void>[] {
-    return (Object.keys(this.assets.binaural) as MandalaSoundBand[]).map((band) =>
-      this.setBinauralVolume(band, band === activeBand ? gain : 0),
-    );
-  }
-
-  private async setBinauralVolume(band: MandalaSoundBand, volume: number): Promise<void> {
-    const sound = this.binaural[band];
-    if (!sound) return;
+  private async setBinauralVolume(index: number, volume: number): Promise<void> {
+    const entry = this.binaural[index];
+    if (!entry) return;
     const safeVolume = Math.max(0, Math.min(0.075, volume));
-    const previous = this.lastBinauralVolumes[band] ?? 0;
+    const previous = this.lastBinauralVolumes[index] ?? 0;
     if (Math.abs(previous - safeVolume) < MIN_VOLUME_DELTA) return;
-    this.lastBinauralVolumes[band] = safeVolume;
+    this.lastBinauralVolumes[index] = safeVolume;
 
     try {
-      await sound.setVolumeAsync(safeVolume);
+      await entry.sound.setVolumeAsync(safeVolume);
     } catch {
       // A missed binaural volume update is non-fatal; the next tick will correct it.
     }

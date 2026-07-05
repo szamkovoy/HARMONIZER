@@ -1,77 +1,82 @@
 import type { MandalaSoundBand } from "@/modules/mandala-sound/core/types";
 
+/**
+ * Источник модели: исследование «Алгоритм светозвуковой стимуляции мозга»
+ * (сигмоидальная адаптивная модель аудиовизуального увлечения).
+ *
+ * Физиологические инварианты:
+ * - Стартовая частота 12 Гц — верхняя граница альфа-ритма; легко
+ *   захватывается корой, безопасна по фотосенситивности (потолок 13 Гц
+ *   исключает бета-диапазон 15–25 Гц, провоцирующий дискомфорт).
+ * - Конечная частота f_end(T) — кусочно-линейная функция длительности:
+ *   короткие сессии остаются в альфа, длинные доходят до дельта.
+ * - Сигмоид f(t) задаёт три фазы: Catch (плавный старт) → Glide
+ *   (основное снижение в середине) → Hold (плато у цели). Точка перегиба
+ *   t_mid = 0.45·T пролонгирует финальную фазу удержания.
+ *
+ * Эта функция — единый источник `targetHz` и для мерцания мандалы
+ * (`flickerHz`), и для binaural-банды (`band`/`binauralDeltaHz`), поэтому
+ * дыхательные и медитативные сессии получают одну и ту же прогрессию.
+ */
+export const MANDALA_SOUND_START_HZ = 12;
 export const MANDALA_SOUND_MIN_TARGET_HZ = 2;
-export const MANDALA_SOUND_MAX_TARGET_HZ = 16;
+/** Safety cap: никогда не выходим в бета (≤13 Гц). */
+export const MANDALA_SOUND_MAX_TARGET_HZ = 13;
 
-type TimelinePoint = {
-  at: number;
-  hz: number;
-};
+/** Точка перегиба сигмоиды как доля длительности (пролонгация Hold). */
+const SIGMOID_MID_FRACTION = 0.45;
+/** Коэффициент крутизны: k = SIGMOID_K_NUMERATOR / T_sec. */
+const SIGMOID_K_NUMERATOR = 7;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function smoothstep(t: number): number {
-  const x = clamp(t, 0, 1);
-  return x * x * (3 - 2 * x);
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-function timelineForDuration(durationMs: number): TimelinePoint[] {
-  const minutes = durationMs / 60_000;
-
-  if (minutes < 6) {
-    return [
-      { at: 0, hz: 14 },
-      { at: 0.45, hz: 10 },
-      { at: 1, hz: 7.5 },
-    ];
+/**
+ * Конечная (целевая) частота f_end как кусочно-линейная функция
+ * длительности практики в минутах. Соответствует таблице исследования:
+ *   1 мин → 11 Гц, 2 → 9.5, 3 → 8, 5 → 6, 8 → 4.5,
+ *   10 → 3.5, 15 → 2.75, 20 → 2.
+ */
+export function getMandalaSoundEndHz(minutes: number): number {
+  let fEnd: number;
+  if (minutes <= 1) {
+    fEnd = 11;
+  } else if (minutes <= 3) {
+    fEnd = 11 - (minutes - 1) * 1.5;
+  } else if (minutes <= 5) {
+    fEnd = 8 - (minutes - 3) * 1.0;
+  } else if (minutes <= 10) {
+    fEnd = 6 - (minutes - 5) * 0.5;
+  } else {
+    fEnd = 3.5 - (minutes - 10) * 0.15;
   }
-
-  if (minutes < 12) {
-    return [
-      { at: 0, hz: 15 },
-      { at: 0.28, hz: 10 },
-      { at: 0.78, hz: 6 },
-      { at: 1, hz: 5 },
-    ];
-  }
-
-  return [
-    { at: 0, hz: 16 },
-    { at: 0.25, hz: 10 },
-    { at: 0.68, hz: 6 },
-    { at: 0.92, hz: 2.5 },
-    { at: 1, hz: 2 },
-  ];
+  return Math.max(MANDALA_SOUND_MIN_TARGET_HZ, fEnd);
 }
 
+/**
+ * Мгновенная частота увлечения f(t) по сигмоидальной модели:
+ *   f(t) = f_end + (f_start - f_end) / (1 + exp(k · (t - t_mid)))
+ *   k = 7 / T_sec, t_mid = 0.45 · T_sec.
+ *
+ * При t=0 кривая ≈ f_start (12 Гц), при t=T → ≈ f_end. Монотонно
+ * убывает; пиковая скорость сброса — в точке t_mid.
+ */
 export function getMandalaSoundTargetHz(
   elapsedMs: number,
   durationMs: number,
 ): number {
   const safeDurationMs = Math.max(1, durationMs);
-  const progress = clamp(elapsedMs / safeDurationMs, 0, 1);
-  const points = timelineForDuration(safeDurationMs);
+  const Tsec = safeDurationMs / 1000;
+  const t = clamp(elapsedMs / 1000, 0, Tsec);
 
-  for (let i = 1; i < points.length; i += 1) {
-    const prev = points[i - 1]!;
-    const next = points[i]!;
-    if (progress <= next.at) {
-      const segmentT = (progress - prev.at) / Math.max(0.0001, next.at - prev.at);
-      return clamp(
-        lerp(prev.hz, next.hz, smoothstep(segmentT)),
-        MANDALA_SOUND_MIN_TARGET_HZ,
-        MANDALA_SOUND_MAX_TARGET_HZ,
-      );
-    }
-  }
+  const fStart = MANDALA_SOUND_START_HZ;
+  const fEnd = getMandalaSoundEndHz(safeDurationMs / 60_000);
+  const tMid = Tsec * SIGMOID_MID_FRACTION;
+  const k = SIGMOID_K_NUMERATOR / Tsec;
 
-  return points[points.length - 1]!.hz;
+  const f = fEnd + (fStart - fEnd) / (1 + Math.exp(k * (t - tMid)));
+  return clamp(f, MANDALA_SOUND_MIN_TARGET_HZ, MANDALA_SOUND_MAX_TARGET_HZ);
 }
 
 export function getMandalaSoundBand(targetHz: number): MandalaSoundBand {

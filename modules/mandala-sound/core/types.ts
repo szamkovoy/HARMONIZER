@@ -54,9 +54,15 @@ export interface MandalaSoundVisualSync {
 export interface MandalaSoundAssetPreset {
   drones: readonly number[];
   textures: readonly number[];
-  binaural: Record<MandalaSoundBand, number>;
+  /** Binaural loops отсортированы по убыванию beatHz; движок кроссфейдит соседние по targetHz. */
+  binaural: readonly MandalaSoundBinauralLoop[];
   gongs: Record<AudioBandTrigger["id"], number>;
-  events: readonly number[];
+}
+
+export interface MandalaSoundBinauralLoop {
+  /** Частота бинаурального биения (разность каналов), Гц. Несущая фиксирована 150 Гц. */
+  beatHz: number;
+  asset: number;
 }
 
 export interface MandalaSoundEngineControls {

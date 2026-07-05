@@ -15,7 +15,6 @@ import { ExpoMandalaSoundEngine } from "@/modules/mandala-sound/core/engine";
 import { buildMandalaSoundFrame } from "@/modules/mandala-sound/core/sync";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type {
-  MandalaSoundBand,
   MandalaSoundSessionInput,
   MandalaSoundSyncFrame,
   MandalaSoundVisualSync,
@@ -27,7 +26,7 @@ const DEFAULT_FRAME: MandalaSoundSyncFrame = buildMandalaSoundFrame({
   startedAtMs: 0,
   nowMs: 0,
   durationMs: DEFAULT_DURATION_MS,
-  previousBand: null,
+  previousTargetHz: null,
 });
 
 type MandalaSoundContextValue = {
@@ -74,7 +73,7 @@ export function MandalaSoundProvider({
 }: PropsWithChildren<MandalaSoundSessionInput & { biofeedbackEnabled?: boolean }>) {
   const engineRef = useRef<ExpoMandalaSoundEngine | null>(null);
   const startedAtRef = useRef<number | null>(null);
-  const previousBandRef = useRef<MandalaSoundBand | null>(null);
+  const previousTargetHzRef = useRef<number | null>(null);
   const lastBeatRef = useRef<BeatEvent | null>(null);
   const lastRrMsRef = useRef<number | null>(null);
   const [frame, setFrame] = useState<MandalaSoundSyncFrame>(DEFAULT_FRAME);
@@ -93,7 +92,7 @@ export function MandalaSoundProvider({
     if (!isActive) {
       logRuntimeEvent("mandala_sound_provider:inactive", { practiceKind }, "debug");
       startedAtRef.current = null;
-      previousBandRef.current = null;
+      previousTargetHzRef.current = null;
       lastBeatRef.current = null;
       lastRrMsRef.current = null;
       setFrame(DEFAULT_FRAME);
@@ -129,11 +128,11 @@ export function MandalaSoundProvider({
         cycleStartMs,
         lastBeat: lastBeatRef.current,
         lastRrMs: lastRrMsRef.current,
-        previousBand: previousBandRef.current,
+        previousTargetHz: previousTargetHzRef.current,
         hueMain: 220 + (Math.max(1, Math.min(7, chakra)) - 4) * 18,
         zoomVelocity: practiceKind === "breath" ? 0.28 : 0.42,
       });
-      previousBandRef.current = nextFrame.band;
+      previousTargetHzRef.current = nextFrame.targetHz;
       setFrame(nextFrame);
       void engineRef.current?.update(nextFrame);
     };

@@ -160,6 +160,11 @@ Two resolvers — do not conflate layer B and layer C:
   - `greeting/route.ts` uses `resolveResponseLocale(context.user.locale, body.responseLocale)`
     for author voice / address-form / sanitize.
 
+### 3.3 Server layer-C / STT fallbacks (RU as ultimate fallback)
+- `_legacy_web/app/api/_utils/whisperPrompts.ts` — `getDomainPrompt(language?)`: известная локаль → свой промпт (`ru`/`en`); поддерживаемая европейская без dedicated-промпта (`de/fr/it/es/pt/nl`) → мультиязычный `AUTO_DETECT_DOMAIN_PROMPT`; **неизвестная/отсутствующая → русский**. `normalizeWhisperLanguage(language?)` всегда возвращает строку (`string`), неизвестная/отсутствующая локаль → `"ru"` (ранее `undefined` → авто-детект Whisper).
+- `_legacy_web/app/api/_utils/authorVoice.ts` — `getAuthorVoice(language?)`: `ru`→RU-профиль, `en`→EN-профиль, поддерживаемые европейские (`de/fr/it/es/pt/nl`) переиспользуют EN-каденс (нативного профиля нет), **неизвестная/отсутствующая → RU-профиль** (ранее → EN).
+- Соответствует i18n-инварианту: русский — источник истины и конечный fallback (`resolveResponseLocale` оканчивается на `ru`).
+
 ---
 
 ## 4. The catalog + the sync gate

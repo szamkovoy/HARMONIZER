@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-05:** `_legacy_web/app/api/profile/practice-by-chakra/practiceByChakraWindow.ts` — тип параметра `now` расширен с выведенного `DateTime<true>` (из дефолта `DateTime.utc()`) до явного `DateTime<boolean>`. Почему: тесты передавали `DateTime.fromISO(...)`, который возвращает `DateTime<true> | DateTime<false>` — это не присваивалось к `DateTime<true>` (2 tsc-ошибки TS2345). Функция и так корректно обрабатывает invalid-DateTime через `toISO() ?? new Date().toISOString()`, так что расширение типа безопасно и соответствует естественному контракту (результаты `fromISO` всегда `valid | invalid`). Тип-only правка, поведение не изменилось.
+
 - **2026-06-24 (3):** Profile tab унаследовал общий fix серой полоски над tab bar: shared `TabScreenLayout` больше не inset-ит bottom safe-area, а `useTabContentBottomPadding` не добавляет полную высоту tab bar.
 
 - **2026-06-24 (2):** Profile-facing modal/report surfaces were moved closer to shared UI ownership. `app/onboarding.tsx` now uses the shared centered-card form shell, profile report cards use `SectionHeader` + `StateCard` instead of local heading/error boilerplate, and `NatalBirthDataModal` now renders through the common surface/header language rather than a bespoke modal card.
