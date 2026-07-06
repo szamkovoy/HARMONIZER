@@ -49,7 +49,7 @@ function formatDurationClock(totalSeconds: number): string {
 
 function chakraRowLabel(chakraNumber: number | undefined, shortLabel: string | undefined, locale: AppContentLocale): string {
   if (chakraNumber && chakraNumber >= 1 && chakraNumber <= 7) {
-    return chakraNumericDisplayLabel(locale, chakraNumber);
+    return chakraShortLabelDisplay(locale, chakraNumber);
   }
   return capitalizeFirst(shortLabel ?? "");
 }
@@ -61,8 +61,8 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
 
   return (
     <View style={styles.heatmapBlock}>
-      <View style={styles.heatmapHeader}>
-        <View style={styles.heatmapAxisSpacer} />
+      <View style={styles.heatmapHeaderRow}>
+        <View style={styles.heatmapHeaderAxisSpacer} />
         {colLegend.map((sphere) => (
           <AppText key={sphere.id} variant="technicalCaption" tone="muted" style={styles.heatmapHeaderCell}>
             {sphere.id}
@@ -91,7 +91,7 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
           </View>
         );
       })}
-      <AppText variant="technicalCaption" tone="muted">
+      <AppText variant="technicalCaption" tone="muted" style={styles.heatmapSpheresLegend}>
         {props.spheresLegendPrefix}{" "}
         {colLegend.map((item) => `${item.id}. ${localizeLifeSphereLabel(item.id, item.title, props.locale)};`).join(" ")}
       </AppText>
@@ -494,22 +494,25 @@ export function RangeTrendReportCard(props: {
 }
 
 const HEATMAP_LABEL_WIDTH = 108;
-const HEATMAP_CELL_SIZE = 18;
+const HEATMAP_CELL_SIZE = 23;
+const HEATMAP_GAP = 4;
+/** Extra space between row labels and matrix cells (labels shift left). */
+const HEATMAP_AXIS_LABEL_INSET = 4;
 
 const styles = StyleSheet.create({
   errorBlock: {
     gap: 10,
   },
   heatmapBlock: {
-    gap: 4,
+    gap: HEATMAP_GAP,
   },
-  heatmapHeader: {
+  heatmapHeaderRow: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: 4,
-    paddingLeft: HEATMAP_LABEL_WIDTH + 4,
+    gap: HEATMAP_GAP,
   },
-  heatmapAxisSpacer: {
-    width: 0,
+  heatmapHeaderAxisSpacer: {
+    width: HEATMAP_LABEL_WIDTH,
   },
   heatmapHeaderCell: {
     textAlign: "center",
@@ -518,15 +521,20 @@ const styles = StyleSheet.create({
   heatmapRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 3,
+    gap: HEATMAP_GAP,
   },
   heatmapAxisLabel: {
+    paddingRight: HEATMAP_AXIS_LABEL_INSET,
+    textAlign: "right",
     width: HEATMAP_LABEL_WIDTH,
   },
   heatmapCell: {
-    borderRadius: 5,
+    borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
     height: HEATMAP_CELL_SIZE,
     width: HEATMAP_CELL_SIZE,
+  },
+  heatmapSpheresLegend: {
+    marginTop: 8,
   },
 });
