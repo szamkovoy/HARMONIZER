@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.15
-updated: 2026-07-05
+version: 1.17
+updated: 2026-07-06
 depends_on:
   [
     01_foundation/product_model,
@@ -49,8 +49,8 @@ code_refs:
 - **`infra`**  
   Expo Router, Supabase-клиент для каталога асан и для **`services/practiceSessions.ts`** (`practice_sessions`, `user_daily_stats`).
 
-- **`remote-play`**  
-  `app/asana-practice.tsx` использует **`useRemotePlay()`** (`modules/remote-play`) и роуты `/connect-tv`, `/tv-remote` для режима «ТВ» сегмента воспроизведения асаны: «Запустить на ТВ» → `playVimeo(vimeoId)` → навигация на пульт; «Подключить ТВ» → ввод PIN. Контракт `tv_sessions` (статусы `waiting/playing/paused/stopped/closed`, `pairing_code`, `expires_at`, Realtime) описан в `docs/remote-play/README.md` и миграции `20260503014500_remote_play_tv_sessions.sql`. Парная запись: `docs/02_modules/remote-play/dependencies.md` §2 (после добавления модуля в MAP).
+- **`remote-play`**
+  Карточка асаны (`PracticeCard`, и в каталоге, и в коммуникаторе) несёт кнопку **«Открыть на ТВ»**, чья логика инкапсулирована в хуке **`useAsanaRemotePlayLauncher(strings, launchSource)`** (`modules/practices/ui/useAsanaRemotePlayLauncher.ts`): `vimeoId` валидируется до навигации; `useRemotePlay().connected` false → `router.push({ pathname: "/connect-tv", params: practiceParams })` (после подключения `ConnectTVScreen` предлагает «Начать практику» → `playVimeo` + `/tv-remote`); подключён → `playVimeo(vimeoId, vimeoAudiotrackForLocale(locale))` + `router.push("/tv-remote", { …practiceParams })`. `practiceParams` = `{ vimeoId, title, durationSec, audiotrack, practiceId, slug, chakraIds (через запятую), launchSource }` — пробрасываются через весь ТВ-путь (включая `ConnectTVScreen.startPractice` и `TVRemoteScreen.disconnect`), чтобы `TVRemoteScreen.confirmFinish` мог записать `practice_sessions` с `playback_mode: "tv"` **только при досмотре** (`elapsedSec >= durationSec * 0.95`). Каталог передаёт `launchSource: "catalog"`, коммуникатор — `"assistant"` (второй аргумент хука). `app/asana-practice.tsx` больше не использует `useRemotePlay()` — экран стал телефонным плеером, выбор «телефон/ТВ» перенесён на уровень карточки. Контракт `tv_sessions` (статусы `waiting/playing/paused/stopped/closed`, `pairing_code`, `audiotrack`, `expires_at`, Realtime) описан в `docs/remote-play/README.md`; колонка `locale` удалена миграцией `20260705203000_remote_play_drop_locale.sql`. Провайдер получил `disconnect()` (best-effort stop + локальный сброс сессии) для кнопки «Отключить ТВ» на `/tv-remote` (роут — обычный push `headerShown: false`, шелл `StackScreenLayout` + `StackScrollView` + `SurfaceCardView`; `ModalScreenLayout` на устройстве не рендерил `<Text>`). Парная запись: `docs/02_modules/remote-play/dependencies.md` §2 (после добавления модуля в MAP).
 
 - **`i18n`**  
   `getPracticeCatalogStrings(locale)` (typed gate + overlays; поля `durationMinUnit`, `durationFromPrefix`, `practiceCountOne` / `practiceCountWithTotal` / `catalogFooterTemplate`); `catalog.ts` — `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` для jsonb-полей йоги; `PracticeCard` / `PracticeCatalogScreen` — `useAppLocale().locale`. Парная запись: `docs/02_modules/i18n/dependencies.md` §2.

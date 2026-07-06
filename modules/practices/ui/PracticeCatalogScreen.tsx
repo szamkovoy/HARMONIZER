@@ -21,7 +21,7 @@ import type {
 import { PRACTICE_GROUPS } from "@/modules/practices/core/types";
 import { getPracticeCatalogStrings, getPracticeGroupTitle } from "@/modules/practices/i18n/practices";
 import { useRemotePlay } from "@/modules/remote-play";
-import { AppButton } from "@/modules/ui/AppButton";
+import { vimeoAudiotrackForLocale } from "@/modules/practices/core/vimeo";
 import { AppText } from "@/modules/ui/AppText";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StateCard } from "@/modules/ui/StateCard";
@@ -405,33 +405,39 @@ export function PracticeCatalogScreen() {
         setLockedFeature("asana_practices");
         return;
       }
-      if (!remotePlay.connected) {
-        router.push("/connect-tv" as Href);
-        return;
-      }
       const vimeoId = practice.video?.provider === "vimeo" ? practice.video.externalId : null;
       if (!vimeoId) {
         Alert.alert(strings.videoUnavailableTitle, strings.videoUnavailableMessage);
         return;
       }
+      const audiotrack = vimeoAudiotrackForLocale(appLocale);
+      const durationSec = practice.defaultDurationSec ? String(practice.defaultDurationSec) : "";
+      const practiceParams = {
+        vimeoId,
+        title: practice.title,
+        durationSec,
+        audiotrack,
+        practiceId: practice.id,
+        slug: practice.slug,
+        chakraIds: practice.chakraIds.join(","),
+        launchSource: "catalog",
+      };
+      if (!remotePlay.connected) {
+        router.push({ pathname: "/connect-tv", params: practiceParams } as Href);
+        return;
+      }
 
       setRemoteBusyPracticeId(practice.id);
       try {
-        await remotePlay.playVimeo(vimeoId);
-        router.push({
-          pathname: "/tv-remote",
-          params: {
-            title: practice.title,
-            durationSec: practice.defaultDurationSec ? String(practice.defaultDurationSec) : "",
-          },
-        } as Href);
+        await remotePlay.playVimeo(vimeoId, audiotrack);
+        router.push({ pathname: "/tv-remote", params: practiceParams } as Href);
       } catch (error) {
         Alert.alert(strings.remotePlayErrorTitle, error instanceof Error ? error.message : strings.loadCatalogError);
       } finally {
         setRemoteBusyPracticeId(null);
       }
     },
-    [asanaAllowed, catalogAllowed, remotePlay],
+    [appLocale, asanaAllowed, catalogAllowed, remotePlay],
   );
 
   const renderPractice = useCallback(
@@ -441,7 +447,6 @@ export function PracticeCatalogScreen() {
         videoThumbnail={practice.kind === "yoga" ? yogaThumbnails[practice.id] : undefined}
         onLaunch={onLaunch}
         onRemotePlay={onRemotePlay}
-        remotePlayConnected={remotePlay.connected}
         remotePlayDisabled={remoteBusyPracticeId === practice.id || remotePlay.busy}
       />
     ),
@@ -523,54 +528,36 @@ export function PracticeCatalogScreen() {
             </View>
 
             {selectedKind === "yoga" ? (
-              <>
-                <View style={[styles.remotePanel, { borderColor: theme.colors.surfaceBorder }]}>
-                  <View style={styles.remoteText}>
-                    <AppText variant="screenHint" tone="muted">
-                      {remotePlay.connected
-                        ? `TV connected · code ${remotePlay.session?.pairing_code ?? "…"}`
-                        : strings.remotePlayHint}
-                    </AppText>
-                  </View>
-                  <AppButton
-                    label={remotePlay.connected ? strings.changeTv : strings.connectTv}
-                    variant="secondary"
-                    onPress={() => router.push("/connect-tv" as Href)}
-                    style={styles.remoteButton}
-                  />
+              <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>
+                <AppText variant="technicalCaption" tone="muted">
+                  {strings.filterTitle}
+                </AppText>
+                <View style={styles.chipRow}>
+                  {CHAKRA_FILTERS.map((item) => (
+                    <FilterChip
+                      key={String(item.value)}
+                      label={item.label}
+                      active={chakraFilter === item.value}
+                      onPress={() => setChakraFilter(item.value)}
+                    />
+                  ))}
                 </View>
-
-                <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>
-                  <AppText variant="technicalCaption" tone="muted">
-                    {strings.filterTitle}
+                <View style={styles.chipRow}>
+                  {DURATION_FILTERS.map((item) => (
+                    <FilterChip
+                      key={item.value}
+                      label={item.label}
+                      active={durationFilter === item.value}
+                      onPress={() => setDurationFilter(item.value)}
+                    />
+                  ))}
+                </View>
+                {chakraFilter !== "any" && !isChakra(chakraFilter) ? (
+                  <AppText variant="technicalCaption" tone="warning">
+                    {strings.invalidChakraFilterHint}
                   </AppText>
-                  <View style={styles.chipRow}>
-                    {CHAKRA_FILTERS.map((item) => (
-                      <FilterChip
-                        key={String(item.value)}
-                        label={item.label}
-                        active={chakraFilter === item.value}
-                        onPress={() => setChakraFilter(item.value)}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.chipRow}>
-                    {DURATION_FILTERS.map((item) => (
-                      <FilterChip
-                        key={item.value}
-                        label={item.label}
-                        active={durationFilter === item.value}
-                        onPress={() => setDurationFilter(item.value)}
-                      />
-                    ))}
-                  </View>
-                  {chakraFilter !== "any" && !isChakra(chakraFilter) ? (
-                    <AppText variant="technicalCaption" tone="warning">
-                      {strings.invalidChakraFilterHint}
-                    </AppText>
-                  ) : null}
-                </View>
-              </>
+                ) : null}
+              </View>
             ) : null}
           </>
         ) : null}
@@ -583,8 +570,6 @@ export function PracticeCatalogScreen() {
       chakraFilter,
       durationFilter,
       load,
-      remotePlay.connected,
-      remotePlay.session?.pairing_code,
       selectedKind,
       state.error,
       state.status,
@@ -707,21 +692,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     gap: 10,
     padding: 12,
-  },
-  remotePanel: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-  },
-  remoteText: {
-    flex: 1,
-    gap: 3,
-  },
-  remoteButton: {
-    minWidth: 126,
   },
   chipRow: {
     flexDirection: "row",

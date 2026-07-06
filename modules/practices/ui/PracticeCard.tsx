@@ -62,7 +62,6 @@ export const PracticeCard = memo(function PracticeCard({
   practice,
   onLaunch,
   onRemotePlay,
-  remotePlayConnected = false,
   remotePlayDisabled = false,
   videoThumbnail,
   overrideDurationMinutes,
@@ -71,7 +70,6 @@ export const PracticeCard = memo(function PracticeCard({
   practice: PracticeSummary;
   onLaunch: (practice: PracticeSummary) => void;
   onRemotePlay?: (practice: PracticeSummary) => void;
-  remotePlayConnected?: boolean;
   remotePlayDisabled?: boolean;
   videoThumbnail?: PracticeVideoThumbnail | null;
   overrideDurationMinutes?: number;
@@ -278,7 +276,7 @@ export const PracticeCard = memo(function PracticeCard({
           : strings.findWearableButton
         : strings.sensorNoneOption;
   const primaryButtonLabel =
-    practice.kind === "yoga" && remotePlayConnected
+    practice.kind === "yoga"
       ? strings.openOnPhone
       : needsWearableSelection
         ? strings.findWearableButton
@@ -438,7 +436,7 @@ export const PracticeCard = memo(function PracticeCard({
             onPress={launchConfiguredPractice}
             style={styles.button}
           />
-          {practice.kind === "yoga" && remotePlayConnected && onRemotePlay ? (
+          {practice.kind === "yoga" && onRemotePlay ? (
             <AppButton
               label={strings.openOnTv}
               variant="secondary"

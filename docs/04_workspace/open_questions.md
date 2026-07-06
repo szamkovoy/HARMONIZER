@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.31
-updated: 2026-07-05
+version: 1.33
+updated: 2026-07-06
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 

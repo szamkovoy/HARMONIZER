@@ -1,9 +1,9 @@
 <!-- HARMONIZER Remote Play TV page. Paste into a WordPress Custom HTML block. -->
 <div id="harmonizer-remote-play" class="hrp-shell">
   <div class="hrp-card">
-    <div id="hrp-eyebrow" class="hrp-eyebrow">HARMONIZER Remote Play</div>
+    <div id="hrp-eyebrow" class="hrp-eyebrow">Harmonizer Remote Play</div>
     <div id="hrp-code" class="hrp-code">....</div>
-    <div id="hrp-status" class="hrp-status">Создаём код подключения...</div>
+    <div id="hrp-status" class="hrp-status">Creating connection code...</div>
     <div id="hrp-player" class="hrp-player" aria-label="Video player"></div>
   </div>
 </div>
@@ -16,13 +16,15 @@
   const SUPABASE_ANON_KEY = "sb_publishable_8edV2weU2e0ab__u1vEVFg_MFdt8VeF";
 
   // ---- i18n: only the resource strings differ per locale. ------------------
-  // `appName` is the localized product name; "Remote Play" stays as the Latin
-  // feature brand in the eyebrow. The page picks the locale from the paired
-  // tv_sessions row (`row.locale`, written by the mobile app on linkDevice);
-  // before pairing it falls back to a browser-language detection (default ru).
+  // `appName` is the localized product name and `remotePlay` is the localized
+  // feature name; together they form the eyebrow. The page resolves the UI
+  // locale from the browser language (navigator.language); if it cannot be
+  // detected or is not one of the supported app locales, the page falls back
+  // to English.
   const STRINGS = {
     ru: {
       appName: "Гармонизатор",
+      remotePlay: "Удалённый просмотр",
       creatingCode: "Создаём код подключения...",
       waitConnection: "Ожидаем подключение из приложения",
       connectedIdle: "Подключено. Выберите практику в приложении.",
@@ -31,7 +33,7 @@
       paused: "Пауза",
       expired: "Сессия истекла. Обновите страницу, чтобы получить новый код.",
       closed: "Сессия закрыта. Обновите страницу, чтобы получить новый код.",
-      unavailable: "Remote Play недоступен.",
+      unavailable: "Удалённый просмотр недоступен.",
       codeError: "Не удалось создать уникальный код. Обновите страницу.",
       vimeoDenied: "Vimeo не разрешил воспроизведение.",
       vimeoCheckPrivacy: "Проверьте Privacy / Embed domains у этого Vimeo-ролика.",
@@ -39,6 +41,7 @@
     },
     en: {
       appName: "Harmonizer",
+      remotePlay: "Remote Play",
       creatingCode: "Creating connection code...",
       waitConnection: "Waiting for the app to connect",
       connectedIdle: "Connected. Choose a practice in the app.",
@@ -55,6 +58,7 @@
     },
     de: {
       appName: "Harmonisator",
+      remotePlay: "Fernwiedergabe",
       creatingCode: "Verbindungscode wird erstellt...",
       waitConnection: "Warten auf Verbindung aus der App",
       connectedIdle: "Verbunden. Wählen Sie eine Praxis in der App.",
@@ -63,7 +67,7 @@
       paused: "Pause",
       expired: "Sitzung abgelaufen. Aktualisieren Sie die Seite für einen neuen Code.",
       closed: "Sitzung geschlossen. Aktualisieren Sie die Seite für einen neuen Code.",
-      unavailable: "Remote Play ist nicht verfügbar.",
+      unavailable: "Fernwiedergabe ist nicht verfügbar.",
       codeError: "Eindeutiger Code konnte nicht erstellt werden. Aktualisieren Sie die Seite.",
       vimeoDenied: "Vimeo hat die Wiedergabe abgelehnt.",
       vimeoCheckPrivacy: "Prüfen Sie Privacy / Embed domains für dieses Vimeo-Video.",
@@ -71,6 +75,7 @@
     },
     fr: {
       appName: "Harmoniseur",
+      remotePlay: "Lecture à distance",
       creatingCode: "Création du code de connexion...",
       waitConnection: "En attente de connexion depuis l'application",
       connectedIdle: "Connecté. Choisissez une pratique dans l'application.",
@@ -79,7 +84,7 @@
       paused: "Pause",
       expired: "Session expirée. Actualisez la page pour obtenir un nouveau code.",
       closed: "Session fermée. Actualisez la page pour obtenir un nouveau code.",
-      unavailable: "Remote Play est indisponible.",
+      unavailable: "Lecture à distance est indisponible.",
       codeError: "Impossible de créer un code unique. Actualisez la page.",
       vimeoDenied: "Vimeo a refusé la lecture.",
       vimeoCheckPrivacy: "Vérifiez Privacy / Embed domains pour cette vidéo Vimeo.",
@@ -87,6 +92,7 @@
     },
     it: {
       appName: "Armonizzatore",
+      remotePlay: "Riproduzione remota",
       creatingCode: "Creazione del codice di connessione...",
       waitConnection: "In attesa di connessione dall'app",
       connectedIdle: "Connesso. Scegli una pratica nell'app.",
@@ -95,7 +101,7 @@
       paused: "Pausa",
       expired: "Sessione scaduta. Aggiorna la pagina per un nuovo codice.",
       closed: "Sessione chiusa. Aggiorna la pagina per un nuovo codice.",
-      unavailable: "Remote Play non disponibile.",
+      unavailable: "Riproduzione remota non disponibile.",
       codeError: "Impossibile creare un codice univoco. Aggiorna la pagina.",
       vimeoDenied: "Vimeo ha rifiutato la riproduzione.",
       vimeoCheckPrivacy: "Verifica Privacy / Embed domains per questo video Vimeo.",
@@ -103,6 +109,7 @@
     },
     es: {
       appName: "Armonizador",
+      remotePlay: "Reproducción remota",
       creatingCode: "Creando código de conexión...",
       waitConnection: "Esperando la conexión desde la app",
       connectedIdle: "Conectado. Elige una práctica en la app.",
@@ -111,7 +118,7 @@
       paused: "Pausa",
       expired: "Sesión caducada. Actualiza la página para un nuevo código.",
       closed: "Sesión cerrada. Actualiza la página para un nuevo código.",
-      unavailable: "Remote Play no disponible.",
+      unavailable: "Reproducción remota no disponible.",
       codeError: "No se pudo crear un código único. Actualiza la página.",
       vimeoDenied: "Vimeo rechazó la reproducción.",
       vimeoCheckPrivacy: "Verifica Privacy / Embed domains para este vídeo de Vimeo.",
@@ -119,6 +126,7 @@
     },
     pt: {
       appName: "Harmonizador",
+      remotePlay: "Reprodução remota",
       creatingCode: "Criando código de conexão...",
       waitConnection: "Aguardando conexão do app",
       connectedIdle: "Conectado. Escolha uma prática no app.",
@@ -127,7 +135,7 @@
       paused: "Pausa",
       expired: "Sessão expirada. Atualize a página para um novo código.",
       closed: "Sessão encerrada. Atualize a página para um novo código.",
-      unavailable: "Remote Play indisponível.",
+      unavailable: "Reprodução remota indisponível.",
       codeError: "Não foi possível criar um código único. Atualize a página.",
       vimeoDenied: "Vimeo recusou a reprodução.",
       vimeoCheckPrivacy: "Verifique Privacy / Embed domains deste vídeo do Vimeo.",
@@ -135,6 +143,7 @@
     },
     nl: {
       appName: "Harmoniseerder",
+      remotePlay: "Weergave op afstand",
       creatingCode: "Verbindingscode maken...",
       waitConnection: "Wachten op verbinding vanuit de app",
       connectedIdle: "Verbonden. Kies een oefening in de app.",
@@ -143,7 +152,7 @@
       paused: "Pauze",
       expired: "Sessie verlopen. Vernieuw de pagina voor een nieuwe code.",
       closed: "Sessie gesloten. Vernieuw de pagina voor een nieuwe code.",
-      unavailable: "Remote Play is niet beschikbaar.",
+      unavailable: "Weergave op afstand is niet beschikbaar.",
       codeError: "Kon geen unieke code maken. Vernieuw de pagina.",
       vimeoDenied: "Vimeo weigerde afspelen.",
       vimeoCheckPrivacy: "Controleer Privacy / Embed domains voor deze Vimeo-video.",
@@ -151,30 +160,26 @@
     },
   };
   const SUPPORTED = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"];
+  // Browser language decides the TV page UI. If detection fails or the browser
+  // language is not one of the supported app locales, fall back to English.
   function pickLocale(value) {
     const prefix = String(value ?? "").trim().slice(0, 2).toLowerCase();
-    return SUPPORTED.includes(prefix) ? prefix : "ru";
+    return SUPPORTED.includes(prefix) ? prefix : "en";
   }
   function detectLocale() {
-    const nav = (navigator.languages && navigator.languages[0]) || navigator.language || "ru";
+    const nav = (navigator.languages && navigator.languages[0]) || navigator.language || "";
     return pickLocale(nav);
   }
   function stringsFor(locale) {
-    return STRINGS[locale] || STRINGS.ru;
+    return STRINGS[locale] || STRINGS.en;
   }
 
   let currentLocale = detectLocale();
   function t(key) {
     return stringsFor(currentLocale)[key];
   }
-  function applyLocale(next) {
-    const locale = pickLocale(next);
-    if (locale === currentLocale) return;
-    currentLocale = locale;
-    renderStatic();
-  }
   function renderStatic() {
-    eyebrowEl.textContent = `${t("appName")} Remote Play`;
+    eyebrowEl.textContent = `${t("appName")} ${t("remotePlay")}`;
     playerEl.setAttribute("aria-label", t("playerAriaLabel"));
   }
 
@@ -217,7 +222,7 @@
   }
 
   function fingerprint(row) {
-    return [row.id, row.status, row.vimeo_id ?? "", row.audiotrack ?? "", row.locale ?? "", row.user_id ?? "", row.expires_at].join("\u001f");
+    return [row.id, row.status, row.vimeo_id ?? "", row.audiotrack ?? "", row.user_id ?? "", row.expires_at].join("\u001f");
   }
 
   function enqueueApply(next) {
@@ -234,7 +239,7 @@
       const { data, error } = await client
         .from("tv_sessions")
         .insert({ pairing_code })
-        .select("id,pairing_code,vimeo_id,audiotrack,locale,status,user_id,expires_at")
+        .select("id,pairing_code,vimeo_id,audiotrack,status,user_id,expires_at")
         .single();
 
       if (!error && data) return data;
@@ -304,7 +309,6 @@
     if (fp === lastFingerprint) return;
 
     session = next;
-    if (next.locale) applyLocale(next.locale);
     const connected = Boolean(next.user_id);
 
     if (next.status === "closed" || new Date(next.expires_at).getTime() <= Date.now()) {
@@ -381,7 +385,7 @@
     if (!session || !session.id) return;
     const { data, error } = await client
       .from("tv_sessions")
-      .select("id,pairing_code,vimeo_id,audiotrack,locale,status,user_id,expires_at")
+      .select("id,pairing_code,vimeo_id,audiotrack,status,user_id,expires_at")
       .eq("id", session.id)
       .maybeSingle();
     if (!error && data) enqueueApply(data);

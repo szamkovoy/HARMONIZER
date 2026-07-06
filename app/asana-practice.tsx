@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
 import { UpgradeDialog, requiredTierFor, useAccess } from "@/modules/access";
@@ -10,9 +9,8 @@ import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
 import { resolveYogaPracticeTitle } from "@/modules/practices/core/catalog";
 import { vimeoAudiotrackForLocale, vimeoEmbedHtml, VIMEO_EMBED_BASE_URL } from "@/modules/practices/core/vimeo";
-import { getAsanaScreenStrings, type AsanaPlaybackMode } from "@/modules/practices/i18n/asanaScreen";
+import { getAsanaScreenStrings } from "@/modules/practices/i18n/asanaScreen";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
-import { useRemotePlay } from "@/modules/remote-play";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
@@ -33,27 +31,6 @@ type AsanaMetadata = {
   chakras: ChakraRow[];
 };
 
-const MODE_STORAGE_KEY = "harmonizer.asana.playback_mode.v1";
-
-function readStoredMode(): AsanaPlaybackMode | null {
-  if (Platform.OS === "web") return null;
-  try {
-    const raw = SecureStore.getItem(MODE_STORAGE_KEY);
-    return raw === "tv" || raw === "phone" ? raw : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredMode(mode: AsanaPlaybackMode) {
-  if (Platform.OS === "web") return;
-  try {
-    SecureStore.setItem(MODE_STORAGE_KEY, mode);
-  } catch {
-    /* ignore — UI preference is non-critical */
-  }
-}
-
 function exitAfterPractice(launchSource: string) {
   const normalized = launchSource.trim().toLowerCase();
   if (normalized === "assistant" || normalized === "day") {
@@ -70,7 +47,6 @@ export default function AsanaPracticeRoute() {
   const { locale } = useAppLocale();
   const strings = getAsanaScreenStrings(locale);
   const stopConfirm = getCoherenceBreathStrings(locale);
-  const remotePlay = useRemotePlay();
   const params = useLocalSearchParams<{
     practiceId?: string;
     durationMs?: string;
@@ -81,9 +57,6 @@ export default function AsanaPracticeRoute() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingCompletion, setSavingCompletion] = useState(false);
-  const [mode, setMode] = useState<AsanaPlaybackMode>("phone");
-  const [modeHydrated, setModeHydrated] = useState(false);
-  const [launchingTv, setLaunchingTv] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const practiceId = typeof params.practiceId === "string" ? params.practiceId : null;
   const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
@@ -95,17 +68,6 @@ export default function AsanaPracticeRoute() {
     typeof params.durationMs === "string" && Number.parseInt(params.durationMs, 10) > 0
       ? Math.round(Number.parseInt(params.durationMs, 10) / 60_000)
       : null;
-
-  useEffect(() => {
-    const stored = readStoredMode();
-    if (stored) setMode(stored);
-    setModeHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!modeHydrated) return;
-    writeStoredMode(mode);
-  }, [mode, modeHydrated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,7 +143,7 @@ export default function AsanaPracticeRoute() {
           launch_source: launchSource,
           practice_kind: "yoga",
           vimeo_id: vimeoId,
-          playback_mode: mode,
+          playback_mode: "phone",
           audiotrack,
         },
       });
@@ -194,49 +156,13 @@ export default function AsanaPracticeRoute() {
     }
   };
 
-  const launchOnTv = async () => {
-    if (!vimeoId || launchingTv || remotePlay.busy) return;
-    if (!remotePlay.connected) {
-      router.push("/connect-tv");
-      return;
-    }
-    setLaunchingTv(true);
-    try {
-      await remotePlay.playVimeo(vimeoId, audiotrack);
-      router.push({
-        pathname: "/tv-remote",
-        params: {
-          title,
-          ...(durationSec > 0 ? { durationSec: String(durationSec) } : {}),
-        },
-      } as never);
-    } catch (error) {
-      Alert.alert("Remote Play", error instanceof Error ? error.message : strings.loadFailed);
-    } finally {
-      setLaunchingTv(false);
-    }
-  };
-
-  const openRemote = () => {
-    router.push({
-      pathname: "/tv-remote",
-      params: {
-        title,
-        ...(durationSec > 0 ? { durationSec: String(durationSec) } : {}),
-      },
-    } as never);
-  };
-
-  const tvStatus = remotePlay.session?.status ?? "waiting";
-  const hasActiveTvVideo = Boolean(remotePlay.session?.vimeo_id);
-
   return (
     <StackScreenLayout statusBarStyle="light">
       <FloatingCloseButton accessibilityLabel={strings.closeA11y} onPress={requestStop} />
       <StackScrollView contentOptions={{ topPadding: 40, bottomPaddingExtra: 40, maxWidth: 720 }}>
         <SurfaceCardView tone="elevated" style={styles.card}>
           {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
-          <ScreenHeader title={title} subtitle={strings.subtitle} />
+          <ScreenHeader title={title} />
 
           {loadError ? (
             <AppText variant="dialogBody" tone="warning">
@@ -244,31 +170,7 @@ export default function AsanaPracticeRoute() {
             </AppText>
           ) : null}
 
-          <ModeSegmented
-            mode={mode}
-            onChange={setMode}
-            phoneLabel={strings.modePhone}
-            tvLabel={strings.modeTv}
-          />
-
-          {mode === "phone" ? (
-            <PhonePlayer vimeoId={vimeoId} audiotrack={audiotrack} strings={strings} />
-          ) : (
-            <TvPanel
-              strings={strings}
-              vimeoId={vimeoId}
-              connected={remotePlay.connected}
-              loading={remotePlay.loading}
-              busy={remotePlay.busy || launchingTv}
-              pairingCode={remotePlay.session?.pairing_code ?? null}
-              status={tvStatus}
-              hasActiveVideo={hasActiveTvVideo}
-              error={remotePlay.error}
-              onConnect={() => router.push("/connect-tv")}
-              onLaunch={launchOnTv}
-              onOpenRemote={openRemote}
-            />
-          )}
+          <PhonePlayer vimeoId={vimeoId} audiotrack={audiotrack} strings={strings} />
 
           <AppButton
             label={strings.completeButton}
@@ -295,50 +197,6 @@ export default function AsanaPracticeRoute() {
         onClose={() => router.back()}
       />
     </StackScreenLayout>
-  );
-}
-
-function ModeSegmented({
-  mode,
-  onChange,
-  phoneLabel,
-  tvLabel,
-}: {
-  mode: AsanaPlaybackMode;
-  onChange: (next: AsanaPlaybackMode) => void;
-  phoneLabel: string;
-  tvLabel: string;
-}) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.segmentTrack,
-        { backgroundColor: theme.colors.controlButtonBg, borderColor: theme.colors.surfaceBorder },
-      ]}
-    >
-      {(["phone", "tv"] as const).map((value) => {
-        const active = value === mode;
-        return (
-          <Pressable
-            key={value}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            onPress={() => onChange(value)}
-            style={[
-              styles.segment,
-              active
-                ? { backgroundColor: theme.colors.buttonPrimaryBg }
-                : { backgroundColor: "transparent" },
-            ]}
-          >
-            <AppText variant="buttonLabel" tone={active ? "accentOn" : "primary"}>
-              {value === "phone" ? phoneLabel : tvLabel}
-            </AppText>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }
 
@@ -375,102 +233,9 @@ function PhonePlayer({
   );
 }
 
-function TvPanel({
-  strings,
-  vimeoId,
-  connected,
-  loading,
-  busy,
-  pairingCode,
-  status,
-  hasActiveVideo,
-  error,
-  onConnect,
-  onLaunch,
-  onOpenRemote,
-}: {
-  strings: ReturnType<typeof getAsanaScreenStrings>;
-  vimeoId: string | null;
-  connected: boolean;
-  loading: boolean;
-  busy: boolean;
-  pairingCode: string | null;
-  status: string;
-  hasActiveVideo: boolean;
-  error: string | null;
-  onConnect: () => void;
-  onLaunch: () => void;
-  onOpenRemote: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.tvPanel, { borderColor: theme.colors.surfaceBorder }]}>
-      {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
-
-      {!connected ? (
-        <>
-          <AppText variant="sectionTitle">{strings.videoReadyTitle}</AppText>
-          <AppText variant="dialogBody" tone="muted">
-            {strings.tvNotConnectedHint}
-          </AppText>
-        </>
-      ) : (
-        <>
-          <AppText variant="sectionTitle" tone="accent">
-            {pairingCode ? strings.tvConnectedMeta(pairingCode) : strings.tvConnectedHint}
-          </AppText>
-          <AppText variant="dialogBody" tone="muted">
-            {strings.tvConnectedHint}
-          </AppText>
-          <View style={[styles.statusPill, { borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="inlineStatus">{strings.tvStatus(status)}</AppText>
-          </View>
-        </>
-      )}
-
-      {error ? (
-        <AppText variant="dialogBody" tone="warning">
-          {error}
-        </AppText>
-      ) : null}
-
-      <View style={styles.tvActions}>
-        {!connected ? (
-          <AppButton label={strings.connectTvButton} onPress={onConnect} />
-        ) : (
-          <>
-            <AppButton
-              label={busy ? strings.launchingButton : strings.launchOnTvButton}
-              onPress={onLaunch}
-              disabled={busy || !vimeoId}
-            />
-            {hasActiveVideo ? (
-              <AppButton label={strings.openRemoteButton} variant="secondary" onPress={onOpenRemote} />
-            ) : null}
-          </>
-        )}
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
     gap: 16,
-  },
-  segmentTrack: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 4,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
   },
   playerPlaceholder: {
     aspectRatio: 16 / 9,
@@ -488,24 +253,6 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
-  },
-  tvPanel: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
-  statusPill: {
-    alignSelf: "flex-start",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  tvActions: {
-    alignItems: "stretch",
-    gap: 10,
-    marginTop: 4,
   },
   centerText: {
     textAlign: "center",

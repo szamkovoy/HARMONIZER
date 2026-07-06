@@ -3,7 +3,8 @@
  *
  * Используется для подтверждений и информационных окон. Всегда рисуется поверх экрана
  * с затемняющим backdrop, цвета/радиусы/типографика — из темы. Кнопки принимает слотом
- * `actions`, чтобы не диктовать порядок/раскладку; стандартный случай — две кнопки в ряд.
+ * `actions`, чтобы не диктовать порядок/раскладку; стандартный случай — две кнопки в ряд,
+ * центрированные с небольшим интервалом.
  */
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
@@ -17,7 +18,7 @@ interface AppDialogProps {
   message?: string;
   /**
    * Слот с кнопками. Раскладка определяется `actionsLayout`:
-   *  - `row` (по умолчанию) — кнопки в ряд, каждая `flex: 1`;
+   *  - `row` (по умолчанию) — кнопки в ряд, центрированные, intrinsic-ширина;
    *  - `column` — кнопки одна под другой, каждая на всю ширину диалога.
    */
   actions: ReactNode;
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
   actionsColumn: {
     flexDirection: "column",

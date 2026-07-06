@@ -1585,7 +1585,6 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
-          locale: string | null
           pairing_code: string
           status: string
           updated_at: string
@@ -1597,7 +1596,6 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
-          locale?: string | null
           pairing_code: string
           status?: string
           updated_at?: string
@@ -1609,7 +1607,6 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
-          locale?: string | null
           pairing_code?: string
           status?: string
           updated_at?: string

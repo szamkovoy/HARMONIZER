@@ -8,7 +8,6 @@ export type AsanaPlaybackMode = "phone" | "tv";
 export type AsanaScreenStrings = {
   defaultTitle: string;
   closeA11y: string;
-  subtitle: string;
   practiceNotFound: string;
   loadFailed: string;
   modePhone: string;
@@ -31,7 +30,6 @@ export type AsanaScreenStrings = {
 const ru: AsanaScreenStrings = {
   defaultTitle: "Практика асан",
   closeA11y: "Закрыть практику",
-  subtitle: "Выберите, где смотреть практику: на телефоне или на телевизоре через Remote Play.",
   practiceNotFound: "Практика не найдена.",
   loadFailed: "Не удалось загрузить практику.",
   modePhone: "Телефон",
@@ -55,7 +53,6 @@ const ru: AsanaScreenStrings = {
 const en: AsanaScreenStrings = {
   defaultTitle: "Asana practice",
   closeA11y: "Close practice",
-  subtitle: "Choose where to watch: on the phone or on the TV via Remote Play.",
   practiceNotFound: "Practice not found.",
   loadFailed: "Could not load the practice.",
   modePhone: "Phone",

@@ -109,6 +109,8 @@ import type { PracticeLaunchParams, PracticeSummary } from "@/modules/practices/
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
 import { PracticeCard as SharedPracticeCard } from "@/modules/practices/ui/PracticeCard";
+import { useAsanaRemotePlayLauncher } from "@/modules/practices/ui/useAsanaRemotePlayLauncher";
+import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 
 import { AssistantBubble } from "./AssistantBubble";
 import { ModeToggle } from "./ModeToggle";
@@ -609,6 +611,7 @@ export function Communicator({
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const { locale: responseLocale, transcribeLocale, testMode } = useAppLocale();
+  const practiceCatalogStrings = useMemo(() => getPracticeCatalogStrings(responseLocale), [responseLocale]);
   const { profile, profileLoading } = useAuth();
   const localDialogUserId = profile?.id ?? null;
   const modelAccessTier = useMemo(() => tierLabelFromProfile(profile), [profile]);
@@ -2242,6 +2245,23 @@ export function Communicator({
     [onPracticeLaunchAbort, onPracticeLaunchStart, onPracticePicked],
   );
 
+  const asanaRemotePlayStrings = useMemo(
+    () => ({
+      videoUnavailableTitle: practiceCatalogStrings.videoUnavailableTitle,
+      videoUnavailableMessage: practiceCatalogStrings.videoUnavailableMessage,
+      remotePlayErrorTitle: practiceCatalogStrings.remotePlayErrorTitle,
+      loadCatalogError: practiceCatalogStrings.loadCatalogError,
+    }),
+    [practiceCatalogStrings],
+  );
+  const asanaRemotePlay = useAsanaRemotePlayLauncher(asanaRemotePlayStrings, "assistant");
+  const handlePracticeRemotePlay = useCallback(
+    (configured: PracticeSummary) => {
+      asanaRemotePlay.launchOnTv(configured);
+    },
+    [asanaRemotePlay],
+  );
+
   const handleExitDialog = useCallback(async () => {
     const conversationIdToFlush = activeConversationIdRef.current;
     if (conversationIdToFlush && hasQueuedPlanningArtifacts(messagesRef.current)) {
@@ -2288,6 +2308,8 @@ export function Communicator({
                   <SharedPracticeCard
                     practice={summary}
                     onLaunch={(configured) => handlePracticeLaunch(practice, configured)}
+                    onRemotePlay={summary.kind === "yoga" ? handlePracticeRemotePlay : undefined}
+                    remotePlayDisabled={asanaRemotePlay.busy}
                     overrideDurationMinutes={useDialogOverrides ? rawOverrides?.durationMin : undefined}
                     overrideChakraIndex={useDialogOverrides ? rawOverrides?.chakraIndex : undefined}
                   />

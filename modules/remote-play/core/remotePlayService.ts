@@ -1,7 +1,7 @@
 import { requireSupabase } from "@/services/supabase";
 import { isTvSessionActive, normalizePairingCode, RemotePlayError, type TvSessionRow, type TvSessionStatus } from "./types";
 
-const ACTIVE_SELECT = "id,pairing_code,vimeo_id,audiotrack,locale,status,user_id,expires_at,created_at,updated_at";
+const ACTIVE_SELECT = "id,pairing_code,vimeo_id,audiotrack,status,user_id,expires_at,created_at,updated_at";
 
 function assertVimeoId(vimeoId: string | null | undefined): string {
   const trimmed = vimeoId?.trim();
@@ -40,7 +40,7 @@ export async function getActiveRemotePlaySession(userId: string): Promise<TvSess
   return data && isTvSessionActive(data) ? data : null;
 }
 
-export async function linkDevice(pairingCode: string, userId: string, locale?: string | null): Promise<TvSessionRow> {
+export async function linkDevice(pairingCode: string, userId: string): Promise<TvSessionRow> {
   const code = normalizeCodeOrThrow(pairingCode);
   const supabase = requireSupabase();
 
@@ -59,10 +59,9 @@ export async function linkDevice(pairingCode: string, userId: string, locale?: s
     throw new RemotePlayError("already_linked", "Этот ТВ-код уже привязан к другому пользователю.");
   }
 
-  const nextLocale = locale?.trim() || null;
   const { data: updated, error: updateError } = await supabase
     .from("tv_sessions")
-    .update({ user_id: userId, locale: nextLocale })
+    .update({ user_id: userId })
     .eq("id", session.id)
     .select(ACTIVE_SELECT)
     .single();
@@ -75,17 +74,14 @@ export async function playVimeoOnRemote(
   sessionId: string,
   vimeoId: string,
   audiotrack?: string,
-  locale?: string | null,
 ): Promise<TvSessionRow> {
   const supabase = requireSupabase();
   const track = audiotrack?.trim() || null;
-  const nextLocale = locale?.trim() || null;
   const { data, error } = await supabase
     .from("tv_sessions")
     .update({
       vimeo_id: assertVimeoId(vimeoId),
       audiotrack: track,
-      locale: nextLocale,
       status: "playing",
     })
     .eq("id", sessionId)
@@ -113,12 +109,14 @@ export async function setRemotePlaybackStatus(sessionId: string, status: Extract
 
 export async function stopRemotePlayback(sessionId: string): Promise<TvSessionRow> {
   const supabase = requireSupabase();
+  // Only flip the status to "stopped" — keep vimeo_id/audiotrack so the phone
+  // can replay the same practice (and so `resume()` remounts the player on the
+  // TV). Clearing vimeo_id here left the session in a state where the TV-side
+  // `status === "playing" && next.vimeo_id` branch never matched again, so the
+  // phone showed "playing" while the TV sat idle — the "stuck remote" symptom.
   const { data, error } = await supabase
     .from("tv_sessions")
-    .update({
-      status: "stopped",
-      vimeo_id: null,
-    })
+    .update({ status: "stopped" })
     .eq("id", sessionId)
     .select(ACTIVE_SELECT)
     .single();

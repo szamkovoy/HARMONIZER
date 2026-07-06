@@ -2,7 +2,6 @@ import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react";
 
 import { useAuth } from "@/modules/auth";
-import { useAppLocale } from "@/modules/i18n";
 import { getSupabase } from "@/services/supabase";
 import {
   getActiveRemotePlaySession,
@@ -25,6 +24,7 @@ interface RemotePlayContextValue {
   pause: () => Promise<TvSessionRow>;
   resume: () => Promise<TvSessionRow>;
   stop: () => Promise<TvSessionRow>;
+  disconnect: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -36,7 +36,6 @@ function notConnected(): RemotePlayError {
 
 export function RemotePlayProvider({ children }: { children: ReactNode }) {
   const { authUser } = useAuth();
-  const { locale } = useAppLocale();
   const [session, setSession] = useState<TvSessionRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -108,7 +107,7 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
       setBusy(true);
       setError(null);
       try {
-        const linked = await linkRemoteDevice(pairingCode, userId, locale);
+        const linked = await linkRemoteDevice(pairingCode, userId);
         applySession(linked);
         return linked;
       } catch (unknownError) {
@@ -117,7 +116,7 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
         setBusy(false);
       }
     },
-    [applySession, capture, locale, userId],
+    [applySession, capture, userId],
   );
 
   const playVimeo = useCallback(
@@ -126,7 +125,7 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
       setBusy(true);
       setError(null);
       try {
-        const updated = await playVimeoOnRemote(session.id, vimeoId, audiotrack, locale);
+        const updated = await playVimeoOnRemote(session.id, vimeoId, audiotrack);
         applySession(updated);
         return updated;
       } catch (unknownError) {
@@ -135,7 +134,7 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
         setBusy(false);
       }
     },
-    [applySession, capture, locale, session?.id],
+    [applySession, capture, session?.id],
   );
 
   const pause = useCallback(async () => {
@@ -183,6 +182,22 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
     }
   }, [applySession, capture, session?.id]);
 
+  // Drop the TV link on the phone side: stop playback (best-effort) and clear
+  // the local session so the UI returns to the pairing flow. The session row
+  // on the TV stays stopped; the phone simply forgets the pairing.
+  const disconnect = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (session?.id) {
+        await stopRemotePlayback(session.id).catch(() => null);
+      }
+    } finally {
+      applySession(null);
+      setBusy(false);
+    }
+  }, [applySession, session?.id]);
+
   const value = useMemo<RemotePlayContextValue>(
     () => ({
       session,
@@ -196,9 +211,10 @@ export function RemotePlayProvider({ children }: { children: ReactNode }) {
       pause,
       resume,
       stop,
+      disconnect,
       clearError: () => setError(null),
     }),
-    [busy, error, linkDevice, loading, pause, playVimeo, refreshSession, resume, session, stop],
+    [busy, error, linkDevice, loading, pause, playVimeo, refreshSession, resume, session, stop, disconnect],
   );
 
   return <RemotePlayContext.Provider value={value}>{children}</RemotePlayContext.Provider>;

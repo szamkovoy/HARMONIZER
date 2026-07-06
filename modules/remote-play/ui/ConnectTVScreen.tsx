@@ -1,7 +1,8 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   StyleSheet,
   TextInput,
@@ -31,6 +32,19 @@ export function ConnectTVScreen() {
   const { locale } = useAppLocale();
   const strings = getConnectTvStrings(locale);
   const remotePlay = useRemotePlay();
+  const params = useLocalSearchParams<{
+    vimeoId?: string;
+    title?: string;
+    durationSec?: string;
+    audiotrack?: string;
+    practiceId?: string;
+    slug?: string;
+    chakraIds?: string;
+    launchSource?: string;
+  }>();
+  const pendingVimeoId =
+    typeof params.vimeoId === "string" && params.vimeoId.trim() ? params.vimeoId.trim() : null;
+  const [launching, setLaunching] = useState(false);
   const [cells, setCells] = useState<string[]>(() => Array.from({ length: PIN_LEN }, () => ""));
   const [focusedPinIndex, setFocusedPinIndex] = useState<number | null>(null);
   const inputRefs = useRef<Array<TextInput | null>>([]);
@@ -94,6 +108,34 @@ export function ConnectTVScreen() {
   };
 
   const showLinkedLine = remotePlay.connected && !remotePlay.error;
+  const close = () => router.back();
+
+  const startPractice = async () => {
+    if (!pendingVimeoId || !remotePlay.connected || launching) return;
+    setLaunching(true);
+    try {
+      await remotePlay.playVimeo(pendingVimeoId, params.audiotrack);
+      router.replace({
+        pathname: "/tv-remote",
+        params: {
+          title: typeof params.title === "string" ? params.title : "",
+          durationSec: typeof params.durationSec === "string" ? params.durationSec : "",
+          vimeoId: pendingVimeoId,
+          audiotrack: typeof params.audiotrack === "string" ? params.audiotrack : "",
+          practiceId: typeof params.practiceId === "string" ? params.practiceId : "",
+          slug: typeof params.slug === "string" ? params.slug : "",
+          chakraIds: typeof params.chakraIds === "string" ? params.chakraIds : "",
+          launchSource: typeof params.launchSource === "string" ? params.launchSource : "",
+        },
+      });
+    } catch (error) {
+      setLaunching(false);
+      Alert.alert(
+        "Remote Play",
+        error instanceof Error ? error.message : strings.description,
+      );
+    }
+  };
 
   return (
     <ModalScreenLayout
@@ -133,7 +175,6 @@ export function ConnectTVScreen() {
                 keyboardType="ascii-capable"
                 maxLength={1}
                 returnKeyType="done"
-                onSubmitEditing={() => submit()}
                 placeholder={focusedPinIndex === index ? "" : "—"}
                 placeholderTextColor={theme.colors.textFaint}
                 style={[
@@ -148,7 +189,7 @@ export function ConnectTVScreen() {
             ))}
           </View>
 
-          {remotePlay.busy ? <ActivityIndicator color={theme.colors.accent} /> : null}
+          {remotePlay.busy || launching ? <ActivityIndicator color={theme.colors.accent} /> : null}
 
           {remotePlay.error ? (
             <AppText variant="dialogBody" tone="warning" style={styles.feedback}>
@@ -161,7 +202,23 @@ export function ConnectTVScreen() {
           ) : null}
 
           <View style={styles.actions}>
-            <AppButton label={strings.submitButton} onPress={submit} disabled={!canSubmit} />
+            {showLinkedLine ? (
+              pendingVimeoId ? (
+                <AppButton
+                  label={strings.startPracticeButton}
+                  onPress={startPractice}
+                  disabled={launching}
+                />
+              ) : (
+                <AppButton label={strings.closeButton} onPress={close} />
+              )
+            ) : (
+              <AppButton
+                label={strings.submitButton}
+                onPress={submit}
+                disabled={!canSubmit}
+              />
+            )}
           </View>
         </View>
       </SurfaceCardView>
