@@ -59,6 +59,26 @@ export async function linkDevice(pairingCode: string, userId: string): Promise<T
     throw new RemotePlayError("already_linked", "Этот ТВ-код уже привязан к другому пользователю.");
   }
 
+  // Drop stale pairings so the phone tracks the newly linked TV code (e.g. user
+  // closed the browser tab and opened a fresh /tv/ page with a new pairing code).
+  // Best-effort: RLS may forbid an authenticated user from setting status='closed'
+  // (see migration 20260706130000_remote_play_allow_auth_close.sql which loosens
+  // that). Even if this UPDATE is blocked, linking must proceed — the stale
+  // sessions are harmlessly ignored by getActiveRemotePlaySession (it orders by
+  // expires_at desc and the new session is always the freshest).
+  await supabase
+    .from("tv_sessions")
+    .update({ status: "closed" })
+    .eq("user_id", userId)
+    .neq("id", session.id)
+    .neq("status", "closed")
+    .then(({ error }) => {
+      if (error && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn("[remote-play] stale-session cleanup blocked (non-fatal):", error.message);
+      }
+    });
+
   const { data: updated, error: updateError } = await supabase
     .from("tv_sessions")
     .update({ user_id: userId })

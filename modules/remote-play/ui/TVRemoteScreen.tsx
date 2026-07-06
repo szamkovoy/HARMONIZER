@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { useAuth } from "@/modules/auth";
@@ -15,6 +15,12 @@ import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayo
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession } from "@/services/practiceSessions";
+
+type PendingFinishAction = "stop" | "disconnect";
+
+// Practice counts as completed if watched to within this many seconds of the end
+// (covers users who close the tab during the closing remarks).
+const COMPLETION_TAIL_SEC = 10;
 
 export function TVRemoteScreen() {
   const theme = useTheme();
@@ -56,6 +62,19 @@ export function TVRemoteScreen() {
     stopButton: strings?.stopButton || "Стоп",
     disconnectButton: strings?.disconnectButton || "Отключить ТВ",
     finishingButton: strings?.finishingButton || "Завершаем…",
+    connectionLostTitle: strings?.connectionLostTitle || "Связь с ТВ потеряна",
+    connectionLostHint:
+      strings?.connectionLostHint ||
+      "Вкладка браузера закрыта или ТВ выключен. Подключите ТВ заново и запустите практику повторно.",
+    reconnectButton: strings?.reconnectButton || "Подключить ТВ заново",
+    tvStoppedHint:
+      strings?.tvStoppedHint ||
+      "Практика на ТВ остановлена. Откройте страницу на телевизоре и нажмите «Запустить заново». Если открыли новую вкладку — подключите ТВ заново.",
+    completedTitle: strings?.completedTitle || "Практика завершена",
+    completedHint:
+      strings?.completedHint ||
+      "Поздравляем — практика засчитана. Закройте окно, чтобы вернуться назад.",
+    closeButton: strings?.closeButton || "Закрыть",
     alertTitle: strings?.alertTitle || "Remote Play",
     pauseFailed: strings?.pauseFailed || "Не удалось обновить статус ТВ.",
     stopFailed: strings?.stopFailed || "Не удалось остановить видео на ТВ.",
@@ -85,7 +104,17 @@ export function TVRemoteScreen() {
   }, [params.durationSec]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingFinishAction | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [connectionLost, setConnectionLost] = useState(false);
+
+  // Track whether we ever had a live session on this screen, so we can detect
+  // the connected → null transition (browser tab closed / TV turned off) and
+  // surface a "reconnect" state instead of leaving the user on a dead remote.
+  const wasConnectedRef = useRef(false);
+  // Guards maybeRecordTvSession so a completed practice is recorded exactly once
+  // even if both the connection-loss effect and the confirm dialog fire.
+  const recordedRef = useRef(false);
 
   // Accumulate playing seconds only while status === "playing" (frozen on pause/stop,
   // reset on replay) — used both for the progress bar and as the "reached the end"
@@ -98,46 +127,16 @@ export function TVRemoteScreen() {
     return () => clearInterval(timer);
   }, [remotePlay.session?.status]);
 
-  const progress = durationSec ? Math.min(1, elapsedSec / durationSec) : 0;
-  const status = remotePlay.session?.status ?? "waiting";
-
-  const pauseOrResume = async () => {
-    try {
-      if (status === "paused") {
-        await remotePlay.resume();
-      } else if (status === "playing") {
-        await remotePlay.pause();
-      }
-    } catch (error) {
-      Alert.alert(str.alertTitle, error instanceof Error ? error.message : str.pauseFailed);
-    }
-  };
-
-  const replay = async () => {
-    if (!params.vimeoId) {
-      Alert.alert(str.alertTitle, str.replayFailed);
-      return;
-    }
-    try {
-      setElapsedSec(0);
-      await remotePlay.playVimeo(params.vimeoId, params.audiotrack);
-    } catch (error) {
-      Alert.alert(str.alertTitle, error instanceof Error ? error.message : str.replayFailed);
-    }
-  };
-
-  const requestStop = () => {
-    if (remotePlay.busy || finishing) return;
-    setShowStopConfirm(true);
-  };
-
-  // Record a practice_sessions row ONLY if the practice reached the end
-  // (elapsed >= 95% of duration). Best-effort — swallowed on error.
-  const maybeRecordTvSession = async () => {
+  // Record a practice_sessions row ONLY if the practice effectively reached the
+  // end (elapsed >= duration - 10s, i.e. within the closing tail). Best-effort —
+  // swallowed on error. Early interruption does NOT record.
+  const maybeRecordTvSession = useCallback(async () => {
+    if (recordedRef.current) return;
     const userId = authUser?.id;
     const practiceId = typeof params.practiceId === "string" ? params.practiceId.trim() : "";
     if (!userId || !practiceId || !durationSec) return;
-    if (elapsedSec < durationSec * 0.95) return;
+    if (elapsedSec < durationSec - COMPLETION_TAIL_SEC) return;
+    recordedRef.current = true;
     const chakraIds =
       typeof params.chakraIds === "string" && params.chakraIds.trim()
         ? params.chakraIds
@@ -169,18 +168,139 @@ export function TVRemoteScreen() {
     } catch {
       /* swallow — best-effort, still navigate away */
     }
-  };
+  }, [authUser?.id, durationSec, elapsedSec, params]);
 
-  const confirmFinish = async () => {
+  // Detect connection loss: we had a session, then it became null (explicit
+  // unlink, stale cleanup, or session closed after linking a new TV code).
+  // Tab close now PATCHes status="stopped" (not "closed"), so the phone stays
+  // paired and shows the replay / reconnect panel instead of this state.
+  useEffect(() => {
+    if (remotePlay.session) {
+      wasConnectedRef.current = true;
+      if (connectionLost) setConnectionLost(false);
+      return;
+    }
+    if (!wasConnectedRef.current) return;
+    setConnectionLost(true);
+    void maybeRecordTvSession();
+  }, [connectionLost, maybeRecordTvSession, remotePlay.session]);
+
+  // Tab close PATCHes status="stopped" — if the user was within the closing
+  // tail, count the practice as completed even without pressing «Завершить».
+  useEffect(() => {
+    if (remotePlay.session?.status !== "stopped") return;
+    void maybeRecordTvSession();
+  }, [maybeRecordTvSession, remotePlay.session?.status]);
+
+  // Auto-record as soon as the elapsed timer crosses the completion threshold
+  // (even while still "playing") so a tab-close at the very end still counts.
+  useEffect(() => {
+    if (!durationSec || elapsedSec < durationSec - COMPLETION_TAIL_SEC) return;
+    void maybeRecordTvSession();
+  }, [durationSec, elapsedSec, maybeRecordTvSession]);
+
+  const progress = durationSec ? Math.min(1, elapsedSec / durationSec) : 0;
+  const status = remotePlay.session?.status ?? "waiting";
+  // Practice counts as completed when the timer reached the closing tail.
+  // In that state ✕ / «Завершить» / «Отключить ТВ» skip the stop-confirm dialog
+  // and just close (session was already auto-recorded).
+  const completed = Boolean(durationSec && elapsedSec >= durationSec - COMPLETION_TAIL_SEC);
+
+  const finishAndExit = useCallback(async () => {
     if (finishing) return;
     setFinishing(true);
     try {
       await remotePlay.stop().catch(() => null);
       await maybeRecordTvSession();
     } finally {
-      setShowStopConfirm(false);
       setFinishing(false);
       router.back();
+    }
+  }, [finishing, maybeRecordTvSession, remotePlay]);
+
+  const pauseOrResume = async () => {
+    try {
+      if (status === "paused") {
+        await remotePlay.resume();
+      } else if (status === "playing") {
+        await remotePlay.pause();
+      }
+    } catch (error) {
+      Alert.alert(str.alertTitle, error instanceof Error ? error.message : str.pauseFailed);
+    }
+  };
+
+  const replay = async () => {
+    if (!params.vimeoId) {
+      Alert.alert(str.alertTitle, str.replayFailed);
+      return;
+    }
+    try {
+      setElapsedSec(0);
+      recordedRef.current = false;
+      setConnectionLost(false);
+      await remotePlay.playVimeo(params.vimeoId, params.audiotrack);
+    } catch (error) {
+      Alert.alert(str.alertTitle, error instanceof Error ? error.message : str.replayFailed);
+    }
+  };
+
+  const requestStop = () => {
+    if (remotePlay.busy || finishing) return;
+    if (completed) {
+      void finishAndExit();
+      return;
+    }
+    setPendingAction("stop");
+    setShowStopConfirm(true);
+  };
+
+  const requestDisconnect = () => {
+    if (remotePlay.busy || finishing) return;
+    if (completed) {
+      // Completed — drop pairing without the stop-confirm warning.
+      void (async () => {
+        setFinishing(true);
+        try {
+          await remotePlay.stop().catch(() => null);
+          await maybeRecordTvSession();
+          await remotePlay.disconnect().catch(() => null);
+          router.replace({ pathname: "/connect-tv", params: buildPracticeParams() });
+        } finally {
+          setFinishing(false);
+        }
+      })();
+      return;
+    }
+    setPendingAction("disconnect");
+    setShowStopConfirm(true);
+  };
+
+  const dismissConfirm = () => {
+    setShowStopConfirm(false);
+    setPendingAction(null);
+  };
+
+  // «Завершить» from the confirm dialog — routes by pendingAction.
+  // stop: stop playback + record (if completed) + leave TV paired → back.
+  // disconnect: stop + record (if completed) + drop pairing → /connect-tv.
+  const confirmFinish = async () => {
+    if (finishing) return;
+    const action = pendingAction ?? "stop";
+    setFinishing(true);
+    try {
+      await remotePlay.stop().catch(() => null);
+      await maybeRecordTvSession();
+      if (action === "disconnect") {
+        await remotePlay.disconnect().catch(() => null);
+        router.replace({ pathname: "/connect-tv", params: buildPracticeParams() });
+        return;
+      }
+    } finally {
+      setShowStopConfirm(false);
+      setPendingAction(null);
+      setFinishing(false);
+      if (action !== "disconnect") router.back();
     }
   };
 
@@ -195,20 +315,15 @@ export function TVRemoteScreen() {
     launchSource: typeof params.launchSource === "string" ? params.launchSource : "",
   });
 
-  const disconnect = async () => {
-    try {
-      await remotePlay.disconnect();
-      router.replace({ pathname: "/connect-tv", params: buildPracticeParams() });
-    } catch (error) {
-      Alert.alert(str.alertTitle, error instanceof Error ? error.message : str.disconnectFailed);
-    }
+  const reconnect = () => {
+    router.replace({ pathname: "/connect-tv", params: buildPracticeParams() });
   };
 
   return (
     <StackScreenLayout statusBarStyle="light">
       <FloatingCloseButton
         accessibilityLabel={str.closeA11y}
-        onPress={requestStop}
+        onPress={connectionLost ? () => router.back() : completed ? () => void finishAndExit() : requestStop}
       />
       <StackScrollView contentOptions={{ topPadding: 40, bottomPaddingExtra: 40, maxWidth: 720 }}>
         <SurfaceCardView tone="elevated" style={styles.card}>
@@ -224,62 +339,96 @@ export function TVRemoteScreen() {
             </AppText>
           </View>
 
-          <View style={styles.progressBlock}>
-            <View style={[styles.progressTrack, { backgroundColor: theme.colors.controlButtonBg }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${progress * 100}%`,
-                    backgroundColor: theme.colors.buttonPrimaryBg,
-                  },
-                ]}
+          {connectionLost ? (
+            <View style={styles.lostBlock}>
+              <AppText variant="sectionTitle" tone="warning">
+                {str.connectionLostTitle}
+              </AppText>
+              <AppText variant="dialogBody" tone="muted">
+                {str.connectionLostHint}
+              </AppText>
+              <AppButton label={str.reconnectButton} onPress={reconnect} />
+            </View>
+          ) : completed ? (
+            <View style={styles.lostBlock}>
+              <AppText variant="sectionTitle" tone="accent">
+                {str.completedTitle}
+              </AppText>
+              <AppText variant="dialogBody" tone="muted">
+                {str.completedHint}
+              </AppText>
+              <AppButton label={str.closeButton} onPress={() => void finishAndExit()} disabled={finishing} />
+            </View>
+          ) : (
+            <>
+              <View style={styles.progressBlock}>
+                <View style={[styles.progressTrack, { backgroundColor: theme.colors.controlButtonBg }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${progress * 100}%`,
+                        backgroundColor: theme.colors.buttonPrimaryBg,
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={styles.progressLabels}>
+                  <AppText variant="technicalCaption" tone="muted">
+                    {Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, "0")}
+                  </AppText>
+                  <AppText variant="technicalCaption" tone="muted">
+                    {durationSec
+                      ? str.durationMinutes(Math.max(1, Math.round(durationSec / 60)))
+                      : str.durationUnknown}
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={[styles.statusPill, { borderColor: theme.colors.surfaceBorder }]}>
+                <AppText variant="inlineStatus">{str.status(status)}</AppText>
+              </View>
+
+              {status === "stopped" ? (
+                <AppText variant="screenHint" tone="muted">
+                  {str.tvStoppedHint}
+                </AppText>
+              ) : null}
+
+              <View style={styles.actions}>
+                <AppButton
+                  label={
+                    status === "stopped"
+                      ? str.replayButton
+                      : status === "paused"
+                        ? str.resumeButton
+                        : str.pauseButton
+                  }
+                  onPress={status === "stopped" ? replay : pauseOrResume}
+                  disabled={!remotePlay.connected || remotePlay.busy}
+                  style={styles.actionButton}
+                />
+                <AppButton
+                  label={str.stopButton}
+                  variant="secondary"
+                  onPress={requestStop}
+                  disabled={!remotePlay.connected || remotePlay.busy || finishing}
+                  style={styles.actionButton}
+                />
+              </View>
+
+              {status === "stopped" ? (
+                <AppButton label={str.reconnectButton} variant="secondary" onPress={reconnect} />
+              ) : null}
+
+              <AppButton
+                label={str.disconnectButton}
+                variant="secondary"
+                onPress={requestDisconnect}
+                disabled={remotePlay.busy || finishing}
               />
-            </View>
-            <View style={styles.progressLabels}>
-              <AppText variant="technicalCaption" tone="muted">
-                {Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, "0")}
-              </AppText>
-              <AppText variant="technicalCaption" tone="muted">
-                {durationSec
-                  ? str.durationMinutes(Math.max(1, Math.round(durationSec / 60)))
-                  : str.durationUnknown}
-              </AppText>
-            </View>
-          </View>
-
-          <View style={[styles.statusPill, { borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="inlineStatus">{str.status(status)}</AppText>
-          </View>
-
-          <View style={styles.actions}>
-            <AppButton
-              label={
-                status === "stopped"
-                  ? str.replayButton
-                  : status === "paused"
-                    ? str.resumeButton
-                    : str.pauseButton
-              }
-              onPress={status === "stopped" ? replay : pauseOrResume}
-              disabled={!remotePlay.connected || remotePlay.busy}
-              style={styles.actionButton}
-            />
-            <AppButton
-              label={str.stopButton}
-              variant="secondary"
-              onPress={requestStop}
-              disabled={!remotePlay.connected || remotePlay.busy || finishing}
-              style={styles.actionButton}
-            />
-          </View>
-
-          <AppButton
-            label={str.disconnectButton}
-            variant="secondary"
-            onPress={disconnect}
-            disabled={remotePlay.busy || finishing}
-          />
+            </>
+          )}
         </SurfaceCardView>
       </StackScrollView>
 
@@ -289,7 +438,7 @@ export function TVRemoteScreen() {
         message={stopConfirm.stopConfirmMessage}
         continueLabel={stopConfirm.stopConfirmNo}
         finishLabel={finishing ? str.finishingButton : stopConfirm.stopConfirmYes}
-        onContinue={() => setShowStopConfirm(false)}
+        onContinue={dismissConfirm}
         onFinish={confirmFinish}
       />
     </StackScreenLayout>
@@ -332,5 +481,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  lostBlock: {
+    gap: 14,
   },
 });

@@ -25,6 +25,9 @@ export type AsanaScreenStrings = {
   videoReadyTitle: string;
   completeButton: string;
   completingButton: string;
+  completedTitle: string;
+  completedHint: string;
+  closeButton: string;
 };
 
 const ru: AsanaScreenStrings = {
@@ -48,6 +51,9 @@ const ru: AsanaScreenStrings = {
   videoReadyTitle: "Видео готово к запуску на ТВ",
   completeButton: "Завершить практику",
   completingButton: "Сохраняем...",
+  completedTitle: "Практика завершена",
+  completedHint: "Поздравляем — практика засчитана. Закройте окно, чтобы вернуться назад.",
+  closeButton: "Закрыть",
 };
 
 const en: AsanaScreenStrings = {
@@ -71,6 +77,9 @@ const en: AsanaScreenStrings = {
   videoReadyTitle: "Video is ready to launch on TV",
   completeButton: "Complete practice",
   completingButton: "Saving...",
+  completedTitle: "Practice completed",
+  completedHint: "Well done — the practice has been recorded. Close the window to return.",
+  closeButton: "Close",
 };
 
 export function getAsanaScreenStrings(locale: AsanaScreenLocale = "ru"): AsanaScreenStrings {

@@ -29,6 +29,13 @@ type TvRemoteStrings = {
   stopButton: string;
   disconnectButton: string;
   finishingButton: string;
+  connectionLostTitle: string;
+  connectionLostHint: string;
+  reconnectButton: string;
+  tvStoppedHint: string;
+  completedTitle: string;
+  completedHint: string;
+  closeButton: string;
   alertTitle: string;
   pauseFailed: string;
   stopFailed: string;
@@ -74,7 +81,16 @@ const ruTvRemote: TvRemoteStrings = {
   stopButton: "Стоп",
   disconnectButton: "Отключить ТВ",
   finishingButton: "Завершаем…",
-  alertTitle: "Remote Play",
+  connectionLostTitle: "Связь с ТВ потеряна",
+  connectionLostHint:
+    "Вкладка браузера закрыта или ТВ выключен. Подключите ТВ заново и запустите практику повторно.",
+  reconnectButton: "Подключить ТВ заново",
+    tvStoppedHint:
+      "Практика на ТВ остановлена. Откройте страницу на телевизоре и нажмите «Запустить заново». Если открыли новую вкладку — подключите ТВ заново.",
+    completedTitle: "Практика завершена",
+    completedHint: "Поздравляем — практика засчитана. Закройте окно, чтобы вернуться назад.",
+    closeButton: "Закрыть",
+    alertTitle: "Remote Play",
   pauseFailed: "Не удалось обновить статус ТВ.",
   stopFailed: "Не удалось остановить видео на ТВ.",
   replayFailed: "Не удалось запустить видео на ТВ.",
@@ -97,6 +113,15 @@ const enTvRemote: TvRemoteStrings = {
   stopButton: "Stop",
   disconnectButton: "Disconnect TV",
   finishingButton: "Finishing…",
+  connectionLostTitle: "TV connection lost",
+  connectionLostHint:
+    "The browser tab was closed or the TV turned off. Reconnect the TV and start the practice again.",
+  reconnectButton: "Reconnect TV",
+  tvStoppedHint:
+    "Playback on the TV has stopped. Open the page on your TV and tap Replay. If you opened a new browser tab, reconnect the TV.",
+  completedTitle: "Practice completed",
+  completedHint: "Well done — the practice has been recorded. Close the window to return.",
+  closeButton: "Close",
   alertTitle: "Remote Play",
   pauseFailed: "Could not update the TV status.",
   stopFailed: "Could not stop playback on the TV.",

@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { WebView } from "react-native-webview";
+import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { UpgradeDialog, requiredTierFor, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
@@ -22,6 +22,10 @@ import { useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession } from "@/services/practiceSessions";
 import { getSupabase } from "@/services/supabase";
 import type { Database } from "@/services/supabase-types";
+
+// Practice counts as completed if watched to within this many seconds of the end
+// (covers users who close the screen during the closing remarks).
+const COMPLETION_TAIL_SEC = 10;
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type ChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -58,6 +62,10 @@ export default function AsanaPracticeRoute() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingCompletion, setSavingCompletion] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  // Vimeo → RN event bridge: elapsed seconds + ended flag from the WebView.
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [practiceEnded, setPracticeEnded] = useState(false);
+  const recordedRef = useRef(false);
   const practiceId = typeof params.practiceId === "string" ? params.practiceId : null;
   const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
     ? params.launchSource.trim()
@@ -115,45 +123,107 @@ export default function AsanaPracticeRoute() {
   const durationSec =
     practice?.default_duration_sec ?? (routeDurationMinutes ? routeDurationMinutes * 60 : 0);
 
+  // Practice is considered completed when Vimeo fired `ended` OR the elapsed
+  // timer is within the closing tail (<= 10s left). In that state ✕ / «Завершить»
+  // skip the stop-confirm dialog and just record + exit.
+  const completed =
+    practiceEnded || (durationSec > 0 && elapsedSec >= durationSec - COMPLETION_TAIL_SEC);
+
+  const handlePlayerMessage = (event: WebViewMessageEvent) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data) as { type: string; seconds?: number };
+      if (data.type === "ended") {
+        setPracticeEnded(true);
+      } else if (data.type === "time" && typeof data.seconds === "number") {
+        setElapsedSec(data.seconds);
+      }
+    } catch {
+      /* ignore malformed messages */
+    }
+  };
+
+  // Auto-record once when the practice reaches the completed state, so the
+  // session is captured even if the user just closes the screen without tapping
+  // «Завершить». Best-effort.
+  useEffect(() => {
+    if (!completed || !practice || !authUser?.id || recordedRef.current) return;
+    recordedRef.current = true;
+    const effectiveDurationSec = durationSec || elapsedSec || 0;
+    const endedAt = Date.now();
+    const startedAt = endedAt - Math.max(1, effectiveDurationSec) * 1000;
+    const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
+    void recordPracticeSession({
+      userId: authUser.id,
+      practiceId: practice.id,
+      practiceSlug: practice.slug,
+      practiceVersion: practice.version ?? 1,
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      completionPct: 100,
+      chakraFocusIds: chakraIds,
+      metrics: {},
+      context: {
+        source: "asana",
+        launch_source: launchSource,
+        practice_kind: "yoga",
+        vimeo_id: vimeoId,
+        playback_mode: "phone",
+        audiotrack,
+      },
+    }).catch(() => {});
+  }, [audiotrack, authUser?.id, completed, durationSec, elapsedSec, launchSource, metadata?.chakras, practice, vimeoId]);
+
   const requestStop = () => {
     if (!practice || !authUser?.id || savingCompletion) return;
+    if (completed) {
+      // Already finished (or within the closing tail) — no warning, just close.
+      void confirmFinish();
+      return;
+    }
     setShowStopConfirm(true);
   };
 
   const confirmFinish = async () => {
     if (!authUser?.id || !practice || savingCompletion) return;
-    setSavingCompletion(true);
-    try {
-      const effectiveDurationSec = durationSec || 0;
-      const endedAt = Date.now();
-      const startedAt = endedAt - Math.max(1, effectiveDurationSec) * 1000;
-      const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
-      await recordPracticeSession({
-        userId: authUser.id,
-        practiceId: practice.id,
-        practiceSlug: practice.slug,
-        practiceVersion: practice.version ?? 1,
-        startedAt: new Date(startedAt).toISOString(),
-        endedAt: new Date(endedAt).toISOString(),
-        completionPct: 100,
-        chakraFocusIds: chakraIds,
-        metrics: {},
-        context: {
-          source: "asana",
-          launch_source: launchSource,
-          practice_kind: "yoga",
-          vimeo_id: vimeoId,
-          playback_mode: "phone",
-          audiotrack,
-        },
-      });
-    } catch {
-      /* swallow — still navigate away; the session row is best-effort */
-    } finally {
-      setSavingCompletion(false);
-      setShowStopConfirm(false);
-      exitAfterPractice(launchSource);
+    // Completed sessions were already recorded by the auto-record effect;
+    // interrupted sessions are NOT recorded (the warning told the user their
+    // progress wouldn't be saved).
+    if (completed && !recordedRef.current) {
+      // Fallback: record if auto-record somehow missed it.
+      setSavingCompletion(true);
+      try {
+        const effectiveDurationSec = durationSec || elapsedSec || 0;
+        const endedAt = Date.now();
+        const startedAt = endedAt - Math.max(1, effectiveDurationSec) * 1000;
+        const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
+        recordedRef.current = true;
+        await recordPracticeSession({
+          userId: authUser.id,
+          practiceId: practice.id,
+          practiceSlug: practice.slug,
+          practiceVersion: practice.version ?? 1,
+          startedAt: new Date(startedAt).toISOString(),
+          endedAt: new Date(endedAt).toISOString(),
+          completionPct: 100,
+          chakraFocusIds: chakraIds,
+          metrics: {},
+          context: {
+            source: "asana",
+            launch_source: launchSource,
+            practice_kind: "yoga",
+            vimeo_id: vimeoId,
+            playback_mode: "phone",
+            audiotrack,
+          },
+        });
+      } catch {
+        /* swallow — still navigate away */
+      } finally {
+        setSavingCompletion(false);
+      }
     }
+    setShowStopConfirm(false);
+    exitAfterPractice(launchSource);
   };
 
   return (
@@ -170,13 +240,34 @@ export default function AsanaPracticeRoute() {
             </AppText>
           ) : null}
 
-          <PhonePlayer vimeoId={vimeoId} audiotrack={audiotrack} strings={strings} />
-
-          <AppButton
-            label={strings.completeButton}
-            onPress={requestStop}
-            disabled={!practice || !authUser?.id || savingCompletion}
+          <PhonePlayer
+            vimeoId={vimeoId}
+            audiotrack={audiotrack}
+            strings={strings}
+            onMessage={handlePlayerMessage}
           />
+
+          {completed ? (
+            <View style={styles.completedBlock}>
+              <AppText variant="sectionTitle" tone="accent">
+                {strings.completedTitle}
+              </AppText>
+              <AppText variant="dialogBody" tone="muted">
+                {strings.completedHint}
+              </AppText>
+              <AppButton
+                label={strings.closeButton}
+                onPress={confirmFinish}
+                disabled={savingCompletion}
+              />
+            </View>
+          ) : (
+            <AppButton
+              label={strings.completeButton}
+              onPress={requestStop}
+              disabled={!practice || !authUser?.id || savingCompletion}
+            />
+          )}
         </SurfaceCardView>
       </StackScrollView>
 
@@ -204,10 +295,12 @@ function PhonePlayer({
   vimeoId,
   audiotrack,
   strings,
+  onMessage,
 }: {
   vimeoId: string | null;
   audiotrack: string;
   strings: ReturnType<typeof getAsanaScreenStrings>;
+  onMessage: (event: WebViewMessageEvent) => void;
 }) {
   const theme = useTheme();
   if (!vimeoId) {
@@ -228,6 +321,7 @@ function PhonePlayer({
         mediaPlaybackRequiresUserAction={false}
         allowsFullscreenVideo
         nestedScrollEnabled
+        onMessage={onMessage}
       />
     </View>
   );
@@ -256,5 +350,8 @@ const styles = StyleSheet.create({
   },
   centerText: {
     textAlign: "center",
+  },
+  completedBlock: {
+    gap: 12,
   },
 });

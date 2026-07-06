@@ -4,7 +4,15 @@
     <div id="hrp-eyebrow" class="hrp-eyebrow">Harmonizer Remote Play</div>
     <div id="hrp-code" class="hrp-code">....</div>
     <div id="hrp-status" class="hrp-status">Creating connection code...</div>
-    <div id="hrp-player" class="hrp-player" aria-label="Video player"></div>
+    <div id="hrp-player" class="hrp-player" aria-label="Video player">
+      <div id="hrp-unmute" class="hrp-unmute" role="button" tabindex="0">&#x1F507; <span>Включить звук</span></div>
+      <div id="hrp-controls" class="hrp-controls">
+        <button id="hrp-mute" class="hrp-ctrl" type="button" aria-label="Mute">&#x1F507;</button>
+        <input id="hrp-volume" class="hrp-volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+        <button id="hrp-quality" class="hrp-ctrl hrp-quality" type="button" aria-label="Quality">HD</button>
+        <button id="hrp-fullscreen" class="hrp-ctrl" type="button" aria-label="Fullscreen">&#x26F6;</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -188,6 +196,100 @@
   const statusEl = document.getElementById("hrp-status");
   const playerEl = document.getElementById("hrp-player");
   const eyebrowEl = document.getElementById("hrp-eyebrow");
+  // ---- Custom on-screen controls (Vimeo's own are hidden via controls=0 +
+  // setControlsEnabled(false)). Wired once here so repeated mount/destroy of
+  // the iframe doesn't stack duplicate listeners. Each handler reads the
+  // current `player`/`iframe` at call time.
+  const muteBtn = document.getElementById("hrp-mute");
+  const volumeSlider = document.getElementById("hrp-volume");
+  const qualityBtn = document.getElementById("hrp-quality");
+  const fsBtn = document.getElementById("hrp-fullscreen");
+  const unmuteOverlay = document.getElementById("hrp-unmute");
+
+  function setMuteIcon(muted) {
+    if (muteBtn) muteBtn.textContent = muted ? "\u{1F507}" : "\u{1F50A}";
+  }
+  function showUnmuteOverlay(show) {
+    if (unmuteOverlay) unmuteOverlay.classList.toggle("hrp-hidden", !show);
+  }
+  async function applyUnmute() {
+    if (!player) return;
+    try {
+      await player.setMuted(false).catch(() => {});
+      const v = parseFloat(volumeSlider && volumeSlider.value) || 1;
+      if (v > 0) await player.setVolume(v).catch(() => {});
+      setMuteIcon(false);
+      showUnmuteOverlay(false);
+    } catch { /* ignore */ }
+  }
+  if (muteBtn) {
+    muteBtn.addEventListener("click", async () => {
+      if (!player) return;
+      const muted = await player.getMuted().catch(() => false);
+      if (muted) {
+        await applyUnmute();
+      } else {
+        await player.setMuted(true).catch(() => {});
+        setMuteIcon(true);
+        showUnmuteOverlay(true);
+      }
+    });
+  }
+  if (unmuteOverlay) {
+    unmuteOverlay.addEventListener("click", applyUnmute);
+  }
+  if (volumeSlider) {
+    volumeSlider.addEventListener("input", async (e) => {
+      if (!player) return;
+      const v = parseFloat(e.target.value) || 0;
+      await player.setVolume(v).catch(() => {});
+      if (v > 0) {
+        await player.setMuted(false).catch(() => {});
+        setMuteIcon(false);
+        showUnmuteOverlay(false);
+      } else {
+        await player.setMuted(true).catch(() => {});
+        setMuteIcon(true);
+      }
+    });
+  }
+  if (qualityBtn) {
+    qualityBtn.addEventListener("click", async () => {
+      if (!player) return;
+      try {
+        const qs = await player.getQualities().catch(() => []);
+        if (!qs || !qs.length) return;
+        const cur = await player.getCurrentQuality().catch(() => null);
+        const idx = qs.findIndex((q) => q.id === cur);
+        const next = qs[(idx + 1) % qs.length];
+        await player.setCurrentQuality(next.id).catch(() => {});
+        qualityBtn.textContent = shortQualityLabel(next.label || next.id);
+      } catch { /* ignore */ }
+    });
+  }
+  function shortQualityLabel(label) {
+    if (!label) return "HD";
+    const m = String(label).match(/\d{3,4}p?/i);
+    return m ? m[0].replace(/p$/i, "") + "p" : String(label);
+  }
+  if (fsBtn) {
+    fsBtn.addEventListener("click", () => {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        return;
+      }
+      const target = playerEl;
+      if (target && target.requestFullscreen) target.requestFullscreen().catch(() => {});
+      else if (target && target.webkitRequestFullscreen) target.webkitRequestFullscreen();
+    });
+    document.addEventListener("fullscreenchange", () => {
+      fsBtn.textContent = document.fullscreenElement ? "\u2715" : "\u{26F6}";
+    });
+    document.addEventListener("webkitfullscreenchange", () => {
+      fsBtn.textContent = document.webkitFullscreenElement ? "\u2715" : "\u{26F6}";
+    });
+  }
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   // Fallback audio track when the mobile client did not write `audiotrack` on
   // the session row (legacy rows / anonymous waiting sessions). The mobile
@@ -233,6 +335,8 @@
     return Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
   }
 
+  const SESSION_ID_KEY = "hrp_session_id";
+
   async function createSession() {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const pairing_code = randomCode();
@@ -248,9 +352,45 @@
     throw new Error(t("codeError"));
   }
 
+  // Reuse the same tv_sessions row when the user reloads /tv/ in the same browser
+  // profile (sessionStorage). A brand-new visit still creates a fresh pairing code.
+  async function restoreOrCreateSession() {
+    try {
+      const storedId = sessionStorage.getItem(SESSION_ID_KEY);
+      if (storedId) {
+        const { data, error } = await client
+          .from("tv_sessions")
+          .select("id,pairing_code,vimeo_id,audiotrack,status,user_id,expires_at")
+          .eq("id", storedId)
+          .maybeSingle();
+        if (
+          !error &&
+          data &&
+          data.status !== "closed" &&
+          new Date(data.expires_at).getTime() > Date.now()
+        ) {
+          return data;
+        }
+        sessionStorage.removeItem(SESSION_ID_KEY);
+      }
+    } catch {
+      /* sessionStorage may be unavailable in some embedded browsers */
+    }
+    const created = await createSession();
+    try {
+      sessionStorage.setItem(SESSION_ID_KEY, created.id);
+    } catch {
+      /* ignore */
+    }
+    return created;
+  }
+
   function vimeoEmbedUrl(vimeoId, audiotrack) {
     const track = (audiotrack && String(audiotrack).trim()) || VIMEO_AUDIO_TRACK;
-    return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?audiotrack=${encodeURIComponent(track)}`;
+    // controls=0 hides Vimeo's play/pause/scrub/volume UI — playback is driven
+    // solely from the phone remote (autoplay on mount). The only on-screen
+    // control the user gets is the custom fullscreen button (#hrp-fullscreen).
+    return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?audiotrack=${encodeURIComponent(track)}&controls=0`;
   }
 
   async function destroyPlayer() {
@@ -262,7 +402,9 @@
       player = null;
       lastVideoKey = null;
       lastPlayerError = "";
-      playerEl.innerHTML = "";
+      // Remove only the iframe(s), keep the custom controls + unmute overlay.
+      Array.from(playerEl.querySelectorAll("iframe")).forEach((el) => el.remove());
+      showUnmuteOverlay(false);
       await sleep(220);
     }
   }
@@ -288,19 +430,73 @@
       lastPlayerError = error && error.message ? error.message : t("vimeoDenied");
       setStatusStable(`${t("vimeoDenied")} ${lastPlayerError}`, true);
     });
+    // Hide all Vimeo on-screen controls (play/pause/scrubber/volume/fullscreen)
+    // — playback is driven solely from the phone remote. We use BOTH the
+    // `controls=0` URL param AND the programmatic API as a belt-and-suspenders
+    // approach (the URL param alone is sometimes ignored depending on the
+    // Vimeo account's player preferences). The custom #hrp-fullscreen button
+    // remains the only on-screen control.
+    player.on("play", () => { if (!applyingRemoteStatus) patchStatus("playing"); });
+    player.on("pause", () => { if (!applyingRemoteStatus) patchStatus("paused"); });
+    player.on("ended", () => { if (!applyingRemoteStatus) patchStatus("stopped"); });
     try {
       await player.ready();
       if (lastPlayerError) return false;
-      await player.play().catch((error) => {
-        lastPlayerError = error && error.message ? error.message : "";
-      });
-      iframe?.requestFullscreen?.().catch(() => {});
+      // Programmatically disable Vimeo's own controls (more reliable than the
+      // URL param) — playback is driven from the phone remote + our custom bar.
+      try { await player.setControlsEnabled(false).catch(() => {}); } catch { /* optional */ }
+      // Try to set the highest available quality (user requested max resolution).
+      try {
+        const qs = await player.getQualities().catch(() => []);
+        const best = (qs || []).find((q) => q.id !== "auto") || null;
+        if (best) await player.setCurrentQuality(best.id).catch(() => {});
+        if (qualityBtn) {
+          const cur = await player.getCurrentQuality().catch(() => null);
+          const curQ = (qs || []).find((q) => q.id === cur);
+          qualityBtn.textContent = shortQualityLabel(curQ ? curQ.label : cur);
+        }
+      } catch { /* quality API optional */ }
+      // Try unmuted autoplay first; browsers block autoplay-with-sound without a
+      // prior user gesture, so fall back to muted + a "tap to unmute" overlay.
+      try {
+        await player.setMuted(false).catch(() => {});
+        await player.play();
+        setMuteIcon(false);
+        showUnmuteOverlay(false);
+      } catch {
+        await player.setMuted(true).catch(() => {});
+        await player.play().catch((error) => {
+          lastPlayerError = error && error.message ? error.message : "";
+        });
+        setMuteIcon(true);
+        showUnmuteOverlay(true);
+      }
       return !lastPlayerError;
     } catch {
       lastPlayerError = t("vimeoCheckPrivacy");
       setStatusStable(`${t("vimeoDenied")} ${lastPlayerError}`, true);
       return false;
     }
+  }
+
+  // PATCH tv_sessions.status from a browser-side Vimeo event. Best-effort;
+  // ignored while we're applying a remote status change (loop guard).
+  let applyingRemoteStatus = false;
+  async function patchStatus(nextStatus) {
+    if (!session || session.status === nextStatus) return;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tv_sessions?id=eq.${session.id}`, {
+        method: "PATCH",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      }).catch(() => null);
+      if (res && !res.ok) { /* ignore — best-effort */ }
+    } catch { /* ignore */ }
   }
 
   async function applySessionCore(next) {
@@ -335,7 +531,10 @@
         return;
       }
       if (!player || lastVideoKey !== wantKey) return;
-      if (already) await player.play().catch(() => {});
+      if (already) {
+        applyingRemoteStatus = true;
+        try { await player.play().catch(() => {}); } finally { applyingRemoteStatus = false; }
+      }
       lastFingerprint = fp;
       setStatusStable(t("playing"), true);
       return;
@@ -351,7 +550,8 @@
       if (!player || lastVideoKey !== wantKey) return;
       lastFingerprint = fp;
       setStatusStable(t("paused"), true);
-      if (player) await player.pause().catch(() => {});
+      applyingRemoteStatus = true;
+      try { if (player) await player.pause().catch(() => {}); } finally { applyingRemoteStatus = false; }
       return;
     }
 
@@ -368,6 +568,9 @@
 
   async function closeSession() {
     if (!session || session.status === "closed") return;
+    // Keep the pairing alive (status "stopped") so the phone remote can offer
+    // "Replay" after the tab is closed, and sessionStorage can restore the same
+    // code on reload. "closed" is reserved for explicit unlink / stale cleanup.
     await fetch(`${SUPABASE_URL}/rest/v1/tv_sessions?id=eq.${session.id}`, {
       method: "PATCH",
       keepalive: true,
@@ -377,7 +580,7 @@
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
-      body: JSON.stringify({ status: "closed" }),
+      body: JSON.stringify({ status: "stopped" }),
     }).catch(() => {});
   }
 
@@ -398,7 +601,7 @@
 
   async function start() {
     try {
-      session = await createSession();
+      session = await restoreOrCreateSession();
       codeEl.textContent = session.pairing_code;
       lastStatusText = "";
       lastConnectedClass = false;
@@ -477,6 +680,7 @@
 }
 .hrp-player {
   margin-top: 32px;
+  position: relative;
   overflow: hidden;
   border-radius: 24px;
   background: #000;
@@ -485,5 +689,98 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   display: block;
+}
+.hrp-fullscreen,
+.hrp-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.hrp-ctrl {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+}
+.hrp-ctrl:hover {
+  background: rgba(15, 23, 42, 0.92);
+}
+.hrp-quality {
+  width: auto;
+  min-width: 64px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 12px;
+}
+.hrp-volume {
+  flex: 1 1 auto;
+  min-width: 80px;
+  max-width: 160px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.25);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.hrp-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: none;
+}
+.hrp-volume::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: none;
+}
+.hrp-controls {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.55);
+  z-index: 6;
+}
+.hrp-unmute {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.78);
+  color: #f8fafc;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 7;
+  transition: background 0.15s ease;
+}
+.hrp-unmute:hover {
+  background: rgba(2, 6, 23, 0.95);
+}
+.hrp-unmute.hrp-hidden {
+  display: none;
 }
 </style>
