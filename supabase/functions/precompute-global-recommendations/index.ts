@@ -1,10 +1,9 @@
 // @ts-nocheck
-import { resolveFallbackGeminiModelIdFromEnv, resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
+import { resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
+import { generateGeminiJson } from "../_shared/llm.ts";
 import { assertCronSecret, createServiceClient, isOptions, json } from "../_shared/supabase.ts";
 import { buildGlobalMathLevel, computeGlobalDailyForecast, GLOBAL_MATH_SCHEMA_VERSION } from "../_shared/dailyForecast.ts";
 
-const BACKGROUND_PRIMARY_ATTEMPTS = 3;
-const BACKGROUND_PRIMARY_RETRY_DELAY_MS = 60_000;
 const GLOBAL_LONG_SECTION_MARKERS = ["§1.", "§2.", "§3.", "§4.", "§5.", "§6."];
 const GLOBAL_LONG_CHAKRA_PATTERNS = [
   /\bchakra(?:s)?\b/iu,
@@ -68,77 +67,6 @@ function renderTemplate(template: string, variables: Record<string, unknown>): s
   });
 }
 
-async function generateGeminiJson(params: {
-  prompt: string;
-  modelHint: string | null | undefined;
-  temperature: number | null | undefined;
-  maxOutputTokens: number | null | undefined;
-  backgroundRetryPrimary?: boolean;
-}) {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("GEMINI_API_KEY is required");
-  const primaryModel = resolveGeminiModelIdFromTierEnv(params.modelHint);
-  const fallbackModel = resolveFallbackGeminiModelIdFromEnv();
-  const generationConfig = {
-    temperature: params.temperature ?? 0.85,
-    maxOutputTokens: params.maxOutputTokens ?? 2200,
-    responseMimeType: "application/json",
-  };
-  const tryModel = async (model: string) => {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: params.prompt }] }],
-        generationConfig,
-      }),
-    });
-    if (!res.ok) throw new Error(`Gemini failed: ${res.status} ${await res.text().catch(() => "")}`);
-    const data = await res.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!raw) throw new Error("Gemini returned empty response");
-    return {
-      json: JSON.parse(raw),
-      model,
-      tokensUsed: data?.usageMetadata?.totalTokenCount ?? null,
-    };
-  };
-  const isRetryable = (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    return /\b(429|502|503)\b/i.test(message) || /service unavailable|high demand|resource exhausted|overloaded|timed out|timeout/i.test(message);
-  };
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  let lastError: unknown;
-  const primaryAttempts = params.backgroundRetryPrimary ? BACKGROUND_PRIMARY_ATTEMPTS : 1;
-  for (let attempt = 1; attempt <= primaryAttempts; attempt += 1) {
-    try {
-      return await tryModel(primaryModel);
-    } catch (error) {
-      lastError = error;
-      if (!isRetryable(error)) throw error;
-      if (attempt < primaryAttempts) {
-        console.warn(
-          `[precompute-global-recommendations] primary model ${primaryModel} failed, ` +
-          `retry ${attempt + 1}/${primaryAttempts} in ${Math.round(BACKGROUND_PRIMARY_RETRY_DELAY_MS / 1000)}s`,
-          error,
-        );
-        await sleep(BACKGROUND_PRIMARY_RETRY_DELAY_MS);
-        continue;
-      }
-    }
-  }
-
-  if (fallbackModel === primaryModel) {
-    throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "Gemini failed"));
-  }
-  console.warn(
-    `[precompute-global-recommendations] falling back from ${primaryModel} to ${fallbackModel} after ${primaryAttempts} failed primary attempts`,
-    lastError,
-  );
-  return await tryModel(fallbackModel);
-}
-
 async function generateForDate(db: any, date: string) {
   const { data: prompt, error: promptError } = await db
     .from("prompts")
@@ -169,6 +97,7 @@ async function generateForDate(db: any, date: string) {
     temperature: prompt.temperature,
     maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
     backgroundRetryPrimary: true,
+    logTag: "precompute-global-recommendations",
   });
 
   const row = {
@@ -216,6 +145,7 @@ async function generateForDate(db: any, date: string) {
         modelHint: "standard",
         temperature: 0.3,
         maxOutputTokens: 6144,
+        logTag: "precompute-global-recommendations",
       });
       textI18n[locale] = {
         slogan: String(tr.json.slogan ?? ruTexts.slogan),

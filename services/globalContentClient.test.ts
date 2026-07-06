@@ -118,7 +118,7 @@ describe("fetchGlobalContent", () => {
       responseLocale: "de",
     });
 
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(105_000);
     const result = await promise;
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -154,7 +154,7 @@ describe("fetchGlobalContent", () => {
       responseLocale: "de",
     });
 
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(105_000);
     const result = await promise;
 
     expect(result.forecast.recommendationLongText).toBeUndefined();

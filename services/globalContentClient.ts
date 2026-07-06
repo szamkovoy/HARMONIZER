@@ -44,7 +44,7 @@ type GlobalContentResponse = {
   error?: unknown;
 };
 
-const GLOBAL_CONTENT_TIMEOUT_MS = 25_000;
+const GLOBAL_CONTENT_TIMEOUT_MS = 105_000;
 const GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS = 8_000;
 
 type GlobalTextFields = {
@@ -343,7 +343,10 @@ export async function fetchGlobalContent(req: {
 }): Promise<GlobalContentResult> {
   return withTransientNetworkRetry(
     async () => fetchGlobalContentOnce(req),
-    { signal: req.signal },
+    // attempts: 1 — внутри fetchGlobalContentOnce уже есть route→direct-fallback
+    // resilience. Ретраи_outer здесь умножали бы (105s route + 8s direct) на 3 = ~339s
+    // на холодном заходе, если LLM/сеть лежат. Крон + следующий заход ретраят естественно.
+    { signal: req.signal, attempts: 1 },
   );
 }
 

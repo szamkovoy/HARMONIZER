@@ -12,6 +12,13 @@ import {
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
+/**
+ * Холодный free-заход может блокирующе гнать LLM (DeepSeek primary → Gemini fallback,
+ * ~90s худший случай), если крон не прогрел `global_daily_content`. 120s даёт запас
+ * поверх 90s + DB. На cache-hit (настоящая строка от крона) ответ мгновенный —
+ * maxDuration влияет только на холодный запуск.
+ */
+export const maxDuration = 120;
 
 type UserAccess = {
   tz?: string | null;
@@ -45,27 +52,32 @@ function hasText(value: unknown): boolean {
 
 /**
  * Строку можно ОТДАТЬ клиенту (структурный прогноз + минимальные тексты есть),
- * даже если она устарела по модели/структуре — свежесть догонит фоновый refresh.
+ * даже если она устарела по модели/структуре — свежесть догонит блокирующий refresh.
  */
 function isUsableGlobalRow(row: Record<string, unknown> | null | undefined): row is Record<string, unknown> {
   return Boolean(row && hasText(row.slogan) && hasText(row.short_text) && hasText(row.long_explanation));
 }
 
 /**
- * Троттлинг фоновой регенерации, чтобы всплеск free-запросов не запускал десятки
- * параллельных LLM-вызовов на одну и ту же дату. Best-effort в рамках инстанса.
+ * In-flight guard для блокирующей регенерации в пределах инстанса (на Vercel
+ * serverless один инстанс = один запрос, поэтому guard в основном защищает от
+ * повторных LLM-вызовов при гонках внутри одного запроса; cross-instance дубли
+ * идемпотентны благодаря upsert onConflict).
  */
-const backgroundRefreshAttempts = new Map<string, number>();
-const BACKGROUND_REFRESH_MIN_INTERVAL_MS = 60_000;
+const blockingRefreshInFlight = new Map<string, Promise<void>>();
 
-function triggerBackgroundGlobalRefresh(db: SupabaseClient, localDate: string): void {
-  const now = Date.now();
-  const last = backgroundRefreshAttempts.get(localDate) ?? 0;
-  if (now - last < BACKGROUND_REFRESH_MIN_INTERVAL_MS) return;
-  backgroundRefreshAttempts.set(localDate, now);
-  void ensureGlobalDailyContentRow(db, localDate).catch((refreshError) => {
-    console.error("[global-content] background refresh failed", localDate, refreshError);
-  });
+function blockingGlobalRefresh(db: SupabaseClient, localDate: string): Promise<void> {
+  const existing = blockingRefreshInFlight.get(localDate);
+  if (existing) return existing;
+  const promise = ensureGlobalDailyContentRow(db, localDate)
+    .catch((refreshError) => {
+      console.error("[global-content] blocking refresh failed", localDate, refreshError);
+    })
+    .finally(() => {
+      blockingRefreshInFlight.delete(localDate);
+    });
+  blockingRefreshInFlight.set(localDate, promise);
+  return promise;
 }
 
 function payloadFromContent(content: Record<string, unknown>, user: UserAccess, isFallback: boolean) {
@@ -196,33 +208,54 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (error) throw error;
 
-    // 1) Есть пригодная строка на сегодня → отдаём немедленно. Если она устарела
-    //    (сменилась модель / структура текста), догоняем свежесть фоново, НЕ блокируя
-    //    и НЕ роняя ответ, если LLM сейчас недоступна.
+    // 1) Есть пригодная строка на сегодня. Если она устарела (сменилась модель /
+    //    структура — типично для fallback-строки с llm_model=null, которую пишет
+    //    writeStructuralGlobalRow) → блокирующе догоняем настоящие LLM-тексты
+    //    (Vercel держит функцию живой, пока handler awaits) и отдаём свежую строку.
+    //    Если LLM недоступна — отдаём ту, что есть (fallback), крон ретраит позже.
     if (isUsableGlobalRow(content as Record<string, unknown> | null)) {
       const row = content as Record<string, unknown>;
       if (globalContentNeedsRefresh(row, expectedModel)) {
-        triggerBackgroundGlobalRefresh(db, localDate);
+        await blockingGlobalRefresh(db, localDate);
+        const { data: refreshed, error: refreshedError } = await db
+          .from("global_daily_content")
+          .select("*")
+          .eq("forecast_date_utc", localDate)
+          .maybeSingle();
+        if (refreshedError) throw refreshedError;
+        if (isUsableGlobalRow(refreshed as Record<string, unknown> | null)) {
+          return respondWithLocalizedContent(
+            db,
+            refreshed as Record<string, unknown>,
+            userAccess,
+            false,
+            responseLocale,
+            devResetExtra,
+          );
+        }
       }
       return respondWithLocalizedContent(db, row, userAccess, false, responseLocale, devResetExtra);
     }
 
     // 2) Строки на сегодня нет (или она непригодна) → БЫСТРО пишем детерминированную
-    //    structural-строку (без LLM, ~1–2s) и сразу отдаём её. Настоящие LLM-тексты
-    //    догоняет фоновый refresh — клиент не ждёт DeepSeek/Gemini и не попадает в
-    //    25s клиентский таймаут на холодном free-заходе.
-    let structuralRow: Record<string, unknown> | null = null;
+    //    structural-строку (без LLM, ~1–2s) как safety net + для concurrent-dedup,
+    //    затем блокирующе генерируем настоящие LLM-тексты и отдаём свежую строку.
     try {
-      structuralRow = await writeStructuralGlobalRow(db, localDate);
+      await writeStructuralGlobalRow(db, localDate);
     } catch (synthError) {
       console.error("[global-content] structural row write failed", synthError);
     }
-
-    if (structuralRow) {
-      triggerBackgroundGlobalRefresh(db, localDate);
+    await blockingGlobalRefresh(db, localDate);
+    const { data: created, error: createdError } = await db
+      .from("global_daily_content")
+      .select("*")
+      .eq("forecast_date_utc", localDate)
+      .maybeSingle();
+    if (createdError) throw createdError;
+    if (isUsableGlobalRow(created as Record<string, unknown> | null)) {
       return respondWithLocalizedContent(
         db,
-        structuralRow,
+        created as Record<string, unknown>,
         userAccess,
         false,
         responseLocale,
@@ -240,7 +273,6 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (fallbackError) throw fallbackError;
     if (isUsableGlobalRow(fallback as Record<string, unknown> | null)) {
-      triggerBackgroundGlobalRefresh(db, localDate);
       return respondWithLocalizedContent(
         db,
         fallback as Record<string, unknown>,
