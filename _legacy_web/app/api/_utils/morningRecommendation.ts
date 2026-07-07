@@ -77,11 +77,22 @@ async function loadUser(db: SupabaseClient, userId: string): Promise<UserRecord>
   return (data as UserRecord | null) ?? {};
 }
 
+function shuffle<T>(input: readonly T[]): T[] {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function baselineForPlanet(planet: PetalData["planet"]): Required<BaselineStates> {
   const baseline = (chakraStatesBaseline as Record<string, BaselineStates>)[planet] ?? {};
+  // Shuffle to break LLM primacy bias (anchoring on the first words of the list),
+  // so each generation emphasises a different cluster of states for the same planet.
   return {
-    harmonicStates: baseline.harmonicStates ?? [],
-    dissonantStates: baseline.dissonantStates ?? [],
+    harmonicStates: shuffle(baseline.harmonicStates ?? []),
+    dissonantStates: shuffle(baseline.dissonantStates ?? []),
   };
 }
 
@@ -151,12 +162,12 @@ function buildVariables(params: {
       tertiary_chakra: tertiary.chakra_label,
       tertiary_harmoniousness: tertiary.harmoniousness,
       petals_relation: describePetalsRelation(petals),
-      primary_harmonic_states: primaryBaseline.harmonicStates,
-      primary_dissonant_states: primaryBaseline.dissonantStates,
-      secondary_harmonic_states: secondaryBaseline.harmonicStates,
-      secondary_dissonant_states: secondaryBaseline.dissonantStates,
-      tertiary_harmonic_states: tertiaryBaseline.harmonicStates,
-      tertiary_dissonant_states: tertiaryBaseline.dissonantStates,
+      primary_harmonic_states: primaryBaseline.harmonicStates.join(", "),
+      primary_dissonant_states: primaryBaseline.dissonantStates.join(", "),
+      secondary_harmonic_states: secondaryBaseline.harmonicStates.join(", "),
+      secondary_dissonant_states: secondaryBaseline.dissonantStates.join(", "),
+      tertiary_harmonic_states: tertiaryBaseline.harmonicStates.join(", "),
+      tertiary_dissonant_states: tertiaryBaseline.dissonantStates.join(", "),
       user_phrases: userPhrasesForPetals(params.calibration, petals),
     },
     mathLevel,

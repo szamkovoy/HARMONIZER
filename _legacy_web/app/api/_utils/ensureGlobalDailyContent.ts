@@ -71,11 +71,22 @@ const ASPECT_COEF: Record<string, number> = {
   sextile: 0.5,
 };
 
+function shuffle<T>(input: readonly T[]): T[] {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function baselineForPlanet(planet: string): Required<BaselineStates> {
   const baseline = (chakraStatesBaseline as Record<string, BaselineStates>)[planet] ?? {};
+  // Shuffle to break LLM primacy bias (anchoring on the first words of the list),
+  // so each generation emphasises a different cluster of states for the same planet.
   return {
-    harmonicStates: baseline.harmonicStates ?? [],
-    dissonantStates: baseline.dissonantStates ?? [],
+    harmonicStates: shuffle(baseline.harmonicStates ?? []),
+    dissonantStates: shuffle(baseline.dissonantStates ?? []),
   };
 }
 
@@ -135,12 +146,12 @@ function buildGlobalVariables(
     tertiary_chakra: PLANET_TO_CHAKRA[tertiary.planet as keyof typeof PLANET_TO_CHAKRA]?.label ?? tertiary.chakra_label,
     tertiary_harmoniousness: globalHarmoniousnessFor(tertiary.planet, forecast.aspects),
     petals_relation: describePetalsRelation(petalsForRelation),
-    primary_harmonic_states: baselineForPlanet(primary.planet).harmonicStates,
-    primary_dissonant_states: baselineForPlanet(primary.planet).dissonantStates,
-    secondary_harmonic_states: baselineForPlanet(secondary.planet).harmonicStates,
-    secondary_dissonant_states: baselineForPlanet(secondary.planet).dissonantStates,
-    tertiary_harmonic_states: baselineForPlanet(tertiary.planet).harmonicStates,
-    tertiary_dissonant_states: baselineForPlanet(tertiary.planet).dissonantStates,
+    primary_harmonic_states: baselineForPlanet(primary.planet).harmonicStates.join(", "),
+    primary_dissonant_states: baselineForPlanet(primary.planet).dissonantStates.join(", "),
+    secondary_harmonic_states: baselineForPlanet(secondary.planet).harmonicStates.join(", "),
+    secondary_dissonant_states: baselineForPlanet(secondary.planet).dissonantStates.join(", "),
+    tertiary_harmonic_states: baselineForPlanet(tertiary.planet).harmonicStates.join(", "),
+    tertiary_dissonant_states: baselineForPlanet(tertiary.planet).dissonantStates.join(", "),
     user_phrases: [],
   };
 }

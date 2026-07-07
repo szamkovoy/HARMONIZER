@@ -21,13 +21,13 @@ const SUPPORTED_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as co
 const MORNING_CACHE_OUTPUT_LOCALE_KEY = "outputLocale";
 const PLANETS_7 = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
 const PLANET_TO_CHAKRA = {
-  Moon: { number: 1, label: "первая чакра (телесность, безопасность)" },
-  Venus: { number: 2, label: "вторая чакра (удовольствие, чувственность)" },
-  Mars: { number: 3, label: "третья чакра (воля, действие)" },
-  Jupiter: { number: 4, label: "четвёртая чакра (любовь, отношения)" },
-  Saturn: { number: 5, label: "пятая чакра (самовыражение, речь)" },
-  Mercury: { number: 6, label: "шестая чакра (мудрость, ясность)" },
-  Sun: { number: 7, label: "седьмая чакра (святость, вера)" },
+  Moon: { number: 1, label: "первая чакра" },
+  Venus: { number: 2, label: "вторая чакра" },
+  Mars: { number: 3, label: "третья чакра" },
+  Jupiter: { number: 4, label: "четвёртая чакра" },
+  Saturn: { number: 5, label: "пятая чакра" },
+  Mercury: { number: 6, label: "шестая чакра" },
+  Sun: { number: 7, label: "седьмая чакра" },
 } as const;
 
 type AppContentLocale = (typeof SUPPORTED_LOCALES)[number];
@@ -219,11 +219,22 @@ type BaselineStates = {
   dissonantStates?: string[];
 };
 
+function shuffle<T>(input: readonly T[]): T[] {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function baselineForPlanet(planet: string): { harmonicStates: string[]; dissonantStates: string[] } {
   const baseline = (chakraStatesBaseline as Record<string, BaselineStates>)[planet] ?? {};
+  // Shuffle to break LLM primacy bias (anchoring on the first words of the list),
+  // so each generation emphasises a different cluster of states for the same planet.
   return {
-    harmonicStates: baseline.harmonicStates ?? [],
-    dissonantStates: baseline.dissonantStates ?? [],
+    harmonicStates: shuffle(baseline.harmonicStates ?? []),
+    dissonantStates: shuffle(baseline.dissonantStates ?? []),
   };
 }
 
@@ -446,12 +457,12 @@ async function precomputeMorningRecommendation(params: {
     tertiary_chakra: tertiary.chakra_label,
     tertiary_harmoniousness: tertiary.harmoniousness,
     petals_relation: describePetalsRelation(petals),
-    primary_harmonic_states: primaryBaseline.harmonicStates,
-    primary_dissonant_states: primaryBaseline.dissonantStates,
-    secondary_harmonic_states: secondaryBaseline.harmonicStates,
-    secondary_dissonant_states: secondaryBaseline.dissonantStates,
-    tertiary_harmonic_states: tertiaryBaseline.harmonicStates,
-    tertiary_dissonant_states: tertiaryBaseline.dissonantStates,
+    primary_harmonic_states: primaryBaseline.harmonicStates.join(", "),
+    primary_dissonant_states: primaryBaseline.dissonantStates.join(", "),
+    secondary_harmonic_states: secondaryBaseline.harmonicStates.join(", "),
+    secondary_dissonant_states: secondaryBaseline.dissonantStates.join(", "),
+    tertiary_harmonic_states: tertiaryBaseline.harmonicStates.join(", "),
+    tertiary_dissonant_states: tertiaryBaseline.dissonantStates.join(", "),
     user_phrases: [],
   };
   const rendered = renderTemplate(params.promptConfig.prompt.template, variables);

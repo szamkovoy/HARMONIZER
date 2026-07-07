@@ -41,13 +41,13 @@ export interface PetalData {
 }
 
 export const PLANET_TO_CHAKRA: Record<Planet, { number: number; label: string }> = {
-  Moon: { number: 1, label: `${chakraLabelRu(1)} (телесность, безопасность)` },
-  Venus: { number: 2, label: `${chakraLabelRu(2)} (удовольствие, чувственность)` },
-  Mars: { number: 3, label: `${chakraLabelRu(3)} (воля, действие)` },
-  Jupiter: { number: 4, label: `${chakraLabelRu(4)} (любовь, отношения)` },
-  Saturn: { number: 5, label: `${chakraLabelRu(5)} (самовыражение, речь)` },
-  Mercury: { number: 6, label: `${chakraLabelRu(6)} (мудрость, ясность)` },
-  Sun: { number: 7, label: `${chakraLabelRu(7)} (святость, вера)` },
+  Moon: { number: 1, label: chakraLabelRu(1) },
+  Venus: { number: 2, label: chakraLabelRu(2) },
+  Mars: { number: 3, label: chakraLabelRu(3) },
+  Jupiter: { number: 4, label: chakraLabelRu(4) },
+  Saturn: { number: 5, label: chakraLabelRu(5) },
+  Mercury: { number: 6, label: chakraLabelRu(6) },
+  Sun: { number: 7, label: chakraLabelRu(7) },
 };
 
 function isPlanet(value: unknown): value is Planet {
