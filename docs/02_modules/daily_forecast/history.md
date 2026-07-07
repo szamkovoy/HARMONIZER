@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.20
-updated: 2026-06-27
+version: 2.21
+updated: 2026-07-07
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-07 (v6 unified prompt):** Free-path «Рекомендаций на день» на главной переведён на **единый промпт v6** (`monologue_morning_recommendation` == `global_morning_recommendation` по шаблону; различие через `{{personalization_mode}}`). `ensureGlobalDailyContent.ts` теперь собирает тот же набор переменных что и paid-билдер: гармоничность в шкале -1.0…+1.0 из баланса транзит-транзитных аспектов (`globalHarmoniousnessFor`), baseline-состояния из `chakra_states_baseline.json` (раньше free их не получал → модель галлюцинировала состояния), `author_voice_block` (RU, «вы»), `FREE_PERSONALIZATION_MODE` (безличный, без натала). Переменные `top_petals_json`/`aspects_json` ушли — промпт работает с поименованными `{{primary_planet}}`/`{{secondary_planet}}`/`{{tertiary_planet}}` и их гармоничностью/состояниями. Edge-cron `precompute-global-recommendations` упрощён до **structural-only** (пишет structural-строку с `llm_model=null` + fallback-текстами; настоящие LLM-тексты под v6 генерирует Node `/api/ai/global-content` при первом заходе free-пользователя через `ensureGlobalDailyContentRow`), чтобы крон не записал мусор под новый шаблон. `globalContentNeedsRefresh` остаётся true при `llm_model=null` → строка самозалечивается. Целевая длина short_text 500→700, long_explanation 1500→2000. Откат: реактивировать `global_morning_recommendation` v5 (сохранена в БД).
 
 - **2026-07-05:** Home reliably loads for **both** free and all paid tiers even when the cron pre-warm missed or Gemini is unavailable — root-caused a night where both paths hung/errored. Fixes:
   1. **Paid hang (`«Загружаю текст рекомендации на этот день»` stuck forever):** `callMonologue` (`services/aiClient.ts`) had **no client timeout**, so the cold-miss morning-recommendation hydration could wait indefinitely on a slow/held server connection, leaving `homeTextsLoading` true. Added `MONOLOGUE_TIMEOUT_MS = 105s` AbortController timeout — headroom over the server-side `generateGeminiJson` retry/fallback chain (primary `AI_MODEL_STANDARD/PREMIUM` up to 60s DeepSeek / 30s Gemini → `AI_MODEL_FALLBACK` up to 30–60s = ~90s worst case, model taken from `.env.local`, no hardcode) + DB; on timeout the secondary hydration catch clears loading and the card shows the deterministic fallback. Server may still finish and write cache → next open gets the real text.

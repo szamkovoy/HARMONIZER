@@ -12,6 +12,7 @@ import {
 } from "../_shared/dailyForecast.ts";
 import { getMathLevelStrings } from "../_shared/mathLevelI18n.ts";
 import { CONTENT_LENGTHS } from "../_shared/contentLengths.ts";
+import chakraStatesBaseline from "../_shared/data/chakra_states_baseline.json" with { type: "json" };
 
 const BATCH_SIZE = 100;
 const ACTIVE_PRECOMPUTE_DAYS = 3;
@@ -213,6 +214,30 @@ function describePetalsRelation(petals: Array<{ tone: "harmonic" | "dissonant" |
   return "смешанная картина — несколько разнородных сигналов одновременно";
 }
 
+type BaselineStates = {
+  harmonicStates?: string[];
+  dissonantStates?: string[];
+};
+
+function baselineForPlanet(planet: string): { harmonicStates: string[]; dissonantStates: string[] } {
+  const baseline = (chakraStatesBaseline as Record<string, BaselineStates>)[planet] ?? {};
+  return {
+    harmonicStates: baseline.harmonicStates ?? [],
+    dissonantStates: baseline.dissonantStates ?? [],
+  };
+}
+
+function buildPersonalizationModePaid(addressForm: "ty" | "vy"): string {
+  const form = addressForm === "ty" ? "«ты»" : "«вы»";
+  return [
+    "РЕЖИМ ПЕРСОНАЛИЗАЦИИ: персональный прогноз.",
+    "Это прогноз на основе натальной карты пользователя и его калибровки.",
+    `Обращайся к пользователю лично, форма обращения — ${form} (задана в блоке авторского голоса выше).`,
+    "Можно вплетать личные формулировки пользователя, если они уместны и попадают в тон.",
+    "Учитывай активирующий транзит транзитной планеты к натальной планете — он уточняет тему дня.",
+  ].join("\n");
+}
+
 function buildMathLevelForCron(
   forecast: any,
   natalProfile: any,
@@ -399,43 +424,35 @@ async function precomputeMorningRecommendation(params: {
   if (petals.length < 3) throw new Error("Daily forecast does not contain enough ranked planets");
   const [primary, secondary, tertiary] = petals;
   const mathLevel = buildMathLevelForCron(params.forecast, params.natalProfile, params.calibration, params.locale);
+  const addressForm: "ty" | "vy" = params.addressForm === "informal" ? "ty" : "vy";
+  const primaryBaseline = baselineForPlanet(primary.planet);
+  const secondaryBaseline = baselineForPlanet(secondary.planet);
+  const tertiaryBaseline = baselineForPlanet(tertiary.planet);
   const variables = {
     author_voice_block: "",
+    personalization_mode: buildPersonalizationModePaid(addressForm),
     short_text_target: CONTENT_LENGTHS.SHORT_TEXT_TARGET_CHARS,
     slogan_target: CONTENT_LENGTHS.SLOGAN_TARGET_CHARS,
     long_explanation_target: CONTENT_LENGTHS.LONG_EXPLANATION_TARGET_CHARS,
     primary_planet: primary.planet,
-    primary_chakra_number: primary.chakra_number,
-    primary_chakra_label: primary.chakra_label,
-    primary_strength: primary.strength,
+    primary_chakra: primary.chakra_label,
     primary_harmoniousness: primary.harmoniousness,
-    primary_tone: primary.tone,
-    primary_transit: primary.main_transit,
-    primary_aspect: primary.main_aspect,
+    primary_main_transit: primary.main_transit ?? "",
+    primary_main_aspect: primary.main_aspect ?? "",
     secondary_planet: secondary.planet,
-    secondary_chakra_number: secondary.chakra_number,
-    secondary_chakra_label: secondary.chakra_label,
-    secondary_strength: secondary.strength,
+    secondary_chakra: secondary.chakra_label,
     secondary_harmoniousness: secondary.harmoniousness,
-    secondary_tone: secondary.tone,
     tertiary_planet: tertiary.planet,
-    tertiary_chakra_number: tertiary.chakra_number,
-    tertiary_chakra_label: tertiary.chakra_label,
-    tertiary_strength: tertiary.strength,
+    tertiary_chakra: tertiary.chakra_label,
     tertiary_harmoniousness: tertiary.harmoniousness,
-    tertiary_tone: tertiary.tone,
     petals_relation: describePetalsRelation(petals),
-    primary_baseline_harmonic: [],
-    primary_baseline_dissonant: [],
-    secondary_baseline_harmonic: [],
-    secondary_baseline_dissonant: [],
-    tertiary_baseline_harmonic: [],
-    tertiary_baseline_dissonant: [],
-    user_phrases_for_active_chakras: [],
-    address_form_hint:
-      params.locale === "ru"
-        ? (params.addressForm === "informal" ? "ты" : "вы")
-        : "you",
+    primary_harmonic_states: primaryBaseline.harmonicStates,
+    primary_dissonant_states: primaryBaseline.dissonantStates,
+    secondary_harmonic_states: secondaryBaseline.harmonicStates,
+    secondary_dissonant_states: secondaryBaseline.dissonantStates,
+    tertiary_harmonic_states: tertiaryBaseline.harmonicStates,
+    tertiary_dissonant_states: tertiaryBaseline.dissonantStates,
+    user_phrases: [],
   };
   const rendered = renderTemplate(params.promptConfig.prompt.template, variables);
   const result = await generateGeminiJson({

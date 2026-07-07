@@ -1,10 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import chakraStatesBaseline from "../../../data/chakra_states_baseline.json";
+import { CONTENT_LENGTHS } from "../../../config/contentLengths";
 import { buildGlobalMathLevel, computeGlobalDailyForecast, isGlobalMathLevelCurrent } from "./globalTransitMath";
 import { isCurrentGlobalLongExplanation, normalizeRecommendationFields } from "./recommendationText";
 import { ensureGlobalTextI18nPrecomputed } from "./globalContentLocale";
+import { formatAuthorVoiceForPrompt, getAuthorVoice } from "./authorVoice";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { getActivePrompt, renderPrompt } from "./prompts";
+import { describePetalsRelation, PLANET_TO_CHAKRA, type PetalData } from "./topPetals";
 
 function calcExpiresAt(forecastDateUtc: string): string {
   const date = new Date(`${forecastDateUtc}T00:00:00Z`);
@@ -54,6 +58,93 @@ type GlobalLlmTexts = {
   isFallback: boolean;
 };
 
+type BaselineStates = {
+  harmonicStates?: string[];
+  dissonantStates?: string[];
+};
+
+const ASPECT_COEF: Record<string, number> = {
+  conjunction: 1,
+  opposition: 0.9,
+  square: 0.8,
+  trine: 0.7,
+  sextile: 0.5,
+};
+
+function baselineForPlanet(planet: string): Required<BaselineStates> {
+  const baseline = (chakraStatesBaseline as Record<string, BaselineStates>)[planet] ?? {};
+  return {
+    harmonicStates: baseline.harmonicStates ?? [],
+    dissonantStates: baseline.dissonantStates ?? [],
+  };
+}
+
+/** Гармоничность планеты в шкале [-1; +1] по балансу её транзит-транзитных аспектов. */
+function globalHarmoniousnessFor(
+  planet: string,
+  aspects: Array<{ from: string; to: string; type: string }>,
+): number {
+  let harmonic = 0;
+  let dissonant = 0;
+  for (const aspect of aspects) {
+    if (aspect.from !== planet && aspect.to !== planet) continue;
+    const coef = ASPECT_COEF[aspect.type] ?? 0.5;
+    if (aspect.type === "trine" || aspect.type === "sextile") harmonic += coef;
+    else if (aspect.type === "square" || aspect.type === "opposition") dissonant += coef;
+    else harmonic += coef * 0.5; // соединение — нейтрально-положительное
+  }
+  if (harmonic + dissonant === 0) return 0;
+  const ratio = harmonic / (harmonic + dissonant);
+  return Math.max(-1, Math.min(1, (ratio - 0.5) * 2));
+}
+
+const FREE_PERSONALIZATION_MODE = [
+  "РЕЖИМ ПЕРСОНАЛИЗАЦИИ: общий прогноз без натальной карты.",
+  "Этот прогноз показывается всем пользователям бесплатного тарифа и строится ТОЛЬКО по транзитной картине дня.",
+  "Никакой персонализации, никакого «у вас сегодня», никакого обращения на «ты».",
+  "Только уважительное «вы» или безличная форма.",
+  "Не упоминай натальную карту пользователя и не выдумывай его биографию, прошлое или обстоятельства.",
+  "Активирующий транзит к натальной планете отсутствует — не упоминай его.",
+].join("\n");
+
+function buildGlobalVariables(
+  forecast: ReturnType<typeof computeGlobalDailyForecast>,
+): Record<string, unknown> {
+  const [primary, secondary, tertiary] = forecast.top_petals;
+  const authorVoice = formatAuthorVoiceForPrompt(getAuthorVoice("ru"), "vy");
+  const petalsForRelation = forecast.top_petals.map((petal) => ({
+    planet: petal.planet,
+    tone: petal.tone,
+  })) as PetalData[];
+
+  return {
+    author_voice_block: authorVoice,
+    personalization_mode: FREE_PERSONALIZATION_MODE,
+    short_text_target: CONTENT_LENGTHS.SHORT_TEXT_TARGET_CHARS,
+    slogan_target: CONTENT_LENGTHS.SLOGAN_TARGET_CHARS,
+    long_explanation_target: CONTENT_LENGTHS.LONG_EXPLANATION_TARGET_CHARS,
+    primary_planet: primary.planet,
+    primary_chakra: PLANET_TO_CHAKRA[primary.planet as keyof typeof PLANET_TO_CHAKRA]?.label ?? primary.chakra_label,
+    primary_harmoniousness: globalHarmoniousnessFor(primary.planet, forecast.aspects),
+    primary_main_transit: "",
+    primary_main_aspect: "",
+    secondary_planet: secondary.planet,
+    secondary_chakra: PLANET_TO_CHAKRA[secondary.planet as keyof typeof PLANET_TO_CHAKRA]?.label ?? secondary.chakra_label,
+    secondary_harmoniousness: globalHarmoniousnessFor(secondary.planet, forecast.aspects),
+    tertiary_planet: tertiary.planet,
+    tertiary_chakra: PLANET_TO_CHAKRA[tertiary.planet as keyof typeof PLANET_TO_CHAKRA]?.label ?? tertiary.chakra_label,
+    tertiary_harmoniousness: globalHarmoniousnessFor(tertiary.planet, forecast.aspects),
+    petals_relation: describePetalsRelation(petalsForRelation),
+    primary_harmonic_states: baselineForPlanet(primary.planet).harmonicStates,
+    primary_dissonant_states: baselineForPlanet(primary.planet).dissonantStates,
+    secondary_harmonic_states: baselineForPlanet(secondary.planet).harmonicStates,
+    secondary_dissonant_states: baselineForPlanet(secondary.planet).dissonantStates,
+    tertiary_harmonic_states: baselineForPlanet(tertiary.planet).harmonicStates,
+    tertiary_dissonant_states: baselineForPlanet(tertiary.planet).dissonantStates,
+    user_phrases: [],
+  };
+}
+
 /**
  * Пытается сгенерировать тексты через Gemini. При сбое LLM (таймаут, перегрузка,
  * недоступность модели) НЕ бросает, а возвращает детерминированные заглушки с
@@ -73,10 +164,7 @@ async function generateGlobalTexts(
       short_text?: string;
       long_explanation?: string;
     }>({
-      prompt: renderPrompt(prompt.template, {
-        top_petals_json: JSON.stringify(forecast.top_petals, null, 2),
-        aspects_json: JSON.stringify(forecast.aspects, null, 2),
-      }),
+      prompt: renderPrompt(prompt.template, buildGlobalVariables(forecast)),
       model: getModelByHint(prompt.model_hint),
       temperature: prompt.temperature ?? 0.85,
       maxOutputTokens: maxOut,

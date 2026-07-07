@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import chakraStatesBaseline from "../../../../data/chakra_states_baseline.json";
 import { CONTENT_LENGTHS } from "../../../../config/contentLengths";
-import { buildAddressFormHint } from "../../_utils/addressForm";
 import {
   buildOutputLanguageBlock,
   isMorningRecommendationCacheValid,
@@ -91,6 +90,17 @@ function userPhrasesForPetals(calibration: CalibrationLike | null, petals: Petal
     .filter((text): text is string => Boolean(text));
 }
 
+function buildPersonalizationModePaid(addressForm: "ty" | "vy"): string {
+  const form = addressForm === "ty" ? "«ты»" : "«вы»";
+  return [
+    "РЕЖИМ ПЕРСОНАЛИЗАЦИИ: персональный прогноз.",
+    "Это прогноз на основе натальной карты пользователя и его калибровки.",
+    `Обращайся к пользователю лично, форма обращения — ${form} (задана в блоке авторского голоса выше).`,
+    "Можно вплетать личные формулировки пользователя, если они уместны и попадают в тон.",
+    "Учитывай активирующий транзит транзитной планеты к натальной планете — он уточняет тему дня.",
+  ].join("\n");
+}
+
 async function buildMorningRecommendationVariables(
   db: SupabaseClient,
   userId: string,
@@ -112,7 +122,6 @@ async function buildMorningRecommendationVariables(
   const language = responseLocale;
   const addressForm = user.address_form === "informal" ? "ty" : "vy";
   const authorVoice = formatAuthorVoiceForPrompt(getAuthorVoice(language), addressForm);
-  const addressFormHint = buildAddressFormHint(user.address_form, language);
   const [primary, secondary, tertiary] = petals;
   const primaryBaseline = baselineForPlanet(primary.planet);
   const secondaryBaseline = baselineForPlanet(secondary.planet);
@@ -122,42 +131,33 @@ async function buildMorningRecommendationVariables(
     variables: {
       ...clientVariables,
       author_voice_block: authorVoice,
+      personalization_mode: buildPersonalizationModePaid(addressForm),
       short_text_target: CONTENT_LENGTHS.SHORT_TEXT_TARGET_CHARS,
       slogan_target: CONTENT_LENGTHS.SLOGAN_TARGET_CHARS,
       long_explanation_target: CONTENT_LENGTHS.LONG_EXPLANATION_TARGET_CHARS,
 
       primary_planet: primary.planet,
-      primary_chakra_number: primary.chakra_number,
-      primary_chakra_label: primary.chakra_label,
-      primary_strength: primary.strength,
+      primary_chakra: primary.chakra_label,
       primary_harmoniousness: primary.harmoniousness,
-      primary_tone: primary.tone,
-      primary_transit: primary.main_transit,
-      primary_aspect: primary.main_aspect,
+      primary_main_transit: primary.main_transit ?? "",
+      primary_main_aspect: primary.main_aspect ?? "",
 
       secondary_planet: secondary.planet,
-      secondary_chakra_number: secondary.chakra_number,
-      secondary_chakra_label: secondary.chakra_label,
-      secondary_strength: secondary.strength,
+      secondary_chakra: secondary.chakra_label,
       secondary_harmoniousness: secondary.harmoniousness,
-      secondary_tone: secondary.tone,
 
       tertiary_planet: tertiary.planet,
-      tertiary_chakra_number: tertiary.chakra_number,
-      tertiary_chakra_label: tertiary.chakra_label,
-      tertiary_strength: tertiary.strength,
+      tertiary_chakra: tertiary.chakra_label,
       tertiary_harmoniousness: tertiary.harmoniousness,
-      tertiary_tone: tertiary.tone,
 
       petals_relation: describePetalsRelation(petals),
-      primary_baseline_harmonic: primaryBaseline.harmonicStates,
-      primary_baseline_dissonant: primaryBaseline.dissonantStates,
-      secondary_baseline_harmonic: secondaryBaseline.harmonicStates,
-      secondary_baseline_dissonant: secondaryBaseline.dissonantStates,
-      tertiary_baseline_harmonic: tertiaryBaseline.harmonicStates,
-      tertiary_baseline_dissonant: tertiaryBaseline.dissonantStates,
-      user_phrases_for_active_chakras: userPhrasesForPetals(calibration, petals),
-      address_form_hint: addressFormHint,
+      primary_harmonic_states: primaryBaseline.harmonicStates,
+      primary_dissonant_states: primaryBaseline.dissonantStates,
+      secondary_harmonic_states: secondaryBaseline.harmonicStates,
+      secondary_dissonant_states: secondaryBaseline.dissonantStates,
+      tertiary_harmonic_states: tertiaryBaseline.harmonicStates,
+      tertiary_dissonant_states: tertiaryBaseline.dissonantStates,
+      user_phrases: userPhrasesForPetals(calibration, petals),
     },
     mathLevel: buildMathLevel(forecast, natalResult.profile, calibration, responseLocale),
   };
