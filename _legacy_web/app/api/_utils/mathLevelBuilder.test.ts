@@ -40,7 +40,8 @@ describe("buildMathLevel", () => {
 
     expect(result.markdown).toContain("Сила (S) и гармоничность (H)");
     expect(result.markdown).toContain("Активирующие транзиты");
-    expect(result.markdown).toContain("Importance");
+    expect(result.markdown).toContain("Значимость");
+    expect(result.markdown).toContain("Активация");
     expect(result.markdown).toContain("Выбор планеты дня");
   });
 

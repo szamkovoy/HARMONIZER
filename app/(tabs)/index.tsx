@@ -22,7 +22,7 @@ import { StateCard } from "@/modules/ui/StateCard";
 import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
-import { devResetScopeForAccessMode, postDevDayContentReset } from "@/services/devDayContentResetClient";
+import { postDevDayContentReset, type DevDayContentResetScope } from "@/services/devDayContentResetClient";
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { startSummarizingHealthCollection } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
@@ -581,7 +581,7 @@ export default function HomeScreen() {
       if (authUser?.id) {
         await clearHomeDailyDialogCache(authUser.id);
       }
-      const resetScope = devResetScopeForAccessMode(accessModeForTier(access.tier));
+      const resetScope: DevDayContentResetScope = "both";
       const resetResult = await postDevDayContentReset(resetScope);
       await refresh({ forceRefresh: true });
       setAssistantRemountKey((k) => k + 1);

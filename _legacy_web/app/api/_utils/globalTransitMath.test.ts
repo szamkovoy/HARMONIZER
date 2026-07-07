@@ -17,8 +17,11 @@ describe("globalTransitMath", () => {
     });
     expect(Array.isArray(mathLevel.structured?.planet_scores)).toBe(true);
     expect(Array.isArray(mathLevel.structured?.main_aspects)).toBe(true);
-    expect(mathLevel.markdown).toContain("Почему выбрана именно эта тема дня");
     expect(mathLevel.markdown).toContain("Полный рейтинг планет");
-    expect(mathLevel.markdown).toContain("Вес каждого аспекта");
+    expect(mathLevel.markdown).toContain("Ключевые аспекты дня");
+    expect(mathLevel.markdown).not.toContain("Почему выбрана именно эта тема дня");
+    expect(mathLevel.markdown).not.toContain("Топ-3 лепестка");
+    expect(mathLevel.markdown).not.toContain("Вес каждого аспекта");
+    expect(mathLevel.markdown).toContain("гармония=");
   });
 });

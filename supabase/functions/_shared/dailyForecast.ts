@@ -302,6 +302,25 @@ function globalToneFor(planet: string, aspects: any[]): "harmonic" | "dissonant"
   return "ambivalent_strong";
 }
 
+/** Numeric harmoniousness in [-1, +1] for a planet from its tight-orb transit aspects. */
+function globalHarmoniousnessFor(planet: string, aspects: any[]): number {
+  const planetAspects = aspects.filter((aspect) => aspect.from === planet || aspect.to === planet);
+  let harmonic = 0;
+  let dissonant = 0;
+  for (const aspect of planetAspects) {
+    const coef = ASPECT_COEF[aspect.type] ?? 0;
+    if (aspect.type === "trine" || aspect.type === "sextile") harmonic += coef;
+    else if (aspect.type === "square" || aspect.type === "opposition") dissonant += coef;
+    else {
+      harmonic += coef * 0.5;
+      dissonant += coef * 0.5;
+    }
+  }
+  const total = harmonic + dissonant;
+  if (total === 0) return 0;
+  return Math.max(-1, Math.min(1, (harmonic - dissonant) / total));
+}
+
 export function computeGlobalDailyForecast(forecastDate: string) {
   const positions = computePlanetPositionsAt(new Date(`${forecastDate}T12:00:00Z`));
   const aspects = computeAspectsBetweenPlanets(positions, forecastDate);
@@ -323,6 +342,7 @@ export function computeGlobalDailyForecast(forecastDate: string) {
     chakra_number: PLANET_TO_CHAKRA[planet].number,
     chakra_label: PLANET_TO_CHAKRA[planet].label,
     gravity: Math.round(gravity * 1000) / 1000,
+    harmoniousness: Math.round(globalHarmoniousnessFor(planet, aspects) * 1000) / 1000,
     tone: globalToneFor(planet, aspects),
     main_aspects: aspects
       .filter((aspect) => aspect.from === planet || aspect.to === planet)
@@ -335,6 +355,7 @@ export function computeGlobalDailyForecast(forecastDate: string) {
       chakra_number: PLANET_TO_CHAKRA[planet].number,
       chakra_label: PLANET_TO_CHAKRA[planet].label,
       gravity: Math.round((planetGravity[planet] ?? 0) * 1000) / 1000,
+      harmoniousness: Math.round(globalHarmoniousnessFor(planet, aspects) * 1000) / 1000,
       tone: globalToneFor(planet, aspects),
       sign: signOf(positions[planet].longitude ?? positions[planet].lon ?? 0),
       sign_degree: Math.round(signDegreeOf(positions[planet].longitude ?? positions[planet].lon ?? 0) * 10) / 10,
@@ -363,46 +384,48 @@ export function buildGlobalMathLevel(forecast: any) {
     ? forecast.planet_scores
     : forecast.top_petals;
   const primaryPlanet = forecast.primary_planet ?? forecast.top_petals?.[0]?.planet ?? planetScores?.[0]?.planet ?? "Sun";
-  const primaryPetal = planetScores.find?.((planet: any) => planet.planet === primaryPlanet) ?? forecast.top_petals?.[0];
+  const aspects = Array.isArray(forecast.aspects) ? forecast.aspects : [];
+  const aspectContribution = (aspect: any) => {
+    const coef = ASPECT_COEF[aspect.type] ?? 0.5;
+    const weightFrom = TRANSIT_WEIGHT[aspect.from] ?? 0.5;
+    const weightTo = TRANSIT_WEIGHT[aspect.to] ?? 0.5;
+    const orbFactor = Math.max(0, 1 - aspect.orb / aspect.maxOrb);
+    return coef * ((weightFrom + weightTo) / 2) * orbFactor;
+  };
+  const harmoniousnessFor = (planet: string) =>
+    typeof planetScores?.find((p: any) => p.planet === planet)?.harmoniousness === "number"
+      ? planetScores.find((p: any) => p.planet === planet).harmoniousness.toFixed(3)
+      : globalHarmoniousnessFor(planet, aspects).toFixed(3);
   const md = [
     "## Математика общего прогноза\n",
     "Общий прогноз строится без натальной карты: учитываются только транзитные положения семи планет на 12:00 UTC выбранного дня.",
-    "Каждая планета получает gravity-оценку: суммируется вклад аспектов с поправкой на тип аспекта, точность орба и «вес» самой транзитной планеты.",
-    "\n### Почему выбрана именно эта тема дня\n",
-    `- Главная тема дня: **${primaryPlanet}** (чакра ${primaryPetal?.chakra_number ?? forecast.primary_chakra_number ?? 0}, tone=${primaryPetal?.tone ?? forecast.primary_tone ?? "neutral"}, gravity=${typeof primaryPetal?.gravity === "number" ? primaryPetal.gravity.toFixed(3) : "0.000"}). Именно эта планета набрала максимальный суммарный вес среди транзитов дня.`,
+    "Каждая планета получает оценку веса: суммируется вклад аспектов с поправкой на тип аспекта, точность орба и «вес» самой транзитной планеты.",
     "\n### Полный рейтинг планет на этот момент\n",
     ...planetScores.map(
       (planet: any, index: number) =>
-        `${index + 1}. **${planet.planet}** — ${planet.sign ?? "Aries"} ${typeof planet.sign_degree === "number" ? planet.sign_degree.toFixed(1) : "0.0"}°, gravity=${typeof planet.gravity === "number" ? planet.gravity.toFixed(3) : "0.000"}, tone=${planet.tone ?? "neutral"}`,
+        `${index + 1}. **${planet.planet}** — ${planet.sign ?? "Aries"} ${typeof planet.sign_degree === "number" ? planet.sign_degree.toFixed(1) : "0.0"}°, вес=${typeof planet.gravity === "number" ? planet.gravity.toFixed(3) : "0.000"}, гармония=${harmoniousnessFor(planet.planet)}`,
     ),
-    "\n### Топ-3 лепестка\n",
-    ...forecast.top_petals.map((petal) => `- **${petal.planet}**: gravity=${petal.gravity}, чакра ${petal.chakra_number}, тон=${petal.tone}`),
-    "\n### Активные аспекты дня\n",
-    ...forecast.aspects.map((aspect) => `- ${aspect.from} ${aspect.type} ${aspect.to}, orb=${aspect.orb.toFixed(2)}°`),
-    "\n### Вес каждого аспекта в общей картине\n",
-    ...forecast.aspects.map((aspect) => {
-      const coef = ASPECT_COEF[aspect.type] ?? 0.5;
-      const weightFrom = TRANSIT_WEIGHT[aspect.from] ?? 0.5;
-      const weightTo = TRANSIT_WEIGHT[aspect.to] ?? 0.5;
-      const orbFactor = Math.max(0, 1 - aspect.orb / aspect.maxOrb);
-      const contribution = coef * ((weightFrom + weightTo) / 2) * orbFactor;
-      return `- ${aspect.from} ${aspect.type} ${aspect.to}: orb=${aspect.orb.toFixed(2)}°, contribution=${contribution.toFixed(3)}`;
-    }),
+    "\n### Ключевые аспекты дня\n",
+    ...aspects.map(
+      (aspect: any) =>
+        `- ${aspect.from} ${aspect.type} ${aspect.to}, орб=${aspect.orb.toFixed(2)}°, вес=${aspectContribution(aspect).toFixed(3)}`,
+    ),
   ];
-  const main_aspects = forecast.aspects.map((a: { from: string; to: string; type: string; orb: number }) => ({
+  const main_aspects = aspects.map((a: { from: string; to: string; type: string; orb: number }) => ({
     from: a.from,
     to: a.to,
     type: a.type,
     orb: a.orb,
   }));
+  const primaryScore = planetScores?.find?.((planet: any) => planet.planet === primaryPlanet) ?? forecast.top_petals?.[0];
   return {
     markdown: md.join("\n"),
     structured: {
       schema_version: GLOBAL_MATH_SCHEMA_VERSION,
       chart_mode: "transit_only",
       primary_planet: primaryPlanet,
-      primary_chakra_number: primaryPetal?.chakra_number ?? forecast.primary_chakra_number ?? 0,
-      primary_tone: primaryPetal?.tone ?? forecast.primary_tone ?? "neutral",
+      primary_chakra_number: primaryScore?.chakra_number ?? forecast.primary_chakra_number ?? 0,
+      primary_tone: primaryScore?.tone ?? forecast.primary_tone ?? "neutral",
       planet_positions: forecast.planet_positions,
       aspects: forecast.aspects,
       top_petals: forecast.top_petals,

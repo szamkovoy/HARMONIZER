@@ -73,6 +73,35 @@ const GLOBAL_TRANSIT_WEIGHT: Record<string, number> = {
   Moon: 0.3,
 };
 
+function globalHarmoniousnessFor(
+  planet: string,
+  aspects: Array<{ from: string; to: string; type: string }>,
+): number {
+  const planetAspects = aspects.filter((aspect) => aspect.from === planet || aspect.to === planet);
+  let harmonic = 0;
+  let dissonant = 0;
+  for (const aspect of planetAspects) {
+    const coef = GLOBAL_ASPECT_COEF[aspect.type] ?? 0;
+    if (aspect.type === "trine" || aspect.type === "sextile") harmonic += coef;
+    else if (aspect.type === "square" || aspect.type === "opposition") dissonant += coef;
+    else {
+      harmonic += coef * 0.5;
+      dissonant += coef * 0.5;
+    }
+  }
+  const total = harmonic + dissonant;
+  if (total === 0) return 0;
+  return Math.max(-1, Math.min(1, (harmonic - dissonant) / total));
+}
+
+function aspectContributionFor(aspect: { type: string; from: string; to: string; orb: number; maxOrb: number }): number {
+  const coef = GLOBAL_ASPECT_COEF[aspect.type] ?? 0.5;
+  const weightFrom = GLOBAL_TRANSIT_WEIGHT[aspect.from] ?? 0.5;
+  const weightTo = GLOBAL_TRANSIT_WEIGHT[aspect.to] ?? 0.5;
+  const orbFactor = Math.max(0, 1 - aspect.orb / aspect.maxOrb);
+  return coef * ((weightFrom + weightTo) / 2) * orbFactor;
+}
+
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -119,6 +148,7 @@ function rebuildLocalizedGlobalMathLevel(
         planet_scores?: Array<{
           planet: string;
           gravity: number;
+          harmoniousness?: number;
           chakra_number: number;
           tone: string;
           sign?: string;
@@ -132,26 +162,12 @@ function rebuildLocalizedGlobalMathLevel(
 
   const t = getMathLevelStrings(locale);
   const aspects = Array.isArray(structured.aspects) ? structured.aspects : [];
-  const topPetals = Array.isArray(structured.top_petals) ? structured.top_petals : [];
   const planetScores = Array.isArray(structured.planet_scores) ? structured.planet_scores : [];
-  const primaryPlanet = structured.primary_planet ?? topPetals[0]?.planet ?? planetScores[0]?.planet ?? "Sun";
-  const primaryPetal =
-    planetScores.find((planet) => planet.planet === primaryPlanet)
-    ?? topPetals.find((planet) => planet.planet === primaryPlanet)
-    ?? planetScores[0]
-    ?? topPetals[0];
 
   const markdown = [
     t.globalTitle,
     t.globalIntro,
     t.globalMechanicsLine,
-    t.globalSectionWinner,
-    t.globalWinnerLine(
-      t.planetLabel(primaryPlanet),
-      primaryPetal?.chakra_number ?? structured.primary_chakra_number ?? 0,
-      t.toneLabel(primaryPetal?.tone ?? structured.primary_tone ?? "neutral"),
-      typeof primaryPetal?.gravity === "number" ? primaryPetal.gravity.toFixed(3) : "0.000",
-    ),
     t.globalSectionRanking,
     ...planetScores.map((planet, index) =>
       t.globalRankingLine(
@@ -160,12 +176,10 @@ function rebuildLocalizedGlobalMathLevel(
         t.signLabel(planet.sign ?? "Aries"),
         typeof planet.sign_degree === "number" ? planet.sign_degree.toFixed(1) : "0.0",
         planet.gravity.toFixed(3),
-        t.toneLabel(planet.tone),
+        typeof planet.harmoniousness === "number"
+          ? planet.harmoniousness.toFixed(3)
+          : globalHarmoniousnessFor(planet.planet, aspects).toFixed(3),
       ),
-    ),
-    t.globalSectionPetals,
-    ...topPetals.map((petal) =>
-      t.globalPetalLine(t.planetLabel(petal.planet), petal.gravity, petal.chakra_number, t.toneLabel(petal.tone)),
     ),
     t.globalSectionAspects,
     ...aspects.map((aspect) =>
@@ -174,23 +188,9 @@ function rebuildLocalizedGlobalMathLevel(
         t.aspectLabel(aspect.type),
         t.planetLabel(aspect.to),
         aspect.orb.toFixed(2),
+        aspectContributionFor(aspect).toFixed(3),
       ),
     ),
-    t.globalSectionAspectWeights,
-    ...aspects.map((aspect) => {
-      const coef = GLOBAL_ASPECT_COEF[aspect.type] ?? 0.5;
-      const weightFrom = GLOBAL_TRANSIT_WEIGHT[aspect.from] ?? 0.5;
-      const weightTo = GLOBAL_TRANSIT_WEIGHT[aspect.to] ?? 0.5;
-      const orbFactor = Math.max(0, 1 - aspect.orb / aspect.maxOrb);
-      const contribution = coef * ((weightFrom + weightTo) / 2) * orbFactor;
-      return t.globalAspectWeightLine(
-        t.planetLabel(aspect.from),
-        t.aspectLabel(aspect.type),
-        t.planetLabel(aspect.to),
-        aspect.orb.toFixed(2),
-        contribution.toFixed(3),
-      );
-    }),
   ].join("\n");
 
   return {

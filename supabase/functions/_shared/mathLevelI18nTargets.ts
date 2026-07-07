@@ -61,16 +61,16 @@ function fromEn(partial: Omit<MathLevelStrings, "planetLabel" | "signLabel" | "a
         .replace("{chakra}", String(chakra))
         .replace("{tone}", tone)
         .replace("{gravity}", gravity),
-    globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
+    globalRankingLine: (rank, planet, sign, degree, gravity, harmoniousness) =>
       partial.globalRankingLine
         .replace("{rank}", rank)
         .replace("{planet}", planet)
         .replace("{sign}", sign)
         .replace("{degree}", degree)
         .replace("{gravity}", gravity)
-        .replace("{tone}", tone),
-    globalAspectLine: (from, type, to, orb) =>
-      partial.globalAspectLine.replace("{from}", from).replace("{type}", type).replace("{to}", to).replace("{orb}", orb),
+        .replace("{harmoniousness}", harmoniousness),
+    globalAspectLine: (from, type, to, orb, weight) =>
+      partial.globalAspectLine.replace("{from}", from).replace("{type}", type).replace("{to}", to).replace("{orb}", orb).replace("{weight}", weight),
     globalAspectWeightLine: (from, type, to, orb, weight) =>
       partial.globalAspectWeightLine
         .replace("{from}", from)
@@ -338,13 +338,13 @@ export const mathLevelIt: MathLevelStrings = fromEn({
   orbLine: "  - Orbe: {orb}°, coeff. aspetto: {coef}, peso transito: {weight}",
   activationLine: "  - Attivazione: {value}",
   noTransitChart: "\nLa previsione salvata non contiene la carta di transito, quindi gli aspetti non sono disponibili.",
-  section3Title: "\n### 3. Importance — formula del pianeta del giorno\n",
-  section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
+  section3Title: "\n### 3. Importanza — formula del pianeta del giorno\n",
+  section3Formula: "**Importanza(P) = Attivazione(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
-    "Dove `Activation` è il peso totale dei transiti attivanti; `S_eff` è la forza effettiva (S_calibrated se c'è calibrazione, altrimenti S_initial).\n",
-  importanceLine: "- **{planet}**: Activation={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
+    "Dove `Attivazione` è il peso totale dei transiti attivanti; `S_eff` è la forza effettiva (S_calibrated se c'è calibrazione, altrimenti S_initial).\n",
+  importanceLine: "- **{planet}**: Importanza={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
   section4Title: "\n### 4. Scelta del pianeta del giorno",
-  winnerLine: "Vincitore: **{planet}** (Importance = {importance}).\n",
+  winnerLine: "Vincitore: **{planet}** (Importanza = {importance}).\n",
   alternativeLine: "Scelta alternativa usata: {reason}.",
   section5Title: "\n### 5. Delta di calibrazione\n",
   calibrationIntro: "Calibrazione v{version}, fonte: {source}. Media applicata: {blend}.\n",
@@ -361,9 +361,9 @@ export const mathLevelIt: MathLevelStrings = fromEn({
     "- Tema principale del giorno: **{planet}** (chakra {chakra}, tono={tone}, gravita={gravity}). E il pianeta con il peso complessivo piu alto tra i transiti di oggi.",
   globalSectionRanking: "\n### Classifica completa dei pianeti in questo momento\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravita={gravity}, tono={tone}",
-  globalSectionAspects: "\n### Aspetti attivi del giorno\n",
-  globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+    "{rank}. **{planet}** — {sign} {degree}°, gravita={gravity}, armonia={harmoniousness}",
+  globalSectionAspects: "\n### Aspetti chiave del giorno\n",
+  globalAspectLine: "- {from} {type} {to}, orbe={orb}°, peso={weight}",
   globalSectionAspectWeights: "\n### Peso di ogni aspetto nel quadro complessivo\n",
   globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, contributo={weight}",
 });
@@ -391,13 +391,13 @@ export const mathLevelDe: MathLevelStrings = fromEn({
   orbLine: "  - Orbe: {orb}°, Aspektkoeff.: {coef}, Transitgewicht: {weight}",
   activationLine: "  - Aktivierung: {value}",
   noTransitChart: "\nDie gespeicherte Prognose enthält keine Transitkarte; Aspekte sind nicht verfügbar.",
-  section3Title: "\n### 3. Importance — Formel für den Tagesplaneten\n",
-  section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
+  section3Title: "\n### 3. Bedeutung — Formel für den Tagesplaneten\n",
+  section3Formula: "**Bedeutung(P) = Aktivierung(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
-    "Dabei ist `Activation` die Gesamtgewichtung aktivierender Transite; `S_eff` die effektive Stärke (S_calibrated bei Kalibrierung, sonst S_initial).\n",
-  importanceLine: "- **{planet}**: Activation={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
+    "Dabei ist `Aktivierung` die Gesamtgewichtung aktivierender Transite; `S_eff` die effektive Stärke (S_calibrated bei Kalibrierung, sonst S_initial).\n",
+  importanceLine: "- **{planet}**: Bedeutung={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
   section4Title: "\n### 4. Tagesplanet",
-  winnerLine: "Gewinner: **{planet}** (Importance = {importance}).\n",
+  winnerLine: "Gewinner: **{planet}** (Bedeutung = {importance}).\n",
   alternativeLine: "Alternative Wahl verwendet: {reason}.",
   section5Title: "\n### 5. Kalibrierungsdeltas\n",
   calibrationIntro: "Kalibrierung v{version}, Quelle: {source}. Angewandte Mischung: {blend}.\n",
@@ -414,9 +414,9 @@ export const mathLevelDe: MathLevelStrings = fromEn({
     "- Hauptthema des Tages: **{planet}** (Chakra {chakra}, Ton={tone}, Gewicht={gravity}). Dieser Planet erhielt unter den heutigen Transiten das höchste Gesamtgewicht.",
   globalSectionRanking: "\n### Vollständiges Planeten-Ranking für diesen Moment\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, Gewicht={gravity}, Ton={tone}",
-  globalSectionAspects: "\n### Aktive Aspekte des Tages\n",
-  globalAspectLine: "- {from} {type} {to}, Orbe={orb}°",
+    "{rank}. **{planet}** — {sign} {degree}°, Gewicht={gravity}, Harmonie={harmoniousness}",
+  globalSectionAspects: "\n### Wichtige Aspekte des Tages\n",
+  globalAspectLine: "- {from} {type} {to}, Orbe={orb}°, Gewicht={weight}",
   globalSectionAspectWeights: "\n### Gewicht jedes Aspekts im Gesamtbild\n",
   globalAspectWeightLine: "- {from} {type} {to}: Orbe={orb}°, Beitrag={weight}",
 });
@@ -448,7 +448,7 @@ export const mathLevelFr: MathLevelStrings = fromEn({
   section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
     "Où `Activation` est le poids total des transits activateurs ; `S_eff` est la force effective (S_calibrated si calibration, sinon S_initial).\n",
-  importanceLine: "- **{planet}** : Activation={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
+  importanceLine: "- **{planet}** : Importance={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
   section4Title: "\n### 4. Planète du jour",
   winnerLine: "Gagnante : **{planet}** (Importance = {importance}).\n",
   alternativeLine: "Choix alternatif utilisé : {reason}.",
@@ -467,9 +467,9 @@ export const mathLevelFr: MathLevelStrings = fromEn({
     "- Theme principal du jour : **{planet}** (chakra {chakra}, tonalite={tone}, gravite={gravity}). C'est la planete qui a recu le poids total le plus eleve parmi les transits du jour.",
   globalSectionRanking: "\n### Classement complet des planètes à cet instant\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravite={gravity}, tonalite={tone}",
-  globalSectionAspects: "\n### Aspects actifs du jour\n",
-  globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+    "{rank}. **{planet}** — {sign} {degree}°, gravite={gravity}, harmonie={harmoniousness}",
+  globalSectionAspects: "\n### Aspects clés du jour\n",
+  globalAspectLine: "- {from} {type} {to}, orbe={orb}°, poids={weight}",
   globalSectionAspectWeights: "\n### Poids de chaque aspect dans l'ensemble\n",
   globalAspectWeightLine: "- {from} {type} {to} : orbe={orb}°, contribution={weight}",
 });
@@ -497,13 +497,13 @@ export const mathLevelEs: MathLevelStrings = fromEn({
   orbLine: "  - Orbe: {orb}°, coef. aspecto: {coef}, peso tránsito: {weight}",
   activationLine: "  - Activación: {value}",
   noTransitChart: "\nLa previsión guardada no tiene carta de tránsito; los aspectos no están disponibles.",
-  section3Title: "\n### 3. Importance — fórmula del planeta del día\n",
-  section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
+  section3Title: "\n### 3. Importancia — fórmula del planeta del día\n",
+  section3Formula: "**Importancia(P) = Activación(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
-    "Donde `Activation` es el peso total de tránsitos activadores; `S_eff` es la fuerza efectiva (S_calibrated si hay calibración, si no S_initial).\n",
-  importanceLine: "- **{planet}**: Activation={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
+    "Donde `Activación` es el peso total de tránsitos activadores; `S_eff` es la fuerza efectiva (S_calibrated si hay calibración, si no S_initial).\n",
+  importanceLine: "- **{planet}**: Importancia={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
   section4Title: "\n### 4. Planeta del día",
-  winnerLine: "Ganador: **{planet}** (Importance = {importance}).\n",
+  winnerLine: "Ganador: **{planet}** (Importancia = {importance}).\n",
   alternativeLine: "Elección alternativa usada: {reason}.",
   section5Title: "\n### 5. Deltas de calibración\n",
   calibrationIntro: "Calibración v{version}, fuente: {source}. Mezcla aplicada: {blend}.\n",
@@ -520,9 +520,9 @@ export const mathLevelEs: MathLevelStrings = fromEn({
     "- Tema principal del dia: **{planet}** (chakra {chakra}, tono={tone}, gravedad={gravity}). Es el planeta con el mayor peso total entre los transitos de hoy.",
   globalSectionRanking: "\n### Clasificación completa de planetas en este momento\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravedad={gravity}, tono={tone}",
-  globalSectionAspects: "\n### Aspectos activos del día\n",
-  globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+    "{rank}. **{planet}** — {sign} {degree}°, gravedad={gravity}, armonía={harmoniousness}",
+  globalSectionAspects: "\n### Aspectos clave del día\n",
+  globalAspectLine: "- {from} {type} {to}, orbe={orb}°, peso={weight}",
   globalSectionAspectWeights: "\n### Peso de cada aspecto en el conjunto\n",
   globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, contribución={weight}",
 });
@@ -550,13 +550,13 @@ export const mathLevelPt: MathLevelStrings = fromEn({
   orbLine: "  - Orbe: {orb}°, coef. aspecto: {coef}, peso trânsito: {weight}",
   activationLine: "  - Ativação: {value}",
   noTransitChart: "\nA previsão salva não tem mapa de trânsito; aspectos indisponíveis.",
-  section3Title: "\n### 3. Importance — fórmula do planeta do dia\n",
-  section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
+  section3Title: "\n### 3. Importância — fórmula do planeta do dia\n",
+  section3Formula: "**Importância(P) = Ativação(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
-    "Onde `Activation` é o peso total dos trânsitos ativadores; `S_eff` é a força efetiva (S_calibrated se houver calibração, senão S_initial).\n",
-  importanceLine: "- **{planet}**: Activation={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
+    "Onde `Ativação` é o peso total dos trânsitos ativadores; `S_eff` é a força efetiva (S_calibrated se houver calibração, senão S_initial).\n",
+  importanceLine: "- **{planet}**: Importância={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
   section4Title: "\n### 4. Planeta do dia",
-  winnerLine: "Vencedor: **{planet}** (Importance = {importance}).\n",
+  winnerLine: "Vencedor: **{planet}** (Importância = {importance}).\n",
   alternativeLine: "Escolha alternativa usada: {reason}.",
   section5Title: "\n### 5. Deltas de calibração\n",
   calibrationIntro: "Calibração v{version}, fonte: {source}. Média aplicada: {blend}.\n",
@@ -573,9 +573,9 @@ export const mathLevelPt: MathLevelStrings = fromEn({
     "- Tema principal do dia: **{planet}** (chakra {chakra}, tom={tone}, gravidade={gravity}). Foi o planeta com o maior peso total entre os transitos de hoje.",
   globalSectionRanking: "\n### Ranking completo dos planetas neste momento\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, gravidade={gravity}, tom={tone}",
-  globalSectionAspects: "\n### Aspectos ativos do dia\n",
-  globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+    "{rank}. **{planet}** — {sign} {degree}°, gravidade={gravity}, harmonia={harmoniousness}",
+  globalSectionAspects: "\n### Aspectos chave do dia\n",
+  globalAspectLine: "- {from} {type} {to}, orbe={orb}°, peso={weight}",
   globalSectionAspectWeights: "\n### Peso de cada aspecto no quadro geral\n",
   globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, contribuição={weight}",
 });
@@ -603,13 +603,13 @@ export const mathLevelNl: MathLevelStrings = fromEn({
   orbLine: "  - Orbe: {orb}°, aspectcoef.: {coef}, transitgewicht: {weight}",
   activationLine: "  - Activatie: {value}",
   noTransitChart: "\nDe opgeslagen voorspelling heeft geen transitkaart; aspecten zijn niet beschikbaar.",
-  section3Title: "\n### 3. Importance — formule planeet van de dag\n",
-  section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
+  section3Title: "\n### 3. Belang — formule planeet van de dag\n",
+  section3Formula: "**Belang(P) = Activatie(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
-    "Waarbij `Activation` het totale gewicht van activerende transits is; `S_eff` effectieve kracht (S_calibrated bij kalibratie, anders S_initial).\n",
-  importanceLine: "- **{planet}**: Activation={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
+    "Waarbij `Activatie` het totale gewicht van activerende transits is; `S_eff` effectieve kracht (S_calibrated bij kalibratie, anders S_initial).\n",
+  importanceLine: "- **{planet}**: Belang={activation} × (0.5 + 0.5 × {sEff}) = **{importance}**",
   section4Title: "\n### 4. Planeet van de dag",
-  winnerLine: "Winnaar: **{planet}** (Importance = {importance}).\n",
+  winnerLine: "Winnaar: **{planet}** (Belang = {importance}).\n",
   alternativeLine: "Alternatieve keuze gebruikt: {reason}.",
   section5Title: "\n### 5. Kalibratiedelta's\n",
   calibrationIntro: "Kalibratie v{version}, bron: {source}. Toegepaste mix: {blend}.\n",
@@ -626,9 +626,9 @@ export const mathLevelNl: MathLevelStrings = fromEn({
     "- Hoofdthema van de dag: **{planet}** (chakra {chakra}, toon={tone}, zwaarte={gravity}). Deze planeet kreeg het hoogste totale gewicht binnen de transits van vandaag.",
   globalSectionRanking: "\n### Volledige rangschikking van de planeten op dit moment\n",
   globalRankingLine:
-    "{rank}. **{planet}** — {sign} {degree}°, zwaarte={gravity}, toon={tone}",
-  globalSectionAspects: "\n### Actieve aspecten van de dag\n",
-  globalAspectLine: "- {from} {type} {to}, orbe={orb}°",
+    "{rank}. **{planet}** — {sign} {degree}°, zwaarte={gravity}, harmonie={harmoniousness}",
+  globalSectionAspects: "\n### Belangrijkste aspecten van de dag\n",
+  globalAspectLine: "- {from} {type} {to}, orbe={orb}°, gewicht={weight}",
   globalSectionAspectWeights: "\n### Gewicht van elk aspect in het geheel\n",
   globalAspectWeightLine: "- {from} {type} {to}: orbe={orb}°, bijdrage={weight}",
 });

@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 
 function parseScope(value: unknown): DevDayContentResetScope {
   if (value === "personal") return "personal";
+  if (value === "both") return "both";
   return "global";
 }
 

@@ -169,7 +169,7 @@ code_refs:
 
 **Сброс диалога:**
 
-1. **Кнопка «Обновить»** на главном (`HARMONIZER_TEST_MODE`, `app/(tabs)/index.tsx`) — `clearHomeDailyDialogCache(authUser.id)` **до** `postDevDayContentReset(devResetScopeForAccessMode(...))` (`POST /api/ai/dev-day-reset`: при **`personal`** — персональные кэши дня и закрытие open `home`-бесед; при **`global`** — только shared `global_daily_content` + regen), затем `assistantRemountKey++` для чистого `Communicator`.
+1. **Кнопка «Обновить»** на главном (`HARMONIZER_TEST_MODE`, `app/(tabs)/index.tsx`) — `clearHomeDailyDialogCache(authUser.id)` **до** `postDevDayContentReset("both")` (`POST /api/ai/dev-day-reset` с `resetScope: "both"`: чистит и персональные кэши дня — `scenario_cache` `morning_recommendation`/`global_content_i18n`, `user_daily_forecasts`, закрытие open `home`-бесед — и shared `global_daily_content` + regen), затем `refresh({forceRefresh:true})` регенерирует рекомендацию активного тарифа на текущую дату (free — глобальная, paid — по наталу), и `assistantRemountKey++` для чистого `Communicator`.
 2. **Закрытый диалог** (`shouldClose` в meta) — `clearDialogSessionCache` при sync.
 3. **Протухшая / закрытая беседа** — GET без `debugExport` → `reset: true` → клиент очищает cache (см. `assistant/spec.md` GET).
 

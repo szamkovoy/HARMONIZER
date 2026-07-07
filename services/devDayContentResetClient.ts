@@ -14,7 +14,7 @@ async function getAccessToken(): Promise<string> {
   return token;
 }
 
-export type DevDayContentResetScope = "global" | "personal";
+export type DevDayContentResetScope = "global" | "personal" | "both";
 
 export type DevDayContentResetResult = {
   scope?: DevDayContentResetScope;

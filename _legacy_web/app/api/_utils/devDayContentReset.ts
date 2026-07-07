@@ -4,7 +4,7 @@ import { ensureGlobalDailyContentRow } from "./ensureGlobalDailyContent";
 import { getUserTimezone, todayLocalDate } from "../calibration/extract/forecast-cache-date";
 
 /** Which server-side day caches the dev «Обновить» button should invalidate. */
-export type DevDayContentResetScope = "global" | "personal";
+export type DevDayContentResetScope = "global" | "personal" | "both";
 
 export type DevDayContentResetResult = {
   scope: DevDayContentResetScope;
@@ -21,6 +21,9 @@ export type DevDayContentResetResult = {
  * Test-mode reset for Home «Обновить».
  * - `global`: shared free-tier row in `global_daily_content` (+ regen via LLM).
  * - `personal`: per-user forecast + morning monologue cache only (paid/trial path).
+ * - `both`: clears everything for this user — free global row AND paid personal caches —
+ *   so the next `refresh({ forceRefresh: true })` regenerates the active tier's
+ *   recommendation for the current date (global for free, natal for paid).
  */
 export async function runDevDayContentReset(
   db: SupabaseClient,
@@ -36,7 +39,10 @@ export async function runDevDayContentReset(
     open_home_conversations: 0,
   };
 
-  if (scope === "personal") {
+  const doPersonal = scope === "personal" || scope === "both";
+  const doGlobal = scope === "global" || scope === "both";
+
+  if (doPersonal) {
     const { count: scenarioCacheCount, error: scErr } = await db
       .from("scenario_cache")
       .delete({ count: "exact" })
@@ -71,7 +77,7 @@ export async function runDevDayContentReset(
     deleted.open_home_conversations = conversationCount ?? 0;
   }
 
-  if (scope === "global") {
+  if (doGlobal) {
     const { count: globalContentCount, error: gdcErr } = await db
       .from("global_daily_content")
       .delete({ count: "exact" })

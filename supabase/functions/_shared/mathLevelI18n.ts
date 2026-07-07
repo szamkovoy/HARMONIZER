@@ -40,9 +40,9 @@ export type MathLevelStrings = {
   globalSectionWinner: string;
   globalWinnerLine: (planet: string, chakra: number, tone: string, gravity: string) => string;
   globalSectionRanking: string;
-  globalRankingLine: (rank: string, planet: string, sign: string, degree: string, gravity: string, tone: string) => string;
+  globalRankingLine: (rank: string, planet: string, sign: string, degree: string, gravity: string, harmoniousness: string) => string;
   globalSectionAspects: string;
-  globalAspectLine: (from: string, type: string, to: string, orb: string) => string;
+  globalAspectLine: (from: string, type: string, to: string, orb: string, weight: string) => string;
   globalSectionAspectWeights: string;
   globalAspectWeightLine: (from: string, type: string, to: string, orb: string, weight: string) => string;
 };
@@ -159,14 +159,14 @@ const ru: MathLevelStrings = {
   orbLine: (orb, coef, weight) => `  - Орб: ${orb}°, коэф. аспекта: ${coef}, вес транзита: ${weight}`,
   activationLine: (value) => `  - Активация: ${value}`,
   noTransitChart: "\nТранзитная карта в сохранённом прогнозе отсутствует, поэтому список аспектов недоступен.",
-  section3Title: "\n### 3. Importance — формула выбора планеты дня\n",
-  section3Formula: "**Importance(P) = Activation(P) × (0.5 + 0.5 × S_eff(P))**\n",
+  section3Title: "\n### 3. Значимость — формула выбора планеты дня\n",
+  section3Formula: "**Значимость(P) = Активация(P) × (0.5 + 0.5 × S_eff(P))**\n",
   section3Intro:
-    "Где `Activation` — суммарный вес активирующих транзитов; `S_eff` — эффективная сила (S_calibrated если есть калибровка, иначе S_initial).\n",
+    "Где `Активация` — суммарный вес активирующих транзитов; `S_eff` — эффективная сила (S_calibrated если есть калибровка, иначе S_initial).\n",
   importanceLine: (planet, activation, sEff, importance) =>
-    `- **${planet}**: Activation=${activation} × (0.5 + 0.5 × ${sEff}) = **${importance}**`,
+    `- **${planet}**: Значимость=${activation} × (0.5 + 0.5 × ${sEff}) = **${importance}**`,
   section4Title: "\n### 4. Выбор планеты дня",
-  winnerLine: (planet, importance) => `Победитель: **${planet}** (Importance = ${importance}).\n`,
+  winnerLine: (planet, importance) => `Победитель: **${planet}** (Значимость = ${importance}).\n`,
   alternativeLine: (reason) => `Использован альтернативный выбор: ${reason}.`,
   section5Title: "\n### 5. Дельты калибровки\n",
   calibrationIntro: (version, source, blend) =>
@@ -184,10 +184,10 @@ const ru: MathLevelStrings = {
   globalWinnerLine: (planet, chakra, tone, gravity) =>
     `- Главная тема дня: **${planet}** (чакра ${chakra}, тон=${tone}, вес=${gravity}). Именно эта планета набрала максимальный суммарный вес среди транзитов дня.`,
   globalSectionRanking: "\n### Полный рейтинг планет на этот момент\n",
-  globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
-    `${rank}. **${planet}** — ${sign} ${degree}°, вес=${gravity}, тон=${tone}`,
-  globalSectionAspects: "\n### Активные аспекты дня\n",
-  globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, орб=${orb}°`,
+  globalRankingLine: (rank, planet, sign, degree, gravity, harmoniousness) =>
+    `${rank}. **${planet}** — ${sign} ${degree}°, вес=${gravity}, гармония=${harmoniousness}`,
+  globalSectionAspects: "\n### Ключевые аспекты дня\n",
+  globalAspectLine: (from, type, to, orb, weight) => `- ${from} ${type} ${to}, орб=${orb}°, вес=${weight}`,
   globalSectionAspectWeights: "\n### Вес каждого аспекта в общей картине\n",
   globalAspectWeightLine: (from, type, to, orb, weight) =>
     `- ${from} ${type} ${to}: орб=${orb}°, вклад=${weight}`,
@@ -223,7 +223,7 @@ const en: MathLevelStrings = {
   section3Intro:
     "Where `Activation` is the total weight of activating transits; `S_eff` is effective strength (S_calibrated when calibration exists, otherwise S_initial).\n",
   importanceLine: (planet, activation, sEff, importance) =>
-    `- **${planet}**: Activation=${activation} × (0.5 + 0.5 × ${sEff}) = **${importance}**`,
+    `- **${planet}**: Importance=${activation} × (0.5 + 0.5 × ${sEff}) = **${importance}**`,
   section4Title: "\n### 4. Planet of the day",
   winnerLine: (planet, importance) => `Winner: **${planet}** (Importance = ${importance}).\n`,
   alternativeLine: (reason) => `Alternative choice used: ${reason}.`,
@@ -243,10 +243,10 @@ const en: MathLevelStrings = {
   globalWinnerLine: (planet, chakra, tone, gravity) =>
     `- Main theme of the day: **${planet}** (chakra ${chakra}, tone=${tone}, gravity=${gravity}). It received the highest total weight among today's transits.`,
   globalSectionRanking: "\n### Full planetary ranking for this moment\n",
-  globalRankingLine: (rank, planet, sign, degree, gravity, tone) =>
-    `${rank}. **${planet}** — ${sign} ${degree}°, gravity=${gravity}, tone=${tone}`,
-  globalSectionAspects: "\n### Active aspects of the day\n",
-  globalAspectLine: (from, type, to, orb) => `- ${from} ${type} ${to}, orb=${orb}°`,
+  globalRankingLine: (rank, planet, sign, degree, gravity, harmoniousness) =>
+    `${rank}. **${planet}** — ${sign} ${degree}°, gravity=${gravity}, harmony=${harmoniousness}`,
+  globalSectionAspects: "\n### Key aspects of the day\n",
+  globalAspectLine: (from, type, to, orb, weight) => `- ${from} ${type} ${to}, orb=${orb}°, weight=${weight}`,
   globalSectionAspectWeights: "\n### Weight of each aspect in the overall picture\n",
   globalAspectWeightLine: (from, type, to, orb, weight) =>
     `- ${from} ${type} ${to}: orb=${orb}°, contribution=${weight}`,
