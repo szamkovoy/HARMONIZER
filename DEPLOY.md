@@ -49,6 +49,7 @@ Optional environment variables:
 Required Expo public variables for the production app build:
 
 - `EXPO_PUBLIC_COMMUNICATOR_API_URL` - origin of the deployed `_legacy_web` backend, for example `https://your-app.vercel.app`.
+- `PROMPT_STUDIO_TOKEN` (server only, Vercel) - Bearer token for temporary `/api/ai/prompt-studio` test stand; not required for the mobile app.
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
