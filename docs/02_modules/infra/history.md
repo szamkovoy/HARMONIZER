@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.7
-updated: 2026-06-27
+version: 1.8
+updated: 2026-07-08
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
 
 ## Decision Log
+
+- **2026-07-08 (4):** Stories media infra expanded in two directions. First, `_legacy_web/package.json` gained `sharp`, `ffmpeg-static` and `ffprobe-static`, because Stories uploads are now normalized server-side (crop/resize for images; mp4 transcode, poster frame and tiny thumbnail for videos) before any DB row is created. Second, Supabase cron surface gained `cleanup-expired-stories` (`supabase/functions/cleanup-expired-stories`, `supabase/config.toml`, `supabase/README.md`, `DEPLOY.md`) so expired stories are deleted not only from feed SQL but also from Storage.
 
 - **2026-06-27 (3):** Expo prebuild contract expanded for BLE chest straps. `package.json` now includes `@sfourdrinier/react-native-ble-plx`, and `app.config.ts` wires the BLE config plugin plus iOS `NSBluetoothAlwaysUsageDescription` and Android `BLUETOOTH(_SCAN/_CONNECT)` permissions. Result: Polar/generic BLE HRM support is available in dev-client / prebuild builds, while Expo Go remains unsupported for that path.
 

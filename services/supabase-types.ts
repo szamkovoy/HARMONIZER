@@ -1470,6 +1470,7 @@ export type Database = {
           kind: string
           order_hint: number | null
           publish_at: string | null
+          thumbnail_url: string | null
           updated_at: string | null
           video_provider: string | null
           video_url: string | null
@@ -1487,6 +1488,7 @@ export type Database = {
           kind: string
           order_hint?: number | null
           publish_at?: string | null
+          thumbnail_url?: string | null
           updated_at?: string | null
           video_provider?: string | null
           video_url?: string | null
@@ -1504,6 +1506,7 @@ export type Database = {
           kind?: string
           order_hint?: number | null
           publish_at?: string | null
+          thumbnail_url?: string | null
           updated_at?: string | null
           video_provider?: string | null
           video_url?: string | null
@@ -2263,6 +2266,22 @@ export type Database = {
           is_fresh: boolean
           kind: string
           publish_at: string
+          video_provider: string
+          video_url: string
+        }[]
+      }
+      get_story_feed: {
+        Args: { p_user_id: string }
+        Returns: {
+          caption: Json
+          cover_url: string
+          expires_at: string
+          id: string
+          image_url: string
+          is_viewed: boolean
+          kind: string
+          publish_at: string
+          thumbnail_url: string
           video_provider: string
           video_url: string
         }[]

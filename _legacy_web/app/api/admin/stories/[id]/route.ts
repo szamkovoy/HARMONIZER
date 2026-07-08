@@ -56,7 +56,7 @@ export async function DELETE(req: Request, ctx: RouteContext) {
 
     const { data: story, error: readError } = await db
       .from("stories")
-      .select("image_url, video_url, cover_url")
+      .select("image_url, video_url, cover_url, thumbnail_url")
       .eq("id", id)
       .maybeSingle();
     if (readError) throw readError;
@@ -65,7 +65,12 @@ export async function DELETE(req: Request, ctx: RouteContext) {
     const { error } = await db.from("stories").delete().eq("id", id);
     if (error) throw error;
 
-    await removeStorageObjectsByPublicUrls(db, "story-media", [story.image_url, story.video_url, story.cover_url]);
+    await removeStorageObjectsByPublicUrls(db, "story-media", [
+      story.image_url,
+      story.video_url,
+      story.cover_url,
+      story.thumbnail_url,
+    ]);
 
     return json({ ok: true });
   } catch (error) {

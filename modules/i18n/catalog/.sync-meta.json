@@ -110,7 +110,11 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   },
   "en": {
     "tabs.home": "Главная",
@@ -223,7 +227,11 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   },
   "es": {
     "tabs.home": "Главная",
@@ -336,7 +344,11 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   },
   "fr": {
     "tabs.home": "Главная",
@@ -449,7 +461,11 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   },
   "it": {
     "tabs.home": "Главная",
@@ -562,7 +578,11 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   },
   "nl": {
     "tabs.home": "Главная",
@@ -675,7 +695,11 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   },
   "pt": {
     "tabs.home": "Главная",
@@ -788,6 +812,10 @@
     "support.send": "Отправить",
     "support.sentTitle": "Сообщение отправлено",
     "support.sentMessage": "Спасибо! Мы уже видим ваше сообщение и ответим на почту аккаунта.",
-    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз."
+    "support.sendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+    "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
+    "stories.ring.seenA11y": "Открыть сторис автора",
+    "stories.viewer.previous": "Предыдущая сторис",
+    "stories.viewer.next": "Следующая сторис"
   }
 }

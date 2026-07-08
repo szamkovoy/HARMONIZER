@@ -1,7 +1,7 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.4
+version: 1.5
 updated: 2026-07-08
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
@@ -23,6 +23,8 @@ code_refs:
     _legacy_web/app/api/admin/payments/route.ts,
     _legacy_web/app/api/admin/metrics/route.ts,
     _legacy_web/app/api/admin/prompts/route.ts,
+    _legacy_web/app/api/admin/stories/process/route.ts,
+    _legacy_web/app/api/admin/stories/cleanup/route.ts,
     _legacy_web/app/api/_utils/supabase.ts,
     _legacy_web/public/admin-manifest.json,
     modules/support/core/supportClient.ts,
@@ -48,7 +50,7 @@ code_refs:
 - **`requireAdmin(req): Promise<string>`** (`_legacy_web/app/api/_utils/supabase.ts`) — гейт каждого роута `app/api/admin/*`: `requireUserId` (JWT) + проверка `public.user_roles.role = 'admin'` через service client. 401 без токена, 403 без роли. Возвращает userId админа.
 - **`GET /api/admin/me`** — проба «я админ» для клиентского гейта: `{ userId, displayName }` или 401/403.
 
-**Сторис (реализовано, этап 1):** `GET/POST /api/admin/stories`, `PATCH/DELETE /api/admin/stories/[id]`, UI `/admin/stories`. Контракт и данные — в `02_modules/author_presence/spec.md` (владелец функциональности).
+**Сторис (реализовано, этап 1, доработано 2026-07-08):** `GET /api/admin/stories`, `POST /api/admin/stories/process`, `PATCH/DELETE /api/admin/stories/[id]`, `POST /api/admin/stories/cleanup`, UI `/admin/stories`. Контракт и данные — в `02_modules/author_presence/spec.md` (владелец функциональности).
 
 **Публикации и комментарии (реализовано, этап 2):** `GET/POST /api/admin/posts`, `GET/PATCH/DELETE /api/admin/posts/[id]`, `PATCH/DELETE /api/admin/comments/[id]` (модерация: скрыть/удалить), UI `/admin/posts` (+`/new`, `/[id]` — редактор `PostEditor` с модерацией комментариев). Контракт и данные — в `author_presence`.
 
@@ -83,7 +85,7 @@ code_refs:
 - UI `/admin/prompts` (список ключей) и `/admin/prompts/[key]` (версии, редактор шаблона, playground с автозаготовкой `{{переменных}}`).
 - Временный Prompt Studio (`/api/ai/prompt-studio` + `middleware.ts` + WordPress-страница) выведен из эксплуатации: роут и middleware удалены, функциональность покрыта этим разделом. `PROMPT_STUDIO_TOKEN` в Vercel больше не нужен.
 
-**Загрузки:** `POST /api/admin/uploads` `{bucket: 'story-media'|'post-covers', contentType}` → signed upload URL (браузер грузит напрямую в Storage, мимо лимита тела Vercel). Общая зачистка файлов при удалении — `app/api/admin/_utils/storageCleanup.ts`.
+**Загрузки:** `POST /api/admin/uploads` `{bucket: 'story-media'|'post-covers', contentType}` → signed upload URL (браузер грузит напрямую в Storage, мимо лимита тела Vercel). Для stories raw upload теперь дополняется `{folder: 'tmp/stories', bytes}` и после загрузки обязательно проходит через `POST /api/admin/stories/process`, где server-side pipeline (`sharp`/`ffmpeg`) генерирует optimized media + `thumbnail_url`. Общая зачистка файлов при удалении — `app/api/admin/_utils/storageCleanup.ts`.
 - **Клиент админки** (`app/admin/_lib/`): `getBrowserSupabase()` — anon-клиент только для аутентификации (email/password, сессия в localStorage); `adminFetch(path, init)` — fetch к `/api/admin/*` с Bearer текущей сессии. Данные админка получает **только через API** (service role на сервере), не прямыми запросами к БД.
 
 **UI-каркас (реализовано, этап 0):**
@@ -99,6 +101,7 @@ code_refs:
 - Роль admin назначается вручную SQL-ом (`supabase/README.md` §«Как назначить себе роль admin»).
 - Стили — Tailwind v4 без конфига (v4 через `@import "tailwindcss"`), иконки lucide-react. RN UI-kit (`modules/ui/`) на веб не переносится; заимствуются только цветовые токены.
 - Формат дат админки централизован в `app/admin/_lib/adminDates.ts`: везде `ДД.ММ.ГГГГ` и `ДД.ММ.ГГГГ ЧЧ:ММ`; сохранение срока оплаты из date-input добавляет текущее локальное время браузера, а не `23:59`.
+- Stories upload flow стал двухшаговым: browser signed-upload только складывает raw media в `story-media/tmp/stories/*`, а финальная запись в `stories` создаётся лишь после `process`-роута. Это снижает вес клиентского контракта и держит crop/transcode/poster/thumb generation полностью на сервере.
 
 ## 4. Конфигурация
 
@@ -112,3 +115,4 @@ code_refs:
 - `is_admin()` в RLS остаётся защитой на уровне БД; серверные админ-роуты работают через service role + `requireAdmin` и на RLS не полагаются.
 - Леджер `payments` пока наполняется только ручными назначениями (source=manual); интеграции со сторами нет — при её появлении писать в тот же леджер с source=store.
 - DAU/WAU/MAU считаются по любым событиям `user_event_log`; до массового раскатывания клиента с `app_open` активность занижена (только пользователи, дёргающие API).
+- Stories media pipeline рассчитан на короткий контент: фото до 30 МБ, raw video до 120 МБ и до 90 секунд. Ограничения enforced уже на upload/process-роутах, чтобы `ffmpeg` укладывался в serverless runtime.

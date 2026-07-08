@@ -1,13 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.0
+version: 1.1
 updated: 2026-07-08
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-08 (6):** Stories admin flow переведён на server-side media pipeline. Решения: браузер больше не создаёт строку `stories` напрямую после signed upload; raw media уходит в `story-media/tmp/stories/*`, затем `POST /api/admin/stories/process` через `sharp`/`ffmpeg` создаёт финальные optimized assets, `cover_url` для видео и `thumbnail_url` для кольца, и только после этого пишет запись в БД. В `POST /api/admin/uploads` для stories добавлены `folder`/`bytes` и ранние guard'ы по размеру, а для housekeeping — ручной `/api/admin/stories/cleanup`, который батчево удаляет истёкшие сторис вместе с файлами.
 
 - **2026-07-08 (5):** Дошлифован раздел пользователей/платежей после продуктового фидбека. Введена миграция `20260708190000_payments_edited_at.sql`: `payments.edited_at` + RPC `admin_active_users_count(p_hours)`. Админка получила единый helper `app/admin/_lib/adminDates.ts` (формат `ДД.ММ.ГГГГ[ ЧЧ:ММ]` и сохранение `expires_at` с текущим временем браузера), отдельный раздел `/admin/payments` с общим леджером и `/admin/{users,payments}/stats` со сводной статистикой. Карточка пользователя упрощена: убран `Триал до`, `Локаль` переименована в `Язык`, `Онбординг` уточнён как `Заполнил профиль`, назначение тарифа перенесено в модальную кнопку «Добавить платёж», история платежей стала редактируемой; при правке latest-payment сервер пересчитывает `users.membership_tier` и `membership_expires_at`. Навигация и все даты админки унифицированы под новый формат.
 

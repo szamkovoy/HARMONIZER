@@ -45,7 +45,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   Platform,
   Pressable,
@@ -103,9 +102,7 @@ function HomeHeader({
   return (
     <View style={styles.header}>
       <View style={styles.heroRow}>
-        <View style={styles.avatarRing}>
-          <Image source={require("@/assets/icons/apple-touch-icon.png")} style={styles.avatar} resizeMode="cover" />
-        </View>
+        <StoriesRing />
         <View style={styles.headerText}>
           <AppText variant="sectionTitle" accessibilityRole="header" style={styles.dateText}>
             {today}
@@ -635,7 +632,6 @@ export default function HomeScreen() {
     <TabScreenLayout>
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} />
-        <StoriesRing />
         <UpcomingWebinarBanner />
         <LatestPostBanner />
 
@@ -854,20 +850,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 14,
-  },
-  avatarRing: {
-    alignItems: "center",
-    borderColor: "#9B5BEB",
-    borderRadius: 999,
-    borderWidth: 2,
-    height: 58,
-    justifyContent: "center",
-    width: 58,
-  },
-  avatar: {
-    borderRadius: 999,
-    height: 50,
-    width: 50,
   },
   headerText: {
     flex: 1,

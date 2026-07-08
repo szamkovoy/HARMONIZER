@@ -55,6 +55,7 @@ supabase db execute --file supabase/seed.sql
 - `precompute-daily-forecasts` — ежечасный precompute M2 для активных пользователей в их локальную полночь.
 - `precompute-global-recommendations` — precompute глобального free-прогноза с rolling window `yesterday/today/tomorrow`.
 - `cleanup-expired-proposals` — еженедельная очистка `ai_state_proposals`.
+- `cleanup-expired-stories` — регулярная очистка истёкших stories + их файлов в `story-media`.
 
 Секреты: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, опционально `CRON_SECRET`, для LLM-анализа `GEMINI_API_KEY`.
 
@@ -67,6 +68,7 @@ supabase db execute --file supabase/seed.sql
 0 * * * *      precompute-daily-forecasts
 0 * * * *      precompute-global-recommendations
 0 4 * * 0      cleanup-expired-proposals
+15 * * * *     cleanup-expired-stories
 ```
 
 ## Как добавлять новые миграции

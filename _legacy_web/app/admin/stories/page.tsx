@@ -13,6 +13,7 @@ type StoryRow = {
   image_url: string | null;
   video_url: string | null;
   cover_url: string | null;
+  thumbnail_url: string | null;
   caption: { text?: string } | null;
   publish_at: string | null;
   expires_at: string | null;
@@ -54,7 +55,7 @@ export default function AdminStoriesPage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-1 text-xl font-bold text-zinc-100">Сторис</h1>
       <p className="mb-5 text-sm text-zinc-500">
-        Фото или видео на 24 часа. Пользователи видят их кольцом на главном экране приложения.
+        Фото и видео проходят server-side оптимизацию перед публикацией. Пользователи видят их кольцом в левом аватаре на главном экране приложения.
       </p>
 
       <CreateStoryForm onCreated={load} />
@@ -101,24 +102,33 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
       setError("Выберите фото или видео");
       return;
     }
+    if (!publishNow && !publishAt) {
+      setError("Укажите дату публикации");
+      return;
+    }
     setError(null);
     try {
       setBusy("Загружаю файл…");
       const ticket = await adminFetch<UploadTicket>("/api/admin/uploads", {
         method: "POST",
-        body: JSON.stringify({ contentType: file.type }),
+        body: JSON.stringify({
+          bucket: "story-media",
+          folder: "tmp/stories",
+          contentType: file.type,
+          bytes: file.size,
+        }),
       });
       const { error: uploadError } = await getBrowserSupabase()
         .storage.from("story-media")
         .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
       if (uploadError) throw new Error(`Загрузка файла не удалась: ${uploadError.message}`);
 
-      setBusy("Сохраняю сторис…");
-      await adminFetch("/api/admin/stories", {
+      setBusy("Обрабатываю сторис…");
+      await adminFetch("/api/admin/stories/process", {
         method: "POST",
         body: JSON.stringify({
-          kind: isVideo ? "video" : "image",
-          [isVideo ? "video_url" : "image_url"]: ticket.publicUrl,
+          upload_path: ticket.path,
+          content_type: file.type,
           caption,
           publish_at: publishNow ? null : new Date(publishAt).toISOString(),
           is_evergreen: evergreen,
@@ -202,6 +212,10 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
             </label>
           </div>
 
+          <p className="text-xs text-zinc-500">
+            Фото автоматически кропаются под 9:16 и получают миниатюру. Видео перекодируются в mp4, получают poster и tiny-thumb. Лимиты: фото до 30 МБ, видео до 120 МБ и до 90 секунд.
+          </p>
+
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
           <button
@@ -220,7 +234,7 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
 function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const status = useMemo(() => storyStatus(story), [story]);
-  const preview = story.kind === "image" ? story.image_url : (story.cover_url ?? story.video_url);
+  const preview = story.thumbnail_url ?? (story.kind === "image" ? story.image_url : (story.cover_url ?? story.video_url));
 
   async function togglePublished() {
     setBusy(true);

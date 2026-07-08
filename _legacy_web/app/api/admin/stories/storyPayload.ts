@@ -3,6 +3,7 @@ export type AdminStoryPayload = {
   image_url?: string | null;
   video_url?: string | null;
   cover_url?: string | null;
+  thumbnail_url?: string | null;
   caption?: string;
   publish_at?: string | null;
   expires_at?: string | null;
@@ -33,6 +34,7 @@ export function storyRowFromPayload(body: AdminStoryPayload) {
     image_url: kind === "image" ? mediaUrl.trim() : null,
     video_url: kind === "video" ? mediaUrl.trim() : null,
     cover_url: body.cover_url?.trim() || null,
+    thumbnail_url: body.thumbnail_url?.trim() || null,
     video_provider: null,
     caption: body.caption?.trim() ? { text: body.caption.trim() } : {},
     publish_at: publishAt.toISOString(),

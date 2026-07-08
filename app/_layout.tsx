@@ -19,6 +19,7 @@ import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartu
 import { hydrateAppLocale } from "@/modules/i18n";
 import { PushRegistrationBridge } from "@/modules/notifications";
 import { RemotePlayProvider } from "@/modules/remote-play";
+import { StorySessionBootstrap } from "@/modules/stories";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 import { configureLocalNotifications } from "@/services/localNotifications";
 import { logRuntimeEvent, logRuntimeTap, useRuntimeDiagnosticsSampler } from "@/services/runtimeDiagnostics";
@@ -68,6 +69,7 @@ export default function RootLayout() {
               <AccessBridge>
                 <NativeSplashBridge fontsLoaded={loaded} />
                 <PushRegistrationBridge />
+                <StorySessionBootstrap />
                 <RootLayoutNav />
               </AccessBridge>
             </RemotePlayProvider>

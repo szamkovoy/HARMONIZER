@@ -15,6 +15,7 @@ Functions to deploy:
 - `precompute-daily-forecasts`
 - `precompute-global-recommendations`
 - `cleanup-expired-proposals`
+- `cleanup-expired-stories`
 
 Recommended schedules:
 
@@ -22,6 +23,7 @@ Recommended schedules:
 - `precompute-daily-forecasts`: `0 * * * *`
 - `precompute-global-recommendations`: `0 * * * *`
 - `cleanup-expired-proposals`: `0 4 * * 0`
+- `cleanup-expired-stories`: `15 * * * *`
 
 ## Next.js Backend (`_legacy_web`)
 
