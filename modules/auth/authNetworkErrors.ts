@@ -59,6 +59,27 @@ export function isAuthSessionResultTransientFailure(error: unknown | null | unde
   );
 }
 
+/**
+ * Сервер отозвал refresh token (сброс пароля, sign-out everywhere, ротация без сохранения).
+ * Локальная сессия мёртва — нужен новый вход, но это ожидаемый сценарий, не сбой сети.
+ */
+export function isInvalidRefreshTokenError(error: unknown): boolean {
+  if (!error) return false;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+  if (/Invalid Refresh Token/i.test(message)) return true;
+  if (/Refresh Token Not Found/i.test(message)) return true;
+  if (typeof error === "object" && error !== null) {
+    const o = error as { status?: unknown; code?: unknown };
+    if (o.status === 400 && o.code === "refresh_token_not_found") return true;
+  }
+  return false;
+}
+
 export function rewriteAuthNetworkError(
   error: unknown,
   context: "session" | "sign_in" | "refresh" | "profile",

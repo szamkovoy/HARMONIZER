@@ -1,6 +1,14 @@
 import type { Session } from "@supabase/supabase-js";
 
-import { readPersistedAuthSessionFromStorage, requireSupabase } from "@/services/supabase";
+import {
+  isInvalidRefreshTokenError,
+  isTransientAuthConnectivityFailure,
+} from "./authNetworkErrors";
+import {
+  clearPersistedAuthSession,
+  readPersistedAuthSessionFromStorage,
+  requireSupabase,
+} from "@/services/supabase";
 
 const SET_SESSION_RECOVER_ATTEMPTS = 6;
 /** Паузы между попытками (сумма ~9 с) — пережить кратковременный RN «Network request failed» на cold start. */
@@ -31,6 +39,13 @@ export async function recoverAuthSessionFromPersistedStorageWithRetries(): Promi
       refresh_token: disk.refresh_token,
     });
     if (data.session && !error) return data.session;
+    if (error && isInvalidRefreshTokenError(error)) {
+      await clearPersistedAuthSession();
+      return null;
+    }
+    if (error && !isTransientAuthConnectivityFailure(error)) {
+      return null;
+    }
     if (attempt < SET_SESSION_RECOVER_ATTEMPTS - 1) {
       const delayMs = SET_SESSION_RECOVER_DELAYS_MS[attempt] ?? 2_000;
       await new Promise((r) => setTimeout(r, delayMs));

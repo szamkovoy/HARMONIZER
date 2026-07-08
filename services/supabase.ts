@@ -99,17 +99,33 @@ async function secureSetChunked(SecureStore: SecureStoreLike, key: string, value
   if (!safeKey) return;
 
   try {
-    await secureRemoveChunked(SecureStore, safeKey);
     if (value.length <= SECURE_STORE_CHUNK_SIZE) {
+      const countRaw = await SecureStore.getItemAsync(chunkCountKey(safeKey));
+      const chunkCount = countRaw ? Number(countRaw) : 0;
       await SecureStore.setItemAsync(safeKey, value);
+      if (Number.isFinite(chunkCount) && chunkCount > 0) {
+        await Promise.all(
+          Array.from({ length: chunkCount }, (_, index) =>
+            SecureStore.deleteItemAsync(chunkKey(safeKey, index)),
+          ),
+        );
+        await SecureStore.deleteItemAsync(chunkCountKey(safeKey));
+      }
       return;
     }
 
     const chunks = value.match(new RegExp(`.{1,${SECURE_STORE_CHUNK_SIZE}}`, "g")) ?? [];
     await Promise.all(chunks.map((chunk, index) => SecureStore.setItemAsync(chunkKey(safeKey, index), chunk)));
     await SecureStore.setItemAsync(chunkCountKey(safeKey), String(chunks.length));
-  } catch {
-    /* Ignore invalid/quota storage writes; Supabase can recover with a new sign-in. */
+    await SecureStore.deleteItemAsync(safeKey);
+  } catch (error) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[supabase-auth] SecureStore session write failed",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 }
 
@@ -234,6 +250,22 @@ function sessionHasUsableAccessToken(session: Session | null, allowExpired = fal
 
 export function rememberSupabaseSession(session: Session | null): void {
   lastKnownSession = session;
+}
+
+/** Удаляет мёртвую сессию из SecureStore и локального состояния SDK без сетевого sign-out. */
+export async function clearPersistedAuthSession(): Promise<void> {
+  rememberSupabaseSession(null);
+  if (!EXPO_SB_URL) return;
+  const key = computeSupabaseAuthStorageKey(EXPO_SB_URL);
+  if (key) await authStorageAdapter.removeItem(key);
+  try {
+    const client = getSupabase();
+    if (client) {
+      await client.auth.signOut({ scope: "local" });
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function getSupabaseSessionSnapshot(options?: { allowExpired?: boolean }): Promise<Session | null> {

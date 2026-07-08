@@ -43,7 +43,9 @@ import { AuthProvider, useAuth } from "@/modules/auth";
 
 `services/supabase.ts` передаёт supabase-js адаптер `expo-secure-store`:
 iOS Keychain / Android Keystore. Сессия переживает перезапуск приложения,
-refresh token обновляется автоматом (+ подписка на `AppState`).
+refresh token обновляется автоматом (+ подписка на `AppState`). Мёртвый refresh
+token (отзыв на сервере) очищается локально без красного LogBox; при валидном
+токене перезапуск Metro (`expo start -c`) не сбрасывает вход.
 
 ## Требуемые env-переменные
 

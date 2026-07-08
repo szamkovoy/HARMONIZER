@@ -9,6 +9,7 @@
 import { LogBox, Platform } from "react-native";
 
 import {
+  isInvalidRefreshTokenError,
   isLikelyAuthJsFetchAbort,
   isLikelyFetchNetworkFailure,
 } from "@/modules/auth/authNetworkErrors";
@@ -52,10 +53,12 @@ function isBareAbortAbortedArg(arg: unknown): boolean {
 }
 
 function shouldDemoteToWarn(args: unknown[]): boolean {
+  if (args.some((a) => isInvalidRefreshTokenError(a))) return true;
   if (args.some((a) => isAuthRetryableFetchError(a))) return true;
   if (args.some((a) => isLikelyAuthJsFetchAbort(a))) return true;
   if (args.some((a) => isBareAbortAbortedArg(a))) return true;
   const joined = argsText(args);
+  if (/Invalid Refresh Token|Refresh Token Not Found/i.test(joined)) return true;
   if (joined.includes(SUPABASE_AUTH_TICK)) return true;
   if (isBareRnFetchNetworkTypeErrorLog(args)) return true;
   if (args.length === 1 && /^(TypeError:\s*)?Network request failed/i.test(joined.trim())) return true;
@@ -77,6 +80,8 @@ export function installSupabaseAuthConsoleFilter(): void {
     /Auto refresh tick failed with error/i,
     /** RN/Hermes: иногда `console.error` получает только строку вида `[AbortError: Aborted]`. */
     /AbortError:\s*Aborted/i,
+    /Invalid Refresh Token/i,
+    /Refresh Token Not Found/i,
   ]);
 
   const g = globalThis as { __harmonizerSupabaseAuthConsoleFilter?: boolean };

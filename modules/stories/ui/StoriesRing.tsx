@@ -52,7 +52,8 @@ function ringSegments(count: number): Array<{ start: number; end: number }> {
 function avatarThumb(stories: StoryItem[], sessionThumb: string | null): string | null {
   if (sessionThumb) return sessionThumb;
   const latest = stories[stories.length - 1];
-  return latest?.thumbnailUrl ?? latest?.coverUrl ?? latest?.imageUrl ?? null;
+  if (!latest) return null;
+  return latest.thumbnailUrl ?? latest.coverUrl ?? latest.imageUrl ?? latest.videoUrl ?? null;
 }
 
 function BrandAvatar() {
@@ -114,7 +115,7 @@ export function StoriesRing() {
 
   if (!stories.length) {
     return (
-      <View style={styles.fallbackRing}>
+      <View style={styles.plainAvatar}>
         <BrandAvatar />
       </View>
     );
@@ -184,11 +185,8 @@ const styles = StyleSheet.create({
     height: INNER_SIZE,
     width: INNER_SIZE,
   },
-  fallbackRing: {
+  plainAvatar: {
     alignItems: "center",
-    borderColor: "#9B5BEB",
-    borderRadius: 999,
-    borderWidth: 2,
     height: RING_SIZE,
     justifyContent: "center",
     width: RING_SIZE,

@@ -233,17 +233,21 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
 
 function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const status = useMemo(() => storyStatus(story), [story]);
   const preview = story.thumbnail_url ?? (story.kind === "image" ? story.image_url : (story.cover_url ?? story.video_url));
 
   async function togglePublished() {
     setBusy(true);
+    setActionError(null);
     try {
       await adminFetch(`/api/admin/stories/${story.id}`, {
         method: "PATCH",
         body: JSON.stringify({ is_published: !story.is_published }),
       });
       await onChanged();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Не удалось обновить сторис");
     } finally {
       setBusy(false);
     }
@@ -252,9 +256,12 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
   async function remove() {
     if (!window.confirm("Удалить сторис вместе с файлом?")) return;
     setBusy(true);
+    setActionError(null);
     try {
       await adminFetch(`/api/admin/stories/${story.id}`, { method: "DELETE" });
       await onChanged();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Не удалось удалить сторис");
     } finally {
       setBusy(false);
     }
@@ -290,6 +297,7 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
         <p className="mt-1 truncate text-sm text-zinc-300">
           {story.caption?.text?.trim() || <span className="text-zinc-600">Без подписи</span>}
         </p>
+        {actionError ? <p className="mt-1 text-xs text-red-400">{actionError}</p> : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

@@ -70,7 +70,61 @@ function isPlayableStory(story: StoryItem): boolean {
 function storyAvatarThumb(items: StoryItem[]): string | null {
   const latest = items[items.length - 1];
   if (!latest) return null;
-  return latest.thumbnailUrl ?? latest.coverUrl ?? latest.imageUrl ?? null;
+  return latest.thumbnailUrl ?? latest.coverUrl ?? latest.imageUrl ?? latest.videoUrl ?? null;
+}
+
+function isMissingStoryFeedRpc(error: { message?: string; code?: string }): boolean {
+  const message = error.message ?? "";
+  return (
+    error.code === "PGRST202" ||
+    /get_story_feed/i.test(message) ||
+    /Could not find the function/i.test(message)
+  );
+}
+
+export function storyMediaUri(story: StoryItem): string | null {
+  if (story.kind === "image") return story.imageUrl;
+  if (story.kind === "video") return story.videoUrl ?? story.coverUrl ?? story.imageUrl;
+  return story.coverUrl ?? story.imageUrl ?? story.videoUrl;
+}
+
+async function fetchStoryFeedDirect(userId: string): Promise<StoryItem[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+
+  const { data: rows, error } = await supabase
+    .from("stories")
+    .select("id, kind, image_url, cover_url, thumbnail_url, video_url, caption, publish_at, expires_at, is_evergreen")
+    .eq("is_published", true)
+    .lte("publish_at", nowIso)
+    .order("order_hint", { ascending: true })
+    .order("publish_at", { ascending: true });
+  if (error) throw error;
+
+  const { data: views, error: viewsError } = await supabase
+    .from("user_story_views")
+    .select("story_id")
+    .eq("user_id", userId);
+  if (viewsError) throw viewsError;
+
+  const viewedIds = new Set((views ?? []).map((row) => row.story_id));
+
+  return (rows ?? [])
+    .filter(
+      (row) =>
+        row.is_evergreen === true ||
+        !row.expires_at ||
+        new Date(row.expires_at).getTime() > nowMs,
+    )
+    .map((row) =>
+      normalizeStory({
+        ...row,
+        is_viewed: viewedIds.has(row.id),
+      }),
+    )
+    .filter(isPlayableStory);
 }
 
 async function fetchStoryFeedFromRpc(userId: string): Promise<StoryItem[]> {
@@ -78,6 +132,12 @@ async function fetchStoryFeedFromRpc(userId: string): Promise<StoryItem[]> {
   if (!supabase) return [];
   const { data, error } = await supabase.rpc("get_story_feed", { p_user_id: userId });
   if (error) {
+    if (isMissingStoryFeedRpc(error)) {
+      if (__DEV__) {
+        console.warn("[stories] get_story_feed missing, using direct stories query fallback");
+      }
+      return fetchStoryFeedDirect(userId);
+    }
     if (__DEV__) console.warn("[stories] feed fetch failed", error.message);
     return [];
   }
@@ -98,8 +158,10 @@ async function rememberSessionThumb(userId: string, items: StoryItem[]): Promise
 }
 
 function saveWarmFeed(userId: string, items: StoryItem[]): StoryItem[] {
-  warmFeedSnapshot = { userId, items, fetchedAt: Date.now() };
-  void rememberSessionThumb(userId, items);
+  if (items.length > 0) {
+    warmFeedSnapshot = { userId, items, fetchedAt: Date.now() };
+    void rememberSessionThumb(userId, items);
+  }
   return items;
 }
 

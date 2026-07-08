@@ -4,6 +4,7 @@ import { Animated, Image, Modal, PanResponder, Pressable, StyleSheet, View } fro
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { StoryItem } from "@/modules/stories/core/storiesClient";
+import { storyMediaUri } from "@/modules/stories/core/storiesClient";
 import { AppText } from "@/modules/ui/AppText";
 
 const IMAGE_DURATION_MS = 7000;
@@ -101,12 +102,7 @@ export function StoryViewerModal({
     onClose();
   }, [stories, onViewed, onClose]);
 
-  const mediaSourceUri = useMemo(() => {
-    if (!story) return null;
-    if (story.kind === "image") return story.imageUrl;
-    if (isDirectVideo) return story.videoUrl;
-    return story.coverUrl ?? story.imageUrl;
-  }, [story, isDirectVideo]);
+  const mediaSourceUri = useMemo(() => (story ? storyMediaUri(story) : null), [story]);
 
   const panResponder = useMemo(
     () =>
