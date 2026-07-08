@@ -58,13 +58,27 @@ type SupabaseAuthStorage = {
 
 const SECURE_STORE_CHUNK_SIZE = 1800;
 const SECURE_STORE_KEY_RX = /^[A-Za-z0-9._-]+$/;
+const AUTH_STORAGE_SLOTS = ["a", "b"] as const;
 
 type SecureStoreLike = typeof import("expo-secure-store");
+type AuthStorageSlot = (typeof AUTH_STORAGE_SLOTS)[number];
 
 function safeSecureStoreKey(key: string): string | null {
   const sanitized = key.trim().replace(/[^A-Za-z0-9._-]/g, "_");
   if (!sanitized || !SECURE_STORE_KEY_RX.test(sanitized)) return null;
   return sanitized;
+}
+
+function activeSlotKey(key: string): string {
+  return `${key}.active`;
+}
+
+function slotStorageKey(key: string, slot: AuthStorageSlot): string {
+  return `${key}.slot.${slot}`;
+}
+
+function isAuthStorageSlot(value: string | null | undefined): value is AuthStorageSlot {
+  return value === "a" || value === "b";
 }
 
 function chunkCountKey(key: string): string {
@@ -75,17 +89,14 @@ function chunkKey(key: string, index: number): string {
   return `${key}.chunk.${index}`;
 }
 
-async function secureGetChunked(SecureStore: SecureStoreLike, key: string): Promise<string | null> {
-  const safeKey = safeSecureStoreKey(key);
-  if (!safeKey) return null;
-
+async function readStoredValue(SecureStore: SecureStoreLike, storageKey: string): Promise<string | null> {
   try {
-    const countRaw = await SecureStore.getItemAsync(chunkCountKey(safeKey));
+    const countRaw = await SecureStore.getItemAsync(chunkCountKey(storageKey));
     const count = countRaw ? Number(countRaw) : 0;
-    if (!Number.isFinite(count) || count <= 0) return SecureStore.getItemAsync(safeKey);
+    if (!Number.isFinite(count) || count <= 0) return SecureStore.getItemAsync(storageKey);
 
     const chunks = await Promise.all(
-      Array.from({ length: count }, (_, index) => SecureStore.getItemAsync(chunkKey(safeKey, index))),
+      Array.from({ length: count }, (_, index) => SecureStore.getItemAsync(chunkKey(storageKey, index))),
     );
     if (chunks.some((chunk) => chunk == null)) return null;
     return chunks.join("");
@@ -94,30 +105,93 @@ async function secureGetChunked(SecureStore: SecureStoreLike, key: string): Prom
   }
 }
 
+async function clearStoredValue(SecureStore: SecureStoreLike, storageKey: string): Promise<void> {
+  try {
+    const countRaw = await SecureStore.getItemAsync(chunkCountKey(storageKey));
+    const count = countRaw ? Number(countRaw) : 0;
+    const chunkKeys = Number.isFinite(count)
+      ? Array.from({ length: Math.max(0, count) }, (_, index) => chunkKey(storageKey, index))
+      : [];
+    await Promise.all([
+      SecureStore.deleteItemAsync(storageKey),
+      SecureStore.deleteItemAsync(chunkCountKey(storageKey)),
+      ...chunkKeys.map((item) => SecureStore.deleteItemAsync(item)),
+    ]);
+  } catch {
+    /* ignore invalid/missing storage keys */
+  }
+}
+
+async function secureGetChunked(SecureStore: SecureStoreLike, key: string): Promise<string | null> {
+  const safeKey = safeSecureStoreKey(key);
+  if (!safeKey) return null;
+
+  try {
+    const activeSlot = await SecureStore.getItemAsync(activeSlotKey(safeKey));
+    if (isAuthStorageSlot(activeSlot)) {
+      const activeValue = await readStoredValue(SecureStore, slotStorageKey(safeKey, activeSlot));
+      if (activeValue) return activeValue;
+      const fallbackSlot = activeSlot === "a" ? "b" : "a";
+      const fallbackValue = await readStoredValue(SecureStore, slotStorageKey(safeKey, fallbackSlot));
+      if (fallbackValue) return fallbackValue;
+    }
+  } catch {
+    /* ignore slot metadata failures; legacy fallback below */
+  }
+
+  return readStoredValue(SecureStore, safeKey);
+}
+
+async function writeStoredValue(SecureStore: SecureStoreLike, storageKey: string, value: string): Promise<void> {
+  const previousCountRaw = await SecureStore.getItemAsync(chunkCountKey(storageKey));
+  const previousCount = previousCountRaw ? Number(previousCountRaw) : 0;
+
+  if (value.length <= SECURE_STORE_CHUNK_SIZE) {
+    await SecureStore.setItemAsync(storageKey, value);
+    if (Number.isFinite(previousCount) && previousCount > 0) {
+      await Promise.all(
+        Array.from({ length: previousCount }, (_, index) => SecureStore.deleteItemAsync(chunkKey(storageKey, index))),
+      );
+      await SecureStore.deleteItemAsync(chunkCountKey(storageKey));
+    }
+    return;
+  }
+
+  const chunks = value.match(new RegExp(`.{1,${SECURE_STORE_CHUNK_SIZE}}`, "g")) ?? [];
+  await Promise.all(chunks.map((chunk, index) => SecureStore.setItemAsync(chunkKey(storageKey, index), chunk)));
+  await SecureStore.setItemAsync(chunkCountKey(storageKey), String(chunks.length));
+  await SecureStore.deleteItemAsync(storageKey);
+  if (Number.isFinite(previousCount) && previousCount > chunks.length) {
+    await Promise.all(
+      Array.from({ length: previousCount - chunks.length }, (_, offset) =>
+        SecureStore.deleteItemAsync(chunkKey(storageKey, chunks.length + offset)),
+      ),
+    );
+  }
+}
+
 async function secureSetChunked(SecureStore: SecureStoreLike, key: string, value: string): Promise<void> {
   const safeKey = safeSecureStoreKey(key);
   if (!safeKey) return;
 
   try {
-    if (value.length <= SECURE_STORE_CHUNK_SIZE) {
-      const countRaw = await SecureStore.getItemAsync(chunkCountKey(safeKey));
-      const chunkCount = countRaw ? Number(countRaw) : 0;
-      await SecureStore.setItemAsync(safeKey, value);
-      if (Number.isFinite(chunkCount) && chunkCount > 0) {
-        await Promise.all(
-          Array.from({ length: chunkCount }, (_, index) =>
-            SecureStore.deleteItemAsync(chunkKey(safeKey, index)),
-          ),
-        );
-        await SecureStore.deleteItemAsync(chunkCountKey(safeKey));
-      }
-      return;
+    const activeSlotRaw = await SecureStore.getItemAsync(activeSlotKey(safeKey));
+    const activeSlot = isAuthStorageSlot(activeSlotRaw) ? activeSlotRaw : null;
+    const nextSlot: AuthStorageSlot = activeSlot === "a" ? "b" : "a";
+    const nextStorageKey = slotStorageKey(safeKey, nextSlot);
+
+    await writeStoredValue(SecureStore, nextStorageKey, value);
+    const readBack = await readStoredValue(SecureStore, nextStorageKey);
+    if (readBack !== value) {
+      throw new Error("SecureStore read-back mismatch for session write");
     }
 
-    const chunks = value.match(new RegExp(`.{1,${SECURE_STORE_CHUNK_SIZE}}`, "g")) ?? [];
-    await Promise.all(chunks.map((chunk, index) => SecureStore.setItemAsync(chunkKey(safeKey, index), chunk)));
-    await SecureStore.setItemAsync(chunkCountKey(safeKey), String(chunks.length));
-    await SecureStore.deleteItemAsync(safeKey);
+    await SecureStore.setItemAsync(activeSlotKey(safeKey), nextSlot);
+    await clearStoredValue(SecureStore, safeKey);
+    await clearStoredValue(
+      SecureStore,
+      slotStorageKey(safeKey, nextSlot === "a" ? "b" : "a"),
+    );
   } catch (error) {
     if (__DEV__) {
       // eslint-disable-next-line no-console
@@ -134,15 +208,11 @@ async function secureRemoveChunked(SecureStore: SecureStoreLike, key: string): P
   if (!safeKey) return;
 
   try {
-    const countRaw = await SecureStore.getItemAsync(chunkCountKey(safeKey));
-    const count = countRaw ? Number(countRaw) : 0;
-    const chunkKeys = Number.isFinite(count)
-      ? Array.from({ length: Math.max(0, count) }, (_, index) => chunkKey(safeKey, index))
-      : [];
     await Promise.all([
-      SecureStore.deleteItemAsync(safeKey),
-      SecureStore.deleteItemAsync(chunkCountKey(safeKey)),
-      ...chunkKeys.map((item) => SecureStore.deleteItemAsync(item)),
+      clearStoredValue(SecureStore, safeKey),
+      clearStoredValue(SecureStore, slotStorageKey(safeKey, "a")),
+      clearStoredValue(SecureStore, slotStorageKey(safeKey, "b")),
+      SecureStore.deleteItemAsync(activeSlotKey(safeKey)),
     ]);
   } catch {
     /* ignore invalid/missing storage keys */
@@ -247,6 +317,8 @@ function sessionHasUsableAccessToken(session: Session | null, allowExpired = fal
   const expiresAtMs = typeof session.expires_at === "number" ? session.expires_at * 1000 : null;
   return !expiresAtMs || expiresAtMs - Date.now() > ACCESS_TOKEN_EXPIRY_SKEW_MS;
 }
+
+export { sessionHasUsableAccessToken };
 
 export function rememberSupabaseSession(session: Session | null): void {
   lastKnownSession = session;

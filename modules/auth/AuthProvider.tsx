@@ -22,7 +22,7 @@ import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
-import { rememberSupabaseSession, requireSupabase } from "@/services/supabase";
+import { rememberSupabaseSession, readPersistedAuthSessionFromStorage, requireSupabase } from "@/services/supabase";
 import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
 import { rewriteAuthNetworkError } from "./authNetworkErrors";
 import { signInWithApple } from "./sign-in-apple";
@@ -195,6 +195,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       void (async () => {
         let resolved: Session | null = sdkSession;
         if (!resolved) {
+          const diskBeforeRecover = await readPersistedAuthSessionFromStorage();
+          if (!diskBeforeRecover) {
+            if (cancelled || initialSessionReady) return;
+            completeBootstrap(null);
+            return;
+          }
           resolved = await recoverAuthSessionFromPersistedStorageWithRetries();
         }
         if (cancelled || initialSessionReady) return;

@@ -7,8 +7,12 @@ import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
 import {
   fetchStoryFeed,
+  firstUnviewedStoryIndex,
   getSessionStoryAvatarThumb,
   markStoryViewed,
+  prefetchStoryWindow,
+  rememberStoryViewedLocally,
+  subscribeStoryFeed,
   type StoryItem,
 } from "@/modules/stories/core/storiesClient";
 import { StoryViewerModal } from "@/modules/stories/ui/StoryViewerModal";
@@ -69,14 +73,31 @@ export function StoriesRing() {
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [revealProgress, setRevealProgress] = useState(1);
+  const [openingViewer, setOpeningViewer] = useState(false);
   const reveal = useRef(new Animated.Value(1)).current;
+  const isFocusedRef = useRef(true);
+  const revealListenerIdRef = useRef<string | null>(null);
+  const storiesRef = useRef<StoryItem[]>([]);
 
   useEffect(() => {
-    const sub = reveal.addListener(({ value }) => setRevealProgress(value));
-    return () => reveal.removeListener(sub);
+    storiesRef.current = stories;
+  }, [stories]);
+
+  useEffect(() => {
+    const listenerId = reveal.addListener(({ value }) => {
+      if (isFocusedRef.current) setRevealProgress(value);
+    });
+    revealListenerIdRef.current = listenerId;
+    return () => {
+      if (revealListenerIdRef.current) {
+        reveal.removeListener(revealListenerIdRef.current);
+        revealListenerIdRef.current = null;
+      }
+    };
   }, [reveal]);
 
   const reload = useCallback(() => {
+    isFocusedRef.current = true;
     reveal.stopAnimation();
     reveal.setValue(0);
     Animated.timing(reveal, {
@@ -87,28 +108,71 @@ export function StoriesRing() {
 
     if (!userId) {
       setStories([]);
-      return undefined;
+      return () => {
+        isFocusedRef.current = false;
+        reveal.stopAnimation();
+      };
     }
+
     let cancelled = false;
-    void fetchStoryFeed(userId).then((items) => {
-      if (!cancelled) setStories(items);
+    void fetchStoryFeed(userId, { previousItems: storiesRef.current }).then((items) => {
+      if (!cancelled && isFocusedRef.current) setStories(items);
     });
+
     return () => {
       cancelled = true;
+      isFocusedRef.current = false;
+      reveal.stopAnimation();
     };
   }, [reveal, userId]);
 
   useFocusEffect(reload);
 
-  const onViewed = useCallback(
+  useEffect(() => {
+    if (!userId) return;
+    return subscribeStoryFeed((items) => {
+      setStories((prev) => {
+        const viewedIds = new Set(prev.filter((story) => story.isViewed).map((story) => story.id));
+        if (viewedIds.size === 0) return items;
+        return items.map((story) => (viewedIds.has(story.id) ? { ...story, isViewed: true } : story));
+      });
+    });
+  }, [userId]);
+
+  const markStorySeen = useCallback(
     (storyId: string, completed: boolean) => {
       setStories((prev) => prev.map((story) => (story.id === storyId ? { ...story, isViewed: true } : story)));
-      if (userId) void markStoryViewed(userId, storyId, completed);
+      if (userId) {
+        rememberStoryViewedLocally(userId, storyId);
+        void markStoryViewed(userId, storyId, completed);
+      }
     },
     [userId],
   );
 
-  const firstUnviewedIndex = useMemo(() => stories.findIndex((story) => !story.isViewed), [stories]);
+  const onStoryActive = useCallback(
+    (storyId: string) => {
+      markStorySeen(storyId, false);
+    },
+    [markStorySeen],
+  );
+
+  const openViewer = useCallback(
+    async (index: number) => {
+      const story = stories[index];
+      if (!story || openingViewer) return;
+      setOpeningViewer(true);
+      try {
+        await prefetchStoryWindow(stories, index);
+        setViewerIndex(index);
+      } finally {
+        setOpeningViewer(false);
+      }
+    },
+    [openingViewer, stories],
+  );
+
+  const firstUnviewedIndex = useMemo(() => firstUnviewedStoryIndex(stories), [stories]);
   const thumbUri = userId ? avatarThumb(stories, getSessionStoryAvatarThumb(userId)) : null;
   const segments = ringSegments(stories.length);
   const revealEndAngle = START_ANGLE + revealProgress * 360;
@@ -126,7 +190,8 @@ export function StoriesRing() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={firstUnviewedIndex >= 0 ? t("stories.ring.unseenA11y") : t("stories.ring.seenA11y")}
-        onPress={() => setViewerIndex(firstUnviewedIndex >= 0 ? firstUnviewedIndex : 0)}
+        disabled={openingViewer}
+        onPress={() => void openViewer(firstUnviewedIndex >= 0 ? firstUnviewedIndex : 0)}
         style={({ pressed }) => [styles.pressable, pressed ? styles.pressed : null]}
       >
         <Svg width={SVG_SIZE} height={SVG_SIZE} style={styles.svg}>
@@ -161,7 +226,8 @@ export function StoriesRing() {
         previousLabel={t("stories.viewer.previous")}
         nextLabel={t("stories.viewer.next")}
         onClose={() => setViewerIndex(null)}
-        onViewed={onViewed}
+        onViewed={markStorySeen}
+        onStoryActive={onStoryActive}
       />
     </View>
   );

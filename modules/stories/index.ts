@@ -1,8 +1,14 @@
 export {
   fetchStoryFeed,
+  firstUnviewedStoryIndex,
   getSessionStoryAvatarThumb,
   markStoryViewed,
+  rememberStoryViewedLocally,
   primeStoryFeedSession,
+  refreshStoryFeedInBackground,
+  storyMediaUri,
+  storyPrefetchUri,
+  subscribeStoryFeed,
   type StoryItem,
 } from "@/modules/stories/core/storiesClient";
 export { StoriesRing } from "@/modules/stories/ui/StoriesRing";
