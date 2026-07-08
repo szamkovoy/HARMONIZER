@@ -70,6 +70,10 @@ export interface CoherenceBreathStrings {
   baselineBpmTrendLabel: string;
   /** Средний пульс за окно (начало / конец). */
   avgBpmLabel: string;
+  /** График реального измеренного пульса на экране результатов. */
+  resultsMeasuredPulseLabel: string;
+  /** График пульса, по которому практика фактически вела дыхание. */
+  resultsGuidancePulseLabel: string;
   /** Заголовок колонки «в начале практики» в таблице результатов. */
   resultsWindowStartLabel: string;
   /** Заголовок колонки «в конце практики» в таблице результатов. */
@@ -84,6 +88,16 @@ export interface CoherenceBreathStrings {
   startWithoutSensorButton: string;
   /** Пояснение на экране результатов, когда пульс был эмулирован. */
   emulatedPulseResultsNote: string;
+  /** Камера телефона ведёт практику только по пульсу. */
+  cameraGuidanceOnlyResultsNote: string;
+  /** Finger-сигнал годится для пульса и HRV, но не для coherence/RSA. */
+  guidedLimitedResultsNote: string;
+  /** Finger-сигнал слишком нестабилен для финальной биометрии. */
+  pulseOnlyResultsNote: string;
+  /** Общая сессия испортилась, но сохранён последний надёжный хвост HRV. */
+  recoveredTailHrvResultsNote: string;
+  /** Общая сессия испортилась, но coherence/RSA сохранены по tail-окну. */
+  recoveredTailCoherenceResultsNote: (minutes: number, seconds: number) => string;
   backButton: string;
   approximateMetricsNote: string;
   fingerHint: string;
@@ -93,9 +107,10 @@ export interface CoherenceBreathStrings {
   debugBeatsInWindow: string;
   debugBeatsAfterDedupe: string;
   opticalSeriesCaption: string;
+  cameraRunningGuidanceOnly: string;
   opticalSimulatedNote: string;
   opticalNoSamples: string;
-  /** Оверлей во время практики: нет пальца ≥ 1 с. */
+  /** Мягкое напоминание в camera guidance-only режиме после длительной потери сигнала. */
   ppgFingerLostMessage: string;
   /** Слабый сигнал 2–7 с (lock search / SQ &lt; 0.5). */
   ppgWeakSignalMessage: string;
@@ -119,12 +134,45 @@ export interface CoherenceBreathStrings {
   practicePickerTitle: string;
   /** Универсальная кнопка «Отменить». */
   cancelButton: string;
+  wearableIdleHint: string;
+  wearableIdleStartButton: string;
+  wearableActivationTitle: string;
+  /** Short label shown while BLE prep waits for the first live pulse. */
+  sessionPreparationLabel: string;
+  wearableActivationSelectedHint: (deviceName: string) => string;
+  wearableActivationNoDeviceHint: string;
+  wearableBluetoothOff: string;
+  wearableConnecting: string;
+  wearableReadyGuidedOnly: string;
+  wearableReadyFullMetrics: string;
+  wearableScanning: string;
+  wearableBluetoothLabel: string;
+  wearableRssiLabel: string;
+  wearableCapabilityMetrics: string;
+  wearableCapabilityRhythmOnly: string;
+  wearableCapabilityProbe: string;
+  wearableNoDevicesFound: string;
+  wearableRetryScan: string;
+  wearableUseCamera: string;
+  wearableRunningReconnect: string;
+  wearableRunningGuidedOnly: string;
+  wearableRunningDisconnected: string;
+  wearableQcFailedTitle: string;
+  wearableQcFailedMessage: string;
+  wearablePickerTitle: string;
+  wearablePickerSearchHint: string;
+  wearablePickerFoundHint: string;
+  wearablePickerNotFoundHint: string;
+  wearablePickerNotFoundTips: string;
+  wearablePickerSelectButton: string;
+  wearablePickerCloseButton: string;
+  wearablePickerFaultyMessage: string;
   /** Отображаемые имена практик (на родном языке). */
   practiceName: Record<BreathPracticeId, string>;
   /** Санскритские подзаголовки практик. */
   practiceSanskritName: Record<BreathPracticeId, string>;
 
-  // ─── Экран результатов: mood-picker + кнопки «Обсудить/Закрыть» ────────
+  // ─── Экран результатов: mood-picker + интерпретация/закрытие ───────────
   /** Вопрос перед показом таблицы результатов. */
   resultsMoodQuestion: string;
   /** Подпись под «весёлым» смайлом. */
@@ -135,16 +183,26 @@ export interface CoherenceBreathStrings {
   resultsMoodWorse: string;
   /** Заголовок раздела с метриками после выбора настроения. */
   resultsMetricsHeader: string;
-  /** Кнопка «Обсудить» — открывает коммуникатор с результатами практики. */
+  /** Кнопка перехода к локальной интерпретации результатов. */
   resultsDiscussButton: string;
+  /** Текст загрузки интерпретации. */
+  resultsInterpretationLoading: string;
+  /** Ошибка при запросе интерпретации. */
+  resultsInterpretationError: string;
+  /** Кнопка повтора после ошибки загрузки интерпретации. */
+  resultsInterpretationRetryButton: string;
+  /** Пояснение, что для интерпретации нужен BLE-пульсометр с биометрикой. */
+  resultsInterpretationRequiresBleNote: string;
+  /** Пояснение, что в этой сессии недостаточно биометрии для интерпретации. */
+  resultsInterpretationRequiresMetricsNote: string;
   /** Кнопка «Закрыть» — возврат на главный экран. */
   resultsCloseButton: string;
   /**
-   * Системный промпт, с которым открывается коммуникатор при нажатии «Обсудить».
+   * Legacy: системный промпт старого handoff в communicator.
    */
   resultsDiscussSystemPrompt: string;
   /**
-   * Вводная строка пользовательского сообщения при обсуждении результатов.
+   * Legacy: вводная строка пользовательского сообщения для старого handoff.
    * Полный текст = это + JSON-блок с метриками.
    */
   resultsDiscussUserIntro: string;
@@ -206,6 +264,8 @@ const ru: CoherenceBreathStrings = {
   stressLabel: "Индекс стресса",
   baselineBpmTrendLabel: "Базовый пульс",
   avgBpmLabel: "Средний пульс",
+  resultsMeasuredPulseLabel: "Пульс (измерение)",
+  resultsGuidancePulseLabel: "Пульс (ведение практики)",
   resultsWindowStartLabel: "В начале",
   resultsWindowEndLabel: "В конце",
   resultsWindowDurationLabel: (m, s) =>
@@ -217,6 +277,16 @@ const ru: CoherenceBreathStrings = {
   startWithoutSensorButton: "Начать без пульсометра",
   emulatedPulseResultsNote:
     "Пульс эмулировался (датчик не использовался) — метрики HRV, стресса, когерентности и RSA не рассчитываются.",
+  cameraGuidanceOnlyResultsNote:
+    "Практика выполнена по пульсу с камеры телефона. Для камеры расширенные метрики HRV, когерентности и RSA отключены; чтобы получить их, используйте совместимый Bluetooth-пульсометр.",
+  guidedLimitedResultsNote:
+    "Сигнал пальца был нестабилен: практика продолжалась по базовому пульсу, RMSSD и стресс сохранены, а когерентность и RSA скрыты.",
+  pulseOnlyResultsNote:
+    "Сигнал пальца оказался слишком нестабилен для итоговой биометрии: практика продолжалась по пульсу, но финальные метрики скрыты.",
+  recoveredTailHrvResultsNote:
+    "К концу практики сигнал пальца испортился, поэтому сохранены последние надёжные значения RMSSD и индекса стресса из чистого хвоста измерения.",
+  recoveredTailCoherenceResultsNote: (m, s) =>
+    `К концу практики сигнал пальца испортился, поэтому когерентность и RSA сохранены по последнему надёжному фрагменту ${m}:${s.toString().padStart(2, "0")}.`,
   backButton: "Закрыть",
   approximateMetricsNote:
     "Режим короткой сессии: метрики оценочные (окно анализа сокращено; см. JSON).",
@@ -226,11 +296,14 @@ const ru: CoherenceBreathStrings = {
   debugBeatsInWindow: "Ударов в окне сессии",
   debugBeatsAfterDedupe: "после дедупликации",
   opticalSeriesCaption: "Optical (detrend, как в пробе ППГ)",
+  cameraRunningGuidanceOnly:
+    "Камера ведёт дыхание по пульсу. Расширенные метрики доступны с BLE-пульсометром.",
   opticalSimulatedNote: "Нет live optical в режиме симуляции.",
   opticalNoSamples: "Нет optical-сэмплов в снимке",
-  ppgFingerLostMessage: "Пульс потерян, биометрия приостановлена",
+  ppgFingerLostMessage:
+    "Держите палец плотнее на камере, чтобы рисунок дыхания точно соответствовал вашему пульсу.",
   ppgWeakSignalMessage: "Слабый сигнал, пульс не прощупывается",
-  ppgBiometryPausedMessage: "Биометрия приостановлена, но продолжайте дыхание.",
+  ppgBiometryPausedMessage: "Сигнал нестабилен, но продолжайте дыхание.",
   practiceMinutesShort: "минут",
   autoAbortTitle: "Практика остановлена",
   autoAbortMessage:
@@ -239,12 +312,50 @@ const ru: CoherenceBreathStrings = {
   autoAbortExit: "Выйти",
   stopConfirmTitle: "Завершить практику?",
   stopConfirmMessage:
-    "Практика будет остановлена, а результаты по текущему отрезку не будут рассчитаны.",
+    "Практика будет остановлена, а результаты по прошедшему отрезку не будут засчитаны.",
   stopConfirmYes: "Завершить",
   stopConfirmNo: "Продолжить",
   baseBeatsAccessibilityLabel: "Количество ударов пульса на фазу дыхания",
   practicePickerTitle: "Тип дыхательной практики",
   cancelButton: "Отменить",
+  wearableIdleHint: "Подключите нагрудный BLE-пульсометр или переключитесь на камеру телефона.",
+  wearableIdleStartButton: "Подключить пульсометр",
+  wearableActivationTitle: "Подключение пульсометра",
+  sessionPreparationLabel: "Подготовка",
+  wearableActivationSelectedHint: (deviceName) =>
+    `Выбран датчик: ${deviceName}. Держите ремень на груди и дождитесь устойчивого потока пульса.`,
+  wearableActivationNoDeviceHint:
+    "Найдите и выберите BLE-пульсометр. Подключение выполняется внутри приложения, а не через системный список Bluetooth-устройств.",
+  wearableBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
+  wearableConnecting: "Подключаемся к датчику...",
+  wearableReadyGuidedOnly: "Датчик подключен. Будем вести практику по пульсу без HRV-метрик.",
+  wearableReadyFullMetrics: "Датчик подключен. Полные биометрические метрики доступны.",
+  wearableScanning: "Ищем совместимые пульсометры поблизости...",
+  wearableBluetoothLabel: "Bluetooth",
+  wearableRssiLabel: "RSSI",
+  wearableCapabilityMetrics: "метрики",
+  wearableCapabilityRhythmOnly: "только ритм",
+  wearableCapabilityProbe: "проверка",
+  wearableNoDevicesFound:
+    "Подходящие BLE-пульсометры пока не найдены. Повторите поиск или выберите камеру телефона.",
+  wearableRetryScan: "Повторить поиск",
+  wearableUseCamera: "Камера",
+  wearableRunningReconnect: "Пульсометр переподключается…",
+  wearableRunningGuidedOnly: "Метрики HRV отключены: датчик ведёт только ритм дыхания.",
+  wearableRunningDisconnected: "Связь с пульсометром потеряна.",
+  wearableQcFailedTitle: "Пульсометр не готов",
+  wearableQcFailedMessage:
+    "Не удалось получить устойчивый поток данных от BLE-пульсометра. Вы можете повторить поиск, попробовать другой датчик или продолжить практику без сенсора.",
+  wearablePickerTitle: "Выбор пульсометра",
+  wearablePickerSearchHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
+  wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
+  wearablePickerNotFoundHint: "Пульсометр не найден. Попробуйте повторить поиск.",
+  wearablePickerNotFoundTips:
+    "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
+  wearablePickerSelectButton: "Подключить",
+  wearablePickerCloseButton: "Закрыть",
+  wearablePickerFaultyMessage:
+    "Выбранный пульсометр работает некорректно. Чтобы продолжить практику, выберите другой пульсометр.",
   practiceName: {
     coherent: "Когерентное дыхание",
     "nadi-shodhana": "Попеременное дыхание ноздрями",
@@ -268,7 +379,14 @@ const ru: CoherenceBreathStrings = {
   resultsMoodSame: "осталось прежним",
   resultsMoodWorse: "стало хуже",
   resultsMetricsHeader: "Ваши показатели",
-  resultsDiscussButton: "Обсудить",
+  resultsDiscussButton: "Интерпретация",
+  resultsInterpretationLoading: "Готовлю интерпретацию результатов...",
+  resultsInterpretationError: "Не удалось получить интерпретацию. Попробуйте ещё раз чуть позже.",
+  resultsInterpretationRetryButton: "Попробовать снова",
+  resultsInterpretationRequiresBleNote:
+    "Вы можете получать полезную интерпретацию того, как практика влияет на индекс стресса, RMSSD, когерентность и RSA. Для этого используйте Bluetooth-пульсометр, например Polar H10.",
+  resultsInterpretationRequiresMetricsNote:
+    "Интерпретация доступна, когда во время практики удалось надёжно определить биометрические метрики. Если они не появились, попробуйте совместимый Bluetooth-пульсометр с RR-интервалами.",
   resultsCloseButton: "Закрыть",
   resultsDiscussSystemPrompt:
     "Ты эмпатичный наставник дыхательных практик в приложении Harmonizer. " +
@@ -323,6 +441,8 @@ const en: CoherenceBreathStrings = {
   stressLabel: "Stress index",
   baselineBpmTrendLabel: "Baseline heart rate",
   avgBpmLabel: "Average pulse",
+  resultsMeasuredPulseLabel: "Pulse (measured)",
+  resultsGuidancePulseLabel: "Pulse (guidance)",
   resultsWindowStartLabel: "Start",
   resultsWindowEndLabel: "End",
   resultsWindowDurationLabel: (m, s) =>
@@ -334,6 +454,16 @@ const en: CoherenceBreathStrings = {
   startWithoutSensorButton: "Start without pulse sensor",
   emulatedPulseResultsNote:
     "Pulse was emulated (no sensor used) — HRV, stress, coherence, and RSA are not computed.",
+  cameraGuidanceOnlyResultsNote:
+    "This practice used the phone camera for pulse guidance only. Advanced HRV, coherence, and RSA metrics are disabled for camera mode; use a compatible Bluetooth heart-rate sensor to get them.",
+  guidedLimitedResultsNote:
+    "Finger signal was unstable: the practice continued on baseline pulse, RMSSD and stress were kept, but coherence and RSA are hidden.",
+  pulseOnlyResultsNote:
+    "Finger signal was too unstable for final biometrics: the practice continued on pulse guidance, but final metrics are hidden.",
+  recoveredTailHrvResultsNote:
+    "Finger signal degraded near the end of the practice, so the last reliable RMSSD and stress values were preserved from the clean tail of the measurement.",
+  recoveredTailCoherenceResultsNote: (m, s) =>
+    `Finger signal degraded near the end of the practice, so coherence and RSA were preserved from the last reliable ${m}:${s.toString().padStart(2, "0")} tail window.`,
   backButton: "Close",
   approximateMetricsNote:
     "Short session mode: metrics are approximate (reduced analysis window; see JSON).",
@@ -343,11 +473,14 @@ const en: CoherenceBreathStrings = {
   debugBeatsInWindow: "Beats in session window",
   debugBeatsAfterDedupe: "after dedupe",
   opticalSeriesCaption: "Optical (detrend, as in PPG probe)",
+  cameraRunningGuidanceOnly:
+    "Camera is guiding breathing from pulse. Advanced metrics require a BLE heart-rate sensor.",
   opticalSimulatedNote: "No live optical in simulated mode.",
   opticalNoSamples: "No optical samples in snapshot",
-  ppgFingerLostMessage: "Pulse lost, biometrics paused",
+  ppgFingerLostMessage:
+    "Keep your finger steady on the camera so the breathing pattern matches your pulse more precisely.",
   ppgWeakSignalMessage: "Weak signal, pulse cannot be felt",
-  ppgBiometryPausedMessage: "Biometrics paused — keep breathing.",
+  ppgBiometryPausedMessage: "Signal is unstable — keep breathing.",
   practiceMinutesShort: "min",
   autoAbortTitle: "Practice stopped",
   autoAbortMessage:
@@ -356,12 +489,50 @@ const en: CoherenceBreathStrings = {
   autoAbortExit: "Exit",
   stopConfirmTitle: "End practice?",
   stopConfirmMessage:
-    "The session will be stopped and results for the current run will not be computed.",
+    "The session will be stopped and results for the elapsed segment will not be counted.",
   stopConfirmYes: "End",
   stopConfirmNo: "Continue",
   baseBeatsAccessibilityLabel: "Pulse beats per breathing phase",
   practicePickerTitle: "Breathing practice",
   cancelButton: "Cancel",
+  wearableIdleHint: "Connect a BLE chest strap or switch back to the phone camera.",
+  wearableIdleStartButton: "Connect heart strap",
+  wearableActivationTitle: "Connect heart-rate strap",
+  sessionPreparationLabel: "Preparation",
+  wearableActivationSelectedHint: (deviceName) =>
+    `Selected device: ${deviceName}. Keep the strap on your chest and wait for a stable pulse stream.`,
+  wearableActivationNoDeviceHint:
+    "Scan and select a BLE heart-rate strap. Connection is handled inside the app, not through the system Bluetooth device list.",
+  wearableBluetoothOff: "Bluetooth is off. Turn it on and try scanning again.",
+  wearableConnecting: "Connecting to the sensor...",
+  wearableReadyGuidedOnly: "Sensor connected. Breathing will follow pulse, but HRV metrics stay off.",
+  wearableReadyFullMetrics: "Sensor connected. Full biometric metrics are available.",
+  wearableScanning: "Scanning for compatible heart-rate straps nearby...",
+  wearableBluetoothLabel: "Bluetooth",
+  wearableRssiLabel: "RSSI",
+  wearableCapabilityMetrics: "metrics",
+  wearableCapabilityRhythmOnly: "rhythm only",
+  wearableCapabilityProbe: "probe",
+  wearableNoDevicesFound:
+    "No suitable BLE heart-rate straps have been found yet. Retry the scan or switch to the phone camera.",
+  wearableRetryScan: "Scan again",
+  wearableUseCamera: "Camera",
+  wearableRunningReconnect: "Heart-rate strap is reconnecting…",
+  wearableRunningGuidedOnly: "HRV metrics are paused: this sensor currently drives rhythm only.",
+  wearableRunningDisconnected: "Connection to the heart-rate strap was lost.",
+  wearableQcFailedTitle: "Heart-rate strap is not ready",
+  wearableQcFailedMessage:
+    "A stable BLE heart-rate stream could not be established. You can retry, try another device, or continue without a sensor.",
+  wearablePickerTitle: "Choose heart-rate monitor",
+  wearablePickerSearchHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
+  wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
+  wearablePickerNotFoundHint: "Heart-rate monitor not found. Try scanning again.",
+  wearablePickerNotFoundTips:
+    "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
+  wearablePickerSelectButton: "Connect",
+  wearablePickerCloseButton: "Close",
+  wearablePickerFaultyMessage:
+    "The selected heart-rate monitor is not working correctly. Choose another monitor to continue the practice.",
   practiceName: {
     coherent: "Coherent breathing",
     "nadi-shodhana": "Alternate nostril breathing",
@@ -385,7 +556,14 @@ const en: CoherenceBreathStrings = {
   resultsMoodSame: "stayed the same",
   resultsMoodWorse: "got worse",
   resultsMetricsHeader: "Your metrics",
-  resultsDiscussButton: "Discuss",
+  resultsDiscussButton: "Interpretation",
+  resultsInterpretationLoading: "Preparing your results interpretation...",
+  resultsInterpretationError: "Couldn't load the interpretation. Please try again a little later.",
+  resultsInterpretationRetryButton: "Try again",
+  resultsInterpretationRequiresBleNote:
+    "You can get useful feedback on how the practice affects stress, RMSSD, coherence, and RSA when you use a Bluetooth heart-rate monitor such as the Polar H10.",
+  resultsInterpretationRequiresMetricsNote:
+    "Interpretation is available when the session produced reliable biometrics. If they are missing, try a compatible Bluetooth heart-rate monitor that provides RR intervals.",
   resultsCloseButton: "Close",
   resultsDiscussSystemPrompt:
     "You are an empathetic breathing-practice mentor in the Harmonizer app. " +

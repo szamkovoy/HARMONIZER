@@ -1,9 +1,13 @@
 {
   "continueButton": "Continuar",
+  "densityAiry": "Leve",
+  "densityBalanced": "Equilibrado",
+  "densityDense": "Denso",
   "description": "Meditação visual breve para alternar suavemente a atenção e harmonizar.",
   "finishA11y": "Finalizar prática",
   "finishButton": "Finalizar",
   "locale": "pt",
+  "minutesShort": "min",
   "moodBetter": "Melhor",
   "moodSame": "Igual",
   "moodWorse": "Pior",
@@ -13,7 +17,7 @@
   "ratingMessage": "Esta avaliação ajudará a selecionar melhores práticas depois.",
   "ratingTitle": "Como você se sente?",
   "resumeButton": "Retomar",
-  "stopConfirmMessage": "Você pode parar agora e notar como se sente após a prática.",
+  "stopConfirmMessage": "Pode parar agora — a prática será encerrada suavemente e você retornará.",
   "stopConfirmTitle": "Finalizar prática?",
   "title": "Lampejo"
 }

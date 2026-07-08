@@ -89,9 +89,11 @@ code_refs:
 
 Стратегия серверного и клиентского кэша, таблицы и TTL описаны **краткой ссылкой** в `docs/02_modules/astro/caching_strategy.md` (без дублирования содержимого здесь).
 
+Вне контура прогноза на главном экране после `HomeHeader` рендерятся **`StoriesRing`** (кольцо сторис) и **`LatestPostBanner`** (анонс новейшей публикации; заменил захардкоженную заглушку `AnnouncementBanner`) — оба из модуля `author_presence`: самодостаточные блоки, при отсутствии контента — `null`, к данным дня не привязаны.
+
 ## 4. Конфигурация и параметры
 
-- **Режим доступа:** `subscription` / `useAccess` на главном экране задаёт, нужен ли натал и какой URL/пайплайн вызывать; `useDayContent` дублирует правило trial через `accessModeFor` / `hasPremiumAccess` (см. open questions по консолидации правил).
+- **Режим доступа:** `subscription` / `useAccess` на главном экране задаёт, нужен ли натал и какой URL/пайплайн вызывать; `useDayContent` вычисляет `AccessMode` через общий **`accessModeFromRow`** из `modules/access/core/paidAccess.ts` (единая точка правила premium/trial, включая `membership_expires_at`; вопрос о консолидации закрыт 2026-07-08).
 - **`scopeKey` дня (в кэше):** `${natalFingerprint | "global"}:${AppLocale}` — отпечаток birth-полей + активная локаль контента (`getResponseLocale()`); для free база `"global"`, для paid — fingerprint натала. Локаль в ключе отделяет RU/EN (и будущие enabled-локали) в `dayContentCache` и monologue hydration.
 - **`recentPlanetsOfDay`:** до двух планет `[день−1, день−2]` в `user_settings.preferences`; сервер подставляет из БД, если клиент не передал массив в теле запроса. Текущий клиентский путь `useDayContent` → `fetchDailyForecast` **не передаёт** `recentPlanetsOfDay`, поэтому на практике используется только то, что уже лежит в `preferences` (если пусто — в движок уходит пустой список и альтернативная логика `chooseFinalPlanet` не активируется по «недавности»).
 - **`precisionMode` натала:** влияет на демпфирование лунных вкладов в активации (`approximate` / `unknown`) — детали в reference, не здесь.

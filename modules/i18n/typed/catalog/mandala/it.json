@@ -1,9 +1,13 @@
 {
   "continueButton": "Continua",
+  "densityAiry": "Leggero",
+  "densityBalanced": "Equilibrio",
+  "densityDense": "Denso",
   "description": "Una breve meditazione visiva per spostare dolcemente l'attenzione e armonizzarsi.",
   "finishA11y": "Completa la pratica",
   "finishButton": "Termina",
   "locale": "it",
+  "minutesShort": "minuti",
   "moodBetter": "Meglio",
   "moodSame": "Uguale",
   "moodWorse": "Peggio",
@@ -13,7 +17,7 @@
   "ratingMessage": "Questa valutazione aiuterà a scegliere meglio le pratiche future.",
   "ratingTitle": "Come ti senti?",
   "resumeButton": "Riprendi",
-  "stopConfirmMessage": "Puoi fermarti ora e notare come ti senti dopo la pratica.",
+  "stopConfirmMessage": "Puoi fermarti ora — la pratica si chiuderà dolcemente e tornerai indietro.",
   "stopConfirmTitle": "Terminare la pratica?",
   "title": "Lampo"
 }

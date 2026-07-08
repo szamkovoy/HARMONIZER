@@ -1,9 +1,13 @@
 {
   "continueButton": "Continuer",
+  "densityAiry": "Aéré",
+  "densityBalanced": "Équilibré",
+  "densityDense": "Dense",
   "description": "Courte méditation visuelle pour un recentrage doux et une harmonisation.",
   "finishA11y": "Terminer la pratique",
   "finishButton": "Terminer",
   "locale": "fr",
+  "minutesShort": "minutes",
   "moodBetter": "Mieux",
   "moodSame": "Pareil",
   "moodWorse": "Moins bien",
@@ -13,7 +17,7 @@
   "ratingMessage": "Cette évaluation aidera à mieux adapter les pratiques par la suite.",
   "ratingTitle": "Comment vous sentez-vous ?",
   "resumeButton": "Reprendre",
-  "stopConfirmMessage": "Vous pouvez vous arrêter maintenant et noter comment vous vous sentez après cette pratique.",
+  "stopConfirmMessage": "Vous pouvez arrêter maintenant — la pratique se terminera en douceur et vous reviendrez.",
   "stopConfirmTitle": "Terminer la pratique ?",
   "title": "Flash"
 }

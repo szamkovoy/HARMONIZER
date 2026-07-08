@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     endpointStage = "load_user_tier";
     const { data: userRow, error: userErr } = await db
       .from("users")
-      .select("membership_tier,trial_expires_at")
+      .select("membership_tier,trial_expires_at,membership_expires_at")
       .eq("id", userId)
       .maybeSingle();
     if (userErr) throw userErr;

@@ -32,6 +32,7 @@ export interface PracticeCatalogStrings {
   groupMeditation: string;
   groupBreath: string;
   groupYoga: string;
+  yogaTitlePrefix: string;
   practiceCount: (count: number) => string;
   /** Singular label (EN: «1 practice»). */
   practiceCountOne: string;
@@ -56,6 +57,22 @@ export interface PracticeCatalogStrings {
   durationLabel: string;
   chakraLabel: string;
   pulseLabel: string;
+  sensorCameraOption: string;
+  sensorBluetoothOption: string;
+  sensorBluetoothOtherOption: string;
+  sensorNoneOption: string;
+  findWearableButton: string;
+  wearablePickerTitle: string;
+  wearablePickerHint: string;
+  wearablePickerFoundHint: string;
+  wearablePickerNotFound: string;
+  wearablePickerNotFoundTips: string;
+  wearablePickerBluetoothOff: string;
+  wearablePickerRetry: string;
+  wearablePickerClose: string;
+  wearablePickerSelectButton: string;
+  wearablePickerSignalLabel: string;
+  wearableBluetoothStateLabel: string;
   withPulseSensor: string;
   withoutPulseSensor: string;
   startPractice: string;
@@ -93,6 +110,7 @@ const ru: PracticeCatalogStrings = {
   groupMeditation: "Медитации",
   groupBreath: "Дыхание",
   groupYoga: "Асаны",
+  yogaTitlePrefix: "Практика",
   practiceCount: (count) => `${count} практик`,
   practiceCountOne: "1 практика",
   practiceCountWithTotal: "{count} практик",
@@ -112,7 +130,24 @@ const ru: PracticeCatalogStrings = {
   chakraPending: "чакра уточняется",
   durationLabel: "Длительность",
   chakraLabel: "Чакра",
-  pulseLabel: "Пульсометр",
+  pulseLabel: "Источник пульса",
+  sensorCameraOption: "пульс с телефона",
+  sensorBluetoothOption: "пульсометр Bluetooth",
+  sensorBluetoothOtherOption: "другой Bluetooth-пульсометр",
+  sensorNoneOption: "без пульсометра",
+  findWearableButton: "Найти пульсометр",
+  wearablePickerTitle: "Поиск пульсометра",
+  wearablePickerHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
+  wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
+  wearablePickerNotFound: "Пульсометр не найден. Попробуйте повторить поиск.",
+  wearablePickerNotFoundTips:
+    "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
+  wearablePickerBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
+  wearablePickerRetry: "Повторить поиск",
+  wearablePickerClose: "Закрыть",
+  wearablePickerSelectButton: "Подключить",
+  wearablePickerSignalLabel: "Сигнал",
+  wearableBluetoothStateLabel: "Bluetooth",
   withPulseSensor: "с пульсометром",
   withoutPulseSensor: "без пульсометра",
   startPractice: "Начать практику",
@@ -166,6 +201,7 @@ const en: PracticeCatalogStrings = {
   groupMeditation: "Meditation",
   groupBreath: "Breathing",
   groupYoga: "Asanas",
+  yogaTitlePrefix: "Practice",
   practiceCount: (count) => (count === 1 ? "1 practice" : `${count} practices`),
   practiceCountOne: "1 practice",
   practiceCountWithTotal: "{count} practices",
@@ -185,7 +221,24 @@ const en: PracticeCatalogStrings = {
   chakraPending: "chakra pending",
   durationLabel: "Duration",
   chakraLabel: "Chakra",
-  pulseLabel: "Heart rate",
+  pulseLabel: "Pulse source",
+  sensorCameraOption: "pulse from phone",
+  sensorBluetoothOption: "Bluetooth heart-rate monitor",
+  sensorBluetoothOtherOption: "another Bluetooth heart-rate monitor",
+  sensorNoneOption: "without heart-rate monitor",
+  findWearableButton: "Find heart-rate monitor",
+  wearablePickerTitle: "Find heart-rate monitor",
+  wearablePickerHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
+  wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
+  wearablePickerNotFound: "Heart-rate monitor not found. Try scanning again.",
+  wearablePickerNotFoundTips:
+    "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
+  wearablePickerBluetoothOff: "Bluetooth is off. Turn it on and try again.",
+  wearablePickerRetry: "Scan again",
+  wearablePickerClose: "Close",
+  wearablePickerSelectButton: "Connect",
+  wearablePickerSignalLabel: "Signal",
+  wearableBluetoothStateLabel: "Bluetooth",
   withPulseSensor: "with heart-rate sensor",
   withoutPulseSensor: "without heart-rate sensor",
   startPractice: "Start practice",

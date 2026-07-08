@@ -39,6 +39,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_state_proposals: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          proposed_label: string
+          proposed_planet: string
+          proposed_polarity: string
+          responded_at: string | null
+          status: string
+          trigger_phrase: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          proposed_label: string
+          proposed_planet: string
+          proposed_polarity: string
+          responded_at?: string | null
+          status?: string
+          trigger_phrase?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          proposed_label?: string
+          proposed_planet?: string
+          proposed_polarity?: string
+          responded_at?: string | null
+          status?: string
+          trigger_phrase?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_state_proposals_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_state_proposals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           created_at: string | null
@@ -134,114 +191,6 @@ export type Database = {
         }
         Relationships: []
       }
-      global_daily_content: {
-        Row: {
-          expires_at_utc: string
-          forecast_date_utc: string
-          generated_at: string
-          llm_model: string | null
-          llm_tokens_used: number | null
-          long_explanation: string
-          math_level: Json
-          planet_positions: Json
-          primary_chakra_number: number
-          primary_planet: string
-          primary_tone: string
-          short_text: string
-          slogan: string
-          top_petals: Json
-        }
-        Insert: {
-          expires_at_utc: string
-          forecast_date_utc: string
-          generated_at?: string
-          llm_model?: string | null
-          llm_tokens_used?: number | null
-          long_explanation: string
-          math_level: Json
-          planet_positions: Json
-          primary_chakra_number: number
-          primary_planet: string
-          primary_tone: string
-          short_text: string
-          slogan: string
-          top_petals: Json
-        }
-        Update: {
-          expires_at_utc?: string
-          forecast_date_utc?: string
-          generated_at?: string
-          llm_model?: string | null
-          llm_tokens_used?: number | null
-          long_explanation?: string
-          math_level?: Json
-          planet_positions?: Json
-          primary_chakra_number?: number
-          primary_planet?: string
-          primary_tone?: string
-          short_text?: string
-          slogan?: string
-          top_petals?: Json
-        }
-        Relationships: []
-      }
-      ai_state_proposals: {
-        Row: {
-          conversation_id: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          proposed_label: string
-          proposed_planet: string
-          proposed_polarity: string
-          responded_at: string | null
-          status: string
-          trigger_phrase: string | null
-          user_id: string
-        }
-        Insert: {
-          conversation_id?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          proposed_label: string
-          proposed_planet: string
-          proposed_polarity: string
-          responded_at?: string | null
-          status?: string
-          trigger_phrase?: string | null
-          user_id: string
-        }
-        Update: {
-          conversation_id?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          proposed_label?: string
-          proposed_planet?: string
-          proposed_polarity?: string
-          responded_at?: string | null
-          status?: string
-          trigger_phrase?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_state_proposals_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ai_state_proposals_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       chakras: {
         Row: {
           color_hex: string
@@ -262,6 +211,77 @@ export type Database = {
           slug?: string
         }
         Relationships: []
+      }
+      comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comment_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          is_hidden: boolean
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          is_hidden?: boolean
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_hidden?: boolean
+          target_id?: string
+          target_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversation_summaries: {
         Row: {
@@ -332,6 +352,8 @@ export type Database = {
           ended_at: string | null
           entry_source: string | null
           id: string
+          last_message_at: string | null
+          scenario_id: string | null
           started_at: string | null
           title: string | null
           trigger_meta: Json | null
@@ -342,6 +364,8 @@ export type Database = {
           ended_at?: string | null
           entry_source?: string | null
           id?: string
+          last_message_at?: string | null
+          scenario_id?: string | null
           started_at?: string | null
           title?: string | null
           trigger_meta?: Json | null
@@ -352,12 +376,21 @@ export type Database = {
           ended_at?: string | null
           entry_source?: string | null
           id?: string
+          last_message_at?: string | null
+          scenario_id?: string | null
           started_at?: string | null
           title?: string | null
           trigger_meta?: Json | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversations_user_id_fkey"
             columns: ["user_id"]
@@ -447,42 +480,63 @@ export type Database = {
           },
         ]
       }
-      profile_report_snapshots: {
+      day_practice_offers: {
         Row: {
-          active_days_count: number
-          cumulative_matrix: Json
-          last_rolled_date: string | null
-          life_line_points: Json
-          snapshot_version: number
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          duration_sec: number | null
+          id: string
+          launch: Json
+          local_date: string
+          practice_id: string | null
+          practice_kind: string
+          practice_slug: string
+          practice_summary: Json
+          status: string
+          title: string
           updated_at: string
           user_id: string
-          visual_matrix: Json
         }
         Insert: {
-          active_days_count?: number
-          cumulative_matrix?: Json
-          last_rolled_date?: string | null
-          life_line_points?: Json
-          snapshot_version?: number
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          launch?: Json
+          local_date: string
+          practice_id?: string | null
+          practice_kind: string
+          practice_slug: string
+          practice_summary?: Json
+          status?: string
+          title: string
           updated_at?: string
           user_id: string
-          visual_matrix?: Json
         }
         Update: {
-          active_days_count?: number
-          cumulative_matrix?: Json
-          last_rolled_date?: string | null
-          life_line_points?: Json
-          snapshot_version?: number
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          launch?: Json
+          local_date?: string
+          practice_id?: string | null
+          practice_kind?: string
+          practice_slug?: string
+          practice_summary?: Json
+          status?: string
+          title?: string
           updated_at?: string
           user_id?: string
-          visual_matrix?: Json
         }
         Relationships: [
           {
-            foreignKeyName: "profile_report_snapshots_user_id_fkey"
+            foreignKeyName: "day_practice_offers_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -573,6 +627,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      global_daily_content: {
+        Row: {
+          expires_at_utc: string
+          forecast_date_utc: string
+          generated_at: string
+          llm_model: string | null
+          llm_tokens_used: number | null
+          long_explanation: string
+          math_level: Json
+          planet_positions: Json
+          primary_chakra_number: number
+          primary_planet: string
+          primary_tone: string
+          short_text: string
+          slogan: string
+          text_i18n: Json
+          top_petals: Json
+        }
+        Insert: {
+          expires_at_utc: string
+          forecast_date_utc: string
+          generated_at?: string
+          llm_model?: string | null
+          llm_tokens_used?: number | null
+          long_explanation: string
+          math_level: Json
+          planet_positions: Json
+          primary_chakra_number: number
+          primary_planet: string
+          primary_tone: string
+          short_text: string
+          slogan: string
+          text_i18n?: Json
+          top_petals: Json
+        }
+        Update: {
+          expires_at_utc?: string
+          forecast_date_utc?: string
+          generated_at?: string
+          llm_model?: string | null
+          llm_tokens_used?: number | null
+          long_explanation?: string
+          math_level?: Json
+          planet_positions?: Json
+          primary_chakra_number?: number
+          primary_planet?: string
+          primary_tone?: string
+          short_text?: string
+          slogan?: string
+          text_i18n?: Json
+          top_petals?: Json
+        }
+        Relationships: []
       }
       health_daily: {
         Row: {
@@ -705,6 +813,256 @@ export type Database = {
           },
         ]
       }
+      notification_deliveries: {
+        Row: {
+          created_at: string
+          notification_id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          notification_id: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          notification_id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_deliveries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          link_url: string | null
+          push_error_count: number
+          push_sent_count: number
+          recipient_count: number
+          segment: string
+          segment_label: string
+          sent_at: string | null
+          title: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          id?: string
+          link_url?: string | null
+          push_error_count?: number
+          push_sent_count?: number
+          recipient_count?: number
+          segment: string
+          segment_label: string
+          sent_at?: string | null
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          link_url?: string | null
+          push_error_count?: number
+          push_sent_count?: number
+          recipient_count?: number
+          segment?: string
+          segment_label?: string
+          sent_at?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          comment: string | null
+          created_at: string
+          currency: string
+          id: string
+          paid_until: string | null
+          source: string
+          tier: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          comment?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          paid_until?: string | null
+          source?: string
+          tier: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          comment?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          paid_until?: string | null
+          source?: string
+          tier?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planned_events: {
+        Row: {
+          cells: Json
+          context_snippets: Json
+          conversation_id: string | null
+          created_at: string
+          description: string
+          display_order: number | null
+          expected_at: string
+          explicit_time_text: string | null
+          id: string
+          outcome_cells: Json | null
+          outcome_text: string | null
+          planned_at: string
+          planned_local_date: string
+          recommendation_text: string | null
+          status: string
+          summarized_at: string | null
+          time_phrase_raw: string | null
+          time_resolution: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cells?: Json
+          context_snippets?: Json
+          conversation_id?: string | null
+          created_at?: string
+          description: string
+          display_order?: number | null
+          expected_at: string
+          explicit_time_text?: string | null
+          id?: string
+          outcome_cells?: Json | null
+          outcome_text?: string | null
+          planned_at?: string
+          planned_local_date: string
+          recommendation_text?: string | null
+          status?: string
+          summarized_at?: string | null
+          time_phrase_raw?: string | null
+          time_resolution: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cells?: Json
+          context_snippets?: Json
+          conversation_id?: string | null
+          created_at?: string
+          description?: string
+          display_order?: number | null
+          expected_at?: string
+          explicit_time_text?: string | null
+          id?: string
+          outcome_cells?: Json | null
+          outcome_text?: string | null
+          planned_at?: string
+          planned_local_date?: string
+          recommendation_text?: string | null
+          status?: string
+          summarized_at?: string | null
+          time_phrase_raw?: string | null
+          time_resolution?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planned_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planned_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          body: string
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_published: boolean
+          published_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          published_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          published_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practice_chakras: {
         Row: {
           chakra_id: number
@@ -807,81 +1165,6 @@ export type Database = {
           },
         ]
       }
-      planned_events: {
-        Row: {
-          cells: Json
-          context_snippets: Json
-          conversation_id: string | null
-          created_at: string
-          description: string
-          expected_at: string
-          id: string
-          outcome_cells: Json | null
-          outcome_text: string | null
-          planned_at: string
-          planned_local_date: string
-          status: string
-          summarized_at: string | null
-          time_phrase_raw: string | null
-          time_resolution: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          cells?: Json
-          context_snippets?: Json
-          conversation_id?: string | null
-          created_at?: string
-          description: string
-          expected_at: string
-          id?: string
-          outcome_cells?: Json | null
-          outcome_text?: string | null
-          planned_at?: string
-          planned_local_date: string
-          status?: string
-          summarized_at?: string | null
-          time_phrase_raw?: string | null
-          time_resolution: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          cells?: Json
-          context_snippets?: Json
-          conversation_id?: string | null
-          created_at?: string
-          description?: string
-          expected_at?: string
-          id?: string
-          outcome_cells?: Json | null
-          outcome_text?: string | null
-          planned_at?: string
-          planned_local_date?: string
-          status?: string
-          summarized_at?: string | null
-          time_phrase_raw?: string | null
-          time_resolution?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "planned_events_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planned_events_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       practices: {
         Row: {
           created_at: string | null
@@ -941,6 +1224,47 @@ export type Database = {
           video_url?: string | null
         }
         Relationships: []
+      }
+      profile_report_snapshots: {
+        Row: {
+          active_days_count: number
+          cumulative_matrix: Json
+          last_rolled_date: string | null
+          life_line_points: Json
+          snapshot_version: number
+          updated_at: string
+          user_id: string
+          visual_matrix: Json
+        }
+        Insert: {
+          active_days_count?: number
+          cumulative_matrix?: Json
+          last_rolled_date?: string | null
+          life_line_points?: Json
+          snapshot_version?: number
+          updated_at?: string
+          user_id: string
+          visual_matrix?: Json
+        }
+        Update: {
+          active_days_count?: number
+          cumulative_matrix?: Json
+          last_rolled_date?: string | null
+          life_line_points?: Json
+          snapshot_version?: number
+          updated_at?: string
+          user_id?: string
+          visual_matrix?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_report_snapshots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       prompts: {
         Row: {
@@ -1045,6 +1369,90 @@ export type Database = {
           },
         ]
       }
+      scenario_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          data: Json
+          scenario_id: string
+          user_id: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          data: Json
+          scenario_id: string
+          user_id: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          data?: Json
+          scenario_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scenario_cache_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scenario_cache_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scenarios: {
+        Row: {
+          cache_strategy: string
+          created_at: string
+          description: string | null
+          dialogue_use_case: string | null
+          display_name: Json
+          display_order: number | null
+          id: string
+          is_active: boolean
+          monologue_prompt_key: string | null
+          output_schema: Json | null
+          scenario_type: string
+          updated_at: string
+        }
+        Insert: {
+          cache_strategy?: string
+          created_at?: string
+          description?: string | null
+          dialogue_use_case?: string | null
+          display_name: Json
+          display_order?: number | null
+          id: string
+          is_active?: boolean
+          monologue_prompt_key?: string | null
+          output_schema?: Json | null
+          scenario_type: string
+          updated_at?: string
+        }
+        Update: {
+          cache_strategy?: string
+          created_at?: string
+          description?: string | null
+          dialogue_use_case?: string | null
+          display_name?: Json
+          display_order?: number | null
+          id?: string
+          is_active?: boolean
+          monologue_prompt_key?: string | null
+          output_schema?: Json | null
+          scenario_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stories: {
         Row: {
           caption: Json | null
@@ -1107,6 +1515,74 @@ export type Database = {
           },
         ]
       }
+      support_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          processed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tv_sessions: {
+        Row: {
+          audiotrack: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          pairing_code: string
+          status: string
+          updated_at: string
+          user_id: string | null
+          vimeo_id: string | null
+        }
+        Insert: {
+          audiotrack?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          pairing_code: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          vimeo_id?: string | null
+        }
+        Update: {
+          audiotrack?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          pairing_code?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          vimeo_id?: string | null
+        }
+        Relationships: []
+      }
       user_announcement_views: {
         Row: {
           announcement_id: string
@@ -1139,131 +1615,6 @@ export type Database = {
           },
           {
             foreignKeyName: "user_announcement_views_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_daily_stats: {
-        Row: {
-          chakras_touched: number[] | null
-          local_date: string
-          practice_count: number | null
-          total_practice_seconds: number | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          chakras_touched?: number[] | null
-          local_date: string
-          practice_count?: number | null
-          total_practice_seconds?: number | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          chakras_touched?: number[] | null
-          local_date?: string
-          practice_count?: number | null
-          total_practice_seconds?: number | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_daily_stats_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_event_log: {
-        Row: {
-          id: string
-          kind: string
-          occurred_at: string | null
-          payload: Json | null
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          kind: string
-          occurred_at?: string | null
-          payload?: Json | null
-          user_id: string
-        }
-        Update: {
-          id?: string
-          kind?: string
-          occurred_at?: string | null
-          payload?: Json | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_event_log_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_profile_memory: {
-        Row: {
-          current_goals: Json | null
-          key_facts: Json | null
-          last_practice_focus_chakras: number[] | null
-          recent_practices: Json | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          current_goals?: Json | null
-          key_facts?: Json | null
-          last_practice_focus_chakras?: number[] | null
-          recent_practices?: Json | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          current_goals?: Json | null
-          key_facts?: Json | null
-          last_practice_focus_chakras?: number[] | null
-          recent_practices?: Json | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_profile_memory_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_roles: {
-        Row: {
-          role: string
-          user_id: string
-        }
-        Insert: {
-          role: string
-          user_id: string
-        }
-        Update: {
-          role?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -1419,6 +1770,73 @@ export type Database = {
           },
         ]
       }
+      user_daily_stats: {
+        Row: {
+          chakras_touched: number[] | null
+          local_date: string
+          practice_count: number | null
+          total_practice_seconds: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          chakras_touched?: number[] | null
+          local_date: string
+          practice_count?: number | null
+          total_practice_seconds?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          chakras_touched?: number[] | null
+          local_date?: string
+          practice_count?: number | null
+          total_practice_seconds?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_daily_stats_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_event_log: {
+        Row: {
+          id: string
+          kind: string
+          occurred_at: string | null
+          payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          kind: string
+          occurred_at?: string | null
+          payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          kind?: string
+          occurred_at?: string | null
+          payload?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_event_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_natal_charts: {
         Row: {
           ascendant_longitude: number | null
@@ -1517,6 +1935,64 @@ export type Database = {
           },
         ]
       }
+      user_profile_memory: {
+        Row: {
+          current_goals: Json | null
+          key_facts: Json | null
+          last_practice_focus_chakras: number[] | null
+          recent_practices: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          current_goals?: Json | null
+          key_facts?: Json | null
+          last_practice_focus_chakras?: number[] | null
+          recent_practices?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          current_goals?: Json | null
+          key_facts?: Json | null
+          last_practice_focus_chakras?: number[] | null
+          recent_practices?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profile_memory_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          role: string
+          user_id: string
+        }
+        Insert: {
+          role: string
+          user_id: string
+        }
+        Update: {
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_settings: {
         Row: {
           preferences: Json | null
@@ -1579,52 +2055,9 @@ export type Database = {
           },
         ]
       }
-      tv_sessions: {
-        Row: {
-          audiotrack: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          pairing_code: string
-          status: string
-          updated_at: string
-          user_id: string | null
-          vimeo_id: string | null
-        }
-        Insert: {
-          audiotrack?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          pairing_code: string
-          status?: string
-          updated_at?: string
-          user_id?: string | null
-          vimeo_id?: string | null
-        }
-        Update: {
-          audiotrack?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          pairing_code?: string
-          status?: string
-          updated_at?: string
-          user_id?: string | null
-          vimeo_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tv_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       users: {
         Row: {
+          address_form: string
           avatar_url: string | null
           avatar_variants: Json | null
           birth_date: string | null
@@ -1637,6 +2070,7 @@ export type Database = {
           locale: string | null
           location_name: string | null
           lon: number | null
+          membership_expires_at: string | null
           membership_tier: string
           onboarded_at: string | null
           trial_expires_at: string | null
@@ -1644,6 +2078,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          address_form?: string
           avatar_url?: string | null
           avatar_variants?: Json | null
           birth_date?: string | null
@@ -1656,6 +2091,7 @@ export type Database = {
           locale?: string | null
           location_name?: string | null
           lon?: number | null
+          membership_expires_at?: string | null
           membership_tier?: string
           onboarded_at?: string | null
           trial_expires_at?: string | null
@@ -1663,6 +2099,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          address_form?: string
           avatar_url?: string | null
           avatar_variants?: Json | null
           birth_date?: string | null
@@ -1675,6 +2112,7 @@ export type Database = {
           locale?: string | null
           location_name?: string | null
           lon?: number | null
+          membership_expires_at?: string | null
           membership_tier?: string
           onboarded_at?: string | null
           trial_expires_at?: string | null
@@ -1683,11 +2121,118 @@ export type Database = {
         }
         Relationships: []
       }
+      webinar_registrations: {
+        Row: {
+          created_at: string
+          user_id: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+          webinar_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_registrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webinar_registrations_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webinars: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_published: boolean
+          join_url: string | null
+          recording_url: string | null
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_published?: boolean
+          join_url?: string | null
+          recording_url?: string | null
+          starts_at: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_published?: boolean
+          join_url?: string | null
+          recording_url?: string | null
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      admin_dashboard_metrics: { Args: never; Returns: Json }
+      admin_llm_metrics: { Args: { p_window: string }; Returns: Json }
+      admin_search_users: {
+        Args: { p_limit?: number; p_query?: string; p_tier?: string }
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          membership_expires_at: string
+          membership_tier: string
+          trial_expires_at: string
+        }[]
+      }
+      get_posts_feed: {
+        Args: { p_limit?: number }
+        Returns: {
+          body: string
+          comment_count: number
+          cover_url: string
+          id: string
+          published_at: string
+          title: string
+        }[]
+      }
+      get_target_comments: {
+        Args: { p_target_id: string; p_target_type: string; p_user_id: string }
+        Returns: {
+          body: string
+          created_at: string
+          display_name: string
+          id: string
+          is_mine: boolean
+          like_count: number
+          liked_by_me: boolean
+          user_id: string
+        }[]
+      }
       get_user_announcement: {
         Args: { p_user_id: string }
         Returns: {
@@ -1718,6 +2263,7 @@ export type Database = {
           video_url: string
         }[]
       }
+      invoke_precompute_global_recommendations: { Args: never; Returns: number }
       is_admin: { Args: { uid: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

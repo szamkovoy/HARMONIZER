@@ -6,7 +6,7 @@
   "emptyAssistantReplyFallback": "Ich habe die vollständige Antwort nicht erhalten – die Verbindung könnte unterbrochen sein. Schreib mir kurz, was gerade wichtig ist, und ich mache weiter.",
   "exitDialogButton": "Dialog verlassen",
   "expandAccessibilityLabel": "Ausklappen",
-  "holdToRecordAccessibilityLabel": "Tippen oder halten zum Aufnehmen",
+  "holdToRecordAccessibilityLabel": "Tippen oder halten, um aufzunehmen",
   "locale": "de",
   "microphonePermissionError": "Kein Zugriff auf das Mikrofon",
   "postPracticeReplyFallback": "Die Übung ist bereits ausgewählt. Möge sie dir guttun. Wenn du später wieder ins Gespräch zurückkehren möchtest, knüpfe ich daran an.",

@@ -4,9 +4,9 @@
   "astroChartModal": {
     "titleTransit": "Carta Natal + Trânsitos",
     "titleNatal": "Carta Natal",
-    "titleGlobal": "Carta dos trânsitos do dia",
+    "titleGlobal": "Mapa de trânsito do dia",
     "subtitle": "Anel interno — planetas natais, externo — trânsitos do dia.",
-    "subtitleGlobal": "São mostrados apenas os planetas em trânsito do dia, os signos do zodíaco e os aspectos entre eles.",
+    "subtitleGlobal": "Mostra apenas os planetas em trânsito do dia, os signos do zodíaco e os aspectos entre eles.",
     "housesHiddenHint": "Casas não exibidas: cúspides exatas disponíveis apenas com o horário exato de nascimento.",
     "mainAspectsTitle": "Aspectos principais do dia",
     "planetStrengthsTitle": "Forças planetárias",
@@ -19,16 +19,7 @@
   "chakraFlower": {
     "title": "Arquétipos do dia",
     "captionFree": "Modelo psicoarquetípico baseado na dinâmica planetária deste dia",
-    "captionPersonal": "Modelo psicoarquetípico baseado na dinâmica planetária deste dia, pessoalmente para si"
-  },
-  "planetLabels": {
-    "Sun": "Sol",
-    "Moon": "Lua",
-    "Mercury": "Mercúrio",
-    "Venus": "Vênus",
-    "Mars": "Marte",
-    "Jupiter": "Júpiter",
-    "Saturn": "Saturno"
+    "captionPersonal": "Modelo psicoarquetípico baseado na dinâmica planetária deste dia, personalizado para você"
   },
   "closeAssistantAccessibilityLabel": "Fechar assistente",
   "closeButton": "Fechar",
@@ -39,7 +30,8 @@
     "bindu": "Bindu",
     "symbols": "Símbolos",
     "breath": "Respiração",
-    "calibration": "Calibração"
+    "calibration": "Calibração",
+    "biofeedbackParity": "Biofeedback Parity"
   },
   "devResetDayContent": "Atualizar",
   "emptyTimeLabel": "—",
@@ -49,7 +41,7 @@
     "aspectTitle": "Aspecto"
   },
   "forecastErrorTitle": "Não foi possível carregar a previsão",
-  "freeTierBanner": "Abaixo você vê uma previsão universal para este dia. É claro que previsões individuais, baseadas na sua data de nascimento, são muito mais precisas. Mude para o plano pago para recebê-las.",
+  "freeTierBanner": "Abaixo você vê recomendações universais para o dia. Elas te ajudam a viver cada dia de forma mais eficaz. Porém, as recomendações personalizadas, baseadas em sua data, hora e local de nascimento, são muito mais precisas e profundas. Acesse o plano \"Psicólogo\" para recebê-las.",
   "headerHint": "Configuração principal do dia: chakras, janelas de oportunidade e recomendação prática.",
   "locale": "pt",
   "locationErrorMessage": "Para calcular as janelas de oportunidades, é necessário acesso à localização. Permita o acesso à geolocalização e tente novamente.",
@@ -70,7 +62,7 @@
     "closeButton": "Fechar",
     "emptyHint": "O bloco de matemática ainda não foi carregado com a previsão. Atualize a previsão do dia após implantar a parte do patch de backend.",
     "showChartButton": "Mostrar mapa natal e de trânsitos",
-    "showTransitChartButton": "Mostrar o horóscopo dos trânsitos do dia",
+    "showTransitChartButton": "Mostrar mapa de trânsito do dia",
     "chartUnavailableHint": "Mapa disponível apenas para usuários trial/premium com perfil natal."
   },
   "openSettingsButton": "Abrir configurações",

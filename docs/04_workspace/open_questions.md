@@ -119,14 +119,16 @@ code_refs: []
 
 ## `subscription`
 
-- **users.membership_tier: БД допускает только free/premium, клиент готов к oracle/practitioner/master**  
-**Контекст:** `profileTier` в `modules/access/core/access.tsx` обрабатывает строки `oracle` / `practitioner` / `master`, но constraint миграции `supabase/migrations/20260501193000_free_tier_global_content.sql` допускает только `check (membership_tier in ('free','premium'))`. Прямая запись `oracle` в БД даст ошибку constraint.  
-**Проявление:** при выкатке полной модели тарифов (оплата или ручной upgrade) первая запись нового tier упрётся в constraint.  
-**Действие:** при следующей правке тарифов — либо миграция, расширяющая/снимающая constraint, либо явная политика «multitier только в коде, в БД пока free/premium» с документированным маппингом.
-- **Условие «premium ИЛИ (free И trial не истёк)» дублируется в нескольких местах**  
-**Контекст:** правило эффективного премиум-доступа повторяется в `getEffectiveAccess` / trial-ветке (`modules/access/core/access.tsx`), в `hasPremiumAccess` / `accessModeFor` (`modules/home/useDayContent.ts`, `services/globalContentClient.ts`), в `hasPremiumLlmAccess` (`_legacy_web/app/api/_utils/userModelTier.ts`) и в маршрутах `global-content`, `communicator/v2/dialog`, `greeting`, `recommendation-text`.  
-**Проявление:** изменение правил (продление trial, льготы) требует синхронных правок в 3–4 местах.  
-**Действие:** при серьёзной работе с subscription вынести единую функцию уровня `hasEffectivePremium` / `canRunPremiumLlm`, доступную клиенту и серверу; до рефакторинга при правке одной точки проверять остальные.
+- **users.membership_tier: 4 тира в БД (решено 2026-07-08)**  
+**Контекст:** constraint допускал только `free`/`premium`, клиент был готов к `oracle`/`practitioner`/`master`.  
+**Решение:** миграция `20260708010000_admin_panel_tier_foundation.sql` (этап 0 admin_panel) расширила constraint до четырёх тиров, нормализовала `premium`→`oracle` и добавила `membership_expires_at` для ручных грантов. См. `02_modules/subscription/history.md`.
+- **Условие «premium ИЛИ trial» централизовано (решено 2026-07-08)**  
+**Контекст:** правило эффективного премиум-доступа дублировалось в 5 местах (клиент + сервер).  
+**Решение:** единый `modules/access/core/paidAccess.ts` (`hasEffectivePremium`, `accessModeFromRow`, `baseTierFromRow`), vendored-копия для Vercel через `scripts/sync-vercel-server-modules.mjs`. **Оставшееся намеренное зеркало:** Edge `precompute-daily-forecasts` (`hasPersonalForecastAccess`) — Deno bundler не резолвит `modules/`; при изменении правила синхронизировать вручную.
+- **`announcements` — кандидат на депрекацию**  
+**Контекст:** таблица `announcements` (+`user_announcement_views`, RPC `get_user_announcement`) спроектирована под баннерную модель, клиент её никогда не вызывал. По плану админ-панели публикации получают новую таблицу `posts` (этап 2), баннер вебинара читается из `webinars` (этап 3).  
+**Проявление:** мёртвая схема + RLS-политики; риск путаницы «публикации vs announcements».  
+**Действие:** после этапов 2–3 решить — удалить `announcements` миграцией или оставить под произвольные баннеры.
 
 ## `profile`
 

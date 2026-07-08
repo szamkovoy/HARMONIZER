@@ -9,6 +9,8 @@ import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh
 import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
+import { fetchUnreadNotificationCount } from "@/modules/notifications";
+import { SupportModal } from "@/modules/support";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
@@ -77,6 +79,21 @@ export default function ProfileTabRoute() {
   const [natalModalOpen, setNatalModalOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [supportOpen, setSupportOpen] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!authUser?.id) return;
+      let cancelled = false;
+      void fetchUnreadNotificationCount(authUser.id).then((count) => {
+        if (!cancelled) setUnreadNotifications(count);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [authUser?.id]),
+  );
 
   const openBirthEditor = useCallback(() => {
     logRuntimeTap("profile_open_birth_editor");
@@ -179,6 +196,33 @@ export default function ProfileTabRoute() {
           <AppText variant="technicalCaption" tone="muted">
             {t("profile.access.birthHint")}
           </AppText>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+          <AppText variant="sectionTitle">{t("notifications.title")}</AppText>
+          <AppText variant="screenHint" tone="muted">
+            {t("notifications.profileHint")}
+          </AppText>
+          <AppButton
+            label={
+              unreadNotifications > 0
+                ? `${t("notifications.openButton")} (${unreadNotifications})`
+                : t("notifications.openButton")
+            }
+            variant="secondary"
+            onPress={() => {
+              setUnreadNotifications(0);
+              router.push("/my-notifications" as never);
+            }}
+          />
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+          <AppText variant="sectionTitle">{t("support.title")}</AppText>
+          <AppText variant="screenHint" tone="muted">
+            {t("support.profileHint")}
+          </AppText>
+          <AppButton label={t("support.openButton")} variant="secondary" onPress={() => setSupportOpen(true)} />
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
@@ -321,6 +365,7 @@ export default function ProfileTabRoute() {
         </View>
       </TabScrollView>
 
+      <SupportModal visible={supportOpen} onClose={() => setSupportOpen(false)} />
       <NatalBirthDataModal
         visible={natalModalOpen}
         saving={natalSaving}

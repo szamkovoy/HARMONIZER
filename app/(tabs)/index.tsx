@@ -35,6 +35,9 @@ import {
 } from "@/services/localNotifications";
 import { consumeHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile, fetchActiveNatalProfileCached } from "@/services/natalProfileClient";
+import { LatestPostBanner } from "@/modules/posts";
+import { StoriesRing } from "@/modules/stories";
+import { UpcomingWebinarBanner } from "@/modules/webinars";
 import { requireSupabase } from "@/services/supabase";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
@@ -115,31 +118,6 @@ function HomeHeader({
         </View>
       </View>
     </View>
-  );
-}
-
-function AnnouncementBanner() {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.announcement,
-        {
-          backgroundColor: theme.colors.controlButtonBg,
-          borderColor: theme.colors.surfaceBorder,
-          opacity: pressed ? 0.72 : 1,
-        },
-      ]}
-    >
-      <View style={[styles.announcementDot, { backgroundColor: theme.colors.accent }]} />
-      <AppText variant="technicalCaption" tone="muted" style={styles.announcementText}>
-        21.04 · 19:00 МСК - вебинар
-      </AppText>
-      <AppText variant="sectionTitle" tone="muted" style={styles.announcementArrow}>
-        ›
-      </AppText>
-    </Pressable>
   );
 }
 
@@ -657,7 +635,9 @@ export default function HomeScreen() {
     <TabScreenLayout>
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} />
-        <AnnouncementBanner />
+        <StoriesRing />
+        <UpcomingWebinarBanner />
+        <LatestPostBanner />
 
         {loading && !forecast ? <HomeLoadingSkeleton text={strings.skeletonText} /> : null}
 
@@ -895,29 +875,6 @@ const styles = StyleSheet.create({
   },
   dateText: {
     textTransform: "capitalize",
-  },
-  announcement: {
-    alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 8,
-    minHeight: 40,
-    paddingHorizontal: 14,
-  },
-  announcementDot: {
-    borderRadius: 999,
-    height: 7,
-    opacity: 0.8,
-    width: 7,
-  },
-  announcementText: {
-    flex: 1,
-    fontWeight: "600",
-  },
-  announcementArrow: {
-    fontSize: 24,
-    lineHeight: 24,
   },
   stateCard: {
     alignItems: "center",

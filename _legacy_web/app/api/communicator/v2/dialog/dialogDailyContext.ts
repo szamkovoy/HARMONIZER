@@ -27,6 +27,7 @@ export type DialogDailyContext = {
     tz?: string | null;
     membership_tier?: string | null;
     trial_expires_at?: string | null;
+    membership_expires_at?: string | null;
     lat?: number | null;
     lon?: number | null;
   };
@@ -49,7 +50,7 @@ export type DialogDailyContext = {
 async function loadUser(db: SupabaseClient, userId: string) {
   const { data, error } = await db
     .from("users")
-    .select("display_name,locale,address_form,tz,membership_tier,trial_expires_at,lat,lon")
+    .select("display_name,locale,address_form,tz,membership_tier,trial_expires_at,membership_expires_at,lat,lon")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;

@@ -1,16 +1,15 @@
-/** Row fields needed to mirror client `hasPremiumAccess` / `accessModeFor`. */
-export type UserModelAccessRow = {
-  membership_tier?: string | null;
-  trial_expires_at?: string | null;
-};
+import { hasEffectivePremium, type MembershipRow } from "@/modules/access/core/paidAccess";
 
-export function hasPremiumLlmAccess(user: UserModelAccessRow | null | undefined): boolean {
-  if (!user) return false;
-  if (user.membership_tier === "premium") return true;
-  if (user.membership_tier === "free" && user.trial_expires_at) {
-    return new Date(user.trial_expires_at).getTime() > Date.now();
-  }
-  return false;
+/** Row fields needed to mirror client `hasEffectivePremium` / `accessModeFromRow`. */
+export type UserModelAccessRow = MembershipRow;
+
+/**
+ * Платный LLM-доступ: оплаченный тариф (oracle/practitioner/master, с учётом
+ * membership_expires_at) ИЛИ активный trial. Правило — общее с клиентом,
+ * живёт в `modules/access/core/paidAccess.ts`.
+ */
+export function hasPremiumLlmAccess(user: UserModelAccessRow): boolean {
+  return hasEffectivePremium(user);
 }
 
 /**
@@ -21,7 +20,7 @@ export function hasPremiumLlmAccess(user: UserModelAccessRow | null | undefined)
  */
 export function dialogSurfaceModelHint(
   promptHint: string | null | undefined,
-  user: UserModelAccessRow | null | undefined,
+  user: UserModelAccessRow,
 ): string {
   if (hasPremiumLlmAccess(user)) return "premium";
   return promptHint?.trim() || "standard";

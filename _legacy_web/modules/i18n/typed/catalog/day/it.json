@@ -1,6 +1,6 @@
 {
   "actionRecommendationFallback": "La raccomandazione apparirà dopo l'aggiornamento dell'assistente per questa azione.",
-  "actionsTitle": "Psico-pratiche",
+  "actionsTitle": "Pratiche psicologiche",
   "addButton": "Aggiungi azione",
   "asanasLabel": "Asana",
   "assistantSystemPrompt": "Sei il mentore empatico dell'app Harmonizer. Aiuta l'utente a compilare o riepilogare la scheda «Giorno».",
@@ -35,5 +35,5 @@
   "summarizeDayButton": "Riassumere questa giornata",
   "whatToDoButton": "Cosa fare?",
   "yesterdayPrefix": "Ieri",
-  "yogaTitle": "Yoga-pratiche"
+  "yogaTitle": "Pratiche yoga"
 }

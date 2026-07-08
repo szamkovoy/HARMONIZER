@@ -38,15 +38,21 @@ describe("pickBestVimeoThumbnail", () => {
 });
 
 describe("attachThumbnailToPracticeRecommendation", () => {
-  const originalToken = process.env.VIMEO_ACCESS_TOKEN;
+  // vimeoToken() читает три имени env; чистим и восстанавливаем все,
+  // иначе токен из .env.local делает тест сетевым и нестабильным.
+  const TOKEN_ENV_NAMES = ["VIMEO_ACCESS_TOKEN", "vimeo_token", "VIMEO_TOKEN"] as const;
+  const originalTokens = TOKEN_ENV_NAMES.map((name) => [name, process.env[name]] as const);
 
   afterEach(() => {
-    process.env.VIMEO_ACCESS_TOKEN = originalToken;
+    for (const [name, value] of originalTokens) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
     vi.restoreAllMocks();
   });
 
   it("returns the practice unchanged when Vimeo metadata is unavailable", async () => {
-    delete process.env.VIMEO_ACCESS_TOKEN;
+    for (const name of TOKEN_ENV_NAMES) delete process.env[name];
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const practice = {

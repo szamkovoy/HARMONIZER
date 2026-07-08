@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { hasEffectivePremium } from "@/modules/access/core/paidAccess";
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
 import { resolveContentLocale, SOURCE_LOCALE, type AppContentLocale, type TargetLocale } from "../../_utils/contentLocales";
 import { ensureGlobalDailyContentRow, getExpectedGlobalDailyContentModel, globalContentNeedsRefresh, writeStructuralGlobalRow } from "../../_utils/ensureGlobalDailyContent";
@@ -23,8 +24,9 @@ export const maxDuration = 120;
 type UserAccess = {
   tz?: string | null;
   locale?: string | null;
-  membership_tier?: "free" | "premium" | null;
+  membership_tier?: string | null;
   trial_expires_at?: string | null;
+  membership_expires_at?: string | null;
 };
 
 function todayLocalDate(timezone: string): string {
@@ -38,13 +40,8 @@ function todayLocalDate(timezone: string): string {
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
-function hasPremiumAccess(user: UserAccess, now = new Date()): boolean {
-  if (user.membership_tier === "premium") return true;
-  if (user.membership_tier === "free" && user.trial_expires_at) {
-    return new Date(user.trial_expires_at).getTime() > now.getTime();
-  }
-  return false;
-}
+// Правило платного доступа общее с клиентом: modules/access/core/paidAccess.ts.
+const hasPremiumAccess = (user: UserAccess): boolean => hasEffectivePremium(user);
 
 function hasText(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
@@ -191,7 +188,7 @@ export async function POST(req: Request) {
 
     const { data: user, error: userError } = await db
       .from("users")
-      .select("tz,locale,membership_tier,trial_expires_at")
+      .select("tz,locale,membership_tier,trial_expires_at,membership_expires_at")
       .eq("id", userId)
       .maybeSingle();
     if (userError) throw userError;

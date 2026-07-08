@@ -1,13 +1,14 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.3
-updated: 2026-06-16
+version: 1.4
+updated: 2026-07-08
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
     modules/access/core/access.tsx,
     modules/access/core/features.ts,
+    modules/access/core/paidAccess.ts,
     modules/access/core/tiers.ts,
     app/_layout.tsx,
     app/(tabs)/_layout.tsx,
@@ -26,7 +27,7 @@ code_refs:
 ## 1. Зависит от
 
 - **`infra`**  
-  Схема Postgres (`users.membership_tier`, `trial_expires_at`, индексы) — `supabase/migrations/20260501193000_free_tier_global_content.sql`.  
+  Схема Postgres (`users.membership_tier`, `trial_expires_at`, `membership_expires_at`, индексы) — `supabase/migrations/20260501193000_free_tier_global_content.sql` + `20260708010000_admin_panel_tier_foundation.sql`.  
   Серверные маршруты Next.js на Vercel (`_legacy_web/app/api/ai/global-content/route.ts`, communicator `v2/*`) читают те же поля и отдают клиенту признаки доступа.  
   Типы строки пользователя в клиенте — `services/supabase-types.ts` (генерация из схемы).
 
@@ -49,7 +50,7 @@ code_refs:
   `_legacy_web/app/api/communicator/v2/dialog/route.ts` — выборка `membership_tier`, `trial_expires_at` для DTO и связки с `_legacy_web/app/api/_utils/userModelTier.ts` (`dialogSurfaceModelHint` / премиум-модели).
 
 - **`communicator`**  
-  `modules/communicator/ui/Communicator.tsx` — локальная функция `tierLabelFromProfile` для подписи тарифа в UI (зеркалит free/premium + trial).  
+  `modules/communicator/ui/Communicator.tsx` — `tierLabelFromProfile` для подписи тарифа в UI (через общий `hasEffectivePremium` из paidAccess).  
   Клиентский транспорт не проверяет фичи сам; ограничения «открыть диалог» задаются на главном экране через `canUseFeature("assistant_dialog")`.
 
 - **`practices`**  
@@ -63,9 +64,12 @@ code_refs:
 - **`webinars` / `author_presence` (план в MAP)**  
   В `TIER_FEATURES` зарезервированы ключи в духе `webinar_community`; отдельного потребительского кода под эти модули в репозитории пока нет.
 
+- **`admin_panel`**  
+  Миграция 4 тиров + `membership_expires_at` сделана в рамках этапа 0 админ-панели; ручной грант тарифа (этап 6) будет писать эти поля. См. `02_modules/admin_panel/`.
+
 ## 3. Контрактные точки риска
 
-- **Синхронизация трёх слоёв:** `getEffectiveAccess` + дубли `hasPremiumAccess` / `hasPremiumLlmAccess` + ответы `global-content` (`has_premium_access`). Расхождение даёт неверный режим прогноза или модель LLM.
+- **Единая точка правила платного доступа:** `modules/access/core/paidAccess.ts` (клиент + сервер через vendored-копию `scripts/sync-vercel-server-modules.mjs`). Намеренное зеркало осталось только в Edge `precompute-daily-forecasts` (`hasPersonalForecastAccess`) — при изменении правила синхронизировать вручную. Ответы `global-content` несут `has_premium_access` для клиента.
 - **Изменение `FeatureKey` или `TIER_FEATURES`** — ломает все вызовы `canUseFeature` и тексты `UpgradeDialog` (`upgrade.feature.*` в каталоге); нужна проходка по `app/(tabs)/*`, `modules/practices/*`, `app/asana-practice.tsx`.
 - **Ключ `stats` стал шире по смыслу** — теперь он гейтит и server-backed reports профиля, так что ошибки в `TIER_FEATURES` затронут не только локальную статистику практик, но и life matrix / range trend.
 - **Смена `ProductTier` или порядка в `TIER_ORDER`** — влияет на `accessModeForTier` и на сравнения `tierAtLeast` у будущих потребителей.

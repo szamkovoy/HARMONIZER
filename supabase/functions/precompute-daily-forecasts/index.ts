@@ -115,13 +115,18 @@ function buildOutputLanguageBlock(locale: AppContentLocale): string {
   ].join("\n");
 }
 
+// Зеркало modules/access/core/paidAccess.ts (Deno bundler не резолвит modules/).
 function hasPersonalForecastAccess(user: {
   membership_tier?: string | null;
   trial_expires_at?: string | null;
+  membership_expires_at?: string | null;
 }): boolean {
   const tier = typeof user.membership_tier === "string" ? user.membership_tier.trim().toLowerCase() : "";
-  if (tier === "premium" || tier === "oracle" || tier === "practitioner" || tier === "master") return true;
-  if (tier === "free" && user.trial_expires_at) {
+  const paidTier = tier === "premium" || tier === "oracle" || tier === "practitioner" || tier === "master";
+  const membershipActive =
+    !user.membership_expires_at || new Date(user.membership_expires_at).getTime() > Date.now();
+  if (paidTier && membershipActive) return true;
+  if (user.trial_expires_at) {
     return new Date(user.trial_expires_at).getTime() > Date.now();
   }
   return false;
@@ -581,7 +586,7 @@ Deno.serve(async (req) => {
     const promptConfig = await loadMorningPromptConfig(db);
     let query = db
       .from("user_natal_charts")
-      .select("*, users!inner(id,tz,lat,lon,onboarded_at,locale,address_form,membership_tier,trial_expires_at)")
+      .select("*, users!inner(id,tz,lat,lon,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)")
       .eq("is_active", true)
       .not("users.lat", "is", null)
       .not("users.lon", "is", null)

@@ -4,9 +4,9 @@
   "astroChartModal": {
     "titleTransit": "Carte natale + transits",
     "titleNatal": "Carte natale",
-    "titleGlobal": "Carte des transits du jour",
+    "titleGlobal": "Thème astral de transit du jour",
     "subtitle": "Anneau intérieur : planètes natales, anneau extérieur : transits du jour.",
-    "subtitleGlobal": "Seules les planètes en transit du jour, les signes du zodiaque et les aspects entre elles sont affichés.",
+    "subtitleGlobal": "Seules les planètes de transit du jour, les signes du zodiaque et les aspects entre eux sont affichés.",
     "housesHiddenHint": "Les maisons ne sont pas affichées : les cuspides exactes sont disponibles uniquement avec une heure de naissance précise.",
     "mainAspectsTitle": "Aspects principaux du jour",
     "planetStrengthsTitle": "Forces des planètes",
@@ -18,17 +18,8 @@
   "birthDataTitle": "Date de naissance requise",
   "chakraFlower": {
     "title": "Archétypes du jour",
-    "captionFree": "Modèle psycho-archétypal basé sur la dynamique planétaire ce jour-là",
-    "captionPersonal": "Modèle psycho-archétypal basé sur la dynamique planétaire ce jour-là, personnellement pour vous"
-  },
-  "planetLabels": {
-    "Sun": "Soleil",
-    "Moon": "Lune",
-    "Mercury": "Mercure",
-    "Venus": "Vénus",
-    "Mars": "Mars",
-    "Jupiter": "Jupiter",
-    "Saturn": "Saturne"
+    "captionFree": "Modèle psycho-archétypal basé sur la dynamique planétaire du jour",
+    "captionPersonal": "Modèle psycho-archétypal basé sur la dynamique planétaire du jour, personnalisé pour vous"
   },
   "closeAssistantAccessibilityLabel": "Fermer l'assistant",
   "closeButton": "Fermer",
@@ -39,7 +30,8 @@
     "bindu": "Bindu",
     "symbols": "Symboles",
     "breath": "Respiration",
-    "calibration": "Calibration"
+    "calibration": "Calibration",
+    "biofeedbackParity": "Biofeedback Parity"
   },
   "devResetDayContent": "Actualiser",
   "emptyTimeLabel": "—",
@@ -49,7 +41,7 @@
     "aspectTitle": "Aspect"
   },
   "forecastErrorTitle": "Impossible de charger la prévision",
-  "freeTierBanner": "Ci-dessous, vous découvrez une prévision générale pour aujourd’hui. Naturellement, les prévisions individuelles, fondées sur votre date de naissance, sont bien plus précises. Passez à la version payante pour en bénéficier.",
+  "freeTierBanner": "Ci-dessous, vous voyez des recommandations universelles pour cette journée. Elles vous aideront à vivre chaque jour de manière efficace. Cependant, les recommandations personnalisées, basées sur votre date, heure et lieu de naissance, sont beaucoup plus précises et profondes. Passez au forfait « Psychologue » pour les recevoir.",
   "headerHint": "Réglage principal du jour : chakras, fenêtres d'opportunités et recommandation pratique.",
   "locale": "fr",
   "locationErrorMessage": "Pour calculer les fenêtres d’opportunité, la géolocalisation est nécessaire. Autorisez l’accès à votre position, puis réessayez.",
@@ -70,7 +62,7 @@
     "closeButton": "Fermer",
     "emptyHint": "Le bloc mathématique n'est pas encore arrivé avec la prévision. Actualisez la prévision du jour après le déploiement de la partie backend du correctif.",
     "showChartButton": "Afficher la carte natale et des transits",
-    "showTransitChartButton": "Afficher l'horoscope de transit du jour",
+    "showTransitChartButton": "Afficher le thème astral de transit du jour",
     "chartUnavailableHint": "Carte disponible uniquement pour les utilisateurs d'essai/premium avec un profil natal."
   },
   "openSettingsButton": "Ouvrir les paramètres",

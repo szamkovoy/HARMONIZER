@@ -54,7 +54,7 @@ async function loadGreetingContext(db: SupabaseClient, userId: string) {
       .maybeSingle(),
     db
       .from("users")
-      .select("display_name,birth_date,locale,address_form,membership_tier,trial_expires_at")
+      .select("display_name,birth_date,locale,address_form,membership_tier,trial_expires_at,membership_expires_at")
       .eq("id", userId)
       .maybeSingle(),
   ]);
@@ -75,6 +75,7 @@ async function loadGreetingContext(db: SupabaseClient, userId: string) {
         address_form?: string | null;
         membership_tier?: string | null;
         trial_expires_at?: string | null;
+        membership_expires_at?: string | null;
       } | null) ?? {},
   };
 }

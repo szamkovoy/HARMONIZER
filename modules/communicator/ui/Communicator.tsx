@@ -100,6 +100,7 @@ import {
   loadDialogSessionCache,
   saveDialogSessionCache,
 } from "@/services/dialogSessionCache";
+import { hasEffectivePremium, type MembershipRow } from "@/modules/access/core/paidAccess";
 import { useAuth } from "@/modules/auth";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -536,13 +537,9 @@ function isRecorderPrepareError(error: Error): boolean {
   return /prepare.*recorder|recorder not prepared|prepareToRecord/i.test(error.message);
 }
 
-function tierLabelFromProfile(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): string {
+function tierLabelFromProfile(profile: MembershipRow): string {
   if (!profile) return COMMUNICATOR_MODEL_LABEL;
-  if (profile.membership_tier === "premium") return "premium";
-  if (profile.membership_tier === "free" && profile.trial_expires_at) {
-    if (new Date(profile.trial_expires_at).getTime() > Date.now()) return "premium";
-  }
-  return "standard";
+  return hasEffectivePremium(profile) ? "premium" : "standard";
 }
 
 function ModelBadge({ model, accessTier }: { model?: string; accessTier: string }) {

@@ -4,9 +4,9 @@
   "astroChartModal": {
     "titleTransit": "Geboortehoroscoop + transithoroscoop",
     "titleNatal": "Geboortehoroscoop",
-    "titleGlobal": "Transithoroscoop van de dag",
+    "titleGlobal": "Transit horoscoop van de dag",
     "subtitle": "Binnenste ring — geboorteplaneten, buitenste ring — dagtransits.",
-    "subtitleGlobal": "Alleen de transitplaneten van de dag, sterrenbeelden en aspecten ertussen worden getoond.",
+    "subtitleGlobal": "Alleen de transitplaneten van de dag, de sterrenbeelden en de aspecten ertussen worden weergegeven.",
     "housesHiddenHint": "Huizen niet getoond: exacte cuspen zijn alleen beschikbaar bij exacte geboortetijd.",
     "mainAspectsTitle": "Hoofdaspecten van de dag",
     "planetStrengthsTitle": "Planetensterktes",
@@ -18,17 +18,8 @@
   "birthDataTitle": "Geboortedatum nodig",
   "chakraFlower": {
     "title": "Archetypen van de dag",
-    "captionFree": "Psycho-archetypisch model gebaseerd op de planetaire dynamiek op deze dag",
-    "captionPersonal": "Psycho-archetypisch model gebaseerd op de planetaire dynamiek op deze dag, persoonlijk voor u"
-  },
-  "planetLabels": {
-    "Sun": "Zon",
-    "Moon": "Maan",
-    "Mercury": "Mercurius",
-    "Venus": "Venus",
-    "Mars": "Mars",
-    "Jupiter": "Jupiter",
-    "Saturn": "Saturnus"
+    "captionFree": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag",
+    "captionPersonal": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag, persoonlijk voor jou"
   },
   "closeAssistantAccessibilityLabel": "Sluit assistent",
   "closeButton": "Sluiten",
@@ -39,7 +30,8 @@
     "bindu": "Bindu",
     "symbols": "Symbolen",
     "breath": "Adem",
-    "calibration": "Kalibratie"
+    "calibration": "Kalibratie",
+    "biofeedbackParity": "Biofeedback Parity"
   },
   "devResetDayContent": "Vernieuwen",
   "emptyTimeLabel": "—",
@@ -49,7 +41,7 @@
     "aspectTitle": "Aspect"
   },
   "forecastErrorTitle": "Voorspelling kon niet geladen worden",
-  "freeTierBanner": "Hieronder zie je een universele dagvoorspelling. Persoonlijke voorspellingen op basis van jouw geboortedatum zijn vanzelfsprekend veel preciezer. Stap over op een betaald abonnement om ze te ontvangen.",
+  "freeTierBanner": "Onderaan zie je universele aanbevelingen voor deze dag. Ze helpen je om elke dag effectief te beleven. Echter, individuele aanbevelingen, gebaseerd op jouw geboortedatum, -tijd en -plaats, zijn veel nauwkeuriger en diepgaander. Schakel over naar het \"Psycholoog\"-abonnement om deze te ontvangen.",
   "headerHint": "De belangrijkste instelling van de dag: chakra's, kansenvensters en praktisch advies.",
   "locale": "nl",
   "locationErrorMessage": "Om je kansenvensters te berekenen, hebben we je locatie nodig. Sta locatietoegang toe en probeer het opnieuw.",
@@ -70,7 +62,7 @@
     "closeButton": "Sluiten",
     "emptyHint": "Wiskundeblok nog niet beschikbaar. Vernieuw de dagvoorspelling na de backend update.",
     "showChartButton": "Toon geboorte- en transithoroscoop",
-    "showTransitChartButton": "Toon de transithoroscoop van de dag",
+    "showTransitChartButton": "Toon transit horoscoop van de dag",
     "chartUnavailableHint": "Horoscoop alleen beschikbaar voor trial/premium-gebruikers met een geboorteprofiel."
   },
   "openSettingsButton": "Open instellingen",

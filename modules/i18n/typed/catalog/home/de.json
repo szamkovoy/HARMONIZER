@@ -4,9 +4,9 @@
   "astroChartModal": {
     "titleTransit": "Natal- + Transitkarte",
     "titleNatal": "Natal-Karte",
-    "titleGlobal": "Transitkarte des Tages",
+    "titleGlobal": "Transit-Horoskop des Tages",
     "subtitle": "Innerer Ring — Geburtsplaneten, äußerer Ring — Tages-Transite.",
-    "subtitleGlobal": "Es werden nur die Transitplaneten des Tages, Tierkreiszeichen und Aspekte zwischen ihnen angezeigt.",
+    "subtitleGlobal": "Zeigt nur die Transit-Planeten des Tages, Sternzeichen und Aspekte zwischen ihnen an.",
     "housesHiddenHint": "Häuser nicht sichtbar: Genaue Häuserspitzen nur mit genauer Geburtszeit verfügbar.",
     "mainAspectsTitle": "Hauptaspekte des Tages",
     "planetStrengthsTitle": "Planetenstärken",
@@ -17,18 +17,9 @@
   "birthDataMessage": "Um eine persönliche Tagesprognose zu erstellen, geben Sie Geburtsdatum, -zeit und -ort ein.",
   "birthDataTitle": "Geburtsdatum erforderlich",
   "chakraFlower": {
-    "title": "Tages-Archetypen",
-    "captionFree": "Psychoarchtypisches Modell basierend auf der planetaren Dynamik an diesem Tag",
-    "captionPersonal": "Psychoarchtypisches Modell basierend auf der planetaren Dynamik an diesem Tag, persönlich für Sie"
-  },
-  "planetLabels": {
-    "Sun": "Sonne",
-    "Moon": "Mond",
-    "Mercury": "Merkur",
-    "Venus": "Venus",
-    "Mars": "Mars",
-    "Jupiter": "Jupiter",
-    "Saturn": "Saturn"
+    "title": "Archetypen des Tages",
+    "captionFree": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages",
+    "captionPersonal": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages – persönlich für Sie"
   },
   "closeAssistantAccessibilityLabel": "Assistenten schließen",
   "closeButton": "Schließen",
@@ -39,7 +30,8 @@
     "bindu": "Bindu",
     "symbols": "Symbole",
     "breath": "Atem",
-    "calibration": "Kalibrierung"
+    "calibration": "Kalibrierung",
+    "biofeedbackParity": "Biofeedback Parity"
   },
   "devResetDayContent": "Aktualisieren",
   "emptyTimeLabel": "—",
@@ -49,7 +41,7 @@
     "aspectTitle": "Aspekt"
   },
   "forecastErrorTitle": "Prognose konnte nicht geladen werden",
-  "freeTierBanner": "Unten sehen Sie eine allgemeine Vorhersage für diesen Tag. Natürlich sind individuelle Vorhersagen, die auf Ihrem Geburtsdatum basieren, viel genauer. Wechseln Sie zum kostenpflichtigen Tarif, um sie zu erhalten.",
+  "freeTierBanner": "Unten sehen Sie universelle Empfehlungen für diesen Tag. Sie helfen Ihnen, jeden Tag effektiv zu gestalten. Individuelle Empfehlungen, die auf Ihrem Geburtsdatum, Ihrer Geburtszeit und Ihrem Geburtsort basieren, sind jedoch viel präziser und tiefgehender. Wechseln Sie zum Tarif „Psychologe“, um diese zu erhalten.",
   "headerHint": "Die wichtigste Tageseinstellung: Chakren, Fenster der Möglichkeiten und praktische Empfehlung.",
   "locale": "de",
   "locationErrorMessage": "Um die Möglichkeitenfenster zu berechnen, benötigen wir Ihren Standort. Bitte erlauben Sie den Zugriff auf die Geoposition und versuchen Sie es erneut.",

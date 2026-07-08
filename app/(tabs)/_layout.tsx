@@ -43,6 +43,7 @@ export default function TabLayout() {
           href: canOpenPractices ? undefined : null,
         }}
       />
+      <Tabs.Screen name="posts" options={{ title: t("tabs.posts"), tabBarLabel: t("tabs.posts") }} />
       <Tabs.Screen name="profile" options={{ title: t("tabs.profile"), tabBarLabel: t("tabs.profile") }} />
     </Tabs>
   );

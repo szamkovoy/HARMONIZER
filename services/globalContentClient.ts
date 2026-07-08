@@ -37,7 +37,7 @@ type GlobalContentResponse = {
   planet_positions?: unknown;
   forecast_date: string;
   is_fallback?: boolean;
-  membership_tier?: "free" | "premium";
+  membership_tier?: string;
   has_premium_access?: boolean;
   trial_expires_at?: string | null;
   llm_model?: string | null;
@@ -226,7 +226,14 @@ function emptyPlanetMap(): Record<Planet, number> {
 }
 
 function accessModeFromResponse(data: GlobalContentResponse): AccessMode {
-  if (data.membership_tier === "premium") return "premium";
+  // Сервер уже применил правило paid/trial (paidAccess) и вернул has_premium_access;
+  // здесь только различаем «оплаченный тариф» и «trial» по наличию платного tier.
+  const paidTier =
+    data.membership_tier === "premium" ||
+    data.membership_tier === "oracle" ||
+    data.membership_tier === "practitioner" ||
+    data.membership_tier === "master";
+  if (paidTier && data.has_premium_access) return "premium";
   return data.has_premium_access ? "trial" : "free";
 }
 

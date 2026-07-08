@@ -53,6 +53,27 @@ export async function requireUserId(req: Request): Promise<string> {
   return data.user.id;
 }
 
+/**
+ * Гейт админ-панели: валидный JWT + роль admin в public.user_roles.
+ * Использовать в КАЖДОМ роуте app/api/admin/*. Возвращает userId админа.
+ * Проверка роли идёт через service client (RLS user_roles разрешает читать
+ * только свои строки, но нам нужен детерминированный ответ без RLS-нюансов).
+ */
+export async function requireAdmin(req: Request): Promise<string> {
+  const userId = await requireUserId(req);
+  const { data, error } = await createServiceSupabase()
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    throw new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+  }
+  return userId;
+}
+
 export function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, {
     ...init,

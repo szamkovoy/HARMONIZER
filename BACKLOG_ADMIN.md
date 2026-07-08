@@ -1,5 +1,11 @@
 # Admin Backlog
 
+> **Статус 2026-07-08:** админ-панель реализована (этапы 0–8, см. `docs/02_modules/admin_panel/spec.md`).
+> Базовый дашборд (`/admin`) покрывает LLM-метрики агрегированно (avg/p95 latency, ошибки, токены);
+> раздел `/admin/prompts` покрывает версии/`is_active`/playground. Ниже — оставшиеся идеи на будущее:
+> разбивка по endpoint/stage, first-token latency, cache hit rate, конверсия ход→практика, сравнение
+> версий промптов по метрикам.
+
 ## Analytics Foundation
 
 The backend is already ready for internal analytics through `user_event_log`.

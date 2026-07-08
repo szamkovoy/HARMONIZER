@@ -17,6 +17,8 @@ const destRoot = path.join(repoRoot, "_legacy_web", "modules");
 
 /** @type {Array<[string, string]>} [srcRelative, destRelative] */
 const COPY_FILES = [
+  ["modules/access/core/tiers.ts", "access/core/tiers.ts"],
+  ["modules/access/core/paidAccess.ts", "access/core/paidAccess.ts"],
   ["modules/breath/i18n/coherence.ts", "breath/i18n/coherence.ts"],
   ["modules/breath/core/chakra.ts", "breath/core/chakra.ts"],
   ["modules/day/i18n/day.ts", "day/i18n/day.ts"],

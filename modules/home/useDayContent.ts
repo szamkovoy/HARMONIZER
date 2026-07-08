@@ -4,6 +4,7 @@ import { AppState } from "react-native";
 import { useAuth } from "@/modules/auth";
 import { useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import type { DailyForecast } from "@/modules/daily-engine";
+import { accessModeFromRow } from "@/modules/access/core/paidAccess";
 import type { ProductTier } from "@/modules/access/core/tiers";
 import { callMonologue, type MorningRecommendationResponse } from "@/services/aiClient";
 import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communicatorConfig";
@@ -151,19 +152,6 @@ async function enrichWithMorningContent(
   };
 }
 
-function hasPremiumAccess(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): boolean {
-  if (profile?.membership_tier === "premium") return true;
-  if (profile?.membership_tier === "free" && profile.trial_expires_at) {
-    return new Date(profile.trial_expires_at).getTime() > Date.now();
-  }
-  return false;
-}
-
-function accessModeFor(profile: { membership_tier?: string | null; trial_expires_at?: string | null } | null): AccessMode {
-  if (profile?.membership_tier === "premium") return "premium";
-  return hasPremiumAccess(profile) ? "trial" : "free";
-}
-
 function dayContentScopeKey(
   profile: {
     birth_date?: string | null;
@@ -229,6 +217,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const profileId = profile?.id ?? null;
   const membershipTier = profile?.membership_tier ?? null;
   const trialExpiresAt = profile?.trial_expires_at ?? null;
+  const membershipExpiresAt = profile?.membership_expires_at ?? null;
   const profileTimezone = profile?.tz ?? "UTC";
   const scopeKey = useMemo(
     () =>
@@ -258,7 +247,11 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const nextAccessMode =
         opts?.accessModeOverride ??
         options?.accessModeOverride ??
-        accessModeFor({ membership_tier: membershipTier, trial_expires_at: trialExpiresAt });
+        accessModeFromRow({
+          membership_tier: membershipTier,
+          trial_expires_at: trialExpiresAt,
+          membership_expires_at: membershipExpiresAt,
+        });
       const nextAccessTier =
         opts?.accessTierOverride ??
         options?.accessTierOverride ??
@@ -706,6 +699,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       options?.hasNatalProfile,
       options?.locationErrorMessage,
       options?.natalRequired,
+      membershipExpiresAt,
       membershipTier,
       profileId,
       profileLoading,

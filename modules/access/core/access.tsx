@@ -2,13 +2,11 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 
 import type { FeatureKey } from "./features";
 import { FEATURE_REQUIRED_TIER, TIER_FEATURES } from "./features";
+import { baseTierFromRow, hasActiveTrial, type MembershipRow } from "./paidAccess";
 import type { ProductTier } from "./tiers";
 import { TIER_LABELS, tierAtLeast } from "./tiers";
 
-type ProfileAccess = {
-  membership_tier?: string | null;
-  trial_expires_at?: string | null;
-} | null;
+type ProfileAccess = MembershipRow;
 
 export interface EffectiveAccess {
   tier: ProductTier;
@@ -26,18 +24,6 @@ export interface AccessContextValue {
 }
 
 const AccessContext = createContext<AccessContextValue | null>(null);
-
-function hasActiveTrial(profile: ProfileAccess): boolean {
-  if (!profile?.trial_expires_at) return false;
-  return new Date(profile.trial_expires_at).getTime() > Date.now();
-}
-
-function profileTier(profile: ProfileAccess): ProductTier {
-  const raw = profile?.membership_tier;
-  if (raw === "oracle" || raw === "practitioner" || raw === "master") return raw;
-  if (raw === "premium") return "oracle";
-  return "free";
-}
 
 export function getEffectiveAccess(profile: ProfileAccess, devOverride: ProductTier | null = null): EffectiveAccess {
   if (devOverride) {
@@ -60,7 +46,7 @@ export function getEffectiveAccess(profile: ProfileAccess, devOverride: ProductT
     };
   }
 
-  const tier = profileTier(profile);
+  const tier = baseTierFromRow(profile);
   return {
     tier,
     label: TIER_LABELS[tier],

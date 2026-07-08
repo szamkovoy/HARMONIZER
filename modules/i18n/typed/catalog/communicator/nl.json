@@ -6,7 +6,7 @@
   "emptyAssistantReplyFallback": "Ik heb het volledige antwoord niet ontvangen — de verbinding is mogelijk verbroken. Vertel kort wat nu belangrijk voor je is, dan ga ik verder.",
   "exitDialogButton": "Dialoog verlaten",
   "expandAccessibilityLabel": "Uitklappen",
-  "holdToRecordAccessibilityLabel": "Tik of houd vast om op te nemen",
+  "holdToRecordAccessibilityLabel": "Druk of houd ingedrukt om op te nemen",
   "locale": "nl",
   "microphonePermissionError": "Geen toegang tot microfoon",
   "postPracticeReplyFallback": "De oefening is al gekozen. Laat het je goed doen; als je later weer verder wilt praten, pak ik het gesprek weer op.",

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.3
-updated: 2026-06-16
+version: 1.4
+updated: 2026-07-08
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -26,7 +26,9 @@ code_refs:
     _legacy_web/app/api/communicator/v2/dialog/route.ts,
     _legacy_web/app/api/communicator/v2/greeting/route.ts,
     _legacy_web/app/api/communicator/v2/recommendation-text/route.ts,
+    modules/access/core/paidAccess.ts,
     supabase/migrations/20260501193000_free_tier_global_content.sql,
+    supabase/migrations/20260708010000_admin_panel_tier_foundation.sql,
   ]
 ---
 
@@ -55,13 +57,14 @@ code_refs:
 
 ## 3. Внутренняя архитектура
 
-- **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт полный набор фич по матрице `TIER_FEATURES`). Иначе базовый тариф из **`profileTier`**: значения `oracle` / `practitioner` / `master` из БД проходят как есть; **`premium` маппится в `oracle`**; остальное — `free`.
+- **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт полный набор фич по матрице `TIER_FEATURES`). Иначе базовый тариф из **`baseTierFromRow`** (`modules/access/core/paidAccess.ts`): значения `oracle` / `practitioner` / `master` из БД проходят как есть при непустом сроке (`membership_expires_at` NULL или в будущем); истёкший грант → `free`; legacy **`premium` маппится в `oracle`**; остальное — `free`.
+- **`modules/access/core/paidAccess.ts`** — единственный источник правила платного доступа по сырым полям `users` (`paidTierFromRow`, `hasActiveTrial`, `hasEffectivePremium`, `baseTierFromRow`, `accessModeFromRow`). Используется клиентом (`access.tsx`, `useDayContent`, `Communicator`) и сервером (`userModelTier.ts`, `global-content`) — vendored-копия для Vercel синхронизируется `scripts/sync-vercel-server-modules.mjs`; Edge-функция `precompute-daily-forecasts` держит зеркало (Deno bundler не резолвит `modules/`).
 - **`canUseFeature(tier, key)`** — включение ключа в `TIER_FEATURES[tier]` (список на тариф).
 - **Провайдер** мемоизирует `access` и замыкает `canUseFeature` на текущий `access.tier`.
  - **Потребители UI:** главный таб (`app/(tabs)/index.tsx`) — `personal_daily_forecast`, `assistant_dialog`, `calibration`, баннер free-tier, `UpgradeDialog`; tab layout — скрытие вкладки «День», если нет `day_planning`, и вкладки «Практики», если нет `practice_catalog`; профиль — `stats`, HARMONIZER v2 reports и dev-переключатель; каталог практик и экран асаны — `practice_catalog` / `asana_practices`.
-- **Параллельный контур «free / premium / trial»** для кэша и загрузки дневного контента: `modules/home/useDayContent.ts` и `services/globalContentClient.ts` вычисляют `AccessMode` по **сырым** `membership_tier` + `trial_expires_at` (логика «как `hasPremiumAccess`»), без вызова `getEffectiveAccess`. Ключи кэша `services/dayContentCache.ts` включают `ProductTier` (`accessTier`), который главный экран пробрасывает из `useAccess().access.tier` — смена эффективного тарифа или dev override меняет scope кэша.
+- **Параллельный контур «free / premium / trial»** для кэша и загрузки дневного контента: `modules/home/useDayContent.ts` вычисляет `AccessMode` через общий **`accessModeFromRow`** (paidAccess), `services/globalContentClient.ts` — по ответу сервера (`membership_tier` + `has_premium_access`), без вызова `getEffectiveAccess`. Ключи кэша `services/dayContentCache.ts` включают `ProductTier` (`accessTier`), который главный экран пробрасывает из `useAccess().access.tier` — смена эффективного тарифа или dev override меняет scope кэша.
 
-Серверные зеркала «есть ли платный LLM / премиум-доступ»: `_legacy_web/app/api/_utils/userModelTier.ts` (`hasPremiumLlmAccess`), маршруты `global-content`, `communicator/v2/dialog`, `greeting`, `recommendation-text` — выборка `membership_tier`, `trial_expires_at` из `users`.
+Серверные зеркала «есть ли платный LLM / премиум-доступ»: `_legacy_web/app/api/_utils/userModelTier.ts` (`hasPremiumLlmAccess` → делегирует `hasEffectivePremium` из paidAccess), маршруты `global-content`, `communicator/v2/dialog`, `greeting`, `recommendation-text` — выборка `membership_tier`, `trial_expires_at`, `membership_expires_at` из `users`.
 
 ## 4. Конфигурация и параметры
 
@@ -69,21 +72,20 @@ code_refs:
 - **Ключ `day_planning`** — открывает вкладку «День» и доступен на тарифах `practitioner` и `master`.
 - **Ключ `stats`** — открывает как старую клиентскую статистику практик, так и новые server-backed profile reports (`/api/profile/life-matrix`, `/api/profile/practice-by-chakra`).
 - **Порядок тарифов** — `TIER_ORDER` / `tierAtLeast` в `modules/access/core/tiers.ts`.
-- **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql`: `users.membership_tier` с `check in ('free','premium')`, `trial_expires_at`; комментарии в миграции описывают семантику trial для `free`.
+- **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql` (`membership_tier`, `trial_expires_at`) + `supabase/migrations/20260708010000_admin_panel_tier_foundation.sql`: constraint расширен до `check in ('free','oracle','practitioner','master')` (данные `premium` нормализованы в `oracle`), добавлен `membership_expires_at timestamptz` (истечение ручного гранта/оплаты; NULL = бессрочно; истёкший грант = `free`).
 
 ## 5. Известные ограничения и инварианты
 
-- **Расхождение БД и клиентской типизации:** в коде объявлены четыре `ProductTier` и набор фич под них, а **constraint в БД пока только `free` / `premium`**. Строки `oracle` / `practitioner` / `master` в `membership_tier` поддержаны в `profileTier` на клиенте, но **не enforced** на уровне текущей миграции SQL.
-- **Дублирование правил trial/premium:** сервер и `useDayContent` повторяют условие «`premium` ИЛИ (`free` И trial не истёк)»; при изменении правил нужно синхронизировать `getEffectiveAccess`, `useDayContent`, `userModelTier`, `global-content` и клиентов, читающих ответ API.
+- **БД и клиент согласованы (с 2026-07-08):** constraint в БД хранит те же четыре `ProductTier`, что и клиент; правило платного доступа централизовано в `paidAccess.ts`. Осталось одно намеренное зеркало — Edge-функция `precompute-daily-forecasts` (Deno не резолвит `modules/`); при изменении правила синхронизировать вручную.
 - **Trial → эффективный `master`:** активный trial в `getEffectiveAccess` даёт полный набор ключей как у тарифа `master`, независимо от значения `membership_tier` в БД (пока trial не истёк).
 - **Dev override** хранится только в памяти процесса; на сервер и в Supabase не пишется.
 - **`webinar_community`** и часть ключей заложены в матрицу для будущего UX; фактическое ветвление UI по ним может быть неполным (см. план ниже).
 
 ## 6. Текущее состояние и планируемое
 
-**Сейчас в продакшен-данных:** поле `users.membership_tier` — **`free` / `premium`**, плюс `trial_expires_at` для трёхдневного полного доступа на free. Клиент и часть API уже используют **четырёхуровневую** модель тарифов и `canUseFeature` для ветвления; серверные проверки «премиум» для LLM и глобального контента опираются на **двоичную** модель `hasPremiumAccess` / `hasPremiumLlmAccess`.
+**Сейчас в продакшен-данных:** поле `users.membership_tier` хранит **четырёхуровневую** модель (`free` / `oracle` / `practitioner` / `master`) + `trial_expires_at` (трёхдневный полный доступ) + `membership_expires_at` (истечение гранта). Серверные проверки «премиум» делегируют общему `hasEffectivePremium`.
 
-**План:** довести хранение и API до полной модели четырёх тарифов и единых feature gates end-to-end (в т.ч. согласовать БД, кэш дня и серверные маршруты). Ориентир по продукту и навигации без дублирования методики: `docs/tmp_docs/02052026/access_tiers_navigation_brief.md` (продуктовый бриф; дубликат из `docs/planning/` перенесён в `docs/05_archive/old_briefs/access_tiers_navigation_brief.md`). Методическая модель тарифов и терминология **free/premium в UI** — в справочнике ниже.
+**План:** оплата не подключена — тариф назначается вручную (SQL, позже — карточка пользователя в админ-панели, этап 6; см. `02_modules/admin_panel/`). Ориентир по продукту и навигации: `docs/tmp_docs/02052026/access_tiers_navigation_brief.md` (архивная копия в `docs/05_archive/old_briefs/`). Методическая модель тарифов и терминология **free/premium в UI** — в справочнике ниже.
 
 ## Справочные материалы
 

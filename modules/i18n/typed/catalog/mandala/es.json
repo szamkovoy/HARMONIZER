@@ -1,9 +1,13 @@
 {
   "continueButton": "Continuar",
+  "densityAiry": "Ligero",
+  "densityBalanced": "Equilibrado",
+  "densityDense": "Denso",
   "description": "Breve meditación visual para redirigir suavemente la atención y armonizar.",
   "finishA11y": "Finalizar práctica",
   "finishButton": "Finalizar",
   "locale": "es",
+  "minutesShort": "minutos",
   "moodBetter": "Mejor",
   "moodSame": "Igual",
   "moodWorse": "Peor",
@@ -13,7 +17,7 @@
   "ratingMessage": "Esta valoración te ayudará a elegir mejor las prácticas más adelante.",
   "ratingTitle": "¿Cómo te sientes?",
   "resumeButton": "Continuar",
-  "stopConfirmMessage": "Puedes detenerte ahora y observar cómo te sientes después de la práctica.",
+  "stopConfirmMessage": "Puedes detenerte ahora — la práctica se cerrará suavemente y volverás.",
   "stopConfirmTitle": "¿Finalizar práctica?",
   "title": "Destello"
 }

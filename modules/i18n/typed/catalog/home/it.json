@@ -4,9 +4,9 @@
   "astroChartModal": {
     "titleTransit": "Carta natale + transiti",
     "titleNatal": "Carta natale",
-    "titleGlobal": "Carta dei transiti del giorno",
+    "titleGlobal": "Oroscopo di transito del giorno",
     "subtitle": "Anello interno: pianeti natali, anello esterno: transiti del giorno.",
-    "subtitleGlobal": "Sono mostrati solo i pianeti in transito del giorno, i segni zodiacali e gli aspetti tra loro.",
+    "subtitleGlobal": "Mostrati solo i pianeti di transito del giorno, i segni zodiacali e gli aspetti tra loro.",
     "housesHiddenHint": "Case non mostrate: le cuspidi esatte sono disponibili solo con un orario di nascita preciso.",
     "mainAspectsTitle": "Aspetti principali del giorno",
     "planetStrengthsTitle": "Forza dei pianeti",
@@ -18,17 +18,8 @@
   "birthDataTitle": "Serve la data di nascita",
   "chakraFlower": {
     "title": "Archetipi del giorno",
-    "captionFree": "Modello psicoarchetipico basato sulla dinamica planetaria in questo giorno",
-    "captionPersonal": "Modello psicoarchetipico basato sulla dinamica planetaria in questo giorno, personalmente per te"
-  },
-  "planetLabels": {
-    "Sun": "Sole",
-    "Moon": "Luna",
-    "Mercury": "Mercurio",
-    "Venus": "Venere",
-    "Mars": "Marte",
-    "Jupiter": "Giove",
-    "Saturn": "Saturno"
+    "captionFree": "Modello psicoarchetipico basato sulla dinamica planetaria del giorno",
+    "captionPersonal": "Modello psicoarchetipico basato sulla dinamica planetaria del giorno personalmente per te"
   },
   "closeAssistantAccessibilityLabel": "Chiudi assistente",
   "closeButton": "Chiudi",
@@ -39,7 +30,8 @@
     "bindu": "Bindu",
     "symbols": "Simboli",
     "breath": "Respiro",
-    "calibration": "Calibrazione"
+    "calibration": "Calibrazione",
+    "biofeedbackParity": "Biofeedback Parity"
   },
   "devResetDayContent": "Aggiorna",
   "emptyTimeLabel": "—",
@@ -49,7 +41,7 @@
     "aspectTitle": "Aspetto"
   },
   "forecastErrorTitle": "Impossibile caricare la previsione",
-  "freeTierBanner": "In basso vedi una previsione universale per oggi. Certo, le previsioni personalizzate basate sulla tua data di nascita sono molto più precise. Passa al piano a pagamento per riceverle.",
+  "freeTierBanner": "In basso vedi i consigli universali per oggi. Ti aiuteranno a vivere ogni giorno con efficacia. Tuttavia, i consigli personalizzati, basati sulla tua data, ora e luogo di nascita, sono molto più precisi e profondi. Passa alla tariffa \"Psicologo\" per riceverli.",
   "headerHint": "Impostazione principale del giorno: chakra, finestre di opportunità e raccomandazione pratica.",
   "locale": "it",
   "locationErrorMessage": "Per calcolare le finestre di opportunità è necessaria la geolocalizzazione. Consenti l'accesso alla posizione e riprova.",
@@ -70,7 +62,7 @@
     "closeButton": "Chiudi",
     "emptyHint": "Il modulo matematico non è ancora stato ricevuto con la previsione. Aggiorna la previsione giornaliera dopo il rilascio della patch lato backend.",
     "showChartButton": "Mostra carta natale e transiti",
-    "showTransitChartButton": "Mostra l'oroscopo dei transiti del giorno",
+    "showTransitChartButton": "Mostra l'oroscopo di transito del giorno",
     "chartUnavailableHint": "La carta è disponibile solo per utenti trial/premium con profilo natale."
   },
   "openSettingsButton": "Apri impostazioni",

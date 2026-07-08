@@ -17,6 +17,7 @@ import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";
 import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import { hydrateAppLocale } from "@/modules/i18n";
+import { PushRegistrationBridge } from "@/modules/notifications";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 import { configureLocalNotifications } from "@/services/localNotifications";
@@ -66,6 +67,7 @@ export default function RootLayout() {
             <RemotePlayProvider>
               <AccessBridge>
                 <NativeSplashBridge fontsLoaded={loaded} />
+                <PushRegistrationBridge />
                 <RootLayoutNav />
               </AccessBridge>
             </RemotePlayProvider>
@@ -254,6 +256,9 @@ function RootLayoutNav() {
             name="breath-coherence"
             options={{ headerShown: false }}
           />
+          <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="webinar/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="my-notifications" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         </Stack>
       </NavThemeProvider>
