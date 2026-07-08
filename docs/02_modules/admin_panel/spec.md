@@ -1,7 +1,7 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.3
+version: 1.4
 updated: 2026-07-08
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
@@ -11,11 +11,16 @@ code_refs:
     _legacy_web/app/admin/_components/DashboardMetrics.tsx,
     _legacy_web/app/admin/_lib/supabaseBrowser.ts,
     _legacy_web/app/admin/_lib/adminApi.ts,
+    _legacy_web/app/admin/_lib/adminDates.ts,
     _legacy_web/app/admin/login/page.tsx,
     _legacy_web/app/admin/page.tsx,
+    _legacy_web/app/admin/payments/page.tsx,
+    _legacy_web/app/admin/payments/stats/page.tsx,
+    _legacy_web/app/admin/users/stats/page.tsx,
     _legacy_web/app/api/admin/me/route.ts,
     _legacy_web/app/api/admin/feedback/route.ts,
     _legacy_web/app/api/admin/users/route.ts,
+    _legacy_web/app/api/admin/payments/route.ts,
     _legacy_web/app/api/admin/metrics/route.ts,
     _legacy_web/app/api/admin/prompts/route.ts,
     _legacy_web/app/api/_utils/supabase.ts,
@@ -26,6 +31,7 @@ code_refs:
     supabase/migrations/20260708160000_support_messages.sql,
     supabase/migrations/20260708170000_payments_users_admin.sql,
     supabase/migrations/20260708180000_admin_dashboard_metrics.sql,
+    supabase/migrations/20260708190000_payments_edited_at.sql,
   ]
 ---
 
@@ -58,15 +64,17 @@ code_refs:
 
 **Пользователи и платежи (реализовано, этап 6):**
 
-- Таблица `payments` (`20260708170000_payments_users_admin.sql`) — леджер выдачи платных тарифов: `amount/currency/tier/paid_until/source('manual'|'store'|'promo')/comment`. RLS admin-only.
+- Таблица `payments` (`20260708170000_payments_users_admin.sql` + `20260708190000_payments_edited_at.sql`) — леджер выдачи платных тарифов: `amount/currency/tier/paid_until/source('manual'|'store'|'promo')/comment` + `edited_at` для пометки правок. RLS admin-only.
 - RPC `admin_search_users(p_query, p_tier, p_limit)` — security definer c join на `auth.users` (email не хранится в `public.users`); execute отозван у anon/authenticated, вызывается только service role.
 - `GET /api/admin/users?q=&tier=` — поиск по имени/email + фильтр тарифа (до 100 строк). `GET /api/admin/users/[id]` — карточка: профиль, email, история платежей, последняя активность (max `occurred_at` из `user_event_log`). `PATCH /api/admin/users/[id]` `{tier, expires_at?, amount?, comment?}` — ручное назначение: обновляет `users.membership_tier`/`membership_expires_at` и пишет строку в `payments` (source=manual); тариф `free` сбрасывает срок и леджер не пишет.
-- UI: `/admin/users` (поиск, фильтр, `TierBadge`), `/admin/users/[id]` (карточка, форма назначения, история платежей).
+- `GET /api/admin/payments` — общий список записей леджера с `display_name`/`email`. `PATCH /api/admin/payments/[id]` `{tier, expires_at?, amount?, comment?}` — редактирование строки леджера; если правится самая свежая запись пользователя, сервер синхронно пересчитывает `users.membership_tier`/`membership_expires_at` из обновлённого latest payment.
+- UI: `/admin/users` (поиск, фильтр, `TierBadge`, ссылка на статистику, даты тарифа в виде `с ... до ...`), `/admin/users/[id]` (карточка без `trial`, поле `Язык`, модальная кнопка «Добавить платёж», редактируемая история платежей), `/admin/payments` (общий леджер с переходом в карточку пользователя).
 
 **Дашборд метрик (реализовано, этап 7):**
 
 - RPC `admin_dashboard_metrics()` + `admin_llm_metrics(interval)` (`20260708180000_admin_dashboard_metrics.sql`) — все агрегаты в БД: пользователи по тирам, регистрации 7/30д, DAU/WAU/MAU (distinct `user_id` в `user_event_log`), платежи (count/sum 30д и всего), LLM за 7/30 дней (dialog_turns, avg/p95 `latency_ms` из payload, llm_errors/llm_timeouts/api_errors, prompt-события и сумма `*_tokens` из `llm_prompt_size`).
 - `GET /api/admin/metrics` → `{metrics}`; UI — `DashboardMetrics` на главной `/admin`.
+- `GET /api/admin/users/stats?days=7|30|90` — total users, registrations by day, users by tier, active users 24/72/168h через RPC `admin_active_users_count(p_hours)`. `GET /api/admin/payments/stats?days=7|30|90` — count/sum по дням, тарифам и источникам.
 - Клиентское событие `app_open`: `modules/metrics/core/appOpen.ts` (insert в `user_event_log` под RLS, троттлинг 30 мин на процесс), вызывается из `PushRegistrationBridge` при логине и возврате из фона.
 
 **Промпты (реализовано, этап 8):**
@@ -81,7 +89,7 @@ code_refs:
 **UI-каркас (реализовано, этап 0):**
 
 - `app/admin/layout.tsx` — тёмная тема (палитра `modules/ui/theme.ts`, Tailwind v4), PWA-манифест `public/admin-manifest.json` (`start_url`/`scope: /admin`), `robots: noindex`.
-- `AdminChrome` — гейт по фазам `checking/admin/anonymous` (редиректы на `/admin/login`), навигация: сайдбар (desktop) + нижняя панель (mobile). Разделы: Дашборд, Сторис, Публикации, Вебинары, Уведомления, Поддержка, Пользователи, Промпты (нереализованные — `AdminSectionPlaceholder` с номером этапа).
+- `AdminChrome` — гейт по фазам `checking/admin/anonymous` (редиректы на `/admin/login`), навигация: сайдбар (desktop) + нижняя панель (mobile). Разделы: Дашборд, Сторис, Публикации, Вебинары, Уведомления, Поддержка, Пользователи, Платежи, Промпты.
 - `/admin/login` — email/password через Supabase Auth; после входа дополнительная проверка `/api/admin/me` (не-админ выкидывается с ошибкой).
 
 ## 3. Внутренняя архитектура
@@ -90,6 +98,7 @@ code_refs:
 - Service role key живёт только в серверных роутах (`createServiceSupabase()`); браузерный клиент — anon key.
 - Роль admin назначается вручную SQL-ом (`supabase/README.md` §«Как назначить себе роль admin»).
 - Стили — Tailwind v4 без конфига (v4 через `@import "tailwindcss"`), иконки lucide-react. RN UI-kit (`modules/ui/`) на веб не переносится; заимствуются только цветовые токены.
+- Формат дат админки централизован в `app/admin/_lib/adminDates.ts`: везде `ДД.ММ.ГГГГ` и `ДД.ММ.ГГГГ ЧЧ:ММ`; сохранение срока оплаты из date-input добавляет текущее локальное время браузера, а не `23:59`.
 
 ## 4. Конфигурация
 

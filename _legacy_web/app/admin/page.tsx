@@ -9,6 +9,7 @@ const SECTIONS = [
   { href: "/admin/notifications", title: "Уведомления", hint: "Рассылки сегментам и история", stage: "Готово" },
   { href: "/admin/feedback", title: "Поддержка", hint: "Входящие сообщения пользователей", stage: "Готово" },
   { href: "/admin/users", title: "Пользователи", hint: "Карточки, тарифы, ручные гранты", stage: "Готово" },
+  { href: "/admin/payments", title: "Платежи", hint: "Общий леджер и статистика оплат", stage: "Готово" },
   { href: "/admin/prompts", title: "Промпты", hint: "Версии, активация, playground", stage: "Готово" },
 ];
 

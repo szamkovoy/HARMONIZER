@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Loader2, Play } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
+import { formatAdminDateTime } from "../../_lib/adminDates";
 
 type PromptVersion = {
   id: string;
@@ -23,8 +24,6 @@ type PromptVersion = {
   notes: string | null;
   created_at: string;
 };
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /** {{variable}}-плейсхолдеры из шаблона — заготовка для playground. */
 function extractVariables(template: string): string[] {
@@ -203,7 +202,7 @@ export default function AdminPromptKeyPage() {
                   ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-200"
                   : "border-white/10 bg-black/20 text-zinc-400 hover:border-white/25"
               }`}
-              title={`${dtFmt.format(new Date(version.created_at))}${version.notes ? ` — ${version.notes}` : ""}`}
+              title={`${formatAdminDateTime(version.created_at)}${version.notes ? ` — ${version.notes}` : ""}`}
             >
               v{version.version}
               {version.is_active ? " ● " : ""}
@@ -212,7 +211,7 @@ export default function AdminPromptKeyPage() {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
           <span>
-            v{selected.version} от {dtFmt.format(new Date(selected.created_at))}
+            v{selected.version} от {formatAdminDateTime(selected.created_at)}
             {selected.is_active ? " — активна" : ""}
           </span>
           {selected.notes ? <span className="italic">«{selected.notes}»</span> : null}

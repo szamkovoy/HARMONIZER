@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Loader2, Search } from "lucide-react";
+import { BarChart3, ChevronRight, Loader2, Search } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
+import { formatUserTierPeriod } from "../_lib/adminDates";
 import { TIER_LABELS, TierBadge } from "./_components/TierBadge";
 
 type AdminUserRow = {
@@ -13,11 +14,8 @@ type AdminUserRow = {
   display_name: string | null;
   membership_tier: string;
   membership_expires_at: string | null;
-  trial_expires_at: string | null;
   created_at: string | null;
 };
-
-const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric" });
 
 export default function AdminUsersPage() {
   const [query, setQuery] = useState("");
@@ -48,8 +46,19 @@ export default function AdminUsersPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-bold text-zinc-100">Пользователи</h1>
-      <p className="mb-4 text-sm text-zinc-500">Поиск по имени или email, фильтр по тарифу. Показываются до 100 записей.</p>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-zinc-100">Пользователи</h1>
+          <p className="text-sm text-zinc-500">Поиск по имени или email, фильтр по тарифу. Показываются до 100 записей.</p>
+        </div>
+        <Link
+          href="/admin/users/stats"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
+        >
+          <BarChart3 size={16} />
+          Статистика
+        </Link>
+      </div>
 
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <label className="relative flex-1">
@@ -99,9 +108,8 @@ export default function AdminUsersPage() {
               </div>
               <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-500">
                 <span className="truncate">{user.email ?? "—"}</span>
-                {user.created_at ? <span>с {dateFmt.format(new Date(user.created_at))}</span> : null}
-                {user.membership_expires_at ? (
-                  <span>тариф до {dateFmt.format(new Date(user.membership_expires_at))}</span>
+                {formatUserTierPeriod(user.created_at, user.membership_expires_at, user.membership_tier) ? (
+                  <span>{formatUserTierPeriod(user.created_at, user.membership_expires_at, user.membership_tier)}</span>
                 ) : null}
               </div>
             </div>

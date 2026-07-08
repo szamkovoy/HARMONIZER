@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   BellRing,
+  CreditCard,
   CircleUserRound,
   Gauge,
   LifeBuoy,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/admin/notifications", label: "Уведомления", icon: BellRing },
   { href: "/admin/feedback", label: "Поддержка", icon: LifeBuoy },
   { href: "/admin/users", label: "Пользователи", icon: CircleUserRound },
+  { href: "/admin/payments", label: "Платежи", icon: CreditCard },
   { href: "/admin/prompts", label: "Промпты", icon: SlidersHorizontal },
 ] as const;
 

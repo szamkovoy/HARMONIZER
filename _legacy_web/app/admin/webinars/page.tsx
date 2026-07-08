@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { HelpCircle, Loader2, Plus, Users } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
+import { formatAdminDateTime } from "../_lib/adminDates";
 
 type WebinarListRow = {
   id: string;
@@ -15,14 +16,6 @@ type WebinarListRow = {
   registration_count: number;
   question_count: number;
 };
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export default function AdminWebinarsPage() {
   const [webinars, setWebinars] = useState<WebinarListRow[] | null>(null);
@@ -75,7 +68,7 @@ export default function AdminWebinarsPage() {
                 >
                   {webinar.is_published ? "Опубликован" : "Черновик"}
                 </span>
-                <span className="text-zinc-400">{dtFmt.format(new Date(webinar.starts_at))}</span>
+                <span className="text-zinc-400">{formatAdminDateTime(webinar.starts_at)}</span>
                 {isPast ? (
                   <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">
                     {webinar.recording_url ? "Запись прикреплена" : "Прошёл, без записи"}

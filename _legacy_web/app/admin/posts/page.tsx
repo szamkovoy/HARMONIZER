@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Loader2, MessageSquare, Plus } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
+import { formatAdminDateTime } from "../_lib/adminDates";
 
 type PostListRow = {
   id: string;
@@ -15,8 +16,6 @@ type PostListRow = {
   created_at: string;
   comment_count: number;
 };
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export default function AdminPostsPage() {
   const [posts, setPosts] = useState<PostListRow[] | null>(null);
@@ -75,7 +74,7 @@ export default function AdminPostsPage() {
                   {post.is_published ? "Опубликована" : "Черновик"}
                 </span>
                 <span className="text-zinc-500">
-                  {dtFmt.format(new Date(post.published_at ?? post.created_at))}
+                  {formatAdminDateTime(post.published_at ?? post.created_at)}
                 </span>
                 <span className="flex items-center gap-1 text-zinc-500">
                   <MessageSquare size={12} /> {post.comment_count}

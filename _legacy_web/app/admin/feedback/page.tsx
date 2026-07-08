@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
+import { formatAdminDateTime } from "../_lib/adminDates";
 
 type SupportMessage = {
   id: string;
@@ -15,8 +16,6 @@ type SupportMessage = {
   email: string;
   membership_tier: string;
 };
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const TIER_LABELS: Record<string, string> = {
   free: "Бесплатный",
@@ -99,7 +98,7 @@ export default function AdminFeedbackPage() {
                 <span className="rounded-full bg-white/5 px-2 py-0.5">
                   {TIER_LABELS[message.membership_tier] ?? message.membership_tier}
                 </span>
-                <span>{dtFmt.format(new Date(message.created_at))}</span>
+                <span>{formatAdminDateTime(message.created_at)}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{message.body}</p>
             </div>

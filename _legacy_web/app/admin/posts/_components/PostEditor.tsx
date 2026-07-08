@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Eye, EyeOff, ImagePlus, Loader2, Trash2 } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
+import { formatAdminDateTime } from "../../_lib/adminDates";
 import { getBrowserSupabase } from "../../_lib/supabaseBrowser";
 
 export type AdminPost = {
@@ -26,8 +27,6 @@ export type AdminComment = {
 };
 
 type UploadTicket = { path: string; token: string; publicUrl: string };
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 async function uploadCover(file: File): Promise<string> {
   const ticket = await adminFetch<UploadTicket>("/api/admin/uploads", {
@@ -241,7 +240,7 @@ function CommentsModeration({ initial }: { initial: AdminComment[] }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
                 <span className="font-semibold text-zinc-300">{comment.display_name}</span>
-                <span>{dtFmt.format(new Date(comment.created_at))}</span>
+                <span>{formatAdminDateTime(comment.created_at)}</span>
                 {comment.is_hidden ? (
                   <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">Скрыт</span>
                 ) : null}

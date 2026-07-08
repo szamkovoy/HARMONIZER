@@ -1,12 +1,10 @@
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
+import { ALL_TIERS, PAID_TIERS, syncUserTierFromLatestPayment } from "../../_utils/payments";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-const PAID_TIERS = new Set(["oracle", "practitioner", "master"]);
-const ALL_TIERS = new Set(["free", ...PAID_TIERS]);
 
 /** Карточка пользователя: профиль, email, история платежей, последняя активность. */
 export async function GET(req: Request, ctx: RouteContext) {
@@ -17,9 +15,7 @@ export async function GET(req: Request, ctx: RouteContext) {
 
     const { data: user, error } = await db
       .from("users")
-      .select(
-        "id, display_name, membership_tier, membership_expires_at, trial_expires_at, locale, created_at, onboarded_at",
-      )
+      .select("id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at")
       .eq("id", id)
       .maybeSingle();
     if (error) throw error;
@@ -29,7 +25,7 @@ export async function GET(req: Request, ctx: RouteContext) {
       emailsByUserId(db, [id]),
       db
         .from("payments")
-        .select("id, amount, currency, tier, paid_until, source, comment, created_at")
+        .select("id, amount, currency, tier, paid_until, source, comment, created_at, edited_at")
         .eq("user_id", id)
         .order("created_at", { ascending: false })
         .limit(100),
@@ -64,9 +60,8 @@ type TierUpdatePayload = {
 };
 
 /**
- * Ручное назначение тарифа: обновляет users.membership_tier/membership_expires_at
- * и пишет строку в леджер payments (source=manual). Даунгрейд в free леджер
- * не пишет — просто сбрасывает тариф и срок.
+ * Ручное назначение тарифа: обновляет users и пишет строку в леджер (source=manual).
+ * expires_at приходит с клиента уже с текущим временем на выбранную дату.
  */
 export async function PATCH(req: Request, ctx: RouteContext) {
   try {
@@ -85,13 +80,6 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     }
 
     const db = createServiceSupabase();
-    const { data: user, error } = await db
-      .from("users")
-      .update({ membership_tier: tier, membership_expires_at: expiresAt })
-      .eq("id", id)
-      .select("id, membership_tier, membership_expires_at")
-      .single();
-    if (error) throw error;
 
     if (isPaid) {
       const { error: ledgerError } = await db.from("payments").insert({
@@ -103,7 +91,21 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         comment: payload.comment?.trim() || null,
       });
       if (ledgerError) throw ledgerError;
+      await syncUserTierFromLatestPayment(db, id);
+    } else {
+      const { error } = await db
+        .from("users")
+        .update({ membership_tier: "free", membership_expires_at: null })
+        .eq("id", id);
+      if (error) throw error;
     }
+
+    const { data: user, error: readError } = await db
+      .from("users")
+      .select("id, membership_tier, membership_expires_at")
+      .eq("id", id)
+      .single();
+    if (readError) throw readError;
 
     return json({ user });
   } catch (error) {

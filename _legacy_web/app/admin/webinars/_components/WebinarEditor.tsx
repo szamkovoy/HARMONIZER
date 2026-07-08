@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2, ThumbsUp, Trash2 } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
+import { formatAdminDateTime } from "../../_lib/adminDates";
 
 export type AdminWebinar = {
   id: string;
@@ -33,13 +34,6 @@ export type AdminWebinarRegistration = {
   email: string;
   membership_tier: string;
 };
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 /** datetime-local ждёт локальное время без зоны: YYYY-MM-DDTHH:mm. */
 function toLocalInputValue(iso: string): string {
@@ -259,7 +253,7 @@ function QuestionsModeration({ initial }: { initial: AdminWebinarQuestion[] }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
                 <span className="font-semibold text-zinc-300">{question.display_name}</span>
-                <span>{dtFmt.format(new Date(question.created_at))}</span>
+                <span>{formatAdminDateTime(question.created_at)}</span>
                 {question.is_hidden ? (
                   <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">Скрыт</span>
                 ) : null}

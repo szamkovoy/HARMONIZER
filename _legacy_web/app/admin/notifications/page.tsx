@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
+import { formatAdminDateTime } from "../_lib/adminDates";
 
 type NotificationRow = {
   id: string;
@@ -25,8 +26,6 @@ const TIER_OPTIONS = [
   { value: "tier:practitioner", label: "Тариф «Практик»" },
   { value: "tier:master", label: "Тариф «Мастер»" },
 ];
-
-const dtFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export default function AdminNotificationsPage() {
   const [history, setHistory] = useState<NotificationRow[] | null>(null);
@@ -118,7 +117,7 @@ export default function AdminNotificationsPage() {
               ))}
               {webinars.map((webinar) => (
                 <option key={webinar.id} value={`webinar:${webinar.id}`}>
-                  Вебинар «{webinar.title}» ({dtFmt.format(new Date(webinar.starts_at))})
+                  Вебинар «{webinar.title}» ({formatAdminDateTime(webinar.starts_at)})
                 </option>
               ))}
             </select>
@@ -162,7 +161,7 @@ export default function AdminNotificationsPage() {
               ) : null}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
                 <span className="rounded-full bg-white/5 px-2 py-0.5">{item.segment_label}</span>
-                <span>{dtFmt.format(new Date(item.created_at))}</span>
+                <span>{formatAdminDateTime(item.created_at)}</span>
                 <span>
                   получателей {item.recipient_count} · push {item.push_sent_count}
                   {item.push_error_count > 0 ? ` · ошибок ${item.push_error_count}` : ""}

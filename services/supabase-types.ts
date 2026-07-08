@@ -897,6 +897,7 @@ export type Database = {
           comment: string | null
           created_at: string
           currency: string
+          edited_at: string | null
           id: string
           paid_until: string | null
           source: string
@@ -908,6 +909,7 @@ export type Database = {
           comment?: string | null
           created_at?: string
           currency?: string
+          edited_at?: string | null
           id?: string
           paid_until?: string | null
           source?: string
@@ -919,6 +921,7 @@ export type Database = {
           comment?: string | null
           created_at?: string
           currency?: string
+          edited_at?: string | null
           id?: string
           paid_until?: string | null
           source?: string
@@ -2195,6 +2198,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_active_users_count: { Args: { p_hours: number }; Returns: number }
       admin_dashboard_metrics: { Args: never; Returns: Json }
       admin_llm_metrics: { Args: { p_window: string }; Returns: Json }
       admin_search_users: {

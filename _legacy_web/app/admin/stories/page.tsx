@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { CalendarClock, Eye, EyeOff, ImagePlus, Infinity as InfinityIcon, Loader2, Trash2 } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
+import { formatAdminDateTime } from "../_lib/adminDates";
 import { getBrowserSupabase } from "../_lib/supabaseBrowser";
 
 type StoryRow = {
@@ -21,13 +22,11 @@ type StoryRow = {
 
 type UploadTicket = { path: string; token: string; publicUrl: string };
 
-const dtFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-
 function storyStatus(s: StoryRow): { label: string; cls: string } {
   if (!s.is_published) return { label: "Черновик", cls: "bg-white/5 text-zinc-400" };
   const now = Date.now();
   if (s.publish_at && new Date(s.publish_at).getTime() > now)
-    return { label: `Запланирована · ${dtFmt.format(new Date(s.publish_at))}`, cls: "bg-sky-400/10 text-sky-300" };
+    return { label: `Запланирована · ${formatAdminDateTime(s.publish_at)}`, cls: "bg-sky-400/10 text-sky-300" };
   if (!s.is_evergreen && s.expires_at && new Date(s.expires_at).getTime() <= now)
     return { label: "Истекла", cls: "bg-white/5 text-zinc-500" };
   return { label: "Активна", cls: "bg-emerald-400/10 text-emerald-300" };
@@ -271,7 +270,7 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
           ) : null}
           <span className="flex items-center gap-1 text-[11px] text-zinc-500">
             <CalendarClock size={12} />
-            {story.publish_at ? dtFmt.format(new Date(story.publish_at)) : "—"}
+            {story.publish_at ? formatAdminDateTime(story.publish_at) : "—"}
           </span>
         </div>
         <p className="mt-1 truncate text-sm text-zinc-300">
