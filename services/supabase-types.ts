@@ -1025,35 +1025,47 @@ export type Database = {
       posts: {
         Row: {
           body: string
+          body_i18n: Json
           cover_url: string | null
+          cover_url_i18n: Json
           created_at: string
           created_by: string | null
           id: string
           is_published: boolean
           published_at: string | null
           title: string
+          title_i18n: Json
+          translations_updated_at: string | null
           updated_at: string
         }
         Insert: {
           body?: string
+          body_i18n?: Json
           cover_url?: string | null
+          cover_url_i18n?: Json
           created_at?: string
           created_by?: string | null
           id?: string
           is_published?: boolean
           published_at?: string | null
           title: string
+          title_i18n?: Json
+          translations_updated_at?: string | null
           updated_at?: string
         }
         Update: {
           body?: string
+          body_i18n?: Json
           cover_url?: string | null
+          cover_url_i18n?: Json
           created_at?: string
           created_by?: string | null
           id?: string
           is_published?: boolean
           published_at?: string | null
           title?: string
+          title_i18n?: Json
+          translations_updated_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2220,11 +2232,14 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           body: string
+          body_i18n: Json
           comment_count: number
           cover_url: string
+          cover_url_i18n: Json
           id: string
           published_at: string
           title: string
+          title_i18n: Json
         }[]
       }
       get_target_comments: {

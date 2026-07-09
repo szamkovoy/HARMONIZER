@@ -21,6 +21,13 @@ export {
   TARGET_LOCALES,
   asContentLocale,
   languageNameFor,
+  type AppContentLocale,
 } from "@/modules/i18n/localeCodes";
 export { mergeTypedLocale, applyFlatChakraOverlay } from "@/modules/i18n/typed/merge";
+export {
+  parseStringRecord,
+  pickLocalizedText,
+  pickLocalizedTextOrNull,
+  pickLocalizedUrl,
+} from "@/modules/i18n/pickLocalizedContent";
 export { useTranslate } from "@/modules/i18n/useTranslate";

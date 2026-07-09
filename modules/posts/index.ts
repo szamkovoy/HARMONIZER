@@ -3,10 +3,13 @@ export {
   deleteOwnComment,
   fetchComments,
   fetchLatestPost,
+  fetchPostById,
   fetchPostsFeed,
+  resolvePostContent,
   setCommentLike,
   type CommentItem,
   type CommentTargetType,
+  type PostContentSource,
   type PostItem,
 } from "@/modules/posts/core/postsClient";
 export { CommentsSection } from "@/modules/posts/ui/CommentsSection";

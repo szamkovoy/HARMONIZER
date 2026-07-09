@@ -1,13 +1,37 @@
+import {
+  parseStringRecord,
+  pickLocalizedText,
+  pickLocalizedUrl,
+  type AppContentLocale,
+} from "@/modules/i18n";
 import { getSupabase } from "@/services/supabase";
 
-export type PostItem = {
-  id: string;
+export type PostContentSource = {
   title: string;
   body: string;
   coverUrl: string | null;
+  titleI18n: Record<string, string>;
+  bodyI18n: Record<string, string>;
+  coverUrlI18n: Record<string, string>;
+};
+
+export type PostItem = PostContentSource & {
+  id: string;
   publishedAt: string | null;
   commentCount: number;
 };
+
+export function resolvePostContent(source: PostContentSource, locale: AppContentLocale): {
+  title: string;
+  body: string;
+  coverUrl: string | null;
+} {
+  return {
+    title: pickLocalizedText(locale, source.title, source.titleI18n),
+    body: pickLocalizedText(locale, source.body, source.bodyI18n),
+    coverUrl: pickLocalizedUrl(locale, source.coverUrl, source.coverUrlI18n),
+  };
+}
 
 export type CommentTargetType = "post" | "webinar";
 
@@ -23,6 +47,30 @@ export type CommentItem = {
   isMine: boolean;
 };
 
+function normalizePostRow(row: {
+  id: string;
+  title: string;
+  body: string | null;
+  cover_url: string | null;
+  title_i18n?: unknown;
+  body_i18n?: unknown;
+  cover_url_i18n?: unknown;
+  published_at: string | null;
+  comment_count?: number | null;
+}): PostItem {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body ?? "",
+    coverUrl: row.cover_url ?? null,
+    titleI18n: parseStringRecord(row.title_i18n),
+    bodyI18n: parseStringRecord(row.body_i18n),
+    coverUrlI18n: parseStringRecord(row.cover_url_i18n),
+    publishedAt: row.published_at ?? null,
+    commentCount: Number(row.comment_count ?? 0),
+  };
+}
+
 export async function fetchPostsFeed(limit = 50): Promise<PostItem[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
@@ -31,19 +79,40 @@ export async function fetchPostsFeed(limit = 50): Promise<PostItem[]> {
     if (__DEV__) console.warn("[posts] feed load failed", error.message);
     return [];
   }
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    body: row.body ?? "",
-    coverUrl: row.cover_url ?? null,
-    publishedAt: row.published_at ?? null,
-    commentCount: Number(row.comment_count ?? 0),
-  }));
+  return (data ?? []).map(normalizePostRow);
 }
 
 export async function fetchLatestPost(): Promise<PostItem | null> {
   const posts = await fetchPostsFeed(1);
   return posts[0] ?? null;
+}
+
+export async function fetchPostById(id: string): Promise<PostItem | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, title, body, cover_url, title_i18n, body_i18n, cover_url_i18n, published_at")
+    .eq("id", id)
+    .eq("is_published", true)
+    .lte("published_at", new Date().toISOString())
+    .maybeSingle();
+  if (error) {
+    if (__DEV__) console.warn("[posts] post load failed", error.message);
+    return null;
+  }
+  if (!data) return null;
+  return normalizePostRow({
+    id: data.id,
+    title: data.title,
+    body: data.body,
+    cover_url: data.cover_url,
+    title_i18n: data.title_i18n,
+    body_i18n: data.body_i18n,
+    cover_url_i18n: data.cover_url_i18n,
+    published_at: data.published_at,
+    comment_count: 0,
+  });
 }
 
 export async function fetchComments(

@@ -9,6 +9,8 @@ export {
   storyMediaUri,
   storyPrefetchUri,
   subscribeStoryFeed,
+  resolveStoryCaption,
+  type StoryCaption,
   type StoryItem,
 } from "@/modules/stories/core/storiesClient";
 export { StoriesRing } from "@/modules/stories/ui/StoriesRing";

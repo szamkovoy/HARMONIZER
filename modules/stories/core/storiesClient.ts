@@ -1,7 +1,14 @@
 import { Image } from "react-native";
 
+import { parseStringRecord, pickLocalizedTextOrNull } from "@/modules/i18n/pickLocalizedContent";
+import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import { prefetchStoryMediaUris } from "@/modules/stories/core/storyMediaPreload";
 import { getSupabase } from "@/services/supabase";
+
+export type StoryCaption = {
+  text?: string;
+  translations?: Record<string, string>;
+};
 
 export type StoryItem = {
   id: string;
@@ -10,11 +17,16 @@ export type StoryItem = {
   coverUrl: string | null;
   thumbnailUrl: string | null;
   videoUrl: string | null;
-  captionText: string | null;
+  caption: StoryCaption | null;
   publishAt: string | null;
   expiresAt: string | null;
   isViewed: boolean;
 };
+
+export function resolveStoryCaption(caption: StoryCaption | null, locale: AppContentLocale): string | null {
+  if (!caption) return null;
+  return pickLocalizedTextOrNull(locale, caption.text, caption.translations);
+}
 
 type WarmFeedSnapshot = {
   userId: string;
@@ -95,12 +107,17 @@ export async function prefetchStoryNeighborhood(stories: StoryItem[], centerInde
   await prefetchStoryMediaUris(uris);
 }
 
-function captionTextFrom(caption: unknown): string | null {
-  if (caption && typeof caption === "object" && "text" in caption) {
-    const text = (caption as { text?: unknown }).text;
-    if (typeof text === "string" && text.trim()) return text.trim();
-  }
-  return null;
+function captionFrom(raw: unknown): StoryCaption | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as { text?: unknown; translations?: unknown };
+  const text = typeof obj.text === "string" && obj.text.trim() ? obj.text.trim() : undefined;
+  const translations = parseStringRecord(obj.translations);
+  const hasTranslations = Object.keys(translations).length > 0;
+  if (!text && !hasTranslations) return null;
+  return {
+    text,
+    translations: hasTranslations ? translations : undefined,
+  };
 }
 
 function normalizeStory(row: {
@@ -122,7 +139,7 @@ function normalizeStory(row: {
     coverUrl: row.cover_url ?? null,
     thumbnailUrl: row.thumbnail_url ?? null,
     videoUrl: row.video_url ?? null,
-    captionText: captionTextFrom(row.caption),
+    caption: captionFrom(row.caption),
     publishAt: row.publish_at ?? null,
     expiresAt: row.expires_at ?? null,
     isViewed: row.is_viewed ?? false,

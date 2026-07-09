@@ -5,8 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Modal, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppLocale } from "@/modules/i18n";
 import type { StoryItem } from "@/modules/stories/core/storiesClient";
-import { prefetchStoryNeighborhood, storyMediaUri, storyPrefetchUri } from "@/modules/stories/core/storiesClient";
+import {
+  prefetchStoryNeighborhood,
+  resolveStoryCaption,
+  storyMediaUri,
+  storyPrefetchUri,
+} from "@/modules/stories/core/storiesClient";
 import { isStoryMediaReady, prefetchStoryMediaUri } from "@/modules/stories/core/storyMediaPreload";
 import { StoryCaption } from "@/modules/stories/ui/StoryCaption";
 import { AppText } from "@/modules/ui/AppText";
@@ -71,6 +77,7 @@ export function StoryViewerModal({
   onStoryActive: (storyId: string) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { locale } = useAppLocale();
   const [displayIndex, setDisplayIndex] = useState(initialIndex);
   const [displayReady, setDisplayReady] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
@@ -115,6 +122,10 @@ export function StoryViewerModal({
   }, [activeVideoSlot]);
 
   const displayStory = stories[displayIndex];
+  const displayCaption = useMemo(
+    () => (displayStory ? resolveStoryCaption(displayStory.caption, locale) : null),
+    [displayStory, locale],
+  );
   const displayUri = useMemo(() => storyDisplayUri(displayStory), [displayStory]);
   const displayMediaUri = useMemo(() => (displayStory ? storyMediaUri(displayStory) : null), [displayStory]);
   const isDirectVideo = displayStory?.kind === "video" && !!displayStory.videoUrl;
@@ -467,9 +478,9 @@ export function StoryViewerModal({
           />
         </View>
 
-        {displayReady && displayStory.captionText ? (
+        {displayReady && displayCaption ? (
           <View style={[styles.captionWrap, { paddingBottom: insets.bottom + 24 }]}>
-            <StoryCaption text={displayStory.captionText} />
+            <StoryCaption text={displayCaption} />
           </View>
         ) : null}
       </View>

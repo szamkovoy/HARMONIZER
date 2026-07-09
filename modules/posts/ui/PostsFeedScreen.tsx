@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchPostsFeed, type PostItem } from "@/modules/posts/core/postsClient";
+import { fetchPostsFeed, resolvePostContent, type PostItem } from "@/modules/posts/core/postsClient";
 import { AppText } from "@/modules/ui/AppText";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StateCard } from "@/modules/ui/StateCard";
@@ -66,6 +66,7 @@ export function PostsFeedScreen() {
           )
         }
         renderItem={({ item }) => {
+          const content = resolvePostContent(item, locale);
           const dateLabel = item.publishedAt
             ? DateTime.fromISO(item.publishedAt).setLocale(locale).toLocaleString(DateTime.DATE_MED)
             : "";
@@ -82,9 +83,9 @@ export function PostsFeedScreen() {
                 },
               ]}
             >
-              {item.coverUrl ? <Image source={{ uri: item.coverUrl }} style={styles.cover} resizeMode="cover" /> : null}
+              {content.coverUrl ? <Image source={{ uri: content.coverUrl }} style={styles.cover} resizeMode="cover" /> : null}
               <View style={styles.cardBody}>
-                <AppText variant="sectionTitle">{item.title}</AppText>
+                <AppText variant="sectionTitle">{content.title}</AppText>
                 <AppText variant="technicalCaption" tone="faint">
                   {dateLabel}
                   {dateLabel ? "  ·  " : ""}

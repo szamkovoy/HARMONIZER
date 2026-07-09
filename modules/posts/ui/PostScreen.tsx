@@ -5,21 +5,23 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } fr
 
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
-import { fetchComments, type CommentItem } from "@/modules/posts/core/postsClient";
+import { fetchComments, fetchPostById, resolvePostContent, type CommentItem } from "@/modules/posts/core/postsClient";
 import { CommentsSection } from "@/modules/posts/ui/CommentsSection";
 import { LinkifiedBody } from "@/modules/posts/ui/LinkifiedBody";
 import { AppText } from "@/modules/ui/AppText";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { StateCard } from "@/modules/ui/StateCard";
 import { useTheme } from "@/modules/ui/theme";
-import { getSupabase } from "@/services/supabase";
 
 type PostRow = {
   id: string;
   title: string;
   body: string;
-  cover_url: string | null;
-  published_at: string | null;
+  coverUrl: string | null;
+  titleI18n: Record<string, string>;
+  bodyI18n: Record<string, string>;
+  coverUrlI18n: Record<string, string>;
+  publishedAt: string | null;
 };
 
 export function PostScreen() {
@@ -34,17 +36,22 @@ export function PostScreen() {
 
   useEffect(() => {
     if (!id) return;
-    const supabase = getSupabase();
-    if (!supabase) {
-      setPost(null);
-      return;
-    }
-    void supabase
-      .from("posts")
-      .select("id, title, body, cover_url, published_at")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data }) => setPost((data as PostRow | null) ?? null));
+    void fetchPostById(id).then((item) => {
+      if (!item) {
+        setPost(null);
+        return;
+      }
+      setPost({
+        id: item.id,
+        title: item.title,
+        body: item.body,
+        coverUrl: item.coverUrl,
+        titleI18n: item.titleI18n,
+        bodyI18n: item.bodyI18n,
+        coverUrlI18n: item.coverUrlI18n,
+        publishedAt: item.publishedAt,
+      });
+    });
   }, [id]);
 
   useEffect(() => {
@@ -53,6 +60,8 @@ export function PostScreen() {
   }, [id, userId]);
 
   const onCommentsChanged = useCallback((next: CommentItem[]) => setComments(next), []);
+
+  const localizedPost = post ? resolvePostContent(post, locale) : null;
 
   return (
     <StackScreenLayout edges={["top", "left", "right"]}>
@@ -84,18 +93,18 @@ export function PostScreen() {
           </View>
         ) : (
           <StackScrollView contentOptions={{ topPadding: 4, gap: 14 }} keyboardShouldPersistTaps="handled">
-            {post.cover_url ? (
-              <Image source={{ uri: post.cover_url }} style={styles.cover} resizeMode="cover" />
+            {localizedPost?.coverUrl ? (
+              <Image source={{ uri: localizedPost.coverUrl }} style={styles.cover} resizeMode="cover" />
             ) : null}
             <AppText variant="screenTitle" accessibilityRole="header">
-              {post.title}
+              {localizedPost?.title}
             </AppText>
-            {post.published_at ? (
+            {post.publishedAt ? (
               <AppText variant="technicalCaption" tone="faint">
-                {DateTime.fromISO(post.published_at).setLocale(locale).toLocaleString(DateTime.DATE_FULL)}
+                {DateTime.fromISO(post.publishedAt).setLocale(locale).toLocaleString(DateTime.DATE_FULL)}
               </AppText>
             ) : null}
-            {post.body ? <LinkifiedBody body={post.body} /> : null}
+            {localizedPost?.body ? <LinkifiedBody body={localizedPost.body} /> : null}
 
             <View style={[styles.divider, { backgroundColor: theme.colors.surfaceBorder }]} />
 

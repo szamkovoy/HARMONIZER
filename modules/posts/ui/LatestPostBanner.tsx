@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchLatestPost, type PostItem } from "@/modules/posts/core/postsClient";
+import { fetchLatestPost, resolvePostContent, type PostItem } from "@/modules/posts/core/postsClient";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -14,7 +14,7 @@ import { useTheme } from "@/modules/ui/theme";
  */
 export function LatestPostBanner() {
   const theme = useTheme();
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const [post, setPost] = useState<PostItem | null>(null);
 
   const reload = useCallback(() => {
@@ -30,6 +30,8 @@ export function LatestPostBanner() {
   useFocusEffect(reload);
 
   if (!post) return null;
+
+  const content = resolvePostContent(post, locale);
 
   return (
     <Pressable
@@ -47,7 +49,7 @@ export function LatestPostBanner() {
     >
       <View style={[styles.dot, { backgroundColor: theme.colors.accent }]} />
       <AppText variant="technicalCaption" tone="muted" numberOfLines={1} style={styles.text}>
-        {t("posts.banner.label")} · {post.title}
+        {t("posts.banner.label")} · {content.title}
       </AppText>
       <AppText variant="sectionTitle" tone="muted" style={styles.arrow}>
         ›
