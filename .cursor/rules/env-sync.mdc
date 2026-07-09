@@ -1,0 +1,14 @@
+---
+description: Keep root and Next.js env files in sync
+globs:
+  - .env.local
+---
+# .env.local is the single source of truth
+
+`_legacy_web/.env.local` is **auto-generated** from the root `.env.local`.
+
+- Edit only the **root** `.env.local`.
+- Run `./scripts/sync-web-env.sh` after saving to propagate changes to `_legacy_web/.env.local`.
+  The git pre-commit hook runs this automatically whenever `_legacy_web/.env.local` is stale.
+- Do **not** edit `_legacy_web/.env.local` directly — changes will be overwritten.
+- `EXPO_PUBLIC_*` variables are Expo-only and are **not** copied; the two Supabase public vars are translated to `NEXT_PUBLIC_*` automatically.
