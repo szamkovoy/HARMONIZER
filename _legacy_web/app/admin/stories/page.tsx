@@ -66,11 +66,9 @@ function storyStatus(s: StoryRow): { label: string; cls: string } {
 type TranslationAccordionProps = {
   translations: Partial<StoryTranslations>;
   onChange: (t: Partial<StoryTranslations>) => void;
-  onRetranslate?: () => void;
-  isEditing?: boolean;
 };
 
-function TranslationAccordion({ translations, onChange, onRetranslate, isEditing }: TranslationAccordionProps) {
+function TranslationAccordion({ translations, onChange }: TranslationAccordionProps) {
   const [expanded, setExpanded] = useState(false);
   const hasTranslations = TARGET_LOCALES.some((l) => translations[l]);
 
@@ -89,20 +87,6 @@ function TranslationAccordion({ translations, onChange, onRetranslate, isEditing
             </span>
           )}
         </span>
-        {onRetranslate && isEditing ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRetranslate();
-            }}
-            title="Перегенерировать переводы"
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-          >
-            <RefreshCw size={12} />
-            Обновить
-          </button>
-        ) : null}
         {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
@@ -552,8 +536,6 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
           <TranslationAccordion
             translations={translations}
             onChange={setTranslations}
-            onRetranslate={runTranslate}
-            isEditing
           />
 
           {/* Checkboxes */}
