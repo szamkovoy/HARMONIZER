@@ -108,15 +108,12 @@ port = 54324
 
 [storage]
 enabled = true
-# The maximum file size allowed (e.g. "5MB", "500KB").
+# Free tier hosted projects are capped at 50 MiB globally (402 if higher via config push).
+# Raw story videos >45 MiB bypass Storage signed upload via chunked API on Vercel; see admin/_lib/storyUpload.ts.
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# Bucket limits for story-media are applied via SQL migrations (200 MiB row), not config push.
+# Effective upload ceiling on Free = global 50 MiB regardless of bucket row.
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

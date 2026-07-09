@@ -1,4 +1,5 @@
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
+import { cleanupExpiredStories } from "./cleanupExpiredStories";
 import { storyRowFromPayload, type AdminStoryPayload } from "./storyPayload";
 
 export const runtime = "nodejs";
@@ -7,7 +8,9 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   try {
     await requireAdmin(req);
-    const { data, error } = await createServiceSupabase()
+    const db = createServiceSupabase();
+    await cleanupExpiredStories(db);
+    const { data, error } = await db
       .from("stories")
       .select("*")
       .order("publish_at", { ascending: false })

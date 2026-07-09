@@ -2,7 +2,8 @@ import { Image } from "react-native";
 
 import { parseStringRecord, pickLocalizedTextOrNull } from "@/modules/i18n/pickLocalizedContent";
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
-import { prefetchStoryMediaUris } from "@/modules/stories/core/storyMediaPreload";
+import { isStoryMediaPrefetched, prefetchStoryMediaUris } from "@/modules/stories/core/storyMediaPreload";
+import { cacheStoryVideoUri, cacheStoryVideoUris, getCachedStoryVideoUri } from "@/modules/stories/core/storyVideoCache";
 import { getSupabase } from "@/services/supabase";
 
 export type StoryCaption = {
@@ -35,20 +36,81 @@ type WarmFeedSnapshot = {
 };
 
 const WARM_FEED_TTL_MS = 60_000;
-const FEED_POLL_INTERVAL_MS = 45_000;
+const FEED_POLL_INTERVAL_MS = 20_000;
+/**
+ * Soft hold for newly discovered stories so CDN edge + cover JPEG can settle.
+ * Do NOT HTTP-range-warm the MP4 here: aborting a Range fetch corrupts the
+ * shared URL cache that expo-video uses and produces green/corrupt frames.
+ * Real video startup now relies on local mp4 cache via expo-file-system.
+ */
+const NEW_STORY_HOLD_MS = 8_000;
+const STORY_OPEN_VIDEO_CACHE_WAIT_MS = 1_200;
 
 let warmFeedSnapshot: WarmFeedSnapshot | null = null;
 let warmFeedPromise: Promise<StoryItem[]> | null = null;
 let warmFeedUserId: string | null = null;
 let sessionThumbUserId: string | null = null;
 let sessionThumbUrl: string | null = null;
+let sessionLatestStoryId: string | null = null;
+
+/** Tracks when each story ID was first observed by this client (ms timestamp). */
+const storyFirstSeenAt = new Map<string, number>();
+
+function storyPosterReady(story: StoryItem): boolean {
+  if (story.kind === "image") return isStoryMediaPrefetched(story.imageUrl);
+  return isStoryMediaPrefetched(story.coverUrl ?? story.thumbnailUrl);
+}
+
+/**
+ * Returns the subset of items that are ready to show in the UI.
+ * New IDs stay hidden until the soft hold expires (or poster is ready after min age).
+ */
+export function filterStoriesForDisplay(items: StoryItem[]): StoryItem[] {
+  const now = Date.now();
+  return items.filter((item) => {
+    const seenAt = storyFirstSeenAt.get(item.id);
+    if (seenAt === undefined) return false;
+    const age = now - seenAt;
+    if (age >= NEW_STORY_HOLD_MS) return true;
+    // Allow early reveal once poster is cached (covers CDN settle without waiting full hold).
+    return age >= 1_500 && storyPosterReady(item);
+  });
+}
+
+/** Returns true if any story in the list is still in its hold period. */
+export function hasPendingNewStories(items: StoryItem[]): boolean {
+  const now = Date.now();
+  return items.some((item) => {
+    const seenAt = storyFirstSeenAt.get(item.id);
+    if (seenAt === undefined) return false;
+    const age = now - seenAt;
+    if (age >= NEW_STORY_HOLD_MS) return false;
+    return !(age >= 1_500 && storyPosterReady(item));
+  });
+}
+
+/** Prefetch poster/cover before opening; for videos also ensure local mp4 cache exists. */
+export async function ensureStoryReadyToOpen(story: StoryItem): Promise<void> {
+  const poster = story.kind === "image" ? story.imageUrl : story.coverUrl ?? story.thumbnailUrl;
+  if (poster) await prefetchStoryMediaUris([poster]);
+  if (story.kind === "video" && story.videoUrl) {
+    const downloadPromise = cacheStoryVideoUri(story.videoUrl);
+    await Promise.race([
+      downloadPromise,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, STORY_OPEN_VIDEO_CACHE_WAIT_MS);
+      }),
+    ]);
+  }
+}
 
 type StoryFeedListener = (items: StoryItem[]) => void;
 const storyFeedListeners = new Set<StoryFeedListener>();
 
 function emitStoryFeed(items: StoryItem[]): void {
+  const visible = filterStoriesForDisplay(items);
   for (const listener of storyFeedListeners) {
-    listener(items);
+    listener(visible);
   }
 }
 
@@ -64,7 +126,7 @@ export function firstUnviewedStoryIndex(stories: StoryItem[]): number {
   return index >= 0 ? index : 0;
 }
 
-/** URI для предзагрузки: фото — full frame; видео — poster/cover, а mp4 догревается отдельным expo-video player во viewer. */
+/** URI для предзагрузки: фото — full frame; видео — только poster/cover. */
 export function storyPrefetchUri(story: StoryItem): string | null {
   if (story.kind === "image") return story.imageUrl;
   return story.coverUrl ?? story.thumbnailUrl ?? story.videoUrl;
@@ -184,7 +246,9 @@ function isMissingStoryFeedRpc(error: { message?: string; code?: string }): bool
 
 export function storyMediaUri(story: StoryItem): string | null {
   if (story.kind === "image") return story.imageUrl;
-  if (story.kind === "video") return story.videoUrl ?? story.coverUrl ?? story.imageUrl;
+  if (story.kind === "video") {
+    return getCachedStoryVideoUri(story.videoUrl) ?? story.videoUrl ?? story.coverUrl ?? story.imageUrl;
+  }
   return story.coverUrl ?? story.imageUrl ?? story.videoUrl;
 }
 
@@ -192,12 +256,19 @@ async function prefetchStoryItems(items: StoryItem[]): Promise<void> {
   if (items.length === 0) return;
   const start = firstUnviewedStoryIndex(items);
   await prefetchStoryWindow(items, start);
-  // Также prefetch thumbnails всех видео в ленте — они весят 20–50 КБ и убирают чёрный экран.
   const videoThumbs = items
     .filter((story) => story.kind === "video")
     .map((story) => story.thumbnailUrl ?? story.coverUrl)
     .filter(Boolean) as string[];
   if (videoThumbs.length > 0) await prefetchStoryMediaUris(videoThumbs);
+  const nearVideoUris = items
+    .slice(start, start + 3)
+    .filter((story) => story.kind === "video")
+    .map((story) => story.videoUrl)
+    .filter(Boolean) as string[];
+  if (nearVideoUris.length > 0) {
+    void cacheStoryVideoUris(nearVideoUris);
+  }
 }
 
 async function fetchStoryFeedDirect(userId: string): Promise<StoryItem[]> {
@@ -257,10 +328,15 @@ async function fetchStoryFeedFromRpc(userId: string): Promise<StoryItem[]> {
 }
 
 async function rememberSessionThumb(userId: string, items: StoryItem[]): Promise<void> {
-  if (sessionThumbUserId === userId && sessionThumbUrl) return;
+  const latest = items[items.length - 1];
+  const latestId = latest?.id ?? null;
   const nextThumb = storyAvatarThumb(items);
-  if (!nextThumb) return;
+  if (!nextThumb || !latestId) return;
+  if (sessionThumbUserId === userId && sessionLatestStoryId === latestId && sessionThumbUrl === nextThumb) {
+    return;
+  }
   sessionThumbUserId = userId;
+  sessionLatestStoryId = latestId;
   sessionThumbUrl = nextThumb;
   try {
     await Image.prefetch(nextThumb);
@@ -269,20 +345,69 @@ async function rememberSessionThumb(userId: string, items: StoryItem[]): Promise
   }
 }
 
+function storyFeedSignature(items: StoryItem[]): string {
+  return items
+    .map(
+      (item) =>
+        `${item.id}:${item.isViewed ? 1 : 0}:${item.kind}:${item.imageUrl ?? ""}:${item.videoUrl ?? ""}:${item.coverUrl ?? ""}:${item.thumbnailUrl ?? ""}`,
+    )
+    .join("|");
+}
+
+export function areStoryFeedsEqual(a: StoryItem[], b: StoryItem[]): boolean {
+  return storyFeedSignature(a) === storyFeedSignature(b);
+}
+
+function registerFirstSeenAt(items: StoryItem[], isFirstSession: boolean): void {
+  const now = Date.now();
+  for (const item of items) {
+    if (!storyFirstSeenAt.has(item.id)) {
+      // First session fetch: mark as immediately ready (no hold).
+      // Subsequent fetches: hold only IDs that are genuinely new.
+      storyFirstSeenAt.set(item.id, isFirstSession ? 0 : now);
+    }
+  }
+}
+
 function saveWarmFeed(userId: string, items: StoryItem[]): StoryItem[] {
+  const previousSignature =
+    warmFeedSnapshot?.userId === userId ? storyFeedSignature(warmFeedSnapshot.items) : "";
   if (items.length > 0) {
+    const isFirstSession = warmFeedSnapshot === null || warmFeedSnapshot.userId !== userId;
+    registerFirstSeenAt(items, isFirstSession);
+    scheduleHoldExpiry(items);
     warmFeedSnapshot = { userId, items, fetchedAt: Date.now() };
     void rememberSessionThumb(userId, items);
-    void prefetchStoryItems(items);
-    emitStoryFeed(items);
+    const nextSignature = storyFeedSignature(items);
+    if (nextSignature !== previousSignature) {
+      void prefetchStoryItems(items);
+      emitStoryFeed(items);
+    }
   }
-  return items;
+  return filterStoriesForDisplay(items);
+}
+
+function scheduleHoldExpiry(items: StoryItem[]): void {
+  const now = Date.now();
+  let earliestRemaining = Number.POSITIVE_INFINITY;
+  for (const item of items) {
+    const seenAt = storyFirstSeenAt.get(item.id);
+    if (seenAt === undefined) continue;
+    const remaining = NEW_STORY_HOLD_MS - (now - seenAt);
+    if (remaining > 0 && remaining < earliestRemaining) {
+      earliestRemaining = remaining;
+    }
+  }
+  if (!Number.isFinite(earliestRemaining)) return;
+  setTimeout(() => {
+    if (warmFeedSnapshot) emitStoryFeed(warmFeedSnapshot.items);
+  }, earliestRemaining + 50);
 }
 
 function readWarmFeed(userId: string): StoryItem[] | null {
   if (!warmFeedSnapshot || warmFeedSnapshot.userId !== userId) return null;
   if (Date.now() - warmFeedSnapshot.fetchedAt > WARM_FEED_TTL_MS) return null;
-  return warmFeedSnapshot.items;
+  return filterStoriesForDisplay(warmFeedSnapshot.items);
 }
 
 export function getSessionStoryAvatarThumb(userId: string): string | null {

@@ -43,6 +43,9 @@ supabase link --project-ref "$SUPABASE_PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
 # накатить все новые миграции
 supabase db push
 
+# синхронизировать Storage config (на Free tier global limit остаётся 50 MiB — это нормально)
+supabase config push --yes
+
 # прогнать seed (идемпотентно)
 supabase db execute --file supabase/seed.sql
 ```
@@ -69,6 +72,16 @@ supabase db execute --file supabase/seed.sql
 0 * * * *      precompute-global-recommendations
 0 4 * * 0      cleanup-expired-proposals
 15 * * * *     cleanup-expired-stories
+```
+
+Для migration-based invoke jobs через `pg_cron` + `pg_net` секрет `CRON_SECRET` нужно также положить в Vault под ожидаемым именем. Для cleanup stories это:
+
+```sql
+select vault.create_secret(
+  '<same value as CRON_SECRET for the Edge Function>',
+  'cleanup_expired_stories_cron_secret',
+  'x-cron-secret header for cleanup-expired-stories'
+);
 ```
 
 ## Как добавлять новые миграции

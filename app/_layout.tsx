@@ -12,6 +12,10 @@ import { ActivityIndicator, Platform, View, type GestureResponderEvent } from "r
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
+import { installDevLoadingViewPatch } from "@/modules/dev/patchDevLoadingView";
+
+installDevLoadingViewPatch();
+
 import { useColorScheme } from "@/components/useColorScheme";
 import { AccessProvider } from "@/modules/access";
 import { AuthProvider, useAuth } from "@/modules/auth";

@@ -249,6 +249,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       sessionRef.current = next;
       rememberSupabaseSession(next);
       setAuthCore((prev) => ({ ...prev, session: next }));
+
+      // JWT rotation must not re-fetch `users` — profile row is unchanged; avoids
+      // profileLoading flicker and home bootstrap side effects on unrelated tabs.
+      if (event === "TOKEN_REFRESHED") {
+        if (next) safeStartAutoRefresh();
+        else safeStopAutoRefresh();
+        return;
+      }
+
+      const nextUserId = next?.user?.id ?? null;
+      const sameUser = nextUserId !== null && nextUserId === lastUserIdRef.current;
+      if (sameUser && event !== "USER_UPDATED") {
+        sessionRef.current = next;
+        rememberSupabaseSession(next);
+        setAuthCore((prev) => ({ ...prev, session: next }));
+        if (next) safeStartAutoRefresh();
+        else safeStopAutoRefresh();
+        return;
+      }
+
       void syncProfile(next?.user ?? null).catch((error: unknown) => {
         // eslint-disable-next-line no-console
         console.warn(

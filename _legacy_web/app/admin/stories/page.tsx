@@ -18,7 +18,7 @@ import {
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
-import { getBrowserSupabase } from "../_lib/supabaseBrowser";
+import { storyProcessUploadBody, uploadStoryRawFile } from "../_lib/storyUpload";
 
 type StoryRow = {
   id: string;
@@ -33,8 +33,6 @@ type StoryRow = {
   is_evergreen: boolean | null;
   is_published: boolean | null;
 };
-
-type UploadTicket = { path: string; token: string; publicUrl: string };
 
 const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
 type TargetLocale = (typeof TARGET_LOCALES)[number];
@@ -187,28 +185,14 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
         }
       }
 
-      setBusy("Загружаю файл…");
-      const ticket = await adminFetch<UploadTicket>("/api/admin/uploads", {
-        method: "POST",
-        body: JSON.stringify({
-          bucket: "story-media",
-          folder: "tmp/stories",
-          contentType: file.type,
-          bytes: file.size,
-        }),
-      });
-      const { error: uploadError } = await getBrowserSupabase()
-        .storage.from("story-media")
-        .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
-      if (uploadError) throw new Error(`Загрузка файла не удалась: ${uploadError.message}`);
+      const uploadRef = await uploadStoryRawFile(file, setBusy);
 
       setBusy("Обрабатываю сторис…");
 
       await adminFetch("/api/admin/stories/process", {
         method: "POST",
         body: JSON.stringify({
-          upload_path: ticket.path,
-          content_type: file.type,
+          ...storyProcessUploadBody(uploadRef),
           caption: caption.trim(),
           caption_translations: Object.keys(finalTranslations).length > 0 ? finalTranslations : undefined,
           publish_at: publishNow ? null : new Date(publishAt).toISOString(),
@@ -326,7 +310,7 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
           ) : null}
 
           <p className="text-xs text-zinc-500">
-            Фото автоматически кропаются под 9:16 и получают миниатюру. Видео перекодируются в mp4, получают poster и tiny-thumb. Лимиты: фото до 30 МБ, видео до 120 МБ и до 90 секунд.
+            Фото автоматически кропаются под 9:16 и получают миниатюру. Видео перекодируются в mp4, получают poster и tiny-thumb. Лимиты: фото до 30 МБ, видео до 45 МБ сырого файла и до 45 секунд (iPhone 1080p ≈ 30 с, iPhone 4K ≈ 20 с).
           </p>
 
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -397,27 +381,13 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
     setError(null);
     try {
       if (file) {
-        setBusy("Загружаю файл…");
-        const ticket = await adminFetch<UploadTicket>("/api/admin/uploads", {
-          method: "POST",
-          body: JSON.stringify({
-            bucket: "story-media",
-            folder: "tmp/stories",
-            contentType: file.type,
-            bytes: file.size,
-          }),
-        });
-        const { error: uploadError } = await getBrowserSupabase()
-          .storage.from("story-media")
-          .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
-        if (uploadError) throw new Error(`Загрузка файла не удалась: ${uploadError.message}`);
+        const uploadRef = await uploadStoryRawFile(file, setBusy);
 
         setBusy("Обрабатываю медиа…");
         await adminFetch("/api/admin/stories/process", {
           method: "POST",
           body: JSON.stringify({
-            upload_path: ticket.path,
-            content_type: file.type,
+            ...storyProcessUploadBody(uploadRef),
             update_id: story.id,
           }),
         });

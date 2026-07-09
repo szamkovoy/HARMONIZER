@@ -10,6 +10,7 @@ export {
   storyPrefetchUri,
   subscribeStoryFeed,
   resolveStoryCaption,
+  ensureStoryReadyToOpen,
   type StoryCaption,
   type StoryItem,
 } from "@/modules/stories/core/storiesClient";

@@ -14,8 +14,8 @@ export const STORY_IMAGE_OUTPUT = { width: 1080, height: 1920, quality: 82 } as 
 export const STORY_THUMB_SIZE = 160;
 export const STORY_VIDEO_COVER_OUTPUT = { width: 1080, height: 1920, quality: 82 } as const;
 export const STORY_IMAGE_MAX_BYTES = 30 * 1024 * 1024;
-export const STORY_VIDEO_MAX_BYTES = 120 * 1024 * 1024;
-export const STORY_VIDEO_MAX_DURATION_SEC = 90;
+export const STORY_VIDEO_MAX_BYTES = 45 * 1024 * 1024;
+export const STORY_VIDEO_MAX_DURATION_SEC = 45;
 export const STORY_VIDEO_TARGET_FPS = 30;
 export const STORY_VIDEO_TARGET_MAXRATE = "7000k";
 export const STORY_VIDEO_TARGET_BUFSIZE = "14000k";
@@ -107,7 +107,7 @@ export function validateStoryUploadPath(path: string): string {
 export function assertStoryUploadSize(kind: StorySourceKind, bytes: number): void {
   const limit = kind === "image" ? STORY_IMAGE_MAX_BYTES : STORY_VIDEO_MAX_BYTES;
   if (bytes > limit) {
-    const humanLimit = kind === "image" ? "30 МБ" : "120 МБ";
+    const humanLimit = kind === "image" ? "30 МБ" : "45 МБ";
     throw new Error(`Файл слишком большой для сторис. Лимит: ${humanLimit}.`);
   }
 }
@@ -247,6 +247,8 @@ async function processVideo(input: Buffer, sourceExt: string): Promise<Processed
       "libx264",
       "-profile:v",
       "high",
+      "-level",
+      "4.1",
       "-preset",
       "veryfast",
       "-crf",
@@ -255,23 +257,38 @@ async function processVideo(input: Buffer, sourceExt: string): Promise<Processed
       STORY_VIDEO_TARGET_MAXRATE,
       "-bufsize",
       STORY_VIDEO_TARGET_BUFSIZE,
+      // Closed GOP every 1s — safer seeking / first-frame decode on mobile.
+      "-g",
+      String(STORY_VIDEO_TARGET_FPS),
+      "-keyint_min",
+      String(STORY_VIDEO_TARGET_FPS),
+      "-sc_threshold",
+      "0",
+      "-pix_fmt",
+      "yuv420p",
       "-c:a",
       "aac",
       "-b:a",
       "128k",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
       "-movflags",
       "+faststart",
       mainPath,
     ]);
 
+    // Cover from the already-encoded story.mp4 (not the raw source), so the
+    // poster matches the first live frame the client will play.
     await runBinary(ffmpeg, [
       "-y",
+      "-ss",
+      "0",
       "-i",
-      sourcePath,
+      mainPath,
       "-frames:v",
       "1",
-      "-vf",
-      `scale=${STORY_VIDEO_COVER_OUTPUT.width}:${STORY_VIDEO_COVER_OUTPUT.height}:force_original_aspect_ratio=increase,crop=${STORY_VIDEO_COVER_OUTPUT.width}:${STORY_VIDEO_COVER_OUTPUT.height}`,
       "-q:v",
       "3",
       coverPath,

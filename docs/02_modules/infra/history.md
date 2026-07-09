@@ -9,7 +9,13 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-10 (6):** Stories cleanup переведён из “операционного обещания” в более жёсткий infra-контракт. Added migration `20260709215553_schedule_cleanup_expired_stories.sql`: `pg_cron + pg_net + vault` invoke edge-функции `cleanup-expired-stories` каждый час в `15 * * * *`, по паттерну уже существующих precompute jobs. Параллельно `_legacy_web/app/api/admin/stories/route.ts` получил safety-net cleanup перед возвратом списка, чтобы отсутствие/сбой внешнего scheduler не оставлял истёкшие rows в админке бесконечно.
+
 - **2026-07-09 (5):** Укреплён stories media runtime в `_legacy_web`. Выяснилось, что `ffprobe-static`/`ffmpeg-static` как npm-зависимости были установлены корректно, но bundled Node route мог передавать в spawn несуществующий путь к бинарнику (`/ROOT/node_modules/...`, `ENOENT`). Решение: stories media pipeline теперь вычисляет абсолютные binary paths от `package.json` пакетов через `createRequire(import.meta.url)` и проверяет `existsSync + X_OK` перед запуском. Заодно обновлён video preset под mobile stories (`1080x1920`, `30 fps`, `H.264 High`, `AAC 128k`, `+faststart`).
+
+## Decision Log
+
+- **2026-07-09 (5):** Supabase Free tier жёстко держит global Storage limit 50 MiB (`config push` с 150 MiB → HTTP 402). Chunked stories upload на Vercel обходит потолок для raw-файлов до ffmpeg; `config.toml` оставлен на 50 MiB для успешного sync с remote.
 
 - **2026-07-08 (4):** Stories media infra expanded in two directions. First, `_legacy_web/package.json` gained `sharp`, `ffmpeg-static` and `ffprobe-static`, because Stories uploads are now normalized server-side (crop/resize for images; mp4 transcode, poster frame and tiny thumbnail for videos) before any DB row is created. Second, Supabase cron surface gained `cleanup-expired-stories` (`supabase/functions/cleanup-expired-stories`, `supabase/config.toml`, `supabase/README.md`, `DEPLOY.md`) so expired stories are deleted not only from feed SQL but also from Storage.
 

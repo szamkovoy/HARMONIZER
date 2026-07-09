@@ -6,17 +6,17 @@ import Svg, { Path } from "react-native-svg";
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
 import {
-  fetchStoryFeed,
   firstUnviewedStoryIndex,
   getSessionStoryAvatarThumb,
   markStoryViewed,
   prefetchStoryWindow,
+  refreshStoryFeedInBackground,
   rememberStoryViewedLocally,
-  storyPrefetchUri,
+  ensureStoryReadyToOpen,
   subscribeStoryFeed,
+  areStoryFeedsEqual,
   type StoryItem,
 } from "@/modules/stories/core/storiesClient";
-import { prefetchStoryMediaUri } from "@/modules/stories/core/storyMediaPreload";
 import { StoryViewerModal } from "@/modules/stories/ui/StoryViewerModal";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -117,7 +117,7 @@ export function StoriesRing() {
     }
 
     let cancelled = false;
-    void fetchStoryFeed(userId, { previousItems: storiesRef.current }).then((items) => {
+    void refreshStoryFeedInBackground(userId).then((items) => {
       if (!cancelled && isFocusedRef.current) setStories(items);
     });
 
@@ -135,8 +135,12 @@ export function StoriesRing() {
     return subscribeStoryFeed((items) => {
       setStories((prev) => {
         const viewedIds = new Set(prev.filter((story) => story.isViewed).map((story) => story.id));
-        if (viewedIds.size === 0) return items;
-        return items.map((story) => (viewedIds.has(story.id) ? { ...story, isViewed: true } : story));
+        const merged =
+          viewedIds.size === 0
+            ? items
+            : items.map((story) => (viewedIds.has(story.id) ? { ...story, isViewed: true } : story));
+        if (areStoryFeedsEqual(prev, merged)) return prev;
+        return merged;
       });
     });
   }, [userId]);
@@ -172,7 +176,7 @@ export function StoriesRing() {
       if (!story || openingViewer) return;
       setOpeningViewer(true);
       try {
-        await prefetchStoryMediaUri(storyPrefetchUri(story));
+        await ensureStoryReadyToOpen(story);
         await prefetchStoryWindow(stories, index);
         setViewerIndex(index);
       } finally {

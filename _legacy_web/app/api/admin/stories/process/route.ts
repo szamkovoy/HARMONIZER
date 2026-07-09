@@ -5,6 +5,7 @@ import {
   processStoryMedia,
   validateStoryUploadPath,
 } from "../mediaPipeline";
+import { assembleStoryUploadSession, removeStoryUploadSession } from "../uploadSession";
 import { storyRowFromPayload } from "../storyPayload";
 
 export const runtime = "nodejs";
@@ -12,6 +13,7 @@ export const maxDuration = 120;
 
 type ProcessStoryPayload = {
   upload_path?: string;
+  upload_session_id?: string;
   content_type?: string;
   caption?: string;
   caption_translations?: Record<string, string>;
@@ -41,18 +43,32 @@ async function uploadAsset(
 export async function POST(req: Request) {
   const uploadedPaths: string[] = [];
   let tempPath: string | null = null;
+  let uploadSessionId: string | null = null;
 
   try {
     const userId = await requireAdmin(req);
     const body = (await req.json()) as ProcessStoryPayload;
     const contentType = body.content_type?.trim() ?? "";
-    tempPath = validateStoryUploadPath(body.upload_path?.trim() ?? "");
+    uploadSessionId = body.upload_session_id?.trim() || null;
+
+    let sourceBuffer: Buffer;
+    if (uploadSessionId) {
+      const assembled = await assembleStoryUploadSession(uploadSessionId);
+      sourceBuffer = assembled.buffer;
+      if (!contentType) {
+        throw new Error("Для сессии загрузки нужно передать content_type");
+      }
+    } else if (body.upload_path?.trim()) {
+      tempPath = validateStoryUploadPath(body.upload_path?.trim() ?? "");
+      const db = createServiceSupabase();
+      const { data: blob, error: downloadError } = await db.storage.from("story-media").download(tempPath);
+      if (downloadError) throw downloadError;
+      sourceBuffer = Buffer.from(await blob.arrayBuffer());
+    } else {
+      throw new Error("Укажите upload_path или upload_session_id");
+    }
 
     const db = createServiceSupabase();
-    const { data: blob, error: downloadError } = await db.storage.from("story-media").download(tempPath);
-    if (downloadError) throw downloadError;
-
-    const sourceBuffer = Buffer.from(await blob.arrayBuffer());
     const processed = await processStoryMedia(sourceBuffer, contentType);
 
     const mainPath = buildProcessedStoryPath("main", processed.main.ext);
@@ -100,6 +116,7 @@ export async function POST(req: Request) {
       if (updateErr) throw updateErr;
 
       if (tempPath) await removeStorageObjects(db, "story-media", [tempPath]);
+      if (uploadSessionId) await removeStoryUploadSession(uploadSessionId);
 
       // Delete old media assets after successful update.
       await removeStorageObjects(db, "story-media", [
@@ -135,10 +152,12 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     if (tempPath) await removeStorageObjects(db, "story-media", [tempPath]);
+    if (uploadSessionId) await removeStoryUploadSession(uploadSessionId);
     return json({ story, processed: { kind: processed.kind, duration_ms: processed.durationMs } });
   } catch (error) {
     const db = createServiceSupabase();
     if (tempPath) await removeStorageObjects(db, "story-media", [tempPath]);
+    if (uploadSessionId) await removeStoryUploadSession(uploadSessionId);
     if (uploadedPaths.length > 0) await removeStorageObjects(db, "story-media", uploadedPaths);
     return errorResponse(error);
   }

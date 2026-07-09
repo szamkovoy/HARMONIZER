@@ -1,15 +1,24 @@
 import { getBrowserSupabase } from "./supabaseBrowser";
 
 /** fetch к /api/admin/* с Bearer-токеном текущей сессии. Бросает Error с текстом сервера. */
-export async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const { data } = await getBrowserSupabase().auth.getSession();
-  const token = data.session?.access_token;
+export async function adminFetch<T>(
+  path: string,
+  init?: RequestInit,
+  opts?: { accessToken?: string },
+): Promise<T> {
+  let token = opts?.accessToken?.trim();
+  if (!token) {
+    const { data } = await getBrowserSupabase().auth.getSession();
+    token = data.session?.access_token;
+  }
   if (!token) throw new Error("Сессия не найдена — войдите заново");
+
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
 
   const res = await fetch(path, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {}),
     },

@@ -9,6 +9,10 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-09:** `AuthProvider`: кроме `TOKEN_REFRESHED`, повторные auth-события с тем же `user.id` (без `USER_UPDATED`) больше не вызывают `syncProfile` — лишний `profileLoading` и каскадные перерисовки на фоновых вкладках.
+
+- **2026-07-09:** `AuthProvider`: событие `TOKEN_REFRESHED` больше не вызывает `syncProfile` — профиль в `users` от JWT не меняется; лишний `profileLoading` убирался и мог дергать home bootstrap на фоновых вкладках.
+
 - **2026-07-08 (late):** SecureStore-хранилище auth-сессии переведено на двухслотовую запись (`.slot.a` / `.slot.b` + указатель активного слота) вместо in-place перезаписи blob/chunks. Причина: при cold-start refresh чтение persisted session могло попасть между chunked-записью нового токена и cleanup старых чанков, что возвращало устаревший refresh token и снова выбивало пользователя на `/sign-in`. Дополнительно invalid-refresh recover теперь несколько раз перечитывает диск перед локальным sign-out. Код: `services/supabase.ts`, `modules/auth/bootstrapRecoverSession.ts`.
 
 - **2026-07-05:** `_legacy_web/app/api/profile/practice-by-chakra/practiceByChakraWindow.ts` — тип параметра `now` расширен с выведенного `DateTime<true>` (из дефолта `DateTime.utc()`) до явного `DateTime<boolean>`. Почему: тесты передавали `DateTime.fromISO(...)`, который возвращает `DateTime<true> | DateTime<false>` — это не присваивалось к `DateTime<true>` (2 tsc-ошибки TS2345). Функция и так корректно обрабатывает invalid-DateTime через `toISO() ?? new Date().toISOString()`, так что расширение типа безопасно и соответствует естественному контракту (результаты `fromISO` всегда `valid | invalid`). Тип-only правка, поведение не изменилось.
