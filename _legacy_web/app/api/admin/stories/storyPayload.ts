@@ -5,6 +5,7 @@ export type AdminStoryPayload = {
   cover_url?: string | null;
   thumbnail_url?: string | null;
   caption?: string;
+  caption_translations?: Record<string, string>;
   publish_at?: string | null;
   expires_at?: string | null;
   is_evergreen?: boolean;
@@ -29,6 +30,15 @@ export function storyRowFromPayload(body: AdminStoryPayload) {
   if (Number.isNaN(expiresAt.getTime())) {
     throw new Response(JSON.stringify({ error: "Некорректная дата истечения" }), { status: 400 });
   }
+
+  const captionText = body.caption?.trim() ?? "";
+  const captionTranslations = body.caption_translations;
+  const hasTranslations = captionTranslations && Object.keys(captionTranslations).length > 0;
+
+  const captionObj: Record<string, unknown> = {};
+  if (captionText) captionObj.text = captionText;
+  if (hasTranslations) captionObj.translations = captionTranslations;
+
   return {
     kind,
     image_url: kind === "image" ? mediaUrl.trim() : null,
@@ -36,7 +46,7 @@ export function storyRowFromPayload(body: AdminStoryPayload) {
     cover_url: body.cover_url?.trim() || null,
     thumbnail_url: body.thumbnail_url?.trim() || null,
     video_provider: null,
-    caption: body.caption?.trim() ? { text: body.caption.trim() } : {},
+    caption: captionObj,
     publish_at: publishAt.toISOString(),
     expires_at: expiresAt.toISOString(),
     is_evergreen: body.is_evergreen ?? false,

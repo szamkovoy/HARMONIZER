@@ -14,11 +14,14 @@ type ProcessStoryPayload = {
   upload_path?: string;
   content_type?: string;
   caption?: string;
+  caption_translations?: Record<string, string>;
   publish_at?: string | null;
   expires_at?: string | null;
   is_evergreen?: boolean;
   is_published?: boolean;
   order_hint?: number;
+  /** When set, update this existing story's media instead of creating a new row. */
+  update_id?: string;
 };
 
 async function uploadAsset(
@@ -70,6 +73,45 @@ export async function POST(req: Request) {
           })()
         : null;
 
+    if (body.update_id) {
+      // Media replacement: read old media URLs, update row, then delete old assets.
+      const { data: old, error: readErr } = await db
+        .from("stories")
+        .select("image_url, video_url, cover_url, thumbnail_url")
+        .eq("id", body.update_id)
+        .maybeSingle();
+      if (readErr) throw readErr;
+      if (!old) return json({ error: "Сторис не найдена" }, { status: 404 });
+
+      const mediaUpdate: Record<string, unknown> = {
+        kind: processed.kind,
+        image_url: processed.kind === "image" ? mainUrl : null,
+        video_url: processed.kind === "video" ? mainUrl : null,
+        cover_url: coverUrl,
+        thumbnail_url: thumbnailUrl,
+      };
+
+      const { data: story, error: updateErr } = await db
+        .from("stories")
+        .update(mediaUpdate)
+        .eq("id", body.update_id)
+        .select("*")
+        .single();
+      if (updateErr) throw updateErr;
+
+      if (tempPath) await removeStorageObjects(db, "story-media", [tempPath]);
+
+      // Delete old media assets after successful update.
+      await removeStorageObjects(db, "story-media", [
+        old.image_url,
+        old.video_url,
+        old.cover_url,
+        old.thumbnail_url,
+      ].filter((u): u is string => typeof u === "string" && u.trim().length > 0));
+
+      return json({ story, processed: { kind: processed.kind, duration_ms: processed.durationMs } });
+    }
+
     const storyRow = storyRowFromPayload({
       kind: processed.kind,
       image_url: processed.kind === "image" ? mainUrl : null,
@@ -77,6 +119,7 @@ export async function POST(req: Request) {
       cover_url: coverUrl,
       thumbnail_url: thumbnailUrl,
       caption: body.caption,
+      caption_translations: body.caption_translations,
       publish_at: body.publish_at,
       expires_at: body.expires_at,
       is_evergreen: body.is_evergreen,

@@ -15,6 +15,7 @@ type PostListRow = {
   published_at: string | null;
   created_at: string;
   comment_count: number;
+  translations_updated_at?: string | null;
 };
 
 export default function AdminPostsPage() {
@@ -59,7 +60,7 @@ export default function AdminPostsPage() {
           >
             <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-black/40">
               {post.cover_url ? (
-                // eslint-disable-next-line @next/next/no-img-element -- прямой URL из Storage
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={post.cover_url} alt="" className="h-full w-full object-cover" />
               ) : null}
             </div>
@@ -79,6 +80,14 @@ export default function AdminPostsPage() {
                 <span className="flex items-center gap-1 text-zinc-500">
                   <MessageSquare size={12} /> {post.comment_count}
                 </span>
+                {post.translations_updated_at ? (
+                  <span
+                    className="rounded-full bg-sky-400/10 px-2 py-0.5 text-sky-300"
+                    title={`Переведено ${formatAdminDateTime(post.translations_updated_at)}`}
+                  >
+                    🌐
+                  </span>
+                ) : null}
               </div>
             </div>
           </Link>
