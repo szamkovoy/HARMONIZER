@@ -1,8 +1,8 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.1
-updated: 2026-07-08
+version: 3.3
+updated: 2026-07-09
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -52,7 +52,7 @@ code_refs:
 **Клиент (`modules/stories`, barrel `index.ts`):**
 
 - **`StoriesRing`** — интерактивное кольцо встроено в левый аватар `HomeHeader` (`app/(tabs)/index.tsx`), отдельного блока под шапкой больше нет. На фокусе главной грузит **весь активный feed** (`fetchStoryFeed`) и анимированно раскрывает сегменты по часовой стрелке; непросмотренные сегменты фиолетовые, просмотренные — серые. В центре показывается session-cached `thumbnail_url` последней активной сторис; если сторис нет, рендерится обычный бренд-аватар без интерактивности.
-- **`StoryViewerModal`** — полноэкранный viewer в стиле Telegram/Instagram: открывается с первого `!isViewed`, стартует только после prefetch первого кадра и не должен мигать чёрным placeholder при штатном открытии; сверху сегментированный прогресс по всему набору, фото авто-листаются через 7 с, прямые видео (`kind='video'`) — по окончании playback `expo-av` `Video`; поддерживаются tap left/right и horizontal swipe. Локальная пометка `isViewed` не должна сбрасывать viewer обратно на первый слайд. Легаси `kind='video_cover'` показывается статичной обложкой. На natural finish пишет `completed=true`, на раннем закрытии/пролистывании — `completed=false`.
+- **`StoryViewerModal`** — полноэкранный viewer в стиле Telegram/Instagram: открывается с первого `!isViewed`, но сам modal показывается только после того, как первый fullscreen-кадр этой сторис уже прошёл `expo-image` preload/decode (`Image.prefetch(..., "memory-disk")` + `Image.loadAsync()` в `storyMediaPreload.ts`), поэтому на штатном открытии не должно быть ни чёрного экрана, ни fullscreen-спиннера. Сверху сегментированный прогресс по всему набору, фото авто-листаются через 7 с, прямые видео (`kind='video'`) проигрываются через `expo-video` `VideoView` + `VideoPlayer`: для cold-start видео под плеером лежит fullscreen `cover_url`, но для уже заранее прогретого next-video poster скрывается сразу, чтобы не было микроскачка между `cover_url` и первым живым кадром MP4; сам прогресс идёт по `timeUpdate` реального playback. Для ускорения переходов viewer держит двухслотовый video preload: текущий плеер и отдельный заранее загретый ближайший следующий direct-video с `useCaching`, уменьшенным startup buffer (`preferredForwardBufferDuration ~= 2s`, `waitsToMinimizeStalling = false`). Поддерживаются tap left/right и horizontal swipe. Локальная пометка `isViewed` не должна сбрасывать viewer обратно на первый слайд. Легаси `kind='video_cover'` показывается статичной обложкой. На natural finish пишет `completed=true`, на раннем закрытии/пролистывании — `completed=false`. **Алгоритм перехода**: прогресс привязан к реально отображаемому `displayIndex` и не уходит на следующий сегмент раньше смены кадра; перед открытием и во время просмотра preload/decode получает окно full-кадров (первая непросмотренная + до 4 вперёд, затем neighborhood `2 назад + 3 вперёд`), а для видео ближайший следующий MP4 дополнительно буферизуется отдельным player ещё до показа.
 - **`fetchStoryFeed(userId): Promise<StoryItem[]>`** — RPC `get_story_feed`, который возвращает весь активный набор сторис (24h + evergreen) в стабильном порядке для кольца и viewer. `StoryItem`: `id`, `kind`, `imageUrl/coverUrl/videoUrl/thumbnailUrl`, `captionText`, `publishAt`, `expiresAt`, `isViewed`.
 - **`markStoryViewed(userId, storyId, completed)`** — upsert в `user_story_views` под RLS «только своё»; `completed=true` при досмотре.
 
@@ -66,7 +66,7 @@ code_refs:
 
 **Админка (гейт `requireAdmin`, см. `admin_panel`):**
 
-- `GET /api/admin/stories` — список всех (включая черновики/истёкшие, ≤200). Создание теперь split на `POST /api/admin/uploads` → `POST /api/admin/stories/process`: raw-файл грузится во временный `story-media/tmp/stories/*`, затем server-side pipeline (`sharp` / `ffmpeg`) генерирует финальный `image_url` или `video_url`, `cover_url` для видео и `thumbnail_url` для кольца, после чего пишет строку в `stories`. Payload нормализуется `storyPayload.ts`: **`expires_at = publish_at + 24h` по умолчанию**, `caption` → `{text}`, `kind: 'image'|'video'`.
+- `GET /api/admin/stories` — список всех (включая черновики/истёкшие, ≤200). Создание теперь split на `POST /api/admin/uploads` → `POST /api/admin/stories/process`: raw-файл грузится во временный `story-media/tmp/stories/*`, затем server-side pipeline (`sharp` / `ffmpeg`) генерирует финальный `image_url` или `video_url`, `cover_url` для видео и `thumbnail_url` для кольца, после чего пишет строку в `stories`. Для видео pipeline теперь жёстко нормализует клип под stories playback: `1080x1920` crop, `H.264 High`, `AAC 128 kbps`, `30 fps`, `-movflags +faststart`, poster `cover_url` тоже в `1080x1920` и берётся с самого начала ролика, чтобы не расходиться с первым живым кадром MP4; runtime не доверяет сырому `ffprobe.path`, а пересобирает абсолютный путь к бинарнику от `ffprobe-static/package.json`, чтобы dev/Vercel bundling не ломали spawn. Payload нормализуется `storyPayload.ts`: **`expires_at = publish_at + 24h` по умолчанию**, `caption` → `{text}`, `kind: 'image'|'video'`.
 - `PATCH/DELETE /api/admin/stories/[id]` — частичное обновление (публикация/снятие, подпись, сроки, `order_hint`) / удаление строки **вместе с файлами** в `story-media`, включая `thumbnail_url`.
 - `POST /api/admin/uploads` — signed upload URL в бакет `story-media` (`createSignedUploadUrl`, service role); для сторис теперь принимает также `folder` и `bytes`, чтобы складывать raw uploads в `tmp/stories/*` и резать oversized файлы до обработки. Браузер грузит напрямую в Storage (`uploadToSignedUrl`, anon-клиент), минуя лимит тела Vercel. Ответ: `{path, token, publicUrl}`.
 - `POST /api/admin/stories/cleanup` — батчевый idempotent cleanup истёкших published stories: удаляет DB rows и связанные `image_url` / `video_url` / `cover_url` / `thumbnail_url` из `story-media`.
@@ -95,7 +95,7 @@ UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts`) в `modu
 
 ## 5. Известные ограничения
 
-- Видео проигрывается через `expo-av` `Video` (deprecated в пользу `expo-video`, но не требует пересборки dev-клиента). При переходе на `expo-video` менять только `StoryViewerModal`.
-- Server-side video pipeline ограничен короткими сторис: raw video до 120 МБ и до 90 секунд. Ограничения зашиты в `mediaPipeline.ts`, чтобы `ffmpeg` укладывался в Node/Vercel runtime.
+- Клиент по-прежнему получает только один progressive MP4-variant на сторис; HLS/ABR ladder, quality switching и отдельный low-bitrate preview-video пока не реализованы.
+- Server-side video pipeline ограничен короткими сторис: raw video до 120 МБ и до 90 секунд. На выходе клиент получает только один MP4-variant (`1080x1920`, `H.264`, `AAC`, `30 fps`, maxrate `~7 Mbps`) + один poster `cover_url`; adaptive preview/full ladders и auto-splitting длинных роликов на несколько stories пока не реализованы.
 - `announcements` (+RPC) остаются нетронутыми — кандидат на депрекацию (см. `open_questions.md`).
 - Отдельного `FeatureKey` нет: сторис видны на всех тарифах.

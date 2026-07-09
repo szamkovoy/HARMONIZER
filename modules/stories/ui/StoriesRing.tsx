@@ -12,9 +12,11 @@ import {
   markStoryViewed,
   prefetchStoryWindow,
   rememberStoryViewedLocally,
+  storyPrefetchUri,
   subscribeStoryFeed,
   type StoryItem,
 } from "@/modules/stories/core/storiesClient";
+import { prefetchStoryMediaUri } from "@/modules/stories/core/storyMediaPreload";
 import { StoryViewerModal } from "@/modules/stories/ui/StoryViewerModal";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -139,6 +141,13 @@ export function StoriesRing() {
     });
   }, [userId]);
 
+  // Предзагрузка окна сторис сразу после получения feed — до клика пользователя.
+  useEffect(() => {
+    if (stories.length === 0) return;
+    const start = firstUnviewedStoryIndex(stories);
+    void prefetchStoryWindow(stories, start);
+  }, [stories]);
+
   const markStorySeen = useCallback(
     (storyId: string, completed: boolean) => {
       setStories((prev) => prev.map((story) => (story.id === storyId ? { ...story, isViewed: true } : story)));
@@ -163,6 +172,7 @@ export function StoriesRing() {
       if (!story || openingViewer) return;
       setOpeningViewer(true);
       try {
+        await prefetchStoryMediaUri(storyPrefetchUri(story));
         await prefetchStoryWindow(stories, index);
         setViewerIndex(index);
       } finally {
@@ -171,6 +181,8 @@ export function StoriesRing() {
     },
     [openingViewer, stories],
   );
+
+  const closeViewer = useCallback(() => setViewerIndex(null), []);
 
   const firstUnviewedIndex = useMemo(() => firstUnviewedStoryIndex(stories), [stories]);
   const thumbUri = userId ? avatarThumb(stories, getSessionStoryAvatarThumb(userId)) : null;
@@ -225,7 +237,7 @@ export function StoriesRing() {
         closeLabel={t("stories.viewer.close")}
         previousLabel={t("stories.viewer.previous")}
         nextLabel={t("stories.viewer.next")}
-        onClose={() => setViewerIndex(null)}
+        onClose={closeViewer}
         onViewed={markStorySeen}
         onStoryActive={onStoryActive}
       />

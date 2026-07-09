@@ -28,12 +28,20 @@ export function StoryCaption({ text }: { text: string }) {
   );
 }
 
+const textShadow = {
+  textShadowColor: "rgba(0,0,0,0.75)",
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 5,
+};
+
 const styles = {
   captionText: {
     color: "#fff",
+    ...textShadow,
   },
   link: {
     color: "#B8E0FF",
     textDecorationLine: "underline" as const,
+    ...textShadow,
   },
 };

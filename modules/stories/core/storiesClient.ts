@@ -52,16 +52,46 @@ export function firstUnviewedStoryIndex(stories: StoryItem[]): number {
   return index >= 0 ? index : 0;
 }
 
-/** URI для предзагрузки: фото — full frame; видео — poster/cover (mp4 буферизует expo-av). */
+/** URI для предзагрузки: фото — full frame; видео — poster/cover, а mp4 догревается отдельным expo-video player во viewer. */
 export function storyPrefetchUri(story: StoryItem): string | null {
   if (story.kind === "image") return story.imageUrl;
   return story.coverUrl ?? story.thumbnailUrl ?? story.videoUrl;
 }
 
+/** Fallback placeholder only for video/poster paths. Image stories do not have a dedicated fullscreen preview asset yet. */
+export function storyPlaceholderUri(story: StoryItem): string | null {
+  if (story.kind === "image") return null;
+  return story.thumbnailUrl ?? story.coverUrl ?? story.imageUrl ?? story.videoUrl;
+}
+
+const PREFETCH_AHEAD_COUNT = 5;
+
+function storyPrefetchUris(story: StoryItem): string[] {
+  const placeholder = storyPlaceholderUri(story);
+  const full = storyPrefetchUri(story);
+  if (placeholder && full && placeholder !== full) return [placeholder, full];
+  return [full ?? placeholder].filter(Boolean) as string[];
+}
+
+export function storyDecodeWindowUris(stories: StoryItem[], startIndex: number, count = PREFETCH_AHEAD_COUNT): string[] {
+  return stories
+    .slice(startIndex, startIndex + count)
+    .map((story) => storyPrefetchUri(story))
+    .filter(Boolean) as string[];
+}
+
+/** Предзагрузка окна: текущая + до 4 вперёд, для каждой — thumbnail и full. */
 export async function prefetchStoryWindow(stories: StoryItem[], startIndex: number): Promise<void> {
-  const uris = [stories[startIndex], stories[startIndex + 1]]
-    .filter((story): story is StoryItem => !!story)
-    .map((story) => storyPrefetchUri(story));
+  const slice = stories.slice(startIndex, startIndex + PREFETCH_AHEAD_COUNT);
+  const uris = slice.flatMap((story) => storyPrefetchUris(story));
+  await prefetchStoryMediaUris(uris);
+}
+
+/** Фоновая предзагрузка соседних сторис во время просмотра (2 назад + 3 вперёд). */
+export async function prefetchStoryNeighborhood(stories: StoryItem[], centerIndex: number): Promise<void> {
+  const indices = [centerIndex - 2, centerIndex - 1, centerIndex, centerIndex + 1, centerIndex + 2, centerIndex + 3]
+    .filter((index) => index >= 0 && index < stories.length);
+  const uris = indices.flatMap((index) => storyPrefetchUris(stories[index]!));
   await prefetchStoryMediaUris(uris);
 }
 
@@ -143,7 +173,14 @@ export function storyMediaUri(story: StoryItem): string | null {
 
 async function prefetchStoryItems(items: StoryItem[]): Promise<void> {
   if (items.length === 0) return;
-  await prefetchStoryWindow(items, firstUnviewedStoryIndex(items));
+  const start = firstUnviewedStoryIndex(items);
+  await prefetchStoryWindow(items, start);
+  // Также prefetch thumbnails всех видео в ленте — они весят 20–50 КБ и убирают чёрный экран.
+  const videoThumbs = items
+    .filter((story) => story.kind === "video")
+    .map((story) => story.thumbnailUrl ?? story.coverUrl)
+    .filter(Boolean) as string[];
+  if (videoThumbs.length > 0) await prefetchStoryMediaUris(videoThumbs);
 }
 
 async function fetchStoryFeedDirect(userId: string): Promise<StoryItem[]> {

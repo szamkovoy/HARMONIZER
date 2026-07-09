@@ -1,23 +1,52 @@
-import { ResizeMode, Video, type AVPlaybackStatus } from "expo-av";
+import { useEventListener } from "expo";
+import { Image } from "expo-image";
+import { VideoView, useVideoPlayer, type VideoPlayer } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Image, Modal, PanResponder, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Modal, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { StoryItem } from "@/modules/stories/core/storiesClient";
-import { storyMediaUri, storyPrefetchUri } from "@/modules/stories/core/storiesClient";
-import { isStoryMediaPrefetched, prefetchStoryMediaUri } from "@/modules/stories/core/storyMediaPreload";
+import { prefetchStoryNeighborhood, storyMediaUri, storyPrefetchUri } from "@/modules/stories/core/storiesClient";
+import { isStoryMediaReady, prefetchStoryMediaUri } from "@/modules/stories/core/storyMediaPreload";
 import { StoryCaption } from "@/modules/stories/ui/StoryCaption";
 import { AppText } from "@/modules/ui/AppText";
 
 const IMAGE_DURATION_MS = 7000;
 const SWIPE_TRIGGER_PX = 40;
-const STORY_TRANSITION_MS = 140;
+const VIDEO_TIME_UPDATE_INTERVAL_SEC = 0.1;
 
-function storyBackdropUri(story: StoryItem | null | undefined): string | null {
+type VideoSlot = "primary" | "secondary";
+
+const STORY_VIDEO_BUFFER_OPTIONS = {
+  minBufferForPlayback: 0.15,
+  preferredForwardBufferDuration: 2,
+  prioritizeTimeOverSizeThreshold: true,
+  waitsToMinimizeStalling: false,
+} as const;
+
+function storyDisplayUri(story: StoryItem | null | undefined): string | null {
   if (!story) return null;
-  return story.kind === "video"
-    ? story.coverUrl ?? story.thumbnailUrl ?? story.imageUrl ?? story.videoUrl ?? null
-    : storyMediaUri(story);
+  if (story.kind === "image") return story.imageUrl;
+  return story.coverUrl ?? story.thumbnailUrl ?? story.imageUrl ?? story.videoUrl ?? null;
+}
+
+function configureStoryVideoPlayer(player: VideoPlayer): void {
+  player.loop = false;
+  player.muted = false;
+  player.timeUpdateEventInterval = VIDEO_TIME_UPDATE_INTERVAL_SEC;
+  player.bufferOptions = STORY_VIDEO_BUFFER_OPTIONS;
+}
+
+function storyVideoSource(uri: string) {
+  return { uri, useCaching: true as const };
+}
+
+function nextDirectVideoStory(stories: StoryItem[], startIndex: number): StoryItem | null {
+  for (let index = startIndex + 1; index < stories.length; index += 1) {
+    const story = stories[index];
+    if (story?.kind === "video" && story.videoUrl) return story;
+  }
+  return null;
 }
 
 export function StoryViewerModal({
@@ -42,178 +71,164 @@ export function StoryViewerModal({
   onStoryActive: (storyId: string) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [targetIndex, setTargetIndex] = useState(initialIndex);
   const [displayIndex, setDisplayIndex] = useState(initialIndex);
-  const [activeVisualReady, setActiveVisualReady] = useState(false);
-  const [pendingIndex, setPendingIndex] = useState<number | null>(null);
-  const [pendingVisualReady, setPendingVisualReady] = useState(false);
+  const [displayReady, setDisplayReady] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
+  const [showVideoPoster, setShowVideoPoster] = useState(true);
+  const [transitionOverlayUri, setTransitionOverlayUri] = useState<string | null>(null);
+  const [activeVideoSlot, setActiveVideoSlot] = useState<VideoSlot>("primary");
   const progress = useRef(new Animated.Value(0)).current;
-  const transitionOpacity = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<Animated.CompositeAnimation | null>(null);
   const displayIndexRef = useRef(initialIndex);
-  const targetIndexRef = useRef(initialIndex);
-  const pendingIndexRef = useRef<number | null>(null);
-  const transitionRunningRef = useRef(false);
-  const markedActiveRef = useRef<Set<string>>(new Set());
-  const loadedBackdropUrisRef = useRef<Set<string>>(new Set());
   const storiesRef = useRef(stories);
-
-  const displayStory = stories[displayIndex];
-  const isDirectVideo = displayStory?.kind === "video" && !!displayStory.videoUrl;
-  const displayMediaUri = useMemo(
-    () => (displayStory ? storyMediaUri(displayStory) : null),
-    [displayStory],
-  );
-  const displayBackdropUri = useMemo(() => storyBackdropUri(displayStory), [displayStory]);
-  const pendingStory = pendingIndex !== null ? stories[pendingIndex] : null;
-  const pendingBackdropUri = useMemo(() => storyBackdropUri(pendingStory), [pendingStory]);
-
-  useEffect(() => {
-    displayIndexRef.current = displayIndex;
-  }, [displayIndex]);
+  const markedActiveRef = useRef<Set<string>>(new Set());
+  const transitionSeqRef = useRef(0);
+  const videoLoadSeqRef = useRef(0);
+  const activeVideoSlotRef = useRef<VideoSlot>("primary");
+  const primaryVideoUriRef = useRef<string | null>(null);
+  const secondaryVideoUriRef = useRef<string | null>(null);
+  const onViewedRef = useRef(onViewed);
+  const onCloseRef = useRef(onClose);
+  const onStoryActiveRef = useRef(onStoryActive);
+  const goToRef = useRef<(nextIndex: number, completedCurrent: boolean) => void>(() => {});
+  const primaryVideoPlayer = useVideoPlayer(null, configureStoryVideoPlayer);
+  const secondaryVideoPlayer = useVideoPlayer(null, configureStoryVideoPlayer);
 
   useEffect(() => {
     storiesRef.current = stories;
   }, [stories]);
-
   useEffect(() => {
-    targetIndexRef.current = targetIndex;
-  }, [targetIndex]);
+    onViewedRef.current = onViewed;
+  }, [onViewed]);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    onStoryActiveRef.current = onStoryActive;
+  }, [onStoryActive]);
+  useEffect(() => {
+    displayIndexRef.current = displayIndex;
+  }, [displayIndex]);
+  useEffect(() => {
+    activeVideoSlotRef.current = activeVideoSlot;
+  }, [activeVideoSlot]);
+
+  const displayStory = stories[displayIndex];
+  const displayUri = useMemo(() => storyDisplayUri(displayStory), [displayStory]);
+  const displayMediaUri = useMemo(() => (displayStory ? storyMediaUri(displayStory) : null), [displayStory]);
+  const isDirectVideo = displayStory?.kind === "video" && !!displayStory.videoUrl;
+  const activeVideoPlayer = activeVideoSlot === "primary" ? primaryVideoPlayer : secondaryVideoPlayer;
 
   useEffect(() => {
     if (!visible) {
-      setActiveVisualReady(false);
-      setPendingIndex(null);
-      pendingIndexRef.current = null;
-      setPendingVisualReady(false);
-      transitionOpacity.setValue(0);
-      transitionRunningRef.current = false;
+      setDisplayReady(false);
       setVideoReady(false);
+      setVideoProgress(0);
+      setShowVideoPoster(true);
+      setTransitionOverlayUri(null);
       markedActiveRef.current.clear();
-      loadedBackdropUrisRef.current.clear();
+      transitionSeqRef.current += 1;
+      videoLoadSeqRef.current += 1;
+      primaryVideoPlayer.pause();
+      secondaryVideoPlayer.pause();
       return;
     }
-
-    targetIndexRef.current = initialIndex;
     displayIndexRef.current = initialIndex;
-    setTargetIndex(initialIndex);
     setDisplayIndex(initialIndex);
-    setPendingIndex(null);
-    pendingIndexRef.current = null;
-    setPendingVisualReady(false);
-    transitionOpacity.setValue(0);
-    transitionRunningRef.current = false;
-    setActiveVisualReady(false);
     setVideoReady(false);
-  }, [visible, initialIndex, transitionOpacity]);
+    setVideoProgress(0);
+    setShowVideoPoster(true);
+    setTransitionOverlayUri(null);
+    setDisplayReady(isStoryMediaReady(storyDisplayUri(storiesRef.current[initialIndex])));
+  }, [visible, initialIndex, primaryVideoPlayer, secondaryVideoPlayer]);
 
   useEffect(() => {
-    if (!visible || !activeVisualReady) return;
-    const nextStory = stories[displayIndex + 1];
-    if (nextStory) void prefetchStoryMediaUri(storyPrefetchUri(nextStory));
-  }, [visible, activeVisualReady, displayIndex, stories]);
+    if (!visible) return;
+    void prefetchStoryNeighborhood(stories, displayIndex);
+  }, [visible, stories, displayIndex]);
 
-  const markStoryActive = useCallback(
-    (storyId: string) => {
-      if (markedActiveRef.current.has(storyId)) return;
-      markedActiveRef.current.add(storyId);
-      onStoryActive(storyId);
-    },
-    [onStoryActive],
-  );
+  const markStoryActive = useCallback((storyId: string) => {
+    if (markedActiveRef.current.has(storyId)) return;
+    markedActiveRef.current.add(storyId);
+    onStoryActiveRef.current(storyId);
+  }, []);
 
   useEffect(() => {
-    if (!visible || !activeVisualReady || !displayStory) return;
+    if (!visible || !displayStory?.id || !displayReady) return;
     markStoryActive(displayStory.id);
-  }, [visible, activeVisualReady, displayStory, markStoryActive]);
+  }, [visible, displayStory?.id, displayReady, markStoryActive]);
 
-  const commitDisplayIndex = useCallback(
-    (nextIndex: number, options?: { keepVisualReady?: boolean }) => {
+  const commitIndex = useCallback(
+    (nextIndex: number) => {
+      transitionSeqRef.current += 1;
       displayIndexRef.current = nextIndex;
       setDisplayIndex(nextIndex);
-      setActiveVisualReady(options?.keepVisualReady === true);
+      setDisplayReady(isStoryMediaReady(storyDisplayUri(storiesRef.current[nextIndex])));
       setVideoReady(false);
+      setVideoProgress(0);
+      progress.setValue(0);
     },
-    [],
+    [progress],
   );
-
-  useEffect(() => {
-    if (pendingIndex === null || !pendingVisualReady || transitionRunningRef.current) return;
-    transitionRunningRef.current = true;
-    const animation = Animated.timing(transitionOpacity, {
-      toValue: 1,
-      duration: STORY_TRANSITION_MS,
-      useNativeDriver: true,
-    });
-    animation.start(({ finished }) => {
-      transitionRunningRef.current = false;
-      if (!finished) return;
-      const nextIndex = pendingIndexRef.current;
-      if (nextIndex == null) return;
-      commitDisplayIndex(nextIndex);
-    });
-    return () => animation.stop();
-  }, [pendingIndex, pendingVisualReady, commitDisplayIndex, transitionOpacity]);
 
   const goTo = useCallback(
     (nextIndex: number, completedCurrent: boolean) => {
       const currentStories = storiesRef.current;
-      const current = currentStories[displayIndexRef.current];
-      if (current) onViewed(current.id, completedCurrent);
+      const currentIndex = displayIndexRef.current;
+      const currentStory = currentStories[currentIndex];
 
-      if (nextIndex < 0) {
-        targetIndexRef.current = 0;
-        setTargetIndex(0);
-        return;
-      }
+      if (nextIndex < 0 || nextIndex === currentIndex) return;
       if (nextIndex >= currentStories.length) {
-        onClose();
+        if (currentStory) onViewedRef.current(currentStory.id, completedCurrent);
+        onCloseRef.current();
         return;
       }
 
-      targetIndexRef.current = nextIndex;
-      setTargetIndex(nextIndex);
-      if (nextIndex === displayIndexRef.current) return;
+      if (currentStory) onViewedRef.current(currentStory.id, completedCurrent);
 
       const nextStory = currentStories[nextIndex];
-      const nextUri = nextStory ? storyPrefetchUri(nextStory) : null;
+      const nextUri = storyDisplayUri(nextStory);
+      const shouldHoldPreviousImage =
+        currentStory?.kind === "image" &&
+        nextStory?.kind === "video" &&
+        !!currentStory.imageUrl;
       if (!nextUri) {
-        commitDisplayIndex(nextIndex);
+        setTransitionOverlayUri(null);
+        commitIndex(nextIndex);
         return;
       }
-      const nextBackdropUri = storyBackdropUri(nextStory);
-      const isWarmTransition =
-        isStoryMediaPrefetched(nextUri) ||
-        (!!nextBackdropUri && loadedBackdropUrisRef.current.has(nextBackdropUri));
-      if (isWarmTransition) {
-        pendingIndexRef.current = nextIndex;
-        setPendingIndex(nextIndex);
-        setPendingVisualReady(true);
-        transitionOpacity.stopAnimation();
-        transitionOpacity.setValue(1);
-        commitDisplayIndex(nextIndex, { keepVisualReady: true });
+
+      const seq = transitionSeqRef.current + 1;
+      transitionSeqRef.current = seq;
+      const finish = () => {
+        if (transitionSeqRef.current !== seq) return;
+        setTransitionOverlayUri(shouldHoldPreviousImage ? currentStory.imageUrl : null);
+        commitIndex(nextIndex);
+      };
+
+      if (isStoryMediaReady(nextUri)) {
+        finish();
         return;
       }
-      pendingIndexRef.current = nextIndex;
-      setPendingIndex(nextIndex);
-      setPendingVisualReady(false);
-      transitionOpacity.stopAnimation();
-      transitionOpacity.setValue(0);
-      if (!isStoryMediaPrefetched(nextUri)) {
-        void prefetchStoryMediaUri(nextUri);
-      }
+
+      void prefetchStoryMediaUri(storyPrefetchUri(nextStory)).then(() => {
+        finish();
+      });
     },
-    [onViewed, onClose, transitionOpacity, commitDisplayIndex],
+    [commitIndex],
   );
 
   useEffect(() => {
-    timerRef.current?.stop();
-    progress.setValue(0);
-    setVideoProgress(0);
-    if (!visible || !activeVisualReady || pendingIndex !== null || !displayStory || isDirectVideo) return;
+    goToRef.current = goTo;
+  }, [goTo]);
 
+  useEffect(() => {
+    timerRef.current?.stop();
+    setVideoProgress(0);
+    if (!visible || !displayStory || !displayReady || isDirectVideo) return;
+
+    progress.setValue(0);
     const animation = Animated.timing(progress, {
       toValue: 1,
       duration: IMAGE_DURATION_MS,
@@ -221,28 +236,45 @@ export function StoryViewerModal({
     });
     timerRef.current = animation;
     animation.start(({ finished }) => {
-      if (finished) goTo(displayIndexRef.current + 1, true);
+      if (finished) goToRef.current(displayIndexRef.current + 1, true);
     });
     return () => animation.stop();
-  }, [visible, activeVisualReady, pendingIndex, displayIndex, displayStory?.id, isDirectVideo, goTo, progress]);
+  }, [visible, displayStory?.id, displayReady, isDirectVideo, progress]);
 
-  const onVideoStatus = useCallback(
-    (status: AVPlaybackStatus) => {
-      if (!status.isLoaded) return;
-      setVideoReady(true);
-      if (status.durationMillis) {
-        setVideoProgress(Math.min(1, (status.positionMillis ?? 0) / status.durationMillis));
-      }
-      if (status.didJustFinish) goTo(displayIndexRef.current + 1, true);
-    },
-    [goTo],
-  );
+  useEventListener(primaryVideoPlayer, "timeUpdate", ({ currentTime }) => {
+    if (activeVideoSlotRef.current !== "primary") return;
+    if (primaryVideoPlayer.duration > 0) {
+      setVideoProgress(Math.min(1, currentTime / primaryVideoPlayer.duration));
+    }
+  });
+  useEventListener(secondaryVideoPlayer, "timeUpdate", ({ currentTime }) => {
+    if (activeVideoSlotRef.current !== "secondary") return;
+    if (secondaryVideoPlayer.duration > 0) {
+      setVideoProgress(Math.min(1, currentTime / secondaryVideoPlayer.duration));
+    }
+  });
+  useEventListener(primaryVideoPlayer, "playToEnd", () => {
+    if (activeVideoSlotRef.current !== "primary") return;
+    goToRef.current(displayIndexRef.current + 1, true);
+  });
+  useEventListener(secondaryVideoPlayer, "playToEnd", () => {
+    if (activeVideoSlotRef.current !== "secondary") return;
+    goToRef.current(displayIndexRef.current + 1, true);
+  });
+  useEventListener(primaryVideoPlayer, "statusChange", ({ status }) => {
+    if (activeVideoSlotRef.current !== "primary") return;
+    if (status === "readyToPlay") setDisplayReady(true);
+  });
+  useEventListener(secondaryVideoPlayer, "statusChange", ({ status }) => {
+    if (activeVideoSlotRef.current !== "secondary") return;
+    if (status === "readyToPlay") setDisplayReady(true);
+  });
 
   const handleClose = useCallback(() => {
     const current = storiesRef.current[displayIndexRef.current];
-    if (current) onViewed(current.id, false);
-    onClose();
-  }, [onViewed, onClose]);
+    if (current) onViewedRef.current(current.id, false);
+    onCloseRef.current();
+  }, []);
 
   const panResponder = useMemo(
     () =>
@@ -251,95 +283,144 @@ export function StoryViewerModal({
           Math.abs(gestureState.dx) > 16 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dx <= -SWIPE_TRIGGER_PX) {
-            goTo(targetIndexRef.current + 1, false);
+            goToRef.current(displayIndexRef.current + 1, false);
             return;
           }
           if (gestureState.dx >= SWIPE_TRIGGER_PX) {
-            goTo(targetIndexRef.current - 1, false);
+            goToRef.current(displayIndexRef.current - 1, false);
           }
         },
       }),
-    [goTo],
+    [],
   );
 
-  if (!displayStory || !displayMediaUri) return null;
+  useEffect(() => {
+    if (!visible) return;
+    if (!isDirectVideo || !displayMediaUri) {
+      setVideoReady(false);
+      setShowVideoPoster(true);
+      setTransitionOverlayUri(null);
+      primaryVideoPlayer.pause();
+      secondaryVideoPlayer.pause();
+      return;
+    }
 
-  const showSpinner = !activeVisualReady && !pendingVisualReady;
-  const showImage = !!displayBackdropUri;
-  const showVideo = activeVisualReady && isDirectVideo;
+    setVideoReady(false);
+    setVideoProgress(0);
+    const seq = videoLoadSeqRef.current + 1;
+    videoLoadSeqRef.current = seq;
+
+    const matchedSlot: VideoSlot =
+      primaryVideoUriRef.current === displayMediaUri
+        ? "primary"
+        : secondaryVideoUriRef.current === displayMediaUri
+          ? "secondary"
+          : activeVideoSlotRef.current;
+    const matchedPlayer = matchedSlot === "primary" ? primaryVideoPlayer : secondaryVideoPlayer;
+    const otherPlayer = matchedSlot === "primary" ? secondaryVideoPlayer : primaryVideoPlayer;
+    const matchedUriRef = matchedSlot === "primary" ? primaryVideoUriRef : secondaryVideoUriRef;
+    const isHotVideoSwap = matchedUriRef.current === displayMediaUri;
+
+    activeVideoSlotRef.current = matchedSlot;
+    setActiveVideoSlot(matchedSlot);
+    setShowVideoPoster(!isHotVideoSwap);
+    otherPlayer.pause();
+
+    void (async () => {
+      if (matchedUriRef.current !== displayMediaUri) {
+        await matchedPlayer.replaceAsync(storyVideoSource(displayMediaUri));
+        matchedUriRef.current = displayMediaUri;
+      }
+      if (videoLoadSeqRef.current !== seq) return;
+      matchedPlayer.currentTime = 0;
+      matchedPlayer.play();
+    })().catch(() => {
+      if (videoLoadSeqRef.current !== seq) return;
+      setVideoReady(false);
+    });
+  }, [visible, isDirectVideo, displayMediaUri, primaryVideoPlayer, secondaryVideoPlayer]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const nextVideo = nextDirectVideoStory(stories, displayIndex);
+    const nextUri = nextVideo?.videoUrl ?? null;
+    if (!nextUri) return;
+
+    const preloadSlot: VideoSlot = activeVideoSlotRef.current === "primary" ? "secondary" : "primary";
+    const preloadPlayer = preloadSlot === "primary" ? primaryVideoPlayer : secondaryVideoPlayer;
+    const preloadUriRef = preloadSlot === "primary" ? primaryVideoUriRef : secondaryVideoUriRef;
+    if (preloadUriRef.current === nextUri) return;
+
+    void preloadPlayer
+      .replaceAsync(storyVideoSource(nextUri))
+      .then(() => {
+        preloadUriRef.current = nextUri;
+        preloadPlayer.pause();
+        preloadPlayer.currentTime = 0;
+      })
+      .catch(() => {});
+  }, [visible, stories, displayIndex, primaryVideoPlayer, secondaryVideoPlayer]);
+
+  if (!displayStory || !displayUri) return null;
+
+  const showVideo = isDirectVideo && !!displayMediaUri;
 
   return (
     <Modal
       visible={visible}
       animationType="none"
       presentationStyle="fullScreen"
-      transparent
       onRequestClose={handleClose}
     >
-      <View
-        style={[
-          styles.root,
-          { backgroundColor: activeVisualReady || pendingVisualReady ? "#000" : "transparent" },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        {showImage ? (
-          <Image
-            source={{ uri: displayBackdropUri! }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-            onLoadEnd={() => {
-              loadedBackdropUrisRef.current.add(displayBackdropUri!);
-              setActiveVisualReady(true);
-              if (pendingIndexRef.current === displayIndexRef.current) {
-                setPendingIndex(null);
-                pendingIndexRef.current = null;
-                setPendingVisualReady(false);
-                transitionOpacity.setValue(0);
-              }
-            }}
-          />
-        ) : null}
-        {pendingBackdropUri ? (
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: transitionOpacity }]}>
-            <Image
-              source={{ uri: pendingBackdropUri }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-              onLoadEnd={() => {
-                loadedBackdropUrisRef.current.add(pendingBackdropUri);
-                if (pendingIndexRef.current === pendingIndex) {
-                  setPendingVisualReady(true);
-                }
-              }}
-            />
-          </Animated.View>
-        ) : null}
+      <View style={styles.root} {...panResponder.panHandlers}>
+        <Image
+          source={{ uri: displayUri }}
+          style={[
+            StyleSheet.absoluteFill,
+            showVideo && videoReady && !showVideoPoster ? styles.hiddenVisual : null,
+          ]}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={0}
+          onLoadEnd={() => {
+            setDisplayReady(true);
+          }}
+        />
+
         {showVideo ? (
-          <Video
-            source={{ uri: displayMediaUri }}
-            style={StyleSheet.absoluteFill}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay={visible}
-            isMuted={false}
-            onPlaybackStatusUpdate={onVideoStatus}
+          <VideoView
+            player={activeVideoPlayer}
+            style={[StyleSheet.absoluteFill, !videoReady ? styles.videoHidden : null]}
+            contentFit="cover"
+            nativeControls={false}
+            fullscreenOptions={{ enable: false }}
+            allowsPictureInPicture={false}
+            onFirstFrameRender={() => {
+              setVideoReady(true);
+              setShowVideoPoster(false);
+              setTransitionOverlayUri(null);
+              setDisplayReady(true);
+            }}
+            useExoShutter={false}
           />
         ) : null}
-        {showSpinner ? (
-          <View style={styles.loading} pointerEvents="none">
-            <ActivityIndicator color="#fff" size="large" />
-          </View>
+
+        {transitionOverlayUri ? (
+          <Image
+            source={{ uri: transitionOverlayUri }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={0}
+          />
         ) : null}
 
-        {(activeVisualReady || pendingVisualReady) ? <View style={[styles.topShade, { height: insets.top + 56 }]} /> : null}
-
-        {activeVisualReady ? (
-          <View style={[styles.progressRow, { top: insets.top + 8 }]}>
+        <View style={[styles.progressRow, { top: insets.top + 6 }]}>
           {stories.map((item, itemIndex) => (
             <View key={item.id} style={styles.progressTrack}>
               {itemIndex < displayIndex ? <View style={styles.progressDone} /> : null}
               {itemIndex === displayIndex ? (
-                isDirectVideo ? (
+                showVideo ? (
                   <View style={[styles.progressDone, { width: `${videoProgress * 100}%` }]} />
                 ) : (
                   <Animated.View
@@ -357,14 +438,13 @@ export function StoryViewerModal({
               ) : null}
             </View>
           ))}
-          </View>
-        ) : null}
+        </View>
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={closeLabel}
           onPress={handleClose}
-          style={[styles.close, { top: insets.top + 20 }]}
+          style={[styles.close, { top: insets.top + 16 }]}
           hitSlop={12}
         >
           <AppText variant="buttonLabel" style={styles.closeText}>
@@ -377,17 +457,17 @@ export function StoryViewerModal({
             accessibilityRole="button"
             accessibilityLabel={previousLabel}
             style={styles.tapBack}
-            onPress={() => goTo(targetIndexRef.current - 1, false)}
+            onPress={() => goToRef.current(displayIndexRef.current - 1, false)}
           />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={nextLabel}
             style={styles.tapForward}
-            onPress={() => goTo(targetIndexRef.current + 1, false)}
+            onPress={() => goToRef.current(displayIndexRef.current + 1, false)}
           />
         </View>
 
-        {activeVisualReady && pendingIndex === null && (showImage || (showVideo && videoReady)) && displayStory.captionText ? (
+        {displayReady && displayStory.captionText ? (
           <View style={[styles.captionWrap, { paddingBottom: insets.bottom + 24 }]}>
             <StoryCaption text={displayStory.captionText} />
           </View>
@@ -399,24 +479,8 @@ export function StoryViewerModal({
 
 const styles = StyleSheet.create({
   root: {
-    backgroundColor: "#000",
+    backgroundColor: "#111",
     flex: 1,
-  },
-  loading: {
-    alignItems: "center",
-    bottom: 0,
-    justifyContent: "center",
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0,
-  },
-  topShade: {
-    backgroundColor: "rgba(0,0,0,0.35)",
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0,
   },
   progressRow: {
     flexDirection: "row",
@@ -427,7 +491,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   progressTrack: {
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "rgba(255,255,255,0.38)",
     borderRadius: 2,
     flex: 1,
     height: 3,
@@ -439,6 +503,12 @@ const styles = StyleSheet.create({
     height: 3,
     width: "100%",
   },
+  videoHidden: {
+    opacity: 0,
+  },
+  hiddenVisual: {
+    opacity: 0,
+  },
   close: {
     padding: 6,
     position: "absolute",
@@ -448,6 +518,9 @@ const styles = StyleSheet.create({
   closeText: {
     color: "#fff",
     fontSize: 20,
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   tapRow: {
     ...StyleSheet.absoluteFillObject,
@@ -460,7 +533,6 @@ const styles = StyleSheet.create({
     flex: 2,
   },
   captionWrap: {
-    backgroundColor: "rgba(0,0,0,0.45)",
     bottom: 0,
     left: 0,
     paddingHorizontal: 18,

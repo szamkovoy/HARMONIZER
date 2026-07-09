@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-09 (5):** Укреплён stories media runtime в `_legacy_web`. Выяснилось, что `ffprobe-static`/`ffmpeg-static` как npm-зависимости были установлены корректно, но bundled Node route мог передавать в spawn несуществующий путь к бинарнику (`/ROOT/node_modules/...`, `ENOENT`). Решение: stories media pipeline теперь вычисляет абсолютные binary paths от `package.json` пакетов через `createRequire(import.meta.url)` и проверяет `existsSync + X_OK` перед запуском. Заодно обновлён video preset под mobile stories (`1080x1920`, `30 fps`, `H.264 High`, `AAC 128k`, `+faststart`).
+
 - **2026-07-08 (4):** Stories media infra expanded in two directions. First, `_legacy_web/package.json` gained `sharp`, `ffmpeg-static` and `ffprobe-static`, because Stories uploads are now normalized server-side (crop/resize for images; mp4 transcode, poster frame and tiny thumbnail for videos) before any DB row is created. Second, Supabase cron surface gained `cleanup-expired-stories` (`supabase/functions/cleanup-expired-stories`, `supabase/config.toml`, `supabase/README.md`, `DEPLOY.md`) so expired stories are deleted not only from feed SQL but also from Storage.
 
 - **2026-06-27 (3):** Expo prebuild contract expanded for BLE chest straps. `package.json` now includes `@sfourdrinier/react-native-ble-plx`, and `app.config.ts` wires the BLE config plugin plus iOS `NSBluetoothAlwaysUsageDescription` and Android `BLUETOOTH(_SCAN/_CONNECT)` permissions. Result: Polar/generic BLE HRM support is available in dev-client / prebuild builds, while Expo Go remains unsupported for that path.

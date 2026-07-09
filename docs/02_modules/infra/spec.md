@@ -40,7 +40,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `precompute-global-recommendations`, `cleanup-expired-proposals`, `cleanup-expired-stories`), правило «не править старые миграции — только новые файлы».
 - `supabase/config.toml` — локальные флаги edge-функций; для cron-style вызовов `verify_jwt = false` фиксируется и для `precompute-global-recommendations`.
 - `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания.
-- `_legacy_web/package.json` — Node-зависимости backend shell. Для stories media pipeline сюда добавлены `sharp`, `ffmpeg-static` и `ffprobe-static`, потому что image crop/transcode/poster/thumb generation выполняются в серверном runtime, а не в браузере.
+- `_legacy_web/package.json` — Node-зависимости backend shell. Для stories media pipeline сюда добавлены `sharp`, `ffmpeg-static` и `ffprobe-static`, потому что image crop/transcode/poster/thumb generation выполняются в серверном runtime, а не в браузере. Важный runtime-инвариант: не полагаться на сырые `exports.path` этих пакетов в bundled Next route; `mediaPipeline.ts` валидирует absolute path к бинарнику от package dir перед `spawn`.
 
 **PWA-остаток**
 

@@ -1,17 +1,26 @@
 import ffmpegPath from "ffmpeg-static";
 import ffprobe from "ffprobe-static";
 import { spawn } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { accessSync, existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import sharp from "sharp";
 
 export const STORY_IMAGE_OUTPUT = { width: 1080, height: 1920, quality: 82 } as const;
 export const STORY_THUMB_SIZE = 160;
+export const STORY_VIDEO_COVER_OUTPUT = { width: 1080, height: 1920, quality: 82 } as const;
 export const STORY_IMAGE_MAX_BYTES = 30 * 1024 * 1024;
 export const STORY_VIDEO_MAX_BYTES = 120 * 1024 * 1024;
 export const STORY_VIDEO_MAX_DURATION_SEC = 90;
+export const STORY_VIDEO_TARGET_FPS = 30;
+export const STORY_VIDEO_TARGET_MAXRATE = "7000k";
+export const STORY_VIDEO_TARGET_BUFSIZE = "14000k";
+
+const requireForRuntime = createRequire(import.meta.url);
 
 type StorySourceKind = "image" | "video";
 
@@ -50,6 +59,32 @@ const EXT_BY_MIME: Record<string, string> = {
 function requireBinaryPath(value: string | null | undefined, name: string): string {
   if (!value) throw new Error(`${name} binary is unavailable`);
   return value;
+}
+
+function resolvePackageBinary(packageName: string, relativePathParts: string[], fallback: string | null | undefined, name: string): string {
+  const candidates = [
+    fallback ?? "",
+    (() => {
+      try {
+        const pkgJsonPath = requireForRuntime.resolve(`${packageName}/package.json`);
+        return join(dirname(pkgJsonPath), ...relativePathParts);
+      } catch {
+        return "";
+      }
+    })(),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    try {
+      accessSync(candidate, fsConstants.X_OK);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(`${name} binary is unavailable`);
 }
 
 function storySourceKindFromMime(contentType: string): StorySourceKind {
@@ -135,7 +170,12 @@ async function runJsonBinary(command: string, args: string[]): Promise<unknown> 
 }
 
 async function inspectVideo(sourcePath: string): Promise<{ durationSec: number }> {
-  const ffprobePath = requireBinaryPath(ffprobe.path, "ffprobe");
+  const ffprobePath = resolvePackageBinary(
+    "ffprobe-static",
+    ["bin", process.platform, process.arch, process.platform === "win32" ? "ffprobe.exe" : "ffprobe"],
+    ffprobe.path,
+    "ffprobe",
+  );
   const payload = (await runJsonBinary(ffprobePath, [
     "-v",
     "quiet",
@@ -179,7 +219,12 @@ async function processImage(input: Buffer): Promise<ProcessedStoryMedia> {
 }
 
 async function processVideo(input: Buffer, sourceExt: string): Promise<ProcessedStoryMedia> {
-  const ffmpeg = requireBinaryPath(ffmpegPath, "ffmpeg");
+  const ffmpeg = resolvePackageBinary(
+    "ffmpeg-static",
+    [process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"],
+    ffmpegPath,
+    "ffmpeg",
+  );
   const dir = await mkdtemp(join(tmpdir(), "harmonizer-story-"));
   const sourcePath = join(dir, `source.${sourceExt}`);
   const mainPath = join(dir, "story.mp4");
@@ -197,17 +242,19 @@ async function processVideo(input: Buffer, sourceExt: string): Promise<Processed
       "-i",
       sourcePath,
       "-vf",
-      "scale='if(gt(iw,1920),1920,iw)':'if(gt(ih,1920),1920,ih)':force_original_aspect_ratio=decrease,format=yuv420p",
+      `scale=${STORY_VIDEO_COVER_OUTPUT.width}:${STORY_VIDEO_COVER_OUTPUT.height}:force_original_aspect_ratio=increase,crop=${STORY_VIDEO_COVER_OUTPUT.width}:${STORY_VIDEO_COVER_OUTPUT.height},fps=${STORY_VIDEO_TARGET_FPS},format=yuv420p`,
       "-c:v",
       "libx264",
+      "-profile:v",
+      "high",
       "-preset",
       "veryfast",
       "-crf",
-      "24",
+      "23",
       "-maxrate",
-      "3500k",
+      STORY_VIDEO_TARGET_MAXRATE,
       "-bufsize",
-      "7000k",
+      STORY_VIDEO_TARGET_BUFSIZE,
       "-c:a",
       "aac",
       "-b:a",
@@ -219,14 +266,12 @@ async function processVideo(input: Buffer, sourceExt: string): Promise<Processed
 
     await runBinary(ffmpeg, [
       "-y",
-      "-ss",
-      "0.2",
       "-i",
       sourcePath,
       "-frames:v",
       "1",
       "-vf",
-      "scale='if(gt(iw,1080),1080,iw)':-2",
+      `scale=${STORY_VIDEO_COVER_OUTPUT.width}:${STORY_VIDEO_COVER_OUTPUT.height}:force_original_aspect_ratio=increase,crop=${STORY_VIDEO_COVER_OUTPUT.width}:${STORY_VIDEO_COVER_OUTPUT.height}`,
       "-q:v",
       "3",
       coverPath,
