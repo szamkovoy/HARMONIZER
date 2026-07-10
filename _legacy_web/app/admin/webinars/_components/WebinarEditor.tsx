@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2, ThumbsUp, Trash2 } from "lucide-react";
 
+import { TIER_LABELS_RU } from "@/modules/access/core/tiers";
+
 import { adminFetch } from "../../_lib/adminApi";
 import { formatAdminDateTime } from "../../_lib/adminDates";
 
@@ -288,13 +290,6 @@ function QuestionsModeration({ initial }: { initial: AdminWebinarQuestion[] }) {
   );
 }
 
-const TIER_LABELS: Record<string, string> = {
-  free: "Бесплатный",
-  oracle: "Оракул",
-  practitioner: "Практик",
-  master: "Мастер",
-};
-
 function RegistrationsList({ registrations }: { registrations: AdminWebinarRegistration[] }) {
   return (
     <div className="mt-6">
@@ -309,7 +304,7 @@ function RegistrationsList({ registrations }: { registrations: AdminWebinarRegis
             <span className="font-medium text-zinc-200">{reg.display_name}</span>
             <span className="text-zinc-500">{reg.email}</span>
             <span className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
-              {TIER_LABELS[reg.membership_tier] ?? reg.membership_tier}
+              {TIER_LABELS_RU[reg.membership_tier as keyof typeof TIER_LABELS_RU] ?? reg.membership_tier}
             </span>
           </div>
         ))}

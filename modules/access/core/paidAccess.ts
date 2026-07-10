@@ -14,15 +14,13 @@
  * в oracle), пока все строки БД не нормализованы миграцией.
  */
 
-import type { ProductTier } from "./tiers";
+import { isPaidProductTier, type ProductTier } from "./tiers";
 
 export type MembershipRow = {
   membership_tier?: string | null;
   trial_expires_at?: string | null;
   membership_expires_at?: string | null;
 } | null | undefined;
-
-const PAID_TIERS: readonly ProductTier[] = ["oracle", "practitioner", "master"];
 
 function membershipExpired(row: MembershipRow, now: Date): boolean {
   if (!row?.membership_expires_at) return false;
@@ -32,8 +30,7 @@ function membershipExpired(row: MembershipRow, now: Date): boolean {
 /** Оплаченный (не trial) тариф из строки БД с учётом срока действия; null если его нет. */
 export function paidTierFromRow(row: MembershipRow, now: Date = new Date()): ProductTier | null {
   const raw = typeof row?.membership_tier === "string" ? row.membership_tier.trim().toLowerCase() : "";
-  const tier: ProductTier | null =
-    raw === "premium" ? "oracle" : (PAID_TIERS as readonly string[]).includes(raw) ? (raw as ProductTier) : null;
+  const tier: ProductTier | null = raw === "premium" ? "oracle" : isPaidProductTier(raw) ? raw : null;
   if (!tier) return null;
   return membershipExpired(row, now) ? null : tier;
 }

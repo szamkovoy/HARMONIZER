@@ -1,9 +1,6 @@
-export const TIER_LABELS: Record<string, string> = {
-  free: "Бесплатный",
-  oracle: "Оракул",
-  practitioner: "Практик",
-  master: "Мастер",
-};
+import { TIER_LABELS_RU, type ProductTier } from "@/modules/access/core/tiers";
+
+export const TIER_LABELS: Record<string, string> = TIER_LABELS_RU;
 
 const TIER_BADGE: Record<string, string> = {
   free: "bg-white/5 text-zinc-400",
@@ -13,9 +10,10 @@ const TIER_BADGE: Record<string, string> = {
 };
 
 export function TierBadge({ tier }: { tier: string }) {
+  const label = TIER_LABELS[tier as ProductTier] ?? tier;
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TIER_BADGE[tier] ?? TIER_BADGE.free}`}>
-      {TIER_LABELS[tier] ?? tier}
+      {label}
     </span>
   );
 }

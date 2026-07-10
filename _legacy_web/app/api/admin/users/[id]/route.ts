@@ -1,10 +1,19 @@
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
-import { ALL_TIERS, PAID_TIERS, syncUserTierFromLatestPayment } from "../../_utils/payments";
+import { ALL_TIERS, PAID_TIERS, recomputeUserMembershipFromPayments } from "../../_utils/payments";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+function membershipLooksStale(user: {
+  membership_tier: string;
+  membership_expires_at: string | null;
+}): boolean {
+  if (!PAID_TIERS.has(user.membership_tier)) return false;
+  if (!user.membership_expires_at) return false;
+  return Date.parse(user.membership_expires_at) <= Date.now();
+}
 
 /** Карточка пользователя: профиль, email, история платежей, последняя активность. */
 export async function GET(req: Request, ctx: RouteContext) {
@@ -13,13 +22,24 @@ export async function GET(req: Request, ctx: RouteContext) {
     const { id } = await ctx.params;
     const db = createServiceSupabase();
 
-    const { data: user, error } = await db
+    let { data: user, error } = await db
       .from("users")
       .select("id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at")
       .eq("id", id)
       .maybeSingle();
     if (error) throw error;
     if (!user) return json({ error: "Пользователь не найден" }, { status: 404 });
+
+    if (membershipLooksStale(user)) {
+      await recomputeUserMembershipFromPayments(db, id);
+      const refreshed = await db
+        .from("users")
+        .select("id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at")
+        .eq("id", id)
+        .maybeSingle();
+      if (refreshed.error) throw refreshed.error;
+      if (refreshed.data) user = refreshed.data;
+    }
 
     const [emails, paymentsRes, lastEventRes] = await Promise.all([
       emailsByUserId(db, [id]),
@@ -91,7 +111,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         comment: payload.comment?.trim() || null,
       });
       if (ledgerError) throw ledgerError;
-      await syncUserTierFromLatestPayment(db, id);
+      await recomputeUserMembershipFromPayments(db, id);
     } else {
       const { error } = await db
         .from("users")

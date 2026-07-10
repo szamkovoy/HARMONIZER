@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 
+import { TIER_LABELS_RU } from "@/modules/access/core/tiers";
+
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
 
@@ -15,13 +17,6 @@ type SupportMessage = {
   display_name: string;
   email: string;
   membership_tier: string;
-};
-
-const TIER_LABELS: Record<string, string> = {
-  free: "Бесплатный",
-  oracle: "Оракул",
-  practitioner: "Практик",
-  master: "Мастер",
 };
 
 export default function AdminFeedbackPage() {
@@ -96,7 +91,7 @@ export default function AdminFeedbackPage() {
                 <span className="font-semibold text-zinc-300">{message.display_name}</span>
                 <span>{message.email}</span>
                 <span className="rounded-full bg-white/5 px-2 py-0.5">
-                  {TIER_LABELS[message.membership_tier] ?? message.membership_tier}
+                  {TIER_LABELS_RU[message.membership_tier as keyof typeof TIER_LABELS_RU] ?? message.membership_tier}
                 </span>
                 <span>{formatAdminDateTime(message.created_at)}</span>
               </div>

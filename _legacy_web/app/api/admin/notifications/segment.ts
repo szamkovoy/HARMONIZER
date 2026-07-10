@@ -1,26 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PRODUCT_TIERS, TIER_LABELS_RU, type ProductTier } from "@/modules/access/core/tiers";
 
 export type NotificationSegment =
   | { kind: "all" }
-  | { kind: "tier"; tier: "free" | "oracle" | "practitioner" | "master" }
+  | { kind: "tier"; tier: ProductTier }
   | { kind: "webinar"; webinarId: string };
-
-const TIERS = ["free", "oracle", "practitioner", "master"] as const;
-
-const TIER_LABELS: Record<string, string> = {
-  free: "Бесплатный",
-  oracle: "Оракул",
-  practitioner: "Практик",
-  master: "Мастер",
-};
 
 /** 'all' | 'tier:<tier>' | 'webinar:<uuid>' → структура; кидает 400 на мусор. */
 export function parseSegment(raw: string | undefined): NotificationSegment {
   const value = raw?.trim() ?? "";
   if (value === "all") return { kind: "all" };
   if (value.startsWith("tier:")) {
-    const tier = value.slice(5) as (typeof TIERS)[number];
-    if (TIERS.includes(tier)) return { kind: "tier", tier };
+    const tier = value.slice(5) as ProductTier;
+    if ((PRODUCT_TIERS as readonly string[]).includes(tier)) return { kind: "tier", tier };
   }
   if (value.startsWith("webinar:")) {
     const webinarId = value.slice(8);
@@ -50,7 +42,7 @@ export async function resolveSegmentUserIds(
 
 export async function segmentLabel(db: SupabaseClient, segment: NotificationSegment): Promise<string> {
   if (segment.kind === "all") return "Все пользователи";
-  if (segment.kind === "tier") return `Тариф «${TIER_LABELS[segment.tier]}»`;
+  if (segment.kind === "tier") return `Тариф «${TIER_LABELS_RU[segment.tier]}»`;
   const { data } = await db.from("webinars").select("title").eq("id", segment.webinarId).maybeSingle();
   return `Вебинар «${data?.title ?? segment.webinarId}»`;
 }

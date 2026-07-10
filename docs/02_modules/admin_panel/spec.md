@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.5
-updated: 2026-07-08
+version: 1.6
+updated: 2026-07-10
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -20,13 +20,18 @@ code_refs:
     _legacy_web/app/api/admin/me/route.ts,
     _legacy_web/app/api/admin/feedback/route.ts,
     _legacy_web/app/api/admin/users/route.ts,
+    _legacy_web/app/api/admin/users/[id]/route.ts,
     _legacy_web/app/api/admin/payments/route.ts,
+    _legacy_web/app/api/admin/payments/[id]/route.ts,
+    _legacy_web/app/api/admin/_utils/payments.ts,
+    _legacy_web/app/api/admin/_utils/membershipFromPayments.ts,
     _legacy_web/app/api/admin/metrics/route.ts,
     _legacy_web/app/api/admin/prompts/route.ts,
     _legacy_web/app/api/admin/stories/process/route.ts,
     _legacy_web/app/api/admin/stories/cleanup/route.ts,
     _legacy_web/app/api/_utils/supabase.ts,
     _legacy_web/public/admin-manifest.json,
+    modules/access/core/tiers.ts,
     modules/support/core/supportClient.ts,
     modules/metrics/core/appOpen.ts,
     supabase/migrations/20260708010000_admin_panel_tier_foundation.sql,
@@ -34,6 +39,7 @@ code_refs:
     supabase/migrations/20260708170000_payments_users_admin.sql,
     supabase/migrations/20260708180000_admin_dashboard_metrics.sql,
     supabase/migrations/20260708190000_payments_edited_at.sql,
+    supabase/migrations/20260710023000_reconcile_expired_memberships.sql,
   ]
 ---
 
@@ -68,9 +74,9 @@ code_refs:
 
 - Таблица `payments` (`20260708170000_payments_users_admin.sql` + `20260708190000_payments_edited_at.sql`) — леджер выдачи платных тарифов: `amount/currency/tier/paid_until/source('manual'|'store'|'promo')/comment` + `edited_at` для пометки правок. RLS admin-only.
 - RPC `admin_search_users(p_query, p_tier, p_limit)` — security definer c join на `auth.users` (email не хранится в `public.users`); execute отозван у anon/authenticated, вызывается только service role.
-- `GET /api/admin/users?q=&tier=` — поиск по имени/email + фильтр тарифа (до 100 строк). `GET /api/admin/users/[id]` — карточка: профиль, email, история платежей, последняя активность (max `occurred_at` из `user_event_log`). `PATCH /api/admin/users/[id]` `{tier, expires_at?, amount?, comment?}` — ручное назначение: обновляет `users.membership_tier`/`membership_expires_at` и пишет строку в `payments` (source=manual); тариф `free` сбрасывает срок и леджер не пишет.
-- `GET /api/admin/payments` — общий список записей леджера с `display_name`/`email`. `PATCH /api/admin/payments/[id]` `{tier, expires_at?, amount?, comment?}` — редактирование строки леджера; если правится самая свежая запись пользователя, сервер синхронно пересчитывает `users.membership_tier`/`membership_expires_at` из обновлённого latest payment.
-- UI: `/admin/users` (поиск, фильтр, `TierBadge`, ссылка на статистику, даты тарифа в виде `с ... до ...`), `/admin/users/[id]` (карточка без `trial`, поле `Язык`, модальная кнопка «Добавить платёж», редактируемая история платежей), `/admin/payments` (общий леджер с переходом в карточку пользователя).
+- `GET /api/admin/users?q=&tier=` — поиск по имени/email + фильтр тарифа (до 100 строк). `GET /api/admin/users/[id]` — карточка: профиль, email, история платежей, последняя активность (max `occurred_at` из `user_event_log`); если у пользователя платный tier с уже истёкшим `membership_expires_at`, перед ответом opportunistically вызывается `recomputeUserMembershipFromPayments`. `PATCH /api/admin/users/[id]` `{tier, expires_at?, amount?, comment?}` — ручное назначение: пишет строку в `payments` (source=manual) и пересчитывает `users.membership_*` из действующих платежей; тариф `free` сбрасывает срок и леджер не пишет.
+- `GET /api/admin/payments` — общий список записей леджера с `display_name`/`email`. `PATCH /api/admin/payments/[id]` `{tier, expires_at?, amount?, comment?}` — редактирование строки леджера; **всегда** пересчитывает `users.membership_tier`/`membership_expires_at` из ещё действующих платежей (`paid_until` null или в будущем): побеждает максимальный тариф по `TIER_ORDER`, при равенстве — более поздний `paid_until` (null побеждает), затем более свежий `created_at`; если действующих нет — `free`. Хелпер: `_legacy_web/app/api/admin/_utils/{payments,membershipFromPayments}.ts`; зеркало в SQL — `recompute_user_membership` / hourly Edge `reconcile-expired-memberships` (см. infra).
+- UI: `/admin/users` (поиск, фильтр, `TierBadge` из `TIER_LABELS_RU` канона `modules/access/core/tiers.ts`, ссылка на статистику, даты тарифа в виде `с ... до ...`), `/admin/users/[id]` (карточка без `trial`, поле `Язык`, модальная кнопка «Добавить платёж», редактируемая история платежей), `/admin/payments` (общий леджер с переходом в карточку пользователя).
 
 **Дашборд метрик (реализовано, этап 7):**
 
@@ -113,6 +119,6 @@ code_refs:
 - Вход только email/password: если аккаунт владельца создан через Apple/Google OAuth, пароль нужно один раз задать в Supabase Studio (Authentication → Users).
 - Все разделы этапов 0–8 реализованы; заглушек не осталось.
 - `is_admin()` в RLS остаётся защитой на уровне БД; серверные админ-роуты работают через service role + `requireAdmin` и на RLS не полагаются.
-- Леджер `payments` пока наполняется только ручными назначениями (source=manual); интеграции со сторами нет — при её появлении писать в тот же леджер с source=store.
+- Леджер `payments` пока наполняется только ручными назначениями (source=manual); интеграции со сторами нет — при её появлении писать в тот же леджер с source=store. Автооплата/renewal при истечении срока **не** реализованы: cron только пересчитывает membership из уже существующих платежей.
 - DAU/WAU/MAU считаются по любым событиям `user_event_log`; до массового раскатывания клиента с `app_open` активность занижена (только пользователи, дёргающие API).
 - Stories media pipeline рассчитан на короткий контент: фото до 30 МБ, raw video до 120 МБ и до 90 секунд. Ограничения enforced уже на upload/process-роутах, чтобы `ffmpeg` укладывался в serverless runtime.

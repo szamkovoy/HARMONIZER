@@ -16,6 +16,7 @@ Functions to deploy:
 - `precompute-global-recommendations`
 - `cleanup-expired-proposals`
 - `cleanup-expired-stories`
+- `reconcile-expired-memberships`
 
 Recommended schedules:
 
@@ -24,6 +25,7 @@ Recommended schedules:
 - `precompute-global-recommendations`: `0 * * * *`
 - `cleanup-expired-proposals`: `0 4 * * 0`
 - `cleanup-expired-stories`: `15 * * * *`
+- `reconcile-expired-memberships`: `20 * * * *`
 
 ## Next.js Backend (`_legacy_web`)
 

@@ -1,20 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPaidProductTier, isProductTier, PAID_PRODUCT_TIERS, PRODUCT_TIERS } from "@/modules/access/core/tiers";
+import { selectActiveMembershipFromPayments } from "./membershipFromPayments";
 
-export const PAID_TIERS = new Set(["oracle", "practitioner", "master"]);
-export const ALL_TIERS = new Set(["free", ...PAID_TIERS]);
+export const PAID_TIERS = new Set<string>(PAID_PRODUCT_TIERS);
+export const ALL_TIERS = new Set<string>(PRODUCT_TIERS);
 
-/** Если правим самую свежую запись леджера — синхронизируем тариф в users. */
-export async function syncUserTierFromLatestPayment(db: SupabaseClient, userId: string): Promise<void> {
-  const { data: latest, error: latestError } = await db
+export { isPaidProductTier, isProductTier };
+
+/**
+ * Пересчитывает users.membership_* из леджера payments:
+ * среди ещё действующих платежей — максимальный тариф (см. selectActiveMembershipFromPayments);
+ * если действующих нет — free.
+ */
+export async function recomputeUserMembershipFromPayments(db: SupabaseClient, userId: string): Promise<void> {
+  const { data: payments, error: paymentsError } = await db
     .from("payments")
     .select("tier, paid_until, created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (latestError) throw latestError;
+    .eq("user_id", userId);
+  if (paymentsError) throw paymentsError;
 
-  if (!latest) {
+  const active = selectActiveMembershipFromPayments(payments ?? []);
+  if (!active) {
     const { error } = await db
       .from("users")
       .update({ membership_tier: "free", membership_expires_at: null })
@@ -25,19 +31,7 @@ export async function syncUserTierFromLatestPayment(db: SupabaseClient, userId: 
 
   const { error } = await db
     .from("users")
-    .update({ membership_tier: latest.tier, membership_expires_at: latest.paid_until })
+    .update({ membership_tier: active.tier, membership_expires_at: active.paid_until })
     .eq("id", userId);
   if (error) throw error;
-}
-
-export async function isLatestPayment(db: SupabaseClient, userId: string, paymentId: string): Promise<boolean> {
-  const { data, error } = await db
-    .from("payments")
-    .select("id")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data?.id === paymentId;
 }

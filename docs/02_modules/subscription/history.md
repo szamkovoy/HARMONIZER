@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, mod
 
 ## Decision Log
 
+- **2026-07-10:** Каталог тарифов расширен явными `PAID_PRODUCT_TIERS` / `TIER_LABELS_RU` / `isPaidProductTier` в `modules/access/core/tiers.ts` (админка и серверные сегменты больше не держат локальные копии имён). Пересчёт `users.membership_*` из леджера `payments` при add/edit и hourly cron: среди ещё действующих платежей побеждает максимальный `TIER_ORDER` (см. admin_panel / infra). Автооплата store отложена.
+
 - **2026-07-08:** Полная 4-тировая модель дошла до БД (этап 0 admin_panel): миграция `20260708010000_admin_panel_tier_foundation.sql` расширила constraint `users.membership_tier` до `free/oracle/practitioner/master`, нормализовала `premium`→`oracle` и добавила `membership_expires_at` (истечение ручного гранта; истёкший грант = free). Дубли условия «premium ИЛИ trial» (5 мест: `access.tsx`, `useDayContent`, `globalContentClient`, `Communicator`, `userModelTier`/`global-content`) заменены единым `modules/access/core/paidAccess.ts` (+ vendored-копия для Vercel, + зеркало в Edge `precompute-daily-forecasts`). Закрыты оба open questions по subscription.
 
 - **2026-06-16:** `UpgradeDialog` переведён на JSON-каталог i18n (`tier.*`, `upgrade.*` через `useTranslate()`); убраны хардкод RU и `TIER_LABELS` в UI модалки.

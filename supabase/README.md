@@ -59,6 +59,7 @@ supabase db execute --file supabase/seed.sql
 - `precompute-global-recommendations` — precompute глобального free-прогноза с rolling window `yesterday/today/tomorrow`.
 - `cleanup-expired-proposals` — еженедельная очистка `ai_state_proposals`.
 - `cleanup-expired-stories` — регулярная очистка истёкших stories + их файлов в `story-media`.
+- `reconcile-expired-memberships` — hourly пересчёт `users.membership_*` из леджера `payments`, когда срок оплаты истёк (без автооплаты store).
 
 Секреты: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, опционально `CRON_SECRET`, для LLM-анализа `GEMINI_API_KEY`.
 
@@ -72,6 +73,7 @@ supabase db execute --file supabase/seed.sql
 0 * * * *      precompute-global-recommendations
 0 4 * * 0      cleanup-expired-proposals
 15 * * * *     cleanup-expired-stories
+20 * * * *     reconcile-expired-memberships
 ```
 
 Для migration-based invoke jobs через `pg_cron` + `pg_net` секрет `CRON_SECRET` нужно также положить в Vault под ожидаемым именем. Для cleanup stories это:
@@ -81,6 +83,16 @@ select vault.create_secret(
   '<same value as CRON_SECRET for the Edge Function>',
   'cleanup_expired_stories_cron_secret',
   'x-cron-secret header for cleanup-expired-stories'
+);
+```
+
+Для reconcile memberships:
+
+```sql
+select vault.create_secret(
+  '<same value as CRON_SECRET for the Edge Function>',
+  'reconcile_expired_memberships_cron_secret',
+  'x-cron-secret header for reconcile-expired-memberships'
 );
 ```
 

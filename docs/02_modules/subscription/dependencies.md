@@ -65,7 +65,10 @@ code_refs:
   В `TIER_FEATURES` зарезервированы ключи в духе `webinar_community`; отдельного потребительского кода под эти модули в репозитории пока нет.
 
 - **`admin_panel`**  
-  Миграция 4 тиров + `membership_expires_at` сделана в рамках этапа 0 админ-панели; ручной грант тарифа (этап 6) будет писать эти поля. См. `02_modules/admin_panel/`.
+  Миграция 4 тиров + `membership_expires_at` (этап 0); ручной грант/правка платежей (этап 6) пишет леджер и пересчитывает `users.membership_*` по правилу highest active tier. Подписи в UI админки — `TIER_LABELS_RU`. См. `02_modules/admin_panel/`.
+
+- **`infra`**  
+  Hourly Edge `reconcile-expired-memberships` + SQL `recompute_user_membership` / `reconcile_expired_memberships` поддерживают актуальность `users.membership_*` после истечения `membership_expires_at` без интерактивного захода в админку.
 
 ## 3. Контрактные точки риска
 

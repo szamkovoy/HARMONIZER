@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
 
+import { PRODUCT_TIERS, TIER_LABELS_RU } from "@/modules/access/core/tiers";
+
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
 
@@ -20,12 +22,10 @@ type NotificationRow = {
 
 type WebinarOption = { id: string; title: string; starts_at: string };
 
-const TIER_OPTIONS = [
-  { value: "tier:free", label: "Тариф «Бесплатный»" },
-  { value: "tier:oracle", label: "Тариф «Оракул»" },
-  { value: "tier:practitioner", label: "Тариф «Практик»" },
-  { value: "tier:master", label: "Тариф «Мастер»" },
-];
+const TIER_OPTIONS = PRODUCT_TIERS.map((tier) => ({
+  value: `tier:${tier}`,
+  label: `Тариф «${TIER_LABELS_RU[tier]}»`,
+}));
 
 export default function AdminNotificationsPage() {
   const [history, setHistory] = useState<NotificationRow[] | null>(null);

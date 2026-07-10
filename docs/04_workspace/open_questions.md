@@ -125,6 +125,14 @@ code_refs: []
 - **Условие «premium ИЛИ trial» централизовано (решено 2026-07-08)**  
 **Контекст:** правило эффективного премиум-доступа дублировалось в 5 местах (клиент + сервер).  
 **Решение:** единый `modules/access/core/paidAccess.ts` (`hasEffectivePremium`, `accessModeFromRow`, `baseTierFromRow`), vendored-копия для Vercel через `scripts/sync-vercel-server-modules.mjs`. **Оставшееся намеренное зеркало:** Edge `precompute-daily-forecasts` (`hasPersonalForecastAccess`) — Deno bundler не резолвит `modules/`; при изменении правила синхронизировать вручную.
+- **Автооплата / store renewal при истечении срока**  
+**Контекст:** hourly `reconcile-expired-memberships` только пересчитывает `users.membership_*` из уже существующих строк `payments` (highest active tier → иначе free). Интеграции со сторами и автопродления нет.  
+**Проявление:** после истечения ручного/будущего store-платежа пользователь уходит на free (или на другой ещё действующий платёж), но следующий месяц сам не списывается.  
+**Действие:** при подключении платёжной системы — писать в тот же леджер `source=store` и решить, где живёт renewal (store webhook vs отдельный billing job), не смешивая с reconcile-downgrade.
+- **Итоговые названия/число тарифов (временная схема free/oracle/practitioner/master)**  
+**Контекст:** владелец рассматривает схему «Навигатор / Советник / Учитель» (или иное); текущие четыре тира — временные.  
+**Проявление:** смена id/названий потребует миграции CHECK, SQL `recompute_user_membership`, матрицы `TIER_FEATURES` и i18n `tier.*`.  
+**Действие:** править только канон `modules/access/core/{tiers,features}.ts` + одна миграция; не размазывать списки по админке.
 - **`announcements` — кандидат на депрекацию**  
 **Контекст:** таблица `announcements` (+`user_announcement_views`, RPC `get_user_announcement`) спроектирована под баннерную модель, клиент её никогда не вызывал. По плану админ-панели публикации получают новую таблицу `posts` (этап 2), баннер вебинара читается из `webinars` (этап 3).  
 **Проявление:** мёртвая схема + RLS-политики; риск путаницы «публикации vs announcements».  

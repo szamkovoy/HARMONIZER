@@ -19,7 +19,7 @@ code_refs:
 ## 1. Зависит от
 
 - **`infra`** — Supabase (`user_roles`, `is_admin`, service role), Vercel-деплой `_legacy_web`, Tailwind v4, PWA-манифест. Хелперы `createServiceSupabase` / `requireUserId` / новый `requireAdmin` в `app/api/_utils/supabase.ts`. Метрики дашборда читают `user_event_log` (`dialog_turn`, `llm_*`, `api_error`, новое `app_open`).
-- **`subscription`** — модель тарифов: миграция 4 тиров + `membership_expires_at` сделана в рамках admin_panel (этап 0); ручной грант тарифа (этап 6) пишет `users.membership_tier`/`membership_expires_at` + строку в `payments` по правилам `modules/access/core/paidAccess.ts`.
+- **`subscription`** — модель тарифов: канон имён/порядка/фич в `modules/access/core/{tiers,features}.ts` (`TIER_LABELS_RU`, `PAID_PRODUCT_TIERS`, `TIER_ORDER`); runtime-доступ по полям `users` — `paidAccess.ts`. Ручной грант/правка платежа (этап 6) пишет леджер `payments` и пересчитывает `users.membership_*` через `recomputeUserMembershipFromPayments` (highest active tier). Hourly reconcile — Edge/SQL в infra.
 - **`author_presence`** (сторис/публикации/комментарии), **`webinars`**, **`notifications`** — admin_panel их управляющая консоль; продуктовые контракты в спеках этих модулей.
 - **`assistant`** — таблица `prompts` (версии, `is_active`), `getActivePrompt`/`renderPrompt` (`app/api/_utils/prompts.ts`), Gemini-пайплайн (`app/api/_utils/gemini.ts`) для playground.
 - **`profile`** — карточка «Поддержка» в Профиле открывает `SupportModal` (`modules/support`); insert в `support_messages` идёт под RLS без сервера.

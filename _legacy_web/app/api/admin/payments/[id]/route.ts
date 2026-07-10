@@ -1,5 +1,5 @@
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
-import { isLatestPayment, PAID_TIERS, syncUserTierFromLatestPayment } from "../../_utils/payments";
+import { PAID_TIERS, recomputeUserMembershipFromPayments } from "../../_utils/payments";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,7 @@ type PaymentUpdatePayload = {
   comment?: string;
 };
 
-/** Редактирование строки леджера; при правке самой свежей — обновляет тариф в users. */
+/** Редактирование строки леджера; всегда пересчитывает тариф пользователя из действующих платежей. */
 export async function PATCH(req: Request, ctx: RouteContext) {
   try {
     await requireAdmin(req);
@@ -51,9 +51,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
       .single();
     if (error) throw error;
 
-    if (await isLatestPayment(db, existing.user_id, id)) {
-      await syncUserTierFromLatestPayment(db, existing.user_id);
-    }
+    await recomputeUserMembershipFromPayments(db, existing.user_id);
 
     return json({ payment });
   } catch (error) {

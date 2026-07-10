@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-10 (7):** Добавлен hourly membership reconcile: Edge `reconcile-expired-memberships`, SQL RPC `recompute_user_membership` / `reconcile_expired_memberships`, миграция `20260710023000_reconcile_expired_memberships.sql` (`pg_cron` `20 * * * *`, Vault `reconcile_expired_memberships_cron_secret`). Назначение — синхронизировать `users.membership_*` с леджером `payments` после истечения срока без автооплаты store. Документы: `supabase/README.md`, `DEPLOY.md`, `config.toml`.
+
 - **2026-07-10 (6):** Stories cleanup переведён из “операционного обещания” в более жёсткий infra-контракт. Added migration `20260709215553_schedule_cleanup_expired_stories.sql`: `pg_cron + pg_net + vault` invoke edge-функции `cleanup-expired-stories` каждый час в `15 * * * *`, по паттерну уже существующих precompute jobs. Параллельно `_legacy_web/app/api/admin/stories/route.ts` получил safety-net cleanup перед возвратом списка, чтобы отсутствие/сбой внешнего scheduler не оставлял истёкшие rows в админке бесконечно.
 
 - **2026-07-09 (5):** Укреплён stories media runtime в `_legacy_web`. Выяснилось, что `ffprobe-static`/`ffmpeg-static` как npm-зависимости были установлены корректно, но bundled Node route мог передавать в spawn несуществующий путь к бинарнику (`/ROOT/node_modules/...`, `ENOENT`). Решение: stories media pipeline теперь вычисляет абсолютные binary paths от `package.json` пакетов через `createRequire(import.meta.url)` и проверяет `existsSync + X_OK` перед запуском. Заодно обновлён video preset под mobile stories (`1080x1920`, `30 fps`, `H.264 High`, `AAC 128k`, `+faststart`).
