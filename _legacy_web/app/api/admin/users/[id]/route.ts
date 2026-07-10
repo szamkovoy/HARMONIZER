@@ -22,13 +22,14 @@ export async function GET(req: Request, ctx: RouteContext) {
     const { id } = await ctx.params;
     const db = createServiceSupabase();
 
-    let { data: user, error } = await db
+    const { data, error } = await db
       .from("users")
       .select("id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at")
       .eq("id", id)
       .maybeSingle();
     if (error) throw error;
-    if (!user) return json({ error: "Пользователь не найден" }, { status: 404 });
+    if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });
+    let user = data;
 
     if (membershipLooksStale(user)) {
       await recomputeUserMembershipFromPayments(db, id);
