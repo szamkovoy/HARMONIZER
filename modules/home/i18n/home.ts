@@ -55,6 +55,9 @@ export interface HomeStrings {
     title: string;
     captionFree: string;
     captionPersonal: string;
+    helpButtonAccessibilityLabel: string;
+    helpModalTitle: string;
+    helpBody: string;
   };
   planetBanner: {
     eyebrow: string;
@@ -114,13 +117,15 @@ export interface HomeStrings {
   };
   recommendation: {
     title: string;
-    meta: (planet: string, chakraName: string) => string;
     /** Shown while locale-specific LLM texts are loading (avoid EN/RU fallback flash). */
     loading: string;
     fallback: (forecast: DailyForecast) => string;
     discussButton: string;
     readMoreButton: string;
     detailParagraphs: (forecast: DailyForecast) => string[];
+    helpButtonAccessibilityLabel: string;
+    helpModalTitle: string;
+    helpBody: string;
   };
   longExplanationModal: {
     title: string;
@@ -291,10 +296,14 @@ const ru: HomeStrings = {
     dissonant: "бережно стабилизировать",
   },
   chakraFlower: {
-    title: "Архетипы дня",
+    title: "Архетипический навигатор",
     captionFree: "Психоархетипическая модель, основанная на планетарной динамике в этот день",
     captionPersonal:
       "Психоархетипическая модель, основанная на планетарной динамике в этот день лично для вас",
+    helpButtonAccessibilityLabel: "Пояснение к архетипическому навигатору",
+    helpModalTitle: "Как пользоваться навигатором",
+    helpBody:
+      "Размер семи лепестков данного цветка соответствует астрологической силе планет в этот день. Сегодня это ваш навигатор. Поверьте, что созвездия и астрологию придумали не охотники на мамонтов. Чтобы от бульварных предсказаний перейти к гармонизации своей психики и жизни, воспользуйтесь этой мудростью - рассматривайте каждую планету не как точку в гороскопе, а как архетип. Соединяясь с состояниями архетипов в ритме движения планет, вы будете эффективно распутывать узелки жизненных обстоятельств, которые запутывали многие годы.",
   },
   planetBanner: {
     eyebrow: "Планета дня",
@@ -365,7 +374,10 @@ const ru: HomeStrings = {
     discussButton: "Что делать?",
     readMoreButton: "Подробнее",
     loading: "Загружаю текст рекомендации на этот день",
-    meta: (planet, chakraName) => `${planet} · ${chakraName}`,
+    helpButtonAccessibilityLabel: "Пояснение к рекомендациям на день",
+    helpModalTitle: "Основа для рекомендации",
+    helpBody:
+      "Данная рекомендация описывает самую сильную планету этого дня как архетипический образ согласно аналитической психологии Карла Юнга. Благодаря этому вам станет понятно, на волне каких состояний сегодня целесообразно действовать.\n\nЕсли вас интересует подробный астрологический прогноз, нажмите кнопку «Подробнее». А далее вы сможете ознакомиться с математикой, лежащей в основе этих рекомендаций, и даже посмотреть гороскоп.\n\nИли нажмите кнопку «Что делать?» — чтобы увидеть события, которые предстоят вам в этот день, глазами этого архетипа, и превратить день в набор интересных психопрактик. А через неделю использования этой функции соберётся бистохастическая матрица ваших состояний, и рекомендации станут её точнее.",
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("ru")[forecast.planetOfTheDay];
       const verb = ru.toneRecommendationVerb[forecast.todayPlanetState.todayTone];
@@ -501,9 +513,13 @@ const en: HomeStrings = {
     dissonant: "carefully stabilize",
   },
   chakraFlower: {
-    title: "Archetypes of the day",
+    title: "Archetypal navigator",
     captionFree: "A psycho-archetypal model based on planetary dynamics for this day",
     captionPersonal: "A psycho-archetypal model based on planetary dynamics for this day, tailored to you",
+    helpButtonAccessibilityLabel: "Explain the archetypal navigator",
+    helpModalTitle: "How to use the navigator",
+    helpBody:
+      "The size of each of the seven petals reflects the astrological strength of the planets on this day. Today this is your navigator. Trust that constellations and astrology were not invented by mammoth hunters. To move from tabloid predictions toward harmonizing your psyche and life, use this wisdom: see each planet not as a point on a chart, but as an archetype. By connecting with archetypal states in the rhythm of planetary motion, you can effectively untangle life knots that have been tightening for years.",
   },
   planetBanner: {
     eyebrow: "Planet of the Day",
@@ -574,7 +590,10 @@ const en: HomeStrings = {
     discussButton: "What to do?",
     readMoreButton: "More details",
     loading: "Loading today’s recommendation…",
-    meta: (planet, chakraName) => `${planet} · ${chakraName}`,
+    helpButtonAccessibilityLabel: "Explain today's recommendation",
+    helpModalTitle: "What the recommendation is based on",
+    helpBody:
+      "This recommendation describes the strongest planet of the day as an archetypal image according to Carl Jung's analytical psychology. It helps you understand which inner states it makes sense to act from today.\n\nIf you want a detailed astrological forecast, tap «More details». Then you can explore the math behind these recommendations and even view the chart.\n\nOr tap «What to do?» to see the events awaiting you today through the eyes of this archetype and turn the day into a set of engaging psycho-practices. After a week of using this feature, a bi-stochastic matrix of your states will be assembled and the recommendations will become more accurate.",
     fallback: (forecast) => {
       const meta = getPlanetChakraMap("en")[forecast.planetOfTheDay];
       const verb = en.toneRecommendationVerb[forecast.todayPlanetState.todayTone];

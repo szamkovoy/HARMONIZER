@@ -17,9 +17,12 @@
   "birthDataMessage": "Para criar a previsão pessoal do dia, insira data, hora e local de nascimento.",
   "birthDataTitle": "Data de nascimento necessária",
   "chakraFlower": {
-    "title": "Arquétipos do dia",
+    "title": "Navegador arquetípico",
     "captionFree": "Modelo psicoarquetípico baseado na dinâmica planetária deste dia",
-    "captionPersonal": "Modelo psicoarquetípico baseado na dinâmica planetária deste dia, personalizado para você"
+    "captionPersonal": "Modelo psicoarquetípico baseado na dinâmica planetária deste dia, personalizado para você",
+    "helpButtonAccessibilityLabel": "Explicação do navegador arquetípico",
+    "helpModalTitle": "Como usar o navegador",
+    "helpBody": "O tamanho dos sete pétalas desta flor corresponde à força astrológica dos planetas neste dia. Hoje este é o seu navegador. Acredite: constelações e astrologia não foram inventadas por caçadores de mamutes. Para ir de previsões de tabloide à harmonização da sua psique e da sua vida, use esta sabedoria: veja cada planeta não como um ponto no mapa, mas como um arquétipo. Ao conectar-se com estados arquetípicos ao ritmo do movimento dos planetas, desatará eficazmente os nós das circunstâncias de vida que se emaranharam durante muitos anos."
   },
   "closeAssistantAccessibilityLabel": "Fechar assistente",
   "closeButton": "Fechar",
@@ -129,7 +132,10 @@
     "title": "Recomendações do dia",
     "loading": "Carregando a recomendação de hoje…",
     "discussButton": "O que fazer?",
-    "readMoreButton": "Saiba mais"
+    "readMoreButton": "Saiba mais",
+    "helpButtonAccessibilityLabel": "Explicação das recomendações do dia",
+    "helpModalTitle": "Base da recomendação",
+    "helpBody": "Esta recomendação descreve o planeta mais forte do dia como uma imagem arquetípica segundo a psicologia analítica de Carl Jung. Ajuda a entender a partir de quais estados interiores faz sentido agir hoje.\n\nSe quiser uma previsão astrológica detalhada, toque em «Saiba mais». Depois poderá conhecer a matemática por trás dessas recomendações e até ver o horóscopo.\n\nOu toque em «O que fazer?» para ver os eventos que o aguardam hoje pelos olhos deste arquétipo e transformar o dia num conjunto de psicopráticas interessantes. Após uma semana de uso desta função, formar-se-á uma matriz bioestocástica dos seus estados e as recomendações ficarão mais precisas."
   },
   "refreshAccessibilityLabel": "Atualizar previsão do dia",
   "refreshButton": "Atualizar",

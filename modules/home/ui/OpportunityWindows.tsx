@@ -23,8 +23,8 @@ import type { AccessMode } from "@/services/globalContentClient";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
+import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
-import { SurfaceCardTitleRow } from "@/modules/ui/SurfaceCardTitleRow";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
 import {
@@ -788,14 +788,13 @@ export function OpportunityWindows({
   return (
     <>
       <SurfaceCardView style={styles.card}>
-      <View style={styles.header}>
-        <SurfaceCardTitleRow
-          title={t.title}
-          help={{
-            accessibilityLabel: t.helpButtonAccessibilityLabel,
-            onPress: () => setHelpVisible(true),
-          }}
-        />
+      <SurfaceCardHeader
+        title={t.title}
+        help={{
+          accessibilityLabel: t.helpButtonAccessibilityLabel,
+          onPress: () => setHelpVisible(true),
+        }}
+      >
         <AppText variant="screenHint" tone="muted">
           {accessMode === "free"
             ? t.subtitle(strings.planetLabels[planetOfTheDay])
@@ -804,7 +803,7 @@ export function OpportunityWindows({
                 strings.planetLabels[graphPlanet],
               )}
         </AppText>
-      </View>
+      </SurfaceCardHeader>
 
       <View style={styles.chartWrap} onLayout={onChartLayout}>
         <View style={[styles.axis, { backgroundColor: gridLineMuted }]} />
@@ -1009,10 +1008,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 24,
     padding: 18,
-    gap: 16,
-  },
-  header: {
-    gap: 6,
+    gap: 14,
   },
   chartWrap: {
     height: CHART_VIEW_HEIGHT,

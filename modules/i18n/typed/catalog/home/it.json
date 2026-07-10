@@ -17,9 +17,12 @@
   "birthDataMessage": "Per creare la previsione personale del giorno, inserisci data, ora e luogo di nascita.",
   "birthDataTitle": "Serve la data di nascita",
   "chakraFlower": {
-    "title": "Archetipi del giorno",
+    "title": "Navigatore archetipico",
     "captionFree": "Modello psicoarchetipico basato sulla dinamica planetaria del giorno",
-    "captionPersonal": "Modello psicoarchetipico basato sulla dinamica planetaria del giorno personalmente per te"
+    "captionPersonal": "Modello psicoarchetipico basato sulla dinamica planetaria del giorno personalmente per te",
+    "helpButtonAccessibilityLabel": "Spiegazione del navigatore archetipico",
+    "helpModalTitle": "Come usare il navigatore",
+    "helpBody": "La dimensione dei sette petali di questo fiore corrisponde alla forza astrologica dei pianeti in questo giorno. Oggi è il tuo navigatore. Credete che costellazioni e astrologia non siano state inventate dai cacciatori di mammut. Per passare dalle previsioni da tabloid all'armonizzazione della vostra psiche e della vostra vita, usate questa saggezza: considerate ogni pianeta non come un punto nel tema natale, ma come un archetipo. Connettendovi agli stati archetipici al ritmo del movimento dei pianeti, scioglierete efficacemente i nodi delle circostanze di vita che si sono intrecciati per molti anni."
   },
   "closeAssistantAccessibilityLabel": "Chiudi assistente",
   "closeButton": "Chiudi",
@@ -129,7 +132,10 @@
     "title": "Raccomandazioni del giorno",
     "loading": "Caricamento della raccomandazione di oggi…",
     "discussButton": "Cosa fare?",
-    "readMoreButton": "Leggi di più"
+    "readMoreButton": "Leggi di più",
+    "helpButtonAccessibilityLabel": "Spiegazione delle raccomandazioni del giorno",
+    "helpModalTitle": "Base della raccomandazione",
+    "helpBody": "Questa raccomandazione descrive il pianeta più forte del giorno come immagine archetipica secondo la psicologia analitica di Carl Jung. Aiuta a capire da quali stati interiori conviene agire oggi.\n\nSe vi interessa una previsione astrologica dettagliata, toccate «Leggi di più». Potrete poi conoscere la matematica alla base di queste raccomandazioni e persino consultare l'oroscopo.\n\nOppure toccate «Cosa fare?» per vedere gli eventi che vi attendono oggi attraverso gli occhi di questo archetipo e trasformare la giornata in una serie di psicopratiche interessanti. Dopo una settimana di utilizzo di questa funzione si formerà una matrice bistocastica dei vostri stati e le raccomandazioni diventeranno più precise."
   },
   "refreshAccessibilityLabel": "Aggiorna previsione del giorno",
   "refreshButton": "Aggiorna",

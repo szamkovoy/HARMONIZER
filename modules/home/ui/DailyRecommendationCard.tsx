@@ -1,16 +1,16 @@
 import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 
 import type { NatalProfile } from "@/modules/astro-core";
 import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
-import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import { sanitizeRecommendationDisplay } from "@/modules/home/sanitizeRecommendationDisplay";
 import type { AccessMode } from "@/services/globalContentClient";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { SectionHeader } from "@/modules/ui/ScreenSection";
+import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
+import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { ModalLongExplanation, type HomeExplainerLevel } from "./ModalLongExplanation";
 
 interface DailyRecommendationCardProps {
@@ -35,8 +35,9 @@ export function DailyRecommendationCard({
   homeTextsLoading = false,
 }: DailyRecommendationCardProps) {
   const [modalLevel, setModalLevel] = useState<HomeExplainerLevel>("none");
+  const [helpVisible, setHelpVisible] = useState(false);
   const locale = strings.locale;
-  const planetChakra = useMemo(() => getPlanetChakraMap(locale), [locale]);
+  const t = strings.recommendation;
   const fallbackShortText = strings.recommendation.fallback(forecast);
   const detailText = strings.recommendation.detailParagraphs(forecast).join("\n\n");
   const shortText = useMemo(() => {
@@ -51,23 +52,22 @@ export function DailyRecommendationCard({
     if (homeTextsLoading) return "";
     return detailText;
   }, [detailText, forecast.recommendationLongText, homeTextsLoading, locale]);
-  const meta = planetChakra[forecast.planetOfTheDay];
   const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
   return (
     <>
       <SurfaceCardView tone="elevated" style={styles.card}>
-        <View style={styles.headerRow}>
-          <View style={styles.header}>
-            <SectionHeader
-              title={strings.recommendation.title}
-              subtitle={strings.recommendation.meta(strings.planetLabels[forecast.planetOfTheDay], meta.chakraName)}
-            />
-          </View>
-        </View>
-        <AppText variant="screenHint">
-          {shortText ?? strings.recommendation.loading}
-        </AppText>
+        <SurfaceCardHeader
+          title={t.title}
+          help={{
+            accessibilityLabel: t.helpButtonAccessibilityLabel,
+            onPress: () => setHelpVisible(true),
+          }}
+        >
+          <AppText variant="screenHint">
+            {shortText ?? t.loading}
+          </AppText>
+        </SurfaceCardHeader>
         {__DEV__ ? (
           <AppText variant="technicalCaption" tone="muted">
             model: {modelUsed ?? "unknown"} · {accessMode}
@@ -78,9 +78,16 @@ export function DailyRecommendationCard({
             {forecast.alternativeReasonText}
           </AppText>
         ) : null}
-        <AppButton label={strings.recommendation.readMoreButton} variant="secondary" onPress={() => setModalLevel("long")} />
-        {showDiscuss && onDiscuss ? <AppButton label={strings.recommendation.discussButton} onPress={onDiscuss} /> : null}
+        <AppButton label={t.readMoreButton} variant="secondary" onPress={() => setModalLevel("long")} />
+        {showDiscuss && onDiscuss ? <AppButton label={t.discussButton} onPress={onDiscuss} /> : null}
       </SurfaceCardView>
+      <SurfaceHelpModal
+        visible={helpVisible}
+        title={t.helpModalTitle}
+        closeLabel={strings.closeButton}
+        onClose={() => setHelpVisible(false)}
+        body={t.helpBody}
+      />
       <ModalLongExplanation
         level={modalLevel}
         onClose={() => setModalLevel("none")}
@@ -107,14 +114,4 @@ export function DailyRecommendationCard({
 
 const styles = StyleSheet.create({
   card: {},
-  header: {
-    gap: 4,
-    flex: 1,
-  },
-  headerRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 12,
-    justifyContent: "space-between",
-  },
 });

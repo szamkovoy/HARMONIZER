@@ -17,9 +17,12 @@
   "birthDataMessage": "Pour générer votre prévision personnelle du jour, entrez la date, l'heure et le lieu de naissance.",
   "birthDataTitle": "Date de naissance requise",
   "chakraFlower": {
-    "title": "Archétypes du jour",
+    "title": "Navigateur archétypal",
     "captionFree": "Modèle psycho-archétypal basé sur la dynamique planétaire du jour",
-    "captionPersonal": "Modèle psycho-archétypal basé sur la dynamique planétaire du jour, personnalisé pour vous"
+    "captionPersonal": "Modèle psycho-archétypal basé sur la dynamique planétaire du jour, personnalisé pour vous",
+    "helpButtonAccessibilityLabel": "Explication du navigateur archétypal",
+    "helpModalTitle": "Comment utiliser le navigateur",
+    "helpBody": "La taille des sept pétales de cette fleur correspond à la force astrologique des planètes ce jour-là. Aujourd'hui, c'est votre navigateur. Croyez que les constellations et l'astrologie n'ont pas été inventées par des chasseurs de mammouths. Pour passer des prédictions de boulevard à l'harmonisation de votre psyché et de votre vie, servez-vous de cette sagesse : considérez chaque planète non comme un point sur un thème, mais comme un archétype. En vous connectant aux états archétypaux au rythme du mouvement des planètes, vous dénouerez efficacement les nœuds des circonstances de vie qui se sont emmêlés pendant de nombreuses années."
   },
   "closeAssistantAccessibilityLabel": "Fermer l'assistant",
   "closeButton": "Fermer",
@@ -129,7 +132,10 @@
     "title": "Recommandations du jour",
     "loading": "Chargement de la recommandation du jour…",
     "discussButton": "Que faire ?",
-    "readMoreButton": "En savoir plus"
+    "readMoreButton": "En savoir plus",
+    "helpButtonAccessibilityLabel": "Explication des recommandations du jour",
+    "helpModalTitle": "Base de la recommandation",
+    "helpBody": "Cette recommandation décrit la planète la plus forte du jour comme une image archétypale selon la psychologie analytique de Carl Jung. Elle vous aide à comprendre à partir de quels états intérieurs il est pertinent d'agir aujourd'hui.\n\nSi vous souhaitez une prévision astrologique détaillée, appuyez sur « En savoir plus ». Vous pourrez ensuite découvrir les calculs qui sous-tendent ces recommandations et même consulter l'horoscope.\n\nOu appuyez sur « Que faire ? » pour voir les événements de la journée à travers les yeux de cet archétype et transformer la journée en une série de psychopractices intéressantes. Après une semaine d'utilisation de cette fonction, une matrice bistochastique de vos états se constituera et les recommandations deviendront plus précises."
   },
   "refreshAccessibilityLabel": "Actualiser la prévision du jour",
   "refreshButton": "Actualiser",

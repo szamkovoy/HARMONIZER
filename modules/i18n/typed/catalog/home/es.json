@@ -17,9 +17,12 @@
   "birthDataMessage": "Para generar tu pronóstico personal del día, introduce fecha, hora y lugar de nacimiento.",
   "birthDataTitle": "Se necesita fecha de nacimiento",
   "chakraFlower": {
-    "title": "Arquetipos del día",
+    "title": "Navegador arquetípico",
     "captionFree": "Modelo psicoarquetípico basado en la dinámica planetaria de este día",
-    "captionPersonal": "Modelo psicoarquetípico basado en la dinámica planetaria de este día personalmente para ti"
+    "captionPersonal": "Modelo psicoarquetípico basado en la dinámica planetaria de este día personalmente para ti",
+    "helpButtonAccessibilityLabel": "Explicación del navegador arquetípico",
+    "helpModalTitle": "Cómo usar el navegador",
+    "helpBody": "El tamaño de los siete pétalos de esta flor corresponde a la fuerza astrológica de los planetas en este día. Hoy este es tu navegador. Cree que las constelaciones y la astrología no las inventaron cazadores de mamuts. Para pasar de predicciones sensacionalistas a armonizar tu psique y tu vida, usa esta sabiduría: mira cada planeta no como un punto en la carta, sino como un arquetipo. Al conectarte con los estados arquetípicos al ritmo del movimiento de los planetas, desatarás eficazmente los nudos de las circunstancias de la vida que se enredaron durante muchos años."
   },
   "closeAssistantAccessibilityLabel": "Cerrar asistente",
   "closeButton": "Cerrar",
@@ -129,7 +132,10 @@
     "title": "Recomendaciones del día",
     "loading": "Cargando la recomendación de hoy…",
     "discussButton": "¿Qué hacer?",
-    "readMoreButton": "Leer más"
+    "readMoreButton": "Leer más",
+    "helpButtonAccessibilityLabel": "Explicación de las recomendaciones del día",
+    "helpModalTitle": "Base de la recomendación",
+    "helpBody": "Esta recomendación describe el planeta más fuerte del día como una imagen arquetípica según la psicología analítica de Carl Jung. Ayuda a entender desde qué estados interiores conviene actuar hoy.\n\nSi le interesa un pronóstico astrológico detallado, pulse «Leer más». Después podrá conocer las matemáticas que sustentan estas recomendaciones e incluso ver el horóscopo.\n\nO pulse «¿Qué hacer?» para ver los eventos que le esperan hoy a través de los ojos de este arquetipo y convertir el día en un conjunto de psicoprácticas interesantes. Tras una semana de uso de esta función se formará una matriz bioestocástica de sus estados y las recomendaciones serán más precisas."
   },
   "refreshAccessibilityLabel": "Actualizar pronóstico del día",
   "refreshButton": "Actualizar",

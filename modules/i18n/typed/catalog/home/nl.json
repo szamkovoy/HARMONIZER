@@ -17,9 +17,12 @@
   "birthDataMessage": "Om je persoonlijke dagvoorspelling te maken, voer je geboortedatum, -tijd en -plaats in.",
   "birthDataTitle": "Geboortedatum nodig",
   "chakraFlower": {
-    "title": "Archetypen van de dag",
+    "title": "Archetypische navigator",
     "captionFree": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag",
-    "captionPersonal": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag, persoonlijk voor jou"
+    "captionPersonal": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag, persoonlijk voor jou",
+    "helpButtonAccessibilityLabel": "Uitleg bij de archetypische navigator",
+    "helpModalTitle": "Hoe de navigator te gebruiken",
+    "helpBody": "De grootte van de zeven bloemblaadjes van deze bloem komt overeen met de astrologische kracht van de planeten op deze dag. Vandaag is dit uw navigator. Geloof dat sterrenbeelden en astrologie niet door mammoetjagers zijn bedacht. Om van boulevardvoorspellingen over te stappen naar het harmoniseren van uw psyche en leven, gebruik deze wijsheid: zie elke planeet niet als een punt in een horoscoop, maar als een archetype. Door u te verbinden met archetypische toestanden in het ritme van planetaire beweging, kunt u de knopen van levensomstandigheden effectief ontwarren die jarenlang verward raakten."
   },
   "closeAssistantAccessibilityLabel": "Sluit assistent",
   "closeButton": "Sluiten",
@@ -129,7 +132,10 @@
     "title": "Dagadvies",
     "loading": "Aanbeveling voor vandaag wordt geladen…",
     "discussButton": "Wat te doen?",
-    "readMoreButton": "Lees meer"
+    "readMoreButton": "Lees meer",
+    "helpButtonAccessibilityLabel": "Uitleg bij het dagadvies",
+    "helpModalTitle": "Basis van de aanbeveling",
+    "helpBody": "Deze aanbeveling beschrijft de sterkste planeet van de dag als een archetypisch beeld volgens de analytische psychologie van Carl Jung. Zo wordt duidelijk vanuit welke innerlijke toestanden het vandaag zinnig is te handelen.\n\nWilt u een gedetailleerde astrologische voorspelling, tik dan op «Lees meer». Daarna kunt u de wiskunde achter deze aanbevelingen bekijken en zelfs het horoscoop zien.\n\nOf tik op «Wat te doen?» om de gebeurtenissen van vandaag door de ogen van dit archetype te zien en de dag om te zetten in een reeks interessante psychopraktijken. Na een week gebruik van deze functie ontstaat een bistochastische matrix van uw toestanden en worden de aanbevelingen nauwkeuriger."
   },
   "refreshAccessibilityLabel": "Vernieuw dagvoorspelling",
   "refreshButton": "Vernieuwen",

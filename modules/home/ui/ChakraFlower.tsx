@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { NatalProfile } from "@/modules/astro-core";
@@ -8,6 +8,8 @@ import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
+import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
+import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
 import type { AccessMode } from "@/services/globalContentClient";
 import { PLANET_ORDER } from "../planetChakra";
@@ -94,6 +96,8 @@ function formatPlanetStrength(strength: number, tone: TodayTone): string {
 
 export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: ChakraFlowerProps) {
   const theme = useTheme();
+  const [helpVisible, setHelpVisible] = useState(false);
+  const t = strings.chakraFlower;
   const chakraLocale: ChakraLocale = strings.locale;
   const planetChakra = useMemo(() => getPlanetChakraMap(chakraLocale), [chakraLocale]);
   const center = CANVAS_SIZE / 2;
@@ -110,27 +114,30 @@ export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: Ch
   const planetStrength = resolveCenterPlanetStrength(forecast, natalProfile);
   const strengthValue = formatPlanetStrength(planetStrength, todayTone);
   const planetOfDayLabel = strings.planetLabels[planetOfTheDay];
-  const caption =
-    accessMode === "free" ? strings.chakraFlower.captionFree : strings.chakraFlower.captionPersonal;
+  const caption = accessMode === "free" ? t.captionFree : t.captionPersonal;
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.surfaceBorder,
-        },
-      ]}
-    >
-      <View style={styles.titleRow}>
-        <View>
-          <AppText variant="sectionTitle">{strings.chakraFlower.title}</AppText>
-          <AppText variant="screenHint" tone="muted" style={styles.caption}>
+    <>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.surfaceBorder,
+          },
+        ]}
+      >
+        <SurfaceCardHeader
+          title={t.title}
+          help={{
+            accessibilityLabel: t.helpButtonAccessibilityLabel,
+            onPress: () => setHelpVisible(true),
+          }}
+        >
+          <AppText variant="screenHint" tone="muted">
             {caption}
           </AppText>
-        </View>
-      </View>
+        </SurfaceCardHeader>
 
       <View style={styles.flowerBody}>
         <View style={styles.flowerWrap}>
@@ -268,7 +275,15 @@ export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: Ch
           })}
         </View>
       </View>
-    </View>
+      </View>
+      <SurfaceHelpModal
+        visible={helpVisible}
+        title={t.helpModalTitle}
+        closeLabel={strings.closeButton}
+        onClose={() => setHelpVisible(false)}
+        body={t.helpBody}
+      />
+    </>
   );
 }
 
@@ -278,15 +293,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 18,
     gap: 14,
-  },
-  titleRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  caption: {
-    marginTop: 4,
   },
   flowerBody: {
     alignItems: "center",

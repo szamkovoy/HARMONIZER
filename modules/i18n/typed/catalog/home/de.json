@@ -17,9 +17,12 @@
   "birthDataMessage": "Um eine persönliche Tagesprognose zu erstellen, geben Sie Geburtsdatum, -zeit und -ort ein.",
   "birthDataTitle": "Geburtsdatum erforderlich",
   "chakraFlower": {
-    "title": "Archetypen des Tages",
+    "title": "Archetypischer Navigator",
     "captionFree": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages",
-    "captionPersonal": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages – persönlich für Sie"
+    "captionPersonal": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages – persönlich für Sie",
+    "helpButtonAccessibilityLabel": "Erklärung zum archetypischen Navigator",
+    "helpModalTitle": "So nutzen Sie den Navigator",
+    "helpBody": "Die Größe der sieben Blütenblätter dieses Blütenmusters entspricht der astrologischen Stärke der Planeten an diesem Tag. Heute ist dies Ihr Navigator. Glauben Sie, dass Sternbilder und Astrologie nicht von Mammutjägern erfunden wurden. Um von Boulevardvorhersagen zur Harmonisierung Ihrer Psyche und Ihres Lebens zu gelangen, nutzen Sie diese Weisheit: betrachten Sie jeden Planeten nicht als Punkt im Horoskop, sondern als Archetyp. Wenn Sie sich im Rhythmus der Planetenbewegung mit archetypischen Zuständen verbinden, können Sie die Knoten der Lebensumstände wirksam lösen, die sich über viele Jahre verheddert haben."
   },
   "closeAssistantAccessibilityLabel": "Assistenten schließen",
   "closeButton": "Schließen",
@@ -129,7 +132,10 @@
     "title": "Tagesempfehlungen",
     "loading": "Empfehlung für heute wird geladen…",
     "discussButton": "Was tun?",
-    "readMoreButton": "Mehr erfahren"
+    "readMoreButton": "Mehr erfahren",
+    "helpButtonAccessibilityLabel": "Erklärung zu den Tagesempfehlungen",
+    "helpModalTitle": "Grundlage der Empfehlung",
+    "helpBody": "Diese Empfehlung beschreibt den stärksten Planeten des Tages als archetypisches Bild gemäß der analytischen Psychologie Carl Gustave Jungs. So wird klar, in welchen inneren Zuständen es heute sinnvoll ist zu handeln.\n\nWenn Sie eine ausführliche astrologische Prognose wünschen, tippen Sie auf «Mehr erfahren». Anschließend können Sie die Mathematik hinter diesen Empfehlungen kennenlernen und sogar das Horoskop ansehen.\n\nOder tippen Sie auf «Was tun?», um die Ereignisse dieses Tages aus der Sicht dieses Archetyps zu sehen und den Tag in eine Reihe spannender Psycho-Praktiken zu verwandeln. Nach einer Woche Nutzung dieser Funktion entsteht eine bistochastische Matrix Ihrer Zustände, und die Empfehlungen werden genauer."
   },
   "refreshAccessibilityLabel": "Tagesprognose aktualisieren",
   "refreshButton": "Aktualisieren",

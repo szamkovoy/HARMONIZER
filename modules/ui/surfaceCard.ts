@@ -3,6 +3,8 @@ export const SURFACE_CARD = {
   gap: 14,
   borderRadius: 24,
   borderWidth: 1,
+  /** Title row → subtitle or first body line inside `SurfaceCardHeader`. */
+  titleToContentGap: 9,
 } as const;
 
 /** Help «?» on the title row of `SurfaceCardView` (via `SurfaceCardTitleRow`). */
