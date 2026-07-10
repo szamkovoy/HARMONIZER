@@ -21,8 +21,12 @@ code_refs:
     modules/ui/ScreenHeader.tsx,
     modules/ui/ScreenSection.tsx,
     modules/ui/SurfaceCardView.tsx,
+    modules/ui/SurfaceHelpModal.tsx,
+    modules/ui/ModalHeaderCloseButton.tsx,
     modules/ui/StateCard.tsx,
     modules/ui/useTabContentBottomPadding.ts,
+    modules/ui/useCompactTabBarStyle.ts,
+    app/(tabs)/_layout.tsx,
   ]
 ---
 
@@ -46,8 +50,10 @@ code_refs:
 - **Стандартный header:** `modules/ui/ScreenHeader.tsx`
 - **Section/header primitives:** `modules/ui/ScreenSection.tsx`
 - **Типовая surface-card:** `modules/ui/SurfaceCardView.tsx`
+- **Help «?» + модалка подсказки:** `SurfaceCardTitleRow` / `SurfaceCardHelpButton` → `SurfaceHelpModal` (заголовок + ×, текст, «Закрыть»)
 - **Типовые loading/error/empty state:** `modules/ui/StateCard.tsx`
 - **Bottom padding под tab bar:** `modules/ui/useTabContentBottomPadding.ts` — только небольшой `extra`-gap; tab navigator сам inset-ит контент над bar, полная высота bar в padding не добавляется.
+- **Компактная нижняя панель вкладок:** `modules/ui/useCompactTabBarStyle.ts` + `app/(tabs)/_layout.tsx` — уменьшенная высота bar (иконка+лейбл ближе к нижнему краю); safe-area inset сохраняется через `paddingBottom`.
 - **Immersive chrome layer:** `modules/ui/ImmersiveScreenLayout.tsx`, `modules/ui/useImmersiveOverlayAutohide.ts`, `modules/ui/PracticeStopConfirmDialog.tsx`
 
 ## Правила

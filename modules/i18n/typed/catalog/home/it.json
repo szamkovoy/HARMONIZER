@@ -67,7 +67,7 @@
   },
   "openSettingsButton": "Apri impostazioni",
   "opportunityWindows": {
-    "title": "Finestra di opportunità",
+    "title": "Finestre di opportunità",
     "emptyDetail": "Oggi senza finestra precisa",
     "windowTitles": {
       "sunrise": "Alba",
@@ -93,13 +93,37 @@
     "reminderNotificationsUnavailableTitle": "Notifiche al momento non disponibili",
     "reminderNeedPermissionTitle": "Servono le notifiche",
     "reminderNeedPermissionMessage": "Consenti le notifiche affinché Harmonizer possa ricordarti la finestra di opportunità.",
-    "helpButtonAccessibilityLabel": "Spiegazione del grafico della finestra di opportunità",
+    "helpButtonAccessibilityLabel": "Spiegazione del grafico delle finestre di opportunità",
     "helpModalTitle": "Come leggere questa finestra",
     "helpLoading": "Sto preparando la spiegazione...",
-    "reminderNotificationsUnavailableMessage": "La build attuale dell'app è stata avviata senza il modulo nativo per le notifiche. Dopo una nuova build dev/release, le campanelle potranno impostare le notifiche di sistema."
+    "reminderNotificationsUnavailableMessage": "La build attuale dell'app è stata avviata senza il modulo nativo per le notifiche. Dopo una nuova build dev/release, le campanelle potranno impostare le notifiche di sistema.",
+    "subtitleTemplate": "Tema principale: {planet}",
+    "paidIntroTemplate": "Oggi coltivate gli stati che {natalPlanet} attiva. Intanto {transitPlanet} aprirà speciali finestre di opportunità.",
+    "sunriseDetailTemplate": "{planet} sale sopra l'orizzonte",
+    "culminationDetailTemplate": "{planet} è alla massima forza",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} e {natalPlanet}",
+    "help": {
+      "freeOpening": "Il pianeta più forte del giorno è {planet}. Il grafico mostra quando {planet} sorge e raggiunge lo zenit nella vostra posizione.",
+      "paidOpening": "Il pianeta più forte della vostra carta natale oggi è {natalPlanet}. Questa forza è in gran parte dovuta all'interazione con il pianeta di transito {transitPlanet}, il cui movimento nel cielo apre per voi finestre di opportunità particolari.",
+      "paidOpeningNoTransit": "Oggi il grafico mostra una finestra di opportunità generale senza un pianeta di transito chiaramente evidenziato.",
+      "sunriseLine": "Alba: {time} — {planet} sale sopra l'orizzonte.",
+      "culminationLine": "Culminazione: {time} — {planet} nel punto più alto del percorso giornaliero.",
+      "exactAspectLine": "Aspetto esatto: {time} — {aspect} {transitPlanet} e {natalPlanet}.",
+      "closing": "Questi sono momenti chiave specificamente per la vostra posizione. Usateli per pratiche spirituali, affermazioni, intenzioni, meditazione e simili.",
+      "remindersHint": "Tocca la campana sotto il grafico per attivare o disattivare i promemoria."
+    }
   },
   "planetBanner": {
     "eyebrow": "Pianeta del giorno"
+  },
+  "planetLabels": {
+    "Sun": "Sole",
+    "Moon": "Luna",
+    "Mercury": "Mercurio",
+    "Venus": "Venere",
+    "Mars": "Marte",
+    "Jupiter": "Giove",
+    "Saturn": "Saturno"
   },
   "recommendation": {
     "title": "Raccomandazioni del giorno",

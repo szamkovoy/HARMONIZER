@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.11
-updated: 2026-06-23
+version: 1.12
+updated: 2026-07-10
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -48,7 +48,7 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `subscription` (`modules/access/ui/UpgradeDialog.tsx`) | `useTranslate()` — `tier.*`, `upgrade.*` | Tier/feature labels and body text via JSON catalog (not `TIER_LABELS`). |
 | `life-spheres` (`modules/life-spheres/labels.ts`) | `AppContentLocale`, `asContentLocale` | Client sphere titles for all 8 locales (`SPHERE_TITLES`). |
 | `profile` (`app/(tabs)/profile.tsx`) | `useAppLocale`, `useTranslate`, `APP_LOCALE_OPTIONS`, `setLocale` | Hosts the **language selector**; passes the shared locale into `getProfileReportStrings` and report cards. |
-| `home` (`app/(tabs)/index.tsx`, `ChakraFlower`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + the `<Communicator locale=...>` prop follow the store; typed overlays (de/fr/it/es/pt/nl) include **`planetLabels`** (легенда и подпись в центре `ChakraFlower`) and **`chakraFlower.captionFree`** / **`captionPersonal`**. |
+| `home` (`app/(tabs)/index.tsx`, `ChakraFlower`, `OpportunityWindows`) | `useAppLocale().locale` → `getHomeStrings` | Home strings + `<Communicator locale=...>`; typed overlays include **`planetLabels`**, **`chakraFlower.captionFree`/`captionPersonal`**, and **`opportunityWindows`** templates (`paidIntroTemplate`, detail/help templates) rebound after merge so non-RU locales do not keep EN function bodies. |
 | `daily_forecast` (`modules/home/useDayContent.ts`) | `getResponseLocale()`, **`subscribeAppLocale`** | Day cache scope and LLM refresh on locale change; strips locale-specific forecast texts before reload. |
 | `daily_forecast` (`app/(tabs)/day.tsx`) | `useAppLocale().locale` → `<Communicator locale=...>` | Day assistant locale follows the store. |
 | `practices`/`breath` (`app/breath-coherence.tsx`) | `useAppLocale().locale` → `<CoherenceBreathScreen locale=...>` | Breath screen locale follows the store. |

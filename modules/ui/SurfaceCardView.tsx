@@ -6,6 +6,11 @@ import { useTheme } from "@/modules/ui/theme";
 
 type SurfaceCardTone = "default" | "elevated" | "warning" | "danger";
 
+export type SurfaceCardHelpConfig = {
+  accessibilityLabel: string;
+  onPress: () => void;
+};
+
 export function SurfaceCardView({
   children,
   tone = "default",

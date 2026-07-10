@@ -67,7 +67,7 @@
   },
   "openSettingsButton": "Abrir configurações",
   "opportunityWindows": {
-    "title": "Janela de oportunidades",
+    "title": "Janelas de oportunidades",
     "emptyDetail": "Hoje sem janela exata",
     "windowTitles": {
       "sunrise": "Nascer do sol",
@@ -93,13 +93,37 @@
     "reminderNotificationsUnavailableTitle": "Notificações indisponíveis no momento",
     "reminderNeedPermissionTitle": "Permissão de notificações necessária",
     "reminderNeedPermissionMessage": "Permita notificações para que o Harmonizer possa lembrar você da janela de oportunidades.",
-    "helpButtonAccessibilityLabel": "Explicação do gráfico da janela de oportunidades",
+    "helpButtonAccessibilityLabel": "Explicação do gráfico das janelas de oportunidades",
     "helpModalTitle": "Como ler esta janela",
     "helpLoading": "Carregando explicação...",
-    "reminderNotificationsUnavailableMessage": "A versão atual do app está sem o módulo nativo de notificações. Com a próxima compilação (dev/release), os lembretes poderão enviar notificações do sistema."
+    "reminderNotificationsUnavailableMessage": "A versão atual do app está sem o módulo nativo de notificações. Com a próxima compilação (dev/release), os lembretes poderão enviar notificações do sistema.",
+    "subtitleTemplate": "Tema principal: {planet}",
+    "paidIntroTemplate": "Hoje cultivem os estados que {natalPlanet} ativa. Entretanto, {transitPlanet} abrirá janelas especiais de oportunidades.",
+    "sunriseDetailTemplate": "{planet} sobe acima do horizonte",
+    "culminationDetailTemplate": "{planet} está na força máxima",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} e {natalPlanet}",
+    "help": {
+      "freeOpening": "O planeta mais forte do dia é {planet}. O gráfico mostra quando {planet} nasce e atinge o zênite na sua localização.",
+      "paidOpening": "O planeta mais forte do seu mapa natal hoje é {natalPlanet}. Essa força vem em grande parte da interação com o planeta de trânsito {transitPlanet}, cujo movimento no céu abre para você janelas especiais de oportunidades.",
+      "paidOpeningNoTransit": "Hoje o gráfico mostra uma janela de oportunidades geral sem um planeta de trânsito claramente destacado.",
+      "sunriseLine": "Nascer: {time} — {planet} sobe acima do horizonte.",
+      "culminationLine": "Culminação: {time} — {planet} no ponto mais alto do caminho diário.",
+      "exactAspectLine": "Aspecto exato: {time} — {aspect} {transitPlanet} e {natalPlanet}.",
+      "closing": "Estes são momentos-chave especificamente para a sua localização. Use-os para práticas espirituais, afirmações, intenções, meditação etc.",
+      "remindersHint": "Toque no sino abaixo do gráfico para ligar ou desligar os lembretes."
+    }
   },
   "planetBanner": {
     "eyebrow": "Planeta do dia"
+  },
+  "planetLabels": {
+    "Sun": "Sol",
+    "Moon": "Lua",
+    "Mercury": "Mercúrio",
+    "Venus": "Vênus",
+    "Mars": "Marte",
+    "Jupiter": "Júpiter",
+    "Saturn": "Saturno"
   },
   "recommendation": {
     "title": "Recomendações do dia",

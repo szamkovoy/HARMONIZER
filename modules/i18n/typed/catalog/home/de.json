@@ -93,13 +93,37 @@
     "reminderNotificationsUnavailableTitle": "Benachrichtigungen derzeit nicht verfügbar",
     "reminderNeedPermissionTitle": "Benachrichtigungen erforderlich",
     "reminderNeedPermissionMessage": "Erlaube Benachrichtigungen, damit Harmonizer an das Fenster der Möglichkeiten erinnern kann.",
-    "helpButtonAccessibilityLabel": "Erklärung zum Diagramm des Fensters der Möglichkeiten",
+    "helpButtonAccessibilityLabel": "Erklärung zum Diagramm der Fenster der Möglichkeiten",
     "helpModalTitle": "Wie man dieses Fenster liest",
     "helpLoading": "Erläuterung wird geladen...",
-    "reminderNotificationsUnavailableMessage": "Die aktuelle App-Version läuft ohne das native Benachrichtigungsmodul. Nach einem neuen Dev-/Release-Build können die Glöckchen Systembenachrichtigungen einstellen."
+    "reminderNotificationsUnavailableMessage": "Die aktuelle App-Version läuft ohne das native Benachrichtigungsmodul. Nach einem neuen Dev-/Release-Build können die Glöckchen Systembenachrichtigungen einstellen.",
+    "subtitleTemplate": "Hauptthema: {planet}",
+    "paidIntroTemplate": "Heute leben Sie die Zustände, die {natalPlanet} aktiviert. Dabei öffnet {transitPlanet} besondere Fenster der Möglichkeiten.",
+    "sunriseDetailTemplate": "{planet} steigt über den Horizont",
+    "culminationDetailTemplate": "{planet} ist in maximaler Kraft",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} und {natalPlanet}",
+    "help": {
+      "freeOpening": "Der stärkste Planet des Tages ist {planet}. Das Diagramm zeigt, wann {planet} an Ihrem Standort über den Horizont steigt und den Zenit erreicht.",
+      "paidOpening": "Der stärkste Planet Ihrer Geburtshoroskopkarte ist heute {natalPlanet}. Diese Kraft entsteht vor allem durch die Wechselwirkung mit dem Transitplaneten {transitPlanet}, dessen Bewegung am Himmel besondere Fenster der Möglichkeiten für Sie öffnet.",
+      "paidOpeningNoTransit": "Heute zeigt das Diagramm ein allgemeines Fenster der Möglichkeiten ohne einen klar hervorgehobenen Transitplaneten.",
+      "sunriseLine": "Aufgang: {time} — {planet} steigt über den Horizont.",
+      "culminationLine": "Kulmination: {time} — {planet} im höchsten Punkt des Tageswegs.",
+      "exactAspectLine": "Exakter Aspekt: {time} — {aspect} {transitPlanet} und {natalPlanet}.",
+      "closing": "Das sind Schlüsselmomente genau an Ihrem Standort. Nutzen Sie sie für spirituelle Praktiken, Affirmationen, Absichten, Meditation usw.",
+      "remindersHint": "Tippen Sie auf die Glocke unter dem Diagramm, um Erinnerungen ein- oder auszuschalten."
+    }
   },
   "planetBanner": {
     "eyebrow": "Planet des Tages"
+  },
+  "planetLabels": {
+    "Sun": "Sonne",
+    "Moon": "Mond",
+    "Mercury": "Merkur",
+    "Venus": "Venus",
+    "Mars": "Mars",
+    "Jupiter": "Jupiter",
+    "Saturn": "Saturn"
   },
   "recommendation": {
     "title": "Tagesempfehlungen",

@@ -8,6 +8,13 @@ import type { LocationAcquireFailureReason } from "@/modules/location/acquireAnd
 
 export type HomeLocale = AppContentLocale;
 
+/** `{placeholder}` filler for typed home templates (overlays localize the templates). */
+export function fillHomeTemplate(template: string, params: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? params[name]! : match,
+  );
+}
+
 type ForecastWithRecommendation = DailyForecast & {
   recommendationShortText?: string;
 };
@@ -57,15 +64,20 @@ export interface HomeStrings {
   };
   opportunityWindows: {
     title: string;
-    subtitle: (planet: string) => string;
-    /** Платный тариф: движение транзитной планеты может отличаться от планеты дня. */
-    graphTrack: (planet: string) => string;
+    /** Free: «Главная тема: {planet}». */
+    subtitleTemplate: string;
+    /**
+     * Paid: одна фраза с натальной и транзитной планетами.
+     * Шаблоны независимы от склонения/рода названий планет.
+     */
+    paidIntroTemplate: string;
     emptyDetail: string;
     windowTitles: Record<"sunrise" | "culmination" | "exactAspect", string>;
     aspectLabels: Record<AspectType, string>;
-    sunriseDetail: (planet: string) => string;
-    culminationDetail: (planet: string) => string;
-    exactAspectDetail: (aspect: string, planet: string) => string;
+    sunriseDetailTemplate: string;
+    culminationDetailTemplate: string;
+    /** Paid: «{aspect} {transitPlanet} и {natalPlanet}» — без склонений. */
+    exactAspectDetailTemplate: string;
     reminderModalTitle: string;
     reminderTextLabel: string;
     reminderModeExact: string;
@@ -82,6 +94,23 @@ export interface HomeStrings {
     helpButtonAccessibilityLabel: string;
     helpModalTitle: string;
     helpLoading: string;
+    /** Help-модалка: локализуемые шаблоны с `{placeholders}`. */
+    help: {
+      freeOpening: string;
+      paidOpening: string;
+      paidOpeningNoTransit: string;
+      sunriseLine: string;
+      culminationLine: string;
+      exactAspectLine: string;
+      closing: string;
+      remindersHint: string;
+    };
+    /** Собраны в `getHomeStrings` из *Template после merge overlays. */
+    subtitle: (planet: string) => string;
+    paidIntro: (natalPlanet: string, transitPlanet: string) => string;
+    sunriseDetail: (planet: string) => string;
+    culminationDetail: (planet: string) => string;
+    exactAspectDetail: (aspect: string, transitPlanet: string, natalPlanet: string) => string;
   };
   recommendation: {
     title: string;
@@ -242,7 +271,15 @@ const ru: HomeStrings = {
       `- тональность: ${ru.toneLabels[forecast.todayPlanetState.todayTone]}`,
     ].join("\n");
   },
-  planetLabels: ruPlanetLabels,
+  planetLabels: {
+    Sun: "Солнце",
+    Moon: "Луна",
+    Mercury: "Меркурий",
+    Venus: "Венера",
+    Mars: "Марс",
+    Jupiter: "Юпитер",
+    Saturn: "Сатурн",
+  },
   toneLabels: {
     harmonic: "гармоничный",
     neutral: "нейтральный",
@@ -266,9 +303,10 @@ const ru: HomeStrings = {
     toneLine: (tone, label) => `${tone} тон · ${label}`,
   },
   opportunityWindows: {
-    title: "Окно возможностей",
-    subtitle: (planet) => `Главная тема: ${planet}`,
-    graphTrack: (planet) => `На графике: ${planet}`,
+    title: "Окна возможностей",
+    subtitleTemplate: "Главная тема: {planet}",
+    paidIntroTemplate:
+      "Сегодня проявляйте состояния, которые включает {natalPlanet}. При этом {transitPlanet} будет открывать особые окна возможностей.",
     emptyDetail: "Сегодня без точного окна",
     windowTitles: {
       sunrise: "Восход",
@@ -282,9 +320,9 @@ const ru: HomeStrings = {
       trine: "трин",
       sextile: "секстиль",
     },
-    sunriseDetail: (planet) => `${planet} поднимается над горизонтом`,
-    culminationDetail: (planet) => `${planet} в максимальной силе`,
-    exactAspectDetail: (aspect, planet) => `${aspect} к ${planet}`,
+    sunriseDetailTemplate: "{planet} поднимается над горизонтом",
+    culminationDetailTemplate: "{planet} в максимальной силе",
+    exactAspectDetailTemplate: "{aspect} {transitPlanet} и {natalPlanet}",
     reminderModalTitle: "Уведомить",
     reminderTextLabel: "Текст уведомления",
     reminderModeExact: "точно в это время",
@@ -299,9 +337,28 @@ const ru: HomeStrings = {
       "Текущая сборка приложения запущена без native-модуля уведомлений. После новой dev/release-сборки колокольчики смогут ставить системные уведомления.",
     reminderNeedPermissionTitle: "Нужны уведомления",
     reminderNeedPermissionMessage: "Разрешите уведомления, чтобы Harmonizer мог напомнить об окне возможностей.",
-    helpButtonAccessibilityLabel: "Пояснение к графику окна возможностей",
+    helpButtonAccessibilityLabel: "Пояснение к графику окон возможностей",
     helpModalTitle: "Как читать это окно",
     helpLoading: "Собираю пояснение...",
+    help: {
+      freeOpening:
+        "Сильнейшая планета дня — {planet}. На графике показано, когда именно {planet} поднимается над горизонтом и достигает зенита в вашем местоположении.",
+      paidOpening:
+        "Сильнейшей планетой вашей натальной карты сегодня является {natalPlanet}. Эта сила в значительной степени обеспечена взаимодействием с транзитной планетой {transitPlanet}, движение которой по небосклону открывает для вас окна особых возможностей.",
+      paidOpeningNoTransit:
+        "Сегодня график показывает общее окно возможностей без отдельной явно выраженной транзитной планеты.",
+      sunriseLine: "Восход: {time} — {planet} поднимается над горизонтом.",
+      culminationLine: "Кульминация: {time} — {planet} в наивысшей точке суточного пути.",
+      exactAspectLine: "Точный аспект: {time} — {aspect} {transitPlanet} и {natalPlanet}.",
+      closing:
+        "Это ключевые моменты времени именно в вашей локации. Используйте их для духовных практик, аффирмаций, постановки намерения, медитации и т.п.",
+      remindersHint: "Нажмите колокольчик под графиком, чтобы включать напоминания.",
+    },
+    subtitle: () => "",
+    paidIntro: () => "",
+    sunriseDetail: () => "",
+    culminationDetail: () => "",
+    exactAspectDetail: () => "",
   },
   recommendation: {
     title: "Рекомендации на день",
@@ -424,7 +481,15 @@ const en: HomeStrings = {
       `- tone: ${en.toneLabels[forecast.todayPlanetState.todayTone]}`,
     ].join("\n");
   },
-  planetLabels: enPlanetLabels,
+  planetLabels: {
+    Sun: "Sun",
+    Moon: "Moon",
+    Mercury: "Mercury",
+    Venus: "Venus",
+    Mars: "Mars",
+    Jupiter: "Jupiter",
+    Saturn: "Saturn",
+  },
   toneLabels: {
     harmonic: "harmonic",
     neutral: "neutral",
@@ -448,8 +513,9 @@ const en: HomeStrings = {
   },
   opportunityWindows: {
     title: "Opportunity windows",
-    subtitle: (planet) => `Main theme: ${planet}`,
-    graphTrack: (planet) => `Chart: ${planet}`,
+    subtitleTemplate: "Main theme: {planet}",
+    paidIntroTemplate:
+      "Today, lean into the states that {natalPlanet} brings online. Meanwhile, {transitPlanet} will open special windows of opportunity.",
     emptyDetail: "No exact window today",
     windowTitles: {
       sunrise: "Rise",
@@ -463,9 +529,9 @@ const en: HomeStrings = {
       trine: "trine",
       sextile: "sextile",
     },
-    sunriseDetail: (planet) => `${planet} rises above the horizon`,
-    culminationDetail: (planet) => `${planet} is at peak strength`,
-    exactAspectDetail: (aspect, planet) => `${aspect} to ${planet}`,
+    sunriseDetailTemplate: "{planet} rises above the horizon",
+    culminationDetailTemplate: "{planet} is at peak strength",
+    exactAspectDetailTemplate: "{aspect} {transitPlanet} and {natalPlanet}",
     reminderModalTitle: "Notify me",
     reminderTextLabel: "Notification text",
     reminderModeExact: "at the exact time",
@@ -480,9 +546,28 @@ const en: HomeStrings = {
       "This build was compiled without the notifications native module. After a new dev or release build, bells can schedule system notifications.",
     reminderNeedPermissionTitle: "Notifications needed",
     reminderNeedPermissionMessage: "Please allow notifications so Harmonizer can remind you about this window.",
-    helpButtonAccessibilityLabel: "Explain the opportunity window chart",
+    helpButtonAccessibilityLabel: "Explain the opportunity windows chart",
     helpModalTitle: "How to read this window",
     helpLoading: "Preparing the explanation...",
+    help: {
+      freeOpening:
+        "The strongest planet of the day is {planet}. The graph shows when {planet} rises and reaches its zenith at your location.",
+      paidOpening:
+        "The strongest planet in your natal chart today is {natalPlanet}. This strength largely comes from the interaction with the transiting planet {transitPlanet}, whose path across the sky opens special windows of opportunity for you.",
+      paidOpeningNoTransit:
+        "Today the graph shows a general opportunity window without a single clearly highlighted transit planet.",
+      sunriseLine: "Rise: {time} — {planet} rises above the horizon.",
+      culminationLine: "Culmination: {time} — {planet} at the highest point of its daily path.",
+      exactAspectLine: "Exact aspect: {time} — {aspect} {transitPlanet} and {natalPlanet}.",
+      closing:
+        "These are key moments specifically for your location. Use them for spiritual practices, affirmations, setting intentions, meditation, etc.",
+      remindersHint: "Tap the bell below the chart to turn reminders on or off.",
+    },
+    subtitle: () => "",
+    paidIntro: () => "",
+    sunriseDetail: () => "",
+    culminationDetail: () => "",
+    exactAspectDetail: () => "",
   },
   recommendation: {
     title: "Daily recommendation",
@@ -550,12 +635,28 @@ const en: HomeStrings = {
   formatTime: (value) => formatTime(value, "en"),
 };
 
+function bindOpportunityWindowHelpers(
+  ow: HomeStrings["opportunityWindows"],
+): HomeStrings["opportunityWindows"] {
+  return {
+    ...ow,
+    subtitle: (planet) => fillHomeTemplate(ow.subtitleTemplate, { planet }),
+    paidIntro: (natalPlanet, transitPlanet) =>
+      fillHomeTemplate(ow.paidIntroTemplate, { natalPlanet, transitPlanet }),
+    sunriseDetail: (planet) => fillHomeTemplate(ow.sunriseDetailTemplate, { planet }),
+    culminationDetail: (planet) => fillHomeTemplate(ow.culminationDetailTemplate, { planet }),
+    exactAspectDetail: (aspect, transitPlanet, natalPlanet) =>
+      fillHomeTemplate(ow.exactAspectDetailTemplate, { aspect, transitPlanet, natalPlanet }),
+  };
+}
+
 export function getHomeStrings(locale: HomeLocale): HomeStrings {
   const base = inlineBaseLocale(locale) === "en" ? en : ru;
   const merged = mergeTypedLocale("home", base, locale) as HomeStrings;
   return {
     ...merged,
     locale,
+    opportunityWindows: bindOpportunityWindowHelpers(merged.opportunityWindows),
     formatTime: (value) => formatTime(value, inlineBaseLocale(locale)),
   };
 }

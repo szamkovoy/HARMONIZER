@@ -1,6 +1,6 @@
 {
   "de": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",
@@ -117,7 +117,7 @@
     "stories.viewer.next": "Следующая сторис"
   },
   "en": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",
@@ -234,7 +234,7 @@
     "stories.viewer.next": "Следующая сторис"
   },
   "es": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",
@@ -351,7 +351,7 @@
     "stories.viewer.next": "Следующая сторис"
   },
   "fr": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",
@@ -468,7 +468,7 @@
     "stories.viewer.next": "Следующая сторис"
   },
   "it": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",
@@ -585,7 +585,7 @@
     "stories.viewer.next": "Следующая сторис"
   },
   "nl": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",
@@ -702,7 +702,7 @@
     "stories.viewer.next": "Следующая сторис"
   },
   "pt": {
-    "tabs.home": "Главная",
+    "tabs.home": "Навигатор",
     "tabs.day": "День",
     "tabs.practices": "Практики",
     "tabs.profile": "Профиль",

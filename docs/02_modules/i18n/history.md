@@ -1,18 +1,8 @@
-- **2026-06-30 (2):** Breath results copy gained two more chart labels across all 8 locales: when pulse guidance diverges from the real live sensor, the results modal can now name those series explicitly as `Pulse (measured)` and `Pulse (guidance)` instead of showing one ambiguous pulse chart.
-
-- **2026-06-30:** Breath results copy gained two more result-state branches across all 8 locales: camera guidance-only sessions now explain that biometric interpretation requires a BLE RR sensor, and BLE results without reliable biometrics explain why the interpretation CTA is absent instead of showing a dead-end button.
-
-- **2026-06-29:** Breath camera-signal overlays stopped talking about paused biometrics in production camera mode. The existing `ppgFingerLostMessage` / `ppgBiometryPausedMessage` keys were reworded across all 8 locales to describe pulse loss / unstable signal only, matching the new camera guidance-only product behavior.
-
-- **2026-06-29 (2):** Camera breathing copy was simplified further: the runtime now effectively uses one soft reminder string (`ppgFingerLostMessage`) for production camera practice, and that text was rewritten across all 8 locales to prompt the user to hold a finger steadily on the camera instead of describing internal sensor states.
-
-- **2026-06-29 (3):** The camera reminder copy was tuned once more in all 8 locales: the message now explicitly says that the breathing pattern should precisely match the user's pulse, matching the final guidance-only positioning of camera mode.
-- **2026-06-29 (4):** Breath results strings were repurposed from the dead `Discuss` handoff to a local `Interpretation` flow. RU/EN typed source plus de/fr/it/es/pt/nl overlays now include the renamed button and loading/error/retry states for the inline STANDARD-model interpretation in the results modal.
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.10
-updated: 2026-06-30
+version: 1.11
+updated: 2026-07-10
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -25,7 +15,23 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-10 (2):** Tab bar: `tabs.home` → «Навигатор» / Navigator / … во всех 8 локалях; иконки вкладок (`assets/icons/{navigator,day,practices,publications,profile}.png`) через `TabBarIcon`.
+
+- **2026-07-10:** Home typed module: `opportunityWindows` templates (`paidIntroTemplate`, `*DetailTemplate`, `help.*`) + inline `planetLabels` for de/fr/it/es/pt/nl overlays; helpers rebound in `getHomeStrings` after merge so non-RU locales no longer fall back to EN function bodies for sunrise/culmination/aspect/help text.
+
 - **2026-07-01:** Breath prep/results copy gained `sessionPreparationLabel` («Подготовка» / «Preparation») for the BLE activation screen while the strap reaches its first live pulse.
+
+- **2026-06-30 (2):** Breath results copy gained two more chart labels across all 8 locales: when pulse guidance diverges from the real live sensor, the results modal can now name those series explicitly as `Pulse (measured)` and `Pulse (guidance)` instead of showing one ambiguous pulse chart.
+
+- **2026-06-30:** Breath results copy gained two more result-state branches across all 8 locales: camera guidance-only sessions now explain that biometric interpretation requires a BLE RR sensor, and BLE results without reliable biometrics explain why the interpretation CTA is absent instead of showing a dead-end button.
+
+- **2026-06-29:** Breath camera-signal overlays stopped talking about paused biometrics in production camera mode. The existing `ppgFingerLostMessage` / `ppgBiometryPausedMessage` keys were reworded across all 8 locales to describe pulse loss / unstable signal only, matching the new camera guidance-only product behavior.
+
+- **2026-06-29 (2):** Camera breathing copy was simplified further: the runtime now effectively uses one soft reminder string (`ppgFingerLostMessage`) for production camera practice, and that text was rewritten across all 8 locales to prompt the user to hold a finger steadily on the camera instead of describing internal sensor states.
+
+- **2026-06-29 (3):** The camera reminder copy was tuned once more in all 8 locales: the message now explicitly says that the breathing pattern should precisely match the user's pulse, matching the final guidance-only positioning of camera mode.
+
+- **2026-06-29 (4):** Breath results strings were repurposed from the dead `Discuss` handoff to a local `Interpretation` flow. RU/EN typed source plus de/fr/it/es/pt/nl overlays now include the renamed button and loading/error/retry states for the inline STANDARD-model interpretation in the results modal.
 
 - **2026-07-05:** Серверные layer-C / STT fallback'и приведены к i18n-инварианту (русский — конечный fallback). Раньше `_legacy_web/app/api/_utils/whisperPrompts.ts` и `authorVoice.ts` для неизвестной/отсутствующей локали fallback'али на English / авто-детект, что противоречило `resolveResponseLocale` (оканчивается на `ru`) и ломало 3 теста. Что изменилось: `getDomainPrompt(language?)` — неизвестная/отсутствующая → RU-промпт (поддерживаемые европейские `de/fr/it/es/pt/nl` без dedicated-промпта → мультиязычный `AUTO_DETECT_DOMAIN_PROMPT`, как раньше); `normalizeWhisperLanguage(language?)` — сигнатура `string | undefined` → `string`, неизвестная/отсутствующая → `"ru"`; `getAuthorVoice(language?)` — `ru`→RU, `en`→EN, `de/fr/it/es/pt/nl`→EN-каденс, неизвестная/отсутствующая → RU (ранее → EN). Тесты расширены кросс-локальными регрессиями (de/fr/it/es/pt/nl + zh-CN/пустая), 19/19 green.
 

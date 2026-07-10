@@ -67,7 +67,7 @@
   },
   "openSettingsButton": "Ouvrir les paramètres",
   "opportunityWindows": {
-    "title": "Fenêtre d'opportunités",
+    "title": "Fenêtres d'opportunités",
     "emptyDetail": "Aujourd'hui sans fenêtre précise",
     "windowTitles": {
       "sunrise": "Lever du soleil",
@@ -96,10 +96,34 @@
     "helpButtonAccessibilityLabel": "Explication du graphique des fenêtres d'opportunités",
     "helpModalTitle": "Comment lire cette fenêtre",
     "helpLoading": "Préparation de l'explication...",
-    "reminderNotificationsUnavailableMessage": "La version actuelle de l’application ne dispose pas du module natif de notifications. Après la prochaine compilation (dev/release), les clochettes pourront programmer des notifications système."
+    "reminderNotificationsUnavailableMessage": "La version actuelle de l’application ne dispose pas du module natif de notifications. Après la prochaine compilation (dev/release), les clochettes pourront programmer des notifications système.",
+    "subtitleTemplate": "Thème principal : {planet}",
+    "paidIntroTemplate": "Aujourd'hui, cultivez les états que {natalPlanet} active. Pendant ce temps, {transitPlanet} ouvrira des fenêtres d'opportunités particulières.",
+    "sunriseDetailTemplate": "{planet} s'élève au-dessus de l'horizon",
+    "culminationDetailTemplate": "{planet} est à sa force maximale",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} et {natalPlanet}",
+    "help": {
+      "freeOpening": "La planète la plus forte du jour est {planet}. Le graphique montre quand {planet} se lève et atteint son zénith à votre emplacement.",
+      "paidOpening": "La planète la plus forte de votre thème natal aujourd'hui est {natalPlanet}. Cette force vient en grande partie de l'interaction avec la planète de transit {transitPlanet}, dont le parcours dans le ciel ouvre pour vous des fenêtres d'opportunités particulières.",
+      "paidOpeningNoTransit": "Aujourd'hui, le graphique montre une fenêtre d'opportunités générale sans planète de transit clairement mise en avant.",
+      "sunriseLine": "Lever : {time} — {planet} s'élève au-dessus de l'horizon.",
+      "culminationLine": "Culmination : {time} — {planet} au point le plus haut de sa course quotidienne.",
+      "exactAspectLine": "Aspect exact : {time} — {aspect} {transitPlanet} et {natalPlanet}.",
+      "closing": "Ce sont des moments clés spécifiquement pour votre lieu. Utilisez-les pour des pratiques spirituelles, des affirmations, des intentions, la méditation, etc.",
+      "remindersHint": "Appuyez sur la cloche sous le graphique pour activer ou désactiver les rappels."
+    }
   },
   "planetBanner": {
     "eyebrow": "Planète du jour"
+  },
+  "planetLabels": {
+    "Sun": "Soleil",
+    "Moon": "Lune",
+    "Mercury": "Mercure",
+    "Venus": "Venus",
+    "Mars": "Mars",
+    "Jupiter": "Jupiter",
+    "Saturn": "Saturne"
   },
   "recommendation": {
     "title": "Recommandations du jour",

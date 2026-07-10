@@ -67,7 +67,7 @@
   },
   "openSettingsButton": "Open instellingen",
   "opportunityWindows": {
-    "title": "Kansenvenster",
+    "title": "Kansenvensters",
     "emptyDetail": "Vandaag geen exact venster",
     "windowTitles": {
       "sunrise": "Zonsopgang",
@@ -93,13 +93,37 @@
     "reminderNotificationsUnavailableTitle": "Meldingen momenteel niet beschikbaar",
     "reminderNeedPermissionTitle": "Meldingen nodig",
     "reminderNeedPermissionMessage": "Sta meldingen toe zodat Harmonizer je kan herinneren aan het kansenvenster.",
-    "helpButtonAccessibilityLabel": "Uitleg bij de grafiek van het kansenvenster",
+    "helpButtonAccessibilityLabel": "Uitleg bij de grafiek van de kansenvensters",
     "helpModalTitle": "Hoe dit venster te lezen",
     "helpLoading": "Uitleg wordt verzameld...",
-    "reminderNotificationsUnavailableMessage": "Deze versie draait zonder de native notificatiemodule. Bij een volgende dev- of release-build kunnen de herinneringsbellen systeemmeldingen sturen."
+    "reminderNotificationsUnavailableMessage": "Deze versie draait zonder de native notificatiemodule. Bij een volgende dev- of release-build kunnen de herinneringsbellen systeemmeldingen sturen.",
+    "subtitleTemplate": "Hoofdthema: {planet}",
+    "paidIntroTemplate": "Koester vandaag de staten die {natalPlanet} activeert. Tegelijk zal {transitPlanet} bijzondere kansenvensters openen.",
+    "sunriseDetailTemplate": "{planet} komt boven de horizon",
+    "culminationDetailTemplate": "{planet} is op maximale kracht",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} en {natalPlanet}",
+    "help": {
+      "freeOpening": "De sterkste planeet van de dag is {planet}. De grafiek toont wanneer {planet} opkomt en het zenit bereikt op uw locatie.",
+      "paidOpening": "De sterkste planeet van uw geboortehoroscoop is vandaag {natalPlanet}. Deze kracht komt grotendeels voort uit de wisselwerking met de transitplaneet {transitPlanet}, waarvan de beweging aan de hemel bijzondere kansenvensters voor u opent.",
+      "paidOpeningNoTransit": "Vandaag toont de grafiek een algemeen kansenvenster zonder een duidelijk uitgelichte transitplaneet.",
+      "sunriseLine": "Opkomst: {time} — {planet} komt boven de horizon.",
+      "culminationLine": "Culminatie: {time} — {planet} op het hoogste punt van het dagelijkse pad.",
+      "exactAspectLine": "Exact aspect: {time} — {aspect} {transitPlanet} en {natalPlanet}.",
+      "closing": "Dit zijn sleutelmomenten specifiek voor uw locatie. Gebruik ze voor spirituele praktijken, affirmaties, intenties, meditatie enz.",
+      "remindersHint": "Tik op het belletje onder de grafiek om herinneringen in of uit te schakelen."
+    }
   },
   "planetBanner": {
     "eyebrow": "Planeet van de dag"
+  },
+  "planetLabels": {
+    "Sun": "Zon",
+    "Moon": "Maan",
+    "Mercury": "Mercurius",
+    "Venus": "Venus",
+    "Mars": "Mars",
+    "Jupiter": "Jupiter",
+    "Saturn": "Saturnus"
   },
   "recommendation": {
     "title": "Dagadvies",

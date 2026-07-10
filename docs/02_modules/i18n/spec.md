@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.13
-updated: 2026-06-29
+version: 1.14
+updated: 2026-07-10
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -294,7 +294,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   chrome, Day tab, Practices catalog, Breath, Mandala stream, chakra state labels
   (`modules/chakra/i18n.ts` — single source for legend text), charts donut center
   label (`getChartStrings` → `balanceLabel`; overlays `typed/catalog/charts/*`), Home
-  `ChakraFlower` center planet name via **`getHomeStrings` → `planetLabels`**, Home astro-chart zodiac labels via **`getHomeStrings().astroChartModal.zodiacSigns`**, startup splash footer
+  `ChakraFlower` center planet name via **`getHomeStrings` → `planetLabels`**, Home **`OpportunityWindows`** via template strings (`paidIntroTemplate`, detail/help) rebound after overlay merge, Home astro-chart zodiac labels via **`getHomeStrings().astroChartModal.zodiacSigns`**, startup splash footer
   (`AppStartupProvider` — catalog keys `startup.step.*`, `startup.fallback` via `t()`). Practices/Breath typed strings now also cover BLE-specific source labels (`camera / Bluetooth / no sensor`), the reusable activation copy for the breathing screen, and results-modal interpretation states (`Interpretation`, loading, retry/error). Locales without explicit typed overlay continue to fall back to EN base strings until dedicated overlays are filled.
 - **Layer B (LLM / server-generated):** morning recommendation, global free-tier
   slogan/short/long text, `ModalLongExplanation` body. Client sends `responseLocale`;

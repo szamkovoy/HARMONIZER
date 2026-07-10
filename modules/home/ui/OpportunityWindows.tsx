@@ -23,8 +23,9 @@ import type { AccessMode } from "@/services/globalContentClient";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
-import { SectionHeader } from "@/modules/ui/ScreenSection";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
+import { SurfaceCardTitleRow } from "@/modules/ui/SurfaceCardTitleRow";
+import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
 import {
   buildOpportunityAlarmStyleContent,
@@ -514,6 +515,9 @@ export function OpportunityWindows({
           detail: windows.exactAspect
             ? t.exactAspectDetail(
                 t.aspectLabels[windows.exactAspect.aspectType as AspectType],
+                strings.planetLabels[
+                  windows.exactAspect.transitPlanet ?? graphPlanet
+                ],
                 strings.planetLabels[windows.exactAspect.toNatalPlanet],
               )
             : null,
@@ -779,37 +783,27 @@ export function OpportunityWindows({
 
   useEffect(() => {
     setHelpText(null);
-  }, [accessMode, planetOfTheDay, windows]);
+  }, [accessMode, planetOfTheDay, strings.locale, windows]);
 
   return (
-    <SurfaceCardView style={styles.card}>
-      <View style={styles.headerRow}>
-        <View style={styles.header}>
-          <SectionHeader
-            title={t.title}
-            subtitle={t.subtitle(strings.planetLabels[planetOfTheDay])}
-          />
-          {graphPlanet !== planetOfTheDay ? (
-            <AppText variant="technicalCaption" tone="muted">
-              {t.graphTrack(strings.planetLabels[graphPlanet])}
-            </AppText>
-          ) : null}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.helpButtonAccessibilityLabel}
-          onPress={() => setHelpVisible(true)}
-          style={({ pressed }) => [
-            styles.helpButton,
-            {
-              borderColor: theme.colors.surfaceBorder,
-              backgroundColor: theme.colors.controlButtonBg,
-              opacity: pressed ? 0.72 : 1,
-            },
-          ]}
-        >
-          <Ionicons name="help-circle-outline" size={18} color={theme.colors.textPrimary} />
-        </Pressable>
+    <>
+      <SurfaceCardView style={styles.card}>
+      <View style={styles.header}>
+        <SurfaceCardTitleRow
+          title={t.title}
+          help={{
+            accessibilityLabel: t.helpButtonAccessibilityLabel,
+            onPress: () => setHelpVisible(true),
+          }}
+        />
+        <AppText variant="screenHint" tone="muted">
+          {accessMode === "free"
+            ? t.subtitle(strings.planetLabels[planetOfTheDay])
+            : t.paidIntro(
+                strings.planetLabels[planetOfTheDay],
+                strings.planetLabels[graphPlanet],
+              )}
+        </AppText>
       </View>
 
       <View style={styles.chartWrap} onLayout={onChartLayout}>
@@ -936,7 +930,9 @@ export function OpportunityWindows({
       <View style={styles.windowList}>
         {displayItems.map((item) => (
           <View key={item.key} style={styles.windowLine}>
-            <AppText variant="statPillLabel">{item.title}</AppText>
+            <AppText variant="statPillLabel" style={styles.windowTitle}>
+              {item.title}
+            </AppText>
             <AppText variant="technicalCaption" tone="muted" style={styles.windowDetail}>
               {item.time ? `${strings.formatTime(item.time)} · ${item.detail}` : t.emptyDetail}
             </AppText>
@@ -994,29 +990,17 @@ export function OpportunityWindows({
           </View>
         </View>
       </Modal>
-      <Modal animationType="fade" transparent visible={helpVisible} onRequestClose={() => setHelpVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-            <AppText variant="sectionTitle">{t.helpModalTitle}</AppText>
-            {helpLoading ? (
-              <View style={styles.helpLoading}>
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-                <AppText variant="screenHint" tone="muted">
-                  {t.helpLoading}
-                </AppText>
-              </View>
-            ) : (
-              <AppText variant="screenHint">{helpText ?? t.emptyDetail}</AppText>
-            )}
-            <View style={styles.modalActions}>
-              <Pressable onPress={() => setHelpVisible(false)} style={styles.modalButton}>
-                <AppText variant="buttonLabel">{strings.closeButton}</AppText>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SurfaceCardView>
+      </SurfaceCardView>
+      <SurfaceHelpModal
+        visible={helpVisible}
+        title={t.helpModalTitle}
+        closeLabel={strings.closeButton}
+        onClose={() => setHelpVisible(false)}
+        loading={helpLoading}
+        loadingLabel={t.helpLoading}
+        body={helpText ?? t.emptyDetail}
+      />
+    </>
   );
 }
 
@@ -1028,21 +1012,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   header: {
-    gap: 4,
-  },
-  headerRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  helpButton: {
-    alignItems: "center",
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 34,
-    justifyContent: "center",
-    width: 34,
+    gap: 6,
   },
   chartWrap: {
     height: CHART_VIEW_HEIGHT,
@@ -1163,16 +1133,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  helpLoading: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-  },
   windowList: {
     gap: 8,
   },
   windowLine: {
     gap: 2,
+  },
+  windowTitle: {
+    lineHeight: 18,
+    minHeight: 18,
   },
   windowDetail: {
     lineHeight: 18,

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.21
-updated: 2026-07-07
+version: 2.22
+updated: 2026-07-10
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,16 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-10 (SurfaceHelpModal):** Типовая centered help-модалка для «?» на surface-card — `SurfaceHelpModal` + `ModalHeaderCloseButton`; заголовок опущен на 3 px, крестик закрывает как «Закрыть». Первый потребитель — `OpportunityWindows`.
+
+- **2026-07-10 (OpportunityWindows help copy):** Paid help — первые два абзаца объединены в `paidOpening`; free и paid завершаются `remindersHint` («колокольчик под графиком»). Все 8 локалей.
+
+- **2026-07-10 (compact tab bar):** `useCompactTabBarStyle` — уменьшена высота нижней панели вкладок (иконки ближе к нижнему краю, больше места контенту); safe-area inset сохранён.
+
+- **2026-07-10 (SurfaceCard help slot):** Help «?» — `SurfaceCardTitleRow` (заголовок + иконка на одной строке, `SurfaceCardHelpButton`); отступы от краёв карточки задаёт padding `SurfaceCardView` (18 px). Первый потребитель — `OpportunityWindows`.
+
+- **2026-07-10 (OpportunityWindows copy + i18n):** Заголовок → «Окна возможностей» (plural во всех локалях). Help `?` перенесён на строку заголовка, убран внешний круг кнопки. Paid: вместо «Главная тема / На графике» — `paidIntroTemplate`; точный аспект и help-модалка — конструкция «аспект Планета1 и Планета2» без склонений; help-текст из `opportunityWindows.help.*` через `fillHomeTemplate` (все 8 локалей; убран EN-хардкод для non-RU). Free-путь подзаголовка без изменений по смыслу. Регрессия: `services/opportunityWindowsExplanation.test.ts`.
 
 - **2026-07-07 (math page UI + dev-reset both tiers):** «Математика дня» переработана для обоих тарифов, i18n — все 8 локалей. **Free** (`buildGlobalMathLevel` в `_legacy_web/app/api/_utils/globalTransitMath.ts` + edge-зеркало `supabase/functions/_shared/dailyForecast.ts` + клиентский `rebuildLocalizedGlobalMathLevel` в `services/globalContentClient.ts`): удалены блоки «Почему выбрана именно эта тема дня», «Топ-3 лепестка», «Вес каждого аспекта в общей картине»; «Активные аспекты дня» → «Ключевые аспекты дня» с добавленным в каждую строку «вес» (число = вклад аспекта, что раньше было отдельным блоком «вклад»); в «Полном рейтинге» «тон» заменён на «гармония» с числовым значением в шкале -1.0…+1.0 (новое поле `harmoniousness` в `planet_scores`/`top_petals`, считается новым хелпером `globalHarmoniousnessFor` из баланса tight-orb транзит-аспектов планеты; для старых cached-строк без поля клиент и билдер пересчитывают его из `aspects`). **Paid** (`mathLevelI18n.ts` RU/EN + `mathLevelI18nTargets.ts` DE/FR/IT/ES/PT/NL + edge-зеркала): «Importance» → «Значимость», «Activation» → «Активация» во всём тексте блока 3 и блоке 4; формула `Значимость(P) = Активация(P) × (0.5 + 0.5 × S_eff(P))`; построчные формулы вида «Сатурн: Значимость=0.530 × … = 0.398» (лейбл `Значимость=`, не `Активация=`, т.к. левая часть формулы — Importance); `Победитель: Сатурн (Значимость = 0.398)`. EN оставляет Importance/Activation (это и есть английские термины), DE/FR/IT/ES/PT/NL локализованы (Bedeutung/Aktivierung, Importance/Activation, Importanza/Attivazione, Importancia/Activación, Importância/Ativação, Belang/Activatie). **Dev-reset** (`devDayContentReset.ts` + `dev-day-reset/route.ts` + `devDayContentResetClient.ts` + `app/(tabs)/index.tsx`): новый `resetScope: "both"` — кнопка «Обновить» (test-mode) теперь одной операцией чистит И shared `global_daily_content` (free), И персональные `scenario_cache`/`user_daily_forecasts` (paid) этого пользователя, после чего `refresh({forceRefresh:true})` регенерирует рекомендацию активного тарифа на текущую дату (free — глобальная, paid — по наталу). Решает застарелый кэш paid-рекомендации при смене промпта (cache валидность не учитывает версию промпта → ждал старый текст). tsc (root + _legacy_web) чист; vitest 356/356; i18n-sync check green.
 
