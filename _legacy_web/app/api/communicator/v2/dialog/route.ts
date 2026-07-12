@@ -66,14 +66,13 @@ import {
   buildPlanningFinalVisibleText,
   buildPracticeClarificationFallback,
   extractDayFocusFromVisibleFinalize,
-  injectPlanningActionsVisibleList,
-  injectPlanningDayFocus,
   ensureSentencePunctuation,
   prependChakraAttention,
   replaceSpontaneousEnglishRu,
   polishPlanningMarker,
   containsPracticeDeclined,
   stripBrainSentinels,
+  stripPlanningDayFocusScaffold,
   type BrainPromptContext,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBranchPrompts";
 import {
@@ -108,7 +107,9 @@ import {
   buildSummaryRepairInstruction,
   classifySummaryRepairMode,
 } from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
+import { formatHealthForPrompt, describeHealthContextForDebug, stripInventedNativeHealthClaims } from "@legacy/app/api/communicator/v2/dialog/dialogHealthPrompt";
 import {
+  dedupePlanningMarkersByIdentity,
   dismissPlannedEvents,
   persistDayFocus,
   persistPlanningFinalize,
@@ -294,104 +295,6 @@ function filterDismissedPlanningMarkers(markers: PlannedEventMarker[], dismissed
 function numberOrNull(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
-}
-
-function formatMetricForPrompt(label: string, value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const metric = value as { value?: unknown; average?: unknown; comparison?: unknown };
-  const current = numberOrNull(metric.value);
-  if (current == null) return null;
-  const average = numberOrNull(metric.average);
-  const comparison = typeof metric.comparison === "string" ? metric.comparison : "unknown";
-  const averagePart = average != null ? `, average: ${Math.round(average)}` : "";
-  const comparisonPart = comparison !== "unknown" ? `, comparison: ${comparison}` : "";
-  return `${label}: ${Math.round(current)}${averagePart}${comparisonPart}`;
-}
-
-function formatDurationMinutesForPrompt(totalMinutes: number): string {
-  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(roundedMinutes / 60);
-  const minutes = roundedMinutes % 60;
-  if (hours <= 0) return `${roundedMinutes} minutes`;
-  if (minutes === 0) return `${hours} hour${hours === 1 ? "" : "s"}`;
-  return `${hours} hour${hours === 1 ? "" : "s"} ${minutes} min`;
-}
-
-function sleepQualityLabelForPrompt(value: string): string | null {
-  const normalized = value.trim().toLowerCase();
-  const labels: Record<string, string> = {
-    short: "сон был короче обычного",
-    long: "сон был длиннее обычного",
-    normal: "сон был обычной длительности",
-    average: "сон был обычной длительности",
-    good: "качество сна выглядело хорошим",
-    fair: "качество сна выглядело средним",
-    poor: "качество сна выглядело низким",
-    restless: "сон был беспокойным",
-    interrupted: "сон прерывался",
-    unknown: "",
-  };
-  const label = labels[normalized] ?? normalized.replace(/[_-]+/g, " ");
-  return label.trim() || null;
-}
-
-function formatHealthForPrompt(value: unknown): string {
-  if (!value || typeof value !== "object") return "";
-  const ctx = value as {
-    providerStatus?: unknown;
-    provider?: unknown;
-    yoga?: { totalMinutes?: unknown; practiceCount?: unknown; averageDailyMinutes?: unknown; comparison?: unknown; kinds?: unknown };
-    activity?: { steps?: unknown; activeCalories?: unknown; workoutMinutes?: unknown };
-    sleep?: { durationMinutes?: unknown; quality?: unknown };
-  };
-  const lines: string[] = [];
-  const provider = typeof ctx.provider === "string" ? ctx.provider : "unknown";
-  const yogaMinutes = numberOrNull(ctx.yoga?.totalMinutes);
-  const yogaPracticeCount = numberOrNull(ctx.yoga?.practiceCount);
-  const yogaAverage = numberOrNull(ctx.yoga?.averageDailyMinutes);
-  const yogaComparison = typeof ctx.yoga?.comparison === "string" ? ctx.yoga.comparison : "unknown";
-  const yogaKinds = Array.isArray(ctx.yoga?.kinds)
-    ? ctx.yoga.kinds.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)
-    : [];
-
-  if (yogaPracticeCount != null && yogaPracticeCount > 0) {
-    const minutesPart = yogaMinutes != null && yogaMinutes > 0 ? `${Math.round(yogaMinutes)}` : "0";
-    const averagePart = yogaAverage != null ? `, average daily minutes: ${Math.round(yogaAverage)}` : "";
-    const comparisonPart = yogaComparison !== "unknown" ? `, comparison: ${yogaComparison}` : "";
-    const kindsPart = yogaKinds.length ? `, kinds: ${yogaKinds.join("/")}` : "";
-    lines.push(
-      `yoga minutes: ${minutesPart}, practices: ${Math.round(yogaPracticeCount)}${averagePart}${comparisonPart}${kindsPart}`,
-    );
-  } else if (yogaMinutes != null && yogaMinutes > 0) {
-    const averagePart = yogaAverage != null ? `, average daily minutes: ${Math.round(yogaAverage)}` : "";
-    const comparisonPart = yogaComparison !== "unknown" ? `, comparison: ${yogaComparison}` : "";
-    const kindsPart = yogaKinds.length ? `, kinds: ${yogaKinds.join("/")}` : "";
-    lines.push(`yoga minutes: ${Math.round(yogaMinutes)}${averagePart}${comparisonPart}${kindsPart}`);
-  }
-
-  const stepsLine = formatMetricForPrompt("steps", ctx.activity?.steps);
-  const caloriesLine = formatMetricForPrompt("active calories", ctx.activity?.activeCalories);
-  const workoutLine = formatMetricForPrompt("workout minutes", ctx.activity?.workoutMinutes);
-  const sleepMinutes = numberOrNull(ctx.sleep?.durationMinutes);
-  const sleepLine = sleepMinutes != null
-    ? `sleep duration: ${formatDurationMinutesForPrompt(sleepMinutes)}`
-    : null;
-  if (stepsLine) lines.push(stepsLine);
-  if (caloriesLine) lines.push(caloriesLine);
-  if (workoutLine) lines.push(workoutLine);
-  if (sleepLine) lines.push(sleepLine);
-  if (typeof ctx.sleep?.quality === "string" && ctx.sleep.quality !== "unknown") {
-    const sleepQuality = sleepQualityLabelForPrompt(ctx.sleep.quality);
-    if (sleepQuality) {
-      lines.push(`sleep quality note: ${sleepQuality}; do not quote raw provider codes.`);
-    }
-  }
-  if (!lines.length) {
-    return ctx.providerStatus === "available"
-      ? `provider: ${provider}; no specific Apple/Google Health numbers were shared; do not invent any.`
-      : "Apple/Google Health is unavailable; do not mention steps, sleep, calories or workouts.";
-  }
-  return [`provider: ${provider}`, ...lines].join(", ");
 }
 
 function formatPracticesForPrompt(value: unknown): string {
@@ -1209,6 +1112,7 @@ export async function POST(req: Request) {
     const practiceValidationAtTurn =
       fsm.branch === "practice" ? practiceValidationForTurn(history, userMessage) : null;
     let prompt: { systemInstruction: string; userInstruction: string };
+    let summarizingHealthDebug: Record<string, unknown> | null = null;
     if (fsm.branch === "summarizing") {
       const completedEarlierEvents = mergeSummarySessionItems(
         readSummarySessionItems(conversationMeta),
@@ -1216,6 +1120,8 @@ export async function POST(req: Request) {
       )
         .filter((item) => !currentEvent || item.id !== currentEvent.id)
         .map((item) => ({ description: item.description }));
+      const healthContextText = formatHealthForPrompt(triggerMeta.dayHealthContext);
+      summarizingHealthDebug = describeHealthContextForDebug(triggerMeta.dayHealthContext);
       prompt = buildSummarizingPrompt(brainCtx, {
         isOpening,
         currentEvent: currentEvent ? { ref: currentEvent.id, description: currentEvent.description } : null,
@@ -1223,12 +1129,18 @@ export async function POST(req: Request) {
         completedEarlierEvents,
         isLastEvent: due.length <= 1,
         clarifyingAlreadyAsked: summaryAskedCount(fsm, currentEvent?.id) >= 1,
-        healthContext: formatHealthForPrompt(triggerMeta.dayHealthContext),
+        healthContext: healthContextText,
         practicesContext: formatPracticesForPrompt(triggerMeta.dayPractices),
         summaryWorkingLocalDate: workingLocalDate,
         currentEventPlannedLocalDate: currentEvent?.planned_local_date ?? null,
         continuesToPlanning: !isLastBranch(fsm),
       });
+      if (due.length <= 1) {
+        console.warn(
+          "[DIALOG_HEALTH] summarizing FINAL health context",
+          JSON.stringify({ conversationId: conversation.id, workingLocalDate, ...summarizingHealthDebug }),
+        );
+      }
     } else if (fsm.branch === "practice") {
       const lastAssistantBranch = [...history]
         .reverse()
@@ -1418,18 +1330,25 @@ export async function POST(req: Request) {
             && !isOpening
             && !fsmAtTurnStart.planningFinalized
             && planningDoneIntent
-            && fsmAtTurnStart.noGreeting
           ) {
             const explicitPlanningMarkers = filterPersistablePlanningMarkers(markers.plannedEvents, planningMarkerFilterOptions);
             const salvagedPlanningMarkers = filterPersistablePlanningMarkers(
               extractPlanningMarkersFromVisibleFinalize(sanitizedVisibleText, resolveDialogScaffoldLocale(context.user.locale)),
               planningMarkerFilterOptions,
             );
+            const markerDayFocus = stripPlanningDayFocusScaffold(markers.recommendationCorrection?.short_text);
+            const salvagedDayFocus = fsmAtTurnStart.noGreeting
+              ? ""
+              : extractDayFocusFromVisibleFinalize(
+                sanitizedVisibleText,
+                Math.max(explicitPlanningMarkers.length, salvagedPlanningMarkers.length, 1),
+              );
             const finalizeArtifactsReady = planningFinalizeArtifactsReady({
               noGreeting: fsmAtTurnStart.noGreeting,
               explicitMarkers: explicitPlanningMarkers,
               salvagedVisibleMarkers: salvagedPlanningMarkers,
-              hasDayFocusMarker: Boolean(markers.recommendationCorrection?.short_text),
+              hasDayFocusMarker: markerDayFocus.length >= 80,
+              hasSalvagedDayFocus: salvagedDayFocus.length >= 80,
             });
             if (!finalizeArtifactsReady) {
               try {
@@ -1444,8 +1363,13 @@ export async function POST(req: Request) {
                   sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)),
                 );
                 console.warn(
-                  "[DIALOG_FSM] Repaired planning finalize that stayed in add-flow gathering mode",
-                  JSON.stringify({ conversationId: conversation.id }),
+                  "[DIALOG_FSM] Repaired planning finalize that stayed in gathering mode or lacked day focus",
+                  JSON.stringify({
+                    conversationId: conversation.id,
+                    noGreeting: fsmAtTurnStart.noGreeting,
+                    hadDayFocusMarker: markerDayFocus.length >= 80,
+                    hadSalvagedDayFocus: salvagedDayFocus.length >= 80,
+                  }),
                 );
               } catch (repairError) {
                 console.warn("[DIALOG_FSM] Hidden retry for planning finalize failed; keeping original response", repairError);
@@ -1662,7 +1586,9 @@ export async function POST(req: Request) {
                 }),
               );
             }
-            plannedMarkers = plannedMarkers.map((marker) => polishPlanningMarker(marker, locale));
+            plannedMarkers = dedupePlanningMarkersByIdentity(
+              plannedMarkers.map((marker) => polishPlanningMarker(marker, locale)),
+            );
             resolvedPlanningMarkers = plannedMarkers;
             if (
               plannedMarkers.length === 0
@@ -1719,6 +1645,26 @@ export async function POST(req: Request) {
                     .map(plannedRowToMarker)
                     .map((marker) => polishPlanningMarker(marker, locale));
                 }
+              } else if (
+                finalizeIntent
+                && plannedMarkers.length === 0
+                && !fsmAtTurnStart.planningFinalized
+                && tabMode !== "add"
+              ) {
+                // Empty-plan close ("не хочу ничего планировать"): wipe any
+                // same-conversation planned rows and keep Day tab clean.
+                await persistPlanningFinalize({
+                  db: routeDb,
+                  userId: routeUserId,
+                  conversationId: conversation.id,
+                  workingLocalDate: context.localDate,
+                  timezone: userTimezone,
+                  nowIso,
+                  markers: [],
+                  appendToExisting: false,
+                  deleteOrphans: true,
+                });
+                resolvedPlanningMarkers = [];
               }
               if (finalizeIntent) {
                 planningFinalizedThisTurn = true;
@@ -1727,8 +1673,10 @@ export async function POST(req: Request) {
                 // recommendation paragraph from the visible finalize (the substantial
                 // paragraph before the numbered action list). The add flow has no day
                 // focus step, so only do this in the full greeted planning flow.
-                let dayFocusSource = markers.recommendationCorrection?.short_text?.trim() ?? "";
-                if (!dayFocusSource && !fsmAtTurnStart.noGreeting) {
+                let dayFocusSource = stripPlanningDayFocusScaffold(
+                  markers.recommendationCorrection?.short_text,
+                );
+                if (dayFocusSource.length < 80 && !fsmAtTurnStart.noGreeting) {
                   const salvagedDayFocus = extractDayFocusFromVisibleFinalize(
                     stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale))),
                     plannedMarkers.length,
@@ -1739,9 +1687,11 @@ export async function POST(req: Request) {
                       "[DIALOG_FSM] Salvaged day focus from visible finalize",
                       JSON.stringify({ conversationId: conversation.id, length: salvagedDayFocus.length }),
                     );
+                  } else {
+                    dayFocusSource = "";
                   }
                 }
-                if (!fsmAtTurnStart.noGreeting && dayFocusSource) {
+                if (!fsmAtTurnStart.noGreeting && dayFocusSource.length >= 80) {
                   const shortText = prependChakraAttention(
                     ensureSentencePunctuation(dayFocusSource),
                     brainCtx.targetChakraNumber,
@@ -2022,10 +1972,11 @@ export async function POST(req: Request) {
             planningMarkersForVisible = resolvedPlanningMarkers;
             const persistedDayFocus =
               recommendationCorrected && typeof recommendationCorrected.short_text === "string"
-                ? recommendationCorrected.short_text
+                ? stripPlanningDayFocusScaffold(recommendationCorrected.short_text)
                 : undefined;
             const dayFocus = ensureSentencePunctuation(
-              persistedDayFocus ?? markers.recommendationCorrection?.short_text,
+              persistedDayFocus
+                || stripPlanningDayFocusScaffold(markers.recommendationCorrection?.short_text),
             );
             if (planningMarkersForVisible.length > 0 && fsmAtTurnStart.noGreeting) {
               cleanText = buildPlanningAddFinalVisibleText({
@@ -2041,10 +1992,17 @@ export async function POST(req: Request) {
                 includePracticeQuestion: !fsmAtTurnStart.noPractice,
                 targetChakraNumber: brainCtx.targetChakraNumber,
               });
-            } else if (dayFocus) {
-              cleanText = injectPlanningDayFocus(cleanText, dayFocus);
-            } else if (planningMarkersForVisible.length > 0) {
-              cleanText = injectPlanningActionsVisibleList(cleanText, planningMarkersForVisible, locale);
+            } else {
+              // Empty-plan finalize: day focus + practice offer only.
+              // Never keep a model-echo numbered line like "1. Не хочу ничего планировать".
+              cleanText = buildPlanningFinalVisibleText({
+                visibleText: dayFocus || cleanText,
+                events: [],
+                dayFocus,
+                locale,
+                includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                targetChakraNumber: brainCtx.targetChakraNumber,
+              });
             }
           }
           if (
@@ -2058,7 +2016,7 @@ export async function POST(req: Request) {
               cleanText,
               planningMarkersForVisible.length,
             );
-            if (persistedFromVisible) {
+            if (persistedFromVisible.length >= 80) {
               const shortText = prependChakraAttention(
                 ensureSentencePunctuation(persistedFromVisible),
                 brainCtx.targetChakraNumber,
@@ -2083,7 +2041,14 @@ export async function POST(req: Request) {
                     includePracticeQuestion: !fsmAtTurnStart.noPractice,
                     targetChakraNumber: brainCtx.targetChakraNumber,
                   })
-                : injectPlanningDayFocus(cleanText, shortText);
+                : buildPlanningFinalVisibleText({
+                    visibleText: shortText,
+                    events: [],
+                    dayFocus: shortText,
+                    locale,
+                    includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                    targetChakraNumber: brainCtx.targetChakraNumber,
+                  });
             }
           }
           if (branchForTurn === "practice" && practicePicked) {
@@ -2109,6 +2074,10 @@ export async function POST(req: Request) {
             // per-event recap list, no calendar/day words. The planning hand-off
             // (if any) is appended deterministically below.
             cleanText = sanitizeSummaryFinalVisibleText(cleanText);
+            cleanText = stripInventedNativeHealthClaims(
+              cleanText,
+              summarizingHealthDebug?.hasNativeMetric === true,
+            );
             if (nextFsm.branch === "planning") {
               const locale = resolveDialogScaffoldLocale(context.user.locale);
               cleanText = ensureSummaryToPlanningBridge(cleanText, locale);
@@ -2180,6 +2149,7 @@ export async function POST(req: Request) {
                 planning_persistence: planningPersistence,
                 related_event_ids: turnRelatedEventIds ?? null,
                 matrix_cells: turnMatrixCells ?? null,
+                ...(summarizingHealthDebug ? { health_debug: summarizingHealthDebug } : {}),
               },
             })
             .select("id")
@@ -2207,6 +2177,7 @@ export async function POST(req: Request) {
             practicePicked: practicePicked ?? undefined,
             recommendationCorrected: recommendationCorrected ?? undefined,
             messageId: inserted?.id ?? null,
+            ...(summarizingHealthDebug ? { healthDebug: summarizingHealthDebug } : {}),
             ...(persistenceConfirmed
               ? {
                   planningPersistence,

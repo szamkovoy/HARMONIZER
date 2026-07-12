@@ -28,16 +28,17 @@ import { loadPracticeCatalog } from "@/modules/practices";
 import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/types";
 import { PracticeCard } from "@/modules/practices/ui/PracticeCard";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
-import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
+import { SurfaceCardTitleRow } from "@/modules/ui/SurfaceCardTitleRow";
+import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
 import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
 import type { DayHealthContext } from "@/services/dayHealthContext";
-import { startSummarizingHealthCollectionFromPlan } from "@/services/summarizingHealthContext";
+import { buildSummarizingHealthSnapshot } from "@/services/summarizingHealthContext";
 import {
   cancelPendingDayPractice,
   deleteDayAction,
@@ -49,8 +50,8 @@ import {
   type DaySection,
   type DaySphereStat,
 } from "@/services/dayPlan";
-import { consumePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
-import { loadCachedDayPlan, peekCachedDayPlan } from "@/services/dayPlanCache";
+import { consumeDayPlanStale, consumePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
+import { isDayPlanCurrent, loadCachedDayPlan } from "@/services/dayPlanCache";
 
 type AssistantMode = "plan" | "add" | "summary";
 type PracticeMenuLevel = "closed" | "root" | "breath" | "yoga";
@@ -69,6 +70,7 @@ type AssistantSession = {
   dayTabMode: AssistantMode;
   daySummaryRequested: boolean;
   workingLocalDate: string;
+  timeZone: string;
   dayActions: AssistantDayAction[];
   dayPractices: DaySection["practices"];
   dayHealthContext: DayHealthContext | null;
@@ -106,6 +108,7 @@ function buildAssistantSession(
     dayTabMode: overdueSummaryStartsFullFlow ? "plan" : mode,
     daySummaryRequested: mode === "summary" && !overdueSummaryStartsFullFlow,
     workingLocalDate: mode === "summary" ? summaryTargetLocalDate : plan.currentLocalDate,
+    timeZone: plan.timezone,
     dayActions: buildAssistantActions(plan, mode),
     dayPractices:
       mode === "summary"
@@ -368,6 +371,7 @@ function AssistantModal({
         triggerMeta={{
           dayTabMode: session.dayTabMode,
           workingLocalDate: session.workingLocalDate,
+          timeZone: session.timeZone,
           daySummaryRequested: session.daySummaryRequested,
           dayActions: session.dayActions,
           dayPractices: session.dayPractices,
@@ -377,7 +381,7 @@ function AssistantModal({
         onPracticeOffered={onPracticeOffered}
         onPracticeLaunchStart={() => setPracticeHandoff(true)}
         onPracticeLaunchAbort={() => setPracticeHandoff(false)}
-        onPracticePicked={() => scheduleAssistantOverlayDismiss(finishPracticeLaunch)}
+        onPracticePicked={finishPracticeLaunch}
         onMessage={(message) => {
           if (message.role === "assistant") {
             onAssistantMessage?.(message);
@@ -417,6 +421,7 @@ export default function DayTabRoute() {
   const assistantSessionKeyRef = useRef(0);
   const [catalog, setCatalog] = useState<PracticeCatalog | null>(null);
   const [practiceMenuLevel, setPracticeMenuLevel] = useState<PracticeMenuLevel>("closed");
+  const [sectionHelp, setSectionHelp] = useState<"actions" | "yoga" | null>(null);
 
   // Mirrors of state read inside the stable callbacks below. Keeping `refresh`
   // and the focus effect dependency-free prevents a feedback loop where every
@@ -440,18 +445,28 @@ export default function DayTabRoute() {
         console.warn("[Day] Background refresh failed", loadError);
         setError(null);
       } else {
-        setError(
-          loadError instanceof Error && loadError.message === "DAY_PLAN_TIMEOUT"
-            ? dayStrings.loadDayError
-            : loadError instanceof Error
-              ? loadError.message
-              : dayStrings.loadDayError,
-        );
+        // Offline / timeout: only then paint persisted cache (never on optimistic focus).
+        const persisted =
+          authUser?.id
+            ? await loadCachedDayPlan({ userId: authUser.id, locale: reportLocale })
+            : null;
+        if (persisted && isDayPlanCurrent(persisted)) {
+          setPlan(persisted);
+          setError(null);
+        } else {
+          setError(
+            loadError instanceof Error && loadError.message === "DAY_PLAN_TIMEOUT"
+              ? dayStrings.loadDayError
+              : loadError instanceof Error
+                ? loadError.message
+                : dayStrings.loadDayError,
+          );
+        }
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authUser?.id, dayStrings.loadDayError, reportLocale]);
 
   // Scroll to the top only when the tab actually gains focus (returning from a
   // dialog or a practice), not on every background data refresh.
@@ -462,30 +477,27 @@ export default function DayTabRoute() {
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       });
+      // Drop wrong-date or post-mutation in-memory plan immediately.
+      if (consumeDayPlanStale() || (planRef.current && !isDayPlanCurrent(planRef.current))) {
+        setPlan(null);
+        setLoading(true);
+      }
+      // Same-session prefetch is OK (just produced by Home/Day dialog).
+      // Never paint SecureStore/persisted cache on focus — after app restart it
+      // shows yesterday's sections for 1–2s until /api/day returns.
       const prefetched = consumePrefetchedDayPlan();
-      if (prefetched) {
+      if (prefetched && isDayPlanCurrent(prefetched)) {
         setPlan(prefetched);
         setError(null);
         setLoading(false);
-      } else if (authUser?.id) {
-        const cached = peekCachedDayPlan({ userId: authUser.id, locale: reportLocale });
-        if (cached) {
-          setPlan(cached);
-          setError(null);
-          setLoading(false);
-        }
-        void loadCachedDayPlan({ userId: authUser.id, locale: reportLocale }).then((persisted) => {
-          if (cancelled || !persisted || planRef.current) return;
-          setPlan(persisted);
-          setError(null);
-          setLoading(false);
-        });
+      } else if (!planRef.current) {
+        setLoading(true);
       }
       void refresh();
       return () => {
         cancelled = true;
       };
-    }, [authUser?.id, refresh, reportLocale]),
+    }, [refresh]),
   );
 
   useFocusEffect(
@@ -550,13 +562,11 @@ export default function DayTabRoute() {
       setAssistantSession(buildAssistantSession(plan, mode, null, sessionKey, dayStrings));
       return;
     }
-    const healthCollection = startSummarizingHealthCollectionFromPlan(plan);
-    setAssistantSession(buildAssistantSession(plan, mode, healthCollection.getSnapshot(), sessionKey, dayStrings));
-    void healthCollection.whenReady().then((health) => {
-      setAssistantSession((current) =>
-        current?.sessionKey === sessionKey ? { ...current, dayHealthContext: health } : current,
-      );
-    });
+    const summaryTargetLocalDate = plan.summaryTargetLocalDate ?? plan.currentLocalDate;
+    const practices = summaryPracticesForAssistant(plan, dayStrings);
+    // Yoga-only signal — Communicator owns the single native Health collection.
+    const yogaSnapshot = buildSummarizingHealthSnapshot(summaryTargetLocalDate, practices);
+    setAssistantSession(buildAssistantSession(plan, mode, yogaSnapshot, sessionKey, dayStrings));
   };
 
   return (
@@ -604,7 +614,13 @@ export default function DayTabRoute() {
                   <AppText variant="sectionTitle">{formatDayHeaderDateLabel(section, dayStrings)}</AppText>
                 ) : null}
                 <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-                  <AppText variant="sectionTitle">{dayStrings.actionsTitle}</AppText>
+                  <SurfaceCardTitleRow
+                    title={dayStrings.actionsTitle}
+                    help={{
+                      accessibilityLabel: dayStrings.actionsHelpButtonAccessibilityLabel,
+                      onPress: () => setSectionHelp("actions"),
+                    }}
+                  />
                   {section.actions.length ? (
                     section.actions.map((action) => (
                       <DayActionRow
@@ -642,7 +658,13 @@ export default function DayTabRoute() {
 
                 {plan.mode === "overdue_summary" && section.practices.length === 0 ? null : (
                   <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-                    <AppText variant="sectionTitle">{dayStrings.yogaTitle}</AppText>
+                    <SurfaceCardTitleRow
+                      title={dayStrings.yogaTitle}
+                      help={{
+                        accessibilityLabel: dayStrings.yogaHelpButtonAccessibilityLabel,
+                        onPress: () => setSectionHelp("yoga"),
+                      }}
+                    />
                     {section.practices.length ? (
                       <View style={styles.practiceLogList}>
                         {section.practices.map((practice) => {
@@ -736,6 +758,22 @@ export default function DayTabRoute() {
           </>
         ) : null}
       </TabScrollView>
+
+      <SurfaceHelpModal
+        visible={sectionHelp != null}
+        title={
+          sectionHelp === "yoga"
+            ? dayStrings.yogaHelpModalTitle
+            : dayStrings.actionsHelpModalTitle
+        }
+        closeLabel={dayStrings.closeButton}
+        onClose={() => setSectionHelp(null)}
+        body={
+          sectionHelp === "yoga"
+            ? dayStrings.yogaHelpBody
+            : dayStrings.actionsHelpBody
+        }
+      />
 
       <AssistantModal
         visible={assistantSession != null}

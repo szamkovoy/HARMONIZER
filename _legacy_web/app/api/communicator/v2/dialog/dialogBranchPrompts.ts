@@ -115,6 +115,12 @@ const SPONTANEOUS_ENGLISH_RU: Array<[RegExp, string]> = [
   [/\bfocus\b/gi, "фокус"],
   [/\bbalance\b/gi, "баланс"],
   [/\bflowing\b/gi, "плавно"],
+  // Cyrillic neighbours break JS `\b`, so match the phrase without word-boundaries.
+  [/вашим\s+usual/gi, "вашим обычным"],
+  [/ваш\s+usual/gi, "ваш обычный"],
+  [/\busual\b/gi, "обычный"],
+  [/\bdays\b/gi, "дни"],
+  [/\bday\b/gi, "день"],
 ];
 
 export function replaceSpontaneousEnglishRu(text: string): string {
@@ -207,7 +213,8 @@ export function buildPlanningActionsVisibleBlock(
   return [...events]
     .sort((left, right) => (left.displayOrder ?? Number.MAX_SAFE_INTEGER) - (right.displayOrder ?? Number.MAX_SAFE_INTEGER))
     .map((event, index) => {
-      const order = event.displayOrder ?? index + 1;
+      // Always renumber 1..n — model often emits several actions with display_order=1.
+      const order = index + 1;
       const title = event.desc.trim();
       const recommendation = polishPlanningRecommendation(event.recommendation, locale);
       return recommendation
@@ -225,7 +232,7 @@ export function injectPlanningActionsVisibleList(
 ): string {
   if (!events.length) return visibleText;
   const block = buildPlanningActionsVisibleBlock(events, locale);
-  const numberedListStart = visibleText.search(/\n\s*\d+\.\s/m);
+  const numberedListStart = findNumberedActionListStart(visibleText);
   if (numberedListStart >= 0) {
     const intro = visibleText.slice(0, numberedListStart).trimEnd();
     const afterList = visibleText.slice(numberedListStart);
@@ -240,9 +247,9 @@ export function injectPlanningActionsVisibleList(
 
 /** Align visible day-focus paragraph with [CORRECT_RECOMMENDATION] (Day tab header uses the marker). */
 export function injectPlanningDayFocus(visibleText: string, dayFocus: string): string {
-  const focus = dayFocus.trim();
+  const focus = stripPlanningDayFocusScaffold(dayFocus);
   if (!focus) return visibleText;
-  const listStart = visibleText.search(/\n\s*\d+\.\s/m);
+  const listStart = findNumberedActionListStart(visibleText);
   if (listStart < 0) return visibleText;
   const beforeList = visibleText.slice(0, listStart).trimEnd();
   const listAndAfter = visibleText.slice(listStart);
@@ -259,8 +266,47 @@ export function injectPlanningDayFocus(visibleText: string, dayFocus: string): s
   return `${opener}\n\n${focus}${listAndAfter}`;
 }
 
+/**
+ * Drop conversational planning scaffolding from a day-recommendation paragraph.
+ * Phrases like "Хорошо, собираю план." belong in the chat bubble during gathering,
+ * never in Day-tab `recommendation_short_text` or the planning FINAL intro.
+ * Locale-agnostic: matches common ack / "assembling the plan" lead-ins across
+ * the 8 supported locales, then trims leftover whitespace.
+ */
+export function stripPlanningDayFocusScaffold(text: string | null | undefined): string {
+  let value = (text ?? "").trim();
+  if (!value) return "";
+
+  // Whole-paragraph scaffold only (no real recommendation left).
+  const scaffoldOnly =
+    /^(?:хорошо[^.?!…]*собираю\s+план|договорились(?:[^.?!…]{0,60})?|тогда\s+подведу\s+итог(?:[^.?!…]{0,60})?|собираю\s+(?:ваш\s+)?план|okay[^.?!…]{0,40}(?:putting|assembling|building)[^.?!…]{0,40}plan|all\s+right[^.?!…]{0,40}(?:plan)?|got\s+it|d['']accord[^.?!…]{0,40}(?:plan|note)?|in\s+ordnung|verstanden|va\s+bene|de\s+acuerdo|akkoord)[.!?…]*$/iu;
+  if (scaffoldOnly.test(value)) return "";
+
+  // Leading scaffold sentence(s) glued onto the real recommendation.
+  const leadingScaffold =
+    /^(?:хорошо[^.?!…]*собираю\s+план|хорошо,\s*записываю|договорились(?:[^.?!…]{0,50})?|тогда\s+подведу\s+итог(?:[^.?!…]{0,50})?|собираю\s+(?:ваш\s+)?план|понял(?:а|о)?(?:\s+вас)?(?:[^.?!…]{0,30})?|отлично(?:[^.?!…]{0,30})?|okay[^.?!…]{0,50}(?:putting|assembling|building)[^.?!…]{0,40}plan|okay[^.?!…]{0,30}|all\s+right[^.?!…]{0,40}|got\s+it[^.?!…]{0,30}|d['']accord[^.?!…]{0,50}|in\s+ordnung[^.?!…]{0,30}|verstanden[^.?!…]{0,30}|va\s+bene[^.?!…]{0,30}|de\s+acuerdo[^.?!…]{0,30}|akkoord[^.?!…]{0,30})\s*[.!?…]\s*/iu;
+
+  for (let i = 0; i < 3; i += 1) {
+    const next = value.replace(leadingScaffold, "").trim();
+    if (next === value) break;
+    value = next;
+  }
+  return value;
+}
+
 function fallbackPracticeQuestion(locale: AppContentLocale): string {
   return getDialogScaffoldStrings(locale).fallbackPracticeQuestion;
+}
+
+/** Index of the first numbered action item (`1.` / `1)`), including at start of text. */
+function findNumberedActionListStart(visibleText: string): number {
+  const match = /(?:^|\n)(\s*\d+[.)]\s)/m.exec(visibleText);
+  if (!match || match.index == null) return -1;
+  return match[0].startsWith("\n") ? match.index + 1 : match.index;
+}
+
+function paragraphLooksLikeNumberedAction(text: string): boolean {
+  return /^\s*\d+[.)]\s+\S/.test(text.trim());
 }
 
 function introHasWrongActionCount(text: string, eventCount: number): boolean {
@@ -284,13 +330,14 @@ function introHasWrongActionCount(text: string, eventCount: number): boolean {
  * Returns "" if nothing usable was found.
  */
 export function extractDayFocusFromVisibleFinalize(visibleText: string, eventCount: number): string {
-  const listStart = visibleText.search(/\n\s*\d+\.\s/m);
+  const listStart = findNumberedActionListStart(visibleText);
   const beforeList = listStart >= 0 ? visibleText.slice(0, listStart) : visibleText;
   const candidates = beforeList
     .split(/\n\n+/)
-    .map((part) => part.trim())
+    .map((part) => stripPlanningDayFocusScaffold(part.trim()))
     .filter((part) =>
       part
+      && !paragraphLooksLikeNumberedAction(part)
       && !/[?？]/.test(part)
       && !introHasWrongActionCount(part, eventCount)
       && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
@@ -310,23 +357,36 @@ function extractPlanningIntro(visibleText: string, fallbackFocus: string | null 
   // planning final and the saved Day-tab recommendation are exactly the same
   // text. Only fall back to extracting an intro from the model's free visible
   // text when short_text is missing or too thin.
-  const focus = (fallbackFocus ?? "").trim();
+  const focus = stripPlanningDayFocusScaffold(fallbackFocus);
   if (focus.length >= 80) return ensureSentencePunctuation(focus);
-  const listStart = visibleText.search(/\n\s*\d+\.\s/m);
+  const listStart = findNumberedActionListStart(visibleText);
   const beforeList = (listStart >= 0 ? visibleText.slice(0, listStart) : visibleText)
     .split(/\n\n+/)
-    .map((part) => part.trim())
+    .map((part) => stripPlanningDayFocusScaffold(part.trim()))
     .filter((part) =>
       part
+      && !paragraphLooksLikeNumberedAction(part)
       && !/[?？]/.test(part)
       && !introHasWrongActionCount(part, eventCount)
       && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
       && !/\[(?:PLANNED_EVENT|CORRECT_RECOMMENDATION|PRACTICE_PICK)\b/i.test(part)
       && !/(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
     )
+    .map(stripGluedNumberedActionSuffix)
+    .filter(Boolean)
     .join("\n\n");
   if (beforeList.length >= 80) return ensureSentencePunctuation(beforeList);
-  return ensureSentencePunctuation(fallbackFocus);
+  return ensureSentencePunctuation(focus);
+}
+
+/** "Внимание на чакру. 1. Action…" → keep only the sentence before the glued list. */
+function stripGluedNumberedActionSuffix(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  if (paragraphLooksLikeNumberedAction(trimmed)) return "";
+  const glued = /([.!?…])\s*\d+[.)]\s+\S/u.exec(trimmed);
+  if (!glued || glued.index == null) return trimmed;
+  return trimmed.slice(0, glued.index + 1).trimEnd();
 }
 
 function actionCountWord(count: number, locale: AppContentLocale): string {
@@ -375,7 +435,8 @@ export function buildPlanningFinalVisibleText(params: {
   const { visibleText, events, dayFocus, locale, includePracticeQuestion, targetChakraNumber } = params;
   const parts: string[] = [];
   let focus = extractPlanningIntro(visibleText, dayFocus, events.length);
-  if (focus && typeof targetChakraNumber === "number") {
+  if (typeof targetChakraNumber === "number") {
+    // Even with an empty intro, still emit the chakra attention safety-net line.
     focus = prependChakraAttention(focus, targetChakraNumber, locale);
   }
   if (focus) parts.push(focus);
@@ -515,8 +576,8 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     "Use plain warm language. Outside branch finals, do not sound like a psychologist delivering an interpretation.",
     "Punctuation style: no multiple exclamation marks; at most one exclamation mark in the whole reply, and only when it sounds natural.",
     ctx.locale === SOURCE_LOCALE
-      ? "Пиши целиком по-русски. Не вставляй спонтанные английские слова (например quietly, mindfully, flow, gently) — всегда подбирай русский эквивалент. Иностранный термин допустим, только если сам пользователь назвал его так (например профессиональный термин)."
-      : "",
+      ? "Пиши целиком по-русски. Не вставляй спонтанные английские слова (например quietly, mindfully, flow, gently, day, usual) — всегда подбирай русский эквивалент. Иностранный термин допустим, только если сам пользователь назвал его так (например профессиональный термин)."
+      : `Keep the visible reply in one language only (${ctx.languageName}). Do not mix in words from English or any other language (no stray borrowings like day, usual, quietly, mindset) unless the user themselves used that exact term.`,
     "",
     "DAY CONTEXT (data, do not read aloud verbatim):",
     `- Date: ${ctx.dayOfWeek}, ${ctx.dateLabel}; time of day: ${ctx.timeOfDay}; day phase: ${ctx.phaseTime}.`,
@@ -566,7 +627,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
       ? "- Если после одного уточняющего вопроса ответа всё ещё недостаточно, закройте событие без outcome_cells — оно не попадёт в матрицу, но попытка сбора состояния была сделана."
       : "- If the answer is still too thin after your one clarifying question, close the event with empty outcome_cells — it will not affect the matrix, but the collection attempt still counts.",
     "- DECIDE FOR YOURSELF whether the event happened, from the meaning of the user's reply (in any wording / any language). If the user indicates it did NOT happen / they did not do it (for example did not read, did not get to it, did not manage, it did not work out), then it simply did not take place: do NOT ask ANY clarifying question about states, and do NOT try to read an inner state. Briefly acknowledge it warmly (one short, human line of sympathy/support), and CLOSE the event this turn by emitting [SUMMARIZE_EVENT: ref=\"…\" outcome=\"short factual outcome, e.g. did not happen\" outcome_cells=\"\"] (empty cells). Then move to the next event, or to the final message if this was the last one. Never ask what it touched inside them if the action did not occur. This judgment is YOURS to make — the server does not detect it for you.",
-    "- If the user signals the event was unremarkable or that they do not want to elaborate (for example nothing special / just the usual / so-so), respect that: do NOT push for deeper states. Take the light state they already gave (or none), and close the event this turn — one extra question is the maximum, and here even one is usually too much.",
+    "- If the user signals the event was unremarkable or that they do not want to elaborate (for example nothing special / as usual / so-so — phrase these ideas in the target language, never paste English fillers into the visible reply), respect that: do NOT push for deeper states. Take the light state they already gave (or none), and close the event this turn — one extra question is the maximum, and here even one is usually too much.",
     "- On intermediate turns do NOT give feedback, advice, interpretations or per-event mini-summaries. Collect facts and the way it was lived; all feedback belongs to the final message.",
     "- Do not repeat the same event description back more than once. Do not re-list already summarized events.",
     "- For outcome_cells, keep the focus on the lived STATE the user actually described. Use the event's obvious real-life domain; do not spend effort re-deciding the sphere from scratch if the event itself already makes the domain clear.",
@@ -608,15 +669,17 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
         input.completedEarlierEvents.length > 0
           ? `   - For your own context, the events closed in this flow were: ${input.completedEarlierEvents.map((event) => `"${event.description}"`).join(", ")}. Reflect on the whole arc, not item by item.`
           : "",
-        "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, calories or workouts.",
+        "   - Then 1-2 short observations about yoga/health, using ONLY the data provided below; never invent steps, sleep, kilocalories/kcal or workouts.",
         input.practicesContext
           ? "   - Phrase practices naturally and fluently in the target language, not as a dry report. Do not write fragments like \"there were meditations\". Instead, weave them into a human sentence such as the person having completed three short meditations during the day. If the total practice time is clearly low or below the average shown, add ONE warm, encouraging nudge to give a bit more attention to practice — never scold."
           : (ctx.locale === SOURCE_LOCALE
             ? "   - В этот день практик йоги не было. Мягко, без упрёка и в том же тёплом стиле, добавь ОДНУ фразу-приглашение к практике: своими словами объясни, что практики йоги в приложении мощно поддерживают те психологические изменения, к которым человек идёт, и одновременно оздоравливают тело и поддерживают жизненный тонус. Это мотивирующее приглашение, а НЕ отчёт о здоровье — его можно дать, даже если данных Health нет. Не своди это к общей физкультуре, прогулке или зарядке — речь именно о практиках йоги/медитации из приложения. Каждый раз формулируй по-новому."
             : "   - There were no yoga practices on this day. Gently, without reproach and in the same warm style, add ONE inviting line toward practice: explain in your own words that the app's yoga practices powerfully support the psychological changes the person is moving toward, and at the same time restore the body and sustain vitality. This is a motivating invitation, NOT a health report — it may be given even with no Health data. Do not reduce it to generic exercise, a walk or a workout — it is specifically about the app's yoga/meditation practices. Word it freshly each time."),
-        "   - If health numbers are listed below, you MUST cite at least ONE concrete number inline (for example exact steps, sleep duration, or workout minutes) so the reflection reads as real analytics, not a guess. Do not replace a number with a vague word alone — pair the impression with the figure. Mention only one or two metrics, keep it light. If no concrete health/practice data is provided, do not fake a generic wellness paragraph and do not mention health at all.",
+        "   - If Health context below lists concrete metrics (steps, sleep, active energy kcal, workout minutes), you MUST cite at least ONE exact number taken from that Health context (never invent a figure, never reuse example numbers from instructions) and may add a brief judgment (мало/нормально/много) tied to that figure or its average/comparison. Never write an impression-only health line without a number. Active energy figures are always kilocalories (kcal / ккал) — never call them plain calories/калории. If Health context says numbers were not shared / CRITICAL no Apple/Google Health numbers / or Health is unavailable, omit native health/activity talk entirely — no step/sleep/kcal sentences at all.",
         "   - Keep the wording grounded and direct; no mystical or poetic flourishes.",
-        "   - Do NOT name calendar dates or use day words like yesterday / today in any language; refer to the period only as the day / this day / the lived day in the target language.",
+        ctx.locale === SOURCE_LOCALE
+          ? "   - Не называй календарные даты и не используй слова «вчера/сегодня/завтра»; говори о прожитом периоде как о «дне» / «этом дне» — только по-русски, без английских вставок вроде day или usual."
+          : `   - Do NOT name calendar dates or use relative day-words like yesterday/today/tomorrow; refer to the lived period only in ${ctx.languageName}. Never insert English words (day, usual, …) into a non-English reply.`,
         input.practicesContext ? `   Yoga practices context:\n${input.practicesContext}` : "",
         input.healthContext ? `   Health context:\n${input.healthContext}` : "",
         input.continuesToPlanning
@@ -709,6 +772,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
             : `Write it as a living recommendation, e.g.: "Today, turn your attention to the ${ctx.targetChakraNumber}th chakra…", "Today the ${ctx.targetChakraNumber}th chakra holds the greatest potential…", "Today it is the ${ctx.targetChakraNumber}th chakra that opens the widest opportunities for your growth…", "To make the most of today, act in the flow of the ${ctx.targetChakraNumber}th chakra…", and the like. Vary the phrasing similarly. The chakra can open up, reveal itself, come to the foreground, ask for attention, offer opportunities, and so on. Describe how this can be especially useful, why — in order to widen the range of psychological states — it matters today to act not on autopilot but on the wave of this chakra, and what opportunities this chakra offers for self-development. The phrases above are illustrations of the spirit only, NOT templates: do NOT copy them verbatim — compose a fresh opening every time, varying both the verb and the sentence structure, and do not begin the recommendation with "Today" every time.`}`,
           `  This is the core of the app: each day opens a UNIQUE, non-repeating chance to live differently and grow. Don't just state a fact — gently stir motivation and a little emotion: why leaning into these states matters TODAY, what the user gains, how it moves them toward becoming more whole, harmonious and healthier. Keep it warm and human, not abstract.`,
           "  Keep this paragraph compact — about 150–230 characters. The visible day-recommendation paragraph and [CORRECT_RECOMMENDATION: short_text=\"...\"] MUST be the SAME text word for word (the Day tab shows it verbatim): write it once, then copy it into short_text. Keep it complete and punctuated.",
+          "  Do NOT open the day-recommendation (or short_text) with conversational scaffolding from gathering — never \"Хорошо, собираю план\", \"Договорились\", \"Okay, putting the plan together\", \"D'accord\", or similar ack/assembly lines. Start directly with the living chakra recommendation.",
           chakraExpertLens(ctx.targetChakraNumber, ctx.locale),
         ].filter(Boolean).join("\n"),
     "- In the VISIBLE text, explicitly mention every finalized action and its recommendation. Do not say 'here are your events' without actually listing them.",

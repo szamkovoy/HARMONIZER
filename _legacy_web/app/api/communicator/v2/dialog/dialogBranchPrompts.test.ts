@@ -13,6 +13,7 @@ import {
   polishPlanningMarker,
   prependChakraAttention,
   replaceSpontaneousEnglishRu,
+  stripPlanningDayFocusScaffold,
   type BrainPromptContext,
 } from "./dialogBranchPrompts";
 
@@ -80,6 +81,18 @@ describe("extractDayFocusFromVisibleFinalize", () => {
     expect(result).not.toMatch(/Договорились/);
   });
 
+  it("strips glued gathering scaffold from a single day-focus paragraph", () => {
+    const text = [
+      "Хорошо, собираю план. Сегодня наибольший потенциал у первой чакры — она про устойчивость, телесный комфорт и спокойную уверенность. Встреча с друзьями в кафе — отличная возможность побыть в простом, тёплом контакте.",
+      "",
+      "1. Поездка на родник",
+      "Рекомендация: Отнеситесь к поездке как к ритуалу.",
+    ].join("\n");
+    const result = extractDayFocusFromVisibleFinalize(text, 1);
+    expect(result).toContain("первой чакры");
+    expect(result).not.toMatch(/собираю план/i);
+  });
+
   it("returns empty string when there is no substantial recommendation", () => {
     const text = ["Хорошо. Что-то ещё важное на сегодня?"].join("\n");
     expect(extractDayFocusFromVisibleFinalize(text, 1)).toBe("");
@@ -100,6 +113,20 @@ describe("extractDayFocusFromVisibleFinalize", () => {
     const result = extractDayFocusFromVisibleFinalize(text, 2);
     expect(result).toContain("troisième chakra");
     expect(result).not.toContain("Acheter un bateau");
+  });
+});
+
+describe("stripPlanningDayFocusScaffold", () => {
+  it("removes the gathering ack before the real day recommendation", () => {
+    const cleaned = stripPlanningDayFocusScaffold(
+      "Хорошо, собираю план. Сегодня наибольший потенциал у первой чакры — она про устойчивость и спокойную уверенность.",
+    );
+    expect(cleaned.startsWith("Сегодня наибольший")).toBe(true);
+    expect(cleaned).not.toMatch(/собираю план/i);
+  });
+
+  it("clears scaffold-only text", () => {
+    expect(stripPlanningDayFocusScaffold("Хорошо, собираю план.")).toBe("");
   });
 });
 
@@ -154,6 +181,7 @@ describe("buildPlanningPrompt", () => {
     expect(userInstruction).toMatch(/Name the day's chakra BY NUMBER/i);
     expect(userInstruction).toMatch(/150[–-]230 characters/i);
     expect(userInstruction).toMatch(/polite suggestions/i);
+    expect(userInstruction).toMatch(/Do NOT open the day-recommendation/i);
   });
 
   it("forbids day-focus markers in Day tab add flow", () => {
@@ -294,6 +322,39 @@ describe("buildPlanningFinalVisibleText", () => {
     ].join("\n"));
   });
 
+  it("does not keep a glued model action list inside the intro when rebuilding FINAL", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "Внимание на вторую чакру. 1. Поехать в магазин за надувной лодкой",
+        "Рекомендация: Отнеситесь к этому как к приключению.",
+        "",
+        "1. Поехать в магазин за надувной лодкой",
+        "Рекомендация: Отнеситесь к этому как к приключению.",
+        "",
+        "Хотите сейчас выполнить практику: медитацию, дыхание или асаны?",
+      ].join("\n"),
+      dayFocus: "",
+      locale: "ru",
+      includePracticeQuestion: true,
+      targetChakraNumber: 2,
+      events: [
+        {
+          desc: "Поехать в магазин за надувной лодкой",
+          recommendation: "Отнеситесь к этому как к приключению.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+    });
+
+    expect(result.match(/Поехать в магазин за надувной лодкой/g)?.length).toBe(1);
+    expect(result.match(/Рекомендация:/g)?.length).toBe(1);
+    expect(result).toContain("Внимание на вторую чакру.");
+  });
+
   it("drops pre-final add-more questions from the deterministic final", () => {
     const result = buildPlanningFinalVisibleText({
       visibleText: [
@@ -391,6 +452,66 @@ describe("buildPlanningFinalVisibleText", () => {
     expect(result).not.toContain("более длинный и не такой текст");
   });
 
+  it("strips gathering scaffold from short_text before using it as the FINAL intro", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "1. Поездка на родник",
+        "Рекомендация: Отнеситесь к поездке как к ритуалу.",
+      ].join("\n"),
+      dayFocus:
+        "Хорошо, собираю план. Сегодня наибольший потенциал у первой чакры — она про устойчивость, телесный комфорт и спокойную уверенность в простых делах.",
+      locale: "ru",
+      includePracticeQuestion: false,
+      targetChakraNumber: 1,
+      events: [
+        {
+          desc: "Поездка на родник",
+          recommendation: "Отнеситесь к поездке как к ритуалу.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+    });
+    expect(result).toContain("Сегодня наибольший потенциал у первой чакры");
+    expect(result).not.toMatch(/собираю план/i);
+    expect(result).toContain("1. Поездка на родник");
+  });
+
+  it("rebuilds FINAL with cleaned dayFocus when the model left only a chakra safety-net line", () => {
+    const dayFocus =
+      "Сегодня наибольший потенциал у первой чакры — она про устойчивость, телесный комфорт и спокойную уверенность в простых делах дня.";
+    const result = buildPlanningFinalVisibleText({
+      visibleText: [
+        "Внимание на первую чакру.",
+        "",
+        "1. Поездка на родник",
+        "Рекомендация: Отнеситесь к поездке как к ритуалу.",
+      ].join("\n"),
+      dayFocus,
+      locale: "ru",
+      includePracticeQuestion: true,
+      targetChakraNumber: 1,
+      events: [
+        {
+          desc: "Поездка на родник",
+          recommendation: "Отнеситесь к поездке как к ритуалу.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+    });
+
+    expect(result.startsWith("Сегодня наибольший потенциал у первой чакры")).toBe(true);
+    expect(result).toContain("1. Поездка на родник");
+    expect(result.match(/Внимание на первую чакру/g)?.length ?? 0).toBe(0);
+  });
+
   it("builds add-flow final only from accepted marker-backed actions", () => {
     const result = buildPlanningAddFinalVisibleText({
       locale: "ru",
@@ -441,6 +562,10 @@ describe("replaceSpontaneousEnglishRu", () => {
   });
   it("does not touch unknown Latin tokens (possible user terms)", () => {
     expect(replaceSpontaneousEnglishRu("Сегодня пишу запросы на SQL.")).toBe("Сегодня пишу запросы на SQL.");
+  });
+  it("replaces stray day/usual English leaks in Russian summarizing finals", () => {
+    expect(replaceSpontaneousEnglishRu("потому что day сложился иначе")).toBe("потому что день сложился иначе");
+    expect(replaceSpontaneousEnglishRu("с вашим usual объёмом")).toBe("с вашим обычным объёмом");
   });
 });
 

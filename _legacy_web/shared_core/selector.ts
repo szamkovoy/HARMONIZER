@@ -100,8 +100,15 @@ export function sortPracticeCandidatesForRecommendation<T extends PracticeSelect
   practices: readonly T[],
   targetDurationSec?: number | null,
   durationFirst = false,
+  preferChakraId?: number | null,
 ): T[] {
   return [...practices].sort((a, b) => {
+    if (preferChakraId) {
+      const aMatch = hasChakra(a, preferChakraId) ? 0 : 1;
+      const bMatch = hasChakra(b, preferChakraId) ? 0 : 1;
+      if (aMatch !== bMatch) return aMatch - bMatch;
+    }
+
     if (durationFirst) {
       const durationDelta = practiceDurationDistance(a, targetDurationSec) - practiceDurationDistance(b, targetDurationSec);
       if (durationDelta !== 0) return durationDelta;
@@ -131,7 +138,17 @@ export function selectPracticeCandidate<T extends PracticeSelectorCandidate>(
   if (!candidates.length) return null;
 
   const chakraMatches = input.chakraId ? candidates.filter((practice) => hasChakra(practice, input.chakraId)) : [];
-  const chakraPool = chakraMatches.length ? chakraMatches : candidates;
+  // Breath catalog has one practice per primary chakra. Hard-filtering to the day
+  // chakra collapses the pool to a single candidate, so recent-stack exclusion
+  // immediately falls back to the same pick. Widen the pool and soft-prefer chakra.
+  const widenForBreathRotation =
+    input.preferredKind === "breath" && chakraMatches.length > 0 && chakraMatches.length < 2;
+  const chakraPool = widenForBreathRotation
+    ? candidates
+    : chakraMatches.length
+      ? chakraMatches
+      : candidates;
+  const softPreferChakraId = widenForBreathRotation ? input.chakraId : null;
   const tolerance = input.yogaDurationTolerance ?? DEFAULT_YOGA_DURATION_TOLERANCE;
   const durationWindow =
     input.preferredKind === "yoga" && input.targetDurationSec
@@ -145,6 +162,7 @@ export function selectPracticeCandidate<T extends PracticeSelectorCandidate>(
     freshStack.length ? freshStack : baseStack,
     input.targetDurationSec,
     durationFirst,
+    softPreferChakraId,
   );
   const markerPick = input.markerId ? stack.find((practice) => practice.id === input.markerId) : undefined;
   const picked = markerPick ?? stack[0];

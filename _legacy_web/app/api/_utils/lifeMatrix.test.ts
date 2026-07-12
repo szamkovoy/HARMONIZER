@@ -42,39 +42,41 @@ describe("chooseTargetChakra", () => {
   const top3Skewed = [petal(3, 0.82, "Jupiter"), petal(2, 0.61, "Moon"), petal(6, 0.44, "Saturn")];
   const skewedProfile = [0.05, 0.3, 0.4, 0.03, 0.1, 0.1, 0.02];
 
-  it("picks first top3 chakra below overdev threshold (ch6 for skewed profile)", () => {
+  it("always picks the strongest top3 planet (astro primary), matching Home morning focus", () => {
     const result = chooseTargetChakra(top3Skewed, matrixFromRowMasses(skewedProfile));
 
     expect(result).toMatchObject({
-      chakraNumber: 6,
-      reason: "matrix_filtered_by_strength",
+      chakraNumber: 3,
+      reason: "astro_primary",
     });
-    expect(result.explain).toMatch(/переразви/i);
-    expect(result.explain).not.toContain("терцил");
+    expect(result.explain).toMatch(/Jupiter/i);
   });
 
-  it("falls back to strongest when all top3 are overdeveloped", () => {
+  it("still picks strongest when all top3 would previously have been overdeveloped", () => {
     const top3 = [petal(3, 0.82), petal(2, 0.61), petal(1, 0.5)];
     const profile = [0.32, 0.33, 0.34, 0.01, 0.0, 0.0, 0.0];
     const result = chooseTargetChakra(top3, matrixFromRowMasses(profile));
-
     expect(result).toMatchObject({
       chakraNumber: 3,
-      reason: "astro_primary_all_overdeveloped",
+      reason: "astro_primary",
     });
-    expect(result.explain).toContain("Все три уже переразвиты");
   });
 
-  it("picks strongest top3 immediately when it is not overdeveloped", () => {
+  it("picks strongest top3 even when matrix would have preferred another petal", () => {
     const top3 = [petal(5, 0.9, "Mars"), petal(3, 0.7), petal(2, 0.5)];
     const profile = [0.12, 0.12, 0.12, 0.12, 0.16, 0.12, 0.12];
     const result = chooseTargetChakra(top3, matrixFromRowMasses(profile));
-
     expect(result).toMatchObject({
       chakraNumber: 5,
-      reason: "matrix_filtered_by_strength",
+      reason: "astro_primary",
     });
-    expect(result.explain).toContain("перекоса относительно равновесия нет");
+  });
+
+  it("defaults to chakra 7 when top3 is empty", () => {
+    expect(chooseTargetChakra([], null)).toMatchObject({
+      chakraNumber: 7,
+      reason: "astro_primary",
+    });
   });
 });
 

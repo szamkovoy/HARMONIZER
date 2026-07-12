@@ -62,6 +62,15 @@ describe("sanitizeAssistantText", () => {
     expect(out).not.toContain("Зеркало");
     expect(out).toContain("Абзац");
   });
+  it("strips SIMULATE_EVENT typo alias as SUMMARIZE_EVENT and removes it from visible text", () => {
+    const raw =
+      'Жаль, что фильм не состоялся.\n\n[SIMULATE_EVENT: ref="1e656c50-7c84-4fb1-a6a9-029a1e4a8374" outcome="не состоялся" outcome_cells=""]\n\nПродолжим.';
+    const markers = parseResponseMarkers(raw);
+    expect(markers.summarizeEvents).toHaveLength(1);
+    expect(markers.summarizeEvents[0]?.outcome).toBe("не состоялся");
+    expect(sanitizeAssistantText(raw, "ru")).toBe("Жаль, что фильм не состоялся.\n\nПродолжим.");
+    expect(sanitizeAssistantText(raw, "ru")).not.toContain("SIMULATE_EVENT");
+  });
 });
 
 describe("validateHistoryHasDurationAndType", () => {

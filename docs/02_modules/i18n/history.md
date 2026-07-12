@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.11
-updated: 2026-07-10
+version: 1.12
+updated: 2026-07-12
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-12:** Typed `day` module: help strings for Day-tab psycho/yoga blocks (`actionsHelp*` / `yogaHelp*`) in RU/EN + de–nl overlays.
 
 - **2026-07-10 (2):** Tab bar: `tabs.home` → «Навигатор» / Navigator / … во всех 8 локалях; иконки вкладок (`assets/icons/{navigator,day,practices,publications,profile}.png`) через `TabBarIcon`.
 

@@ -34,7 +34,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 - **Shared server util (assistant-internal)**
   - **`_legacy_web/app/api/_utils/sphereHint.ts`**: `buildSphereStats`, `buildSphereHint`, `buildSphereBalanceLensForPrompt`, `loadRecentSphereRows` — общий расчёт баланса life-spheres по `planned_events.cells` (последние 7 активных локальных дней). Потребители: **`GET /api/day`** (`sphereHint`, `sphereStats`) и dialog add-flow (`resolveAddFlowSphereBalanceLens` → `addFlowSphereBalanceLens` в `buildPlanningPrompt`; compact English lens, не UI-текст Day-tab).
-  - **`_legacy_web/app/api/_utils/planningDonePhrases.ts`**: context-first классификация planning-gathering closure (`isPlanningGatheringClosureTurn`, `looksLikeNewPlannedAction`, `filterClosureEchoPlanningMarkers`). Потребители: **`dialogTurnGuards.ts`** (`userSignalsPlanningDone`, `filterPersistablePlanningMarkers`) и **`plannedEventInference.ts`** (skip closure-turns / decline-like desc).
+  - **`_legacy_web/app/api/_utils/planningDonePhrases.ts`**: context-first классификация planning-gathering closure (`isPlanningGatheringClosureTurn`, `looksLikeNewPlannedAction`, `filterClosureEchoPlanningMarkers`), включая empty-plan отказы («Ничего планировать не хочу») и снятие negated want-cue (`не хочу` ≠ planning cue). Потребители: **`dialogTurnGuards.ts`** (`userSignalsPlanningDone`, `filterPersistablePlanningMarkers`, `assistantAcknowledgedEmptyPlanAndOfferedPractice`) и **`plannedEventInference.ts`** (skip closure-turns / decline-like desc).
+  - **`dialogHealthPrompt.ts`**: `formatHealthForPrompt` — только положительные Health-метрики в summarizing FINAL (zeros omitted).
 
 ## 2. От него зависят
 

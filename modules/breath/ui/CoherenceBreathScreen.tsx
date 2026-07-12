@@ -882,6 +882,10 @@ function CoherenceBreathScreenInner({
   // snapshot-кэш канала оставался заполненным).
   useBiofeedbackChannel("pulseSource");
   const [useEmulatedPulseMode, setUseEmulatedPulseMode] = useState(false);
+  /** When true, FingerPpg camera/torch must not mount (user chose no pulse sensor). */
+  const [disableOpticalHardware, setDisableOpticalHardware] = useState(
+    () => resolvedSensorMode === "none",
+  );
   const [emulatedPulseSeedBpm, setEmulatedPulseSeedBpm] = useState<number | null>(null);
   const [emulatedFallbackSource, setEmulatedFallbackSource] =
     useState<"camera" | "wearable" | null>(null);
@@ -4041,6 +4045,15 @@ function CoherenceBreathScreenInner({
   }, [allowAdvancedMetrics, clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
 
   const returnToPracticeOrigin = useCallback(() => {
+    const normalized = (launchSource ?? "").trim().toLowerCase();
+    if (normalized === "assistant" || normalized === "day") {
+      try {
+        router.replace("/day");
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
     try {
       router.back();
     } catch {
@@ -4054,7 +4067,7 @@ function CoherenceBreathScreenInner({
         }
       }
     }
-  }, []);
+  }, [launchSource]);
 
   useEffect(() => {
     applyHardPracticeExitRef.current = applyHardPracticeExit;
@@ -4341,7 +4354,7 @@ function CoherenceBreathScreenInner({
       realStartEndedAtMsRef.current = null;
       realEndStartedAtMsRef.current = null;
       stopBaselineRamp();
-      pipeline.setOpticalPaused(false);
+      pipeline.setOpticalPaused(forceEmulatedPulse);
       pipeline.setMetricsCapturePaused(!allowAdvancedMetrics);
       plannerRef.current.unfreezeBaseline();
       hybridPhaseRef.current = "realStart";
@@ -4373,6 +4386,7 @@ function CoherenceBreathScreenInner({
       setEmulatedFallbackSource(null);
       setCameraRecoveryProbeActive(false);
       setUseEmulatedPulseMode(forceEmulatedPulse);
+      setDisableOpticalHardware(forceEmulatedPulse);
       setShowQcFailedDialog(false);
       setShowAutoAbortDialog(false);
       setShowWearablePickerDialog(false);
@@ -4928,7 +4942,7 @@ function CoherenceBreathScreenInner({
   return (
     <SafeAreaView style={styles.safe}>
       {isPracticePhase ? <PracticeKeepAwake tag={keepAwakeTag} /> : null}
-      {!isWearableMode && !isExpoGo && !useSimulatedPpg ? (
+      {!isWearableMode && !isExpoGo && !useSimulatedPpg && !disableOpticalHardware ? (
         <FingerPpgCameraSource
           key={`finger-${sourceKey}`}
           isActive={cameraActive}
@@ -5412,6 +5426,9 @@ function CoherenceBreathScreenInner({
           finalRmssdMs={finalRmssdMs}
           finalStressPercent={finalStressPercent}
           finalPulseWasEmulated={finalPulseWasEmulated}
+          sessionWithoutSensor={
+            disableOpticalHardware || exportDebug?.qcOutcome === "user_chose_no_sensor"
+          }
           finalSignalTrust={finalSignalTrust}
           cameraGuidanceOnlyMode={cameraGuidanceOnlyMode}
           finalHrvRecoveredFromTail={finalHrvRecoveredFromTail}
@@ -5697,6 +5714,7 @@ function ResultsView(props: {
   finalRmssdMs: number | null;
   finalStressPercent: number | null;
   finalPulseWasEmulated: boolean;
+  sessionWithoutSensor: boolean;
   finalSignalTrust: BiofeedbackSignalTrustSummary | null;
   cameraGuidanceOnlyMode: boolean;
   finalHrvRecoveredFromTail: boolean;
@@ -5728,6 +5746,7 @@ function ResultsView(props: {
     finalRmssdMs,
     finalStressPercent,
     finalPulseWasEmulated,
+    sessionWithoutSensor,
     finalSignalTrust,
     cameraGuidanceOnlyMode,
     finalHrvRecoveredFromTail,
@@ -5832,6 +5851,7 @@ function ResultsView(props: {
     [cameraGuidanceOnlyMode, practiceTotalMs, resultsGraphs?.rsaBpm],
   );
   const canRequestInterpretation =
+    !sessionWithoutSensor &&
     !cameraGuidanceOnlyMode &&
     (
       [
@@ -5999,6 +6019,26 @@ function ResultsView(props: {
   }, []);
 
   const showingInterpretation = detailsViewMode !== "metrics";
+
+  if (sessionWithoutSensor) {
+    return (
+      <View style={styles.results}>
+        <Text style={styles.resultsTitle}>{str.noSensorGreatPracticeTitle}</Text>
+        <ScrollView
+          style={styles.resultsScroll}
+          contentContainerStyle={styles.resultsScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.interpretationBody}>{str.noSensorResultsRecommendation}</Text>
+        </ScrollView>
+        <View style={styles.resultsActionsRow}>
+          <Pressable onPress={onClose} style={styles.resultsCloseBtn}>
+            <Text style={styles.resultsCloseBtnText}>{str.resultsCloseButton}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.results}>

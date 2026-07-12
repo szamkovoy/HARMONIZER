@@ -302,6 +302,44 @@ describe("planning repair helpers", () => {
     })).toBe(true);
   });
 
+  it("requires day focus for greeted-flow finalize even when the numbered list was salvaged", () => {
+    expect(planningFinalizeArtifactsReady({
+      noGreeting: false,
+      explicitMarkers: [],
+      salvagedVisibleMarkers: [
+        {
+          desc: "Поездка на родник",
+          recommendation: "Отнеситесь к поездке как к ритуалу.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      hasDayFocusMarker: false,
+      hasSalvagedDayFocus: false,
+    })).toBe(false);
+
+    expect(planningFinalizeArtifactsReady({
+      noGreeting: false,
+      explicitMarkers: [],
+      salvagedVisibleMarkers: [
+        {
+          desc: "Поездка на родник",
+          recommendation: "Отнеситесь к поездке как к ритуалу.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      hasDayFocusMarker: false,
+      hasSalvagedDayFocus: true,
+    })).toBe(true);
+  });
+
   it("builds a retry instruction that forbids more gathering questions", () => {
     const instruction = buildPlanningFinalizeRepairInstruction({
       baseInstruction: "BASE",
@@ -312,6 +350,15 @@ describe("planning repair helpers", () => {
     expect(instruction).toContain("FINALIZE it now");
     expect(instruction).toContain("Do NOT ask whether to add anything else");
     expect(instruction).toContain("Do NOT emit [CORRECT_RECOMMENDATION]");
+  });
+
+  it("builds a greeted-flow retry that requires day recommendation without scaffold", () => {
+    const instruction = buildPlanningFinalizeRepairInstruction({
+      baseInstruction: "BASE",
+      noGreeting: false,
+    });
+    expect(instruction).toContain("CORRECT_RECOMMENDATION");
+    expect(instruction).toMatch(/no conversational ack/i);
   });
 });
 

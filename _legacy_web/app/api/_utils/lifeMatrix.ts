@@ -1,6 +1,5 @@
 import { DateTime } from "luxon";
 
-import { getLifeMatrixOverdevThreshold } from "./dialogConfig";
 import type { PetalData } from "./topPetals";
 
 export type MatrixCell = {
@@ -239,11 +238,15 @@ export function hasEnoughLifeMatrixHistory(params: {
   return elapsedDays >= LIFE_MATRIX_MIN_READY_ELAPSED_DAYS;
 }
 
-export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null): {
+export function chooseTargetChakra(top3: PetalData[], _matrix: DenseMatrix | null): {
   chakraNumber: number;
   reason: "astro_primary" | "matrix_filtered_by_strength" | "astro_primary_all_overdeveloped";
   explain: string;
 } {
+  // Product alignment with morning recommendation / Home «Рекомендации на день»:
+  // interpret the strongest planet of the day (top-1). Matrix overdev filtering of
+  // top-3 used to pick a secondary chakra (e.g. 2 while Moon→1), so dialog and Home
+  // disagreed. Keep the reason union for DB compatibility; matrix arg unused for now.
   if (!top3.length) {
     return {
       chakraNumber: 7,
@@ -252,57 +255,11 @@ export function chooseTargetChakra(top3: PetalData[], matrix: DenseMatrix | null
     };
   }
 
-  if (!matrix) {
-    const first = top3[0]!;
-    return {
-      chakraNumber: first.chakra_number,
-      reason: "astro_primary",
-      explain: `Это самое сильное направление дня по астрологии (${first.planet}). Карта состояний пользователя ещё накапливается (нужно не менее 7 прожитых и подытоженных действий), поэтому рекомендация опирается просто на сильнейшую энергию дня.`,
-    };
-  }
-
-  const masses = rowMass(matrix);
-  const total = masses.reduce((sum, value) => sum + value, 0);
-  if (total <= 0) {
-    const first = top3[0]!;
-    return {
-      chakraNumber: first.chakra_number,
-      reason: "astro_primary",
-      explain: `Это самое сильное направление дня по астрологии (${first.planet}). Карта состояний пользователя пока пуста, поэтому рекомендация опирается просто на сильнейшую энергию дня.`,
-    };
-  }
-
-  const proportions = masses.map((value) => value / total);
-  const overdevThreshold = getLifeMatrixOverdevThreshold();
-  const overdevelopedInTop3 = top3
-    .filter((candidate) => (proportions[candidate.chakra_number - 1] ?? 0) > overdevThreshold)
-    .map((candidate) => `чакра ${candidate.chakra_number}`);
-
-  for (const candidate of top3) {
-    const proportion = proportions[candidate.chakra_number - 1] ?? 0;
-    if (proportion <= overdevThreshold) {
-      const overdevNote =
-        overdevelopedInTop3.length > 0
-          ? ` Из сильных направлений дня пользователь уже переразвил (живёт там чаще равновесия): ${overdevelopedInTop3.join(", ")}.`
-          : " Среди сильных направлений дня перекоса относительно равновесия нет.";
-      return {
-        chakraNumber: candidate.chakra_number,
-        reason: "matrix_filtered_by_strength",
-        explain:
-          `Это одно из самых сильных направлений дня (${candidate.planet}, чакра ${candidate.chakra_number}), и при этом пользователь ещё НЕ переразвил это состояние — живёт в нём не чаще равновесия.` +
-          overdevNote +
-          ` Поэтому именно здесь у него сегодня больше всего возможностей выйти за рамки привычного и расширить диапазон своих состояний.`,
-      };
-    }
-  }
-
   const first = top3[0]!;
   return {
     chakraNumber: first.chakra_number,
-    reason: "astro_primary_all_overdeveloped",
-    explain:
-      `Сильнейшие направления дня — ${overdevelopedInTop3.join(", ")}. Все три уже переразвиты относительно равновесия (пользователь и так живёт в этих состояниях чаще обычного), ` +
-      `поэтому опираемся на сильнейшую планету дня — ${first.planet} (чакра ${first.chakra_number}).`,
+    reason: "astro_primary",
+    explain: `Это самое сильное направление дня по астрологии (${first.planet}).`,
   };
 }
 

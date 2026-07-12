@@ -108,7 +108,65 @@ export function dedupePlanningMarkersByIdentity(markers: PlannedEventMarker[]): 
     }
     deduped[existingIndex] = preferPlanningMarker(deduped[existingIndex]!, marker);
   }
-  return deduped;
+  return collapseSameDisplayOrderRefinements(deduped);
+}
+
+/**
+ * Model often emits two near-duplicate actions both with display_order=1
+ * ("Кекс поесть" + "Кекс и вино"). When they share identity tokens, keep one
+ * richer marker so Day tab and the FINAL list stay a single action.
+ */
+function collapseSameDisplayOrderRefinements(markers: PlannedEventMarker[]): PlannedEventMarker[] {
+  if (markers.length < 2) return markers;
+  const byOrder = new Map<number, PlannedEventMarker[]>();
+  const unordered: PlannedEventMarker[] = [];
+  for (const marker of markers) {
+    const order = Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : NaN;
+    if (!Number.isFinite(order)) {
+      unordered.push(marker);
+      continue;
+    }
+    const bucket = byOrder.get(order) ?? [];
+    bucket.push(marker);
+    byOrder.set(order, bucket);
+  }
+  const collapsed: PlannedEventMarker[] = [];
+  for (const bucket of byOrder.values()) {
+    if (bucket.length === 1) {
+      collapsed.push(bucket[0]!);
+      continue;
+    }
+    let merged = bucket[0]!;
+    for (let i = 1; i < bucket.length; i += 1) {
+      const next = bucket[i]!;
+      if (samePlannedEventIdentity(merged.desc, next.desc) || planningMarkersShareCoreToken(merged.desc, next.desc)) {
+        // Keep preferPlanningMarker as-is (recommendation wins). Do not overwrite
+        // desc by raw length — equal-length titles were wiping the recommended label.
+        merged = preferPlanningMarker(merged, next);
+      } else {
+        collapsed.push(merged);
+        merged = next;
+      }
+    }
+    collapsed.push(merged);
+  }
+  return [...collapsed, ...unordered];
+}
+
+function planningMarkersShareCoreToken(left: string, right: string): boolean {
+  // Lightweight overlap without importing token helpers: reuse identity match
+  // with a soft path — if either side is a prefix/extension of the other after
+  // normalization of spaces, treat as the same action being refined.
+  const a = left.trim().toLowerCase().replace(/ё/g, "е");
+  const b = right.trim().toLowerCase().replace(/ё/g, "е");
+  if (!a || !b) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  const aWords = a.split(/\s+/).filter((w) => w.length >= 4);
+  const bWords = b.split(/\s+/).filter((w) => w.length >= 4);
+  if (!aWords.length || !bWords.length) return false;
+  const bSet = new Set(bWords);
+  const shared = aWords.filter((w) => bSet.has(w));
+  return shared.length >= 1 && (aWords.length <= 2 || bWords.length <= 2);
 }
 
 /**
@@ -140,7 +198,31 @@ export async function persistPlanningFinalize(params: {
     deleteOrphans = false,
     deleteSameConversationOrphans = false,
   } = params;
-  if (markers.length === 0) return [];
+  if (markers.length === 0) {
+    // Empty-plan finalize: clear any same-conversation planned rows so a model
+    // echo of "не хочу планировать" cannot survive as Day-tab junk.
+    if (!appendToExisting && deleteOrphans) {
+      const existing = await loadPlannedEventsForLocalDate(db, userId, workingLocalDate);
+      const orphanIds = existing
+        .filter(
+          (row) =>
+            row.status === "planned"
+            && row.conversation_id === conversationId
+            && typeof row.id === "string"
+            && !row.id.startsWith("pending:"),
+        )
+        .map((row) => row.id);
+      if (orphanIds.length > 0) {
+        const { error: cleanupError } = await db
+          .from("planned_events")
+          .delete()
+          .eq("user_id", userId)
+          .in("id", orphanIds);
+        if (cleanupError) throw cleanupError;
+      }
+    }
+    return [];
+  }
 
   const canonicalMarkers = dedupePlanningMarkersByIdentity(markers);
   const existing = await loadPlannedEventsForLocalDate(db, userId, workingLocalDate);
@@ -168,7 +250,8 @@ export async function persistPlanningFinalize(params: {
     if (duplicateIndex !== -1) seenMarkerIndexes.add(duplicateIndex);
     order += 1;
     const cells: PlanningSphereCell[] = normalizePlanningSphereCells(marker.cells);
-    const baseDisplayOrder = Number.isInteger(marker.displayOrder) ? Number(marker.displayOrder) : order;
+    // Sequential 1..n — ignore colliding model display_order values (often all "1").
+    const baseDisplayOrder = order;
     const appendedDisplayOrder = appendToExisting ? appendOrderOffset + order : baseDisplayOrder;
     const match = findExistingPlanningRowMatch({
       existing,

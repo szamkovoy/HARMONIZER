@@ -248,9 +248,12 @@ export async function GET(req: Request) {
 
     let pendingPractice = offerRes.data ?? null;
     if (pendingPractice) {
-      const completedMatchingPractice = (practicesRes.data ?? []).some((row) =>
-        row.practice_slug === pendingPractice?.practice_slug
-        && row.started_at >= String(pendingPractice?.created_at ?? ""),
+      // Match by slug on the same local day only. Do not require
+      // started_at >= offer.created_at: re-saving the offer (Communicator remount /
+      // onPracticeOffered cancel+reinsert) bumps created_at, and a session that
+      // started slightly before the new row would leave the Day card pending forever.
+      const completedMatchingPractice = (practicesRes.data ?? []).some(
+        (row) => row.practice_slug === pendingPractice?.practice_slug,
       );
       if (completedMatchingPractice) {
         await db

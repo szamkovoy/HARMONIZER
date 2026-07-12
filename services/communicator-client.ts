@@ -71,6 +71,8 @@ export interface DialogCompleteEvent {
   relatedEventIds?: string[];
   skippedPlannedEvents?: unknown[];
   matrixCells?: unknown[];
+  /** Summarizing-only: why Apple/Google Health may be missing from FINAL. */
+  healthDebug?: Record<string, unknown>;
   debugExport?: Record<string, unknown>;
 }
 

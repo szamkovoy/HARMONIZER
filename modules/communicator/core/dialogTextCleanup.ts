@@ -4,15 +4,22 @@
  */
 
 const INTERNAL_BARE_MARKER_RE =
-  /\[\s*(?:STATE_PROPOSAL|PRACTICE_PICK|PRACTICE_DECLINED|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS|PLAN_TOMORROW|READY_FOR_RECOMMENDATION)\s*\]/gi;
+  /\[\s*(?:STATE_PROPOSAL|PRACTICE_PICK|PRACTICE_DECLINED|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS|PLAN_TOMORROW|READY_FOR_RECOMMENDATION)\s*\]/gi;
+
+const ATTRIBUTED_INTERNAL_MARKER_RE =
+  /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):[^\]]*\]/gi;
 
 export function stripInternalDialogMarkers(text: string): string {
-  return text.replace(INTERNAL_BARE_MARKER_RE, "").replace(/[ \t]+\n/g, "\n").trim();
+  return text
+    .replace(ATTRIBUTED_INTERNAL_MARKER_RE, "")
+    .replace(INTERNAL_BARE_MARKER_RE, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
 }
 
 /** Убирает `---` и целиком блоки `**…**` (как на сервере в `markers.ts`). */
 export function stripDialogScaffoldMarkdown(text: string): string {
-  let t = text.replace(/\r\n/g, "\n");
+  let t = stripInternalDialogMarkers(text.replace(/\r\n/g, "\n"));
   t = t.replace(/^\s*-{3,}\s*$/gm, "");
   for (let i = 0; i < 16; i++) {
     const prev = t;

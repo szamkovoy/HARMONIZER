@@ -97,4 +97,31 @@ describe("dialogBrainPersistence", () => {
     expect(deduped[0]?.recommendation).toBe("Breve nota");
     expect(deduped[0]?.cells).toEqual([{ sphere: 3, chakra: 3 }]);
   });
+
+  it("collapses same display_order cake refinements into one recommended action", () => {
+    const deduped = dedupePlanningMarkersByIdentity([
+      {
+        desc: "Кекс поесть",
+        time: null,
+        timeNorm: null,
+        recommendation: null,
+        displayOrder: 1,
+        cells: [],
+        snippets: [],
+      },
+      {
+        desc: "Кекс и вино",
+        time: null,
+        timeNorm: null,
+        recommendation: "Сделайте это ритуалом: налейте вино в красивый бокал.",
+        displayOrder: 1,
+        cells: [],
+        snippets: [],
+      },
+    ] as never);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0]?.desc).toBe("Кекс и вино");
+    expect(deduped[0]?.recommendation).toContain("ритуалом");
+  });
 });

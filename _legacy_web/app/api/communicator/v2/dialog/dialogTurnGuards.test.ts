@@ -14,6 +14,7 @@ import {
   extractPlanningMarkersFromVisibleFinalize,
   filterPersistablePlanningMarkers,
   filterPracticeLikePlannedEvents,
+  inferPlanningSpheresFromText,
   isPracticeLikePlannedEventDesc,
   mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
@@ -56,12 +57,53 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Niente più.")).toBe(true);
     expect(userSignalsPlanningDone("Niente piu")).toBe(true);
     expect(userSignalsPlanningDone("NONO")).toBe(true);
+    expect(userSignalsPlanningDone("Ничего планировать не хочу.")).toBe(true);
+    expect(userSignalsPlanningDone("Не хочу ничего планировать")).toBe(true);
+    expect(userSignalsPlanningDone("Планировать не хочу")).toBe(true);
+    expect(userSignalsPlanningDone("Nothing to plan today")).toBe(true);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
     expect(
       userSignalsPlanningDone(
         "Сегодня я все-таки хочу съездить в магазин, посмотреть лодки, а потом сходить в кино.",
       ),
     ).toBe(false);
+  });
+
+  it("does not persist empty-plan refusals as planned actions", () => {
+    const filtered = filterPersistablePlanningMarkers([
+      { desc: "Ничего планировать не хочу", time: null, timeNorm: null, recommendation: null, displayOrder: 1, cells: [], snippets: [] },
+      { desc: "Прогулка в парке", time: null, timeNorm: null, recommendation: "спокойно", displayOrder: 2, cells: [], snippets: [] },
+    ]);
+    expect(filtered.map((marker) => marker.desc)).toEqual(["Прогулка в парке"]);
+  });
+
+  it("coerces practice after empty-plan practice offer without numbered wrap-up", () => {
+    const fsm = initFsmState({
+      tabMode: "plan",
+      daySummaryRequested: false,
+      hasDueEvents: false,
+      targetChakra: 2,
+      workingLocalDate: "2026-07-11",
+    });
+    const planningFsm = {
+      ...fsm,
+      branch: "planning" as const,
+      branchIndex: fsm.flow.indexOf("planning"),
+      planningFinalized: false,
+    };
+    const history = [
+      assistantMsg(
+        "Хорошо, без плана так без плана. Тогда день сам собой сложится.\n\nХотите сейчас небольшую практику? Если да, скажите, какую — медитацию, дыхание или асаны, и сколько по времени примерно.",
+      ),
+    ];
+    const next = coerceFsmBeforeTurn({
+      fsm: planningFsm,
+      history,
+      userMessage: "Да, одну минуту медитации я бы выполнил.",
+      isInitiate: false,
+    });
+    expect(next.branch).toBe("practice");
+    expect(next.planningFinalized).toBe(true);
   });
 
   it("uses the assistant close-question context for add-flow finish replies", () => {
@@ -541,6 +583,15 @@ describe("dialogTurnGuards", () => {
     ].join("\n");
     const [salvaged] = extractPlanningMarkersFromVisibleFinalize(text, "ru");
     expect(salvaged.cells.some((cell) => cell.sphere === 4)).toBe(true);
+  });
+
+  it("does not treat родник as family (родн is not a substring match)", () => {
+    expect(inferPlanningSpheresFromText("поехать на родник").some((cell) => cell.sphere === 4)).toBe(false);
+  });
+
+  it("still maps родные/family words to sphere 4", () => {
+    expect(inferPlanningSpheresFromText("навестить родных").some((cell) => cell.sphere === 4)).toBe(true);
+    expect(inferPlanningSpheresFromText("встреча с родными").some((cell) => cell.sphere === 4)).toBe(true);
   });
 
   it("backfills missing planning recommendations from the visible finalize", () => {

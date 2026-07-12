@@ -46,12 +46,32 @@ export function assistantAskedToAddMoreToPlan(assistantText: string): boolean {
 const STRONG_PLANNING_CUE_RE =
   /(?:^|[\s,.;:!?()])(?:(?:хочу|планирую|планируется|собираюсь|соберусь|предстоит|намечен(?:о|а|ы)?|нужно|надо|пора)|хотел(?:\s+бы)?|хотела(?:\s+бы)?|погуляю|посмотрю|выберу|поеду|пойду|лягу|лечь|voglio|vorrei|andr[òo]|vado|devo|mi\s+aspetta|pianific|programma|obiettivo|goal|i\s+want|i['’]?ll|i\s+will|going\s+to)(?=$|[\s,.;:!?()])/i;
 
+/**
+ * Strip negated "want" phrases so bare `хочу` / `voglio` inside
+ * "не хочу" / "don't want" cannot fake a planning cue.
+ */
+function stripNegatedWantCues(text: string): string {
+  return text.replace(
+    /(?:^|[\s,.;:!?()])(?:не\s+хочу|не\s+хотел(?:а|и)?(?:\s+бы)?|не\s+буду|don't\s+want|do\s+not\s+want|won'?t|non\s+voglio|je\s+ne\s+veux|no\s+quiero|n[aã]o\s+quero|ik\s+wil\s+geen)(?=$|[\s,.;:!?()])/giu,
+    " ",
+  );
+}
+
+/** Empty-plan / "nothing to plan today" refusals (any word order). */
+function isEmptyPlanRefusal(text: string): boolean {
+  const normalized = normalizePlanningDoneText(text);
+  if (!normalized) return false;
+  return /(?:ничего\s+(?:сегодня\s+)?(?:не\s+)?планир|планир\p{L}*\s+(?:сегодня\s+)?не\s+хоч|не\s+хоч\p{L}*\s+(?:сегодня\s+)?(?:ничего\s+)?планир|не\s+буду\s+планир|без\s+планов|планов\s+нет|ничего\s+на\s+сегодня|nothing\s+to\s+plan|don'?t\s+want\s+to\s+plan|do\s+not\s+want\s+to\s+plan|no\s+plans?(?:\s+for\s+today|\s+today)?|nichts\s+planen|rien\s+[àa]\s+planifier|niente\s+da\s+pianificare|nada\s+que\s+planificar|nada\s+a\s+planejar|niets\s+te\s+plannen)/iu.test(
+    normalized,
+  );
+}
+
 /** User is naming a concrete new action, not declining to add more. */
 export function looksLikeNewPlannedAction(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   if (isDeclineOfAddingMore(trimmed)) return false;
-  return STRONG_PLANNING_CUE_RE.test(trimmed);
+  return STRONG_PLANNING_CUE_RE.test(stripNegatedWantCues(trimmed));
 }
 
 const DECLINE_ADDING_MORE_RE =
@@ -63,6 +83,7 @@ function isDeclineOfAddingMore(text: string): boolean {
   if (/^(?:(?:нет|не|no|non|nope|nah|nono|no\s+no)|нет[,.\s]+(?:всё|все|спасибо)|не[,.\s]+всё|не[,.\s]+все)[.!?,…\s]*$/iu.test(normalized)) {
     return true;
   }
+  if (isEmptyPlanRefusal(normalized)) return true;
   return DECLINE_ADDING_MORE_RE.test(normalized);
 }
 

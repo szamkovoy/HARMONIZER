@@ -1,5 +1,8 @@
 import { getSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
+import { getResponseLocale } from "@/modules/i18n";
+import { clearCachedDayPlan } from "@/services/dayPlanCache";
+import { clearPrefetchedDayPlan, markDayPlanStale } from "@/services/dayPlanReloadRequest";
 
 type PracticeSessionInsert = Database["public"]["Tables"]["practice_sessions"]["Insert"];
 export type DailyPracticeStat = Database["public"]["Tables"]["user_daily_stats"]["Row"];
@@ -46,6 +49,10 @@ export async function recordPracticeSession(input: RecordPracticeSessionInput): 
     }
     return null;
   }
+  // Stale Day cache/prefetch/in-memory still shows pending practice cards until network refresh.
+  markDayPlanStale();
+  clearPrefetchedDayPlan();
+  void clearCachedDayPlan({ userId: input.userId, locale: getResponseLocale() });
   return data.id;
 }
 

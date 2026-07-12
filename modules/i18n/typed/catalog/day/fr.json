@@ -1,5 +1,8 @@
 {
   "actionRecommendationFallback": "La recommandation apparaîtra après la mise à jour de l'assistant pour cette action.",
+  "actionsHelpBody": "Apprenez à considérer les événements de votre vie comme une occasion d’harmonisation, de développement, de purification, de guérison et d’apprentissage… De ce point de vue, chacune de vos actions est une pratique comportementale. Comme vous allez à la salle de sport pour charger et renforcer le corps, l’espace des événements de votre vie est une salle d’entraînement pour votre psyché (et votre âme). Ne croyez pas que la spiritualité soit un retrait de la vie. Au contraire, voyez le sens de vos actions plus profondément que sur le plan des actions elles-mêmes. C’est ce qui distingue l’humain d’un bio-robot.\n\nCette fenêtre liste les événements que vous planifiez pour la journée. Touchez un événement pour voir des recommandations qui transforment vos gestes habituels en psycho-pratique sur l’onde des états de l’archétype le plus présent aujourd’hui. Parfois, les recommandations peuvent sembler gênantes ou peu efficaces. Mais vous savez qu’en salle, ce ne doit pas être facile. En les suivant, vous sortez des stéréotypes habituels tout en sentant le soutien des rythmes planétaires. Et dans les rapports, vous pourrez voir comment la matrice de vos états s’élargit progressivement.",
+  "actionsHelpButtonAccessibilityLabel": "Explication du bloc des psycho-pratiques",
+  "actionsHelpModalTitle": "Pratiques comportementales",
   "actionsTitle": "Pratiques psycho",
   "addButton": "Ajouter une action",
   "asanasLabel": "Asanas",
@@ -35,5 +38,8 @@
   "summarizeDayButton": "Résumer cette journée",
   "whatToDoButton": "Que faire ?",
   "yesterdayPrefix": "Hier",
+  "yogaHelpBody": "Parfois les pratiques comportementales semblent trop difficiles, et la résistance apparaît — paresse, sabotage intérieur, auto-tromperie, envie d’abandonner… C’est là que les pratiques de yoga aident. Dans ces pratiques, nous passons au langage des chakras, plus simple et plus informatif pour nos buts que le langage médical. Alors pourquoi compliquer ? En une journée, vous pouvez apprendre le langage des chakras (mes cours ou internet vous aideront), et alors les nuances de la psychosomatique, le fonctionnement de votre système hormonal, etc., deviennent plus évidents. Vous commencez à percevoir plus finement vos émotions et les signaux du corps, et à les interpréter correctement. Alors les pratiques de yoga prennent un nouveau sens, complétant logiquement vos pratiques comportementales. C’est le chemin le plus court vers la santé et le bonheur.",
+  "yogaHelpButtonAccessibilityLabel": "Explication du bloc des pratiques de yoga",
+  "yogaHelpModalTitle": "Pourquoi les pratiques de yoga sont nécessaires",
   "yogaTitle": "Pratiques yoga"
 }

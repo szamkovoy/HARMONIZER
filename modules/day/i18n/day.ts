@@ -9,8 +9,14 @@ export interface DayStrings {
   screenTitle: string;
   yesterdayPrefix: string;
   actionsTitle: string;
+  actionsHelpButtonAccessibilityLabel: string;
+  actionsHelpModalTitle: string;
+  actionsHelpBody: string;
   lifeSpheresTitle: string;
   yogaTitle: string;
+  yogaHelpButtonAccessibilityLabel: string;
+  yogaHelpModalTitle: string;
+  yogaHelpBody: string;
   meditationLabel: string;
   breathLabel: string;
   asanasLabel: string;
@@ -66,8 +72,16 @@ const ru: DayStrings = {
   screenTitle: "День",
   yesterdayPrefix: "Вчера",
   actionsTitle: "Психо-практики",
+  actionsHelpButtonAccessibilityLabel: "Пояснение к блоку психо-практик",
+  actionsHelpModalTitle: "Поведенческие практики",
+  actionsHelpBody:
+    "Учитесь рассматривать события вашей жизни - как повод для гармонизации, развития, очищения, исцеления, обучения… С этой точки зрения каждое ваше действие является поведенческой практикой. Как вы ходите в тренажерный зал, чтобы дать нагрузку телу и оздоровить его - точно также пространство событий вашей жизни - это тренажеры для вашей психики (и души). Не думайте, что духовность - это отрыв от жизни. Напротив, видьте смыслы ваших действий глубже, чем в плоскости самих действий. Это отличает человека от биоробота.\n\nВ данном окне перечислены события, которые вы планируете на день. Кликнув на событии, вы увидите рекомендации, превращающие привычные вам действия в психопрактику на волне состояний того архетипа, который сегодня наиболее проявлен. В некоторых случаях рекомендации могут казаться вам неудобными или не эффективными. Но, вы ведь понимаете, что в тренажёрном зале не должно быть легко. Следуя рекомендациям вы будете выходить из привычных стереотипов ощущая поддержку планетных ритмов. А в отчетах вы сможете увидеть как постепенно расширяется матрица ваших состояний.",
   lifeSpheresTitle: "Сферы жизни",
   yogaTitle: "Йога-практики",
+  yogaHelpButtonAccessibilityLabel: "Пояснение к блоку йога-практик",
+  yogaHelpModalTitle: "Зачем нужны практики йоги",
+  yogaHelpBody:
+    "Порой поведенческие практики могут казаться слишком сложными, и возникает сопротивление - лень, внутренний саботаж, самообман, желание бросить… И тут на помощь приходят практики йоги. В этих практиках мы переходим на язык чакр, потому что для наших задач он проще и информативней, чем язык медицины. Так зачем же усложнять? За один день вы можете освоить язык чакр (мои курсы или интернет вам помогут), и тогда нюансы психосоматики, особенности функционирования гормональной системы, причем именно вашей, и т.п. станут вам очевидны. Вы начнёте тоньше воспринимать свои эмоции, сигналы тела и правильно всё это интерпретировать. И тогда практики йоги наполнятся новым смыслом, логично дополняя ваши поведенческие практики. Таков кратчайший путь к здоровью и к счастью.",
   meditationLabel: "Медитация",
   breathLabel: "Дыхание",
   asanasLabel: "Асаны",
@@ -115,8 +129,16 @@ const en: DayStrings = {
   screenTitle: "Day",
   yesterdayPrefix: "Yesterday",
   actionsTitle: "Psycho-practices",
+  actionsHelpButtonAccessibilityLabel: "Explain the psycho-practices block",
+  actionsHelpModalTitle: "Behavioral practices",
+  actionsHelpBody:
+    "Learn to see the events of your life as occasions for harmonization, growth, cleansing, healing, and learning… From this point of view, every action is a behavioral practice. Just as you go to the gym to load and strengthen the body, the space of your life events is a gym for your psyche (and soul). Do not think of spirituality as a retreat from life. On the contrary, see deeper meaning in your actions than the plane of the actions themselves. That is what sets a human being apart from a bio-robot.\n\nThis panel lists the events you plan for the day. Tap an event to see recommendations that turn familiar actions into a psycho-practice on the wave of the archetype most present today. Sometimes a recommendation may feel inconvenient or ineffective. But you know a gym should not feel easy. Following the recommendations, you step out of habitual stereotypes while feeling the support of planetary rhythms. And in your reports you can watch the matrix of your states gradually widen.",
   lifeSpheresTitle: "Life spheres",
   yogaTitle: "Yoga-practices",
+  yogaHelpButtonAccessibilityLabel: "Explain the yoga-practices block",
+  yogaHelpModalTitle: "Why yoga practices matter",
+  yogaHelpBody:
+    "Sometimes behavioral practices can feel too hard, and resistance appears — laziness, inner sabotage, self-deception, the urge to quit… This is where yoga practices help. In these practices we shift to the language of chakras, because for our aims it is simpler and more informative than the language of medicine. So why make it complicated? In a single day you can learn the language of chakras (my courses or the internet will help), and then the nuances of psychosomatics, the specifics of your hormonal system, and so on become clearer. You begin to sense your emotions and body signals more finely and interpret them well. Then yoga practices take on new meaning, naturally complementing your behavioral practices. That is the shortest path to health and happiness.",
   meditationLabel: "Meditation",
   breathLabel: "Breathing",
   asanasLabel: "Asanas",

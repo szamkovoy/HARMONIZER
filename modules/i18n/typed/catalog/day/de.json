@@ -1,5 +1,8 @@
 {
   "actionRecommendationFallback": "Die Empfehlung erscheint, nachdem der Assistent für diese Aktion aktualisiert wurde.",
+  "actionsHelpBody": "Lernen Sie, die Ereignisse Ihres Lebens als Anlass zur Harmonisierung, Entwicklung, Reinigung, Heilung und zum Lernen zu betrachten… Aus dieser Sicht ist jede Ihrer Handlungen eine Verhaltenspraktik. So wie Sie ins Fitnessstudio gehen, um dem Körper Belastung zu geben und ihn zu stärken, ist der Raum Ihrer Lebensereignisse ein Trainingsraum für Ihre Psyche (und Seele). Denken Sie nicht, Spiritualität sei ein Rückzug aus dem Leben. Sehen Sie im Gegenteil den Sinn Ihrer Handlungen tiefer als auf der Ebene der Handlungen selbst. Das unterscheidet den Menschen vom Bio-Roboter.\n\nIn diesem Fenster sind die Ereignisse aufgeführt, die Sie für den Tag planen. Tippen Sie auf ein Ereignis, um Empfehlungen zu sehen, die vertraute Handlungen in eine Psychopraktik auf der Welle der Zustände jenes Archetyps verwandeln, der heute am stärksten präsent ist. Manchmal können Empfehlungen unbequem oder wenig wirksam wirken. Doch Sie wissen: Im Fitnessstudio soll es nicht leicht sein. Folgend den Empfehlungen treten Sie aus gewohnten Stereotypen heraus und spüren die Unterstützung planetarer Rhythmen. Und in den Berichten können Sie sehen, wie sich die Matrix Ihrer Zustände allmählich erweitert.",
+  "actionsHelpButtonAccessibilityLabel": "Erklärung zum Block der Psychopraktiken",
+  "actionsHelpModalTitle": "Verhaltenspraktiken",
   "actionsTitle": "Psychologische Übungen",
   "addButton": "Aktion hinzufügen",
   "asanasLabel": "Asanas",
@@ -35,5 +38,8 @@
   "summarizeDayButton": "Diesen Tag zusammenfassen",
   "whatToDoButton": "Was tun?",
   "yesterdayPrefix": "Gestern",
+  "yogaHelpBody": "Manchmal können Verhaltenspraktiken zu schwer wirken, und Widerstand entsteht — Faulheit, innere Sabotage, Selbsttäuschung, der Wunsch aufzugeben… Hier helfen Yoga-Praktiken. In diesen Praktiken wechseln wir zur Sprache der Chakren, weil sie für unsere Aufgaben einfacher und informativer ist als die Sprache der Medizin. Warum also komplizieren? An einem Tag können Sie die Sprache der Chakren erlernen (meine Kurse oder das Internet helfen Ihnen), und dann werden Nuancen der Psychosomatik, Besonderheiten Ihres Hormonsystems und Ähnliches für Sie klarer. Sie beginnen, Emotionen und Körpersignale feiner wahrzunehmen und richtig zu deuten. Dann erfüllen sich Yoga-Praktiken mit neuem Sinn und ergänzen Ihre Verhaltenspraktiken logisch. Das ist der kürzeste Weg zu Gesundheit und Glück.",
+  "yogaHelpButtonAccessibilityLabel": "Erklärung zum Block der Yoga-Praktiken",
+  "yogaHelpModalTitle": "Wozu Yoga-Praktiken nötig sind",
   "yogaTitle": "Yoga-Übungen"
 }

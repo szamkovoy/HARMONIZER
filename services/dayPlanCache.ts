@@ -72,8 +72,13 @@ function localDateKey(timeZone: string): string | null {
 function isCacheUsable(entry: CachedDayPlan | null, userId: string, locale: AppLocale): entry is CachedDayPlan {
   if (!entry) return false;
   if (entry.version !== CACHE_VERSION || entry.userId !== userId || entry.locale !== locale) return false;
-  const currentLocalDate = localDateKey(entry.plan.timezone);
-  return Boolean(currentLocalDate && currentLocalDate === entry.plan.currentLocalDate);
+  return isDayPlanCurrent(entry.plan);
+}
+
+/** True when the plan's `currentLocalDate` still matches "today" in the plan timezone. */
+export function isDayPlanCurrent(plan: DayPlan): boolean {
+  const currentLocalDate = localDateKey(plan.timezone);
+  return Boolean(currentLocalDate && currentLocalDate === plan.currentLocalDate);
 }
 
 function parseJson<T>(raw: string | null): T | null {

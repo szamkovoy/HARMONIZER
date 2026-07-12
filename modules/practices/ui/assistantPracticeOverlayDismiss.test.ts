@@ -24,7 +24,7 @@ describe("assistantPracticeOverlayDismiss", () => {
     signalAssistantPracticeScreenMounted();
     expect(callback).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(1000);
 
     expect(callback).toHaveBeenCalledTimes(1);
   });
@@ -45,7 +45,7 @@ describe("assistantPracticeOverlayDismiss", () => {
     scheduleAssistantOverlayDismiss(second);
 
     signalAssistantPracticeScreenMounted();
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(1000);
 
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);

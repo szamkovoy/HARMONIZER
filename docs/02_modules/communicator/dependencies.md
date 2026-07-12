@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/dependencies
 title: Communicator Dependencies
-version: 1.19
-updated: 2026-06-29
+version: 1.20
+updated: 2026-07-11
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -39,9 +39,9 @@ code_refs:
 `services/communicator-client.ts` — `sendDialogMessage` передаёт optional `turnHistory` (до 40 ходов, `buildClientTurnHistory`); для assistant-turn туда подмешивается минимальный `meta` (`practicePicked` после карточки, `branches`/`dialog_branches` для ветки хода), а сервер (`resolveTurnHistory` → `collectPlanningBranchUserHistory`) предпочитает эту клиентскую ленту над `messages` в БД, где `content` пустой. Тот же transport даёт `reconcileDialogPlans({ conversationId, force? })` → POST `/api/ai/dialog/reconcile-plans` (fallback `/api/communicator/v2/dialog/reconcile-plans`): с июня 2026 серверный FSM пишет planning/summary синхронно, endpoint — **совместимый no-op** (`{ applied: false }`); клиент по-прежнему debounce-вызывает его на idle и делает best-effort flush перед `launchPractice(...)` / unmount / кнопкой «Выйти».
 - `**practices**`  
 `PracticePicked` основан на `PracticeRecommendation` (`services/communicator-client.ts`, `modules/communicator/core/types.ts`).  
-`modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams`, `launchPractice(...)` и `scheduleAssistantOverlayDismiss(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI. Route-обёртки практик сигналят готовность через `useAssistantPracticeOverlayDismiss` → `signalAssistantPracticeScreenMounted`. Summary health: `services/summarizingHealthContext.ts` (йога сразу + native health в фоне без стартового таймаута); `app/(tabs)/day.tsx` / `index.tsx` открывают модалку сразу и стартуют сбор; `Communicator` дополнительно бутстрапит сбор при `daySummaryRequested` или первом ответе с веткой `summarizing` и на каждый POST подмешивает `triggerMeta.dayHealthContext` из `getSnapshot()`. `services/dayHealthContext.ts` — thin re-export/legacy blocking helper.
+`modules/communicator/ui/Communicator.tsx` импортирует общий `modules/practices/ui/PracticeCard.tsx`, `PracticeSummary`, `PracticeLaunchParams`, `launchPractice(...)` и `scheduleAssistantOverlayDismiss(...)`; серверный DTO адаптируется в локальный summary/launch без отдельного communicator-specific UI. Route-обёртки практик сигналят готовность через `useAssistantPracticeOverlayDismiss` → `signalAssistantPracticeScreenMounted`. Summary health: `services/summarizingHealthContext.ts` (йога сразу + native health в фоне без стартового таймаута); `app/(tabs)/day.tsx` / `index.tsx` открывают модалку сразу и стартуют сбор при summary/overdue (Home передаёт `timeZone`); `Communicator` бутстрапит сбор при `daySummaryRequested`, уже переданном `dayHealthContext` (Home overdue) или первом ответе с веткой `summarizing` — **не** при чистом planning только из‑за `workingLocalDate`. Каждый POST подмешивает `triggerMeta.dayHealthContext` из `getSnapshot()` (без блокирующего `await whenReady()` — HealthKit sleep мог держать спиннер минутами). `preferRicherDayHealth` выбирает снимок с конкретными native-метриками. `services/dayHealthContext.ts` — thin re-export/legacy blocking helper.
 - **native health provider**
-`services/nativeHealth.ts` выбирает Apple HealthKit на iOS и Google Health / Android Health Connect на Android, читает только steps, active calories, exercise/workout minutes и sleep duration, а permission prompt регулирует через SecureStore-backoff.
+`services/nativeHealth.ts` — iOS only Apple HealthKit, Android only Google Health Connect. Permission: SecureStore stores allow/deny; explicit denial → **7-day cooldown** (no auth/query attempts). If allowed or no denial record → `requestAuthorization` / Health Connect request (sheet only when OS status is «should request»; otherwise millisecond silent call required by the HealthKit library before queries). `collectionTrace` includes auth status + canary. Samples-first + sequential queries. Salvage spheres: `родн` matches only родные/родной/…, not `родник`.
 - `**subscription**` (интеграция на точке входа, не внутри `modules/communicator/*`)  
 `app/(tabs)/index.tsx` — перед открытием оверлея ассистента проверяется `canUseFeature("assistant_dialog")`; при отказе показывается `UpgradeDialog`. Сам компонент `Communicator` модуль доступа не импортирует.
 

@@ -80,6 +80,34 @@ describe("practice selector", () => {
     expect(result?.excludedRecentCount).toBe(1);
   });
 
+  it("widens breath pool when day chakra matches only one practice so recent-stack can rotate", () => {
+    const breath = (id: string, chakra: number, quality = 4): PracticeSelectorCandidate => ({
+      id,
+      slug: id,
+      kind: "breath",
+      defaultDurationSec: 10 * 60,
+      quality,
+      chakraIds: [chakra],
+    });
+    const result = selectPracticeCandidate({
+      candidates: [
+        breath("chandra-bhedana", 2, 5),
+        breath("surya-bhedana", 3, 4),
+        breath("coherent", 4, 4),
+        breath("nadi-shodhana", 6, 4),
+      ],
+      preferredKind: "breath",
+      chakraId: 2,
+      recentIds: ["chandra-bhedana"],
+    });
+
+    expect(result?.picked.id).not.toBe("chandra-bhedana");
+    expect(result?.excludedRecentCount).toBeGreaterThan(0);
+    // Soft preference: among fresh candidates, day-chakra match would win if present;
+    // here the only chakra-2 practice is excluded, so another breath is picked.
+    expect(["surya-bhedana", "coherent", "nadi-shodhana"]).toContain(result?.picked.id);
+  });
+
   it("uses nearest duration first when no yoga practice fits the 15 percent window", () => {
     const result = selectPracticeCandidate({
       candidates: [

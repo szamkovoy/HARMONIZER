@@ -1,5 +1,8 @@
 {
   "actionRecommendationFallback": "La raccomandazione apparirà dopo l'aggiornamento dell'assistente per questa azione.",
+  "actionsHelpBody": "Imparate a considerare gli eventi della vostra vita come occasioni di armonizzazione, sviluppo, purificazione, guarigione e apprendimento… Da questo punto di vista, ogni vostra azione è una pratica comportamentale. Come andate in palestra per caricare e rafforzare il corpo, lo spazio degli eventi della vostra vita è una palestra per la psiche (e l’anima). Non pensate che la spiritualità sia un ritiro dalla vita. Al contrario, vedete il senso delle vostre azioni più in profondità del piano delle azioni stesse. Questo distingue l’essere umano da un bio-robot.\n\nIn questa finestra sono elencati gli eventi che pianificate per la giornata. Tocca un evento per vedere raccomandazioni che trasformano azioni abituali in una psico-pratica sull’onda degli stati dell’archetipo più presente oggi. A volte le raccomandazioni possono sembrare scomode o poco efficaci. Ma sapete che in palestra non deve essere facile. Seguendole uscite dagli stereotipi abituali sentendo il sostegno dei ritmi planetari. E nei report potrete vedere come la matrice dei vostri stati si allarga gradualmente.",
+  "actionsHelpButtonAccessibilityLabel": "Spiegazione del blocco delle psico-pratiche",
+  "actionsHelpModalTitle": "Pratiche comportamentali",
   "actionsTitle": "Pratiche psicologiche",
   "addButton": "Aggiungi azione",
   "asanasLabel": "Asana",
@@ -35,5 +38,8 @@
   "summarizeDayButton": "Riassumere questa giornata",
   "whatToDoButton": "Cosa fare?",
   "yesterdayPrefix": "Ieri",
+  "yogaHelpBody": "A volte le pratiche comportamentali possono sembrare troppo difficili e nasce resistenza — pigrizia, sabotaggio interiore, autoinganno, voglia di mollare… Qui aiutano le pratiche yoga. In queste pratiche passiamo al linguaggio dei chakra, più semplice e informativo per i nostri scopi del linguaggio della medicina. Perché complicare? In un giorno potete apprendere il linguaggio dei chakra (i miei corsi o internet vi aiutano), e allora le sfumature della psicosomatica, il funzionamento del vostro sistema ormonale e così via diventano più chiari. Cominciate a percepire più finemente emozioni e segnali del corpo e a interpretarli bene. Allora le pratiche yoga si riempiono di nuovo significato, completando logicamente le pratiche comportamentali. È la via più breve alla salute e alla felicità.",
+  "yogaHelpButtonAccessibilityLabel": "Spiegazione del blocco delle pratiche yoga",
+  "yogaHelpModalTitle": "Perché servono le pratiche yoga",
   "yogaTitle": "Pratiche yoga"
 }

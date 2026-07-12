@@ -66,6 +66,7 @@ export function buildSummarizingHealthSnapshot(localDate: string, practices: Day
       durationMinutes: emptyMetric(),
       quality: "unknown",
     },
+    collectionTrace: null,
   };
 }
 
@@ -74,20 +75,51 @@ export type SummarizingHealthCollection = {
   whenReady: () => Promise<DayHealthContext>;
 };
 
+function dayHealthRichnessScore(ctx: DayHealthContext): number {
+  let score = 0;
+  if (ctx.providerStatus === "available") score += 2;
+  if (ctx.activity.steps.value != null && ctx.activity.steps.value > 0) score += 3;
+  if (ctx.activity.activeCalories.value != null && ctx.activity.activeCalories.value > 0) score += 1;
+  if (ctx.activity.workoutMinutes.value != null && ctx.activity.workoutMinutes.value > 0) score += 1;
+  if (ctx.sleep.durationMinutes.value != null && ctx.sleep.durationMinutes.value > 0) score += 3;
+  if (ctx.yoga.totalMinutes > 0 || ctx.yoga.practiceCount > 0) score += 1;
+  if (ctx.yoga.averageDailyMinutes != null) score += 1;
+  return score;
+}
+
+/** Prefer the snapshot that already has concrete Apple/Google metrics. */
+export function preferRicherDayHealth(
+  left: DayHealthContext | null | undefined,
+  right: DayHealthContext | null | undefined,
+): DayHealthContext | null {
+  if (!left) return right ?? null;
+  if (!right) return left;
+  return dayHealthRichnessScore(left) >= dayHealthRichnessScore(right) ? left : right;
+}
+
 /**
- * Start health collection for the summarizing branch. No startup timeout — native
- * health keeps loading in the background for the whole dialog. Each POST should
- * send getSnapshot(); the final summarizing turn uses whatever is ready by then.
+ * Start health collection at summarizing open. Native Apple/Google Health loads
+ * in the background for the whole branch — later POSTs send getSnapshot().
  */
 export function startSummarizingHealthCollection(params: {
   localDate: string;
   practices: DayPracticeLog[];
+  timeZone?: string | null;
 }): SummarizingHealthCollection {
   let snapshot = buildSummarizingHealthSnapshot(params.localDate, params.practices);
+  const startedAt = Date.now();
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log("[summarizingHealthContext] native health collection STARTED", {
+      localDate: params.localDate,
+      timeZone: params.timeZone ?? null,
+      at: new Date(startedAt).toISOString(),
+    });
+  }
   const ready = (async () => {
     const [averageDailyMinutes, nativeHealth] = await Promise.all([
       loadAverageYogaMinutes(),
-      collectNativeHealthSignals(params.localDate),
+      collectNativeHealthSignals(params.localDate, params.timeZone),
     ]);
     snapshot = {
       localDate: params.localDate,
@@ -100,7 +132,28 @@ export function startSummarizingHealthCollection(params: {
       },
       activity: nativeHealth.activity,
       sleep: nativeHealth.sleep,
+      collectionTrace: nativeHealth.collectionTrace,
     };
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log("[summarizingHealthContext] native health collection READY", {
+        localDate: params.localDate,
+        timeZone: params.timeZone ?? null,
+        durationMs: Date.now() - startedAt,
+        provider: nativeHealth.provider,
+        providerStatus: nativeHealth.providerStatus,
+        steps: nativeHealth.activity.steps.value,
+        sleepMinutes: nativeHealth.sleep.durationMinutes.value,
+        notes: nativeHealth.collectionTrace.notes,
+        queries: nativeHealth.collectionTrace.queries.map((q) => ({
+          metric: q.metric,
+          method: q.method,
+          ok: q.ok,
+          parsed: q.parsed,
+          error: q.error,
+        })),
+      });
+    }
     return snapshot;
   })();
   return {
@@ -115,5 +168,6 @@ export function startSummarizingHealthCollectionFromPlan(plan: DayPlan): Summari
   return startSummarizingHealthCollection({
     localDate,
     practices: section?.practices ?? [],
+    timeZone: plan.timezone,
   });
 }

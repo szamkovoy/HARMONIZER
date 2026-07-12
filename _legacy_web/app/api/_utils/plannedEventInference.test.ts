@@ -38,6 +38,24 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred).toHaveLength(0);
   });
 
+  it("does not turn an empty-plan refusal into a planned action", () => {
+    const nowLocal = DateTime.fromISO("2026-07-11T12:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [
+        {
+          role: "assistant",
+          content: "Что важного вы хотите запланировать на текущий день?",
+        },
+      ],
+      pendingUserMessage: "Ничего планировать не хочу.",
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(0);
+  });
+
   it("extracts explicit clock time from a planning clause", () => {
     const nowLocal = DateTime.fromISO("2026-05-25T09:00:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
@@ -410,6 +428,10 @@ describe("inferPlannedEventsFromUserHistory", () => {
       "Studio di inglese per un'ora",
       "Vorrei studiare l'inglese per un'ora",
     )).toBe(true);
+  });
+
+  it("recognises Russian eat/cake rewordings of the same treat", () => {
+    expect(samePlannedEventIdentity("Кекс поесть", "Съесть кекс")).toBe(true);
   });
 
   it("prefers the model marker when history clarification describes the same event", () => {

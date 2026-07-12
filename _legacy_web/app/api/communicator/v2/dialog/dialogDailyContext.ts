@@ -203,16 +203,23 @@ export async function loadDialogDailyContext(
   const matrixReady = isMatrixReady(aggregated.count);
   const fixedTargetChakra = typeof forecast?.day_target_chakra === "number" ? forecast.day_target_chakra : null;
   const fixedTargetReason = typeof forecast?.day_target_reason === "string" ? forecast.day_target_reason : null;
+  const chosenTargetChakra = chooseTargetChakra(top3Planets, matrixReady ? aggregated.matrix : null);
 
-  const targetChakra = fixedTargetChakra != null
-    ? {
-        chakraNumber: fixedTargetChakra,
-        reason: fixedTargetReason ?? "fixed_day_target",
-        explain: "Целевая чакра уже была зафиксирована для этого локального дня.",
-      }
-    : chooseTargetChakra(top3Planets, matrixReady ? aggregated.matrix : null);
+  // Prefer astro primary over a stale matrix-filtered fix so dialog matches Home morning text.
+  const shouldRefreshFixedTarget =
+    fixedTargetChakra != null
+    && fixedTargetChakra !== chosenTargetChakra.chakraNumber;
 
-  if (fixedTargetChakra == null && typeof forecast?.id === "string") {
+  const targetChakra =
+    fixedTargetChakra != null && !shouldRefreshFixedTarget
+      ? {
+          chakraNumber: fixedTargetChakra,
+          reason: fixedTargetReason ?? "fixed_day_target",
+          explain: "Целевая чакра уже была зафиксирована для этого локального дня.",
+        }
+      : chosenTargetChakra;
+
+  if ((fixedTargetChakra == null || shouldRefreshFixedTarget) && typeof forecast?.id === "string") {
     await db
       .from("user_daily_forecasts")
       .update({
@@ -242,7 +249,11 @@ export async function loadDialogDailyContext(
   };
 }
 
-/** When summarizing a past local day, align target chakra with that day's forecast. */
+/** When summarizing a past local date, align target chakra with that day's forecast.
+ *  If the stored reason is a stale matrix filter (pre-astro-primary policy), recompute
+ *  from that day's planets so FINAL matches the day's real primary — not a hallucination,
+ *  and not an outdated secondary chakra.
+ */
 export async function resolveSummarizingPromptContext(
   db: SupabaseClient,
   userId: string,
@@ -251,18 +262,54 @@ export async function resolveSummarizingPromptContext(
 ): Promise<DialogDailyContext> {
   if (!workingLocalDate || workingLocalDate === context.localDate) return context;
   const forecast = await loadForecastForLocalDate(db, userId, workingLocalDate);
-  const chakraNumber = typeof forecast?.day_target_chakra === "number"
-    ? forecast.day_target_chakra
-    : context.targetChakra.chakraNumber;
+  if (!forecast) {
+    return {
+      ...context,
+      targetChakra: {
+        ...context.targetChakra,
+        reason: "summary_working_day",
+        explain: "Целевая чакра подытоживаемого локального дня.",
+      },
+    };
+  }
+
+  const storedReason = typeof forecast.day_target_reason === "string" ? forecast.day_target_reason : null;
+  const storedChakra = typeof forecast.day_target_chakra === "number" ? forecast.day_target_chakra : null;
+  const staleMatrixFilter =
+    storedReason === "matrix_filtered_by_strength"
+    || storedReason === "astro_primary_all_overdeveloped";
+
+  let targetChakra = {
+    chakraNumber: storedChakra ?? context.targetChakra.chakraNumber,
+    reason: storedReason ?? "summary_working_day",
+    explain: "Целевая чакра подытоживаемого локального дня.",
+  };
+
+  if (staleMatrixFilter || storedChakra == null) {
+    const natal = await loadActiveNatalProfile(db, userId);
+    const calibration = await loadCalibration(db, userId);
+    const top3 = buildTopPetals(forecast as never, natal.profile, calibration, 3);
+    const chosen = chooseTargetChakra(top3, null);
+    targetChakra = {
+      chakraNumber: chosen.chakraNumber,
+      reason: chosen.reason,
+      explain: chosen.explain,
+    };
+    if (typeof forecast.id === "string" && storedChakra !== chosen.chakraNumber) {
+      await db
+        .from("user_daily_forecasts")
+        .update({
+          day_target_chakra: chosen.chakraNumber,
+          day_target_reason: chosen.reason,
+          day_target_fixed_at: new Date().toISOString(),
+        })
+        .eq("id", forecast.id);
+    }
+  }
+
   return {
     ...context,
-    forecast: forecast ?? context.forecast,
-    targetChakra: {
-      chakraNumber,
-      reason: typeof forecast?.day_target_reason === "string"
-        ? forecast.day_target_reason
-        : "summary_working_day",
-      explain: "Целевая чакра подытоживаемого локального дня.",
-    },
+    forecast,
+    targetChakra,
   };
 }

@@ -1,13 +1,37 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.85
-updated: 2026-07-07
+version: 2.91
+updated: 2026-07-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-12 (10):** QA `текст-4808…`: planning FINAL showed only «Внимание на первую чакру.» while Day tab had a long recommendation prefixed with dialog scaffold «Хорошо, собираю план.». Root: greeted-flow finalize could proceed without day-focus (repair was add-flow-only); scaffold leaked into `recommendation_short_text`. Fix: `stripPlanningDayFocusScaffold` on extract/persist/FINAL rebuild; greeted-flow hidden repair when day-focus missing; prompt forbids gathering acks in short_text.
+
+- **2026-07-12 (9):** QA `текст-416D…`/`текст-4FF7…`: Apple Health OK (steps 2665, active energy 75). Prompt now labels energy as `active energy kcal` / килокалории — Apple HealthKit + Google Health Connect always provide kilocalories (no cal↔kcal heuristic).
+
+- **2026-07-12 (8):** QA `текст-4C05…`: summarizing 2nd chakra was real (past-day `day_target_chakra`, stale `matrix_filtered_by_strength`) — refresh to astro primary when summarizing; «родник»→sphere 4 was keyword false positive (`родн`⊂`родник`) in salvage `inferPlanningSpheresFromText`.
+
+- **2026-07-12 (7):** QA `текст-446C…`: summarizing FINAL invented «~8200 steps» while HealthKit returned no metrics (`steps=null`, all queries `Unknown std::runtime_error`). Prompt no longer uses a numeric steps example; yoga-only Health context forbids inventing pedometer figures; server strips invented native-health sentences when `hasNativeMetric=false`.
+
+- **2026-07-12 (6):** QA `текст-42BE…`: soft-wait Health на summarizing POST снят; `health_debug` несёт `collectionTrace` (когда стартовал/закончил native query, raw preview/ошибки). Клиент стартует Apple/Google Health в начале summarizing-ветки.
+
+- **2026-07-12 (5):** QA `текст-42D9…`: dialog day target was `matrix_filtered_by_strength` (chakra 2) while Home morning text used Moon→chakra 1. `chooseTargetChakra` now always picks astro primary (top-1); stale fixed `day_target_chakra` is refreshed when it diverges. Health: soft-wait ≤5s for native metrics on summarizing POSTs + `health_debug` in FINAL meta/export/logs.
+
+- **2026-07-12 (4):** QA `текст-4C7D…`: summarizing FINAL leaked EN `day`/`usual` — prompt single-language guard restored for all locales + `replaceSpontaneousEnglishRu` covers those tokens; planning FINAL duplicated action when model glued `1.` onto chakra line — `extractPlanningIntro` strips glued numbered lists so marker block is not appended twice.
+
+- **2026-07-12 (3):** Planning FINAL QA (`текст-4737…`): duplicate «1. Кекс поесть» + «1. Кекс и вино» — `samePlannedEventIdentity` stems for `кекс`/`поесть`/`съесть`; `dedupePlanningMarkersByIdentity` collapses same-`display_order` refinements; visible FINAL renumbers 1..n; persist writes sequential `display_order`; route dedupes markers before rebuilding FINAL text.
+
+- **2026-07-12 (2):** Day cold-start flash: stop painting SecureStore on tab focus (only same-session prefetch + network; cache only as offline fallback). Breath rotation: widen selector pool when day chakra matches a single breath practice so recent-stack can exclude `chandra-bhedana` etc. Summarizing Health: `await whenReady()` before POST; FINAL prompt requires citing a concrete Health figure when metrics exist and forbids vague step/sleep talk when they do not.
+
+- **2026-07-12:** QA: summarizing bubble leaked `[SIMULATE_EVENT:…]` (LLM typo for `SUMMARIZE_EVENT`) — parse alias + defensive strip in `sanitizeAssistantText` / client `resolveAssistantReplyText` / `dialogTextCleanup`. Apple Health empty FINAL: never skip HealthKit query on `requestAuthorization===false`; day bounds via Luxon + plan `timeZone`.
+
+- **2026-07-11 (2):** `GET /api/day` auto-completes pending `day_practice_offers` when any same-day completed `practice_sessions` row shares `practice_slug` — removed `started_at >= offer.created_at`, which left Day cards pending after offer re-save (Communicator remount / cancel+reinsert).
+
+- **2026-07-11:** QA dialog export (`текст-46C4…`, `текст-4BEB…`): empty-plan refusal («Ничего планировать не хочу» / «Не хочу ничего планировать») was inferred/persisted as a `planned_events` row (bare `хочу` cue), so Day tab showed a junk action without recommendation; model finalize also echoed `1. …` in visible text. Fixes: `planningDonePhrases.ts` empty-plan refusals + strip negated want-cues; `coerceFsmBeforeTurn` locks planning after empty-plan + practice-offer; empty-plan finalize rebuilds visible as day-focus + practice question only (no numbered refusal line) and `persistPlanningFinalize([], deleteOrphans)` clears same-conversation planned rows; `dialogHealthPrompt.ts` omits non-positive Health metrics; `nativeHealth.ts` treats aggregate zeros as missing (Apple + Google) and keeps querying after soft backoff (do not hard-block reads on SecureStore `allowed=false`).
 
 - **2026-07-07 (v6 unified prompt):** `monologue_morning_recommendation` (paid) и `global_morning_recommendation` (free) объединены в **единый шаблон v6** (миграция `20260707010000_morning_recommendation_prompt_v6_unified.sql`). Различие тарифов — через переменную `{{personalization_mode}}` (paid — персональный с наталом, free — безличный без натала), а не через два разных шаблона. Унифицированный набор переменных: `{{primary_chakra}}` (вместо `primary_chakra_number`+`primary_chakra_label`), `{{primary_harmoniousness}}`/`{{secondary_harmoniousness}}`/`{{tertiary_harmoniousness}}` (число в шкале **-1.0…+1.0**, без предпереведённого `primary_tone`), `{{primary_main_transit}}`/`{{primary_main_aspect}}` (для free — пустые), `{{primary_harmonic_states}}`/`{{primary_dissonant_states}}` (палитра из `chakra_states_baseline.json` — **теперь подаётся и в free**), `{{user_phrases}}`, `{{petals_relation}}`. SHORT_TEXT — три полноценных абзаца, юнгианский архетипический регистр; LONG_EXPLANATION — прагматичная астропсихология, §1-§6; SLOGAN — 5-8 слов; §6 «Заключение» — без приглашения к math-уровню, вместо него общая рекомендация. Убраны примеры-фразы и английские термины (tone/gravity/top_petals). Целевые длины: short 500→700, long 1500→2000 (`config/contentLengths.ts`). Код: `morningRecommendation.ts`, `monologue/route.ts` переведены на новые имена + `buildPersonalizationModePaid`; `ensureGlobalDailyContent.ts` собирает тот же набор (гармоничность из баланса транзит-транзитных аспектов `globalHarmoniousnessFor`, baseline states, `author_voice_block` RU/«вы», `FREE_PERSONALIZATION_MODE`). Edge-cron `precompute-global-recommendations` → structural-only (`llm_model=null`, LLM-тексты генерирует Node при первом заходе); `precompute-daily-forecasts` (paid) переведён на новые переменные + baseline (JSON в `_shared/data/`). Миграция обнуляет `global_daily_content.llm_model` и удаляет `scenario_cache` для `morning_recommendation` → форсирует регенерацию под v6. Откат: реактивировать v5 (сохранена в БД).
 

@@ -33,6 +33,12 @@ code_refs: []
 
 ## `assistant`
 
+- **Matrix-filtered day_target_chakra отключён (2026-07-12)**  
+**Контекст:** `chooseTargetChakra` раньше мог брать 2–3-ю планету top-3, если 1-я «переразвита» в `daily_matrices` (`matrix_filtered_by_strength`). Home «Рекомендации на день» всегда говорили про сильнейшую планету (напр. Moon → 1-я чакра), а диалог писал «вторая чакра».  
+**Проявление:** расхождение Home vs planning FINAL.  
+**Сейчас:** day target = astro primary (top-1); stale `day_target_chakra` в `user_daily_forecasts` перезаписывается при расхождении.  
+**Действие (продукт):** решить, нужен ли снова matrix-filter как отдельный режим, или primary навсегда.
+
 - **Locale-aware baseline применён только для новых life spheres, не для chakra states**  
 **Контекст:** HARMONIZER v2 добавил `_legacy_web/data/life_spheres_baseline/{ru,en}.json` и loader `lifeSpheresBaseline.ts`, но существующий `_legacy_web/data/chakra_states_baseline.json` остаётся единым файлом без locale-dispatch.  
 **Проявление:** новый prompt v5 уже может быть локализован по сферам жизни, тогда как chakra-state baseline по-прежнему монолитный и не следует новому паттерну.  

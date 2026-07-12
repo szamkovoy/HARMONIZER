@@ -113,6 +113,19 @@ export function assistantOfferedPractice(text: string): boolean {
   return /\?/.test(normalized) || /(?:хотите|хочешь|предлож|offer|would you like|want me to)/i.test(normalized);
 }
 
+/**
+ * After an empty-plan close the model often offers practice without a numbered
+ * wrap-up list. That must still lock planning so the next user reply (type +
+ * duration) is coerced into the practice branch — otherwise meditation/breath
+ * requests stay on planning and the model improvises a text practice.
+ */
+export function assistantAcknowledgedEmptyPlanAndOfferedPractice(text: string): boolean {
+  if (!assistantOfferedPractice(text)) return false;
+  return /(?:без\s+плана|без\s+планов|ничего\s+(?:не\s+)?планир|планов\s+нет|no\s+plans?|without\s+a?\s*plan|nothing\s+to\s+plan|ohne\s+plan|sans\s+plan|senza\s+pian|sin\s+plan|sem\s+plano|zonder\s+plan)/i.test(
+    text,
+  );
+}
+
 export function isPracticeLikePlannedEventDesc(desc: string): boolean {
   const normalized = desc.trim().toLowerCase();
   if (!normalized) return false;
@@ -243,7 +256,9 @@ export function coerceFsmBeforeTurn(params: {
     // question, which would falsely lock planning and skip the whole planning branch
     // when the user's first planning reply merely contains a word like "потом".
     const planningLocked =
-      fsm.planningFinalized || assistantFinalizeWithoutMarkers(history);
+      fsm.planningFinalized
+      || assistantFinalizeWithoutMarkers(history)
+      || assistantAcknowledgedEmptyPlanAndOfferedPractice(lastAssistantText(history));
     const answeringPracticeOffer =
       planningLocked && (userAffirmsPracticeOffer(userMessage, history) || userDeclinesPracticeOffer(userMessage));
     if (answeringPracticeOffer) {
@@ -309,10 +324,11 @@ export function inferPlanningSpheresFromText(text: string): PlannedEventMarker["
   const t = text.toLowerCase();
   const has = (re: RegExp) => re.test(t);
   const scored: number[] = [];
-  if (has(/(дом|дач|убор|убра|порядок|крыш|краси|ремонт|кос(и|я)|трав|колодец|безопас|здоров|сон|спать|выспат|лечь|тел[оа]|home|chore|clean|repair|garden|sleep)/)) scored.push(1);
+  if (has(/(дом|дач|убор|убра|порядок|крыш|краси|ремонт|кос(и|я)|трав|колодец|безопас|здоров|сон|спать|выспат|лечь|тел(?:о|а|у|ом|е)|home|chore|clean|repair|garden|sleep)/)) scored.push(1);
   if (has(/(отдых|релакс|расслаб|прогул|погул|велосипед|катан|купан|плав|озер|море|пляж|природ|кафе|перекус|вкус|ужин|обед|удовольств|бан[яи]|саун|rest|relax|walk|swim|bike|beach|nature|cafe|lunch|dinner)/)) scored.push(2);
   if (has(/(работ|задач|проект|деньг|бизнес|результат|дедлайн|клиент|совещ|заработ|карьер|work|task|project|money|deadline|client|meeting)/)) scored.push(3);
-  if (has(/(друз|семь|близк|родител|жена|муж[ае]|свидан|отношени|помир|родн|friend|family|relationship|date\b)/)) scored.push(4);
+  // Family/relationships — match родные/родной/… but NOT родник (substring false positive).
+  if (has(/(друз|семь|близк|родител|жена|муж[ае]|свидан|отношени|помир|родственн|родн(?:ы[ейхм]|ая|ое|ой|ый)|friend|family|relationship|date\b)/)) scored.push(4);
   if (has(/(творч|рисов|музык|стих|песн|самовыраж|искусств|creativ|paint|music|poem|art)/)) scored.push(5);
   if (has(/(учеб|обуч|изуч|познан|курс|лекц|разобрат|исследов|study|learn|course|research)/)) scored.push(6);
   if (has(/(вер[ауы]|молит|духов|медита|смысл\s+жизни|призван|сакрал|паломн|faith|pray|spiritual|medita|sacred|pilgrim)/)) scored.push(7);

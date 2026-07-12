@@ -14,7 +14,6 @@ import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
-import { scheduleAssistantOverlayDismiss } from "@/modules/practices/ui/assistantPracticeOverlayDismiss";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -24,7 +23,7 @@ import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { postDevDayContentReset, type DevDayContentResetScope } from "@/services/devDayContentResetClient";
 import type { DayHealthContext } from "@/services/dayHealthContext";
-import { startSummarizingHealthCollection } from "@/services/summarizingHealthContext";
+import { buildSummarizingHealthSnapshot } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
 import { storePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
@@ -287,10 +286,6 @@ function FreeTierBanner({ text }: { text: string }) {
   );
 }
 
-function dismissAssistantPracticeOverlay(onPracticeStarted: () => void) {
-  scheduleAssistantOverlayDismiss(onPracticeStarted);
-}
-
 function CommunicatorOverlay({
   forecast,
   accessMode,
@@ -298,6 +293,7 @@ function CommunicatorOverlay({
   dayHealthContext,
   dayPractices,
   workingLocalDate,
+  timeZone,
   visible,
   dismissAnimation,
   onDismiss,
@@ -311,6 +307,7 @@ function CommunicatorOverlay({
   dayHealthContext: DayHealthContext | null;
   dayPractices: DayPlan["sections"][number]["practices"];
   workingLocalDate: string | null;
+  timeZone: string | null;
   visible: boolean;
   dismissAnimation: "slide" | "none";
   onDismiss: () => void;
@@ -365,6 +362,7 @@ function CommunicatorOverlay({
           dayPractices,
           ...(workingLocalDate ? { workingLocalDate } : {}),
           ...(dayHealthContext ? { dayHealthContext } : {}),
+          ...(timeZone ? { timeZone } : {}),
         }}
         memoryWindow={24}
         onPracticeOffered={async (practice) => {
@@ -383,7 +381,7 @@ function CommunicatorOverlay({
         }}
         onPracticeLaunchStart={() => setPracticeHandoff(true)}
         onPracticeLaunchAbort={() => setPracticeHandoff(false)}
-        onPracticePicked={() => dismissAssistantPracticeOverlay(finishPracticeLaunch)}
+        onPracticePicked={finishPracticeLaunch}
         onRequestClose={onClose}
       />
     </AssistantModalShell>
@@ -441,6 +439,7 @@ export default function HomeScreen() {
   const [homeDayHealthContext, setHomeDayHealthContext] = useState<DayHealthContext | null>(null);
   const [homeDayPractices, setHomeDayPractices] = useState<DayPlan["sections"][number]["practices"]>([]);
   const [homeWorkingLocalDate, setHomeWorkingLocalDate] = useState<string | null>(null);
+  const [homeDayTimeZone, setHomeDayTimeZone] = useState<string | null>(null);
   const [natalBridgeOpen, setNatalBridgeOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
   const [devDayResetBusy, setDevDayResetBusy] = useState(false);
@@ -595,21 +594,16 @@ export default function HomeScreen() {
             })),
           );
           setHomeDayPractices(practices);
-          // Communicator owns live health collection via workingLocalDate; keep an
-          // initial snapshot so the first POST is not empty while native loads.
-          const healthCollection = startSummarizingHealthCollection({
-            localDate: summaryTargetLocalDate,
-            practices,
-          });
-          setHomeDayHealthContext(healthCollection.getSnapshot());
-          void healthCollection.whenReady().then(setHomeDayHealthContext).catch((healthError) => {
-            console.warn("[Home] Failed to collect health context in background", healthError);
-          });
+          // Yoga-only signal: Communicator starts the single Apple/Google Health
+          // collection at summarizing open (do not double-query from Home).
+          setHomeDayHealthContext(buildSummarizingHealthSnapshot(summaryTargetLocalDate, practices));
           setHomeWorkingLocalDate(summaryTargetLocalDate);
+          setHomeDayTimeZone(dayPlan.timezone);
         } else {
           setHomeDayPractices([]);
           setHomeDayHealthContext(null);
           setHomeWorkingLocalDate(null);
+          setHomeDayTimeZone(null);
         }
       }
       setAssistantRemountKey((k) => k + 1);
@@ -621,6 +615,7 @@ export default function HomeScreen() {
       setHomeDayPractices([]);
       setHomeDayHealthContext(null);
       setHomeWorkingLocalDate(null);
+      setHomeDayTimeZone(null);
       setAssistantRemountKey((k) => k + 1);
       setCommunicatorDismissAnimation("slide");
       setCommunicatorMounted(true);
@@ -774,6 +769,7 @@ export default function HomeScreen() {
           dayHealthContext={homeDayHealthContext}
           dayPractices={homeDayPractices}
           workingLocalDate={homeWorkingLocalDate}
+          timeZone={homeDayTimeZone}
           remountKey={assistantRemountKey}
           visible={communicatorVisible}
           dismissAnimation={communicatorDismissAnimation}
@@ -785,6 +781,7 @@ export default function HomeScreen() {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setHomeWorkingLocalDate(null);
+            setHomeDayTimeZone(null);
             setCommunicatorDismissAnimation("none");
             setCommunicatorVisible(false);
             void loadDayPlan()
@@ -797,6 +794,7 @@ export default function HomeScreen() {
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setHomeWorkingLocalDate(null);
+            setHomeDayTimeZone(null);
             // Navigate to Day FIRST so dismissing the modal reveals the Day tab
             // (not a flash of Home), and do NOT block navigation on the network
             // reload. Day content was pre-warmed via onMessage during the planning

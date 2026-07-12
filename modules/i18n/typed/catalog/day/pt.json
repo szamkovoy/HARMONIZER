@@ -1,5 +1,8 @@
 {
   "actionRecommendationFallback": "A recomendação aparecerá após atualizar o assistente para esta ação.",
+  "actionsHelpBody": "Aprendam a ver os acontecimentos da vossa vida como motivo de harmonização, desenvolvimento, limpeza, cura e aprendizagem… Deste ponto de vista, cada ação é uma prática comportamental. Tal como vão ao ginásio para carregar e fortalecer o corpo, o espaço dos acontecimentos da vossa vida é um ginásio para a psique (e a alma). Não pensem que a espiritualidade é um afastamento da vida. Pelo contrário, vejam o sentido das vossas ações mais profundamente do que no plano das ações em si. Isso distingue o ser humano de um bio-robô.\n\nNesta janela estão listados os eventos que planeiam para o dia. Toquem num evento para ver recomendações que transformam ações habituais numa psico-prática na onda dos estados do arquétipo mais presente hoje. Por vezes as recomendações podem parecer inconvenientes ou pouco eficazes. Mas sabem que no ginásio não deve ser fácil. Seguindo-as, saem de estereótipos habituais sentindo o apoio dos ritmos planetários. E nos relatórios poderão ver como a matriz dos vossos estados se alarga gradualmente.",
+  "actionsHelpButtonAccessibilityLabel": "Explicação do bloco de psico-práticas",
+  "actionsHelpModalTitle": "Práticas comportamentais",
   "actionsTitle": "Práticas Psicológicas",
   "addButton": "Adicionar ação",
   "asanasLabel": "Ásanas",
@@ -35,5 +38,8 @@
   "summarizeDayButton": "Resumir este dia",
   "whatToDoButton": "O que fazer?",
   "yesterdayPrefix": "Ontem",
+  "yogaHelpBody": "Por vezes as práticas comportamentais podem parecer demasiado difíceis e surge resistência — preguiça, sabotagem interna, autoengano, vontade de desistir… É aqui que as práticas de ioga ajudam. Nelas passamos à linguagem dos chakras, mais simples e informativa para os nossos fins do que a da medicina. Então para quê complicar? Num dia podem aprender a linguagem dos chakras (os meus cursos ou a internet ajudam), e então as nuances da psicossomática, o funcionamento do vosso sistema hormonal, etc., ficam mais claros. Começam a perceber com mais fineza emoções e sinais do corpo e a interpretá-los bem. Então as práticas de ioga ganham novo sentido, complementando logicamente as práticas comportamentais. Esse é o caminho mais curto para a saúde e a felicidade.",
+  "yogaHelpButtonAccessibilityLabel": "Explicação do bloco de práticas de ioga",
+  "yogaHelpModalTitle": "Para que servem as práticas de ioga",
   "yogaTitle": "Práticas de Yoga"
 }

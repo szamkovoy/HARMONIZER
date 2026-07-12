@@ -249,7 +249,8 @@ function identityStem(token: string): string {
   if (/^(?:ingle|english|angl|englisch|anglais|espanol|espagnol|francais|franz)/.test(normalized)) return "lang_study";
   if (/^(?:bicicl|bici|cicl|bike|cycl|radfahr|velo)/.test(normalized)) return "bike";
   if (/^(?:parco|park)/.test(normalized)) return "park";
-  if (/^(?:tort|cake|dolce|dessert)/.test(normalized)) return "treat";
+  if (/^(?:tort|cake|dolce|dessert|кекс|торт|пирож)/.test(normalized)) return "treat";
+  if (/^(?:съест|поест|поем|едим|есть|куша)/.test(normalized)) return "eat_food";
   if (/^(?:встреч|встрет)/.test(normalized)) return "встреч";
   if (/^(?:клиент)/.test(normalized)) return "клиент";
   if (/^(?:позавтрак|завтрак)/.test(normalized)) return "завтрак";

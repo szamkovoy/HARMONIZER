@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.62
-updated: 2026-07-06
+version: 1.63
+updated: 2026-07-11
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,12 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-12 (2):** Breath recent-stack was a no-op on chakra-2 days: catalog maps only `chandra-bhedana` to chakra 2, hard filter left one candidate, exclusion fell back to the same pick. `selectPracticeCandidate` now widens the breath pool when chakra matches &lt; 2 and soft-prefers the day chakra in ranking.
+
+- **2026-07-12:** Launch/exit UX: Communicator handoff no longer double-schedules overlay dismiss; breath results close with `router.replace("/day")` for `launchSource` `assistant|day`. Day pending flash after practice: `recordPracticeSession` marks Day plan stale and clears cache/prefetch.
+
+- **2026-07-11 (2):** QA: дыхание «без пульсометра» всё ещё монтировало `FingerPpgCameraSource` (фонарик + ложный finger confidence) и показывало метрики на results; pending-карточка на «День» не закрывалась после completed session из‑за `GET /api/day` условия `started_at >= offer.created_at` (re-save offer bump'ает `created_at`). Fixes: `disableOpticalHardware` не монтирует камеру; results — «Отличная практика!» + рекомендация phone/BLE (`noSensorGreatPracticeTitle` / `noSensorResultsRecommendation`); auto-complete offer по `practice_slug` в тот же локальный день без сравнения timestamps.
 
 - **2026-07-06 (34):** Доработка TV Remote по полевому фидбеку (3 нюанса) — завершение прерванной работы после сбоя модели. (1) **Закрытие вкладки / потеря ТВ** — `wordpress-snippet.html`: `beforeunload`/`pagehide` теперь PATCHит `status="stopped"` (не `"closed"`), pairing сохраняется; `sessionStorage` (`hrp_session_id`) восстанавливает ту же `tv_sessions` строку при reload в том же браузере → тот же код, телефон остаётся paired. На телефоне: `status="stopped"` → «Запустить заново» + подсказка `tvStoppedHint` + «Подключить ТВ заново» (без confirm); `session=null` (unlink/expired) → панель «Связь с ТВ потеряна». `linkDevice` закрывает прочие active-сессии пользователя (`status="closed"`) перед привязкой нового кода — убирает stale pairing при fresh `/tv/` tab. (2) **Засчитывание в отчётах** — порог `elapsedSec >= durationSec - 10` (`COMPLETION_TAIL_SEC`); `maybeRecordTvSession` идемпотентна (`recordedRef`), вызывается из confirmFinish, при `status→stopped` (tab close near end), и при connection loss; ранняя остановка не пишется. (3) **«Отключить ТВ» через confirm** — `pendingAction`: `"stop"` (✕/Стоп → stop + record? + back, TV paired) vs `"disconnect"` (→ stop + record? + disconnect + `/connect-tv`). `spec.md` (v1.38), `dependencies.md`, `docs/remote-play/README.md`, `CHANGELOG.md`. tsc + vitest чисты. **Напоминание:** обновить WordPress Custom HTML на `https://zamkovoi.yoga/tv/`.
 

@@ -153,10 +153,14 @@ function findMarkerEnd(text: string, startIndex: number): number {
 
 function parseMarkers(text: string): ParsedMarker[] {
   const markers: ParsedMarker[] = [];
-  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
+  // SIMULATE_EVENT is a known LLM typo/alias for SUMMARIZE_EVENT — parse + strip it the same way.
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
-    const name = match[1]?.toUpperCase() as ParsedMarker["name"] | undefined;
+    const rawName = match[1]?.toUpperCase();
+    const name = (
+      rawName === "SIMULATE_EVENT" ? "SUMMARIZE_EVENT" : rawName
+    ) as ParsedMarker["name"] | undefined;
     if (!name) continue;
     const bodyStart = match.index + match[0].length;
     const bodyEnd = findMarkerEnd(text, bodyStart);
@@ -1032,6 +1036,8 @@ export function stripDialogScaffoldMarkdown(text: string): string {
 
 export function sanitizeAssistantText(text: string, locale?: string | null): string {
   let cleaned = stripReadyMarker(stripResponseMarkers(text));
+  // Defense: strip any remaining internal EVENT markers (incl. model typos like SIMULATE_EVENT).
+  cleaned = cleaned.replace(/\[[A-Z_]*(?:EVENT|PROPOSAL|PICK|CELLS|RECOMMENDATION):[^\]]*\]/gi, "");
 
   if ((locale ?? "").trim().toLowerCase().startsWith("ru") && /[А-Яа-яЁё]/.test(cleaned)) {
     cleaned = cleaned

@@ -88,6 +88,10 @@ export interface CoherenceBreathStrings {
   startWithoutSensorButton: string;
   /** Пояснение на экране результатов, когда пульс был эмулирован. */
   emulatedPulseResultsNote: string;
+  /** Крупный заголовок результатов, когда практика шла без пульсометра. */
+  noSensorGreatPracticeTitle: string;
+  /** Рекомендация на экране результатов без пульсометра (телефон или BLE в следующий раз). */
+  noSensorResultsRecommendation: string;
   /** Камера телефона ведёт практику только по пульсу. */
   cameraGuidanceOnlyResultsNote: string;
   /** Finger-сигнал годится для пульса и HRV, но не для coherence/RSA. */
@@ -277,6 +281,9 @@ const ru: CoherenceBreathStrings = {
   startWithoutSensorButton: "Начать без пульсометра",
   emulatedPulseResultsNote:
     "Пульс эмулировался (датчик не использовался) — метрики HRV, стресса, когерентности и RSA не рассчитываются.",
+  noSensorGreatPracticeTitle: "Отличная практика!",
+  noSensorResultsRecommendation:
+    "В следующий раз рекомендую вам выполнить практику, выбрав в её настройках телефон в качестве пульсометра или подключив Bluetooth пульсометр. Благодаря этому ритм и скорость дыхания будут регулироваться биологической обратной связью от вашего тела, практика будет значительно глубже и приведёт к лучшим результатам.",
   cameraGuidanceOnlyResultsNote:
     "Практика выполнена по пульсу с камеры телефона. Для камеры расширенные метрики HRV, когерентности и RSA отключены; чтобы получить их, используйте совместимый Bluetooth-пульсометр.",
   guidedLimitedResultsNote:
@@ -454,6 +461,9 @@ const en: CoherenceBreathStrings = {
   startWithoutSensorButton: "Start without pulse sensor",
   emulatedPulseResultsNote:
     "Pulse was emulated (no sensor used) — HRV, stress, coherence, and RSA are not computed.",
+  noSensorGreatPracticeTitle: "Great practice!",
+  noSensorResultsRecommendation:
+    "Next time I recommend running the practice with the phone as the pulse sensor in its settings, or connecting a Bluetooth heart-rate monitor. Then breathing rhythm and pace will follow biofeedback from your body — the practice will go much deeper and bring better results.",
   cameraGuidanceOnlyResultsNote:
     "This practice used the phone camera for pulse guidance only. Advanced HRV, coherence, and RSA metrics are disabled for camera mode; use a compatible Bluetooth heart-rate sensor to get them.",
   guidedLimitedResultsNote:

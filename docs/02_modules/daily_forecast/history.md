@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.22
-updated: 2026-07-10
+version: 2.23
+updated: 2026-07-12
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,12 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-12 (3):** Day tab — help «?» on «Психо-практики» and «Йога-практики» (`SurfaceCardTitleRow` + `SurfaceHelpModal`), copy in `getDayStrings` (RU/EN + de–nl overlays).
+
+- **2026-07-12 (2):** Day tab cold start: do not paint SecureStore on focus — spinner until `/api/day`; persisted cache only as network-failure fallback. Fixes 1–2s flash of previous-day content after app restart.
+
+- **2026-07-12:** Day tab stale flash: on focus, drop in-memory/prefetch plan when `!isDayPlanCurrent` or after `markDayPlanStale()` (set by `recordPracticeSession`); do not paint wrong-date prefetch.
 
 - **2026-07-10 (SurfaceHelpModal):** Типовая centered help-модалка для «?» на surface-card — `SurfaceHelpModal` + `ModalHeaderCloseButton`; заголовок опущен на 3 px, крестик закрывает как «Закрыть». Первый потребитель — `OpportunityWindows`.
 

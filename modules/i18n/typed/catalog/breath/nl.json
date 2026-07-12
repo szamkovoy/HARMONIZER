@@ -32,6 +32,8 @@
   "hold": "VASTHOUDEN",
   "hybridEmulatedMidNote": "De onderstaande metingen zijn berekend op basis van twee vensters van echte PPG-metingen — aan het begin en aan het einde van de oefening. Het middengedeelte werd gebruikt voor vrij ademen en telt niet mee in de uiteindelijke analyse.",
   "inhale": "INADEMEN",
+  "noSensorGreatPracticeTitle": "Uitstekende oefening!",
+  "noSensorResultsRecommendation": "De volgende keer raad ik aan de oefening te doen met de telefoon als pulssensor in de instellingen, of met een Bluetooth-hartslagmeter. Dan worden ademritme en -tempo gestuurd door biofeedback van je lichaam — de oefening wordt veel dieper en levert betere resultaten op.",
   "opticalNoSamples": "Geen optical-samples in opname",
   "opticalSeriesCaption": "Optical (detrend, zoals in PPG-proef)",
   "opticalSimulatedNote": "Geen live optical in simulatiemodus.",

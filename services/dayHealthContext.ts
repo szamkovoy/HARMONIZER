@@ -1,5 +1,5 @@
 import type { DayPlan, DayPracticeLog } from "@/services/dayPlan";
-import { collectNativeHealthSignals } from "@/services/nativeHealth";
+import type { NativeHealthCollectionTrace } from "@/services/nativeHealth";
 import {
   buildSummarizingHealthSnapshot,
   startSummarizingHealthCollection,
@@ -34,6 +34,8 @@ export type DayHealthContext = {
     durationMinutes: DayHealthMetric;
     quality: "good" | "fragmented" | "short" | "long" | "unknown";
   };
+  /** Filled when native Apple/Google collection finishes — for dialog export QA. */
+  collectionTrace?: NativeHealthCollectionTrace | null;
 };
 
 function compare(value: number | null, average: number | null, toleranceRatio = 0.15): DayHealthMetricComparison {

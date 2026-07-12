@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { loadDayPlan, type DayPracticeLog } from "@/services/dayPlan";
 import {
+  preferRicherDayHealth,
   startSummarizingHealthCollection,
   startSummarizingHealthCollectionFromPlan,
   type SummarizingHealthCollection,
@@ -162,9 +163,11 @@ const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
 const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
 
-const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS):[^\]]*\]|\[\s*(?:PLAN_TOMORROW|PRACTICE_DECLINED)\s*\]/gi;
+const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):[^\]]*\]|\[\s*(?:PLAN_TOMORROW|PRACTICE_DECLINED)\s*\]/gi;
 const READY_MARKER_RE = /\[\s*ready_for_recommendation\s*\]/gi;
 const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
+/** Catch leftover internal EVENT markers (model typos / incomplete sanitize). */
+const LEFTOVER_INTERNAL_MARKER_RE = /\[[A-Z_]*(?:EVENT|PROPOSAL|PICK|CELLS|RECOMMENDATION):[^\]]*\]/gi;
 
 /**
  * Strip LLM-internal markers from partially-streamed text so the user
@@ -174,6 +177,7 @@ const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
 function stripStreamingMarkers(text: string): string {
   return stripInternalDialogMarkers(text
     .replace(MARKER_RE, "")
+    .replace(LEFTOVER_INTERNAL_MARKER_RE, "")
     .replace(READY_MARKER_RE, "")
     .replace(TRAILING_OPEN_MARKER_RE, "")
     .replace(/[ \t]+\n/g, "\n")
@@ -181,12 +185,11 @@ function stripStreamingMarkers(text: string): string {
 }
 
 /**
- * Итоговый текст: `complete.fullText` приходит уже sanitized (без маркеров),
- * поэтому он авторитетнее агрегата SSE-чанков (raw, содержит маркеры).
- * Используем SSE-агрегат только если `complete.fullText` пуст.
+ * Итоговый текст: `complete.fullText` обычно уже sanitized, но всё равно
+ * прогоняем marker-strip (защита от SIMULATE_EVENT / пропущенных маркеров).
  */
 function resolveAssistantReplyText(streamed: string, completeFullText: string | undefined): string {
-  const fin = stripDialogScaffoldMarkdown((completeFullText ?? "").trim());
+  const fin = stripDialogScaffoldMarkdown(stripStreamingMarkers((completeFullText ?? "").trim()));
   if (fin) return fin;
   return stripDialogScaffoldMarkdown(stripStreamingMarkers((streamed ?? "").trim()));
 }
@@ -231,6 +234,7 @@ function normalizeMessageMeta(raw: any): CommunicatorHistoryMessage["meta"] {
     matrixCells: raw.matrixCells ?? raw.matrix_cells,
     skippedPlannedEvents: raw.skippedPlannedEvents ?? raw.skipped_planned_events,
     planningPersistence: raw.planningPersistence ?? raw.planning_persistence,
+    healthDebug: raw.healthDebug ?? raw.health_debug,
     debug: raw.debug,
   };
 }
@@ -649,8 +653,13 @@ export function Communicator({
     const meta = triggerMeta ?? {};
     const localDate = typeof meta.workingLocalDate === "string" ? meta.workingLocalDate : null;
     const practices = Array.isArray(meta.dayPractices) ? (meta.dayPractices as DayPracticeLog[]) : [];
+    const timeZone = typeof meta.timeZone === "string" ? meta.timeZone : null;
     if (localDate) {
-      summarizingHealthCollectionRef.current = startSummarizingHealthCollection({ localDate, practices });
+      summarizingHealthCollectionRef.current = startSummarizingHealthCollection({
+        localDate,
+        practices,
+        timeZone,
+      });
       return;
     }
     void loadDayPlan()
@@ -662,31 +671,56 @@ export function Communicator({
       });
   }, [triggerMeta]);
 
-  const buildRequestTriggerMeta = useCallback((): Record<string, unknown> => {
+  const buildRequestTriggerMeta = useCallback(async (): Promise<Record<string, unknown>> => {
     const base: Record<string, unknown> = {
       systemPrompt,
       ...(triggerMeta ?? {}),
     };
     const parentHealth = (triggerMeta?.dayHealthContext ?? null) as DayHealthContext | null;
-    const liveHealth = summarizingHealthCollectionRef.current?.getSnapshot() ?? parentHealth;
-    if (liveHealth) {
-      base.dayHealthContext = liveHealth;
+    const collection = summarizingHealthCollectionRef.current;
+    // Never await Health on POST: collection starts at summarizing open and fills
+    // the snapshot in the background. FINAL uses whatever is already ready.
+    const snapshot = collection
+      ? preferRicherDayHealth(collection.getSnapshot(), parentHealth)
+      : parentHealth;
+
+    if (snapshot) {
+      base.dayHealthContext = snapshot;
+      if (__DEV__) {
+        console.log("[Communicator] dayHealthContext for POST", {
+          localDate: snapshot.localDate,
+          provider: snapshot.provider,
+          providerStatus: snapshot.providerStatus,
+          steps: snapshot.activity?.steps?.value ?? null,
+          sleepMinutes: snapshot.sleep?.durationMinutes?.value ?? null,
+          yogaMinutes: snapshot.yoga?.totalMinutes ?? null,
+          yogaCount: snapshot.yoga?.practiceCount ?? null,
+          collectionStartedAt: snapshot.collectionTrace?.startedAt ?? null,
+          collectionFinishedAt: snapshot.collectionTrace?.finishedAt ?? null,
+          collectionDurationMs: snapshot.collectionTrace?.durationMs ?? null,
+        });
+      }
     }
     return base;
   }, [systemPrompt, triggerMeta]);
 
-  useEffect(() => {
+  // Start Apple/Google Health at the beginning of summarizing — before initiate
+  // POST (layout effect runs before paint / before the 120ms initiate timer).
+  useLayoutEffect(() => {
     if (useCase !== "daily_dialog") return;
-    // Day-tab summary sets daySummaryRequested; Home «Что делать?» with overdue
-    // events only passes workingLocalDate + dayPractices — bootstrap must run for both.
-    if (
-      triggerMeta?.daySummaryRequested === true
-      || typeof triggerMeta?.workingLocalDate === "string"
-      || Array.isArray(triggerMeta?.dayPractices)
-    ) {
+    const summaryRequested = triggerMeta?.daySummaryRequested === true;
+    // Parent yoga snapshot (or prior health) signals summarizing is intended —
+    // Home overdue and Day summary pass this without starting a second native query.
+    const parentStartedHealth = triggerMeta?.dayHealthContext != null;
+    if (summaryRequested || parentStartedHealth) {
       bootstrapSummarizingHealth();
     }
-  }, [bootstrapSummarizingHealth, triggerMeta?.dayPractices, triggerMeta?.daySummaryRequested, triggerMeta?.workingLocalDate, useCase]);
+  }, [
+    bootstrapSummarizingHealth,
+    triggerMeta?.dayHealthContext,
+    triggerMeta?.daySummaryRequested,
+    useCase,
+  ]);
   const [txtDraft, setTxtDraft] = useState("");
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
@@ -1373,6 +1407,7 @@ export function Communicator({
           relatedEventIds: hydratedComplete?.relatedEventIds,
           skippedPlannedEvents: hydratedComplete?.skippedPlannedEvents,
           matrixCells: hydratedComplete?.matrixCells,
+          healthDebug: hydratedComplete?.healthDebug,
           debug: mergedDebug,
         },
       };
@@ -1455,7 +1490,7 @@ export function Communicator({
           conversationId: activeConversationId,
           useCase,
           entrySource,
-          triggerMeta: buildRequestTriggerMeta(),
+          triggerMeta: await buildRequestTriggerMeta(),
           userMessage: userMessageText,
           userTimezone: timezone,
           responseLocale: localeOverride?.responseLocale ?? responseLocale,
@@ -1765,7 +1800,7 @@ export function Communicator({
         conversationId: activeConversationId,
         useCase,
         entrySource,
-        triggerMeta: buildRequestTriggerMeta(),
+        triggerMeta: await buildRequestTriggerMeta(),
         userMessage: "__initiate__",
         userTimezone: timezone,
         responseLocale,
@@ -2223,6 +2258,10 @@ export function Communicator({
       void (async () => {
         const picked = summaryToPractice(practice, configured);
         onPracticeLaunchStart?.();
+        // Let the handoff cover paint before pushing the practice route.
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve());
+        });
         const launched = launchPractice(configured.launch, { launchSource: "assistant" });
         if (!launched) {
           onPracticeLaunchAbort?.();
@@ -2547,6 +2586,13 @@ export function Communicator({
               ? normalizedMeta.skippedPlannedEvents
               : null,
           planning_persistence: planningPersistence,
+          health_debug:
+            (rawMeta?.health_debug && typeof rawMeta.health_debug === "object"
+              ? rawMeta.health_debug
+              : null)
+            ?? (normalizedMeta?.healthDebug && typeof normalizedMeta.healthDebug === "object"
+              ? normalizedMeta.healthDebug
+              : null),
           recommendation_corrected:
             normalizedMeta?.recommendationCorrected && typeof normalizedMeta.recommendationCorrected === "object"
               ? normalizedMeta.recommendationCorrected

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.44
-updated: 2026-07-04
+version: 2.48
+updated: 2026-07-12
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,26 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-12 (8):** QA `текст-4C05…`: (1) Apple Health — never skip `requestAuthorization` before query (SecureStore backoff caused instant Nitro `Unknown std::runtime_error`); add auth/canary notes to `collectionTrace`. (2) Summarizing «2nd chakra» was loaded from past day's stale `matrix_filtered_by_strength` forecast — refresh to astro primary when summarizing. (3) Day sphere 4 for «родник» — keyword `родн` matched `родник`; fixed to family word-forms + родник→sphere 1.
+
+- **2026-07-12 (7):** QA `текст-446C…` + Apple Health screenshot (11 Jul = 2665 steps): model said «около 8200» while `health_debug.steps=null` — hallucinated from prompt example + yoga-only Health context without no-invent guard. Fix: yoga-only forbids inventing steps; remove «8200» example; strip invented native-health sentences on FINAL; Apple queries use samples-first + client date filter + sequential (parallel Nitro threw `Unknown std::runtime_error`).
+
+- **2026-07-12 (6):** QA `текст-42BE…`: Health **вызывался** (`apple_health`/`available`), но метрики пустые; soft-wait 5s на POST убран. Единый owner: Communicator стартует native collection в `useLayoutEffect` при открытии summarizing; Home/Day передают только yoga-snapshot. `health_debug.collectionTrace` (timing + per-query raw) в export; Apple/Google retry device-local day если TZ-range пустой.
+
+- **2026-07-12 (5):** Summarizing Health soft-waits up to 5s for native metrics (no multi-minute hang); POST/export carry `health_debug` (providerStatus, steps, sleep, promptChars). Home overdue still passes `timeZone`.
+
+- **2026-07-12 (4):** QA `текст-4C7D…`: mid-summarizing spinner hung ~2–3 min because POST `await whenReady()` blocked on HealthKit sleep (`limit:0`). Restored non-blocking `getSnapshot()` + `preferRicherDayHealth`; capped sleep samples at 200; Home overdue passes `timeZone`. SecureStore >2048 WARN is cache noise (already chunked), not the pause.
+
+- **2026-07-12 (3):** Health preload scoped back to summarizing only: bootstrap on `daySummaryRequested` / parent `dayHealthContext` / first `summarizing` branch — not on bare `workingLocalDate` (Day planning). `await whenReady()` only while summarizing is active, so planning «Что делать?» no longer blocks initiate on HealthKit (empty Communicator).
+
+- **2026-07-12 (2):** Communicator awaits summarizing Health `whenReady()` before every dialog POST (fixes intermittent empty Health on fast FINAL). Day tab no longer paints persisted cache on focus after app restart.
+
+- **2026-07-12:** Practice launch from Communicator: removed double `scheduleAssistantOverlayDismiss` in Day/Home parents (was forcing 2.5s timeout flash of underlying tab); min handoff delay 1s; `rAF` before `launchPractice` so handoff cover paints; breath `returnToPracticeOrigin` → `/day` for `assistant|day` (like meditation). Day tab: `isDayPlanCurrent` + `markDayPlanStale` on practice record so previous-day / pending-card cache does not paint for ~2s.
+
+- **2026-07-11 (2):** Regression fix: `nativeHealth` again queries Apple Health after the soft permission/backoff path (skipping the query hid real steps when SecureStore `allowed=false` was stale). Zeros still treated as missing; `formatHealthForPrompt` still omits non-positive metrics. Day-offer completion fix lives in `assistant` (`GET /api/day`).
+
+- **2026-07-11:** Summary Health: `services/nativeHealth.ts` no longer queries Apple Health while permission is denied/backoff (empty aggregates were surfacing as `0` and reaching summarizing FINAL). Aggregate zeros for steps/calories/workout/sleep are treated as missing on both Apple HealthKit and Google Health Connect; server `formatHealthForPrompt` likewise omits non-positive metrics.
 
 - **2026-07-04:** Practice-interpretation prompt: drop subjective mood, restrict to positive/neutral seriesInsights, forbid "new technique" framing. `_legacy_web/app/api/communicator/v2/practice-interpretation/route.ts` `buildPrompt` no longer takes `subjectiveMood` and the "Subjective feeling after practice" line is removed (the client `services/breathPracticeInterpretation.ts` no longer sends `subjectiveMood`; the mood-picker screen was removed from the breath results flow — see practices history 2026-07-04 (16)). The prompt now instructs the model to use ONLY metrics present in `seriesInsights` and to NOT mention or read metrics absent from `seriesInsights` elsewhere in the payload (the client now omits worsened metrics from `seriesInsights`). Added an explicit prohibition: "NEVER claim or imply that the user is a beginner, that this is a new technique for them, or that they are first learning the practice" — the model had invented "не редкость при первых попытках освоить новую технику" from a falling RMSSD. Tone set for a woman 35–60, encouraging. Paired with practices history 2026-07-04 (16) and biofeedback history 2026-07-04 (18).
 
