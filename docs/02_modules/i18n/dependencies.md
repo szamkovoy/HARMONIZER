@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.12
-updated: 2026-07-10
+version: 1.13
+updated: 2026-07-13
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -44,7 +44,7 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called once in `AccessBridge`; seeds the store at startup. |
 | `bootstrap` (`AppStartupProvider`) | `useAppLocale()`, `t(locale, "startup.step.*")`, `t(locale, "startup.fallback")` | Splash footer copy follows the shared locale store; internal step ids map to catalog keys (`AUTH/foo` → `startup.step.AUTH_foo`). |
 | `practices` (`catalog.ts`, `PracticeCard`) | `useAppLocale()`, `getPracticeCatalogStrings`, `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` | Catalog UI strings + yoga jsonb title lookup for all 8 content locales. |
-| `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")`, `key={locale}` on `<Tabs>` | Tab labels via catalog; remount on locale change. |
+| `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")` | Tab labels via catalog; labels refresh on locale change without remounting `<Tabs>` (scroll/state preserved). |
 | `subscription` (`modules/access/ui/UpgradeDialog.tsx`) | `useTranslate()` — `tier.*`, `upgrade.*` | Tier/feature labels and body text via JSON catalog (not `TIER_LABELS`). |
 | `life-spheres` (`modules/life-spheres/labels.ts`) | `AppContentLocale`, `asContentLocale` | Client sphere titles for all 8 locales (`SPHERE_TITLES`). |
 | `profile` (`app/(tabs)/profile.tsx`) | `useAppLocale`, `useTranslate`, `APP_LOCALE_OPTIONS`, `setLocale` | Hosts the **language selector**; passes the shared locale into `getProfileReportStrings` and report cards. |

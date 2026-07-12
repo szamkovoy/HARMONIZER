@@ -2,12 +2,16 @@
 id: 02_modules/profile/history
 title: Profile History
 version: 1.18
-updated: 2026-06-24
+updated: 2026-07-13
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-13 (2):** Смена языка на профиле больше не прокручивает экран вверх: убран remount `<Tabs key={locale}>`.
+
+- **2026-07-13:** Выбор языка на профиле — комбо-бокс **`ComboBox`** (`modules/ui/ComboBox.tsx`), тот же элемент, что на карточке практики; сетка кнопок локалей убрана.
 
 - **2026-07-12 (4):** Practice stats polish: callout flush to selection line (left or right edge), default scrub on first bar, Y-labels aligned to bar track, gray callout fill.
 

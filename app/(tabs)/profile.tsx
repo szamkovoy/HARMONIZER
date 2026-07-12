@@ -13,6 +13,7 @@ import { fetchUnreadNotificationCount } from "@/modules/notifications";
 import { SupportModal } from "@/modules/support";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { ComboBox, ComboBoxDismissOverlay } from "@/modules/ui/ComboBox";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
 import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
@@ -86,6 +87,21 @@ export default function ProfileTabRoute() {
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [localeOpen, setLocaleOpen] = useState(false);
+
+  const localeOptions = useMemo(
+    () =>
+      APP_LOCALE_OPTIONS.map((option) => ({
+        value: option.code,
+        label: option.enabled
+          ? option.nativeLabel
+          : `${option.nativeLabel} (${t("profile.language.comingSoon")})`,
+        disabled: !option.enabled,
+      })),
+    [t],
+  );
+  const localeDisplayValue =
+    APP_LOCALE_OPTIONS.find((option) => option.code === locale)?.nativeLabel ?? locale;
 
   useFocusEffect(
     useCallback(() => {
@@ -98,6 +114,12 @@ export default function ProfileTabRoute() {
         cancelled = true;
       };
     }, [authUser?.id]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => setLocaleOpen(false);
+    }, []),
   );
 
   const openBirthEditor = useCallback(() => {
@@ -239,31 +261,34 @@ export default function ProfileTabRoute() {
           <AppButton label={t("support.openButton")} variant="secondary" onPress={() => setSupportOpen(true)} />
         </View>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+        <View
+          style={[
+            styles.card,
+            styles.localeCard,
+            { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder },
+          ]}
+        >
           <AppText variant="sectionTitle">{t("profile.language.title")}</AppText>
           <AppText variant="screenHint" tone="muted">
             {t("profile.language.hint")}
           </AppText>
-          <View style={styles.localeRow}>
-            {APP_LOCALE_OPTIONS.map((option) => {
-              const active = option.code === locale;
-              return (
-                <AppButton
-                  key={option.code}
-                  label={option.enabled ? option.nativeLabel : `${option.nativeLabel} (${t("profile.language.comingSoon")})`}
-                  variant={active ? "primary" : "secondary"}
-                  disabled={!option.enabled}
-                  onPress={() => handleSetLocale(option.code)}
-                  style={styles.localeButton}
-                />
-              );
-            })}
-          </View>
+          <ComboBox
+            variant="pill"
+            id="profile-locale"
+            label={t("profile.language.title")}
+            value={locale}
+            displayValue={localeDisplayValue}
+            options={localeOptions}
+            open={localeOpen}
+            onOpenChange={setLocaleOpen}
+            onChange={handleSetLocale}
+          />
           {testMode ? (
             <AppText variant="technicalCaption" tone="muted">
               {t("profile.language.testModeNote")}
             </AppText>
           ) : null}
+          <ComboBoxDismissOverlay active={localeOpen} onDismiss={() => setLocaleOpen(false)} />
         </View>
 
         {__DEV__ ? <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
@@ -398,6 +423,10 @@ const styles = StyleSheet.create({
     gap: SURFACE_CARD.gap,
     padding: SURFACE_CARD.padding,
   },
+  localeCard: {
+    overflow: "visible",
+    position: "relative",
+  },
   cardHeaderRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -412,14 +441,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-  },
-  localeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  localeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
   },
 });

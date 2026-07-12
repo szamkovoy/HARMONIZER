@@ -2,7 +2,7 @@
 id: 02_modules/i18n/history
 title: i18n History
 version: 1.12
-updated: 2026-07-12
+updated: 2026-07-13
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-13:** Убран `key={locale}` с `<Tabs>` в `app/(tabs)/_layout.tsx` — смена языка больше не remount-ит табы (скролл профиля у комбо-бокса языка сохраняется); подписи вкладок обновляются через `t("tabs.*")` на ререндере.
 
 - **2026-07-12:** Typed `day` module: help strings for Day-tab psycho/yoga blocks (`actionsHelp*` / `yogaHelp*`) in RU/EN + de–nl overlays.
 

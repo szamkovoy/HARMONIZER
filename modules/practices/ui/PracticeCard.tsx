@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
@@ -16,6 +16,7 @@ import { useRememberedWearableProbe } from "@/modules/biofeedback/wearables/useR
 import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { ComboBoxDismissOverlay, ComboBoxRow } from "@/modules/ui/ComboBox";
 import { useTheme } from "@/modules/ui/theme";
 import { fetchPracticeVimeoThumbnail } from "@/services/practice-thumbnails";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
@@ -338,95 +339,86 @@ export const PracticeCard = memo(function PracticeCard({
           </View>
         ) : (
           <View style={styles.options}>
-            <View style={styles.selectableMetaRow}>
-              <DropdownField
-                variant="pill"
-                label={strings.durationLabel}
-                value={`${selectedDurationMin} ${minSuffix}`}
-                open={openField === "duration"}
-                onToggle={() => setOpenField((field) => (field === "duration" ? null : "duration"))}
-                options={selectableDurations.map((minutes) => ({
-                  key: String(minutes),
-                  label: `${minutes} ${minSuffix}`,
-                  active: selectedDurationMin === minutes,
-                  onPress: () => {
+            <ComboBoxRow
+              variant="pill"
+              openId={openField}
+              onOpenIdChange={(id) => {
+                if (id === "duration" || id === "chakra" || id === "pulse" || id === null) {
+                  setOpenField(id);
+                }
+              }}
+              items={[
+                {
+                  id: "duration",
+                  label: strings.durationLabel,
+                  value: String(selectedDurationMin),
+                  displayValue: `${selectedDurationMin} ${minSuffix}`,
+                  options: selectableDurations.map((minutes) => ({
+                    value: String(minutes),
+                    label: `${minutes} ${minSuffix}`,
+                  })),
+                  onChange: (next) => {
                     durationTouchedRef.current = true;
-                    setSelectedDurationMin(minutes);
-                    setOpenField(null);
+                    setSelectedDurationMin(Number(next));
                   },
-                }))}
-              />
-              <DropdownField
-                variant="pill"
-                label={strings.chakraLabel}
-                value={chakraTagLabel(strings.locale, selectedChakra)}
-                open={openField === "chakra"}
-                onToggle={() => setOpenField((field) => (field === "chakra" ? null : "chakra"))}
-                options={CHAKRA_OPTIONS.map((chakra) => ({
-                  key: String(chakra),
-                  label: chakraTagLabel(strings.locale, chakra),
-                  active: selectedChakra === chakra,
-                  onPress: () => {
-                    setSelectedChakra(chakra);
-                    setOpenField(null);
+                },
+                {
+                  id: "chakra",
+                  label: strings.chakraLabel,
+                  value: String(selectedChakra),
+                  displayValue: chakraTagLabel(strings.locale, selectedChakra),
+                  options: CHAKRA_OPTIONS.map((chakra) => ({
+                    value: String(chakra),
+                    label: chakraTagLabel(strings.locale, chakra),
+                  })),
+                  onChange: (next) => {
+                    setSelectedChakra(Number(next));
                   },
-                }))}
-              />
-              {practice.kind === "breath" ? (
-                <DropdownField
-                  variant="pill"
-                  label={strings.pulseLabel}
-                  value={sensorDropdownValue}
-                  open={openField === "pulse"}
-                  onToggle={() => setOpenField((field) => (field === "pulse" ? null : "pulse"))}
-                  options={[
-                    {
-                      key: "pulse-camera",
-                      label: strings.sensorCameraOption,
-                      active: selectedSensorMode === "fingerCamera",
-                      onPress: () => {
-                        setSelectedSensorMode("fingerCamera");
-                        void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
-                        setOpenField(null);
-                      },
-                    },
-                    ...(rememberedWearableVisible && rememberedWearableName
-                      ? [
+                },
+                ...(practice.kind === "breath"
+                  ? [
+                      {
+                        id: "pulse",
+                        label: strings.pulseLabel,
+                        value: selectedSensorMode,
+                        displayValue: sensorDropdownValue,
+                        options: [
                           {
-                            key: "pulse-ble-saved",
-                            label: rememberedWearableName,
-                            active: selectedSensorMode === "ble",
-                            onPress: () => {
-                              setSelectedSensorMode("ble");
-                              void updateWearablePreferences({ preferredSensorMode: "ble" });
-                              setOpenField(null);
-                            },
+                            value: "fingerCamera",
+                            label: strings.sensorCameraOption,
                           },
-                        ]
-                      : []),
-                    {
-                      key: "pulse-ble-find",
-                      label: strings.findWearableButton,
-                      active: false,
-                      onPress: () => {
-                        setOpenField(null);
-                        openWearablePicker();
+                          ...(rememberedWearableVisible && rememberedWearableName
+                            ? [
+                                {
+                                  value: "ble",
+                                  label: rememberedWearableName,
+                                },
+                              ]
+                            : []),
+                          {
+                            value: "find-ble",
+                            label: strings.findWearableButton,
+                          },
+                          {
+                            value: "none",
+                            label: strings.sensorNoneOption,
+                          },
+                        ],
+                        onChange: (next: string) => {
+                          if (next === "find-ble") {
+                            openWearablePicker();
+                            return;
+                          }
+                          if (next === "fingerCamera" || next === "ble" || next === "none") {
+                            setSelectedSensorMode(next);
+                            void updateWearablePreferences({ preferredSensorMode: next });
+                          }
+                        },
                       },
-                    },
-                    {
-                      key: "pulse-off",
-                      label: strings.sensorNoneOption,
-                      active: selectedSensorMode === "none",
-                      onPress: () => {
-                        setSelectedSensorMode("none");
-                        void updateWearablePreferences({ preferredSensorMode: "none" });
-                        setOpenField(null);
-                      },
-                    },
-                  ]}
-                />
-              ) : null}
-            </View>
+                    ]
+                  : []),
+              ]}
+            />
           </View>
         )}
 
@@ -446,6 +438,7 @@ export const PracticeCard = memo(function PracticeCard({
             />
           ) : null}
         </View>
+        <ComboBoxDismissOverlay active={openField != null} onDismiss={() => setOpenField(null)} />
       </View>
 
       <WearablePickerDialog
@@ -470,18 +463,6 @@ export const PracticeCard = memo(function PracticeCard({
   );
 });
 
-/** Треугольник как в стандартных combobox; один размер для открытого и закрытого состояния. */
-function DropdownCaret({ open, color, compact }: { open: boolean; color: string; compact: boolean }) {
-  return (
-    <Text
-      allowFontScaling={false}
-      style={[compact ? styles.dropdownCaretPill : styles.dropdownCaretField, { color }]}
-    >
-      {open ? "\u25B2" : "\u25BC"}
-    </Text>
-  );
-}
-
 function MetaPill({ label }: { label: string }) {
   const theme = useTheme();
   return (
@@ -501,108 +482,14 @@ function MetaPill({ label }: { label: string }) {
   );
 }
 
-function DropdownField({
-  variant = "field",
-  label,
-  value,
-  open,
-  onToggle,
-  options,
-}: {
-  variant?: "field" | "pill";
-  label: string;
-  value: string;
-  open: boolean;
-  onToggle: () => void;
-  options: Array<{
-    key: string;
-    label: string;
-    active: boolean;
-    onPress: () => void;
-  }>;
-}) {
-  const theme = useTheme();
-  const pill = variant === "pill";
-  return (
-    <View style={pill ? styles.dropdownFieldPill : styles.dropdownField}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ expanded: open }}
-        onPress={onToggle}
-        style={({ pressed }) => [
-          pill ? styles.dropdownPillButton : styles.dropdownButton,
-          {
-            backgroundColor: theme.colors.controlButtonBg,
-            borderColor: open ? theme.colors.accent : theme.colors.surfaceBorder,
-            opacity: pressed ? 0.82 : 1,
-          },
-        ]}
-      >
-        {pill ? (
-          <View style={styles.dropdownPillValueRow}>
-            <AppText variant="technicalCaption" tone="muted" style={styles.dropdownPillValue} numberOfLines={1}>
-              {value}
-            </AppText>
-            <DropdownCaret open={open} color={theme.colors.textMuted} compact />
-          </View>
-        ) : (
-          <View style={styles.dropdownFieldRow}>
-            <View style={styles.dropdownText}>
-              <AppText variant="technicalCaption" tone="muted">
-                {label}
-              </AppText>
-              <AppText variant="buttonLabel">{value}</AppText>
-            </View>
-            <DropdownCaret open={open} color={theme.colors.textMuted} compact={false} />
-          </View>
-        )}
-      </Pressable>
-
-      {open ? (
-        <View
-          style={[
-            styles.dropdownMenu,
-            {
-              borderColor: theme.colors.surfaceBorder,
-              backgroundColor:
-                theme.scheme === "light" ? "rgba(15, 23, 42, 0.055)" : "rgba(255, 255, 255, 0.07)",
-            },
-          ]}
-        >
-          {options.map((option) => (
-            <Pressable
-              key={option.key}
-              accessibilityRole="button"
-              onPress={option.onPress}
-              style={({ pressed }) => [
-                styles.dropdownOption,
-                {
-                  backgroundColor: option.active
-                    ? theme.colors.buttonPrimaryBg
-                    : pressed
-                      ? theme.colors.controlButtonPressedBg
-                      : "transparent",
-                },
-              ]}
-            >
-              <AppText variant="statPillLabel" tone={option.active ? "accentOn" : "primary"}>
-                {option.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 20,
-    padding: 16,
     gap: 12,
+    overflow: "visible",
+    padding: 16,
+    position: "relative",
   },
   headerRow: {
     flexDirection: "row",
@@ -631,12 +518,6 @@ const styles = StyleSheet.create({
   },
   options: {
     gap: 8,
-  },
-  selectableMetaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    alignItems: "flex-start",
   },
   thumbnailFrame: {
     width: 120,
@@ -668,84 +549,5 @@ const styles = StyleSheet.create({
   buttonRow: {
     alignItems: "flex-start",
     gap: 8,
-  },
-  dropdownField: {
-    gap: 6,
-  },
-  dropdownFieldPill: {
-    gap: 6,
-    maxWidth: "100%",
-  },
-  dropdownButton: {
-    minHeight: 54,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dropdownPillButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    flexShrink: 1,
-  },
-  dropdownPillValueRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    flexShrink: 1,
-    minWidth: 0,
-    gap: 5,
-  },
-  dropdownPillValue: {
-    flexShrink: 1,
-  },
-  dropdownFieldRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-    minWidth: 0,
-  },
-  dropdownCaretPill: {
-    fontSize: 9,
-    lineHeight: 16,
-    fontWeight: "400",
-    includeFontPadding: false,
-    ...Platform.select({
-      android: { textAlignVertical: "center" as const },
-      default: {},
-    }),
-  },
-  dropdownCaretField: {
-    fontSize: 10,
-    lineHeight: 20,
-    fontWeight: "400",
-    includeFontPadding: false,
-    ...Platform.select({
-      android: { textAlignVertical: "center" as const },
-      default: {},
-    }),
-  },
-  dropdownText: {
-    flex: 1,
-    gap: 1,
-  },
-  dropdownMenu: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    padding: 6,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  dropdownOption: {
-    borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
   },
 });

@@ -1,3 +1,5 @@
+- 2026-07-13 (107): Locale change no longer remounts tab navigator (`key={locale}` removed) — profile language combo keeps scroll position. Docs `i18n/*`, `profile/*`.
+- 2026-07-13 (106): Shared `ComboBox` (`modules/ui/ComboBox.tsx`): practice card duration/chakra/pulse + profile language; outside-tap dismiss; options panel under the trigger row. Docs `practices/*`, `profile/*`.
 - 2026-07-12 (105): Practice stats polish: callout flush to scrub line, default first bar, Y-axis alignment, gray callout fill.
 - 2026-07-12 (104): Practice stats: centered date ticks, Apple Health-style scrub callout, updated unit hints (RU+7 locales). Docs `profile/*`.
 - 2026-07-12 (103): Profile reports: fixed donut focus refresh loop that stuck «Загружаем отчёты»; practice stats chart got Y-axis + single-line `ДД.ММ` tick markers. Docs `charts/*`, `profile/*`.

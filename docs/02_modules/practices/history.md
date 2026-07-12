@@ -2,7 +2,7 @@
 id: 02_modules/practices/history
 title: Practices History
 version: 1.63
-updated: 2026-07-11
+updated: 2026-07-13
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-13:** `PracticeCard` перешёл на общий **`ComboBox` / `ComboBoxRow`** (`modules/ui/ComboBox.tsx`): панель опций под рядом триггеров (соседи в ряду не переносятся), тап вне комбо сворачивает без смены значения.
 
 - **2026-07-12 (3):** `loadDailyPracticeStatsInRange` — календарный диапазон `user_daily_stats` для профиля («Статистика практик»); limit-API `loadDailyPracticeStats` остаётся для day-health baseline.
 
