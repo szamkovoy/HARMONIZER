@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -52,6 +53,10 @@ import {
 } from "@/services/dayPlan";
 import { consumeDayPlanStale, consumePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
 import { isDayPlanCurrent, loadCachedDayPlan } from "@/services/dayPlanCache";
+
+const dayActionChevronIcon = require("@/assets/icons/day_action_chevron.png");
+const dayActionPencilIcon = require("@/assets/icons/day_action_pencil.png");
+const dayActionTrashIcon = require("@/assets/icons/day_action_trash.png");
 
 type AssistantMode = "plan" | "add" | "summary";
 type PracticeMenuLevel = "closed" | "root" | "breath" | "yoga";
@@ -287,15 +292,21 @@ function DayActionRow({
               onPress={() => setExpanded((value) => !value)}
               style={styles.iconButton}
             >
-              <AppText variant="buttonLabel" tone="accent">
-                {expanded ? "▴" : "▾"}
-              </AppText>
+              <Image
+                source={dayActionChevronIcon}
+                style={[
+                  styles.actionChevronIcon,
+                  { tintColor: theme.colors.accent },
+                  expanded ? styles.actionChevronIconExpanded : null,
+                ]}
+                resizeMode="contain"
+              />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={strings.editActionA11y} onPress={() => setEditing(true)} style={styles.iconButton}>
-              <AppText variant="buttonLabel">✎</AppText>
+              <Image source={dayActionPencilIcon} style={styles.actionGlyphIcon} resizeMode="contain" />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={strings.deleteActionA11y} onPress={remove} style={styles.iconButton}>
-              <AppText variant="buttonLabel">×</AppText>
+              <Image source={dayActionTrashIcon} style={styles.actionGlyphIcon} resizeMode="contain" />
             </Pressable>
           </View>
         ) : null}
@@ -833,10 +844,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 2,
+    transform: [{ translateX: 2 }],
   },
   iconButton: {
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 5,
     paddingVertical: 4,
+  },
+  actionChevronIcon: {
+    height: 13,
+    marginTop: 3,
+    width: 15,
+  },
+  actionChevronIconExpanded: {
+    transform: [{ rotate: "180deg" }],
+  },
+  actionGlyphIcon: {
+    height: 16,
+    width: 16,
   },
   doneIcon: {
     paddingHorizontal: 5,

@@ -28,6 +28,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: theme.colors.textFaint,
         sceneStyle: { backgroundColor: theme.colors.screenBg },
         tabBarStyle,
+        tabBarAllowFontScaling: false,
         tabBarLabelStyle: COMPACT_TAB_BAR_LABEL_STYLE,
         tabBarItemStyle: COMPACT_TAB_BAR_ITEM_STYLE,
       }}
@@ -63,7 +64,7 @@ export default function TabLayout() {
         options={{
           title: t("tabs.posts"),
           tabBarLabel: t("tabs.posts"),
-          tabBarIcon: ({ color }) => <TabBarIcon name="publications" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="video" color={color} />,
         }}
       />
       <Tabs.Screen

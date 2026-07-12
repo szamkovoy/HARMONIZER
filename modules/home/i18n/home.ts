@@ -296,7 +296,7 @@ const ru: HomeStrings = {
     dissonant: "бережно стабилизировать",
   },
   chakraFlower: {
-    title: "Архетипический навигатор",
+    title: "Навигатор по архетипам",
     captionFree: "Психоархетипическая модель, основанная на планетарной динамике в этот день",
     captionPersonal:
       "Психоархетипическая модель, основанная на планетарной динамике в этот день лично для вас",
@@ -513,7 +513,7 @@ const en: HomeStrings = {
     dissonant: "carefully stabilize",
   },
   chakraFlower: {
-    title: "Archetypal navigator",
+    title: "Navigator by archetypes",
     captionFree: "A psycho-archetypal model based on planetary dynamics for this day",
     captionPersonal: "A psycho-archetypal model based on planetary dynamics for this day, tailored to you",
     helpButtonAccessibilityLabel: "Explain the archetypal navigator",

@@ -6,7 +6,7 @@ const TAB_ICONS = {
   navigator: require("@/assets/icons/navigator.png"),
   day: require("@/assets/icons/day.png"),
   practices: require("@/assets/icons/practices.png"),
-  publications: require("@/assets/icons/publications.png"),
+  video: require("@/assets/icons/video.png"),
   profile: require("@/assets/icons/profile.png"),
 } as const satisfies Record<string, ImageSourcePropType>;
 

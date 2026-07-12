@@ -73,9 +73,9 @@ const ru: DayStrings = {
   yesterdayPrefix: "Вчера",
   actionsTitle: "Психо-практики",
   actionsHelpButtonAccessibilityLabel: "Пояснение к блоку психо-практик",
-  actionsHelpModalTitle: "Поведенческие практики",
+  actionsHelpModalTitle: "О поведенческих практиках",
   actionsHelpBody:
-    "Учитесь рассматривать события вашей жизни - как повод для гармонизации, развития, очищения, исцеления, обучения… С этой точки зрения каждое ваше действие является поведенческой практикой. Как вы ходите в тренажерный зал, чтобы дать нагрузку телу и оздоровить его - точно также пространство событий вашей жизни - это тренажеры для вашей психики (и души). Не думайте, что духовность - это отрыв от жизни. Напротив, видьте смыслы ваших действий глубже, чем в плоскости самих действий. Это отличает человека от биоробота.\n\nВ данном окне перечислены события, которые вы планируете на день. Кликнув на событии, вы увидите рекомендации, превращающие привычные вам действия в психопрактику на волне состояний того архетипа, который сегодня наиболее проявлен. В некоторых случаях рекомендации могут казаться вам неудобными или не эффективными. Но, вы ведь понимаете, что в тренажёрном зале не должно быть легко. Следуя рекомендациям вы будете выходить из привычных стереотипов ощущая поддержку планетных ритмов. А в отчетах вы сможете увидеть как постепенно расширяется матрица ваших состояний.",
+    "Учитесь рассматривать события вашей жизни - как повод для гармонизации, развития, очищения, исцеления, обучения… Как вы ходите в тренажерный зал, чтобы дать нагрузку телу и оздоровить его - точно также пространство событий вашей жизни - это тренажеры для вашей психики (и души). Не думайте, что духовность - это отрыв от жизни. Напротив, видьте смыслы ваших действий глубже, чем в плоскости самих действий. Это отличает человека от биоробота.\n\nВ данном окне перечислены события, которые вы планируете на день. Кликнув на событии, вы увидите рекомендации, превращающие привычные вам действия в психопрактику на волне состояний того архетипа, который сегодня наиболее проявлен. Следуя этим рекомендациям вы будете выходить из привычных стереотипов, ощущая поддержку планетных ритмов. А в отчетах вы сможете увидеть, как постепенно расширяется матрица ваших состояний.",
   lifeSpheresTitle: "Сферы жизни",
   yogaTitle: "Йога-практики",
   yogaHelpButtonAccessibilityLabel: "Пояснение к блоку йога-практик",
@@ -130,9 +130,9 @@ const en: DayStrings = {
   yesterdayPrefix: "Yesterday",
   actionsTitle: "Psycho-practices",
   actionsHelpButtonAccessibilityLabel: "Explain the psycho-practices block",
-  actionsHelpModalTitle: "Behavioral practices",
+  actionsHelpModalTitle: "About behavioral practices",
   actionsHelpBody:
-    "Learn to see the events of your life as occasions for harmonization, growth, cleansing, healing, and learning… From this point of view, every action is a behavioral practice. Just as you go to the gym to load and strengthen the body, the space of your life events is a gym for your psyche (and soul). Do not think of spirituality as a retreat from life. On the contrary, see deeper meaning in your actions than the plane of the actions themselves. That is what sets a human being apart from a bio-robot.\n\nThis panel lists the events you plan for the day. Tap an event to see recommendations that turn familiar actions into a psycho-practice on the wave of the archetype most present today. Sometimes a recommendation may feel inconvenient or ineffective. But you know a gym should not feel easy. Following the recommendations, you step out of habitual stereotypes while feeling the support of planetary rhythms. And in your reports you can watch the matrix of your states gradually widen.",
+    "Learn to see the events of your life as occasions for harmonization, growth, cleansing, healing, and learning… Just as you go to the gym to load and strengthen the body, the space of your life events is a gym for your psyche (and soul). Do not think of spirituality as a retreat from life. On the contrary, see deeper meaning in your actions than the plane of the actions themselves. That is what sets a human being apart from a bio-robot.\n\nThis panel lists the events you plan for the day. Tap an event to see recommendations that turn familiar actions into a psycho-practice on the wave of the archetype most present today. Following these recommendations, you step out of habitual stereotypes while feeling the support of planetary rhythms. And in your reports you can watch how the matrix of your states gradually widens.",
   lifeSpheresTitle: "Life spheres",
   yogaTitle: "Yoga-practices",
   yogaHelpButtonAccessibilityLabel: "Explain the yoga-practices block",
