@@ -13,6 +13,10 @@ export interface ProfileReportStrings {
   lifeStatesHint: string;
   practiceByChakraTitle: string;
   practiceStatsTitle: string;
+  practiceStatsUnitHint: string;
+  practiceStatsWeeklyHint: string;
+  practiceStatsScrubTotalLabel: string;
+  practiceStatsMinutesUnit: string;
   lifeSpheresTitle: string;
   lifeStatesTitle: string;
   spheresLegendPrefix: string;
@@ -40,6 +44,10 @@ const ru: ProfileReportStrings = {
   lifeStatesHint: "Ваша способность проживать различные состояния. Чем равномерней распределение, тем адекватней вы взаимодействуете с миром.",
   practiceByChakraTitle: "Практики по чакрам",
   practiceStatsTitle: "Статистика практик",
+  practiceStatsUnitHint: "К-во минут практик за день",
+  practiceStatsWeeklyHint: "Среднее к-во минут практик за день в неделю",
+  practiceStatsScrubTotalLabel: "Всего",
+  practiceStatsMinutesUnit: "мин",
   lifeSpheresTitle: "Сферы жизни",
   lifeStatesTitle: "Проживаемые состояния",
   spheresLegendPrefix: "Сферы жизни:",
@@ -67,6 +75,10 @@ const en: ProfileReportStrings = {
   lifeStatesHint: "Your ability to live through different states. The more even the distribution, the more adequately you interact with the world.",
   practiceByChakraTitle: "Practices by chakra",
   practiceStatsTitle: "Practice statistics",
+  practiceStatsUnitHint: "Practice minutes per day",
+  practiceStatsWeeklyHint: "Average practice minutes per day per week",
+  practiceStatsScrubTotalLabel: "Total",
+  practiceStatsMinutesUnit: "min",
   lifeSpheresTitle: "Life spheres",
   lifeStatesTitle: "States lived",
   spheresLegendPrefix: "Life spheres:",

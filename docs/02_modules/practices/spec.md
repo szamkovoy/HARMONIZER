@@ -79,8 +79,11 @@ code_refs:
   Вставка в `practice_sessions`. Поля, которыми пользуются экраны: `user_id`, `practice_id` (опционально), `practice_slug`, `practice_version`, `started_at`, `ended_at`, `self_rating`, `completion_pct`, `metrics` (jsonb), `chakra_focus_ids`, `context` (jsonb).
 
 - **`loadDailyPracticeStats(userId, limit?): Promise<DailyPracticeStat[]>`**  
-  Чтение `user_daily_stats`: `user_id`, `local_date`, `total_practice_seconds`, `practice_count`, `chakras_touched`, `updated_at`.
+  Чтение `user_daily_stats`: `user_id`, `local_date`, `total_practice_seconds`, `practice_count`, `chakras_touched`, `updated_at` (последние `limit` строк по дате desc).
   Дополнительно вкладка «День» через `services/dayHealthContext.ts` читает последние строки `user_daily_stats`, чтобы перед summary-веткой дать ассистенту compact-сравнение йоги за подытоживаемый день с обычной практикой пользователя. Текущее baseline-сравнение берётся по 7 последним дням как реальное дневное среднее (нулевые дни тоже учитываются); если исторической базы нет, server prompt использует мягкий ориентир достаточности около 30 минут практики в день.
+
+- **`loadDailyPracticeStatsInRange(userId, fromLocalDate, throughLocalDate): Promise<DailyPracticeStat[]>`**  
+  Тот же select по `user_daily_stats` за **включительный** календарный диапазон локальных дат (ascending). Используется вкладкой профиля для «Статистики практик» (7/30/90 локальных дней по `users.tz`).
 
 - **`selfRatingFromMood(mood)`** — маппинг настроения на `self_rating`. Сохранён для совместимости; ни экран результатов дыхательной практики, ни медитация «Вспышка» больше не показывают mood-picker (см. history 2026-07-04 (16) и 2026-07-05 (17)) и записывают сессию с `self_rating = null` — дыхание при появлении результатов, медитация в момент `elapsed >= durationMs`.
 

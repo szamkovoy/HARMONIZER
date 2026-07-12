@@ -61,7 +61,7 @@ code_refs:
   Дыхательный сценарий монтирует звук из practices-потока (`breath-coherence` → `CoherenceBreathScreen` → `MandalaSoundProvider`). **`PlannedCycle`** импортируется в `mandala-sound` из **`modules/breath`**. Парная запись: `docs/02_modules/audio/dependencies.md` §1 и §2.
 
 - **`profile`**  
-  `app/(tabs)/profile.tsx` при `canUseFeature("stats")` вызывает **`loadDailyPracticeStats`** из `services/practiceSessions.ts`. Парная запись: `docs/02_modules/profile/dependencies.md` §1.
+  `app/(tabs)/profile.tsx` при `canUseFeature("stats")` вызывает **`loadDailyPracticeStatsInRange`** из `services/practiceSessions.ts` (календарное окно). Парная запись: `docs/02_modules/profile/dependencies.md` §1.
 
 - **`assistant`**  
   Серверный диалог подмешивает каталог/выбор практики (`practiceSelection.ts` — localized `name` via `getCoherenceBreathStrings` / `getPracticeCatalogStrings` + `context.user.locale`; **`route.ts`** с импортом **`@shared/assistantSelectableDurations`** — `_legacy_web/shared_core/assistantSelectableDurations.ts`, копия клиентского **`assistantSelectableDurations.ts`** — для карточки, маркеры в промптах); клиентский **`Communicator`** / **`services/communicator-client.ts`** типизирует `practicePicked` и использует общий `PracticeCard` + `launchPractice`. Детализация промптов и оркестратора — в `docs/02_modules/assistant/` (модуль `assistant` заявляет зависимость на `02_modules/practices/spec` в YAML).

@@ -181,6 +181,7 @@ export function useLifeMatrixReport(enabled: boolean, locale: AppContentLocale =
   const [report, setReport] = useState<LifeMatrixReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reportLoadError = strings.reportLoadError;
 
   const loadReport = useCallback(async () => {
     if (!enabled) {
@@ -194,11 +195,11 @@ export function useLifeMatrixReport(enabled: boolean, locale: AppContentLocale =
       setReport(await loadLifeMatrixReport());
     } catch (loadError) {
       logErrorForDevelopers("profile-life-matrix", loadError);
-      setError(resolveUserFacingMessage(loadError, locale, { genericMessage: strings.reportLoadError }));
+      setError(resolveUserFacingMessage(loadError, locale, { genericMessage: reportLoadError }));
     } finally {
       setLoading(false);
     }
-  }, [enabled, locale, strings.reportLoadError]);
+  }, [enabled, locale, reportLoadError]);
 
   useEffect(() => {
     void loadReport();
@@ -215,6 +216,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
   const [report, setReport] = useState<PracticeByChakraReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reportLoadError = strings.reportLoadError;
 
   const loadReport = useCallback(async () => {
     if (!props.enabled) {
@@ -228,11 +230,11 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
       setReport(await loadPracticeByChakraReport(periodDays));
     } catch (loadError) {
       logErrorForDevelopers("profile-practice-by-chakra", loadError);
-      setError(resolveUserFacingMessage(loadError, locale, { genericMessage: strings.reportLoadError }));
+      setError(resolveUserFacingMessage(loadError, locale, { genericMessage: reportLoadError }));
     } finally {
       setLoading(false);
     }
-  }, [locale, periodDays, props.enabled, strings.reportLoadError]);
+  }, [locale, periodDays, props.enabled, reportLoadError]);
 
   useEffect(() => {
     void loadReport();

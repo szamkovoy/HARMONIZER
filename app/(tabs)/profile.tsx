@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 
@@ -19,6 +19,10 @@ import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme } from "@/modules/ui/theme";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
+import {
+  buildPracticeStatsChartModel,
+  practiceStatsLocalWindow,
+} from "@/modules/profile/core/practiceStatsChart";
 import { getProfileReportStrings } from "@/modules/profile/i18n/profile";
 import { ProfileEmptyState } from "@/modules/profile/ui/ProfileEmptyState";
 import { ProfileReportCard } from "@/modules/profile/ui/ProfileReportCard";
@@ -31,7 +35,8 @@ import {
   useLifeMatrixReport,
 } from "@/modules/profile/ui/ProfileReports";
 import { PeriodSelector } from "@/modules/profile/ui/PeriodSelector";
-import { loadDailyPracticeStats, type DailyPracticeStat } from "@/services/practiceSessions";
+import { PracticeStatsChart } from "@/modules/profile/ui/PracticeStatsChart";
+import { loadDailyPracticeStatsInRange, type DailyPracticeStat } from "@/services/practiceSessions";
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile } from "@/services/natalProfileClient";
@@ -110,10 +115,12 @@ export default function ProfileTabRoute() {
       setStats([]);
       return;
     }
+    const timezone = profile?.tz?.trim() || "UTC";
+    const { fromLocalDate, throughLocalDate } = practiceStatsLocalWindow(statsPeriodDays, timezone);
     setStatsLoading(true);
-    setStats(await loadDailyPracticeStats(authUser.id, statsPeriodDays));
+    setStats(await loadDailyPracticeStatsInRange(authUser.id, fromLocalDate, throughLocalDate));
     setStatsLoading(false);
-  }, [authUser?.id, statsEnabled, statsPeriodDays]);
+  }, [authUser?.id, profile?.tz, statsEnabled, statsPeriodDays]);
 
   useEffect(() => {
     void loadStats();
@@ -174,8 +181,15 @@ export default function ProfileTabRoute() {
     [refreshProfile],
   );
 
-  const chartItems = useMemo(() => [...stats].reverse(), [stats]);
-  const maxSeconds = Math.max(60, ...chartItems.map((item) => item.total_practice_seconds ?? 0));
+  const practiceStatsModel = useMemo(
+    () =>
+      buildPracticeStatsChartModel({
+        rows: stats,
+        periodDays: statsPeriodDays,
+        timezone: profile?.tz?.trim() || "UTC",
+      }),
+    [profile?.tz, stats, statsPeriodDays],
+  );
 
   return (
     <DonutVisibilityProvider>
@@ -276,35 +290,15 @@ export default function ProfileTabRoute() {
               <AppText variant="dialogBody" tone="muted">
                 {reportStrings.statsLoading}
               </AppText>
-            ) : chartItems.length ? (
-              <View style={styles.chart}>
-                {chartItems.map((item) => {
-                  const seconds = item.total_practice_seconds ?? 0;
-                  const minutes = Math.round(seconds / 60);
-                  const height = Math.max(4, Math.round((seconds / maxSeconds) * 96));
-                  return (
-                    <View key={item.local_date} style={styles.chartColumn}>
-                      <View style={styles.barTrack}>
-                        <View
-                          style={[
-                            styles.bar,
-                            {
-                              height,
-                              backgroundColor: theme.colors.accent,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <AppText variant="technicalCaption" tone="muted">
-                        {minutes}
-                      </AppText>
-                      <AppText variant="technicalCaption" tone="faint">
-                        {item.local_date.slice(5)}
-                      </AppText>
-                    </View>
-                  );
-                })}
-              </View>
+            ) : practiceStatsModel.hasAnyPractice ? (
+              <PracticeStatsChart
+                model={practiceStatsModel}
+                unitHint={reportStrings.practiceStatsUnitHint}
+                weeklyHint={reportStrings.practiceStatsWeeklyHint}
+                scrubTotalLabel={reportStrings.practiceStatsScrubTotalLabel}
+                minutesUnit={reportStrings.practiceStatsMinutesUnit}
+                locale={reportLocale}
+              />
             ) : (
               <ProfileEmptyState message={reportStrings.practicesNotDone} />
             )
@@ -427,26 +421,5 @@ const styles = StyleSheet.create({
   localeButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-  },
-  chart: {
-    alignItems: "flex-end",
-    flexDirection: "row",
-    gap: 8,
-    minHeight: 136,
-  },
-  chartColumn: {
-    alignItems: "center",
-    flex: 1,
-    gap: 4,
-    justifyContent: "flex-end",
-  },
-  barTrack: {
-    height: 100,
-    justifyContent: "flex-end",
-  },
-  bar: {
-    borderRadius: 999,
-    minWidth: 10,
-    width: 12,
   },
 });

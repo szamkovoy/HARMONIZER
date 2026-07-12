@@ -35,7 +35,7 @@ code_refs:
   После успешного `createNatalProfile` с вкладки профиля вызывается **`markHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); при следующем фокусе **`app/(tabs)/index.tsx`** потребляется флаг и **`useDayContent.refresh`** выполняется с **`blockingReload`** + при необходимости **`forceRefresh`**, чтобы главный экран дождался обновлённого дня под новый `scopeKey`.
 
 - **`practices` (агрегаты)**  
-  Экран профиля читает **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица завершённых сессий). Запись сессий выполняется из flow практик, не из таба профиля.
+  Экран профиля читает **`loadDailyPracticeStatsInRange`** / **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица `user_daily_stats` / завершённые сессии). Запись сессий выполняется из flow практик, не из таба профиля.
 
 - **`i18n` / `life-spheres`**  
   Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).

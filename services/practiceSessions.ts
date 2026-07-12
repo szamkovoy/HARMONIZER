@@ -78,6 +78,34 @@ export async function loadDailyPracticeStats(userId: string, limit = 14): Promis
   return data ?? [];
 }
 
+/** Calendar window of `user_daily_stats` (inclusive local dates), ascending. */
+export async function loadDailyPracticeStatsInRange(
+  userId: string,
+  fromLocalDate: string,
+  throughLocalDate: string,
+): Promise<DailyPracticeStat[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("user_daily_stats")
+    .select("user_id,local_date,total_practice_seconds,practice_count,chakras_touched,updated_at")
+    .eq("user_id", userId)
+    .gte("local_date", fromLocalDate)
+    .lte("local_date", throughLocalDate)
+    .order("local_date", { ascending: true });
+
+  if (error) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn("[practiceSessions] failed to load daily stats range", error.message);
+    }
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export function selfRatingFromMood(mood: PracticeCompletionMood | null): -1 | 0 | 1 | null {
   if (mood === "better") return 1;
   if (mood === "same") return 0;

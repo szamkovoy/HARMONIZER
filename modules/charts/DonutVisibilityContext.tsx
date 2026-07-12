@@ -63,21 +63,25 @@ export function useDonutVisibilityContext() {
 
 export function useDonutScrollProps() {
   const context = useDonutVisibilityContext();
+  const notifyVisibilityCheck = context?.notifyVisibilityCheck;
+  const scrollYRef = context?.scrollYRef;
+  const hasUserScrolledRef = context?.hasUserScrolledRef;
+
   const notify = useCallback(() => {
-    context?.notifyVisibilityCheck();
-  }, [context]);
+    notifyVisibilityCheck?.();
+  }, [notifyVisibilityCheck]);
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (context) {
-        context.scrollYRef.current = event.nativeEvent.contentOffset.y;
-        if (event.nativeEvent.contentOffset.y > 0) {
-          context.hasUserScrolledRef.current = true;
-        }
+      if (scrollYRef) {
+        scrollYRef.current = event.nativeEvent.contentOffset.y;
+      }
+      if (hasUserScrolledRef && event.nativeEvent.contentOffset.y > 0) {
+        hasUserScrolledRef.current = true;
       }
       notify();
     },
-    [context, notify],
+    [hasUserScrolledRef, notify, scrollYRef],
   );
 
   return {
@@ -91,13 +95,14 @@ export function useDonutScrollProps() {
 
 export function useDonutVisibilityRefresh() {
   const context = useDonutVisibilityContext();
+  const bumpRevealSession = context?.bumpRevealSession;
+  const notifyVisibilityCheck = context?.notifyVisibilityCheck;
   return useCallback(() => {
-    if (!context) return;
-    context.bumpRevealSession();
+    bumpRevealSession?.();
     requestAnimationFrame(() => {
-      context.notifyVisibilityCheck();
+      notifyVisibilityCheck?.();
     });
-  }, [context]);
+  }, [bumpRevealSession, notifyVisibilityCheck]);
 }
 
 export function useDonutRevealSession() {

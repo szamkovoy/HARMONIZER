@@ -1,3 +1,7 @@
+- 2026-07-12 (105): Practice stats polish: callout flush to scrub line, default first bar, Y-axis alignment, gray callout fill.
+- 2026-07-12 (104): Practice stats: centered date ticks, Apple Health-style scrub callout, updated unit hints (RU+7 locales). Docs `profile/*`.
+- 2026-07-12 (103): Profile reports: fixed donut focus refresh loop that stuck «Загружаем отчёты»; practice stats chart got Y-axis + single-line `ДД.ММ` tick markers. Docs `charts/*`, `profile/*`.
+- 2026-07-12 (102): Profile «Статистика практик»: календарное окно минут, даты `ДД.ММ`, читаемые оси 7/30/90 (90д — недельные средние). Docs `profile/*`, `practices/*`.
 - 2026-07-12 (101): Health FINAL: active energy labeled as kcal/kilocalories (Apple+Google always kcal; no cal/kcal heuristic). Docs `assistant/*`.
 - 2026-07-12 (100): Apple Health: always `requestAuthorization` before query + auth canary in export; summarizing refreshes stale matrix-filtered day chakra; `родник` no longer maps to sphere 4 (`родн` false positive). Docs `communicator/*`, `assistant/*`.
 - 2026-07-12 (99): Summarizing FINAL: no more invented steps (prompt example «8200» + yoga-only hole); strip invented Health sentences; Apple HealthKit samples-first + sequential queries. Docs `communicator/*`, `assistant/*`.

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.18
-updated: 2026-06-22
+version: 1.19
+updated: 2026-07-12
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -13,9 +13,11 @@ code_refs:
     app/(tabs)/profile.tsx,
     app/(tabs)/index.tsx,
     modules/profile/core/periodPresets.ts,
+    modules/profile/core/practiceStatsChart.ts,
     modules/profile/i18n/profile.ts,
     modules/profile/core/rangeTrendChart.ts,
     modules/profile/ui/PeriodSelector.tsx,
+    modules/profile/ui/PracticeStatsChart.tsx,
     modules/profile/ui/ProfileEmptyState.tsx,
     modules/profile/ui/ProfileReportCard.tsx,
     modules/profile/ui/ProfileReports.tsx,
@@ -52,8 +54,10 @@ code_refs:
 **Данные профиля** — типы и методы **`modules/auth`** + сервисы, которые пишут в `users` или связанные таблицы. **UI отчётов и пресетов периода** — клиентский слой **`modules/profile/*`** (не путать с `useAuth().profile`):
 
 - **`core/periodPresets.ts`:** `PERIOD_PRESETS` (`7d` / `30d` / `90d`), `DEFAULT_PERIOD_DAYS` (= 7), типы `PeriodPreset`, `PeriodPresetId`.
-- **`modules/profile/i18n/profile.ts`:** `getProfileReportStrings(locale?: ProfileLocale)` → `ProfileReportStrings` (`ProfileLocale = AppContentLocale`); **`getPeriodPresets(locale)`** для подписей пресетов периода.
+- **`core/practiceStatsChart.ts`:** `practiceStatsLocalWindow`, `buildPracticeStatsChartModel`, `formatPracticeStatsDate` (`ДД.ММ`), `secondsToPracticeMinutes`, `niceScaleMaxMinutes`, `buildPracticeStatsYTicks` — календарное окно, серия и шкала Y для bar-chart «Статистика практик».
+- **`modules/profile/i18n/profile.ts`:** `getProfileReportStrings(locale?: ProfileLocale)` → `ProfileReportStrings` (`ProfileLocale = AppContentLocale`); **`getPeriodPresets(locale)`** для подписей пресетов периода; строки `practiceStatsUnitHint` / `practiceStatsWeeklyHint` для единицы измерения графика.
 - **`ui/PeriodSelector.tsx`:** `PeriodSelector({ value: number; onChange: (days: number) => void; presets?: readonly PeriodPreset[] })`.
+- **`ui/PracticeStatsChart.tsx`:** bar-chart минут практик: Y-ось, редкие даты `ДД.ММ` с маркером по центру столбца (с учётом `gap`), scrub-выделение как в Apple Health (вертикальная линия + callout с минутами), модель `PracticeStatsChartModel`.
 - **`services/profileReports.ts`:** типы `LifeMatrixReport` (`activeDaysCount`, `summarizedEventsCount`, `firstSummaryLocalDate`, `matrixReady`, `trendReady`, `calendarTrend`, …), `PracticeByChakraReport`; `loadLifeMatrixReport()` без query `days`; `loadPracticeByChakraReport(days)`.
 - **`ui/ProfileReports.tsx`:** `useLifeMatrixReport(enabled, locale?)` → `{ report, loading, error, reload, retryLabel }`, `PracticeByChakraReportCard`, `LifeMatrixReportCard`, `LifeSpheresReportCard`, `LifeStatesReportCard`, `RangeTrendReportCard` (без единого `ProfileReports`-обёртки). Ошибки загрузки — inline **`ReportLoadError`** с локализованным текстом через **`resolveUserFacingMessage`** (`services/userFacingErrors.ts`, без debug-префиксов в UI) и кнопкой **`retryLabel`** из **`getUserErrorStrings(locale)`**; карточки life-matrix / projection / range-trend принимают опциональные **`onRetry`** / **`retryLabel`**. Donut-отчёты рендерятся через общий **`DonutChart`** (`modules/charts/`): сегменты по весам, дуга и % баланса в центре, легенда справа, анимация при попадании chart-area в viewport. **`PracticeByChakraReportCard`:** при смене периода donut не размонтируется, пока есть предыдущий `report`; на время `loading` визуализация мгновенно очищается через `hideVisualization`, а новый `animationKey` привязан к периоду (`7/30/90`) и значениям сегментов, чтобы старый donut не зависал до ответа API и новый стартовал заново сразу после появления данных. Life-sphere подписи — **`localizeLifeSphereLabel(id, locale)`** (`modules/life-spheres/labels.ts`).
 - **`ui/ProfileReportCard.tsx`**, **`ProfileEmptyState.tsx`**, **`RangeTrendChart.tsx`**, **`core/rangeTrendChart.ts`:** карточки отчётов, пустые состояния, ось/кривая `calendarTrend`; **`formatAxisLabel(localDate, mode, locale?)`** и **`buildCalendarAxisTicks(..., locale?)`** — Luxon с активной локалью.
@@ -70,7 +74,7 @@ code_refs:
 
 - Карточка **«Текущий доступ»:** `access` из `useAccess()`, сырые `profile.membership_tier` и `trial_expires_at`, кнопка **«Обновить профиль»** → модальное окно **`NatalBirthDataModal`** (`modules/home/ui/NatalBirthDataModal.tsx`): ввод даты/времени рождения и **`createNatalProfile`** (как на главном); при открытии в поля подставляются **`initialDate` / `initialTime`** из **`profile.birth_date` / `profile.birth_time`** (если есть). Доступ к редактированию по фиче **`calibration`** (`useAccess().canUseFeature("calibration")`); иначе **`UpgradeDialog`**. После успешного сохранения: **`refreshProfile()`**, **`markHomeDayContentBlockingReload({ forceRefresh: true })`** (`services/homeDayContentReloadRequest.ts`) — при следующем фокусе главного таба `useDayContent.refresh` выполняется с **`blockingReload`** и показывает стартовый оверлей до готовности дня; **`Alert`** с переходом **`router.push("/calibration")`** или **`router.replace("/")`**.
 - В **`__DEV__`:** `DevTierSwitch` для эффективного тарифа (см. `subscription`).
-- **Статистика практик:** при `canUseFeature("stats")` — `loadDailyPracticeStats` из `services/practiceSessions.ts`; период задаёт **`PeriodSelector`** + `modules/profile/core/periodPresets.ts` (дефолт **7 дней**), авто-перезагрузка при смене периода; пустое состояние — рамка «Практики не выполнялись».
+- **Статистика практик:** при `canUseFeature("stats")` — `loadDailyPracticeStatsInRange` из `services/practiceSessions.ts` за **последние N локальных календарных дней** пользователя (`users.tz`, как у «Практики по чакрам»); период задаёт **`PeriodSelector`** + `modules/profile/core/periodPresets.ts` (дефолт **7 дней**), авто-перезагрузка при смене периода. Модель графика — **`buildPracticeStatsChartModel`** (`modules/profile/core/practiceStatsChart.ts`): непрерывная дневная серия с нулями в дни без практик; значения — **минуты** (`total_practice_seconds / 60`); подписи дат **`ДД.ММ`** в одну строку с треугольным маркером к столбцу; **Y-ось** минут (`niceScaleMaxMinutes` / `yTicks`) для 7/30/90; для **7д**/**30д** — дневные столбцы (~5 дат на оси при 30д), для **90д** — недельные средние мин/день. UI — **`PracticeStatsChart`**. Пустое состояние — «Практики не выполнялись».
 - **Отчёты HARMONIZER v2** — **четыре независимые карточки** (`ProfileReportCard`) в порядке: «Статистика практик», «Практики по чакрам», «Матрица состояний», «Толщина линии жизни». Селектор периода — **только** у первых двух (под заголовком). «Матрица» и «Толщина» — за всю историю, без селектора. Активный день = день, для которого в `daily_matrices` уже есть compact rollup с `source = 'summary'`; порог готовности heatmap / life-line теперь считается по продуктовым условиям: **не менее 5 summarized events суммарно** и **не менее 5 календарных дней с `firstSummaryLocalDate` до текущего локального дня пользователя**. Локализация — `modules/profile/i18n/profile.ts`. Два backend endpoint-а:
   - `GET /api/profile/life-matrix` — без `days`; основной источник — `profile_report_snapshots`, собранный из `daily_matrices`. Если snapshot отсутствует или устарел по версии, backend пересобирает его из compact day-rollup строк `daily_matrices`; в ответе дополнительно возвращаются `summarizedEventsCount`, `firstSummaryLocalDate`, `matrixReady`, `trendReady`, `sphereProjection` (суммы по столбцам) и `stateProjection` (суммы по строкам). `calendarTrend` строится по **календарным блокам по 7 дней** от первой summary-даты и пропускает пустые блоки без матриц; график в UI показывает нормированную шкалу 0–100%.
   - `GET /api/profile/practice-by-chakra?days=N` — суммирует завершённые `practice_sessions` по `chakra_focus_ids` и длительности **за последние N локальных календарных дат пользователя** (по `users.tz`, включая текущий локальный день, без плавающего окна `N * 24h`); поле `chakras` использует ту же легенду (`buildChakraLegend()`).

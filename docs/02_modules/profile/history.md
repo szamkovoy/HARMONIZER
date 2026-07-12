@@ -9,6 +9,14 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-12 (4):** Practice stats polish: callout flush to selection line (left or right edge), default scrub on first bar, Y-labels aligned to bar track, gray callout fill.
+
+- **2026-07-12 (3):** «Статистика практик»: маркеры дат центрируются с учётом flex `gap`; подписи «К-во минут…» / «Среднее к-во минут…»; scrub как в Apple Health (линия + callout минут по столбцу).
+
+- **2026-07-12 (2):** «Статистика практик»: Y-ось минут + даты `ДД.ММ` в одну строку с треугольным маркером (абсолютное позиционирование, без вертикального переноса в узкой колонке). Параллельно: `useDonutVisibilityRefresh` / `useDonutScrollProps` больше не зависят от всего context-объекта (только от стабильных `bumpRevealSession` / `notifyVisibilityCheck`) — иначе focus профиля зацикливал `revealSession` и donut/API-отчёты зависали на «Загружаем…».
+
+- **2026-07-12:** «Статистика практик»: календарное окно по `users.tz` (`loadDailyPracticeStatsInRange`), непрерывные дни с нулями, даты `ДД.ММ`, явная единица «минуты»; 30д — редкие подписи оси без чисел над барами; 90д — недельные средние мин/день. Код: `practiceStatsChart.ts`, `PracticeStatsChart.tsx`, `profile.tsx`, `practiceSessions.ts`.
+
 - **2026-07-09:** `AuthProvider`: кроме `TOKEN_REFRESHED`, повторные auth-события с тем же `user.id` (без `USER_UPDATED`) больше не вызывают `syncProfile` — лишний `profileLoading` и каскадные перерисовки на фоновых вкладках.
 
 - **2026-07-09:** `AuthProvider`: событие `TOKEN_REFRESHED` больше не вызывает `syncProfile` — профиль в `users` от JWT не меняется; лишний `profileLoading` убирался и мог дергать home bootstrap на фоновых вкладках.

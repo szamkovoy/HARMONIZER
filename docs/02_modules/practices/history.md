@@ -16,6 +16,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-12 (3):** `loadDailyPracticeStatsInRange` — календарный диапазон `user_daily_stats` для профиля («Статистика практик»); limit-API `loadDailyPracticeStats` остаётся для day-health baseline.
+
 - **2026-07-12 (2):** Breath recent-stack was a no-op on chakra-2 days: catalog maps only `chandra-bhedana` to chakra 2, hard filter left one candidate, exclusion fell back to the same pick. `selectPracticeCandidate` now widens the breath pool when chakra matches &lt; 2 and soft-prefers the day chakra in ranking.
 
 - **2026-07-12:** Launch/exit UX: Communicator handoff no longer double-schedules overlay dismiss; breath results close with `router.replace("/day")` for `launchSource` `assistant|day`. Day pending flash after practice: `recordPracticeSession` marks Day plan stale and clears cache/prefetch.
