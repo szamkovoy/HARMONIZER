@@ -506,21 +506,17 @@ export function OpportunityWindows({
       time: windows.culmination?.time,
       detail: windows.culmination ? t.culminationDetail(strings.planetLabels[windows.culmination.planet]) : null,
     },
-    accessMode === "free"
+    accessMode === "free" || !windows.exactAspect
       ? null
       : {
           key: "exactAspect",
           title: t.windowTitles.exactAspect,
-          time: windows.exactAspect?.time,
-          detail: windows.exactAspect
-            ? t.exactAspectDetail(
-                t.aspectLabels[windows.exactAspect.aspectType as AspectType],
-                strings.planetLabels[
-                  windows.exactAspect.transitPlanet ?? graphPlanet
-                ],
-                strings.planetLabels[windows.exactAspect.toNatalPlanet],
-              )
-            : null,
+          time: windows.exactAspect.time,
+          detail: t.exactAspectDetail(
+            t.aspectLabels[windows.exactAspect.aspectType as AspectType],
+            strings.planetLabels[windows.exactAspect.transitPlanet ?? graphPlanet],
+            strings.planetLabels[windows.exactAspect.toNatalPlanet],
+          ),
         },
   ];
   const displayItems = items.filter((item): item is WindowItem => Boolean(item));
@@ -1007,7 +1003,9 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderRadius: 24,
-    padding: 18,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 22,
     gap: 14,
   },
   chartWrap: {
