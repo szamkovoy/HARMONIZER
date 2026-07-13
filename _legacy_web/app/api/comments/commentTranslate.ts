@@ -1,6 +1,9 @@
 import { generateGeminiJson, getModelByHint } from "../_utils/gemini";
-import { LANGUAGE_NAMES, type AppContentLocale } from "../_utils/contentLocales";
-import { ALL_CONTENT_LOCALES } from "../../../../modules/i18n/localeCodes";
+import {
+  ALL_CONTENT_LOCALES,
+  LANGUAGE_NAMES,
+  type AppContentLocale,
+} from "../_utils/contentLocales";
 
 const COMMENT_LOCALES = ALL_CONTENT_LOCALES;
 
@@ -42,7 +45,7 @@ Languages: ${langList}
 Keep the tone natural and idiomatic. Preserve URLs and line breaks.`;
 }
 
-/** Translate a comment into the given locales (one LLM call). */
+/** Translate a comment into the given locales (one LLM call, AI_MODEL_STANDARD). */
 export async function translateCommentBody(
   sourceLocale: AppContentLocale,
   sourceBody: string,

@@ -1,4 +1,4 @@
-import { asContentLocale, type AppContentLocale } from "../../../../modules/i18n/localeCodes";
+import { asContentLocale, type AppContentLocale } from "../_utils/contentLocales";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../_utils/supabase";
 import {
   COMMENT_LOCALES,
