@@ -8,8 +8,10 @@ export {
   fetchPostById,
   fetchPostsFeed,
   fetchPostsFeedForLocale,
+  fetchPostsFeedPage,
   markPostViewed,
   postAvailableInLocale,
+  POSTS_FEED_PAGE_SIZE,
   resolvePostContent,
   resolvePostContentForLocale,
   setCommentLike,
@@ -18,6 +20,8 @@ export {
   type CommentTargetType,
   type PostContentSource,
   type PostItem,
+  type PostsFeedCursor,
+  type PostsFeedPage,
 } from "@/modules/posts/core/postsClient";
 export { CommentComposer, CommentsSection } from "@/modules/posts/ui/CommentsSection";
 export { LatestPostBanner } from "@/modules/posts/ui/LatestPostBanner";

@@ -1,10 +1,15 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { router, type Href } from "expo-router";
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchPostsFeedForLocale, type PostItem } from "@/modules/posts/core/postsClient";
+import {
+  fetchPostsFeedForLocale,
+  POSTS_FEED_PAGE_SIZE,
+  type PostItem,
+  type PostsFeedCursor,
+} from "@/modules/posts/core/postsClient";
 import { VideoCard } from "@/modules/posts/ui/VideoCard";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StateCard } from "@/modules/ui/StateCard";
@@ -20,29 +25,64 @@ export function PostsFeedScreen() {
   const listContentProps = useTabScreenContentProps({ bottomPaddingExtra: 20, maxWidth: 460 });
 
   const [posts, setPosts] = useState<PostItem[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<PostsFeedCursor | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const nextCursorRef = useRef<PostsFeedCursor | null>(null);
 
-  const load = useCallback(() => {
-    let cancelled = false;
-    void fetchPostsFeedForLocale(locale).then((items) => {
-      if (!cancelled) setPosts(items);
+  const applyPage = useCallback((items: PostItem[], cursor: PostsFeedCursor | null, append: boolean) => {
+    setPosts((prev) => {
+      if (!append || prev == null) return items;
+      const seen = new Set(prev.map((p) => p.id));
+      return [...prev, ...items.filter((p) => !seen.has(p.id))];
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [locale]);
+    nextCursorRef.current = cursor;
+    setNextCursor(cursor);
+  }, []);
 
-  useFocusEffect(load);
+  const loadFirstPage = useCallback(async () => {
+    const page = await fetchPostsFeedForLocale(locale, POSTS_FEED_PAGE_SIZE);
+    applyPage(page.items, page.nextCursor, false);
+  }, [applyPage, locale]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void fetchPostsFeedForLocale(locale, POSTS_FEED_PAGE_SIZE).then((page) => {
+        if (cancelled) return;
+        applyPage(page.items, page.nextCursor, false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [applyPage, locale]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      setPosts(await fetchPostsFeedForLocale(locale));
+      await loadFirstPage();
     } finally {
       setRefreshing(false);
     }
-  }, [locale]);
+  }, [loadFirstPage]);
+
+  const onEndReached = useCallback(() => {
+    const cursor = nextCursorRef.current;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    void fetchPostsFeedForLocale(locale, POSTS_FEED_PAGE_SIZE, cursor)
+      .then((page) => {
+        applyPage(page.items, page.nextCursor, true);
+      })
+      .finally(() => {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [applyPage, locale]);
 
   return (
     <TabScreenLayout>
@@ -54,6 +94,8 @@ export function PostsFeedScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={theme.colors.textMuted} />
         }
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View style={styles.listHeader}>
             <ScreenHeader
@@ -75,6 +117,15 @@ export function PostsFeedScreen() {
           ) : (
             <StateCard title={t("posts.feed.emptyTitle")} message={t("posts.feed.emptyMessage")} />
           )
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footer}>
+              <ActivityIndicator color={theme.colors.textMuted} />
+            </View>
+          ) : nextCursor ? (
+            <View style={styles.footerSpacer} />
+          ) : null
         }
         renderItem={({ item }) => (
           <VideoCard post={item} onPress={() => router.push(`/post/${item.id}` as Href)} />
@@ -98,5 +149,12 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 12,
+  },
+  footer: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  footerSpacer: {
+    height: 8,
   },
 });

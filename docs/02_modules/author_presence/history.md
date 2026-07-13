@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-13 (41):** Admin videos list: infinite scroll by 20 (`GET /api/admin/posts` cursor). Mobile feed remains page size 8.
+
+- **2026-07-13 (40):** Videos feed infinite scroll: `get_posts_feed` cursor + optional `p_locale`; client page size 8 (`POSTS_FEED_PAGE_SIZE`). Migration `20260713161954_posts_feed_cursor_pagination.sql`.
+
 - **2026-07-13 (39):** Optimistic comment appends at list bottom (not prepend) so it does not jump after refetch. Comment timestamps use `formatRelativeTime` (locale catalog).
 
 - **2026-07-13 (38):** Globe в списке видео — по наличию `title_i18n` (не только `translations_updated_at`); create пишет `translations_updated_at`. Комментарии: optimistic UI + `after()` translate; в БД у зависшего комментария был только `ru` в `body_i18n`.

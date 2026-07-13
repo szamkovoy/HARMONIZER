@@ -62,6 +62,19 @@ export type CommentItem = {
 /** ~2–3 lines on a phone card; length floats to the last whole word. */
 export const POST_CARD_PREVIEW_CHARS = 160;
 
+/** First paint / load-more page size for the Videos tab (covers are heavy). */
+export const POSTS_FEED_PAGE_SIZE = 8;
+
+export type PostsFeedCursor = {
+  publishedAt: string;
+  id: string;
+};
+
+export type PostsFeedPage = {
+  items: PostItem[];
+  nextCursor: PostsFeedCursor | null;
+};
+
 export function truncatePostPreview(text: string, maxChars = POST_CARD_PREVIEW_CHARS): string {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
@@ -109,31 +122,56 @@ function normalizePostRow(row: {
   };
 }
 
-export async function fetchPostsFeed(limit = 50): Promise<PostItem[]> {
+export async function fetchPostsFeedPage(params: {
+  locale?: AppContentLocale | null;
+  limit?: number;
+  before?: PostsFeedCursor | null;
+}): Promise<PostsFeedPage> {
   const supabase = getSupabase();
-  if (!supabase) return [];
-  const { data, error } = await supabase.rpc("get_posts_feed", { p_limit: limit });
+  if (!supabase) return { items: [], nextCursor: null };
+  const limit = Math.max(1, Math.min(params.limit ?? POSTS_FEED_PAGE_SIZE, 30));
+  const { data, error } = await supabase.rpc("get_posts_feed", {
+    p_limit: limit,
+    p_locale: params.locale ?? null,
+    p_before_published_at: params.before?.publishedAt ?? null,
+    p_before_id: params.before?.id ?? null,
+  });
   if (error) {
-    if (__DEV__) console.warn("[posts] feed load failed", error.message);
-    return [];
+    if (__DEV__) console.warn("[posts] feed page load failed", error.message);
+    return { items: [], nextCursor: null };
   }
-  return (data ?? []).map(normalizePostRow);
+  const items = (data ?? []).map(normalizePostRow);
+  const last = items[items.length - 1];
+  const nextCursor =
+    items.length >= limit && last?.publishedAt
+      ? { publishedAt: last.publishedAt, id: last.id }
+      : null;
+  return { items, nextCursor };
 }
 
-/** Feed filtered to videos authored for the active UI locale. */
-export async function fetchPostsFeedForLocale(locale: AppContentLocale, limit = 50): Promise<PostItem[]> {
-  const posts = await fetchPostsFeed(limit);
-  return posts.filter((post) => postAvailableInLocale(post, locale));
+/** @deprecated Prefer fetchPostsFeedPage for infinite scroll. */
+export async function fetchPostsFeed(limit = POSTS_FEED_PAGE_SIZE): Promise<PostItem[]> {
+  const page = await fetchPostsFeedPage({ limit, locale: null });
+  return page.items;
+}
+
+/** Feed page filtered server-side to videos authored for the active UI locale. */
+export async function fetchPostsFeedForLocale(
+  locale: AppContentLocale,
+  limit = POSTS_FEED_PAGE_SIZE,
+  before?: PostsFeedCursor | null,
+): Promise<PostsFeedPage> {
+  return fetchPostsFeedPage({ locale, limit, before: before ?? null });
 }
 
 export async function fetchLatestPost(): Promise<PostItem | null> {
-  const posts = await fetchPostsFeed(1);
-  return posts[0] ?? null;
+  const page = await fetchPostsFeedPage({ limit: 1 });
+  return page.items[0] ?? null;
 }
 
 export async function fetchLatestPostForLocale(locale: AppContentLocale): Promise<PostItem | null> {
-  const posts = await fetchPostsFeed(20);
-  return posts.find((post) => postAvailableInLocale(post, locale)) ?? null;
+  const page = await fetchPostsFeedPage({ locale, limit: 1 });
+  return page.items[0] ?? null;
 }
 
 /** Newest video for locale that the user has not opened yet (home card). */

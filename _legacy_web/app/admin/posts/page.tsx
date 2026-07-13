@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, MessageSquare, Plus } from "lucide-react";
 
 import { pickAdminPostDisplay } from "./_lib/adminPostDisplayTitle";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+
+const PAGE_SIZE = 20;
 
 type PostListRow = {
   id: string;
@@ -21,6 +23,8 @@ type PostListRow = {
   translations_updated_at?: string | null;
 };
 
+type FeedCursor = { created_at: string; id: string };
+
 function hasPostTranslations(post: PostListRow): boolean {
   if (post.translations_updated_at) return true;
   const titles = post.title_i18n ?? {};
@@ -29,19 +33,77 @@ function hasPostTranslations(post: PostListRow): boolean {
 
 export default function AdminPostsPage() {
   const [posts, setPosts] = useState<PostListRow[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<FeedCursor | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const nextCursorRef = useRef<FeedCursor | null>(null);
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const load = useCallback(() => {
-    setError(null);
-    setPosts(null);
-    adminFetch<{ posts: PostListRow[] }>("/api/admin/posts")
-      .then(({ posts: rows }) => setPosts(rows))
-      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить видео"));
+  const fetchPage = useCallback(async (cursor: FeedCursor | null) => {
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    if (cursor) {
+      params.set("before_created_at", cursor.created_at);
+      params.set("before_id", cursor.id);
+    }
+    return adminFetch<{ posts: PostListRow[]; next_cursor: FeedCursor | null }>(
+      `/api/admin/posts?${params.toString()}`,
+    );
   }, []);
 
+  const loadFirst = useCallback(() => {
+    setError(null);
+    setPosts(null);
+    nextCursorRef.current = null;
+    setNextCursor(null);
+    fetchPage(null)
+      .then(({ posts: rows, next_cursor }) => {
+        setPosts(rows);
+        nextCursorRef.current = next_cursor;
+        setNextCursor(next_cursor);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить видео"));
+  }, [fetchPage]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    loadFirst();
+  }, [loadFirst]);
+
+  const loadMore = useCallback(async () => {
+    const cursor = nextCursorRef.current;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const { posts: rows, next_cursor } = await fetchPage(cursor);
+      setPosts((prev) => {
+        const seen = new Set((prev ?? []).map((p) => p.id));
+        return [...(prev ?? []), ...rows.filter((p) => !seen.has(p.id))];
+      });
+      nextCursorRef.current = next_cursor;
+      setNextCursor(next_cursor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось подгрузить видео");
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [fetchPage]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !nextCursor) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadMore();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore, nextCursor, posts?.length]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -65,7 +127,7 @@ export default function AdminPostsPage() {
           <p className="text-sm text-red-400">{error}</p>
           <button
             type="button"
-            onClick={load}
+            onClick={loadFirst}
             className="mt-2 text-xs text-zinc-300 underline hover:text-zinc-100"
           >
             Повторить
@@ -131,6 +193,13 @@ export default function AdminPostsPage() {
           );
         })}
       </div>
+
+      {nextCursor ? <div ref={sentinelRef} className="h-8" aria-hidden /> : null}
+      {loadingMore ? (
+        <p className="mt-3 flex items-center justify-center gap-2 text-sm text-zinc-500">
+          <Loader2 size={16} className="animate-spin" /> Ещё…
+        </p>
+      ) : null}
     </div>
   );
 }

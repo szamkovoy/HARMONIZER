@@ -2268,7 +2268,12 @@ export type Database = {
         }[]
       }
       get_posts_feed: {
-        Args: { p_limit?: number }
+        Args: {
+          p_limit?: number
+          p_locale?: string | null
+          p_before_published_at?: string | null
+          p_before_id?: string | null
+        }
         Returns: {
           body: string
           body_i18n: Json

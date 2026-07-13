@@ -1,3 +1,5 @@
+- 2026-07-13 (128): Admin videos list infinite scroll (20/page, cursor API). Docs `admin_panel/*`, `author_presence/*`.
+- 2026-07-13 (127): Videos tab infinite scroll (page size 8, cursor RPC + locale filter). Migration `20260713161954`. Docs `author_presence/*`.
 - 2026-07-13 (126): Relative timestamps use abbreviated units (мин/h/дн) — one dominant unit, no declension. Docs `i18n/*`.
 - 2026-07-13 (125): Locale-aware relative timestamps via `formatRelativeTime` (Hermes-safe); comments + notifications. Docs `i18n/*`, `author_presence/*`.
 - 2026-07-13 (124): Optimistic new comment appends at bottom of list (no top→bottom jump). Docs `author_presence/*`.
