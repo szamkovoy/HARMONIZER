@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-13:** Webinar admin dual tabs (announce/recording) + recording upsert API; list badges for announce vs recording publish state.
+
 - **2026-07-13 (14):** Admin `/admin/posts` infinite scroll: `GET /api/admin/posts?limit=20` + cursor `before_created_at`/`before_id` → `next_cursor` (no hard 200 cap).
 
 - **2026-07-13 (13):** `PostEditor` create sets `translations_updated_at`; list 🌐 from `title_i18n` keys too.

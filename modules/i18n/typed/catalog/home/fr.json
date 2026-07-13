@@ -22,7 +22,7 @@
     "captionPersonal": "Modèle psycho-archétypal basé sur la dynamique planétaire du jour, personnalisé pour vous",
     "helpButtonAccessibilityLabel": "Explication du navigateur archétypal",
     "helpModalTitle": "Comment utiliser le navigateur",
-    "helpBody": "La taille des sept pétales de cette fleur correspond à la force astrologique des planètes ce jour-là. Aujourd'hui, c'est votre navigateur. Croyez que les constellations et l'astrologie n'ont pas été inventées par des chasseurs de mammouths. Pour passer des prédictions de boulevard à l'harmonisation de votre psyché et de votre vie, servez-vous de cette sagesse : considérez chaque planète non comme un point sur un thème, mais comme un archétype. En vous connectant aux états archétypaux au rythme du mouvement des planètes, vous dénouerez efficacement les nœuds des circonstances de vie qui se sont emmêlés pendant de nombreuses années."
+    "helpBody": "La taille des sept pétales de cette fleur reflète la force astrologique des planètes ce jour. Aujourd'hui, elle vous sert de guide. Croyez-le : les constellations et l'astrologie n'ont pas été inventées par des chasseurs de mammouths. Pour passer des prédictions de bas étage à l'harmonisation de votre psyché et de votre vie, utilisez cette sagesse — considérez chaque planète non comme un point dans un horoscope, mais comme un archétype. En vous reliant aux états des archétypes au rythme du mouvement des planètes, vous dénouerez efficacement les nœuds de vos circonstances de vie qui se sont emmêlés pendant de nombreuses années."
   },
   "closeAssistantAccessibilityLabel": "Fermer l'assistant",
   "closeButton": "Fermer",
@@ -134,8 +134,8 @@
     "discussButton": "Que faire ?",
     "readMoreButton": "En savoir plus",
     "helpButtonAccessibilityLabel": "Explication des recommandations du jour",
-    "helpModalTitle": "Base de la recommandation",
-    "helpBody": "Cette recommandation décrit la planète la plus forte du jour comme une image archétypale selon la psychologie analytique de Carl Jung. Elle vous aide à comprendre à partir de quels états intérieurs il est pertinent d'agir aujourd'hui.\n\nSi vous souhaitez une prévision astrologique détaillée, appuyez sur « En savoir plus ». Vous pourrez ensuite découvrir les calculs qui sous-tendent ces recommandations et même consulter l'horoscope.\n\nOu appuyez sur « Que faire ? » pour voir les événements de la journée à travers les yeux de cet archétype et transformer la journée en une série de psychopractices intéressantes. Après une semaine d'utilisation de cette fonction, une matrice bistochastique de vos états se constituera et les recommandations deviendront plus précises."
+    "helpModalTitle": "Fondement de la recommandation",
+    "helpBody": "Cette recommandation décrit la planète la plus forte de ce jour comme une image archétypale selon la psychologie analytique de Carl Jung. Grâce à cela, vous comprendrez sur quels états il est pertinent d'agir aujourd'hui.\\n\\nSi vous souhaitez une prévision astrologique détaillée, appuyez sur « En savoir plus ». Vous pourrez ensuite découvrir les mathématiques sous-jacentes à ces recommandations, et même consulter l'horoscope.\\n\\nVous pouvez aussi appuyer sur « Que faire ? » pour voir les événements qui vous attendent aujourd'hui à travers le regard de cet archétype, et transformer votre journée en un ensemble de pratiques psychologiques intéressantes. Après une semaine d'utilisation, une matrice bistochastique de vos états se constituera, rendant les recommandations plus précises."
   },
   "refreshAccessibilityLabel": "Actualiser la prévision du jour",
   "refreshButton": "Actualiser",

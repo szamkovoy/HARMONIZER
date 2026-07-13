@@ -1,13 +1,14 @@
 ---
 id: 02_modules/webinars/spec
 title: Webinars Spec
-version: 2.0
-updated: 2026-07-08
-depends_on: [02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
+version: 3.0
+updated: 2026-07-13
+depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
     modules/webinars/index.ts,
     modules/webinars/core/webinarsClient.ts,
+    modules/webinars/core/webinarTiming.ts,
     modules/webinars/ui/WebinarScreen.tsx,
     modules/webinars/ui/UpcomingWebinarBanner.tsx,
     modules/webinars/ui/WebinarsStrip.tsx,
@@ -18,44 +19,48 @@ code_refs:
     _legacy_web/app/admin/webinars/_components/WebinarEditor.tsx,
     _legacy_web/app/api/admin/webinars/route.ts,
     _legacy_web/app/api/admin/webinars/[id]/route.ts,
+    _legacy_web/app/api/admin/webinars/[id]/recording/route.ts,
     _legacy_web/app/api/admin/webinars/webinarPayload.ts,
-    _legacy_web/app/api/admin/_utils/authEmails.ts,
     modules/access/core/features.ts,
     supabase/migrations/20260708140000_webinars.sql,
+    supabase/migrations/20260713200000_webinars_announce_recording.sql,
   ]
 ---
 
 ## 1. Назначение (продукт)
 
-Вебинары автора: анонс с датой, запись «Пойду», вопросы до эфира с голосованием, после эфира — ссылка на запись (просмотр записи — тариф **Master**, `webinar_community`). Реализовано в этапе 3 плана админ-панели.
+Вебинары автора в двух фазах:
+
+1. **Анонс** — дата/время, обложка, i18n-тексты, ссылка на трансляцию, регистрация, блок «Вопросы для обсуждения».
+2. **Запись** — после `starts_at + 1h` появляется в админке; публикуется как пост `posts.kind='webinar_recording'` и попадает в ленту «Видео» **только зарегистрированным** на этот вебинар.
 
 ## 2. Публичный контракт
 
-**Клиент (`modules/webinars`, barrel `index.ts`):**
+### Клиент (`modules/webinars`)
 
-- **`WebinarScreen`** (`app/webinar/[id].tsx`) — анонс: заголовок, дата-время (Luxon, `DATETIME_MED_WITH_WEEKDAY`, активная локаль, зона устройства), описание через `LinkifiedBody` (из posts). До эфира: кнопка «Пойду»/«Отменить запись» (toggle `webinar_registrations` под RLS) и «Подключиться» (`join_url`, видна записавшимся). После эфира: блок «Запись» — для Master кнопка просмотра `recording_url`, для остальных locked-подсказка + `UpgradeDialog`. Вопросы — общий **`CommentsSection`** (`modules/posts`) с `targetType="webinar"`; лайк = голос за вопрос (сортировка по голосам — только в админке).
-- **`UpcomingWebinarBanner`** — анонс ближайшего предстоящего вебинара на главной (`app/(tabs)/index.tsx`, над `LatestPostBanner`); `null`, если предстоящих нет.
-- **`WebinarsStrip`** — компактный блок в шапке вкладки «Публикации» (`PostsFeedScreen`): все предстоящие + до 5 прошедших с записью; `null`, когда пусто.
-- **`webinarsClient.ts`**: `fetchUpcomingWebinar`, `fetchWebinars` (`{upcoming, past}`; past — только с записью), `fetchWebinar`, `isRegistered`, `setRegistered` — прямые запросы под RLS.
+- **`webinarTiming`**: `WEBINAR_JOIN_GRACE_HOURS = 1`, `isWebinarInJoinWindow`, `isWebinarRecordingTabAvailable`.
+- **`WebinarScreen`**: обложка + локализованные title/description; в join-окне — регистрация (гейт `webinar_community` / Master) и после записи блок «Вы зарегистрированы» + `join_url`; вопросы (`CommentsSection` `target_type="webinar"`). После окна — ссылка на запись (`/post/{recordingPostId}` или legacy `recording_url`).
+- **`UpcomingWebinarBanner`**: ближайший опубликованный вебинар с `isWebinarInJoinWindow` (включая час после старта).
+- **`WebinarsStrip`**: upcoming в join-окне + past с доступной записью; past с `recordingPostId` ведёт на `/post/...`.
+- **`webinarsClient`**: `fetchUpcomingWebinar`, `fetchWebinars`, `fetchWebinar`, `localizeWebinar`, регистрации.
 
-**Админка (гейт `requireAdmin`):**
+### Админка
 
-- `GET/POST /api/admin/webinars` — список (≤200, включая черновики, счётчики записавшихся/вопросов) / создание (`webinarPayload.ts`: title и starts_at обязательны).
-- `GET/PATCH/DELETE /api/admin/webinars/[id]` — деталка: вебинар + вопросы (включая скрытые, `vote_count`, сортировка по голосам) + записавшиеся (имя, **email из auth.users** через `authEmails.ts`, тариф) / обновление (в т.ч. прикрепление `recording_url`) / удаление вместе с вопросами (регистрации — FK cascade).
-- Модерация вопросов — общие `PATCH/DELETE /api/admin/comments/[id]`.
-- UI `/admin/webinars` (+`/new`, `/[id]`): список карточек (статус, дата, «Запись прикреплена», счётчики) и редактор `WebinarEditor` (datetime-local в поясе админа, ссылки на трансляцию/запись, публикация; ниже — вопросы с голосами и список записавшихся).
+- Список: бейджи «Анонс: …», «Запись: нет/черновик/опубликована»; до конца join-окна — счётчик вопросов, после — комментариев записи; участники → `/admin/users/{id}`.
+- Карточка: вкладки **Анонс** / **Запись** (запись после `starts_at+1h`; default = Запись если доступна). Анонс: cover + i18n + translate, `starts_at` (datetime-local пояса админа → timestamptz), `join_url`, `is_published`. Запись: `PUT /api/admin/webinars/[id]/recording` → upsert `posts` (`kind=webinar_recording`, `webinar_id`).
+- Вопросы модерируются на вкладке Анонс; комментарии записи — на вкладке Запись.
 
-## 3. Данные
+### Данные
 
-- **`webinars`** (`20260708140000`): `title`, `description` (plain text + URL), `starts_at`, `join_url`, `recording_url`, `is_published`. RLS: public read опубликованных, admin write. Индекс `starts_at desc where is_published`.
-- **`webinar_registrations`** — PK `(webinar_id, user_id)`, FK cascade; RLS: select/insert/delete своих, admin all. Этап 4 использует их как сегмент рассылки.
-- **Вопросы** — общая таблица `comments` (`target_type='webinar'`), голоса — `comment_likes` (см. `author_presence`).
-- `recording_url` лежит в public-read строке: гейт Master — **клиентский** (`canUseFeature("webinar_community")`); прямой запрос к БД URL раскроет. Осознанный компромисс для single-author продукта.
+- `webinars`: + `cover_url`, `title_i18n`, `description_i18n`, `cover_url_i18n`, `translations_updated_at`; `is_published` = анонс; `recording_url` deprecated.
+- `posts.kind` ∈ (`video`, `webinar_recording`), `posts.webinar_id`; unique one recording per webinar.
+- RLS + `get_posts_feed`: `webinar_recording` виден только при строке в `webinar_registrations`.
+- Вопросы: `comments` `target_type='webinar'`; комментарии записи: `target_type='post'`.
 
-## 4. i18n
+## 3. i18n
 
-Ключи `webinars.*` в `modules/i18n/catalog/ru.json`, синхронизированы на 8 локалей. Даты — Luxon с активной локалью. Контент (title/description) — на языке автора.
+Ключи `webinars.*` (в т.ч. `questionsTitle`, `registeredTitle`/`registeredBody`, `registerPaidCta`). Даты — Luxon + активная локаль. Контент анонса/записи — `*_i18n` + admin translate.
 
-## 5. Легаси-задел
+## 4. Легаси
 
-`announcements.kind='webinar'` и RPC `get_user_announcement` (init-миграция) **не используются** — баннер работает от таблицы `webinars`. Кандидат на депрекацию вместе с `announcements` (см. `open_questions.md`).
+`announcements.kind='webinar'` не используется. `recording_url` читается клиентом только если linked post ещё нет.

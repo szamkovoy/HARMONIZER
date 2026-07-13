@@ -57,6 +57,7 @@ export function postRowFromPayload(payload: AdminPostPayload) {
     title_i18n: titleI18n,
     body_i18n: bodyI18n,
     cover_url_i18n: coverUrlI18n,
+    kind: "video" as const,
     ...(hasI18n ? { translations_updated_at: new Date().toISOString() } : {}),
   };
 }

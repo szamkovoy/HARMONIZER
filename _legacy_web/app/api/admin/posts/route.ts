@@ -24,9 +24,11 @@ export async function GET(req: Request) {
     const beforeId = url.searchParams.get("before_id");
 
     const db = createServiceSupabase();
+    // Webinar recordings are edited under /admin/webinars — keep this list for ordinary videos.
     let query = db
       .from("posts")
       .select("*")
+      .eq("kind", "video")
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit);

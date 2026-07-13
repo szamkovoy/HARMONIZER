@@ -5,11 +5,11 @@ import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchUpcomingWebinar, type WebinarItem } from "@/modules/webinars/core/webinarsClient";
+import { fetchUpcomingWebinar, localizeWebinar, type WebinarItem } from "@/modules/webinars/core/webinarsClient";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
-/** Анонс ближайшего вебинара на главной; null, если предстоящих нет. */
+/** Анонс ближайшего вебинара на главной (до starts_at + 1 ч); null, если окна нет. */
 export function UpcomingWebinarBanner() {
   const theme = useTheme();
   const { t, locale } = useTranslate();
@@ -28,8 +28,9 @@ export function UpcomingWebinarBanner() {
   useFocusEffect(reload);
 
   if (!webinar) return null;
+  const localized = localizeWebinar(webinar, locale);
 
-  const when = DateTime.fromISO(webinar.startsAt).setLocale(locale).toLocaleString({
+  const when = DateTime.fromISO(localized.startsAt).setLocale(locale).toLocaleString({
     day: "numeric",
     month: "2-digit",
     hour: "2-digit",
@@ -52,7 +53,7 @@ export function UpcomingWebinarBanner() {
     >
       <View style={[styles.dot, { backgroundColor: theme.colors.accent }]} />
       <AppText variant="technicalCaption" tone="muted" numberOfLines={1} style={styles.text}>
-        {when} · {t("webinars.banner.label")} · {webinar.title}
+        {when} · {t("webinars.banner.label")} · {localized.title}
       </AppText>
       <AppText variant="sectionTitle" tone="muted" style={styles.arrow}>
         ›

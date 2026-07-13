@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { HelpCircle, Loader2, Plus, Users } from "lucide-react";
+import { HelpCircle, Loader2, MessageCircle, Plus, Users } from "lucide-react";
+
+import { isWebinarInJoinWindow } from "@/modules/webinars/core/webinarTiming";
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
@@ -15,6 +17,9 @@ type WebinarListRow = {
   is_published: boolean;
   registration_count: number;
   question_count: number;
+  recording_post_id: string | null;
+  recording_is_published: boolean;
+  recording_comment_count: number;
 };
 
 export default function AdminWebinarsPage() {
@@ -32,7 +37,7 @@ export default function AdminWebinarsPage() {
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-100">Вебинары</h1>
-          <p className="text-sm text-zinc-500">Анонсы, вопросы с голосами, записавшиеся, ссылки на записи.</p>
+          <p className="text-sm text-zinc-500">Анонс и запись, вопросы, участники.</p>
         </div>
         <Link
           href="/admin/webinars/new"
@@ -52,7 +57,7 @@ export default function AdminWebinarsPage() {
 
       <div className="flex flex-col gap-3">
         {webinars?.map((webinar) => {
-          const isPast = new Date(webinar.starts_at).getTime() < Date.now();
+          const inJoinWindow = isWebinarInJoinWindow(webinar.starts_at);
           return (
             <Link
               key={webinar.id}
@@ -66,20 +71,37 @@ export default function AdminWebinarsPage() {
                     webinar.is_published ? "bg-emerald-400/10 text-emerald-300" : "bg-white/5 text-zinc-400"
                   }`}
                 >
-                  {webinar.is_published ? "Опубликован" : "Черновик"}
+                  Анонс: {webinar.is_published ? "опубликован" : "черновик"}
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 ${
+                    webinar.recording_is_published
+                      ? "bg-emerald-400/10 text-emerald-300"
+                      : webinar.recording_post_id
+                        ? "bg-amber-400/10 text-amber-200"
+                        : "bg-white/5 text-zinc-400"
+                  }`}
+                >
+                  Запись:{" "}
+                  {!webinar.recording_post_id
+                    ? "нет"
+                    : webinar.recording_is_published
+                      ? "опубликована"
+                      : "черновик"}
                 </span>
                 <span className="text-zinc-400">{formatAdminDateTime(webinar.starts_at)}</span>
-                {isPast ? (
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">
-                    {webinar.recording_url ? "Запись прикреплена" : "Прошёл, без записи"}
-                  </span>
-                ) : null}
                 <span className="flex items-center gap-1 text-zinc-500">
                   <Users size={12} /> {webinar.registration_count}
                 </span>
-                <span className="flex items-center gap-1 text-zinc-500">
-                  <HelpCircle size={12} /> {webinar.question_count}
-                </span>
+                {inJoinWindow ? (
+                  <span className="flex items-center gap-1 text-zinc-500">
+                    <HelpCircle size={12} /> {webinar.question_count}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-zinc-500">
+                    <MessageCircle size={12} /> {webinar.recording_comment_count}
+                  </span>
+                )}
               </div>
             </Link>
           );

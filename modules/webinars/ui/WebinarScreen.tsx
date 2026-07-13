@@ -1,6 +1,7 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { Image } from "expo-image";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { DateTime } from "luxon";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { requiredTierFor, UpgradeDialog, useAccess } from "@/modules/access";
@@ -9,9 +10,11 @@ import { useTranslate } from "@/modules/i18n";
 import { CommentsSection, type CommentItem } from "@/modules/posts";
 import { fetchComments } from "@/modules/posts/core/postsClient";
 import { LinkifiedBody } from "@/modules/posts/ui/LinkifiedBody";
+import { isWebinarInJoinWindow } from "@/modules/webinars/core/webinarTiming";
 import {
   fetchWebinar,
   isRegistered,
+  localizeWebinar,
   setRegistered,
   type WebinarItem,
 } from "@/modules/webinars/core/webinarsClient";
@@ -45,17 +48,25 @@ export function WebinarScreen() {
     void fetchComments("webinar", id, userId, locale).then(setQuestions);
   }, [id, userId, locale]);
 
+  const localized = useMemo(
+    () => (webinar ? localizeWebinar(webinar, locale) : null),
+    [webinar, locale],
+  );
+
   const toggleRegistration = useCallback(() => {
     if (!id || !userId) return;
+    if (!canUseFeature("webinar_community")) {
+      setShowUpgrade(true);
+      return;
+    }
     const next = !registered;
     setRegisteredState(next);
     void setRegistered(id, userId, next);
-  }, [id, userId, registered]);
+  }, [canUseFeature, id, userId, registered]);
 
   const onQuestionsChanged = useCallback((next: CommentItem[]) => setQuestions(next), []);
 
-  const canWatchRecording = canUseFeature("webinar_community");
-  const isPast = webinar ? new Date(webinar.startsAt).getTime() < Date.now() : false;
+  const inJoinWindow = webinar ? isWebinarInJoinWindow(webinar.startsAt) : false;
 
   return (
     <StackScreenLayout edges={["top", "left", "right"]}>
@@ -78,88 +89,111 @@ export function WebinarScreen() {
           <View style={styles.stateWrap}>
             <StateCard loading message={t("webinars.loading")} />
           </View>
-        ) : webinar === null ? (
+        ) : webinar === null || !localized ? (
           <View style={styles.stateWrap}>
             <StateCard tone="warning" title={t("webinars.notFoundTitle")} message={t("webinars.notFoundMessage")} />
           </View>
         ) : (
           <StackScrollView contentOptions={{ topPadding: 4, gap: 14 }} keyboardShouldPersistTaps="handled">
+            {localized.coverUrl ? (
+              <Image source={{ uri: localized.coverUrl }} style={styles.cover} contentFit="cover" />
+            ) : null}
+
             <AppText variant="screenTitle" accessibilityRole="header">
-              {webinar.title}
+              {localized.title}
             </AppText>
             <AppText variant="sectionTitle" tone="accent">
-              {DateTime.fromISO(webinar.startsAt).setLocale(locale).toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)}
+              {DateTime.fromISO(localized.startsAt)
+                .setLocale(locale)
+                .toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)}
             </AppText>
-            {webinar.description ? <LinkifiedBody body={webinar.description} /> : null}
+            {localized.description ? <LinkifiedBody body={localized.description} /> : null}
 
-            {!isPast ? (
-              <AppButton
-                label={registered ? t("webinars.unregister") : t("webinars.register")}
-                variant={registered ? "secondary" : "primary"}
-                onPress={toggleRegistration}
-              />
-            ) : null}
-            {!isPast && registered ? (
-              <AppText variant="screenHint" tone="muted">
-                {t("webinars.registeredHint")}
-              </AppText>
-            ) : null}
-
-            {!isPast && webinar.joinUrl && registered ? (
-              <AppButton
-                label={t("webinars.join")}
-                variant="secondary"
-                onPress={() => void Linking.openURL(webinar.joinUrl!)}
-              />
-            ) : null}
-
-            {isPast ? (
+            {inJoinWindow ? (
               <View
                 style={[
-                  styles.recordingCard,
+                  styles.regCard,
                   { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder },
                 ]}
               >
-                <AppText variant="sectionTitle">{t("webinars.recordingTitle")}</AppText>
-                {webinar.recordingUrl ? (
-                  canWatchRecording ? (
-                    <AppButton
-                      label={t("webinars.watchRecording")}
-                      variant="primary"
-                      onPress={() => void Linking.openURL(webinar.recordingUrl!)}
-                    />
-                  ) : (
-                    <>
-                      <AppText variant="screenHint" tone="muted">
-                        {t("webinars.recordingLocked")}
-                      </AppText>
-                      <AppButton
-                        label={t("webinars.upgradeCta")}
-                        variant="secondary"
-                        onPress={() => setShowUpgrade(true)}
-                      />
-                    </>
-                  )
+                {!registered ? (
+                  <AppButton
+                    label={
+                      canUseFeature("webinar_community")
+                        ? t("webinars.register")
+                        : t("webinars.registerPaidCta")
+                    }
+                    variant="primary"
+                    onPress={toggleRegistration}
+                  />
                 ) : (
-                  <AppText variant="screenHint" tone="muted">
-                    {t("webinars.recordingPending")}
-                  </AppText>
+                  <>
+                    <AppText variant="sectionTitle">{t("webinars.registeredTitle")}</AppText>
+                    <AppText variant="screenHint" tone="muted">
+                      {t("webinars.registeredBody")}
+                    </AppText>
+                    {localized.joinUrl ? (
+                      <AppButton
+                        label={t("webinars.join")}
+                        variant="primary"
+                        onPress={() => void Linking.openURL(localized.joinUrl!)}
+                      />
+                    ) : (
+                      <AppText variant="screenHint" tone="muted">
+                        {t("webinars.joinPending")}
+                      </AppText>
+                    )}
+                    <AppButton
+                      label={t("webinars.unregister")}
+                      variant="secondary"
+                      onPress={toggleRegistration}
+                    />
+                  </>
                 )}
               </View>
             ) : null}
 
-            <View style={[styles.divider, { backgroundColor: theme.colors.surfaceBorder }]} />
+            {!inJoinWindow && registered && localized.recordingPostId ? (
+              <AppButton
+                label={t("webinars.watchRecording")}
+                variant="primary"
+                onPress={() => router.push(`/post/${localized.recordingPostId}` as Href)}
+              />
+            ) : null}
+            {!inJoinWindow && registered && !localized.recordingPostId && localized.recordingUrl ? (
+              <AppButton
+                label={t("webinars.watchRecording")}
+                variant="primary"
+                onPress={() => void Linking.openURL(localized.recordingUrl!)}
+              />
+            ) : null}
+            {!inJoinWindow && registered && !localized.recordingPostId && !localized.recordingUrl ? (
+              <AppText variant="screenHint" tone="muted">
+                {t("webinars.recordingPending")}
+              </AppText>
+            ) : null}
+            {!inJoinWindow && !registered ? (
+              <AppText variant="screenHint" tone="muted">
+                {t("webinars.recordingRegistrantsOnly")}
+              </AppText>
+            ) : null}
 
-            <AppText variant="screenHint" tone="muted">
-              {t("webinars.questionsHint")}
-            </AppText>
-            <CommentsSection
-              targetType="webinar"
-              targetId={webinar.id}
-              comments={questions}
-              onChanged={onQuestionsChanged}
-              inputPlaceholderKey="webinars.questionPlaceholder"
-            />
+            {inJoinWindow ? (
+              <>
+                <View style={[styles.divider, { backgroundColor: theme.colors.surfaceBorder }]} />
+                <AppText variant="sectionTitle">{t("webinars.questionsTitle")}</AppText>
+                <AppText variant="screenHint" tone="muted">
+                  {t("webinars.questionsHint")}
+                </AppText>
+                <CommentsSection
+                  targetType="webinar"
+                  targetId={webinar.id}
+                  comments={questions}
+                  onChanged={onQuestionsChanged}
+                  inputPlaceholderKey="webinars.questionPlaceholder"
+                />
+              </>
+            ) : null}
           </StackScrollView>
         )}
       </KeyboardAvoidingView>
@@ -187,7 +221,12 @@ const styles = StyleSheet.create({
   stateWrap: {
     paddingHorizontal: 20,
   },
-  recordingCard: {
+  cover: {
+    aspectRatio: 16 / 9,
+    borderRadius: 16,
+    width: "100%",
+  },
+  regCard: {
     borderRadius: 16,
     borderWidth: 1,
     gap: 10,

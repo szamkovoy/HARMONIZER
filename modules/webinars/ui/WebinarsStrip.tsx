@@ -5,14 +5,14 @@ import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchWebinars, type WebinarItem } from "@/modules/webinars/core/webinarsClient";
+import { fetchWebinars, localizeWebinar, type WebinarItem } from "@/modules/webinars/core/webinarsClient";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
 const MAX_PAST = 5;
 
 /**
- * Компактный блок вебинаров для вкладки «Публикации»: предстоящие
+ * Компактный блок вебинаров для вкладки «Видео»: join-окно
  * + последние прошедшие с записью. Null, когда показывать нечего.
  */
 export function WebinarsStrip() {
@@ -42,37 +42,43 @@ export function WebinarsStrip() {
   return (
     <View style={styles.root}>
       <AppText variant="sectionTitle">{t("webinars.strip.title")}</AppText>
-      {rows.map(({ webinar, isPast }) => (
-        <Pressable
-          key={webinar.id}
-          accessibilityRole="button"
-          onPress={() => router.push(`/webinar/${webinar.id}` as Href)}
-          style={({ pressed }) => [
-            styles.row,
-            {
-              backgroundColor: theme.colors.surfaceElevated,
-              borderColor: theme.colors.surfaceBorder,
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          <View style={styles.rowBody}>
-            <AppText variant="buttonLabel" numberOfLines={1}>
-              {webinar.title}
+      {rows.map(({ webinar, isPast }) => {
+        const localized = localizeWebinar(webinar, locale);
+        const href = (
+          isPast && webinar.recordingPostId ? `/post/${webinar.recordingPostId}` : `/webinar/${webinar.id}`
+        ) as Href;
+        return (
+          <Pressable
+            key={webinar.id}
+            accessibilityRole="button"
+            onPress={() => router.push(href)}
+            style={({ pressed }) => [
+              styles.row,
+              {
+                backgroundColor: theme.colors.surfaceElevated,
+                borderColor: theme.colors.surfaceBorder,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <View style={styles.rowBody}>
+              <AppText variant="buttonLabel" numberOfLines={1}>
+                {localized.title}
+              </AppText>
+              <AppText variant="technicalCaption" tone={isPast ? "faint" : "accent"}>
+                {isPast
+                  ? t("webinars.strip.recording")
+                  : DateTime.fromISO(localized.startsAt)
+                      .setLocale(locale)
+                      .toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)}
+              </AppText>
+            </View>
+            <AppText variant="sectionTitle" tone="muted">
+              ›
             </AppText>
-            <AppText variant="technicalCaption" tone={isPast ? "faint" : "accent"}>
-              {isPast
-                ? t("webinars.strip.recording")
-                : DateTime.fromISO(webinar.startsAt)
-                    .setLocale(locale)
-                    .toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)}
-            </AppText>
-          </View>
-          <AppText variant="sectionTitle" tone="muted">
-            ›
-          </AppText>
-        </Pressable>
-      ))}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

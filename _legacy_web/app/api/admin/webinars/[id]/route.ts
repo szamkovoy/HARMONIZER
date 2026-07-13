@@ -20,7 +20,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     if (error) throw error;
     if (!webinar) return json({ error: "Вебинар не найден" }, { status: 404 });
 
-    const [questionsRes, regsRes] = await Promise.all([
+    const [questionsRes, regsRes, recordingRes] = await Promise.all([
       db
         .from("comments")
         .select("id, user_id, body, is_hidden, created_at, users!comments_user_id_fkey(display_name)")
@@ -32,9 +32,46 @@ export async function GET(req: Request, ctx: RouteContext) {
         .select("user_id, created_at, users(display_name, membership_tier)")
         .eq("webinar_id", id)
         .order("created_at", { ascending: true }),
+      db
+        .from("posts")
+        .select("*")
+        .eq("webinar_id", id)
+        .eq("kind", "webinar_recording")
+        .maybeSingle(),
     ]);
     if (questionsRes.error) throw questionsRes.error;
     if (regsRes.error) throw regsRes.error;
+    if (recordingRes.error) throw recordingRes.error;
+
+    const recording = recordingRes.data;
+    let recordingComments: Array<{
+      id: string;
+      user_id: string;
+      body: string;
+      is_hidden: boolean;
+      created_at: string;
+      display_name: string;
+    }> = [];
+    if (recording) {
+      const { data: commentRows, error: recordingCommentsError } = await db
+        .from("comments")
+        .select("id, user_id, body, is_hidden, created_at, users!comments_user_id_fkey(display_name)")
+        .eq("target_type", "post")
+        .eq("target_id", recording.id)
+        .order("created_at", { ascending: true });
+      if (recordingCommentsError) throw recordingCommentsError;
+      recordingComments = (commentRows ?? []).map((q) => {
+        const author = q.users as { display_name?: string | null } | null;
+        return {
+          id: q.id,
+          user_id: q.user_id,
+          body: q.body,
+          is_hidden: q.is_hidden,
+          created_at: q.created_at,
+          display_name: author?.display_name?.trim() || "Гость",
+        };
+      });
+    }
 
     const emails = await emailsByUserId(
       db,
@@ -72,6 +109,8 @@ export async function GET(req: Request, ctx: RouteContext) {
     return json({
       webinar,
       questions,
+      recording,
+      recording_comments: recordingComments,
       registrations: (regsRes.data ?? []).map((r) => {
         const user = r.users as {
           display_name?: string | null;
@@ -123,6 +162,17 @@ export async function DELETE(req: Request, ctx: RouteContext) {
       .eq("target_type", "webinar")
       .eq("target_id", id);
     if (questionsError) throw questionsError;
+
+    const { data: recording } = await db
+      .from("posts")
+      .select("id")
+      .eq("webinar_id", id)
+      .eq("kind", "webinar_recording")
+      .maybeSingle();
+    if (recording) {
+      await db.from("comments").delete().eq("target_type", "post").eq("target_id", recording.id);
+      await db.from("posts").delete().eq("id", recording.id);
+    }
 
     const { error } = await db.from("webinars").delete().eq("id", id);
     if (error) throw error;

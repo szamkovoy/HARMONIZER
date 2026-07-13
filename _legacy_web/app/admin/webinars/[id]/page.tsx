@@ -8,7 +8,9 @@ import { adminFetch } from "../../_lib/adminApi";
 import {
   WebinarEditor,
   type AdminWebinar,
+  type AdminWebinarComment,
   type AdminWebinarQuestion,
+  type AdminWebinarRecording,
   type AdminWebinarRegistration,
 } from "../_components/WebinarEditor";
 
@@ -16,6 +18,8 @@ type WebinarDetail = {
   webinar: AdminWebinar;
   questions: AdminWebinarQuestion[];
   registrations: AdminWebinarRegistration[];
+  recording: AdminWebinarRecording | null;
+  recording_comments: AdminWebinarComment[];
 };
 
 export default function AdminWebinarPage() {
@@ -38,5 +42,13 @@ export default function AdminWebinarPage() {
       </p>
     );
   }
-  return <WebinarEditor webinar={data.webinar} questions={data.questions} registrations={data.registrations} />;
+  return (
+    <WebinarEditor
+      webinar={data.webinar}
+      questions={data.questions}
+      registrations={data.registrations}
+      recording={data.recording}
+      recordingComments={data.recording_comments ?? []}
+    />
+  );
 }

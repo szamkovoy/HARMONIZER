@@ -20,9 +20,9 @@
     "title": "Navigator op archetypen",
     "captionFree": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag",
     "captionPersonal": "Psychoarchetypisch model, gebaseerd op de planetaire dynamiek van deze dag, persoonlijk voor jou",
-    "helpButtonAccessibilityLabel": "Uitleg bij de archetypische navigator",
-    "helpModalTitle": "Hoe de navigator te gebruiken",
-    "helpBody": "De grootte van de zeven bloemblaadjes van deze bloem komt overeen met de astrologische kracht van de planeten op deze dag. Vandaag is dit uw navigator. Geloof dat sterrenbeelden en astrologie niet door mammoetjagers zijn bedacht. Om van boulevardvoorspellingen over te stappen naar het harmoniseren van uw psyche en leven, gebruik deze wijsheid: zie elke planeet niet als een punt in een horoscoop, maar als een archetype. Door u te verbinden met archetypische toestanden in het ritme van planetaire beweging, kunt u de knopen van levensomstandigheden effectief ontwarren die jarenlang verward raakten."
+    "helpButtonAccessibilityLabel": "Toelichting bij de archetypische navigator",
+    "helpModalTitle": "Hoe gebruik je de navigator",
+    "helpBody": "De grootte van de zeven bloemblaadjes van deze bloem komt overeen met de astrologische kracht van de planeten op deze dag. Vandaag is dit jouw navigator. Geloof dat sterrenbeelden en astrologie niet zijn uitgevonden door mammoetjagers. Om van oppervlakkige voorspellingen over te stappen naar het harmoniseren van je psyche en leven, maak gebruik van deze wijsheid – beschouw elke planeet niet als een punt in de horoscoop, maar als een archetype. Door in verbinding te komen met de toestanden van de archetypen in het ritme van de planeetbewegingen, zul je effectief de knopen van levensomstandigheden ontwarren die je vele jaren verstrikt hebben gehouden."
   },
   "closeAssistantAccessibilityLabel": "Sluit assistent",
   "closeButton": "Sluiten",
@@ -133,9 +133,9 @@
     "loading": "Aanbeveling voor vandaag wordt geladen…",
     "discussButton": "Wat te doen?",
     "readMoreButton": "Lees meer",
-    "helpButtonAccessibilityLabel": "Uitleg bij het dagadvies",
+    "helpButtonAccessibilityLabel": "Toelichting bij de dagelijkse aanbevelingen",
     "helpModalTitle": "Basis van de aanbeveling",
-    "helpBody": "Deze aanbeveling beschrijft de sterkste planeet van de dag als een archetypisch beeld volgens de analytische psychologie van Carl Jung. Zo wordt duidelijk vanuit welke innerlijke toestanden het vandaag zinnig is te handelen.\n\nWilt u een gedetailleerde astrologische voorspelling, tik dan op «Lees meer». Daarna kunt u de wiskunde achter deze aanbevelingen bekijken en zelfs het horoscoop zien.\n\nOf tik op «Wat te doen?» om de gebeurtenissen van vandaag door de ogen van dit archetype te zien en de dag om te zetten in een reeks interessante psychopraktijken. Na een week gebruik van deze functie ontstaat een bistochastische matrix van uw toestanden en worden de aanbevelingen nauwkeuriger."
+    "helpBody": "Deze aanbeveling beschrijft de sterkste planeet van deze dag als een archetypisch beeld volgens de analytische psychologie van Carl Jung. Hierdoor wordt het voor jou duidelijk op de golf van welke gemoedstoestand het vandaag zinvol is om te handelen.\\n\\nAls je geïnteresseerd bent in een gedetailleerde astrologische voorspelling, klik dan op de knop ‘Meer details’. Vervolgens kun je kennis maken met de wiskunde die aan deze aanbevelingen ten grondslag ligt, en zelfs de horoscoop bekijken.\\n\\nOf klik op de knop ‘Wat te doen?’ om de gebeurtenissen die je deze dag te wachten staan door de ogen van dit archetype te zien, en de dag om te zetten in een reeks interessante psychologische oefeningen. En na een week gebruik van deze functie zal er een bistochastische matrix van jouw toestanden worden samengesteld, waardoor de aanbevelingen nog preciezer worden."
   },
   "refreshAccessibilityLabel": "Vernieuw dagvoorspelling",
   "refreshButton": "Vernieuwen",

@@ -1038,11 +1038,13 @@ export type Database = {
           created_by: string | null
           id: string
           is_published: boolean
+          kind: string
           published_at: string | null
           title: string
           title_i18n: Json
           translations_updated_at: string | null
           updated_at: string
+          webinar_id: string | null
         }
         Insert: {
           body?: string
@@ -1053,11 +1055,13 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_published?: boolean
+          kind?: string
           published_at?: string | null
           title: string
           title_i18n?: Json
           translations_updated_at?: string | null
           updated_at?: string
+          webinar_id?: string | null
         }
         Update: {
           body?: string
@@ -1068,11 +1072,13 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_published?: boolean
+          kind?: string
           published_at?: string | null
           title?: string
           title_i18n?: Json
           translations_updated_at?: string | null
           updated_at?: string
+          webinar_id?: string | null
         }
         Relationships: [
           {
@@ -1080,6 +1086,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
             referencedColumns: ["id"]
           },
         ]
@@ -2213,36 +2226,51 @@ export type Database = {
       }
       webinars: {
         Row: {
+          cover_url: string | null
+          cover_url_i18n: Json
           created_at: string
           description: string
+          description_i18n: Json
           id: string
           is_published: boolean
           join_url: string | null
           recording_url: string | null
           starts_at: string
           title: string
+          title_i18n: Json
+          translations_updated_at: string | null
           updated_at: string
         }
         Insert: {
+          cover_url?: string | null
+          cover_url_i18n?: Json
           created_at?: string
           description?: string
+          description_i18n?: Json
           id?: string
           is_published?: boolean
           join_url?: string | null
           recording_url?: string | null
           starts_at: string
           title: string
+          title_i18n?: Json
+          translations_updated_at?: string | null
           updated_at?: string
         }
         Update: {
+          cover_url?: string | null
+          cover_url_i18n?: Json
           created_at?: string
           description?: string
+          description_i18n?: Json
           id?: string
           is_published?: boolean
           join_url?: string | null
           recording_url?: string | null
           starts_at?: string
           title?: string
+          title_i18n?: Json
+          translations_updated_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2281,9 +2309,11 @@ export type Database = {
           cover_url: string
           cover_url_i18n: Json
           id: string
+          kind: string
           published_at: string
           title: string
           title_i18n: Json
+          webinar_id: string | null
         }[]
       }
       get_target_comments: {

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.6
+version: 3.7
 updated: 2026-07-13
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
@@ -94,7 +94,7 @@ code_refs:
 - **`user_post_views`** — PK `(user_id, post_id)`; RLS self-all; dismiss home-карточки и учёт просмотра описания.
 - **`comment_likes`** — PK `(comment_id, user_id)`; RLS: read authenticated, insert/delete своих.
 - **Storage `post-covers`** (public read, 20 МБ, только изображения) — по образцу `story-media`.
-- RPC **`get_posts_feed(p_limit, p_locale?, p_before_published_at?, p_before_id?)`** — опубликованные посты + `comment_count`; cursor по `(published_at desc, id desc)`; опциональный `p_locale` отфильтровывает посты без заголовка для этой локали. Лимит 1…30 (default 10). RPC **`get_target_comments`** — + `source_locale`/`body_i18n`; клиент резолвит текст по активной локали.
+- RPC **`get_posts_feed(p_limit, p_locale?, p_before_published_at?, p_before_id?)`** — опубликованные посты + `comment_count` + `kind`/`webinar_id`; cursor по `(published_at desc, id desc)`; опциональный `p_locale` отфильтровывает посты без заголовка для этой локали; `kind=webinar_recording` только для пользователей с `webinar_registrations`. Лимит 1…30 (default 10). Обычные видео — `kind=video`. RPC **`get_target_comments`** — + `source_locale`/`body_i18n`; клиент резолвит текст по активной локали.
 
 ## 4. i18n
 
