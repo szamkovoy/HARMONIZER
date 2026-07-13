@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.24
+version: 2.25
 updated: 2026-07-13
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-13 (5):** Free locale ensure accepts `isFreeDayContentRenderable` (not full `long_explanation`) so a stripped legacy long no longer triggers `forceRefresh`/LLM after app restart. Free Home falls back to Moscow/tz coords when GPS/permission/cache miss, keeping recommendations visible with a non-blocking location warning.
 
 - **2026-07-13 (4):** Free `forceRefresh` no longer full-day LLM regen for a missing `text_i18n` locale (awaits that locale only). `fetchGlobalContent` prefers direct Supabase when locale texts already exist.
 

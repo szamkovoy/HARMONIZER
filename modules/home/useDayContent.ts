@@ -15,6 +15,7 @@ import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { consumeLocaleDayContentWarm } from "@/services/localeDayContentBridge";
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
+import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
 import { getResponseLocale, subscribeAppLocale, type AppLocale } from "@/modules/i18n/localeStore";
 import { stripHomeLlmTexts } from "@/modules/home/stripHomeLlmTexts";
@@ -382,28 +383,48 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           return;
         }
 
-        const err = locationError(options?.locationErrorMessage);
-        logRuntimeEvent(
-          "day_content:missing_location",
-          {
-            hasProfile: Boolean(profileId),
-            profileId,
-            tz: profileTimezone,
-            reason: acquireFailure,
-          },
-          "warn",
-        );
-        setForecast(null);
-        setSource(null);
-        setModelUsed(null);
-        latestCacheContextRef.current = null;
-        setStatus("need_location");
-        setError(err);
-        if (acquireFailure) {
-          setLocationIssue(acquireFailure);
+        // Free Home must not blank recommendations when GPS/permission is missing
+        // after an app update (SecureStore/profile coords often empty on cold start).
+        // Use the same Moscow/tz fallback as Profile locale ensure; keep locationIssue
+        // so the user can retry real geolocation for accurate windows.
+        if (nextAccessMode === "free") {
+          locationForRequest = dayContentLocationFallback(profileTimezone);
+          if (acquireFailure) {
+            setLocationIssue(acquireFailure);
+          }
+          logRuntimeEvent(
+            "day_content:free_location_fallback",
+            {
+              profileId,
+              tz: profileTimezone,
+              reason: acquireFailure,
+            },
+            "warn",
+          );
+        } else {
+          const err = locationError(options?.locationErrorMessage);
+          logRuntimeEvent(
+            "day_content:missing_location",
+            {
+              hasProfile: Boolean(profileId),
+              profileId,
+              tz: profileTimezone,
+              reason: acquireFailure,
+            },
+            "warn",
+          );
+          setForecast(null);
+          setSource(null);
+          setModelUsed(null);
+          latestCacheContextRef.current = null;
+          setStatus("need_location");
+          setError(err);
+          if (acquireFailure) {
+            setLocationIssue(acquireFailure);
+          }
+          completeHomeBootstrap();
+          return;
         }
-        completeHomeBootstrap();
-        return;
       }
 
       const resolvedInstantCache =

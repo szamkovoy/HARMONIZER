@@ -10,7 +10,7 @@ import {
   saveDayContentCache,
   type CachedDayContentSource,
 } from "@/services/dayContentCache";
-import { isDayContentComplete } from "@/services/dayContentIntegrity";
+import { isDayContentComplete, isFreeDayContentRenderable } from "@/services/dayContentIntegrity";
 import { assertDayTextsMatchLocale, dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { fetchGlobalContent } from "@/services/globalContentClient";
 import type { LocaleDayContentWarmPayload } from "@/services/localeDayContentBridge";
@@ -138,7 +138,11 @@ function readExistingWarm(
           scopeKey,
         });
   if (!hit || hit.freshness !== "fresh") return null;
-  if (!isDayContentComplete(hit.forecast, params.accessMode)) return null;
+  const warmOk =
+    params.accessMode === "free"
+      ? isFreeDayContentRenderable(hit.forecast)
+      : isDayContentComplete(hit.forecast, params.accessMode);
+  if (!warmOk) return null;
   if (
     !dayTextsMatchLocale(
       params.locale,
@@ -196,7 +200,10 @@ export async function ensureLocaleDayContent(
         forceRefresh: refresh,
         signal: params.signal,
       });
-      if (!isDayContentComplete(result.forecast, "free")) {
+      // Accept renderable free texts (long_explanation may be stripped when the
+      // server row still has a legacy/non-§ body). Requiring isDayContentComplete
+      // here forced forceRefresh → full-day LLM after every app restart.
+      if (!isFreeDayContentRenderable(result.forecast)) {
         throw new Error("Global day content ensure returned incomplete texts");
       }
       assertDayTextsMatchLocale(
@@ -207,15 +214,15 @@ export async function ensureLocaleDayContent(
       return result;
     };
 
-    // Free: never auto-escalate to forceRefresh (that can wait on LLM). Prefer a
-    // second non-forced fetch; only force when the caller explicitly asked.
+    // Free: only force when the caller explicitly asked. Do not auto-escalate on
+    // incomplete long text — that path waits on LLM and is what made IT→RU slow.
     let result;
     try {
       result = await load(forceRefresh);
     } catch (error) {
       if (forceRefresh || params.signal?.aborted) throw error;
-      // Locale missing on server → one awaited locale backfill via forceRefresh,
-      // but server no longer regenerates the whole day just for a missing locale.
+      // Hard miss (no row / no locale slogan) → one awaited locale backfill.
+      // Server no longer regenerates the whole day just for a missing locale.
       result = await load(true);
     }
 

@@ -1,3 +1,4 @@
+- 2026-07-13 (129): Free locale switch no longer waits on LLM when long_explanation is stripped as legacy; free Home uses location fallback so recommendations stay visible after update/GPS miss. Docs `daily_forecast/*`, `profile/*`.
 - 2026-07-13 (128): Admin videos list infinite scroll (20/page, cursor API). Docs `admin_panel/*`, `author_presence/*`.
 - 2026-07-13 (127): Videos tab infinite scroll (page size 8, cursor RPC + locale filter). Migration `20260713161954`. Docs `author_presence/*`.
 - 2026-07-13 (126): Relative timestamps use abbreviated units (мин/h/дн) — one dominant unit, no declension. Docs `i18n/*`.

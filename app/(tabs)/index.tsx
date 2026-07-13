@@ -673,7 +673,7 @@ export default function HomeScreen() {
         {status === "stale_ready" ? (
           <HomeStaleNotice title={strings.staleContentTitle} message={strings.staleContentMessage} />
         ) : null}
-        {locationIssue && status === "stale_ready" ? (
+        {locationIssue && (status === "stale_ready" || status === "ready") ? (
           <HomeError
             title={strings.locationErrorTitle}
             message={resolveLocationErrorMessage(locationIssue, strings)}

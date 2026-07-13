@@ -51,6 +51,7 @@ import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport }
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile } from "@/services/natalProfileClient";
 import { resolveDayContentAccessKeys } from "@/services/dayContentAccessKeys";
+import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
 import { publishLocaleDayContentWarm } from "@/services/localeDayContentBridge";
 import { ensureLocaleDayContent } from "@/services/localeDayContentEnsure";
 import { peekLocaleDayContentComplete, probeLocaleDayContentReady } from "@/services/localeDayContentProbe";
@@ -106,12 +107,15 @@ export default function ProfileTabRoute() {
   );
 
   const resolveUserLocation = useCallback(() => {
-    const timezone = profile?.tz?.trim() || "UTC";
     if (typeof profile?.lat === "number" && typeof profile?.lon === "number") {
-      return { lat: profile.lat, lng: profile.lon, timezone };
+      return {
+        lat: profile.lat,
+        lng: profile.lon,
+        timezone: profile?.tz?.trim() || "UTC",
+      };
     }
     // Free ensure still needs a location object for windows; Moscow fallback matches natal bridge.
-    return { lat: 55.7558, lng: 37.6173, timezone };
+    return dayContentLocationFallback(profile?.tz);
   }, [profile?.lat, profile?.lon, profile?.tz]);
 
   const commitLocale = useCallback(

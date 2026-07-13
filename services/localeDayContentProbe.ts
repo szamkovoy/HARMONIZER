@@ -2,7 +2,7 @@ import type { ProductTier } from "@/modules/access";
 import type { AppLocale } from "@/modules/i18n";
 import type { AccessMode } from "@/services/globalContentClient";
 import { peekDayContentCache, peekDayContentCacheRelaxed } from "@/services/dayContentCache";
-import { isDayContentComplete } from "@/services/dayContentIntegrity";
+import { isDayContentComplete, isFreeDayContentRenderable } from "@/services/dayContentIntegrity";
 import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { getSupabase } from "@/services/supabase";
 
@@ -139,7 +139,12 @@ export async function probeLocaleDayContentReady(
       scopeKey,
       userLocation: { lat: input.lat, lng: input.lon, timezone },
     });
-    if (cached?.freshness === "fresh" && isDayContentComplete(cached.forecast, accessMode)) {
+    const cachedComplete =
+      cached != null &&
+      (accessMode === "free"
+        ? isFreeDayContentRenderable(cached.forecast)
+        : isDayContentComplete(cached.forecast, accessMode));
+    if (cached?.freshness === "fresh" && cachedComplete) {
       const slogan = String(cached.forecast.slogan ?? "");
       const shortText = String(cached.forecast.recommendationShortText ?? "");
       if (dayTextsMatchLocale(input.locale, slogan, shortText)) {
@@ -177,7 +182,11 @@ export function peekLocaleDayContentComplete(
   );
 
   const matches = (forecast: import("@/modules/daily-engine").DailyForecast) => {
-    if (!isDayContentComplete(forecast, accessMode)) return false;
+    const complete =
+      accessMode === "free"
+        ? isFreeDayContentRenderable(forecast)
+        : isDayContentComplete(forecast, accessMode);
+    if (!complete) return false;
     return dayTextsMatchLocale(
       input.locale,
       String(forecast.slogan ?? ""),
