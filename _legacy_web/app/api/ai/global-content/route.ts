@@ -243,14 +243,24 @@ export async function POST(req: Request) {
     const expectedModel = await getExpectedGlobalDailyContentModel(db);
     let content = await loadRowForDate(db, localDate);
 
-    // forceRefresh: await full LLM + locale texts (profile language rebuild).
+    // forceRefresh: regenerate stale RU content only when the row itself is missing/stale.
+    // Missing locale texts must NOT trigger a full-day LLM regen — only await locale backfill.
     if (forceRefresh) {
-      if (!content || globalContentNeedsRefresh(content, expectedModel) || !rowHasLocaleTexts(content, responseLocale)) {
+      if (!content || globalContentNeedsRefresh(content, expectedModel)) {
         await scheduleGlobalRefresh(db, localDate);
         content = await loadRowForDate(db, localDate);
       }
       if (content) {
-        return respondWithLocalizedContent(db, content, userAccess, false, responseLocale, devResetExtra, true);
+        const needLocaleBackfill = !rowHasLocaleTexts(content, responseLocale);
+        return respondWithLocalizedContent(
+          db,
+          content,
+          userAccess,
+          false,
+          responseLocale,
+          devResetExtra,
+          needLocaleBackfill,
+        );
       }
     }
 

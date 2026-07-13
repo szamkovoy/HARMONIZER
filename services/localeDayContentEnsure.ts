@@ -207,11 +207,15 @@ export async function ensureLocaleDayContent(
       return result;
     };
 
+    // Free: never auto-escalate to forceRefresh (that can wait on LLM). Prefer a
+    // second non-forced fetch; only force when the caller explicitly asked.
     let result;
     try {
       result = await load(forceRefresh);
     } catch (error) {
-      if (forceRefresh) throw error;
+      if (forceRefresh || params.signal?.aborted) throw error;
+      // Locale missing on server → one awaited locale backfill via forceRefresh,
+      // but server no longer regenerates the whole day just for a missing locale.
       result = await load(true);
     }
 

@@ -1,3 +1,6 @@
+- 2026-07-13 (123): Admin globe from title_i18n; comment optimistic UI + after() translate; free locale switch avoids full-day forceRefresh / prefers direct Supabase read. Docs `author_presence/*`, `daily_forecast/*`, `profile/*`.
+- 2026-07-13 (122): Admin PostEditor: translate copies source cover to empty locales; clear-locale / clear-cover; shared File uploaded once. Docs `author_presence/*`, `admin_panel/*`.
+- 2026-07-13 (121): Unify VideoCard preview/spacing; comment translate runs in `after()` so send stays instant. Docs `author_presence/*`.
 - 2026-07-13 (120): Comment translate uses `AI_MODEL_STANDARD`; post/story admin translate stays one-shot `AI_MODEL_PREMIUM`. Deploy `POST /api/comments`.
 - 2026-07-13 (119): Videos polish #2: admin create→list + tab/cover locale match; home VideoCard under OpportunityWindows with view dismiss; comment i18n API; feed preview+Open. Docs `author_presence/*`.
 - 2026-07-13 (118): «Публикации» → «Видео»: locale-strict feed, cover compress, comment keyboard dock, countLabel, admin any-locale + fill-missing translate, Unauthorized refresh. Docs `author_presence/*`, `admin_panel/*`.

@@ -10,30 +10,35 @@ export async function compressPostCoverFile(file: File): Promise<File> {
     return file;
   }
 
-  const bitmap = await createImageBitmap(file);
   try {
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    if (scale >= 1 && file.size <= 450_000 && file.type === "image/jpeg") {
-      return file;
+    const bitmap = await createImageBitmap(file);
+    try {
+      const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      if (scale >= 1 && file.size <= 450_000 && file.type === "image/jpeg") {
+        return file;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(bitmap, 0, 0, width, height);
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((value) => resolve(value), "image/jpeg", JPEG_QUALITY);
+      });
+      if (!blob) return file;
+
+      const base = file.name.replace(/\.[^.]+$/, "") || "cover";
+      return new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+    } finally {
+      bitmap.close();
     }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
-    ctx.drawImage(bitmap, 0, 0, width, height);
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((value) => resolve(value), "image/jpeg", JPEG_QUALITY);
-    });
-    if (!blob) return file;
-
-    const base = file.name.replace(/\.[^.]+$/, "") || "cover";
-    return new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
-  } finally {
-    bitmap.close();
+  } catch {
+    // createImageBitmap / canvas can fail on odd HEIC/CMYK files — upload original.
+    return file;
   }
 }

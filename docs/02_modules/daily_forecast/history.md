@@ -18,6 +18,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-13 (4):** Free `forceRefresh` no longer full-day LLM regen for a missing `text_i18n` locale (awaits that locale only). `fetchGlobalContent` prefers direct Supabase when locale texts already exist.
+
 - **2026-07-13 (3):** Profile→Home locale handoff via `localeDayContentBridge` + async SecureStore peek; paid localeChange no longer overwrites complete day cache with stripped texts (fixes EN «Loading today's recommendation…» flash after Translating).
 
 - **2026-07-13 (2):** Paid locale switch: unified day-cache keys (`dayContentAccessKeys`); Home no longer forces a second monologue after Profile warm; Cyrillic texts hidden under non-RU UI; free cron `text_i18n` only for active user locales.

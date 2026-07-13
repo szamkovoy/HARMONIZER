@@ -181,11 +181,17 @@ export default function ProfileTabRoute() {
           if (controller.signal.aborted) return;
         }
         if (!peekLocaleDayContentComplete(peekArgs)) {
-          warmed = await ensureOnce(true);
-          if (controller.signal.aborted) return;
-        }
-        if (!peekLocaleDayContentComplete(peekArgs)) {
-          throw new Error(t("profile.language.rebuildError"));
+          if (params.accessMode === "free") {
+            // Free texts already live in `warmed` / server cache — do not force LLM regen
+            // just because SecureStore peek lags after app restart.
+            if (!warmed) throw new Error(t("profile.language.rebuildError"));
+          } else {
+            warmed = await ensureOnce(true);
+            if (controller.signal.aborted) return;
+            if (!peekLocaleDayContentComplete(peekArgs)) {
+              throw new Error(t("profile.language.rebuildError"));
+            }
+          }
         }
 
         // Hand off to Home before setAppLocale so Navigator paints texts immediately.

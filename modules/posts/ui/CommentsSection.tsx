@@ -44,17 +44,40 @@ export function CommentComposer({
     const body = draft.trim();
     if (!body || !userId || sending) return;
     setSending(true);
+    const optimisticId = `local-${Date.now()}`;
+    const optimistic: CommentItem = {
+      id: optimisticId,
+      userId,
+      displayName: null,
+      body,
+      sourceLocale: locale,
+      bodyI18n: { [locale]: body },
+      createdAt: new Date().toISOString(),
+      likeCount: 0,
+      likedByMe: false,
+      isMine: true,
+    };
+    setDraft("");
     try {
-      const result = await addComment(targetType, targetId, userId, body, locale);
-      if (result.ok) {
-        setDraft("");
-        onChanged(await fetchComments(targetType, targetId, userId, locale));
-        onSubmitted?.();
-      } else {
-        Alert.alert(t("posts.comments.sendFailed"));
-      }
-    } finally {
+      const previous = await fetchComments(targetType, targetId, userId, locale);
+      onChanged([optimistic, ...previous]);
+      onSubmitted?.();
       setSending(false);
+
+      // Persist in background so a slow/blocked translate cannot freeze the composer.
+      void addComment(targetType, targetId, userId, body, locale).then(async (result) => {
+        if (result.ok) {
+          onChanged(await fetchComments(targetType, targetId, userId, locale));
+          return;
+        }
+        onChanged(previous);
+        setDraft(body);
+        Alert.alert(t("posts.comments.sendFailed"));
+      });
+    } catch {
+      setDraft(body);
+      setSending(false);
+      Alert.alert(t("posts.comments.sendFailed"));
     }
   }, [draft, userId, sending, targetType, targetId, onChanged, onSubmitted, t, locale]);
 

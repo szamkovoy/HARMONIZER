@@ -10,9 +10,13 @@ import {
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
+/** Shared vertical rhythm for title → preview → meta (home + Videos tab). */
+const CARD_SECTION_GAP = 10;
+
 /**
  * Shared video card for feed + home announcement.
  * Entire card is pressable; subtle «Открыть ›» affordance at the bottom.
+ * Preview length is word-bounded (no mid-word clip, no layout-dependent numberOfLines).
  */
 export function VideoCard({
   post,
@@ -51,7 +55,7 @@ export function VideoCard({
       <View style={styles.cardBody}>
         <AppText variant="sectionTitle">{content.title}</AppText>
         {preview ? (
-          <AppText variant="screenHint" tone="muted" numberOfLines={3}>
+          <AppText variant="screenHint" tone="muted">
             {preview}
           </AppText>
         ) : null}
@@ -75,13 +79,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     overflow: "hidden",
+    width: "100%",
   },
   cover: {
     aspectRatio: 16 / 9,
     width: "100%",
   },
   cardBody: {
-    gap: 8,
+    gap: CARD_SECTION_GAP,
     padding: 14,
   },
   metaRow: {
@@ -89,7 +94,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     justifyContent: "space-between",
-    marginTop: 2,
   },
   metaText: {
     flex: 1,

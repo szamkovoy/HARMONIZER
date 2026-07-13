@@ -3,6 +3,7 @@ import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
+import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
@@ -372,7 +373,31 @@ async function fetchGlobalContentOnce(req: {
   const forceRefresh = req.forceRefresh === true;
   const routeTimeoutMs = forceRefresh ? GLOBAL_CONTENT_FORCE_REFRESH_TIMEOUT_MS : GLOBAL_CONTENT_TIMEOUT_MS;
   let routeError: unknown = null;
+
+  // Fast path for ordinary free locale switch: read Supabase row directly when the
+  // requested locale is already present (cron / prior backfill). Avoids waiting on
+  // the Vercel route (and its forceRefresh LLM path) when texts are ready.
+  if (!forceRefresh) {
+    try {
+      const direct = await fetchGlobalContentDirect(req.userLocation.timezone, responseLocale, req.signal);
+      const hasRealModel = Boolean(String(direct.llm_model ?? "").trim());
+      if (
+        hasRealModel &&
+        dayTextsMatchLocale(
+          responseLocale as AppContentLocale,
+          String(direct.slogan ?? ""),
+          String(direct.short_text ?? ""),
+        )
+      ) {
+        data = direct;
+      }
+    } catch {
+      // Fall through to the API route.
+    }
+  }
+
   try {
+    if (!data) {
     const routeController = new AbortController();
     const routeTimeoutId = setTimeout(() => routeController.abort(), routeTimeoutMs);
     req.signal?.addEventListener("abort", () => routeController.abort(), { once: true });
@@ -410,6 +435,7 @@ async function fetchGlobalContentOnce(req: {
       } finally {
         clearTimeout(fallbackTimeoutId);
       }
+    }
     }
   } catch (error) {
     if (req.signal?.aborted) throw error;

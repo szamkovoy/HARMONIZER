@@ -42,6 +42,12 @@ export function postRowFromPayload(payload: AdminPostPayload) {
   if (publishedAt && Number.isNaN(publishedAt.getTime())) {
     throw new Response(JSON.stringify({ error: "Некорректная дата публикации" }), { status: 400 });
   }
+  const coverUrlI18n = payload.cover_url_i18n ?? {};
+  const hasI18n =
+    Object.keys(titleI18n).length > 0 ||
+    Object.keys(bodyI18n).length > 0 ||
+    Object.keys(coverUrlI18n).some((key) => Boolean(coverUrlI18n[key]));
+
   return {
     title,
     body: payload.body ?? "",
@@ -50,7 +56,8 @@ export function postRowFromPayload(payload: AdminPostPayload) {
     published_at: publishedAt ? publishedAt.toISOString() : null,
     title_i18n: titleI18n,
     body_i18n: bodyI18n,
-    cover_url_i18n: payload.cover_url_i18n ?? {},
+    cover_url_i18n: coverUrlI18n,
+    ...(hasI18n ? { translations_updated_at: new Date().toISOString() } : {}),
   };
 }
 

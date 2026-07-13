@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-13 (10):** Free locale switch: no second `forceRefresh` when SecureStore peek lags after ensure; commit with warm payload.
+
 - **2026-07-13 (9):** Before `setLocale`, Profile publishes ensured day texts via `publishLocaleDayContentWarm` so Home paints slogan/recommendation immediately when Translating ends (no Loading flash).
 
 - **2026-07-13 (8):** Profile language error dialog maps technical `Day content language mismatch` / `LOCALE_MISMATCH` to `profile.language.rebuildError` (no English technical string under DE UI).

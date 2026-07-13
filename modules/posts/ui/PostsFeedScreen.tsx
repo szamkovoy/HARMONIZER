@@ -17,7 +17,7 @@ import { WebinarsStrip } from "@/modules/webinars";
 export function PostsFeedScreen() {
   const theme = useTheme();
   const { t, locale } = useTranslate();
-  const listContentProps = useTabScreenContentProps({ bottomPaddingExtra: 20 });
+  const listContentProps = useTabScreenContentProps({ bottomPaddingExtra: 20, maxWidth: 460 });
 
   const [posts, setPosts] = useState<PostItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);

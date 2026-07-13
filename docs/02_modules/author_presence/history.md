@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-13 (38):** Globe в списке видео — по наличию `title_i18n` (не только `translations_updated_at`); create пишет `translations_updated_at`. Комментарии: optimistic UI + `after()` translate; в БД у зависшего комментария был только `ru` в `body_i18n`.
+
+- **2026-07-13 (37):** «Перевести» копирует обложку с языка-источника (тот же приоритет RU→EN→…) на пустые вкладки (включая ещё несохранённый `File`); при Save один File → один upload. «Удалить перевод» / «Удалить обложку» на активной вкладке; индикатор гаснет; пустая локаль не публикуется в приложении.
+
+- **2026-07-13 (36):** `VideoCard` унифицирован (одинаковый `maxWidth`/gap, превью без `numberOfLines`, обрезка по целому слову). `POST /api/comments` отвечает сразу, LLM-перевод остальных локалей — в `after()`.
+
 - **2026-07-13 (35):** Перевод комментариев (`POST /api/comments`) переведён на `AI_MODEL_STANDARD`; перевод title/body видео в админке остаётся одним запросом к `AI_MODEL_PREMIUM`.
 
 - **2026-07-13 (34):** Админ: create→список, edit tab = display locale, cover = той же локали. Клиент: `VideoCard` с превью+«Открыть», home-карточка под OpportunityWindows + `user_post_views`, scroll к новому комментарию, `POST /api/comments` + `body_i18n` (single vs multi-locale translate). Миграция `20260713134555`.

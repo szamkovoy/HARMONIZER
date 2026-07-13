@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-13 (13):** `PostEditor` create sets `translations_updated_at`; list 🌐 from `title_i18n` keys too.
+
+- **2026-07-13 (12):** `PostEditor`: «Перевести» копирует обложку источника на fill-missing локали; dedupe upload одного File; «Удалить перевод» / «Удалить обложку» на активной вкладке.
+
 - **2026-07-13 (11):** Раздел «Публикации» переименован в «Видео»; `PostEditor` / `postPayload` / `translate` — публикация с любого языка, «Перевести» только в пустые (RU→EN→…); сжатие обложек; `adminFetch` refresh JWT; ФИО комментатора → профиль пользователя.
 
 - **2026-07-10 (10):** Пересчёт тарифа из леджера платежей больше не копирует «последнюю по created_at» запись без проверки срока. После add/edit платежа (и opportunistic на `GET` карточки при stale expires) сервер выбирает среди ещё действующих платежей максимальный тариф по `TIER_ORDER` (при равенстве — более поздний `paid_until`, затем свежий `created_at`); если действующих нет — `free`. Hourly Edge `reconcile-expired-memberships` + SQL RPC `recompute_user_membership` / `reconcile_expired_memberships` (миграция `20260710023000`) держат `users.membership_*` в актуальном состоянии без ожидания ручной правки. Подписи тарифов в админке сведены к `TIER_LABELS_RU` из `modules/access/core/tiers.ts`.

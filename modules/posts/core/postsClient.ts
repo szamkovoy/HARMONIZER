@@ -59,16 +59,21 @@ export type CommentItem = {
   isMine: boolean;
 };
 
-/** ~2–3 lines on a phone card; word-aware trim + ellipsis. */
-export const POST_CARD_PREVIEW_CHARS = 140;
+/** ~2–3 lines on a phone card; length floats to the last whole word. */
+export const POST_CARD_PREVIEW_CHARS = 160;
 
 export function truncatePostPreview(text: string, maxChars = POST_CARD_PREVIEW_CHARS): string {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
-  const slice = normalized.slice(0, maxChars);
-  const lastSpace = slice.lastIndexOf(" ");
-  const clipped = (lastSpace > maxChars * 0.6 ? slice.slice(0, lastSpace) : slice).trimEnd();
-  return `${clipped}…`;
+
+  // Prefer a break at whitespace so we never clip mid-word.
+  const slice = normalized.slice(0, maxChars + 1);
+  const breakAt = Math.max(slice.lastIndexOf(" "), slice.lastIndexOf("\u00a0"));
+  const clipped =
+    breakAt >= Math.floor(maxChars * 0.45)
+      ? normalized.slice(0, breakAt)
+      : normalized.slice(0, maxChars).replace(/\S+$/u, "").trimEnd() || normalized.slice(0, maxChars);
+  return `${clipped.trimEnd()}…`;
 }
 
 export function resolveCommentBodyForLocale(

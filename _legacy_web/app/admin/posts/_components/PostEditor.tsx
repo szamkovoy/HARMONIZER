@@ -71,13 +71,28 @@ async function uploadCover(file: File): Promise<string> {
   const compressed = await compressPostCoverFile(file);
   const ticket = await adminFetch<UploadTicket>("/api/admin/uploads", {
     method: "POST",
-    body: JSON.stringify({ bucket: "post-covers", contentType: compressed.type }),
+    body: JSON.stringify({ bucket: "post-covers", contentType: compressed.type || "image/jpeg" }),
   });
   const { error } = await getBrowserSupabase()
     .storage.from("post-covers")
-    .uploadToSignedUrl(ticket.path, ticket.token, compressed, { contentType: compressed.type });
+    .uploadToSignedUrl(ticket.path, ticket.token, compressed, {
+      contentType: compressed.type || "image/jpeg",
+    });
   if (error) throw new Error(`Загрузка обложки не удалась: ${error.message}`);
   return ticket.publicUrl;
+}
+
+/** Upload the same File once when «Перевести» copied it across tabs. */
+function createCoverUploadCache() {
+  const cache = new Map<File, Promise<string>>();
+  return (file: File) => {
+    let pending = cache.get(file);
+    if (!pending) {
+      pending = uploadCover(file);
+      cache.set(file, pending);
+    }
+    return pending;
+  };
 }
 
 type LocaleTabData = {
@@ -87,6 +102,16 @@ type LocaleTabData = {
   coverFile: File | null;
   coverPreview: string | null;
 };
+
+type CoverSource = {
+  coverUrl: string | null;
+  coverFile: File | null;
+  coverPreview: string | null;
+};
+
+function tabHasCover(tab: CoverSource): boolean {
+  return Boolean(tab.coverUrl || tab.coverFile || tab.coverPreview);
+}
 
 function pickTranslateSource(
   title: string,
@@ -103,6 +128,18 @@ function pickTranslateSource(
   return null;
 }
 
+function pickSourceCover(
+  sourceLocale: ContentLocale,
+  ru: CoverSource,
+  localeTabs: Record<TargetLocale, LocaleTabData>,
+): CoverSource | null {
+  if (sourceLocale === "ru") {
+    return tabHasCover(ru) ? ru : null;
+  }
+  const tab = localeTabs[sourceLocale as TargetLocale];
+  return tabHasCover(tab) ? tab : null;
+}
+
 function localesMissingContent(
   title: string,
   localeTabs: Record<TargetLocale, LocaleTabData>,
@@ -115,6 +152,10 @@ function localesMissingContent(
     if (!localeTabs[locale].title.trim()) missing.push(locale);
   }
   return missing;
+}
+
+function emptyLocaleTab(): LocaleTabData {
+  return { title: "", body: "", coverUrl: null, coverFile: null, coverPreview: null };
 }
 
 /** Редактор видео: post=null — создание, иначе — редактирование + модерация комментариев. */
@@ -197,10 +238,36 @@ export function PostEditor({
         }),
       });
 
+      const sourceCover = pickSourceCover(
+        source.locale,
+        { coverUrl, coverFile, coverPreview },
+        localeTabs,
+      );
+
+      function coverCopyFromSource(): Partial<LocaleTabData> {
+        if (!sourceCover) return {};
+        // Fresh blob URL per locale so clearing one tab does not revoke others.
+        const preview =
+          sourceCover.coverFile != null
+            ? URL.createObjectURL(sourceCover.coverFile)
+            : sourceCover.coverPreview;
+        return {
+          coverUrl: sourceCover.coverUrl,
+          coverFile: sourceCover.coverFile,
+          coverPreview: preview,
+        };
+      }
+
       const ruT = res.translations.ru;
-      if (ruT?.title.trim() && !title.trim()) {
+      if (fillLocales.includes("ru") && ruT?.title.trim() && !title.trim()) {
         setTitle(ruT.title);
         setBody(ruT.body ?? "");
+        if (sourceCover && !tabHasCover({ coverUrl, coverFile, coverPreview })) {
+          const copy = coverCopyFromSource();
+          setCoverUrl(copy.coverUrl ?? null);
+          setCoverFile(copy.coverFile ?? null);
+          setCoverPreview(copy.coverPreview ?? null);
+        }
       }
 
       setLocaleTabs((prev) => {
@@ -214,7 +281,7 @@ export function PostEditor({
             ...next[locale],
             title: t.title,
             body: t.body,
-            coverUrl: next[locale].coverUrl || coverUrl,
+            ...(sourceCover && !tabHasCover(next[locale]) ? coverCopyFromSource() : {}),
           };
         }
         return next;
@@ -226,13 +293,64 @@ export function PostEditor({
     }
   }
 
+  function clearActiveLocaleTranslation() {
+    if (
+      !window.confirm(
+        `Удалить перевод для ${LOCALE_FULL_NAMES[activeTab]}? Заголовок, текст и обложка этой вкладки будут очищены.`,
+      )
+    ) {
+      return;
+    }
+    if (activeTab === "ru") {
+      setTitle("");
+      setBody("");
+      setCoverPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setCoverUrl(null);
+      setCoverFile(null);
+      return;
+    }
+    const prevPreview = localeTabs[activeTab].coverPreview;
+    if (prevPreview) URL.revokeObjectURL(prevPreview);
+    updateLocaleTab(activeTab, emptyLocaleTab());
+  }
+
+  function clearActiveCover() {
+    if (activeTab === "ru") {
+      setCoverPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setCoverUrl(null);
+      setCoverFile(null);
+      return;
+    }
+    const prevPreview = localeTabs[activeTab].coverPreview;
+    if (prevPreview) URL.revokeObjectURL(prevPreview);
+    updateLocaleTab(activeTab, { coverUrl: null, coverFile: null, coverPreview: null });
+  }
+
   const pickCover = (f: File | null) => {
     setCoverFile(f);
+    setCoverUrl(null);
     setCoverPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return f ? URL.createObjectURL(f) : null;
     });
   };
+
+  const activeHasTranslation =
+    activeTab === "ru"
+      ? Boolean(title.trim() || body.trim() || coverUrl || coverFile)
+      : Boolean(
+          localeTabs[activeTab].title.trim() ||
+            localeTabs[activeTab].body.trim() ||
+            tabHasCover(localeTabs[activeTab]),
+        );
+  const activeHasCover =
+    activeTab === "ru" ? Boolean(coverUrl || coverFile || coverPreview) : tabHasCover(localeTabs[activeTab]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -244,10 +362,11 @@ export function PostEditor({
       return;
     }
     try {
+      const uploadCached = createCoverUploadCache();
       let nextCover = coverUrl;
       if (coverFile) {
         setBusy("Загружаю обложку…");
-        nextCover = await uploadCover(coverFile);
+        nextCover = await uploadCached(coverFile);
       }
 
       const titleI18n: Record<string, string> = {};
@@ -259,7 +378,7 @@ export function PostEditor({
         let localeCoverUrl = tab.coverUrl;
         if (tab.coverFile) {
           setBusy(`Загружаю обложку ${LOCALE_LABELS[locale]}…`);
-          localeCoverUrl = await uploadCover(tab.coverFile);
+          localeCoverUrl = await uploadCached(tab.coverFile);
         }
         if (tab.title.trim()) titleI18n[locale] = tab.title.trim();
         if (tab.body.trim()) bodyI18n[locale] = tab.body;
@@ -354,7 +473,7 @@ export function PostEditor({
                 onClick={() => void runTranslate()}
                 disabled={translating}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-60"
-                title="Перевести только пустые языки (источник: RU → EN → …)"
+                title="Перевести пустые языки и скопировать обложку источника (RU → EN → …)"
               >
                 {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 Перевести
@@ -366,21 +485,32 @@ export function PostEditor({
 
         {activeTab === "ru" ? (
           <>
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              className="mb-4 flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
-            >
-              {ruCoverShown ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={ruCoverShown} alt="Обложка" className="h-full w-full object-contain" />
-              ) : (
-                <span className="flex flex-col items-center gap-1 text-xs">
-                  <ImagePlus size={22} strokeWidth={1.6} />
-                  Обложка (необязательно)
-                </span>
-              )}
-            </button>
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                className="flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
+              >
+                {ruCoverShown ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={ruCoverShown} alt="Обложка" className="h-full w-full object-contain" />
+                ) : (
+                  <span className="flex flex-col items-center gap-1 text-xs">
+                    <ImagePlus size={22} strokeWidth={1.6} />
+                    Обложка (необязательно)
+                  </span>
+                )}
+              </button>
+              {activeHasCover ? (
+                <button
+                  type="button"
+                  onClick={clearActiveCover}
+                  className="mt-1.5 text-xs text-zinc-500 transition-colors hover:text-red-300"
+                >
+                  Удалить обложку
+                </button>
+              ) : null}
+            </div>
             <input
               ref={fileInput}
               type="file"
@@ -419,15 +549,15 @@ export function PostEditor({
               locale={locale}
               data={localeTabs[locale]}
               onChange={(patch) => updateLocaleTab(locale, patch)}
+              onClearCover={clearActiveCover}
               fileInputRef={(el) => {
                 localeFileInputs.current[locale] = el;
               }}
-              fallbackCoverUrl={coverUrl}
             />
           ) : null,
         )}
 
-        <div className="mb-4 flex items-center gap-4 text-sm text-zinc-300">
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -437,6 +567,16 @@ export function PostEditor({
             />
             {isEditing ? "Опубликовано" : "Опубликовать сразу"}
           </label>
+          {activeHasTranslation ? (
+            <button
+              type="button"
+              onClick={clearActiveLocaleTranslation}
+              className="text-xs text-zinc-500 underline-offset-2 transition-colors hover:text-red-300 hover:underline"
+              title={`Очистить только вкладку ${LOCALE_LABELS[activeTab]}`}
+            >
+              Удалить перевод ({LOCALE_LABELS[activeTab]})
+            </button>
+          ) : null}
         </div>
 
         {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
@@ -471,42 +611,54 @@ function LocaleTabFields({
   locale,
   data,
   onChange,
+  onClearCover,
   fileInputRef,
-  fallbackCoverUrl,
 }: {
   locale: TargetLocale;
   data: LocaleTabData;
   onChange: (patch: Partial<LocaleTabData>) => void;
+  onClearCover: () => void;
   fileInputRef: (el: HTMLInputElement | null) => void;
-  fallbackCoverUrl: string | null;
 }) {
   const localFileInput = useRef<HTMLInputElement>(null);
-  const coverShown = data.coverPreview ?? data.coverUrl ?? fallbackCoverUrl;
+  const coverShown = data.coverPreview ?? data.coverUrl;
+  const hasCover = Boolean(coverShown);
 
   function pickFile(f: File | null) {
     const preview = f ? URL.createObjectURL(f) : null;
     if (data.coverPreview) URL.revokeObjectURL(data.coverPreview);
-    onChange({ coverFile: f, coverPreview: preview });
+    onChange({ coverFile: f, coverPreview: preview, coverUrl: f ? null : data.coverUrl });
   }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => localFileInput.current?.click()}
-        className="mb-4 flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
-        title={data.coverUrl || data.coverFile ? "Заменить обложку" : "Добавить обложку"}
-      >
-        {coverShown ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverShown} alt="Обложка" className="h-full w-full object-contain" />
-        ) : (
-          <span className="flex flex-col items-center gap-1 text-xs">
-            <ImagePlus size={22} strokeWidth={1.6} />
-            Обложка (необязательно)
-          </span>
-        )}
-      </button>
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => localFileInput.current?.click()}
+          className="flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
+          title={data.coverUrl || data.coverFile ? "Заменить обложку" : "Добавить обложку"}
+        >
+          {coverShown ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverShown} alt="Обложка" className="h-full w-full object-contain" />
+          ) : (
+            <span className="flex flex-col items-center gap-1 text-xs">
+              <ImagePlus size={22} strokeWidth={1.6} />
+              Обложка (необязательно)
+            </span>
+          )}
+        </button>
+        {hasCover ? (
+          <button
+            type="button"
+            onClick={onClearCover}
+            className="mt-1.5 text-xs text-zinc-500 transition-colors hover:text-red-300"
+          >
+            Удалить обложку
+          </button>
+        ) : null}
+      </div>
       <input
         ref={(el) => {
           (localFileInput as React.MutableRefObject<HTMLInputElement | null>).current = el;
