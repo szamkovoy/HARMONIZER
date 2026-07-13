@@ -1,13 +1,27 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.18
+version: 1.19
 updated: 2026-07-13
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-13 (9):** Before `setLocale`, Profile publishes ensured day texts via `publishLocaleDayContentWarm` so Home paints slogan/recommendation immediately when Translating ends (no Loading flash).
+
+- **2026-07-13 (8):** Profile language error dialog maps technical `Day content language mismatch` / `LOCALE_MISMATCH` to `profile.language.rebuildError` (no English technical string under DE UI).
+
+- **2026-07-13 (7):** Paid DE→EN: cache keys via `resolveDayContentAccessKeys` (`accessModeForTier` + `access.tier`, not `trial`); no soft-commit on ensure failure; phone-cache hit skips LLM; Home locale subscribe no longer forces a second monologue after Profile warm.
+
+- **2026-07-13 (6):** Locale switch shows Profile overlay `profile.language.translating` for hit and miss paths; commit only after `peekLocaleDayContentComplete`; Home `subscribeAppLocale` uses `accessModeOverride`/`accessTierOverride` + relaxed peek (dev paid / tier cache key mismatch).
+
+- **2026-07-13 (5):** Combo language value updates immediately (`optimisticLocale`); ensure rejects Cyrillic LLM output for non-RU locales + prefers validated monologue over stale daily-forecast texts (DE→EN no longer paints RU slogan/recommendation).
+
+- **2026-07-13 (4):** Locale rebuild UX: `AppDialog` via RN `Modal` (viewport center); single dialog confirm→spinner; `setLocale` only after `ensureLocaleDayContent` writes complete `dayContentCache` (tier key `free`/`oracle`); Home applies warmed cache on `subscribeAppLocale` without strip/loading flash.
+
+- **2026-07-13 (3):** Умная смена языка: probe готовности текстов дня (`localeDayContentProbe`) → при miss `AppDialog` confirm/cancel + loading ensure (`localeDayContentEnsure` / `forceRefresh`); Cancel откатывает локаль.
 
 - **2026-07-13 (2):** Смена языка на профиле больше не прокручивает экран вверх: убран remount `<Tabs key={locale}>`.
 

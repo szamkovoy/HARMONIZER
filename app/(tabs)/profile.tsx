@@ -1,18 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 
-import { DevTierSwitch, requiredTierFor, TIER_LABELS, UpgradeDialog, useAccess, type FeatureKey } from "@/modules/access";
+import {
+  DevTierSwitch,
+  requiredTierFor,
+  TIER_LABELS,
+  UpgradeDialog,
+  useAccess,
+  type FeatureKey,
+} from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
-import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, type AppLocale } from "@/modules/i18n";
+import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { fetchUnreadNotificationCount } from "@/modules/notifications";
 import { SupportModal } from "@/modules/support";
 import { AppButton } from "@/modules/ui/AppButton";
+import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
+import { BlockingStatusToast } from "@/modules/ui/BlockingStatusToast";
 import { ComboBox, ComboBoxDismissOverlay } from "@/modules/ui/ComboBox";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
@@ -41,6 +50,23 @@ import { loadDailyPracticeStatsInRange, type DailyPracticeStat } from "@/service
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile } from "@/services/natalProfileClient";
+import { resolveDayContentAccessKeys } from "@/services/dayContentAccessKeys";
+import { publishLocaleDayContentWarm } from "@/services/localeDayContentBridge";
+import { ensureLocaleDayContent } from "@/services/localeDayContentEnsure";
+import { peekLocaleDayContentComplete, probeLocaleDayContentReady } from "@/services/localeDayContentProbe";
+import type { AccessMode } from "@/services/globalContentClient";
+
+type LocaleRebuildState =
+  | { phase: "idle" }
+  | { phase: "confirm"; pendingLocale: AppLocale; previousLocale: AppLocale; accessMode: AccessMode }
+  | { phase: "loading"; pendingLocale: AppLocale; previousLocale: AppLocale; accessMode: AccessMode }
+  | {
+      phase: "error";
+      pendingLocale: AppLocale;
+      previousLocale: AppLocale;
+      accessMode: AccessMode;
+      message: string;
+    };
 
 function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
   if (value instanceof Error && value.message.trim()) return value.message;
@@ -67,12 +93,225 @@ export default function ProfileTabRoute() {
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const { locale, setLocale, testMode } = useAppLocale();
   const { t } = useTranslate();
-  const handleSetLocale = useCallback(
+  const [localeOpen, setLocaleOpen] = useState(false);
+  const [localeRebuild, setLocaleRebuild] = useState<LocaleRebuildState>({ phase: "idle" });
+  /** Combo shows the picked language immediately; store locale commits after ensure. */
+  const [optimisticLocale, setOptimisticLocale] = useState<AppLocale | null>(null);
+  const localeEnsureAbortRef = useRef<AbortController | null>(null);
+
+  /** Same keys as Home `useDayContent` (`accessModeForTier` + `access.tier`). */
+  const { accessMode: dayAccessMode, accessTier: dayContentAccessTier } = useMemo(
+    () => resolveDayContentAccessKeys(access.tier),
+    [access.tier],
+  );
+
+  const resolveUserLocation = useCallback(() => {
+    const timezone = profile?.tz?.trim() || "UTC";
+    if (typeof profile?.lat === "number" && typeof profile?.lon === "number") {
+      return { lat: profile.lat, lng: profile.lon, timezone };
+    }
+    // Free ensure still needs a location object for windows; Moscow fallback matches natal bridge.
+    return { lat: 55.7558, lng: 37.6173, timezone };
+  }, [profile?.lat, profile?.lon, profile?.tz]);
+
+  const commitLocale = useCallback(
     (code: AppLocale) => {
       void setLocale(code);
+      setOptimisticLocale(null);
+      setLocaleOpen(false);
+      setLocaleRebuild({ phase: "idle" });
     },
     [setLocale],
   );
+
+  const runLocaleEnsure = useCallback(
+    async (params: {
+      code: AppLocale;
+      previousLocale: AppLocale;
+      accessMode: AccessMode;
+      forceRefresh: boolean;
+    }) => {
+      if (!authUser?.id) {
+        commitLocale(params.code);
+        return;
+      }
+      setLocaleRebuild({
+        phase: "loading",
+        pendingLocale: params.code,
+        previousLocale: params.previousLocale,
+        accessMode: params.accessMode,
+      });
+      localeEnsureAbortRef.current?.abort();
+      const controller = new AbortController();
+      localeEnsureAbortRef.current = controller;
+      try {
+        const ensureOnce = async (forceRefresh: boolean) =>
+          ensureLocaleDayContent({
+            userId: authUser.id,
+            locale: params.code,
+            accessMode: params.accessMode,
+            accessTier: dayContentAccessTier,
+            userLocation: resolveUserLocation(),
+            birthDate: profile?.birth_date,
+            birthTime: profile?.birth_time,
+            birthPlace: profile?.birth_place,
+            forceRefresh,
+            signal: controller.signal,
+          });
+
+        // Phone cache already complete for this locale (e.g. switch back DE→EN) — no LLM.
+        const peekArgs = {
+          userId: authUser.id,
+          locale: params.code,
+          accessMode: params.accessMode,
+          accessTier: dayContentAccessTier,
+          timezone: profile?.tz?.trim() || "UTC",
+          birthDate: profile?.birth_date,
+          birthTime: profile?.birth_time,
+          birthPlace: profile?.birth_place,
+          lat: profile?.lat,
+          lon: profile?.lon,
+        };
+        let warmed =
+          !params.forceRefresh && peekLocaleDayContentComplete(peekArgs)
+            ? await ensureOnce(false)
+            : null;
+        if (!warmed) {
+          warmed = await ensureOnce(params.forceRefresh);
+          if (controller.signal.aborted) return;
+        }
+        if (!peekLocaleDayContentComplete(peekArgs)) {
+          warmed = await ensureOnce(true);
+          if (controller.signal.aborted) return;
+        }
+        if (!peekLocaleDayContentComplete(peekArgs)) {
+          throw new Error(t("profile.language.rebuildError"));
+        }
+
+        // Hand off to Home before setAppLocale so Navigator paints texts immediately.
+        publishLocaleDayContentWarm(warmed);
+        commitLocale(params.code);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        const raw = errorMessage(error, t("profile.language.rebuildError"));
+        const isTechnicalMismatch =
+          /language mismatch|LOCALE_MISMATCH|wrong language/i.test(raw) ||
+          raw.startsWith("Day content language mismatch");
+        setOptimisticLocale(null);
+        setLocaleRebuild({
+          phase: "error",
+          pendingLocale: params.code,
+          previousLocale: params.previousLocale,
+          accessMode: params.accessMode,
+          message: isTechnicalMismatch ? t("profile.language.rebuildError") : raw || t("profile.language.rebuildError"),
+        });
+      } finally {
+        if (localeEnsureAbortRef.current === controller) {
+          localeEnsureAbortRef.current = null;
+        }
+      }
+    },
+    [
+      authUser?.id,
+      commitLocale,
+      dayContentAccessTier,
+      profile?.birth_date,
+      profile?.birth_place,
+      profile?.birth_time,
+      profile?.lat,
+      profile?.lon,
+      profile?.tz,
+      resolveUserLocation,
+      t,
+    ],
+  );
+
+  const handleLocalePick = useCallback(
+    async (code: AppLocale) => {
+      if (code === (optimisticLocale ?? locale)) {
+        setLocaleOpen(false);
+        return;
+      }
+      // Show the chosen language in the combo immediately.
+      setOptimisticLocale(code);
+      setLocaleOpen(false);
+      if (!authUser?.id) {
+        commitLocale(code);
+        return;
+      }
+      try {
+        const probe = await probeLocaleDayContentReady({
+          userId: authUser.id,
+          locale: code,
+          accessMode: dayAccessMode,
+          accessTier: dayContentAccessTier,
+          timezone: profile?.tz?.trim() || "UTC",
+          birthDate: profile?.birth_date,
+          birthTime: profile?.birth_time,
+          birthPlace: profile?.birth_place,
+          lat: profile?.lat,
+          lon: profile?.lon,
+        });
+        if (probe.ready) {
+          // Texts exist — still show translating overlay while we warm phone cache.
+          await runLocaleEnsure({
+            code,
+            previousLocale: locale,
+            accessMode: probe.accessMode,
+            forceRefresh: false,
+          });
+          return;
+        }
+        setLocaleRebuild({
+          phase: "confirm",
+          pendingLocale: code,
+          previousLocale: locale,
+          accessMode: probe.accessMode,
+        });
+      } catch {
+        setLocaleRebuild({
+          phase: "confirm",
+          pendingLocale: code,
+          previousLocale: locale,
+          accessMode: dayAccessMode,
+        });
+      }
+    },
+    [
+      authUser?.id,
+      commitLocale,
+      dayAccessMode,
+      dayContentAccessTier,
+      locale,
+      optimisticLocale,
+      profile?.birth_date,
+      profile?.birth_place,
+      profile?.birth_time,
+      profile?.lat,
+      profile?.lon,
+      profile?.tz,
+      runLocaleEnsure,
+    ],
+  );
+
+  const cancelLocaleRebuild = useCallback(() => {
+    localeEnsureAbortRef.current?.abort();
+    localeEnsureAbortRef.current = null;
+    setOptimisticLocale(null);
+    setLocaleRebuild({ phase: "idle" });
+    setLocaleOpen(false);
+  }, []);
+
+  const continueLocaleRebuild = useCallback(async () => {
+    if (localeRebuild.phase !== "confirm" && localeRebuild.phase !== "error") return;
+    await runLocaleEnsure({
+      code: localeRebuild.pendingLocale,
+      previousLocale: localeRebuild.previousLocale,
+      accessMode: localeRebuild.accessMode,
+      forceRefresh: true,
+    });
+  }, [localeRebuild, runLocaleEnsure]);
+
   const reportLocale = locale;
   const reportStrings = getProfileReportStrings(reportLocale);
   const donutScrollProps = useDonutScrollProps();
@@ -87,7 +326,6 @@ export default function ProfileTabRoute() {
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [supportOpen, setSupportOpen] = useState(false);
-  const [localeOpen, setLocaleOpen] = useState(false);
 
   const localeOptions = useMemo(
     () =>
@@ -101,7 +339,8 @@ export default function ProfileTabRoute() {
     [t],
   );
   const localeDisplayValue =
-    APP_LOCALE_OPTIONS.find((option) => option.code === locale)?.nativeLabel ?? locale;
+    APP_LOCALE_OPTIONS.find((option) => option.code === (optimisticLocale ?? locale))?.nativeLabel ??
+    (optimisticLocale ?? locale);
 
   useFocusEffect(
     useCallback(() => {
@@ -118,7 +357,12 @@ export default function ProfileTabRoute() {
 
   useFocusEffect(
     useCallback(() => {
-      return () => setLocaleOpen(false);
+      return () => {
+        localeEnsureAbortRef.current?.abort();
+        localeEnsureAbortRef.current = null;
+        setLocaleOpen(false);
+        setLocaleRebuild({ phase: "idle" });
+      };
     }, []),
   );
 
@@ -276,12 +520,14 @@ export default function ProfileTabRoute() {
             variant="pill"
             id="profile-locale"
             label={t("profile.language.title")}
-            value={locale}
+            value={optimisticLocale ?? locale}
             displayValue={localeDisplayValue}
             options={localeOptions}
             open={localeOpen}
             onOpenChange={setLocaleOpen}
-            onChange={handleSetLocale}
+            onChange={(code) => {
+              void handleLocalePick(code);
+            }}
           />
           {testMode ? (
             <AppText variant="technicalCaption" tone="muted">
@@ -290,6 +536,39 @@ export default function ProfileTabRoute() {
           ) : null}
           <ComboBoxDismissOverlay active={localeOpen} onDismiss={() => setLocaleOpen(false)} />
         </View>
+
+        <AppDialog
+          visible={localeRebuild.phase === "confirm" || localeRebuild.phase === "error"}
+          title={t("profile.language.rebuildTitle")}
+          message={
+            localeRebuild.phase === "error" ? localeRebuild.message : t("profile.language.rebuildMessage")
+          }
+          onRequestClose={cancelLocaleRebuild}
+          actions={
+            <>
+              <AppButton
+                label={t("profile.language.rebuildCancel")}
+                variant="secondary"
+                onPress={cancelLocaleRebuild}
+              />
+              <AppButton
+                label={t("profile.language.rebuildContinue")}
+                onPress={() => {
+                  void continueLocaleRebuild();
+                }}
+              />
+            </>
+          }
+        />
+
+        <BlockingStatusToast
+          visible={localeRebuild.phase === "loading"}
+          message={
+            localeRebuild.phase === "loading"
+              ? translate(localeRebuild.pendingLocale, "profile.language.translating")
+              : ""
+          }
+        />
 
         {__DEV__ ? <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
 

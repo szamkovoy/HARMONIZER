@@ -44,7 +44,10 @@ type GlobalContentResponse = {
   error?: unknown;
 };
 
-const GLOBAL_CONTENT_TIMEOUT_MS = 105_000;
+/** Ordinary load returns structural/cache immediately; keep a short bound. */
+const GLOBAL_CONTENT_TIMEOUT_MS = 25_000;
+/** Profile language rebuild / explicit ensure awaits LLM + i18n. */
+const GLOBAL_CONTENT_FORCE_REFRESH_TIMEOUT_MS = 105_000;
 const GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS = 8_000;
 
 type GlobalTextFields = {
@@ -347,12 +350,12 @@ export async function fetchGlobalContent(req: {
   userLocation: { lat: number; lng: number; timezone: string };
   signal?: AbortSignal;
   responseLocale?: string;
+  /** Await full LLM + locale texts (profile language rebuild). */
+  forceRefresh?: boolean;
 }): Promise<GlobalContentResult> {
   return withTransientNetworkRetry(
     async () => fetchGlobalContentOnce(req),
-    // attempts: 1 — внутри fetchGlobalContentOnce уже есть route→direct-fallback
-    // resilience. Ретраи_outer здесь умножали бы (105s route + 8s direct) на 3 = ~339s
-    // на холодном заходе, если LLM/сеть лежат. Крон + следующий заход ретраят естественно.
+    // attempts: 1 — внутри fetchGlobalContentOnce уже есть route→direct-fallback.
     { signal: req.signal, attempts: 1 },
   );
 }
@@ -361,14 +364,17 @@ async function fetchGlobalContentOnce(req: {
   userLocation: { lat: number; lng: number; timezone: string };
   signal?: AbortSignal;
   responseLocale?: string;
+  forceRefresh?: boolean;
 }): Promise<GlobalContentResult> {
   const token = await getAccessToken();
   let data: GlobalContentResponse | null = null;
   const responseLocale = req.responseLocale ?? getResponseLocale();
+  const forceRefresh = req.forceRefresh === true;
+  const routeTimeoutMs = forceRefresh ? GLOBAL_CONTENT_FORCE_REFRESH_TIMEOUT_MS : GLOBAL_CONTENT_TIMEOUT_MS;
   let routeError: unknown = null;
   try {
     const routeController = new AbortController();
-    const routeTimeoutId = setTimeout(() => routeController.abort(), GLOBAL_CONTENT_TIMEOUT_MS);
+    const routeTimeoutId = setTimeout(() => routeController.abort(), routeTimeoutMs);
     req.signal?.addEventListener("abort", () => routeController.abort(), { once: true });
     try {
       const res = await fetch(getAiGlobalContentUrl(), {
@@ -377,14 +383,14 @@ async function fetchGlobalContentOnce(req: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ responseLocale }),
+        body: JSON.stringify({ responseLocale, forceRefresh: forceRefresh || undefined }),
         signal: routeController.signal,
       });
       if (!res.ok) throw await readError(res);
       data = (await res.json()) as GlobalContentResponse;
     } catch (error) {
       if (req.signal?.aborted) throw error;
-      routeError = routeController.signal.aborted ? timeoutError(GLOBAL_CONTENT_TIMEOUT_MS) : error;
+      routeError = routeController.signal.aborted ? timeoutError(routeTimeoutMs) : error;
     } finally {
       clearTimeout(routeTimeoutId);
     }
@@ -398,7 +404,7 @@ async function fetchGlobalContentOnce(req: {
       } catch (fallbackError) {
         if (req.signal?.aborted) throw fallbackError;
         if (fallbackController.signal.aborted) {
-          throw routeError instanceof Error ? routeError : timeoutError(GLOBAL_CONTENT_TIMEOUT_MS);
+          throw routeError instanceof Error ? routeError : timeoutError(routeTimeoutMs);
         }
         throw wrapConnectivityFailure(fallbackError, "global-content");
       } finally {

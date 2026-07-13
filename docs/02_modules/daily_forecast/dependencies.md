@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.15
-updated: 2026-06-26
+version: 2.16
+updated: 2026-07-13
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -42,7 +42,7 @@ code_refs:
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
   - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/recommendationText.ts` (`normalizeRecommendationText`, `isCurrentGlobalLongExplanation`) and `mathLevelI18n.ts` to normalize legacy tone/chakra vocabulary, drop unstructured/chakra-heavy `long_explanation`, and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
   - **`modules/home/sanitizeRecommendationDisplay.ts`** — client-side display pass over `normalizeRecommendationText` in `useDayContent` and `DailyRecommendationCard`.
-  - **`useDayContent`** подписан на **`subscribeAppLocale`**: смена языка сбрасывает locale-specific LLM-поля (`stripHomeLlmTexts`) и запускает фоновый `refresh({ localeChange: true })`; ключ кэша дня включает суффикс `AppLocale`. **`app/(tabs)/profile.tsx`** при смене локали больше не вызывает `markHomeDayContentBlockingReload` — blocking reload остаётся только для смены натала. **`fetchDailyForecast`** передаёт **`responseLocale`** (`getResponseLocale()`).
+  - **`useDayContent`** подписан на **`subscribeAppLocale`**: сначала warmed `dayContentCache` (те же overrides, что Home); иначе `stripHomeLlmTexts` + `refresh({ localeChange: true })` без авто-force второго monologue. Ключ кэша: `resolveDayContentAccessKeys` / `accessModeForTier` + `access.tier`. **`app/(tabs)/profile.tsx`** probe/ensure до commit локали; **не** `markHomeDayContentBlockingReload` на смену языка. **`fetchDailyForecast`** / **`fetchGlobalContent`** передают **`responseLocale`**; profile ensure на free — **`forceRefresh`**.
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  

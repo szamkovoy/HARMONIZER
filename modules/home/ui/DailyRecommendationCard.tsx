@@ -6,6 +6,7 @@ import type { DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
 import { sanitizeRecommendationDisplay } from "@/modules/home/sanitizeRecommendationDisplay";
 import type { AccessMode } from "@/services/globalContentClient";
+import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
@@ -40,18 +41,24 @@ export function DailyRecommendationCard({
   const t = strings.recommendation;
   const fallbackShortText = strings.recommendation.fallback(forecast);
   const detailText = strings.recommendation.detailParagraphs(forecast).join("\n\n");
+  const localeOk = dayTextsMatchLocale(
+    locale,
+    String(forecast.slogan ?? ""),
+    String(forecast.recommendationShortText ?? ""),
+  );
+  const textsPending = homeTextsLoading || !localeOk;
   const shortText = useMemo(() => {
     const raw = forecast.recommendationShortText?.trim();
-    if (raw) return sanitizeRecommendationDisplay(raw, locale);
-    if (homeTextsLoading) return null;
+    if (raw && localeOk) return sanitizeRecommendationDisplay(raw, locale);
+    if (textsPending) return null;
     return fallbackShortText;
-  }, [fallbackShortText, forecast.recommendationShortText, homeTextsLoading, locale]);
+  }, [fallbackShortText, forecast.recommendationShortText, locale, localeOk, textsPending]);
   const longExplanation = useMemo(() => {
     const raw = forecast.recommendationLongText?.trim();
-    if (raw) return sanitizeRecommendationDisplay(raw, locale);
-    if (homeTextsLoading) return "";
+    if (raw && localeOk) return sanitizeRecommendationDisplay(raw, locale);
+    if (textsPending) return "";
     return detailText;
-  }, [detailText, forecast.recommendationLongText, homeTextsLoading, locale]);
+  }, [detailText, forecast.recommendationLongText, locale, localeOk, textsPending]);
   const hasMathLevel = Boolean(forecast.mathLevel?.markdown);
 
   return (

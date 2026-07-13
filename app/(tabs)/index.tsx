@@ -33,6 +33,7 @@ import {
   OPPORTUNITY_REMINDERS_CHANNEL_ID,
 } from "@/services/localNotifications";
 import { consumeHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
+import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { createNatalProfile, fetchActiveNatalProfileCached } from "@/services/natalProfileClient";
 import { LatestPostBanner } from "@/modules/posts";
 import { StoriesRing } from "@/modules/stories";
@@ -89,15 +90,22 @@ function birthFingerprintFromProfile(
 function HomeHeader({
   forecast,
   strings,
+  homeTextsLoading,
 }: {
   forecast: DailyForecast | null;
   strings: HomeStrings;
+  homeTextsLoading: boolean;
 }) {
   const today = new Intl.DateTimeFormat(intlLocaleTag(strings.locale), {
     weekday: "long",
     day: "numeric",
     month: "long",
   }).format(new Date());
+  const slogan = forecast?.slogan?.trim() ?? "";
+  const showSlogan =
+    Boolean(slogan) &&
+    !homeTextsLoading &&
+    dayTextsMatchLocale(strings.locale, slogan, String(forecast?.recommendationShortText ?? ""));
   return (
     <View style={styles.header}>
       <View style={styles.heroRow}>
@@ -106,9 +114,9 @@ function HomeHeader({
           <AppText variant="sectionTitle" accessibilityRole="header" style={styles.dateText}>
             {today}
           </AppText>
-          {forecast?.slogan?.trim() ? (
+          {showSlogan ? (
             <AppText variant="screenHint" tone="muted">
-              {forecast.slogan.trim()}
+              {slogan}
             </AppText>
           ) : null}
         </View>
@@ -626,7 +634,7 @@ export default function HomeScreen() {
   return (
     <TabScreenLayout>
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
-        <HomeHeader forecast={forecast} strings={strings} />
+        <HomeHeader forecast={forecast} strings={strings} homeTextsLoading={homeTextsLoading} />
         <UpcomingWebinarBanner />
         <LatestPostBanner />
 

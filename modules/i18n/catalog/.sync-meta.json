@@ -114,7 +114,14 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -231,7 +238,14 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -348,7 +362,14 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -465,7 +486,14 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -582,7 +610,14 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -699,7 +734,14 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -816,6 +858,13 @@
     "stories.ring.unseenA11y": "Открыть непросмотренные сторис автора",
     "stories.ring.seenA11y": "Открыть сторис автора",
     "stories.viewer.previous": "Предыдущая сторис",
-    "stories.viewer.next": "Следующая сторис"
+    "stories.viewer.next": "Следующая сторис",
+    "profile.language.rebuildTitle": "Смена языка",
+    "profile.language.rebuildMessage": "Изменение языка влечёт пересоздание рекомендаций на этот день, и вам придётся подождать около минуты.",
+    "profile.language.rebuildContinue": "Продолжить",
+    "profile.language.rebuildCancel": "Отмена",
+    "profile.language.rebuildLoading": "Готовим рекомендации на выбранном языке…",
+    "profile.language.rebuildError": "Не удалось подготовить рекомендации. Попробуйте ещё раз.",
+    "profile.language.translating": "Идёт перевод…"
   }
 }

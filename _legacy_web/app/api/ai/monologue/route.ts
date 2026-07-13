@@ -3,7 +3,9 @@ import chakraStatesBaseline from "../../../../data/chakra_states_baseline.json";
 import { CONTENT_LENGTHS } from "../../../../config/contentLengths";
 import {
   buildOutputLanguageBlock,
+  buildOutputLanguageRetryBlock,
   isMorningRecommendationCacheValid,
+  morningTextsMatchLocale,
   MORNING_CACHE_OUTPUT_LOCALE_KEY,
 } from "../../_utils/outputLanguagePrompt";
 import { normalizeRecommendationFields } from "../../_utils/recommendationText";
@@ -13,6 +15,7 @@ import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../_utils/authorV
 import { generateGeminiJson, getModelByHint } from "../../_utils/gemini";
 import { buildMathLevel } from "../../_utils/mathLevelBuilder";
 import { reportRouteError } from "../../_utils/monitoring";
+import { translateMorningTextFields } from "../../_utils/pretranslateGlobalTexts";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { checkScenarioCache, saveScenarioCache } from "../../_utils/scenarioCache";
 import { getScenario } from "../../_utils/scenarios";
@@ -246,28 +249,76 @@ export async function POST(req: Request) {
         ? Math.max(prompt.max_output_tokens ?? 2200, 6144)
         : (prompt.max_output_tokens ?? 1500);
     const rendered = renderPrompt(prompt.template, variables);
-    const promptText =
-      scenario.id === "morning_recommendation"
-        ? `${buildOutputLanguageBlock(responseLocale)}\n\n${rendered}`
-        : rendered;
-    const result = await generateGeminiJson<Record<string, unknown>>({
-      prompt: promptText,
-      model: getModelByHint(prompt.model_hint),
-      temperature: prompt.temperature,
-      maxOutputTokens,
-    });
-    const rawPayload = {
-      ...result.json,
-      ...(mathLevel ? { math_level: mathLevel } : {}),
-      modelUsed: result.modelUsed,
-      ...(scenario.id === "morning_recommendation"
-        ? { [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale }
-        : {}),
-    };
-    const payload =
-      scenario.id === "morning_recommendation"
+    const model = getModelByHint(prompt.model_hint);
+
+    const generateMorningPayload = async (retryLanguage: boolean) => {
+      const languagePrefix = retryLanguage
+        ? `${buildOutputLanguageRetryBlock(responseLocale)}\n\n${buildOutputLanguageBlock(responseLocale)}`
+        : buildOutputLanguageBlock(responseLocale);
+      const promptText =
+        scenario.id === "morning_recommendation"
+          ? `${languagePrefix}\n\n${rendered}`
+          : rendered;
+      const result = await generateGeminiJson<Record<string, unknown>>({
+        prompt: promptText,
+        model,
+        temperature: prompt.temperature,
+        maxOutputTokens,
+      });
+      const rawPayload = {
+        ...result.json,
+        ...(mathLevel ? { math_level: mathLevel } : {}),
+        modelUsed: result.modelUsed,
+        ...(scenario.id === "morning_recommendation"
+          ? { [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale }
+          : {}),
+      };
+      return scenario.id === "morning_recommendation"
         ? normalizeRecommendationFields(rawPayload, responseLocale)
         : rawPayload;
+    };
+
+    let payload = await generateMorningPayload(false);
+    if (scenario.id === "morning_recommendation") {
+      const morning = payload as Record<string, unknown>;
+      let slogan = String(morning.slogan ?? "").trim();
+      let shortText = String(morning.short_text ?? "").trim();
+      let longText = String(morning.long_explanation ?? "").trim();
+      // Prompt context is RU-heavy; models often ignore OUTPUT LANGUAGE.
+      // One language-retry, then the same translate path as free-tier text_i18n.
+      if (!morningTextsMatchLocale(responseLocale, slogan, shortText)) {
+        endpointStage = "generate_language_retry";
+        payload = await generateMorningPayload(true);
+        const retry = payload as Record<string, unknown>;
+        slogan = String(retry.slogan ?? "").trim();
+        shortText = String(retry.short_text ?? "").trim();
+        longText = String(retry.long_explanation ?? "").trim();
+      }
+      if (!morningTextsMatchLocale(responseLocale, slogan, shortText)) {
+        endpointStage = "generate_language_translate";
+        const translated = await translateMorningTextFields(
+          { slogan, short_text: shortText, long_explanation: longText },
+          responseLocale,
+        );
+        slogan = translated.slogan;
+        shortText = translated.short_text;
+        longText = translated.long_explanation;
+        if (!morningTextsMatchLocale(responseLocale, slogan, shortText)) {
+          return json(
+            { error: "Morning recommendation generated in the wrong language", code: "LOCALE_MISMATCH" },
+            { status: 502 },
+          );
+        }
+        const translatedPayload = {
+          ...(payload as Record<string, unknown>),
+          slogan,
+          short_text: shortText,
+          long_explanation: longText,
+          [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale,
+        };
+        payload = normalizeRecommendationFields(translatedPayload, responseLocale) as unknown as typeof payload;
+      }
+    }
 
     endpointStage = "cache_save";
     await saveScenarioCache(scenario, userId, payload, db, cacheSuffix);

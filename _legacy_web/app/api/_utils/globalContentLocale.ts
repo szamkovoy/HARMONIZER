@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AppContentLocale } from "./contentLocales";
-import { SOURCE_LOCALE } from "./contentLocales";
+import { SOURCE_LOCALE, TARGET_LOCALES, asContentLocale, type TargetLocale } from "./contentLocales";
 import { isCurrentGlobalLongExplanation, normalizeRecommendationText } from "./recommendationText";
 import { buildGlobalMathLevel } from "./globalTransitMath";
 import { pickGlobalTexts, pretranslateGlobalTexts, upsertGlobalTextI18n, type GlobalTextFields } from "./pretranslateGlobalTexts";
@@ -62,14 +62,32 @@ function rebuildGlobalMathLevel(content: GlobalContentRow, locale: AppContentLoc
 }
 
 /**
- * After canonical RU row is written, pre-translate slogan/short/long for all target locales.
+ * Target locales that at least one user currently uses (for free-tier cron pretranslate).
+ * Skips unused languages — on-demand `global-content` still backfills a missing locale.
+ */
+export async function listActiveTargetLocales(db: SupabaseClient): Promise<TargetLocale[]> {
+  const { data, error } = await db.from("users").select("locale");
+  if (error || !data?.length) return [...TARGET_LOCALES];
+  const active = new Set<TargetLocale>();
+  for (const row of data) {
+    const locale = asContentLocale((row as { locale?: string | null }).locale);
+    if (locale && locale !== SOURCE_LOCALE) {
+      active.add(locale as TargetLocale);
+    }
+  }
+  return active.size > 0 ? [...active] : [...TARGET_LOCALES];
+}
+
+/**
+ * After canonical RU row is written, pre-translate slogan/short/long for active user locales.
  */
 export async function ensureGlobalTextI18nPrecomputed(
   db: SupabaseClient,
   forecastDateUtc: string,
   ru: GlobalTextFields,
 ): Promise<void> {
-  const textI18n = await pretranslateGlobalTexts(ru);
+  const locales = await listActiveTargetLocales(db);
+  const textI18n = await pretranslateGlobalTexts(ru, { locales });
   await upsertGlobalTextI18n(db, forecastDateUtc, textI18n);
 }
 

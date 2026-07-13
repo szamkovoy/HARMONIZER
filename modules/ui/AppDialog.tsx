@@ -2,12 +2,11 @@
  * AppDialog: общий модальный диалог системы.
  *
  * Используется для подтверждений и информационных окон. Всегда рисуется поверх экрана
- * с затемняющим backdrop, цвета/радиусы/типографика — из темы. Кнопки принимает слотом
- * `actions`, чтобы не диктовать порядок/раскладку; стандартный случай — две кнопки в ряд,
- * центрированные с небольшим интервалом.
+ * (RN Modal) с затемняющим backdrop по центру viewport — не зависит от ScrollView.
+ * Цвета/радиусы/типографика — из темы. Кнопки принимает слотом `actions`.
  */
 import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -23,6 +22,8 @@ interface AppDialogProps {
    */
   actions: ReactNode;
   actionsLayout?: "row" | "column";
+  /** Android back / system dismiss while visible. */
+  onRequestClose?: () => void;
 }
 
 export function AppDialog({
@@ -31,53 +32,61 @@ export function AppDialog({
   message,
   actions,
   actionsLayout = "row",
+  onRequestClose,
 }: AppDialogProps) {
   const theme = useTheme();
-  if (!visible) return null;
   return (
-    <View
-      style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]}
-      pointerEvents="auto"
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onRequestClose}
     >
       <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.surfaceElevated,
-            borderColor: theme.colors.surfaceBorder,
-            borderRadius: theme.radius.lg,
-            padding: theme.spacing.xl,
-          },
-        ]}
+        style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]}
+        pointerEvents="auto"
       >
-        <AppText variant="dialogTitle" tone="primary" style={styles.title}>
-          {title}
-        </AppText>
-        {message ? (
-          <AppText variant="dialogBody" tone="primary" style={styles.message}>
-            {message}
-          </AppText>
-        ) : null}
         <View
           style={[
-            actionsLayout === "row" ? styles.actionsRow : styles.actionsColumn,
-            { gap: theme.spacing.md },
+            styles.card,
+            {
+              backgroundColor: theme.colors.surfaceElevated,
+              borderColor: theme.colors.surfaceBorder,
+              borderRadius: theme.radius.lg,
+              padding: theme.spacing.xl,
+            },
           ]}
         >
-          {actions}
+          <AppText variant="dialogTitle" tone="primary" style={styles.title}>
+            {title}
+          </AppText>
+          {message ? (
+            <AppText variant="dialogBody" tone="primary" style={styles.message}>
+              {message}
+            </AppText>
+          ) : null}
+          <View
+            style={[
+              styles.actionsSlot,
+              actionsLayout === "row" ? styles.actionsRow : styles.actionsColumn,
+              { gap: theme.spacing.md },
+            ]}
+          >
+            {actions}
+          </View>
         </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
-    zIndex: 100,
   },
   card: {
     width: "100%",
@@ -89,6 +98,12 @@ const styles = StyleSheet.create({
   },
   message: {
     marginBottom: 16,
+  },
+  /** Keep confirm ↔ loading height stable so the card does not jump. */
+  actionsSlot: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionsRow: {
     flexDirection: "row",

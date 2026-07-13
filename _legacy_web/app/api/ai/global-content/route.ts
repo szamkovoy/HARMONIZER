@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 
 import { hasEffectivePremium } from "@/modules/access/core/paidAccess";
 import { runDevDayContentReset } from "../../_utils/devDayContentReset";
@@ -14,10 +15,9 @@ import { createServiceSupabase, errorResponse, json, requireUserId } from "../..
 
 export const runtime = "nodejs";
 /**
- * Холодный free-заход может блокирующе гнать LLM (DeepSeek primary → Gemini fallback,
- * ~90s худший случай), если крон не прогрел `global_daily_content`. 120s даёт запас
- * поверх 90s + DB. На cache-hit (настоящая строка от крона) ответ мгновенный —
- * maxDuration влияет только на холодный запуск.
+ * Обычный load отвечает structural/cache сразу; LLM догоняет через `after()`.
+ * `forceRefresh` (смена языка / явный ensure) может дождаться полной генерации —
+ * maxDuration 120 даёт запас над ~90s LLM-цепочкой.
  */
 export const maxDuration = 120;
 
@@ -49,32 +49,34 @@ function hasText(value: unknown): boolean {
 
 /**
  * Строку можно ОТДАТЬ клиенту (структурный прогноз + минимальные тексты есть),
- * даже если она устарела по модели/структуре — свежесть догонит блокирующий refresh.
+ * даже если она устарела по модели/структуре — свежесть догонит background refresh.
  */
 function isUsableGlobalRow(row: Record<string, unknown> | null | undefined): row is Record<string, unknown> {
   return Boolean(row && hasText(row.slogan) && hasText(row.short_text) && hasText(row.long_explanation));
 }
 
 /**
- * In-flight guard для блокирующей регенерации в пределах инстанса (на Vercel
- * serverless один инстанс = один запрос, поэтому guard в основном защищает от
- * повторных LLM-вызовов при гонках внутри одного запроса; cross-instance дубли
- * идемпотентны благодаря upsert onConflict).
+ * In-flight guard для регенерации в пределах инстанса (dedup гонок + after()/forceRefresh).
  */
-const blockingRefreshInFlight = new Map<string, Promise<void>>();
+const refreshInFlight = new Map<string, Promise<void>>();
 
-function blockingGlobalRefresh(db: SupabaseClient, localDate: string): Promise<void> {
-  const existing = blockingRefreshInFlight.get(localDate);
+function scheduleGlobalRefresh(db: SupabaseClient, localDate: string): Promise<void> {
+  const existing = refreshInFlight.get(localDate);
   if (existing) return existing;
   const promise = ensureGlobalDailyContentRow(db, localDate)
     .catch((refreshError) => {
-      console.error("[global-content] blocking refresh failed", localDate, refreshError);
+      console.error("[global-content] refresh failed", localDate, refreshError);
     })
     .finally(() => {
-      blockingRefreshInFlight.delete(localDate);
+      refreshInFlight.delete(localDate);
     });
-  blockingRefreshInFlight.set(localDate, promise);
+  refreshInFlight.set(localDate, promise);
   return promise;
+}
+
+/** Keep Vercel alive after the HTTP response so LLM warm is not killed. */
+function queueBackgroundRefresh(db: SupabaseClient, localDate: string): void {
+  after(() => scheduleGlobalRefresh(db, localDate));
 }
 
 function payloadFromContent(content: Record<string, unknown>, user: UserAccess, isFallback: boolean) {
@@ -121,14 +123,25 @@ async function backfillGlobalTextI18n(
   await upsertGlobalTextI18n(db, forecastDateUtc, merged);
 }
 
+function rowHasLocaleTexts(row: Record<string, unknown>, locale: AppContentLocale): boolean {
+  if (locale === SOURCE_LOCALE) {
+    return hasText(row.slogan) && hasText(row.short_text) && Boolean(String(row.llm_model ?? "").trim());
+  }
+  const map = row.text_i18n as GlobalTextI18nMap | undefined;
+  const localized = map?.[locale as TargetLocale];
+  return Boolean(localized?.slogan?.trim() && localized?.short_text?.trim());
+}
+
 /**
- * Never block the HTTP response on LLM pre-translation — pickGlobalTexts already
- * falls back to canonical RU when a locale row is missing.
+ * Never block the HTTP response on LLM pre-translation for ordinary loads —
+ * pickGlobalTexts already falls back to canonical RU when a locale row is missing.
+ * `awaitBackfill` is used by forceRefresh (profile language rebuild).
  */
 async function ensureRowTextI18n(
   db: SupabaseClient,
   row: Record<string, unknown>,
   locale: AppContentLocale,
+  awaitBackfill: boolean,
 ): Promise<Record<string, unknown>> {
   if (locale === SOURCE_LOCALE) return row;
   const map = row.text_i18n as GlobalTextI18nMap | undefined;
@@ -143,9 +156,27 @@ async function ensureRowTextI18n(
   };
   if (!ru.short_text || !forecastDateUtc) return row;
 
-  void backfillGlobalTextI18n(db, forecastDateUtc, ru, [target]).catch((pretranslateError) => {
-    console.error("[global-content] background text_i18n backfill failed", locale, pretranslateError);
-  });
+  if (!awaitBackfill) {
+    void backfillGlobalTextI18n(db, forecastDateUtc, ru, [target]).catch((pretranslateError) => {
+      console.error("[global-content] background text_i18n backfill failed", locale, pretranslateError);
+    });
+    return row;
+  }
+
+  try {
+    await backfillGlobalTextI18n(db, forecastDateUtc, ru, [target]);
+    const { data: refreshed, error } = await db
+      .from("global_daily_content")
+      .select("*")
+      .eq("forecast_date_utc", forecastDateUtc)
+      .maybeSingle();
+    if (error) throw error;
+    if (isUsableGlobalRow(refreshed as Record<string, unknown> | null)) {
+      return refreshed as Record<string, unknown>;
+    }
+  } catch (pretranslateError) {
+    console.error("[global-content] awaited text_i18n backfill failed", locale, pretranslateError);
+  }
   return row;
 }
 
@@ -156,8 +187,9 @@ async function respondWithLocalizedContent(
   isFallback: boolean,
   responseLocale: ReturnType<typeof resolveContentLocale>,
   devResetExtra: Record<string, unknown>,
+  awaitLocaleBackfill: boolean,
 ) {
-  const localizedRow = await ensureRowTextI18n(db, row, responseLocale);
+  const localizedRow = await ensureRowTextI18n(db, row, responseLocale, awaitLocaleBackfill);
   const localized = localizeGlobalContentPayloadSync(localizedRow, responseLocale);
   return json({
     ...payloadFromContent(
@@ -169,17 +201,28 @@ async function respondWithLocalizedContent(
         math_level: localized.math_level,
       },
       user,
-      isFallback,
+      isFallback || !String(localizedRow.llm_model ?? "").trim(),
     ),
     ...devResetExtra,
   });
+}
+
+async function loadRowForDate(db: SupabaseClient, localDate: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await db.from("global_daily_content").select("*").eq("forecast_date_utc", localDate).maybeSingle();
+  if (error) throw error;
+  return isUsableGlobalRow(data as Record<string, unknown> | null) ? (data as Record<string, unknown>) : null;
 }
 
 export async function POST(req: Request) {
   try {
     const userId = await requireUserId(req);
     const db = createServiceSupabase();
-    const body = (await req.json().catch(() => ({}))) as { devReset?: boolean; responseLocale?: string };
+    const body = (await req.json().catch(() => ({}))) as {
+      devReset?: boolean;
+      responseLocale?: string;
+      forceRefresh?: boolean;
+    };
+    const forceRefresh = body.forceRefresh === true;
 
     let devResetExtra: { dev_reset?: Awaited<ReturnType<typeof runDevDayContentReset>> } = {};
     if (body.devReset === true) {
@@ -198,70 +241,39 @@ export async function POST(req: Request) {
     const responseLocale = resolveContentLocale(userAccess.locale, body.responseLocale);
     const localDate = todayLocalDate(userAccess.tz ?? "UTC");
     const expectedModel = await getExpectedGlobalDailyContentModel(db);
-    const { data: content, error } = await db
-      .from("global_daily_content")
-      .select("*")
-      .eq("forecast_date_utc", localDate)
-      .maybeSingle();
-    if (error) throw error;
+    let content = await loadRowForDate(db, localDate);
 
-    // 1) Есть пригодная строка на сегодня. Если она устарела (сменилась модель /
-    //    структура — типично для fallback-строки с llm_model=null, которую пишет
-    //    writeStructuralGlobalRow) → блокирующе догоняем настоящие LLM-тексты
-    //    (Vercel держит функцию живой, пока handler awaits) и отдаём свежую строку.
-    //    Если LLM недоступна — отдаём ту, что есть (fallback), крон ретраит позже.
-    if (isUsableGlobalRow(content as Record<string, unknown> | null)) {
-      const row = content as Record<string, unknown>;
-      if (globalContentNeedsRefresh(row, expectedModel)) {
-        await blockingGlobalRefresh(db, localDate);
-        const { data: refreshed, error: refreshedError } = await db
-          .from("global_daily_content")
-          .select("*")
-          .eq("forecast_date_utc", localDate)
-          .maybeSingle();
-        if (refreshedError) throw refreshedError;
-        if (isUsableGlobalRow(refreshed as Record<string, unknown> | null)) {
-          return respondWithLocalizedContent(
-            db,
-            refreshed as Record<string, unknown>,
-            userAccess,
-            false,
-            responseLocale,
-            devResetExtra,
-          );
-        }
+    // forceRefresh: await full LLM + locale texts (profile language rebuild).
+    if (forceRefresh) {
+      if (!content || globalContentNeedsRefresh(content, expectedModel) || !rowHasLocaleTexts(content, responseLocale)) {
+        await scheduleGlobalRefresh(db, localDate);
+        content = await loadRowForDate(db, localDate);
       }
-      return respondWithLocalizedContent(db, row, userAccess, false, responseLocale, devResetExtra);
+      if (content) {
+        return respondWithLocalizedContent(db, content, userAccess, false, responseLocale, devResetExtra, true);
+      }
     }
 
-    // 2) Строки на сегодня нет (или она непригодна) → БЫСТРО пишем детерминированную
-    //    structural-строку (без LLM, ~1–2s) как safety net + для concurrent-dedup,
-    //    затем блокирующе генерируем настоящие LLM-тексты и отдаём свежую строку.
+    // 1) Usable row — respond immediately; refresh LLM in background when stale.
+    if (content) {
+      if (globalContentNeedsRefresh(content, expectedModel)) {
+        queueBackgroundRefresh(db, localDate);
+      }
+      return respondWithLocalizedContent(db, content, userAccess, false, responseLocale, devResetExtra, false);
+    }
+
+    // 2) No row — write structural (~1–2s), respond, warm LLM in background.
     try {
-      await writeStructuralGlobalRow(db, localDate);
+      content = await writeStructuralGlobalRow(db, localDate);
     } catch (synthError) {
       console.error("[global-content] structural row write failed", synthError);
     }
-    await blockingGlobalRefresh(db, localDate);
-    const { data: created, error: createdError } = await db
-      .from("global_daily_content")
-      .select("*")
-      .eq("forecast_date_utc", localDate)
-      .maybeSingle();
-    if (createdError) throw createdError;
-    if (isUsableGlobalRow(created as Record<string, unknown> | null)) {
-      return respondWithLocalizedContent(
-        db,
-        created as Record<string, unknown>,
-        userAccess,
-        false,
-        responseLocale,
-        devResetExtra,
-      );
+    if (content) {
+      queueBackgroundRefresh(db, localDate);
+      return respondWithLocalizedContent(db, content, userAccess, true, responseLocale, devResetExtra, false);
     }
 
-    // 3) Последний рубеж: отдать самую свежую доступную строку из прошлого,
-    //    чтобы экран всё равно открылся (пометив её как fallback).
+    // 3) Last resort: most recent past row.
     const { data: fallback, error: fallbackError } = await db
       .from("global_daily_content")
       .select("*")
@@ -277,6 +289,7 @@ export async function POST(req: Request) {
         true,
         responseLocale,
         devResetExtra,
+        false,
       );
     }
 

@@ -21,14 +21,14 @@ code_refs: [_legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/ai/di
 ### Монологи
 
 - `**POST /api/ai/monologue`** (`_legacy_web/app/api/ai/monologue/route.ts`)
-  - Тело: `{ scenario_id: string; variables?: Record<string, unknown> }`.
+  - Тело: `{ scenario_id: string; variables?: Record<string, unknown>; responseLocale?: string }`.
   - Резолвит строку `**scenarios**` по `scenario_id`, берёт активный промпт по `monologue_prompt_key`, подставляет переменные, вызывает Gemini JSON (`generateGeminiJson`).
-  - Кеш: таблица `**scenario_cache**`, стратегия из сценария (`per_user_per_day`, `per_user_per_calibration`, `no_cache`). Утренний сценарий инвалидируется при смене модели или отсутствии `modelUsed` в кэше (`isStaleMorningCache`).
+  - Кеш: таблица `**scenario_cache**`, стратегия из сценария (`per_user_per_day`, `per_user_per_calibration`, `no_cache`). Утренний сценарий инвалидируется при смене модели или отсутствии `modelUsed` в кэше (`isStaleMorningCache`); ключ `morning_recommendation` суффиксируется локалью; payload обязан нести `outputLocale` и проходить Cyrillic-guard для non-RU.
   - Специальные сценарии в коде:
-    - `**morning_recommendation**` — собирает переменные из последнего `user_daily_forecasts`, натала, калибровки, пользователя; строит топ-3 планеты (`buildTopPetals`), `**math_level**` (`buildMathLevel`), голос автора, подсказку обращения (`address_form` → hint).
+    - `**morning_recommendation**` — собирает переменные из последнего `user_daily_forecasts`, натала, калибровки, пользователя; строит топ-3 планеты (`buildTopPetals`), `**math_level**` (`buildMathLevel`), голос автора, подсказку обращения (`address_form` → hint). Язык: `OUTPUT LANGUAGE` prefix → language-retry → при всё ещё Cyrillic под non-RU — **`translateMorningTextFields`** (тот же перевод, что free `text_i18n`), иначе `502 LOCALE_MISMATCH`.
     - `**psychological_portrait**` — добавляет `portrait_target_chars` из `CONTENT_LENGTHS`.
 
-Клиент: `**callMonologue(scenarioId, variables)**` в `services/aiClient.ts` → тот же endpoint.
+Клиент: `**callMonologue(scenarioId, variables, signal?, responseLocale?)**` в `services/aiClient.ts` → тот же endpoint.
 
 ### Диалог дня — явный автомат (актуальная архитектура)
 

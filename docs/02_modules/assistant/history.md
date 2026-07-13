@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-07-13:** `morning_recommendation` language pipeline: OUTPUT LANGUAGE → one language-retry → **`translateMorningTextFields`** fallback (same as free `text_i18n`) before `502 LOCALE_MISMATCH`. Fixes paid DE→EN where the model kept emitting Russian into an `en` cache key.
+
 - **2026-07-12 (10):** QA `текст-4808…`: planning FINAL showed only «Внимание на первую чакру.» while Day tab had a long recommendation prefixed with dialog scaffold «Хорошо, собираю план.». Root: greeted-flow finalize could proceed without day-focus (repair was add-flow-only); scaffold leaked into `recommendation_short_text`. Fix: `stripPlanningDayFocusScaffold` on extract/persist/FINAL rebuild; greeted-flow hidden repair when day-focus missing; prompt forbids gathering acks in short_text.
 
 - **2026-07-12 (9):** QA `текст-416D…`/`текст-4FF7…`: Apple Health OK (steps 2665, active energy 75). Prompt now labels energy as `active energy kcal` / килокалории — Apple HealthKit + Google Health Connect always provide kilocalories (no cal↔kcal heuristic).

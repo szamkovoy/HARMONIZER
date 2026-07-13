@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.12
+version: 1.13
 updated: 2026-07-13
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -14,6 +14,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-13 (active free locales):** Cron/ensure pretranslate for `global_daily_content.text_i18n` uses `listActiveTargetLocales` (distinct `users.locale`), not all seven TARGET_LOCALES by default; missing locale still backfills on-demand.
+
+- **2026-07-13 (2):** Profile language rebuild strings (`profile.language.rebuild*`) in catalog for all 8 locales; locale switch probes day-content readiness before commit.
 
 - **2026-07-13:** Убран `key={locale}` с `<Tabs>` в `app/(tabs)/_layout.tsx` — смена языка больше не remount-ит табы (скролл профиля у комбо-бокса языка сохраняется); подписи вкладок обновляются через `t("tabs.*")` на ререндере.
 

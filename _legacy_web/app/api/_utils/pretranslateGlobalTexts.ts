@@ -28,6 +28,7 @@ async function translateFields(from: GlobalTextFields, locale: TargetLocale): Pr
       `Translate the following daily forecast texts from Russian into ${languageName}.`,
       "Preserve an empathetic mentor tone suitable for a yoga + psychology app.",
       "Return JSON with keys slogan, short_text, long_explanation only.",
+      "Do not leave any Russian/Cyrillic in the output.",
       "",
       JSON.stringify(from, null, 2),
     ].join("\n"),
@@ -41,6 +42,24 @@ async function translateFields(from: GlobalTextFields, locale: TargetLocale): Pr
     short_text: asString(result.json.short_text) || from.short_text,
     long_explanation: asString(result.json.long_explanation) || from.long_explanation,
   };
+}
+
+/**
+ * Translate RU (or wrong-language) morning slogan/short/long into a target locale.
+ * Used as a last-resort fallback when the monologue LLM ignores OUTPUT LANGUAGE.
+ */
+export async function translateMorningTextFields(
+  from: GlobalTextFields,
+  locale: AppContentLocale,
+): Promise<GlobalTextFields> {
+  if (locale === SOURCE_LOCALE) {
+    return {
+      slogan: asString(from.slogan),
+      short_text: asString(from.short_text),
+      long_explanation: asString(from.long_explanation),
+    };
+  }
+  return translateFields(from, locale as TargetLocale);
 }
 
 /**

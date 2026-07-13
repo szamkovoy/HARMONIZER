@@ -11,9 +11,12 @@ import { buildMathLevel } from "./mathLevelBuilder";
 import { normalizeRecommendationFields } from "./recommendationText";
 import {
   buildOutputLanguageBlock,
+  buildOutputLanguageRetryBlock,
   isMorningRecommendationCacheValid,
+  morningTextsMatchLocale,
   MORNING_CACHE_OUTPUT_LOCALE_KEY,
 } from "./outputLanguagePrompt";
+import { translateMorningTextFields } from "./pretranslateGlobalTexts";
 import { getActivePrompt, renderPrompt } from "./prompts";
 import { checkScenarioCache, saveScenarioCache } from "./scenarioCache";
 import { getScenario } from "./scenarios";
@@ -217,30 +220,62 @@ export async function ensureMorningRecommendation(params: {
     responseLocale,
   });
 
-  const result = await generateGeminiJson<Record<string, unknown>>({
-    prompt: `${buildOutputLanguageBlock(responseLocale)}\n\n${renderPrompt(prompt.template, prepared.variables)}`,
-    model: getModelByHint(prompt.model_hint),
-    temperature: prompt.temperature,
-    maxOutputTokens: Math.max(prompt.max_output_tokens ?? 2200, 6144),
-  });
+  const model = getModelByHint(prompt.model_hint);
+  const maxOutputTokens = Math.max(prompt.max_output_tokens ?? 2200, 6144);
+  const rendered = renderPrompt(prompt.template, prepared.variables);
 
-  const payloadRecord = normalizeRecommendationFields(
-    {
-      slogan: String(result.json.slogan ?? "").trim(),
-      short_text: String(result.json.short_text ?? "").trim(),
-      long_explanation: String(result.json.long_explanation ?? "").trim(),
-      math_level: prepared.mathLevel,
-      modelUsed: result.modelUsed,
-    },
-    responseLocale,
-  );
-  const payload: MorningRecommendationPayload = {
-    slogan: String(payloadRecord.slogan ?? "").trim(),
-    short_text: String(payloadRecord.short_text ?? "").trim(),
-    long_explanation: String(payloadRecord.long_explanation ?? "").trim(),
-    math_level: payloadRecord.math_level as ReturnType<typeof buildMathLevel>,
-    modelUsed: typeof payloadRecord.modelUsed === "string" ? payloadRecord.modelUsed : result.modelUsed,
+  const generateOnce = async (retryLanguage: boolean) => {
+    const languagePrefix = retryLanguage
+      ? `${buildOutputLanguageRetryBlock(responseLocale)}\n\n${buildOutputLanguageBlock(responseLocale)}`
+      : buildOutputLanguageBlock(responseLocale);
+    const result = await generateGeminiJson<Record<string, unknown>>({
+      prompt: `${languagePrefix}\n\n${rendered}`,
+      model,
+      temperature: prompt.temperature,
+      maxOutputTokens,
+    });
+    const payloadRecord = normalizeRecommendationFields(
+      {
+        slogan: String(result.json.slogan ?? "").trim(),
+        short_text: String(result.json.short_text ?? "").trim(),
+        long_explanation: String(result.json.long_explanation ?? "").trim(),
+        math_level: prepared.mathLevel,
+        modelUsed: result.modelUsed,
+      },
+      responseLocale,
+    );
+    return {
+      slogan: String(payloadRecord.slogan ?? "").trim(),
+      short_text: String(payloadRecord.short_text ?? "").trim(),
+      long_explanation: String(payloadRecord.long_explanation ?? "").trim(),
+      math_level: payloadRecord.math_level as ReturnType<typeof buildMathLevel>,
+      modelUsed: typeof payloadRecord.modelUsed === "string" ? payloadRecord.modelUsed : result.modelUsed,
+    } satisfies MorningRecommendationPayload;
   };
+
+  let payload = await generateOnce(false);
+  if (!morningTextsMatchLocale(responseLocale, payload.slogan, payload.short_text)) {
+    payload = await generateOnce(true);
+  }
+  if (!morningTextsMatchLocale(responseLocale, payload.slogan, payload.short_text)) {
+    const translated = await translateMorningTextFields(
+      {
+        slogan: payload.slogan,
+        short_text: payload.short_text,
+        long_explanation: payload.long_explanation,
+      },
+      responseLocale,
+    );
+    payload = {
+      ...payload,
+      slogan: translated.slogan,
+      short_text: translated.short_text,
+      long_explanation: translated.long_explanation,
+    };
+    if (!morningTextsMatchLocale(responseLocale, payload.slogan, payload.short_text)) {
+      throw new Error(`Morning recommendation language mismatch for locale=${responseLocale}`);
+    }
+  }
 
   await saveScenarioCache(
     scenario,

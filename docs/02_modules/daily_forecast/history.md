@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.23
-updated: 2026-07-12
+version: 2.24
+updated: 2026-07-13
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,12 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-13 (3):** Profile→Home locale handoff via `localeDayContentBridge` + async SecureStore peek; paid localeChange no longer overwrites complete day cache with stripped texts (fixes EN «Loading today's recommendation…» flash after Translating).
+
+- **2026-07-13 (2):** Paid locale switch: unified day-cache keys (`dayContentAccessKeys`); Home no longer forces a second monologue after Profile warm; Cyrillic texts hidden under non-RU UI; free cron `text_i18n` only for active user locales.
+
+- **2026-07-13:** Free cold-start: `POST /api/ai/global-content` больше не блокирует HTTP на LLM — отдаёт structural/cache сразу, LLM через Next.js `after()`; Edge cron `precompute-global-recommendations` после structural вызывает Node `POST /api/ai/global-content/warm` (LLM + `text_i18n`). Клиент закрывает splash на `isFreeDayContentRenderable` и догружает тексты polling'ом. `forceRefresh` остаётся для смены языка на профиле.
 
 - **2026-07-12 (3):** Day tab — help «?» on «Психо-практики» and «Йога-практики» (`SurfaceCardTitleRow` + `SurfaceHelpModal`), copy in `getDayStrings` (RU/EN + de–nl overlays).
 

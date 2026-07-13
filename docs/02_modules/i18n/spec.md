@@ -301,7 +301,8 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   server uses `resolveContentLocale` (all 8 locales) and **locale-suffixed**
   `scenario_cache` keys for `morning_recommendation`. Free-tier
   `global_daily_content`: RU canonical row + precomputed `text_i18n` jsonb
-  (`pretranslateGlobalTexts` on upsert / cron). Serve path reads `text_i18n` first;
+  (`pretranslateGlobalTexts` on upsert / cron for **active** user locales via
+  `listActiveTargetLocales`; unused languages skipped). Serve path reads `text_i18n` first;
   if a target locale is missing, **`POST /api/ai/global-content`** returns immediately
   with RU fallback via `pickGlobalTexts` and schedules **background**
   `backfillGlobalTextI18n` for the requested locale only (no blocking LLM on the

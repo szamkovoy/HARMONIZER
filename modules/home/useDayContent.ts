@@ -11,6 +11,8 @@ import { getAiGlobalContentUrl, getDailyForecastUrl } from "@/services/communica
 import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyForecastClient";
 import { clearDayContentCache, loadDayContentCache, loadDayContentCacheRelaxed, peekDayContentCache, peekDayContentCacheRelaxed, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
 import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome, isFreeDayContentRenderable } from "@/services/dayContentIntegrity";
+import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
+import { consumeLocaleDayContentWarm } from "@/services/localeDayContentBridge";
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
@@ -120,6 +122,14 @@ function birthDataError(message?: string): Error {
 function buildContentScopeKey(accessMode: AccessMode, natalScope: string, locale: AppLocale): string {
   const base = accessMode === "free" ? "global" : natalScope;
   return `${base}:${locale}`;
+}
+
+function forecastTextsMatchLocale(forecast: DailyForecast, locale: AppLocale): boolean {
+  return dayTextsMatchLocale(
+    locale,
+    String(forecast.slogan ?? ""),
+    String(forecast.recommendationShortText ?? ""),
+  );
 }
 
 async function enrichWithMorningContent(
@@ -408,6 +418,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             })
           : null;
       if (resolvedInstantCache?.freshness === "fresh") {
+        const cacheLocaleOk = forecastTextsMatchLocale(resolvedInstantCache.forecast, contentLocale);
         latestCacheContextRef.current = {
           userId: profileId!,
           accessMode: nextAccessMode,
@@ -416,11 +427,21 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           scopeKey: contentScopeKey,
           userLocation: locationForRequest,
         };
+        const forecastForUi = cacheLocaleOk
+          ? resolvedInstantCache.forecast
+          : stripHomeLlmTexts(resolvedInstantCache.forecast);
+        if (!cacheLocaleOk) {
+          pendingMorningMonologueForceRef.current = true;
+          lastHydratedForecastKeyRef.current = null;
+        }
         setAccessMode(nextAccessMode);
-        setForecast(resolvedInstantCache.forecast);
+        setForecast(forecastForUi);
         setSource(resolvedInstantCache.source);
         setModelUsed(resolvedInstantCache.modelUsed);
-        setHomeTextsLoading(!isDayContentComplete(resolvedInstantCache.forecast, nextAccessMode));
+        setHomeTextsLoading(
+          !isDayContentComplete(forecastForUi, nextAccessMode) ||
+            !forecastTextsMatchLocale(forecastForUi, contentLocale),
+        );
         setStatus("ready");
         lastResolvedRequestKeyRef.current = [
           profileId ?? "anon",
@@ -468,6 +489,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (controller.signal.aborted) return;
           if (cached) {
             if (cached.freshness === "fresh") {
+              const cacheLocaleOk = forecastTextsMatchLocale(cached.forecast, contentLocale);
+              const forecastForUi = cacheLocaleOk ? cached.forecast : stripHomeLlmTexts(cached.forecast);
+              if (!cacheLocaleOk) {
+                pendingMorningMonologueForceRef.current = true;
+                lastHydratedForecastKeyRef.current = null;
+              }
               latestCacheContextRef.current = {
                 userId,
                 accessMode: nextAccessMode,
@@ -476,10 +503,13 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
                 scopeKey: contentScopeKey,
                 userLocation: locationForRequest,
               };
-              setForecast(cached.forecast);
+              setForecast(forecastForUi);
               setSource(cached.source);
               setModelUsed(cached.modelUsed);
-              setHomeTextsLoading(!isDayContentComplete(cached.forecast, nextAccessMode));
+              setHomeTextsLoading(
+                !isDayContentComplete(forecastForUi, nextAccessMode) ||
+                  !forecastTextsMatchLocale(forecastForUi, contentLocale),
+              );
               setStatus("ready");
               lastResolvedRequestKeyRef.current = resolvedRequestKey;
               completeHomeBootstrap();
@@ -515,6 +545,13 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (!isFreeDayContentRenderable(result.forecast)) {
             throw new Error("Global day content is incomplete.");
           }
+          const responseLocale = getResponseLocale();
+          let forecastForUi = result.forecast;
+          if (!forecastTextsMatchLocale(forecastForUi, responseLocale)) {
+            forecastForUi = stripHomeLlmTexts(forecastForUi);
+            pendingMorningMonologueForceRef.current = true;
+            lastHydratedForecastKeyRef.current = null;
+          }
           latestCacheContextRef.current = userId
             ? {
                 userId,
@@ -525,8 +562,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
                 userLocation: locationForRequest,
               }
             : null;
-          setForecast(result.forecast);
-          readyForecast = result.forecast;
+          setForecast(forecastForUi);
+          readyForecast = forecastForUi;
           setSource("global");
           setModelUsed(result.modelUsed);
           if (__DEV__) {
@@ -534,7 +571,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             console.log("[dayContent] modelUsed", result.modelUsed ?? "unknown");
           }
           setAccessMode(nextAccessMode);
-          if (userId) {
+          if (userId && isDayContentComplete(forecastForUi, "free") && forecastTextsMatchLocale(forecastForUi, responseLocale)) {
             void saveDayContentCache({
               userId,
               accessMode: nextAccessMode,
@@ -543,7 +580,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
               scopeKey: contentScopeKey,
               userLocation: locationForRequest,
               content: {
-                forecast: result.forecast,
+                forecast: forecastForUi,
                 source: "global",
                 modelUsed: result.modelUsed,
               },
@@ -557,8 +594,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             responseLocale: getResponseLocale(),
             signal: controller.signal,
           });
-          const shouldForceMorningRefresh = Boolean(opts?.forceRefresh || opts?.localeChange);
-          const hasCompleteServerContent = isDayContentComplete(result.forecast, nextAccessMode);
+          const responseLocale = getResponseLocale();
+          const localeOk = forecastTextsMatchLocale(result.forecast, responseLocale);
+          const shouldForceMorningRefresh = Boolean(opts?.forceRefresh || opts?.localeChange || !localeOk);
+          const hasCompleteServerContent = isDayContentComplete(result.forecast, nextAccessMode) && localeOk;
           let forecastForUi = result.forecast;
           pendingMorningMonologueForceRef.current = shouldForceMorningRefresh && !hasCompleteServerContent;
           if (shouldForceMorningRefresh && !hasCompleteServerContent) {
@@ -596,7 +635,11 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             // eslint-disable-next-line no-console
             console.log("[dayContent] modelUsed", modelForUi ?? "unknown");
           }
-          if (userId) {
+          if (
+            userId &&
+            isDayContentComplete(forecastForUi, nextAccessMode) &&
+            forecastTextsMatchLocale(forecastForUi, responseLocale)
+          ) {
             void saveDayContentCache({
               userId,
               accessMode: nextAccessMode,
@@ -615,11 +658,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setStatus("ready");
         lastResolvedRequestKeyRef.current = resolvedRequestKey;
         completeHomeBootstrap();
-        if (nextAccessMode === "free") {
-          setHomeTextsLoading(false);
-        } else {
-          setHomeTextsLoading(!isDayContentComplete(readyForecast, nextAccessMode));
-        }
+        setHomeTextsLoading(
+          !isDayContentComplete(readyForecast, nextAccessMode) ||
+            !forecastTextsMatchLocale(readyForecast, getResponseLocale()),
+        );
         logRuntimeEvent("day_content:ready", {
           accessMode: nextAccessMode,
           source: nextAccessMode === "free" ? "global" : "personal",
@@ -731,18 +773,172 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const nextLocale = getResponseLocale();
       if (nextLocale === trackedContentLocaleRef.current) return;
       trackedContentLocaleRef.current = nextLocale;
-      pendingMorningMonologueForceRef.current = true;
-      lastHydratedForecastKeyRef.current = null;
-      lastResolvedRequestKeyRef.current = null;
-      setHomeTextsLoading(true);
-      setForecast((current) => {
-        const stripped = current ? stripHomeLlmTexts(current) : current;
-        latestForecastRef.current = stripped;
-        return stripped;
-      });
-      void refresh({ localeChange: true }).catch(() => undefined);
+
+      const nextAccessMode =
+        options?.accessModeOverride ??
+        accessModeFromRow({
+          membership_tier: membershipTier,
+          trial_expires_at: trialExpiresAt,
+          membership_expires_at: membershipExpiresAt,
+        });
+      const nextAccessTier =
+        options?.accessTierOverride ?? (nextAccessMode === "free" ? "free" : "oracle");
+      const provisionalTimezone = userLocation?.timezone ?? profileTimezone;
+      const provisionalForecastDate = localDateIso(provisionalTimezone);
+      const contentScopeKey = buildContentScopeKey(nextAccessMode, scopeKey, nextLocale);
+
+      const applyWarmed = (warmed: {
+        forecast: DailyForecast;
+        source: DayContentSource;
+        modelUsed: string | null;
+        userLocation: { lat: number; lng: number; timezone: string };
+      }) => {
+        if (!profileId || !isDayContentComplete(warmed.forecast, nextAccessMode)) return false;
+        if (!forecastTextsMatchLocale(warmed.forecast, nextLocale)) return false;
+        pendingMorningMonologueForceRef.current = false;
+        lastHydratedForecastKeyRef.current = [
+          profileId,
+          provisionalForecastDate,
+          contentScopeKey,
+          warmed.forecast.date,
+          warmed.forecast.computedAt,
+          nextAccessMode,
+        ].join("|");
+        lastResolvedRequestKeyRef.current = [
+          profileId,
+          nextAccessMode,
+          nextAccessTier,
+          provisionalForecastDate,
+          contentScopeKey,
+        ].join("|");
+        latestCacheContextRef.current = {
+          userId: profileId,
+          accessMode: nextAccessMode,
+          accessTier: nextAccessTier,
+          forecastDate: provisionalForecastDate,
+          scopeKey: contentScopeKey,
+          userLocation: warmed.userLocation,
+        };
+        setAccessMode(nextAccessMode);
+        setForecast(warmed.forecast);
+        setSource(warmed.source);
+        setModelUsed(warmed.modelUsed);
+        setHomeTextsLoading(false);
+        setStatus("ready");
+        setError(null);
+        completeHomeBootstrap();
+        return true;
+      };
+
+      // Profile ensure warms dayContentCache before setAppLocale — apply it
+      // with the same accessMode/tier overrides Home uses for fetch/cache keys.
+      const tryApplyFromCache = async (): Promise<boolean> => {
+        const bridged = consumeLocaleDayContentWarm(nextLocale);
+        if (
+          bridged &&
+          bridged.userId === profileId &&
+          applyWarmed({
+            forecast: bridged.forecast,
+            source: bridged.source,
+            modelUsed: bridged.modelUsed,
+            userLocation: bridged.userLocation,
+          })
+        ) {
+          return true;
+        }
+        if (profileId && userLocation) {
+          const warmed = peekDayContentCache({
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: contentScopeKey,
+            userLocation,
+          });
+          if (
+            warmed?.freshness === "fresh" &&
+            applyWarmed({
+              forecast: warmed.forecast,
+              source: warmed.source,
+              modelUsed: warmed.modelUsed,
+              userLocation,
+            })
+          ) {
+            return true;
+          }
+        }
+        if (profileId) {
+          const relaxed = peekDayContentCacheRelaxed({
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: contentScopeKey,
+          });
+          if (
+            relaxed?.freshness === "fresh" &&
+            applyWarmed({
+              forecast: relaxed.forecast,
+              source: relaxed.source,
+              modelUsed: relaxed.modelUsed,
+              userLocation: relaxed.location,
+            })
+          ) {
+            return true;
+          }
+          // Native peek* is memory-only — Profile may have just written SecureStore.
+          const asyncRelaxed = await loadDayContentCacheRelaxed({
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: contentScopeKey,
+          });
+          if (
+            asyncRelaxed?.freshness === "fresh" &&
+            applyWarmed({
+              forecast: asyncRelaxed.forecast,
+              source: asyncRelaxed.source,
+              modelUsed: asyncRelaxed.modelUsed,
+              userLocation: asyncRelaxed.location,
+            })
+          ) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      void (async () => {
+        if (await tryApplyFromCache()) return;
+
+        // Cache miss after Profile ensure should be rare. Do NOT force a second
+        // monologue here — refresh attaches scenario_cache / decides force itself.
+        pendingMorningMonologueForceRef.current = false;
+        lastHydratedForecastKeyRef.current = null;
+        lastResolvedRequestKeyRef.current = null;
+        setHomeTextsLoading(true);
+        setForecast((current) => {
+          const stripped = current ? stripHomeLlmTexts(current) : current;
+          latestForecastRef.current = stripped;
+          return stripped;
+        });
+        void refresh({ localeChange: true }).catch(() => undefined);
+      })();
     });
-  }, [refresh]);
+  }, [
+    completeHomeBootstrap,
+    membershipExpiresAt,
+    membershipTier,
+    options?.accessModeOverride,
+    options?.accessTierOverride,
+    profileId,
+    profileTimezone,
+    refresh,
+    scopeKey,
+    trialExpiresAt,
+    userLocation,
+  ]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -757,16 +953,15 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   }, [profileTimezone, refresh, userLocation?.timezone]);
 
   useEffect(() => {
-    if (!forecast || accessMode === "free") return;
+    if (!forecast) return;
     if (status !== "ready" && status !== "stale_ready") return;
     const forecastForHydration: DailyForecast = forecast;
     const forceMorningRefresh = pendingMorningMonologueForceRef.current;
+    const localeAtCheck = getResponseLocale();
     const needsSecondaryContent =
       forceMorningRefresh ||
-      !forecastForHydration.slogan?.trim() ||
-      !forecastForHydration.recommendationShortText?.trim() ||
-      !forecastForHydration.recommendationLongText?.trim() ||
-      !forecastForHydration.mathLevel?.markdown?.trim();
+      !isDayContentComplete(forecastForHydration, accessMode) ||
+      !forecastTextsMatchLocale(forecastForHydration, localeAtCheck);
     if (!needsSecondaryContent) return;
     const cacheContext = latestCacheContextRef.current;
     if (!cacheContext) return;
@@ -793,15 +988,88 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
     void (async () => {
       try {
+        if (accessMode === "free") {
+          setStartupStep("HOME/api_global_free");
+          // Poll while Node `after()` / cron warms real LLM texts (non-blocking route).
+          const deadline = Date.now() + 120_000;
+          let latest = forecastForHydration;
+          let latestModel = modelUsed;
+          while (Date.now() < deadline) {
+            if (controller.signal.aborted || runId !== secondaryRunRef.current) return;
+            await new Promise((resolve) => setTimeout(resolve, 4_000));
+            if (controller.signal.aborted || runId !== secondaryRunRef.current) return;
+            if (getResponseLocale() !== localeAtStart || latestCacheContextRef.current?.scopeKey !== scopeKeyAtStart) {
+              return;
+            }
+            try {
+              const polled = await fetchGlobalContent({
+                userLocation: cacheContext.userLocation,
+                signal: controller.signal,
+                responseLocale: localeAtStart,
+              });
+              if (!isFreeDayContentRenderable(polled.forecast)) continue;
+              if (!forecastTextsMatchLocale(polled.forecast, localeAtStart)) continue;
+              latest = polled.forecast;
+              latestModel = polled.modelUsed ?? latestModel;
+              if (isDayContentComplete(polled.forecast, "free")) break;
+            } catch {
+              /* keep polling until deadline */
+            }
+          }
+          if (controller.signal.aborted || runId !== secondaryRunRef.current) return;
+          if (getResponseLocale() !== localeAtStart || latestCacheContextRef.current?.scopeKey !== scopeKeyAtStart) {
+            return;
+          }
+          if (!forecastTextsMatchLocale(latest, localeAtStart)) {
+            setHomeTextsLoading(false);
+            return;
+          }
+          setForecast((current) => {
+            if (!current) return current;
+            if (current.date !== forecastForHydration.date) return current;
+            return latest;
+          });
+          if (latestModel) setModelUsed(latestModel);
+          if (forceMorningRefresh) {
+            pendingMorningMonologueForceRef.current = false;
+            lastHydratedForecastKeyRef.current = hydrationKey;
+          }
+          setHomeTextsLoading(false);
+          await saveDayContentCache({
+            userId: cacheContext.userId,
+            accessMode: cacheContext.accessMode,
+            accessTier: cacheContext.accessTier,
+            forecastDate: cacheContext.forecastDate,
+            scopeKey: cacheContext.scopeKey,
+            userLocation: cacheContext.userLocation,
+            content: {
+              forecast: latest,
+              source: "global",
+              modelUsed: latestModel,
+            },
+          });
+          return;
+        }
+
         setStartupStep("HOME/api_morning_monologue");
-        const enriched = await enrichWithMorningContent(
+        let enriched = await enrichWithMorningContent(
           forecastForHydration,
           forceMorningRefresh,
           controller.signal,
           localeAtStart,
         );
+        if (
+          !forecastTextsMatchLocale(enriched.forecast, localeAtStart) &&
+          !forceMorningRefresh
+        ) {
+          enriched = await enrichWithMorningContent(forecastForHydration, true, controller.signal, localeAtStart);
+        }
         if (controller.signal.aborted || runId !== secondaryRunRef.current) return;
         if (getResponseLocale() !== localeAtStart || latestCacheContextRef.current?.scopeKey !== scopeKeyAtStart) {
+          return;
+        }
+        if (!forecastTextsMatchLocale(enriched.forecast, localeAtStart)) {
+          setHomeTextsLoading(false);
           return;
         }
         if (!isBaseForecastValid(enriched.forecast)) return;

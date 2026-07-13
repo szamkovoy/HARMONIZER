@@ -7,6 +7,7 @@ Required secrets for deployed functions:
 - `SUPABASE_URL` - Supabase project URL.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for cron/server-side writes.
 - `CRON_SECRET` - shared secret required by scheduled functions. Send it as `Authorization: Bearer <secret>` or `x-cron-secret`.
+- `HARMONIZER_APP_URL` (or `VERCEL_APP_URL`) - origin of the deployed `_legacy_web` backend (no `/api` suffix). Used by Edge `precompute-global-recommendations` to call `POST /api/ai/global-content/warm` for LLM + `text_i18n` after structural upsert. Same value as `EXPO_PUBLIC_COMMUNICATOR_API_URL` in production.
 - `GEMINI_API_KEY` - Gemini key for `auto-calibrate` LLM digest. If absent, `auto-calibrate` falls back to heuristic digest.
 
 Functions to deploy:
@@ -34,6 +35,7 @@ Required Vercel environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL for auth validation and server clients.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key for JWT validation.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
+- `CRON_SECRET` - shared secret required by scheduled functions and by `POST /api/ai/global-content/warm`.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.
 - `AI_MODEL_PREMIUM` - concrete Gemini model for `premium` prompt/scenario tier.

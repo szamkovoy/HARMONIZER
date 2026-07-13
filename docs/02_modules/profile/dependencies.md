@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.10
-updated: 2026-06-21
+version: 1.11
+updated: 2026-07-13
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -31,14 +31,14 @@ code_refs:
 - **`astro` (данные и сценарии)**  
   `services/natalProfileClient.ts`, **`modules/home/ui/NatalBirthDataModal.tsx`** (общий с главным) и экраны `app/(tabs)/index.tsx` / `app/(tabs)/profile.tsx` завязаны на типы `BirthData` / `NatalProfile` из `modules/astro-core` и API `POST /api/astro/natal`. Поля `birth_*` и связанный активный натал определяют персональный прогноз и downstream assistant/calibration.
 
-- **`daily_forecast` (синхронизация главного после смены натала с профиля)**  
-  После успешного `createNatalProfile` с вкладки профиля вызывается **`markHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); при следующем фокусе **`app/(tabs)/index.tsx`** потребляется флаг и **`useDayContent.refresh`** выполняется с **`blockingReload`** + при необходимости **`forceRefresh`**, чтобы главный экран дождался обновлённого дня под новый `scopeKey`.
+- **`daily_forecast` (синхронизация главного после смены натала / языка с профиля)**  
+  После успешного `createNatalProfile` с вкладки профиля вызывается **`markHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); при следующем фокусе **`app/(tabs)/index.tsx`** потребляется флаг и **`useDayContent.refresh`** выполняется с **`blockingReload`** + при необходимости **`forceRefresh`**, чтобы главный экран дождался обновлённого дня под новый `scopeKey`. Смена языка: probe/ensure через **`localeDayContentProbe`** / **`localeDayContentEnsure`** с ключами **`resolveDayContentAccessKeys`**; commit локали только после verified peek; Home на `subscribeAppLocale` сначала применяет warmed cache (без второго monologue), иначе strip + `refresh({ localeChange })` без принудительного force-flag.
 
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStatsInRange`** / **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица `user_daily_stats` / завершённые сессии). Запись сессий выполняется из flow практик, не из таба профиля.
 
 - **`i18n` / `life-spheres`**  
-  Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
+  Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
 
 - **`charts`**  
   Donut-отчёты рендерятся через **`DonutChart`** (`modules/charts/`): сегменты, дуга баланса, центр `{balance}%`, scroll-triggered animation; **`app/(tabs)/profile.tsx`** — **`DonutVisibilityProvider`**, **`useDonutScrollProps`** на `ScrollView`, **`useDonutVisibilityRefresh`** + **`useFocusEffect`** при фокусе таба (как на Day tab).
