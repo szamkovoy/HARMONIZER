@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { HelpCircle, Loader2, MessageCircle, Plus, Users } from "lucide-react";
 
-import { isWebinarInJoinWindow } from "@/modules/webinars/core/webinarTiming";
-
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
 
@@ -57,7 +55,7 @@ export default function AdminWebinarsPage() {
 
       <div className="flex flex-col gap-3">
         {webinars?.map((webinar) => {
-          const inJoinWindow = isWebinarInJoinWindow(webinar.starts_at);
+          const recordingPublished = Boolean(webinar.recording_is_published);
           return (
             <Link
               key={webinar.id}
@@ -66,40 +64,30 @@ export default function AdminWebinarsPage() {
             >
               <p className="font-semibold text-zinc-100">{webinar.title}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                <span
-                  className={`rounded-full px-2 py-0.5 ${
-                    webinar.is_published ? "bg-emerald-400/10 text-emerald-300" : "bg-white/5 text-zinc-400"
-                  }`}
-                >
-                  Анонс: {webinar.is_published ? "опубликован" : "черновик"}
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 ${
-                    webinar.recording_is_published
-                      ? "bg-emerald-400/10 text-emerald-300"
-                      : webinar.recording_post_id
-                        ? "bg-amber-400/10 text-amber-200"
-                        : "bg-white/5 text-zinc-400"
-                  }`}
-                >
-                  Запись:{" "}
-                  {!webinar.recording_post_id
-                    ? "нет"
-                    : webinar.recording_is_published
-                      ? "опубликована"
-                      : "черновик"}
-                </span>
+                {recordingPublished ? (
+                  <span className="rounded-full px-2 py-0.5 bg-emerald-400/10 text-emerald-300">
+                    Запись опубликована
+                  </span>
+                ) : (
+                  <span
+                    className={`rounded-full px-2 py-0.5 ${
+                      webinar.is_published ? "bg-emerald-400/10 text-emerald-300" : "bg-white/5 text-zinc-400"
+                    }`}
+                  >
+                    {webinar.is_published ? "Анонс опубликован" : "Анонс: черновик"}
+                  </span>
+                )}
                 <span className="text-zinc-400">{formatAdminDateTime(webinar.starts_at)}</span>
                 <span className="flex items-center gap-1 text-zinc-500">
                   <Users size={12} /> {webinar.registration_count}
                 </span>
-                {inJoinWindow ? (
+                {recordingPublished ? (
                   <span className="flex items-center gap-1 text-zinc-500">
-                    <HelpCircle size={12} /> {webinar.question_count}
+                    <MessageCircle size={12} /> {webinar.recording_comment_count}
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-zinc-500">
-                    <MessageCircle size={12} /> {webinar.recording_comment_count}
+                    <HelpCircle size={12} /> {webinar.question_count}
                   </span>
                 )}
               </div>

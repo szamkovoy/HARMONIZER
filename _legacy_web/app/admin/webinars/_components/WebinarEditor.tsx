@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { Eye, EyeOff, Languages, Loader2, ThumbsUp, Trash2, Users } from "lucide-react";
+import { Eye, EyeOff, ImagePlus, Languages, Loader2, ThumbsUp, Trash2, Users } from "lucide-react";
 
 import { TIER_LABELS_RU } from "@/modules/access/core/tiers";
 import { isWebinarRecordingTabAvailable } from "@/modules/webinars/core/webinarTiming";
@@ -404,18 +404,21 @@ export function WebinarEditor({
   ) {
     const src = preview || url;
     return (
-      <div className="mb-3">
-        <span className="mb-1 block text-xs text-zinc-400">Обложка</span>
+      <div className="mb-4">
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="" className="mb-2 h-36 w-full rounded-xl object-cover" />
-        ) : null}
-        <div className="flex gap-2">
-          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5">
-            {src ? "Заменить" : "Загрузить"}
+          <img
+            src={src}
+            alt=""
+            className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
+          />
+        ) : (
+          <label className="mb-1.5 flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40">
+            <ImagePlus size={22} strokeWidth={1.6} />
+            Добавить обложку
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -423,12 +426,16 @@ export function WebinarEditor({
               }}
             />
           </label>
-          {src ? (
-            <button type="button" onClick={onClear} className="rounded-xl px-3 py-2 text-sm text-red-300 hover:bg-red-400/10">
-              Удалить обложку
-            </button>
-          ) : null}
-        </div>
+        )}
+        {src ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-xs text-zinc-500 transition-colors hover:text-red-300"
+          >
+            Удалить обложку
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -539,7 +546,7 @@ export function WebinarEditor({
               onChange={(e) => setIsPublished(e.target.checked)}
               className="accent-emerald-500"
             />
-            Анонс опубликован (баннер на главной до начала + 1 ч)
+            {webinar ? "Анонс опубликован" : "Опубликовать"}
           </label>
 
           {error && tab === "announce" ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
@@ -619,7 +626,7 @@ export function WebinarEditor({
               onChange={(e) => setRecPublished(e.target.checked)}
               className="accent-emerald-500"
             />
-            Запись опубликована (в ленте «Видео» только для записавшихся)
+            {savedRecording ? "Запись опубликована" : "Опубликовать"}
           </label>
 
           {error && tab === "recording" ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
@@ -666,18 +673,21 @@ function LocaleFields({
   const src = tab.coverPreview || tab.coverUrl;
   return (
     <>
-      <div className="mb-3">
-        <span className="mb-1 block text-xs text-zinc-400">Обложка (локаль)</span>
+      <div className="mb-4">
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="" className="mb-2 h-36 w-full rounded-xl object-cover" />
-        ) : null}
-        <div className="flex gap-2">
-          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5">
-            {src ? "Заменить" : "Загрузить"}
+          <img
+            src={src}
+            alt=""
+            className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
+          />
+        ) : (
+          <label className="mb-1.5 flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40">
+            <ImagePlus size={22} strokeWidth={1.6} />
+            Добавить обложку
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -686,16 +696,16 @@ function LocaleFields({
               }}
             />
           </label>
-          {src ? (
-            <button
-              type="button"
-              onClick={() => onChange({ coverUrl: null, coverFile: null, coverPreview: null })}
-              className="rounded-xl px-3 py-2 text-sm text-red-300 hover:bg-red-400/10"
-            >
-              Удалить обложку
-            </button>
-          ) : null}
-        </div>
+        )}
+        {src ? (
+          <button
+            type="button"
+            onClick={() => onChange({ coverUrl: null, coverFile: null, coverPreview: null })}
+            className="text-xs text-zinc-500 transition-colors hover:text-red-300"
+          >
+            Удалить обложку
+          </button>
+        ) : null}
       </div>
       <label className="mb-3 block">
         <span className="mb-1 block text-xs text-zinc-400">Название</span>

@@ -90,11 +90,10 @@ function birthFingerprintFromProfile(
 function HomeHeader({
   forecast,
   strings,
-  homeTextsLoading,
 }: {
   forecast: DailyForecast | null;
   strings: HomeStrings;
-  homeTextsLoading: boolean;
+  homeTextsLoading?: boolean;
 }) {
   const today = new Intl.DateTimeFormat(intlLocaleTag(strings.locale), {
     weekday: "long",
@@ -104,7 +103,6 @@ function HomeHeader({
   const slogan = forecast?.slogan?.trim() ?? "";
   const showSlogan =
     Boolean(slogan) &&
-    !homeTextsLoading &&
     dayTextsMatchLocale(strings.locale, slogan, String(forecast?.recommendationShortText ?? ""));
   return (
     <View style={styles.header}>

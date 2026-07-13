@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-14:** Published `webinar_recording` joins the same feed/home VideoCard pool as `video` (migration `20260714003000`); registrants gate removed from feed RLS/RPC.
+
 - **2026-07-13:** `posts.kind` / `webinar_id`; feed+RLS hide webinar recordings from non-registrants; admin posts list filters `kind=video`.
 
 - **2026-07-13 (41):** Admin videos list: infinite scroll by 20 (`GET /api/admin/posts` cursor). Mobile feed remains page size 8.

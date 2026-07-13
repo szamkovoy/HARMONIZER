@@ -486,26 +486,28 @@ export function PostEditor({
         {activeTab === "ru" ? (
           <>
             <div className="mb-4">
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                className="flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
-              >
-                {ruCoverShown ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={ruCoverShown} alt="Обложка" className="h-full w-full object-contain" />
-                ) : (
-                  <span className="flex flex-col items-center gap-1 text-xs">
-                    <ImagePlus size={22} strokeWidth={1.6} />
-                    Обложка (необязательно)
-                  </span>
-                )}
-              </button>
+              {ruCoverShown ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={ruCoverShown}
+                  alt="Обложка"
+                  className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInput.current?.click()}
+                  className="mb-1.5 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40"
+                >
+                  <ImagePlus size={22} strokeWidth={1.6} />
+                  Добавить обложку
+                </button>
+              )}
               {activeHasCover ? (
                 <button
                   type="button"
                   onClick={clearActiveCover}
-                  className="mt-1.5 text-xs text-zinc-500 transition-colors hover:text-red-300"
+                  className="text-xs text-zinc-500 transition-colors hover:text-red-300"
                 >
                   Удалить обложку
                 </button>
@@ -565,7 +567,7 @@ export function PostEditor({
               onChange={(e) => setIsPublished(e.target.checked)}
               className="accent-emerald-500"
             />
-            {isEditing ? "Опубликовано" : "Опубликовать сразу"}
+            {isEditing ? "Опубликовано" : "Опубликовать"}
           </label>
           {activeHasTranslation ? (
             <button
@@ -633,27 +635,28 @@ function LocaleTabFields({
   return (
     <>
       <div className="mb-4">
-        <button
-          type="button"
-          onClick={() => localFileInput.current?.click()}
-          className="flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
-          title={data.coverUrl || data.coverFile ? "Заменить обложку" : "Добавить обложку"}
-        >
-          {coverShown ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverShown} alt="Обложка" className="h-full w-full object-contain" />
-          ) : (
-            <span className="flex flex-col items-center gap-1 text-xs">
-              <ImagePlus size={22} strokeWidth={1.6} />
-              Обложка (необязательно)
-            </span>
-          )}
-        </button>
+        {coverShown ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverShown}
+            alt="Обложка"
+            className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => localFileInput.current?.click()}
+            className="mb-1.5 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40"
+          >
+            <ImagePlus size={22} strokeWidth={1.6} />
+            Добавить обложку
+          </button>
+        )}
         {hasCover ? (
           <button
             type="button"
             onClick={onClearCover}
-            className="mt-1.5 text-xs text-zinc-500 transition-colors hover:text-red-300"
+            className="text-xs text-zinc-500 transition-colors hover:text-red-300"
           >
             Удалить обложку
           </button>

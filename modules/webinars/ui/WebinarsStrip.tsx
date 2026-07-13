@@ -9,21 +9,19 @@ import { fetchWebinars, localizeWebinar, type WebinarItem } from "@/modules/webi
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
-const MAX_PAST = 5;
-
 /**
- * Компактный блок вебинаров для вкладки «Видео»: join-окно
- * + последние прошедшие с записью. Null, когда показывать нечего.
+ * Компактный блок анонсов вебинаров для вкладки «Видео»: только join-окно.
+ * Опубликованные записи живут в общей ленте постов как обычные VideoCard.
  */
 export function WebinarsStrip() {
   const theme = useTheme();
   const { t, locale } = useTranslate();
-  const [items, setItems] = useState<{ upcoming: WebinarItem[]; past: WebinarItem[] } | null>(null);
+  const [upcoming, setUpcoming] = useState<WebinarItem[] | null>(null);
 
   const reload = useCallback(() => {
     let cancelled = false;
     void fetchWebinars().then((result) => {
-      if (!cancelled) setItems(result);
+      if (!cancelled) setUpcoming(result.upcoming);
     });
     return () => {
       cancelled = true;
@@ -32,26 +30,18 @@ export function WebinarsStrip() {
 
   useFocusEffect(reload);
 
-  if (!items || (items.upcoming.length === 0 && items.past.length === 0)) return null;
-
-  const rows = [
-    ...items.upcoming.map((w) => ({ webinar: w, isPast: false })),
-    ...items.past.slice(0, MAX_PAST).map((w) => ({ webinar: w, isPast: true })),
-  ];
+  if (!upcoming || upcoming.length === 0) return null;
 
   return (
     <View style={styles.root}>
       <AppText variant="sectionTitle">{t("webinars.strip.title")}</AppText>
-      {rows.map(({ webinar, isPast }) => {
+      {upcoming.map((webinar) => {
         const localized = localizeWebinar(webinar, locale);
-        const href = (
-          isPast && webinar.recordingPostId ? `/post/${webinar.recordingPostId}` : `/webinar/${webinar.id}`
-        ) as Href;
         return (
           <Pressable
             key={webinar.id}
             accessibilityRole="button"
-            onPress={() => router.push(href)}
+            onPress={() => router.push(`/webinar/${webinar.id}` as Href)}
             style={({ pressed }) => [
               styles.row,
               {
@@ -65,12 +55,10 @@ export function WebinarsStrip() {
               <AppText variant="buttonLabel" numberOfLines={1}>
                 {localized.title}
               </AppText>
-              <AppText variant="technicalCaption" tone={isPast ? "faint" : "accent"}>
-                {isPast
-                  ? t("webinars.strip.recording")
-                  : DateTime.fromISO(localized.startsAt)
-                      .setLocale(locale)
-                      .toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)}
+              <AppText variant="technicalCaption" tone="accent">
+                {DateTime.fromISO(localized.startsAt)
+                  .setLocale(locale)
+                  .toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)}
               </AppText>
             </View>
             <AppText variant="sectionTitle" tone="muted">

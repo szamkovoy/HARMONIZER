@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-14:** Webinar list single badge + comment XOR question count; unified cover UX (Video + Webinar): add button / scaled preview / delete link; publish checkbox «Опубликовать» before first save.
+
 - **2026-07-13:** Webinar admin dual tabs (announce/recording) + recording upsert API; list badges for announce vs recording publish state.
 
 - **2026-07-13 (14):** Admin `/admin/posts` infinite scroll: `GET /api/admin/posts?limit=20` + cursor `before_created_at`/`before_id` → `next_cursor` (no hard 200 cap).

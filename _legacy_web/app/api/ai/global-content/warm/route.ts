@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
 import {
   ensureGlobalDailyContentRow,
@@ -48,42 +50,38 @@ export async function POST(req: Request) {
         ? body.dates.map((d) => String(d).trim()).filter(Boolean)
         : [isoDate(addDays(now, -1)), isoDate(now), isoDate(addDays(now, 1))];
 
-    const db = createServiceSupabase();
-    const expectedModel = await getExpectedGlobalDailyContentModel(db);
-    const results: Array<Record<string, unknown>> = [];
+    // Acknowledge immediately so Edge cron is not killed mid-LLM. Work continues via `after()`.
+    after(async () => {
+      const db = createServiceSupabase();
+      const expectedModel = await getExpectedGlobalDailyContentModel(db);
+      for (const date of dates) {
+        try {
+          const { data: existing, error } = await db
+            .from("global_daily_content")
+            .select("*")
+            .eq("forecast_date_utc", date)
+            .maybeSingle();
+          if (error) throw error;
 
-    for (const date of dates) {
-      try {
-        const { data: existing, error } = await db
-          .from("global_daily_content")
-          .select("*")
-          .eq("forecast_date_utc", date)
-          .maybeSingle();
-        if (error) throw error;
+          if (!existing) {
+            await writeStructuralGlobalRow(db, date);
+          }
 
-        if (!existing) {
-          await writeStructuralGlobalRow(db, date);
+          const row = existing as Record<string, unknown> | null;
+          if (row && !globalContentNeedsRefresh(row, expectedModel)) {
+            console.info("[global-content/warm] fresh", date);
+            continue;
+          }
+
+          await ensureGlobalDailyContentRow(db, date);
+          console.info("[global-content/warm] warmed", date);
+        } catch (dateError) {
+          console.error("[global-content/warm] date failed", date, dateError);
         }
-
-        const row = existing as Record<string, unknown> | null;
-        if (row && !globalContentNeedsRefresh(row, expectedModel)) {
-          results.push({ date, status: "fresh" });
-          continue;
-        }
-
-        await ensureGlobalDailyContentRow(db, date);
-        results.push({ date, status: "warmed" });
-      } catch (dateError) {
-        console.error("[global-content/warm] date failed", date, dateError);
-        results.push({
-          date,
-          status: "error",
-          error: dateError instanceof Error ? dateError.message : String(dateError),
-        });
       }
-    }
+    });
 
-    return json({ ok: true, results });
+    return json({ ok: true, accepted: dates, mode: "background" });
   } catch (error) {
     return errorResponse(error);
   }

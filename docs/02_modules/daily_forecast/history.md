@@ -18,6 +18,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-14:** Free midnight cold-start: `fetchGlobalContent` direct-reads usable `global_daily_content` even when `llm_model` is null (structural cron row) so Home does not wait on Vercel. HomeHeader shows slogan whenever locale-matched texts exist (no longer hidden behind `homeTextsLoading`). Edge cron requires `HARMONIZER_APP_URL` + `CRON_SECRET`; Node `/api/ai/global-content/warm` acknowledges immediately and continues LLM via `after()` so Edge is not killed mid-generation.
+
 - **2026-07-13 (5):** Free locale ensure accepts `isFreeDayContentRenderable` (not full `long_explanation`) so a stripped legacy long no longer triggers `forceRefresh`/LLM after app restart. Free Home falls back to Moscow/tz coords when GPS/permission/cache miss, keeping recommendations visible with a non-blocking location warning.
 
 - **2026-07-13 (4):** Free `forceRefresh` no longer full-day LLM regen for a missing `text_i18n` locale (awaits that locale only). `fetchGlobalContent` prefers direct Supabase when locale texts already exist.

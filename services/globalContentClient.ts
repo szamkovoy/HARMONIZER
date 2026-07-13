@@ -374,21 +374,21 @@ async function fetchGlobalContentOnce(req: {
   const routeTimeoutMs = forceRefresh ? GLOBAL_CONTENT_FORCE_REFRESH_TIMEOUT_MS : GLOBAL_CONTENT_TIMEOUT_MS;
   let routeError: unknown = null;
 
-  // Fast path for ordinary free locale switch: read Supabase row directly when the
-  // requested locale is already present (cron / prior backfill). Avoids waiting on
-  // the Vercel route (and its forceRefresh LLM path) when texts are ready.
+  // Fast path: read Supabase row directly when usable texts already exist
+  // (cron structural or full LLM). Avoid waiting on the Vercel route on day change.
   if (!forceRefresh) {
     try {
       const direct = await fetchGlobalContentDirect(req.userLocation.timezone, responseLocale, req.signal);
-      const hasRealModel = Boolean(String(direct.llm_model ?? "").trim());
-      if (
-        hasRealModel &&
-        dayTextsMatchLocale(
-          responseLocale as AppContentLocale,
-          String(direct.slogan ?? ""),
-          String(direct.short_text ?? ""),
-        )
-      ) {
+      const hasUsableTexts =
+        Boolean(String(direct.slogan ?? "").trim()) && Boolean(String(direct.short_text ?? "").trim());
+      const localeOk = dayTextsMatchLocale(
+        responseLocale as AppContentLocale,
+        String(direct.slogan ?? ""),
+        String(direct.short_text ?? ""),
+      );
+      // Prefer a real LLM row when present; otherwise still use structural texts
+      // so midnight cold-start does not hang on the Node route / background warm.
+      if (hasUsableTexts && localeOk) {
         data = direct;
       }
     } catch {

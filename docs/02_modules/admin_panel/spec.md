@@ -58,9 +58,9 @@ code_refs:
 
 **Сторис (реализовано, этап 1, доработано 2026-07-10):** `GET /api/admin/stories`, `POST /api/admin/stories/process`, `PATCH/DELETE /api/admin/stories/[id]`, `POST /api/admin/stories/cleanup`, UI `/admin/stories`. `GET /api/admin/stories` теперь opportunistically запускает cleanup истёкших published non-evergreen stories перед возвратом списка, а регулярное удаление поддерживается тем же helper + hourly cron invoke `cleanup-expired-stories`. Контракт и данные — в `02_modules/author_presence/spec.md` (владелец функциональности).
 
-**Видео и комментарии (реализовано, этап 2):** `GET/POST /api/admin/posts` (`GET` — cursor infinite scroll, `limit` default 20), `GET/PATCH/DELETE /api/admin/posts/[id]`, `PATCH/DELETE /api/admin/comments/[id]` (модерация: скрыть/удалить; клик по автору → `/admin/users/[id]`), UI `/admin/posts` («Видео»; +`/new`, `/[id]` — `PostEditor`: any-locale, fill-missing «Перевести» + копия обложки, «Удалить перевод»/обложку на вкладке, compress cover). Контракт — в `author_presence`.
+**Вебинары:** `GET/POST /api/admin/webinars`, `GET/PATCH/DELETE /api/admin/webinars/[id]`, `PUT /api/admin/webinars/[id]/recording` (upsert linked post). UI — вкладки Анонс/Запись; список с одним бейджем (запись XOR анонс); обложка как у Video (`h-40` contain, add/delete). Контракт — `02_modules/webinars/spec.md`.
 
-**Вебинары:** `GET/POST /api/admin/webinars`, `GET/PATCH/DELETE /api/admin/webinars/[id]`, `PUT /api/admin/webinars/[id]/recording` (upsert linked post). UI — вкладки Анонс/Запись, бейджи списка, участники → user card. Контракт — `02_modules/webinars/spec.md`.
+**Видео и комментарии (реализовано, этап 2):** `GET/POST /api/admin/posts` (`GET` — cursor infinite scroll, `limit` default 20), `GET/PATCH/DELETE /api/admin/posts/[id]`, `PATCH/DELETE /api/admin/comments/[id]` (модерация: скрыть/удалить; клик по автору → `/admin/users/[id]`), UI `/admin/posts` («Видео»; +`/new`, `/[id]` — `PostEditor`: any-locale, fill-missing «Перевести» + копия обложки, «Удалить перевод»/обложку на вкладке, compress cover; чекбокс «Опубликовать» до первого save). Контракт — в `author_presence`.
 
 **Уведомления (реализовано, этап 4):** `GET/POST /api/admin/notifications` (сегменты `all`/`tier:*`/`webinar:*`, Expo push + deliveries), UI `/admin/notifications`. Контракт и данные — в `02_modules/notifications/spec.md`.
 

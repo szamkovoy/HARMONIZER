@@ -1,8 +1,8 @@
 ---
 id: 02_modules/webinars/spec
 title: Webinars Spec
-version: 3.0
-updated: 2026-07-13
+version: 3.1
+updated: 2026-07-14
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -32,7 +32,7 @@ code_refs:
 Вебинары автора в двух фазах:
 
 1. **Анонс** — дата/время, обложка, i18n-тексты, ссылка на трансляцию, регистрация, блок «Вопросы для обсуждения».
-2. **Запись** — после `starts_at + 1h` появляется в админке; публикуется как пост `posts.kind='webinar_recording'` и попадает в ленту «Видео» **только зарегистрированным** на этот вебинар.
+2. **Запись** — после `starts_at + 1h` появляется в админке; публикуется как пост `posts.kind='webinar_recording'` и попадает в ленту «Видео» / `LatestPostBanner` как обычная VideoCard (единый объект с видео).
 
 ## 2. Публичный контракт
 
@@ -41,20 +41,20 @@ code_refs:
 - **`webinarTiming`**: `WEBINAR_JOIN_GRACE_HOURS = 1`, `isWebinarInJoinWindow`, `isWebinarRecordingTabAvailable`.
 - **`WebinarScreen`**: обложка + локализованные title/description; в join-окне — регистрация (гейт `webinar_community` / Master) и после записи блок «Вы зарегистрированы» + `join_url`; вопросы (`CommentsSection` `target_type="webinar"`). После окна — ссылка на запись (`/post/{recordingPostId}` или legacy `recording_url`).
 - **`UpcomingWebinarBanner`**: ближайший опубликованный вебинар с `isWebinarInJoinWindow` (включая час после старта).
-- **`WebinarsStrip`**: upcoming в join-окне + past с доступной записью; past с `recordingPostId` ведёт на `/post/...`.
+- **`WebinarsStrip`**: только upcoming в join-окне; past recording — через общую ленту постов / home banner.
 - **`webinarsClient`**: `fetchUpcomingWebinar`, `fetchWebinars`, `fetchWebinar`, `localizeWebinar`, регистрации.
 
 ### Админка
 
-- Список: бейджи «Анонс: …», «Запись: нет/черновик/опубликована»; до конца join-окна — счётчик вопросов, после — комментариев записи; участники → `/admin/users/{id}`.
-- Карточка: вкладки **Анонс** / **Запись** (запись после `starts_at+1h`; default = Запись если доступна). Анонс: cover + i18n + translate, `starts_at` (datetime-local пояса админа → timestamptz), `join_url`, `is_published`. Запись: `PUT /api/admin/webinars/[id]/recording` → upsert `posts` (`kind=webinar_recording`, `webinar_id`).
+- Список: один бейдж — «Запись опубликована» если recording published, иначе «Анонс опубликован»/черновик; счётчик комментариев записи XOR вопросов анонса в том же правиле; участники → `/admin/users/{id}`.
+- Карточка: вкладки **Анонс** / **Запись** (запись после `starts_at+1h`; default = Запись если доступна). Обложка как в Video editor (`h-40` `object-contain`; пусто — кнопка «Добавить обложку», есть — только «Удалить обложку»). Чекбокс до первого сохранения — «Опубликовать», после — «Анонс опубликован» / «Запись опубликована». Анонс: cover + i18n + translate, `starts_at` (datetime-local пояса админа → timestamptz), `join_url`, `is_published`. Запись: `PUT /api/admin/webinars/[id]/recording` → upsert `posts` (`kind=webinar_recording`, `webinar_id`).
 - Вопросы модерируются на вкладке Анонс; комментарии записи — на вкладке Запись.
 
 ### Данные
 
 - `webinars`: + `cover_url`, `title_i18n`, `description_i18n`, `cover_url_i18n`, `translations_updated_at`; `is_published` = анонс; `recording_url` deprecated.
 - `posts.kind` ∈ (`video`, `webinar_recording`), `posts.webinar_id`; unique one recording per webinar.
-- RLS + `get_posts_feed`: `webinar_recording` виден только при строке в `webinar_registrations`.
+- RLS + `get_posts_feed`: published `webinar_recording` виден как обычное video (миграция `20260714003000_webinar_recording_feed_like_video.sql`); live `join_url` по-прежнему через регистрацию.
 - Вопросы: `comments` `target_type='webinar'`; комментарии записи: `target_type='post'`.
 
 ## 3. i18n

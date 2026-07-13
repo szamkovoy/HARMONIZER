@@ -1,3 +1,4 @@
+- 2026-07-14 (131): Webinar admin list/cover/publish UX; recording as ordinary VideoCard in feed+home (migration `20260714003000`); free day-content midnight: direct-read structural rows, show slogan while texts hydrate, warm via `after()` + `HARMONIZER_APP_URL` secret. Docs `webinars/*`, `daily_forecast/*`, `admin_panel/*`, `author_presence/*`.
 - 2026-07-13 (130): Webinars dual model — announce i18n/cover + join window +1h; recording as `posts.kind=webinar_recording` for registrants; admin tabs. Docs `webinars/*`, `author_presence/*`, `admin_panel/*`.
 - 2026-07-13 (129): Free locale switch no longer waits on LLM when long_explanation is stripped as legacy; free Home uses location fallback so recommendations stay visible after update/GPS miss. Docs `daily_forecast/*`, `profile/*`.
 - 2026-07-13 (128): Admin videos list infinite scroll (20/page, cursor API). Docs `admin_panel/*`, `author_presence/*`.

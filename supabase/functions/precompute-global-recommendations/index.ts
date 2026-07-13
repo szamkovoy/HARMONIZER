@@ -85,7 +85,8 @@ async function warmViaNode(dates: string[]) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 280_000);
+  // Warm returns immediately (Node continues via after()); keep Edge wait short.
+  const timer = setTimeout(() => controller.abort(), 20_000);
   try {
     const res = await fetch(`${appUrl}/api/ai/global-content/warm`, {
       method: "POST",
@@ -130,6 +131,9 @@ Deno.serve(async (req) => {
     }
 
     const warm = await warmViaNode(dates);
+    if (warm.status === "skipped" || warm.status === "warm_failed" || warm.status === "warm_http_error") {
+      console.error("[precompute-global-recommendations] warm not applied", warm);
+    }
 
     await db.from("global_daily_content").delete().lt("expires_at_utc", new Date().toISOString());
 
@@ -138,6 +142,7 @@ Deno.serve(async (req) => {
       results,
       warm,
       note: "structural upsert + Node /api/ai/global-content/warm for LLM + text_i18n",
+      warmOk: warm.status === "warmed",
     });
   } catch (error) {
     console.error("[precompute-global-recommendations]", error);

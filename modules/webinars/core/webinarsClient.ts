@@ -9,7 +9,7 @@ export type WebinarItem = {
   startsAt: string;
   joinUrl: string | null;
   coverUrl: string | null;
-  /** Linked published recording post id (registrants-only in feed). */
+  /** Linked published recording post id (same feed object as videos). */
   recordingPostId: string | null;
   /** @deprecated Prefer recordingPostId; kept for legacy rows without a post. */
   recordingUrl: string | null;
@@ -114,7 +114,7 @@ export async function fetchUpcomingWebinar(): Promise<WebinarItem | null> {
   return row ? mapRow(row) : null;
 }
 
-/** Опубликованные: upcoming в join-окне + прошедшие с доступной записью. */
+/** Опубликованные: upcoming в join-окне (+ past только для legacy callers; UI strip больше не показывает past). */
 export async function fetchWebinars(): Promise<{ upcoming: WebinarItem[]; past: WebinarItem[] }> {
   const supabase = getSupabase();
   if (!supabase) return { upcoming: [], past: [] };
