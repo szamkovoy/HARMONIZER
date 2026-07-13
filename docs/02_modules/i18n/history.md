@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-13 (relative time):** Added `formatRelativeTime` + catalog `time.relative.*` (all 8 locales). Comments and notifications no longer use Luxon `toRelative()` (Hermes lacks RelativeTimeFormat → always English).
+
 - **2026-07-13 (active free locales):** Cron/ensure pretranslate for `global_daily_content.text_i18n` uses `listActiveTargetLocales` (distinct `users.locale`), not all seven TARGET_LOCALES by default; missing locale still backfills on-demand.
 
 - **2026-07-13 (2):** Profile language rebuild strings (`profile.language.rebuild*`) in catalog for all 8 locales; locale switch probes day-content readiness before commit.

@@ -34,7 +34,7 @@ code_refs:
 
 - **`PushRegistrationBridge`** — невидимый мост в корне (`app/_layout.tsx`, внутри AccessBridge): после логина один раз за сессию вызывает `registerPushToken(userId)`; слушает тапы по push (`addNotificationResponseReceivedListener`) и открывает `data.url` через `Linking`.
 - **`registerPushToken(userId)`** — permissions (`undetermined` → request; не granted → тихий выход), `getExpoPushTokenAsync({projectId})` (EAS projectId из `app.json` extra), upsert в `push_tokens` по `token` (`is_active: true`, `last_seen_at`). Web/старый dev client — no-op.
-- **`MyNotificationsScreen`** (`app/my-notifications.tsx`) — список доставок (заголовок, текст, относительное время, кнопка «Открыть ссылку»); непрочитанные подсвечены акцентной рамкой; открытие экрана помечает всё прочитанным (`markAllNotificationsRead`).
+- **`MyNotificationsScreen`** (`app/my-notifications.tsx`) — список доставок (заголовок, текст, относительное время через `formatRelativeTime`, кнопка «Открыть ссылку»); непрочитанные подсвечены акцентной рамкой; открытие экрана помечает всё прочитанным (`markAllNotificationsRead`).
 - **Профиль** — карточка «Мои уведомления» с бейджем непрочитанных (`fetchUnreadNotificationCount` на фокусе) → `/my-notifications`.
 
 **Админка (гейт `requireAdmin`):**

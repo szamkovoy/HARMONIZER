@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-13 (39):** Optimistic comment appends at list bottom (not prepend) so it does not jump after refetch. Comment timestamps use `formatRelativeTime` (locale catalog).
+
 - **2026-07-13 (38):** Globe в списке видео — по наличию `title_i18n` (не только `translations_updated_at`); create пишет `translations_updated_at`. Комментарии: optimistic UI + `after()` translate; в БД у зависшего комментария был только `ru` в `body_i18n`.
 
 - **2026-07-13 (37):** «Перевести» копирует обложку с языка-источника (тот же приоритет RU→EN→…) на пустые вкладки (включая ещё несохранённый `File`); при Save один File → один upload. «Удалить перевод» / «Удалить обложку» на активной вкладке; индикатор гаснет; пустая локаль не публикуется в приложении.

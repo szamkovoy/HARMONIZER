@@ -1,9 +1,8 @@
-import { DateTime } from "luxon";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import { useAuth } from "@/modules/auth";
-import { useTranslate } from "@/modules/i18n";
+import { formatRelativeTime, useTranslate } from "@/modules/i18n";
 import {
   addComment,
   deleteOwnComment,
@@ -60,7 +59,7 @@ export function CommentComposer({
     setDraft("");
     try {
       const previous = await fetchComments(targetType, targetId, userId, locale);
-      onChanged([optimistic, ...previous]);
+      onChanged([...previous, optimistic]);
       onSubmitted?.();
       setSending(false);
 
@@ -206,7 +205,7 @@ export function CommentsSection({
                 {comment.displayName ?? t("posts.comments.anonymous")}
               </AppText>
               <AppText variant="technicalCaption" tone="faint">
-                {DateTime.fromISO(comment.createdAt).setLocale(locale).toRelative() ?? ""}
+                {formatRelativeTime(comment.createdAt, locale)}
               </AppText>
             </View>
             <AppText variant="screenHint">{comment.body}</AppText>

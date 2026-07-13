@@ -1,10 +1,9 @@
 import { router } from "expo-router";
-import { DateTime } from "luxon";
 import { useEffect, useState } from "react";
 import { FlatList, Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { useAuth } from "@/modules/auth";
-import { useTranslate } from "@/modules/i18n";
+import { formatRelativeTime, useTranslate } from "@/modules/i18n";
 import {
   fetchMyNotifications,
   markAllNotificationsRead,
@@ -81,7 +80,7 @@ export function MyNotificationsScreen() {
                 {item.title}
               </AppText>
               <AppText variant="technicalCaption" tone="faint">
-                {DateTime.fromISO(item.createdAt).setLocale(locale).toRelative() ?? ""}
+                {formatRelativeTime(item.createdAt, locale)}
               </AppText>
             </View>
             {item.body ? (

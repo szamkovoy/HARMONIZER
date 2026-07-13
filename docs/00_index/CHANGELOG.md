@@ -1,3 +1,5 @@
+- 2026-07-13 (125): Locale-aware relative timestamps via `formatRelativeTime` (Hermes-safe); comments + notifications. Docs `i18n/*`, `author_presence/*`.
+- 2026-07-13 (124): Optimistic new comment appends at bottom of list (no top→bottom jump). Docs `author_presence/*`.
 - 2026-07-13 (123): Admin globe from title_i18n; comment optimistic UI + after() translate; free locale switch avoids full-day forceRefresh / prefers direct Supabase read. Docs `author_presence/*`, `daily_forecast/*`, `profile/*`.
 - 2026-07-13 (122): Admin PostEditor: translate copies source cover to empty locales; clear-locale / clear-cover; shared File uploaded once. Docs `author_presence/*`, `admin_panel/*`.
 - 2026-07-13 (121): Unify VideoCard preview/spacing; comment translate runs in `after()` so send stays instant. Docs `author_presence/*`.

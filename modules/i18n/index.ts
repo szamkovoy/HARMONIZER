@@ -31,3 +31,4 @@ export {
   pickLocalizedUrl,
 } from "@/modules/i18n/pickLocalizedContent";
 export { useTranslate } from "@/modules/i18n/useTranslate";
+export { formatRelativeTime } from "@/modules/i18n/formatRelativeTime";

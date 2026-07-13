@@ -61,7 +61,7 @@ code_refs:
 
 - **`PostsFeedScreen`** — вкладка «Видео»: заголовок + подзаголовок + «?» (`SurfaceHelpModal`), полоса вебинаров, карточки только с контентом для **активной UI-локали**. Карточка — общий **`VideoCard`** (тот же, что на главной; `maxWidth: 460`): обложка 16:9, заголовок, превью описания (плавающая длина, обрезка по целому слову), дата + `posts.comments.countLabel`, affordance «Открыть ›».
 - **`PostScreen`** — экран видео; при открытии пишет `user_post_views` (dismiss home-карточки). Комментарии локализуются через `body_i18n`; после отправки скролл к новому комментарию. Композер над клавиатурой.
-- **`CommentsSection` / `CommentComposer`** — удаление только своих; создание через `POST /api/comments` (ответ сразу с исходным текстом; multi-locale → фоновый LLM-перевод на остальные 7 через `after()`, `AI_MODEL_STANDARD`).
+- **`CommentsSection` / `CommentComposer`** — удаление только своих; создание через `POST /api/comments` (ответ сразу с исходным текстом; multi-locale → фоновый LLM-перевод на остальные 7 через `after()`, `AI_MODEL_STANDARD`). Относительное время — `formatRelativeTime` (не Luxon `toRelative`).
 - **`LatestPostBanner`** — полная `VideoCard` **под** «Окнами возможностей»; только самое свежее видео локали, которое пользователь ещё не открывал.
 - **`postsClient.ts` / `postLocale.ts` / `VideoCard`**: feed, views (`markPostViewed` / `fetchLatestUnviewedPostForLocale`), `truncatePostPreview`, locale-aware comments.
 
@@ -81,7 +81,7 @@ code_refs:
 - `PATCH/DELETE /api/admin/comments/[id]` — модерация: скрыть/показать (`{is_hidden}`) / удалить безвозвратно.
 - `POST /api/admin/uploads` принимает `{bucket: 'story-media'|'post-covers', contentType}` (у `post-covers` только изображения, 20 МБ).
 - UI `/admin/posts` («Видео»): список с `pickAdminPostDisplay` (title+cover **одного** языка RU→EN→…); ссылка `?tab=<locale>` открывает редактор на этой вкладке; **создание** после Save → список, **редактирование** остаётся в форме; обложка с compress + `object-contain`; «Перевести» fill-missing (текст + копия обложки с языка-источника на пустые вкладки; один File грузится один раз при Save); «Удалить перевод» / «Удалить обложку» на активной вкладке; 🌐 если есть `title_i18n` или `translations_updated_at`; ФИО комментария → `/admin/users/[id]`.
-- `POST /api/comments` (auth user) — создание комментария с `source_locale` + `body_i18n[source]`; ответ сразу. Для multi-locale post перевод остальных языков — в `after()` (`AI_MODEL_STANDARD`), без блокировки клиента. Клиент рисует комментарий optimistic до ACK.
+- `POST /api/comments` (auth user) — создание комментария с `source_locale` + `body_i18n[source]`; ответ сразу. Для multi-locale post перевод остальных языков — в `after()` (`AI_MODEL_STANDARD`), без блокировки клиента. Клиент рисует комментарий optimistic **в конце** списка (хронологический порядок) до ACK.
 
 ## 3. Данные
 

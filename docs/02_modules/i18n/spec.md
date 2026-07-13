@@ -128,6 +128,7 @@ cost never decides layer-C design.
 - **`inlineBaseLocale(locale)`** — `ru` for source locale, `en` for all others; selects
   the inline RU/EN base table before `mergeTypedLocale` overlay.
 - **`intlLocaleTag(locale)`** — BCP 47 tag for `Intl.DateTimeFormat` (`ru-RU`, `de-DE`, …).
+- **`formatRelativeTime(isoOrDate, locale, now?)`** — относительные метки («7 минут назад») через каталог + `tCount`. Hermes не реализует `Intl.RelativeTimeFormat`, поэтому Luxon `toRelative()` на RN всегда отдаёт English — этот хелпер обязателен для UI.
 - `asContentLocale(value)` — coerce unknown strings to a valid `AppContentLocale` or `null`.
 
 ### 2.5 Public surface
