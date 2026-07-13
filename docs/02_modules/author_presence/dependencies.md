@@ -2,7 +2,7 @@
 id: 02_modules/author_presence/dependencies
 title: Author Presence Dependencies
 version: 3.1
-updated: 2026-07-08
+updated: 2026-07-13
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec]
 code_refs:
   [
@@ -11,10 +11,12 @@ code_refs:
     app/(tabs)/index.tsx,
     app/(tabs)/_layout.tsx,
     _legacy_web/app/api/admin/uploads/route.ts,
+    _legacy_web/app/api/comments/route.ts,
     modules/stories/ui/StorySessionBootstrap.tsx,
     supabase/migrations/20260708120000_stories_storage.sql,
     supabase/migrations/20260708200500_stories_media_pipeline_feed_cleanup.sql,
     supabase/migrations/20260708130000_posts_comments.sql,
+    supabase/migrations/20260713134555_comments_body_i18n_and_post_views.sql,
   ]
 ---
 
@@ -27,9 +29,10 @@ code_refs:
 
 ## 2. От него зависят
 
-- **`daily_forecast` (главный экран)** — `app/(tabs)/index.tsx` рендерит `StoriesRing` прямо в `HomeHeader` и `LatestPostBanner`; stories preload стартует ещё на bootstrap-слое через `StorySessionBootstrap`, чтобы thumbnail успел закешироваться до открытия Home.
+- **`daily_forecast` (главный экран)** — `app/(tabs)/index.tsx` рендерит `StoriesRing` в `HomeHeader` и `LatestPostBanner` (**под** OpportunityWindows); stories preload через `StorySessionBootstrap`.
 - **Табы** — `app/(tabs)/_layout.tsx` содержит вкладку `posts` (без тарифного гейта).
 - **`communicator`** — только значение `DialogueEntrySource: "stories"` (контекст входа в диалог, UI сторис его пока не использует).
+- **Клиентский comments API** — `POST /api/comments` на Vercel (`EXPO_PUBLIC_COMMUNICATOR_API_URL`) для i18n-перевода комментариев к multi-locale видео.
 
 ## 3. Контрактные точки риска
 

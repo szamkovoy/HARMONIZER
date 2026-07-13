@@ -636,7 +636,6 @@ export default function HomeScreen() {
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} homeTextsLoading={homeTextsLoading} />
         <UpcomingWebinarBanner />
-        <LatestPostBanner />
 
         {loading && !forecast ? <HomeLoadingSkeleton text={strings.skeletonText} /> : null}
 
@@ -715,8 +714,11 @@ export default function HomeScreen() {
               accessMode={accessMode}
               userLocation={userLocation}
             />
+            <LatestPostBanner />
           </>
-        ) : null}
+        ) : (
+          <LatestPostBanner />
+        )}
 
         {status !== "need_birth_data" ? (
           <NatalBridgeCard

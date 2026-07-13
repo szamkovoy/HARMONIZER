@@ -122,7 +122,8 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -247,7 +248,8 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -372,7 +374,8 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -497,7 +500,8 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -622,7 +626,8 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -747,7 +752,8 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -872,6 +878,7 @@
     "posts.feed.helpA11y": "Подсказка о разделе «Видео»",
     "posts.feed.helpTitle": "Видео",
     "posts.feed.helpBody": "В этом разделе вы найдете мотивирующие и обучающие видео, а также записи групповых консультаций (вебинаров), на участие в которых вы подавали заявку.",
-    "posts.comments.countLabel": "Комментарии: {count}"
+    "posts.comments.countLabel": "Комментарии: {count}",
+    "posts.feed.open": "Открыть"
   }
 }

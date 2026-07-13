@@ -1,7 +1,15 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { DateTime } from "luxon";
-import { useCallback, useEffect, useState } from "react";
-import { Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/modules/auth";
@@ -9,6 +17,7 @@ import { useTranslate } from "@/modules/i18n";
 import {
   fetchComments,
   fetchPostById,
+  markPostViewed,
   resolvePostContentForLocale,
   type CommentItem,
 } from "@/modules/posts/core/postsClient";
@@ -37,6 +46,8 @@ export function PostScreen() {
   const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
   const { id } = useLocalSearchParams<{ id: string }>();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollToCommentsAfterSubmit = useRef(false);
 
   const [post, setPost] = useState<PostRow | null | undefined>(undefined);
   const [comments, setComments] = useState<CommentItem[] | null>(null);
@@ -63,10 +74,19 @@ export function PostScreen() {
 
   useEffect(() => {
     if (!id || !userId) return;
-    void fetchComments("post", id, userId).then(setComments);
+    void markPostViewed(userId, id);
   }, [id, userId]);
 
+  useEffect(() => {
+    if (!id || !userId) return;
+    void fetchComments("post", id, userId, locale).then(setComments);
+  }, [id, userId, locale]);
+
   const onCommentsChanged = useCallback((next: CommentItem[]) => setComments(next), []);
+
+  const onCommentSubmitted = useCallback(() => {
+    scrollToCommentsAfterSubmit.current = true;
+  }, []);
 
   const localizedPost = post ? resolvePostContentForLocale(post, locale) : null;
 
@@ -102,9 +122,15 @@ export function PostScreen() {
         ) : (
           <>
             <StackScrollView
+              ref={scrollRef}
               contentOptions={{ topPadding: 4, gap: 14, bottomPaddingExtra: 12 }}
               keyboardShouldPersistTaps="handled"
               style={styles.scroll}
+              onContentSizeChange={() => {
+                if (!scrollToCommentsAfterSubmit.current) return;
+                scrollToCommentsAfterSubmit.current = false;
+                scrollRef.current?.scrollToEnd({ animated: true });
+              }}
             >
               {localizedPost.coverUrl ? (
                 <Image source={{ uri: localizedPost.coverUrl }} style={styles.cover} resizeMode="cover" />
@@ -139,7 +165,12 @@ export function PostScreen() {
                 },
               ]}
             >
-              <CommentComposer targetType="post" targetId={post.id} onChanged={onCommentsChanged} />
+              <CommentComposer
+                targetType="post"
+                targetId={post.id}
+                onChanged={onCommentsChanged}
+                onSubmitted={onCommentSubmitted}
+              />
             </View>
           </>
         )}

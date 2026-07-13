@@ -248,27 +248,33 @@ export type Database = {
       comments: {
         Row: {
           body: string
+          body_i18n: Json
           created_at: string
           id: string
           is_hidden: boolean
+          source_locale: string | null
           target_id: string
           target_type: string
           user_id: string
         }
         Insert: {
           body: string
+          body_i18n?: Json
           created_at?: string
           id?: string
           is_hidden?: boolean
+          source_locale?: string | null
           target_id: string
           target_type: string
           user_id: string
         }
         Update: {
           body?: string
+          body_i18n?: Json
           created_at?: string
           id?: string
           is_hidden?: boolean
+          source_locale?: string | null
           target_id?: string
           target_type?: string
           user_id?: string
@@ -2037,6 +2043,39 @@ export type Database = {
           },
         ]
       }
+      user_post_views: {
+        Row: {
+          post_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          post_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          post_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_post_views_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_post_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_story_views: {
         Row: {
           completed: boolean | null
@@ -2246,12 +2285,14 @@ export type Database = {
         Args: { p_target_id: string; p_target_type: string; p_user_id: string }
         Returns: {
           body: string
+          body_i18n: Json
           created_at: string
           display_name: string
           id: string
           is_mine: boolean
           like_count: number
           liked_by_me: boolean
+          source_locale: string
           user_id: string
         }[]
       }

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.5
+version: 3.6
 updated: 2026-07-13
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
@@ -59,11 +59,11 @@ code_refs:
 
 **Клиент (`modules/posts`, barrel `index.ts`):**
 
-- **`PostsFeedScreen`** — вкладка «Видео»: заголовок + подзаголовок + «?» (`SurfaceHelpModal`), полоса вебинаров, карточки только с контентом для **активной UI-локали** (`postAvailableInLocale` / `fetchPostsFeedForLocale`). Карточки: обложка 16:9, заголовок, дата (Luxon) + `posts.comments.countLabel` («Комментарии: N»). Контент через `resolvePostContentForLocale` (без fallback на другой язык).
-- **`PostScreen`** — экран видео: обложка, заголовок, дата, тело через **`LinkifiedBody`**; если для локали нет заголовка — «не найдено». Список комментариев в `ScrollView`, **`CommentComposer` закреплён над клавиатурой** (`KeyboardAvoidingView` + dock вне скролла).
-- **`CommentsSection` / `CommentComposer`** — комментарии к цели `('post'|'webinar')`: список (имя, относительное время, лайк ♥, удаление **только своих** — UI `isMine` + `deleteOwnComment(id, userId)` + RLS `comments_delete_own`), поле ввода (≤2000). На вебинарах лайк = голос за вопрос; композер может быть inline (`showComposer`) или вынесен наружу.
-- **`LatestPostBanner`** — анонс новейшего видео **для текущей локали** (`fetchLatestPostForLocale`); `null`, если для локали нет контента.
-- **`postsClient.ts` / `postLocale.ts`**: `fetchPostsFeed` (RPC `get_posts_feed`), `fetchPostsFeedForLocale`, `fetchPostById`, `resolvePostContentForLocale` / `postAvailableInLocale`, `fetchComments`, `addComment` / `deleteOwnComment(userId)` / `setCommentLike`.
+- **`PostsFeedScreen`** — вкладка «Видео»: заголовок + подзаголовок + «?» (`SurfaceHelpModal`), полоса вебинаров, карточки только с контентом для **активной UI-локали**. Карточка — общий **`VideoCard`**: обложка 16:9, заголовок, превью описания (~140 символов + «…»), дата + `posts.comments.countLabel`, affordance «Открыть ›».
+- **`PostScreen`** — экран видео; при открытии пишет `user_post_views` (dismiss home-карточки). Комментарии локализуются через `body_i18n`; после отправки скролл к новому комментарию. Композер над клавиатурой.
+- **`CommentsSection` / `CommentComposer`** — удаление только своих; создание через `POST /api/comments` (single-locale video → один язык; multi-locale → LLM-перевод на остальные 7).
+- **`LatestPostBanner`** — полная `VideoCard` **под** «Окнами возможностей»; только самое свежее видео локали, которое пользователь ещё не открывал.
+- **`postsClient.ts` / `postLocale.ts` / `VideoCard`**: feed, views (`markPostViewed` / `fetchLatestUnviewedPostForLocale`), `truncatePostPreview`, locale-aware comments.
 
 **Админка (гейт `requireAdmin`, см. `admin_panel`):**
 
@@ -80,7 +80,8 @@ code_refs:
 - `GET/PATCH/DELETE /api/admin/posts/[id]` — видео + комментарии (включая скрытые) / PATCH / DELETE (комментарии + обложки RU и `cover_url_i18n` в `post-covers`).
 - `PATCH/DELETE /api/admin/comments/[id]` — модерация: скрыть/показать (`{is_hidden}`) / удалить безвозвратно.
 - `POST /api/admin/uploads` принимает `{bucket: 'story-media'|'post-covers', contentType}` (у `post-covers` только изображения, 20 МБ).
-- UI `/admin/posts` («Видео»): список с `adminPostDisplayTitle` (RU→EN→…); редактор `PostEditor` — вкладки любого языка, обложка с **клиентским JPEG-сжатием** (`compressPostCover`, max edge 1600) и превью `object-contain`; «Перевести» заполняет только пустые; клик по ФИО комментария → `/admin/users/[id]`. `adminFetch` обновляет JWT при 401.
+- UI `/admin/posts` («Видео»): список с `pickAdminPostDisplay` (title+cover **одного** языка RU→EN→…); ссылка `?tab=<locale>` открывает редактор на этой вкладке; **создание** после Save → список, **редактирование** остаётся в форме; обложка с compress + `object-contain`; «Перевести» fill-missing; ФИО комментария → `/admin/users/[id]`.
+- `POST /api/comments` (auth user) — создание комментария с `source_locale` + `body_i18n`; для multi-locale post — один LLM-перевод на остальные языки приложения.
 
 ## 3. Данные
 
@@ -89,14 +90,15 @@ code_refs:
 - **Storage `story-media`** (public read, 200 МБ/файл, mime: jpeg/png/webp/gif/mp4/mov/webm): в админском pipeline raw uploads сначала попадают в `tmp/stories/YYYY-MM-DD/*`, финальные optimized assets — в `processed/stories/YYYY-MM-DD/*`; policies: public select, admin write (запись фактически через service role).
 - RPC **`get_story_feed`** (security definer) — активные опубликованные сторис в стабильном порядке + `is_viewed`; клиент сам вычисляет `firstUnviewedIndex`. Старый `get_user_stories` оставлен как legacy-compatible RPC, но мобильный клиент на него больше не опирается.
 - **`posts`** (`20260708130000` + `20260709100000`): `title`, `body` (plain text: переносы + URL), `cover_url`, `is_published`, `published_at`, `created_by`; плюс i18n-поля: `title_i18n` / `body_i18n` / `cover_url_i18n` (jsonb, DEFAULT `{}`), `translations_updated_at` (timestamptz). RLS: public read опубликованных (`published_at <= now()`), admin write. Индекс `published_at desc where is_published`.
-- **`comments`** — единая полиморфная таблица (`target_type in ('post','webinar')`, `target_id` без FK; целостность — на серверных роутах админки): `body` ≤2000, `is_hidden`. RLS: authenticated read (скрытые видит только автор), insert/delete своих, admin all.
+- **`comments`** — полиморфная таблица (`target_type in ('post','webinar')`): `body`, `source_locale`, `body_i18n` (jsonb), `is_hidden`. RLS: authenticated read (скрытые — автор), insert/delete своих, admin all.
+- **`user_post_views`** — PK `(user_id, post_id)`; RLS self-all; dismiss home-карточки и учёт просмотра описания.
 - **`comment_likes`** — PK `(comment_id, user_id)`; RLS: read authenticated, insert/delete своих.
 - **Storage `post-covers`** (public read, 20 МБ, только изображения) — по образцу `story-media`.
-- RPC **`get_posts_feed(p_limit)`** (security definer) — опубликованные посты + `comment_count` (видимых). RPC **`get_target_comments(p_target_type, p_target_id, p_user_id)`** (security definer) — комментарии с `display_name` (nullable — имена чужих users не читаются под RLS), `like_count`, `liked_by_me`, `is_mine`.
+- RPC **`get_posts_feed(p_limit)`** — опубликованные посты + `comment_count`. RPC **`get_target_comments`** — + `source_locale`/`body_i18n`; клиент резолвит текст по активной локали.
 
 ## 4. i18n
 
-UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts` = «Видео») в `modules/i18n/catalog/ru.json` (через `useTranslate`), синхронизированы на все 8 локалей. Счётчик — `posts.comments.countLabel` («Комментарии: {count}», без склонения). Фолбэк имени комментатора — `posts.comments.anonymous`. Контент видео показывается **только если для активной локали есть заголовок** (`postAvailableInLocale`); без перевода на язык UI карточка скрыта (раньше был fallback на RU). «Перевести» в админке заполняет только пустые локали с источника RU→EN→… .
+UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts` = «Видео», `posts.feed.open`) в каталоге. Счётчик — `posts.comments.countLabel`. Контент видео — только при наличии заголовка для активной локали. Комментарии: `body_i18n[locale]` (fallback на `body`); multi-locale видео → автоперевод при создании. Home-карточка исчезает после `user_post_views`.
 
 ## 5. Известные ограничения
 

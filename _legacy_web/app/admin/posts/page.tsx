@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MessageSquare, Plus } from "lucide-react";
 
-import { adminPostDisplayTitle } from "./_lib/adminPostDisplayTitle";
+import { pickAdminPostDisplay } from "./_lib/adminPostDisplayTitle";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
 
@@ -17,6 +17,7 @@ type PostListRow = {
   created_at: string;
   comment_count: number;
   title_i18n?: Record<string, string>;
+  cover_url_i18n?: Record<string, string | null>;
   translations_updated_at?: string | null;
 };
 
@@ -73,48 +74,52 @@ export default function AdminPostsPage() {
       {posts?.length === 0 ? <p className="text-sm text-zinc-500">Пока ни одного видео.</p> : null}
 
       <div className="flex flex-col gap-3">
-        {posts?.map((post) => (
-          <Link
-            key={post.id}
-            href={`/admin/posts/${post.id}`}
-            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3 transition-colors hover:border-emerald-400/30"
-          >
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/40">
-              {post.cover_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={post.cover_url} alt="" className="h-full w-full object-contain" />
-              ) : null}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold text-zinc-100">
-                {adminPostDisplayTitle(post.title, post.title_i18n)}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                <span
-                  className={`rounded-full px-2 py-0.5 ${
-                    post.is_published ? "bg-emerald-400/10 text-emerald-300" : "bg-white/5 text-zinc-400"
-                  }`}
-                >
-                  {post.is_published ? "Опубликовано" : "Черновик"}
-                </span>
-                <span className="text-zinc-500">
-                  {formatAdminDateTime(post.published_at ?? post.created_at)}
-                </span>
-                <span className="flex items-center gap-1 text-zinc-500">
-                  <MessageSquare size={12} /> {post.comment_count}
-                </span>
-                {post.translations_updated_at ? (
-                  <span
-                    className="rounded-full bg-sky-400/10 px-2 py-0.5 text-sky-300"
-                    title={`Переведено ${formatAdminDateTime(post.translations_updated_at)}`}
-                  >
-                    🌐
-                  </span>
+        {posts?.map((post) => {
+          const display = pickAdminPostDisplay(post);
+          return (
+            <Link
+              key={post.id}
+              href={`/admin/posts/${post.id}?tab=${display.locale}`}
+              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3 transition-colors hover:border-emerald-400/30"
+            >
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/40">
+                {display.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={display.coverUrl} alt="" className="h-full w-full object-contain" />
                 ) : null}
               </div>
-            </div>
-          </Link>
-        ))}
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-zinc-100">{display.title}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span
+                    className={`rounded-full px-2 py-0.5 ${
+                      post.is_published ? "bg-emerald-400/10 text-emerald-300" : "bg-white/5 text-zinc-400"
+                    }`}
+                  >
+                    {post.is_published ? "Опубликовано" : "Черновик"}
+                  </span>
+                  <span className="rounded-full bg-white/5 px-2 py-0.5 uppercase text-zinc-400">
+                    {display.locale}
+                  </span>
+                  <span className="text-zinc-500">
+                    {formatAdminDateTime(post.published_at ?? post.created_at)}
+                  </span>
+                  <span className="flex items-center gap-1 text-zinc-500">
+                    <MessageSquare size={12} /> {post.comment_count}
+                  </span>
+                  {post.translations_updated_at ? (
+                    <span
+                      className="rounded-full bg-sky-400/10 px-2 py-0.5 text-sky-300"
+                      title={`Переведено ${formatAdminDateTime(post.translations_updated_at)}`}
+                    >
+                      🌐
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

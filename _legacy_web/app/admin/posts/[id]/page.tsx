@@ -1,14 +1,16 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
 import { PostEditor, type AdminComment, type AdminPost } from "../_components/PostEditor";
 
-export default function AdminPostPage() {
+function AdminPostEditorLoader() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
   const [data, setData] = useState<{ post: AdminPost; comments: AdminComment[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,5 +29,19 @@ export default function AdminPostPage() {
       </p>
     );
   }
-  return <PostEditor post={data.post} comments={data.comments} />;
+  return <PostEditor post={data.post} comments={data.comments} initialTab={tab} />;
+}
+
+export default function AdminPostPage() {
+  return (
+    <Suspense
+      fallback={
+        <p className="flex items-center gap-2 text-sm text-zinc-500">
+          <Loader2 size={16} className="animate-spin" /> Загружаю…
+        </p>
+      }
+    >
+      <AdminPostEditorLoader />
+    </Suspense>
+  );
 }

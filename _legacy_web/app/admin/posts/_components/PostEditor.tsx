@@ -5,15 +5,16 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
 import { Eye, EyeOff, ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
 
+import { ALL_CONTENT_LOCALES, type AppContentLocale } from "../../../../modules/i18n/localeCodes";
 import { adminFetch } from "../../_lib/adminApi";
 import { formatAdminDateTime } from "../../_lib/adminDates";
 import { getBrowserSupabase } from "../../_lib/supabaseBrowser";
 import { compressPostCoverFile } from "../_lib/compressPostCover";
+import { pickAdminPostDisplay } from "../_lib/adminPostDisplayTitle";
 
-const ALL_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
 const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
 type TargetLocale = (typeof TARGET_LOCALES)[number];
-type ContentLocale = (typeof ALL_LOCALES)[number];
+type ContentLocale = AppContentLocale;
 
 const LOCALE_LABELS: Record<ContentLocale, string> = {
   ru: "RU",
@@ -36,6 +37,11 @@ const LOCALE_FULL_NAMES: Record<ContentLocale, string> = {
   pt: "Português",
   nl: "Nederlands",
 };
+
+function parseInitialTab(value: string | null | undefined): ContentLocale | null {
+  if (!value) return null;
+  return (ALL_CONTENT_LOCALES as readonly string[]).includes(value) ? (value as ContentLocale) : null;
+}
 
 export type AdminPost = {
   id: string;
@@ -112,7 +118,15 @@ function localesMissingContent(
 }
 
 /** Редактор видео: post=null — создание, иначе — редактирование + модерация комментариев. */
-export function PostEditor({ post, comments }: { post: AdminPost | null; comments: AdminComment[] }) {
+export function PostEditor({
+  post,
+  comments,
+  initialTab,
+}: {
+  post: AdminPost | null;
+  comments: AdminComment[];
+  initialTab?: string | null;
+}) {
   const router = useRouter();
   const isEditing = post !== null;
 
@@ -124,7 +138,12 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(post?.is_published ?? true);
 
-  const [activeTab, setActiveTab] = useState<ContentLocale>("ru");
+  const [activeTab, setActiveTab] = useState<ContentLocale>(() => {
+    const fromQuery = parseInitialTab(initialTab);
+    if (fromQuery) return fromQuery;
+    if (post) return pickAdminPostDisplay(post).locale;
+    return "ru";
+  });
   const [localeTabs, setLocaleTabs] = useState<Record<TargetLocale, LocaleTabData>>(() => {
     const init = {} as Record<TargetLocale, LocaleTabData>;
     for (const locale of TARGET_LOCALES) {
@@ -262,11 +281,11 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
         await adminFetch(`/api/admin/posts/${post.id}`, { method: "PATCH", body: JSON.stringify(payload) });
         router.refresh();
       } else {
-        const { post: created } = await adminFetch<{ post: AdminPost }>("/api/admin/posts", {
+        await adminFetch<{ post: AdminPost }>("/api/admin/posts", {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        router.replace(`/admin/posts/${created.id}`);
+        router.replace("/admin/posts");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось сохранить");

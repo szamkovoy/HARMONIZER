@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-13 (34):** Админ: create→список, edit tab = display locale, cover = той же локали. Клиент: `VideoCard` с превью+«Открыть», home-карточка под OpportunityWindows + `user_post_views`, scroll к новому комментарию, `POST /api/comments` + `body_i18n` (single vs multi-locale translate). Миграция `20260713134555`.
+
 - **2026-07-13 (33):** Шлифовка «Публикации» → «Видео»: UI rename + help «?»; лента/баннер/деталка только при наличии заголовка для активной локали (без RU-fallback); счётчик «Комментарии: N»; композер над клавиатурой; `deleteOwnComment` + RLS own-only; админка — any-locale publish, translate fill-missing (RU→EN→…), JPEG compress covers, `object-contain`, author → user profile, JWT refresh на 401. Код: `modules/posts/*`, `PostEditor`, `postPayload`, `translate`, `adminApi`, i18n catalog.
 
 - **2026-07-10 (32):** После remount `VideoView` visual jitter мог уменьшиться, но сохранялся более критичный баг: если пользователь досматривал второе из двух соседних video-story и возвращался назад, у первого ломался звук до перезапуска приложения. Это указывало уже не на surface/frame артефакт, а на испорченное состояние самого `VideoPlayer`, который переживал несколько source swap'ов через `replaceAsync()`. Исправление: `StoryViewerModal` больше не переиспользует один и тот же player через цепочку `replaceAsync(null) -> replaceAsync(next)`. Source теперь привязан к текущему `displayMediaUri` прямо через `useVideoPlayer(...)`, поэтому при смене video-story hook пересоздаёт **новый player instance**; старый audio-state не переносится назад на предыдущий ролик. Код: `StoryViewerModal.tsx`.

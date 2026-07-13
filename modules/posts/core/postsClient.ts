@@ -1,4 +1,5 @@
 import {
+  asContentLocale,
   parseStringRecord,
   type AppContentLocale,
 } from "@/modules/i18n";
@@ -6,6 +7,7 @@ import {
   postAvailableInLocale,
   resolvePostContentForLocale,
 } from "@/modules/posts/core/postLocale";
+import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
 import { getSupabase } from "@/services/supabase";
 
 export type PostContentSource = {
@@ -47,12 +49,36 @@ export type CommentItem = {
   userId: string;
   /** null → клиент подставляет локализованный фолбэк (posts.comments.anonymous). */
   displayName: string | null;
+  /** Resolved body for the active UI locale. */
   body: string;
+  sourceLocale: AppContentLocale | null;
+  bodyI18n: Record<string, string>;
   createdAt: string;
   likeCount: number;
   likedByMe: boolean;
   isMine: boolean;
 };
+
+/** ~2–3 lines on a phone card; word-aware trim + ellipsis. */
+export const POST_CARD_PREVIEW_CHARS = 140;
+
+export function truncatePostPreview(text: string, maxChars = POST_CARD_PREVIEW_CHARS): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) return normalized;
+  const slice = normalized.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+  const clipped = (lastSpace > maxChars * 0.6 ? slice.slice(0, lastSpace) : slice).trimEnd();
+  return `${clipped}…`;
+}
+
+export function resolveCommentBodyForLocale(
+  source: { body: string; sourceLocale: AppContentLocale | null; bodyI18n: Record<string, string> },
+  locale: AppContentLocale,
+): string {
+  const localized = (source.bodyI18n[locale] ?? "").trim();
+  if (localized) return localized;
+  return source.body;
+}
 
 function normalizePostRow(row: {
   id: string;
@@ -105,6 +131,44 @@ export async function fetchLatestPostForLocale(locale: AppContentLocale): Promis
   return posts.find((post) => postAvailableInLocale(post, locale)) ?? null;
 }
 
+/** Newest video for locale that the user has not opened yet (home card). */
+export async function fetchLatestUnviewedPostForLocale(
+  locale: AppContentLocale,
+  userId: string | null,
+): Promise<PostItem | null> {
+  const latest = await fetchLatestPostForLocale(locale);
+  if (!latest) return null;
+  if (!userId) return latest;
+  const viewed = await hasViewedPost(userId, latest.id);
+  return viewed ? null : latest;
+}
+
+export async function hasViewedPost(userId: string, postId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { data, error } = await supabase
+    .from("user_post_views")
+    .select("post_id")
+    .eq("user_id", userId)
+    .eq("post_id", postId)
+    .maybeSingle();
+  if (error) {
+    if (__DEV__) console.warn("[posts] view check failed", error.message);
+    return false;
+  }
+  return Boolean(data);
+}
+
+export async function markPostViewed(userId: string, postId: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { error } = await supabase.from("user_post_views").upsert(
+    { user_id: userId, post_id: postId, viewed_at: new Date().toISOString() },
+    { onConflict: "user_id,post_id" },
+  );
+  if (error && __DEV__) console.warn("[posts] mark viewed failed", error.message);
+}
+
 export async function fetchPostById(id: string): Promise<PostItem | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
@@ -137,6 +201,7 @@ export async function fetchComments(
   targetType: CommentTargetType,
   targetId: string,
   userId: string,
+  locale: AppContentLocale,
 ): Promise<CommentItem[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
@@ -149,16 +214,27 @@ export async function fetchComments(
     if (__DEV__) console.warn("[posts] comments load failed", error.message);
     return [];
   }
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    displayName: row.display_name ?? null,
-    body: row.body,
-    createdAt: row.created_at,
-    likeCount: Number(row.like_count ?? 0),
-    likedByMe: row.liked_by_me ?? false,
-    isMine: row.is_mine ?? false,
-  }));
+  return (data ?? []).map((row) => {
+    const bodyI18n = parseStringRecord(row.body_i18n);
+    const sourceLocale = asContentLocale(row.source_locale);
+    const raw = {
+      body: row.body,
+      sourceLocale,
+      bodyI18n,
+    };
+    return {
+      id: row.id,
+      userId: row.user_id,
+      displayName: row.display_name ?? null,
+      body: resolveCommentBodyForLocale(raw, locale),
+      sourceLocale,
+      bodyI18n,
+      createdAt: row.created_at,
+      likeCount: Number(row.like_count ?? 0),
+      likedByMe: row.liked_by_me ?? false,
+      isMine: row.is_mine ?? false,
+    };
+  });
 }
 
 export async function addComment(
@@ -166,17 +242,48 @@ export async function addComment(
   targetId: string,
   userId: string,
   body: string,
+  sourceLocale: AppContentLocale,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, message: "offline" };
-  const { error } = await supabase.from("comments").insert({
-    target_type: targetType,
-    target_id: targetId,
-    user_id: userId,
-    body: body.trim(),
-  });
-  if (error) return { ok: false, message: error.message };
-  return { ok: true };
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return { ok: false, message: "unauthorized" };
+
+    const res = await fetch(`${getCommunicatorApiBaseUrl()}/api/comments`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target_type: targetType,
+        target_id: targetId,
+        body: body.trim(),
+        source_locale: sourceLocale,
+      }),
+    });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      return { ok: false, message: payload?.error ?? `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (error) {
+    if (__DEV__) console.warn("[posts] comment create failed", error);
+    // Fallback: direct insert without translation (offline / API down).
+    const { error: insertError } = await supabase.from("comments").insert({
+      target_type: targetType,
+      target_id: targetId,
+      user_id: userId,
+      body: body.trim(),
+      source_locale: sourceLocale,
+      body_i18n: { [sourceLocale]: body.trim() },
+    });
+    if (insertError) return { ok: false, message: insertError.message };
+    return { ok: true };
+  }
 }
 
 export async function deleteOwnComment(commentId: string, userId: string): Promise<void> {

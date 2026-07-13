@@ -42,8 +42,8 @@ export function WebinarScreen() {
   useEffect(() => {
     if (!id || !userId) return;
     void isRegistered(id, userId).then(setRegisteredState);
-    void fetchComments("webinar", id, userId).then(setQuestions);
-  }, [id, userId]);
+    void fetchComments("webinar", id, userId, locale).then(setQuestions);
+  }, [id, userId, locale]);
 
   const toggleRegistration = useCallback(() => {
     if (!id || !userId) return;

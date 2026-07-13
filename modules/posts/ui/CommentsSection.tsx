@@ -22,15 +22,18 @@ export function CommentComposer({
   targetType,
   targetId,
   onChanged,
+  onSubmitted,
   inputPlaceholderKey = "posts.comments.placeholder",
 }: {
   targetType: CommentTargetType;
   targetId: string;
   onChanged: (next: CommentItem[]) => void;
+  /** Called after a successful send (e.g. scroll to new comment). */
+  onSubmitted?: () => void;
   inputPlaceholderKey?: string;
 }) {
   const theme = useTheme();
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
 
@@ -42,17 +45,18 @@ export function CommentComposer({
     if (!body || !userId || sending) return;
     setSending(true);
     try {
-      const result = await addComment(targetType, targetId, userId, body);
+      const result = await addComment(targetType, targetId, userId, body, locale);
       if (result.ok) {
         setDraft("");
-        onChanged(await fetchComments(targetType, targetId, userId));
+        onChanged(await fetchComments(targetType, targetId, userId, locale));
+        onSubmitted?.();
       } else {
         Alert.alert(t("posts.comments.sendFailed"));
       }
     } finally {
       setSending(false);
     }
-  }, [draft, userId, sending, targetType, targetId, onChanged, t]);
+  }, [draft, userId, sending, targetType, targetId, onChanged, onSubmitted, t, locale]);
 
   return (
     <View
@@ -90,9 +94,6 @@ export function CommentComposer({
 
 /**
  * Комментарии к цели (видео или вебинар) с лайками и удалением своих.
- * Для вебинаров лайк работает как голос за вопрос (сортировку по голосам
- * делает экран вебинара, здесь порядок хронологический).
- *
  * `showComposer=false` — список без поля ввода (композер монтируется снаружи, над клавиатурой).
  */
 export function CommentsSection({
@@ -102,6 +103,7 @@ export function CommentsSection({
   onChanged,
   inputPlaceholderKey = "posts.comments.placeholder",
   showComposer = true,
+  onSubmitted,
 }: {
   targetType: CommentTargetType;
   targetId: string;
@@ -109,6 +111,7 @@ export function CommentsSection({
   onChanged: (next: CommentItem[]) => void;
   inputPlaceholderKey?: string;
   showComposer?: boolean;
+  onSubmitted?: () => void;
 }) {
   const theme = useTheme();
   const { t, locale } = useTranslate();
@@ -117,8 +120,8 @@ export function CommentsSection({
 
   const reload = useCallback(async () => {
     if (!userId) return;
-    onChanged(await fetchComments(targetType, targetId, userId));
-  }, [userId, targetType, targetId, onChanged]);
+    onChanged(await fetchComments(targetType, targetId, userId, locale));
+  }, [userId, targetType, targetId, onChanged, locale]);
 
   const toggleLike = useCallback(
     async (comment: CommentItem) => {
@@ -216,6 +219,7 @@ export function CommentsSection({
           targetType={targetType}
           targetId={targetId}
           onChanged={onChanged}
+          onSubmitted={onSubmitted}
           inputPlaceholderKey={inputPlaceholderKey}
         />
       ) : null}

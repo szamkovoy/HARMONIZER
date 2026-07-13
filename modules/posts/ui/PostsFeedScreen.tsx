@@ -1,16 +1,11 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { router, type Href } from "expo-router";
-import { DateTime } from "luxon";
 import { useCallback, useState } from "react";
-import { FlatList, Image, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import {
-  fetchPostsFeedForLocale,
-  resolvePostContentForLocale,
-  type PostItem,
-} from "@/modules/posts/core/postsClient";
-import { AppText } from "@/modules/ui/AppText";
+import { fetchPostsFeedForLocale, type PostItem } from "@/modules/posts/core/postsClient";
+import { VideoCard } from "@/modules/posts/ui/VideoCard";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StateCard } from "@/modules/ui/StateCard";
 import { SurfaceCardHelpButton } from "@/modules/ui/SurfaceCardHelpButton";
@@ -81,37 +76,10 @@ export function PostsFeedScreen() {
             <StateCard title={t("posts.feed.emptyTitle")} message={t("posts.feed.emptyMessage")} />
           )
         }
-        renderItem={({ item }) => {
-          const content = resolvePostContentForLocale(item, locale);
-          if (!content) return null;
-          const dateLabel = item.publishedAt
-            ? DateTime.fromISO(item.publishedAt).setLocale(locale).toLocaleString(DateTime.DATE_MED)
-            : "";
-          return (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push(`/post/${item.id}` as Href)}
-              style={({ pressed }) => [
-                styles.card,
-                {
-                  backgroundColor: theme.colors.surfaceElevated,
-                  borderColor: theme.colors.surfaceBorder,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              {content.coverUrl ? <Image source={{ uri: content.coverUrl }} style={styles.cover} resizeMode="cover" /> : null}
-              <View style={styles.cardBody}>
-                <AppText variant="sectionTitle">{content.title}</AppText>
-                <AppText variant="technicalCaption" tone="faint">
-                  {dateLabel}
-                  {dateLabel ? "  ·  " : ""}
-                  {t("posts.comments.countLabel", { count: item.commentCount })}
-                </AppText>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item }) => (
+          <VideoCard post={item} onPress={() => router.push(`/post/${item.id}` as Href)} />
+        )}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
       <SurfaceHelpModal
         visible={helpVisible}
@@ -128,17 +96,7 @@ const styles = StyleSheet.create({
   listHeader: {
     gap: 18,
   },
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  cover: {
-    aspectRatio: 16 / 9,
-    width: "100%",
-  },
-  cardBody: {
-    gap: 6,
-    padding: 14,
+  separator: {
+    height: 12,
   },
 });
