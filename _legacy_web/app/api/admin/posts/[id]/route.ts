@@ -15,7 +15,7 @@ export async function GET(req: Request, ctx: RouteContext) {
 
     const { data: post, error } = await db.from("posts").select("*").eq("id", id).maybeSingle();
     if (error) throw error;
-    if (!post) return json({ error: "Публикация не найдена" }, { status: 404 });
+    if (!post) return json({ error: "Видео не найдено" }, { status: 404 });
 
     const { data: comments, error: commentsError } = await db
       .from("comments")
@@ -53,11 +53,11 @@ export async function PATCH(req: Request, ctx: RouteContext) {
 
     const { data: current, error: readError } = await db
       .from("posts")
-      .select("published_at")
+      .select("published_at, title, title_i18n")
       .eq("id", id)
       .maybeSingle();
     if (readError) throw readError;
-    if (!current) return json({ error: "Публикация не найдена" }, { status: 404 });
+    if (!current) return json({ error: "Видео не найдено" }, { status: 404 });
 
     const update = postUpdateFromPayload(payload, current);
     const { data, error } = await db.from("posts").update(update).eq("id", id).select("*").single();
@@ -68,7 +68,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
   }
 }
 
-/** Удаляет публикацию, её комментарии (полиморфная связь — без FK) и обложку. */
+/** Удаляет видео, комментарии и обложки (RU + i18n). */
 export async function DELETE(req: Request, ctx: RouteContext) {
   try {
     await requireAdmin(req);
@@ -77,11 +77,11 @@ export async function DELETE(req: Request, ctx: RouteContext) {
 
     const { data: post, error: readError } = await db
       .from("posts")
-      .select("cover_url")
+      .select("cover_url, cover_url_i18n")
       .eq("id", id)
       .maybeSingle();
     if (readError) throw readError;
-    if (!post) return json({ error: "Публикация не найдена" }, { status: 404 });
+    if (!post) return json({ error: "Видео не найдено" }, { status: 404 });
 
     const { error: commentsError } = await db
       .from("comments")
@@ -93,7 +93,10 @@ export async function DELETE(req: Request, ctx: RouteContext) {
     const { error } = await db.from("posts").delete().eq("id", id);
     if (error) throw error;
 
-    await removeStorageObjectsByPublicUrls(db, "post-covers", [post.cover_url]);
+    const i18nCovers = Object.values((post.cover_url_i18n as Record<string, string | null> | null) ?? {})
+      .map((url) => (typeof url === "string" ? url : null))
+      .filter(Boolean) as string[];
+    await removeStorageObjectsByPublicUrls(db, "post-covers", [post.cover_url, ...i18nCovers]);
     return json({ ok: true });
   } catch (error) {
     return errorResponse(error);

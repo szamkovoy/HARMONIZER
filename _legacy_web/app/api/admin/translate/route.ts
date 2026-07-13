@@ -1,38 +1,41 @@
 import { generateGeminiJson, getModelByHint } from "../../_utils/gemini";
+import { LANGUAGE_NAMES, type AppContentLocale } from "../../_utils/contentLocales";
 import { errorResponse, json, requireAdmin } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
-type TargetLocale = (typeof TARGET_LOCALES)[number];
-
-const LANGUAGE_NAMES: Record<TargetLocale, string> = {
-  en: "English",
-  de: "German",
-  fr: "French",
-  it: "Italian",
-  es: "Spanish",
-  pt: "Portuguese",
-  nl: "Dutch",
-};
+const STORY_TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
+const POST_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
+type StoryTargetLocale = (typeof STORY_TARGET_LOCALES)[number];
+type PostLocale = (typeof POST_LOCALES)[number];
 
 type TranslatePayload =
   | { type: "story"; ru_caption: string }
-  | { type: "post"; ru_title: string; ru_body: string };
+  | {
+      type: "post";
+      /** @deprecated prefer source_title + source_locale */
+      ru_title?: string;
+      ru_body?: string;
+      source_locale?: AppContentLocale;
+      source_title?: string;
+      source_body?: string;
+      /** Locales to fill (may include ru). Default = all except source. */
+      fill_locales?: PostLocale[];
+    };
 
-type StoryTranslations = Record<TargetLocale, string>;
-type PostTranslations = Record<TargetLocale, { title: string; body: string }>;
+type StoryTranslations = Record<StoryTargetLocale, string>;
+type PostTranslations = Record<string, { title: string; body: string }>;
 
 function buildStoryPrompt(ruCaption: string): string {
-  const langList = TARGET_LOCALES.map((l) => `"${l}": "${LANGUAGE_NAMES[l]}"`).join(", ");
+  const langList = STORY_TARGET_LOCALES.map((l) => `"${l}": "${LANGUAGE_NAMES[l]}"`).join(", ");
   return `You are a professional translator. Translate the following Russian story caption into 7 languages.
 Return ONLY a valid JSON object with locale codes as keys. No markdown, no explanation.
 
 Russian caption:
 ${ruCaption}
 
-Required JSON format (keys: ${TARGET_LOCALES.join(", ")}):
+Required JSON format (keys: ${STORY_TARGET_LOCALES.join(", ")}):
 {
   "en": "...",
   "de": "...",
@@ -47,25 +50,28 @@ Languages: ${langList}
 Preserve line breaks (\\n) and URL formatting. Keep it natural and idiomatic.`;
 }
 
-function buildPostPrompt(ruTitle: string, ruBody: string): string {
-  const langList = TARGET_LOCALES.map((l) => `"${l}": "${LANGUAGE_NAMES[l]}"`).join(", ");
-  return `You are a professional translator. Translate the following Russian publication (title + body) into 7 languages.
+function buildPostPrompt(
+  sourceLocale: AppContentLocale,
+  sourceTitle: string,
+  sourceBody: string,
+  fillLocales: readonly PostLocale[],
+): string {
+  const sourceName = LANGUAGE_NAMES[sourceLocale];
+  const langList = fillLocales.map((l) => `"${l}": "${LANGUAGE_NAMES[l]}"`).join(", ");
+  const keys = fillLocales.join(", ");
+  const example = fillLocales.map((l) => `  "${l}": { "title": "...", "body": "..." }`).join(",\n");
+  return `You are a professional translator. Translate the following video publication (title + body) from ${sourceName} into the listed languages.
 Return ONLY a valid JSON object. No markdown, no explanation.
 
-Russian title: ${ruTitle}
+Source language: ${sourceName}
+Title: ${sourceTitle}
 
-Russian body:
-${ruBody}
+Body:
+${sourceBody}
 
-Required JSON format (keys: ${TARGET_LOCALES.join(", ")}):
+Required JSON format (keys: ${keys}):
 {
-  "en": { "title": "...", "body": "..." },
-  "de": { "title": "...", "body": "..." },
-  "fr": { "title": "...", "body": "..." },
-  "it": { "title": "...", "body": "..." },
-  "es": { "title": "...", "body": "..." },
-  "pt": { "title": "...", "body": "..." },
-  "nl": { "title": "...", "body": "..." }
+${example}
 }
 
 Languages: ${langList}
@@ -77,19 +83,19 @@ function validateStoryTranslations(raw: unknown): StoryTranslations {
     throw new Error("Invalid translation response: expected object");
   }
   const result = {} as StoryTranslations;
-  for (const locale of TARGET_LOCALES) {
+  for (const locale of STORY_TARGET_LOCALES) {
     const val = (raw as Record<string, unknown>)[locale];
     result[locale] = typeof val === "string" ? val.trim() : "";
   }
   return result;
 }
 
-function validatePostTranslations(raw: unknown): PostTranslations {
+function validatePostTranslations(raw: unknown, fillLocales: readonly PostLocale[]): PostTranslations {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("Invalid translation response: expected object");
   }
-  const result = {} as PostTranslations;
-  for (const locale of TARGET_LOCALES) {
+  const result: PostTranslations = {};
+  for (const locale of fillLocales) {
     const val = (raw as Record<string, unknown>)[locale];
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const v = val as Record<string, unknown>;
@@ -104,7 +110,7 @@ function validatePostTranslations(raw: unknown): PostTranslations {
   return result;
 }
 
-/** POST /api/admin/translate — translate story caption or post (title+body) into all 7 target locales. */
+/** POST /api/admin/translate — story caption or post title+body into target locales. */
 export async function POST(req: Request) {
   try {
     await requireAdmin(req);
@@ -128,18 +134,30 @@ export async function POST(req: Request) {
     }
 
     if (payload.type === "post") {
-      const { ru_title, ru_body } = payload;
-      if (!ru_title?.trim()) {
-        return json({ error: "ru_title обязателен" }, { status: 400 });
+      const sourceTitle = (payload.source_title ?? payload.ru_title ?? "").trim();
+      const sourceBody = (payload.source_body ?? payload.ru_body ?? "").trim();
+      const sourceLocale = (payload.source_locale ?? "ru") as AppContentLocale;
+      if (!sourceTitle) {
+        return json({ error: "Заголовок для перевода обязателен" }, { status: 400 });
+      }
+
+      const fillLocales = (
+        payload.fill_locales?.length
+          ? payload.fill_locales.filter((l): l is PostLocale => (POST_LOCALES as readonly string[]).includes(l))
+          : [...POST_LOCALES]
+      ).filter((l) => l !== sourceLocale);
+
+      if (fillLocales.length === 0) {
+        return json({ translations: {} as PostTranslations });
       }
 
       const { json: raw } = await generateGeminiJson<unknown>({
-        prompt: buildPostPrompt(ru_title.trim(), (ru_body ?? "").trim()),
+        prompt: buildPostPrompt(sourceLocale, sourceTitle, sourceBody, fillLocales),
         model,
         temperature: 0.3,
         maxOutputTokens: 16000,
       });
-      const translations = validatePostTranslations(raw);
+      const translations = validatePostTranslations(raw, fillLocales);
       return json({ translations });
     }
 

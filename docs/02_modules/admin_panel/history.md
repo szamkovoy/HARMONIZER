@@ -2,12 +2,14 @@
 id: 02_modules/admin_panel/history
 title: Admin Panel History
 version: 1.1
-updated: 2026-07-08
+updated: 2026-07-13
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-13 (11):** Раздел «Публикации» переименован в «Видео»; `PostEditor` / `postPayload` / `translate` — публикация с любого языка, «Перевести» только в пустые (RU→EN→…); сжатие обложек; `adminFetch` refresh JWT; ФИО комментатора → профиль пользователя.
 
 - **2026-07-10 (10):** Пересчёт тарифа из леджера платежей больше не копирует «последнюю по created_at» запись без проверки срока. После add/edit платежа (и opportunistic на `GET` карточки при stale expires) сервер выбирает среди ещё действующих платежей максимальный тариф по `TIER_ORDER` (при равенстве — более поздний `paid_until`, затем свежий `created_at`); если действующих нет — `free`. Hourly Edge `reconcile-expired-memberships` + SQL RPC `recompute_user_membership` / `reconcile_expired_memberships` (миграция `20260710023000`) держат `users.membership_*` в актуальном состоянии без ожидания ручной правки. Подписи тарифов в админке сведены к `TIER_LABELS_RU` из `modules/access/core/tiers.ts`.
 

@@ -17,36 +17,25 @@ import { useTheme } from "@/modules/ui/theme";
 
 const MAX_COMMENT_LENGTH = 2000;
 
-/**
- * Комментарии к цели (публикация или вебинар) с лайками и удалением своих.
- * Для вебинаров лайк работает как голос за вопрос (сортировку по голосам
- * делает экран вебинара, здесь порядок хронологический).
- */
-export function CommentsSection({
+/** Fixed composer for screens that keep input above the keyboard (outside ScrollView). */
+export function CommentComposer({
   targetType,
   targetId,
-  comments,
   onChanged,
   inputPlaceholderKey = "posts.comments.placeholder",
 }: {
   targetType: CommentTargetType;
   targetId: string;
-  comments: CommentItem[] | null;
   onChanged: (next: CommentItem[]) => void;
   inputPlaceholderKey?: string;
 }) {
   const theme = useTheme();
-  const { t, tc, locale } = useTranslate();
+  const { t } = useTranslate();
   const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-
-  const reload = useCallback(async () => {
-    if (!userId) return;
-    onChanged(await fetchComments(targetType, targetId, userId));
-  }, [userId, targetType, targetId, onChanged]);
 
   const submit = useCallback(async () => {
     const body = draft.trim();
@@ -56,19 +45,84 @@ export function CommentsSection({
       const result = await addComment(targetType, targetId, userId, body);
       if (result.ok) {
         setDraft("");
-        await reload();
+        onChanged(await fetchComments(targetType, targetId, userId));
       } else {
         Alert.alert(t("posts.comments.sendFailed"));
       }
     } finally {
       setSending(false);
     }
-  }, [draft, userId, sending, targetType, targetId, reload, t]);
+  }, [draft, userId, sending, targetType, targetId, onChanged, t]);
+
+  return (
+    <View
+      style={[
+        styles.inputRow,
+        { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder },
+      ]}
+    >
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        placeholder={t(inputPlaceholderKey)}
+        placeholderTextColor={theme.colors.textFaint}
+        multiline
+        maxLength={MAX_COMMENT_LENGTH}
+        style={[styles.input, { color: theme.colors.textPrimary }]}
+      />
+      <Pressable
+        accessibilityRole="button"
+        disabled={sending || !draft.trim()}
+        onPress={() => void submit()}
+        style={({ pressed }) => [styles.sendButton, { opacity: pressed || sending || !draft.trim() ? 0.5 : 1 }]}
+      >
+        {sending ? (
+          <ActivityIndicator size="small" color={theme.colors.accent} />
+        ) : (
+          <AppText variant="buttonLabel" tone="accent">
+            {t("posts.comments.send")}
+          </AppText>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Комментарии к цели (видео или вебинар) с лайками и удалением своих.
+ * Для вебинаров лайк работает как голос за вопрос (сортировку по голосам
+ * делает экран вебинара, здесь порядок хронологический).
+ *
+ * `showComposer=false` — список без поля ввода (композер монтируется снаружи, над клавиатурой).
+ */
+export function CommentsSection({
+  targetType,
+  targetId,
+  comments,
+  onChanged,
+  inputPlaceholderKey = "posts.comments.placeholder",
+  showComposer = true,
+}: {
+  targetType: CommentTargetType;
+  targetId: string;
+  comments: CommentItem[] | null;
+  onChanged: (next: CommentItem[]) => void;
+  inputPlaceholderKey?: string;
+  showComposer?: boolean;
+}) {
+  const theme = useTheme();
+  const { t, locale } = useTranslate();
+  const { authUser } = useAuth();
+  const userId = authUser?.id ?? null;
+
+  const reload = useCallback(async () => {
+    if (!userId) return;
+    onChanged(await fetchComments(targetType, targetId, userId));
+  }, [userId, targetType, targetId, onChanged]);
 
   const toggleLike = useCallback(
     async (comment: CommentItem) => {
       if (!userId) return;
-      // Оптимистично: сеть догонит, при ошибке следующий reload вернёт правду.
       onChanged(
         (comments ?? []).map((c) =>
           c.id === comment.id
@@ -83,24 +137,27 @@ export function CommentsSection({
 
   const confirmDelete = useCallback(
     (comment: CommentItem) => {
+      if (!userId || !comment.isMine) return;
       Alert.alert(t("posts.comments.deleteTitle"), undefined, [
         { text: t("common.cancel"), style: "cancel" },
         {
           text: t("posts.comments.deleteConfirm"),
           style: "destructive",
           onPress: () => {
-            void deleteOwnComment(comment.id).then(reload);
+            void deleteOwnComment(comment.id, userId).then(reload);
           },
         },
       ]);
     },
-    [t, reload],
+    [t, reload, userId],
   );
 
   return (
     <View style={styles.root}>
       <AppText variant="sectionTitle">
-        {comments === null ? t("posts.comments.title") : tc("posts.comments.count", comments.length)}
+        {comments === null
+          ? t("posts.comments.title")
+          : t("posts.comments.countLabel", { count: comments.length })}
       </AppText>
 
       {comments === null ? (
@@ -154,36 +211,14 @@ export function CommentsSection({
         ))
       )}
 
-      <View
-        style={[
-          styles.inputRow,
-          { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder },
-        ]}
-      >
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder={t(inputPlaceholderKey)}
-          placeholderTextColor={theme.colors.textFaint}
-          multiline
-          maxLength={MAX_COMMENT_LENGTH}
-          style={[styles.input, { color: theme.colors.textPrimary }]}
+      {showComposer ? (
+        <CommentComposer
+          targetType={targetType}
+          targetId={targetId}
+          onChanged={onChanged}
+          inputPlaceholderKey={inputPlaceholderKey}
         />
-        <Pressable
-          accessibilityRole="button"
-          disabled={sending || !draft.trim()}
-          onPress={() => void submit()}
-          style={({ pressed }) => [styles.sendButton, { opacity: pressed || sending || !draft.trim() ? 0.5 : 1 }]}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color={theme.colors.accent} />
-          ) : (
-            <AppText variant="buttonLabel" tone="accent">
-              {t("posts.comments.send")}
-            </AppText>
-          )}
-        </Pressable>
-      </View>
+      ) : null}
     </View>
   );
 }

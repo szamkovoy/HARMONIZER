@@ -23,7 +23,7 @@ import { getBrowserSupabase } from "../_lib/supabaseBrowser";
 const NAV_ITEMS = [
   { href: "/admin", label: "Дашборд", icon: Gauge },
   { href: "/admin/stories", label: "Сторис", icon: Sparkles },
-  { href: "/admin/posts", label: "Публикации", icon: Newspaper },
+  { href: "/admin/posts", label: "Видео", icon: Newspaper },
   { href: "/admin/webinars", label: "Вебинары", icon: Video },
   { href: "/admin/notifications", label: "Уведомления", icon: BellRing },
   { href: "/admin/feedback", label: "Поддержка", icon: LifeBuoy },

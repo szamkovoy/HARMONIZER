@@ -1,3 +1,5 @@
+import { type AppContentLocale } from "../../_utils/contentLocales";
+
 export type AdminPostPayload = {
   title?: string;
   body?: string;
@@ -12,11 +14,28 @@ export type AdminPostPayload = {
   cover_url_i18n?: Record<string, string | null>;
 };
 
-/** Нормализация формы «создать публикацию»: заголовок обязателен, публикация датируется. */
+function trimmedRecord(input: Record<string, string> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!input) return out;
+  for (const [key, value] of Object.entries(input)) {
+    const text = value.trim();
+    if (text) out[key] = text;
+  }
+  return out;
+}
+
+function hasAnyTitle(title: string, titleI18n: Record<string, string>): boolean {
+  if (title.trim()) return true;
+  return Object.values(titleI18n).some((value) => value.trim().length > 0);
+}
+
+/** Create: at least one locale title required; RU columns may be empty for non-RU-only videos. */
 export function postRowFromPayload(payload: AdminPostPayload) {
   const title = payload.title?.trim() ?? "";
-  if (!title) {
-    throw new Response(JSON.stringify({ error: "Заголовок публикации обязателен" }), { status: 400 });
+  const titleI18n = trimmedRecord(payload.title_i18n);
+  const bodyI18n = trimmedRecord(payload.body_i18n);
+  if (!hasAnyTitle(title, titleI18n)) {
+    throw new Response(JSON.stringify({ error: "Заголовок видео обязателен хотя бы на одном языке" }), { status: 400 });
   }
   const isPublished = payload.is_published ?? false;
   const publishedAt = payload.published_at ? new Date(payload.published_at) : isPublished ? new Date() : null;
@@ -29,22 +48,28 @@ export function postRowFromPayload(payload: AdminPostPayload) {
     cover_url: payload.cover_url?.trim() || null,
     is_published: isPublished,
     published_at: publishedAt ? publishedAt.toISOString() : null,
-    title_i18n: payload.title_i18n ?? {},
-    body_i18n: payload.body_i18n ?? {},
+    title_i18n: titleI18n,
+    body_i18n: bodyI18n,
     cover_url_i18n: payload.cover_url_i18n ?? {},
   };
 }
 
-/** Частичное обновление; published_at проставляется при первом включении публикации. */
-export function postUpdateFromPayload(payload: AdminPostPayload, current: { published_at: string | null }) {
+/** Partial update; published_at set on first publish. Empty RU title allowed if i18n titles remain. */
+export function postUpdateFromPayload(payload: AdminPostPayload, current: { published_at: string | null; title?: string; title_i18n?: unknown }) {
   const update: Record<string, unknown> = {};
-  if (payload.title !== undefined) {
-    const title = payload.title.trim();
-    if (!title) {
-      throw new Response(JSON.stringify({ error: "Заголовок публикации обязателен" }), { status: 400 });
+  const nextTitle = payload.title !== undefined ? payload.title.trim() : (current.title ?? "");
+  const nextTitleI18n =
+    payload.title_i18n !== undefined
+      ? trimmedRecord(payload.title_i18n)
+      : trimmedRecord((current.title_i18n as Record<string, string> | undefined) ?? undefined);
+
+  if (payload.title !== undefined || payload.title_i18n !== undefined) {
+    if (!hasAnyTitle(nextTitle, nextTitleI18n)) {
+      throw new Response(JSON.stringify({ error: "Заголовок видео обязателен хотя бы на одном языке" }), { status: 400 });
     }
-    update.title = title;
   }
+
+  if (payload.title !== undefined) update.title = nextTitle;
   if (payload.body !== undefined) update.body = payload.body;
   if (payload.cover_url !== undefined) update.cover_url = payload.cover_url?.trim() || null;
   if (payload.published_at !== undefined) {
@@ -56,11 +81,10 @@ export function postUpdateFromPayload(payload: AdminPostPayload, current: { publ
       update.published_at = new Date().toISOString();
     }
   }
-  if (payload.title_i18n !== undefined) update.title_i18n = payload.title_i18n;
-  if (payload.body_i18n !== undefined) update.body_i18n = payload.body_i18n;
+  if (payload.title_i18n !== undefined) update.title_i18n = nextTitleI18n;
+  if (payload.body_i18n !== undefined) update.body_i18n = trimmedRecord(payload.body_i18n);
   if (payload.cover_url_i18n !== undefined) update.cover_url_i18n = payload.cover_url_i18n;
 
-  // If any i18n field is present, stamp translations_updated_at
   if (
     payload.title_i18n !== undefined ||
     payload.body_i18n !== undefined ||
@@ -74,3 +98,7 @@ export function postUpdateFromPayload(payload: AdminPostPayload, current: { publ
   }
   return update;
 }
+
+export { adminPostDisplayTitle } from "../../../admin/posts/_lib/adminPostDisplayTitle";
+
+export type { AppContentLocale };

@@ -5,42 +5,49 @@ import { useCallback, useState } from "react";
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchPostsFeed, resolvePostContent, type PostItem } from "@/modules/posts/core/postsClient";
+import {
+  fetchPostsFeedForLocale,
+  resolvePostContentForLocale,
+  type PostItem,
+} from "@/modules/posts/core/postsClient";
 import { AppText } from "@/modules/ui/AppText";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StateCard } from "@/modules/ui/StateCard";
+import { SurfaceCardHelpButton } from "@/modules/ui/SurfaceCardHelpButton";
+import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { TabScreenLayout, useTabScreenContentProps } from "@/modules/ui/TabScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
 import { WebinarsStrip } from "@/modules/webinars";
 
 export function PostsFeedScreen() {
   const theme = useTheme();
-  const { t, tc, locale } = useTranslate();
+  const { t, locale } = useTranslate();
   const listContentProps = useTabScreenContentProps({ bottomPaddingExtra: 20 });
 
   const [posts, setPosts] = useState<PostItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [helpVisible, setHelpVisible] = useState(false);
 
   const load = useCallback(() => {
     let cancelled = false;
-    void fetchPostsFeed().then((items) => {
+    void fetchPostsFeedForLocale(locale).then((items) => {
       if (!cancelled) setPosts(items);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   useFocusEffect(load);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      setPosts(await fetchPostsFeed());
+      setPosts(await fetchPostsFeedForLocale(locale));
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [locale]);
 
   return (
     <TabScreenLayout>
@@ -54,7 +61,16 @@ export function PostsFeedScreen() {
         }
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <ScreenHeader title={t("posts.feed.title")} subtitle={t("posts.feed.subtitle")} />
+            <ScreenHeader
+              title={t("posts.feed.title")}
+              subtitle={t("posts.feed.subtitle")}
+              trailing={
+                <SurfaceCardHelpButton
+                  accessibilityLabel={t("posts.feed.helpA11y")}
+                  onPress={() => setHelpVisible(true)}
+                />
+              }
+            />
             <WebinarsStrip />
           </View>
         }
@@ -66,7 +82,8 @@ export function PostsFeedScreen() {
           )
         }
         renderItem={({ item }) => {
-          const content = resolvePostContent(item, locale);
+          const content = resolvePostContentForLocale(item, locale);
+          if (!content) return null;
           const dateLabel = item.publishedAt
             ? DateTime.fromISO(item.publishedAt).setLocale(locale).toLocaleString(DateTime.DATE_MED)
             : "";
@@ -89,12 +106,19 @@ export function PostsFeedScreen() {
                 <AppText variant="technicalCaption" tone="faint">
                   {dateLabel}
                   {dateLabel ? "  ·  " : ""}
-                  {tc("posts.comments.count", item.commentCount)}
+                  {t("posts.comments.countLabel", { count: item.commentCount })}
                 </AppText>
               </View>
             </Pressable>
           );
         }}
+      />
+      <SurfaceHelpModal
+        visible={helpVisible}
+        title={t("posts.feed.helpTitle")}
+        closeLabel={t("common.close")}
+        onClose={() => setHelpVisible(false)}
+        body={t("posts.feed.helpBody")}
       />
     </TabScreenLayout>
   );

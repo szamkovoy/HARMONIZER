@@ -1,9 +1,11 @@
 import {
   parseStringRecord,
-  pickLocalizedText,
-  pickLocalizedUrl,
   type AppContentLocale,
 } from "@/modules/i18n";
+import {
+  postAvailableInLocale,
+  resolvePostContentForLocale,
+} from "@/modules/posts/core/postLocale";
 import { getSupabase } from "@/services/supabase";
 
 export type PostContentSource = {
@@ -21,17 +23,22 @@ export type PostItem = PostContentSource & {
   commentCount: number;
 };
 
+/** @deprecated Prefer resolvePostContentForLocale — returns null when locale has no authored content. */
 export function resolvePostContent(source: PostContentSource, locale: AppContentLocale): {
   title: string;
   body: string;
   coverUrl: string | null;
 } {
-  return {
-    title: pickLocalizedText(locale, source.title, source.titleI18n),
-    body: pickLocalizedText(locale, source.body, source.bodyI18n),
-    coverUrl: pickLocalizedUrl(locale, source.coverUrl, source.coverUrlI18n),
-  };
+  return (
+    resolvePostContentForLocale(source, locale) ?? {
+      title: "",
+      body: "",
+      coverUrl: null,
+    }
+  );
 }
+
+export { postAvailableInLocale, resolvePostContentForLocale };
 
 export type CommentTargetType = "post" | "webinar";
 
@@ -82,9 +89,20 @@ export async function fetchPostsFeed(limit = 50): Promise<PostItem[]> {
   return (data ?? []).map(normalizePostRow);
 }
 
+/** Feed filtered to videos authored for the active UI locale. */
+export async function fetchPostsFeedForLocale(locale: AppContentLocale, limit = 50): Promise<PostItem[]> {
+  const posts = await fetchPostsFeed(limit);
+  return posts.filter((post) => postAvailableInLocale(post, locale));
+}
+
 export async function fetchLatestPost(): Promise<PostItem | null> {
   const posts = await fetchPostsFeed(1);
   return posts[0] ?? null;
+}
+
+export async function fetchLatestPostForLocale(locale: AppContentLocale): Promise<PostItem | null> {
+  const posts = await fetchPostsFeed(20);
+  return posts.find((post) => postAvailableInLocale(post, locale)) ?? null;
 }
 
 export async function fetchPostById(id: string): Promise<PostItem | null> {
@@ -161,10 +179,10 @@ export async function addComment(
   return { ok: true };
 }
 
-export async function deleteOwnComment(commentId: string): Promise<void> {
+export async function deleteOwnComment(commentId: string, userId: string): Promise<void> {
   const supabase = getSupabase();
   if (!supabase) return;
-  const { error } = await supabase.from("comments").delete().eq("id", commentId);
+  const { error } = await supabase.from("comments").delete().eq("id", commentId).eq("user_id", userId);
   if (error && __DEV__) console.warn("[posts] comment delete failed", error.message);
 }
 

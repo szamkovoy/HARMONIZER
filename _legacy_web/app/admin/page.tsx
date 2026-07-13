@@ -4,7 +4,7 @@ import { DashboardMetrics } from "./_components/DashboardMetrics";
 
 const SECTIONS = [
   { href: "/admin/stories", title: "Сторис", hint: "Фото и видео на 24 часа — как в Instagram", stage: "Готово" },
-  { href: "/admin/posts", title: "Публикации", hint: "Статьи и анонсы с комментариями", stage: "Готово" },
+  { href: "/admin/posts", title: "Видео", hint: "Обложки, описания и ссылки на видео", stage: "Готово" },
   { href: "/admin/webinars", title: "Вебинары", hint: "Анонсы, вопросы, записавшиеся, записи", stage: "Готово" },
   { href: "/admin/notifications", title: "Уведомления", hint: "Рассылки сегментам и история", stage: "Готово" },
   { href: "/admin/feedback", title: "Поддержка", hint: "Входящие сообщения пользователей", stage: "Готово" },

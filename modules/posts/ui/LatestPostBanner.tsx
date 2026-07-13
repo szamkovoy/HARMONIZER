@@ -4,12 +4,16 @@ import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { fetchLatestPost, resolvePostContent, type PostItem } from "@/modules/posts/core/postsClient";
+import {
+  fetchLatestPostForLocale,
+  resolvePostContentForLocale,
+  type PostItem,
+} from "@/modules/posts/core/postsClient";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
 /**
- * Анонс новейшей публикации на главной. Рендерит null, пока публикаций нет.
+ * Анонс новейшего видео на главной. Рендерит null, если для текущей локали нет контента.
  * Этап 3 добавит приоритет: анонс ближайшего вебинара вытесняет публикацию.
  */
 export function LatestPostBanner() {
@@ -19,19 +23,20 @@ export function LatestPostBanner() {
 
   const reload = useCallback(() => {
     let cancelled = false;
-    void fetchLatestPost().then((item) => {
+    void fetchLatestPostForLocale(locale).then((item) => {
       if (!cancelled) setPost(item);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   useFocusEffect(reload);
 
   if (!post) return null;
 
-  const content = resolvePostContent(post, locale);
+  const content = resolvePostContentForLocale(post, locale);
+  if (!content) return null;
 
   return (
     <Pressable

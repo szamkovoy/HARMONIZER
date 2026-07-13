@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
 import { Eye, EyeOff, ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
@@ -7,11 +8,15 @@ import { Eye, EyeOff, ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react
 import { adminFetch } from "../../_lib/adminApi";
 import { formatAdminDateTime } from "../../_lib/adminDates";
 import { getBrowserSupabase } from "../../_lib/supabaseBrowser";
+import { compressPostCoverFile } from "../_lib/compressPostCover";
 
+const ALL_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
 const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
 type TargetLocale = (typeof TARGET_LOCALES)[number];
+type ContentLocale = (typeof ALL_LOCALES)[number];
 
-const LOCALE_LABELS: Record<TargetLocale, string> = {
+const LOCALE_LABELS: Record<ContentLocale, string> = {
+  ru: "RU",
   en: "EN",
   de: "DE",
   fr: "FR",
@@ -21,7 +26,8 @@ const LOCALE_LABELS: Record<TargetLocale, string> = {
   nl: "NL",
 };
 
-const LOCALE_FULL_NAMES: Record<TargetLocale, string> = {
+const LOCALE_FULL_NAMES: Record<ContentLocale, string> = {
+  ru: "Русский",
   en: "English",
   de: "Deutsch",
   fr: "Français",
@@ -56,13 +62,14 @@ export type AdminComment = {
 type UploadTicket = { path: string; token: string; publicUrl: string };
 
 async function uploadCover(file: File): Promise<string> {
+  const compressed = await compressPostCoverFile(file);
   const ticket = await adminFetch<UploadTicket>("/api/admin/uploads", {
     method: "POST",
-    body: JSON.stringify({ bucket: "post-covers", contentType: file.type }),
+    body: JSON.stringify({ bucket: "post-covers", contentType: compressed.type }),
   });
   const { error } = await getBrowserSupabase()
     .storage.from("post-covers")
-    .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
+    .uploadToSignedUrl(ticket.path, ticket.token, compressed, { contentType: compressed.type });
   if (error) throw new Error(`Загрузка обложки не удалась: ${error.message}`);
   return ticket.publicUrl;
 }
@@ -75,12 +82,40 @@ type LocaleTabData = {
   coverPreview: string | null;
 };
 
-/** Редактор публикации: post=null — создание, иначе — редактирование + модерация комментариев. */
+function pickTranslateSource(
+  title: string,
+  body: string,
+  localeTabs: Record<TargetLocale, LocaleTabData>,
+): { locale: ContentLocale; title: string; body: string } | null {
+  if (title.trim()) return { locale: "ru", title: title.trim(), body };
+  for (const locale of TARGET_LOCALES) {
+    const tab = localeTabs[locale];
+    if (tab.title.trim()) {
+      return { locale, title: tab.title.trim(), body: tab.body };
+    }
+  }
+  return null;
+}
+
+function localesMissingContent(
+  title: string,
+  localeTabs: Record<TargetLocale, LocaleTabData>,
+  sourceLocale: ContentLocale,
+): ContentLocale[] {
+  const missing: ContentLocale[] = [];
+  if (sourceLocale !== "ru" && !title.trim()) missing.push("ru");
+  for (const locale of TARGET_LOCALES) {
+    if (locale === sourceLocale) continue;
+    if (!localeTabs[locale].title.trim()) missing.push(locale);
+  }
+  return missing;
+}
+
+/** Редактор видео: post=null — создание, иначе — редактирование + модерация комментариев. */
 export function PostEditor({ post, comments }: { post: AdminPost | null; comments: AdminComment[] }) {
   const router = useRouter();
   const isEditing = post !== null;
 
-  // RU fields
   const fileInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(post?.title ?? "");
   const [body, setBody] = useState(post?.body ?? "");
@@ -89,8 +124,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(post?.is_published ?? true);
 
-  // i18n tabs
-  const [activeTab, setActiveTab] = useState<"ru" | TargetLocale>("ru");
+  const [activeTab, setActiveTab] = useState<ContentLocale>("ru");
   const [localeTabs, setLocaleTabs] = useState<Record<TargetLocale, LocaleTabData>>(() => {
     const init = {} as Record<TargetLocale, LocaleTabData>;
     for (const locale of TARGET_LOCALES) {
@@ -107,7 +141,6 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
 
   const localeFileInputs = useRef<Partial<Record<TargetLocale, HTMLInputElement | null>>>({});
 
-  // Translation state
   const [translating, setTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
 
@@ -119,32 +152,51 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   }
 
   async function runTranslate() {
-    if (!title.trim()) {
-      setTranslateError("Сначала введите заголовок на русском");
+    const source = pickTranslateSource(title, body, localeTabs);
+    if (!source) {
+      setTranslateError("Сначала введите заголовок хотя бы на одном языке");
+      return;
+    }
+    const fillLocales = localesMissingContent(title, localeTabs, source.locale);
+    if (fillLocales.length === 0) {
+      setTranslateError("Все языки уже заполнены — пустых вкладок нет");
       return;
     }
     setTranslateError(null);
     setTranslating(true);
     try {
       const res = await adminFetch<{
-        translations: Record<TargetLocale, { title: string; body: string }>;
+        translations: Record<string, { title: string; body: string }>;
       }>("/api/admin/translate", {
         method: "POST",
-        body: JSON.stringify({ type: "post", ru_title: title, ru_body: body }),
+        body: JSON.stringify({
+          type: "post",
+          source_locale: source.locale,
+          source_title: source.title,
+          source_body: source.body,
+          fill_locales: fillLocales,
+        }),
       });
+
+      const ruT = res.translations.ru;
+      if (ruT?.title.trim() && !title.trim()) {
+        setTitle(ruT.title);
+        setBody(ruT.body ?? "");
+      }
+
       setLocaleTabs((prev) => {
         const next = { ...prev };
         for (const locale of TARGET_LOCALES) {
+          if (!fillLocales.includes(locale)) continue;
           const t = res.translations[locale];
-          if (t) {
-            next[locale] = {
-              ...next[locale],
-              title: t.title,
-              body: t.body,
-              // Copy RU cover to locales that don't have one
-              coverUrl: next[locale].coverUrl || coverUrl,
-            };
-          }
+          if (!t?.title.trim()) continue;
+          if (next[locale].title.trim()) continue; // never overwrite authored text
+          next[locale] = {
+            ...next[locale],
+            title: t.title,
+            body: t.body,
+            coverUrl: next[locale].coverUrl || coverUrl,
+          };
         }
         return next;
       });
@@ -166,15 +218,19 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    const hasTitle =
+      title.trim() || TARGET_LOCALES.some((locale) => localeTabs[locale].title.trim());
+    if (!hasTitle) {
+      setError("Заголовок видео обязателен хотя бы на одном языке");
+      return;
+    }
     try {
-      // Upload RU cover if changed
       let nextCover = coverUrl;
       if (coverFile) {
         setBusy("Загружаю обложку…");
         nextCover = await uploadCover(coverFile);
       }
 
-      // Upload locale covers
       const titleI18n: Record<string, string> = {};
       const bodyI18n: Record<string, string> = {};
       const coverUrlI18n: Record<string, string | null> = {};
@@ -186,7 +242,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
           setBusy(`Загружаю обложку ${LOCALE_LABELS[locale]}…`);
           localeCoverUrl = await uploadCover(tab.coverFile);
         }
-        if (tab.title.trim()) titleI18n[locale] = tab.title;
+        if (tab.title.trim()) titleI18n[locale] = tab.title.trim();
         if (tab.body.trim()) bodyI18n[locale] = tab.body;
         if (localeCoverUrl) coverUrlI18n[locale] = localeCoverUrl;
       }
@@ -220,7 +276,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   }
 
   async function handleDelete() {
-    if (!post || !window.confirm("Удалить публикацию вместе с комментариями и обложкой?")) return;
+    if (!post || !window.confirm("Удалить видео вместе с комментариями и обложкой?")) return;
     setBusy("Удаляю…");
     try {
       await adminFetch(`/api/admin/posts/${post.id}`, { method: "DELETE" });
@@ -232,26 +288,26 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   }
 
   const ruCoverShown = coverPreview ?? coverUrl;
+  const ruHasContent = Boolean(title.trim() || body.trim());
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-4 text-xl font-bold text-zinc-100">{post ? "Публикация" : "Новая публикация"}</h1>
+      <h1 className="mb-4 text-xl font-bold text-zinc-100">{post ? "Видео" : "Новое видео"}</h1>
 
       <form onSubmit={handleSubmit} className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-
-        {/* Language tabs */}
         <div className="mb-4">
           <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-black/30 p-1">
             <button
               type="button"
               onClick={() => setActiveTab("ru")}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeTab === "ru"
-                  ? "bg-emerald-500 text-emerald-950"
-                  : "text-zinc-400 hover:text-zinc-200"
+              className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                activeTab === "ru" ? "bg-emerald-500 text-emerald-950" : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
               RU
+              {ruHasContent ? (
+                <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              ) : null}
             </button>
             {TARGET_LOCALES.map((locale) => {
               const hasContent = localeTabs[locale].title.trim() || localeTabs[locale].body.trim();
@@ -261,9 +317,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
                   type="button"
                   onClick={() => setActiveTab(locale)}
                   className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeTab === locale
-                      ? "bg-white/10 text-zinc-100"
-                      : "text-zinc-500 hover:text-zinc-300"
+                    activeTab === locale ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
                   }`}
                   title={LOCALE_FULL_NAMES[locale]}
                 >
@@ -278,10 +332,10 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
             <div className="ml-auto flex items-center">
               <button
                 type="button"
-                onClick={runTranslate}
+                onClick={() => void runTranslate()}
                 disabled={translating}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-60"
-                title="Перевести заголовок и текст на все языки"
+                title="Перевести только пустые языки (источник: RU → EN → …)"
               >
                 {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 Перевести
@@ -291,7 +345,6 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
           {translateError ? <p className="mt-1 text-xs text-red-400">{translateError}</p> : null}
         </div>
 
-        {/* RU tab */}
         {activeTab === "ru" ? (
           <>
             <button
@@ -301,7 +354,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
             >
               {ruCoverShown ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={ruCoverShown} alt="Обложка" className="h-full w-full object-cover" />
+                <img src={ruCoverShown} alt="Обложка" className="h-full w-full object-contain" />
               ) : (
                 <span className="flex flex-col items-center gap-1 text-xs">
                   <ImagePlus size={22} strokeWidth={1.6} />
@@ -318,9 +371,8 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
             />
 
             <label className="mb-3 block">
-              <span className="mb-1 block text-xs text-zinc-400">Заголовок</span>
+              <span className="mb-1 block text-xs text-zinc-400">Заголовок (Русский)</span>
               <input
-                required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
@@ -341,7 +393,6 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
           </>
         ) : null}
 
-        {/* Locale tabs */}
         {TARGET_LOCALES.map((locale) =>
           activeTab === locale ? (
             <LocaleTabFields
@@ -349,13 +400,14 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
               locale={locale}
               data={localeTabs[locale]}
               onChange={(patch) => updateLocaleTab(locale, patch)}
-              fileInputRef={(el) => { localeFileInputs.current[locale] = el; }}
-              ruCoverUrl={coverUrl}
+              fileInputRef={(el) => {
+                localeFileInputs.current[locale] = el;
+              }}
+              fallbackCoverUrl={coverUrl}
             />
           ) : null,
         )}
 
-        {/* Publish checkbox */}
         <div className="mb-4 flex items-center gap-4 text-sm text-zinc-300">
           <label className="flex items-center gap-2">
             <input
@@ -364,7 +416,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
               onChange={(e) => setIsPublished(e.target.checked)}
               className="accent-emerald-500"
             />
-            {isEditing ? "Опубликована" : "Опубликовать сразу"}
+            {isEditing ? "Опубликовано" : "Опубликовать сразу"}
           </label>
         </div>
 
@@ -381,7 +433,7 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
           {post ? (
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
               disabled={busy !== null}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50"
             >
@@ -396,23 +448,21 @@ export function PostEditor({ post, comments }: { post: AdminPost | null; comment
   );
 }
 
-// ─── Locale tab fields ────────────────────────────────────────────────────────
-
 function LocaleTabFields({
   locale,
   data,
   onChange,
   fileInputRef,
-  ruCoverUrl,
+  fallbackCoverUrl,
 }: {
   locale: TargetLocale;
   data: LocaleTabData;
   onChange: (patch: Partial<LocaleTabData>) => void;
   fileInputRef: (el: HTMLInputElement | null) => void;
-  ruCoverUrl: string | null;
+  fallbackCoverUrl: string | null;
 }) {
   const localFileInput = useRef<HTMLInputElement>(null);
-  const coverShown = data.coverPreview ?? data.coverUrl ?? ruCoverUrl;
+  const coverShown = data.coverPreview ?? data.coverUrl ?? fallbackCoverUrl;
 
   function pickFile(f: File | null) {
     const preview = f ? URL.createObjectURL(f) : null;
@@ -426,15 +476,15 @@ function LocaleTabFields({
         type="button"
         onClick={() => localFileInput.current?.click()}
         className="mb-4 flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40"
-        title={data.coverUrl || data.coverFile ? "Заменить обложку" : "Добавить обложку (по умолчанию копируется с RU)"}
+        title={data.coverUrl || data.coverFile ? "Заменить обложку" : "Добавить обложку"}
       >
         {coverShown ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverShown} alt="Обложка" className="h-full w-full object-cover" />
+          <img src={coverShown} alt="Обложка" className="h-full w-full object-contain" />
         ) : (
           <span className="flex flex-col items-center gap-1 text-xs">
             <ImagePlus size={22} strokeWidth={1.6} />
-            Обложка (копируется с RU)
+            Обложка (необязательно)
           </span>
         )}
       </button>
@@ -470,8 +520,6 @@ function LocaleTabFields({
     </>
   );
 }
-
-// ─── Comments moderation ──────────────────────────────────────────────────────
 
 function CommentsModeration({ initial }: { initial: AdminComment[] }) {
   const [comments, setComments] = useState(initial);
@@ -519,7 +567,12 @@ function CommentsModeration({ initial }: { initial: AdminComment[] }) {
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="font-semibold text-zinc-300">{comment.display_name}</span>
+                <Link
+                  href={`/admin/users/${comment.user_id}`}
+                  className="font-semibold text-emerald-300 hover:underline"
+                >
+                  {comment.display_name}
+                </Link>
                 <span>{formatAdminDateTime(comment.created_at)}</span>
                 {comment.is_hidden ? (
                   <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">Скрыт</span>
@@ -531,7 +584,7 @@ function CommentsModeration({ initial }: { initial: AdminComment[] }) {
               {busyId === comment.id ? <Loader2 size={16} className="animate-spin text-zinc-500" /> : null}
               <button
                 type="button"
-                onClick={() => toggleHidden(comment)}
+                onClick={() => void toggleHidden(comment)}
                 disabled={busyId === comment.id}
                 title={comment.is_hidden ? "Показать" : "Скрыть"}
                 className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
@@ -540,7 +593,7 @@ function CommentsModeration({ initial }: { initial: AdminComment[] }) {
               </button>
               <button
                 type="button"
-                onClick={() => remove(comment)}
+                onClick={() => void remove(comment)}
                 disabled={busyId === comment.id}
                 title="Удалить"
                 className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.4
-updated: 2026-07-09
+version: 3.5
+updated: 2026-07-13
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -46,7 +46,7 @@ code_refs:
 
 ## 1. Назначение (продукт)
 
-Присутствие автора в продукте. Реализовано: **сторис** (фото/видео на 24 часа, кольцо на главной — Instagram-паттерн) и **публикации** (статьи с обложкой, комментариями и лайками комментариев; вкладка «Публикации» + анонс новейшей на главной). Вебинары — этап 3 плана админ-панели.
+Присутствие автора в продукте. Реализовано: **сторис** (фото/видео на 24 часа, кольцо на главной — Instagram-паттерн) и **видео** (карточки с обложкой, описанием и ссылками на YouTube/Vimeo/Дзен/ВК; комментарии и лайки; вкладка «Видео» + анонс новейшего на главной). Вебинары — отдельный модуль `webinars` (полоса на вкладке «Видео»).
 
 ## 2. Публичный контракт
 
@@ -59,11 +59,11 @@ code_refs:
 
 **Клиент (`modules/posts`, barrel `index.ts`):**
 
-- **`PostsFeedScreen`** — вкладка «Публикации» … Карточки: обложка 16:9, заголовок, дата (Luxon, активная локаль) + счётчик комментариев (`tCount`). Заголовок/обложка локализуются через `resolvePostContent`. Pull-to-refresh, перезагрузка на фокусе.
-- **`PostScreen`** — экран публикации … обложка, заголовок, дата, тело через **`LinkifiedBody`** … контент локализуется через `resolvePostContent`, ниже — `CommentsSection`.
-- **`CommentsSection`** — переиспользуемый блок комментариев к цели `('post'|'webinar')`: список (имя, относительное время, лайк ♥ с оптимистичным апдейтом, удаление своих с confirm), поле ввода (≤2000 симв.). На вебинарах лайк = голос за вопрос.
-- **`LatestPostBanner`** — анонс новейшей публикации на главной … заголовок в баннере через `resolvePostContent`; `null`, пока публикаций нет.
-- **`postsClient.ts`**: `fetchPostsFeed` (RPC `get_posts_feed` с `title_i18n`/`body_i18n`/`cover_url_i18n`), `fetchPostById`, `resolvePostContent`, `fetchComments` (RPC `get_target_comments`), `addComment`/`deleteOwnComment`/`setCommentLike` — прямые запросы под RLS.
+- **`PostsFeedScreen`** — вкладка «Видео»: заголовок + подзаголовок + «?» (`SurfaceHelpModal`), полоса вебинаров, карточки только с контентом для **активной UI-локали** (`postAvailableInLocale` / `fetchPostsFeedForLocale`). Карточки: обложка 16:9, заголовок, дата (Luxon) + `posts.comments.countLabel` («Комментарии: N»). Контент через `resolvePostContentForLocale` (без fallback на другой язык).
+- **`PostScreen`** — экран видео: обложка, заголовок, дата, тело через **`LinkifiedBody`**; если для локали нет заголовка — «не найдено». Список комментариев в `ScrollView`, **`CommentComposer` закреплён над клавиатурой** (`KeyboardAvoidingView` + dock вне скролла).
+- **`CommentsSection` / `CommentComposer`** — комментарии к цели `('post'|'webinar')`: список (имя, относительное время, лайк ♥, удаление **только своих** — UI `isMine` + `deleteOwnComment(id, userId)` + RLS `comments_delete_own`), поле ввода (≤2000). На вебинарах лайк = голос за вопрос; композер может быть inline (`showComposer`) или вынесен наружу.
+- **`LatestPostBanner`** — анонс новейшего видео **для текущей локали** (`fetchLatestPostForLocale`); `null`, если для локали нет контента.
+- **`postsClient.ts` / `postLocale.ts`**: `fetchPostsFeed` (RPC `get_posts_feed`), `fetchPostsFeedForLocale`, `fetchPostById`, `resolvePostContentForLocale` / `postAvailableInLocale`, `fetchComments`, `addComment` / `deleteOwnComment(userId)` / `setCommentLike`.
 
 **Админка (гейт `requireAdmin`, см. `admin_panel`):**
 
@@ -74,13 +74,13 @@ code_refs:
 - `POST /api/admin/stories/upload-chunk` — multipart `{session_id, chunk_index, chunk_total, content_type, bytes, chunk}`; пишет части во временную server-side сессию (`/tmp/harmonizer-story-upload/*`).
 - `POST /api/admin/stories/process` — принимает `upload_path` (legacy direct Storage tmp) **или** `upload_session_id` (chunked upload); далее `sharp`/`ffmpeg` pipeline.
 - `POST /api/admin/stories/cleanup` — батчевый idempotent cleanup истёкших published stories: удаляет DB rows и связанные `image_url` / `video_url` / `cover_url` / `thumbnail_url` из `story-media`. Тот же helper используется opportunistically в `GET /api/admin/stories`, а часовой cron invoke удаляет хвосты без участия админки.
-- `POST /api/admin/translate` — новый роут; принимает `{type: 'story'|'post', ru_caption?, ru_title?, ru_body?}`; возвращает JSON-переводы на 7 целевых локалей (en/de/fr/it/es/pt/nl) одним запросом к `AI_MODEL_PREMIUM` через `generateGeminiJson`.
+- `POST /api/admin/translate` — `{type:'story'|'post', …}`. Для `post`: `source_locale` + `source_title`/`source_body` (совместимость: `ru_title`/`ru_body`); `fill_locales` — только пустые языки (включая `ru`); уже заполненные вкладки не перезаписываются. Источник на клиенте: RU → EN → остальные по `ALL_CONTENT_LOCALES`.
 - UI `/admin/stories`: форма создания (файл → локальное превью, подпись, «Опубликовать сразу»/датой, «Бессрочная», «Автоперевод» + кнопка «Перевести» с аккордеоном переводов) + список карточек со статусом (Черновик / Запланирована / Активна / Истекла), кнопка-карандаш → `EditStoryModal` (редактирование подписи, замена медиа, переводы, чекбоксы «Опубликована»/«Бессрочная», кнопка «Сохранить»), toggle публикации, удаление с confirm. Активные переводы помечаются иконкой 🌐.
-- `GET/POST /api/admin/posts` — список всех публикаций (≤200, включая черновики, со счётчиком комментариев) / создание (`postPayload.ts`: заголовок обязателен; `published_at = now()` при `is_published` без явной даты).
-- `GET/PATCH/DELETE /api/admin/posts/[id]` — публикация + все комментарии (включая скрытые, embed `users!comments_user_id_fkey(display_name)`) / частичное обновление (`published_at` проставляется при первом включении публикации; при i18n-полях проставляется `translations_updated_at`) / удаление вместе с комментариями (полиморфная связь — без FK) и обложкой в `post-covers`.
+- `GET/POST /api/admin/posts` — список всех видео (≤200, черновики, `comment_count`) / создание: **заголовок обязателен хотя бы на одном языке** (RU-колонка может быть пустой).
+- `GET/PATCH/DELETE /api/admin/posts/[id]` — видео + комментарии (включая скрытые) / PATCH / DELETE (комментарии + обложки RU и `cover_url_i18n` в `post-covers`).
 - `PATCH/DELETE /api/admin/comments/[id]` — модерация: скрыть/показать (`{is_hidden}`) / удалить безвозвратно.
 - `POST /api/admin/uploads` принимает `{bucket: 'story-media'|'post-covers', contentType}` (у `post-covers` только изображения, 20 МБ).
-- UI `/admin/posts`: список карточек с иконкой 🌐 если есть переводы → `/admin/posts/[id]` (редактор `PostEditor`: языковые вкладки RU/EN/DE/FR/IT/ES/PT/NL, кнопка «Перевести», обложка+заголовок+текст для каждого языка, чекбокс «Опубликована»/«Опубликовать сразу», кнопка «Сохранить»/«Опубликовать») + `/admin/posts/new`; под редактором — модерация комментариев (скрыть/показать/удалить).
+- UI `/admin/posts` («Видео»): список с `adminPostDisplayTitle` (RU→EN→…); редактор `PostEditor` — вкладки любого языка, обложка с **клиентским JPEG-сжатием** (`compressPostCover`, max edge 1600) и превью `object-contain`; «Перевести» заполняет только пустые; клик по ФИО комментария → `/admin/users/[id]`. `adminFetch` обновляет JWT при 401.
 
 ## 3. Данные
 
@@ -96,7 +96,7 @@ code_refs:
 
 ## 4. i18n
 
-UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts`) в `modules/i18n/catalog/ru.json` (через `useTranslate`/`tc`), синхронизированы на все 8 локалей. Плюрал счётчика — `posts.comments.count.*` через `tCount`. Фолбэк имени комментатора — ключ `posts.comments.anonymous` на клиенте (RPC возвращает `display_name: null`, русский фолбэк в SQL убран миграцией `20260708131000`). Контент (`caption.text`, тела публикаций, комментарии) остаётся на языке автора. Переводы контента (`caption.translations`, `title_i18n`/`body_i18n`/`cover_url_i18n`) генерируются LLM на стороне сервера (`POST /api/admin/translate`) и хранятся в jsonb-полях — не через UI-catalog. Мобильный клиент уже выбирает контент по активной локали: stories — через `resolveStoryCaption`, публикации — через `resolvePostContent`, с fallback на RU-source, если перевода нет.
+UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts` = «Видео») в `modules/i18n/catalog/ru.json` (через `useTranslate`), синхронизированы на все 8 локалей. Счётчик — `posts.comments.countLabel` («Комментарии: {count}», без склонения). Фолбэк имени комментатора — `posts.comments.anonymous`. Контент видео показывается **только если для активной локали есть заголовок** (`postAvailableInLocale`); без перевода на язык UI карточка скрыта (раньше был fallback на RU). «Перевести» в админке заполняет только пустые локали с источника RU→EN→… .
 
 ## 5. Известные ограничения
 

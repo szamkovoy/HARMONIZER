@@ -2,11 +2,17 @@ import { router, useLocalSearchParams } from "expo-router";
 import { DateTime } from "luxon";
 import { useCallback, useEffect, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
-import { fetchComments, fetchPostById, resolvePostContent, type CommentItem } from "@/modules/posts/core/postsClient";
-import { CommentsSection } from "@/modules/posts/ui/CommentsSection";
+import {
+  fetchComments,
+  fetchPostById,
+  resolvePostContentForLocale,
+  type CommentItem,
+} from "@/modules/posts/core/postsClient";
+import { CommentComposer, CommentsSection } from "@/modules/posts/ui/CommentsSection";
 import { LinkifiedBody } from "@/modules/posts/ui/LinkifiedBody";
 import { AppText } from "@/modules/ui/AppText";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
@@ -26,6 +32,7 @@ type PostRow = {
 
 export function PostScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { t, locale } = useTranslate();
   const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
@@ -61,12 +68,13 @@ export function PostScreen() {
 
   const onCommentsChanged = useCallback((next: CommentItem[]) => setComments(next), []);
 
-  const localizedPost = post ? resolvePostContent(post, locale) : null;
+  const localizedPost = post ? resolvePostContentForLocale(post, locale) : null;
 
   return (
     <StackScreenLayout edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         style={styles.keyboard}
       >
         <View style={styles.topBar}>
@@ -87,34 +95,53 @@ export function PostScreen() {
           <View style={styles.stateWrap}>
             <StateCard loading message={t("posts.feed.loading")} />
           </View>
-        ) : post === null ? (
+        ) : post === null || localizedPost == null ? (
           <View style={styles.stateWrap}>
             <StateCard tone="warning" title={t("posts.post.notFoundTitle")} message={t("posts.post.notFoundMessage")} />
           </View>
         ) : (
-          <StackScrollView contentOptions={{ topPadding: 4, gap: 14 }} keyboardShouldPersistTaps="handled">
-            {localizedPost?.coverUrl ? (
-              <Image source={{ uri: localizedPost.coverUrl }} style={styles.cover} resizeMode="cover" />
-            ) : null}
-            <AppText variant="screenTitle" accessibilityRole="header">
-              {localizedPost?.title}
-            </AppText>
-            {post.publishedAt ? (
-              <AppText variant="technicalCaption" tone="faint">
-                {DateTime.fromISO(post.publishedAt).setLocale(locale).toLocaleString(DateTime.DATE_FULL)}
+          <>
+            <StackScrollView
+              contentOptions={{ topPadding: 4, gap: 14, bottomPaddingExtra: 12 }}
+              keyboardShouldPersistTaps="handled"
+              style={styles.scroll}
+            >
+              {localizedPost.coverUrl ? (
+                <Image source={{ uri: localizedPost.coverUrl }} style={styles.cover} resizeMode="cover" />
+              ) : null}
+              <AppText variant="screenTitle" accessibilityRole="header">
+                {localizedPost.title}
               </AppText>
-            ) : null}
-            {localizedPost?.body ? <LinkifiedBody body={localizedPost.body} /> : null}
+              {post.publishedAt ? (
+                <AppText variant="technicalCaption" tone="faint">
+                  {DateTime.fromISO(post.publishedAt).setLocale(locale).toLocaleString(DateTime.DATE_FULL)}
+                </AppText>
+              ) : null}
+              {localizedPost.body ? <LinkifiedBody body={localizedPost.body} /> : null}
 
-            <View style={[styles.divider, { backgroundColor: theme.colors.surfaceBorder }]} />
+              <View style={[styles.divider, { backgroundColor: theme.colors.surfaceBorder }]} />
 
-            <CommentsSection
-              targetType="post"
-              targetId={post.id}
-              comments={comments}
-              onChanged={onCommentsChanged}
-            />
-          </StackScrollView>
+              <CommentsSection
+                targetType="post"
+                targetId={post.id}
+                comments={comments}
+                onChanged={onCommentsChanged}
+                showComposer={false}
+              />
+            </StackScrollView>
+            <View
+              style={[
+                styles.composerDock,
+                {
+                  borderTopColor: theme.colors.surfaceBorder,
+                  backgroundColor: theme.colors.screenBg,
+                  paddingBottom: Math.max(insets.bottom, 8),
+                },
+              ]}
+            >
+              <CommentComposer targetType="post" targetId={post.id} onChanged={onCommentsChanged} />
+            </View>
+          </>
         )}
       </KeyboardAvoidingView>
     </StackScreenLayout>
@@ -123,6 +150,9 @@ export function PostScreen() {
 
 const styles = StyleSheet.create({
   keyboard: {
+    flex: 1,
+  },
+  scroll: {
     flex: 1,
   },
   topBar: {
@@ -140,5 +170,10 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     width: "100%",
+  },
+  composerDock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
 });

@@ -16,7 +16,7 @@ export default function AdminPostPage() {
     if (!id) return;
     adminFetch<{ post: AdminPost; comments: AdminComment[] }>(`/api/admin/posts/${id}`)
       .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить публикацию"));
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить видео"));
   }, [id]);
 
   if (error) return <p className="text-sm text-red-400">{error}</p>;

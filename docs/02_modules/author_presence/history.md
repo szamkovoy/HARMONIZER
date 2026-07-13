@@ -2,12 +2,14 @@
 id: 02_modules/author_presence/history
 title: Author Presence History
 version: 1.6
-updated: 2026-07-09
+updated: 2026-07-13
 depends_on: [02_modules/subscription/spec, 02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/migrations/20260708130000_posts_comments.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-13 (33):** Шлифовка «Публикации» → «Видео»: UI rename + help «?»; лента/баннер/деталка только при наличии заголовка для активной локали (без RU-fallback); счётчик «Комментарии: N»; композер над клавиатурой; `deleteOwnComment` + RLS own-only; админка — any-locale publish, translate fill-missing (RU→EN→…), JPEG compress covers, `object-contain`, author → user profile, JWT refresh на 401. Код: `modules/posts/*`, `PostEditor`, `postPayload`, `translate`, `adminApi`, i18n catalog.
 
 - **2026-07-10 (32):** После remount `VideoView` visual jitter мог уменьшиться, но сохранялся более критичный баг: если пользователь досматривал второе из двух соседних video-story и возвращался назад, у первого ломался звук до перезапуска приложения. Это указывало уже не на surface/frame артефакт, а на испорченное состояние самого `VideoPlayer`, который переживал несколько source swap'ов через `replaceAsync()`. Исправление: `StoryViewerModal` больше не переиспользует один и тот же player через цепочку `replaceAsync(null) -> replaceAsync(next)`. Source теперь привязан к текущему `displayMediaUri` прямо через `useVideoPlayer(...)`, поэтому при смене video-story hook пересоздаёт **новый player instance**; старый audio-state не переносится назад на предыдущий ролик. Код: `StoryViewerModal.tsx`.
 

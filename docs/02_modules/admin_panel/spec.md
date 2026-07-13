@@ -45,7 +45,7 @@ code_refs:
 
 ## 1. Назначение
 
-Внутренняя админ-панель владельца продукта (единственный пользователь, только русский язык, не публикуется в сторах). Встроена в существующий Vercel-проект `_legacy_web` как обычные роуты: UI-страницы `app/admin/*` (PWA, mobile-first) и серверные API `app/api/admin/*`. Управляет контентом сообщества (сторис, публикации, вебинары), коммуникациями (уведомления, обратная связь), пользователями/тарифами и наблюдаемостью (метрики, промпты).
+Внутренняя админ-панель владельца продукта (единственный пользователь, только русский язык, не публикуется в сторах). Встроена в существующий Vercel-проект `_legacy_web` как обычные роуты: UI-страницы `app/admin/*` (PWA, mobile-first) и серверные API `app/api/admin/*`. Управляет контентом сообщества (сторис, видео, вебинары), коммуникациями (уведомления, обратная связь), пользователями/тарифами и наблюдаемостью (метрики, промпты).
 
 Полный план внедрения (этапы 0–8) — в утверждённом плане «Архитектура админ-панели HARMONIZER»; спека описывает только реализованное.
 
@@ -58,7 +58,7 @@ code_refs:
 
 **Сторис (реализовано, этап 1, доработано 2026-07-10):** `GET /api/admin/stories`, `POST /api/admin/stories/process`, `PATCH/DELETE /api/admin/stories/[id]`, `POST /api/admin/stories/cleanup`, UI `/admin/stories`. `GET /api/admin/stories` теперь opportunistically запускает cleanup истёкших published non-evergreen stories перед возвратом списка, а регулярное удаление поддерживается тем же helper + hourly cron invoke `cleanup-expired-stories`. Контракт и данные — в `02_modules/author_presence/spec.md` (владелец функциональности).
 
-**Публикации и комментарии (реализовано, этап 2):** `GET/POST /api/admin/posts`, `GET/PATCH/DELETE /api/admin/posts/[id]`, `PATCH/DELETE /api/admin/comments/[id]` (модерация: скрыть/удалить), UI `/admin/posts` (+`/new`, `/[id]` — редактор `PostEditor` с модерацией комментариев). Контракт и данные — в `author_presence`.
+**Видео и комментарии (реализовано, этап 2):** `GET/POST /api/admin/posts`, `GET/PATCH/DELETE /api/admin/posts/[id]`, `PATCH/DELETE /api/admin/comments/[id]` (модерация: скрыть/удалить; клик по автору → `/admin/users/[id]`), UI `/admin/posts` («Видео»; +`/new`, `/[id]` — `PostEditor`: any-locale, fill-missing «Перевести», compress cover). Контракт — в `author_presence`.
 
 **Вебинары (реализовано, этап 3):** `GET/POST /api/admin/webinars`, `GET/PATCH/DELETE /api/admin/webinars/[id]` (вопросы по голосам, записавшиеся с email из auth.users — `_utils/authEmails.ts`), UI `/admin/webinars` (+`/new`, `/[id]` — `WebinarEditor`). Контракт и данные — в `02_modules/webinars/spec.md`.
 
@@ -97,7 +97,7 @@ code_refs:
 **UI-каркас (реализовано, этап 0):**
 
 - `app/admin/layout.tsx` — тёмная тема (палитра `modules/ui/theme.ts`, Tailwind v4), PWA-манифест `public/admin-manifest.json` (`start_url`/`scope: /admin`), `robots: noindex`.
-- `AdminChrome` — гейт по фазам `checking/admin/anonymous` (редиректы на `/admin/login`), навигация: сайдбар (desktop) + нижняя панель (mobile). Разделы: Дашборд, Сторис, Публикации, Вебинары, Уведомления, Поддержка, Пользователи, Платежи, Промпты.
+- `AdminChrome` — гейт по фазам `checking/admin/anonymous` (редиректы на `/admin/login`), навигация: сайдбар (desktop) + нижняя панель (mobile). Разделы: Дашборд, Сторис, Видео, Вебинары, Уведомления, Поддержка, Пользователи, Платежи, Промпты.
 - `/admin/login` — email/password через Supabase Auth; после входа дополнительная проверка `/api/admin/me` (не-админ выкидывается с ошибкой).
 
 ## 3. Внутренняя архитектура
