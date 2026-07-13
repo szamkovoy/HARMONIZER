@@ -27,6 +27,7 @@ const COPY_FILES = [
   ["modules/i18n/typed/merge.ts", "i18n/typed/merge.ts"],
   ["modules/practices/i18n/practices.ts", "practices/i18n/practices.ts"],
   ["modules/practices/core/types.ts", "practices/core/types.ts"],
+  ["modules/webinars/core/webinarTiming.ts", "webinars/core/webinarTiming.ts"],
 ];
 
 const OVERLAY_MODULES = ["breath", "day", "practices"];

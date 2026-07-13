@@ -13,3 +13,6 @@ duplicate the full 8-language app catalog (home, mandala, communicator, …).
 
 Also vendored here (sync separately when changing astro/chakra server logic):
 - `astro-core`, `daily-engine`, `chakra`
+
+Also via the same sync script (admin webinars join/recording window helpers):
+- `webinars/core/webinarTiming.ts`
