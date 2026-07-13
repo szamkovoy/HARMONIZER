@@ -1,3 +1,4 @@
+- 2026-07-13 (126): Relative timestamps use abbreviated units (мин/h/дн) — one dominant unit, no declension. Docs `i18n/*`.
 - 2026-07-13 (125): Locale-aware relative timestamps via `formatRelativeTime` (Hermes-safe); comments + notifications. Docs `i18n/*`, `author_presence/*`.
 - 2026-07-13 (124): Optimistic new comment appends at bottom of list (no top→bottom jump). Docs `author_presence/*`.
 - 2026-07-13 (123): Admin globe from title_i18n; comment optimistic UI + after() translate; free locale switch avoids full-day forceRefresh / prefers direct Supabase read. Docs `author_presence/*`, `daily_forecast/*`, `profile/*`.

@@ -1,11 +1,12 @@
 import type { AppLocale } from "@/modules/i18n/localeStore";
-import { t, tCount } from "@/modules/i18n/t";
+import { t } from "@/modules/i18n/t";
 
 type RelativeUnit = "seconds" | "minutes" | "hours" | "days" | "weeks" | "months" | "years";
 
 /**
  * Locale-aware relative timestamps for Hermes (no Intl.RelativeTimeFormat).
- * Luxon `toRelative()` falls back to English on RN — use this instead.
+ * Uses abbreviated unit labels (`15 мин`, `2 h`) — one largest unit only,
+ * so plural/declension rules are not needed.
  */
 export function formatRelativeTime(
   value: string | Date,
@@ -20,10 +21,11 @@ export function formatRelativeTime(
   if (absSec < 5) return t(locale, "time.relative.justNow");
 
   const { unit, count } = pickRelativeUnit(absSec);
-  const baseKey = diffMs <= 0 ? `time.relative.${unit}Past` : `time.relative.${unit}Future`;
-  return tCount(locale, baseKey, count);
+  const key = diffMs <= 0 ? `time.relative.${unit}Past` : `time.relative.${unit}Future`;
+  return t(locale, key, { count });
 }
 
+/** Pick a single dominant unit (minutes hide seconds; hours hide minutes; …). */
 function pickRelativeUnit(absSec: number): { unit: RelativeUnit; count: number } {
   if (absSec < 45) return { unit: "seconds", count: Math.max(1, absSec) };
   const minutes = Math.round(absSec / 60);
