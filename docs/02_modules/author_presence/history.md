@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-13 (35):** Перевод комментариев (`POST /api/comments`) переведён на `AI_MODEL_STANDARD`; перевод title/body видео в админке остаётся одним запросом к `AI_MODEL_PREMIUM`.
+
 - **2026-07-13 (34):** Админ: create→список, edit tab = display locale, cover = той же локали. Клиент: `VideoCard` с превью+«Открыть», home-карточка под OpportunityWindows + `user_post_views`, scroll к новому комментарию, `POST /api/comments` + `body_i18n` (single vs multi-locale translate). Миграция `20260713134555`.
 
 - **2026-07-13 (33):** Шлифовка «Публикации» → «Видео»: UI rename + help «?»; лента/баннер/деталка только при наличии заголовка для активной локали (без RU-fallback); счётчик «Комментарии: N»; композер над клавиатурой; `deleteOwnComment` + RLS own-only; админка — any-locale publish, translate fill-missing (RU→EN→…), JPEG compress covers, `object-contain`, author → user profile, JWT refresh на 401. Код: `modules/posts/*`, `PostEditor`, `postPayload`, `translate`, `adminApi`, i18n catalog.

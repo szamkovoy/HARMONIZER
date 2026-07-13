@@ -49,7 +49,7 @@ export async function translateCommentBody(
   fillLocales: readonly AppContentLocale[],
 ): Promise<Record<string, string>> {
   if (fillLocales.length === 0) return {};
-  const model = getModelByHint("premium");
+  const model = getModelByHint("standard");
   const { json: raw } = await generateGeminiJson<unknown>({
     prompt: buildCommentPrompt(sourceLocale, sourceBody, fillLocales),
     model,
