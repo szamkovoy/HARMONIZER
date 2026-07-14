@@ -20,9 +20,9 @@
     "title": "Navigator nach Archetypen",
     "captionFree": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages",
     "captionPersonal": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages – persönlich für Sie",
-    "helpButtonAccessibilityLabel": "Erläuterung zum archetypischen Navigator",
-    "helpModalTitle": "So nutzen Sie den Navigator",
-    "helpBody": "Die Größe der sieben Blütenblätter dieser Blume entspricht der astrologischen Stärke der Planeten an diesem Tag. Heute ist sie Ihr Navigator. Glauben Sie mir, die Sternbilder und die Astrologie wurden nicht von Mammutjägern erfunden. Um von Boulevard-Vorhersagen zur Harmonisierung Ihrer Psyche und Ihres Lebens überzugehen, nutzen Sie diese Weisheit – betrachten Sie jeden Planeten nicht als Punkt im Horoskop, sondern als Archetyp. Indem Sie sich im Rhythmus der Planetenbewegungen mit den Zuständen der Archetypen verbinden, werden Sie wirksam die Knoten der Lebensumstände entwirren, die sich über viele Jahre verwickelt haben."
+    "helpButtonAccessibilityLabel": "Hilfe zum archetypischen Navigator",
+    "helpModalTitle": "So verwendest du den Navigator",
+    "helpBody": "Die Größe der sieben Blütenblätter dieser Blume entspricht der astrologischen Kraft der Planeten an diesem Tag. Heute dient sie dir als Navigator. Vertraue darauf, dass die Gestirne und die Astrologie nicht von Mammutjägern erfunden wurden. Um von seichten Horoskopen zur Harmonisierung deiner Psyche und deines Lebens zu gelangen, nutze diese Weisheit: Betrachte jeden Planeten nicht als Punkt im Horoskop, sondern als Archetyp. Indem du dich im Rhythmus der Planetenbewegungen mit diesen Archetypen-Zuständen verbindest, wirst du die verworrenen Knoten deiner Lebensumstände Schritt für Schritt entwirren, die sich über viele Jahre gebildet haben."
   },
   "closeAssistantAccessibilityLabel": "Assistenten schließen",
   "closeButton": "Schließen",
@@ -133,9 +133,9 @@
     "loading": "Empfehlung für heute wird geladen…",
     "discussButton": "Was tun?",
     "readMoreButton": "Mehr erfahren",
-    "helpButtonAccessibilityLabel": "Erläuterung zu den Tagesempfehlungen",
-    "helpModalTitle": "Grundlage der Empfehlung",
-    "helpBody": "Diese Empfehlung beschreibt den stärksten Planeten dieses Tages als archetypisches Bild gemäß der analytischen Psychologie von Carl Jung. Dadurch erkennen Sie, auf der Welle welcher inneren Zustände Sie heute am besten handeln.\\n\\nWenn Sie an einer ausführlichen astrologischen Prognose interessiert sind, tippen Sie auf „Details“. Danach können Sie die Mathematik kennenlernen, die diesen Empfehlungen zugrunde liegt, und sogar das Horoskop ansehen.\\n\\nOder tippen Sie auf „Was tun?“, um die Ereignisse, die Ihnen an diesem Tag bevorstehen, mit den Augen dieses Archetyps zu sehen und den Tag in eine Reihe interessanter Psychopraktiken zu verwandeln. Und nach einer Woche Nutzung dieser Funktion wird eine bistochastische Matrix Ihrer Zustände erstellt, und die Empfehlungen werden noch präziser."
+    "helpButtonAccessibilityLabel": "Hilfe zu den Tagesempfehlungen",
+    "helpModalTitle": "Grundlage dieser Empfehlung",
+    "helpBody": "Diese Empfehlung beschreibt den stärksten Planeten des Tages als archetypisches Bild nach der analytischen Psychologie Carl Jungs. Dadurch erkennst du, aus welchen archetypischen Zuständen heraus du heute wirksam handeln kannst.\\n\\nWenn dich eine ausführliche astrologische Vorhersage interessiert, drücke auf «Mehr erfahren». Anschließend kannst du die mathematischen Grundlagen dieser Empfehlungen kennenlernen und sogar das Horoskop ansehen.\\n\\nOder drücke auf «Was tun?», um die Ereignisse, die dich heute erwarten, mit den Augen dieses Archetyps zu sehen und den Tag in eine Sammlung spannender Psychopraktiken zu verwandeln. Und nach einer Woche Nutzung dieser Funktion entsteht eine bistochastische Matrix deiner Zustände, und die Empfehlungen werden dadurch noch genauer."
   },
   "refreshAccessibilityLabel": "Tagesprognose aktualisieren",
   "refreshButton": "Aktualisieren",
