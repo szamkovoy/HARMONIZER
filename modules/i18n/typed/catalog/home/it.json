@@ -22,7 +22,7 @@
     "captionPersonal": "Modello psicoarchetipico basato sulla dinamica planetaria del giorno personalmente per te",
     "helpButtonAccessibilityLabel": "Spiegazione del navigatore archetipico",
     "helpModalTitle": "Come usare il navigatore",
-    "helpBody": "La dimensione dei sette petali di questo fiore corrisponde alla forza astrologica dei pianeti in questo giorno. Oggi questo è il tuo navigatore. Non credere che le costellazioni e l'astrologia siano state inventate dai cacciatori di mammut. Per passare dalle previsioni sensazionalistiche all'armonizzazione della tua mente e della tua vita, usa questa saggezza: considera ogni pianeta non come un punto nell'oroscopo, ma come un archetipo. Collegandoti agli stati degli archetipi al ritmo del movimento planetario, riuscirai a sciogliere efficacemente i nodi delle circostanze della vita che si sono aggrovigliati per molti anni."
+    "helpBody": "La dimensione dei sette petali di questo fiore corrisponde alla forza astrologica dei pianeti di oggi. Oggi è il tuo navigatore. Credi che le costellazioni e l'astrologia non siano state inventate dai cacciatori di mammut. Per passare dalle previsioni superficiali all'armonizzazione della tua psiche e della tua vita, utilizza questa saggezza: considera ogni pianeta non come un punto nell'oroscopo, ma come un archetipo. Connettendoti agli stati archetipici al ritmo del movimento dei pianeti, scioglierai efficacemente i nodi delle circostanze della vita che si sono annodati per molti anni."
   },
   "closeAssistantAccessibilityLabel": "Chiudi assistente",
   "closeButton": "Chiudi",
@@ -134,8 +134,8 @@
     "discussButton": "Cosa fare?",
     "readMoreButton": "Leggi di più",
     "helpButtonAccessibilityLabel": "Spiegazione delle raccomandazioni del giorno",
-    "helpModalTitle": "Fondamento della raccomandazione",
-    "helpBody": "Questa raccomandazione descrive il pianeta più forte di questo giorno come immagine archetipica secondo la psicologia analitica di Carl Jung. Grazie a questo, ti sarà chiaro su quali stati d'animo è opportuno agire oggi.\\n\\nSe ti interessa una previsione astrologica dettagliata, premi il pulsante «Dettagli». In seguito potrai conoscere la matematica alla base di queste raccomandazioni e persino vedere l'oroscopo.\\n\\nOppure premi il pulsante «Cosa fare?» per vedere gli eventi che ti aspettano oggi attraverso gli occhi di questo archetipo, trasformando la giornata in un insieme di interessanti pratiche psicologiche. E dopo una settimana di utilizzo di questa funzione, si formerà una matrice bistocastica dei tuoi stati e le raccomandazioni diventeranno più precise grazie a essa."
+    "helpModalTitle": "Base della raccomandazione",
+    "helpBody": "Questa raccomandazione descrive il pianeta più forte di questo giorno come un'immagine archetipica secondo la psicologia analitica di Carl Jung. Grazie a questo, ti sarà chiaro sulla scia di quali stati è opportuno agire oggi.\\n\\nSe sei interessato a una previsione astrologica dettagliata, clicca il pulsante «Dettagli». In seguito potrai conoscere la matematica alla base di queste raccomandazioni e persino consultare l'oroscopo.\\n\\nOppure clicca il pulsante «Cosa fare?» per vedere gli eventi che ti attendono oggi attraverso gli occhi di questo archetipo e trasformare la giornata in un insieme di interessanti pratiche psicologiche. Dopo una settimana di utilizzo di questa funzione, si formerà una matrice bistocastica dei tuoi stati e le raccomandazioni diventeranno più precise."
   },
   "refreshAccessibilityLabel": "Aggiorna previsione del giorno",
   "refreshButton": "Aggiorna",

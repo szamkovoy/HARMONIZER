@@ -86,7 +86,21 @@ export function json(data: unknown, init?: ResponseInit): Response {
 
 export function errorResponse(error: unknown): Response {
   if (error instanceof Response) return error;
-  const message = error instanceof Error ? error.message : "Internal server error";
-  console.error("[api]", message);
+  const message = extractErrorMessage(error);
+  console.error("[api]", message, error);
   return json({ error: message }, { status: 500 });
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as { message?: unknown; error_description?: unknown; details?: unknown };
+    if (typeof record.message === "string" && record.message.trim()) return record.message;
+    if (typeof record.error_description === "string" && record.error_description.trim()) {
+      return record.error_description;
+    }
+    if (typeof record.details === "string" && record.details.trim()) return record.details;
+  }
+  if (typeof error === "string" && error.trim()) return error;
+  return "Internal server error";
 }

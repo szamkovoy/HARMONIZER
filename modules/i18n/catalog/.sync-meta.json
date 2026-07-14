@@ -145,7 +145,11 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -293,7 +297,11 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -441,7 +449,11 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -589,7 +601,11 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -737,7 +753,11 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -885,7 +905,11 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -1033,6 +1057,10 @@
     "webinars.joinPending": "Ссылка на трансляцию появится здесь, когда автор её добавит.",
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
-    "webinars.yourTimezone": "ваш часовой пояс"
+    "webinars.yourTimezone": "ваш часовой пояс",
+    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.fallbackTitle": "Уведомление",
+    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления"
   }
 }

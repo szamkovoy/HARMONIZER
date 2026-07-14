@@ -62,8 +62,9 @@ code_refs:
 - **`PostsFeedScreen`** — вкладка «Видео»: заголовок + подзаголовок + «?» (`SurfaceHelpModal`), полоса вебинаров, карточки только с контентом для **активной UI-локали**. Карточка — общий **`VideoCard`** (тот же, что на главной; `maxWidth: 460`): обложка 16:9, заголовок, превью описания (плавающая длина, обрезка по целому слову), дата + `posts.comments.countLabel`, affordance «Открыть ›». Лента — **infinite scroll**: первая порция `POSTS_FEED_PAGE_SIZE` (8), далее `onEndReached` с cursor `(published_at, id)`.
 - **`PostScreen`** — экран видео; при открытии пишет `user_post_views` (dismiss home-карточки). Комментарии локализуются через `body_i18n`; после отправки скролл к новому комментарию. Композер над клавиатурой. Loading — только `ActivityIndicator` (без карточки/текста).
 - **`CommentsSection` / `CommentComposer`** — удаление только своих; создание через `POST /api/comments` (ответ сразу с исходным текстом; multi-locale post **или webinar** → фоновый LLM-перевод на остальные 7 через `after()`, `AI_MODEL_STANDARD`). Относительное время — `formatRelativeTime` (не Luxon `toRelative`). Анонс вебинара переиспользует тот же UI с `headingKey`/`hintKey` (заголовок без счётчика + постоянная подсказка). Поле ввода и «Отправить» выровнены по вертикальному центру.
-- **`LatestPostBanner`** — полная `VideoCard` **под** «Окнами возможностей»; только самое свежее видео/запись вебинара локали, которое пользователь ещё не открывал (единый пул `get_posts_feed`).
-- **`postsClient.ts` / `postLocale.ts` / `VideoCard`**: `fetchPostsFeedPage` / `fetchPostsFeedForLocale` (cursor + `p_locale`), views (`markPostViewed` / `fetchLatestUnviewedPostForLocale`), `truncatePostPreview`, locale-aware comments.
+- **`LatestPostBanner`** — полная `VideoCard` **под** «Окнами возможностей»; только самое свежее видео/запись вебинара **с title для активной UI-локали** (exact; RPC `p_locale` + `postAvailableInLocale`), которое пользователь ещё не открывал.
+- **`UpcomingWebinarBanner`** (модуль webinars): ближайший анонс в join-окне **только с title для активной локали**; иначе скрыт.
+- **`postsClient.ts` / `postLocale.ts` / `VideoCard`**: `fetchPostsFeedPage` / `fetchPostsFeedForLocale` (cursor + `p_locale`), views (`markPostViewed` / `fetchLatestUnviewedPostForLocale`), `truncatePostPreview`, locale-aware comments. Display: `resolvePostContentForLocale` = **exact** UI locale only (`pickExactLocalizedText`); no en/ru fallback.
 
 **Админка (гейт `requireAdmin`, см. `admin_panel`):**
 
@@ -94,11 +95,11 @@ code_refs:
 - **`user_post_views`** — PK `(user_id, post_id)`; RLS self-all; dismiss home-карточки и учёт просмотра описания.
 - **`comment_likes`** — PK `(comment_id, user_id)`; RLS: read authenticated, insert/delete своих.
 - **Storage `post-covers`** (public read, 20 МБ, только изображения) — по образцу `story-media`.
-- RPC **`get_posts_feed(p_limit, p_locale?, p_before_published_at?, p_before_id?)`** — опубликованные посты + `comment_count` + `kind`/`webinar_id`; cursor по `(published_at desc, id desc)`; опциональный `p_locale` отфильтровывает посты без заголовка для этой локали; `kind=webinar_recording` в ленте как обычное video. Лимит 1…30 (default 10). Обычные видео — `kind=video`. RPC **`get_target_comments`** — + `source_locale`/`body_i18n`; клиент резолвит текст по активной локали.
+- RPC **`get_posts_feed(p_limit, p_locale?, p_before_published_at?, p_before_id?)`** — опубликованные посты + `comment_count` + `kind`/`webinar_id`; cursor по `(published_at desc, id desc)`; при `p_locale` включает только посты с **авторским** title для этой локали (`ru` → колонка `title`, иначе `title_i18n[locale]`; миграция `20260714120000`); `kind=webinar_recording` в ленте как обычное video. Лимит 1…30 (default 10). Обычные видео — `kind=video`. RPC **`get_target_comments`** — + `source_locale`/`body_i18n`; клиент резолвит текст по активной локали.
 
 ## 4. i18n
 
-UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts` = «Видео», `posts.feed.open`) в каталоге. Счётчик — `posts.comments.countLabel`. Контент видео — только при наличии заголовка для активной локали. Комментарии: `body_i18n[locale]` (fallback на `body`); multi-locale видео → автоперевод при создании. Home-карточка исчезает после `user_post_views`.
+UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts` = «Видео», `posts.feed.open`) в каталоге. Счётчик — `posts.comments.countLabel`. Контент видео/записи вебинара — только при наличии заголовка для активной локали. Комментарии: `body_i18n[locale]` (fallback на `body`); multi-locale видео → автоперевод при создании. Home-карточка исчезает после `user_post_views`.
 
 ## 5. Известные ограничения
 

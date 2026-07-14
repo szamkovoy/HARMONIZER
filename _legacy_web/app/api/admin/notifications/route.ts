@@ -1,9 +1,12 @@
+import { asContentLocale } from "../../_utils/contentLocales";
+import { parseStringRecord } from "../../_utils/contentLocaleFallback";
+import { resolveNotificationCopy, truncatePushBody } from "../../_utils/notificationCopy";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
 import { sendExpoPushMessages } from "./expoPush";
 import { parseSegment, resolveSegmentUserIds, segmentLabel } from "./segment";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // рассылка большим сегментам не укладывается в дефолтные лимиты
+export const maxDuration = 120;
 
 /** История рассылок (новые сверху). */
 export async function GET(req: Request) {
@@ -24,34 +27,63 @@ export async function GET(req: Request) {
 type SendPayload = {
   title?: string;
   body?: string;
+  title_i18n?: Record<string, string>;
+  body_i18n?: Record<string, string>;
   link_url?: string | null;
   segment?: string;
 };
 
+function cleanI18nMap(raw: Record<string, string> | undefined): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === "ru") continue;
+    const locale = asContentLocale(key);
+    const text = typeof value === "string" ? value.trim() : "";
+    if (locale && text) out[locale] = text;
+  }
+  return out;
+}
+
 /**
- * Создаёт рассылку: notification → deliveries всем получателям сегмента
- * (гарантированная витрина «Мои уведомления») → Expo push тем, у кого есть
- * активные токены. DeviceNotRegistered-токены деактивируются.
+ * Создаёт рассылку: notification → deliveries → Expo push.
+ * Copy language = users.locale via resolveNotificationCopy (single server entry).
  */
 export async function POST(req: Request) {
   try {
     await requireAdmin(req);
     const payload = (await req.json()) as SendPayload;
     const title = payload.title?.trim() ?? "";
-    if (!title) return json({ error: "Заголовок уведомления обязателен" }, { status: 400 });
-    const segment = parseSegment(payload.segment);
+    const body = payload.body?.trim() ?? "";
+    const titleI18n = cleanI18nMap(payload.title_i18n);
+    const bodyI18n = cleanI18nMap(payload.body_i18n);
 
+    const hasAnyTitle =
+      Boolean(title) || Object.values(titleI18n).some((value) => value.trim());
+    if (!hasAnyTitle) {
+      return json({ error: "Заголовок уведомления обязателен хотя бы на одном языке" }, { status: 400 });
+    }
+
+    const segment = parseSegment(payload.segment);
     const db = createServiceSupabase();
     const userIds = await resolveSegmentUserIds(db, segment);
     if (userIds.length === 0) {
       return json({ error: "В выбранном сегменте нет пользователей" }, { status: 400 });
     }
 
+    const displayTitle =
+      title ||
+      titleI18n.en ||
+      Object.values(titleI18n).find((value) => value.trim()) ||
+      "Уведомление";
+
     const { data: notification, error: insertError } = await db
       .from("notifications")
       .insert({
-        title,
-        body: payload.body?.trim() ?? "",
+        title: title || displayTitle,
+        body,
+        title_i18n: titleI18n,
+        body_i18n: bodyI18n,
         link_url: payload.link_url?.trim() || null,
         segment: payload.segment,
         segment_label: await segmentLabel(db, segment),
@@ -72,25 +104,74 @@ export async function POST(req: Request) {
       if (deliveryError) throw deliveryError;
     }
 
+    const { data: userRows, error: usersError } = await db
+      .from("users")
+      .select("id, locale")
+      .in("id", userIds);
+    if (usersError) throw usersError;
+    const localeByUser = new Map<string, string | null>();
+    for (const row of userRows ?? []) {
+      localeByUser.set(row.id, row.locale ?? null);
+    }
+
     const { data: tokens, error: tokensError } = await db
       .from("push_tokens")
-      .select("token")
+      .select("token, user_id")
       .eq("is_active", true)
       .in("user_id", userIds);
     if (tokensError) throw tokensError;
 
-    const messages = (tokens ?? []).map(({ token }) => ({
-      to: token,
-      title,
-      body: payload.body?.trim() ?? "",
-      data: notification.link_url ? { url: notification.link_url } : undefined,
-    }));
-    const outcome = await sendExpoPushMessages(messages);
+    const storedTitle = notification.title as string;
+    const storedBody = (notification.body as string) ?? "";
+    const storedTitleI18n = parseStringRecord(notification.title_i18n);
+    const storedBodyI18n = parseStringRecord(notification.body_i18n);
+    const linkUrl = (notification.link_url as string | null) ?? null;
+    const copySource = {
+      title: storedTitle,
+      body: storedBody,
+      titleI18n: storedTitleI18n,
+      bodyI18n: storedBodyI18n,
+    };
 
-    if (outcome.staleTokens.length > 0) {
-      await db.from("push_tokens").update({ is_active: false }).in("token", outcome.staleTokens);
+    const messages = (tokens ?? []).map(({ token, user_id }) => {
+      const { title: pushTitle, body: pushBody } = resolveNotificationCopy(
+        localeByUser.get(user_id) ?? "ru",
+        copySource,
+      );
+      return {
+        to: token,
+        title: pushTitle,
+        body: truncatePushBody(pushBody),
+        data: {
+          notificationId: notification.id,
+          title: pushTitle,
+          // Full body for in-app reader (alert body stays truncated).
+          body: pushBody.slice(0, 2000),
+          ...(linkUrl ? { url: linkUrl } : {}),
+        },
+      };
+    });
+
+    let outcome = { okCount: 0, errorCount: 0, staleTokens: [] as string[] };
+    try {
+      outcome = await sendExpoPushMessages(messages);
+      if (outcome.staleTokens.length > 0) {
+        const { error: staleError } = await db
+          .from("push_tokens")
+          .update({ is_active: false })
+          .in("token", outcome.staleTokens);
+        if (staleError) console.error("[admin/notifications] stale token update", staleError);
+      }
+    } catch (pushError) {
+      console.error("[admin/notifications] push phase failed", pushError);
+      outcome = {
+        okCount: 0,
+        errorCount: messages.length,
+        staleTokens: [],
+      };
     }
 
+    // Finalize row before returning so a late undici socket close cannot leave sent_at null.
     const { data: updated, error: updateError } = await db
       .from("notifications")
       .update({
@@ -99,7 +180,7 @@ export async function POST(req: Request) {
         sent_at: new Date().toISOString(),
       })
       .eq("id", notification.id)
-      .select("*")
+      .select("id, title, body, title_i18n, body_i18n, link_url, segment, segment_label, recipient_count, push_sent_count, push_error_count, sent_at, created_at")
       .single();
     if (updateError) throw updateError;
 

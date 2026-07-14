@@ -1,3 +1,9 @@
+- 2026-07-14 (141): Admin send: harden Expo fetch against `TypeError: terminated`; push tap opens in-app reader with full text + links. Docs `notifications/*`.
+- 2026-07-14 (140): Push: `claim_push_token` reassigns device token to current user; `resolveNotificationCopy` is the single locale entry for remote/inbox. Docs `notifications/*`.
+- 2026-07-14 (139): Push: always sync UI locale → `users.locale`; Expo `interruptionLevel: active` for audible iOS alerts. Docs `notifications/*`.
+- 2026-07-14 (138): Home LatestPostBanner + UpcomingWebinarBanner enforce exact UI-locale titles (same as Videos feed). Docs `author_presence/*`, `webinars/*`.
+- 2026-07-14 (137): Videos/webinars: exact UI-locale titles only (no en→ru in feed); admin webinars list shows recording title when created. Docs `author_presence/*`, `webinars/*`, `i18n/*`.
+- 2026-07-14 (136): Notifications: Expo sound+priority, DELETE, multi-locale admin send (preferred→en→ru); posts/webinars same content fallback; feed RPC (+fix kind/webinar_id). Docs `notifications/*`, `author_presence/*`, `webinars/*`, `admin_panel/*`, `i18n/*`.
 - 2026-07-14 (135): Webinar banner bullet; Home date month casing via Intl (no capitalize); announce date sans year; Videos tab hides announce strip. Docs `webinars/*`, `author_presence/*`.
 - 2026-07-14 (134): Webinar banner date/title polish + local timezone hint; spinner-only post/webinar loading; comment composer vertical align; admin announce questions chronological. Docs `webinars/*`, `author_presence/*`.
 - 2026-07-14 (133): Webinar admin announce/recording editors match Video PostEditor locale UI (dots, labels, delete translation, Delete). Docs `webinars/*`, `admin_panel/*`.

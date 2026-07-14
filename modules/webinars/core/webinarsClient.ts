@@ -1,4 +1,9 @@
 import type { AppLocale } from "@/modules/i18n";
+import {
+  asContentLocale,
+  pickExactLocalizedText,
+  pickExactLocalizedUrl,
+} from "@/modules/i18n";
 import { getSupabase } from "@/services/supabase";
 import { isWebinarInJoinWindow } from "@/modules/webinars/core/webinarTiming";
 
@@ -54,14 +59,19 @@ function mapRow(row: {
   };
 }
 
-/** Localized announce fields for the active UI locale. */
-export function localizeWebinar(item: WebinarItem, locale: AppLocale): WebinarItem {
-  if (locale === "ru") return item;
+/**
+ * Announce fields for the active UI locale only (no en/ru fallback).
+ * Returns null when this locale has no authored title — hide banner/card.
+ */
+export function localizeWebinar(item: WebinarItem, locale: AppLocale): WebinarItem | null {
+  const contentLocale = asContentLocale(locale) ?? "ru";
+  const title = pickExactLocalizedText(contentLocale, item.title, item.titleI18n);
+  if (!title) return null;
   return {
     ...item,
-    title: item.titleI18n[locale]?.trim() || item.title,
-    description: item.descriptionI18n[locale]?.trim() || item.description,
-    coverUrl: item.coverUrlI18n[locale]?.trim() || item.coverUrl,
+    title,
+    description: pickExactLocalizedText(contentLocale, item.description, item.descriptionI18n),
+    coverUrl: pickExactLocalizedUrl(contentLocale, item.coverUrl, item.coverUrlI18n),
   };
 }
 
@@ -93,8 +103,8 @@ async function attachRecordingPostIds(items: WebinarItem[]): Promise<WebinarItem
   }));
 }
 
-/** Ближайший опубликованный вебинар в окне присоединения (до starts_at + 1 ч). */
-export async function fetchUpcomingWebinar(): Promise<WebinarItem | null> {
+/** Ближайший опубликованный вебинар в join-окне с title на `locale` (exact; без en/ru fallback). */
+export async function fetchUpcomingWebinar(locale?: AppLocale): Promise<WebinarItem | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
   const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -104,14 +114,20 @@ export async function fetchUpcomingWebinar(): Promise<WebinarItem | null> {
     .eq("is_published", true)
     .gte("starts_at", cutoff)
     .order("starts_at", { ascending: true })
-    .limit(5);
+    .limit(10);
   if (error) {
     if (__DEV__) console.warn("[webinars] upcoming load failed", error.message);
     return null;
   }
   const now = Date.now();
-  const row = (data ?? []).find((w) => isWebinarInJoinWindow(w.starts_at, now));
-  return row ? mapRow(row) : null;
+  const contentLocale = locale ? (asContentLocale(locale) ?? "ru") : null;
+  for (const row of data ?? []) {
+    if (!isWebinarInJoinWindow(row.starts_at, now)) continue;
+    const item = mapRow(row);
+    if (!contentLocale) return item;
+    if (localizeWebinar(item, contentLocale)) return item;
+  }
+  return null;
 }
 
 /** Опубликованные: upcoming в join-окне (+ past только для legacy callers; UI strip больше не показывает past). */

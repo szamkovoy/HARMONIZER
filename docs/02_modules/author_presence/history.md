@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-14 (6):** Home `LatestPostBanner` double-checks `postAvailableInLocale` (exact UI locale).
+
+- **2026-07-14 (5):** Videos/webinar recordings: exact UI-locale title only (reverted preferred→en→ru for feed). Soft fallback stays for notifications.
+
+- **2026-07-14 (4):** Content locale fallback preferred→en→ru for VideoCard/PostScreen/feed RPC; Videos feed no longer mounts webinar announce strip.
+
 - **2026-07-14 (3):** PostScreen loading — spinner only; CommentComposer vertical center with Send; Videos feed no longer mounts webinar announce strip.
 
 - **2026-07-14 (2):** `CommentsSection` accepts `headingKey`/`hintKey` for webinar Q&A copy; `POST /api/comments` translates webinar targets like posts when multi-locale.

@@ -91,10 +91,12 @@ cost never decides layer-C design.
 - API:
   - `hydrateAppLocale(profileLocale?)` — call once at startup (done in
     `app/_layout.tsx` `AccessBridge`); loads persisted value, else seeds from
-    `users.locale`, else device. Idempotent.
+    `users.locale`, else device. Idempotent. **Always write-back** resolved
+    locale to `users.locale` so push language cannot drift from SecureStore.
   - `getAppLocale()` / `setAppLocale(locale)` / `subscribeAppLocale(cb)`.
-    `setAppLocale` persists locally and **best-effort mirrors to `users.locale`**
-    via `services/userLocaleClient.ts` (`syncUserLocaleToServer`).
+    `setAppLocale` persists locally and mirrors to `users.locale`
+    via `services/userLocaleClient.ts` (`syncUserLocaleToServer`) even when
+    the in-memory locale is unchanged (heals DB drift).
   - `coerceAppLocale(value)` — reduce any locale-ish string to the nearest
     **enabled** locale (else default). Use this at every boundary.
   - **`getResponseLocale()`** — locale the assistant should answer in (sent as
@@ -129,6 +131,8 @@ cost never decides layer-C design.
   the inline RU/EN base table before `mergeTypedLocale` overlay.
 - **`intlLocaleTag(locale)`** — BCP 47 tag for `Intl.DateTimeFormat` (`ru-RU`, `de-DE`, …).
 - **`formatRelativeTime(isoOrDate, locale, now?)`** — относительные метки с **сокращёнными** единицами (`15 мин`, `2 h`, `3 дн`); одна доминирующая единица (часы без минут, дни без часов). Каталог без склонений. Hermes не реализует `Intl.RelativeTimeFormat`, поэтому Luxon `toRelative()` на RN не используется.
+- **`pickLocalizedText` / `pickLocalizedUrl` / `hasLocalizedTitle`** — soft chain preferred → en → ru (notifications push/inbox).
+- **`pickExactLocalizedText` / `pickExactLocalizedUrl` / `hasExactLocalizedTitle`** — только активная локаль; Videos/Webinars feed и announce UI.
 - `asContentLocale(value)` — coerce unknown strings to a valid `AppContentLocale` or `null`.
 
 ### 2.5 Public surface

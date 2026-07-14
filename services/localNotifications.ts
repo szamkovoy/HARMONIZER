@@ -7,6 +7,9 @@ import { Platform } from "react-native";
  */
 export const OPPORTUNITY_REMINDERS_CHANNEL_ID = "harmonizer_opportunity_high";
 
+/** Remote admin / system pushes — must match Expo `channelId` in expoPush.ts. */
+export const REMOTE_PUSH_CHANNEL_ID = "harmonizer_remote";
+
 type ExpoNotificationsModule = typeof import("expo-notifications");
 
 /** undefined = ещё не пробовали загрузить; null = недоступен; иначе модуль. */
@@ -30,7 +33,7 @@ function loadExpoNotificationsModule(): ExpoNotificationsModule | null {
 let configured = false;
 
 /**
- * Один раз при старте приложения: показ в foreground, канал Android.
+ * Один раз при старте приложения: показ в foreground, каналы Android.
  * Без нативного модуля — no-op, чтобы не ронять бандл на старых dev client.
  */
 export function configureLocalNotifications(): void {
@@ -66,6 +69,14 @@ export function configureLocalNotifications(): void {
           requestHardwareAudioVideoSynchronization: false,
         },
       },
+    });
+    void Notifications.setNotificationChannelAsync(REMOTE_PUSH_CHANNEL_ID, {
+      name: "Сообщения Harmonizer",
+      description: "Рассылки и важные сообщения из приложения.",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 150, 250],
+      enableVibrate: true,
+      sound: "default",
     });
   }
 }

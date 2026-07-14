@@ -29,6 +29,11 @@ export {
   pickLocalizedText,
   pickLocalizedTextOrNull,
   pickLocalizedUrl,
+  pickExactLocalizedText,
+  pickExactLocalizedTextOrNull,
+  pickExactLocalizedUrl,
+  hasLocalizedTitle,
+  hasExactLocalizedTitle,
 } from "@/modules/i18n/pickLocalizedContent";
 export { useTranslate } from "@/modules/i18n/useTranslate";
 export { formatRelativeTime } from "@/modules/i18n/formatRelativeTime";

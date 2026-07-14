@@ -141,6 +141,8 @@ let hydrated = false;
 /**
  * Load the persisted locale once at startup. If nothing is stored, optionally
  * seed from the user's profile locale, else keep the device default.
+ * Always mirrors the resolved locale to `users.locale` so server push/inbox
+ * match the in-app language even when SecureStore and DB drifted apart.
  */
 export async function hydrateAppLocale(profileLocale?: string | null): Promise<void> {
   if (hydrated) return;
@@ -151,6 +153,9 @@ export async function hydrateAppLocale(profileLocale?: string | null): Promise<v
     currentLocale = next;
     notify();
   }
+  // Write-back even when already equal in memory: SecureStore may be "it"
+  // while users.locale stayed "ru" (sync failed or language set before write-back).
+  void syncUserLocaleToServer(next).catch(() => undefined);
 }
 
 export function getAppLocale(): AppLocale {
@@ -159,7 +164,11 @@ export function getAppLocale(): AppLocale {
 
 export async function setAppLocale(locale: AppLocale): Promise<void> {
   const next = coerceAppLocale(locale);
-  if (next === currentLocale) return;
+  if (next === currentLocale) {
+    // Still mirror — covers "UI already Italian, DB still Russian".
+    void syncUserLocaleToServer(next).catch(() => undefined);
+    return;
+  }
   currentLocale = next;
   notify();
   await persist(next);

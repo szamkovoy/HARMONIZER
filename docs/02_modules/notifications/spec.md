@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.0
-updated: 2026-07-08
+version: 1.1
+updated: 2026-07-14
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -16,11 +16,14 @@ code_refs:
     app/(tabs)/profile.tsx,
     _legacy_web/app/admin/notifications/page.tsx,
     _legacy_web/app/api/admin/notifications/route.ts,
+    _legacy_web/app/api/admin/notifications/[id]/route.ts,
     _legacy_web/app/api/admin/notifications/expoPush.ts,
     _legacy_web/app/api/admin/notifications/segment.ts,
+    _legacy_web/app/api/_utils/contentLocaleFallback.ts,
     services/localNotifications.ts,
     supabase/migrations/20260423080000_init.sql,
     supabase/migrations/20260708150000_notifications.sql,
+    supabase/migrations/20260714110000_notifications_i18n_and_feed_locale_fallback.sql,
   ]
 ---
 
@@ -32,29 +35,29 @@ code_refs:
 
 **Клиент (`modules/notifications`, barrel `index.ts`):**
 
-- **`PushRegistrationBridge`** — невидимый мост в корне (`app/_layout.tsx`, внутри AccessBridge): после логина один раз за сессию вызывает `registerPushToken(userId)`; слушает тапы по push (`addNotificationResponseReceivedListener`) и открывает `data.url` через `Linking`.
-- **`registerPushToken(userId)`** — permissions (`undetermined` → request; не granted → тихий выход), `getExpoPushTokenAsync({projectId})` (EAS projectId из `app.json` extra), upsert в `push_tokens` по `token` (`is_active: true`, `last_seen_at`). Web/старый dev client — no-op.
-- **`MyNotificationsScreen`** (`app/my-notifications.tsx`) — список доставок (заголовок, текст, относительное время через `formatRelativeTime`, кнопка «Открыть ссылку»); непрочитанные подсвечены акцентной рамкой; открытие экрана помечает всё прочитанным (`markAllNotificationsRead`).
-- **Профиль** — карточка «Мои уведомления» с бейджем непрочитанных (`fetchUnreadNotificationCount` на фокусе) → `/my-notifications`.
+- **`resolveNotificationCopy` / `resolveNotificationLocale`** — **единая точка** языка уведомлений (клиент: `modules/notifications/core/resolveNotificationCopy.ts`; сервер: `_legacy_web/app/api/_utils/notificationCopy.ts`). Вход: `users.locale` (remote) или UI-локаль (inbox). Цепочка текста: preferred → en → ru.
+- **`PushRegistrationBridge`** — после логина и при `AppState=active` вызывает `registerPushToken`; тап по push (в т.ч. cold start через `getLastNotificationResponseAsync`) → экран **`/push-message`** с полным текстом и кликабельными ссылками (`LinkifiedBody` + кнопка `link_url`).
+- **`PushMessageScreen`** — ридер сообщения из push; ссылка «Все уведомления» → inbox.
+- **`registerPushToken(userId)`** — sync UI → `users.locale`; **`claim_push_token` RPC**.
+- **`MyNotificationsScreen`** — inbox через `resolveNotificationCopy`.
+- **Профиль** — «Мои уведомления» с бейджем.
 
 **Админка (гейт `requireAdmin`):**
 
-- `GET /api/admin/notifications` — история рассылок (≤100, счётчики).
-- `POST /api/admin/notifications` — `{title, body?, link_url?, segment}`; сегменты: `all`, `tier:<free|oracle|practitioner|master>` (по сырому `users.membership_tier`), `webinar:<id>` (записавшиеся). Поток: resolve получателей → строка `notifications` → `notification_deliveries` пачками по 500 → Expo Push (`expoPush.ts`, пачки по 100, `data.url` из `link_url`) → деактивация `DeviceNotRegistered`-токенов → апдейт счётчиков + `sent_at`. `maxDuration = 120`.
-- UI `/admin/notifications`: форма (заголовок, текст, ссылка, select сегмента с тарифами и вебинарами) + история с сегментом и счётчиками.
+- `GET/POST /api/admin/notifications`, `DELETE …/[id]`.
+- POST: recipients → row + i18n → deliveries → Expo через `resolveNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel`. Expo fetch: `Connection: close`, timeout, полный consume body (защита от `TypeError: terminated` на Vercel). UI при обрыве сети после успеха — показывает «рассылка сохранена» по истории.
 
 ## 3. Данные
 
-- **`push_tokens`** — из init-миграции (id pk, `token` unique, `platform`, `expo_token`, `is_active`, `last_seen_at`; RLS self). Клиент начал писать в неё с этого этапа; рассылка берёт только `is_active`.
-- **`notifications`** (`20260708150000`): `title`, `body`, `link_url`, `segment` (машинный), `segment_label` (человекочитаемый для истории), `recipient_count/push_sent_count/push_error_count`, `sent_at`. RLS: получатель читает только доставленные ему (exists в deliveries), admin all.
-- **`notification_deliveries`** — PK `(notification_id, user_id)`, `read_at`; FK cascade. RLS: select own, **update own** (отметка прочтения), admin all. Индекс `(user_id, created_at desc)`.
+- **`push_tokens`** + RPC **`claim_push_token`** (`20260714130000`).
+- **`notifications`** / **`notification_deliveries`**.
 
 ## 4. i18n
 
-UI-строки — ключи `notifications.*` (8 локалей). **Контент рассылки — авторский** (как посты/сторис): отправляется на языке автора, не переводится. `segment_label` — RU-строка для админки, пользователю не показывается.
+UI — `notifications.*`. **Язык любого remote push** = только `resolveNotificationCopy(users.locale, …)` (не язык ОС телефона). Локальные окна возможностей — `getAppLocale()` + `getHomeStrings` при schedule (тот же принцип «язык профиля/приложения»). Будущие webinar reminders — тот же helper.
 
 ## 5. Известные ограничения
 
-- Рассылка синхронная в serverless-роуте: при тысячах получателей упрётся в `maxDuration` — тогда выносить в очередь/Edge cron.
-- Пуш не «догоняет» пользователей, зарегистрировавших токен после рассылки; копия в «Мои уведомления» это компенсирует.
-- Тикеты Expo не сверяются с receipts (fire-and-forget); `push_error_count` учитывает только ошибки тикетов.
+- Синхронная serverless-рассылка; при тысячах получателей — очередь.
+- Пуш не догоняет токены, зарегистрированные после рассылки.
+- Expo receipts не сверяются.

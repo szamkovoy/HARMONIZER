@@ -16,6 +16,7 @@ type WebinarListRow = {
   registration_count: number;
   question_count: number;
   recording_post_id: string | null;
+  recording_title: string | null;
   recording_is_published: boolean;
   recording_comment_count: number;
 };
@@ -55,14 +56,19 @@ export default function AdminWebinarsPage() {
 
       <div className="flex flex-col gap-3">
         {webinars?.map((webinar) => {
+          const recordingCreated = Boolean(webinar.recording_post_id);
           const recordingPublished = Boolean(webinar.recording_is_published);
+          const listTitle =
+            recordingCreated && webinar.recording_title?.trim()
+              ? webinar.recording_title.trim()
+              : webinar.title;
           return (
             <Link
               key={webinar.id}
               href={`/admin/webinars/${webinar.id}`}
               className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4 transition-colors hover:border-emerald-400/30"
             >
-              <p className="font-semibold text-zinc-100">{webinar.title}</p>
+              <p className="font-semibold text-zinc-100">{listTitle}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                 {recordingPublished ? (
                   <span className="rounded-full px-2 py-0.5 bg-emerald-400/10 text-emerald-300">

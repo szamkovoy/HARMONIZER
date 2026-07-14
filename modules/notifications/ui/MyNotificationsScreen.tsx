@@ -26,12 +26,12 @@ export function MyNotificationsScreen() {
 
   useEffect(() => {
     if (!userId) return;
-    void fetchMyNotifications(userId).then((list) => {
+    void fetchMyNotifications(userId, locale).then((list) => {
       setItems(list);
       // Открыл экран — всё считаем прочитанным; непрочитанные подсвечены в этом рендере.
       if (list.some((item) => !item.readAt)) void markAllNotificationsRead(userId);
     });
-  }, [userId]);
+  }, [userId, locale]);
 
   return (
     <StackScreenLayout edges={["top", "left", "right"]}>

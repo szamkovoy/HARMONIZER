@@ -9,7 +9,10 @@ import { formatWebinarBannerWhen } from "@/modules/webinars/core/webinarTiming";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
-/** Анонс ближайшего вебинара на главной (до starts_at + 1 ч); null, если окна нет. */
+/**
+ * Home announce strip: nearest join-window webinar with an authored title
+ * for the active UI locale only (no en/ru fallback).
+ */
 export function UpcomingWebinarBanner() {
   const theme = useTheme();
   const { t, locale } = useTranslate();
@@ -17,18 +20,21 @@ export function UpcomingWebinarBanner() {
 
   const reload = useCallback(() => {
     let cancelled = false;
-    void fetchUpcomingWebinar().then((item) => {
-      if (!cancelled) setWebinar(item);
+    void fetchUpcomingWebinar(locale).then((item) => {
+      if (cancelled) return;
+      // Double-check exact locale before paint (fetch already filters).
+      setWebinar(item && localizeWebinar(item, locale) ? item : null);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   useFocusEffect(reload);
 
   if (!webinar) return null;
   const localized = localizeWebinar(webinar, locale);
+  if (!localized) return null;
   const when = formatWebinarBannerWhen(localized.startsAt, locale);
 
   return (

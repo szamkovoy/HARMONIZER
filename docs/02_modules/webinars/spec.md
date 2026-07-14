@@ -40,13 +40,13 @@ code_refs:
 
 - **`webinarTiming`**: `WEBINAR_JOIN_GRACE_HOURS = 1`, `isWebinarInJoinWindow`, `isWebinarRecordingTabAvailable`, `formatWebinarBannerWhen`.
 - **`WebinarScreen`**: обложка + локализованные title/description; дата/время без года (меньший шрифт) + `(ваш часовой пояс)`; loading — только спиннер; в join-окне — регистрация (гейт `webinar_community` / Master) и после записи блок «Вы зарегистрированы» + `join_url`; вопросы = тот же `CommentsSection`/`CommentComposer`/`POST /api/comments`, что и у видео (`headingKey`/`hintKey` для copy; композер над клавиатурой как `PostScreen`). После окна — ссылка на запись (`/post/{recordingPostId}` или legacy `recording_url`).
-- **`UpcomingWebinarBanner`**: ближайший опубликованный вебинар с `isWebinarInJoinWindow` (включая час после старта); текст `formatWebinarBannerWhen · title` (без слова «вебинар»).
+- **`UpcomingWebinarBanner`**: ближайший опубликованный вебинар с `isWebinarInJoinWindow` и **exact** title для UI-локали (`fetchUpcomingWebinar(locale)` + `localizeWebinar`); без перевода локали — скрыт. Текст `formatWebinarBannerWhen · title`.
 - **`WebinarsStrip`**: компонент сохранён; во вкладке «Видео» не монтируется — анонсы только на главной, записи — в общей ленте VideoCard.
 - **`webinarsClient`**: `fetchUpcomingWebinar`, `fetchWebinars`, `fetchWebinar`, `localizeWebinar`, регистрации.
 
 ### Админка
 
-- Список: один бейдж — «Запись опубликована» если recording published, иначе «Анонс опубликован»/черновик; счётчик комментариев записи XOR вопросов анонса в том же правиле; участники → `/admin/users/{id}`.
+- Список: заголовок = **название записи**, если recording post уже создан, иначе название анонса; один бейдж — «Запись опубликована» если recording published, иначе «Анонс опубликован»/черновик; счётчик комментариев записи XOR вопросов анонса в том же правиле; участники → `/admin/users/{id}`.
 - Карточка: вкладки **Анонс** / **Запись**. UI локалей/обложки/«Удалить перевод (XX)»/кнопки Save+Удалить — как у `PostEditor` (языковая полоса с точками наличия перевода, `RefreshCw` «Перевести», лейблы «Заголовок/Текст»). Анонс дополнительно: `starts_at`, `join_url`. Запись: `PUT …/recording`. Чекбокс до первого save — «Опубликовать», после — «Анонс опубликован» / «Запись опубликована».
 - Вопросы анонса и комментарии записи — `created_at` ascending (свежие внизу), как в приложении и у видео.
 
@@ -59,7 +59,7 @@ code_refs:
 
 ## 3. i18n
 
-Ключи `webinars.*` (в т.ч. `questionsTitle`/`questionsHint`/`questionPlaceholder`, `registeredTitle`/`registeredBody`, `registerPaidCta`). Даты — Luxon + активная локаль. Контент анонса/записи — `*_i18n` + admin translate.
+Ключи `webinars.*` (в т.ч. `questionsTitle`/`questionsHint`/`questionPlaceholder`, `registeredTitle`/`registeredBody`, `registerPaidCta`). Даты — Luxon + активная локаль. Контент анонса/записи — `*_i18n` + admin translate; `localizeWebinar` = **exact** UI locale (`pickExactLocalizedText`); без перевода локали → баннер/карточка скрыты.
 
 ## 4. Легаси
 

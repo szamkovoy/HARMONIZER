@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const questions = new Map<string, number>();
     const recordings = new Map<
       string,
-      { id: string; is_published: boolean; comment_count: number }
+      { id: string; title: string; is_published: boolean; comment_count: number }
     >();
     if (ids.length > 0) {
       const [regsRes, questionsRes, recordingsRes] = await Promise.all([
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
         db.from("comments").select("target_id").eq("target_type", "webinar").in("target_id", ids),
         db
           .from("posts")
-          .select("id, webinar_id, is_published")
+          .select("id, webinar_id, title, is_published")
           .eq("kind", "webinar_recording")
           .in("webinar_id", ids),
       ]);
@@ -58,6 +58,7 @@ export async function GET(req: Request) {
         if (!row.webinar_id) continue;
         recordings.set(row.webinar_id, {
           id: row.id,
+          title: row.title ?? "",
           is_published: row.is_published,
           comment_count: recordingCommentCounts.get(row.id) ?? 0,
         });
@@ -72,6 +73,7 @@ export async function GET(req: Request) {
           registration_count: registrations.get(w.id) ?? 0,
           question_count: questions.get(w.id) ?? 0,
           recording_post_id: recording?.id ?? null,
+          recording_title: recording?.title ?? null,
           recording_is_published: recording?.is_published ?? false,
           recording_comment_count: recording?.comment_count ?? 0,
         };

@@ -15,6 +15,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-14 (locale sync):** hydrate/setAppLocale always write-back to `users.locale` (heals SecureStore vs DB drift that broke push language).
+
+- **2026-07-14 (exact):** `pickExactLocalized*` for Videos/Webinars; soft `pickLocalized*` kept for notifications only.
+
+- **2026-07-14:** `pickLocalizedText` / `pickLocalizedUrl` — preferred → en → ru → first non-empty in `ALL_CONTENT_LOCALES`. Used by posts, webinars, notifications.
+
 - **2026-07-13 (relative abbr):** `formatRelativeTime` uses short units (`мин`/`min`/`ч`/`h`/…) — one dominant unit, no plural declension.
 
 - **2026-07-13 (relative time):** Added `formatRelativeTime` + catalog `time.relative.*` (all 8 locales). Comments and notifications no longer use Luxon `toRelative()` (Hermes lacks RelativeTimeFormat → always English).

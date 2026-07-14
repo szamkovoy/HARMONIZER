@@ -265,6 +265,7 @@ function RootLayoutNav() {
           <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="webinar/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="my-notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="push-message" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         </Stack>
       </NavThemeProvider>

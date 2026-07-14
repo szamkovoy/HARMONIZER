@@ -3,18 +3,19 @@ import { router, type Href } from "expo-router";
 import { useCallback, useState } from "react";
 
 import { useAuth } from "@/modules/auth";
-import { useTranslate } from "@/modules/i18n";
+import { asContentLocale, useTranslate } from "@/modules/i18n";
 import {
   fetchLatestUnviewedPostForLocale,
   markPostViewed,
+  postAvailableInLocale,
   type PostItem,
 } from "@/modules/posts/core/postsClient";
 import { VideoCard } from "@/modules/posts/ui/VideoCard";
 
 /**
- * Home card for the newest video the user has not opened yet.
- * Dismisses on view (home or Videos tab detail). Placed under Opportunity Windows.
- * Future webinar recordings can reuse the same post card + view-tracking contract.
+ * Home card under Opportunity Windows: newest video/recording the user has not
+ * opened yet, only if it has an authored title for the active UI locale
+ * (same exact-locale rule as the Videos tab — no en/ru fallback).
  */
 export function LatestPostBanner() {
   const { locale } = useTranslate();
@@ -24,8 +25,10 @@ export function LatestPostBanner() {
 
   const reload = useCallback(() => {
     let cancelled = false;
-    void fetchLatestUnviewedPostForLocale(locale, userId).then((item) => {
-      if (!cancelled) setPost(item);
+    const contentLocale = asContentLocale(locale) ?? "ru";
+    void fetchLatestUnviewedPostForLocale(contentLocale, userId).then((item) => {
+      if (cancelled) return;
+      setPost(item && postAvailableInLocale(item, contentLocale) ? item : null);
     });
     return () => {
       cancelled = true;

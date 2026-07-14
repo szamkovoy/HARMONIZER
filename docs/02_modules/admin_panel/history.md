@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-14 (5):** Admin webinars list title prefers recording title when post exists.
+
+- **2026-07-14 (4):** Notifications admin: locale strip + Translate + DELETE; Expo sound/priority on send.
+
 - **2026-07-14 (3):** WebinarEditor locale strip / labels / delete-translation / Delete button aligned with PostEditor on both Анонс and Запись tabs.
 
 - **2026-07-14 (2):** Webinar LocaleFields «Удалить перевод» — тот же zinc/hover стиль, что у PostEditor.

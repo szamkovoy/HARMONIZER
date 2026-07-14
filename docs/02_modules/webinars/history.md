@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708140000_webinars.sql]
 
 ## Decision Log
 
+- **2026-07-14 (8):** `fetchUpcomingWebinar(locale)` skips announces without exact UI-locale title.
+
+- **2026-07-14 (7):** Admin list title = recording title when recording post exists, else announce; `localizeWebinar` exact locale only.
+
+- **2026-07-14 (6):** `localizeWebinar` uses preferred→en→ru (same as posts/notifications).
+
 - **2026-07-14 (5):** Banner `·` before title; announce date without year + smaller type; Videos tab no longer mounts `WebinarsStrip` (announces only on Home).
 
 - **2026-07-14 (4):** Home banner — `formatWebinarBannerWhen` + title (без «вебинар»); detail — `(ваш часовой пояс)`; loading spinner-only; admin announce questions chronological ascending (не по голосам).

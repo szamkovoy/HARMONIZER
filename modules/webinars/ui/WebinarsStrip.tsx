@@ -37,6 +37,7 @@ export function WebinarsStrip() {
       <AppText variant="sectionTitle">{t("webinars.strip.title")}</AppText>
       {upcoming.map((webinar) => {
         const localized = localizeWebinar(webinar, locale);
+        if (!localized) return null;
         return (
           <Pressable
             key={webinar.id}

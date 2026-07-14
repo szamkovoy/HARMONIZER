@@ -1,3 +1,5 @@
+import { parseStringRecord } from "@/modules/i18n";
+import { resolveNotificationCopy } from "@/modules/notifications/core/resolveNotificationCopy";
 import { getSupabase } from "@/services/supabase";
 
 export type MyNotification = {
@@ -9,13 +11,18 @@ export type MyNotification = {
   readAt: string | null;
 };
 
-/** Лента «Мои уведомления»: deliveries пользователя + содержимое рассылок. */
-export async function fetchMyNotifications(userId: string): Promise<MyNotification[]> {
+/** Лента «Мои уведомления»: deliveries + текст через resolveNotificationCopy. */
+export async function fetchMyNotifications(
+  userId: string,
+  locale: string,
+): Promise<MyNotification[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("notification_deliveries")
-    .select("read_at, created_at, notifications(id, title, body, link_url, created_at)")
+    .select(
+      "read_at, created_at, notifications(id, title, body, title_i18n, body_i18n, link_url, created_at)",
+    )
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -29,14 +36,22 @@ export async function fetchMyNotifications(userId: string): Promise<MyNotificati
         id: string;
         title: string;
         body: string;
+        title_i18n?: unknown;
+        body_i18n?: unknown;
         link_url: string | null;
         created_at: string;
       } | null;
       if (!n) return null;
+      const { title, body } = resolveNotificationCopy(locale, {
+        title: n.title,
+        body: n.body,
+        titleI18n: parseStringRecord(n.title_i18n),
+        bodyI18n: parseStringRecord(n.body_i18n),
+      });
       return {
         notificationId: n.id,
-        title: n.title,
-        body: n.body ?? "",
+        title,
+        body,
         linkUrl: n.link_url ?? null,
         createdAt: n.created_at,
         readAt: row.read_at ?? null,
