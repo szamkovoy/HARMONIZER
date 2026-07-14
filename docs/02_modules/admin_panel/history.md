@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-14 (6):** QA: удаление уведомления выкидывало на логин — `AdminChrome` делал `signOut` на любую ошибку `/api/admin/me`, плюс параллельные `refreshSession` сжигали refresh token. Фикс: `AdminApiError` + logout только на 401/403; mutex refresh; `adminFetch` без Content-Type на bodyless; delete уведомления через POST `[id]`.
+
 - **2026-07-14 (5):** Admin webinars list title prefers recording title when post exists.
 
 - **2026-07-14 (4):** Notifications admin: locale strip + Translate + DELETE; Expo sound/priority on send.

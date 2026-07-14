@@ -268,7 +268,11 @@ export default function AdminNotificationsPage() {
     setDeletingId(id);
     setError(null);
     try {
-      await adminFetch(`/api/admin/notifications/${id}`, { method: "DELETE" });
+      // POST с телом — надёжнее bodyless DELETE (прокси / Content-Type / refresh race).
+      await adminFetch(`/api/admin/notifications/${id}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "delete" }),
+      });
       await loadHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить");

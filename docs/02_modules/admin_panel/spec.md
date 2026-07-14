@@ -62,7 +62,9 @@ code_refs:
 
 **Видео и комментарии (реализовано, этап 2):** `GET/POST /api/admin/posts` (`GET` — cursor infinite scroll, `limit` default 20), `GET/PATCH/DELETE /api/admin/posts/[id]`, `PATCH/DELETE /api/admin/comments/[id]` (модерация: скрыть/удалить; клик по автору → `/admin/users/[id]`), UI `/admin/posts` («Видео»; +`/new`, `/[id]` — `PostEditor`: any-locale, fill-missing «Перевести» + копия обложки, «Удалить перевод»/обложку на вкладке, compress cover; чекбокс «Опубликовать» до первого save). Контракт — в `author_presence`.
 
-**Уведомления (реализовано, этап 4):** `GET/POST /api/admin/notifications`, `DELETE /api/admin/notifications/[id]`; UI с locale strip как Video + история/удаление. Контракт — `02_modules/notifications/spec.md`.
+**Уведомления (реализовано, этап 4):** `GET/POST /api/admin/notifications`, `DELETE|POST /api/admin/notifications/[id]` (удаление); UI с locale strip как Video + история/удаление. Контракт — `02_modules/notifications/spec.md`.
+
+**Клиентский гейт:** `adminFetch` — Bearer + mutex на `refreshSession`, `AdminApiError` со статусом; `AdminChrome` вызывает `signOut` только при 401/403 от `/api/admin/me` (сетевые сбои не разлогинивают).
 
 **Поддержка (реализовано, этап 5):**
 

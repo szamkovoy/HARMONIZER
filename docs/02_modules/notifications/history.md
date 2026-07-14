@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-14 (admin delete logout):** Удаление рассылки в админке разлогинивало и не удаляло — logout на любой сбой `/me` + bodyless DELETE. UI теперь POST `{action:delete}` на `[id]`; DELETE оставлен; ответ 404 если строки нет.
+
 - **2026-07-14 (push open + terminated):** Admin `TypeError: terminated` = undici/Vercel socket close after Expo accept (send still OK). Hardened Expo fetch + admin UI recovery. Tap opens `/push-message` with full body + links (cold start via getLastNotificationResponseAsync).
 
 - **2026-07-14 (token claim):** Root cause Russian push for Italian profile: sole iOS token owned by another `users.locale=ru` account; RLS blocked re-claim. Added `claim_push_token` + `resolveNotificationCopy` as single locale entry for remote pushes.

@@ -17,7 +17,7 @@ import {
   Video,
 } from "lucide-react";
 
-import { adminFetch } from "../_lib/adminApi";
+import { AdminApiError, adminFetch } from "../_lib/adminApi";
 import { getBrowserSupabase } from "../_lib/supabaseBrowser";
 
 const NAV_ITEMS = [
@@ -51,9 +51,16 @@ export function AdminChrome({ children }: { children: ReactNode }) {
     try {
       await adminFetch("/api/admin/me");
       setPhase("admin");
-    } catch {
-      await supabase.auth.signOut();
-      setPhase("anonymous");
+    } catch (err) {
+      // Только явный отказ в доступе — иначе сетевой сбой / terminated при DELETE
+      // разлогинивал админа и обрывал сам запрос удаления.
+      const status = err instanceof AdminApiError ? err.status : 0;
+      if (status === 401 || status === 403) {
+        await supabase.auth.signOut();
+        setPhase("anonymous");
+        return;
+      }
+      setPhase("admin");
     }
   }, []);
 

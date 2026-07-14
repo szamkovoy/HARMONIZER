@@ -1,3 +1,4 @@
+- 2026-07-14 (142): Admin: delete notification no longer forces logout; POST delete + safer `adminFetch`/`AdminChrome` auth. Docs `admin_panel/*`, `notifications/*`.
 - 2026-07-14 (141): Admin send: harden Expo fetch against `TypeError: terminated`; push tap opens in-app reader with full text + links. Docs `notifications/*`.
 - 2026-07-14 (140): Push: `claim_push_token` reassigns device token to current user; `resolveNotificationCopy` is the single locale entry for remote/inbox. Docs `notifications/*`.
 - 2026-07-14 (139): Push: always sync UI locale → `users.locale`; Expo `interruptionLevel: active` for audible iOS alerts. Docs `notifications/*`.

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { LockKeyhole } from "lucide-react";
 
-import { adminFetch } from "../_lib/adminApi";
+import { AdminApiError, adminFetch } from "../_lib/adminApi";
 import { getBrowserSupabase } from "../_lib/supabaseBrowser";
 
 export default function AdminLoginPage() {
@@ -25,9 +25,13 @@ export default function AdminLoginPage() {
       // Логин успешен, но в админку пускаем только роль admin.
       try {
         await adminFetch("/api/admin/me");
-      } catch {
-        await supabase.auth.signOut();
-        throw new Error("У этого аккаунта нет прав администратора");
+      } catch (err) {
+        const status = err instanceof AdminApiError ? err.status : 0;
+        if (status === 401 || status === 403) {
+          await supabase.auth.signOut();
+          throw new Error("У этого аккаунта нет прав администратора");
+        }
+        throw new Error(err instanceof Error ? err.message : "Не удалось проверить права администратора");
       }
       router.replace("/admin");
     } catch (err) {

@@ -1,6 +1,32 @@
 import { getBrowserSupabase } from "./supabaseBrowser";
 
-/** fetch к /api/admin/* с Bearer-токеном текущей сессии. Бросает Error с текстом сервера. */
+/** Ошибка /api/admin/* с HTTP-статусом — чтобы UI не разлогинивал на сетевых сбоях. */
+export class AdminApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AdminApiError";
+    this.status = status;
+  }
+}
+
+/** Один refresh за раз — иначе два параллельных refreshSession сжигают single-use refresh token → SIGNED_OUT. */
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = getBrowserSupabase()
+      .auth.refreshSession()
+      .then(({ data }) => data.session?.access_token ?? null)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
+/** fetch к /api/admin/* с Bearer-токеном текущей сессии. Бросает AdminApiError / Error. */
 export async function adminFetch<T>(
   path: string,
   init?: RequestInit,
@@ -11,29 +37,27 @@ export async function adminFetch<T>(
     const supabase = getBrowserSupabase();
     const { data } = await supabase.auth.getSession();
     token = data.session?.access_token;
-    // Refresh before admin calls — stale JWT after long edits / delete → "Unauthorized".
-    if (token) {
-      const expiresAt = data.session?.expires_at;
-      const soon = typeof expiresAt === "number" && expiresAt * 1000 < Date.now() + 60_000;
-      if (soon) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        token = refreshed.session?.access_token ?? token;
-      }
-    } else {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      token = refreshed.session?.access_token;
+    if (!token) {
+      token = (await refreshAccessToken()) ?? undefined;
     }
   }
-  if (!token) throw new Error("Сессия не найдена — войдите заново");
+  if (!token) throw new AdminApiError("Сессия не найдена — войдите заново", 401);
 
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  const hasBody = init?.body != null && init.body !== "";
 
   async function doFetch(accessToken: string) {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+    };
+    // Не ставим Content-Type на bodyless DELETE/GET — ломает часть прокси и провоцирует лишний preflight.
+    if (!isFormData && hasBody) {
+      headers["Content-Type"] = "application/json";
+    }
     return fetch(path, {
       ...init,
       headers: {
-        ...(isFormData ? {} : { "Content-Type": "application/json" }),
-        Authorization: `Bearer ${accessToken}`,
+        ...headers,
         ...(init?.headers ?? {}),
       },
     });
@@ -41,8 +65,7 @@ export async function adminFetch<T>(
 
   let res = await doFetch(token);
   if (res.status === 401) {
-    const { data: refreshed } = await getBrowserSupabase().auth.refreshSession();
-    const retryToken = refreshed.session?.access_token;
+    const retryToken = await refreshAccessToken();
     if (retryToken && retryToken !== token) {
       res = await doFetch(retryToken);
     }
@@ -50,7 +73,10 @@ export async function adminFetch<T>(
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Ошибка сервера (HTTP ${res.status})`);
+    throw new AdminApiError(body?.error ?? `Ошибка сервера (HTTP ${res.status})`, res.status);
   }
-  return (await res.json()) as T;
+
+  const text = await res.text();
+  if (!text.trim()) return undefined as T;
+  return JSON.parse(text) as T;
 }

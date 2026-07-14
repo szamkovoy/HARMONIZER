@@ -44,7 +44,7 @@ code_refs:
 
 **Админка (гейт `requireAdmin`):**
 
-- `GET/POST /api/admin/notifications`, `DELETE …/[id]`.
+- `GET/POST /api/admin/notifications`, `DELETE|POST …/[id]` (удаление; UI шлёт POST `{action:"delete"}`).
 - POST: recipients → row + i18n → deliveries → Expo через `resolveNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel`. Expo fetch: `Connection: close`, timeout, полный consume body (защита от `TypeError: terminated` на Vercel). UI при обрыве сети после успеха — показывает «рассылка сохранена» по истории.
 
 ## 3. Данные
