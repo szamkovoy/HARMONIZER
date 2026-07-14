@@ -14,24 +14,46 @@ import { StackScreenLayout, useStackScreenContentProps } from "@/modules/ui/Stac
 import { StateCard } from "@/modules/ui/StateCard";
 import { useTheme } from "@/modules/ui/theme";
 
-/** «Мои уведомления»: гарантированная витрина рассылок (работает и без push-разрешений). */
+/** «Мои уведомления»: гарантированная витрина рассылок автора (не локальные колокольчики). */
 export function MyNotificationsScreen() {
   const theme = useTheme();
   const { t, locale } = useTranslate();
-  const { authUser } = useAuth();
+  const { authUser, initializing } = useAuth();
   const userId = authUser?.id ?? null;
   const contentProps = useStackScreenContentProps({ topPadding: 4, gap: 10 });
 
   const [items, setItems] = useState<MyNotification[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) return;
-    void fetchMyNotifications(userId, locale).then((list) => {
-      setItems(list);
-      // Открыл экран — всё считаем прочитанным; непрочитанные подсвечены в этом рендере.
-      if (list.some((item) => !item.readAt)) void markAllNotificationsRead(userId);
-    });
-  }, [userId, locale]);
+    if (initializing) return;
+    if (!userId) {
+      setItems([]);
+      setLoadError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setItems(null);
+    setLoadError(null);
+
+    void fetchMyNotifications(userId, locale)
+      .then((list) => {
+        if (cancelled) return;
+        setItems(list);
+        // Открыл экран — непрочитанные видны с акцентом в этом рендере, затем помечаем прочитанными.
+        if (list.some((item) => !item.readAt)) void markAllNotificationsRead(userId);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setItems([]);
+        setLoadError(t("notifications.loadError"));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initializing, locale, t, userId]);
 
   return (
     <StackScreenLayout edges={["top", "left", "right"]}>
@@ -39,7 +61,7 @@ export function MyNotificationsScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("posts.post.backA11y")}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))}
+          onPress={() => router.replace("/(tabs)/profile")}
           hitSlop={12}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
@@ -60,47 +82,55 @@ export function MyNotificationsScreen() {
         ListEmptyComponent={
           items === null ? (
             <StateCard loading message={t("notifications.loading")} />
+          ) : loadError ? (
+            <StateCard title={t("notifications.loadErrorTitle")} message={loadError} />
           ) : (
             <StateCard title={t("notifications.emptyTitle")} message={t("notifications.emptyMessage")} />
           )
         }
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: theme.colors.surfaceElevated,
-                borderColor: item.readAt ? theme.colors.surfaceBorder : theme.colors.accent,
-              },
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              {!item.readAt ? <View style={[styles.unreadDot, { backgroundColor: theme.colors.accent }]} /> : null}
-              <AppText variant="buttonLabel" style={styles.cardTitle}>
-                {item.title}
-              </AppText>
-              <AppText variant="technicalCaption" tone="faint">
-                {formatRelativeTime(item.createdAt, locale)}
-              </AppText>
-            </View>
-            {item.body ? (
-              <AppText variant="screenHint" tone="muted">
-                {item.body}
-              </AppText>
-            ) : null}
-            {item.linkUrl ? (
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => void Linking.openURL(item.linkUrl!)}
-                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-              >
-                <AppText variant="buttonLabel" tone="accent">
-                  {t("notifications.openLink")}
+        renderItem={({ item }) => {
+          const unread = !item.readAt;
+          return (
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: unread
+                    ? theme.colors.surfaceElevated
+                    : theme.colors.surface,
+                  borderColor: unread ? theme.colors.accent : theme.colors.surfaceBorder,
+                  opacity: unread ? 1 : 0.72,
+                },
+              ]}
+            >
+              <View style={styles.cardHeader}>
+                {unread ? <View style={[styles.unreadDot, { backgroundColor: theme.colors.accent }]} /> : null}
+                <AppText variant="buttonLabel" tone={unread ? "primary" : "muted"} style={styles.cardTitle}>
+                  {item.title}
                 </AppText>
-              </Pressable>
-            ) : null}
-          </View>
-        )}
+                <AppText variant="technicalCaption" tone="faint">
+                  {formatRelativeTime(item.createdAt, locale)}
+                </AppText>
+              </View>
+              {item.body ? (
+                <AppText variant="screenHint" tone={unread ? "muted" : "faint"}>
+                  {item.body}
+                </AppText>
+              ) : null}
+              {item.linkUrl ? (
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => void Linking.openURL(item.linkUrl!)}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                >
+                  <AppText variant="buttonLabel" tone="accent">
+                    {t("notifications.openLink")}
+                  </AppText>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        }}
       />
     </StackScreenLayout>
   );

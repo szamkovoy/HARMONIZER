@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-14 (inbox nav + hang):** «Все уведомления» могло висеть на лоадере (auth ещё `initializing` / запрос без таймаута). Back с пуш-ридера оставлял полупустой Home + splash. Фикс: wait auth, timeout 12s, `replace` stack, title «Уведомление», unread accent / read muted; inbox остаётся только admin deliveries.
+
 - **2026-07-14 (admin delete logout):** Удаление рассылки в админке разлогинивало и не удаляло — logout на любой сбой `/me` + bodyless DELETE. UI теперь POST `{action:delete}` на `[id]`; DELETE оставлен; ответ 404 если строки нет.
 
 - **2026-07-14 (push open + terminated):** Admin `TypeError: terminated` = undici/Vercel socket close after Expo accept (send still OK). Hardened Expo fetch + admin UI recovery. Tap opens `/push-message` with full body + links (cold start via getLastNotificationResponseAsync).

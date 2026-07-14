@@ -2,7 +2,9 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
+import { markNotificationRead } from "@/modules/notifications/core/notificationsClient";
 import {
   consumePendingPushMessage,
   type PendingPushMessage,
@@ -11,7 +13,6 @@ import { LinkifiedBody } from "@/modules/posts/ui/LinkifiedBody";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { StackScreenLayout } from "@/modules/ui/StackScreenLayout";
-import { useTheme } from "@/modules/ui/theme";
 
 function firstParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -21,10 +22,11 @@ function firstParam(value: string | string[] | undefined): string {
 /**
  * Full push message reader opened from a notification tap.
  * Prefers in-memory pending payload; falls back to route params.
+ * Back always returns to Home tabs (avoids half-booted stack after cold start).
  */
 export function PushMessageScreen() {
-  const theme = useTheme();
   const { t } = useTranslate();
+  const { authUser } = useAuth();
   const params = useLocalSearchParams<{ title?: string; body?: string; url?: string }>();
   const [message, setMessage] = useState<PendingPushMessage | null>(null);
 
@@ -47,6 +49,13 @@ export function PushMessageScreen() {
     }
   }, [params.body, params.title, params.url, t]);
 
+  useEffect(() => {
+    const userId = authUser?.id;
+    const notificationId = message?.notificationId;
+    if (!userId || !notificationId) return;
+    void markNotificationRead(userId, notificationId);
+  }, [authUser?.id, message?.notificationId]);
+
   const linkUrl = useMemo(() => {
     if (message?.url) return message.url;
     return null;
@@ -58,7 +67,7 @@ export function PushMessageScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("posts.post.backA11y")}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
+          onPress={() => router.replace("/(tabs)" as Href)}
           hitSlop={12}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
@@ -93,7 +102,7 @@ export function PushMessageScreen() {
             ) : null}
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push("/my-notifications" as Href)}
+              onPress={() => router.replace("/my-notifications" as Href)}
               style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1, marginTop: 8 })}
             >
               <AppText variant="buttonLabel" tone="accent">

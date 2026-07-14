@@ -11,6 +11,38 @@ export type MyNotification = {
   readAt: string | null;
 };
 
+const LIST_FETCH_TIMEOUT_MS = 12_000;
+
+type DeliveryListRow = {
+  read_at: string | null;
+  created_at: string;
+  notifications: {
+    id: string;
+    title: string;
+    body: string;
+    title_i18n?: unknown;
+    body_i18n?: unknown;
+    link_url: string | null;
+    created_at: string;
+  } | null;
+};
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 /** Лента «Мои уведомления»: deliveries + текст через resolveNotificationCopy. */
 export async function fetchMyNotifications(
   userId: string,
@@ -18,46 +50,52 @@ export async function fetchMyNotifications(
 ): Promise<MyNotification[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("notification_deliveries")
-    .select(
-      "read_at, created_at, notifications(id, title, body, title_i18n, body_i18n, link_url, created_at)",
-    )
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  if (error) {
-    if (__DEV__) console.warn("[notifications] list load failed", error.message);
-    return [];
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from("notification_deliveries")
+        .select(
+          "read_at, created_at, notifications(id, title, body, title_i18n, body_i18n, link_url, created_at)",
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      LIST_FETCH_TIMEOUT_MS,
+      "notifications list",
+    );
+    if (error) {
+      if (__DEV__) console.warn("[notifications] list load failed", error.message);
+      throw error;
+    }
+    return ((data ?? []) as unknown as DeliveryListRow[])
+      .map((row) => {
+        const n = row.notifications;
+        if (!n) return null;
+        const { title, body } = resolveNotificationCopy(locale, {
+          title: n.title,
+          body: n.body,
+          titleI18n: parseStringRecord(n.title_i18n),
+          bodyI18n: parseStringRecord(n.body_i18n),
+        });
+        return {
+          notificationId: n.id,
+          title,
+          body,
+          linkUrl: n.link_url ?? null,
+          createdAt: n.created_at,
+          readAt: row.read_at ?? null,
+        };
+      })
+      .filter((item): item is MyNotification => item !== null);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(
+        "[notifications] list load failed",
+        error instanceof Error ? error.message : error,
+      );
+    }
+    throw error instanceof Error ? error : new Error("notifications list failed");
   }
-  return (data ?? [])
-    .map((row) => {
-      const n = row.notifications as {
-        id: string;
-        title: string;
-        body: string;
-        title_i18n?: unknown;
-        body_i18n?: unknown;
-        link_url: string | null;
-        created_at: string;
-      } | null;
-      if (!n) return null;
-      const { title, body } = resolveNotificationCopy(locale, {
-        title: n.title,
-        body: n.body,
-        titleI18n: parseStringRecord(n.title_i18n),
-        bodyI18n: parseStringRecord(n.body_i18n),
-      });
-      return {
-        notificationId: n.id,
-        title,
-        body,
-        linkUrl: n.link_url ?? null,
-        createdAt: n.created_at,
-        readAt: row.read_at ?? null,
-      };
-    })
-    .filter((item): item is MyNotification => item !== null);
 }
 
 export async function fetchUnreadNotificationCount(userId: string): Promise<number> {
@@ -84,4 +122,19 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
     .eq("user_id", userId)
     .is("read_at", null);
   if (error && __DEV__) console.warn("[notifications] mark read failed", error.message);
+}
+
+export async function markNotificationRead(
+  userId: string,
+  notificationId: string,
+): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase || !notificationId) return;
+  const { error } = await supabase
+    .from("notification_deliveries")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("notification_id", notificationId)
+    .is("read_at", null);
+  if (error && __DEV__) console.warn("[notifications] mark one read failed", error.message);
 }

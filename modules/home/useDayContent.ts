@@ -202,6 +202,8 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const [accessMode, setAccessMode] = useState<AccessMode>("free");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [homeTextsLoading, setHomeTextsLoading] = useState(false);
+  /** Location actually used for the painted forecast (may be GPS cache / free fallback). */
+  const [resolvedUserLocation, setResolvedUserLocation] = useState<DayContentUserLocation | null>(null);
   const secondaryRunRef = useRef(0);
 
   useEffect(() => {
@@ -319,6 +321,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setForecast(null);
         setSource(null);
         setModelUsed(null);
+        setResolvedUserLocation(null);
         latestCacheContextRef.current = null;
         setStatus("need_birth_data");
         setError(err);
@@ -371,6 +374,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           setForecast(offlineStaleCache.forecast);
           setSource(offlineStaleCache.source);
           setModelUsed(offlineStaleCache.modelUsed);
+          setResolvedUserLocation(offlineStaleCache.location);
           setError(locationError(options?.locationErrorMessage));
           setStatus("stale_ready");
           lastResolvedRequestKeyRef.current = requestKey;
@@ -416,6 +420,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           setForecast(null);
           setSource(null);
           setModelUsed(null);
+          setResolvedUserLocation(null);
           latestCacheContextRef.current = null;
           setStatus("need_location");
           setError(err);
@@ -427,6 +432,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
       }
 
+      setResolvedUserLocation(locationForRequest);
       const resolvedInstantCache =
         !opts?.forceRefresh && profileId
           ? peekDayContentCache({
@@ -844,6 +850,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         setForecast(warmed.forecast);
         setSource(warmed.source);
         setModelUsed(warmed.modelUsed);
+        setResolvedUserLocation(warmed.userLocation);
         setHomeTextsLoading(false);
         setStatus("ready");
         setError(null);
@@ -1159,7 +1166,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     loading: status === "loading" || status === "acquiring_location",
     error,
     locationIssue,
-    userLocation,
+    userLocation: resolvedUserLocation ?? userLocation,
     refresh,
     homeTextsLoading,
   };

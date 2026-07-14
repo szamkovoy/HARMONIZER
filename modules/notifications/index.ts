@@ -2,6 +2,7 @@ export {
   fetchMyNotifications,
   fetchUnreadNotificationCount,
   markAllNotificationsRead,
+  markNotificationRead,
   type MyNotification,
 } from "@/modules/notifications/core/notificationsClient";
 export {

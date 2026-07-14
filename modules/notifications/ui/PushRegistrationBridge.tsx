@@ -41,7 +41,9 @@ function openPushMessage(response: {
       : null;
 
   setPendingPushMessage({ notificationId, title, body, url });
-  router.push("/push-message" as Href);
+  // replace: cold start must not leave a half-booted (tabs) under the reader
+  // (back would flash empty Home + re-show splash).
+  router.replace("/push-message" as Href);
 }
 
 /**

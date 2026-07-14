@@ -1,3 +1,4 @@
+- 2026-07-14 (143): Push inbox hang + cold-start back stack; OpportunityWindows chart uses resolved forecast location; push title «Уведомление». Docs `notifications/*`, `daily_forecast/*`, `i18n`.
 - 2026-07-14 (142): Admin: delete notification no longer forces logout; POST delete + safer `adminFetch`/`AdminChrome` auth. Docs `admin_panel/*`, `notifications/*`.
 - 2026-07-14 (141): Admin send: harden Expo fetch against `TypeError: terminated`; push tap opens in-app reader with full text + links. Docs `notifications/*`.
 - 2026-07-14 (140): Push: `claim_push_token` reassigns device token to current user; `resolveNotificationCopy` is the single locale entry for remote/inbox. Docs `notifications/*`.

@@ -92,7 +92,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -146,10 +146,12 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -244,7 +246,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -298,10 +300,12 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -396,7 +400,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -450,10 +454,12 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -548,7 +554,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -602,10 +608,12 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -700,7 +708,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -754,10 +762,12 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -852,7 +862,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -906,10 +916,12 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -1004,7 +1016,7 @@
     "webinars.strip.title": "Вебинары",
     "webinars.strip.recording": "Запись доступна",
     "notifications.title": "Мои уведомления",
-    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости.",
+    "notifications.profileHint": "Сообщения от автора: анонсы вебинаров, ссылки на записи и новости. Напоминания окон возможностей живут отдельно (колокольчик на главной).",
     "notifications.openButton": "Открыть уведомления",
     "notifications.loading": "Загружаю уведомления…",
     "notifications.emptyTitle": "Пока пусто",
@@ -1058,9 +1070,11 @@
     "webinars.recordingRegistrantsOnly": "Запись доступна участникам, которые регистрировались на этот вебинар.",
     "webinars.questionsTitle": "Вопросы для обсуждения",
     "webinars.yourTimezone": "ваш часовой пояс",
-    "notifications.pushMessage.screenTitle": "Сообщение",
+    "notifications.pushMessage.screenTitle": "Уведомление",
     "notifications.pushMessage.fallbackTitle": "Уведомление",
-    "notifications.pushMessage.missing": "Текст сообщения недоступен. Откройте «Мои уведомления» в профиле.",
-    "notifications.pushMessage.openInbox": "Все уведомления"
+    "notifications.pushMessage.missing": "Текст уведомления недоступен. Откройте «Мои уведомления» в профиле.",
+    "notifications.pushMessage.openInbox": "Все уведомления",
+    "notifications.loadErrorTitle": "Не удалось загрузить",
+    "notifications.loadError": "Проверьте интернет и откройте список ещё раз."
   }
 }

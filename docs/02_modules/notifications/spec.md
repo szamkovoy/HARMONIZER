@@ -36,10 +36,10 @@ code_refs:
 **Клиент (`modules/notifications`, barrel `index.ts`):**
 
 - **`resolveNotificationCopy` / `resolveNotificationLocale`** — **единая точка** языка уведомлений (клиент: `modules/notifications/core/resolveNotificationCopy.ts`; сервер: `_legacy_web/app/api/_utils/notificationCopy.ts`). Вход: `users.locale` (remote) или UI-локаль (inbox). Цепочка текста: preferred → en → ru.
-- **`PushRegistrationBridge`** — после логина и при `AppState=active` вызывает `registerPushToken`; тап по push (в т.ч. cold start через `getLastNotificationResponseAsync`) → экран **`/push-message`** с полным текстом и кликабельными ссылками (`LinkifiedBody` + кнопка `link_url`).
-- **`PushMessageScreen`** — ридер сообщения из push; ссылка «Все уведомления» → inbox.
+- **`PushRegistrationBridge`** — после логина и при `AppState=active` вызывает `registerPushToken`; тап по push (в т.ч. cold start через `getLastNotificationResponseAsync`) → **`router.replace("/push-message")`** с полным текстом и кликабельными ссылками (`LinkifiedBody` + кнопка `link_url`). `replace` (не `push`), чтобы под ридером не оставался полузагруженный Home.
+- **`PushMessageScreen`** — заголовок «Уведомление»; назад → `replace("/(tabs)")`; «Все уведомления» → `replace("/my-notifications")`; при `notificationId` помечает delivery прочитанной.
 - **`registerPushToken(userId)`** — sync UI → `users.locale`; **`claim_push_token` RPC**.
-- **`MyNotificationsScreen`** — inbox через `resolveNotificationCopy`.
+- **`MyNotificationsScreen`** — inbox только **рассылок автора** (`notification_deliveries`); ждёт конец auth `initializing`; таймаут 12s + ошибка вместо вечного лоадера; непрочитанные с акцентом/точкой, прочитанные приглушены; при открытии — `markAllNotificationsRead`. Локальные колокольчики окон возможностей и будущие webinar reminders **не** входят в этот список.
 - **Профиль** — «Мои уведомления» с бейджем.
 
 **Админка (гейт `requireAdmin`):**
@@ -61,3 +61,4 @@ UI — `notifications.*`. **Язык любого remote push** = только `
 - Синхронная serverless-рассылка; при тысячах получателей — очередь.
 - Пуш не догоняет токены, зарегистрированные после рассылки.
 - Expo receipts не сверяются.
+- Inbox ≠ все пуши устройства: только строки `notification_deliveries`. Напоминания окон возможностей (колокольчик) — локальный `expo-notifications`, в inbox не пишутся.
