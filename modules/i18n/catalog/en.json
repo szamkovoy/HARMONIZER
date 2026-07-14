@@ -128,7 +128,7 @@
   "webinars.notFoundMessage": "This announcement may have been taken down.",
   "webinars.notFoundTitle": "Webinar not found",
   "webinars.questionPlaceholder": "Your question…",
-  "webinars.questionsHint": "Ask a question before the live session — the host will answer the most popular ones. Tap the heart to upvote a question.",
+  "webinars.questionsHint": "Please share your question before our meeting begins so I can answer it. You can also ‘like’ any questions already submitted that resonate most with you—I’ll keep those in mind.",
   "webinars.questionsTitle": "Discussion questions",
   "webinars.recordingLocked": "Webinar recordings are available on the Master plan.",
   "webinars.recordingPending": "The recording will appear here once published.",
@@ -143,5 +143,6 @@
   "webinars.strip.title": "Webinars",
   "webinars.unregister": "Cancel registration",
   "webinars.upgradeCta": "Learn about the Master plan",
-  "webinars.watchRecording": "Watch recording"
+  "webinars.watchRecording": "Watch recording",
+  "webinars.yourTimezone": "your time zone"
 }

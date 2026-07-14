@@ -128,7 +128,7 @@
   "webinars.notFoundMessage": "This announcement may have been taken down.",
   "webinars.notFoundTitle": "Webinar not found",
   "webinars.questionPlaceholder": "Sua pergunta…",
-  "webinars.questionsHint": "Envie sua pergunta antes da transmissão ao vivo — o autor responderá às mais populares. O coração é um voto a favor da pergunta.",
+  "webinars.questionsHint": "Escreva a sua pergunta antes do início do nosso encontro para que eu possa respondê-la. Também pode dar «gosto» às perguntas já feitas que mais lhe interessam. Terei isso certamente em conta.",
   "webinars.questionsTitle": "Perguntas para discussão",
   "webinars.recordingLocked": "Webinar recordings are available on the Master plan.",
   "webinars.recordingPending": "A gravação aparecerá aqui após a publicação.",
@@ -143,5 +143,6 @@
   "webinars.strip.title": "Webinars",
   "webinars.unregister": "Cancel registration",
   "webinars.upgradeCta": "Learn about the Master plan",
-  "webinars.watchRecording": "Abrir gravação"
+  "webinars.watchRecording": "Abrir gravação",
+  "webinars.yourTimezone": "seu fuso horário"
 }

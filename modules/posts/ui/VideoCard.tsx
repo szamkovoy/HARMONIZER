@@ -87,7 +87,9 @@ const styles = StyleSheet.create({
   },
   cardBody: {
     gap: CARD_SECTION_GAP,
-    padding: 14,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    paddingTop: CARD_SECTION_GAP,
   },
   metaRow: {
     alignItems: "center",

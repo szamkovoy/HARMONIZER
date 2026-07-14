@@ -1,8 +1,8 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.7
-updated: 2026-07-13
+version: 3.9
+updated: 2026-07-14
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -46,7 +46,7 @@ code_refs:
 
 ## 1. Назначение (продукт)
 
-Присутствие автора в продукте. Реализовано: **сторис** (фото/видео на 24 часа, кольцо на главной — Instagram-паттерн) и **видео** (карточки с обложкой, описанием и ссылками на YouTube/Vimeo/Дзен/ВК; комментарии и лайки; вкладка «Видео» + анонс новейшего на главной). Вебинары — отдельный модуль `webinars` (полоса на вкладке «Видео»).
+Присутствие автора в продукте. Реализовано: **сторис** (фото/видео на 24 часа, кольцо на главной — Instagram-паттерн) и **видео** (карточки с обложкой, описанием и ссылками на YouTube/Vimeo/Дзен/ВК; комментарии и лайки; вкладка «Видео» + анонс новейшего на главной). Вебинары — отдельный модуль `webinars` (баннер анонса на главной; запись — в общей ленте «Видео»).
 
 ## 2. Публичный контракт
 
@@ -60,8 +60,8 @@ code_refs:
 **Клиент (`modules/posts`, barrel `index.ts`):**
 
 - **`PostsFeedScreen`** — вкладка «Видео»: заголовок + подзаголовок + «?» (`SurfaceHelpModal`), полоса вебинаров, карточки только с контентом для **активной UI-локали**. Карточка — общий **`VideoCard`** (тот же, что на главной; `maxWidth: 460`): обложка 16:9, заголовок, превью описания (плавающая длина, обрезка по целому слову), дата + `posts.comments.countLabel`, affordance «Открыть ›». Лента — **infinite scroll**: первая порция `POSTS_FEED_PAGE_SIZE` (8), далее `onEndReached` с cursor `(published_at, id)`.
-- **`PostScreen`** — экран видео; при открытии пишет `user_post_views` (dismiss home-карточки). Комментарии локализуются через `body_i18n`; после отправки скролл к новому комментарию. Композер над клавиатурой.
-- **`CommentsSection` / `CommentComposer`** — удаление только своих; создание через `POST /api/comments` (ответ сразу с исходным текстом; multi-locale → фоновый LLM-перевод на остальные 7 через `after()`, `AI_MODEL_STANDARD`). Относительное время — `formatRelativeTime` (не Luxon `toRelative`).
+- **`PostScreen`** — экран видео; при открытии пишет `user_post_views` (dismiss home-карточки). Комментарии локализуются через `body_i18n`; после отправки скролл к новому комментарию. Композер над клавиатурой. Loading — только `ActivityIndicator` (без карточки/текста).
+- **`CommentsSection` / `CommentComposer`** — удаление только своих; создание через `POST /api/comments` (ответ сразу с исходным текстом; multi-locale post **или webinar** → фоновый LLM-перевод на остальные 7 через `after()`, `AI_MODEL_STANDARD`). Относительное время — `formatRelativeTime` (не Luxon `toRelative`). Анонс вебинара переиспользует тот же UI с `headingKey`/`hintKey` (заголовок без счётчика + постоянная подсказка). Поле ввода и «Отправить» выровнены по вертикальному центру.
 - **`LatestPostBanner`** — полная `VideoCard` **под** «Окнами возможностей»; только самое свежее видео/запись вебинара локали, которое пользователь ещё не открывал (единый пул `get_posts_feed`).
 - **`postsClient.ts` / `postLocale.ts` / `VideoCard`**: `fetchPostsFeedPage` / `fetchPostsFeedForLocale` (cursor + `p_locale`), views (`markPostViewed` / `fetchLatestUnviewedPostForLocale`), `truncatePostPreview`, locale-aware comments.
 

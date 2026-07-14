@@ -1,7 +1,7 @@
 ---
 id: 02_modules/webinars/spec
 title: Webinars Spec
-version: 3.1
+version: 3.4
 updated: 2026-07-14
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
@@ -38,17 +38,17 @@ code_refs:
 
 ### Клиент (`modules/webinars`)
 
-- **`webinarTiming`**: `WEBINAR_JOIN_GRACE_HOURS = 1`, `isWebinarInJoinWindow`, `isWebinarRecordingTabAvailable`.
-- **`WebinarScreen`**: обложка + локализованные title/description; в join-окне — регистрация (гейт `webinar_community` / Master) и после записи блок «Вы зарегистрированы» + `join_url`; вопросы (`CommentsSection` `target_type="webinar"`). После окна — ссылка на запись (`/post/{recordingPostId}` или legacy `recording_url`).
-- **`UpcomingWebinarBanner`**: ближайший опубликованный вебинар с `isWebinarInJoinWindow` (включая час после старта).
-- **`WebinarsStrip`**: только upcoming в join-окне; past recording — через общую ленту постов / home banner.
+- **`webinarTiming`**: `WEBINAR_JOIN_GRACE_HOURS = 1`, `isWebinarInJoinWindow`, `isWebinarRecordingTabAvailable`, `formatWebinarBannerWhen`.
+- **`WebinarScreen`**: обложка + локализованные title/description; дата/время без года (меньший шрифт) + `(ваш часовой пояс)`; loading — только спиннер; в join-окне — регистрация (гейт `webinar_community` / Master) и после записи блок «Вы зарегистрированы» + `join_url`; вопросы = тот же `CommentsSection`/`CommentComposer`/`POST /api/comments`, что и у видео (`headingKey`/`hintKey` для copy; композер над клавиатурой как `PostScreen`). После окна — ссылка на запись (`/post/{recordingPostId}` или legacy `recording_url`).
+- **`UpcomingWebinarBanner`**: ближайший опубликованный вебинар с `isWebinarInJoinWindow` (включая час после старта); текст `formatWebinarBannerWhen · title` (без слова «вебинар»).
+- **`WebinarsStrip`**: компонент сохранён; во вкладке «Видео» не монтируется — анонсы только на главной, записи — в общей ленте VideoCard.
 - **`webinarsClient`**: `fetchUpcomingWebinar`, `fetchWebinars`, `fetchWebinar`, `localizeWebinar`, регистрации.
 
 ### Админка
 
 - Список: один бейдж — «Запись опубликована» если recording published, иначе «Анонс опубликован»/черновик; счётчик комментариев записи XOR вопросов анонса в том же правиле; участники → `/admin/users/{id}`.
-- Карточка: вкладки **Анонс** / **Запись** (запись после `starts_at+1h`; default = Запись если доступна). Обложка как в Video editor (`h-40` `object-contain`; пусто — кнопка «Добавить обложку», есть — только «Удалить обложку»). Чекбокс до первого сохранения — «Опубликовать», после — «Анонс опубликован» / «Запись опубликована». Анонс: cover + i18n + translate, `starts_at` (datetime-local пояса админа → timestamptz), `join_url`, `is_published`. Запись: `PUT /api/admin/webinars/[id]/recording` → upsert `posts` (`kind=webinar_recording`, `webinar_id`).
-- Вопросы модерируются на вкладке Анонс; комментарии записи — на вкладке Запись.
+- Карточка: вкладки **Анонс** / **Запись**. UI локалей/обложки/«Удалить перевод (XX)»/кнопки Save+Удалить — как у `PostEditor` (языковая полоса с точками наличия перевода, `RefreshCw` «Перевести», лейблы «Заголовок/Текст»). Анонс дополнительно: `starts_at`, `join_url`. Запись: `PUT …/recording`. Чекбокс до первого save — «Опубликовать», после — «Анонс опубликован» / «Запись опубликована».
+- Вопросы анонса и комментарии записи — `created_at` ascending (свежие внизу), как в приложении и у видео.
 
 ### Данные
 
@@ -59,7 +59,7 @@ code_refs:
 
 ## 3. i18n
 
-Ключи `webinars.*` (в т.ч. `questionsTitle`, `registeredTitle`/`registeredBody`, `registerPaidCta`). Даты — Luxon + активная локаль. Контент анонса/записи — `*_i18n` + admin translate.
+Ключи `webinars.*` (в т.ч. `questionsTitle`/`questionsHint`/`questionPlaceholder`, `registeredTitle`/`registeredBody`, `registerPaidCta`). Даты — Luxon + активная локаль. Контент анонса/записи — `*_i18n` + admin translate.
 
 ## 4. Легаси
 

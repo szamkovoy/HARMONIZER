@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-14 (3):** WebinarEditor locale strip / labels / delete-translation / Delete button aligned with PostEditor on both Анонс and Запись tabs.
+
+- **2026-07-14 (2):** Webinar LocaleFields «Удалить перевод» — тот же zinc/hover стиль, что у PostEditor.
+
 - **2026-07-14:** Webinar list single badge + comment XOR question count; unified cover UX (Video + Webinar): add button / scaled preview / delete link; publish checkbox «Опубликовать» before first save.
 
 - **2026-07-13:** Webinar admin dual tabs (announce/recording) + recording upsert API; list badges for announce vs recording publish state.

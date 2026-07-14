@@ -27,7 +27,7 @@ export const viewport: Viewport = {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-[#07080c] text-zinc-100">
+    <div className="min-h-dvh min-w-0 overflow-x-clip bg-[#07080c] text-zinc-100 [scrollbar-gutter:stable]">
       <AdminChrome>{children}</AdminChrome>
     </div>
   );

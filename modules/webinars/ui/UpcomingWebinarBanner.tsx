@@ -1,11 +1,11 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { router, type Href } from "expo-router";
-import { DateTime } from "luxon";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
 import { fetchUpcomingWebinar, localizeWebinar, type WebinarItem } from "@/modules/webinars/core/webinarsClient";
+import { formatWebinarBannerWhen } from "@/modules/webinars/core/webinarTiming";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -29,13 +29,7 @@ export function UpcomingWebinarBanner() {
 
   if (!webinar) return null;
   const localized = localizeWebinar(webinar, locale);
-
-  const when = DateTime.fromISO(localized.startsAt).setLocale(locale).toLocaleString({
-    day: "numeric",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const when = formatWebinarBannerWhen(localized.startsAt, locale);
 
   return (
     <Pressable
@@ -53,7 +47,7 @@ export function UpcomingWebinarBanner() {
     >
       <View style={[styles.dot, { backgroundColor: theme.colors.accent }]} />
       <AppText variant="technicalCaption" tone="muted" numberOfLines={1} style={styles.text}>
-        {when} · {t("webinars.banner.label")} · {localized.title}
+        {when} · {localized.title}
       </AppText>
       <AppText variant="sectionTitle" tone="muted" style={styles.arrow}>
         ›

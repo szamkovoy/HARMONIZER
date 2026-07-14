@@ -26,11 +26,11 @@ code_refs:
 ## 2. От него зависят
 
 - **`daily_forecast` (Home)** — `UpcomingWebinarBanner` (join-окно до `starts_at+1h`).
-- **`author_presence`** — `WebinarsStrip` во «Видео»; recording cards в общей ленте.
+- **`author_presence`** — recording cards в общей ленте «Видео» (анонсы на вкладке не показываются).
 - **`notifications`** — сегмент `webinar_registrations` для будущих пушей.
 
 ## 3. Риски
 
 - Feed RPC — **security definer**: фильтр published/`published_at` обязан жить в SQL `get_posts_feed`.
 - Удаление вебинара должно чистить вопросы (`target_type=webinar`) и linked recording post + его комментарии (нет FK на comments).
-- Смена `WEBINAR_JOIN_GRACE_HOURS` меняет баннер, вкладку «Запись» и семантику strip одновременно.
+- Смена `WEBINAR_JOIN_GRACE_HOURS` меняет баннер на Home и вкладку «Запись» в админке.

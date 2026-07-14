@@ -9,6 +9,7 @@ export {
 } from "@/modules/webinars/core/webinarsClient";
 export {
   WEBINAR_JOIN_GRACE_HOURS,
+  formatWebinarBannerWhen,
   isWebinarInJoinWindow,
   isWebinarRecordingTabAvailable,
   webinarJoinWindowEndsAt,

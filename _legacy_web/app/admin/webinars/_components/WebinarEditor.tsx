@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
-import { Eye, EyeOff, ImagePlus, Languages, Loader2, ThumbsUp, Trash2, Users } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Eye, EyeOff, ImagePlus, Loader2, RefreshCw, ThumbsUp, Trash2, Users } from "lucide-react";
 
 import { TIER_LABELS_RU } from "@/modules/access/core/tiers";
 import { isWebinarRecordingTabAvailable } from "@/modules/webinars/core/webinarTiming";
@@ -25,6 +25,17 @@ const LOCALE_LABELS: Record<ContentLocale, string> = {
   es: "ES",
   pt: "PT",
   nl: "NL",
+};
+
+const LOCALE_FULL_NAMES: Record<ContentLocale, string> = {
+  ru: "Русский",
+  en: "English",
+  de: "Deutsch",
+  fr: "Français",
+  it: "Italiano",
+  es: "Español",
+  pt: "Português",
+  nl: "Nederlands",
 };
 
 export type AdminWebinar = {
@@ -145,7 +156,7 @@ function createCoverUploadCache() {
 }
 
 const inputCls =
-  "w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50";
+  "w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50";
 
 export function WebinarEditor({
   webinar,
@@ -195,8 +206,6 @@ export function WebinarEditor({
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regsOpen, setRegsOpen] = useState(false);
-
-  const localeList = useMemo(() => ["ru", ...TARGET_LOCALES] as ContentLocale[], []);
 
   async function runTranslate(kind: "announce" | "recording") {
     const isAnnounce = kind === "announce";
@@ -356,42 +365,125 @@ export function WebinarEditor({
     }
   }
 
+  function tabHasCover(tab: LocaleTabData): boolean {
+    return Boolean(tab.coverUrl || tab.coverFile || tab.coverPreview);
+  }
+
+  function clearAnnounceLocaleTranslation() {
+    if (
+      !window.confirm(
+        `Удалить перевод для ${LOCALE_FULL_NAMES[activeLocale]}? Заголовок, текст и обложка этой вкладки будут очищены.`,
+      )
+    ) {
+      return;
+    }
+    if (activeLocale === "ru") {
+      setTitle("");
+      setDescription("");
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+      setCoverFile(null);
+      setCoverPreview(null);
+      setCoverUrl(null);
+      return;
+    }
+    const prevPreview = localeTabs[activeLocale].coverPreview;
+    if (prevPreview) URL.revokeObjectURL(prevPreview);
+    setLocaleTabs((prev) => ({ ...prev, [activeLocale]: emptyLocaleTab() }));
+  }
+
+  function clearRecordingLocaleTranslation() {
+    if (
+      !window.confirm(
+        `Удалить перевод для ${LOCALE_FULL_NAMES[recActiveLocale]}? Заголовок, текст и обложка этой вкладки будут очищены.`,
+      )
+    ) {
+      return;
+    }
+    if (recActiveLocale === "ru") {
+      setRecTitle("");
+      setRecBody("");
+      if (recCoverPreview) URL.revokeObjectURL(recCoverPreview);
+      setRecCoverFile(null);
+      setRecCoverPreview(null);
+      setRecCoverUrl(null);
+      return;
+    }
+    const prevPreview = recLocaleTabs[recActiveLocale].coverPreview;
+    if (prevPreview) URL.revokeObjectURL(prevPreview);
+    setRecLocaleTabs((prev) => ({ ...prev, [recActiveLocale]: emptyLocaleTab() }));
+  }
+
+  const announceHasTranslation =
+    activeLocale === "ru"
+      ? Boolean(title.trim() || description.trim() || coverUrl || coverFile)
+      : Boolean(
+          localeTabs[activeLocale].title.trim() ||
+            localeTabs[activeLocale].body.trim() ||
+            tabHasCover(localeTabs[activeLocale]),
+        );
+  const recordingHasTranslation =
+    recActiveLocale === "ru"
+      ? Boolean(recTitle.trim() || recBody.trim() || recCoverUrl || recCoverFile)
+      : Boolean(
+          recLocaleTabs[recActiveLocale].title.trim() ||
+            recLocaleTabs[recActiveLocale].body.trim() ||
+            tabHasCover(recLocaleTabs[recActiveLocale]),
+        );
+
   function renderLocaleBar(
     active: ContentLocale,
     setActive: (locale: ContentLocale) => void,
     tabs: Record<TargetLocale, LocaleTabData>,
+    ruHasContent: boolean,
     onTranslate: () => void,
   ) {
     return (
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {localeList.map((locale) => {
-          const filled = locale === "ru" ? true : Boolean(tabs[locale as TargetLocale]?.title.trim());
-          return (
+      <div className="mb-4">
+        <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-black/30 p-1">
+          <button
+            type="button"
+            onClick={() => setActive("ru")}
+            className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+              active === "ru" ? "bg-emerald-500 text-emerald-950" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            RU
+            {ruHasContent ? (
+              <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            ) : null}
+          </button>
+          {TARGET_LOCALES.map((locale) => {
+            const hasContent = Boolean(tabs[locale].title.trim() || tabs[locale].body.trim());
+            return (
+              <button
+                key={locale}
+                type="button"
+                onClick={() => setActive(locale)}
+                className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  active === locale ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+                title={LOCALE_FULL_NAMES[locale]}
+              >
+                {LOCALE_LABELS[locale]}
+                {hasContent ? (
+                  <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                ) : null}
+              </button>
+            );
+          })}
+          <div className="ml-auto flex items-center">
             <button
-              key={locale}
               type="button"
-              onClick={() => setActive(locale)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                active === locale
-                  ? "bg-emerald-500 text-emerald-950"
-                  : filled
-                    ? "bg-white/10 text-zinc-200"
-                    : "bg-white/5 text-zinc-500"
-              }`}
+              onClick={onTranslate}
+              disabled={translating || busy}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-60"
+              title="Перевести пустые языки и скопировать обложку источника (RU → EN → …)"
             >
-              {LOCALE_LABELS[locale]}
+              {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Перевести
             </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onTranslate}
-          disabled={translating || busy}
-          className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
-        >
-          {translating ? <Loader2 size={14} className="animate-spin" /> : <Languages size={14} />}
-          Перевести
-        </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -404,44 +496,48 @@ export function WebinarEditor({
   ) {
     const src = preview || url;
     return (
-      <div className="mb-4">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
-          />
-        ) : (
-          <label className="mb-1.5 flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40">
-            <ImagePlus size={22} strokeWidth={1.6} />
-            Добавить обложку
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onPick(file);
-              }}
-            />
-          </label>
-        )}
-        {src ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="text-xs text-zinc-500 transition-colors hover:text-red-300"
-          >
-            Удалить обложку
-          </button>
-        ) : null}
+      <div className="mb-4 w-full min-w-0">
+        <div
+          className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-black/30 ${
+            src ? "border border-white/10" : "border border-dashed border-white/15"
+          }`}
+        >
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+          ) : (
+            <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40 hover:text-zinc-300">
+              <ImagePlus size={22} strokeWidth={1.6} />
+              Добавить обложку
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onPick(file);
+                }}
+              />
+            </label>
+          )}
+        </div>
+        <div className="h-5">
+          {src ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-xs text-zinc-500 transition-colors hover:text-red-300"
+            >
+              Удалить обложку
+            </button>
+          ) : null}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto w-full min-w-0 max-w-3xl overflow-x-hidden">
       <h1 className="mb-4 text-xl font-bold text-zinc-100">{webinar ? "Вебинар" : "Новый вебинар"}</h1>
 
       <div className="mb-4 flex gap-2">
@@ -472,8 +568,17 @@ export function WebinarEditor({
       </div>
 
       {tab === "announce" ? (
-        <form onSubmit={saveAnnounce} className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-          {renderLocaleBar(activeLocale, setActiveLocale, localeTabs, () => void runTranslate("announce"))}
+        <form
+          onSubmit={saveAnnounce}
+          className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4"
+        >
+          {renderLocaleBar(
+            activeLocale,
+            setActiveLocale,
+            localeTabs,
+            Boolean(title.trim() || description.trim()),
+            () => void runTranslate("announce"),
+          )}
 
           {activeLocale === "ru" ? (
             <>
@@ -490,32 +595,34 @@ export function WebinarEditor({
                   setCoverUrl(null);
                 },
               )}
-              <label className="mb-3 block">
-                <span className="mb-1 block text-xs text-zinc-400">Название</span>
+              <label className="mb-3 block min-w-0">
+                <span className="mb-1 block text-xs text-zinc-400">Заголовок (Русский)</span>
                 <input required value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
               </label>
-              <label className="mb-3 block">
-                <span className="mb-1 block text-xs text-zinc-400">Описание (ссылки станут кликабельными)</span>
+              <label className="mb-4 block min-w-0">
+                <span className="mb-1 block text-xs text-zinc-400">
+                  Текст (переносы строк сохраняются, ссылки станут кликабельными в приложении)
+                </span>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={5}
+                  rows={10}
                   className={`${inputCls} resize-y`}
                 />
               </label>
             </>
           ) : (
             <LocaleFields
+              locale={activeLocale}
               tab={localeTabs[activeLocale]}
               onChange={(patch) =>
                 setLocaleTabs((prev) => ({ ...prev, [activeLocale]: { ...prev[activeLocale], ...patch } }))
               }
-              onClear={() => setLocaleTabs((prev) => ({ ...prev, [activeLocale]: emptyLocaleTab() }))}
             />
           )}
 
-          <div className="mb-3 grid gap-3 sm:grid-cols-2">
-            <label className="block">
+          <div className="mb-3 flex min-w-0 flex-col gap-3 sm:flex-row">
+            <label className="block min-w-0 flex-1 basis-0">
               <span className="mb-1 block text-xs text-zinc-400">
                 Дата и время (ваш часовой пояс; сохраняется как абсолютный момент)
               </span>
@@ -524,30 +631,42 @@ export function WebinarEditor({
                 type="datetime-local"
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
-                className={inputCls}
+                className={`${inputCls} max-w-full [color-scheme:dark]`}
               />
             </label>
-            <label className="block">
+            <label className="block min-w-0 flex-1 basis-0">
               <span className="mb-1 block text-xs text-zinc-400">Ссылка на трансляцию</span>
               <input
                 type="url"
                 value={joinUrl}
                 onChange={(e) => setJoinUrl(e.target.value)}
                 placeholder="https://…"
-                className={inputCls}
+                className={`${inputCls} max-w-full`}
               />
             </label>
           </div>
 
-          <label className="mb-4 flex items-center gap-2 text-sm text-zinc-300">
-            <input
-              type="checkbox"
-              checked={isPublished}
-              onChange={(e) => setIsPublished(e.target.checked)}
-              className="accent-emerald-500"
-            />
-            {webinar ? "Анонс опубликован" : "Опубликовать"}
-          </label>
+          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={isPublished}
+                onChange={(e) => setIsPublished(e.target.checked)}
+                className="accent-emerald-500"
+              />
+              {webinar ? "Анонс опубликован" : "Опубликовать"}
+            </label>
+            {announceHasTranslation ? (
+              <button
+                type="button"
+                onClick={clearAnnounceLocaleTranslation}
+                className="text-xs text-zinc-500 underline-offset-2 transition-colors hover:text-red-300 hover:underline"
+                title={`Очистить только вкладку ${LOCALE_LABELS[activeLocale]}`}
+              >
+                Удалить перевод ({LOCALE_LABELS[activeLocale]})
+              </button>
+            ) : null}
+          </div>
 
           {error && tab === "announce" ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
 
@@ -555,25 +674,34 @@ export function WebinarEditor({
             <button
               type="submit"
               disabled={busy}
-              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
             >
-              {busy ? "Сохраняю…" : webinar ? "Сохранить анонс" : "Создать"}
+              {busy ? "Сохраняю…" : webinar ? "Сохранить" : "Создать"}
             </button>
             {webinar ? (
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-red-300 hover:bg-red-400/10 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50"
               >
-                <Trash2 size={16} /> Удалить
+                <Trash2 size={16} strokeWidth={1.8} /> Удалить
               </button>
             ) : null}
           </div>
         </form>
       ) : (
-        <form onSubmit={saveRecording} className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-          {renderLocaleBar(recActiveLocale, setRecActiveLocale, recLocaleTabs, () => void runTranslate("recording"))}
+        <form
+          onSubmit={saveRecording}
+          className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4"
+        >
+          {renderLocaleBar(
+            recActiveLocale,
+            setRecActiveLocale,
+            recLocaleTabs,
+            Boolean(recTitle.trim() || recBody.trim()),
+            () => void runTranslate("recording"),
+          )}
 
           {recActiveLocale === "ru" ? (
             <>
@@ -591,23 +719,24 @@ export function WebinarEditor({
                 },
               )}
               <label className="mb-3 block">
-                <span className="mb-1 block text-xs text-zinc-400">Название записи</span>
+                <span className="mb-1 block text-xs text-zinc-400">Заголовок (Русский)</span>
                 <input required value={recTitle} onChange={(e) => setRecTitle(e.target.value)} className={inputCls} />
               </label>
-              <label className="mb-3 block">
+              <label className="mb-4 block">
                 <span className="mb-1 block text-xs text-zinc-400">
-                  Описание (ссылку на скачивание записи укажите в тексте)
+                  Текст (переносы строк сохраняются, ссылки станут кликабельными в приложении)
                 </span>
                 <textarea
                   value={recBody}
                   onChange={(e) => setRecBody(e.target.value)}
-                  rows={6}
+                  rows={10}
                   className={`${inputCls} resize-y`}
                 />
               </label>
             </>
           ) : (
             <LocaleFields
+              locale={recActiveLocale}
               tab={recLocaleTabs[recActiveLocale]}
               onChange={(patch) =>
                 setRecLocaleTabs((prev) => ({
@@ -615,29 +744,52 @@ export function WebinarEditor({
                   [recActiveLocale]: { ...prev[recActiveLocale], ...patch },
                 }))
               }
-              onClear={() => setRecLocaleTabs((prev) => ({ ...prev, [recActiveLocale]: emptyLocaleTab() }))}
             />
           )}
 
-          <label className="mb-4 flex items-center gap-2 text-sm text-zinc-300">
-            <input
-              type="checkbox"
-              checked={recPublished}
-              onChange={(e) => setRecPublished(e.target.checked)}
-              className="accent-emerald-500"
-            />
-            {savedRecording ? "Запись опубликована" : "Опубликовать"}
-          </label>
+          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={recPublished}
+                onChange={(e) => setRecPublished(e.target.checked)}
+                className="accent-emerald-500"
+              />
+              {savedRecording ? "Запись опубликована" : "Опубликовать"}
+            </label>
+            {recordingHasTranslation ? (
+              <button
+                type="button"
+                onClick={clearRecordingLocaleTranslation}
+                className="text-xs text-zinc-500 underline-offset-2 transition-colors hover:text-red-300 hover:underline"
+                title={`Очистить только вкладку ${LOCALE_LABELS[recActiveLocale]}`}
+              >
+                Удалить перевод ({LOCALE_LABELS[recActiveLocale]})
+              </button>
+            ) : null}
+          </div>
 
           {error && tab === "recording" ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
-          >
-            {busy ? "Сохраняю…" : savedRecording ? "Сохранить запись" : "Создать запись"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+            >
+              {busy ? "Сохраняю…" : savedRecording ? "Сохранить" : "Создать запись"}
+            </button>
+            {webinar ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={busy}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50"
+              >
+                <Trash2 size={16} strokeWidth={1.8} /> Удалить
+              </button>
+            ) : null}
+          </div>
         </form>
       )}
 
@@ -654,7 +806,7 @@ export function WebinarEditor({
       {webinar && tab === "recording" ? (
         <CommentsModeration
           initial={recordingComments}
-          title={`Комментарии к записи (${recordingComments.length})`}
+          title={`Комментарии (${recordingComments.length})`}
         />
       ) : null}
     </div>
@@ -662,71 +814,72 @@ export function WebinarEditor({
 }
 
 function LocaleFields({
+  locale,
   tab,
   onChange,
-  onClear,
 }: {
+  locale: TargetLocale;
   tab: LocaleTabData;
   onChange: (patch: Partial<LocaleTabData>) => void;
-  onClear: () => void;
 }) {
   const src = tab.coverPreview || tab.coverUrl;
   return (
     <>
-      <div className="mb-4">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
-          />
-        ) : (
-          <label className="mb-1.5 flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40">
-            <ImagePlus size={22} strokeWidth={1.6} />
-            Добавить обложку
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                onChange({ coverFile: file, coverPreview: URL.createObjectURL(file) });
-              }}
-            />
-          </label>
-        )}
-        {src ? (
-          <button
-            type="button"
-            onClick={() => onChange({ coverUrl: null, coverFile: null, coverPreview: null })}
-            className="text-xs text-zinc-500 transition-colors hover:text-red-300"
-          >
-            Удалить обложку
-          </button>
-        ) : null}
+      <div className="mb-4 w-full min-w-0">
+        <div
+          className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-black/30 ${
+            src ? "border border-white/10" : "border border-dashed border-white/15"
+          }`}
+        >
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+          ) : (
+            <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-300">
+              <ImagePlus size={22} strokeWidth={1.6} />
+              Добавить обложку
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  onChange({ coverFile: file, coverPreview: URL.createObjectURL(file) });
+                }}
+              />
+            </label>
+          )}
+        </div>
+        <div className="h-5">
+          {src ? (
+            <button
+              type="button"
+              onClick={() => onChange({ coverUrl: null, coverFile: null, coverPreview: null })}
+              className="text-xs text-zinc-500 transition-colors hover:text-red-300"
+            >
+              Удалить обложку
+            </button>
+          ) : null}
+        </div>
       </div>
       <label className="mb-3 block">
-        <span className="mb-1 block text-xs text-zinc-400">Название</span>
+        <span className="mb-1 block text-xs text-zinc-400">Заголовок ({LOCALE_FULL_NAMES[locale]})</span>
         <input
           value={tab.title}
           onChange={(e) => onChange({ title: e.target.value })}
           className={inputCls}
         />
       </label>
-      <label className="mb-3 block">
-        <span className="mb-1 block text-xs text-zinc-400">Описание</span>
+      <label className="mb-4 block">
+        <span className="mb-1 block text-xs text-zinc-400">Текст ({LOCALE_FULL_NAMES[locale]})</span>
         <textarea
           value={tab.body}
           onChange={(e) => onChange({ body: e.target.value })}
-          rows={5}
+          rows={10}
           className={`${inputCls} resize-y`}
         />
       </label>
-      <button type="button" onClick={onClear} className="mb-3 text-xs text-red-300 hover:underline">
-        Удалить перевод этой локали
-      </button>
     </>
   );
 }

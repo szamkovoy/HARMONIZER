@@ -128,7 +128,7 @@
   "webinars.notFoundMessage": "This announcement may have been taken down.",
   "webinars.notFoundTitle": "Webinar not found",
   "webinars.questionPlaceholder": "Je vraag…",
-  "webinars.questionsHint": "Stel je vraag vóór de uitzending — de auteur beantwoordt de populairste. Met een hartje stem je op een vraag.",
+  "webinars.questionsHint": "Schrijf je vraag vóór het begin van onze bijeenkomst, zodat ik die kan beantwoorden. Je kunt ook vragen die al gesteld zijn en die jou het meest interesseren een ‘like’ geven. Ik houd daar absoluut rekening mee.",
   "webinars.questionsTitle": "Discussievragen",
   "webinars.recordingLocked": "Webinar recordings are available on the Master plan.",
   "webinars.recordingPending": "De opname verschijnt hier na publicatie.",
@@ -143,5 +143,6 @@
   "webinars.strip.title": "Webinars",
   "webinars.unregister": "Cancel registration",
   "webinars.upgradeCta": "Learn about the Master plan",
-  "webinars.watchRecording": "Open opname"
+  "webinars.watchRecording": "Open opname",
+  "webinars.yourTimezone": "je tijdzone"
 }

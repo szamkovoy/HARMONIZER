@@ -61,6 +61,23 @@ export async function POST(req: Request) {
         title_i18n: (post.title_i18n as Record<string, string> | null) ?? {},
       });
       needsBackgroundTranslate = localeCount > 1;
+    } else {
+      // webinar announce questions — same translate gate as video comments
+      const { data: webinar, error: webinarError } = await db
+        .from("webinars")
+        .select("id, title, title_i18n, is_published")
+        .eq("id", targetId)
+        .maybeSingle();
+      if (webinarError) throw webinarError;
+      if (!webinar || !webinar.is_published) {
+        return json({ error: "Вебинар не найден" }, { status: 404 });
+      }
+
+      const localeCount = countPostTitleLocales({
+        title: webinar.title,
+        title_i18n: (webinar.title_i18n as Record<string, string> | null) ?? {},
+      });
+      needsBackgroundTranslate = localeCount > 1;
     }
 
     const { data, error } = await db

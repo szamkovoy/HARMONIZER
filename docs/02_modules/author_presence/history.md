@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-14 (3):** PostScreen loading — spinner only; CommentComposer vertical center with Send; Videos feed no longer mounts webinar announce strip.
+
+- **2026-07-14 (2):** `CommentsSection` accepts `headingKey`/`hintKey` for webinar Q&A copy; `POST /api/comments` translates webinar targets like posts when multi-locale.
+
 - **2026-07-14:** Published `webinar_recording` joins the same feed/home VideoCard pool as `video` (migration `20260714003000`); registrants gate removed from feed RLS/RPC.
 
 - **2026-07-13:** `posts.kind` / `webinar_id`; feed+RLS hide webinar recordings from non-registrants; admin posts list filters `kind=video`.

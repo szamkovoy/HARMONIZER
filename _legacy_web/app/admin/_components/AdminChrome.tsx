@@ -87,7 +87,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl">
+    <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-6xl overflow-x-clip">
       {/* Сайдбар — desktop */}
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-white/10 p-4 md:flex">
         <div className="mb-6 px-2 text-lg font-bold tracking-wide text-emerald-300">
@@ -133,7 +133,9 @@ export function AdminChrome({ children }: { children: ReactNode }) {
           </button>
         </header>
 
-        <main className="flex-1 px-4 py-5 pb-24 md:px-8 md:pb-8">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-5 pb-24 md:px-8 md:pb-8">
+          {children}
+        </main>
 
         {/* Нижняя навигация — mobile (горизонтальный скролл, все разделы) */}
         <nav className="fixed inset-x-0 bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-white/10 bg-[#0b0d12]/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur md:hidden">

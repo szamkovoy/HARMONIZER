@@ -17,7 +17,6 @@ import { SurfaceCardHelpButton } from "@/modules/ui/SurfaceCardHelpButton";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { TabScreenLayout, useTabScreenContentProps } from "@/modules/ui/TabScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
-import { WebinarsStrip } from "@/modules/webinars";
 
 export function PostsFeedScreen() {
   const theme = useTheme();
@@ -108,7 +107,6 @@ export function PostsFeedScreen() {
                 />
               }
             />
-            <WebinarsStrip />
           </View>
         }
         ListEmptyComponent={

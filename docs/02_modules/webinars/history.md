@@ -9,6 +9,14 @@ code_refs: [supabase/migrations/20260708140000_webinars.sql]
 
 ## Decision Log
 
+- **2026-07-14 (5):** Banner `·` before title; announce date without year + smaller type; Videos tab no longer mounts `WebinarsStrip` (announces only on Home).
+
+- **2026-07-14 (4):** Home banner — `formatWebinarBannerWhen` + title (без «вебинар»); detail — `(ваш часовой пояс)`; loading spinner-only; admin announce questions chronological ascending (не по голосам).
+
+- **2026-07-14 (3):** Admin announce/recording editors match PostEditor locale bar (dots, RefreshCw), field labels, «Удалить перевод (XX)» next to publish, Delete on both tabs.
+
+- **2026-07-14 (2):** Announce questions reuse PostScreen comment stack (docked composer + `CommentsSection` copy props); `/api/comments` background-translates webinar questions when announce has multiple title locales; admin «Удалить перевод» style matches PostEditor.
+
 - **2026-07-14:** Admin list — один бейдж (запись XOR анонс) + matching comment/question count. Cover UX как Video (`h-40` contain; add button / delete link). Publish checkbox «Опубликовать» до первого save. `WebinarsStrip` только upcoming; published recording = ordinary feed/home VideoCard. Миграция `20260714003000_webinar_recording_feed_like_video.sql` снимает registrants-only с ленты (live join по-прежнему через регистрацию).
 
 - **2026-07-13:** Dual model Анонс + Запись. Анонс: cover/i18n на `webinars`, баннер до `starts_at+1h`, вопросы «Вопросы для обсуждения», registered UX + `join_url`. Запись: linked `posts.kind=webinar_recording` + `webinar_id`, admin вкладка после grace, лента/RLS только для `webinar_registrations`. Миграция `20260713200000_webinars_announce_recording.sql`. `recording_url` deprecated.

@@ -87,6 +87,18 @@ function birthFingerprintFromProfile(
   return [profile.birth_date ?? "", profile.birth_time ?? "", place].join("|");
 }
 
+function formatHomeHeaderDate(locale: HomeStrings["locale"]): string {
+  const raw = new Intl.DateTimeFormat(intlLocaleTag(locale), {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
+  // Intl already uses locale month casing (lowercase in RU/Romance, title case in EN/DE).
+  // Capitalize only the first character so the header reads as a sentence.
+  if (!raw) return raw;
+  return raw.charAt(0).toLocaleUpperCase(intlLocaleTag(locale)) + raw.slice(1);
+}
+
 function HomeHeader({
   forecast,
   strings,
@@ -95,11 +107,7 @@ function HomeHeader({
   strings: HomeStrings;
   homeTextsLoading?: boolean;
 }) {
-  const today = new Intl.DateTimeFormat(intlLocaleTag(strings.locale), {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
+  const today = formatHomeHeaderDate(strings.locale);
   const slogan = forecast?.slogan?.trim() ?? "";
   const showSlogan =
     Boolean(slogan) &&
@@ -109,7 +117,7 @@ function HomeHeader({
       <View style={styles.heroRow}>
         <StoriesRing />
         <View style={styles.headerText}>
-          <AppText variant="sectionTitle" accessibilityRole="header" style={styles.dateText}>
+          <AppText variant="sectionTitle" accessibilityRole="header">
             {today}
           </AppText>
           {showSlogan ? (
@@ -860,9 +868,6 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
     gap: 8,
-  },
-  dateText: {
-    textTransform: "capitalize",
   },
   stateCard: {
     alignItems: "center",

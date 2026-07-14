@@ -94,6 +94,7 @@ export function CommentComposer({
         placeholderTextColor={theme.colors.textFaint}
         multiline
         maxLength={MAX_COMMENT_LENGTH}
+        textAlignVertical="center"
         style={[styles.input, { color: theme.colors.textPrimary }]}
       />
       <Pressable
@@ -117,6 +118,9 @@ export function CommentComposer({
 /**
  * Комментарии к цели (видео или вебинар) с лайками и удалением своих.
  * `showComposer=false` — список без поля ввода (композер монтируется снаружи, над клавиатурой).
+ *
+ * Для анонса вебинара передайте `headingKey` + `hintKey`: заголовок без счётчика и
+ * постоянная подсказка вместо empty-only текста комментариев.
  */
 export function CommentsSection({
   targetType,
@@ -126,6 +130,9 @@ export function CommentsSection({
   inputPlaceholderKey = "posts.comments.placeholder",
   showComposer = true,
   onSubmitted,
+  headingKey,
+  hintKey,
+  emptyKey = "posts.comments.empty",
 }: {
   targetType: CommentTargetType;
   targetId: string;
@@ -134,6 +141,11 @@ export function CommentsSection({
   inputPlaceholderKey?: string;
   showComposer?: boolean;
   onSubmitted?: () => void;
+  /** Fixed heading (e.g. webinar questions) — no «Комментарии: N» count. */
+  headingKey?: string;
+  /** Always-visible hint below the heading (webinar questions). */
+  hintKey?: string;
+  emptyKey?: string;
 }) {
   const theme = useTheme();
   const { t, locale } = useTranslate();
@@ -177,20 +189,30 @@ export function CommentsSection({
     [t, reload, userId],
   );
 
+  const heading = headingKey
+    ? t(headingKey)
+    : comments === null
+      ? t("posts.comments.title")
+      : t("posts.comments.countLabel", { count: comments.length });
+
   return (
     <View style={styles.root}>
-      <AppText variant="sectionTitle">
-        {comments === null
-          ? t("posts.comments.title")
-          : t("posts.comments.countLabel", { count: comments.length })}
-      </AppText>
+      <AppText variant="sectionTitle">{heading}</AppText>
+
+      {hintKey ? (
+        <AppText variant="screenHint" tone="muted">
+          {t(hintKey)}
+        </AppText>
+      ) : null}
 
       {comments === null ? (
         <ActivityIndicator color={theme.colors.textMuted} />
       ) : comments.length === 0 ? (
-        <AppText variant="screenHint" tone="muted">
-          {t("posts.comments.empty")}
-        </AppText>
+        hintKey ? null : (
+          <AppText variant="screenHint" tone="muted">
+            {t(emptyKey)}
+          </AppText>
+        )
       ) : (
         comments.map((comment) => (
           <View
@@ -277,7 +299,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   inputRow: {
-    alignItems: "flex-end",
+    alignItems: "center",
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",
@@ -288,11 +310,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
+    includeFontPadding: false,
     maxHeight: 120,
-    paddingTop: 4,
+    paddingBottom: 0,
+    paddingTop: 0,
   },
   sendButton: {
-    paddingBottom: 4,
+    justifyContent: "center",
     paddingHorizontal: 4,
+    paddingVertical: 2,
   },
 });

@@ -104,7 +104,7 @@ export async function GET(req: Request, ctx: RouteContext) {
           vote_count: votes.get(q.id) ?? 0,
         };
       })
-      .sort((a, b) => b.vote_count - a.vote_count || a.created_at.localeCompare(b.created_at));
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
     return json({
       webinar,

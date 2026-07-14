@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { DateTime } from "luxon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -112,8 +113,8 @@ export function PostScreen() {
         </View>
 
         {post === undefined ? (
-          <View style={styles.stateWrap}>
-            <StateCard loading message={t("posts.feed.loading")} />
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={theme.colors.accent} />
           </View>
         ) : post === null || localizedPost == null ? (
           <View style={styles.stateWrap}>
@@ -191,6 +192,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   stateWrap: {
+    paddingHorizontal: 20,
+  },
+  loadingWrap: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
     paddingHorizontal: 20,
   },
   cover: {
