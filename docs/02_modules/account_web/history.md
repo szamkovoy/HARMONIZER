@@ -5,6 +5,15 @@ version: 1.1
 updated: 2026-07-15
 ---
 
+## 2026-07-15 — Платежи Lava.top: checkout, вебхуки, отмена подписки, геовалюта
+
+- Миграция `20260715120000_lava_payment_contracts.sql`: таблица `payment_contracts` (контракты Lava ↔ пользователи, статусы pending/active/cancelled/failed, `current_period_end`; только service role). Применена в Supabase.
+- Vercel API: `POST /api/account/checkout` (создание MONTHLY-инвойса Lava `POST /api/v2/invoice`, ответ `paymentUrl`), `GET|DELETE /api/account/subscription` (текущая подписка / отмена через `DELETE /api/v1/subscriptions`), `POST /api/account/webhooks/lava` (auth по `X-Api-Key`; активация, продление, отмена; при `payment.success` нового контракта старые active-подписки пользователя отменяются — политика A3 «апгрейд немедленно, остаток без пересчёта»). `AccountOverview` дополнен полем `subscription`; `upgradeTiers` после отмены = все платные уровни. Клиент Lava — `_legacy_web/app/api/account/lava.ts` (контракт сверен с официальными SDK).
+- Приложение: `resolveBillingCurrency` (reverse-geocode кэшированных координат → RU=RUB, US=USD, иначе EUR), `openAccountCabinet(ctx)` теперь передаёт `&currency=` и `&ctx=` (`tier` | `webinar:<id>` | `course:<id>` — задел) и пишет флаг `cabinetVisit` для foreground-сверки.
+- `cabinet.html`: блок «Ваша подписка» (статус, цена, следующее списание / «доступ до», кнопка «Отменить подписку» с confirm и понятным текстом «доступ сохранится до конца оплаченного периода»), цены уровней в валюте из ссылки (`PRICES` дублирует офферы Lava), реальный `hzStartUpgrade` → checkout → redirect, `hzCancelSub`, refetch overview по `visibilitychange`; заготовка блока курсов (`COURSES`). Новые строки локализованы на все 8 языков внутри файла.
+- Vercel env: добавлены `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID`, `LAVATOP_TARIFF_3_ID`; продовый деплой выполнен, эндпоинты отвечают 401 без auth.
+- Решения продукта: цены «Мастера» 99 USD/EUR против 4950 ₽ — осознанный региональный прайсинг; годовая периодичность и курсы — следующий этап (архитектура заложена).
+
 ## 2026-07-15 — Deploy edge-функции + шрифт панелей + кнопка ЛК в профиле
 
 - Edge-функция `send-auth-email` переписана: внешний модуль `denomailer` недоступен для бандлинга в Supabase Edge Functions → заменён на минимальный SMTP-клиент на встроенном `Deno.connectTls` (EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT, multipart/alternative с base64 subject). Функция задеплоена, секреты `SMTP_USERNAME`/`SMTP_PASSWORD` установлены на remote.

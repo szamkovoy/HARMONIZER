@@ -28,7 +28,7 @@ function cabinetSecret(): string {
 export function corsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": allowedOrigin(),
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, content-type",
     "Access-Control-Max-Age": "600",
     Vary: "Origin",
