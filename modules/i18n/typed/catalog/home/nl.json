@@ -44,7 +44,6 @@
     "aspectTitle": "Aspect"
   },
   "forecastErrorTitle": "Voorspelling kon niet geladen worden",
-  "freeTierBanner": "Onderaan zie je universele aanbevelingen voor deze dag. Ze helpen je om elke dag effectief te beleven. Echter, individuele aanbevelingen, gebaseerd op jouw geboortedatum, -tijd en -plaats, zijn veel nauwkeuriger en diepgaander. Schakel over naar het \"Psycholoog\"-abonnement om deze te ontvangen.",
   "headerHint": "De belangrijkste instelling van de dag: chakra's, kansenvensters en praktisch advies.",
   "locale": "nl",
   "locationErrorMessage": "Om je kansenvensters te berekenen, hebben we je locatie nodig. Sta locatietoegang toe en probeer het opnieuw.",
@@ -104,14 +103,14 @@
     "paidIntroTemplate": "Koester vandaag de staten die {natalPlanet} activeert. Tegelijk zal {transitPlanet} bijzondere kansenvensters openen.",
     "sunriseDetailTemplate": "{planet} komt boven de horizon",
     "culminationDetailTemplate": "{planet} is op maximale kracht",
-    "exactAspectDetailTemplate": "{aspect} {transitPlanet} en {natalPlanet}",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (transit) en {natalPlanet} (nataal)",
     "help": {
       "freeOpening": "De sterkste planeet van de dag is {planet}. De grafiek toont wanneer {planet} opkomt en het zenit bereikt op uw locatie.",
       "paidOpening": "De sterkste planeet van uw geboortehoroscoop is vandaag {natalPlanet}. Deze kracht komt grotendeels voort uit de wisselwerking met de transitplaneet {transitPlanet}, waarvan de beweging aan de hemel bijzondere kansenvensters voor u opent.",
       "paidOpeningNoTransit": "Vandaag toont de grafiek een algemeen kansenvenster zonder een duidelijk uitgelichte transitplaneet.",
       "sunriseLine": "Opkomst: {time} — {planet} komt boven de horizon.",
       "culminationLine": "Culminatie: {time} — {planet} op het hoogste punt van het dagelijkse pad.",
-      "exactAspectLine": "Exact aspect: {time} — {aspect} {transitPlanet} en {natalPlanet}.",
+      "exactAspectLine": "Exact aspect: {time} — {aspect} {transitPlanet} (transit) en {natalPlanet} (nataal).",
       "closing": "Dit zijn sleutelmomenten specifiek voor uw locatie. Gebruik ze voor spirituele praktijken, affirmaties, intenties, meditatie enz.",
       "remindersHint": "Tik op het belletje onder de grafiek om herinneringen in of uit te schakelen."
     }

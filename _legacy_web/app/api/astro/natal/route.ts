@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 
 type Body = {
   birthData: BirthData;
+  /** «Город, область, страна» из автодополнения (Open-Meteo); null для legacy-клиентов. */
+  birthPlaceName?: string | null;
 };
 
 export async function POST(req: Request) {
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
     const profile = await computeNatalProfileWithAstronomia(body.birthData);
     const version = await nextVersionFor(db, "user_natal_charts", userId);
     const birthPlace = {
-      name: "Москва",
+      name: body.birthPlaceName?.trim() || null,
       lat: body.birthData.location.lat,
       lon: body.birthData.location.lng,
       timezone: body.birthData.location.timezone,

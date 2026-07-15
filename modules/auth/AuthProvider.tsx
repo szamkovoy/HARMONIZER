@@ -25,8 +25,7 @@ import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCach
 import { rememberSupabaseSession, readPersistedAuthSessionFromStorage, requireSupabase } from "@/services/supabase";
 import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
 import { rewriteAuthNetworkError } from "./authNetworkErrors";
-import { signInWithApple } from "./sign-in-apple";
-import { signInWithGoogle, signOutGoogle } from "./sign-in-google";
+import { requestEmailOtpCode, verifyEmailOtpCode } from "./sign-in-email";
 import type { AuthContextValue, AuthUserRow } from "./types";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -310,19 +309,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [syncProfile]);
 
-  const doSignInApple = useCallback(async () => {
+  const doRequestEmailCode = useCallback(async (email: string, displayName?: string) => {
     setSigningIn(true);
     try {
-      await signInWithApple();
+      await requestEmailOtpCode(email, displayName);
     } finally {
       setSigningIn(false);
     }
   }, []);
 
-  const doSignInGoogle = useCallback(async () => {
+  const doVerifyEmailCode = useCallback(async (email: string, code: string) => {
     setSigningIn(true);
     try {
-      await signInWithGoogle();
+      await verifyEmailOtpCode(email, code);
     } finally {
       setSigningIn(false);
     }
@@ -333,7 +332,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const supabase = requireSupabase();
       await supabase.auth.signOut();
-      await signOutGoogle();
     } finally {
       setSigningIn(false);
     }
@@ -351,8 +349,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       profileLoading,
       initializing,
       signingIn,
-      signInWithApple: doSignInApple,
-      signInWithGoogle: doSignInGoogle,
+      requestEmailCode: doRequestEmailCode,
+      verifyEmailCode: doVerifyEmailCode,
       signOut: doSignOut,
       refreshProfile,
     }),
@@ -362,8 +360,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       profileLoading,
       initializing,
       signingIn,
-      doSignInApple,
-      doSignInGoogle,
+      doRequestEmailCode,
+      doVerifyEmailCode,
       doSignOut,
       refreshProfile,
     ],

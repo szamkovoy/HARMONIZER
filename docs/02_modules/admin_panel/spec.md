@@ -19,6 +19,7 @@ code_refs:
     _legacy_web/app/admin/users/stats/page.tsx,
     _legacy_web/app/api/admin/me/route.ts,
     _legacy_web/app/api/admin/feedback/route.ts,
+    _legacy_web/app/api/admin/feedback/attachments/[id]/route.ts,
     _legacy_web/app/api/admin/users/route.ts,
     _legacy_web/app/api/admin/users/[id]/route.ts,
     _legacy_web/app/api/admin/payments/route.ts,
@@ -69,8 +70,9 @@ code_refs:
 **Поддержка (реализовано, этап 5):**
 
 - Таблица `support_messages` (`20260708160000_support_messages.sql`): `user_id`, `body`, `created_at`, `processed_at`. RLS: пользователь пишет/читает свои, админ — всё; API идёт через service role.
-- Клиент: `modules/support` — `sendSupportMessage()` (insert под RLS, лимит 4000 симв.) + `SupportModal` (форма в Профиле, карточка «Поддержка»). Ответ пользователю приходит на почту аккаунта — треда в приложении нет.
-- Админ: `GET /api/admin/feedback` (сообщения + display_name/email/тариф, необработанные сверху), `PATCH /api/admin/feedback/[id]` `{processed: boolean}`, UI `/admin/feedback` (чекбокс «обработано»).
+- Вложения: бакет `support-attachments` (private, JPEG/PNG/WebP ≤ 3 МБ) + `support_message_attachments` (max 3, cascade). Клиент: `POST /api/support/uploads` (signed URL) + upload **ArrayBuffer** через `expo-file-system` (не `fetch().blob()` — на RN уходит 0 байт) + `SupportModal`. Админ: «Файл N» → `adminFetchBlob` → сразу скачивание; bulk DELETE с confirm; бейдж необработанных из `GET /api/admin/me.unprocessedSupportCount`.
+- Клиент: `modules/support` — `sendSupportMessage()` (insert под RLS, лимит 4000 симв.) + `SupportModal`. Тексты — i18n `support.*`.
+- Админ: `GET|DELETE /api/admin/feedback` (вложения в списке — только metadata), `GET /api/admin/feedback/attachments/[id]` (байты через service-role + Bearer; signed URL private bucket в браузере давал пустую вкладку), `PATCH|DELETE /api/admin/feedback/[id]`, UI `/admin/feedback`.
 
 **Пользователи и платежи (реализовано, этап 6):**
 

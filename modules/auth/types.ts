@@ -20,8 +20,10 @@ export interface AuthState {
 }
 
 export interface AuthActions {
-  signInWithApple: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  /** Отправить письмо с 6-значным кодом (email-OTP; создаёт аккаунт при первом входе). */
+  requestEmailCode: (email: string, displayName?: string) => Promise<void>;
+  /** Проверить код из письма; успех = активная Supabase-сессия. */
+  verifyEmailCode: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** Перечитать public.users — например, после онбординга. */
   refreshProfile: () => Promise<void>;

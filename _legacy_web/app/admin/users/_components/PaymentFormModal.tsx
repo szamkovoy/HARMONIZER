@@ -65,6 +65,9 @@ export function PaymentFormModal({
           >
             {Object.entries(TIER_LABELS)
               .filter(([value]) => allowFree || value !== "free")
+              // practitioner — скрытый legacy-уровень: новые гранты не выдаём,
+              // но при редактировании существующей записи опция остаётся видимой.
+              .filter(([value]) => value !== "practitioner" || form.tier === "practitioner")
               .map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}

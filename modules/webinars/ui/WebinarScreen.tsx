@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { requiredTierFor, UpgradeDialog, useAccess } from "@/modules/access";
+import { AccountGateDialog, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
 import { CommentsSection, type CommentItem } from "@/modules/posts";
@@ -158,11 +158,7 @@ export function WebinarScreen() {
                 >
                   {!registered ? (
                     <AppButton
-                      label={
-                        canUseFeature("webinar_community")
-                          ? t("webinars.register")
-                          : t("webinars.registerPaidCta")
-                      }
+                      label={t("webinars.register")}
                       variant="primary"
                       onPress={toggleRegistration}
                     />
@@ -260,10 +256,9 @@ export function WebinarScreen() {
       </KeyboardAvoidingView>
 
       {showUpgrade ? (
-        <UpgradeDialog
+        <AccountGateDialog
           visible
           feature="webinar_community"
-          requiredTier={requiredTierFor("webinar_community")}
           onClose={() => setShowUpgrade(false)}
         />
       ) : null}

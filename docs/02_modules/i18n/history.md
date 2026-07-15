@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.13
-updated: 2026-07-13
+version: 1.14
+updated: 2026-07-14
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-14 (external payments):** Новый flat-source в sync gate — шаблоны auth-писем `supabase/functions/send-auth-email/templates/*.json` (тег `auth-email`; `runFlatSourceCheck/Fill` обобщили прежние dialog-scaffold функции). В UI-каталог добавлены блоки `auth.*` (email-OTP вход), `onboarding.*` (данные рождения/гео/прогрев), `gate.*` (комплаенс-тексты точек гейтинга, trial, смена уровня); удалены `upgrade.*` и `webinars.registerPaidCta`; `tier.*` переименованы (Навигатор/Наставник/Мастер). Строки экрана входа переехали из удалённого `modules/auth/i18n/authScreens.ts` в каталог.
 
 - **2026-07-14 (locale sync):** hydrate/setAppLocale always write-back to `users.locale` (heals SecureStore vs DB drift that broke push language).
 

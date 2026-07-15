@@ -80,3 +80,45 @@ export async function adminFetch<T>(
   if (!text.trim()) return undefined as T;
   return JSON.parse(text) as T;
 }
+
+/** То же, что adminFetch, но возвращает Blob (для вложений / скачивания). */
+export async function adminFetchBlob(
+  path: string,
+  init?: RequestInit,
+  opts?: { accessToken?: string },
+): Promise<Blob> {
+  let token = opts?.accessToken?.trim();
+  if (!token) {
+    const supabase = getBrowserSupabase();
+    const { data } = await supabase.auth.getSession();
+    token = data.session?.access_token;
+    if (!token) {
+      token = (await refreshAccessToken()) ?? undefined;
+    }
+  }
+  if (!token) throw new AdminApiError("Сессия не найдена — войдите заново", 401);
+
+  async function doFetch(accessToken: string) {
+    return fetch(path, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(init?.headers ?? {}),
+      },
+    });
+  }
+
+  let res = await doFetch(token);
+  if (res.status === 401) {
+    const retryToken = await refreshAccessToken();
+    if (retryToken && retryToken !== token) {
+      res = await doFetch(retryToken);
+    }
+  }
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new AdminApiError(body?.error ?? `Ошибка сервера (HTTP ${res.status})`, res.status);
+  }
+  return res.blob();
+}

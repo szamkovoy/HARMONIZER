@@ -52,10 +52,10 @@ export function UpcomingWebinarBanner() {
       ]}
     >
       <View style={[styles.dot, { backgroundColor: theme.colors.accent }]} />
-      <AppText variant="technicalCaption" tone="muted" numberOfLines={1} style={styles.text}>
+      <AppText variant="screenHint" tone="muted" numberOfLines={1} style={styles.text}>
         {when} · {localized.title}
       </AppText>
-      <AppText variant="sectionTitle" tone="muted" style={styles.arrow}>
+      <AppText variant="screenHint" tone="muted" style={styles.arrow}>
         ›
       </AppText>
     </Pressable>

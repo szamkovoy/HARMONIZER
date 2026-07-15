@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.20
-updated: 2026-07-13
+version: 1.21
+updated: 2026-07-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, services/homeDayContentReloadRequest.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-14:** Авторизация переведена на **email-OTP** (Supabase `signInWithOtp`/`verifyOtp`, 6-значный код): `app/sign-in.tsx` переписан (имя+email → OTP-ячейки, resend-таймер), Apple/Google Sign-In удалены полностью (файлы, зависимости `expo-apple-authentication` / `@react-native-google-signin`, плагины `app.config.ts`) — выход из-под Guideline 5.1.1(v). Письма — Send Email Hook → edge `send-auth-email` (8 локалей, SMTP Яндекса). Онбординг расширен до 3 шагов: данные рождения с автодополнением города (`BirthPlacePicker`, Open-Meteo через `/api/geo/search`; шаг пропускается при заполненном `birth_date`) → геолокация → прогрев с префетчем дневного прогноза. `NatalBirthDataModal` использует тот же `BirthPlacePicker` (хардкод Москвы удалён); `POST /api/astro/natal` принимает `birthPlaceName`.
 
 - **2026-07-13 (11):** Free language ensure uses renderable (not complete) day texts; shared `dayContentLocationFallback` when profile has no lat/lon.
 

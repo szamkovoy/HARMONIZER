@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/modules/auth";
-import { DevTierSwitch as AccessDevTierSwitch, UpgradeDialog, accessModeForTier, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
+import { AccountGateDialog, AccountUpsellPanel, DevTierSwitch as AccessDevTierSwitch, accessModeForTier, useAccess, type FeatureKey } from "@/modules/access";
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
@@ -283,23 +283,6 @@ function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
   return <AppButton label="Введите дату рождения" variant="secondary" onPress={onOpen} />;
 }
 
-function FreeTierBanner({ text }: { text: string }) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.freeTierBanner,
-        {
-          backgroundColor: theme.colors.controlButtonBg,
-          borderColor: theme.colors.warning,
-        },
-      ]}
-    >
-      <AppText variant="screenHint">{text}</AppText>
-    </View>
-  );
-}
-
 function CommunicatorOverlay({
   forecast,
   accessMode,
@@ -531,15 +514,14 @@ export default function HomeScreen() {
   }, [appLocale]);
 
   const onSignOut = useCallback(async () => {
-    // AuthProvider: await supabase.auth.signOut() + signOutGoogle при необходимости.
     await signOut();
   }, [signOut]);
 
   const onSaveNatalBridge = useCallback(
-    async (birthData: BirthData) => {
+    async (birthData: BirthData, placeName: string) => {
       setNatalSaving(true);
       try {
-        const result = await createNatalProfile(birthData);
+        const result = await createNatalProfile(birthData, undefined, { placeName });
         setNatalProfile(result.profile);
         await refreshProfile();
         setNatalBridgeOpen(false);
@@ -695,7 +677,7 @@ export default function HomeScreen() {
 
         {forecast ? (
           <>
-            {access.tier === "free" ? <FreeTierBanner text={strings.freeTierBanner} /> : null}
+            {access.tier === "free" ? <AccountUpsellPanel /> : null}
             <ChakraFlower
               forecast={forecast}
               strings={strings}
@@ -831,14 +813,14 @@ export default function HomeScreen() {
         saving={natalSaving}
         initialDate={profile?.birth_date}
         initialTime={profile?.birth_time}
+        initialPlace={profile?.birth_place}
         onClose={() => setNatalBridgeOpen(false)}
         onSubmit={onSaveNatalBridge}
       />
       {upgradeFeature ? (
-        <UpgradeDialog
+        <AccountGateDialog
           visible
           feature={upgradeFeature}
-          requiredTier={requiredTierFor(upgradeFeature)}
           onClose={() => setUpgradeFeature(null)}
         />
       ) : null}
@@ -885,11 +867,6 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: "center",
     paddingTop: 4,
-  },
-  freeTierBanner: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
   },
   tierSwitch: {
     alignItems: "center",

@@ -39,6 +39,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [phase, setPhase] = useState<AuthPhase>("checking");
+  const [supportBadge, setSupportBadge] = useState(0);
   const isLoginPage = pathname === "/admin/login";
 
   const verifyAdmin = useCallback(async () => {
@@ -49,7 +50,12 @@ export function AdminChrome({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      await adminFetch("/api/admin/me");
+      const me = await adminFetch<{
+        userId: string;
+        displayName: string | null;
+        unprocessedSupportCount?: number;
+      }>("/api/admin/me");
+      setSupportBadge(me.unprocessedSupportCount ?? 0);
       setPhase("admin");
     } catch (err) {
       // Только явный отказ в доступе — иначе сетевой сбой / terminated при DELETE
@@ -72,6 +78,14 @@ export function AdminChrome({ children }: { children: ReactNode }) {
     });
     return () => sub.subscription.unsubscribe();
   }, [verifyAdmin]);
+
+  // Refresh badge when leaving/entering support inbox.
+  useEffect(() => {
+    if (phase !== "admin") return;
+    void adminFetch<{ unprocessedSupportCount?: number }>("/api/admin/me")
+      .then((me) => setSupportBadge(me.unprocessedSupportCount ?? 0))
+      .catch(() => undefined);
+  }, [pathname, phase]);
 
   useEffect(() => {
     if (phase === "anonymous" && !isLoginPage) router.replace("/admin/login");
@@ -104,6 +118,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
         <nav className="flex flex-1 flex-col gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+            const badge = href === "/admin/feedback" && supportBadge > 0 ? supportBadge : 0;
             return (
               <Link
                 key={href}
@@ -115,7 +130,12 @@ export function AdminChrome({ children }: { children: ReactNode }) {
                 }`}
               >
                 <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
-                {label}
+                <span className="flex-1">{label}</span>
+                {badge > 0 ? (
+                  <span className="rounded-full bg-emerald-400/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -148,15 +168,23 @@ export function AdminChrome({ children }: { children: ReactNode }) {
         <nav className="fixed inset-x-0 bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-white/10 bg-[#0b0d12]/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur md:hidden">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+            const badge = href === "/admin/feedback" && supportBadge > 0 ? supportBadge : 0;
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex min-w-[64px] flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] ${
+                className={`relative flex min-w-[64px] flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] ${
                   active ? "text-emerald-300" : "text-zinc-400"
                 }`}
               >
-                <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />
+                <span className="relative">
+                  <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />
+                  {badge > 0 ? (
+                    <span className="absolute -right-2 -top-1 rounded-full bg-emerald-400 px-1 text-[8px] font-bold leading-3 text-emerald-950">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  ) : null}
+                </span>
                 {label}
               </Link>
             );

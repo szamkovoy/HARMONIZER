@@ -314,7 +314,14 @@ function natalProfileFromRow(row: NatalChartRow): NatalProfile {
   };
 }
 
-export async function createNatalProfile(birthData: BirthData, signal?: AbortSignal): Promise<CreateNatalProfileResult> {
+export async function createNatalProfile(
+  birthData: BirthData,
+  signal?: AbortSignal,
+  options?: {
+    /** Человекочитаемое место рождения («Город, область, страна») для users.birth_place. */
+    placeName?: string | null;
+  },
+): Promise<CreateNatalProfileResult> {
   return withTransientNetworkRetry(
     async () => {
       const { accessToken, userId } = await getAuthContext();
@@ -328,7 +335,7 @@ export async function createNatalProfile(birthData: BirthData, signal?: AbortSig
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ birthData }),
+          body: JSON.stringify({ birthData, birthPlaceName: options?.placeName ?? null }),
           signal: timeout.signal,
         });
       } catch (error) {

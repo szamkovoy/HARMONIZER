@@ -1,18 +1,273 @@
+import { NativeModules } from "react-native";
+import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
+
+import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
 import { getSupabase } from "@/services/supabase";
 
 export const MAX_SUPPORT_MESSAGE_LENGTH = 4000;
+export const MAX_SUPPORT_ATTACHMENTS = 3;
+export const MAX_SUPPORT_ATTACHMENT_BYTES = 3_145_728; // 3 MB
+export const SUPPORT_ATTACHMENT_MIME = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export type SupportAttachmentDraft = {
+  uri: string;
+  mimeType: string;
+  sizeBytes: number;
+  width?: number;
+  height?: number;
+};
+
+export type SupportAttachmentInput = {
+  storagePath: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+async function getAccessToken(): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+/** True only when the current native binary includes expo-image-picker. */
+export function isSupportImagePickerAvailable(): boolean {
+  return Boolean(
+    NativeModules.ExponentImagePicker ||
+      NativeModules.ExpoImagePicker ||
+      // Newer Expo module registry name
+      (NativeModules.ExpoModulesCore &&
+        typeof (NativeModules as { ExpoImagePicker?: unknown }).ExpoImagePicker !== "undefined"),
+  );
+}
+
+/**
+ * Pick up to remaining slots from the photo library.
+ * Uses ImagePicker compression only (no expo-image-manipulator) so one native
+ * module is enough. Returns `{ error: "native" }` if the binary was not rebuilt.
+ */
+export async function pickSupportScreenshots(
+  alreadyCount: number,
+): Promise<SupportAttachmentDraft[] | { error: string }> {
+  const remaining = MAX_SUPPORT_ATTACHMENTS - alreadyCount;
+  if (remaining <= 0) return { error: "limit" };
+
+  if (!isSupportImagePickerAvailable()) {
+    return { error: "native" };
+  }
+
+  let ImagePicker: typeof import("expo-image-picker");
+  try {
+    ImagePicker = await import("expo-image-picker");
+  } catch {
+    return { error: "native" };
+  }
+
+  if (typeof ImagePicker.requestMediaLibraryPermissionsAsync !== "function") {
+    return { error: "native" };
+  }
+
+  try {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return { error: "permission" };
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      // Compress in-picker so we do not need expo-image-manipulator.
+      quality: 0.8,
+    });
+    if (result.canceled || result.assets.length === 0) return [];
+
+    const drafts: SupportAttachmentDraft[] = [];
+    for (const asset of result.assets) {
+      const prepared = await prepareSupportImage(asset);
+      if ("error" in prepared) return prepared;
+      drafts.push(prepared);
+    }
+    return drafts;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/native module|ExponentImagePicker|ExpoImagePicker/i.test(message)) {
+      return { error: "native" };
+    }
+    return { error: "upload" };
+  }
+}
+
+async function prepareSupportImage(asset: {
+  uri: string;
+  mimeType?: string | null;
+  fileSize?: number;
+}): Promise<SupportAttachmentDraft | { error: string }> {
+  let mimeType = (asset.mimeType ?? "image/jpeg").toLowerCase();
+  if (mimeType === "image/jpg") mimeType = "image/jpeg";
+
+  // HEIC and other non-whitelisted types: ask the user to re-export as JPEG/PNG.
+  if (!SUPPORT_ATTACHMENT_MIME.includes(mimeType as (typeof SUPPORT_ATTACHMENT_MIME)[number])) {
+    if (mimeType.includes("heic") || mimeType.includes("heif")) {
+      return { error: "type" };
+    }
+    return { error: "type" };
+  }
+
+  const sizeBytes = await measureUriBytes(asset.uri, asset.fileSize);
+  if (sizeBytes <= 0) return { error: "type" };
+  if (sizeBytes > MAX_SUPPORT_ATTACHMENT_BYTES) return { error: "size" };
+
+  return { uri: asset.uri, mimeType, sizeBytes };
+}
+
+async function measureUriBytes(uri: string, hintedSize?: number): Promise<number> {
+  if (typeof hintedSize === "number" && hintedSize > 0) return hintedSize;
+  try {
+    const info = await getInfoAsync(uri);
+    if (info.exists && typeof info.size === "number" && info.size > 0) {
+      return info.size;
+    }
+  } catch {
+    /* fall through */
+  }
+  return 0;
+}
+
+/** RN FormData + Blob from fetch(fileUri) often uploads 0 bytes to Storage — use raw ArrayBuffer. */
+function decodeBase64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+async function readUriAsArrayBuffer(
+  uri: string,
+): Promise<{ buffer: ArrayBuffer; sizeBytes: number } | { error: string }> {
+  try {
+    const base64 = await readAsStringAsync(uri, { encoding: "base64" });
+    if (!base64) return { error: "upload" };
+    const buffer = decodeBase64ToArrayBuffer(base64);
+    if (buffer.byteLength <= 0) return { error: "upload" };
+    if (buffer.byteLength > MAX_SUPPORT_ATTACHMENT_BYTES) return { error: "size" };
+    return { buffer, sizeBytes: buffer.byteLength };
+  } catch {
+    return { error: "upload" };
+  }
+}
+
+async function requestSignedUpload(
+  contentType: string,
+  bytes: number,
+): Promise<{ path: string; token: string } | { error: string }> {
+  const token = await getAccessToken();
+  if (!token) return { error: "offline" };
+  const res = await fetch(`${getCommunicatorApiBaseUrl()}/api/support/uploads`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ contentType, bytes }),
+  });
+  const payload = (await res.json().catch(() => null)) as
+    | { path?: string; token?: string; error?: string }
+    | null;
+  if (!res.ok || !payload?.path || !payload?.token) {
+    return { error: payload?.error ?? "upload" };
+  }
+  return { path: payload.path, token: payload.token };
+}
+
+async function uploadDraft(
+  draft: SupportAttachmentDraft,
+): Promise<SupportAttachmentInput | { error: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: "offline" };
+
+  const file = await readUriAsArrayBuffer(draft.uri);
+  if ("error" in file) return file;
+
+  const ticket = await requestSignedUpload(draft.mimeType, file.sizeBytes);
+  if ("error" in ticket) return ticket;
+
+  const { error } = await supabase.storage
+    .from("support-attachments")
+    .uploadToSignedUrl(ticket.path, ticket.token, file.buffer, {
+      contentType: draft.mimeType,
+      cacheControl: "3600",
+    });
+  if (error) return { error: "upload" };
+
+  return {
+    storagePath: ticket.path,
+    mimeType: draft.mimeType,
+    sizeBytes: file.sizeBytes,
+  };
+}
 
 export async function sendSupportMessage(
   userId: string,
   body: string,
+  drafts: SupportAttachmentDraft[] = [],
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, message: "offline" };
   const trimmed = body.trim();
   if (!trimmed) return { ok: false, message: "empty" };
-  const { error } = await supabase
-    .from("support_messages")
-    .insert({ user_id: userId, body: trimmed.slice(0, MAX_SUPPORT_MESSAGE_LENGTH) });
-  if (error) return { ok: false, message: error.message };
-  return { ok: true };
+  if (drafts.length > MAX_SUPPORT_ATTACHMENTS) return { ok: false, message: "limit" };
+
+  const uploaded: SupportAttachmentInput[] = [];
+  try {
+    for (const draft of drafts) {
+      const result = await uploadDraft(draft);
+      if ("error" in result) {
+        await cleanupUploaded(uploaded.map((u) => u.storagePath));
+        return { ok: false, message: result.error };
+      }
+      uploaded.push(result);
+    }
+
+    const { data: message, error } = await supabase
+      .from("support_messages")
+      .insert({ user_id: userId, body: trimmed.slice(0, MAX_SUPPORT_MESSAGE_LENGTH) })
+      .select("id")
+      .single();
+    if (error || !message?.id) {
+      await cleanupUploaded(uploaded.map((u) => u.storagePath));
+      return { ok: false, message: error?.message ?? "insert" };
+    }
+
+    if (uploaded.length > 0) {
+      const rows = uploaded.map((file, index) => ({
+        message_id: message.id,
+        storage_path: file.storagePath,
+        mime_type: file.mimeType,
+        size_bytes: file.sizeBytes,
+        sort_order: index,
+      }));
+      const { error: attachError } = await supabase.from("support_message_attachments").insert(rows);
+      if (attachError) {
+        await supabase.from("support_messages").delete().eq("id", message.id);
+        await cleanupUploaded(uploaded.map((u) => u.storagePath));
+        return { ok: false, message: attachError.message };
+      }
+    }
+
+    return { ok: true };
+  } catch (error) {
+    await cleanupUploaded(uploaded.map((u) => u.storagePath));
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "failed",
+    };
+  }
+}
+
+async function cleanupUploaded(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+  await supabase.storage.from("support-attachments").remove(paths);
 }

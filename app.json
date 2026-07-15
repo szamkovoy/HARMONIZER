@@ -68,6 +68,12 @@
         }
       ],
       "./plugins/with-ios-automatic-signing.js",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Harmonizer использует доступ к фото, чтобы вы могли приложить скриншот в поддержку."
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {

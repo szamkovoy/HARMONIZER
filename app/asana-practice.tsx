@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
-import { UpgradeDialog, requiredTierFor, useAccess } from "@/modules/access";
+import { AccountGateDialog, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
@@ -281,10 +281,9 @@ export default function AsanaPracticeRoute() {
         onFinish={confirmFinish}
       />
 
-      <UpgradeDialog
+      <AccountGateDialog
         visible={!canUseFeature("asana_practices")}
         feature="asana_practices"
-        requiredTier={requiredTierFor("asana_practices")}
         onClose={() => router.back()}
       />
     </StackScreenLayout>

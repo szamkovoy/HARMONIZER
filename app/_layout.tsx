@@ -18,6 +18,7 @@ installDevLoadingViewPatch();
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AccessProvider } from "@/modules/access";
+import { MembershipEventsBridge } from "@/modules/account";
 import { AuthProvider, useAuth } from "@/modules/auth";
 import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import { hydrateAppLocale } from "@/modules/i18n";
@@ -74,6 +75,7 @@ export default function RootLayout() {
                 <NativeSplashBridge fontsLoaded={loaded} />
                 <PushRegistrationBridge />
                 <StorySessionBootstrap />
+                <MembershipEventsBridge />
                 <RootLayoutNav />
               </AccessBridge>
             </RemotePlayProvider>

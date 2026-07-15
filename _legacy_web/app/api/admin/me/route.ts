@@ -6,12 +6,19 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   try {
     const userId = await requireAdmin(req);
-    const { data } = await createServiceSupabase()
-      .from("users")
-      .select("display_name")
-      .eq("id", userId)
-      .maybeSingle();
-    return json({ userId, displayName: data?.display_name ?? null });
+    const db = createServiceSupabase();
+    const [{ data }, unprocessed] = await Promise.all([
+      db.from("users").select("display_name").eq("id", userId).maybeSingle(),
+      db
+        .from("support_messages")
+        .select("id", { count: "exact", head: true })
+        .is("processed_at", null),
+    ]);
+    return json({
+      userId,
+      displayName: data?.display_name ?? null,
+      unprocessedSupportCount: unprocessed.count ?? 0,
+    });
   } catch (error) {
     return errorResponse(error);
   }

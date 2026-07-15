@@ -44,7 +44,6 @@
     "aspectTitle": "Aspect"
   },
   "forecastErrorTitle": "Impossible de charger la prévision",
-  "freeTierBanner": "Ci-dessous, vous voyez des recommandations universelles pour cette journée. Elles vous aideront à vivre chaque jour de manière efficace. Cependant, les recommandations personnalisées, basées sur votre date, heure et lieu de naissance, sont beaucoup plus précises et profondes. Passez au forfait « Psychologue » pour les recevoir.",
   "headerHint": "Réglage principal du jour : chakras, fenêtres d'opportunités et recommandation pratique.",
   "locale": "fr",
   "locationErrorMessage": "Pour calculer les fenêtres d’opportunité, la géolocalisation est nécessaire. Autorisez l’accès à votre position, puis réessayez.",
@@ -104,14 +103,14 @@
     "paidIntroTemplate": "Aujourd'hui, cultivez les états que {natalPlanet} active. Pendant ce temps, {transitPlanet} ouvrira des fenêtres d'opportunités particulières.",
     "sunriseDetailTemplate": "{planet} s'élève au-dessus de l'horizon",
     "culminationDetailTemplate": "{planet} est à sa force maximale",
-    "exactAspectDetailTemplate": "{aspect} {transitPlanet} et {natalPlanet}",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (transit) et {natalPlanet} (natal)",
     "help": {
       "freeOpening": "La planète la plus forte du jour est {planet}. Le graphique montre quand {planet} se lève et atteint son zénith à votre emplacement.",
       "paidOpening": "La planète la plus forte de votre thème natal aujourd'hui est {natalPlanet}. Cette force vient en grande partie de l'interaction avec la planète de transit {transitPlanet}, dont le parcours dans le ciel ouvre pour vous des fenêtres d'opportunités particulières.",
       "paidOpeningNoTransit": "Aujourd'hui, le graphique montre une fenêtre d'opportunités générale sans planète de transit clairement mise en avant.",
       "sunriseLine": "Lever : {time} — {planet} s'élève au-dessus de l'horizon.",
       "culminationLine": "Culmination : {time} — {planet} au point le plus haut de sa course quotidienne.",
-      "exactAspectLine": "Aspect exact : {time} — {aspect} {transitPlanet} et {natalPlanet}.",
+      "exactAspectLine": "Aspect exact : {time} — {aspect} {transitPlanet} (transit) et {natalPlanet} (natal).",
       "closing": "Ce sont des moments clés spécifiquement pour votre lieu. Utilisez-les pour des pratiques spirituelles, des affirmations, des intentions, la méditation, etc.",
       "remindersHint": "Appuyez sur la cloche sous le graphique pour activer ou désactiver les rappels."
     }

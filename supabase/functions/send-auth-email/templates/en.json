@@ -1,0 +1,8 @@
+{
+  "subject": "{code} — your Harmonizer sign-in code",
+  "greeting": "Hello!",
+  "intro": "Your code to sign in to the Harmonizer app:",
+  "expiry": "The code is valid for 60 minutes and can be used only once.",
+  "ignore": "If you didn't request this code, just ignore this email.",
+  "footer": "Harmonizer · zamkovoi.yoga"
+}

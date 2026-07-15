@@ -1,0 +1,205 @@
+<!-- ============================================================================
+  HARMONIZER — Личный кабинет (вставка в WordPress-блок «HTML-код»).
+
+  Деплой: скопировать ВЕСЬ файл в блок HTML на странице https://zamkovoi.yoga/cabinet/
+  Требования: страница открывается только по ссылке из приложения
+  (?ott=…&lang=…). Прямой заход без токена показывает подсказку
+  «Откройте кабинет из приложения».
+
+  Поток: POST {API}/api/account/session {ott} -> { sessionToken, overview }.
+  После оплаты страница может обновить данные: GET {API}/api/account/overview
+  (Authorization: Bearer sessionToken).
+
+  Платёжная система подключается позже: кнопки уровней вызывают
+  hzStartUpgrade(tier) — сейчас заглушка, там появится создание платежа.
+============================================================================ -->
+<div id="hz-cabinet">
+  <style>
+    #hz-cabinet { --hz-bg:#12141a; --hz-card:#1a1d26; --hz-border:rgba(255,255,255,.10);
+      --hz-text:#f4f4f6; --hz-muted:#9aa0ae; --hz-accent:#7c6cf2; --hz-accent2:#4fd1a5;
+      max-width:680px; margin:0 auto; padding:8px 0 40px; color:var(--hz-text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    #hz-cabinet * { box-sizing:border-box; }
+    #hz-cabinet .hz-card { background:var(--hz-card); border:1px solid var(--hz-border);
+      border-radius:20px; padding:22px; margin-bottom:16px; }
+    #hz-cabinet h2 { margin:0 0 6px; font-size:22px; }
+    #hz-cabinet h3 { margin:0 0 8px; font-size:17px; }
+    #hz-cabinet p { margin:6px 0; line-height:1.5; font-size:15px; }
+    #hz-cabinet .hz-muted { color:var(--hz-muted); font-size:13px; }
+    #hz-cabinet .hz-badge { display:inline-block; padding:4px 12px; border-radius:999px;
+      background:rgba(124,108,242,.16); color:#b9aefc; font-size:13px; font-weight:600; }
+    #hz-cabinet .hz-badge.hz-trial { background:rgba(79,209,165,.14); color:var(--hz-accent2); }
+    #hz-cabinet .hz-row { display:flex; justify-content:space-between; gap:12px;
+      padding:7px 0; border-bottom:1px dashed var(--hz-border); font-size:14px; }
+    #hz-cabinet .hz-row:last-child { border-bottom:none; }
+    #hz-cabinet ul { margin:8px 0 0; padding-left:20px; }
+    #hz-cabinet li { margin:4px 0; font-size:14px; line-height:1.45; }
+    #hz-cabinet button.hz-btn { display:block; width:100%; margin-top:14px; padding:12px 18px;
+      border:none; border-radius:14px; background:var(--hz-accent); color:#fff;
+      font-size:15px; font-weight:600; cursor:pointer; }
+    #hz-cabinet button.hz-btn:hover { filter:brightness(1.1); }
+    #hz-cabinet .hz-center { text-align:center; padding:44px 20px; }
+    #hz-cabinet .hz-spin { width:34px; height:34px; margin:0 auto 14px; border-radius:50%;
+      border:3px solid var(--hz-border); border-top-color:var(--hz-accent);
+      animation:hzspin .9s linear infinite; }
+    @keyframes hzspin { to { transform:rotate(360deg); } }
+    #hz-cabinet .hz-hidden { display:none; }
+  </style>
+
+  <div id="hz-loading" class="hz-center">
+    <div class="hz-spin"></div>
+    <p id="hz-loading-text" class="hz-muted"></p>
+  </div>
+
+  <div id="hz-error" class="hz-center hz-hidden">
+    <h2 id="hz-error-title"></h2>
+    <p id="hz-error-body" class="hz-muted"></p>
+  </div>
+
+  <div id="hz-content" class="hz-hidden"></div>
+
+  <script>
+  (function () {
+    "use strict";
+    /* API-origin бэкенда (Vercel). При смене домена поменять одну строку. */
+    var API_BASE = "https://harmonizer-ten.vercel.app";
+
+    var I18N = {
+      ru: { loading:"Загружаем ваш кабинет…", errTitle:"Кабинет недоступен", errNoToken:"Личный кабинет открывается по ссылке из приложения Harmonizer. Откройте приложение и нажмите кнопку «Личный кабинет».", errExpired:"Ссылка устарела. Вернитесь в приложение и снова нажмите «Личный кабинет».", errNetwork:"Не удалось связаться с сервером. Проверьте соединение и обновите страницу.", hello:"Здравствуйте", registered:"В приложении с", currentLevel:"Текущий уровень профиля", trialBadge:"демо-доступ уровня «Мастер»", trialUntil:"Демо-доступ до", paidUntil:"Уровень действует до", unlimited:"бессрочно", upgradesTitle:"Доступные уровни", topTier:"У вас максимальный уровень профиля. Спасибо, что вы с нами!", choose:"Подключить", webinarTitle:"Вебинары и групповые разборы", webinarBody:"Еженедельные вебинары и сессии вопросов и ответов входят в уровень «Мастер». Подключите его, чтобы участвовать.", webinarIncluded:"Вебинары включены в ваш уровень. Ссылки на участие — в приложении, в разделе анонсов.", backToApp:"После изменения уровня вернитесь в приложение — оно обновится автоматически.", paysoon:"Оплата уровней скоро будет доступна на этой странице. Спасибо за терпение!",
+        tiers: { free:"Навигатор", oracle:"Наставник", master:"Мастер" },
+        tierDesc: { oracle:["Индивидуальные рекомендации по вашим дате, времени и месту рождения","Диалог с ИИ-наставником и планирование дня","Персональная статистика состояний"], master:["Всё из уровня «Наставник»","Полная библиотека практик йоги: асаны, дыхание, медитации (~200)","Еженедельные вебинары и групповые разборы"] } },
+      en: { loading:"Loading your account…", errTitle:"Account unavailable", errNoToken:"This page opens via a link from the Harmonizer app. Open the app and tap “My account”.", errExpired:"The link has expired. Go back to the app and tap “My account” again.", errNetwork:"Could not reach the server. Check your connection and reload the page.", hello:"Hello", registered:"Member since", currentLevel:"Current profile level", trialBadge:"“Master” demo access", trialUntil:"Demo access until", paidUntil:"Level active until", unlimited:"unlimited", upgradesTitle:"Available levels", topTier:"You have the highest profile level. Thank you for being with us!", choose:"Activate", webinarTitle:"Webinars & group sessions", webinarBody:"Weekly webinars and Q&A sessions are part of the “Master” level. Activate it to join.", webinarIncluded:"Webinars are included in your level. Join links are in the app announcements.", backToApp:"After changing your level, return to the app — it updates automatically.", paysoon:"Level payments will be available on this page soon. Thank you for your patience!",
+        tiers: { free:"Navigator", oracle:"Mentor", master:"Master" },
+        tierDesc: { oracle:["Personal recommendations based on your exact birth date, time and place","Dialogue with the AI mentor and day planning","Personal state statistics"], master:["Everything in “Mentor”","Full yoga practice library: asanas, breathing, meditations (~200)","Weekly webinars and group sessions"] } },
+      de: { loading:"Ihr Konto wird geladen…", errTitle:"Konto nicht verfügbar", errNoToken:"Diese Seite öffnet sich über einen Link aus der Harmonizer-App. Öffnen Sie die App und tippen Sie auf „Mein Konto“.", errExpired:"Der Link ist abgelaufen. Kehren Sie zur App zurück und tippen Sie erneut auf „Mein Konto“.", errNetwork:"Server nicht erreichbar. Prüfen Sie Ihre Verbindung und laden Sie die Seite neu.", hello:"Guten Tag", registered:"Dabei seit", currentLevel:"Aktuelles Profil-Level", trialBadge:"„Master“-Demozugang", trialUntil:"Demozugang bis", paidUntil:"Level aktiv bis", unlimited:"unbegrenzt", upgradesTitle:"Verfügbare Level", topTier:"Sie haben das höchste Profil-Level. Danke, dass Sie dabei sind!", choose:"Aktivieren", webinarTitle:"Webinare & Gruppensitzungen", webinarBody:"Wöchentliche Webinare und Q&A-Sitzungen gehören zum Level „Master“. Aktivieren Sie es, um teilzunehmen.", webinarIncluded:"Webinare sind in Ihrem Level enthalten. Teilnahme-Links finden Sie in den App-Ankündigungen.", backToApp:"Nach der Level-Änderung kehren Sie zur App zurück — sie aktualisiert sich automatisch.", paysoon:"Die Bezahlung der Level wird bald auf dieser Seite verfügbar sein. Danke für Ihre Geduld!",
+        tiers: { free:"Navigator", oracle:"Mentor", master:"Master" },
+        tierDesc: { oracle:["Persönliche Empfehlungen auf Basis von Geburtsdatum, -zeit und -ort","Dialog mit dem KI-Mentor und Tagesplanung","Persönliche Zustandsstatistik"], master:["Alles aus „Mentor“","Komplette Yoga-Bibliothek: Asanas, Atmung, Meditationen (~200)","Wöchentliche Webinare und Gruppensitzungen"] } },
+      fr: { loading:"Chargement de votre espace…", errTitle:"Espace indisponible", errNoToken:"Cette page s'ouvre via un lien depuis l'application Harmonizer. Ouvrez l'application et touchez « Mon espace ».", errExpired:"Le lien a expiré. Revenez dans l'application et touchez à nouveau « Mon espace ».", errNetwork:"Impossible de joindre le serveur. Vérifiez votre connexion et rechargez la page.", hello:"Bonjour", registered:"Membre depuis", currentLevel:"Niveau de profil actuel", trialBadge:"accès démo « Maître »", trialUntil:"Accès démo jusqu'au", paidUntil:"Niveau actif jusqu'au", unlimited:"illimité", upgradesTitle:"Niveaux disponibles", topTier:"Vous avez le niveau de profil le plus élevé. Merci d'être avec nous !", choose:"Activer", webinarTitle:"Webinaires et sessions de groupe", webinarBody:"Les webinaires hebdomadaires et les sessions de questions-réponses font partie du niveau « Maître ». Activez-le pour participer.", webinarIncluded:"Les webinaires sont inclus dans votre niveau. Les liens de participation sont dans les annonces de l'application.", backToApp:"Après avoir changé de niveau, revenez dans l'application — elle se met à jour automatiquement.", paysoon:"Le paiement des niveaux sera bientôt disponible sur cette page. Merci de votre patience !",
+        tiers: { free:"Navigateur", oracle:"Mentor", master:"Maître" },
+        tierDesc: { oracle:["Recommandations personnelles selon vos date, heure et lieu de naissance exacts","Dialogue avec le mentor IA et planification de la journée","Statistiques personnelles de vos états"], master:["Tout le niveau « Mentor »","Bibliothèque complète de yoga : asanas, respiration, méditations (~200)","Webinaires hebdomadaires et sessions de groupe"] } },
+      it: { loading:"Caricamento del tuo profilo…", errTitle:"Profilo non disponibile", errNoToken:"Questa pagina si apre tramite un link dall'app Harmonizer. Apri l'app e tocca «Il mio profilo».", errExpired:"Il link è scaduto. Torna nell'app e tocca di nuovo «Il mio profilo».", errNetwork:"Impossibile raggiungere il server. Controlla la connessione e ricarica la pagina.", hello:"Ciao", registered:"Con noi dal", currentLevel:"Livello di profilo attuale", trialBadge:"accesso demo «Maestro»", trialUntil:"Accesso demo fino al", paidUntil:"Livello attivo fino al", unlimited:"illimitato", upgradesTitle:"Livelli disponibili", topTier:"Hai il livello di profilo più alto. Grazie per essere con noi!", choose:"Attiva", webinarTitle:"Webinar e sessioni di gruppo", webinarBody:"I webinar settimanali e le sessioni di domande e risposte fanno parte del livello «Maestro». Attivalo per partecipare.", webinarIncluded:"I webinar sono inclusi nel tuo livello. I link per partecipare sono negli annunci dell'app.", backToApp:"Dopo aver cambiato livello, torna nell'app — si aggiorna automaticamente.", paysoon:"Il pagamento dei livelli sarà presto disponibile su questa pagina. Grazie per la pazienza!",
+        tiers: { free:"Navigatore", oracle:"Mentore", master:"Maestro" },
+        tierDesc: { oracle:["Raccomandazioni personali basate su data, ora e luogo di nascita esatti","Dialogo con il mentore IA e pianificazione della giornata","Statistiche personali degli stati"], master:["Tutto il livello «Mentore»","Libreria completa di pratiche yoga: asana, respirazione, meditazioni (~200)","Webinar settimanali e sessioni di gruppo"] } },
+      es: { loading:"Cargando tu cuenta…", errTitle:"Cuenta no disponible", errNoToken:"Esta página se abre mediante un enlace desde la aplicación Harmonizer. Abre la app y pulsa «Mi cuenta».", errExpired:"El enlace ha caducado. Vuelve a la app y pulsa de nuevo «Mi cuenta».", errNetwork:"No se pudo conectar con el servidor. Comprueba tu conexión y recarga la página.", hello:"Hola", registered:"Contigo desde", currentLevel:"Nivel de perfil actual", trialBadge:"acceso demo «Maestro»", trialUntil:"Acceso demo hasta", paidUntil:"Nivel activo hasta", unlimited:"ilimitado", upgradesTitle:"Niveles disponibles", topTier:"Tienes el nivel de perfil más alto. ¡Gracias por estar con nosotros!", choose:"Activar", webinarTitle:"Webinarios y sesiones grupales", webinarBody:"Los webinarios semanales y las sesiones de preguntas y respuestas forman parte del nivel «Maestro». Actívalo para participar.", webinarIncluded:"Los webinarios están incluidos en tu nivel. Los enlaces de participación están en los anuncios de la app.", backToApp:"Después de cambiar de nivel, vuelve a la app: se actualiza automáticamente.", paysoon:"El pago de los niveles estará disponible pronto en esta página. ¡Gracias por tu paciencia!",
+        tiers: { free:"Navegante", oracle:"Mentor", master:"Maestro" },
+        tierDesc: { oracle:["Recomendaciones personales según tu fecha, hora y lugar de nacimiento exactos","Diálogo con el mentor de IA y planificación del día","Estadísticas personales de tus estados"], master:["Todo el nivel «Mentor»","Biblioteca completa de yoga: asanas, respiración, meditaciones (~200)","Webinarios semanales y sesiones grupales"] } },
+      pt: { loading:"A carregar a sua conta…", errTitle:"Conta indisponível", errNoToken:"Esta página abre através de uma ligação da app Harmonizer. Abra a app e toque em «A minha conta».", errExpired:"A ligação expirou. Volte à app e toque novamente em «A minha conta».", errNetwork:"Não foi possível contactar o servidor. Verifique a ligação e recarregue a página.", hello:"Olá", registered:"Connosco desde", currentLevel:"Nível de perfil atual", trialBadge:"acesso demo «Mestre»", trialUntil:"Acesso demo até", paidUntil:"Nível ativo até", unlimited:"ilimitado", upgradesTitle:"Níveis disponíveis", topTier:"Tem o nível de perfil mais alto. Obrigado por estar connosco!", choose:"Ativar", webinarTitle:"Webinários e sessões de grupo", webinarBody:"Os webinários semanais e as sessões de perguntas e respostas fazem parte do nível «Mestre». Ative-o para participar.", webinarIncluded:"Os webinários estão incluídos no seu nível. As ligações de participação estão nos anúncios da app.", backToApp:"Depois de mudar de nível, volte à app — ela atualiza-se automaticamente.", paysoon:"O pagamento dos níveis estará disponível em breve nesta página. Obrigado pela paciência!",
+        tiers: { free:"Navegador", oracle:"Mentor", master:"Mestre" },
+        tierDesc: { oracle:["Recomendações pessoais com base na data, hora e local de nascimento exatos","Diálogo com o mentor de IA e planeamento do dia","Estatísticas pessoais dos seus estados"], master:["Tudo do nível «Mentor»","Biblioteca completa de yoga: asanas, respiração, meditações (~200)","Webinários semanais e sessões de grupo"] } },
+      nl: { loading:"Je account wordt geladen…", errTitle:"Account niet beschikbaar", errNoToken:"Deze pagina opent via een link uit de Harmonizer-app. Open de app en tik op ‘Mijn account’.", errExpired:"De link is verlopen. Ga terug naar de app en tik opnieuw op ‘Mijn account’.", errNetwork:"Kan de server niet bereiken. Controleer je verbinding en vernieuw de pagina.", hello:"Hallo", registered:"Lid sinds", currentLevel:"Huidig profielniveau", trialBadge:"‘Meester’-demotoegang", trialUntil:"Demotoegang tot", paidUntil:"Niveau actief tot", unlimited:"onbeperkt", upgradesTitle:"Beschikbare niveaus", topTier:"Je hebt het hoogste profielniveau. Bedankt dat je bij ons bent!", choose:"Activeren", webinarTitle:"Webinars & groepssessies", webinarBody:"Wekelijkse webinars en vraag-en-antwoordsessies horen bij het niveau ‘Meester’. Activeer het om deel te nemen.", webinarIncluded:"Webinars zijn inbegrepen in je niveau. Deelnamelinks staan in de aankondigingen in de app.", backToApp:"Keer na het wijzigen van je niveau terug naar de app — deze wordt automatisch bijgewerkt.", paysoon:"Betaling van niveaus is binnenkort beschikbaar op deze pagina. Bedankt voor je geduld!",
+        tiers: { free:"Navigator", oracle:"Mentor", master:"Meester" },
+        tierDesc: { oracle:["Persoonlijke aanbevelingen op basis van je exacte geboortedatum, -tijd en -plaats","Dialoog met de AI-mentor en dagplanning","Persoonlijke statistieken van je toestanden"], master:["Alles van ‘Mentor’","Volledige yogabibliotheek: asana's, ademhaling, meditaties (~200)","Wekelijkse webinars en groepssessies"] } }
+    };
+
+    var params = new URLSearchParams(window.location.search);
+    var lang = (params.get("lang") || navigator.language || "ru").slice(0, 2).toLowerCase();
+    var T = I18N[lang] || I18N.ru;
+    var LOCALE_TAG = lang in I18N ? lang : "ru";
+
+    var $ = function (id) { return document.getElementById(id); };
+    function show(id) {
+      ["hz-loading", "hz-error", "hz-content"].forEach(function (x) {
+        $(x).classList.toggle("hz-hidden", x !== id);
+      });
+    }
+    function fail(message) {
+      $("hz-error-title").textContent = T.errTitle;
+      $("hz-error-body").textContent = message;
+      show("hz-error");
+    }
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+      });
+    }
+    function fmtDate(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleDateString(LOCALE_TAG, { year:"numeric", month:"long", day:"numeric" });
+      } catch (e) { return iso.slice(0, 10); }
+    }
+
+    /* Точка подключения платёжной системы (следующий этап). */
+    window.hzStartUpgrade = function (tier) {
+      alert(T.paysoon);
+    };
+
+    function render(overview) {
+      var name = overview.displayName || overview.email || "";
+      var tierName = T.tiers[overview.tier] || overview.tier;
+      var html = "";
+
+      html += '<div class="hz-card">';
+      html += "<h2>" + T.hello + (name ? ", " + esc(name) : "") + "!</h2>";
+      if (overview.registeredAt) {
+        html += '<p class="hz-muted">' + T.registered + " " + esc(fmtDate(overview.registeredAt)) + "</p>";
+      }
+      html += '<div class="hz-row"><span>' + T.currentLevel + "</span><span>";
+      html += '<span class="hz-badge">' + esc(tierName) + "</span>";
+      if (overview.trialActive) html += ' <span class="hz-badge hz-trial">' + T.trialBadge + "</span>";
+      html += "</span></div>";
+      if (overview.trialActive && overview.trialExpiresAt) {
+        html += '<div class="hz-row"><span>' + T.trialUntil + "</span><span>" + esc(fmtDate(overview.trialExpiresAt)) + "</span></div>";
+      }
+      if (overview.tier !== "free") {
+        html += '<div class="hz-row"><span>' + T.paidUntil + "</span><span>" +
+          (overview.membershipExpiresAt ? esc(fmtDate(overview.membershipExpiresAt)) : T.unlimited) + "</span></div>";
+      }
+      html += "</div>";
+
+      var upgrades = overview.upgradeTiers || [];
+      if (upgrades.length) {
+        html += '<div class="hz-card"><h3>' + T.upgradesTitle + "</h3>";
+        upgrades.forEach(function (tier) {
+          var desc = T.tierDesc[tier] || [];
+          html += '<div style="margin-top:14px">';
+          html += '<span class="hz-badge">' + esc(T.tiers[tier] || tier) + "</span>";
+          html += "<ul>" + desc.map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("") + "</ul>";
+          html += '<button class="hz-btn" onclick="hzStartUpgrade(\'' + tier + '\')">' + T.choose + " — " + esc(T.tiers[tier] || tier) + "</button>";
+          html += "</div>";
+        });
+        html += "</div>";
+      } else {
+        html += '<div class="hz-card"><p>' + T.topTier + "</p></div>";
+      }
+
+      html += '<div class="hz-card"><h3>' + T.webinarTitle + "</h3><p>" +
+        (overview.tier === "master" ? T.webinarIncluded : T.webinarBody) + "</p></div>";
+
+      html += '<p class="hz-muted" style="text-align:center">' + T.backToApp + "</p>";
+
+      $("hz-content").innerHTML = html;
+      show("hz-content");
+    }
+
+    $("hz-loading-text").textContent = T.loading;
+
+    var ott = params.get("ott");
+    if (!ott) { fail(T.errNoToken); return; }
+    /* Одноразовый токен убираем из адресной строки (история/шаринг URL). */
+    try {
+      var clean = new URL(window.location.href);
+      clean.searchParams.delete("ott");
+      window.history.replaceState(null, "", clean.toString());
+    } catch (e) { /* не критично */ }
+
+    fetch(API_BASE + "/api/account/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ott: ott }),
+    })
+      .then(function (res) {
+        if (res.status === 401) { fail(T.errExpired); return null; }
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data) return;
+        /* Токен сессии — только в памяти страницы; пригодится для refresh после оплаты. */
+        window.__hzSession = data.sessionToken;
+        render(data.overview);
+      })
+      .catch(function () { fail(T.errNetwork); });
+  })();
+  </script>
+</div>

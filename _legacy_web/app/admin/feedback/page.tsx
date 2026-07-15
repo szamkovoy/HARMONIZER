@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Circle, FileImage, Loader2, Trash2 } from "lucide-react";
 
 import { TIER_LABELS_RU } from "@/modules/access/core/tiers";
 
-import { adminFetch } from "../_lib/adminApi";
+import { adminFetch, adminFetchBlob } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+
+type SupportAttachment = {
+  id: string;
+  mime_type: string;
+  size_bytes: number;
+  sort_order: number;
+};
 
 type SupportMessage = {
   id: string;
@@ -17,18 +24,37 @@ type SupportMessage = {
   display_name: string;
   email: string;
   membership_tier: string;
+  attachments: SupportAttachment[];
 };
+
+function attachmentFilename(att: SupportAttachment, index: number): string {
+  const ext =
+    att.mime_type === "image/png" ? "png" : att.mime_type === "image/webp" ? "webp" : "jpg";
+  return `support-${index + 1}.${ext}`;
+}
 
 export default function AdminFeedbackPage() {
   const [messages, setMessages] = useState<SupportMessage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const data = await adminFetch<{ messages: SupportMessage[] }>("/api/admin/feedback");
+      setMessages(data.messages);
+      setSelected(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить сообщения");
+    }
+  }, []);
 
   useEffect(() => {
-    adminFetch<{ messages: SupportMessage[] }>("/api/admin/feedback")
-      .then(({ messages }) => setMessages(messages))
-      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить сообщения"));
-  }, []);
+    void load();
+  }, [load]);
 
   async function toggleProcessed(message: SupportMessage) {
     setBusyId(message.id);
@@ -45,17 +71,112 @@ export default function AdminFeedbackPage() {
     }
   }
 
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (!messages) return;
+    setSelected((prev) => {
+      if (prev.size === messages.length) return new Set();
+      return new Set(messages.map((m) => m.id));
+    });
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    if (
+      !window.confirm(
+        `Удалить выбранные сообщения (${selected.size}) вместе с вложениями? Это нельзя отменить.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await adminFetch("/api/admin/feedback", {
+        method: "DELETE",
+        body: JSON.stringify({ ids: [...selected] }),
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function downloadAttachment(att: SupportAttachment, index: number) {
+    setDownloadingId(att.id);
+    setError(null);
+    let objectUrl: string | null = null;
+    try {
+      const blob = await adminFetchBlob(`/api/admin/feedback/attachments/${att.id}`);
+      objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = attachmentFilename(att, index);
+      a.rel = "noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Не revoke сразу: Safari/Chrome иногда обрывают download до старта.
+      const urlToRevoke = objectUrl;
+      objectUrl = null;
+      window.setTimeout(() => URL.revokeObjectURL(urlToRevoke), 60_000);
+    } catch (err) {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setError(err instanceof Error ? err.message : "Не удалось скачать вложение");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   const unprocessed = messages?.filter((m) => !m.processed_at).length ?? 0;
+  const allSelected = useMemo(
+    () => Boolean(messages?.length && selected.size === messages.length),
+    [messages, selected],
+  );
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-bold text-zinc-100">Поддержка</h1>
-      <p className="mb-5 text-sm text-zinc-500">
-        Сообщения из формы «Написать в поддержку» в Профиле.
-        {unprocessed > 0 ? ` Необработанных: ${unprocessed}.` : ""}
-      </p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-zinc-100">Поддержка</h1>
+          <p className="text-sm text-zinc-500">
+            Сообщения из формы «Написать в поддержку» в Профиле.
+            {unprocessed > 0 ? ` Необработанных: ${unprocessed}.` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {messages && messages.length > 0 ? (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:text-zinc-200"
+            >
+              {allSelected ? "Снять выбор" : "Выбрать все"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={selected.size === 0 || deleting}
+            onClick={() => void deleteSelected()}
+            className="flex items-center gap-1.5 rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-300 transition-opacity disabled:opacity-40"
+          >
+            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Удалить{selected.size > 0 ? ` (${selected.size})` : ""}
+          </button>
+        </div>
+      </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
       {messages === null && !error ? (
         <p className="flex items-center gap-2 text-sm text-zinc-500">
           <Loader2 size={16} className="animate-spin" /> Загружаю…
@@ -71,6 +192,13 @@ export default function AdminFeedbackPage() {
               message.processed_at ? "bg-black/20 opacity-70" : "bg-[rgba(30,32,38,0.92)]"
             }`}
           >
+            <input
+              type="checkbox"
+              checked={selected.has(message.id)}
+              onChange={() => toggleSelected(message.id)}
+              className="mt-1 h-4 w-4 shrink-0 accent-emerald-400"
+              aria-label="Выбрать сообщение"
+            />
             <button
               type="button"
               onClick={() => void toggleProcessed(message)}
@@ -96,6 +224,27 @@ export default function AdminFeedbackPage() {
                 <span>{formatAdminDateTime(message.created_at)}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{message.body}</p>
+              {message.attachments?.length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {message.attachments.map((att, index) => (
+                    <button
+                      key={att.id}
+                      type="button"
+                      disabled={downloadingId === att.id}
+                      onClick={() => void downloadAttachment(att, index)}
+                      title={`Скачать скриншот ${index + 1}`}
+                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-40"
+                    >
+                      {downloadingId === att.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <FileImage size={14} />
+                      )}
+                      Файл {index + 1}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}

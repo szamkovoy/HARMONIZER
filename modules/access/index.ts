@@ -15,10 +15,13 @@ export {
   TIER_LABELS,
   TIER_LABELS_RU,
   TIER_ORDER,
+  VISIBLE_PAID_PRODUCT_TIERS,
+  VISIBLE_PRODUCT_TIERS,
   isPaidProductTier,
   isProductTier,
   tierAtLeast,
 } from "@/modules/access/core/tiers";
 export type { PaidProductTier, ProductTier } from "@/modules/access/core/tiers";
 export { DevTierSwitch } from "@/modules/access/ui/DevTierSwitch";
-export { UpgradeDialog } from "@/modules/access/ui/UpgradeDialog";
+export { AccountGateDialog } from "@/modules/access/ui/AccountGateDialog";
+export { AccountUpsellPanel } from "@/modules/access/ui/AccountUpsellPanel";

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.63
-updated: 2026-07-13
+version: 1.64
+updated: 2026-07-15
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-15 (catalog browsable for all tiers):** `PracticeCatalogScreen` — каталог (медитации/дыхание/асаны) теперь **полностью browsable для всех уровней**: переключение групп не вызывает гейт, карточки видны всем. Гейт срабатывает только на «Начать практику»/«Открыть на телефоне»/«Открыть на ТВ», по kind: `meditations` / `breath_practices` / `asana_practices` (раньше гейт срабатывал уже при тапе по группе, а `practice_catalog` был единым ключом для всех). Удалены `catalogAllowed`/`locked` проверки из onPress групп и `masterOnly`-подпись на карточке группы — всегда показывается счётчик.
 
 - **2026-07-13:** `PracticeCard` перешёл на общий **`ComboBox` / `ComboBoxRow`** (`modules/ui/ComboBox.tsx`): панель опций под рядом триггеров (соседи в ряду не переносятся), тап вне комбо сворачивает без смены значения.
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
 
-import { UpgradeDialog, requiredTierFor, useAccess, type FeatureKey } from "@/modules/access";
+import { AccountGateDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { isChakra, type Chakra } from "@/modules/breath";
 import { useAppLocale } from "@/modules/i18n";
 import {
@@ -90,9 +90,9 @@ export function PracticeCatalogScreen() {
   const [remoteBusyPracticeId, setRemoteBusyPracticeId] = useState<string | null>(null);
   const [yogaLateLoading, setYogaLateLoading] = useState(false);
   const [yogaThumbnails, setYogaThumbnails] = useState<Record<string, PracticeVideoThumbnail | null>>({});
-  const [lockedFeature, setLockedFeature] = useState<FeatureKey | null>(
-    canUseFeature("practice_catalog") ? null : "practice_catalog",
-  );
+  // Каталог виден всем уровням (пользователь должен видеть объём библиотеки);
+  // гейт срабатывает только на «Начать практику» (см. onLaunch/onRemotePlay).
+  const [lockedFeature, setLockedFeature] = useState<FeatureKey | null>(null);
   const [state, setState] = useState<CatalogState>({
     status: "loading",
     catalog: null,
@@ -286,7 +286,8 @@ export function PracticeCatalogScreen() {
         : catalog[selectedKind],
     [catalog, chakraFilter, durationFilter, selectedKind],
   );
-  const catalogAllowed = canUseFeature("practice_catalog");
+  const meditationAllowed = canUseFeature("meditations");
+  const breathAllowed = canUseFeature("breath_practices");
   const asanaAllowed = canUseFeature("asana_practices");
 
   const requestYogaThumbnails = useCallback(
@@ -376,11 +377,16 @@ export function PracticeCatalogScreen() {
       id: practice.id,
       kind: practice.kind,
       slug: practice.slug,
-      catalogAllowed,
+      meditationAllowed,
+      breathAllowed,
       asanaAllowed,
     });
-    if (!catalogAllowed) {
-      setLockedFeature("practice_catalog");
+    if (practice.kind === "meditation" && !meditationAllowed) {
+      setLockedFeature("meditations");
+      return;
+    }
+    if (practice.kind === "breath" && !breathAllowed) {
+      setLockedFeature("breath_practices");
       return;
     }
     if (practice.kind === "yoga" && !asanaAllowed) {
@@ -388,7 +394,7 @@ export function PracticeCatalogScreen() {
       return;
     }
     launchPractice(practice.launch, { launchSource: "catalog" });
-  }, [asanaAllowed, catalogAllowed]);
+  }, [asanaAllowed, breathAllowed, meditationAllowed]);
 
   const onRemotePlay = useCallback(
     async (practice: PracticeSummary) => {
@@ -397,10 +403,6 @@ export function PracticeCatalogScreen() {
         kind: practice.kind,
         connected: remotePlay.connected,
       });
-      if (!catalogAllowed) {
-        setLockedFeature("practice_catalog");
-        return;
-      }
       if (!asanaAllowed) {
         setLockedFeature("asana_practices");
         return;
@@ -437,7 +439,7 @@ export function PracticeCatalogScreen() {
         setRemoteBusyPracticeId(null);
       }
     },
-    [appLocale, asanaAllowed, catalogAllowed, remotePlay],
+    [appLocale, asanaAllowed, remotePlay],
   );
 
   const renderPractice = useCallback(
@@ -478,7 +480,6 @@ export function PracticeCatalogScreen() {
               {PRACTICE_GROUPS.map((group) => {
                 const count = catalog[group.kind].length;
                 const active = group.kind === selectedKind;
-                const locked = group.kind === "yoga" && !asanaAllowed;
                 return (
                   <Pressable
                     key={group.kind}
@@ -486,14 +487,7 @@ export function PracticeCatalogScreen() {
                     onPress={() => {
                       logRuntimeTap("practice_group", {
                         kind: group.kind,
-                        locked,
-                        catalogAllowed,
                       });
-                      if (!catalogAllowed) {
-                        setLockedFeature("practice_catalog");
-                        return;
-                      }
-                      if (locked) setLockedFeature("asana_practices");
                       setSelectedKind(group.kind);
                     }}
                     style={({ pressed }) => [
@@ -514,13 +508,11 @@ export function PracticeCatalogScreen() {
                       {getPracticeGroupTitle(group.kind, strings)}
                     </AppText>
                     <AppText variant="technicalCaption" tone={active ? "accentOn" : "muted"}>
-                      {locked
-                        ? strings.masterOnly
-                        : count
-                          ? strings.practiceCount(count)
-                          : group.kind === "yoga" && yogaLateLoading
-                            ? strings.yogaLateLoading
-                            : strings.emptyGroup}
+                      {count
+                        ? strings.practiceCount(count)
+                        : group.kind === "yoga" && yogaLateLoading
+                          ? strings.yogaLateLoading
+                          : strings.emptyGroup}
                     </AppText>
                   </Pressable>
                 );
@@ -564,9 +556,7 @@ export function PracticeCatalogScreen() {
       </View>
     ),
     [
-      asanaAllowed,
       catalog,
-      catalogAllowed,
       chakraFilter,
       durationFilter,
       load,
@@ -628,10 +618,9 @@ export function PracticeCatalogScreen() {
         viewabilityConfig={viewabilityConfig}
       />
       {lockedFeature ? (
-        <UpgradeDialog
+        <AccountGateDialog
           visible
           feature={lockedFeature}
-          requiredTier={requiredTierFor(lockedFeature)}
           onClose={() => setLockedFeature(null)}
         />
       ) : null}

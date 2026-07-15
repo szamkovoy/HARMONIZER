@@ -72,6 +72,9 @@ function buildPaidExplanation(
   const culminationTime = formatTime(params.strings, params.windows.culmination?.time);
   const exactAspectTime = formatTime(params.strings, params.windows.exactAspect?.time);
   const exactAspectLbl = aspectLabel(params.strings, params.windows.exactAspect?.aspectType);
+  const exactAspectTransit = params.windows.exactAspect
+    ? params.strings.planetLabels[params.windows.exactAspect.transitPlanet]
+    : null;
   const exactAspectNatal = params.windows.exactAspect
     ? params.strings.planetLabels[params.windows.exactAspect.toNatalPlanet]
     : null;
@@ -91,11 +94,11 @@ function buildPaidExplanation(
       : culminationTime
         ? `${params.strings.opportunityWindows.windowTitles.culmination}: ${culminationTime}.`
         : null,
-    exactAspectTime && exactAspectLbl && transitPlanet && exactAspectNatal
+    exactAspectTime && exactAspectLbl && exactAspectTransit && exactAspectNatal
       ? fillHomeTemplate(help.exactAspectLine, {
           time: exactAspectTime,
           aspect: exactAspectLbl,
-          transitPlanet,
+          transitPlanet: exactAspectTransit,
           natalPlanet: exactAspectNatal,
         })
       : null,

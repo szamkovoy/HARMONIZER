@@ -44,7 +44,6 @@
     "aspectTitle": "Aspekt"
   },
   "forecastErrorTitle": "Prognose konnte nicht geladen werden",
-  "freeTierBanner": "Unten sehen Sie universelle Empfehlungen für diesen Tag. Sie helfen Ihnen, jeden Tag effektiv zu gestalten. Individuelle Empfehlungen, die auf Ihrem Geburtsdatum, Ihrer Geburtszeit und Ihrem Geburtsort basieren, sind jedoch viel präziser und tiefgehender. Wechseln Sie zum Tarif „Psychologe“, um diese zu erhalten.",
   "headerHint": "Die wichtigste Tageseinstellung: Chakren, Fenster der Möglichkeiten und praktische Empfehlung.",
   "locale": "de",
   "locationErrorMessage": "Um die Möglichkeitenfenster zu berechnen, benötigen wir Ihren Standort. Bitte erlauben Sie den Zugriff auf die Geoposition und versuchen Sie es erneut.",
@@ -104,14 +103,14 @@
     "paidIntroTemplate": "Heute leben Sie die Zustände, die {natalPlanet} aktiviert. Dabei öffnet {transitPlanet} besondere Fenster der Möglichkeiten.",
     "sunriseDetailTemplate": "{planet} steigt über den Horizont",
     "culminationDetailTemplate": "{planet} ist in maximaler Kraft",
-    "exactAspectDetailTemplate": "{aspect} {transitPlanet} und {natalPlanet}",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (Transit) und {natalPlanet} (Natal)",
     "help": {
       "freeOpening": "Der stärkste Planet des Tages ist {planet}. Das Diagramm zeigt, wann {planet} an Ihrem Standort über den Horizont steigt und den Zenit erreicht.",
       "paidOpening": "Der stärkste Planet Ihrer Geburtshoroskopkarte ist heute {natalPlanet}. Diese Kraft entsteht vor allem durch die Wechselwirkung mit dem Transitplaneten {transitPlanet}, dessen Bewegung am Himmel besondere Fenster der Möglichkeiten für Sie öffnet.",
       "paidOpeningNoTransit": "Heute zeigt das Diagramm ein allgemeines Fenster der Möglichkeiten ohne einen klar hervorgehobenen Transitplaneten.",
       "sunriseLine": "Aufgang: {time} — {planet} steigt über den Horizont.",
       "culminationLine": "Kulmination: {time} — {planet} im höchsten Punkt des Tageswegs.",
-      "exactAspectLine": "Exakter Aspekt: {time} — {aspect} {transitPlanet} und {natalPlanet}.",
+      "exactAspectLine": "Exakter Aspekt: {time} — {aspect} {transitPlanet} (Transit) und {natalPlanet} (Natal).",
       "closing": "Das sind Schlüsselmomente genau an Ihrem Standort. Nutzen Sie sie für spirituelle Praktiken, Affirmationen, Absichten, Meditation usw.",
       "remindersHint": "Tippen Sie auf die Glocke unter dem Diagramm, um Erinnerungen ein- oder auszuschalten."
     }

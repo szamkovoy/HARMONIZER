@@ -44,7 +44,6 @@
     "aspectTitle": "Aspetto"
   },
   "forecastErrorTitle": "Impossibile caricare la previsione",
-  "freeTierBanner": "In basso vedi i consigli universali per oggi. Ti aiuteranno a vivere ogni giorno con efficacia. Tuttavia, i consigli personalizzati, basati sulla tua data, ora e luogo di nascita, sono molto più precisi e profondi. Passa alla tariffa \"Psicologo\" per riceverli.",
   "headerHint": "Impostazione principale del giorno: chakra, finestre di opportunità e raccomandazione pratica.",
   "locale": "it",
   "locationErrorMessage": "Per calcolare le finestre di opportunità è necessaria la geolocalizzazione. Consenti l'accesso alla posizione e riprova.",
@@ -104,14 +103,14 @@
     "paidIntroTemplate": "Oggi coltivate gli stati che {natalPlanet} attiva. Intanto {transitPlanet} aprirà speciali finestre di opportunità.",
     "sunriseDetailTemplate": "{planet} sale sopra l'orizzonte",
     "culminationDetailTemplate": "{planet} è alla massima forza",
-    "exactAspectDetailTemplate": "{aspect} {transitPlanet} e {natalPlanet}",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (transito) e {natalPlanet} (natale)",
     "help": {
       "freeOpening": "Il pianeta più forte del giorno è {planet}. Il grafico mostra quando {planet} sorge e raggiunge lo zenit nella vostra posizione.",
       "paidOpening": "Il pianeta più forte della vostra carta natale oggi è {natalPlanet}. Questa forza è in gran parte dovuta all'interazione con il pianeta di transito {transitPlanet}, il cui movimento nel cielo apre per voi finestre di opportunità particolari.",
       "paidOpeningNoTransit": "Oggi il grafico mostra una finestra di opportunità generale senza un pianeta di transito chiaramente evidenziato.",
       "sunriseLine": "Alba: {time} — {planet} sale sopra l'orizzonte.",
       "culminationLine": "Culminazione: {time} — {planet} nel punto più alto del percorso giornaliero.",
-      "exactAspectLine": "Aspetto esatto: {time} — {aspect} {transitPlanet} e {natalPlanet}.",
+      "exactAspectLine": "Aspetto esatto: {time} — {aspect} {transitPlanet} (transito) e {natalPlanet} (natale).",
       "closing": "Questi sono momenti chiave specificamente per la vostra posizione. Usateli per pratiche spirituali, affermazioni, intenzioni, meditazione e simili.",
       "remindersHint": "Tocca la campana sotto il grafico per attivare o disattivare i promemoria."
     }

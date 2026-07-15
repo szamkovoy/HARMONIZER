@@ -4,13 +4,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 
 import {
+  AccountGateDialog,
   DevTierSwitch,
-  requiredTierFor,
   TIER_LABELS,
-  UpgradeDialog,
   useAccess,
   type FeatureKey,
 } from "@/modules/access";
+import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
 import { useAuth } from "@/modules/auth";
 import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
 import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
@@ -336,6 +336,22 @@ export default function ProfileTabRoute() {
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [cabinetOpening, setCabinetOpening] = useState(false);
+  const [cabinetError, setCabinetError] = useState<string | null>(null);
+  const linksEnabled = useAccountLinksEnabled();
+
+  const onOpenCabinet = useCallback(async () => {
+    logRuntimeTap("profile_open_cabinet", {});
+    setCabinetError(null);
+    setCabinetOpening(true);
+    try {
+      await openAccountCabinet();
+    } catch (error) {
+      setCabinetError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCabinetOpening(false);
+    }
+  }, []);
 
   const localeOptions = useMemo(
     () =>
@@ -421,10 +437,10 @@ export default function ProfileTabRoute() {
   }, []);
 
   const onSaveNatal = useCallback(
-    async (birthData: BirthData) => {
+    async (birthData: BirthData, placeName: string) => {
       setNatalSaving(true);
       try {
-        await createNatalProfile(birthData);
+        await createNatalProfile(birthData, undefined, { placeName });
         await refreshProfile();
         markHomeDayContentBlockingReload({ forceRefresh: true });
         setNatalModalOpen(false);
@@ -486,6 +502,20 @@ export default function ProfileTabRoute() {
           <AppText variant="technicalCaption" tone="muted">
             {t("profile.access.birthHint")}
           </AppText>
+          {linksEnabled ? (
+            <>
+              <AppButton
+                label={cabinetOpening ? "…" : t("gate.openCabinet")}
+                onPress={() => void onOpenCabinet()}
+                disabled={cabinetOpening}
+              />
+              {cabinetError ? (
+                <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>
+                  {t("gate.cabinetError")}
+                </AppText>
+              ) : null}
+            </>
+          ) : null}
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
@@ -679,14 +709,14 @@ export default function ProfileTabRoute() {
         saving={natalSaving}
         initialDate={profile?.birth_date}
         initialTime={profile?.birth_time}
+        initialPlace={profile?.birth_place}
         onClose={() => setNatalModalOpen(false)}
         onSubmit={onSaveNatal}
       />
       {upgradeFeature ? (
-        <UpgradeDialog
+        <AccountGateDialog
           visible
           feature={upgradeFeature}
-          requiredTier={requiredTierFor(upgradeFeature)}
           onClose={() => setUpgradeFeature(null)}
         />
       ) : null}

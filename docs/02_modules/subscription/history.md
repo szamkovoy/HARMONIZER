@@ -1,13 +1,17 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.5
-updated: 2026-07-08
+version: 1.7
+updated: 2026-07-15
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-15:** Follow-up по Consumption-Only. Каталог практик (медитации/дыхание/асаны) теперь **browsable для всех уровней** — гейт срабатывает только на «Начать практику»/«Открыть на ТВ»/«Открыть на телефоне», по kind: `meditations`/`breath_practices`/`asana_practices` (раньше гейт срабатывал уже при переключении группы). Панель `AccountUpsellPanel` и баннер `UpcomingWebinarBanner` приведены к кеглю `sectionTitle` (18px) regular; chevron панели — тот же `›` что у баннера, повёрнут на 90° (вниз закрыто / вверх открыто). На экран «Профиль» в карточку доступа добавлена кнопка «Личный кабинет» (kill-switch `account_links_enabled`). В «Окнах возможностей» точный аспект теперь показывает подписи `(транзит)`/`(натал)` за каждой планетой (8 локалей, включая help-попап; исправлен источник transit-планеты в help — берётся `exactAspect.transitPlanet`, а не graph-планета).
+
+- **2026-07-14:** Переход на Consumption-Only (внешние платежи на zamkovoi.yoga). Новая продуктовая модель из трёх видимых уровней: `free`→«Навигатор», `oracle`→«Наставник» (+`assistant_dialog`, `day_planning`, `stats` — переехали с practitioner), `master`→«Мастер» (все практики + вебинары); `practitioner` — скрытый legacy-алиас oracle (`VISIBLE_PRODUCT_TIERS`, DB не меняли). Trial сокращён до **1 суток** уровня «Мастер» (`20260714210000_trial_one_day.sql`, триггер также пишет `locale`). `UpgradeDialog` заменён комплаенс-компонентами `AccountGateDialog` / `AccountUpsellPanel` (тексты `gate.*`, кнопка «Личный кабинет» с kill-switch `app_config.account_links_enabled`); `FreeTierBanner` и ключи `upgrade.*` удалены. Таб «Практики» виден всем — гейт на «Начать практику». Подхват смены уровня — модуль `account_web`.
 
 - **2026-07-10:** Каталог тарифов расширен явными `PAID_PRODUCT_TIERS` / `TIER_LABELS_RU` / `isPaidProductTier` в `modules/access/core/tiers.ts` (админка и серверные сегменты больше не держат локальные копии имён). Пересчёт `users.membership_*` из леджера `payments` при add/edit и hourly cron: среди ещё действующих платежей побеждает максимальный `TIER_ORDER` (см. admin_panel / infra). Автооплата store отложена.
 

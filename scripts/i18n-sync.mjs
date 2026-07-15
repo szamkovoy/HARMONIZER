@@ -5,6 +5,7 @@
  *
  * Source of truth: modules/i18n/catalog/ru.json
  *                 _legacy_web/data/dialog_scaffold/ru.json (layer C server strings)
+ *                 supabase/functions/send-auth-email/templates/ru.json (auth emails)
  * Targets:         en (required) + de/fr/it/es/pt/nl (best-effort)
  *
  * Usage (from repo root):
@@ -48,6 +49,9 @@ const TYPED_META_FILE = join(REPO_ROOT, "modules/i18n/typed/.sync-meta.json");
 const DIALOG_SCAFFOLD_DIR = join(REPO_ROOT, "_legacy_web/data/dialog_scaffold");
 const DIALOG_SCAFFOLD_SOURCE = join(DIALOG_SCAFFOLD_DIR, "ru.json");
 const DIALOG_SCAFFOLD_META_FILE = join(DIALOG_SCAFFOLD_DIR, ".sync-meta.json");
+const AUTH_EMAIL_DIR = join(REPO_ROOT, "supabase/functions/send-auth-email/templates");
+const AUTH_EMAIL_SOURCE = join(AUTH_EMAIL_DIR, "ru.json");
+const AUTH_EMAIL_META_FILE = join(AUTH_EMAIL_DIR, ".sync-meta.json");
 
 const LANGUAGE_NAMES = {
   en: "English",
@@ -77,6 +81,33 @@ function dialogScaffoldPath(locale) {
   return join(DIALOG_SCAFFOLD_DIR, `${locale}.json`);
 }
 
+function authEmailPath(locale) {
+  return join(AUTH_EMAIL_DIR, `${locale}.json`);
+}
+
+/**
+ * Плоские JSON-источники вне основного каталога (тот же gate, что и catalog):
+ * layer-C dialog scaffold + шаблоны auth-писем edge-функции.
+ */
+function flatSources() {
+  return [
+    {
+      tag: "dialog-scaffold",
+      source: readJson(DIALOG_SCAFFOLD_SOURCE, null),
+      meta: readJson(DIALOG_SCAFFOLD_META_FILE, {}),
+      metaFile: DIALOG_SCAFFOLD_META_FILE,
+      resolvePath: dialogScaffoldPath,
+    },
+    {
+      tag: "auth-email",
+      source: readJson(AUTH_EMAIL_SOURCE, null),
+      meta: readJson(AUTH_EMAIL_META_FILE, {}),
+      metaFile: AUTH_EMAIL_META_FILE,
+      resolvePath: authEmailPath,
+    },
+  ].filter((s) => s.source);
+}
+
 /** Diff one target against the source. */
 function diffLocale(source, meta, locale, resolvePath = localePath) {
   const target = readJson(resolvePath(locale), {});
@@ -97,14 +128,14 @@ function diffLocale(source, meta, locale, resolvePath = localePath) {
   return { target, missing, stale, orphan };
 }
 
-function runDialogScaffoldCheck(source, meta, hardFailLocales) {
+function runFlatSourceCheck({ tag, source, meta, resolvePath }, hardFailLocales) {
   let hardFail = false;
   for (const locale of ALL_TARGETS) {
-    const { missing, stale, orphan } = diffLocale(source, meta, locale, dialogScaffoldPath);
+    const { missing, stale, orphan } = diffLocale(source, meta, locale, resolvePath);
     if (missing.length || stale.length || orphan.length) {
-      const tag = hardFailLocales.includes(locale) ? "FAIL" : "warn";
+      const label = hardFailLocales.includes(locale) ? "FAIL" : "warn";
       console.log(
-        `[i18n:dialog-scaffold] ${tag} ${locale}: ${missing.length} missing, ${stale.length} stale, ${orphan.length} orphan`,
+        `[i18n:${tag}] ${label} ${locale}: ${missing.length} missing, ${stale.length} stale, ${orphan.length} orphan`,
       );
       if (missing.length) console.log(`        missing: ${missing.join(", ")}`);
       if (stale.length) console.log(`        stale:   ${stale.join(", ")}`);
@@ -115,29 +146,29 @@ function runDialogScaffoldCheck(source, meta, hardFailLocales) {
   return hardFail;
 }
 
-async function runDialogScaffoldFill(source, meta, targets) {
+async function runFlatSourceFill({ tag, source, meta, metaFile, resolvePath }, targets) {
   for (const locale of targets) {
-    const { target, missing, stale, orphan } = diffLocale(source, meta, locale, dialogScaffoldPath);
+    const { target, missing, stale, orphan } = diffLocale(source, meta, locale, resolvePath);
     const todo = [...missing, ...stale];
     for (const key of orphan) delete target[key];
     if (!todo.length && !orphan.length) {
-      console.log(`[i18n:dialog-scaffold] ${locale}: up to date.`);
+      console.log(`[i18n:${tag}] ${locale}: up to date.`);
       continue;
     }
     console.log(
-      `[i18n:dialog-scaffold] ${locale}: ${missing.length} missing + ${stale.length} stale to translate, ${orphan.length} orphan removed.`,
+      `[i18n:${tag}] ${locale}: ${missing.length} missing + ${stale.length} stale to translate, ${orphan.length} orphan removed.`,
     );
     const entries = todo.map((key) => [key, source[key]]);
     let translated = null;
     try {
-      translated = entries.length ? await translateBatch(locale, entries, "dialog-scaffold") : {};
+      translated = entries.length ? await translateBatch(locale, entries, tag) : {};
     } catch (error) {
-      console.error(`[i18n:dialog-scaffold] ${locale}: translation failed: ${error.message}`);
+      console.error(`[i18n:${tag}] ${locale}: translation failed: ${error.message}`);
       process.exitCode = 1;
       continue;
     }
     if (translated == null) {
-      console.log(`[i18n:dialog-scaffold] ${locale}: no translate API — plan only:`);
+      console.log(`[i18n:${tag}] ${locale}: no translate API — plan only:`);
       for (const [key, value] of entries) console.log(`        ${key} = ${value}`);
       continue;
     }
@@ -149,9 +180,9 @@ async function runDialogScaffoldFill(source, meta, targets) {
       }
     }
     for (const key of orphan) delete meta[locale][key];
-    writeJson(dialogScaffoldPath(locale), target);
+    writeJson(resolvePath(locale), target);
   }
-  writeJson(DIALOG_SCAFFOLD_META_FILE, meta);
+  writeJson(metaFile, meta);
 }
 
 function bootstrapDialogScaffoldMeta() {
@@ -326,7 +357,9 @@ async function translateBatch(locale, entries, context = "catalog") {
   const role =
     context === "dialog-scaffold"
       ? "server-side dialog assistant localizer"
-      : "UI localizer";
+      : context === "auth-email"
+        ? "transactional email localizer (short OTP sign-in emails)"
+        : "UI localizer";
   const system =
     `You are a professional ${role} for a yoga + psychology mobile app with a warm, ` +
     `empathetic mentor tone. Translate the JSON values from Russian into ${languageName}. ` +
@@ -377,8 +410,7 @@ async function main() {
     return;
   }
 
-  const scaffoldSource = readJson(DIALOG_SCAFFOLD_SOURCE, null);
-  const scaffoldMeta = readJson(DIALOG_SCAFFOLD_META_FILE, {});
+  const extraSources = flatSources();
 
   if (command === "check") {
     let hardFail = false;
@@ -396,8 +428,8 @@ async function main() {
         if (required) hardFail = true;
       }
     }
-    if (scaffoldSource) {
-      if (runDialogScaffoldCheck(scaffoldSource, scaffoldMeta, REQUIRED_TARGETS)) hardFail = true;
+    for (const src of extraSources) {
+      if (runFlatSourceCheck(src, REQUIRED_TARGETS)) hardFail = true;
     }
     const typedManifest = readTypedManifest(REPO_ROOT);
     await runTypedCheck(typedManifest, []); // overlays optional until locale enabled
@@ -448,7 +480,7 @@ async function main() {
       writeJson(localePath(locale), target);
     }
     writeJson(META_FILE, meta);
-    if (scaffoldSource) await runDialogScaffoldFill(scaffoldSource, scaffoldMeta, targets);
+    for (const src of extraSources) await runFlatSourceFill(src, targets);
     const typedManifest = readTypedManifest(REPO_ROOT);
     const typedTargets = targets.filter((l) => TYPED_OVERLAY_TARGETS.includes(l));
     if (typedTargets.length) await runTypedFill(typedManifest, typedTargets);

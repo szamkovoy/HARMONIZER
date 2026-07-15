@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.14
-updated: 2026-07-10
+version: 1.15
+updated: 2026-07-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -26,6 +26,8 @@ code_refs:
     scripts/dialog-scaffold-fill.mjs,
     _legacy_web/app/api/_utils/dialogScaffold/index.ts,
     _legacy_web/data/dialog_scaffold/ru.json,
+    supabase/functions/send-auth-email/index.ts,
+    supabase/functions/send-auth-email/templates/ru.json,
   ]
 ---
 
@@ -192,10 +194,24 @@ Two resolvers — do not conflate layer B and layer C:
 - **Edit RU → run `fill --all`** (or push; pre-push hook picks it up). One-time
   bootstrap for existing files: `node scripts/i18n-sync.mjs bootstrap-dialog-scaffold-meta`.
 
+### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-07-15)
+- Source of truth: `supabase/functions/send-auth-email/templates/ru.json`
+  (subject/greeting/intro/expiry/ignore/footer for OTP sign-in emails).
+- Targets + meta: same flat-source mechanics as the dialog scaffold
+  (`templates/{en,de,fr,it,es,pt,nl}.json` + `templates/.sync-meta.json`);
+  registered in `i18n-sync.mjs` as the `auth-email` flat source.
+- Runtime: the edge function imports the JSONs at deploy time and picks the
+  template by `user_metadata.locale` (fallback `ru`).
+- SMTP transport (2026-07-15): rewritten to use built-in `Deno.connectTls`
+  (raw SMTP: EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT) instead of
+  the `denomailer` module which was unavailable for Supabase Edge Function
+  bundling. Secrets: `SMTP_USERNAME`, `SMTP_PASSWORD`, `SEND_EMAIL_HOOK_SECRET`.
+
 ### 4.2 Gate — `scripts/i18n-sync.mjs`
 - `check` — diffs RU source vs each locale: **missing / stale / orphan** keys for
-  **UI catalog**, **dialog scaffold**, and typed overlays. Exits non-zero if a
-  **required** locale (`en`) drifts in catalog or scaffold; warns for optional ones.
+  **UI catalog**, **flat sources** (dialog scaffold + auth-email templates), and
+  typed overlays. Exits non-zero if a
+  **required** locale (`en`) drifts in catalog or a flat source; warns for optional ones.
 - `fill [--locale xx | --all]` — LLM-translates missing/stale keys from RU,
   removes orphans, updates `.sync-meta.json`. Needs a chat/completions endpoint:
   explicit `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or fallback to

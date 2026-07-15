@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.4
-updated: 2026-07-08
+version: 1.5
+updated: 2026-07-14
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -35,7 +35,10 @@ code_refs:
   `app/_layout.tsx` (`AccessBridge`) передаёт в `AccessProvider` объект `profile` из `useAuth()`. Поля подписки приходят из той же загрузки пользователя, что и остальной профиль; модуль не вызывает Supabase сам по тарифу.
 
 - **`i18n`**  
-  `modules/access/ui/UpgradeDialog.tsx` — `useTranslate()` для `tier.*` и `upgrade.*` (заголовок, тело, подписи фич). Новые ключи — в `modules/i18n/catalog/ru.json` + sync gate.
+  `modules/access/ui/AccountGateDialog.tsx` / `AccountUpsellPanel.tsx` — `useTranslate()` для `tier.*` и `gate.*` (комплаенс-тексты точек гейтинга, панель главной, модалки trial/смены уровня). Новые ключи — в `modules/i18n/catalog/ru.json` + sync gate.
+
+- **`account_web`**  
+  Кнопка «Личный кабинет» в `AccountGateDialog` / `AccountUpsellPanel` вызывает `openAccountCabinet()` из `modules/account` (OTT-переход) и скрывается по kill-switch `useAccountLinksEnabled()` (`app_config.account_links_enabled`). Подхват смены уровня — `MembershipEventsBridge` (см. `02_modules/account_web/`).
 
 ## 2. От него зависят
 
@@ -54,15 +57,15 @@ code_refs:
   Клиентский транспорт не проверяет фичи сам; ограничения «открыть диалог» задаются на главном экране через `canUseFeature("assistant_dialog")`.
 
 - **`practices`**  
-  `app/(tabs)/_layout.tsx` — `href: null` на таб «Практики», если `!canUseFeature("practice_catalog")`.  
-  `modules/practices/ui/PracticeCatalogScreen.tsx` — блокировки каталога и асан через `practice_catalog` / `asana_practices`, `UpgradeDialog`.  
-  `app/asana-practice.tsx` — без `asana_practices` не загружается контент Vimeo и показывается апгрейд.
+  `app/(tabs)/_layout.tsx` — таб «Практики» виден всем уровням (каталог — витрина).  
+  `modules/practices/ui/PracticeCatalogScreen.tsx` — гейт на «Начать практику» через `practice_catalog` / `asana_practices`, `AccountGateDialog`.  
+  `app/asana-practice.tsx` — без `asana_practices` не загружается контент Vimeo и показывается `AccountGateDialog`.
 
 - **`biofeedback`** (косвенно)  
   Отдельного `FeatureKey` для биофидбека нет; доступ к дыхательным практикам с камерой ограничивается тем же тарифом, что и ключ `breath_practices` / экраны в `practices`. Парная формулировка — `docs/02_modules/biofeedback/dependencies.md`.
 
-- **`webinars` / `author_presence` (план в MAP)**  
-  В `TIER_FEATURES` зарезервированы ключи в духе `webinar_community`; отдельного потребительского кода под эти модули в репозитории пока нет.
+- **`webinars`**  
+  `modules/webinars/ui/WebinarScreen.tsx` — регистрация на вебинар и записи гейтятся `webinar_community` (уровень «Мастер»), блокировка показывает `AccountGateDialog` с текстом `gate.body.webinar`.
 
 - **`admin_panel`**  
   Миграция 4 тиров + `membership_expires_at` (этап 0); ручной грант/правка платежей (этап 6) пишет леджер и пересчитывает `users.membership_*` по правилу highest active tier. Подписи в UI админки — `TIER_LABELS_RU`. См. `02_modules/admin_panel/`.
@@ -73,7 +76,7 @@ code_refs:
 ## 3. Контрактные точки риска
 
 - **Единая точка правила платного доступа:** `modules/access/core/paidAccess.ts` (клиент + сервер через vendored-копию `scripts/sync-vercel-server-modules.mjs`). Намеренное зеркало осталось только в Edge `precompute-daily-forecasts` (`hasPersonalForecastAccess`) — при изменении правила синхронизировать вручную. Ответы `global-content` несут `has_premium_access` для клиента.
-- **Изменение `FeatureKey` или `TIER_FEATURES`** — ломает все вызовы `canUseFeature` и тексты `UpgradeDialog` (`upgrade.feature.*` в каталоге); нужна проходка по `app/(tabs)/*`, `modules/practices/*`, `app/asana-practice.tsx`.
+- **Изменение `FeatureKey` или `TIER_FEATURES`** — ломает все вызовы `canUseFeature` и маппинг `FEATURE_BODY_KEY` в `AccountGateDialog` (`gate.body.*` в каталоге); нужна проходка по `app/(tabs)/*`, `modules/practices/*`, `app/asana-practice.tsx`, `modules/webinars/*`.
 - **Ключ `stats` стал шире по смыслу** — теперь он гейтит и server-backed reports профиля, так что ошибки в `TIER_FEATURES` затронут не только локальную статистику практик, но и life matrix / range trend.
 - **Смена `ProductTier` или порядка в `TIER_ORDER`** — влияет на `accessModeForTier` и на сравнения `tierAtLeast` у будущих потребителей.
 - **Кэш дня** (`services/dayContentCache.ts`) ключует по `accessTier`; смена правил tier без инвалидации может показывать старый персональный/global контент до принудительного refresh.

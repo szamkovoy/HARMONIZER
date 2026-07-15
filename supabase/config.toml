@@ -393,6 +393,10 @@ verify_jwt = false
 [functions.daily-forecast]
 verify_jwt = false
 
+# Auth Send Email Hook — вызывается GoTrue, авторизация по подписи standard-webhooks.
+[functions.send-auth-email]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

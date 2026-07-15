@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.25
-updated: 2026-07-13
+version: 2.26
+updated: 2026-07-15
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-15 (aspect transit/natal labels):** В «Окнах возможностей» точный аспект теперь показывает подписи `(транзит)`/`(натал)` за каждой планетой (8 локалей) — иначе «оппозиция Луна и Луна» читалась как ошибка. Шаблоны `exactAspectDetailTemplate` и `help.exactAspectLine` обновлены в `modules/home/i18n/home.ts` + overlays. Попутно исправлен баг в `services/opportunityWindowsExplanation.ts`: help-попап брал transit-планету из graph-планеты (sunrise/culmination), а не из `exactAspect.transitPlanet` — теперь берётся правильный источник.
 
 - **2026-07-14 (opportunity chart flat):** After free location fallback, Home still passed profile-only `userLocation` (often null) into `OpportunityWindows` → flat axis. `useDayContent` now exposes the resolved forecast location for the chart.
 

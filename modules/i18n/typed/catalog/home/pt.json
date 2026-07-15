@@ -44,7 +44,6 @@
     "aspectTitle": "Aspecto"
   },
   "forecastErrorTitle": "Não foi possível carregar a previsão",
-  "freeTierBanner": "Abaixo você vê recomendações universais para o dia. Elas te ajudam a viver cada dia de forma mais eficaz. Porém, as recomendações personalizadas, baseadas em sua data, hora e local de nascimento, são muito mais precisas e profundas. Acesse o plano \"Psicólogo\" para recebê-las.",
   "headerHint": "Configuração principal do dia: chakras, janelas de oportunidade e recomendação prática.",
   "locale": "pt",
   "locationErrorMessage": "Para calcular as janelas de oportunidades, é necessário acesso à localização. Permita o acesso à geolocalização e tente novamente.",
@@ -104,14 +103,14 @@
     "paidIntroTemplate": "Hoje cultivem os estados que {natalPlanet} ativa. Entretanto, {transitPlanet} abrirá janelas especiais de oportunidades.",
     "sunriseDetailTemplate": "{planet} sobe acima do horizonte",
     "culminationDetailTemplate": "{planet} está na força máxima",
-    "exactAspectDetailTemplate": "{aspect} {transitPlanet} e {natalPlanet}",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (trânsito) e {natalPlanet} (natal)",
     "help": {
       "freeOpening": "O planeta mais forte do dia é {planet}. O gráfico mostra quando {planet} nasce e atinge o zênite na sua localização.",
       "paidOpening": "O planeta mais forte do seu mapa natal hoje é {natalPlanet}. Essa força vem em grande parte da interação com o planeta de trânsito {transitPlanet}, cujo movimento no céu abre para você janelas especiais de oportunidades.",
       "paidOpeningNoTransit": "Hoje o gráfico mostra uma janela de oportunidades geral sem um planeta de trânsito claramente destacado.",
       "sunriseLine": "Nascer: {time} — {planet} sobe acima do horizonte.",
       "culminationLine": "Culminação: {time} — {planet} no ponto mais alto do caminho diário.",
-      "exactAspectLine": "Aspecto exato: {time} — {aspect} {transitPlanet} e {natalPlanet}.",
+      "exactAspectLine": "Aspecto exato: {time} — {aspect} {transitPlanet} (trânsito) e {natalPlanet} (natal).",
       "closing": "Estes são momentos-chave especificamente para a sua localização. Use-os para práticas espirituais, afirmações, intenções, meditação etc.",
       "remindersHint": "Toque no sino abaixo do gráfico para ligar ou desligar os lembretes."
     }

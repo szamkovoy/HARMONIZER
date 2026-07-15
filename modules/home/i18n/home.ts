@@ -143,7 +143,6 @@ export interface HomeStrings {
   devLinks: Record<string, string>;
   /** Кнопка в тестовом ряду: POST global-content { devReset: true } + refresh */
   devResetDayContent: string;
-  freeTierBanner: string;
   mathModal: {
     title: string;
     subtitle: string;
@@ -331,7 +330,7 @@ const ru: HomeStrings = {
     },
     sunriseDetailTemplate: "{planet} поднимается над горизонтом",
     culminationDetailTemplate: "{planet} в максимальной силе",
-    exactAspectDetailTemplate: "{aspect} {transitPlanet} и {natalPlanet}",
+    exactAspectDetailTemplate: "{aspect} {transitPlanet} (транзит) и {natalPlanet} (натал)",
     reminderModalTitle: "Уведомить",
     reminderTextLabel: "Текст уведомления",
     reminderModeExact: "точно в это время",
@@ -358,7 +357,7 @@ const ru: HomeStrings = {
         "Сегодня график показывает общее окно возможностей без отдельной явно выраженной транзитной планеты.",
       sunriseLine: "Восход: {time} — {planet} поднимается над горизонтом.",
       culminationLine: "Кульминация: {time} — {planet} в наивысшей точке суточного пути.",
-      exactAspectLine: "Точный аспект: {time} — {aspect} {transitPlanet} и {natalPlanet}.",
+      exactAspectLine: "Точный аспект: {time} — {aspect} {transitPlanet} (транзит) и {natalPlanet} (натал).",
       closing:
         "Это ключевые моменты времени именно в вашей локации. Используйте их для духовных практик, аффирмаций, постановки намерения, медитации и т.п.",
       remindersHint: "Нажмите колокольчик под графиком, чтобы включать напоминания.",
@@ -419,8 +418,6 @@ const ru: HomeStrings = {
     calibration: "Calibration",
   },
   devResetDayContent: "Обновить",
-  freeTierBanner:
-    "Внизу вы видите универсальные рекомендации на этот день. Они помогут вам эффективно проживать каждый день. Однако, индивидуальные рекомендации, опирающиеся на вашу дату, время и место рождения, гораздо точнее и глубже. Перейдите на тариф \"Психолог\", чтобы их получать.",
   mathModal: {
     title: "Математика дня",
     subtitle: "Формулы силы, гармоничности, транзитов и выбора планеты дня.",
@@ -547,7 +544,7 @@ const en: HomeStrings = {
     },
     sunriseDetailTemplate: "{planet} rises above the horizon",
     culminationDetailTemplate: "{planet} is at peak strength",
-    exactAspectDetailTemplate: "{aspect} {transitPlanet} and {natalPlanet}",
+    exactAspectDetailTemplate: "{aspect} {transitPlanet} (transit) and {natalPlanet} (natal)",
     reminderModalTitle: "Notify me",
     reminderTextLabel: "Notification text",
     reminderModeExact: "at the exact time",
@@ -574,7 +571,7 @@ const en: HomeStrings = {
         "Today the graph shows a general opportunity window without a single clearly highlighted transit planet.",
       sunriseLine: "Rise: {time} — {planet} rises above the horizon.",
       culminationLine: "Culmination: {time} — {planet} at the highest point of its daily path.",
-      exactAspectLine: "Exact aspect: {time} — {aspect} {transitPlanet} and {natalPlanet}.",
+      exactAspectLine: "Exact aspect: {time} — {aspect} {transitPlanet} (transit) and {natalPlanet} (natal).",
       closing:
         "These are key moments specifically for your location. Use them for spiritual practices, affirmations, setting intentions, meditation, etc.",
       remindersHint: "Tap the bell below the chart to turn reminders on or off.",
@@ -626,8 +623,6 @@ const en: HomeStrings = {
     aspectTitle: "Aspect",
   },
   devResetDayContent: "Refresh",
-  freeTierBanner:
-    "Below you see a universal forecast for today. Personal forecasts based on your birth date are much more accurate. Upgrade to a paid tier to receive them.",
   mathModal: {
     title: "Day mathematics",
     subtitle: "Formulas for strength, harmony, transits, and choosing the planet of the day.",

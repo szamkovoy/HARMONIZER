@@ -22,7 +22,7 @@ code_refs:
 - **`subscription`** — модель тарифов: канон имён/порядка/фич в `modules/access/core/{tiers,features}.ts` (`TIER_LABELS_RU`, `PAID_PRODUCT_TIERS`, `TIER_ORDER`); runtime-доступ по полям `users` — `paidAccess.ts`. Ручной грант/правка платежа (этап 6) пишет леджер `payments` и пересчитывает `users.membership_*` через `recomputeUserMembershipFromPayments` (highest active tier). Hourly reconcile — Edge/SQL в infra.
 - **`author_presence`** (сторис/публикации/комментарии), **`webinars`**, **`notifications`** — admin_panel их управляющая консоль; продуктовые контракты в спеках этих модулей.
 - **`assistant`** — таблица `prompts` (версии, `is_active`), `getActivePrompt`/`renderPrompt` (`app/api/_utils/prompts.ts`), Gemini-пайплайн (`app/api/_utils/gemini.ts`) для playground.
-- **`profile`** — карточка «Поддержка» в Профиле открывает `SupportModal` (`modules/support`); insert в `support_messages` идёт под RLS без сервера.
+- **`profile`** — карточка «Поддержка» в Профиле открывает `SupportModal` (`modules/support`); insert в `support_messages` (+ вложения через `/api/support/uploads`) идёт с клиента; админ читает через `/api/admin/feedback` и скачивает файлы через `/api/admin/feedback/attachments/[id]`.
 
 ## 2. От него зависят
 

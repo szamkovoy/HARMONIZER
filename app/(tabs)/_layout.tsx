@@ -15,7 +15,6 @@ export default function TabLayout() {
   const theme = useTheme();
   const { t } = useTranslate();
   const { canUseFeature } = useAccess();
-  const canOpenPractices = canUseFeature("practice_catalog");
   const canOpenDay = canUseFeature("day_planning");
   const tabBarStyle = useCompactTabBarStyle(theme.colors);
 
@@ -55,7 +54,9 @@ export default function TabLayout() {
           title: t("tabs.practices"),
           tabBarLabel: t("tabs.practices"),
           tabBarIcon: ({ color }) => <TabBarIcon name="practices" color={color} />,
-          href: canOpenPractices ? undefined : null,
+          // Каталог виден всем уровням — гейт стоит на «Начать практику»
+          // внутри PracticeCatalogScreen (комплаенс-модель «Мастер»).
+          href: undefined,
         }}
       />
       <Tabs.Screen
@@ -72,6 +73,8 @@ export default function TabLayout() {
           title: t("tabs.profile"),
           tabBarLabel: t("tabs.profile"),
           tabBarIcon: ({ color }) => <TabBarIcon name="profile" color={color} />,
+          // Always visible for all tiers (unlike day/practices).
+          href: undefined,
         }}
       />
     </Tabs>

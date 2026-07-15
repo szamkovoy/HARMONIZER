@@ -25,7 +25,7 @@ describe("loadOpportunityWindowsExplanation", () => {
     });
     expect(text).toContain("Сильнейшей планетой вашей натальной карты сегодня является Луна.");
     expect(text).toContain("транзитной планетой Марс");
-    expect(text).toContain("трин Марс и Луна.");
+    expect(text).toContain("трин Марс (транзит) и Луна (натал).");
     expect(text).not.toContain("трин Марс к Луна");
     expect(text).toContain("Нажмите колокольчик под графиком");
   });
@@ -45,7 +45,7 @@ describe("loadOpportunityWindowsExplanation", () => {
         strings.planetLabels.Mars,
         strings.planetLabels.Moon,
       ),
-    ).toBe("trigono Marte e Luna");
+    ).toBe("trigono Marte (transito) e Luna (natale)");
 
     const text = await loadOpportunityWindowsExplanation({
       accessMode: "premium",
@@ -54,7 +54,7 @@ describe("loadOpportunityWindowsExplanation", () => {
       strings,
     });
     expect(text).toContain("Il pianeta più forte della vostra carta natale oggi è Luna.");
-    expect(text).toContain("trigono Marte e Luna");
+    expect(text).toContain("trigono Marte (transito) e Luna (natale)");
     expect(text).not.toContain("The natal anchor");
     expect(text).not.toContain("to Moon");
   });

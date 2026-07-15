@@ -10,24 +10,37 @@ export const PRODUCT_TIERS: ProductTier[] = ["free", "oracle", "practitioner", "
 export const PAID_PRODUCT_TIERS: readonly PaidProductTier[] = ["oracle", "practitioner", "master"];
 
 /**
+ * Продуктовые уровни профиля (пользовательские имена):
+ *   free → «Навигатор», oracle → «Наставник», master → «Мастер».
+ * `practitioner` — скрытый legacy-уровень: в UI не показывается, по матрице
+ * фич эквивалентен «Наставнику» (см. features.ts). DB-значения не меняем.
+ *
  * Короткие подписи для dev/UI без i18n-каталога.
- * Пользовательский UpgradeDialog берёт `tier.*` из JSON-каталога;
+ * Пользовательские диалоги берут `tier.*` из JSON-каталога;
  * админка — `TIER_LABELS_RU`.
  */
 export const TIER_LABELS: Record<ProductTier, string> = {
-  free: "Free",
-  oracle: "Оракул",
-  practitioner: "Практик",
+  free: "Навигатор",
+  oracle: "Наставник",
+  practitioner: "Наставник (legacy)",
   master: "Мастер",
 };
 
-/** Русские названия тарифов для админ-панели (единственный RU-канон имён). */
+/** Русские названия уровней для админ-панели (единственный RU-канон имён). */
 export const TIER_LABELS_RU: Record<ProductTier, string> = {
-  free: "Бесплатный",
-  oracle: "Оракул",
-  practitioner: "Практик",
+  free: "Навигатор (бесплатный)",
+  oracle: "Наставник",
+  practitioner: "Наставник (legacy)",
   master: "Мастер",
 };
+
+/**
+ * Уровни, доступные для выбора/показа в UI (админка, кабинет).
+ * `practitioner` скрыт: существующие строки БД продолжают работать,
+ * новые гранты выдаются только на видимые уровни.
+ */
+export const VISIBLE_PRODUCT_TIERS: readonly ProductTier[] = ["free", "oracle", "master"];
+export const VISIBLE_PAID_PRODUCT_TIERS: readonly PaidProductTier[] = ["oracle", "master"];
 
 export const TIER_ORDER: Record<ProductTier, number> = {
   free: 0,

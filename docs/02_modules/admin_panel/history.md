@@ -9,6 +9,11 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-14 (10):** Support upload: RN `fetch(uri).blob()` + `uploadToSignedUrl` писал в Storage объекты размера 0 (eTag empty); переход на `expo-file-system` → ArrayBuffer. Старые пустые вложения невосстановимы — пользователь шлёт снова.
+- **2026-07-14 (9):** Admin «Файл N» сразу скачивает вложение (lightbox убран — превью показывало битую иконку).
+- **2026-07-14 (8):** Admin attachment open/download через `GET /api/admin/feedback/attachments/[id]` + blob URL (signed URL private bucket открывал пустую вкладку). Copy формы поддержки обновлён в каталоге i18n.
+- **2026-07-14 (7):** Support screenshots (max 3, private bucket) + admin attachment icons/lightbox + bulk delete + unprocessed badge in nav. Migration `20260714160000`.
+
 - **2026-07-14 (6):** QA: удаление уведомления выкидывало на логин — `AdminChrome` делал `signOut` на любую ошибку `/api/admin/me`, плюс параллельные `refreshSession` сжигали refresh token. Фикс: `AdminApiError` + logout только на 401/403; mutex refresh; `adminFetch` без Content-Type на bodyless; delete уведомления через POST `[id]`.
 
 - **2026-07-14 (5):** Admin webinars list title prefers recording title when post exists.
