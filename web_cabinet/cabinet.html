@@ -177,16 +177,20 @@
         body: JSON.stringify({ tier: tier, currency: CURRENCY })
       })
         .then(function (res) {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.json();
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok) throw new Error(data && data.error ? data.error : "HTTP " + res.status);
+            return data;
+          });
         })
         .then(function (data) {
           if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
           throw new Error("no paymentUrl");
         })
-        .catch(function () {
+        .catch(function (err) {
           if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || ""; }
-          alert(T.payErr);
+          /* Текст ошибки сервера — для диагностики (например, Lava отклоняет
+             покупку на email владельца магазина). */
+          alert(T.payErr + (err && err.message ? "\n\n(" + err.message + ")" : ""));
         });
     };
 
