@@ -12,6 +12,7 @@ import { useDayContent } from "@/modules/home/useDayContent";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
+import { GeoGate } from "@/modules/home/ui/GeoGate";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
@@ -45,6 +46,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Linking,
   Platform,
   Pressable,
@@ -54,6 +56,7 @@ import {
 } from "react-native";
 
 import { resolveUserFacingAlert } from "@/services/userFacingErrors";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
   if (value instanceof Error && value.message.trim()) return value.message;
@@ -517,6 +520,18 @@ export default function HomeScreen() {
     await signOut();
   }, [signOut]);
 
+  // Естественный выход из геогейта: на Android реально закрываем приложение;
+  // на iOS Apple запрещает программный выход, поэтому выходим из аккаунта —
+  // пользователь попадает на /sign-in и может закрыть приложение вручную.
+  const onCloseAppFromGeoGate = useCallback(() => {
+    logRuntimeEvent("home:geo_gate_close_app", { platform: Platform.OS });
+    if (Platform.OS === "android") {
+      BackHandler.exitApp();
+      return;
+    }
+    void signOut();
+  }, [signOut]);
+
   const onSaveNatalBridge = useCallback(
     async (birthData: BirthData, placeName: string) => {
       setNatalSaving(true);
@@ -620,6 +635,7 @@ export default function HomeScreen() {
   }, [canUseFeature]);
 
   return (
+    <GeoGate onCloseApp={onCloseAppFromGeoGate} onGranted={() => void refresh({ forceRefresh: true })}>
     <TabScreenLayout>
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} homeTextsLoading={homeTextsLoading} />
@@ -825,6 +841,7 @@ export default function HomeScreen() {
         />
       ) : null}
     </TabScreenLayout>
+    </GeoGate>
   );
 }
 

@@ -101,6 +101,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Держим последний seen user id — перечитываем профиль только при смене.
   const lastUserIdRef = useRef<string | null>(null);
+  /** Имя из формы входа — применится в syncProfile сразу после установки сессии (шаг 1),
+   *  без зависимости от онбординга/шага 2. */
+  const pendingDisplayNameRef = useRef<string | null>(null);
   /** Актуальная сессия для AppState без устаревшего замыкания. */
   const sessionRef = useRef<Session | null>(null);
 
@@ -114,6 +117,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     lastUserIdRef.current = user.id;
     setProfileLoading(true);
     const row = await fetchProfile(user.id);
+    // Применяем отложенное имя из формы входа (шаг 1) — независимо от того, будет ли
+    // показан шаг 2. Имя обновляется сразу после ввода OTP, а не после онбординга.
+    const pendingName = pendingDisplayNameRef.current;
+    if (pendingName && row && row.display_name !== pendingName) {
+      try {
+        const supabase = requireSupabase();
+        await supabase.from("users").update({ display_name: pendingName }).eq("id", user.id);
+        row.display_name = pendingName;
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("[auth] pending display_name apply failed", error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (pendingName) pendingDisplayNameRef.current = null;
     if (lastUserIdRef.current === user.id) {
       setProfile(row);
       setProfileLoading(false);
@@ -318,8 +335,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const doVerifyEmailCode = useCallback(async (email: string, code: string) => {
+  const doVerifyEmailCode = useCallback(async (email: string, code: string, displayName?: string) => {
     setSigningIn(true);
+    // Имя запоминаем ДО verify — оно применится в syncProfile, который сработает по
+    // onAuthStateChange сразу после установки сессии. Имя обновится на шаге 1,
+    // даже если шаг 2 (онбординг) будет пропущен.
+    pendingDisplayNameRef.current = displayName?.trim() || null;
     try {
       await verifyEmailOtpCode(email, code);
     } finally {

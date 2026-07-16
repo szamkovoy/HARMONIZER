@@ -17,18 +17,31 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
 import appJson from "./app.json";
 
+/**
+ * Локализованное имя приложения и reason-строки разрешений iOS.
+ * См. `plugins/appLocalesData.js` — там карта `expo.locales`:
+ *  - iOS: `<lang>.lproj/InfoPlist.strings` с `CFBundleDisplayName` + `NSXxxUsageDescription`.
+ *  - Android: `res/values-<lang>/strings.xml` с `app_name` (манифест ссылается на `@string/app_name`).
+ * `CFBundleLocalizations` в `ios.infoPlist` дополнительно декларирует поддерживаемые
+ * локали, чтобы системные диалоги (напр. запрос уведомлений) шли на языке устройства.
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { locales, LANGS } = require("./plugins/appLocalesData");
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const base = appJson.expo as ExpoConfig;
 
   return {
     ...base,
     ...config,
+    locales,
     ios: {
       ...base.ios,
       ...config.ios,
       infoPlist: {
         ...(base.ios?.infoPlist ?? {}),
         ...(config.ios?.infoPlist ?? {}),
+        CFBundleLocalizations: LANGS,
         NSBluetoothAlwaysUsageDescription:
           "Harmonizer использует Bluetooth для подключения нагрудных пульсометров и синхронизации дыхательной практики с сердечным ритмом.",
         NSLocationWhenInUseUsageDescription:
@@ -62,6 +75,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       ...(base.plugins ?? []),
+      "expo-localization",
       [
         "expo-build-properties",
         {

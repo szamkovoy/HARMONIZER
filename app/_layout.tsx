@@ -110,6 +110,19 @@ function AccessBridge({ children }: { children: ReactNode }) {
 /** Не редиректить на /sign-in сразу при кратковременном session=null после того как пользователь уже был залогинен (refresh / transient SDK). */
 const SIGN_IN_AFTER_NULL_SESSION_MS = 500;
 
+/** Полные данные рождения = дата + время + место (строка birth_place ИЛИ координаты lat/lon).
+ *  Без любогоого из них мастер должен показать шаг 2 (ввод даты/времени/места + геогейт),
+ *  даже если onboarded_at уже проставлен (краевые случаи: сбой при первом вводе,
+ *  возвращение пользователя на новом устройстве без синхронизированных данных). */
+function birthDataComplete(profile: { birth_date?: string | null; birth_time?: string | null; birth_place?: unknown; lat?: number | null; lon?: number | null } | null): boolean {
+  if (!profile) return false;
+  const hasPlace = (profile.birth_place != null && String(profile.birth_place).trim() !== "") ||
+    (typeof profile.lat === "number" && typeof profile.lon === "number");
+  return Boolean(profile.birth_date && profile.birth_date.trim()) &&
+    Boolean(profile.birth_time && profile.birth_time.trim()) &&
+    hasPlace;
+}
+
 function useAuthRouteGate() {
   const { session, profile, profileLoading, initializing } = useAuth();
   const segments = useSegments();
@@ -156,7 +169,7 @@ function useAuthRouteGate() {
         }
       };
     }
-    if (profile && !profile.onboarded_at) {
+    if (profile && (!profile.onboarded_at || !birthDataComplete(profile))) {
       if (!isOnOnboarding) router.replace("/onboarding" as Href);
       return;
     }
@@ -164,7 +177,7 @@ function useAuthRouteGate() {
       router.replace("/");
     }
     return undefined;
-  }, [initializing, session, profileLoading, profile?.onboarded_at, segments, router]);
+  }, [initializing, session, profileLoading, profile?.onboarded_at, profile?.birth_date, profile?.birth_time, profile?.birth_place, profile?.lat, profile?.lon, segments, router]);
 }
 
 function RootLayoutNav() {

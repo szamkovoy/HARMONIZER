@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.14
-updated: 2026-07-14
+version: 1.15
+updated: 2026-07-17
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,33 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-17 (home geo-gate catalog):** Added `home.geoGate.*` catalog keys
+  (`title`, `message`, `grantButton`, `openSettings`, `closeApp`) for the new
+  hard geo-gate on the Home tab (`modules/home/ui/GeoGate.tsx`, mounted in
+  `app/(tabs)/index.tsx`). When foreground-location permission is missing/revoked
+  the Home tab is replaced by an explanatory card with «Allow location»,
+  «Open settings» (shown only when `canAskAgain === false`), and «Close app»
+  (Android `BackHandler.exitApp()`; iOS signs out as the escape hatch since Apple
+  forbids programmatic exit). RU/EN authored by hand; 6 other locales filled via
+  `i18n-sync fill --all` (premium model). `check` green.
+
+- **2026-07-17 (native brand + device locale + OTP email name):** (1) `localeStore.deviceLocale()`
+  now reads the OS **ordered** preferred-languages list via `expo-localization`
+  `getLocales()` (first enabled match; handles unsupported primary with supported
+  secondary, e.g. `zh`→`en`, `kk`→`ru`). Terminal fallback changed to **English**
+  (`DEVICE_LOCALE_FALLBACK = "en"`); `ru` stays the ultimate last resort via
+  `DEFAULT_APP_LOCALE`. Replaces the single-locale `Intl.DateTimeFormat` probe.
+  (2) Localized **app display name** under the icon + in iOS system dialogs and
+  **iOS permission reason strings** (`NSCameraUsageDescription` etc.) for all 8
+  locales, via `app.config.ts` `expo.locales` (map in `plugins/appLocalesData.js`) →
+  iOS `<lang>.lproj/InfoPlist.strings` + `CFBundleLocalizations` in `Info.plist`,
+  Android `res/values-<lang>/strings.xml` (`app_name`). Brand: RU «Гармонизатор»,
+  DE «Harmonisierer», …; base fallback `Harmonizer`. (3) OTP email subject/intro/
+  footer + `From` display name now use the locale's app name (edge function
+  `send-auth-email` `APP_NAMES[locale]`), matching the native name for the same
+  language. `i18n-sync` auth-email meta updated; `check` green. Spec §2.1, §4.1c, new
+  §4.1d; dependencies external libs updated.
 
 - **2026-07-14 (external payments):** Новый flat-source в sync gate — шаблоны auth-писем `supabase/functions/send-auth-email/templates/*.json` (тег `auth-email`; `runFlatSourceCheck/Fill` обобщили прежние dialog-scaffold функции). В UI-каталог добавлены блоки `auth.*` (email-OTP вход), `onboarding.*` (данные рождения/гео/прогрев), `gate.*` (комплаенс-тексты точек гейтинга, trial, смена уровня); удалены `upgrade.*` и `webinars.registerPaidCta`; `tier.*` переименованы (Навигатор/Наставник/Мастер). Строки экрана входа переехали из удалённого `modules/auth/i18n/authScreens.ts` в каталог.
 

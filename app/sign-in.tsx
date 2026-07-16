@@ -1,14 +1,16 @@
 /**
- * Экран входа: имя + email → письмо с 6-значным кодом → ввод кода.
+ * Шаг 1 онбординг-мастера: вход в приложение.
  *
- * Единственный способ авторизации (Apple/Google Sign-In удалены — модель
- * Consumption-Only, Guideline 5.1.1(v) при чистом email-OTP не требует
- * «Sign in with Apple»). Для нового и существующего пользователя поток
- * одинаковый: Supabase сам определяет, создать аккаунт или войти в
- * существующий.
+ * Две подстраницы одного шага (обе считаются «шагом 1» из 7):
+ *   • welcome — логотип, «Добро пожаловать!», пояснение + форма (имя, email);
+ *   • confirm — картинка email.png, «Подтверждение», ввод 6-значного кода.
  *
- * UX: 6 ячеек кода с автоотправкой, повторная отправка по таймеру 60 с,
- * подсказка про папку «Спам». Все строки — в modules/i18n/catalog (8 локалей).
+ * После успешного ввода OTP создаётся сессия, и роут-гейт в `app/_layout.tsx`
+ * сам перекидывает на `/onboarding` (шаги 2-7). Визуально мастер остаётся
+ * непрерывным благодаря общему шаблону `WizardShell`.
+ *
+ * Кнопка «Получить код» / «Изменить email» живёт в footer-слоте оболочки над
+ * клавиатурой — поэтому виртуальная клавиатура её больше не перекрывает.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -21,24 +23,34 @@ import {
 
 import { useTranslate } from "@/modules/i18n";
 import { isValidEmail, normalizeEmail } from "@/modules/auth/sign-in-email";
+import {
+  LegalFooter,
+  WizardBody,
+  WizardImage,
+  WizardShell,
+  WizardTitle,
+} from "@/modules/onboarding";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { HeroScreenLayout } from "@/modules/ui/StackScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 60;
+const TOTAL_WIZARD_STEPS = 7;
 
-type Step = "email" | "code";
+const LOGO = require("@/assets/images/icon.png");
+const EMAIL_ART = require("@/assets/onboarding/email.png");
+
+type SubStep = "welcome" | "confirm";
 
 export default function SignInScreen() {
   const theme = useTheme();
   const { t } = useTranslate();
   const { requestEmailCode, verifyEmailCode, signingIn } = useAuth();
 
-  const [step, setStep] = useState<Step>("email");
+  const [sub, setSub] = useState<SubStep>("welcome");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -63,7 +75,7 @@ export default function SignInScreen() {
       logRuntimeTap("sign_in_send_code", { source });
       try {
         await requestEmailCode(normalizeEmail(email), name);
-        setStep("code");
+        setSub("confirm");
         setCode("");
         setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
         setTimeout(() => codeInputRef.current?.focus(), 350);
@@ -83,8 +95,8 @@ export default function SignInScreen() {
       verifyingRef.current = true;
       setErrorText(null);
       try {
-        await verifyEmailCode(normalizeEmail(email), value);
-        // Успех: onAuthStateChange установит сессию, роут-гейт уведёт с экрана.
+        await verifyEmailCode(normalizeEmail(email), value, name);
+        // Успех: onAuthStateChange установит сессию, роут-гейт уведёт на /onboarding.
       } catch (e) {
         logRuntimeEvent("sign_in_verify_error", {
           message: e instanceof Error ? e.message : String(e),
@@ -112,73 +124,67 @@ export default function SignInScreen() {
 
   const cells = useMemo(() => Array.from({ length: CODE_LENGTH }, (_, i) => code[i] ?? ""), [code]);
 
+  const footer = sub === "welcome" ? (
+    <View style={styles.footerGap}>
+      <AppButton
+        label={signingIn ? t("auth.sending") : t("auth.sendCode")}
+        onPress={() => void sendCode("initial")}
+        disabled={signingIn || !email.trim()}
+      />
+      <LegalFooter />
+    </View>
+  ) : (
+    <View style={styles.footerGap}>
+      <LegalFooter />
+    </View>
+  );
+
   return (
-    <HeroScreenLayout
-      header={
-        <View style={styles.header}>
-          <AppText variant="screenTitle" style={styles.title}>
-            {t("auth.title")}
-          </AppText>
-          <AppText variant="screenHint" style={[styles.subtitle, { color: theme.colors.textMuted }]}>
-            {step === "email" ? t("auth.subtitle") : t("auth.codeSent", { email: normalizeEmail(email) })}
-          </AppText>
-        </View>
-      }
-      footer={
-        <AppText variant="technicalCaption" style={[styles.footer, { color: theme.colors.textFaint }]}>
-          {t("auth.legal")}
-        </AppText>
-      }
+    <WizardShell
+      totalSteps={TOTAL_WIZARD_STEPS}
+      currentStep={1}
+      footer={footer}
+      statusBarStyle={theme.scheme === "dark" ? "light" : "dark"}
     >
-      {step === "email" ? (
-        <View style={styles.form}>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder={t("auth.namePlaceholder")}
-            placeholderTextColor={theme.colors.textFaint}
-            autoCapitalize="words"
-            autoComplete="name"
-            textContentType="name"
-            editable={!signingIn}
-            style={[
-              styles.input,
-              {
-                borderColor: theme.colors.surfaceBorder,
-                color: theme.colors.textPrimary,
-                borderRadius: theme.radius.md,
-              },
-            ]}
-          />
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder={t("auth.emailPlaceholder")}
-            placeholderTextColor={theme.colors.textFaint}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            autoComplete="email"
-            textContentType="emailAddress"
-            editable={!signingIn}
-            onSubmitEditing={() => void sendCode("initial")}
-            style={[
-              styles.input,
-              {
-                borderColor: theme.colors.surfaceBorder,
-                color: theme.colors.textPrimary,
-                borderRadius: theme.radius.md,
-              },
-            ]}
-          />
-          <AppButton
-            label={signingIn ? t("auth.sending") : t("auth.sendCode")}
-            onPress={() => void sendCode("initial")}
-            disabled={signingIn || !email.trim()}
-          />
-        </View>
+      {sub === "welcome" ? (
+        <>
+          <WizardImage source={LOGO} height={160} />
+          <WizardTitle>{t("wizard.welcome.title")}</WizardTitle>
+          <WizardBody>{t("wizard.welcome.body1")}</WizardBody>
+          <WizardBody>{t("wizard.welcome.body2")}</WizardBody>
+          <View style={styles.form}>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder={t("auth.namePlaceholder")}
+              placeholderTextColor={theme.colors.textFaint}
+              autoCapitalize="words"
+              autoComplete="name"
+              textContentType="name"
+              editable={!signingIn}
+              style={[styles.input, inputStyle(theme)]}
+            />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder={t("auth.emailPlaceholder")}
+              placeholderTextColor={theme.colors.textFaint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+              textContentType="emailAddress"
+              editable={!signingIn}
+              onSubmitEditing={() => void sendCode("initial")}
+              style={[styles.input, inputStyle(theme)]}
+            />
+          </View>
+        </>
       ) : (
-        <View style={styles.form}>
+        <>
+          <WizardImage source={EMAIL_ART} />
+          <WizardTitle>{t("wizard.confirm.title")}</WizardTitle>
+          <WizardBody>{t("wizard.confirm.subtitle", { email: normalizeEmail(email) })}</WizardBody>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("auth.codeTitle")}
@@ -195,7 +201,6 @@ export default function SignInScreen() {
                     {
                       borderColor: isActive ? theme.colors.accent : theme.colors.surfaceBorder,
                       backgroundColor: theme.colors.surfaceElevated,
-                      borderRadius: theme.radius.md,
                     },
                   ]}
                 >
@@ -217,7 +222,6 @@ export default function SignInScreen() {
             caretHidden
             style={styles.hiddenInput}
           />
-
           {signingIn ? (
             <View style={styles.spinnerRow}>
               <ActivityIndicator color={theme.colors.accent} />
@@ -242,29 +246,35 @@ export default function SignInScreen() {
               label={t("auth.changeEmail")}
               variant="secondary"
               onPress={() => {
-                setStep("email");
+                setSub("welcome");
                 setCode("");
                 setErrorText(null);
               }}
               disabled={signingIn}
             />
           </View>
-          <AppText variant="technicalCaption" tone="muted" style={styles.spamHint}>
-            {t("auth.spamHint")}
-          </AppText>
-        </View>
+        </>
       )}
 
       {errorText ? (
         <AppText
           variant="technicalCaption"
-          style={{ color: theme.colors.danger, textAlign: "center", marginTop: 12 }}
+          style={{ color: theme.colors.danger, textAlign: "center" }}
         >
           {errorText}
         </AppText>
       ) : null}
-    </HeroScreenLayout>
+    </WizardShell>
   );
+}
+
+function inputStyle(theme: ReturnType<typeof useTheme>) {
+  return {
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    borderColor: theme.colors.surfaceBorder,
+    color: theme.colors.textPrimary,
+  };
 }
 
 function isOtpMismatchError(error: unknown): boolean {
@@ -280,25 +290,12 @@ function resolveAuthErrorText(error: unknown, t: (key: string, params?: Record<s
 }
 
 const styles = StyleSheet.create({
-  header: {
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 32,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    textAlign: "center",
-    marginTop: 8,
-    maxWidth: 320,
-  },
   form: {
-    gap: 12,
+    gap: 10,
   },
   input: {
-    borderWidth: 1,
-    fontSize: 16,
     height: 52,
+    fontSize: 16,
     paddingHorizontal: 14,
   },
   codeRow: {
@@ -309,6 +306,7 @@ const styles = StyleSheet.create({
   codeCell: {
     alignItems: "center",
     borderWidth: 1.5,
+    borderRadius: 12,
     height: 56,
     justifyContent: "center",
     width: 44,
@@ -328,14 +326,8 @@ const styles = StyleSheet.create({
   },
   codeActions: {
     gap: 10,
-    marginTop: 8,
   },
-  spamHint: {
-    textAlign: "center",
-    marginTop: 4,
-  },
-  footer: {
-    textAlign: "center",
-    marginTop: 24,
+  footerGap: {
+    gap: 12,
   },
 });

@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { getLocales } from "expo-localization";
 
 import { syncUserLocaleToServer } from "@/services/userLocaleClient";
 
@@ -59,13 +60,32 @@ export function coerceAppLocale(value: string | null | undefined): AppLocale {
   return isEnabledLocale(code) ? (code as AppLocale) : DEFAULT_APP_LOCALE;
 }
 
+/**
+ * Device language at first launch.
+ *
+ * Reads the OS *ordered* list of preferred languages (`expo-localization`
+ * `getLocales()`) and picks the first one that matches an enabled app locale.
+ * This correctly handles e.g. a device whose primary locale is unsupported
+ * (zh, kk, …) but whose second/third preference is ru/en.
+ *
+ * Terminal fallback is English (per product decision: when no device language
+ * matches the 8 supported locales, show English rather than Russian). `ru`
+ * remains the ultimate last-resort via DEFAULT_APP_LOCALE if `en` is somehow
+ * disabled.
+ */
+const DEVICE_LOCALE_FALLBACK: AppLocale = "en";
+
 function deviceLocale(): AppLocale {
   try {
-    const resolved = Intl.DateTimeFormat().resolvedOptions().locale;
-    return coerceAppLocale(resolved);
+    const locales = getLocales();
+    for (const loc of locales) {
+      const code = (loc.languageCode ?? "").trim().slice(0, 2).toLowerCase();
+      if (isEnabledLocale(code)) return code as AppLocale;
+    }
   } catch {
-    return DEFAULT_APP_LOCALE;
+    /* fall through to fallback */
   }
+  return isEnabledLocale(DEVICE_LOCALE_FALLBACK) ? DEVICE_LOCALE_FALLBACK : DEFAULT_APP_LOCALE;
 }
 
 let currentLocale: AppLocale = deviceLocale();

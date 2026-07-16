@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.14
-updated: 2026-07-13
+version: 1.15
+updated: 2026-07-17
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -10,6 +10,8 @@ code_refs:
     modules/i18n/t.ts,
     app/_layout.tsx,
     app/(tabs)/_layout.tsx,
+    app.config.ts,
+    plugins/appLocalesData.js,
     modules/access/ui/UpgradeDialog.tsx,
     modules/life-spheres/labels.ts,
     app/(tabs)/index.tsx,
@@ -77,10 +79,20 @@ This file lists the contracts so a change here is traceable to its blast radius.
   locale. The only data file that is locale-aware today (layer A otherwise RU).
 
 ## External libraries / infra
+- **`expo-localization`** — `getLocales()` reads the OS ordered preferred-languages
+  list for first-launch device-locale detection in `localeStore.deviceLocale()`
+  (replaces the single-locale `Intl` probe). No native rebuild needed (works in
+  Expo Go / dev client).
 - **`Intl.PluralRules`** — plural categories per locale (`t.ts`). Language-complete.
 - **Luxon** — locale-aware date/number formatting (use the active locale; do not
   hand-format dates).
 - **expo-secure-store** / web `localStorage` — locale persistence.
+- **Native app name & iOS permission reasons** (build-time, not a runtime module
+  dependency): `app.config.ts` `expo.locales` (built from `plugins/appLocalesData.js`)
+  → iOS `<lang>.lproj/InfoPlist.strings` (`CFBundleDisplayName` +
+  `NSXxxUsageDescription`) and Android `res/values-<lang>/strings.xml` (`app_name`),
+  applied via `npx expo prebuild`. The localized brand map is the single source for
+  the name under the icon, in system dialogs, and in the OTP email.
 - **Vercel env** — `DIALOG_RESPONSE_LOCALE` (server test override).
   **Expo env** — `EXPO_PUBLIC_I18N_TEST_MODE` (client test mode).
 - **Translate API** (gate `fill`) — `I18N_TRANSLATE_API_URL / _API_KEY / _MODEL`, or

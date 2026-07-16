@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.15
-updated: 2026-07-14
+version: 1.16
+updated: 2026-07-17
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
     modules/i18n/catalog/ru.json,
     modules/i18n/catalog/en.json,
     modules/i18n/localeCodes.ts,
+    app.config.ts,
+    plugins/appLocalesData.js,
     _legacy_web/app/api/_utils/dialogLocale.ts,
     _legacy_web/app/api/_utils/mathLevelI18n.ts,
     _legacy_web/app/api/_utils/mathLevelI18nTargets.ts,
@@ -28,6 +30,7 @@ code_refs:
     _legacy_web/data/dialog_scaffold/ru.json,
     supabase/functions/send-auth-email/index.ts,
     supabase/functions/send-auth-email/templates/ru.json,
+    supabase/functions/send-auth-email/templates.ts,
   ]
 ---
 
@@ -86,6 +89,14 @@ cost never decides layer-C design.
   `enabled` is `true` for all eight locales after bulk `fill --all` (2026-06-15).
   Layer C dialog scaffolding is localized for all eight via `dialog_scaffold` catalogs (2026-06-15).
 - `DEFAULT_APP_LOCALE = "ru"`.
+- **`deviceLocale()`** — first-launch device language. Reads the OS **ordered** list of
+  preferred languages via `expo-localization` `getLocales()` and returns the first that
+  matches an **enabled** app locale (correctly handles an unsupported primary, e.g.
+  `zh`/`kk`, with a supported second preference). Terminal fallback is **English**
+  (`DEVICE_LOCALE_FALLBACK = "en"`, per product decision: an unknown user gets EN,
+  not RU); `ru` remains the ultimate last resort via `DEFAULT_APP_LOCALE` if `en` is
+  somehow disabled. Previously used `Intl.DateTimeFormat().resolvedOptions().locale`
+  (single primary locale only).
 - `I18N_TEST_MODE` — parsed from `EXPO_PUBLIC_I18N_TEST_MODE`.
 - State: a module-level `currentLocale` + listener set (powers `useSyncExternalStore`).
 - Persistence: expo-secure-store on native, `localStorage` on web (key
@@ -202,10 +213,34 @@ Two resolvers — do not conflate layer B and layer C:
   registered in `i18n-sync.mjs` as the `auth-email` flat source.
 - Runtime: the edge function imports the JSONs at deploy time and picks the
   template by `user_metadata.locale` (fallback `ru`).
+- **App name is localized per email language (2026-07-17):** subject/intro/footer
+  carry the locale's app name (RU «Гармонизатор», DE «Harmonisierer» … — see §4.1d), and
+  the `From` display name resolves from an `APP_NAMES[locale]` map in
+  `send-auth-email/index.ts` (override via `MAIL_FROM_NAME` env). The name matches
+  the native app name under the icon / in system dialogs for the same locale.
 - SMTP transport (2026-07-15): rewritten to use built-in `Deno.connectTls`
   (raw SMTP: EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT) instead of
   the `denomailer` module which was unavailable for Supabase Edge Function
   bundling. Secrets: `SMTP_USERNAME`, `SMTP_PASSWORD`, `SEND_EMAIL_HOOK_SECRET`.
+
+### 4.1d Native app name & iOS permission reasons (build-time, 2026-07-17)
+- Localized app **display name** (under the icon + in system permission/notification
+  dialogs) and iOS **permission reason strings** are configured at prebuild time,
+  not in `modules/i18n` runtime code:
+  - `app.config.ts` exposes `expo.locales` (built from `plugins/appLocalesData.js`):
+    per-locale `{ ios: { CFBundleDisplayName, NSXxxUsageDescription… },
+    android: { app_name } }`. Expo's `withLocales` writes iOS
+    `<lang>.lproj/InfoPlist.strings` and Android `res/values-<lang>/strings.xml`.
+  - `ios.infoPlist.CFBundleLocalizations` declares the 8 supported locales so iOS
+    system dialogs render in the device language.
+  - Localized brand: RU «Гармонизатор», EN «Harmonizer», DE «Harmonisierer»,
+    FR «Harmoniseur», IT «Armonizzatore», ES «Armonizador», PT «Harmonizador»,
+    NL «Harmoniseerder». Fallback for an unsupported device locale → base
+    `Harmonizer`.
+- This is part of the i18n system invariant (one brand per locale across icon,
+  system dialogs, OTP email) but lives in native config; the runtime `modules/i18n`
+  store is independent (in-app language can differ from the device language, and the
+  home-screen name follows the device language, not the in-app choice — OS limitation).
 
 ### 4.2 Gate — `scripts/i18n-sync.mjs`
 - `check` — diffs RU source vs each locale: **missing / stale / orphan** keys for

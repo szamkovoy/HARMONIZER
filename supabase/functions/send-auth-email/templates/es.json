@@ -1,8 +1,8 @@
 {
-  "subject": "{code} — tu código de acceso a Harmonizer",
+  "subject": "{code} — tu código de acceso a Armonizador",
   "greeting": "¡Hola!",
-  "intro": "Tu código para entrar en la aplicación Harmonizer:",
+  "intro": "Tu código para entrar en la aplicación Armonizador:",
   "expiry": "El código es válido durante 60 minutos y solo puede usarse una vez.",
   "ignore": "Si no solicitaste este código, simplemente ignora este correo.",
-  "footer": "Harmonizer · zamkovoi.yoga"
+  "footer": "Armonizador · zamkovoi.yoga"
 }

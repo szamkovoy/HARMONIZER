@@ -22,8 +22,10 @@ export interface AuthState {
 export interface AuthActions {
   /** Отправить письмо с 6-значным кодом (email-OTP; создаёт аккаунт при первом входе). */
   requestEmailCode: (email: string, displayName?: string) => Promise<void>;
-  /** Проверить код из письма; успех = активная Supabase-сессия. */
-  verifyEmailCode: (email: string, code: string) => Promise<void>;
+  /** Проверить код из письма; успех = активная Supabase-сессия.
+   *  Если передано `displayName`, обновляет имя в профиле существующего пользователя
+   *  (для нового пользователя имя уже проставляется триггером при создании). */
+  verifyEmailCode: (email: string, code: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** Перечитать public.users — например, после онбординга. */
   refreshProfile: () => Promise<void>;

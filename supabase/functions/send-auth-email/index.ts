@@ -1,9 +1,25 @@
 import { SESv2Client, SendEmailCommand } from "npm:@aws-sdk/client-sesv2@3.787.0";
 import { TEMPLATES, DEFAULT_LOCALE } from "./templates.ts";
 
-function resolveTemplate(localeRaw: string | undefined) {
+/** Локализованное имя приложения — для имени отправителя (From). Должно совпадать
+ *  с нативным именем под иконкой/в системных диалогах (см. plugins/appLocalesData.js). */
+const APP_NAMES: Record<string, string> = {
+  ru: "Гармонизатор",
+  en: "Harmonizer",
+  de: "Harmonisierer",
+  fr: "Harmoniseur",
+  it: "Armonizzatore",
+  es: "Armonizador",
+  pt: "Harmonizador",
+  nl: "Harmoniseerder",
+};
+
+function resolveLocale(localeRaw: string | undefined): string {
   const locale = String(localeRaw ?? "").toLowerCase().slice(0, 2);
-  return TEMPLATES[locale] ?? TEMPLATES[DEFAULT_LOCALE];
+  return TEMPLATES[locale] ? locale : DEFAULT_LOCALE;
+}
+function resolveTemplate(localeRaw: string | undefined) {
+  return TEMPLATES[resolveLocale(localeRaw)];
 }
 function escapeHtml(value: string) {
   return value
@@ -36,7 +52,6 @@ Deno.serve(async (req) => {
   const secretAccessKey = Deno.env.get("SES_SECRET_ACCESS_KEY");
   const region = Deno.env.get("SES_REGION") || "eu-west-1";
   const fromEmail = Deno.env.get("MAIL_FROM_EMAIL") || "sergei@zamkovoi.yoga";
-  const fromName = Deno.env.get("MAIL_FROM_NAME") || "Harmonizer";
 
   if (!hookSecret || !accessKeyId || !secretAccessKey) {
     return hookError("send-auth-email: SEND_EMAIL_HOOK_SECRET, SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are required");
@@ -64,8 +79,11 @@ Deno.serve(async (req) => {
     return hookError("Missing user.email or email_data.token", 400);
   }
 
+  const locale = resolveLocale(user?.user_metadata?.locale);
   const tpl = resolveTemplate(user?.user_metadata?.locale);
   const rendered = renderEmail(tpl, String(code));
+  // Имя отправителя — на языке письма (если не задан явный override через MAIL_FROM_NAME).
+  const fromName = Deno.env.get("MAIL_FROM_NAME") || APP_NAMES[locale] || "Harmonizer";
 
   const client = new SESv2Client({
     region,

@@ -2351,6 +2351,10 @@ export type Database = {
           trial_expires_at: string
         }[]
       }
+      claim_push_token: {
+        Args: { p_token: string; p_platform: string; p_expo_token?: boolean }
+        Returns: undefined
+      }
       get_posts_feed: {
         Args: {
           p_limit?: number
