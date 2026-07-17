@@ -46,6 +46,19 @@ function hookError(message: string, status = 500) {
   });
 }
 
+/** SES требует 7-bit ASCII в FromEmailAddress; non-ASCII display name — RFC 2047. */
+function formatFromEmailAddress(fromName: string, fromEmail: string): string {
+  const name = fromName.trim();
+  if (!name) return fromEmail;
+  if (/^[\x20-\x7E]+$/.test(name) && !/[<>"]/.test(name)) {
+    return `${name} <${fromEmail}>`;
+  }
+  const bytes = new TextEncoder().encode(name);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `=?UTF-8?B?${btoa(binary)}?= <${fromEmail}>`;
+}
+
 Deno.serve(async (req) => {
   const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
   const accessKeyId = Deno.env.get("SES_ACCESS_KEY_ID");
@@ -92,7 +105,7 @@ Deno.serve(async (req) => {
 
   try {
     const cmd = new SendEmailCommand({
-      FromEmailAddress: `${fromName} <${fromEmail}>`,
+      FromEmailAddress: formatFromEmailAddress(fromName, fromEmail),
       Destination: { ToAddresses: [to] },
       Content: {
         Simple: {
@@ -106,8 +119,13 @@ Deno.serve(async (req) => {
     });
     await client.send(cmd);
   } catch (error) {
-    console.error("send-auth-email: SES send failed", error);
-    return hookError("SES send failed: " + (error?.message || String(error)));
+    const detail =
+      error?.message ||
+      error?.Error?.Message ||
+      error?.name ||
+      String(error);
+    console.error("send-auth-email: SES send failed", detail, error);
+    return hookError("SES send failed: " + detail);
   }
 
   return new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } });
