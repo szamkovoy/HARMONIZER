@@ -60,11 +60,11 @@ function formatFromEmailAddress(fromName: string, fromEmail: string): string {
 }
 
 Deno.serve(async (req) => {
-  const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
-  const accessKeyId = Deno.env.get("SES_ACCESS_KEY_ID");
-  const secretAccessKey = Deno.env.get("SES_SECRET_ACCESS_KEY");
-  const region = Deno.env.get("SES_REGION") || "eu-west-1";
-  const fromEmail = Deno.env.get("MAIL_FROM_EMAIL") || "sergei@zamkovoi.yoga";
+  const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET")?.trim();
+  const accessKeyId = Deno.env.get("SES_ACCESS_KEY_ID")?.trim();
+  const secretAccessKey = Deno.env.get("SES_SECRET_ACCESS_KEY")?.trim();
+  const region = (Deno.env.get("SES_REGION") || "eu-west-1").trim();
+  const fromEmail = (Deno.env.get("MAIL_FROM_EMAIL") || "sergei@zamkovoi.yoga").trim();
 
   if (!hookSecret || !accessKeyId || !secretAccessKey) {
     return hookError("send-auth-email: SEND_EMAIL_HOOK_SECRET, SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are required");
@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
   const locale = resolveLocale(user?.user_metadata?.locale);
   const tpl = resolveTemplate(user?.user_metadata?.locale);
   const rendered = renderEmail(tpl, String(code));
-  // Имя отправителя — на языке письма (если не задан явный override через MAIL_FROM_NAME).
-  const fromName = Deno.env.get("MAIL_FROM_NAME") || APP_NAMES[locale] || "Harmonizer";
+  // Имя отправителя — на языке письма (override: MAIL_FROM_NAME); non-ASCII → RFC 2047.
+  const fromName = Deno.env.get("MAIL_FROM_NAME")?.trim() || APP_NAMES[locale] || "Harmonizer";
 
   const client = new SESv2Client({
     region,
@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
 
   try {
     const cmd = new SendEmailCommand({
+      // Display name через RFC 2047; при сбое SES смотрите detail в логах хука.
       FromEmailAddress: formatFromEmailAddress(fromName, fromEmail),
       Destination: { ToAddresses: [to] },
       Content: {
@@ -118,14 +119,17 @@ Deno.serve(async (req) => {
       },
     });
     await client.send(cmd);
-  } catch (error) {
-    const detail =
-      error?.message ||
-      error?.Error?.Message ||
-      error?.name ||
-      String(error);
+  } catch (error: any) {
+    const detail = [
+      error?.name,
+      error?.message,
+      error?.Reason,
+      error?.$metadata?.httpStatusCode,
+    ]
+      .filter((x) => x != null && String(x).length > 0)
+      .join(" | ");
     console.error("send-auth-email: SES send failed", detail, error);
-    return hookError("SES send failed: " + detail);
+    return hookError("SES send failed: " + (detail || String(error)));
   }
 
   return new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } });
