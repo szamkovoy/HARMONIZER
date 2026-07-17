@@ -207,9 +207,10 @@ Two resolvers — do not conflate layer B and layer C:
 
 ### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-07-17)
 - Source of truth: `supabase/functions/send-auth-email/templates/ru.json`
-  (subject/greeting/intro/expiry/ignore/guideTitle/guide1–guide5/closing for OTP
+  (subject/greeting/greetingName/intro/expiry/ignore/guideTitle/guide1–guide5/closing for OTP
   sign-in emails). The `footer` line was removed; a 5-step quick user guide and a
-  personal signature were added (2026-07-17).
+  personal signature were added (2026-07-17). `greetingName` (with `{name}`)
+  was added for the named greeting (2026-07-17).
 - Targets + meta: same flat-source mechanics as the dialog scaffold
   (`templates/{en,de,fr,it,es,pt,nl}.json` + `templates/.sync-meta.json`);
   registered in `i18n-sync.mjs` as the `auth-email` flat source.
@@ -228,6 +229,27 @@ Two resolvers — do not conflate layer B and layer C:
   signature use a `SENDER_NAMES` map — RU «Сергей Замковой», all other locales
   «Sergei Zamkovoi» (override via `MAIL_FROM_NAME` env). The previous behavior
   (localized app name as `From`) was replaced per product request.
+- **HTML body + named greeting (2026-07-17):** the HTML body is a structured
+  inline-CSS layout (max-width 600, system font-stack, sage-green letter-spaced
+  code, left-accent guide block, tight signature). It uses **no external
+  resources** — no Tailwind Play CDN `<script>`, no Google Fonts `<link>`,
+  because email clients strip `<script>` and most strip `<link>` (the approved
+  mockup only renders in a browser). A per-locale `greetingName` template with a
+  `{name}` placeholder is used when the user's name is available; otherwise the
+  generic `greeting` is used. Locale-appropriate greeting punctuation is baked in (RU
+  «Здравствуйте, {name}!», FR «Bonjour {name} !», ES «¡Hola, {name}!», etc.).
+  Plain-text body remains single-`\n`-joined.
+- **Name source for the greeting (2026-07-17):** `signInWithOtp` does NOT update
+  `user_metadata` for an existing user (only on creation), so the hook would see
+  a stale `user_metadata.full_name` (e.g. an old DB name) instead of the name just
+  typed on wizard step 1. Fix: a side-channel table `public.signin_name_hints
+  (email PK, name, updated_at)` + anon-callable RPC `set_signin_name_hint`
+  (security definer, validated; migration `20260717130000`). The client
+  (`modules/auth/sign-in-email.ts`) upserts the freshly-typed name by email right
+  before `signInWithOtp`; the edge function reads it by `user.email` via the
+  Supabase REST API with `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS), and falls
+  back to `user_metadata.full_name` when no hint exists. Priority: hint →
+  `user_metadata.full_name` → generic `greeting`.
 - SMTP transport (2026-07-15): rewritten to use built-in `Deno.connectTls`
   (raw SMTP: EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT) instead of
   the `denomailer` module which was unavailable for Supabase Edge Function

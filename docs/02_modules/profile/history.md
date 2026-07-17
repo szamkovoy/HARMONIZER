@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-17:** `requestEmailCode` (в `modules/auth/sign-in-email.ts`) теперь перед `signInWithOtp` вызывает RPC `set_signin_name_hint(p_email, p_name)` — side-channel для приветствия в OTP-письме: для существующих пользователей `signInWithOtp` не обновляет `user_metadata`, поэтому edge-функция иначе видела бы устаревшее имя из БД. См. `i18n/spec.md` §4.1c и миграцию `20260717130000_signin_name_hints.sql`.
+
 - **2026-07-14:** Авторизация переведена на **email-OTP** (Supabase `signInWithOtp`/`verifyOtp`, 6-значный код): `app/sign-in.tsx` переписан (имя+email → OTP-ячейки, resend-таймер), Apple/Google Sign-In удалены полностью (файлы, зависимости `expo-apple-authentication` / `@react-native-google-signin`, плагины `app.config.ts`) — выход из-под Guideline 5.1.1(v). Письма — Send Email Hook → edge `send-auth-email` (8 локалей, SMTP Яндекса). Онбординг расширен до 3 шагов: данные рождения с автодополнением города (`BirthPlacePicker`, Open-Meteo через `/api/geo/search`; шаг пропускается при заполненном `birth_date`) → геолокация → прогрев с префетчем дневного прогноза. `NatalBirthDataModal` использует тот же `BirthPlacePicker` (хардкод Москвы удалён); `POST /api/astro/natal` принимает `birthPlaceName`.
 
 - **2026-07-13 (11):** Free language ensure uses renderable (not complete) day texts; shared `dayContentLocationFallback` when profile has no lat/lon.

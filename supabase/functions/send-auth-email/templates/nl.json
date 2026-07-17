@@ -2,6 +2,7 @@
   "closing": "Al het goede!",
   "expiry": "De code is 60 minuten geldig en kan maar één keer worden gebruikt.",
   "greeting": "Hallo!",
+  "greetingName": "Hallo, {name}!",
   "guide1": "Start «Harmoniseerder» en bekijk de aanbevelingen voor vandaag.",
   "guide2": "Klik op de knop «Wat te doen?» om naar de specifieke inhoud en oefeningen te gaan.",
   "guide3": "Volg de adviezen, oefen, en volg je voortgang via de rapporten.",

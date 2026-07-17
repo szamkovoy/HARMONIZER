@@ -2,6 +2,7 @@
   "closing": "¡Todo lo mejor!",
   "expiry": "El código es válido durante 60 minutos y solo puede usarse una vez.",
   "greeting": "¡Hola!",
+  "greetingName": "¡Hola, {name}!",
   "guide1": "Abre «Armonizador» y consulta las recomendaciones del día.",
   "guide2": "Haz clic en el botón «¿Qué hacer?» para pasar a lo concreto y las prácticas.",
   "guide3": "Sigue los consejos, practica y sigue tu progreso con los informes.",

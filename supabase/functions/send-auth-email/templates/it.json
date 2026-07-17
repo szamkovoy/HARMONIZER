@@ -2,6 +2,7 @@
   "closing": "Ti auguro ogni bene!",
   "expiry": "Il codice è valido per 60 minuti e può essere usato una sola volta.",
   "greeting": "Ciao!",
+  "greetingName": "Ciao, {name}!",
   "guide1": "Avvia «Armonizzatore» e consulta i consigli del giorno.",
   "guide2": "Clicca il pulsante «Cosa fare?» per passare ai dettagli e alle pratiche.",
   "guide3": "Segui i consigli, pratica e monitora i tuoi progressi attraverso i report.",

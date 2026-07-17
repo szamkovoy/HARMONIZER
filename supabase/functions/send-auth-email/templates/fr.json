@@ -2,6 +2,7 @@
   "closing": "Bien à vous !",
   "expiry": "Le code est valable 60 minutes et ne peut être utilisé qu'une seule fois.",
   "greeting": "Bonjour !",
+  "greetingName": "Bonjour {name} !",
   "guide1": "Lancez «Harmoniseur» et découvrez les recommandations du jour.",
   "guide2": "Appuyez sur le bouton «Que faire ?» pour accéder aux détails et aux pratiques.",
   "guide3": "Suivez les conseils, pratiquez et suivez vos progrès dans les rapports.",

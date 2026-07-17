@@ -2355,6 +2355,10 @@ export type Database = {
         Args: { p_token: string; p_platform: string; p_expo_token?: boolean }
         Returns: undefined
       }
+      set_signin_name_hint: {
+        Args: { p_email: string; p_name: string }
+        Returns: undefined
+      }
       get_posts_feed: {
         Args: {
           p_limit?: number

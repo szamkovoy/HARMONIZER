@@ -1,11 +1,12 @@
 /**
  * Строка ввода места рождения с автодополнением (Open-Meteo через
- * /api/geo/search). Выпадающий список показывает «Город, область, страна»
- * на локали приложения. Используется в онбординге и в NatalBirthDataModal
- * (вместо ранее захардкоженной Москвы).
+ * /api/geo/search). Выпадающий список показывается как ОВЕРЛЕЙ (position:absolute)
+ * поверх того, что ниже в потоке контента (кнопка «Далее»), а не сдвигает его —
+ * чтобы список не перекрывался кнопкой и был виден целиком. Используется в
+ * онбординге и в NatalBirthDataModal.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import { useAppLocale, useTranslate } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
@@ -14,6 +15,8 @@ import { useTheme } from "@/modules/ui/theme";
 import { formatGeoPlaceLabel, searchBirthPlaces, type GeoPlace } from "../geoSearchClient";
 
 const SEARCH_DEBOUNCE_MS = 350;
+const INPUT_HEIGHT = 52;
+const SUGGESTIONS_MAX_HEIGHT = 280;
 
 export function BirthPlacePicker({
   value,
@@ -115,7 +118,7 @@ export function BirthPlacePicker({
         ]}
       />
       {searching ? (
-        <AppText variant="technicalCaption" tone="muted">
+        <AppText variant="technicalCaption" tone="muted" style={styles.hint}>
           …
         </AppText>
       ) : null}
@@ -129,28 +132,30 @@ export function BirthPlacePicker({
             },
           ]}
         >
-          {suggestions.map((place) => (
-            <Pressable
-              key={place.id}
-              accessibilityRole="button"
-              onPress={() => onPickSuggestion(place)}
-              style={({ pressed }) => [
-                styles.suggestionRow,
-                { opacity: pressed ? 0.6 : 1, borderBottomColor: theme.colors.surfaceBorder },
-              ]}
-            >
-              <AppText variant="screenHint">{formatGeoPlaceLabel(place)}</AppText>
-            </Pressable>
-          ))}
+          <ScrollView nestedScrollEnabled style={styles.suggestionsScroll}>
+            {suggestions.map((place) => (
+              <Pressable
+                key={place.id}
+                accessibilityRole="button"
+                onPress={() => onPickSuggestion(place)}
+                style={({ pressed }) => [
+                  styles.suggestionRow,
+                  { opacity: pressed ? 0.6 : 1, borderBottomColor: theme.colors.surfaceBorder },
+                ]}
+              >
+                <AppText variant="screenHint">{formatGeoPlaceLabel(place)}</AppText>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
       ) : null}
       {showEmpty && !searching ? (
-        <AppText variant="technicalCaption" tone="muted">
+        <AppText variant="technicalCaption" tone="muted" style={styles.hint}>
           {t("onboarding.birth.placeSearchEmpty")}
         </AppText>
       ) : null}
       {errorText ? (
-        <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>
+        <AppText variant="technicalCaption" style={[styles.hint, { color: theme.colors.danger }]}>
           {errorText}
         </AppText>
       ) : null}
@@ -160,19 +165,33 @@ export function BirthPlacePicker({
 
 const styles = StyleSheet.create({
   root: {
-    gap: 6,
+    position: "relative",
+    zIndex: 5,
   },
   input: {
+    height: INPUT_HEIGHT,
     borderWidth: 1,
     borderRadius: 16,
     fontSize: 16,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+  },
+  hint: {
+    marginTop: 6,
   },
   suggestions: {
+    position: "absolute",
+    top: INPUT_HEIGHT + 4,
+    left: 0,
+    right: 0,
+    zIndex: 50,
     borderWidth: 1,
     borderRadius: 16,
     overflow: "hidden",
+    maxHeight: SUGGESTIONS_MAX_HEIGHT,
+    elevation: 6,
+  },
+  suggestionsScroll: {
+    maxHeight: SUGGESTIONS_MAX_HEIGHT,
   },
   suggestionRow: {
     borderBottomWidth: StyleSheet.hairlineWidth,

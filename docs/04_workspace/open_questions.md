@@ -195,3 +195,8 @@ code_refs: []
 
 - **Техдолг тестов (не блокер):** `npx tsc --noEmit` в `_legacy_web` даёт 3 ошибки в `app/api/communicator/v2/dialog/practiceSelection.test.ts` (TS2783 ×2 строки 33–34, TS2339 строка 308). Ошибки ПРЕДсуществующие (не регресс HARMONIZER v2 / патча C.4), только в тест-файле, `next build` их фильтрует (runTypeCheck игнорирует `*.test.ts`), в прод-бандл не попадают. Безопасно для продакшена. Чистый фикс — ~3 строки в тесте (деструктуризация input в `breath()`; сужение типа на строке 308). Сделать при ближайшей уборке тестов.
 - На момент создания скелета дополнительных записей не требовалось; новые вопросы добавлять сюда по мере миграции остальных модулей.
+
+## onboarding
+
+- **iOS system notification dialog text is not editable.** The grey body comment line under the title in iOS's notification-permission system dialog (`UNUserNotificationCenter` request) is fixed by Apple and cannot be localized or reworded from the app. Decision (2026-07-18): use the standard system dialog as-is (a custom pre-permission `Alert` was briefly added then reverted — `reminderPrePermission*` removed; simpler and more reliable). Revisit only if product later wants higher opt-in conversion via a pre-permission explainer.
+- **Historical timezone accuracy for natal chart** — audited 2026-07-18, no action needed: `localChartDateTime` (`modules/astro-core/ephemeris.ts`) converts local→UTC via Luxon + IANA zone, which resolves the historical offset. Edge cases (region changed IANA zone; DST fall-back ambiguity; platform tz-data completeness) documented in `astro/spec.md` §5.

@@ -65,19 +65,26 @@ function LegalDocumentModal({ doc, onClose }: { doc: LegalDoc | null; onClose: (
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]} onPress={onClose}>
-        <Pressable
+      <View style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]}>
+        {/* Ловец кликов по затемнённому фону — за листом. Сам лист (View) лежит
+            выше и перехватывает тапы по себе, поэтому скролл внутри не ломается. */}
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <View
           style={[styles.sheet, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}
-          onPress={(e) => e.stopPropagation()}
         >
-          <ScrollView style={styles.sheetBody} showsVerticalScrollIndicator>
+          <ScrollView
+            style={styles.sheetBody}
+            contentContainerStyle={styles.docContent}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+          >
             <AppText variant="dialogBody" tone="muted" style={styles.docText}>
               {body}
             </AppText>
           </ScrollView>
           <AppButton label={t("wizard.legal.close")} variant="secondary" onPress={onClose} style={styles.closeBtn} />
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -106,6 +113,9 @@ const styles = StyleSheet.create({
   },
   sheetBody: {
     flex: 1,
+  },
+  docContent: {
+    flexGrow: 1,
   },
   docText: {
     lineHeight: 22,

@@ -21,10 +21,36 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
+
+/** Свежее имя со страницы входа (таблица signin_name_hints). Edge-функция
+ *  запускается под service-role, обходит RLS. Возвращает пустую строку при сбое
+ *  или отсутствии подсказки — тогда используем fallback user_metadata.full_name. */
+async function fetchSigninNameHint(email: string): Promise<string> {
+  const supabaseUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceRoleKey || !email) return "";
+  try {
+    const url = `${supabaseUrl}/rest/v1/signin_name_hints?email=eq.${encodeURIComponent(email.toLowerCase())}&select=name&limit=1`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const name = Array.isArray(data) && data[0]?.name ? String(data[0].name) : "";
+    return name.trim();
+  } catch {
+    return "";
+  }
+}
 function renderEmail(
   tpl: {
     subject: string;
     greeting: string;
+    greetingName?: string;
     intro: string;
     expiry: string;
     ignore: string;
@@ -38,38 +64,69 @@ function renderEmail(
   },
   code: string,
   signName: string,
+  userName: string,
+  locale: string,
 ) {
   // Название приложения и кнопки «Что делать?» уже вшиты в текст каждого шаблона
-  // (текст письма целиком на одном языке) — в рантайме подставляется только {code}.
-  const fill = (s: string) => s.replaceAll("{code}", code);
-  const subject = fill(tpl.subject);
+  // (текст письма целиком на одном языке) — в рантайме подставляются только {code}
+  // и {name} (если пользователь указал имя на шаге 1).
+  const fillCode = (s: string) => s.replaceAll("{code}", code);
+  const name = userName.trim();
+  const greetingRaw =
+    name && tpl.greetingName
+      ? tpl.greetingName.replaceAll("{name}", name)
+      : tpl.greeting;
+  const greeting = fillCode(greetingRaw);
+  const subject = fillCode(tpl.subject);
   const steps = [tpl.guide1, tpl.guide2, tpl.guide3, tpl.guide4, tpl.guide5].map(
-    (g, i) => `${i + 1}. ${fill(g)}`,
+    (g, i) => `${i + 1}. ${fillCode(g)}`,
   );
   const text = [
-    fill(tpl.greeting),
+    greeting,
     "",
-    fill(tpl.intro),
+    fillCode(tpl.intro),
     code,
     "",
-    fill(tpl.expiry),
-    fill(tpl.ignore),
+    fillCode(tpl.expiry),
+    fillCode(tpl.ignore),
     "",
-    fill(tpl.guideTitle),
+    fillCode(tpl.guideTitle),
     ...steps,
     "",
-    fill(tpl.closing),
+    fillCode(tpl.closing),
     signName,
   ].join("\n");
-  const html = [
-    "<p>" + escapeHtml(fill(tpl.greeting)) + "</p>",
-    "<p>" + escapeHtml(fill(tpl.intro)) + "</p>",
-    '<p style="font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace">' + escapeHtml(code) + "</p>",
-    "<p>" + escapeHtml(fill(tpl.expiry)) + "<br>" + escapeHtml(fill(tpl.ignore)) + "</p>",
-    "<p>" + escapeHtml(fill(tpl.guideTitle)) + "</p>",
-    ...steps.map((s) => "<p>" + escapeHtml(s) + "</p>"),
-    "<p>" + escapeHtml(fill(tpl.closing)) + "<br>" + escapeHtml(signName) + "</p>",
-  ].join("\n");
+
+  // HTML с инлайн-CSS (почтовые клиенты вырезают <script>/<link>, поэтому
+  // никаких внешних Tailwind/шрифтов — только системный font-stack).
+  const FONT =
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const PRIMARY = "#436558";
+  const BORDER = "#7da192";
+  const TEXT = "#161d1f";
+  const itemHtml = steps
+    .map((s, i) => {
+      const mb = i < steps.length - 1 ? "8px" : "0";
+      return `<p style="margin:0 0 ${mb} 0;padding:0">${escapeHtml(s)}</p>`;
+    })
+    .join("");
+  const htmlParts = [
+    `<!DOCTYPE html><html lang="${escapeHtml(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>`,
+    `<body style="margin:0;padding:0;background:#ffffff">`,
+    `<div style="max-width:600px;margin:0 auto;padding:32px 24px;font-family:${FONT};color:${TEXT};font-size:16px;line-height:24px">`,
+    `<p style="margin:0 0 24px 0">${escapeHtml(greeting)}</p>`,
+    `<p style="margin:0 0 12px 0">${escapeHtml(fillCode(tpl.intro))}</p>`,
+    `<p style="margin:0 0 24px 0;font-size:30px;font-weight:600;letter-spacing:0.25em;color:${PRIMARY}">${escapeHtml(code)}</p>`,
+    `<p style="margin:0 0 24px 0">${escapeHtml(fillCode(tpl.expiry))}<br>${escapeHtml(fillCode(tpl.ignore))}</p>`,
+    `<div style="border-left:3px solid ${BORDER};padding:4px 0 4px 20px;margin:0 0 24px 0">`,
+    `<p style="margin:0 0 10px 0">${escapeHtml(fillCode(tpl.guideTitle))}</p>`,
+    itemHtml,
+    `</div>`,
+    `<p style="margin:0">${escapeHtml(fillCode(tpl.closing))}<br>${escapeHtml(signName)}</p>`,
+    `</div>`,
+    `</body></html>`,
+  ];
+  const html = htmlParts.join("\n");
   return { subject, text, html };
 }
 function hookError(message: string, status = 500) {
@@ -131,7 +188,12 @@ Deno.serve(async (req) => {
   // (override: MAIL_FROM_NAME); non-ASCII → RFC 2047.
   const signName = SENDER_NAMES[locale] ?? DEFAULT_SENDER_NAME;
   const fromName = Deno.env.get("MAIL_FROM_NAME")?.trim() || signName;
-  const rendered = renderEmail(tpl, String(code), signName);
+  // Приоритет имени для приветствия: свежая подсказка со страницы входа
+  // (signin_name_hints) → user_metadata.full_name → пусто (generic greeting).
+  const hintName = await fetchSigninNameHint(String(to ?? ""));
+  const metaName = String(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? "");
+  const userName = hintName || metaName;
+  const rendered = renderEmail(tpl, String(code), signName, userName, locale);
 
   const client = new SESv2Client({
     region,

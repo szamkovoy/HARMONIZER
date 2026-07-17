@@ -15,6 +15,39 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-18 (notifications pre-permission — reverted):** Откатил введённый 2026-07-17 pre-permission `Alert` перед системным запросом уведомлений: по решению продукта стандартный iOS-системный диалог достаточен и надёжнее (не усложняем). Удалены ключи `reminderPrePermissionTitle/Message/Allow/Cancel` из `modules/home/i18n/home.ts` (RU+EN inline) и оверлеев `modules/i18n/typed/catalog/home/{de,fr,it,es,pt,nl}.json`; `OpportunityWindows.saveReminder` (`modules/home/ui/OpportunityWindows.tsx`) вернул прямой `requestPermissionsAsync` (функция `scheduleReminderNotification` инлайнена обратно в `saveReminder`). `i18n-sync check` зелёный.
+
+- **2026-07-17 (wizard UI/UX polish + copy overhaul):** (1) `WizardShell` (`modules/onboarding/wizard/WizardShell.tsx`) now forces a pure-white light-theme surface (`#ffffff`, dark status-bar content) regardless of system theme, and gains a `footerInContent` prop — when true the footer (CTA + `LegalFooter`) renders inside the `ScrollView` so the software keyboard lifts it by its own height (used on steps 1 & 2); the legal footer is now shown only on step 1 (`app/sign-in.tsx`, removed from `app/onboarding.tsx`). (2) Step 2 birth data: masked `DD-MM-YYYY` date and `ЧЧ:ММ` time inputs with auto-advancing separators (helpers `formatDateMask`/`formatTimeMask`/`ddmmyyyyToIso`/`isoToDdmmyyyy` in `app/onboarding.tsx`; prefill converts `YYYY-MM-DD`↔`DD-MM-YYYY`); fields relabelled (`onboarding.birth.dateLabel` = «Дата рождения», `onboarding.birth.timeLabel` = «Время рождения (приблизительно) - по местному времени»); new `BirthPlacePicker` (`modules/onboarding/ui/BirthPlacePicker.tsx`) shows the city suggestions as an absolute overlay (`zIndex: 50`) over the «Далее» button so the list is never hidden by the button or the keyboard; a `placeSpacer` reserves room below the field. (3) `LegalDocumentModal` (`modules/onboarding/wizard/LegalDocuments.tsx`) rewritten: backdrop is an absolute `Pressable` catcher behind a plain `View` sheet (no `Pressable` wrapping the `ScrollView`), body `ScrollView` `flex:1` scrolls, «Закрыть» button fixed at the bottom — fixes the «glued» non-scrolling text. (4) Copy: new RU text for `wizard.step2.body` and steps 3-7 bodies (consolidated from `body1`/`body2` to a single `wizard.stepN.body` key per step; `INTRO_STEPS` in `app/onboarding.tsx` updated); `home.geoGate.title`/`message` updated. 7 target locales translated via `node scripts/i18n-sync.mjs fill --all` (premium model, `AI_MODEL_PREMIUM`); `i18n-sync check` green. See `CHANGELOG.md` (158).
+- **2026-07-17 (OTP email — fresh name via side-channel):** The named greeting
+  showed a stale DB name for returning users because `signInWithOtp` does not
+  update `user_metadata` for existing users (only on creation) — the hook saw the
+  old `user_metadata.full_name`, not the name just typed on wizard step 1. Added a
+  side-channel: new table `public.signin_name_hints(email PK, name, updated_at)`
+  + anon-callable RPC `set_signin_name_hint` (security definer, validated;
+  migration `20260717130000`, applied to remote). `modules/auth/sign-in-email.ts`
+  now upserts the freshly-typed name by email right before `signInWithOtp`
+  (best-effort, non-blocking). `send-auth-email/index.ts` reads the hint by
+  `user.email` via the Supabase REST API with `SUPABASE_SERVICE_ROLE_KEY`
+  (bypasses RLS); priority hint → `user_metadata.full_name` → generic `greeting`.
+  `services/supabase-types.ts` adds the `set_signin_name_hint` RPC type. Edge
+  function redeployed (v25). Spec §4.1c updated.
+
+- **2026-07-17 (OTP email — HTML redesign + named greeting):** Replaced the
+  minimal `<p>`-only HTML body with a structured inline-CSS layout reproducing
+  the approved mockup: max-width 600 container, system font-stack, sage-green
+  (`#436558`) large letter-spaced OTP code, tight disclaimer block, a guide
+  block with a left accent border (`#7da192`) and tightly packed numbered items,
+  and a tight signature. **No external resources** — the mockup's Tailwind Play
+  CDN `<script>` and Google Fonts `<link>` were deliberately dropped because
+  email clients strip `<script>` and most strip `<link>`, which would have
+  rendered the email unstyled. Added a per-locale `greetingName` template with a
+  `{name}` placeholder (locale-appropriate punctuation: RU `Здравствуйте, {name}!`,
+  FR `Bonjour {name} !`, ES `¡Hola, {name}!`, etc.); `renderEmail` now also
+  receives `user.user_metadata.full_name` (collected on wizard step 1) and
+  falls back to the generic `greeting` when no name is present. `templates.ts`
+  interface + all 8 JSON sources + `.sync-meta.json` updated; `i18n-sync check`
+  green. Spec §4.1c updated.
+
 - **2026-07-17 (OTP email — placeholders removed):** Removed the `{app}`/`{cta}`
   runtime substitution from `send-auth-email`. The app name and the «Что делать?»
   button label are now baked directly into each locale's template text (the

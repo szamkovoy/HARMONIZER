@@ -4,15 +4,25 @@
  * Обеспечивает визуальную преемственность всех шагов мастера:
  *  - тонкая полоска прогресса сверху (сегменты, без цифр и слов);
  *  - скроллируемое тело шага (картинка → заголовок → текст → форма);
- *  - нижний слот для кнопки «Далее» и юридической строки, живущий над клавиатурой.
+ *  - нижний слот для кнопки «Далее» и юридической строки.
  *
  * Шаги мастера живут на двух экранах (`/sign-in` — шаг 1, `/onboarding` — шаги 2-7),
  * но благодаря единой оболочке воспринимаются как один непрерывный мастер.
  *
+ * Белый фон: все экраны мастера принудительно рисуются на чисто-белом фоне (#ffffff)
+ * и в светлой палитре темы — независимо от системной тёмной схемы, чтобы бесшовно
+ * сочетаться с изображениями, сохранёнными на белом фоне.
+ *
+ * `footerInContent` (шаги 1-2, где есть ввод и выезжает клавиатура): кнопка CTA
+ *   и юридическая строка помещаются ВНУТРЬ скроллируемого контента, сразу за
+ *   последним полем — и поднимаются вместе с контентом ровно на высоту клавиатуры
+ *   (KeyboardAvoidingView behavior="padding" на iOS, adjustResize на Android).
+ *   Иначе (шаги 3-7, без ввода) footer фиксирован внизу экрана.
+ *
  * Добавление/удаление шагов: меняется только `totalSteps` и содержимое шагов у
  * потребителей — шаблон шагов не знает об их смысле.
  */
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -27,12 +37,15 @@ import {
 
 import { StackScreenLayout } from "@/modules/ui/StackScreenLayout";
 import { AppText } from "@/modules/ui/AppText";
-import { useTheme } from "@/modules/ui/theme";
+import { ThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 
 /** Фиксированная высота картинки-героя — единая для всех шагов. Подбирается под ~9:5. */
 export const WIZARD_IMAGE_HEIGHT = 200;
 /** Рекомендуемый размер исходной картинки-героя (для оптимизации в Photoshop). */
 export const WIZARD_IMAGE_TARGET = { width: 1200, height: 600 } as const;
+
+/** Чисто-белый фон мастера (изображения сохранены на белом фоне). */
+const WIZARD_BG = "#ffffff";
 
 export function WizardShell({
   totalSteps,
@@ -41,6 +54,7 @@ export function WizardShell({
   footer,
   statusBarStyle,
   contentStyle,
+  footerInContent,
 }: {
   totalSteps: number;
   /** 1-индекс текущего шага. Сегменты < currentStep — «пройдены», = currentStep — «активный». */
@@ -49,31 +63,51 @@ export function WizardShell({
   footer?: ReactNode;
   statusBarStyle?: "light" | "dark" | "auto";
   contentStyle?: StyleProp<ViewStyle>;
+  /** true — footer живёт внутри скроллируемого контента (шаги 1-2 с клавиатурой);
+   *  false/undefined — footer зафиксирован внизу экрана (шаги 3-7). */
+  footerInContent?: boolean;
 }) {
+  // Мастер всегда светлый (белый фон + тёмный текст), независимо от системной схемы.
+  const lightTheme = useMemo(() => buildTheme("light"), []);
+  // На белом фоне статус-бар должен быть тёмным (тёмный контент на светлом фоне).
+  const resolvedStatusBar: "light" | "dark" =
+    statusBarStyle === "auto" ? "dark" : statusBarStyle ?? "dark";
+
   return (
-    <StackScreenLayout statusBarStyle={statusBarStyle} edges={["top", "bottom"]}>
-      <View style={styles.root}>
-        <StepProgress
-          totalSteps={totalSteps}
-          currentStep={currentStep}
-          style={styles.progress}
-        />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.avoid}
-        >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            style={styles.scroll}
-            contentContainerStyle={[styles.scrollContent, contentStyle]}
-            showsVerticalScrollIndicator={false}
+    <ThemeProvider value={lightTheme}>
+      <StackScreenLayout
+        statusBarStyle={resolvedStatusBar}
+        edges={["top", "bottom"]}
+        style={{ backgroundColor: WIZARD_BG }}
+      >
+        <View style={styles.root}>
+          <StepProgress
+            totalSteps={totalSteps}
+            currentStep={currentStep}
+            style={styles.progress}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.avoid}
           >
-            {children}
-          </ScrollView>
-          {footer ? <View style={styles.footer}>{footer}</View> : null}
-        </KeyboardAvoidingView>
-      </View>
-    </StackScreenLayout>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              style={styles.scroll}
+              contentContainerStyle={[styles.scrollContent, contentStyle]}
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+              {footerInContent && footer ? (
+                <View style={styles.footer}>{footer}</View>
+              ) : null}
+            </ScrollView>
+            {!footerInContent && footer ? (
+              <View style={styles.footer}>{footer}</View>
+            ) : null}
+          </KeyboardAvoidingView>
+        </View>
+      </StackScreenLayout>
+    </ThemeProvider>
   );
 }
 
@@ -164,6 +198,7 @@ const styles = StyleSheet.create({
     maxWidth: 460,
     width: "100%",
     alignSelf: "center",
+    backgroundColor: WIZARD_BG,
   },
   avoid: {
     flex: 1,

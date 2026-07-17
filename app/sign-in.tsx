@@ -41,7 +41,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 const TOTAL_WIZARD_STEPS = 7;
 
 const LOGO = require("@/assets/images/icon.png");
-const EMAIL_ART = require("@/assets/onboarding/email.png");
+const EMAIL_ART = require("@/assets/onboarding/email_600.jpg");
 
 type SubStep = "welcome" | "confirm";
 
@@ -124,6 +124,10 @@ export default function SignInScreen() {
 
   const cells = useMemo(() => Array.from({ length: CODE_LENGTH }, (_, i) => code[i] ?? ""), [code]);
 
+  // Шаг 1 — есть ввод и выезжает клавиатура: CTA и legal-строка живут ВНУТРИ
+  // скроллируемого контента (footerInContent), сразу за полем email, и
+  // поднимаются вместе с контентом ровно на высоту клавиатуры.
+  // Legal-строка — только на welcome-подшаге (где вводится имя и email).
   const footer = sub === "welcome" ? (
     <View style={styles.footerGap}>
       <AppButton
@@ -133,18 +137,14 @@ export default function SignInScreen() {
       />
       <LegalFooter />
     </View>
-  ) : (
-    <View style={styles.footerGap}>
-      <LegalFooter />
-    </View>
-  );
+  ) : null;
 
   return (
     <WizardShell
       totalSteps={TOTAL_WIZARD_STEPS}
       currentStep={1}
       footer={footer}
-      statusBarStyle={theme.scheme === "dark" ? "light" : "dark"}
+      footerInContent
     >
       {sub === "welcome" ? (
         <>

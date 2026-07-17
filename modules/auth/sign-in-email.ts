@@ -31,8 +31,20 @@ export function normalizeEmail(raw: string): string {
 export async function requestEmailOtpCode(email: string, displayName?: string): Promise<void> {
   const supabase = requireSupabase();
   const name = displayName?.trim();
+  const normalized = normalizeEmail(email);
+  // Side-channel для приветствия в письме: signInWithOtp НЕ обновляет
+  // user_metadata для существующего пользователя, поэтому edge-функция иначе
+  // увидела бы устаревшее имя из БД. Пишем свежее имя в signin_name_hints
+  // (best-effort — не блокируем отправку кода при сбое).
+  if (name) {
+    await supabase
+      .rpc("set_signin_name_hint", { p_email: normalized, p_name: name })
+      .then(({ error }) => {
+        if (error) console.warn("set_signin_name_hint failed", error.message);
+      });
+  }
   const { error } = await supabase.auth.signInWithOtp({
-    email: normalizeEmail(email),
+    email: normalized,
     options: {
       shouldCreateUser: true,
       data: {

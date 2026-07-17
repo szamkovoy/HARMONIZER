@@ -35,7 +35,6 @@ import type { BirthData } from "@/modules/astro-core";
 import {
   BirthPlacePicker,
   BirthPlaceMapModal,
-  LegalFooter,
   WizardBody,
   WizardImage,
   WizardShell,
@@ -64,11 +63,11 @@ type IntroDef = {
 };
 
 const INTRO_STEPS: IntroDef[] = [
-  { image: require("@/assets/onboarding/psycho.png"), titleKey: "wizard.step3.title", bodyKeys: ["wizard.step3.body1", "wizard.step3.body2"] },
-  { image: require("@/assets/onboarding/asanas.png"), titleKey: "wizard.step4.title", bodyKeys: ["wizard.step4.body"] },
-  { image: require("@/assets/onboarding/breath.png"), titleKey: "wizard.step5.title", bodyKeys: ["wizard.step5.body1", "wizard.step5.body2"] },
-  { image: require("@/assets/onboarding/webinar.png"), titleKey: "wizard.step6.title", bodyKeys: ["wizard.step6.body"] },
-  { image: require("@/assets/onboarding/me.png"), titleKey: "wizard.step7.title", bodyKeys: ["wizard.step7.body1"] },
+  { image: require("@/assets/onboarding/psycho_600.jpg"), titleKey: "wizard.step3.title", bodyKeys: ["wizard.step3.body"] },
+  { image: require("@/assets/onboarding/asanas_600.jpg"), titleKey: "wizard.step4.title", bodyKeys: ["wizard.step4.body"] },
+  { image: require("@/assets/onboarding/breath_600.jpg"), titleKey: "wizard.step5.title", bodyKeys: ["wizard.step5.body"] },
+  { image: require("@/assets/onboarding/webinar_600.jpg"), titleKey: "wizard.step6.title", bodyKeys: ["wizard.step6.body"] },
+  { image: require("@/assets/onboarding/me_600.jpg"), titleKey: "wizard.step7.title", bodyKeys: ["wizard.step7.body"] },
 ];
 
 function getDeviceTimeZone(): string {
@@ -77,6 +76,40 @@ function getDeviceTimeZone(): string {
   } catch {
     return "UTC";
   }
+}
+
+/** Маска даты рождения: пользователь вводит цифры, разделители «-» вставляются
+ *  автоматически (как номер карты). Внутренне храним и показываем DD-MM-YYYY. */
+function formatDateMask(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  let out = digits;
+  if (digits.length > 2) out = digits.slice(0, 2) + "-" + digits.slice(2);
+  if (digits.length > 4) out = digits.slice(0, 2) + "-" + digits.slice(2, 4) + "-" + digits.slice(4);
+  return out;
+}
+/** Маска времени: «:» после двух цифр вставляется автоматически. */
+function formatTimeMask(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  return digits.length > 2 ? digits.slice(0, 2) + ":" + digits.slice(2) : digits;
+}
+/** «DD-MM-YYYY» → «YYYY-MM-DD» (для API/БД) или null, если невалидно. */
+function ddmmyyyyToIso(value: string): string | null {
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
+  if (!m) return null;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  const yyyy = Number(m[3]);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+  const iso = `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (d.getUTCMonth() + 1 !== mm || d.getUTCDate() !== dd || d.getUTCFullYear() !== yyyy) return null;
+  return iso;
+}
+/** «YYYY-MM-DD» (из БД) → «DD-MM-YYYY» (для поля ввода). */
+function isoToDdmmyyyy(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  if (!m) return "";
+  return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
 /** Восстановительный режим: у пользователя уже есть onboarded_at, но данные рождения
@@ -97,7 +130,8 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>(2);
 
   // ── Шаг 2: данные рождения ──────────────────────────────────────────────
-  const [birthDate, setBirthDate] = useState(profile?.birth_date ?? "");
+  // В поле даты показываем маску DD-MM-YYYY; в БД/API храним YYYY-MM-DD.
+  const [birthDate, setBirthDate] = useState(isoToDdmmyyyy(profile?.birth_date ?? ""));
   const [birthTime, setBirthTime] = useState(profile?.birth_time ?? "");
   const [birthPlace, setBirthPlace] = useState<GeoPlace | null>(null);
   const [birthSaved, setBirthSaved] = useState(false);
@@ -131,11 +165,18 @@ export default function OnboardingScreen() {
     const normalizedDate = birthDate.trim();
     const normalizedTime = birthTime.trim();
     setError(null);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+    const isoDate = ddmmyyyyToIso(normalizedDate);
+    if (!isoDate) {
       setError(t("onboarding.birth.dateInvalid"));
       return false;
     }
     if (!/^\d{2}:\d{2}$/.test(normalizedTime)) {
+      setError(t("onboarding.birth.timeInvalid"));
+      return false;
+    }
+    const hh = Number(normalizedTime.slice(0, 2));
+    const mm = Number(normalizedTime.slice(3, 5));
+    if (hh > 23 || mm > 59) {
       setError(t("onboarding.birth.timeInvalid"));
       return false;
     }
@@ -146,7 +187,7 @@ export default function OnboardingScreen() {
     setBusy(true);
     try {
       const birthData: BirthData = {
-        date: normalizedDate,
+        date: isoDate,
         time: normalizedTime,
         timeMode: "precise",
         location: { lat: birthPlace.lat, lng: birthPlace.lng, timezone: birthPlace.timezone },
@@ -281,7 +322,6 @@ export default function OnboardingScreen() {
             onPress={() => void onStep2Next()}
             disabled={busy}
           />
-          <LegalFooter />
         </View>
       );
     }
@@ -289,7 +329,6 @@ export default function OnboardingScreen() {
     return (
       <View style={styles.footerGap}>
         <AppButton label={t("wizard.next")} onPress={goToNextIntro} />
-        <LegalFooter />
       </View>
     );
   }, [step, busy, geoDenied, onStep2Next, goToNextIntro, t]);
@@ -300,11 +339,11 @@ export default function OnboardingScreen() {
       totalSteps={TOTAL_WIZARD_STEPS}
       currentStep={typeof step === "number" ? step : TOTAL_WIZARD_STEPS}
       footer={footer}
-      statusBarStyle={theme.scheme === "dark" ? "light" : "dark"}
+      footerInContent={step === 2}
     >
       {step === 2 ? (
         <>
-          <WizardImage source={require("@/assets/onboarding/astrology.png")} />
+          <WizardImage source={require("@/assets/onboarding/astrology_600.jpg")} />
           <WizardTitle>{t("wizard.step2.title")}</WizardTitle>
           <WizardBody>{t("wizard.step2.body")}</WizardBody>
 
@@ -315,8 +354,8 @@ export default function OnboardingScreen() {
               </AppText>
               <TextInput
                 value={birthDate}
-                onChangeText={setBirthDate}
-                placeholder="1985-04-23"
+                onChangeText={(v) => setBirthDate(formatDateMask(v))}
+                placeholder="ДД-ММ-ГГГГ"
                 placeholderTextColor={theme.colors.textFaint}
                 autoCapitalize="none"
                 keyboardType="numbers-and-punctuation"
@@ -328,8 +367,8 @@ export default function OnboardingScreen() {
               </AppText>
               <TextInput
                 value={birthTime}
-                onChangeText={setBirthTime}
-                placeholder="06:45"
+                onChangeText={(v) => setBirthTime(formatTimeMask(v))}
+                placeholder="ЧЧ:ММ"
                 placeholderTextColor={theme.colors.textFaint}
                 autoCapitalize="none"
                 keyboardType="numbers-and-punctuation"
@@ -354,6 +393,8 @@ export default function OnboardingScreen() {
                   </AppText>
                 </Pressable>
               ) : null}
+              {/* Запас места под выпадающий список городов (оверлеит кнопку «Далее»). */}
+              <View style={styles.placeSpacer} />
             </View>
           )}
 
@@ -456,6 +497,9 @@ const styles = StyleSheet.create({
   },
   mapButtonText: {
     fontWeight: "600",
+  },
+  placeSpacer: {
+    height: 72,
   },
   footerGap: {
     gap: 12,
