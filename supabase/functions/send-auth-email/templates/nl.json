@@ -1,8 +1,14 @@
 {
-  "subject": "{code} — je inlogcode voor Harmoniseerder",
-  "greeting": "Hallo!",
-  "intro": "Je code om in te loggen in de Harmoniseerder-app:",
+  "closing": "Al het goede!",
   "expiry": "De code is 60 minuten geldig en kan maar één keer worden gebruikt.",
+  "greeting": "Hallo!",
+  "guide1": "Start «Harmoniseerder» en bekijk de aanbevelingen voor vandaag.",
+  "guide2": "Klik op de knop «Wat te doen?» om naar de specifieke inhoud en oefeningen te gaan.",
+  "guide3": "Volg de adviezen, oefen, en volg je voortgang via de rapporten.",
+  "guide4": "Stel mij vragen tijdens de wekelijkse webinars om niet vast te lopen.",
+  "guide5": "Geniet, bewonder, manifesteer je… :)",
+  "guideTitle": "Korte gebruikershandleiding:",
   "ignore": "Heb je deze code niet aangevraagd? Negeer deze e-mail dan gewoon.",
-  "footer": "Harmoniseerder · zamkovoi.yoga"
+  "intro": "Je inlogcode voor de app «Harmoniseerder»:",
+  "subject": "{code} — je inlogcode voor Harmoniseerder"
 }

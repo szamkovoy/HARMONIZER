@@ -15,6 +15,31 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-17 (OTP email — placeholders removed):** Removed the `{app}`/`{cta}`
+  runtime substitution from `send-auth-email`. The app name and the «Что делать?»
+  button label are now baked directly into each locale's template text (the
+  email is fully in one language, so there is no mismatch risk). The CTA in each
+  template was verified to match exactly `recommendation.discussButton` in
+  `modules/home/i18n/home.ts`. `APP_NAMES`/`CTA_LABELS` maps deleted from
+  `index.ts`; `renderEmail` now only substitutes `{code}`. All 8 JSON templates +
+  `templates.ts` regenerated; `.sync-meta.json` updated to the baked RU source so
+  `i18n-sync check` stays green. Edge function redeployed (v24). Spec §4.1c updated.
+
+- **2026-07-17 (OTP email overhaul — sender + body + footer):** Rewrote the
+  `send-auth-email` templates for all 8 locales. (1) **Sender/From name** changed
+  from the localized app name to a person: RU «Сергей Замковой», all other
+  locales «Sergei Zamkovoi» (`SENDER_NAMES` map in `send-auth-email/index.ts`;
+  override via `MAIL_FROM_NAME`). The same name is used for the body signature.
+  (2) **Footer removed** — the «Гармонизатор · zamkovoi.yoga» line is gone.
+  (3) **Body restructured:** intro now wraps the app name in quotes; a 5-step
+  quick user guide (`guideTitle` + `guide1..guide5`) and a personal closing
+  (`closing` + signature) were added. App name and the «Что делать?» button are
+  injected via `{app}` / `{cta}` placeholders (substituted at render from
+  `APP_NAMES` / `CTA_LABELS`), so they always match the email language. RU
+  authored by hand; 7 targets translated via `i18n-sync fill --all` (premium
+  model); `templates.ts` regenerated and verified byte-equal to the JSON
+  sources. Edge function redeployed (v23). Spec §4.1c updated.
+
 - **2026-07-17 (home geo-gate catalog):** Added `home.geoGate.*` catalog keys
   (`title`, `message`, `grantButton`, `openSettings`, `closeApp`) for the new
   hard geo-gate on the Home tab (`modules/home/ui/GeoGate.tsx`, mounted in

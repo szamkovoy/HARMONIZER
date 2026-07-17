@@ -205,19 +205,29 @@ Two resolvers — do not conflate layer B and layer C:
 - **Edit RU → run `fill --all`** (or push; pre-push hook picks it up). One-time
   bootstrap for existing files: `node scripts/i18n-sync.mjs bootstrap-dialog-scaffold-meta`.
 
-### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-07-15)
+### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-07-17)
 - Source of truth: `supabase/functions/send-auth-email/templates/ru.json`
-  (subject/greeting/intro/expiry/ignore/footer for OTP sign-in emails).
+  (subject/greeting/intro/expiry/ignore/guideTitle/guide1–guide5/closing for OTP
+  sign-in emails). The `footer` line was removed; a 5-step quick user guide and a
+  personal signature were added (2026-07-17).
 - Targets + meta: same flat-source mechanics as the dialog scaffold
   (`templates/{en,de,fr,it,es,pt,nl}.json` + `templates/.sync-meta.json`);
   registered in `i18n-sync.mjs` as the `auth-email` flat source.
 - Runtime: the edge function imports the JSONs at deploy time and picks the
   template by `user_metadata.locale` (fallback `ru`).
-- **App name is localized per email language (2026-07-17):** subject/intro/footer
-  carry the locale's app name (RU «Гармонизатор», DE «Harmonisierer» … — see §4.1d), and
-  the `From` display name resolves from an `APP_NAMES[locale]` map in
-  `send-auth-email/index.ts` (override via `MAIL_FROM_NAME` env). The name matches
-  the native app name under the icon / in system dialogs for the same locale.
+- **Placeholders removed (2026-07-17):** the app name and the «Что делать?»
+  button label are baked directly into each locale's template text — no
+  `{app}`/`{cta}` runtime substitution. Since every template is fully in one
+  language, there is no risk of a mismatch (a French email uses the French
+  template, which already contains «Harmoniseur» and «Que faire ?»). The CTA
+  string in each template matches exactly `recommendation.discussButton` in
+  `modules/home/i18n/home.ts` (RU «Что делать?», EN «What to do?», DE «Was tun?»,
+  FR «Que faire ?», IT «Cosa fare?», ES «¿Qué hacer?», PT «O que fazer?»,
+  NL «Wat te doen?»). Only `{code}` (the OTP) is still substituted at render.
+- **Sender name + signature (2026-07-17):** the `From` display name and the body
+  signature use a `SENDER_NAMES` map — RU «Сергей Замковой», all other locales
+  «Sergei Zamkovoi» (override via `MAIL_FROM_NAME` env). The previous behavior
+  (localized app name as `From`) was replaced per product request.
 - SMTP transport (2026-07-15): rewritten to use built-in `Deno.connectTls`
   (raw SMTP: EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT) instead of
   the `denomailer` module which was unavailable for Supabase Edge Function

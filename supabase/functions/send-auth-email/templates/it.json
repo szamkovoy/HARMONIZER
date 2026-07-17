@@ -1,8 +1,14 @@
 {
-  "subject": "{code} — il tuo codice di accesso a Armonizzatore",
-  "greeting": "Ciao!",
-  "intro": "Il tuo codice per accedere all'app Armonizzatore:",
+  "closing": "Ti auguro ogni bene!",
   "expiry": "Il codice è valido per 60 minuti e può essere usato una sola volta.",
+  "greeting": "Ciao!",
+  "guide1": "Avvia «Armonizzatore» e consulta i consigli del giorno.",
+  "guide2": "Clicca il pulsante «Cosa fare?» per passare ai dettagli e alle pratiche.",
+  "guide3": "Segui i consigli, pratica e monitora i tuoi progressi attraverso i report.",
+  "guide4": "Fammi domande durante i webinar settimanali per non rimanere bloccato.",
+  "guide5": "Goditi, meravigliati, esprimiti… :)",
+  "guideTitle": "Breve guida per l'utente:",
   "ignore": "Se non hai richiesto questo codice, ignora semplicemente questa email.",
-  "footer": "Armonizzatore · zamkovoi.yoga"
+  "intro": "Il tuo codice per accedere all'app «Armonizzatore»:",
+  "subject": "{code} — il tuo codice di accesso a Armonizzatore"
 }

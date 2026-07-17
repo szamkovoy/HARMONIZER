@@ -1,8 +1,14 @@
 {
-  "subject": "{code} — o seu código de acesso ao Harmonizador",
-  "greeting": "Olá!",
-  "intro": "O seu código para entrar na app Harmonizador:",
+  "closing": "Tudo de bom!",
   "expiry": "O código é válido por 60 minutos e só pode ser usado uma vez.",
+  "greeting": "Olá!",
+  "guide1": "Abra o Harmonizador e confira as recomendações do dia.",
+  "guide2": "Clique no botão «O que fazer?» para acessar os detalhes e as práticas.",
+  "guide3": "Siga os conselhos, pratique e acompanhe seus progressos pelos relatórios.",
+  "guide4": "Faça-me perguntas nos webinars semanais para não travar.",
+  "guide5": "Desfrute, admire, expresse-se… :)",
+  "guideTitle": "Guia rápido do usuário:",
   "ignore": "Se não pediu este código, ignore este e-mail.",
-  "footer": "Harmonizador · zamkovoi.yoga"
+  "intro": "Seu código de acesso ao app «Harmonizador»:",
+  "subject": "{code} — o seu código de acesso ao Harmonizador"
 }

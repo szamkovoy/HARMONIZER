@@ -1,18 +1,12 @@
 import { SESv2Client, SendEmailCommand } from "npm:@aws-sdk/client-sesv2@3.787.0";
 import { TEMPLATES, DEFAULT_LOCALE } from "./templates.ts";
 
-/** Локализованное имя приложения — для имени отправителя (From). Должно совпадать
- *  с нативным именем под иконкой/в системных диалогах (см. plugins/appLocalesData.js). */
-const APP_NAMES: Record<string, string> = {
-  ru: "Гармонизатор",
-  en: "Harmonizer",
-  de: "Harmonisierer",
-  fr: "Harmoniseur",
-  it: "Armonizzatore",
-  es: "Armonizador",
-  pt: "Harmonizador",
-  nl: "Harmoniseerder",
+/** Имя отправителя (From) и подписи в теле письма: RU — «Сергей Замковой»,
+ *  во всех остальных локализациях — «Sergei Zamkovoi». */
+const SENDER_NAMES: Record<string, string> = {
+  ru: "Сергей Замковой",
 };
+const DEFAULT_SENDER_NAME = "Sergei Zamkovoi";
 
 function resolveLocale(localeRaw: string | undefined): string {
   const locale = String(localeRaw ?? "").toLowerCase().slice(0, 2);
@@ -27,15 +21,54 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
-function renderEmail(tpl: { subject: string; greeting: string; intro: string; expiry: string; ignore: string; footer: string }, code: string) {
-  const subject = tpl.subject.replace("{code}", code);
-  const text = [tpl.greeting, "", tpl.intro + " " + code, "", tpl.expiry, tpl.ignore, "", tpl.footer].join("\n");
+function renderEmail(
+  tpl: {
+    subject: string;
+    greeting: string;
+    intro: string;
+    expiry: string;
+    ignore: string;
+    guideTitle: string;
+    guide1: string;
+    guide2: string;
+    guide3: string;
+    guide4: string;
+    guide5: string;
+    closing: string;
+  },
+  code: string,
+  signName: string,
+) {
+  // Название приложения и кнопки «Что делать?» уже вшиты в текст каждого шаблона
+  // (текст письма целиком на одном языке) — в рантайме подставляется только {code}.
+  const fill = (s: string) => s.replaceAll("{code}", code);
+  const subject = fill(tpl.subject);
+  const steps = [tpl.guide1, tpl.guide2, tpl.guide3, tpl.guide4, tpl.guide5].map(
+    (g, i) => `${i + 1}. ${fill(g)}`,
+  );
+  const text = [
+    fill(tpl.greeting),
+    "",
+    fill(tpl.intro),
+    code,
+    "",
+    fill(tpl.expiry),
+    fill(tpl.ignore),
+    "",
+    fill(tpl.guideTitle),
+    ...steps,
+    "",
+    fill(tpl.closing),
+    signName,
+  ].join("\n");
   const html = [
-    "<p>" + escapeHtml(tpl.greeting) + "</p>",
-    "<p>" + escapeHtml(tpl.intro) + "</p>",
+    "<p>" + escapeHtml(fill(tpl.greeting)) + "</p>",
+    "<p>" + escapeHtml(fill(tpl.intro)) + "</p>",
     '<p style="font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace">' + escapeHtml(code) + "</p>",
-    "<p>" + escapeHtml(tpl.expiry) + "<br>" + escapeHtml(tpl.ignore) + "</p>",
-    '<p style="color:#888;font-size:12px">' + escapeHtml(tpl.footer) + "</p>",
+    "<p>" + escapeHtml(fill(tpl.expiry)) + "<br>" + escapeHtml(fill(tpl.ignore)) + "</p>",
+    "<p>" + escapeHtml(fill(tpl.guideTitle)) + "</p>",
+    ...steps.map((s) => "<p>" + escapeHtml(s) + "</p>"),
+    "<p>" + escapeHtml(fill(tpl.closing)) + "<br>" + escapeHtml(signName) + "</p>",
   ].join("\n");
   return { subject, text, html };
 }
@@ -94,9 +127,11 @@ Deno.serve(async (req) => {
 
   const locale = resolveLocale(user?.user_metadata?.locale);
   const tpl = resolveTemplate(user?.user_metadata?.locale);
-  const rendered = renderEmail(tpl, String(code));
-  // Имя отправителя — на языке письма (override: MAIL_FROM_NAME); non-ASCII → RFC 2047.
-  const fromName = Deno.env.get("MAIL_FROM_NAME")?.trim() || APP_NAMES[locale] || "Harmonizer";
+  // Имя отправителя и подпись в теле: RU «Сергей Замковой», иначе «Sergei Zamkovoi»
+  // (override: MAIL_FROM_NAME); non-ASCII → RFC 2047.
+  const signName = SENDER_NAMES[locale] ?? DEFAULT_SENDER_NAME;
+  const fromName = Deno.env.get("MAIL_FROM_NAME")?.trim() || signName;
+  const rendered = renderEmail(tpl, String(code), signName);
 
   const client = new SESv2Client({
     region,

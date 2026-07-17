@@ -1,8 +1,14 @@
 {
-  "subject": "{code} — votre code de connexion Harmoniseur",
-  "greeting": "Bonjour !",
-  "intro": "Votre code pour vous connecter à l'application Harmoniseur :",
+  "closing": "Bien à vous !",
   "expiry": "Le code est valable 60 minutes et ne peut être utilisé qu'une seule fois.",
+  "greeting": "Bonjour !",
+  "guide1": "Lancez «Harmoniseur» et découvrez les recommandations du jour.",
+  "guide2": "Appuyez sur le bouton «Que faire ?» pour accéder aux détails et aux pratiques.",
+  "guide3": "Suivez les conseils, pratiquez et suivez vos progrès dans les rapports.",
+  "guide4": "Posez-moi vos questions lors des webinaires hebdomadaires pour ne pas rester bloqué.",
+  "guide5": "Profitez, émerveillez-vous, exprimez-vous… :)",
+  "guideTitle": "Guide rapide de l'utilisateur :",
   "ignore": "Si vous n'avez pas demandé ce code, ignorez simplement cet e-mail.",
-  "footer": "Harmoniseur · zamkovoi.yoga"
+  "intro": "Votre code de connexion à l'application «Harmoniseur»:",
+  "subject": "{code} — votre code de connexion Harmoniseur"
 }

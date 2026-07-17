@@ -1,8 +1,14 @@
 {
-  "subject": "{code} — your Harmonizer sign-in code",
-  "greeting": "Hello!",
-  "intro": "Your code to sign in to the Harmonizer app:",
+  "closing": "All the best!",
   "expiry": "The code is valid for 60 minutes and can be used only once.",
+  "greeting": "Hello!",
+  "guide1": "Open Harmonizer and explore the daily recommendations.",
+  "guide2": "Tap the What to do? button to dive into the practices.",
+  "guide3": "Follow the guidance, practice, and track your progress with reports.",
+  "guide4": "Ask me questions at the weekly webinars so you don't get stuck.",
+  "guide5": "Enjoy, be amazed, express yourself… :)",
+  "guideTitle": "Quick user guide:",
   "ignore": "If you didn't request this code, just ignore this email.",
-  "footer": "Harmonizer · zamkovoi.yoga"
+  "intro": "Your code to sign in to the Harmonizer app:",
+  "subject": "{code} — your Harmonizer sign-in code"
 }
