@@ -8,12 +8,12 @@
  *   5. «От тела к дыханию»            — intro (breath.png)
  *   6. «Живая поддержка»              — intro (webinar.png)
  *   7. «Об авторе»                    — intro (me.png)
- *   warm — ждём готовности дневного прогноза (запущен в фоне после шага 2).
+ *   warm — только если к концу шага 7 ещё нет слогана + короткой рекомендации.
  *
- * Прогрев (ephemeris → LLM-тексты дня) стартует сразу после шага 2, чтобы пока
- * пользователь читал интро-экраны, сервер успел подготовить главную страницу.
- * Если к концу шага 7 прогноз ещё не готов — показываем экран с колесиком.
- * Когда готов — проставляем `onboarded_at`, роут-гейт уводит на главную.
+ * Прогрев стартует сразу после шага 2 (`forceRefresh` + до 90s): пока пользователь
+ * читает интро, сервер считает эфемериды и получает тексты от LLM. Готовый день
+ * кладётся в dayContentCache. Если тексты готовы раньше — сразу главная;
+ * иначе «Готовим ваш день», затем всё равно выход на главную по таймауту.
  *
  * Шаг 1 (вход) живёт на `/sign-in`; оба экрана используют общий `WizardShell`,
  * поэтому для пользователя это один непрерывный мастер.
@@ -21,23 +21,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
-  TextInput,
   View,
   type ImageSourcePropType,
 } from "react-native";
 import * as Location from "expo-location";
 
-import { useTranslate, getResponseLocale } from "@/modules/i18n";
+import { accessModeForTier, getEffectiveAccess } from "@/modules/access";
+import { useTranslate, getResponseLocale, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
+import type { DailyForecast } from "@/modules/daily-engine";
 import {
   BirthPlacePicker,
   BirthPlaceMapModal,
   WizardBody,
   WizardImage,
   WizardShell,
+  WizardTextInput,
   WizardTitle,
   type GeoPlace,
 } from "@/modules/onboarding";
@@ -46,12 +50,17 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { createNatalProfile } from "@/services/natalProfileClient";
-import { fetchDailyForecast } from "@/services/dailyForecastClient";
+import {
+  fetchDailyForecast,
+  ONBOARDING_DAILY_FORECAST_TIMEOUT_MS,
+} from "@/services/dailyForecastClient";
+import { saveDayContentCache } from "@/services/dayContentCache";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
 const TOTAL_WIZARD_STEPS = 7;
-const WARMUP_TIMEOUT_MS = 90_000;
+/** Ждём LLM-тексты дня не дольше этого; потом всё равно открываем главную. */
+const WARMUP_TIMEOUT_MS = ONBOARDING_DAILY_FORECAST_TIMEOUT_MS;
 const WARMUP_MIN_DISPLAY_MS = 1_200;
 
 type Step = 2 | 3 | 4 | 5 | 6 | 7 | "warm";
@@ -63,11 +72,11 @@ type IntroDef = {
 };
 
 const INTRO_STEPS: IntroDef[] = [
-  { image: require("@/assets/onboarding/psycho_600.jpg"), titleKey: "wizard.step3.title", bodyKeys: ["wizard.step3.body"] },
-  { image: require("@/assets/onboarding/asanas_600.jpg"), titleKey: "wizard.step4.title", bodyKeys: ["wizard.step4.body"] },
-  { image: require("@/assets/onboarding/breath_600.jpg"), titleKey: "wizard.step5.title", bodyKeys: ["wizard.step5.body"] },
-  { image: require("@/assets/onboarding/webinar_600.jpg"), titleKey: "wizard.step6.title", bodyKeys: ["wizard.step6.body"] },
-  { image: require("@/assets/onboarding/me_600.jpg"), titleKey: "wizard.step7.title", bodyKeys: ["wizard.step7.body"] },
+  { image: require("@/assets/onboarding/psycho_2_600.jpg"), titleKey: "wizard.step3.title", bodyKeys: ["wizard.step3.body1", "wizard.step3.body2", "wizard.step3.body3"] },
+  { image: require("@/assets/onboarding/asanas_600.jpg"), titleKey: "wizard.step4.title", bodyKeys: ["wizard.step4.body1", "wizard.step4.body2", "wizard.step4.body3"] },
+  { image: require("@/assets/onboarding/breath_2_600.jpg"), titleKey: "wizard.step5.title", bodyKeys: ["wizard.step5.body1", "wizard.step5.body2", "wizard.step5.body3"] },
+  { image: require("@/assets/onboarding/webinar_600.jpg"), titleKey: "wizard.step6.title", bodyKeys: ["wizard.step6.body1", "wizard.step6.body2", "wizard.step6.body3"] },
+  { image: require("@/assets/onboarding/me_600.jpg"), titleKey: "wizard.step7.title", bodyKeys: ["wizard.step7.body1", "wizard.step7.body2", "wizard.step7.body3", "wizard.step7.body4"] },
 ];
 
 function getDeviceTimeZone(): string {
@@ -78,19 +87,60 @@ function getDeviceTimeZone(): string {
   }
 }
 
-/** Маска даты рождения: пользователь вводит цифры, разделители «-» вставляются
- *  автоматически (как номер карты). Внутренне храним и показываем DD-MM-YYYY. */
-function formatDateMask(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 8);
-  let out = digits;
-  if (digits.length > 2) out = digits.slice(0, 2) + "-" + digits.slice(2);
-  if (digits.length > 4) out = digits.slice(0, 2) + "-" + digits.slice(2, 4) + "-" + digits.slice(4);
-  return out;
+function localDateIso(timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
 }
-/** Маска времени: «:» после двух цифр вставляется автоматически. */
-function formatTimeMask(raw: string): string {
+
+/** Слоган + короткая рекомендация — минимум для заполненной карточки на главной. */
+function hasHomeCardTexts(forecast: DailyForecast): boolean {
+  return Boolean(forecast.slogan?.trim() && forecast.recommendationShortText?.trim());
+}
+
+function natalScopeKey(parts: { date: string; time: string; place: string }): string {
+  const raw = [parts.date, parts.time, parts.place].join("|");
+  return raw.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "default";
+}
+
+function contentScopeKey(accessMode: "free" | "premium", natalScope: string, locale: AppLocale): string {
+  const base = accessMode === "free" ? "global" : natalScope;
+  return `${base}:${locale}`;
+}
+
+/** Маска даты рождения: разделители «-» появляются сразу после 2-й цифры дня
+ *  и сразу после 2-й цифры месяца («07-», затем «07-11-»). При удалении
+ *  хвостовой разделитель не навязывается обратно (иначе backspace зациклится). */
+function formatDateMask(raw: string, previous = ""): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  const prevDigits = previous.replace(/\D/g, "");
+  const deleting = digits.length < prevDigits.length;
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) {
+    return digits.length === 2 && !deleting ? `${digits}-` : digits;
+  }
+  if (digits.length <= 4) {
+    const body = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    return digits.length === 4 && !deleting ? `${body}-` : body;
+  }
+  return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+}
+/** Маска времени: «:» сразу после 2-й цифры часа («12:»). При удалении
+ *  хвостовое двоеточие не навязывается обратно. */
+function formatTimeMask(raw: string, previous = ""): string {
   const digits = raw.replace(/\D/g, "").slice(0, 4);
-  return digits.length > 2 ? digits.slice(0, 2) + ":" + digits.slice(2) : digits;
+  const prevDigits = previous.replace(/\D/g, "");
+  const deleting = digits.length < prevDigits.length;
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) {
+    return digits.length === 2 && !deleting ? `${digits}:` : digits;
+  }
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 /** «DD-MM-YYYY» → «YYYY-MM-DD» (для API/БД) или null, если невалидно. */
 function ddmmyyyyToIso(value: string): string | null {
@@ -122,7 +172,7 @@ function isRepairMode(profile: { onboarded_at?: string | null } | null): boolean
 export default function OnboardingScreen() {
   const theme = useTheme();
   const { t } = useTranslate();
-  const { authUser, profile, refreshProfile } = useAuth();
+  const { authUser, profile, refreshProfile, signOut } = useAuth();
 
   const repairMode = isRepairMode(profile);
   // В онбординг попадаем только при неполных данных рождения (роут-гейт в _layout.tsx).
@@ -138,26 +188,95 @@ export default function OnboardingScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [geoDenied, setGeoDenied] = useState(false);
+  const [geoCanAskAgain, setGeoCanAskAgain] = useState(true);
   const [showPlaceMap, setShowPlaceMap] = useState(false);
 
   // ── Прогрев ──────────────────────────────────────────────────────────────
-  const forecastPromiseRef = useRef<Promise<unknown> | null>(null);
+  /** Promise прогрева (forceRefresh + LLM). null, пока не стартовали после гео. */
+  const forecastPromiseRef = useRef<Promise<boolean> | null>(null);
+  /** true, когда в ответе уже есть слоган + короткая рекомендация (и они в кэше). */
+  const prefetchReadyRef = useRef(false);
   const warmStartedRef = useRef(false);
+  /** Снимок birth-полей для ключа кэша дня (совпадает с Home scopeKey). */
+  const birthScopeRef = useRef<{ date: string; time: string; place: string } | null>(null);
 
   const startForecastPrefetch = useCallback(
     (loc: { lat: number; lng: number; timezone: string }) => {
-      if (forecastPromiseRef.current) return;
-      logRuntimeEvent("onboarding_warmup_prefetch_start", { timezone: loc.timezone });
-      forecastPromiseRef.current = fetchDailyForecast({
-        userLocation: loc,
-        responseLocale: getResponseLocale(),
-      }).catch((e) => {
-        logRuntimeEvent("onboarding_warmup_prefetch_error", {
-          message: e instanceof Error ? e.message : String(e),
-        }, "warn");
+      if (forecastPromiseRef.current || !authUser) return;
+      const userId = authUser.id;
+      const locale = getResponseLocale();
+      const birthScope = birthScopeRef.current;
+      logRuntimeEvent("onboarding_warmup_prefetch_start", {
+        timezone: loc.timezone,
+        forceRefresh: true,
+        timeoutMs: WARMUP_TIMEOUT_MS,
+      });
+      forecastPromiseRef.current = (async () => {
+        const result = await fetchDailyForecast({
+          userLocation: loc,
+          responseLocale: locale,
+          forceRefresh: true,
+          timeoutMs: WARMUP_TIMEOUT_MS,
+        });
+        const ready = hasHomeCardTexts(result.forecast);
+        const access = getEffectiveAccess({
+          membership_tier: profile?.membership_tier,
+          trial_expires_at: profile?.trial_expires_at,
+          membership_expires_at: profile?.membership_expires_at,
+        });
+        const accessMode = accessModeForTier(access.tier);
+        const accessTier = access.tier;
+        const natalScope = birthScope
+          ? natalScopeKey(birthScope)
+          : natalScopeKey({
+              date: profile?.birth_date ?? "",
+              time: profile?.birth_time ?? "",
+              place:
+                typeof profile?.birth_place === "string"
+                  ? profile.birth_place
+                  : JSON.stringify(profile?.birth_place ?? null),
+            });
+        const scopeKey = contentScopeKey(accessMode, natalScope, locale);
+        const forecastDate = localDateIso(loc.timezone);
+        try {
+          await saveDayContentCache({
+            userId,
+            accessMode,
+            accessTier,
+            forecastDate,
+            scopeKey,
+            userLocation: loc,
+            content: {
+              forecast: result.forecast,
+              source: result.source,
+              modelUsed: result.modelUsed,
+            },
+          });
+        } catch (cacheErr) {
+          logRuntimeEvent(
+            "onboarding_warmup_cache_error",
+            { message: cacheErr instanceof Error ? cacheErr.message : String(cacheErr) },
+            "warn",
+          );
+        }
+        prefetchReadyRef.current = ready;
+        logRuntimeEvent("onboarding_warmup_prefetch_result", {
+          ready,
+          hasSlogan: Boolean(result.forecast.slogan?.trim()),
+          hasShort: Boolean(result.forecast.recommendationShortText?.trim()),
+          modelUsed: result.modelUsed ?? "unknown",
+        });
+        return ready;
+      })().catch((e) => {
+        logRuntimeEvent(
+          "onboarding_warmup_prefetch_error",
+          { message: e instanceof Error ? e.message : String(e) },
+          "warn",
+        );
+        return false;
       });
     },
-    [],
+    [authUser, profile?.birth_date, profile?.birth_place, profile?.birth_time, profile?.membership_expires_at, profile?.membership_tier, profile?.trial_expires_at],
   );
 
   const saveBirth = useCallback(async (): Promise<boolean> => {
@@ -192,9 +311,22 @@ export default function OnboardingScreen() {
         timeMode: "precise",
         location: { lat: birthPlace.lat, lng: birthPlace.lng, timezone: birthPlace.timezone },
       };
-      await createNatalProfile(birthData, undefined, {
-        placeName: [birthPlace.name, birthPlace.region, birthPlace.country].filter(Boolean).join(", "),
-      });
+      const placeName = [birthPlace.name, birthPlace.region, birthPlace.country]
+        .filter(Boolean)
+        .join(", ");
+      await createNatalProfile(birthData, undefined, { placeName });
+      // Тот же JSON, что пишет POST /api/astro/natal в users.birth_place —
+      // иначе Home не попадёт в ключ dayContentCache.
+      birthScopeRef.current = {
+        date: isoDate,
+        time: normalizedTime,
+        place: JSON.stringify({
+          name: placeName,
+          lat: birthPlace.lat,
+          lon: birthPlace.lng,
+          timezone: birthPlace.timezone,
+        }),
+      };
       await refreshProfile();
       setBirthSaved(true);
       return true;
@@ -226,6 +358,16 @@ export default function OnboardingScreen() {
     await refreshProfile().catch(() => undefined);
   }, [authUser, refreshProfile]);
 
+  const onCloseAppFromWizardGeo = useCallback(() => {
+    logRuntimeEvent("onboarding_geo_close_app", {});
+    if (Platform.OS === "android") {
+      BackHandler.exitApp();
+      return;
+    }
+    // iOS не даёт закрыть приложение — выходим из сессии, чтобы не крутить гейт.
+    void signOut();
+  }, [signOut]);
+
   const requestGeoAndProceed = useCallback(async () => {
     if (!authUser) return;
     setError(null);
@@ -237,7 +379,9 @@ export default function OnboardingScreen() {
       canAskAgain: perm.canAskAgain,
     });
     if (perm.status !== "granted") {
+      // Остаёмся на шаге 2: без гео дальше не пускаем.
       setGeoDenied(true);
+      setGeoCanAskAgain(perm.canAskAgain !== false);
       setBusy(false);
       return;
     }
@@ -282,10 +426,19 @@ export default function OnboardingScreen() {
   }, [requestGeoAndProceed, saveBirth]);
 
   const goToNextIntro = useCallback(() => {
-    setStep((s) => (typeof s === "number" && s < 7 ? (s + 1) as Step : "warm"));
-  }, []);
+    setStep((s) => {
+      if (typeof s === "number" && s < 7) return (s + 1) as Step;
+      // После шага 7: если тексты уже готовы — сразу на главную, без «Готовим ваш день».
+      if (prefetchReadyRef.current) {
+        queueMicrotask(() => void finishOnboarding());
+        return s;
+      }
+      return "warm";
+    });
+  }, [finishOnboarding]);
 
-  // Прогрев: ждём prefetch, запущенный после шага 2.
+  // Прогрев: ждём prefetch (forceRefresh + LLM), запущенный после шага 2.
+  // Таймаут HTTP уже 90s; safety на экране — на случай, если promise так и не стартовал.
   useEffect(() => {
     if (step !== "warm" || warmStartedRef.current) return;
     warmStartedRef.current = true;
@@ -298,13 +451,16 @@ export default function OnboardingScreen() {
       setTimeout(() => void finishOnboarding(), waitLeft);
     };
     const timeoutId = setTimeout(() => {
-      logRuntimeEvent("onboarding_warmup_timeout", {}, "warn");
+      logRuntimeEvent("onboarding_warmup_timeout", { ready: prefetchReadyRef.current }, "warn");
       finish();
     }, WARMUP_TIMEOUT_MS);
     void (async () => {
       try {
-        await forecastPromiseRef.current;
-        logRuntimeEvent("onboarding_warmup_prefetch_done", { elapsedMs: Date.now() - startedAt });
+        const ready = await forecastPromiseRef.current;
+        logRuntimeEvent("onboarding_warmup_prefetch_done", {
+          elapsedMs: Date.now() - startedAt,
+          ready: Boolean(ready),
+        });
       } finally {
         clearTimeout(timeoutId);
         finish();
@@ -318,10 +474,26 @@ export default function OnboardingScreen() {
       return (
         <View style={styles.footerGap}>
           <AppButton
-            label={busy ? "…" : geoDenied ? t("wizard.geo.requestButton") : t("wizard.next")}
+            label={busy ? "…" : geoDenied ? t("home.geoGate.grantButton") : t("wizard.next")}
             onPress={() => void onStep2Next()}
             disabled={busy}
           />
+          {geoDenied ? (
+            <>
+              {geoCanAskAgain ? null : (
+                <AppButton
+                  label={t("home.geoGate.openSettings")}
+                  variant="secondary"
+                  onPress={() => void Linking.openSettings()}
+                />
+              )}
+              <AppButton
+                label={t("home.geoGate.closeApp")}
+                variant="secondary"
+                onPress={onCloseAppFromWizardGeo}
+              />
+            </>
+          ) : null}
         </View>
       );
     }
@@ -331,7 +503,7 @@ export default function OnboardingScreen() {
         <AppButton label={t("wizard.next")} onPress={goToNextIntro} />
       </View>
     );
-  }, [step, busy, geoDenied, onStep2Next, goToNextIntro, t]);
+  }, [step, busy, geoDenied, geoCanAskAgain, onStep2Next, onCloseAppFromWizardGeo, goToNextIntro, t]);
 
   return (
     <>
@@ -340,6 +512,9 @@ export default function OnboardingScreen() {
       currentStep={typeof step === "number" ? step : TOTAL_WIZARD_STEPS}
       footer={footer}
       footerInContent={step === 2}
+      // Небольшой зазор между индикатором прогресса и картинкой (шаги 2–7).
+      // На /sign-in (имя/email и OTP) отступ не добавляем — там уже отлажено.
+      contentStyle={styles.contentTopGap}
     >
       {step === 2 ? (
         <>
@@ -347,71 +522,61 @@ export default function OnboardingScreen() {
           <WizardTitle>{t("wizard.step2.title")}</WizardTitle>
           <WizardBody>{t("wizard.step2.body")}</WizardBody>
 
-          {birthSaved ? null : (
-            <View style={styles.form}>
-              <AppText variant="technicalCaption" tone="muted">
-                {t("onboarding.birth.dateLabel")}
-              </AppText>
-              <TextInput
-                value={birthDate}
-                onChangeText={(v) => setBirthDate(formatDateMask(v))}
-                placeholder="ДД-ММ-ГГГГ"
-                placeholderTextColor={theme.colors.textFaint}
-                autoCapitalize="none"
-                keyboardType="numbers-and-punctuation"
-                editable={!busy}
-                style={[styles.input, inputStyle(theme)]}
-              />
-              <AppText variant="technicalCaption" tone="muted">
-                {t("onboarding.birth.timeLabel")}
-              </AppText>
-              <TextInput
-                value={birthTime}
-                onChangeText={(v) => setBirthTime(formatTimeMask(v))}
-                placeholder="ЧЧ:ММ"
-                placeholderTextColor={theme.colors.textFaint}
-                autoCapitalize="none"
-                keyboardType="numbers-and-punctuation"
-                editable={!busy}
-                style={[styles.input, inputStyle(theme)]}
-              />
-              <AppText variant="technicalCaption" tone="muted">
-                {t("onboarding.birth.placeLabel")}
-              </AppText>
-              <BirthPlacePicker value={birthPlace} onSelect={setBirthPlace} disabled={busy} />
-              {birthPlace ? (
-                <Pressable
-                  onPress={() => setShowPlaceMap(true)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.mapButton,
-                    { borderColor: theme.colors.accent, opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <AppText variant="technicalCaption" tone="accent" style={styles.mapButtonText}>
-                    {t("wizard.placeMap.open")}
-                  </AppText>
-                </Pressable>
-              ) : null}
-              {/* Запас места под выпадающий список городов (оверлеит кнопку «Далее»). */}
-              <View style={styles.placeSpacer} />
-            </View>
-          )}
+          <View style={styles.form}>
+            <AppText variant="technicalCaption" tone="muted">
+              {t("onboarding.birth.dateLabel")}
+            </AppText>
+            <WizardTextInput
+              value={birthDate}
+              onChangeText={(v) => setBirthDate((prev) => formatDateMask(v, prev))}
+              placeholder="ДД-ММ-ГГГГ"
+              placeholderTextColor={theme.colors.textFaint}
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+              editable={!busy}
+              style={[styles.input, inputStyle(theme)]}
+            />
+            <AppText variant="technicalCaption" tone="muted">
+              {t("onboarding.birth.timeLabel")}
+            </AppText>
+            <WizardTextInput
+              value={birthTime}
+              onChangeText={(v) => setBirthTime((prev) => formatTimeMask(v, prev))}
+              placeholder="ЧЧ:ММ"
+              placeholderTextColor={theme.colors.textFaint}
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+              editable={!busy}
+              style={[styles.input, inputStyle(theme)]}
+            />
+            <AppText variant="technicalCaption" tone="muted">
+              {t("onboarding.birth.placeLabel")}
+            </AppText>
+            <BirthPlacePicker value={birthPlace} onSelect={setBirthPlace} disabled={busy} />
+            {birthPlace ? (
+              <Pressable
+                onPress={() => setShowPlaceMap(true)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.mapButton,
+                  { borderColor: theme.colors.accent, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <AppText variant="technicalCaption" tone="accent" style={styles.mapButtonText}>
+                  {t("wizard.placeMap.open")}
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
 
           {geoDenied ? (
             <View style={[styles.notice, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.surface }]}>
-              <AppText variant="dialogBody" tone="muted" style={styles.noticeText}>
-                {t("wizard.geo.permissionDenied")}
+              <AppText variant="sectionTitle" style={styles.noticeText}>
+                {t("home.geoGate.title")}
               </AppText>
-              <Pressable onPress={() => void Linking.openSettings()} accessibilityRole="link">
-                <AppText
-                  variant="technicalCaption"
-                  tone="accent"
-                  style={styles.settingsLink}
-                >
-                  {t("wizard.geo.openSettings")}
-                </AppText>
-              </Pressable>
+              <AppText variant="dialogBody" tone="muted" style={styles.noticeText}>
+                {t("home.geoGate.message")}
+              </AppText>
             </View>
           ) : null}
 
@@ -466,8 +631,14 @@ function inputStyle(theme: ReturnType<typeof useTheme>) {
 }
 
 const styles = StyleSheet.create({
+  contentTopGap: {
+    paddingTop: 12,
+  },
   form: {
     gap: 8,
+    // Выше футера «Далее», чтобы абсолютный список городов из BirthPlacePicker
+    // перекрывал соседний контент, а не рисовался под ним.
+    zIndex: 10,
   },
   input: {
     height: 52,
@@ -497,9 +668,6 @@ const styles = StyleSheet.create({
   },
   mapButtonText: {
     fontWeight: "600",
-  },
-  placeSpacer: {
-    height: 72,
   },
   footerGap: {
     gap: 12,

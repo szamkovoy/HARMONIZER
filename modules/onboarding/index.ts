@@ -11,5 +11,6 @@ export {
   WIZARD_IMAGE_HEIGHT,
   WIZARD_IMAGE_TARGET,
 } from "./wizard/WizardShell";
+export { WizardTextInput } from "./wizard/WizardTextInput";
 export { LegalFooter } from "./wizard/LegalDocuments";
 export { BirthPlaceMapModal } from "./wizard/BirthPlaceMapModal";

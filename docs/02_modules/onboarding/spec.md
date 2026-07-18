@@ -11,6 +11,7 @@ code_refs:
     app/_layout.tsx,
     modules/onboarding/index.ts,
     modules/onboarding/wizard/WizardShell.tsx,
+    modules/onboarding/wizard/WizardTextInput.tsx,
     modules/onboarding/wizard/LegalDocuments.tsx,
     modules/onboarding/wizard/BirthPlaceMapModal.tsx,
     modules/onboarding/ui/BirthPlacePicker.tsx,
@@ -39,15 +40,16 @@ code_refs:
 
 - **Принудительная светлая тема:** оборачивает содержимое в `ThemeProvider value={lightTheme}` и ставит фон `#ffffff` (тёмный статус-бар). Все экраны мастера — белые, независимо от системной тёмной темы (новые изображения сохранены на белом фоне).
 - **`StepProgress`** — индикатор `currentStep / totalSteps` сверху.
-- **`KeyboardAvoidingView`** (`behavior="padding"` на iOS; на Android — `windowSoftInputMode="adjustResize"` в `app.config.ts`) поднимает контент на высоту клавиатуры.
-- **`footerInContent?: boolean`** — если `true`, футер (CTA + legal) рендерится **внутри** `ScrollView` и поднимается клавиатурой вместе с контентом (шаги 1 и 2 — поля ввода). Если `false` — футер зафиксирован внизу экрана (шаги 3-7 — вводные экраны без ввода).
+- **Клавиатура — два режима:**
+  - **A (`footerInContent`)** — welcome шаг 1 и шаг 2: CTA (+ legal) внутри скролла под полями; iOS `KeyboardAvoidingView behavior="padding"`, Android `adjustResize`; один `scrollToEnd({ animated: false })` при открытии; `scrollEnabled={false}` пока клавиатура открыта.
+  - **B (без `footerInContent`)** — OTP-confirm и шаги 3–7: авто-подъём выключен (`behavior={undefined}`), контент остаётся на месте, клавиатура перекрывает низ, скролл ручной. На OTP это нужно, потому что клавиатура уже открыта с welcome и авто-подъём обрезал бы картинку. `app/sign-in.tsx` передаёт `footerInContent={sub === "welcome"}` и `key={sub}` (сброс scroll offset).
 - **`WizardImage`** — картинка шага, `resizeMode="contain"`, высота `WIZARD_IMAGE_HEIGHT = 200`; изображения — `assets/onboarding/*_600.jpg` (600×600, кроме `astrology_600.jpg` 943×600).
 
 ## 4. Шаг 1 — sign-in (`app/sign-in.tsx`)
 
 - Два подшага: `welcome` (имя + email) → `confirm` (6 ячеек OTP).
 - `requestEmailOtpCode(email, displayName?)` (`modules/auth/sign-in-email.ts`): перед `signInWithOtp` вызывает RPC `set_signin_name_hint(p_email, p_name)` — side-channel, чтобы edge-функция `send-auth-email` увидела свежее имя для приветствия (для существующих пользователей `signInWithOtp` не обновляет `user_metadata`; см. `i18n/spec.md` §4.1c).
-- `LegalFooter` показывается **только** на подшаге `welcome`. `footerInContent` включён — кнопка «Получить код» и legal-футер поднимаются клавиатурой.
+- `LegalFooter` показывается **только** на подшаге `welcome`. `footerInContent={sub === "welcome"}` — на welcome страница поднимается с клавиатурой; на `confirm` (OTP) авто-подъём выключен, картинка остаётся видимой, низ перекрывается клавиатурой, скролл ручной.
 - Картинка подтверждения — `assets/onboarding/email_600.jpg`.
 
 ## 5. Шаг 2 — данные рождения + гео (`app/onboarding.tsx`)
@@ -56,20 +58,28 @@ code_refs:
   - Дата: `ДД-ММ-ГГГГ`, `formatDateMask` вставляет `-` автоматически; валидация `ddmmyyyyToIso` (реальная дата). Префилл из БД `YYYY-MM-DD` → `isoToDdmmyyyy`, обратно `ddmmyyyyToIso`.
   - Время: `ЧЧ:ММ`, `formatTimeMask` вставляет `:` автоматически; валидация часов 0-23 / минут 0-59.
   - Лейблы: `onboarding.birth.dateLabel` = «Дата рождения», `onboarding.birth.timeLabel` = «Время рождения (приблизительно) - по местному времени».
-- **Место рождения** — `BirthPlacePicker` (`modules/onboarding/ui/BirthPlacePicker.tsx`): автодополнение через `searchBirthPlaces` → прокси `GET /api/geo/search` (Vercel) → Open-Meteo Geocoding. Возвращает `GeoPlace { id, name, region, country, lat, lng, timezone }` (IANA-таймзона). Выпадающий список — **абсолютный оверлей** (`zIndex: 50`) поверх кнопки «Далее», `placeSpacer` резервирует место.
+- **Место рождения** — `BirthPlacePicker` (`modules/onboarding/ui/BirthPlacePicker.tsx`): автодополнение через `searchBirthPlaces` → прокси `GET /api/geo/search` (Vercel) → Open-Meteo Geocoding. Возвращает `GeoPlace { id, name, region, country, lat, lng, timezone }` (IANA-таймзона). Выпадающий список — **абсолютный оверлей над полем** (не под ним), чтобы не уходить под клавиатуру; внутри списка — свой скролл. Статусы поиска вне потока (не сдвигают «Далее»).
 - **`BirthPlaceMapModal`** (`modules/onboarding/wizard/BirthPlaceMapModal.tsx`) — `react-native-maps`: интерактивная карта (зум, пан) с фиксированной меткой выбранного места (без изменения координаты), открывается кнопкой «Карта» после выбора места.
 - **Геолокация:** `expo-location` `requestForegroundPermissionsAsync` + `getCurrentPositionAsync`; пишет `users.{tz,lat,lon,location_name}`. Можно пропустить (`geoDenied`), тогда CTA = «Запросить доступ».
-- `footerInContent` включён — «Далее» поднимается клавиатурой.
+- `footerInContent` — «Далее» сразу под полями; страница поднимается с клавиатурой (см. §3).
 - Сохранение: `createNatalProfile(birthData, undefined, { placeName })` (`services/natalProfileClient.ts`) → `POST /api/astro/natal`. `birthData.location.timezone` = IANA из `GeoPlace` (критично для исторического UTC, см. `astro/spec.md` §3).
 - **Ремонтный режим:** если `profile.birth_date` уже заполнен, шаг 2 стартует с предзаполненными полями; вводные шаги 3-7 и прогрев пропускаются.
 
 ## 6. Шаги 3-7 — вводные экраны (`INTRO_STEPS`)
 
-`INTRO_STEPS: IntroDef[]` в `app/onboarding.tsx` — массив из 5 элементов `{ image, titleKey, bodyKeys }`. Тексты — один абзац на шаг: `wizard.step{3..7}.{title,body}` в `modules/i18n/catalog/{ru,en,de,fr,it,es,pt,nl}.json`. CTA зафиксирован внизу (`footerInContent = false`). Расширение: добавить/удалить элемент `INTRO_STEPS` + ключи в каталоге → `i18n-sync fill --all`.
+`INTRO_STEPS: IntroDef[]` в `app/onboarding.tsx` — массив из 5 элементов `{ image, titleKey, bodyKeys }`. Каждый шаг рендерит **несколько абзацев** через отдельные `<WizardBody>` (тот же `scrollContent.gap: 16`, что у шага 1) — переносы строк автора сохранены как отдельные ключи: `wizard.step{3..7}.{title,body1..bodyN}` в `modules/i18n/catalog/{ru,en,de,fr,it,es,pt,nl}.json` (шаг 3-6 — по 3 абзаца, шаг 7 — 4). Изображения: `psycho_2_600.jpg` (шаг 3), `breath_2_600.jpg` (шаг 5); шаги 4 и 6 — прежние `asanas_600.jpg` / `webinar_600.jpg`. CTA зафиксирован внизу экрана (`footerInContent` выключен). Расширение: добавить/удалить элемент `INTRO_STEPS` + ключи в каталоге → `i18n-sync fill --all`.
 
-## 7. Прогрев (`step === "warm"`)
+## 7. Прогрев дневного контента
 
-После шага 7 стартует `fetchDailyForecast` (префетч дневного прогноза) параллельно с экраном «Готовим ваш день». `WARMUP_TIMEOUT_MS = 90_000`: по таймауту или завершении prefetch → `finishOnboarding()` → переход в `(tabs)`. События `logRuntimeEvent`: `onboarding_warmup_prefetch_start/done/timeout`.
+- **Старт:** сразу после успешного шага 2 (рождение сохранено + гео выдана) — `fetchDailyForecast({ forceRefresh: true, timeoutMs: 90_000, responseLocale })`. Обычный load без `forceRefresh` отдаёт только числовой каркас и тексты из кэша крона; у нового пользователя кэш пуст, поэтому нужен `forceRefresh` → сервер вызывает `ensureMorningRecommendation` (один ответ LLM: слоган + короткая + длинная рекомендация).
+- **Кэш телефона:** успешный ответ пишется в `saveDayContentCache` с теми же ключами, что Home (`accessModeForTier(getEffectiveAccess)` + `access.tier` + natal scope из `users.birth_*` + locale) — главная открывается с текстами без повторной генерации.
+- **Шаги 3–7:** пользователь читает интро, пока идёт прогрев.
+- **После шага 7:** если слоган + короткая рекомендация уже готовы → сразу `finishOnboarding()` (экран «Готовим ваш день» не показываем). Иначе → `step === "warm"` и ждём тот же promise.
+- **Таймаут 90s** (`ONBOARDING_DAILY_FORECAST_TIMEOUT_MS`): по истечении всё равно открываем главную (она догрузит тексты в фоне). События: `onboarding_warmup_prefetch_start/result/done/timeout/error`.
+
+## 7.1 Геолокация на шаге 2
+
+Без foreground-геолокации мастер **не переходит** на шаг 3. Системный диалог → отказ → карточка как у Home `GeoGate` (`home.geoGate.*`): «Разрешить» / «Открыть настройки» (если `canAskAgain === false`) / «Закрыть приложение» (Android `BackHandler.exitApp`, iOS `signOut`). Поля рождения остаются на экране.
 
 ## 8. Legal (`modules/onboarding/wizard/LegalDocuments.tsx`)
 

@@ -1,9 +1,13 @@
 /**
  * Строка ввода места рождения с автодополнением (Open-Meteo через
- * /api/geo/search). Выпадающий список показывается как ОВЕРЛЕЙ (position:absolute)
- * поверх того, что ниже в потоке контента (кнопка «Далее»), а не сдвигает его —
- * чтобы список не перекрывался кнопкой и был виден целиком. Используется в
- * онбординге и в NatalBirthDataModal.
+ * /api/geo/search).
+ *
+ * Выпадающий список — абсолютный оверлей НАД полем ввода (не под ним):
+ * при открытой клавиатуре над полем обычно есть место (дата/время/заголовок),
+ * а вниз список упирался бы в клавиатуру/край экрана. Оверлей не сдвигает
+ * кнопку «Далее» в потоке. Список внутри себя скроллится (`nestedScrollEnabled`).
+ * Статусы («…», пусто, ошибка) тоже вне потока — чтобы CTA не «уезжала» вниз
+ * при начале поиска.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -16,7 +20,8 @@ import { formatGeoPlaceLabel, searchBirthPlaces, type GeoPlace } from "../geoSea
 
 const SEARCH_DEBOUNCE_MS = 350;
 const INPUT_HEIGHT = 52;
-const SUGGESTIONS_MAX_HEIGHT = 280;
+/** Высота списка над полем — умещается над клавиатурой на типичных экранах. */
+const SUGGESTIONS_MAX_HEIGHT = 220;
 
 export function BirthPlacePicker({
   value,
@@ -99,29 +104,15 @@ export function BirthPlacePicker({
     [onSelect],
   );
 
+  const statusBelow =
+    (showEmpty && !searching) || errorText
+      ? errorText
+        ? errorText
+        : t("onboarding.birth.placeSearchEmpty")
+      : null;
+
   return (
     <View style={styles.root}>
-      <TextInput
-        value={query}
-        onChangeText={onChangeText}
-        placeholder={t("onboarding.birth.placePlaceholder")}
-        placeholderTextColor={theme.colors.textFaint}
-        autoCapitalize="words"
-        autoCorrect={false}
-        editable={!disabled}
-        style={[
-          styles.input,
-          {
-            borderColor: value ? theme.colors.accent : theme.colors.surfaceBorder,
-            color: theme.colors.textPrimary,
-          },
-        ]}
-      />
-      {searching ? (
-        <AppText variant="technicalCaption" tone="muted" style={styles.hint}>
-          …
-        </AppText>
-      ) : null}
       {suggestions.length > 0 ? (
         <View
           style={[
@@ -132,7 +123,11 @@ export function BirthPlacePicker({
             },
           ]}
         >
-          <ScrollView nestedScrollEnabled style={styles.suggestionsScroll}>
+          <ScrollView
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            style={styles.suggestionsScroll}
+          >
             {suggestions.map((place) => (
               <Pressable
                 key={place.id}
@@ -149,15 +144,42 @@ export function BirthPlacePicker({
           </ScrollView>
         </View>
       ) : null}
-      {showEmpty && !searching ? (
-        <AppText variant="technicalCaption" tone="muted" style={styles.hint}>
-          {t("onboarding.birth.placeSearchEmpty")}
-        </AppText>
+
+      <TextInput
+        value={query}
+        onChangeText={onChangeText}
+        placeholder={t("onboarding.birth.placePlaceholder")}
+        placeholderTextColor={theme.colors.textFaint}
+        autoCapitalize="words"
+        autoCorrect={false}
+        editable={!disabled}
+        style={[
+          styles.input,
+          {
+            borderColor: value ? theme.colors.accent : theme.colors.surfaceBorder,
+            color: theme.colors.textPrimary,
+          },
+        ]}
+      />
+
+      {searching ? (
+        <View style={styles.searchingBadge} pointerEvents="none">
+          <AppText variant="technicalCaption" tone="muted">
+            …
+          </AppText>
+        </View>
       ) : null}
-      {errorText ? (
-        <AppText variant="technicalCaption" style={[styles.hint, { color: theme.colors.danger }]}>
-          {errorText}
-        </AppText>
+
+      {statusBelow ? (
+        <View style={styles.statusBelow} pointerEvents="none">
+          <AppText
+            variant="technicalCaption"
+            tone={errorText ? undefined : "muted"}
+            style={errorText ? { color: theme.colors.danger } : undefined}
+          >
+            {statusBelow}
+          </AppText>
+        </View>
       ) : null}
     </View>
   );
@@ -166,7 +188,8 @@ export function BirthPlacePicker({
 const styles = StyleSheet.create({
   root: {
     position: "relative",
-    zIndex: 5,
+    zIndex: 20,
+    // Высота = только поле: оверлеи не участвуют в потоке → «Далее» не прыгает.
   },
   input: {
     height: INPUT_HEIGHT,
@@ -174,21 +197,37 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     fontSize: 16,
     paddingHorizontal: 14,
+    paddingRight: 28,
   },
-  hint: {
-    marginTop: 6,
+  searchingBadge: {
+    position: "absolute",
+    right: 12,
+    top: 0,
+    height: INPUT_HEIGHT,
+    justifyContent: "center",
+  },
+  statusBelow: {
+    position: "absolute",
+    top: INPUT_HEIGHT + 6,
+    left: 0,
+    right: 0,
   },
   suggestions: {
     position: "absolute",
-    top: INPUT_HEIGHT + 4,
     left: 0,
     right: 0,
+    // Над полем — не уходит под клавиатуру / край экрана.
+    bottom: INPUT_HEIGHT + 4,
     zIndex: 50,
     borderWidth: 1,
     borderRadius: 16,
     overflow: "hidden",
     maxHeight: SUGGESTIONS_MAX_HEIGHT,
-    elevation: 6,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -2 },
   },
   suggestionsScroll: {
     maxHeight: SUGGESTIONS_MAX_HEIGHT,

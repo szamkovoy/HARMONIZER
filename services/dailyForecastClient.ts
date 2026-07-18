@@ -17,6 +17,8 @@ export interface DailyForecastRequest {
   forceRefresh?: boolean;
   responseLocale?: string;
   signal?: AbortSignal;
+  /** Переопределение клиентского HTTP-таймаута (по умолчанию 25s). Для онбординг-прогрева — до 90s. */
+  timeoutMs?: number;
 }
 
 export interface DailyForecastResult {
@@ -54,6 +56,8 @@ type DailyForecastResponse = {
 };
 
 const DAILY_FORECAST_TIMEOUT_MS = 25000;
+/** Онбординг ждёт LLM-тексты дня — 25s часто мало. */
+export const ONBOARDING_DAILY_FORECAST_TIMEOUT_MS = 90_000;
 
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
@@ -136,8 +140,10 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
     async () => {
       const token = await getAccessToken();
       const url = getDailyForecastUrl();
+      const timeoutMs =
+        typeof req.timeoutMs === "number" && req.timeoutMs > 0 ? req.timeoutMs : DAILY_FORECAST_TIMEOUT_MS;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), DAILY_FORECAST_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -165,7 +171,7 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
         });
       } catch (error) {
         if (controller.signal.aborted && !req.signal?.aborted) {
-          throw new Error(`Daily forecast request timed out after ${Math.round(DAILY_FORECAST_TIMEOUT_MS / 1000)}s.`);
+          throw new Error(`Daily forecast request timed out after ${Math.round(timeoutMs / 1000)}s.`);
         }
         throw wrapConnectivityFailure(error, "daily-forecast");
       } finally {

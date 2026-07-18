@@ -28,6 +28,7 @@ import {
   WizardBody,
   WizardImage,
   WizardShell,
+  WizardTextInput,
   WizardTitle,
 } from "@/modules/onboarding";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -124,10 +125,9 @@ export default function SignInScreen() {
 
   const cells = useMemo(() => Array.from({ length: CODE_LENGTH }, (_, i) => code[i] ?? ""), [code]);
 
-  // Шаг 1 — есть ввод и выезжает клавиатура: CTA и legal-строка живут ВНУТРИ
-  // скроллируемого контента (footerInContent), сразу за полем email, и
-  // поднимаются вместе с контентом ровно на высоту клавиатуры.
-  // Legal-строка — только на welcome-подшаге (где вводится имя и email).
+  // welcome: CTA + legal под полями, страница поднимается с клавиатурой.
+  // confirm (OTP): без авто-подъёма — картинка остаётся на месте, клавиатура
+  // перекрывает низ, пользователь скроллит пальцем. Кнопки уже в children.
   const footer = sub === "welcome" ? (
     <View style={styles.footerGap}>
       <AppButton
@@ -141,10 +141,13 @@ export default function SignInScreen() {
 
   return (
     <WizardShell
+      // key: при переходе welcome→confirm сбрасываем scroll offset
+      // (на welcome он мог быть у низа из‑за подъёма с клавиатурой).
+      key={sub}
       totalSteps={TOTAL_WIZARD_STEPS}
       currentStep={1}
       footer={footer}
-      footerInContent
+      footerInContent={sub === "welcome"}
     >
       {sub === "welcome" ? (
         <>
@@ -153,7 +156,7 @@ export default function SignInScreen() {
           <WizardBody>{t("wizard.welcome.body1")}</WizardBody>
           <WizardBody>{t("wizard.welcome.body2")}</WizardBody>
           <View style={styles.form}>
-            <TextInput
+            <WizardTextInput
               value={name}
               onChangeText={setName}
               placeholder={t("auth.namePlaceholder")}
@@ -164,7 +167,7 @@ export default function SignInScreen() {
               editable={!signingIn}
               style={[styles.input, inputStyle(theme)]}
             />
-            <TextInput
+            <WizardTextInput
               value={email}
               onChangeText={setEmail}
               placeholder={t("auth.emailPlaceholder")}

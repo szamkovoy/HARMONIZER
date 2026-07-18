@@ -13,18 +13,27 @@
  * и в светлой палитре темы — независимо от системной тёмной схемы, чтобы бесшовно
  * сочетаться с изображениями, сохранёнными на белом фоне.
  *
- * `footerInContent` (шаги 1-2, где есть ввод и выезжает клавиатура): кнопка CTA
- *   и юридическая строка помещаются ВНУТРЬ скроллируемого контента, сразу за
- *   последним полем — и поднимаются вместе с контентом ровно на высоту клавиатуры
- *   (KeyboardAvoidingView behavior="padding" на iOS, adjustResize на Android).
- *   Иначе (шаги 3-7, без ввода) footer фиксирован внизу экрана.
+ * КЛАВИАТУРА — два режима, не пересекаются:
+ *
+ *  A) `footerInContent` (welcome шаг 1, шаг 2 — формы с полями):
+ *     CTA (+ legal) внутри скролла под полями. При открытии клавиатуры:
+ *       1) iOS — `KeyboardAvoidingView behavior="padding"`; Android — `adjustResize`;
+ *       2) один раз `scrollToEnd({ animated: false })`;
+ *       3) `scrollEnabled={false}` пока клавиатура открыта (нет jitter при смене фокуса).
+ *
+ *  B) без `footerInContent` (OTP-confirm, шаги 3–7):
+ *     контент НЕ поднимается автоматически; клавиатура перекрывает низ.
+ *     ScrollView свободно скроллится пальцем. KAV behavior выключен.
+ *     На OTP это важно: клавиатура уже открыта с прошлого подшага, и авто-подъём
+ *     обрезал бы картинку сверху.
  *
  * Добавление/удаление шагов: меняется только `totalSteps` и содержимое шагов у
  * потребителей — шаблон шагов не знает об их смысле.
  */
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -34,6 +43,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StackScreenLayout } from "@/modules/ui/StackScreenLayout";
 import { AppText } from "@/modules/ui/AppText";
@@ -63,8 +73,12 @@ export function WizardShell({
   footer?: ReactNode;
   statusBarStyle?: "light" | "dark" | "auto";
   contentStyle?: StyleProp<ViewStyle>;
-  /** true — footer живёт внутри скроллируемого контента (шаги 1-2 с клавиатурой);
-   *  false/undefined — footer зафиксирован внизу экрана (шаги 3-7). */
+  /**
+   * true — режим A: footer внутри скролла, страница поднимается с клавиатурой
+   *        (welcome шаг 1, шаг 2).
+   * false/undefined — режим B: без авто-подъёма; OTP-confirm и шаги 3–7
+   *        (у 3–7 footer зафиксирован внизу, у OTP кнопок в footer нет).
+   */
   footerInContent?: boolean;
 }) {
   // Мастер всегда светлый (белый фон + тёмный текст), независимо от системной схемы.
@@ -73,39 +87,105 @@ export function WizardShell({
   const resolvedStatusBar: "light" | "dark" =
     statusBarStyle === "auto" ? "dark" : statusBarStyle ?? "dark";
 
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  /** Режим A: клавиатура открыта — страница зафиксирована. */
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const keyboardOpenRef = useRef(false);
+  /** Высота клавиатуры из события — компенсирует будущий сдвиг KeyboardAvoidingView,
+   *  чтобы scrollToEnd оставил CTA над клавиатурой (а не уезжал под неё). */
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    // Режим B (OTP / intro): сбросить состояние подъёма и не слушать клавиатуру.
+    if (!footerInContent) {
+      keyboardOpenRef.current = false;
+      setKeyboardOpen(false);
+      return;
+    }
+
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const onShow = (e: any) => {
+      // Только при первом открытии: один мгновенный скролл к кнопке.
+      // При переключении полей клавиатура уже открыта — ничего не делаем.
+      if (keyboardOpenRef.current) return;
+      keyboardOpenRef.current = true;
+      setKeyboardOpen(true);
+      if (e?.endCoordinates?.height) setKeyboardHeight(e.endCoordinates.height);
+      // rAF: дождаться, пока KeyboardAvoidingView / adjustResize применит inset,
+      // затем мгновенно поставить контент (без второй анимированной стадии).
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollToEnd({ animated: false });
+      });
+    };
+
+    const onHide = () => {
+      keyboardOpenRef.current = false;
+      setKeyboardOpen(false);
+      setKeyboardHeight(0);
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [footerInContent]);
+
+  // Нижний safe-area: в режиме A при открытой клавиатуре его даёт inset клавиатуры.
+  const rootPaddingBottom =
+    footerInContent && keyboardOpen ? 8 : Math.max(insets.bottom, 12);
+
   return (
     <ThemeProvider value={lightTheme}>
       <StackScreenLayout
         statusBarStyle={resolvedStatusBar}
-        edges={["top", "bottom"]}
+        edges={["top"]}
         style={{ backgroundColor: WIZARD_BG }}
       >
-        <View style={styles.root}>
+        <KeyboardAvoidingView
+          style={[styles.root, { paddingBottom: rootPaddingBottom }]}
+          // Подъём только в режиме A. На OTP/intro behavior выключен — контент
+          // остаётся на месте, клавиатура перекрывает низ, скролл ручной.
+          behavior={Platform.OS === "ios" && footerInContent ? "padding" : undefined}
+        >
           <StepProgress
             totalSteps={totalSteps}
             currentStep={currentStep}
             style={styles.progress}
           />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.avoid}
+          <ScrollView
+            ref={scrollRef}
+            style={styles.scroll}
+            contentContainerStyle={[
+              styles.scrollContent,
+              // В режиме формы (A) не растягиваем контент на всю высоту —
+              // иначе между полями и CTA появляется пустой «резиновый» зазор.
+              !footerInContent ? styles.scrollContentGrow : null,
+              // Режим A + клавиатура: добавляем снизу высоту клавиатуры + зазор,
+              // чтобы scrollToEnd оставил CTA над клавиатурой (компенсирует будущий
+              // сдвиг KeyboardAvoidingView, который ещё не успел примениться в rAF).
+              footerInContent && keyboardOpen && keyboardHeight > 0
+                ? { paddingBottom: keyboardHeight + 8 }
+                : null,
+              contentStyle,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            // Режим A + клавиатура: фиксируем offset. Режим B: всегда можно скроллить.
+            scrollEnabled={!footerInContent || !keyboardOpen}
+            automaticallyAdjustKeyboardInsets={false}
+            automaticallyAdjustContentInsets={false}
+            contentInsetAdjustmentBehavior="never"
           >
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              style={styles.scroll}
-              contentContainerStyle={[styles.scrollContent, contentStyle]}
-              showsVerticalScrollIndicator={false}
-            >
-              {children}
-              {footerInContent && footer ? (
-                <View style={styles.footer}>{footer}</View>
-              ) : null}
-            </ScrollView>
-            {!footerInContent && footer ? (
-              <View style={styles.footer}>{footer}</View>
-            ) : null}
-          </KeyboardAvoidingView>
-        </View>
+            {children}
+            {footerInContent && footer ? <View style={styles.footer}>{footer}</View> : null}
+          </ScrollView>
+          {!footerInContent && footer ? <View style={styles.footer}>{footer}</View> : null}
+        </KeyboardAvoidingView>
       </StackScreenLayout>
     </ThemeProvider>
   );
@@ -193,22 +273,20 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingBottom: 12,
-    gap: 8,
     maxWidth: 460,
     width: "100%",
     alignSelf: "center",
     backgroundColor: WIZARD_BG,
   },
-  avoid: {
-    flex: 1,
-  },
   scroll: {
     flex: 1,
+    backgroundColor: WIZARD_BG,
   },
   scrollContent: {
     gap: 16,
     paddingBottom: 12,
+  },
+  scrollContentGrow: {
     flexGrow: 1,
   },
   progress: {
@@ -242,7 +320,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footer: {
-    paddingTop: 4,
+    paddingTop: 12,
     paddingBottom: 4,
     gap: 12,
   },

@@ -13,7 +13,8 @@ depends_on: [02_modules/onboarding/spec]
 - **`profile`** — авторизация (email-OTP), сессия, `refreshProfile`, запись `users.{birth_date,birth_time,birth_place,lat,lon,tz,location_name,display_name,onboarded_at}`. `AuthProvider.doVerifyEmailCode`/`syncProfile` обновляют имя сразу после шага 1 (независимо от шага 2). Route guard в `app/_layout.tsx` решает пускать в мастер или в `(tabs)`.
 - **`astro`** — `BirthData` (`modules/astro-core/core/types.ts`), `createNatalProfile` (`services/natalProfileClient.ts`) → `POST /api/astro/natal`. `birthData.location.timezone` (IANA) — обязательный вход для исторического UTC-преобразования (`astro/spec.md` §3, `localChartDateTime`).
 - **`i18n`** — `useTranslate`/`useAppLocale`, каталоги `wizard.*`/`onboarding.birth.*`/`home.geoGate.*` (8 локалей), `i18n-sync`. Native-имя приложения и reason-строки iOS-разрешений — через `app.config.ts` `expo.locales`.
-- **`daily_forecast`** — прогрев: `fetchDailyForecast` префетчит дневной прогноз параллельно с экраном `warm`.
+- **`daily_forecast`** — прогрев после шага 2: `fetchDailyForecast({ forceRefresh: true, timeoutMs: 90_000 })` + `saveDayContentCache` (те же access/scope ключи, что Home). Экран `warm` — только если тексты ещё не готовы к концу шага 7.
+- **`access`** — `getEffectiveAccess` / `accessModeForTier` для ключей кэша дня (trial → tier `master`, mode `premium`).
 - **`infra`** — `expo-location`, `expo-av`/`expo-notifications`, `react-native-maps`, `KeyboardAvoidingView`, `SafeAreaView`, `windowSoftInputMode="adjustResize"` (Android).
 
 ## От него зависят
@@ -26,7 +27,7 @@ depends_on: [02_modules/onboarding/spec]
 - **`GeoPlace`** (`modules/onboarding/geoSearchClient.ts`) — `{ id, name, region, country, lat, lng, timezone }`. `timezone` — IANA. Источник: Open-Meteo Geocoding через прокси `GET /api/geo/search` (`_legacy_web/app/api/geo/search`), локаль запроса передаётся параметром `lang`.
 - **`BirthData`** (`modules/astro-core/core/types.ts`) — `{ date: "YYYY-MM-DD", timeMode, time?: "HH:MM", location: { lat, lng, timezone } }`. Мастер всегда ставит `timeMode: "precise"`.
 - **`createNatalProfile(birthData, signal?, { placeName? })`** (`services/natalProfileClient.ts`) — POST `/api/astro/natal`, кэширует результат локально с fingerprint-ом `birth_*`.
-- **`WizardShell` props** — `{ totalSteps, currentStep, children, footer?, statusBarStyle?, contentStyle?, footerInContent? }`.
+- **`WizardShell` props** — `{ totalSteps, currentStep, children, footer?, statusBarStyle?, contentStyle?, footerInContent? }`. При `footerInContent` CTA+legal внутри скролла (шаги 1–2); подъём — `KeyboardAvoidingView behavior="padding"` (iOS) / `adjustResize` (Android) + одноразовый `scrollToEnd` + `scrollEnabled={false}` при открытой клавиатуре.
 
 ## Сторонние сервисы
 
