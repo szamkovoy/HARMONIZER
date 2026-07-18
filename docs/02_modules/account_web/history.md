@@ -5,6 +5,15 @@ version: 1.4
 updated: 2026-07-18
 ---
 
+## 2026-07-19 — Kill-switch `account_links_enabled`: anon-read + защита кэша от отравления
+
+- **Симптом:** после переключения пользователя на вкладке «Профиль» пропадала кнопка «Личный кабинет», хотя в БД `app_config.account_links_enabled = true`, а оплата «Наставник» прошла корректно (`membership_tier=oracle`, `membership_expires_at` в будущем).
+- **Корневая причина:** RLS на `app_config` разрешал select только `authenticated`. В окне sign-out/sign-in (или при протухшем access_token, или холодном старте до загрузки сессии) запрос от анона возвращал 0 строк, `useAccountLinksEnabled` трактовал «нет строк» как fail-safe `false` и кэшировал его на 5 минут — кнопка скрывалась на всё время TTL. К тарифу/пользователю это не относилось.
+- **Фикс:**
+  - Миграция `20260719000000_app_config_anon_read_account_links.sql`: доп. политика select на `app_config` для `anon, authenticated` с ограничением `using (key = 'account_links_enabled')`. Kill-switch — публичный boolean, не секрет; остальные ключи остаются gated. Применена в remote Supabase.
+  - `modules/account/core/accountLinksConfig.ts`: `fetchAccountLinksEnabled` теперь возвращает `boolean | null` (`null` = «нет строк / ошибка»); `getAccountLinksEnabled` кэширует только явное значение, при `null` возвращает прежний кэш без продления TTL. Транзиентный сбой больше не отравляет кэш на 5 минут.
+- **Документация:** spec §2 (`useAccountLinksEnabled`), §3 (RLS), §4 (kill-switch).
+
 ## 2026-07-18 — Lava: настоящие offerId для вебинара/книги + feedVisibility=ALL
 
 - **Корневая причина ошибок Lava** (`Product with offer id not found`, цены null): в `payment_offers` лежали `productId` (из URL `app.lava.top/products/<productId>`), а `/api/v2/invoice` ожидает **offerId** (ID оффера). Плюс `GET /api/v2/products` без параметра не возвращает продукты «Доступ только по ссылке» — поэтому цены вебинара/книги не резолвились.

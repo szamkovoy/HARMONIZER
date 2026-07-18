@@ -8,6 +8,15 @@
  *
  * Fail-safe: при любой ошибке чтения (сеть, отсутствие строки) считаем
  * ссылки выключенными — это безопаснее для модерации, чем случайно показать их.
+ *
+ * Важно: «нет строк» и сетевая ошибка НЕ кэшируются как свежее `false` — иначе
+ * транзиентный сбой (холодный старт без сессии, окно sign-out/sign-in,
+ * протухший access_token) отравлял бы кэш на 5 минут и кнопка пропадала.
+ * Кэшируем только явное значение (строка с `value` пришла). При «неизвестно»
+ * возвращаем прежний кэш (если был) или fail-safe `false`, не продлевая TTL.
+ *
+ * Миграция `20260719000000_app_config_anon_read_account_links.sql` открывает
+ * select по этому ключу для `anon` — фетч работает и без активной сессии.
  */
 import { useEffect, useState } from "react";
 
@@ -20,17 +29,22 @@ let cachedValue: boolean | null = null;
 let cachedAt = 0;
 let inFlight: Promise<boolean> | null = null;
 
-async function fetchAccountLinksEnabled(): Promise<boolean> {
+/**
+ * Возвращает явное значение флага или `null`, если его не удалось прочитать
+ * (нет строки / ошибка сети) — в этом случае кэш не должен обновляться.
+ */
+async function fetchAccountLinksEnabled(): Promise<boolean | null> {
   try {
     const { data, error } = await requireSupabase()
       .from("app_config")
       .select("value")
       .eq("key", CONFIG_KEY)
       .maybeSingle();
-    if (error) throw error;
-    return data?.value === true || data?.value === "true";
+    if (error) return null;
+    if (!data) return null;
+    return data.value === true || data.value === "true";
   } catch {
-    return cachedValue ?? false;
+    return null;
   }
 }
 
@@ -40,9 +54,13 @@ export async function getAccountLinksEnabled(): Promise<boolean> {
   if (!inFlight) {
     inFlight = fetchAccountLinksEnabled()
       .then((value) => {
-        cachedValue = value;
-        cachedAt = Date.now();
-        return value;
+        // Кэшируем только явное значение. «Неизвестно» — оставляем прежний кэш
+        // (если был) и не продлеваем TTL, чтобы следующий вызов попробовал снова.
+        if (value !== null) {
+          cachedValue = value;
+          cachedAt = Date.now();
+        }
+        return cachedValue ?? false;
       })
       .finally(() => {
         inFlight = null;

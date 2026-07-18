@@ -54,7 +54,7 @@ code_refs:
 - **`openAccountCabinet(ctx?: CabinetContext): Promise<void>`** — `POST /api/account/ott` (Bearer JWT приложения) → `Linking.openURL("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")`. Бросает ошибку при недоступности OTT (UI показывает `gate.cabinetError`). `ctx`: `"tier"` (default) | `"webinar:<id>"` | `"course:<id>"` — задел под вебинары/курсы. Перед открытием пишет флаг `cabinetVisit.{userId}` (см. `readFreshCabinetVisit`).
 - **`resolveBillingCurrency(userId): Promise<"RUB"|"USD"|"EUR">`** — валюта цен кабинета по геолокации: reverse-geocode кэшированных координат (`userLocationProfileCache`) → страна → RU=RUB, US=USD, иначе EUR; fallback EUR. Кэш на сессию.
 - **`getAccountCabinetUrl()`** — URL кабинета; переопределяется `EXPO_PUBLIC_ACCOUNT_CABINET_URL`.
-- **`useAccountLinksEnabled(): boolean`** / **`getAccountLinksEnabled()`** — kill-switch из `app_config` (кэш 5 мин; fail-safe: при ошибке чтения — `false`, кнопки скрыты).
+- **`useAccountLinksEnabled(): boolean`** / **`getAccountLinksEnabled()`** — kill-switch из `app_config` (кэш 5 мин; fail-safe: при ошибке чтения — `false`, кнопки скрыты). «Нет строк» и сетевая ошибка НЕ кэшируются как свежее `false` — кэшируется только явное значение, иначе возвращается прежний кэш без продления TTL (защита от отравления кэша транзиентным сбоем — холодный старт/окно sign-out/sign-in/протухший token).
 - **`MembershipEventsBridge`** — компонент без UI-поверхности (кроме модалок), монтируется один раз в `app/_layout.tsx` под `AuthProvider`.
 
 Внутреннее (не экспортируется из barrel): `core/accountFlagsStore.ts` — персистентные флаги (`lastTier.{userId}`, `trialEndedShown.{userId}`) в SecureStore/localStorage.
@@ -77,6 +77,7 @@ code_refs:
 ## 3. Внутренняя архитектура
 
 - **БД** (`20260714220000_web_account_ott.sql`): `web_ott_tokens` (RLS без политик — только service role), `app_config` (RLS: select для authenticated, insert/update для админов; seed `account_links_enabled=true`), `users` добавлена в publication `supabase_realtime`.
+- **БД** (`20260719000000_app_config_anon_read_account_links.sql`): доп. политика select на `app_config` для `anon, authenticated` с ограничением `using (key = 'account_links_enabled')`. Нужно, чтобы kill-switch читался и без активной сессии (холодный старт, окно sign-out/sign-in, протухший access_token) — иначе `useAccountLinksEnabled` кэшировал fail-safe `false` на 5 минут и кнопка «Личный кабинет» пропадала. Остальные ключи `app_config` остаются только для authenticated/админов.
 - **БД** (`20260715120000_lava_payment_contracts.sql`): `payment_contracts` (user_id, contract_id unique, tier oracle|master, currency, amount, status pending|active|cancelled|failed, current_period_end, cancelled_at; RLS без политик — только service role).
 - **БД** (`20260718150000_payment_offers.sql`): `payment_offers` (tier, locale, offer_id, active; unique tier+locale; RLS без политик). Маппинг (tier, locale) → Lava offerId с fallback на `en`. `tier` ∈ `oracle`|`master`|`webinar`|`book`|`course:<id>`. Цены НЕ хранятся — тянутся из Lava `GET /api/v2/products?feedVisibility=ALL` (кэш 10 мин; `feedVisibility=ALL` обязателен — иначе скрытые «Доступ только по ссылке» продукты не возвращаются). См. `lava_integration.md` §3.
 - **БД** (`20260718170000_payment_contracts_one_time.sql`): `payment_contracts` расширена колонками `product_kind` (subscription|one_time) и `product_ref` (для webinar = webinar_id); `tier` — `oracle`|`master`|`webinar`|`book`; `periodicity` — `MONTHLY`|`ONE_TIME`.
@@ -105,7 +106,7 @@ code_refs:
 - Vercel env: `ACCOUNT_CABINET_SECRET` (обязателен), `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID` (offerId «Наставник»), `LAVATOP_TARIFF_3_ID` (offerId «Мастер»).
 - Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`).
 - Страница: константа `API_BASE` в `cabinet.html` (origin Vercel).
-- Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут).
+- Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут). Ключ `account_links_enabled` читается и анонимом (политика `20260719000000`), остальные ключи `app_config` — только для authenticated/админов.
 
 ## 5. Комплаенс-политика текстов (инвариант)
 
