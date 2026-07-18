@@ -82,7 +82,7 @@ Lava не поддерживает несколько языков у одног
 2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time webinar: контракт active, `membership_*` НЕ трогается, upsert `webinar_registrations(webinar_id=product_ref, user_id)`.
-5. Приложение: `WebinarScreen` при возврате в foreground повторно проверяет `isRegistered` (экран обновляется: «Записаться» → «Вы записаны» + ссылка); `MembershipEventsBridge` показывает модалку «Вы записаны на вебинар» (`gate.webinarPaid.*`) по флагу `cabinetVisit` с `ctx=webinar:<id>` (ретрай 10с на случай задержки вебхука).
+5. Приложение: `WebinarScreen` при возврате в foreground повторно проверяет `isRegistered` (экран обновляется: «Записаться» → «Вы записаны» + ссылка); `MembershipEventsBridge` показывает модалку «Вы записаны на вебинар» (`gate.webinarPaid.*`) при обнаружении последней one_time-покупки `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx (ретрай 10с на случай задержки вебхука). Кнопки «Отменить запись» на экране вебинара нет.
 
 ### 5.4 Разовая покупка книги (ONE_TIME)
 
@@ -90,7 +90,7 @@ Lava не поддерживает несколько языков у одног
 2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time book: контракт → active; `membership_*` и регистрации НЕ трогаются.
-5. Приложение: на foreground после визита в кабинет `MembershipEventsBridge` зовёт `GET /api/account/purchases/last` (Bearer JWT, service role — `payment_contracts` закрыта для клиента), сверяет `createdAt` книги с `cabinetVisit.ts` и показывает модалку «Спасибо за покупку книги» (`gate.bookPaid.*`, ретрай 10с; флаг `bookThanksShown.<uid>.<contractId>`). Читалка книги в приложении — следующий этап (покупка уже фиксируется в БД).
+5. Приложение: на foreground после визита в кабинет (с **любым** ctx) `MembershipEventsBridge` зовёт `GET /api/account/purchases/last` (Bearer JWT, service role — `payment_contracts` закрыта для клиента), сверяет `createdAt` покупки с `cabinetVisit.ts` и показывает модалку «Спасибо за покупку книги» (`gate.bookPaid.*`, ретрай 10с; флаг `purchaseThanksShown.<uid>.<contractId>`). Тот же механизм детектит и вебинар (`kind=webinar` → `gate.webinarPaid.*`). Читалка книги в приложении — следующий этап (покупка уже фиксируется в БД).
 
 ### 5.5 Провайдер-абстракция (задел под RU-эквайринг)
 

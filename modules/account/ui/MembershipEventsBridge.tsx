@@ -28,7 +28,6 @@ import { baseTierFromRow, hasActiveTrial } from "@/modules/access/core/paidAcces
 import { TIER_ORDER, type ProductTier } from "@/modules/access/core/tiers";
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
-import { isRegistered } from "@/modules/webinars";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -107,88 +106,52 @@ export function MembershipEventsBridge() {
     return () => sub.remove();
   }, [refreshProfile, userId]);
 
-  // ── 2b. Foreground: благодарность за оплату разового вебинара ───────────────
-  // При возврате из Личного кабинета (ctx=webinar:<id>) проверяем регистрацию.
-  // Вебхук payment.success мог прийти чуть позже — поэтому один ретрай через 10с.
+  // ── 2bc. Foreground: благодарность за разовую покупку (вебинар/книга) ────────
+  // При возврате из Личного кабинета (любой ctx — профиль, карточка вебинара,
+  // апселл) проверяем последнюю разовую покупку через GET /api/account/purchases/last.
+  // Если это вебинар или книга, оплаченные после момента визита в кабинет, и мы
+  // ещё не благодарили за этот контракт — показываем модалку. Работает для любого
+  // входа в кабинет, а не только ctx=webinar:<id> (раньше вебинар детектился только
+  // при входе из карточки вебинара — оплата из профиля не давала модалки). Вебхук
+  // payment.success может прийти чуть позже — один ретрай через 10с. Visit чистим
+  // только после показа (до этого храним для ретрая).
   useEffect(() => {
     if (!userId) return;
     const uid = userId;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    async function checkVisit(): Promise<"shown" | "pending" | "none"> {
-      const visit = await readFreshCabinetVisit(uid);
-      if (!visit || !visit.ctx.startsWith("webinar:")) return "none";
-      const webinarId = visit.ctx.slice("webinar:".length);
-      if (!webinarId) return "none";
-      const registered = await isRegistered(webinarId, uid);
-      if (cancelled) return "none";
-      if (!registered) return "pending";
-      const shownFlag = `webinarThanksShown.${uid}.${webinarId}`;
-      if ((await readAccountFlag(shownFlag)) === visit.ts.toString()) {
-        await clearCabinetVisit(uid);
-        return "none";
-      }
-      await writeAccountFlag(shownFlag, visit.ts.toString());
-      await clearCabinetVisit(uid);
-      if (cancelled || noticeVisibleRef.current) return "none";
-      logRuntimeEvent("membership:webinar_paid_notice", { userId: uid, webinarId });
-      setNotice({ kind: "webinar_paid" });
-      return "shown";
-    }
-
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state !== "active") return;
-      void checkVisit().then((status) => {
-        if (status === "pending" && !cancelled) {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(() => void checkVisit(), 10000);
-        }
-      });
-    });
-    return () => {
-      cancelled = true;
-      sub.remove();
-      if (timer) clearTimeout(timer);
-    };
-  }, [userId]);
-
-  // ── 2c. Foreground: благодарность за разовую покупку книги ─────────────────
-  // При возврате из Личного кабинета (любой ctx) проверяем последнюю разовую
-  // покупку. Если это книга, оплаченная после момента визита в кабинет, и мы ещё
-  // не благодарили за этот контракт — показываем модалку. Вебхук payment.success
-  // мог прийти чуть позже — один ретрай через 10с. Visit не чистим (его может
-  // использовать вебинарный эффект для ctx=webinar:<id>; флаг защищает от повтора).
-  useEffect(() => {
-    if (!userId) return;
-    const uid = userId;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    async function checkBook(): Promise<"shown" | "pending" | "none"> {
+    async function checkPurchase(): Promise<"shown" | "pending" | "none"> {
       const visit = await readFreshCabinetVisit(uid);
       if (!visit) return "none";
       const purchase = await fetchLastPurchase();
       if (cancelled) return "none";
       const recentVisit = Date.now() - visit.ts < 90_000;
-      if (!purchase || purchase.kind !== "book") return recentVisit ? "pending" : "none";
+      const kind = purchase?.kind;
+      if (!purchase || (kind !== "book" && kind !== "webinar")) {
+        return recentVisit ? "pending" : "none";
+      }
       const paidAt = new Date(purchase.createdAt).getTime();
       if (!Number.isFinite(paidAt) || paidAt <= visit.ts) return recentVisit ? "pending" : "none";
-      const shownFlag = `bookThanksShown.${uid}.${purchase.contractId}`;
+      const shownFlag = `purchaseThanksShown.${uid}.${purchase.contractId}`;
       if ((await readAccountFlag(shownFlag)) === visit.ts.toString()) return "none";
       await writeAccountFlag(shownFlag, visit.ts.toString());
+      await clearCabinetVisit(uid);
       if (cancelled || noticeVisibleRef.current) return "none";
-      logRuntimeEvent("membership:book_paid_notice", { userId: uid, contractId: purchase.contractId });
-      setNotice({ kind: "book_paid" });
+      logRuntimeEvent(
+        kind === "webinar" ? "membership:webinar_paid_notice" : "membership:book_paid_notice",
+        { userId: uid, contractId: purchase.contractId },
+      );
+      setNotice({ kind: kind === "webinar" ? "webinar_paid" : "book_paid" });
       return "shown";
     }
 
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      void checkBook().then((status) => {
+      void checkPurchase().then((status) => {
         if (status === "pending" && !cancelled) {
           if (timer) clearTimeout(timer);
-          timer = setTimeout(() => void checkBook(), 10000);
+          timer = setTimeout(() => void checkPurchase(), 10000);
         }
       });
     });

@@ -80,16 +80,15 @@ export function WebinarScreen() {
     [webinar, locale],
   );
 
-  const toggleRegistration = useCallback(() => {
+  const register = useCallback(() => {
     if (!id || !userId) return;
     if (!canUseFeature("webinar_community")) {
       setShowUpgrade(true);
       return;
     }
-    const next = !registered;
-    setRegisteredState(next);
-    void setRegistered(id, userId, next);
-  }, [canUseFeature, id, userId, registered]);
+    setRegisteredState(true);
+    void setRegistered(id, userId, true);
+  }, [canUseFeature, id, userId]);
 
   const onQuestionsChanged = useCallback((next: CommentItem[]) => setQuestions(next), []);
 
@@ -173,7 +172,7 @@ export function WebinarScreen() {
                     <AppButton
                       label={t("webinars.register")}
                       variant="primary"
-                      onPress={toggleRegistration}
+                      onPress={register}
                     />
                   ) : (
                     <>
@@ -192,11 +191,6 @@ export function WebinarScreen() {
                           {t("webinars.joinPending")}
                         </AppText>
                       )}
-                      <AppButton
-                        label={t("webinars.unregister")}
-                        variant="secondary"
-                        onPress={toggleRegistration}
-                      />
                     </>
                   )}
                 </View>
