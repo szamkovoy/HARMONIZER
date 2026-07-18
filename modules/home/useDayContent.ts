@@ -133,6 +133,14 @@ function forecastTextsMatchLocale(forecast: DailyForecast, locale: AppLocale): b
   );
 }
 
+/** Слоган + короткая рекомендация — минимум, чтобы главная считалась «готовой» (как в onboarding warmup). */
+function hasHomeCardTexts(forecast: DailyForecast | null | undefined): boolean {
+  return Boolean(forecast?.slogan?.trim() && forecast?.recommendationShortText?.trim());
+}
+
+/** Сколько оверлей «Готовим ваш день» держится в paid-пути, ожидая LLM-тексты (страховка, как в onboarding). */
+const HOME_WARM_TEXTS_TIMEOUT_MS = 90_000;
+
 async function enrichWithMorningContent(
   forecast: DailyForecast,
   forceRefresh: boolean | undefined,
@@ -205,6 +213,36 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   /** Location actually used for the painted forecast (may be GPS cache / free fallback). */
   const [resolvedUserLocation, setResolvedUserLocation] = useState<DayContentUserLocation | null>(null);
   const secondaryRunRef = useRef(0);
+  /** true, пока мы намеренно держим bootstrap-оверлей в paid-пути, ожидая LLM-тексты дня. */
+  const warmHeldRef = useRef(false);
+  /** Таймаут-страховка: скрыть оверлей, если тексты не пришли за HOME_WARM_TEXTS_TIMEOUT_MS. */
+  const warmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Держать оверлей «Готовим ваш день» пока нет слоган+short (paid, сервер отдал только базу). */
+  const holdWarmForTexts = useCallback(() => {
+    warmHeldRef.current = true;
+    if (warmTimeoutRef.current) clearTimeout(warmTimeoutRef.current);
+    warmTimeoutRef.current = setTimeout(() => {
+      warmTimeoutRef.current = null;
+      if (warmHeldRef.current) {
+        warmHeldRef.current = false;
+        completeHomeBootstrap();
+        logRuntimeEvent("home_warm_texts_timeout", {}, "warn");
+      }
+    }, HOME_WARM_TEXTS_TIMEOUT_MS);
+  }, [completeHomeBootstrap]);
+
+  /** Снять удержание оверлея (тексты пришли или выход из пути). Идемпотентен. */
+  const releaseWarmIfHeld = useCallback(() => {
+    if (warmTimeoutRef.current) {
+      clearTimeout(warmTimeoutRef.current);
+      warmTimeoutRef.current = null;
+    }
+    if (warmHeldRef.current) {
+      warmHeldRef.current = false;
+      completeHomeBootstrap();
+    }
+  }, [completeHomeBootstrap]);
 
   useEffect(() => {
     latestForecastRef.current = forecast;
@@ -684,7 +722,15 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
         setStatus("ready");
         lastResolvedRequestKeyRef.current = resolvedRequestKey;
-        completeHomeBootstrap();
+        // Оверлей «Готовим ваш день» скрывается только когда есть слоган + короткая
+        // рекомендация. Для free readyForecast всегда с текстами (иначе бросили бы
+        // ошибку выше). Для paid сервер мог отдать только числовой каркас — тогда
+        // держим оверлей, пока вторичный эффект не подтянет LLM-тексты (или таймаут).
+        if (hasHomeCardTexts(readyForecast) && forecastTextsMatchLocale(readyForecast, getResponseLocale())) {
+          completeHomeBootstrap();
+        } else {
+          holdWarmForTexts();
+        }
         setHomeTextsLoading(
           !isDayContentComplete(readyForecast, nextAccessMode) ||
             !forecastTextsMatchLocale(readyForecast, getResponseLocale()),
@@ -778,6 +824,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       trialExpiresAt,
       userLocation,
       setStartupStep,
+      holdWarmForTexts,
     ],
   );
 
@@ -792,6 +839,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
     return () => {
       abortRef.current?.abort();
       secondaryContentAbortRef.current?.abort();
+      if (warmTimeoutRef.current) {
+        clearTimeout(warmTimeoutRef.current);
+        warmTimeoutRef.current = null;
+      }
     };
   }, [refresh, profileLoading]);
 
@@ -1063,6 +1114,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             lastHydratedForecastKeyRef.current = hydrationKey;
           }
           setHomeTextsLoading(false);
+          releaseWarmIfHeld();
           await saveDayContentCache({
             userId: cacheContext.userId,
             accessMode: cacheContext.accessMode,
@@ -1116,6 +1168,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           lastHydratedForecastKeyRef.current = hydrationKey;
         }
         setHomeTextsLoading(false);
+        releaseWarmIfHeld();
         await saveDayContentCache({
           userId: cacheContext.userId,
           accessMode: cacheContext.accessMode,
@@ -1155,7 +1208,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         secondaryContentAbortRef.current = null;
       }
     };
-  }, [accessMode, forecast, modelUsed, setStartupStep, source, status]);
+  }, [accessMode, forecast, modelUsed, setStartupStep, source, status, releaseWarmIfHeld]);
 
   return {
     forecast,
