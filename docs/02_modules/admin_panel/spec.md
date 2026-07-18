@@ -65,7 +65,7 @@ code_refs:
 
 **Уведомления (реализовано, этап 4):** `GET/POST /api/admin/notifications`, `DELETE|POST /api/admin/notifications/[id]` (удаление); UI с locale strip как Video + история/удаление. Контракт — `02_modules/notifications/spec.md`.
 
-**Клиентский гейт:** `adminFetch` — Bearer + mutex на `refreshSession`, `AdminApiError` со статусом; `AdminChrome` вызывает `signOut` только при 401/403 от `/api/admin/me` (сетевые сбои не разлогинивают).
+**Клиентский гейт:** `adminFetch` — Bearer + mutex на `refreshSession`, `AdminApiError` со статусом; `AdminChrome` вызывает `signOut` только при 401/403 от `/api/admin/me` (сетевые сбои не разлогинивают). `getBrowserSupabase()` перед созданием клиента подчищает из `localStorage` сессии с истёкшим `access_token` (margin 90 c как у `@supabase/auth-js`), чтобы `_initialize → _recoverAndRefresh` не делал `console.error(AuthApiError)` на отозванном refresh-токене — в dev Next.js перехватывает `console.error` и рисует оверлей; без чистки пользователь молча уходит на `/admin/login`.
 
 **Поддержка (реализовано, этап 5):**
 

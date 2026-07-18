@@ -19,6 +19,7 @@ async function refreshAccessToken(): Promise<string | null> {
     refreshInFlight = getBrowserSupabase()
       .auth.refreshSession()
       .then(({ data }) => data.session?.access_token ?? null)
+      .catch(() => null)
       .finally(() => {
         refreshInFlight = null;
       });
