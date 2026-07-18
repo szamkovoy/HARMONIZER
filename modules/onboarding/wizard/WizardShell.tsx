@@ -92,9 +92,6 @@ export function WizardShell({
   /** Режим A: клавиатура открыта — страница зафиксирована. */
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const keyboardOpenRef = useRef(false);
-  /** Высота клавиатуры из события — компенсирует будущий сдвиг KeyboardAvoidingView,
-   *  чтобы scrollToEnd оставил CTA над клавиатурой (а не уезжал под неё). */
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     // Режим B (OTP / intro): сбросить состояние подъёма и не слушать клавиатуру.
@@ -107,13 +104,12 @@ export function WizardShell({
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const onShow = (e: any) => {
+    const onShow = () => {
       // Только при первом открытии: один мгновенный скролл к кнопке.
       // При переключении полей клавиатура уже открыта — ничего не делаем.
       if (keyboardOpenRef.current) return;
       keyboardOpenRef.current = true;
       setKeyboardOpen(true);
-      if (e?.endCoordinates?.height) setKeyboardHeight(e.endCoordinates.height);
       // rAF: дождаться, пока KeyboardAvoidingView / adjustResize применит inset,
       // затем мгновенно поставить контент (без второй анимированной стадии).
       requestAnimationFrame(() => {
@@ -124,7 +120,6 @@ export function WizardShell({
     const onHide = () => {
       keyboardOpenRef.current = false;
       setKeyboardOpen(false);
-      setKeyboardHeight(0);
     };
 
     const showSub = Keyboard.addListener(showEvent, onShow);
@@ -165,12 +160,6 @@ export function WizardShell({
               // В режиме формы (A) не растягиваем контент на всю высоту —
               // иначе между полями и CTA появляется пустой «резиновый» зазор.
               !footerInContent ? styles.scrollContentGrow : null,
-              // Режим A + клавиатура: добавляем снизу высоту клавиатуры + зазор,
-              // чтобы scrollToEnd оставил CTA над клавиатурой (компенсирует будущий
-              // сдвиг KeyboardAvoidingView, который ещё не успел примениться в rAF).
-              footerInContent && keyboardOpen && keyboardHeight > 0
-                ? { paddingBottom: keyboardHeight + 8 }
-                : null,
               contentStyle,
             ]}
             keyboardShouldPersistTaps="handled"
