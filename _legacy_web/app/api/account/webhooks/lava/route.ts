@@ -90,12 +90,14 @@ type ContractRow = {
   tier: string;
   status: string;
   current_period_end: string | null;
+  product_kind: string | null;
+  product_ref: string | null;
 };
 
 async function findContract(db: ReturnType<typeof createServiceSupabase>, contractId: string) {
   const { data, error } = await db
     .from("payment_contracts")
-    .select("user_id,contract_id,tier,status,current_period_end")
+    .select("user_id,contract_id,tier,status,current_period_end,product_kind,product_ref")
     .eq("contract_id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -113,6 +115,37 @@ async function handleFirstPaymentSuccess(contractId: string): Promise<Response> 
   }
   if (contract.status === "active") {
     return json({ ok: true, alreadyActive: true });
+  }
+
+  // Разовая покупка (ONE_TIME): НЕ меняет membership_*, только фиксируется как
+  // активная. Для вебинара — дополнительно регистрируем пользователя на вебинар
+  // (product_ref = webinar_id). Для книги — просто активная покупка (приложение
+  // поблагодарит через /api/account/purchases/last).
+  if (contract.product_kind === "one_time") {
+    const nowIso = new Date().toISOString();
+    const { error: contractError } = await db
+      .from("payment_contracts")
+      .update({ status: "active", updated_at: nowIso })
+      .eq("contract_id", contractId);
+    if (contractError) throw contractError;
+
+    if (contract.tier === "webinar") {
+      const webinarId = contract.product_ref;
+      if (webinarId) {
+        const { error: regError } = await db.from("webinar_registrations").upsert(
+          { webinar_id: webinarId, user_id: contract.user_id },
+          { onConflict: "webinar_id,user_id", ignoreDuplicates: true },
+        );
+        if (regError) throw regError;
+      }
+      return json({ ok: true, webinarRegistered: webinarId ?? null });
+    }
+
+    if (contract.tier === "book") {
+      return json({ ok: true, bookPurchased: contractId });
+    }
+
+    return json({ ok: true, oneTimeActivated: contractId });
   }
 
   const periodEnd = nextPeriodEnd();

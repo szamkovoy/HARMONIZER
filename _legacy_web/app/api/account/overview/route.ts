@@ -15,7 +15,9 @@ export async function GET(req: Request) {
     const userId = cabinetBearerUserId(req);
     if (!userId) return corsJson({ error: "Unauthorized" }, { status: 401 });
 
-    const overview = await buildAccountOverview(createServiceSupabase(), userId);
+    const url = new URL(req.url);
+    const currency = url.searchParams.get("currency") ?? undefined;
+    const overview = await buildAccountOverview(createServiceSupabase(), userId, { currency });
     return corsJson({ overview });
   } catch (error) {
     return withCors(errorResponse(error));

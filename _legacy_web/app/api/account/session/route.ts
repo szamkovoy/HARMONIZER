@@ -12,7 +12,7 @@ export function OPTIONS() {
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as { ott?: string } | null;
+    const body = (await req.json().catch(() => null)) as { ott?: string; currency?: string } | null;
     const ott = body?.ott?.trim();
     if (!ott) return corsJson({ error: "ott is required" }, { status: 400 });
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       return corsJson({ error: "Token expired or already used" }, { status: 401 });
     }
 
-    const overview = await buildAccountOverview(db, tokenRow.user_id);
+    const overview = await buildAccountOverview(db, tokenRow.user_id, { currency: body?.currency });
     return corsJson({
       sessionToken: signCabinetToken(tokenRow.user_id),
       overview,

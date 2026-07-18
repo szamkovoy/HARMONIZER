@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.0
-updated: 2026-07-14
+version: 1.1
+updated: 2026-07-18
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -22,7 +22,8 @@ code_refs:
 - **`i18n`** — тексты `gate.*` и `tier.*` из JSON-каталога; язык страницы кабинета передаётся параметром `lang` (из `getResponseLocale()`), словари страницы зашиты в `cabinet.html` (8 локалей) и НЕ входят в i18n-sync gate.
 - **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`; publication `supabase_realtime` для `users`.
 - **`location`** — `resolveBillingCurrency` читает кэш координат (`userLocationProfileCache`) и `expo-location.reverseGeocodeAsync` для определения страны → валюты цен кабинета.
-- **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice` (создание подписки), `DELETE /api/v1/subscriptions` (отмена), вебхуки на `/api/account/webhooks/lava` (auth `X-Api-Key`). offerId тарифов — env `LAVATOP_TARIFF_2_ID`/`LAVATOP_TARIFF_3_ID`.
+- **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava: вебхук `payment.success` upsert `webinar_registrations`; `MembershipEventsBridge` детектит регистрацию после визита в кабинет с `ctx=webinar:<id>` и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground.
+- **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice` (подписка MONTHLY и разовая ONE_TIME), `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions` (отмена), вебхуки на `/api/account/webhooks/lava` (auth `X-Api-Key`). Маппинг (tier, locale) → offerId в таблице `payment_offers` (fallback `en`; tier ∈ oracle/master/webinar/book/course); контракт/политики/мультиязычность — `lava_integration.md`.
 
 ## 2. От него зависят
 
@@ -36,5 +37,6 @@ code_refs:
 - **`app_config.account_links_enabled`** — читается клиентом напрямую из Supabase (RLS select authenticated) с fail-safe `false`; удаление строки = скрытие всех кнопок ЛК.
 - **Realtime на `users`** — требует, чтобы строка оставалась в publication `supabase_realtime` и RLS-select своей строки не сузился; иначе подхват уровня деградирует до foreground-refetch.
 - **Секрет `ACCOUNT_CABINET_SECRET`** — ротация мгновенно инвалидирует активные кабинетные сессии (это ок: страница перезапросит OTT-переход из приложения).
-- **Цены в `cabinet.html` (`PRICES`)** — дубликат цен офферов Lava; при изменении цен в кабинете Lava обязательна синхронная правка страницы (списывается всегда цена оффера Lava, страница — только витрина).
+- **Цены в `cabinet.html`** — больше не захардкожены; единственный источник правды — Lava `GET /api/v2/products` (через `overview.upgradeTiers[].price`). Смена цены в Lava автоматически отражается в кабинете (кэш 10 мин).
+- **Маппинг `payment_offers`** — добавление языка/тарифа = строка в таблице + продукт в Lava, без правки кода. Fallback на `en` покрывает отсутствующие локали.
 - **Вебхуки Lava** — 2xx останавливает ретраи: «неизвестный контракт» отвечаем 200 (иначе 20 бессмысленных повторов), транзиентные ошибки БД — 5xx. Смена `LAVATOP_WEBHOOK_SECRET` требует одновременной правки в ЛК Lava и Vercel env.

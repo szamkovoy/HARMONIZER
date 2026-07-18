@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -61,6 +62,18 @@ export function WebinarScreen() {
     void isRegistered(id, userId).then(setRegisteredState);
     void fetchComments("webinar", id, userId, locale).then(setQuestions);
   }, [id, userId, locale]);
+
+  // Возврат из Личного кабинета после оплаты разового вебинара: повторно
+  // проверяем регистрацию, чтобы экран обновился (кнопка «Записаться» ->
+  // «Вы записаны» + ссылка на трансляцию) без перезапуска экрана.
+  useEffect(() => {
+    if (!id || !userId) return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void isRegistered(id, userId).then(setRegisteredState);
+    });
+    return () => sub.remove();
+  }, [id, userId]);
 
   const localized = useMemo(
     () => (webinar ? localizeWebinar(webinar, locale) : null),

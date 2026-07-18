@@ -1,9 +1,55 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.1
-updated: 2026-07-15
+version: 1.4
+updated: 2026-07-18
 ---
+
+## 2026-07-18 — Lava: настоящие offerId для вебинара/книги + feedVisibility=ALL
+
+- **Корневая причина ошибок Lava** (`Product with offer id not found`, цены null): в `payment_offers` лежали `productId` (из URL `app.lava.top/products/<productId>`), а `/api/v2/invoice` ожидает **offerId** (ID оффера). Плюс `GET /api/v2/products` без параметра не возвращает продукты «Доступ только по ссылке» — поэтому цены вебинара/книги не резолвились.
+- **Решение (без «Цена по запросу API», цены из карточек Lava — единообразие сохранено):**
+  - `lava.ts`: `fetchLavaProducts` теперь зовёт `/api/v2/products?feedVisibility=ALL&limit=100` — скрытые разовые товары возвращаются с офферами и ценами.
+  - Миграция `20260718230000_fix_webinar_book_offer_ids.sql`: `UPDATE payment_offers` для `webinar/en` и `book/en` настоящими offerId, полученными из `GET /api/v2/products?feedVisibility=ALL` (`offers[].id`). Проверено: `POST /api/v2/invoice` (ONE_TIME) с ними возвращает 201 + `paymentUrl`, цены — из карточек (книга 19.50 €, вебинар 9.50 €).
+- **Документация:** `lava_integration.md` §2 (параметр `feedVisibility=ALL`), §3.1 (где взять offerId: API и UI-способ через инкогнито→«Купить»→2-й UUID в URL), §9 (Lava-блокер решён).
+
+## 2026-07-18 — Кабинет: правки UI + разовая покупка книги + Advisor
+
+- **Правки `web_cabinet/cabinet.html`** по отзыву автора:
+  - email в блоке «My account» — со своей строки, без ведущего дефиса.
+  - английское имя тарифа «Наставник»: `Mentor` → `Advisor` (всё приложение — через `modules/i18n/catalog/en.json` `tier.oracle`/`tier.practitioner`).
+  - английское название книги: «Yoga — the Wizard's Path» → «Yoga - the Way of Wisdom».
+  - футер: убрана приписка «После изменения уровня вернитесь в приложение…»; вместо неё копирайт `© <текущий год> <имя>` (`new Date().getFullYear()`, ru «Сергей Замковой», прочие локали «Sergei Zamkovoi») — `I18N.copyrightName`.
+  - блок вебинара «Разовое участие…» рендерится только когда есть ближайший вебинар (`overview.webinar.webinarId`) или `ctx=webinar:<id>`; иначе кнопки нет — нет ошибки «No upcoming webinar».
+  - кнопки разовых покупок с ценой: вебинар «Записаться — <цена>», книга «Купить — <цена>» (`I18N.buyBtn`).
+- **Разовая покупка книги (ONE_TIME):**
+  - `checkout/route.ts`: `kind:"book"` → `startBookCheckout` (ONE_TIME-инвойс Lava, контракт `product_kind=one_time,tier=book,product_ref=null`).
+  - Вебхук `payment.success` для one_time обобщён: вебинар — upsert `webinar_registrations`, книга — просто `status=active` (без регистрации и без изменения `membership_*`).
+  - `overview-data.ts`: `AccountOverview.book = { purchase }` (цена ONE_TIME из Lava).
+  - `cabinet.html`: кнопка книги ведёт на checkout (`hzStartBook`), а не на сайт.
+- **Обнаружение покупки в приложении:** `GET /api/account/purchases/last` (Bearer JWT, service role) — последняя активная one_time-покупка (`{kind,productRef,createdAt,contractId}`). `modules/account/core/purchasesClient.ts`. `MembershipEventsBridge` на foreground после визита в кабинет сверяет `createdAt` книги с `cabinetVisit.ts` и показывает модалку `gate.bookPaid.*` (один ретрай через 10с на задержку вебхука; флаг `bookThanksShown.<uid>.<contractId>`).
+- **i18n:** `gate.bookPaid.title`/`gate.bookPaid.body` добавлены в 8 локалей, sync-meta актуализирована (`i18n-sync check` зелёный).
+
+## 2026-07-18 — Кабинет: редизайн + разовая оплата вебинара + провайдер-абстракция
+
+- **Редизайн `web_cabinet/cabinet.html`** под макет автора: шапка «ИСКУССТВО ЖИТЬ / Школа Сергея Замкового», заголовок «Личный кабинет», блок «Гармонизатор» (тариф, действует до, подписка/статус/следующее списание/отмена), «Другие тарифы» (буллеты с ✓, кнопки «Подключить за …»), «Дополнительно» (разовый вебинар, книга «Подробнее», месячный интенсив с комбобоксом m1..m7). Самодостаточный CSS (без Tailwind-CDN), шрифт Hanken Grotesk. Логика показа/скрытия: «Другие тарифы» и блок вебинара скрыты для «Мастера»; демо-доступ приравнен к бесплатному для вебинара (демо не может записаться бесплатно). Все тексты — на 8 языках («искусство жить» → «the art of life» для en).
+- **Разовая оплата вебинара (ONE_TIME):**
+  - Миграции `20260718170000_payment_contracts_one_time.sql` (колонки `product_kind` subscription|one_time, `product_ref`; `tier` расширен до `webinar`/`book`; `periodicity` — MONTHLY|ONE_TIME) и `20260718173000_payment_offers_one_time.sql` (seed `webinar/en`, `book/en` offerId = `LAVATOP_WEBINAR_ID`/`LAVATOP_BOOK_ID`).
+  - `lava.ts`: `createLavaOneTimeInvoice` (periodicity ONE_TIME), `resolveLavaOfferIdByName` (любой товар), `resolveLavaPrice` параметр `periodicity`.
+  - `checkout/route.ts`: `kind` ∈ `subscription` (по умолчанию) | `webinar`; для вебинара — `webinarId` (из `ctx=webinar:<id>`, иначе ближайший опубликованный), ONE_TIME-инвойс, контракт `product_kind=one_time,tier=webinar,product_ref=<webinarId>`; если уже записан — `{alreadyRegistered:true}` без paymentUrl.
+  - Вебхук `payment.success` для one_time webinar: НЕ меняет `membership_*`, а upsert `webinar_registrations(webinar_id=product_ref, user_id)`.
+  - `overview-data.ts`: `AccountOverview.webinar = { webinarId, purchase }` (ближайший вебинар + цена ONE_TIME); `upgradeTiers[].purchase = { mode, price, url }`.
+- **Провайдер-абстракция под RU-эквайринг:** `AccountPurchaseMode = "checkout" | "link"`. Сейчас всегда `checkout` (Lava) — `resolvePurchaseMode(currency)`. Задел: при `currency==="RUB"` вернуть `"link"` + url российского эквайринга — кабинет сам подставит внешнюю ссылку вместо POST-чеката, без правки кабинета. TODO-комментарий в `overview-data.ts`.
+- **Приложение:** `WebinarScreen` повторно проверяет `isRegistered` при возврате в foreground (экран обновляется без перезапуска); `MembershipEventsBridge` — модалка «Вы записаны на вебинар» (`gate.webinarPaid.*`) при обнаружении регистрации после визита в кабинет с `ctx=webinar:<id>` (один ретрай через 10с на случай задержки вебхука). i18n-ключи добавлены в каталог (8 локалей), sync-meta актуализирована.
+
+## 2026-07-18 — Мультиязычные продукты Lava: payment_offers + цены из Lava
+
+- Миграция `20260718150000_payment_offers.sql`: таблица `payment_offers` (маппинг `(tier, locale) → offerId`, fallback локаль `en`; RLS без политик). Seeded: `oracle/en`, `master/en` текущими offerId. Цены НЕ хранятся — тянутся из `GET /api/v2/products` (кэш 10 мин).
+- `lava.ts`: `resolveLavaOfferId(db, tier, locale)` (fallback en) и `resolveLavaPrice(db, tier, locale, currency)` (поиск оффера в продуктах Lava). `createLavaSubscriptionInvoice` принимает готовый `offerId`. Env `LAVATOP_TARIFF_2_ID/_3_ID` больше не используются сервером (оставлены для совместимости).
+- `checkout`: offerId разрешается по `users.locale` с fallback `en`. `overview`/`session`: принимают `?currency=`/body `currency` и отдают `upgradeTiers[].price` (из Lava) в этой валюте; `upgradeTiers` теперь массив `{tier, price}`.
+- `cabinet.html`: убран захардкоженный `PRICES`; цены и кнопки берутся из `overview.upgradeTiers[].price`; `currency` передаётся в `session` и `overview`.
+- Решения продукта: один продукт Lava на язык + fallback на en (запуск с английского, добавление языков без правки кода); валюта гео-зависима и независима от языка продукта; отдельный RU-продукт в Lava не создаётся (RU идёт через Lava на английском продукте в RUB до подключения российского эквайринга).
+- Новый документ `docs/02_modules/account_web/lava_integration.md` (контракт Lava, маппинг, валюты, поток, политики, env, ссылки на docs Lava).
 
 ## 2026-07-15 — Платежи Lava.top: checkout, вебхуки, отмена подписки, геовалюта
 

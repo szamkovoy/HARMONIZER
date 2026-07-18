@@ -2,63 +2,84 @@
   HARMONIZER — Личный кабинет (вставка в WordPress-блок «HTML-код»).
 
   Деплой: скопировать ВЕСЬ файл в блок HTML на странице https://zamkovoi.yoga/cabinet/
-  Требования: страница открывается только по ссылке из приложения
-  (?ott=…&lang=…). Прямой заход без токена показывает подсказку
-  «Откройте кабинет из приложения».
+  Открывается только по ссылке из приложения (?ott=…&lang=…&currency=…&ctx=…).
+  Прямой заход без токена показывает подсказку «Откройте кабинет из приложения».
 
-  Поток: POST {API}/api/account/session {ott} -> { sessionToken, overview }.
-  После оплаты страница обновляет данные: GET {API}/api/account/overview
-  (Authorization: Bearer sessionToken).
+  Поток: POST {API}/api/account/session {ott,currency} -> { sessionToken, overview }.
+  После оплаты (возврат из Lava) страница обновляет данные:
+  GET {API}/api/account/overview?currency=… (Authorization: Bearer sessionToken).
 
-  Оплата (Lava.top): hzStartUpgrade(tier) -> POST {API}/api/account/checkout
-  {tier, currency} -> redirect на paymentUrl Lava. Отмена подписки:
-  hzCancelSub() -> DELETE {API}/api/account/subscription. Валюта приходит из
-  приложения (?currency=RUB|USD|EUR, по геолокации), контекст — ?ctx=.
+  Покупки (Lava.top):
+   - подписка на тариф:        POST /api/account/checkout {kind:"subscription",tier,currency}
+   - разовое участие в вебинаре: POST /api/account/checkout {kind:"webinar",webinarId,currency}
+   - разовая покупка книги:     POST /api/account/checkout {kind:"book",currency}
+  Отмена подписки: DELETE /api/account/subscription.
+
+  Провайдер-абстракция: overview отдаёт purchase.mode = "checkout" (Lava) или
+  "link" (задел под российский эквайринг — кнопка становится внешней ссылкой).
+  Кабинет не знает провайдера: для "checkout" — POST + redirect на paymentUrl,
+  для "link" — window.location = url. Добавление RU-эквайринга = новая ветка в
+  resolvePurchaseMode на сервере, без правки кабинета.
 ============================================================================ -->
 <div id="hz-cabinet">
   <style>
-    #hz-cabinet { --hz-bg:#12141a; --hz-card:#1a1d26; --hz-border:rgba(255,255,255,.10);
-      --hz-text:#f4f4f6; --hz-muted:#9aa0ae; --hz-accent:#7c6cf2; --hz-accent2:#4fd1a5;
-      max-width:680px; margin:0 auto; padding:8px 0 40px; color:var(--hz-text);
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    #hz-cabinet {
+      --hz-teal:#45A29E; --hz-teal-soft:#E3F2F1; --hz-teal-dark:#1F5150;
+      --hz-text:#021827; --hz-muted:#6B7280; --hz-line:#E0E0E0; --hz-bg:#ffffff;
+      max-width:680px; margin:0 auto; padding:0; color:var(--hz-text); background:var(--hz-bg);
+      font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
     #hz-cabinet * { box-sizing:border-box; }
-    #hz-cabinet .hz-card { background:var(--hz-card); border:1px solid var(--hz-border);
-      border-radius:20px; padding:22px; margin-bottom:16px; }
-    #hz-cabinet h2 { margin:0 0 6px; font-size:22px; }
-    #hz-cabinet h3 { margin:0 0 8px; font-size:17px; }
-    #hz-cabinet p { margin:6px 0; line-height:1.5; font-size:15px; }
-    #hz-cabinet .hz-muted { color:var(--hz-muted); font-size:13px; }
-    #hz-cabinet .hz-badge { display:inline-block; padding:4px 12px; border-radius:999px;
-      background:rgba(124,108,242,.16); color:#b9aefc; font-size:13px; font-weight:600; }
-    #hz-cabinet .hz-badge.hz-trial { background:rgba(79,209,165,.14); color:var(--hz-accent2); }
-    #hz-cabinet .hz-row { display:flex; justify-content:space-between; gap:12px;
-      padding:7px 0; border-bottom:1px dashed var(--hz-border); font-size:14px; }
-    #hz-cabinet .hz-row:last-child { border-bottom:none; }
-    #hz-cabinet ul { margin:8px 0 0; padding-left:20px; }
-    #hz-cabinet li { margin:4px 0; font-size:14px; line-height:1.45; }
-    #hz-cabinet button.hz-btn { display:block; width:100%; margin-top:14px; padding:12px 18px;
-      border:none; border-radius:14px; background:var(--hz-accent); color:#fff;
-      font-size:15px; font-weight:600; cursor:pointer; }
-    #hz-cabinet button.hz-btn:hover { filter:brightness(1.1); }
-    #hz-cabinet button.hz-btn:disabled { opacity:.6; cursor:default; }
-    #hz-cabinet button.hz-btn-ghost { background:transparent; border:1px solid var(--hz-border);
-      color:var(--hz-muted); font-weight:500; }
-    #hz-cabinet .hz-center { text-align:center; padding:44px 20px; }
-    #hz-cabinet .hz-spin { width:34px; height:34px; margin:0 auto 14px; border-radius:50%;
-      border:3px solid var(--hz-border); border-top-color:var(--hz-accent);
-      animation:hzspin .9s linear infinite; }
+    #hz-cabinet .hz-wrap { padding:0 24px 56px; }
+    #hz-cabinet .hz-header {
+      position:sticky; top:0; z-index:5; background:rgba(255,255,255,.96);
+      border-bottom:1px solid var(--hz-line); padding:20px 24px; text-align:center;
+    }
+    #hz-cabinet .hz-logo1 { font-weight:700; font-size:20px; letter-spacing:.4em; text-transform:uppercase; }
+    #hz-cabinet .hz-logo2 { font-size:11px; letter-spacing:.15em; color:var(--hz-muted); font-style:italic; margin-top:4px; }
+    #hz-cabinet h1.hz-title { font-size:20px; letter-spacing:.2em; text-transform:uppercase; color:var(--hz-teal); margin:40px 0 18px; font-weight:400; }
+    #hz-cabinet .hz-user { font-size:16px; line-height:1.5; }
+    #hz-cabinet .hz-user .hz-name { font-weight:600; }
+    #hz-cabinet .hz-reg { font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--hz-muted); margin-top:6px; }
+    #hz-cabinet .hz-section { margin-top:40px; }
+    #hz-cabinet .hz-section-title { font-size:20px; letter-spacing:.12em; text-transform:uppercase; font-weight:400; padding-bottom:14px; border-bottom:1px solid var(--hz-line); margin-bottom:22px; }
+    #hz-cabinet .hz-block { border-left:3px solid var(--hz-teal); padding-left:20px; margin-bottom:28px; }
+    #hz-cabinet .hz-block-title { font-size:20px; letter-spacing:.08em; text-transform:uppercase; font-weight:600; margin-bottom:18px; }
+    #hz-cabinet .hz-row { margin-bottom:16px; }
+    #hz-cabinet .hz-label { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--hz-muted); margin-bottom:4px; font-weight:500; }
+    #hz-cabinet .hz-value { font-size:16px; line-height:1.5; }
+    #hz-cabinet .hz-pill { display:inline-block; background:var(--hz-teal-soft); color:var(--hz-teal-dark); font-size:11px; letter-spacing:.16em; text-transform:uppercase; padding:3px 12px; border-radius:999px; font-weight:600; margin-left:10px; vertical-align:middle; }
+    #hz-cabinet .hz-pill.hz-inactive { background:#F3F4F6; color:var(--hz-muted); }
+    #hz-cabinet .hz-cancel { display:inline-block; margin-top:6px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--hz-teal); text-decoration:underline; text-underline-offset:4px; cursor:pointer; background:none; border:0; padding:0; font-family:inherit; }
+    #hz-cabinet .hz-cancel:hover { color:var(--hz-teal-dark); }
+    #hz-cabinet .hz-plan { margin-bottom:32px; }
+    #hz-cabinet .hz-plan-title { font-size:20px; text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin-bottom:12px; }
+    #hz-cabinet .hz-plan-sub { font-size:15px; color:var(--hz-muted); margin-bottom:14px; }
+    #hz-cabinet ul.hz-bullets { list-style:none; margin:0 0 18px; padding:0; }
+    #hz-cabinet ul.hz-bullets li { position:relative; padding-left:28px; margin:10px 0; font-size:16px; line-height:1.5; }
+    #hz-cabinet ul.hz-bullets li::before { content:"✓"; position:absolute; left:0; top:0; color:var(--hz-teal); font-weight:700; font-size:16px; }
+    #hz-cabinet .hz-btn { display:block; width:100%; padding:13px 18px; border:0; border-radius:10px; background:var(--hz-teal); color:#fff; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
+    #hz-cabinet .hz-btn:hover { background:var(--hz-teal-dark); }
+    #hz-cabinet .hz-btn:disabled { opacity:.6; cursor:default; }
+    #hz-cabinet .hz-btn-ghost { background:transparent; border:1px solid var(--hz-line); color:var(--hz-muted); font-weight:500; }
+    #hz-cabinet .hz-select { width:100%; background:transparent; border:0; border-bottom:1px solid var(--hz-line); padding:8px 0; font-size:16px; color:var(--hz-text); font-family:inherit; appearance:none; -webkit-appearance:none; cursor:pointer; margin-bottom:18px; }
+    #hz-cabinet .hz-select:focus { outline:0; border-bottom-color:var(--hz-teal); }
+    #hz-cabinet .hz-back { text-align:center; color:var(--hz-muted); font-size:13px; margin-top:40px; line-height:1.5; }
+    #hz-cabinet .hz-center { text-align:center; padding:48px 20px; }
+    #hz-cabinet .hz-spin { width:34px; height:34px; margin:0 auto 14px; border-radius:50%; border:3px solid var(--hz-line); border-top-color:var(--hz-teal); animation:hzspin .9s linear infinite; }
     @keyframes hzspin { to { transform:rotate(360deg); } }
     #hz-cabinet .hz-hidden { display:none; }
   </style>
 
   <div id="hz-loading" class="hz-center">
     <div class="hz-spin"></div>
-    <p id="hz-loading-text" class="hz-muted"></p>
+    <p id="hz-loading-text" class="hz-reg"></p>
   </div>
 
   <div id="hz-error" class="hz-center hz-hidden">
-    <h2 id="hz-error-title"></h2>
-    <p id="hz-error-body" class="hz-muted"></p>
+    <h1 class="hz-title" id="hz-error-title" style="margin-top:0"></h1>
+    <p id="hz-error-body" style="color:var(--hz-muted);font-size:15px;line-height:1.5"></p>
   </div>
 
   <div id="hz-content" class="hz-hidden"></div>
@@ -66,40 +87,246 @@
   <script>
   (function () {
     "use strict";
-    /* API-origin бэкенда (Vercel). При смене домена поменять одну строку. */
-    var API_BASE = "https://harmonizer-ten.vercel.app";
-
-    var I18N = {
-      ru: { loading:"Загружаем ваш кабинет…", errTitle:"Кабинет недоступен", errNoToken:"Личный кабинет открывается по ссылке из приложения Harmonizer. Откройте приложение и нажмите кнопку «Личный кабинет».", errExpired:"Ссылка устарела. Вернитесь в приложение и снова нажмите «Личный кабинет».", errNetwork:"Не удалось связаться с сервером. Проверьте соединение и обновите страницу.", hello:"Здравствуйте", registered:"В приложении с", currentLevel:"Текущий уровень профиля", trialBadge:"демо-доступ уровня «Мастер»", trialUntil:"Демо-доступ до", paidUntil:"Уровень действует до", unlimited:"бессрочно", upgradesTitle:"Доступные уровни", topTier:"У вас максимальный уровень профиля. Спасибо, что вы с нами!", choose:"Подключить", webinarTitle:"Вебинары и групповые разборы", webinarBody:"Еженедельные вебинары и сессии вопросов и ответов входят в уровень «Мастер». Подключите его, чтобы участвовать.", webinarIncluded:"Вебинары включены в ваш уровень. Ссылки на участие — в приложении, в разделе анонсов.", backToApp:"После изменения уровня вернитесь в приложение — оно обновится автоматически.", paysoon:"Оплата уровней скоро будет доступна на этой странице. Спасибо за терпение!", subTitle:"Ваша подписка", subActive:"активна", subCancelled:"отменена", subNextCharge:"Следующее списание", subAccessUntil:"Доступ сохраняется до", subPrice:"Стоимость", perMonth:"/мес", subCancel:"Отменить подписку", subCancelConfirm:"Отменить подписку? Новых списаний не будет, а доступ к возможностям уровня сохранится до конца оплаченного периода.", subCancelDone:"Подписка отменена. Доступ сохраняется до", subCancelErr:"Не удалось отменить подписку. Обновите страницу и попробуйте ещё раз.", upgradeNote:"Новый уровень активируется сразу после оплаты. Стоимость текущего периода не пересчитывается.", payErr:"Не удалось перейти к оплате. Обновите страницу и попробуйте ещё раз.", redirecting:"Переходим к оплате…",
-        tiers: { free:"Навигатор", oracle:"Наставник", master:"Мастер" },
-        tierDesc: { oracle:["Индивидуальные рекомендации по вашим дате, времени и месту рождения","Диалог с ИИ-наставником и планирование дня","Персональная статистика состояний"], master:["Всё из уровня «Наставник»","Полная библиотека практик йоги: асаны, дыхание, медитации (~200)","Еженедельные вебинары и групповые разборы"] } },
-      en: { loading:"Loading your account…", errTitle:"Account unavailable", errNoToken:"This page opens via a link from the Harmonizer app. Open the app and tap “My account”.", errExpired:"The link has expired. Go back to the app and tap “My account” again.", errNetwork:"Could not reach the server. Check your connection and reload the page.", hello:"Hello", registered:"Member since", currentLevel:"Current profile level", trialBadge:"“Master” demo access", trialUntil:"Demo access until", paidUntil:"Level active until", unlimited:"unlimited", upgradesTitle:"Available levels", topTier:"You have the highest profile level. Thank you for being with us!", choose:"Activate", webinarTitle:"Webinars & group sessions", webinarBody:"Weekly webinars and Q&A sessions are part of the “Master” level. Activate it to join.", webinarIncluded:"Webinars are included in your level. Join links are in the app announcements.", backToApp:"After changing your level, return to the app — it updates automatically.", paysoon:"Level payments will be available on this page soon. Thank you for your patience!", subTitle:"Your subscription", subActive:"active", subCancelled:"cancelled", subNextCharge:"Next charge", subAccessUntil:"Access remains until", subPrice:"Price", perMonth:"/mo", subCancel:"Cancel subscription", subCancelConfirm:"Cancel the subscription? There will be no new charges, and access to the level features remains until the end of the paid period.", subCancelDone:"Subscription cancelled. Access remains until", subCancelErr:"Could not cancel the subscription. Reload the page and try again.", upgradeNote:"The new level activates right after payment. The current period is not recalculated.", payErr:"Could not proceed to payment. Reload the page and try again.", redirecting:"Redirecting to payment…",
-        tiers: { free:"Navigator", oracle:"Mentor", master:"Master" },
-        tierDesc: { oracle:["Personal recommendations based on your exact birth date, time and place","Dialogue with the AI mentor and day planning","Personal state statistics"], master:["Everything in “Mentor”","Full yoga practice library: asanas, breathing, meditations (~200)","Weekly webinars and group sessions"] } },
-      de: { loading:"Ihr Konto wird geladen…", errTitle:"Konto nicht verfügbar", errNoToken:"Diese Seite öffnet sich über einen Link aus der Harmonizer-App. Öffnen Sie die App und tippen Sie auf „Mein Konto“.", errExpired:"Der Link ist abgelaufen. Kehren Sie zur App zurück und tippen Sie erneut auf „Mein Konto“.", errNetwork:"Server nicht erreichbar. Prüfen Sie Ihre Verbindung und laden Sie die Seite neu.", hello:"Guten Tag", registered:"Dabei seit", currentLevel:"Aktuelles Profil-Level", trialBadge:"„Master“-Demozugang", trialUntil:"Demozugang bis", paidUntil:"Level aktiv bis", unlimited:"unbegrenzt", upgradesTitle:"Verfügbare Level", topTier:"Sie haben das höchste Profil-Level. Danke, dass Sie dabei sind!", choose:"Aktivieren", webinarTitle:"Webinare & Gruppensitzungen", webinarBody:"Wöchentliche Webinare und Q&A-Sitzungen gehören zum Level „Master“. Aktivieren Sie es, um teilzunehmen.", webinarIncluded:"Webinare sind in Ihrem Level enthalten. Teilnahme-Links finden Sie in den App-Ankündigungen.", backToApp:"Nach der Level-Änderung kehren Sie zur App zurück — sie aktualisiert sich automatisch.", paysoon:"Die Bezahlung der Level wird bald auf dieser Seite verfügbar sein. Danke für Ihre Geduld!", subTitle:"Ihr Abonnement", subActive:"aktiv", subCancelled:"gekündigt", subNextCharge:"Nächste Abbuchung", subAccessUntil:"Zugang bleibt bis", subPrice:"Preis", perMonth:"/Monat", subCancel:"Abonnement kündigen", subCancelConfirm:"Abonnement kündigen? Es gibt keine neuen Abbuchungen, und der Zugang zu den Level-Funktionen bleibt bis zum Ende des bezahlten Zeitraums bestehen.", subCancelDone:"Abonnement gekündigt. Zugang bleibt bis", subCancelErr:"Das Abonnement konnte nicht gekündigt werden. Laden Sie die Seite neu und versuchen Sie es erneut.", upgradeNote:"Das neue Level wird sofort nach der Zahlung aktiviert. Der laufende Zeitraum wird nicht neu berechnet.", payErr:"Zahlung konnte nicht gestartet werden. Laden Sie die Seite neu und versuchen Sie es erneut.", redirecting:"Weiterleitung zur Zahlung…",
-        tiers: { free:"Navigator", oracle:"Mentor", master:"Master" },
-        tierDesc: { oracle:["Persönliche Empfehlungen auf Basis von Geburtsdatum, -zeit und -ort","Dialog mit dem KI-Mentor und Tagesplanung","Persönliche Zustandsstatistik"], master:["Alles aus „Mentor“","Komplette Yoga-Bibliothek: Asanas, Atmung, Meditationen (~200)","Wöchentliche Webinare und Gruppensitzungen"] } },
-      fr: { loading:"Chargement de votre espace…", errTitle:"Espace indisponible", errNoToken:"Cette page s'ouvre via un lien depuis l'application Harmonizer. Ouvrez l'application et touchez « Mon espace ».", errExpired:"Le lien a expiré. Revenez dans l'application et touchez à nouveau « Mon espace ».", errNetwork:"Impossible de joindre le serveur. Vérifiez votre connexion et rechargez la page.", hello:"Bonjour", registered:"Membre depuis", currentLevel:"Niveau de profil actuel", trialBadge:"accès démo « Maître »", trialUntil:"Accès démo jusqu'au", paidUntil:"Niveau actif jusqu'au", unlimited:"illimité", upgradesTitle:"Niveaux disponibles", topTier:"Vous avez le niveau de profil le plus élevé. Merci d'être avec nous !", choose:"Activer", webinarTitle:"Webinaires et sessions de groupe", webinarBody:"Les webinaires hebdomadaires et les sessions de questions-réponses font partie du niveau « Maître ». Activez-le pour participer.", webinarIncluded:"Les webinaires sont inclus dans votre niveau. Les liens de participation sont dans les annonces de l'application.", backToApp:"Après avoir changé de niveau, revenez dans l'application — elle se met à jour automatiquement.", paysoon:"Le paiement des niveaux sera bientôt disponible sur cette page. Merci de votre patience !", subTitle:"Votre abonnement", subActive:"actif", subCancelled:"résilié", subNextCharge:"Prochain prélèvement", subAccessUntil:"Accès conservé jusqu'au", subPrice:"Prix", perMonth:"/mois", subCancel:"Résilier l'abonnement", subCancelConfirm:"Résilier l'abonnement ? Il n'y aura plus de prélèvements et l'accès aux fonctions du niveau restera actif jusqu'à la fin de la période payée.", subCancelDone:"Abonnement résilié. Accès conservé jusqu'au", subCancelErr:"Impossible de résilier l'abonnement. Rechargez la page et réessayez.", upgradeNote:"Le nouveau niveau s'active immédiatement après le paiement. La période en cours n'est pas recalculée.", payErr:"Impossible d'accéder au paiement. Rechargez la page et réessayez.", redirecting:"Redirection vers le paiement…",
-        tiers: { free:"Navigateur", oracle:"Mentor", master:"Maître" },
-        tierDesc: { oracle:["Recommandations personnelles selon vos date, heure et lieu de naissance exacts","Dialogue avec le mentor IA et planification de la journée","Statistiques personnelles de vos états"], master:["Tout le niveau « Mentor »","Bibliothèque complète de yoga : asanas, respiration, méditations (~200)","Webinaires hebdomadaires et sessions de groupe"] } },
-      it: { loading:"Caricamento del tuo profilo…", errTitle:"Profilo non disponibile", errNoToken:"Questa pagina si apre tramite un link dall'app Harmonizer. Apri l'app e tocca «Il mio profilo».", errExpired:"Il link è scaduto. Torna nell'app e tocca di nuovo «Il mio profilo».", errNetwork:"Impossibile raggiungere il server. Controlla la connessione e ricarica la pagina.", hello:"Ciao", registered:"Con noi dal", currentLevel:"Livello di profilo attuale", trialBadge:"accesso demo «Maestro»", trialUntil:"Accesso demo fino al", paidUntil:"Livello attivo fino al", unlimited:"illimitato", upgradesTitle:"Livelli disponibili", topTier:"Hai il livello di profilo più alto. Grazie per essere con noi!", choose:"Attiva", webinarTitle:"Webinar e sessioni di gruppo", webinarBody:"I webinar settimanali e le sessioni di domande e risposte fanno parte del livello «Maestro». Attivalo per partecipare.", webinarIncluded:"I webinar sono inclusi nel tuo livello. I link per partecipare sono negli annunci dell'app.", backToApp:"Dopo aver cambiato livello, torna nell'app — si aggiorna automaticamente.", paysoon:"Il pagamento dei livelli sarà presto disponibile su questa pagina. Grazie per la pazienza!", subTitle:"Il tuo abbonamento", subActive:"attivo", subCancelled:"annullato", subNextCharge:"Prossimo addebito", subAccessUntil:"Accesso valido fino al", subPrice:"Prezzo", perMonth:"/mese", subCancel:"Annulla abbonamento", subCancelConfirm:"Annullare l'abbonamento? Non ci saranno nuovi addebiti e l'accesso alle funzioni del livello resterà attivo fino alla fine del periodo pagato.", subCancelDone:"Abbonamento annullato. Accesso valido fino al", subCancelErr:"Impossibile annullare l'abbonamento. Ricarica la pagina e riprova.", upgradeNote:"Il nuovo livello si attiva subito dopo il pagamento. Il periodo in corso non viene ricalcolato.", payErr:"Impossibile procedere al pagamento. Ricarica la pagina e riprova.", redirecting:"Reindirizzamento al pagamento…",
-        tiers: { free:"Navigatore", oracle:"Mentore", master:"Maestro" },
-        tierDesc: { oracle:["Raccomandazioni personali basate su data, ora e luogo di nascita esatti","Dialogo con il mentore IA e pianificazione della giornata","Statistiche personali degli stati"], master:["Tutto il livello «Mentore»","Libreria completa di pratiche yoga: asana, respirazione, meditazioni (~200)","Webinar settimanali e sessioni di gruppo"] } },
-      es: { loading:"Cargando tu cuenta…", errTitle:"Cuenta no disponible", errNoToken:"Esta página se abre mediante un enlace desde la aplicación Harmonizer. Abre la app y pulsa «Mi cuenta».", errExpired:"El enlace ha caducado. Vuelve a la app y pulsa de nuevo «Mi cuenta».", errNetwork:"No se pudo conectar con el servidor. Comprueba tu conexión y recarga la página.", hello:"Hola", registered:"Contigo desde", currentLevel:"Nivel de perfil actual", trialBadge:"acceso demo «Maestro»", trialUntil:"Acceso demo hasta", paidUntil:"Nivel activo hasta", unlimited:"ilimitado", upgradesTitle:"Niveles disponibles", topTier:"Tienes el nivel de perfil más alto. ¡Gracias por estar con nosotros!", choose:"Activar", webinarTitle:"Webinarios y sesiones grupales", webinarBody:"Los webinarios semanales y las sesiones de preguntas y respuestas forman parte del nivel «Maestro». Actívalo para participar.", webinarIncluded:"Los webinarios están incluidos en tu nivel. Los enlaces de participación están en los anuncios de la app.", backToApp:"Después de cambiar de nivel, vuelve a la app: se actualiza automáticamente.", paysoon:"El pago de los niveles estará disponible pronto en esta página. ¡Gracias por tu paciencia!", subTitle:"Tu suscripción", subActive:"activa", subCancelled:"cancelada", subNextCharge:"Próximo cargo", subAccessUntil:"El acceso se mantiene hasta el", subPrice:"Precio", perMonth:"/mes", subCancel:"Cancelar suscripción", subCancelConfirm:"¿Cancelar la suscripción? No habrá nuevos cargos y el acceso a las funciones del nivel se mantendrá hasta el final del período pagado.", subCancelDone:"Suscripción cancelada. El acceso se mantiene hasta el", subCancelErr:"No se pudo cancelar la suscripción. Recarga la página e inténtalo de nuevo.", upgradeNote:"El nuevo nivel se activa justo después del pago. El período actual no se recalcula.", payErr:"No se pudo continuar con el pago. Recarga la página e inténtalo de nuevo.", redirecting:"Redirigiendo al pago…",
-        tiers: { free:"Navegante", oracle:"Mentor", master:"Maestro" },
-        tierDesc: { oracle:["Recomendaciones personales según tu fecha, hora y lugar de nacimiento exactos","Diálogo con el mentor de IA y planificación del día","Estadísticas personales de tus estados"], master:["Todo el nivel «Mentor»","Biblioteca completa de yoga: asanas, respiración, meditaciones (~200)","Webinarios semanales y sesiones grupales"] } },
-      pt: { loading:"A carregar a sua conta…", errTitle:"Conta indisponível", errNoToken:"Esta página abre através de uma ligação da app Harmonizer. Abra a app e toque em «A minha conta».", errExpired:"A ligação expirou. Volte à app e toque novamente em «A minha conta».", errNetwork:"Não foi possível contactar o servidor. Verifique a ligação e recarregue a página.", hello:"Olá", registered:"Connosco desde", currentLevel:"Nível de perfil atual", trialBadge:"acesso demo «Mestre»", trialUntil:"Acesso demo até", paidUntil:"Nível ativo até", unlimited:"ilimitado", upgradesTitle:"Níveis disponíveis", topTier:"Tem o nível de perfil mais alto. Obrigado por estar connosco!", choose:"Ativar", webinarTitle:"Webinários e sessões de grupo", webinarBody:"Os webinários semanais e as sessões de perguntas e respostas fazem parte do nível «Mestre». Ative-o para participar.", webinarIncluded:"Os webinários estão incluídos no seu nível. As ligações de participação estão nos anúncios da app.", backToApp:"Depois de mudar de nível, volte à app — ela atualiza-se automaticamente.", paysoon:"O pagamento dos níveis estará disponível em breve nesta página. Obrigado pela paciência!", subTitle:"A sua subscrição", subActive:"ativa", subCancelled:"cancelada", subNextCharge:"Próxima cobrança", subAccessUntil:"O acesso mantém-se até", subPrice:"Preço", perMonth:"/mês", subCancel:"Cancelar subscrição", subCancelConfirm:"Cancelar a subscrição? Não haverá novas cobranças e o acesso às funções do nível mantém-se até ao fim do período pago.", subCancelDone:"Subscrição cancelada. O acesso mantém-se até", subCancelErr:"Não foi possível cancelar a subscrição. Recarregue a página e tente novamente.", upgradeNote:"O novo nível é ativado logo após o pagamento. O período atual não é recalculado.", payErr:"Não foi possível avançar para o pagamento. Recarregue a página e tente novamente.", redirecting:"A redirecionar para o pagamento…",
-        tiers: { free:"Navegador", oracle:"Mentor", master:"Mestre" },
-        tierDesc: { oracle:["Recomendações pessoais com base na data, hora e local de nascimento exatos","Diálogo com o mentor de IA e planeamento do dia","Estatísticas pessoais dos seus estados"], master:["Tudo do nível «Mentor»","Biblioteca completa de yoga: asanas, respiração, meditações (~200)","Webinários semanais e sessões de grupo"] } },
-      nl: { loading:"Je account wordt geladen…", errTitle:"Account niet beschikbaar", errNoToken:"Deze pagina opent via een link uit de Harmonizer-app. Open de app en tik op ‘Mijn account’.", errExpired:"De link is verlopen. Ga terug naar de app en tik opnieuw op ‘Mijn account’.", errNetwork:"Kan de server niet bereiken. Controleer je verbinding en vernieuw de pagina.", hello:"Hallo", registered:"Lid sinds", currentLevel:"Huidig profielniveau", trialBadge:"‘Meester’-demotoegang", trialUntil:"Demotoegang tot", paidUntil:"Niveau actief tot", unlimited:"onbeperkt", upgradesTitle:"Beschikbare niveaus", topTier:"Je hebt het hoogste profielniveau. Bedankt dat je bij ons bent!", choose:"Activeren", webinarTitle:"Webinars & groepssessies", webinarBody:"Wekelijkse webinars en vraag-en-antwoordsessies horen bij het niveau ‘Meester’. Activeer het om deel te nemen.", webinarIncluded:"Webinars zijn inbegrepen in je niveau. Deelnamelinks staan in de aankondigingen in de app.", backToApp:"Keer na het wijzigen van je niveau terug naar de app — deze wordt automatisch bijgewerkt.", paysoon:"Betaling van niveaus is binnenkort beschikbaar op deze pagina. Bedankt voor je geduld!", subTitle:"Je abonnement", subActive:"actief", subCancelled:"opgezegd", subNextCharge:"Volgende afschrijving", subAccessUntil:"Toegang blijft tot", subPrice:"Prijs", perMonth:"/mnd", subCancel:"Abonnement opzeggen", subCancelConfirm:"Abonnement opzeggen? Er volgen geen nieuwe afschrijvingen en de toegang tot de functies van het niveau blijft tot het einde van de betaalde periode.", subCancelDone:"Abonnement opgezegd. Toegang blijft tot", subCancelErr:"Kan het abonnement niet opzeggen. Vernieuw de pagina en probeer het opnieuw.", upgradeNote:"Het nieuwe niveau wordt direct na betaling geactiveerd. De lopende periode wordt niet herberekend.", payErr:"Kan niet doorgaan naar de betaling. Vernieuw de pagina en probeer het opnieuw.", redirecting:"Doorsturen naar betaling…",
-        tiers: { free:"Navigator", oracle:"Mentor", master:"Meester" },
-        tierDesc: { oracle:["Persoonlijke aanbevelingen op basis van je exacte geboortedatum, -tijd en -plaats","Dialoog met de AI-mentor en dagplanning","Persoonlijke statistieken van je toestanden"], master:["Alles van ‘Mentor’","Volledige yogabibliotheek: asana's, ademhaling, meditaties (~200)","Wekelijkse webinars en groepssessies"] } }
+  var I18N = {
+    ru: {
+      loading:"Загружаем ваш кабинет…", errTitle:"Кабинет недоступен",
+      errNoToken:"Личный кабинет открывается по ссылке из приложения Harmonizer. Откройте приложение и нажмите «Личный кабинет».",
+      errExpired:"Ссылка устарела. Вернитесь в приложение и снова нажмите «Личный кабинет».",
+      errNetwork:"Не удалось связаться с сервером. Проверьте соединение и обновите страницу.",
+      logoLine1:"ИСКУССТВО ЖИТЬ", logoLine2:"Школа Сергея Замкового", cabinetTitle:"Личный кабинет",
+      registeredLabel:"Зарегистрирован:", harmonizerTitle:"Гармонизатор",
+      tariffLabel:"Тариф", demoAccess:"Демо-доступ", validUntilLabel:"Действует до",
+      subscriptionLabel:"Подписка", statusActive:"активна", statusInactive:"неактивна",
+      nextChargeLabel:"Следующее списание", accessUntilLabel:"Доступ сохраняется до",
+      cancelSub:"Отменить подписку",
+      otherTiersTitle:"Другие тарифы",
+      planIncludes:"Этот тарифный план предусматривает:",
+      planOnTopOf:"Дополнительно к возможностям тарифа «{mentor}» вы получаете:",
+      activateBtn:"Подключить", perMonth:"/мес",
+      additionalTitle:"Дополнительно",
+      webinarOneTime:"Разовое участие в ближайшей групповой консультации (вебинаре)",
+      signUpBtn:"Записаться", alreadyRegistered:"Вы уже записаны на этот вебинар.",
+      bookTitle:"Книга «Йога — путь волшебника»", moreBtn:"Подробнее…", buyBtn:"Купить",
+      intensiveTitle:"Месячный интенсив", intensiveChoose:"Выберите…",
+      intensives:["Месяц здоровья","Месяц наслаждений","Месяц силы","Месяц любви","Месяц свободы","Месяц мудрости","Месяц святости"],
+      copyrightName:"Сергей Замковой",
+      payErr:"Не удалось перейти к оплате. Обновите страницу и попробуйте ещё раз.", redirecting:"Переходим к оплате…",
+      subCancelConfirm:"Отменить подписку? Новых списаний не будет, а доступ к возможностям уровня сохранится до конца оплаченного периода.",
+      subCancelDone:"Подписка отменена. Доступ сохраняется до", subCancelErr:"Не удалось отменить подписку. Обновите страницу и попробуйте ещё раз.",
+      tiers:{free:"Навигатор",oracle:"Наставник",master:"Мастер"},
+      tierDesc:{oracle:["Индивидуальные рекомендации на текущий день.","Ассистент (ИИ) для обсуждения ваших планов на день.","Отчёты, отражающие ваши психологические особенности."],master:["Визуальная медитация для быстрого переключения состояния.","7 типов дыхательных практик с биологической обратной связью.","187 видеоуроков с практиками асан длительностью от 20 до 70 минут.","Еженедельные групповые консультации (вебинары)."]}
+    },
+    en: {
+      loading:"Loading your account…", errTitle:"Account unavailable",
+      errNoToken:"This page opens via a link from the Harmonizer app. Open the app and tap “My account”.",
+      errExpired:"The link has expired. Go back to the app and tap “My account” again.",
+      errNetwork:"Could not reach the server. Check your connection and reload the page.",
+      logoLine1:"THE ART OF LIFE", logoLine2:"Sergey Zamkovoy's School", cabinetTitle:"My account",
+      registeredLabel:"Member since:", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Plan", demoAccess:"Demo access", validUntilLabel:"Active until",
+      subscriptionLabel:"Subscription", statusActive:"active", statusInactive:"inactive",
+      nextChargeLabel:"Next charge", accessUntilLabel:"Access remains until",
+      cancelSub:"Cancel subscription",
+      otherTiersTitle:"Other plans",
+      planIncludes:"This plan includes:",
+      planOnTopOf:"In addition to everything in the “{mentor}” plan, you get:",
+      activateBtn:"Activate", perMonth:"/mo",
+      additionalTitle:"Extras",
+      webinarOneTime:"One-time participation in the nearest group consultation (webinar)",
+      signUpBtn:"Sign up", alreadyRegistered:"You are already signed up for this webinar.",
+      bookTitle:"Book «Yoga - the Way of Wisdom»", moreBtn:"Learn more…", buyBtn:"Buy",
+      intensiveTitle:"Monthly intensive", intensiveChoose:"Choose…",
+      intensives:["Month of Health","Month of Pleasure","Month of Strength","Month of Love","Month of Freedom","Month of Wisdom","Month of Holiness"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"Could not proceed to payment. Reload the page and try again.", redirecting:"Redirecting to payment…",
+      subCancelConfirm:"Cancel the subscription? There will be no new charges, and access to the level features remains until the end of the paid period.",
+      subCancelDone:"Subscription cancelled. Access remains until", subCancelErr:"Could not cancel the subscription. Reload the page and try again.",
+      tiers:{free:"Navigator",oracle:"Advisor",master:"Master"},
+      tierDesc:{oracle:["Personal recommendations for the current day.","AI assistant to discuss your plans for the day.","Reports reflecting your psychological traits."],master:["Visual meditation to quickly shift your state.","7 types of breathing practices with biofeedback.","187 video lessons on asana practices, 20 to 70 minutes each.","Weekly group consultations (webinars)."]}
+    }
+  };
+  I18N.de = {
+      loading:"Ihr Konto wird geladen…", errTitle:"Konto nicht verfügbar",
+      errNoToken:"Diese Seite öffnet sich über einen Link aus der Harmonizer-App. Öffnen Sie die App und tippen Sie auf «Mein Konto».",
+      errExpired:"Der Link ist abgelaufen. Kehren Sie zur App zurück und tippen Sie erneut auf «Mein Konto».",
+      errNetwork:"Server nicht erreichbar. Prüfen Sie Ihre Verbindung und laden Sie die Seite neu.",
+      logoLine1:"DIE KUNST DES LEBENS", logoLine2:"Schule von Sergey Zamkovoy", cabinetTitle:"Mein Konto",
+      registeredLabel:"Dabei seit:", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Tarif", demoAccess:"Demo-Zugang", validUntilLabel:"Aktiv bis",
+      subscriptionLabel:"Abonnement", statusActive:"aktiv", statusInactive:"inaktiv",
+      nextChargeLabel:"Nächste Abbuchung", accessUntilLabel:"Zugang bleibt bis",
+      cancelSub:"Abonnement kündigen",
+      otherTiersTitle:"Andere Tarife",
+      planIncludes:"Dieser Tarif umfasst:",
+      planOnTopOf:"Zusätzlich zu allem im Tarif «{mentor}» erhalten Sie:",
+      activateBtn:"Aktivieren", perMonth:"/Monat",
+      additionalTitle:"Zusätzliches",
+      webinarOneTime:"Einmalige Teilnahme an der nächsten Gruppensitzung (Webinar)",
+      signUpBtn:"Anmelden", alreadyRegistered:"Sie sind bereits für dieses Webinar angemeldet.",
+      bookTitle:"Buch «Yoga — der Weg des Zauberers»", moreBtn:"Mehr erfahren…", buyBtn:"Kaufen",
+      intensiveTitle:"Monatlicher Intensivkurs", intensiveChoose:"Auswählen…",
+      intensives:["Monat der Gesundheit","Monat der Lust","Monat der Kraft","Monat der Liebe","Monat der Freiheit","Monat der Weisheit","Monat der Heiligkeit"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"Zahlung konnte nicht gestartet werden. Laden Sie die Seite neu und versuchen Sie es erneut.", redirecting:"Weiterleitung zur Zahlung…",
+      subCancelConfirm:"Abonnement kündigen? Es gibt keine neuen Abbuchungen, der Zugang zu den Tarif-Funktionen bleibt bis zum Ende des bezahlten Zeitraums bestehen.",
+      subCancelDone:"Abonnement gekündigt. Zugang bleibt bis", subCancelErr:"Das Abonnement konnte nicht gekündigt werden. Laden Sie die Seite neu und versuchen Sie es erneut.",
+      tiers:{free:"Navigator",oracle:"Mentor",master:"Meister"},
+      tierDesc:{oracle:["Persönliche Empfehlungen für den aktuellen Tag.","KI-Assistent zum Besprechen Ihrer Tagespläne.","Berichte über Ihre psychologischen Besonderheiten."],master:["Visuelle Meditation zum schnellen Zustandswechsel.","7 Atemübungen mit Biofeedback.","187 Video-Lektionen zu Asanas, 20 bis 70 Minuten.","Wöchentliche Gruppensitzungen (Webinare)."]}
     };
+  I18N.fr = {
+      loading:"Chargement de votre espace…", errTitle:"Espace indisponible",
+      errNoToken:"Cette page s'ouvre via un lien depuis l'application Harmonizer. Ouvrez l'app et touchez « Mon espace ».",
+      errExpired:"Le lien a expiré. Revenez dans l'app et touchez à nouveau « Mon espace ».",
+      errNetwork:"Impossible de joindre le serveur. Vérifiez votre connexion et rechargez la page.",
+      logoLine1:"L'ART DE VIVRE", logoLine2:"École de Sergey Zamkovoy", cabinetTitle:"Mon espace",
+      registeredLabel:"Membre depuis :", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Formule", demoAccess:"Accès démo", validUntilLabel:"Actif jusqu'au",
+      subscriptionLabel:"Abonnement", statusActive:"actif", statusInactive:"inactif",
+      nextChargeLabel:"Prochain prélèvement", accessUntilLabel:"Accès conservé jusqu'au",
+      cancelSub:"Résilier l'abonnement",
+      otherTiersTitle:"Autres formules",
+      planIncludes:"Cette formule comprend :",
+      planOnTopOf:"En plus de tout ce qui est inclus dans la formule « {mentor} », vous obtenez :",
+      activateBtn:"Activer", perMonth:"/mois",
+      additionalTitle:"En supplément",
+      webinarOneTime:"Participation unique à la prochaine consultation de groupe (webinaire)",
+      signUpBtn:"S'inscrire", alreadyRegistered:"Vous êtes déjà inscrit à ce webinaire.",
+      bookTitle:"Livre « Yoga — le chemin du magicien »", moreBtn:"En savoir plus…", buyBtn:"Acheter",
+      intensiveTitle:"Intensif mensuel", intensiveChoose:"Choisir…",
+      intensives:["Mois de la santé","Mois du plaisir","Mois de la force","Mois de l'amour","Mois de la liberté","Mois de la sagesse","Mois de la sainteté"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"Impossible d'accéder au paiement. Rechargez la page et réessayez.", redirecting:"Redirection vers le paiement…",
+      subCancelConfirm:"Résilier l'abonnement ? Il n'y aura plus de prélèvements et l'accès aux fonctions reste actif jusqu'à la fin de la période payée.",
+      subCancelDone:"Abonnement résilié. Accès conservé jusqu'au", subCancelErr:"Impossible de résilier l'abonnement. Rechargez la page et réessayez.",
+      tiers:{free:"Navigateur",oracle:"Mentor",master:"Maître"},
+      tierDesc:{oracle:["Recommandations personnelles pour le jour en cours.","Assistant IA pour discuter de vos projets de la journée.","Rapports reflétant vos traits psychologiques."],master:["Méditation visuelle pour changer d'état rapidement.","7 types de pratiques respiratoires avec biofeedback.","187 leçons vidéo d'asanas, de 20 à 70 minutes.","Consultations de groupe hebdomadaires (webinaires)."]}
+    };
+  I18N.it = {
+      loading:"Caricamento del tuo profilo…", errTitle:"Profilo non disponibile",
+      errNoToken:"Questa pagina si apre tramite un link dall'app Harmonizer. Apri l'app e tocca «Il mio profilo».",
+      errExpired:"Il link è scaduto. Torna nell'app e tocca di nuovo «Il mio profilo».",
+      errNetwork:"Impossibile raggiungere il server. Controlla la connessione e ricarica la pagina.",
+      logoLine1:"L'ARTE DI VIVERE", logoLine2:"Scuola di Sergey Zamkovoy", cabinetTitle:"Il mio profilo",
+      registeredLabel:"Con noi dal:", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Piano", demoAccess:"Accesso demo", validUntilLabel:"Attivo fino al",
+      subscriptionLabel:"Abbonamento", statusActive:"attivo", statusInactive:"inattivo",
+      nextChargeLabel:"Prossimo addebito", accessUntilLabel:"Accesso valido fino al",
+      cancelSub:"Annulla abbonamento",
+      otherTiersTitle:"Altri piani",
+      planIncludes:"Questo piano include:",
+      planOnTopOf:"In aggiunta a tutto ciò che è incluso nel piano « {mentor} », ottieni:",
+      activateBtn:"Attiva", perMonth:"/mese",
+      additionalTitle:"Extra",
+      webinarOneTime:"Partecipazione unica alla prossima consulenza di gruppo (webinar)",
+      signUpBtn:"Iscriviti", alreadyRegistered:"Sei già iscritto a questo webinar.",
+      bookTitle:"Libro «Yoga — il percorso del mago»", moreBtn:"Scopri di più…", buyBtn:"Acquista",
+      intensiveTitle:"Intensivo mensile", intensiveChoose:"Scegli…",
+      intensives:["Mese della salute","Mese del piacere","Mese della forza","Mese dell'amore","Mese della libertà","Mese della saggezza","Mese della santità"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"Impossibile procedere al pagamento. Ricarica la pagina e riprova.", redirecting:"Reindirizzamento al pagamento…",
+      subCancelConfirm:"Annullare l'abbonamento? Non ci saranno nuovi addebiti e l'accesso alle funzioni resterà attivo fino alla fine del periodo pagato.",
+      subCancelDone:"Abbonamento annullato. Accesso valido fino al", subCancelErr:"Impossibile annullare l'abbonamento. Ricarica la pagina e riprova.",
+      tiers:{free:"Navigatore",oracle:"Mentore",master:"Maestro"},
+      tierDesc:{oracle:["Raccomandazioni personali per la giornata.","Assistente IA per discutere i tuoi piani della giornata.","Report sui tuoi tratti psicologici."],master:["Meditazione visiva per cambiare stato rapidamente.","7 tipi di pratiche respiratorie con biofeedback.","187 videolezioni sulle asana, da 20 a 70 minuti.","Consulenze di gruppo settimanali (webinar)."]}
+    };
+  I18N.es = {
+      loading:"Cargando tu cuenta…", errTitle:"Cuenta no disponible",
+      errNoToken:"Esta página se abre mediante un enlace desde la aplicación Harmonizer. Abre la app y pulsa «Mi cuenta».",
+      errExpired:"El enlace ha caducado. Vuelve a la app y pulsa de nuevo «Mi cuenta».",
+      errNetwork:"No se pudo conectar con el servidor. Comprueba tu conexión y recarga la página.",
+      logoLine1:"EL ARTE DE VIVIR", logoLine2:"Escuela de Sergey Zamkovoy", cabinetTitle:"Mi cuenta",
+      registeredLabel:"Miembro desde:", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Plan", demoAccess:"Acceso demo", validUntilLabel:"Activo hasta",
+      subscriptionLabel:"Suscripción", statusActive:"activa", statusInactive:"inactiva",
+      nextChargeLabel:"Próximo cargo", accessUntilLabel:"El acceso se mantiene hasta",
+      cancelSub:"Cancelar suscripción",
+      otherTiersTitle:"Otros planes",
+      planIncludes:"Este plan incluye:",
+      planOnTopOf:"Además de todo lo del plan «{mentor}», obtienes:",
+      activateBtn:"Activar", perMonth:"/mes",
+      additionalTitle:"Extras",
+      webinarOneTime:"Participación única en la próxima consulta grupal (webinar)",
+      signUpBtn:"Inscribirse", alreadyRegistered:"Ya estás inscrito en este webinar.",
+      bookTitle:"Libro «Yoga — el camino del mago»", moreBtn:"Más información…", buyBtn:"Comprar",
+      intensiveTitle:"Intensivo mensual", intensiveChoose:"Elige…",
+      intensives:["Mes de la salud","Mes del placer","Mes de la fuerza","Mes del amor","Mes de la libertad","Mes de la sabiduría","Mes de la santidad"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"No se pudo continuar con el pago. Recarga la página e inténtalo de nuevo.", redirecting:"Redirigiendo al pago…",
+      subCancelConfirm:"¿Cancelar la suscripción? No habrá nuevos cargos y el acceso a las funciones se mantendrá hasta el final del período pagado.",
+      subCancelDone:"Suscripción cancelada. El acceso se mantiene hasta", subCancelErr:"No se pudo cancelar la suscripción. Recarga la página e inténtalo de nuevo.",
+      tiers:{free:"Navegante",oracle:"Mentor",master:"Maestro"},
+      tierDesc:{oracle:["Recomendaciones personales para el día actual.","Asistente de IA para hablar de tus planes del día.","Informes sobre tus rasgos psicológicos."],master:["Meditación visual para cambiar de estado rápidamente.","7 tipos de prácticas de respiración con biofeedback.","187 vídeo-lecciones de asanas, de 20 a 70 minutos.","Consultas grupales semanales (webinarios)."]}
+    };
+  I18N.pt = {
+      loading:"A carregar a sua conta…", errTitle:"Conta indisponível",
+      errNoToken:"Esta página abre através de uma ligação da app Harmonizer. Abra a app e toque em «A minha conta».",
+      errExpired:"A ligação expirou. Volte à app e toque novamente em «A minha conta».",
+      errNetwork:"Não foi possível contactar o servidor. Verifique a ligação e recarregue a página.",
+      logoLine1:"A ARTE DE VIVER", logoLine2:"Escola de Sergey Zamkovoy", cabinetTitle:"A minha conta",
+      registeredLabel:"Connosco desde:", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Plano", demoAccess:"Acesso demo", validUntilLabel:"Ativo até",
+      subscriptionLabel:"Subscrição", statusActive:"ativa", statusInactive:"inativa",
+      nextChargeLabel:"Próxima cobrança", accessUntilLabel:"O acesso mantém-se até",
+      cancelSub:"Cancelar subscrição",
+      otherTiersTitle:"Outros planos",
+      planIncludes:"Este plano inclui:",
+      planOnTopOf:"Além de tudo o que está incluído no plano «{mentor}», obtém:",
+      activateBtn:"Ativar", perMonth:"/mês",
+      additionalTitle:"Extras",
+      webinarOneTime:"Participação única na próxima consulta de grupo (webinar)",
+      signUpBtn:"Inscrever-se", alreadyRegistered:"Já está inscrito neste webinar.",
+      bookTitle:"Livro «Yoga — o caminho do mago»", moreBtn:"Saber mais…", buyBtn:"Comprar",
+      intensiveTitle:"Intensivo mensal", intensiveChoose:"Escolher…",
+      intensives:["Mês da saúde","Mês do prazer","Mês da força","Mês do amor","Mês da liberdade","Mês da sabedoria","Mês da santidade"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"Não foi possível avançar para o pagamento. Recarregue a página e tente novamente.", redirecting:"A redirecionar para o pagamento…",
+      subCancelConfirm:"Cancelar a subscrição? Não haverá novas cobranças e o acesso às funções mantém-se até ao fim do período pago.",
+      subCancelDone:"Subscrição cancelada. O acesso mantém-se até", subCancelErr:"Não foi possível cancelar a subscrição. Recarregue a página e tente novamente.",
+      tiers:{free:"Navegador",oracle:"Mentor",master:"Mestre"},
+      tierDesc:{oracle:["Recomendações pessoais para o dia atual.","Assistente de IA para falar dos seus planos do dia.","Relatórios sobre os seus traços psicológicos."],master:["Meditação visual para mudar de estado rapidamente.","7 tipos de práticas de respiração com biofeedback.","187 vídeo-aulas de asanas, de 20 a 70 minutos.","Consultas de grupo semanais (webinários)."]}
+    };
+  I18N.nl = {
+      loading:"Je account wordt geladen…", errTitle:"Account niet beschikbaar",
+      errNoToken:"Deze pagina opent via een link uit de Harmonizer-app. Open de app en tik op 'Mijn account'.",
+      errExpired:"De link is verlopen. Ga terug naar de app en tik opnieuw op 'Mijn account'.",
+      errNetwork:"Kan de server niet bereiken. Controleer je verbinding en vernieuw de pagina.",
+      logoLine1:"DE KUNST VAN LEVEN", logoLine2:"School van Sergey Zamkovoy", cabinetTitle:"Mijn account",
+      registeredLabel:"Lid sinds:", harmonizerTitle:"Harmonizer",
+      tariffLabel:"Abonnement", demoAccess:"Demotoegang", validUntilLabel:"Actief tot",
+      subscriptionLabel:"Abonnement", statusActive:"actief", statusInactive:"inactief",
+      nextChargeLabel:"Volgende afschrijving", accessUntilLabel:"Toegang blijft tot",
+      cancelSub:"Abonnement opzeggen",
+      otherTiersTitle:"Andere abonnementen",
+      planIncludes:"Dit abonnement omvat:",
+      planOnTopOf:"Bovendien krijg je alles uit het '{mentor}'-abonnement:",
+      activateBtn:"Activeren", perMonth:"/mnd",
+      additionalTitle:"Extra's",
+      webinarOneTime:"Eenmalige deelname aan de volgende groepsconsult (webinar)",
+      signUpBtn:"Aanmelden", alreadyRegistered:"Je bent al aangemeld voor dit webinar.",
+      bookTitle:"Boek «Yoga — het pad van de tovenaar»", moreBtn:"Meer info…", buyBtn:"Kopen",
+      intensiveTitle:"Maandelijkse intensief", intensiveChoose:"Kies…",
+      intensives:["Maand van gezondheid","Maand van genot","Maand van kracht","Maand van liefde","Maand van vrijheid","Maand van wijsheid","Maand van heiligheid"],
+      copyrightName:"Sergei Zamkovoi",
+      payErr:"Kan niet doorgaan naar de betaling. Vernieuw de pagina en probeer het opnieuw.", redirecting:"Doorsturen naar betaling…",
+      subCancelConfirm:"Abonnement opzeggen? Er volgen geen nieuwe afschrijvingen en de toegang tot de functies blijft tot het einde van de betaalde periode.",
+      subCancelDone:"Abonnement opgezegd. Toegang blijft tot", subCancelErr:"Kan het abonnement niet opzeggen. Vernieuw de pagina en probeer het opnieuw.",
+      tiers:{free:"Navigator",oracle:"Mentor",master:"Meester"},
+      tierDesc:{oracle:["Persoonlijke aanbevelingen voor de huidige dag.","AI-assistent om je plannen voor de dag te bespreken.","Rapporten over je psychologische kenmerken."],master:["Visuele meditatie om snel van staat te wisselen.","7 soorten ademhalingsoefeningen met biofeedback.","187 videolessen over asana's, 20 tot 70 minuten.","Wekelijkse groepsconsulten (webinars)."]}
+    };
+  var API_BASE = "https://harmonizer-ten.vercel.app";
+    var BOOK_URL = "https://zamkovoi.yoga/book";
+    var INTENSIVE_LINKS = ["https://zamkovoi.yoga/m1","https://zamkovoi.yoga/m2","https://zamkovoi.yoga/m3","https://zamkovoi.yoga/m4","https://zamkovoi.yoga/m5","https://zamkovoi.yoga/m6","https://zamkovoi.yoga/m7"];
 
     var params = new URLSearchParams(window.location.search);
     var lang = (params.get("lang") || navigator.language || "ru").slice(0, 2).toLowerCase();
     var T = I18N[lang] || I18N.ru;
     var LOCALE_TAG = lang in I18N ? lang : "ru";
+
+    var CURRENCY = (params.get("currency") || "EUR").toUpperCase();
+    if (CURRENCY !== "RUB" && CURRENCY !== "USD" && CURRENCY !== "EUR") CURRENCY = "EUR";
+    var CTX = params.get("ctx") || "tier";
+    var CTX_WEBINAR_ID = "";
+    if (CTX.indexOf("webinar:") === 0) CTX_WEBINAR_ID = CTX.slice("webinar:".length).trim();
 
     var $ = function (id) { return document.getElementById(id); };
     function show(id) {
@@ -119,39 +346,26 @@
     }
     function fmtDate(iso) {
       if (!iso) return "";
-      try {
-        return new Date(iso).toLocaleDateString(LOCALE_TAG, { year:"numeric", month:"long", day:"numeric" });
-      } catch (e) { return iso.slice(0, 10); }
+      try { return new Date(iso).toLocaleDateString(LOCALE_TAG, { year:"numeric", month:"long", day:"numeric" }); }
+      catch (e) { return String(iso).slice(0, 10); }
     }
-
-    /* ── Платёжная система Lava.top ────────────────────────────────────────
-       Цены дублируют офферы Lava (кабинет автора). При изменении цен в Lava
-       обновить и здесь. Валюта выбирается приложением по геолокации и
-       приходит в ссылке (?currency=RUB|USD|EUR); по умолчанию EUR. */
-    var PRICES = {
-      oracle: { RUB: 950, USD: 9.5, EUR: 9.5 },
-      master: { RUB: 4950, USD: 99, EUR: 99 }
-    };
-    var CURRENCY = (params.get("currency") || "EUR").toUpperCase();
-    if (CURRENCY !== "RUB" && CURRENCY !== "USD" && CURRENCY !== "EUR") CURRENCY = "EUR";
-    /* Контекст перехода из приложения: tier | webinar:<id> | course:<id>.
-       Пока используется только tier; webinar/course — задел для следующих
-       этапов (страница поднимет соответствующий блок наверх). */
-    var CTX = params.get("ctx") || "tier";
-
     function fmtMoney(amount, currency) {
       try {
         return new Intl.NumberFormat(LOCALE_TAG, {
-          style: "currency", currency: currency,
+          style:"currency", currency: currency,
           minimumFractionDigits: amount % 1 ? 2 : 0, maximumFractionDigits: 2
         }).format(amount);
       } catch (e) { return amount + " " + currency; }
+    }
+    function priceText(price, perMonth) {
+      if (!price) return "";
+      return fmtMoney(price.amount, price.currency) + (perMonth ? T.perMonth : "");
     }
 
     function apiFetch(path, options) {
       options = options || {};
       options.headers = Object.assign(
-        { "Content-Type": "application/json", Authorization: "Bearer " + window.__hzSession },
+        { "Content-Type":"application/json", Authorization:"Bearer " + window.__hzSession },
         options.headers || {}
       );
       return fetch(API_BASE + path, options);
@@ -159,179 +373,229 @@
 
     function refreshOverview() {
       if (!window.__hzSession) return;
-      apiFetch("/api/account/overview", { method: "GET" })
+      apiFetch("/api/account/overview?currency=" + encodeURIComponent(CURRENCY), { method:"GET" })
         .then(function (res) { return res.ok ? res.json() : null; })
         .then(function (data) { if (data && data.overview) render(data.overview); })
-        .catch(function () { /* транзиентно; страница остаётся как есть */ });
+        .catch(function () {});
     }
-
-    /* Возврат со страницы оплаты Lava: обновляем данные кабинета. */
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") refreshOverview();
     });
 
-    window.hzStartUpgrade = function (tier, btn) {
-      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
-      apiFetch("/api/account/checkout", {
-        method: "POST",
-        body: JSON.stringify({ tier: tier, currency: CURRENCY })
-      })
-        .then(function (res) {
-          return res.json().catch(function () { return {}; }).then(function (data) {
-            if (!res.ok) throw new Error(data && data.error ? data.error : "HTTP " + res.status);
-            return data;
-          });
-        })
-        .then(function (data) {
-          if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
-          throw new Error("no paymentUrl");
-        })
-        .catch(function (err) {
-          if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || ""; }
-          /* Текст ошибки сервера — для диагностики (например, Lava отклоняет
-             покупку на email владельца магазина). */
-          alert(T.payErr + (err && err.message ? "\n\n(" + err.message + ")" : ""));
+    function gotoPayment(promise, btn) {
+      promise.then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data && data.error ? data.error : "HTTP " + res.status);
+          return data;
         });
+      }).then(function (data) {
+        if (data.alreadyRegistered) { alert(T.alreadyRegistered); refreshOverview(); return; }
+        if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
+        throw new Error("no paymentUrl");
+      }).catch(function (err) {
+        if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || ""; }
+        alert(T.payErr + (err && err.message ? "\n\n(" + err.message + ")" : ""));
+      });
+    }
+
+    window.hzStartUpgrade = function (tier, purchase, btn) {
+      if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
+      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
+      gotoPayment(apiFetch("/api/account/checkout", {
+        method:"POST", body: JSON.stringify({ kind:"subscription", tier: tier, currency: CURRENCY })
+      }), btn);
+    };
+
+    window.hzStartWebinar = function (purchase, btn) {
+      var wid = CTX_WEBINAR_ID || (window.__hzWebinarId || "");
+      if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
+      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
+      var body = { kind:"webinar", currency: CURRENCY };
+      if (wid) body.webinarId = wid;
+      gotoPayment(apiFetch("/api/account/checkout", { method:"POST", body: JSON.stringify(body) }), btn);
+    };
+
+    window.hzStartBook = function (purchase, btn) {
+      if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
+      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
+      gotoPayment(apiFetch("/api/account/checkout", { method:"POST", body: JSON.stringify({ kind:"book", currency: CURRENCY }) }), btn);
     };
 
     window.hzCancelSub = function (btn) {
       if (!window.confirm(T.subCancelConfirm)) return;
       if (btn) btn.disabled = true;
-      apiFetch("/api/account/subscription", { method: "DELETE" })
-        .then(function (res) {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.json();
-        })
+      apiFetch("/api/account/subscription", { method:"DELETE" })
+        .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
         .then(function (data) {
           var until = data.accessUntil ? " " + fmtDate(data.accessUntil) + "." : ".";
-          alert(T.subCancelDone + until);
-          refreshOverview();
+          alert(T.subCancelDone + until); refreshOverview();
         })
-        .catch(function () {
-          if (btn) btn.disabled = false;
-          alert(T.subCancelErr);
-        });
+        .catch(function () { if (btn) btn.disabled = false; alert(T.subCancelErr); });
     };
 
-    function render(overview) {
+    window.hzOpenIntensive = function (btn) {
+      var sel = document.getElementById("hz-intensive-select");
+      var idx = sel ? Number(sel.value) : -1;
+      if (isNaN(idx) || idx < 0 || idx >= INTENSIVE_LINKS.length) return;
+      window.open(INTENSIVE_LINKS[idx], "_blank");
+    };
+  function render(overview) {
+      window.__hzWebinarId = (overview.webinar && overview.webinar.webinarId) || "";
+
       var name = overview.displayName || overview.email || "";
-      var tierName = T.tiers[overview.tier] || overview.tier;
+      var tier = overview.tier || "free";
+      var isMaster = tier === "master";
+      var isPaid = tier !== "free";
+      var sub = overview.subscription;
       var html = "";
 
-      html += '<div class="hz-card">';
-      html += "<h2>" + T.hello + (name ? ", " + esc(name) : "") + "!</h2>";
-      if (overview.registeredAt) {
-        html += '<p class="hz-muted">' + T.registered + " " + esc(fmtDate(overview.registeredAt)) + "</p>";
-      }
-      html += '<div class="hz-row"><span>' + T.currentLevel + "</span><span>";
-      html += '<span class="hz-badge">' + esc(tierName) + "</span>";
-      if (overview.trialActive) html += ' <span class="hz-badge hz-trial">' + T.trialBadge + "</span>";
-      html += "</span></div>";
-      if (overview.trialActive && overview.trialExpiresAt) {
-        html += '<div class="hz-row"><span>' + T.trialUntil + "</span><span>" + esc(fmtDate(overview.trialExpiresAt)) + "</span></div>";
-      }
-      if (overview.tier !== "free") {
-        html += '<div class="hz-row"><span>' + T.paidUntil + "</span><span>" +
-          (overview.membershipExpiresAt ? esc(fmtDate(overview.membershipExpiresAt)) : T.unlimited) + "</span></div>";
-      }
-      html += "</div>";
+      /* ── Шапка + пользователь ── */
+      html += '<div class="hz-header">';
+      html += '<div class="hz-logo1">' + esc(T.logoLine1) + '</div>';
+      html += '<div class="hz-logo2">' + esc(T.logoLine2) + '</div>';
+      html += '</div>';
+      html += '<div class="hz-wrap">';
+      html += '<h1 class="hz-title">' + esc(T.cabinetTitle) + '</h1>';
+      html += '<div class="hz-user">';
+      if (name) html += '<div class="hz-name">' + esc(name) + '</div>';
+      if (overview.email) html += '<div class="hz-name" style="font-weight:400;color:var(--hz-muted)">' + esc(overview.email) + '</div>';
+      if (overview.registeredAt) html += '<div class="hz-reg">' + esc(T.registeredLabel) + ' ' + esc(fmtDate(overview.registeredAt)) + '</div>';
+      html += '</div>';
 
-      /* ── Подписка (Lava): статус, цена, следующий платёж, отмена ── */
-      var sub = overview.subscription;
-      if (sub) {
-        var subTierName = T.tiers[sub.tier] || sub.tier;
-        var subPrice = (PRICES[sub.tier] && PRICES[sub.tier][sub.currency] != null)
-          ? PRICES[sub.tier][sub.currency]
-          : sub.amount;
-        html += '<div class="hz-card"><h3>' + T.subTitle + "</h3>";
-        html += '<div class="hz-row"><span>' + esc(subTierName) + "</span><span>" +
-          '<span class="hz-badge' + (sub.status === "active" ? " hz-trial" : "") + '">' +
-          (sub.status === "active" ? T.subActive : T.subCancelled) + "</span></span></div>";
-        if (subPrice != null) {
-          html += '<div class="hz-row"><span>' + T.subPrice + "</span><span>" +
-            esc(fmtMoney(subPrice, sub.currency)) + T.perMonth + "</span></div>";
-        }
-        if (sub.status === "active" && sub.currentPeriodEnd) {
-          html += '<div class="hz-row"><span>' + T.subNextCharge + "</span><span>" +
-            esc(fmtDate(sub.currentPeriodEnd)) + "</span></div>";
-        }
-        if (sub.status === "cancelled" && sub.currentPeriodEnd) {
-          html += '<div class="hz-row"><span>' + T.subAccessUntil + "</span><span>" +
-            esc(fmtDate(sub.currentPeriodEnd)) + "</span></div>";
-        }
-        if (sub.status === "active") {
-          html += '<button class="hz-btn hz-btn-ghost" onclick="hzCancelSub(this)">' + T.subCancel + "</button>";
-        }
-        html += "</div>";
-      }
+      /* ── Гармонизатор: текущий тариф/подписка ── */
+      html += '<section class="hz-section">';
+      html += '<div class="hz-block">';
+      html += '<div class="hz-block-title">' + esc(T.harmonizerTitle) + '</div>';
 
-      var upgrades = overview.upgradeTiers || [];
-      /* При активной подписке не предлагаем уровень, на который она уже оформлена. */
-      if (sub && sub.status === "active") {
-        upgrades = upgrades.filter(function (t) { return t !== sub.tier; });
-      }
-      if (upgrades.length) {
-        html += '<div class="hz-card"><h3>' + T.upgradesTitle + "</h3>";
-        upgrades.forEach(function (tier) {
-          var desc = T.tierDesc[tier] || [];
-          var price = PRICES[tier] && PRICES[tier][CURRENCY];
-          var btnLabel = T.choose + " — " + (T.tiers[tier] || tier) +
-            (price != null ? " · " + fmtMoney(price, CURRENCY) + T.perMonth : "");
-          html += '<div style="margin-top:14px">';
-          html += '<span class="hz-badge">' + esc(T.tiers[tier] || tier) + "</span>";
-          if (price != null) {
-            html += ' <span class="hz-muted">' + esc(fmtMoney(price, CURRENCY)) + T.perMonth + "</span>";
-          }
-          html += "<ul>" + desc.map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("") + "</ul>";
-          html += '<button class="hz-btn" data-label="' + esc(btnLabel) + '" onclick="hzStartUpgrade(\'' + tier + '\', this)">' + esc(btnLabel) + "</button>";
-          html += "</div>";
-        });
-        if (sub && sub.status === "active") {
-          html += '<p class="hz-muted" style="margin-top:12px">' + T.upgradeNote + "</p>";
-        }
-        html += "</div>";
+      var tariffValue = "";
+      var validUntil = "";
+      if (isPaid) {
+        tariffValue = T.tiers[tier] || tier;
+        validUntil = overview.membershipExpiresAt ? fmtDate(overview.membershipExpiresAt) : "";
+      } else if (overview.trialActive) {
+        tariffValue = T.demoAccess;
+        validUntil = overview.trialExpiresAt ? fmtDate(overview.trialExpiresAt) : "";
       } else {
-        html += '<div class="hz-card"><p>' + T.topTier + "</p></div>";
+        tariffValue = T.tiers.free || tier;
       }
 
-      /* ── Курсы / интенсивы (задел следующего этапа) ──────────────────────
-         Когда появятся продукты-курсы, наполнить COURSES (id = offerId Lava,
-         periodicity ONE_TIME) — блок отрисуется аккордеоном сам. */
-      var COURSES = [];
-      if (COURSES.length) {
-        html += '<div class="hz-card"><h3 id="hz-courses">' + (T.coursesTitle || "") + "</h3>";
-        COURSES.forEach(function (course) {
-          html += '<div style="margin-top:12px"><span class="hz-badge">' + esc(course.title) + "</span>";
-          html += "<p>" + esc(course.summary || "") + "</p>";
-          html += '<button class="hz-btn" onclick="hzStartUpgrade(\'' + course.id + '\', this)">' + esc(course.cta || T.choose) + "</button></div>";
-        });
-        html += "</div>";
+      html += '<div class="hz-row"><div class="hz-label">' + esc(T.tariffLabel) + '</div><div class="hz-value">' + esc(tariffValue) + '</div></div>';
+      if (validUntil) {
+        html += '<div class="hz-row"><div class="hz-label">' + esc(T.validUntilLabel) + '</div><div class="hz-value">' + esc(validUntil) + '</div></div>';
       }
 
-      html += '<div class="hz-card"><h3>' + T.webinarTitle + "</h3><p>" +
-        (overview.tier === "master" ? T.webinarIncluded : T.webinarBody) + "</p></div>";
+      if (sub) {
+        var priceStr = sub.amount != null ? fmtMoney(sub.amount, sub.currency) + T.perMonth : "";
+        var active = sub.status === "active";
+        html += '<div class="hz-row"><div class="hz-label">' + esc(T.subscriptionLabel) + '</div><div class="hz-value">';
+        if (priceStr) html += esc(priceStr) + ' ';
+        html += '<span class="hz-pill' + (active ? "" : " hz-inactive") + '">' + esc(active ? T.statusActive : T.statusInactive) + '</span></div></div>';
+        if (active && sub.currentPeriodEnd) {
+          html += '<div class="hz-row"><div class="hz-label">' + esc(T.nextChargeLabel) + '</div><div class="hz-value">' + esc(fmtDate(sub.currentPeriodEnd)) + '</div></div>';
+        } else if (!active && sub.currentPeriodEnd) {
+          html += '<div class="hz-row"><div class="hz-label">' + esc(T.accessUntilLabel) + '</div><div class="hz-value">' + esc(fmtDate(sub.currentPeriodEnd)) + '</div></div>';
+        }
+        if (active) {
+          html += '<button class="hz-cancel" onclick="hzCancelSub(this)">' + esc(T.cancelSub) + '</button>';
+        }
+      }
+      html += '</div>';
+      html += '</section>';
 
-      html += '<p class="hz-muted" style="text-align:center">' + T.backToApp + "</p>";
+      /* ── Другие тарифы (скрыто для Мастера) ── */
+      if (!isMaster) {
+        var upgrades = overview.upgradeTiers || [];
+        if (sub && sub.status === "active") {
+          upgrades = upgrades.filter(function (u) { return u.tier !== sub.tier; });
+        }
+        if (upgrades.length) {
+          html += '<section class="hz-section">';
+          html += '<div class="hz-section-title">' + esc(T.otherTiersTitle) + '</div>';
+          upgrades.forEach(function (u) {
+            var t = u.tier;
+            var purchase = u.purchase || { mode:"checkout", price:null, url:null };
+            var desc = (T.tierDesc && T.tierDesc[t]) || [];
+            var ptxt = priceText(purchase.price, true);
+            var btnLabel = T.activateBtn + (ptxt ? " — " + ptxt : "");
+            var subtitle = t === "master" ? T.planOnTopOf.replace("{mentor}", T.tiers.oracle) : T.planIncludes;
+            html += '<div class="hz-block hz-plan">';
+            html += '<div class="hz-plan-title">' + esc(T.tiers[t] || t) + '</div>';
+            html += '<div class="hz-plan-sub">' + esc(subtitle) + '</div>';
+            html += '<ul class="hz-bullets">';
+            desc.forEach(function (d) { html += '<li>' + esc(d) + '</li>'; });
+            html += '</ul>';
+            html += '<button class="hz-btn" data-label="' + esc(btnLabel) + '" onclick="hzStartUpgrade(\'' + t + '\', ' + JSON.stringify(purchase).replace(/"/g, "&quot;") + ', this)">' + esc(btnLabel) + '</button>';
+            html += '</div>';
+          });
+          html += '</section>';
+        }
+      }
+
+      /* ── Дополнительно ── */
+      html += '<section class="hz-section">';
+      html += '<div class="hz-section-title">' + esc(T.additionalTitle) + '</div>';
+
+      if (!isMaster) {
+        var wp = overview.webinar || { webinarId:null, purchase:{ mode:"checkout", price:null, url:null } };
+        var hasWebinar = !!(CTX_WEBINAR_ID || wp.webinarId);
+        if (hasWebinar) {
+          var wprice = priceText(wp.purchase && wp.purchase.price, false);
+          var wbtn = T.signUpBtn + (wprice ? " — " + wprice : "");
+          html += '<div class="hz-block">';
+          html += '<div class="hz-value" style="margin-bottom:16px">' + esc(T.webinarOneTime) + '</div>';
+          html += '<button class="hz-btn" data-label="' + esc(wbtn) + '" onclick="hzStartWebinar(' + JSON.stringify(wp.purchase || {}).replace(/"/g, "&quot;") + ', this)">' + esc(wbtn) + '</button>';
+          html += '</div>';
+        }
+      }
+
+      {
+        var bp = overview.book || { purchase:{ mode:"checkout", price:null, url:null } };
+        var bprice = priceText(bp.purchase && bp.purchase.price, false);
+        var bbtn = T.buyBtn + (bprice ? " — " + bprice : "");
+        html += '<div class="hz-block">';
+        html += '<div class="hz-value" style="margin-bottom:16px">' + esc(T.bookTitle) + '</div>';
+        html += '<button class="hz-btn" data-label="' + esc(bbtn) + '" onclick="hzStartBook(' + JSON.stringify(bp.purchase || {}).replace(/"/g, "&quot;") + ', this)">' + esc(bbtn) + '</button>';
+        html += '</div>';
+      }
+
+      html += '<div class="hz-block">';
+      html += '<div class="hz-value" style="margin-bottom:14px">' + esc(T.intensiveTitle) + '</div>';
+      html += '<select id="hz-intensive-select" class="hz-select" onchange="var b=document.getElementById(\'hz-int-btn\'); b.disabled=(this.value===\'\');">';
+      html += '<option value="">' + esc(T.intensiveChoose) + '</option>';
+      (T.intensives || []).forEach(function (label, i) {
+        html += '<option value="' + i + '">' + esc(label) + '</option>';
+      });
+      html += '</select>';
+      html += '<button id="hz-int-btn" class="hz-btn" disabled onclick="hzOpenIntensive(this)">' + esc(T.moreBtn) + '</button>';
+      html += '</div>';
+
+      html += '</section>';
+
+      html += '<p class="hz-back">© ' + new Date().getFullYear() + ' ' + esc(T.copyrightName) + '</p>';
+      html += '</div>';
 
       $("hz-content").innerHTML = html;
       show("hz-content");
-    }
 
-    $("hz-loading-text").textContent = T.loading;
+      if (CTX_WEBINAR_ID) {
+        var el = document.querySelector("#hz-content .hz-section:last-of-type .hz-block");
+        if (el && el.scrollIntoView) { try { el.scrollIntoView({ behavior:"smooth" }); } catch (e) {} }
+      }
+    }
+  $("hz-loading-text").textContent = T.loading;
 
     var ott = params.get("ott");
     if (!ott) { fail(T.errNoToken); return; }
-    /* Одноразовый токен убираем из адресной строки (история/шаринг URL). */
     try {
       var clean = new URL(window.location.href);
       clean.searchParams.delete("ott");
       window.history.replaceState(null, "", clean.toString());
-    } catch (e) { /* не критично */ }
+    } catch (e) {}
 
     fetch(API_BASE + "/api/account/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ott: ott }),
+      method:"POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ ott: ott, currency: CURRENCY })
     })
       .then(function (res) {
         if (res.status === 401) { fail(T.errExpired); return null; }
@@ -340,7 +604,6 @@
       })
       .then(function (data) {
         if (!data) return;
-        /* Токен сессии — только в памяти страницы; пригодится для refresh после оплаты. */
         window.__hzSession = data.sessionToken;
         render(data.overview);
       })

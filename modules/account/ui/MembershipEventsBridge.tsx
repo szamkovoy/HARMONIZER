@@ -18,11 +18,17 @@ import { AppState, Modal, StyleSheet, View } from "react-native";
 
 import { useAccountLinksEnabled } from "@/modules/account/core/accountLinksConfig";
 import { openAccountCabinet } from "@/modules/account/core/openAccountCabinet";
+import {
+  clearCabinetVisit,
+  readFreshCabinetVisit,
+} from "@/modules/account/core/openAccountCabinet";
 import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accountFlagsStore";
+import { fetchLastPurchase } from "@/modules/account/core/purchasesClient";
 import { baseTierFromRow, hasActiveTrial } from "@/modules/access/core/paidAccess";
 import { TIER_ORDER, type ProductTier } from "@/modules/access/core/tiers";
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
+import { isRegistered } from "@/modules/webinars";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -32,7 +38,9 @@ import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 type NoticeState =
   | { kind: "none" }
   | { kind: "trial_ended" }
-  | { kind: "tier_changed"; fromTier: ProductTier; toTier: ProductTier };
+  | { kind: "tier_changed"; fromTier: ProductTier; toTier: ProductTier }
+  | { kind: "webinar_paid" }
+  | { kind: "book_paid" };
 
 function membershipFingerprint(row: {
   membership_tier?: string | null;
@@ -99,7 +107,97 @@ export function MembershipEventsBridge() {
     return () => sub.remove();
   }, [refreshProfile, userId]);
 
-  // ── 3–4. Детект повышения уровня и истечения trial ─────────────────────────
+  // ── 2b. Foreground: благодарность за оплату разового вебинара ───────────────
+  // При возврате из Личного кабинета (ctx=webinar:<id>) проверяем регистрацию.
+  // Вебхук payment.success мог прийти чуть позже — поэтому один ретрай через 10с.
+  useEffect(() => {
+    if (!userId) return;
+    const uid = userId;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    async function checkVisit(): Promise<"shown" | "pending" | "none"> {
+      const visit = await readFreshCabinetVisit(uid);
+      if (!visit || !visit.ctx.startsWith("webinar:")) return "none";
+      const webinarId = visit.ctx.slice("webinar:".length);
+      if (!webinarId) return "none";
+      const registered = await isRegistered(webinarId, uid);
+      if (cancelled) return "none";
+      if (!registered) return "pending";
+      const shownFlag = `webinarThanksShown.${uid}.${webinarId}`;
+      if ((await readAccountFlag(shownFlag)) === visit.ts.toString()) {
+        await clearCabinetVisit(uid);
+        return "none";
+      }
+      await writeAccountFlag(shownFlag, visit.ts.toString());
+      await clearCabinetVisit(uid);
+      if (cancelled || noticeVisibleRef.current) return "none";
+      logRuntimeEvent("membership:webinar_paid_notice", { userId: uid, webinarId });
+      setNotice({ kind: "webinar_paid" });
+      return "shown";
+    }
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void checkVisit().then((status) => {
+        if (status === "pending" && !cancelled) {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => void checkVisit(), 10000);
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+      if (timer) clearTimeout(timer);
+    };
+  }, [userId]);
+
+  // ── 2c. Foreground: благодарность за разовую покупку книги ─────────────────
+  // При возврате из Личного кабинета (любой ctx) проверяем последнюю разовую
+  // покупку. Если это книга, оплаченная после момента визита в кабинет, и мы ещё
+  // не благодарили за этот контракт — показываем модалку. Вебхук payment.success
+  // мог прийти чуть позже — один ретрай через 10с. Visit не чистим (его может
+  // использовать вебинарный эффект для ctx=webinar:<id>; флаг защищает от повтора).
+  useEffect(() => {
+    if (!userId) return;
+    const uid = userId;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    async function checkBook(): Promise<"shown" | "pending" | "none"> {
+      const visit = await readFreshCabinetVisit(uid);
+      if (!visit) return "none";
+      const purchase = await fetchLastPurchase();
+      if (cancelled) return "none";
+      const recentVisit = Date.now() - visit.ts < 90_000;
+      if (!purchase || purchase.kind !== "book") return recentVisit ? "pending" : "none";
+      const paidAt = new Date(purchase.createdAt).getTime();
+      if (!Number.isFinite(paidAt) || paidAt <= visit.ts) return recentVisit ? "pending" : "none";
+      const shownFlag = `bookThanksShown.${uid}.${purchase.contractId}`;
+      if ((await readAccountFlag(shownFlag)) === visit.ts.toString()) return "none";
+      await writeAccountFlag(shownFlag, visit.ts.toString());
+      if (cancelled || noticeVisibleRef.current) return "none";
+      logRuntimeEvent("membership:book_paid_notice", { userId: uid, contractId: purchase.contractId });
+      setNotice({ kind: "book_paid" });
+      return "shown";
+    }
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void checkBook().then((status) => {
+        if (status === "pending" && !cancelled) {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => void checkBook(), 10000);
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+      if (timer) clearTimeout(timer);
+    };
+  }, [userId]);
   useEffect(() => {
     if (!userId || !profile) return;
     let cancelled = false;
@@ -181,13 +279,25 @@ function MembershipNoticeModal({
   }, [notice.kind, onClose, t]);
 
   const isTrialEnded = notice.kind === "trial_ended";
-  const title = isTrialEnded ? t("gate.trialEnded.title") : t("gate.tierChanged.title");
+  const isWebinarPaid = notice.kind === "webinar_paid";
+  const isBookPaid = notice.kind === "book_paid";
+  const title = isTrialEnded
+    ? t("gate.trialEnded.title")
+    : isWebinarPaid
+      ? t("gate.webinarPaid.title")
+      : isBookPaid
+        ? t("gate.bookPaid.title")
+        : t("gate.tierChanged.title");
   const body = isTrialEnded
     ? t("gate.trialEnded.body")
-    : t("gate.tierChanged.body", {
-        from: t(`tier.${notice.fromTier}`),
-        to: t(`tier.${notice.toTier}`),
-      });
+    : isWebinarPaid
+      ? t("gate.webinarPaid.body")
+      : isBookPaid
+        ? t("gate.bookPaid.body")
+        : t("gate.tierChanged.body", {
+            from: t(`tier.${notice.fromTier}`),
+            to: t(`tier.${notice.toTier}`),
+          });
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
