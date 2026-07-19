@@ -5,6 +5,14 @@ version: 1.5
 updated: 2026-07-19
 ---
 
+## 2026-07-19 — Кнопка «Личный кабинет» падала после долгого фона: упреждающий refresh JWT
+
+- **Симптом:** после 20–30 мин в фоне кнопка «Личный кабинет» (профиль, апселл-панели, `AccountGateDialog`) падала с `gate.cabinetError` («Не удалось открыть Личный кабинет. Проверьте соединение…»), хотя переключение по вкладкам работало. Пользователь подозревал потерю геолокации («allow once»).
+- **Корневая причина — не геолокация:** `resolveBillingCurrency` (единственный geo-зависимый шаг `openAccountCabinet`) перехватывает **все** ошибки гео и fallback на `EUR`; потеря «allow once» геолокации влияет только на валюту цен, не бросается. Реальная причина — протухший **access token (JWT)** Supabase: `autoRefreshToken` в мобильном клиенте выключен (`createSupabaseClient`), `startAutoRefresh()` на foreground асинхронен и не успевал до тапа, а `getSupabaseAccessSession` только читал снимок/`auth.getSession()` (supabase-js v2 не фильтрует протухшие токены и не обновляет их сам) → `POST /api/account/ott` уходил с устаревшим JWT → серверный `requireUserId` через `auth.getUser(token)` отдавал 401 → `requestOneTimeToken` бросал `account/ott HTTP 401` → UI показывал generic «проверьте соединение».
+- **Фикс (в `services/supabase.ts`, модуль `profile`/auth):** `getSupabaseAccessSession` теперь при отсутствии/протухшем снимке упреждающе зовёт `auth.refreshSession()` через сериализованный `refreshAccessSessionOnce` (один refresh за раз — иначе параллельные вызовы сжигают single-use refresh token → `SIGNED_OUT`), при неудаче (нет сети / refresh token отозван) fallback на прежний путь `getSession()`. Лечит сразу все потребители Bearer JWT: `openAccountCabinet`, `dayPlan`, `geoSearchClient`, `purchasesClient`.
+- **Текст ошибки:** оставлен прежний `gate.cabinetError` (по запросу автора) — ожидается, что упреждающий refresh убирает симптом; если возникнет иная ошибка, текст будет пересмотрен отдельно.
+- **Документация:** `profile/spec.md` (поведение `getSupabaseAccessSession`), `profile/history.md`, эта запись.
+
 ## 2026-07-19 — Футер кабинета: ссылка «Договор оферты» + модалка с текстом договора (8 локалей)
 
 - **Что:** в `web_cabinet/cabinet.html` под строкой копирайта `© <год> <copyrightName>` добавлена ссылка «Договор оферты» (переведена на 8 локалей в объекте `HZ_OFFER`), открывающая модальное окно с полным текстом «Договор публичной оферты и политика обработки персональных данных» (ред. 29 июля 2026).

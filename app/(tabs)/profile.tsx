@@ -13,9 +13,11 @@ import {
 import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
 import { useAuth } from "@/modules/auth";
 import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
-import { APP_LOCALE_OPTIONS, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
+import { APP_LOCALE_OPTIONS, getResponseLocale, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
-import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
+import { NatalBirthDataModal, geoPlaceFromProfileBirthPlace } from "@/modules/home/ui/NatalBirthDataModal";
+import { BirthPlaceMapModal, formatGeoPlaceLabel, type GeoPlace } from "@/modules/onboarding";
+import { isoToDdmmyyyy } from "@/modules/onboarding/birthDateFormat";
 import { fetchUnreadNotificationCount } from "@/modules/notifications";
 import { SupportModal } from "@/modules/support";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -50,6 +52,7 @@ import { loadDailyPracticeStatsInRange, type DailyPracticeStat } from "@/service
 import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile } from "@/services/natalProfileClient";
+import { clearDayContentCache } from "@/services/dayContentCache";
 import { resolveDayContentAccessKeys } from "@/services/dayContentAccessKeys";
 import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
 import { publishLocaleDayContentWarm } from "@/services/localeDayContentBridge";
@@ -333,12 +336,40 @@ export default function ProfileTabRoute() {
   const lifeMatrix = useLifeMatrixReport(statsEnabled, reportLocale);
   const [natalModalOpen, setNatalModalOpen] = useState(false);
   const [natalSaving, setNatalSaving] = useState(false);
+  const [birthMapOpen, setBirthMapOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [supportOpen, setSupportOpen] = useState(false);
   const [cabinetOpening, setCabinetOpening] = useState(false);
   const [cabinetError, setCabinetError] = useState<string | null>(null);
   const linksEnabled = useAccountLinksEnabled();
+
+  // «Мои данные»: имя, тариф, email и (для тарифов с персональным прогнозом)
+  // дата/время/место рождения в режиме просмотра. Поля рождения выводятся только
+  // когда натальная карта реально используется (personal_daily_forecast) — т.е. не
+  // для бесплатного «Навигатора»; демо-период (trial → master) и платные тарифы
+  // показывают. Тариф — локализованное имя; для trial — «Демо».
+  const showBirthData = canUseFeature("personal_daily_forecast");
+  const tariffLabel = access.isTrial
+    ? t("profile.myData.tariffTrial")
+    : t(`tier.${access.tier}`);
+  const displayName = profile?.display_name?.trim() || "";
+  const email = authUser?.email?.trim() || "";
+  const birthGeoPlace: GeoPlace | null = useMemo(
+    () => geoPlaceFromProfileBirthPlace(profile?.birth_place),
+    [profile?.birth_place],
+  );
+  const birthDateText = useMemo(() => {
+    const formatted = isoToDdmmyyyy(profile?.birth_date);
+    return formatted || t("profile.myData.notSet");
+  }, [profile?.birth_date, t]);
+  const birthTimeText = useMemo(() => {
+    const raw = (profile?.birth_time ?? "").trim();
+    // В БД время может храниться как «HH:MM:SS» — показываем только «HH:MM».
+    const hhmm = raw.slice(0, 5);
+    return /^\d{2}:\d{2}$/.test(hhmm) ? hhmm : raw || t("profile.myData.notSet");
+  }, [profile?.birth_time, t]);
+  const birthPlaceText = birthGeoPlace ? formatGeoPlaceLabel(birthGeoPlace) : t("profile.myData.notSet");
 
   const onOpenCabinet = useCallback(async () => {
     logRuntimeTap("profile_open_cabinet", {});
@@ -440,29 +471,42 @@ export default function ProfileTabRoute() {
     async (birthData: BirthData, placeName: string) => {
       setNatalSaving(true);
       try {
+        // createNatalProfile на сервере инвалидирует user_daily_forecasts +
+        // scenario_cache morning_recommendation (иначе диаграмма новая, тексты старые).
         await createNatalProfile(birthData, undefined, { placeName });
         await refreshProfile();
+        if (authUser?.id) {
+          // Сбрасываем phone-кэш дня — иначе Home может показать старые слоган/рекомендацию.
+          await clearDayContentCache({ userId: authUser.id }).catch(() => undefined);
+        }
+        // На Профиле спиннер не держим: форма закрывается сразу. Главная при
+        // фокусе покажет оверлей («Готовим ваш день»), пока не будет готового
+        // слогана+рекомендации. forceRefresh:true — страховка, если фоновый
+        // ensure ещё не успел; если успел — Home подхватит warm/phone-cache
+        // без повторного LLM (см. blockingReload early-return в useDayContent).
         markHomeDayContentBlockingReload({ forceRefresh: true });
         setNatalModalOpen(false);
-        Alert.alert(
-          "Готово",
-          "Натальный профиль обновлён. На главном экране подтянутся новый прогноз и рекомендации на день. При желании можно пройти калибровку голосом.",
-          [
-            { text: "Остаться", style: "cancel" },
-            {
-              text: "К калибровке",
-              onPress: () => {
-                router.push("/calibration");
-              },
+        // Фоновый прогрев сразу после Save (не блокирует UI).
+        if (authUser?.id) {
+          void ensureLocaleDayContent({
+            userId: authUser.id,
+            locale: getResponseLocale(),
+            accessMode: dayAccessMode,
+            accessTier: dayContentAccessTier,
+            userLocation: resolveUserLocation(),
+            birthDate: birthData.date,
+            birthTime: birthData.time,
+            birthPlace: {
+              name: placeName,
+              lat: birthData.location.lat,
+              lon: birthData.location.lng,
+              timezone: birthData.location.timezone,
             },
-            {
-              text: "На главную",
-              onPress: () => {
-                router.replace("/");
-              },
-            },
-          ],
-        );
+            forceRefresh: true,
+          })
+            .then((warmed) => publishLocaleDayContentWarm(warmed))
+            .catch(() => undefined);
+        }
       } catch (error) {
         const message = errorMessage(error, "Не удалось сохранить натальные данные.");
         Alert.alert("Ошибка сохранения", message);
@@ -470,7 +514,7 @@ export default function ProfileTabRoute() {
         setNatalSaving(false);
       }
     },
-    [refreshProfile],
+    [authUser, dayAccessMode, dayContentAccessTier, refreshProfile, resolveUserLocation],
   );
 
   const practiceStatsModel = useMemo(
@@ -490,18 +534,13 @@ export default function ProfileTabRoute() {
         <ScreenHeader title={t("profile.title")} subtitle={t("profile.subtitle")} />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">{t("profile.access.title")}</AppText>
-          <AppText variant="screenHint">{access.label}</AppText>
-          <AppText variant="technicalCaption" tone="muted">
-            effective tier: {TIER_LABELS[access.tier]} · source: {access.source}
+          <AppText variant="sectionTitle">{t("profile.myData.title")}</AppText>
+          <AppText variant="dialogBody">
+            {displayName
+              ? `${displayName} / ${tariffLabel}`
+              : tariffLabel}
           </AppText>
-          <AppText variant="technicalCaption" tone="muted">
-            profile tier: {profile?.membership_tier ?? "unknown"} · trial: {profile?.trial_expires_at ?? "нет"}
-          </AppText>
-          <AppButton label={t("profile.access.updateButton")} variant="secondary" onPress={openBirthEditor} />
-          <AppText variant="technicalCaption" tone="muted">
-            {t("profile.access.birthHint")}
-          </AppText>
+          {email ? <AppText variant="dialogBody" tone="muted">{email}</AppText> : null}
           {linksEnabled ? (
             <>
               <AppButton
@@ -516,6 +555,50 @@ export default function ProfileTabRoute() {
               ) : null}
             </>
           ) : null}
+
+          {showBirthData ? (
+            <>
+              <View style={styles.myDataSpacer} />
+              <AppText variant="dialogBody">
+                {`${t("profile.myData.birthDate")}: ${birthDateText}`}
+              </AppText>
+              <AppText variant="dialogBody">
+                {`${t("profile.myData.birthTime")}: ${birthTimeText}`}
+              </AppText>
+              <AppText variant="dialogBody">
+                {`${t("profile.myData.birthPlace")}: ${birthPlaceText}`}
+              </AppText>
+              <View style={styles.myDataBirthActions}>
+                <AppButton
+                  label={t("profile.myData.mapButton")}
+                  variant="secondary"
+                  onPress={() => setBirthMapOpen(true)}
+                  disabled={!birthGeoPlace}
+                  style={styles.myDataActionBtn}
+                />
+                <AppButton
+                  label={t("profile.myData.editButton")}
+                  onPress={openBirthEditor}
+                  style={styles.myDataActionBtn}
+                />
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+          <AppText variant="sectionTitle">{t("profile.access.title")}</AppText>
+          <AppText variant="screenHint">{access.label}</AppText>
+          <AppText variant="technicalCaption" tone="muted">
+            effective tier: {TIER_LABELS[access.tier]} · source: {access.source}
+          </AppText>
+          <AppText variant="technicalCaption" tone="muted">
+            profile tier: {profile?.membership_tier ?? "unknown"} · trial: {profile?.trial_expires_at ?? "нет"}
+          </AppText>
+          <AppButton label={t("profile.access.updateButton")} variant="secondary" onPress={openBirthEditor} />
+          <AppText variant="technicalCaption" tone="muted">
+            {t("profile.access.birthHint")}
+          </AppText>
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
@@ -713,6 +796,9 @@ export default function ProfileTabRoute() {
         onClose={() => setNatalModalOpen(false)}
         onSubmit={onSaveNatal}
       />
+      {birthMapOpen && birthGeoPlace ? (
+        <BirthPlaceMapModal place={birthGeoPlace} onClose={() => setBirthMapOpen(false)} />
+      ) : null}
       {upgradeFeature ? (
         <AccountGateDialog
           visible
@@ -760,5 +846,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  myDataSpacer: {
+    height: 8,
+  },
+  myDataBirthActions: {
+    flexDirection: "row",
+    gap: 10,
+    paddingTop: 4,
+  },
+  myDataActionBtn: {
+    flex: 1,
   },
 });

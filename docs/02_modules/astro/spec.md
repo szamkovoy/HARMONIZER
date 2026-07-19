@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/spec
 title: Astro Spec
-version: 1.4
-updated: 2026-06-02
+version: 1.5
+updated: 2026-07-20
 depends_on: [01_foundation/architecture, 02_modules/infra/spec]
 code_refs:
   [
@@ -106,7 +106,7 @@ export interface NatalProfile {
 
 ## 3. Внутренняя архитектура
 
-- **Расчёт при сохранении:** мобильный клиент не считает эфемериды сам. Он отправляет `BirthData` на серверный маршрут `POST /api/astro/natal`, который в Node вызывает `computeNatalProfileWithAstronomia`, затем пишет результат в `user_natal_charts` (service role), деактивирует предыдущую активную версию, обновляет поля рождения в `users` и инвалидирует кэш `user_daily_forecasts` с текущей локальной даты (`todayLocalDate`).
+- **Расчёт при сохранении:** мобильный клиент не считает эфемериды сам. Он отправляет `BirthData` на серверный маршрут `POST /api/astro/natal`, который в Node вызывает `computeNatalProfileWithAstronomia`, затем пишет результат в `user_natal_charts` (service role), деактивирует предыдущую активную версию, обновляет поля рождения в `users` и инвалидирует кэш дня: `user_daily_forecasts` с текущей локальной даты (`todayLocalDate`) **и** `scenario_cache` для `morning_recommendation` (иначе числовой прогноз пересчитывается по новому наталу, а слоган/рекомендация остаются от старой планеты дня).
 - **Библиотека ядра:** вся астрологическая математика (дома, достоинства, гармоничность, нормализация `S_initial`/`H_initial`) живёт в `modules/astro-core` и общая для сервера и тестов; эфемериды инжектируются через `EphemerisProvider`, единственная продакшен-реализация — `AstronomiaEphemerisProvider` в `ephemeris.ts`.
 - **Потребление кэша:** `_legacy_web/app/api/_utils/astro-db.ts` (`natalProfileFromRow`, `loadActiveNatalProfile`) и зеркальная логика в `natalProfileClient.ts` приводят строку БД к типу `NatalProfile`. На клиенте `fetchActiveNatalProfileCached` хранит последнюю активную карту локально и обновляет запись после успешного `createNatalProfile`; запись дополнительно маркируется fingerprint-ом текущих `birth_*`, чтобы после смены натала не подмешать устаревшую карту в `ChakraFlower` до сетевого refresh. Дневной прогноз (Next.js и Supabase Edge) и ассистент загружают тот же срез полей.
 - **Связь с прогнозом:** модуль `daily_forecast` импортирует типы и использует `natalProfile.planets` в движке активации и важности; см. `modules/daily-engine/core/activation.ts`.

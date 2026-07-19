@@ -313,6 +313,85 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const contentLocale = getResponseLocale();
       const contentScopeKey = buildContentScopeKey(nextAccessMode, scopeKey, contentLocale);
       const requestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, provisionalForecastDate, contentScopeKey].join("|");
+
+      // После смены натала Profile мог уже прогреть день (ensure + publish warm /
+      // phone-cache). Подхватываем сразу — без второго LLM и без рассинхрона
+      // «диаграмма Венера / текст про Меркурий». Работает и при forceRefresh в
+      // blockingReload: свежий warm важнее повторного сетевого regen.
+      if (opts?.blockingReload && profileId) {
+        const bridged = consumeLocaleDayContentWarm(contentLocale);
+        const warmedOk =
+          bridged &&
+          bridged.userId === profileId &&
+          bridged.scopeKey === contentScopeKey &&
+          isDayContentComplete(bridged.forecast, nextAccessMode) &&
+          forecastTextsMatchLocale(bridged.forecast, contentLocale)
+            ? bridged
+            : null;
+        const loc = userLocation;
+        const cachedHit =
+          !warmedOk && loc
+            ? peekDayContentCache({
+                userId: profileId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate: provisionalForecastDate,
+                scopeKey: contentScopeKey,
+                userLocation: loc,
+              })
+            : null;
+        const readyFromCache =
+          loc &&
+          cachedHit?.freshness === "fresh" &&
+          isDayContentComplete(cachedHit.forecast, nextAccessMode) &&
+          forecastTextsMatchLocale(cachedHit.forecast, contentLocale)
+            ? {
+                forecast: cachedHit.forecast,
+                source: cachedHit.source,
+                modelUsed: cachedHit.modelUsed,
+                userLocation: loc,
+              }
+            : null;
+        const ready = warmedOk
+          ? {
+              forecast: warmedOk.forecast,
+              source: warmedOk.source,
+              modelUsed: warmedOk.modelUsed,
+              userLocation: warmedOk.userLocation,
+            }
+          : readyFromCache;
+        if (ready) {
+          pendingMorningMonologueForceRef.current = false;
+          lastHydratedForecastKeyRef.current = [
+            profileId,
+            provisionalForecastDate,
+            contentScopeKey,
+            ready.forecast.date,
+            ready.forecast.computedAt,
+            nextAccessMode,
+          ].join("|");
+          lastResolvedRequestKeyRef.current = requestKey;
+          latestCacheContextRef.current = {
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: contentScopeKey,
+            userLocation: ready.userLocation,
+          };
+          setAccessMode(nextAccessMode);
+          setForecast(ready.forecast);
+          setSource(ready.source);
+          setModelUsed(ready.modelUsed);
+          setResolvedUserLocation(ready.userLocation);
+          setHomeTextsLoading(false);
+          setStatus("ready");
+          setError(null);
+          completeHomeBootstrap();
+          return;
+        }
+      }
+
       const relaxedLookupParams = profileId
         ? {
             userId: profileId,
@@ -664,10 +743,19 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           const shouldForceMorningRefresh = Boolean(opts?.forceRefresh || opts?.localeChange || !localeOk);
           const hasCompleteServerContent = isDayContentComplete(result.forecast, nextAccessMode) && localeOk;
           let forecastForUi = result.forecast;
+          // forceRefresh на daily-forecast уже регенерирует morning на сервере —
+          // полные тексты считаем свежими. Без forceRefresh пустые тексты (после
+          // инвалидации scenario_cache при смене натала) догружает secondary layer.
           pendingMorningMonologueForceRef.current = shouldForceMorningRefresh && !hasCompleteServerContent;
-          if (shouldForceMorningRefresh && !hasCompleteServerContent) {
+          if (!hasCompleteServerContent) {
+            // Не показывать устаревший слоган/рекомендацию поверх нового каркаса
+            // (типичный баг: диаграмма «Венера», текст про «Меркурий»).
             forecastForUi = stripHomeLlmTexts(result.forecast);
             lastHydratedForecastKeyRef.current = null;
+            if (!shouldForceMorningRefresh) {
+              // Явно попросить secondary monologue (cache miss после смены натала).
+              pendingMorningMonologueForceRef.current = true;
+            }
           } else if (hasCompleteServerContent) {
             lastHydratedForecastKeyRef.current = [
               userId ?? "anon",

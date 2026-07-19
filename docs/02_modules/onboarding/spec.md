@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.0
-updated: 2026-07-18
+version: 1.3
+updated: 2026-07-20
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
   [
@@ -16,6 +16,8 @@ code_refs:
     modules/onboarding/wizard/BirthPlaceMapModal.tsx,
     modules/onboarding/ui/BirthPlacePicker.tsx,
     modules/onboarding/geoSearchClient.ts,
+    modules/onboarding/birthDateFormat.ts,
+    modules/onboarding/MaskedTextInput.tsx,
     modules/auth/AuthProvider.tsx,
     modules/auth/sign-in-email.ts,
     modules/home/ui/GeoGate.tsx,
@@ -54,12 +56,13 @@ code_refs:
 
 ## 5. Шаг 2 — данные рождения + гео (`app/onboarding.tsx`)
 
-- **Поля с масками** (хелперы в `app/onboarding.tsx`):
+- **Поля с масками** (общие хелперы в `modules/onboarding/birthDateFormat.ts`, переиспользуются также `NatalBirthDataModal`):
   - Дата: `ДД-ММ-ГГГГ`, `formatDateMask` вставляет `-` автоматически; валидация `ddmmyyyyToIso` (реальная дата). Префилл из БД `YYYY-MM-DD` → `isoToDdmmyyyy`, обратно `ddmmyyyyToIso`.
   - Время: `ЧЧ:ММ`, `formatTimeMask` вставляет `:` автоматически; валидация часов 0-23 / минут 0-59.
   - Лейблы: `onboarding.birth.dateLabel` = «Дата рождения», `onboarding.birth.timeLabel` = «Время рождения (приблизительно) - по местному времени».
+  - **`MaskedTextInput`** (`modules/onboarding/MaskedTextInput.tsx`) — **сегментный ввод**: каждый сегмент маски (DD | MM | YYYY для даты, HH | MM для времени) — отдельный `TextInput` с `selectTextOnFocus` (при фокусе выделяется целиком, вводится заново; при заполнении фокус авто-переходит на следующий). Сегменты изолированы — правка одного не сдвигает цифры в другом (баг «правлю месяц → год 968Y» невозможен). Мастер пока остаётся на `format*Mask`; `NatalBirthDataModal` (Профиль) переведён на `MaskedTextInput`.
 - **Место рождения** — `BirthPlacePicker` (`modules/onboarding/ui/BirthPlacePicker.tsx`): автодополнение через `searchBirthPlaces` → прокси `GET /api/geo/search` (Vercel) → Open-Meteo Geocoding. Возвращает `GeoPlace { id, name, region, country, lat, lng, timezone }` (IANA-таймзона). Выпадающий список — **абсолютный оверлей над полем** (не под ним), чтобы не уходить под клавиатуру; внутри списка — свой скролл. Статусы поиска вне потока (не сдвигают «Далее»).
-- **`BirthPlaceMapModal`** (`modules/onboarding/wizard/BirthPlaceMapModal.tsx`) — `react-native-maps`: интерактивная карта (зум, пан) с фиксированной меткой выбранного места (без изменения координаты), открывается кнопкой «Карта» после выбора места.
+- **`BirthPlaceMapModal`** (`modules/onboarding/wizard/BirthPlaceMapModal.tsx`) — `react-native-maps`: интерактивная карта (зум, пан) с фиксированной меткой выбранного места (без изменения координаты), открывается кнопкой «Проверить на карте» после выбора места (а в Профиле — кнопкой «Карта» в блоке «Мои данные» для сверки сохранённого места).
 - **Геолокация:** `expo-location` `requestForegroundPermissionsAsync` + `getCurrentPositionAsync`; пишет `users.{tz,lat,lon,location_name}`. Можно пропустить (`geoDenied`), тогда CTA = «Запросить доступ».
 - `footerInContent` — «Далее» сразу под полями; страница поднимается с клавиатурой (см. §3).
 - Сохранение: `createNatalProfile(birthData, undefined, { placeName })` (`services/natalProfileClient.ts`) → `POST /api/astro/natal`. `birthData.location.timezone` = IANA из `GeoPlace` (критично для исторического UTC, см. `astro/spec.md` §3).

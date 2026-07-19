@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.26
-updated: 2026-07-15
+version: 2.27
+updated: 2026-07-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -13,10 +13,14 @@ code_refs:
     supabase/functions/daily-forecast/index.ts,
     supabase/functions/_shared/daily-engine-parity.test.ts,
     services/dayContentCache.ts,
+    services/localeDayContentEnsure.ts,
+    services/homeDayContentReloadRequest.ts,
   ]
 ---
 
 ## Decision Log
+
+- **2026-07-20:** Рассинхрон Home после смены натала: диаграмма (importance/planetOfTheDay) обновлялась, слоган+рекомендация оставались от прежней планеты. Причина — `POST /api/astro/natal` чистил только `user_daily_forecasts`, не `scenario_cache` morning; клиентский ensure не передавал `forceRefresh` в `fetchDailyForecast`; после Save на Профиле при успешном ensure не ставился blocking reload → Home держал старый React-state / догружал каркас с stale morning. Fix: natal invalidates morning cache; `ensureLocaleDayContent` → `fetchDailyForecast({forceRefresh})`; Profile Save → `clearDayContentCache` + background ensure + `markHomeDayContentBlockingReload({forceRefresh:true})` (без спиннера на Профиле); `useDayContent` blockingReload early-return на warm/phone-cache, incomplete server texts → `stripHomeLlmTexts` + secondary monologue. См. `astro/history.md`, `profile/history.md`.
 
 - **2026-07-18 (warm-gate главной для paid cold-start):** Существующий paid-юзер на новом устройстве входил на главную без кэша: `completeHomeBootstrap()` звался по готовности базового прогноза (`isDayContentReadyForHome` для paid = только `isBaseForecastValid`), оверлей «Готовим ваш день» скрывался мгновенно, карточка показывала `recommendation.loading` («model: unknown»), а LLM-тексты догружались фоном и применялись не всегда (до ухода/возврата на экран). Фикс: в `useDayContent` добавлены `holdWarmForTexts()`/`releaseWarmIfHeld()` — paid server-fetch путь не завершает оверлей, если в ответе нет слоган+short; оверлей держится, пока вторичный эффект `enrichWithMorningContent` не применит тексты (`releaseWarmIfHeld`), либо до таймаута `HOME_WARM_TEXTS_TIMEOUT_MS = 90_000` (страховка, как в onboarding warmup). Кэш-пути (paid-кэш всегда полный — `saveDayContentCache` для paid пишется только при `isDayContentComplete`) и free-путь (`isFreeDayContentRenderable` требует тексты → иначе ошибка) не менялись. `forceRefresh`/`localeChange` (неблокирующий refresh) не тронуты — `holdWarmForTexts` не выставывает `blocking=true`, только держит уже активный оверлей. См. `CHANGELOG.md` (167).
 

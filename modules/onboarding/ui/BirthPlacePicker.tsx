@@ -189,7 +189,9 @@ const styles = StyleSheet.create({
   root: {
     position: "relative",
     zIndex: 20,
-    // Высота = только поле: оверлеи не участвуют в потоке → «Далее» не прыгает.
+    // Фиксируем высоту потока = поле: оверлеи абсолютные; minHeight не даёт
+    // схлопнуть поле до «зелёной линии», если родительский ScrollView сжимается.
+    minHeight: INPUT_HEIGHT,
   },
   input: {
     height: INPUT_HEIGHT,

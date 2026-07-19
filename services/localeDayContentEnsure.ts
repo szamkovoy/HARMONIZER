@@ -261,10 +261,14 @@ export async function ensureLocaleDayContent(
     monologue = await fetchMorningMonologue(params.locale, true, params.signal);
   }
 
+  // forceRefresh обязан доходить и до daily-forecast: иначе сервер может отдать
+  // новый числовой каркас + старые morning-тексты из scenario_cache (до инвалидации
+  // натала) либо пропустить regen morning в том же запросе.
   const daily = await fetchDailyForecast({
     forecastDate,
     userLocation: params.userLocation,
     responseLocale: params.locale,
+    forceRefresh,
     signal: params.signal,
   });
 

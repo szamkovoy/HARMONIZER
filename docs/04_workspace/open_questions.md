@@ -3,10 +3,14 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.34
-updated: 2026-07-14
+version: 1.35
+updated: 2026-07-20
 depends_on: [00_index/CHANGELOG]
 code_refs: []
+
+## `daily_forecast` / стартовая пауза главного экрана (наблюдение пользователя, 2026-07-20)
+
+- **Долгая пауза на заставке при наступлении нового дня:** пользователь заметил, что при запуске приложения в новый день последняя процедура стартового сплэша (`useAppStartup`/`beginHomeBootstrap` → `useDayContent` `shouldBlockSplash`) идёт подозрительно долго — будто дневной прогноз не был предрасчитан/прогрет. Универсальная проверка готовности данных главной существует (`markHomeDayContentBlockingReload` + `useFocusEffect` + `shouldBlockSplash`). **2026-07-20 (182):** закрыт баг рассинхрона диаграмма/тексты после смены натала (не чистился `scenario_cache` morning). Открыто по паузе нового дня: аудит cache-hit vs лишний LLM на ролловере; требует логов `logRuntimeEvent`.
 
 ## `account_web` / внешние платежи (отложено по решению продукта, 2026-07-14)
 

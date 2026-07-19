@@ -77,12 +77,23 @@ export async function POST(req: Request) {
     if (userUpdateError) throw userUpdateError;
 
     const forecastDate = todayLocalDate(userRow?.tz ?? body.birthData.location.timezone);
+    // Инвалидация дня: числовой прогноз (user_daily_forecasts) И LLM-тексты
+    // (scenario_cache morning_recommendation). Раньше чистили только forecasts —
+    // диаграмма обновлялась (новый натал), а слоган/рекомендация оставались
+    // от старой планеты дня (ключ кэша = user+date+locale, без fingerprint натала).
     const { error: cacheError } = await db
       .from("user_daily_forecasts")
       .delete()
       .eq("user_id", userId)
       .gte("forecast_date", forecastDate);
     if (cacheError) throw cacheError;
+
+    const { error: morningCacheError } = await db
+      .from("scenario_cache")
+      .delete()
+      .eq("user_id", userId)
+      .eq("scenario_id", "morning_recommendation");
+    if (morningCacheError) throw morningCacheError;
 
     return json({ natalChart: data, profile });
   } catch (error) {

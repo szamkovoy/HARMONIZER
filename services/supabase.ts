@@ -357,6 +357,12 @@ export async function getSupabaseAccessSession(): Promise<Session> {
   const snapshot = await getSupabaseSessionSnapshot();
   if (snapshot) return snapshot;
 
+  // Snapshot пустой/протухший — упреждающий refresh, иначе запросы с устаревшим
+  // JWT получают 401 (кнопка «Личный кабинет» после долгого фона и т.п.).
+  const refreshed = await refreshAccessSessionOnce();
+  if (refreshed) return refreshed;
+
+  // Refresh не вышел (нет сети / refresh token отозван) — fallback на состояние SDK.
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
   rememberSupabaseSession(data.session ?? null);
@@ -364,6 +370,28 @@ export async function getSupabaseAccessSession(): Promise<Session> {
     return data.session;
   }
   throw new Error("Нужна авторизация Supabase.");
+}
+
+/**
+ * Один refresh за раз — иначе параллельные вызовы сжигают single-use refresh
+ * token и SDK эмитит SIGNED_OUT. Возвращает свежую сессию или null, если refresh
+ * не удался (транзиентная сеть / refresh token отозван).
+ */
+let accessSessionRefreshInFlight: Promise<Session | null> | null = null;
+
+async function refreshAccessSessionOnce(): Promise<Session | null> {
+  if (accessSessionRefreshInFlight) return accessSessionRefreshInFlight;
+  accessSessionRefreshInFlight = (async () => {
+    const { data, error } = await requireSupabase().auth.refreshSession();
+    if (error || !data.session?.access_token || !data.session.user?.id) return null;
+    rememberSupabaseSession(data.session);
+    return data.session;
+  })()
+    .catch(() => null)
+    .finally(() => {
+      accessSessionRefreshInFlight = null;
+    });
+  return accessSessionRefreshInFlight;
 }
 
 export async function getSupabaseAccessToken(): Promise<string> {
