@@ -131,7 +131,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /** Актуальная сессия для AppState без устаревшего замыкания. */
   const sessionRef = useRef<Session | null>(null);
 
-  const syncProfile = useCallback(async (user: User | null) => {
+  const syncProfile = useCallback(async (user: User | null, opts?: { silent?: boolean }) => {
     if (!user) {
       setProfile(null);
       setProfileLoading(false);
@@ -139,7 +139,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
     lastUserIdRef.current = user.id;
-    setProfileLoading(true);
+    // Silent refresh (Realtime / foreground membership / locale PATCH) must not
+    // flip profileLoading — Home's useDayContent aborts in-flight day fetch when
+    // profileLoading toggles, which is the recurring midnight free-splash hang.
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setProfileLoading(true);
+    }
     const { row: fetched, failed } = await fetchProfile(user.id);
     let row = fetched;
     // Применяем отложенное имя из формы входа (шаг 1) — независимо от того, будет ли
@@ -180,6 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Cold start: все attempt-ы упали и профиля ещё не было — не отпускаем
       // сплэш в free/global-content: ещё один полный круг fetch, затем снимаем loading.
       if (failed && !row && !keptStale) {
+        if (silent) return;
         const uid = user.id;
         setTimeout(() => {
           if (lastUserIdRef.current !== uid) return;
@@ -191,7 +198,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }, 1_500);
         return;
       }
-      setProfileLoading(false);
+      if (!silent) {
+        setProfileLoading(false);
+      }
     }
   }, []);
 
@@ -410,7 +419,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    await syncProfile(session?.user ?? null);
+    // Always silent: callers (MembershipEventsBridge Realtime, GPS persist, Profile
+    // save) already have a painted profile; blocking splash must not restart.
+    await syncProfile(session?.user ?? null, { silent: true });
   }, [session, syncProfile]);
 
   const value = useMemo<AuthContextValue>(

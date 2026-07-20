@@ -466,7 +466,17 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       }
 
       let acquireFailure: LocationAcquireFailureReason | null = null;
-      if (!locationForRequest && profileId) {
+      // Free path: never block splash on GPS. Cron-shared content only needs a
+      // timezone for the date key + windows; Moscow/tz fallback is enough for
+      // first paint. Paid still acquires GPS when coords are missing.
+      if (!locationForRequest && nextAccessMode === "free") {
+        locationForRequest = dayContentLocationFallback(profileTimezone);
+        logRuntimeEvent(
+          "day_content:free_location_fallback",
+          { profileId, tz: profileTimezone, reason: "skip_gps" },
+          "info",
+        );
+      } else if (!locationForRequest && profileId) {
         setHomeBootstrapPhase("initializing", "HOME/gps_acquire_persist");
         setStatus("acquiring_location");
         logRuntimeEvent("day_content:auto_location_attempt", { profileId }, "info");
@@ -510,49 +520,29 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           return;
         }
 
-        // Free Home must not blank recommendations when GPS/permission is missing
-        // after an app update (SecureStore/profile coords often empty on cold start).
-        // Use the same Moscow/tz fallback as Profile locale ensure; keep locationIssue
-        // so the user can retry real geolocation for accurate windows.
-        if (nextAccessMode === "free") {
-          locationForRequest = dayContentLocationFallback(profileTimezone);
-          if (acquireFailure) {
-            setLocationIssue(acquireFailure);
-          }
-          logRuntimeEvent(
-            "day_content:free_location_fallback",
-            {
-              profileId,
-              tz: profileTimezone,
-              reason: acquireFailure,
-            },
-            "warn",
-          );
-        } else {
-          const err = locationError(options?.locationErrorMessage);
-          logRuntimeEvent(
-            "day_content:missing_location",
-            {
-              hasProfile: Boolean(profileId),
-              profileId,
-              tz: profileTimezone,
-              reason: acquireFailure,
-            },
-            "warn",
-          );
-          setForecast(null);
-          setSource(null);
-          setModelUsed(null);
-          setResolvedUserLocation(null);
-          latestCacheContextRef.current = null;
-          setStatus("need_location");
-          setError(err);
-          if (acquireFailure) {
-            setLocationIssue(acquireFailure);
-          }
-          completeHomeBootstrap();
-          return;
+        const err = locationError(options?.locationErrorMessage);
+        logRuntimeEvent(
+          "day_content:missing_location",
+          {
+            hasProfile: Boolean(profileId),
+            profileId,
+            tz: profileTimezone,
+            reason: acquireFailure,
+          },
+          "warn",
+        );
+        setForecast(null);
+        setSource(null);
+        setModelUsed(null);
+        setResolvedUserLocation(null);
+        latestCacheContextRef.current = null;
+        setStatus("need_location");
+        setError(err);
+        if (acquireFailure) {
+          setLocationIssue(acquireFailure);
         }
+        completeHomeBootstrap();
+        return;
       }
 
       setResolvedUserLocation(locationForRequest);
@@ -696,9 +686,11 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             throw new Error("Global day content is incomplete.");
           }
           const responseLocale = getResponseLocale();
-          let forecastForUi = result.forecast;
+          const forecastForUi = result.forecast;
+          // Keep cron/RU texts for first paint even when UI locale differs —
+          // stripping here used to call holdWarmForTexts and pin splash up to 90–120s
+          // while text_i18n caught up. Secondary poll still hydrates the locale.
           if (!forecastTextsMatchLocale(forecastForUi, responseLocale)) {
-            forecastForUi = stripHomeLlmTexts(forecastForUi);
             pendingMorningMonologueForceRef.current = true;
             lastHydratedForecastKeyRef.current = null;
           }
@@ -816,11 +808,15 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
         setStatus("ready");
         lastResolvedRequestKeyRef.current = resolvedRequestKey;
-        // Оверлей «Готовим ваш день» скрывается только когда есть слоган + короткая
-        // рекомендация. Для free readyForecast всегда с текстами (иначе бросили бы
-        // ошибку выше). Для paid сервер мог отдать только числовой каркас — тогда
-        // держим оверлей, пока вторичный эффект не подтянет LLM-тексты (или таймаут).
-        if (hasHomeCardTexts(readyForecast) && forecastTextsMatchLocale(readyForecast, getResponseLocale())) {
+        // Free: dismiss splash as soon as cron/structural row is renderable —
+        // never holdWarmForTexts (that pin was the midnight multi-minute hang).
+        // Paid: keep overlay until slogan+short match locale (or warm timeout).
+        if (nextAccessMode === "free") {
+          completeHomeBootstrap();
+        } else if (
+          hasHomeCardTexts(readyForecast) &&
+          forecastTextsMatchLocale(readyForecast, getResponseLocale())
+        ) {
           completeHomeBootstrap();
         } else {
           holdWarmForTexts();
@@ -930,6 +926,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       // eslint-disable-next-line no-console
       console.warn("[dayContent] initial refresh", e instanceof Error ? e.message : String(e));
     });
+    // Do NOT abort on effect re-run / profileLoading flicker — that left splash
+    // blocking with no in-flight fetch (Realtime refreshProfile used to toggle
+    // profileLoading). Superseding work is aborted at the start of refresh().
+  }, [refresh, profileLoading]);
+
+  useEffect(() => {
     return () => {
       abortRef.current?.abort();
       secondaryContentAbortRef.current?.abort();
@@ -938,7 +940,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         warmTimeoutRef.current = null;
       }
     };
-  }, [refresh, profileLoading]);
+  }, []);
 
   useEffect(() => {
     return subscribeAppLocale(() => {

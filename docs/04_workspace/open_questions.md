@@ -10,7 +10,7 @@ code_refs: []
 
 ## `daily_forecast` / стартовая пауза главного экрана (наблюдение пользователя, 2026-07-20)
 
-- **Долгая пауза при наступлении нового дня:** при запуске в новый день ожидание дня (`shouldBlockSplash` → `beginHomeBootstrap`) может идти долго — будто прогноз не был предрасчитан/прогрет. Gate готовности тот же; mid-session UI теперь `day_card` («Готовим ваш день»), cold start — splash. **2026-07-20 (182):** закрыт рассинхрон диаграмма/тексты после смены натала. **2026-07-20 (183):** закрыто «вместо карточки показывалась полная заставка» (presentation modes). Открыто по длительности ролловера: аудит cache-hit vs лишний LLMре; требует логов `logRuntimeEvent`.
+- **~~Долгая пауза при наступлении нового дня (free)~~** — закрыто 2026-07-21: крон/`global_daily_content` были готовы; зависание splash из-за abort при `profileLoading` flicker + `holdWarmForTexts`/locale strip на free. См. `daily_forecast/history`, `profile/history`.
 - **~~Paid midnight pre-warm не был в pg_cron~~** — закрыто 2026-07-21: Edge был, schedule не было; `20260721003000` + self-heal `ensure_harmonizer_cron_jobs` (`20260721010000`, watchdog каждые 15 мин). Force-warm Master на 2026-07-21.
 
 ## `account_web` / внешние платежи (отложено по решению продукта, 2026-07-14)

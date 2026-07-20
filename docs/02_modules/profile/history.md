@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.31
-updated: 2026-07-20
+version: 1.32
+updated: 2026-07-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-21:** `refreshProfile` больше не ставит `profileLoading` (silent `syncProfile`). Realtime/foreground membership и locale PATCH иначе мигали loading → `useDayContent` abort’ил загрузку дня и оставлял splash на free midnight. Initial `syncProfile` после login/session по-прежнему blocking.
 
 - **2026-07-20 (o):** QR/dev-client cold start зависал на «Собираем общий настрой дня». Root: `fetchProfile` AbortError за 5 с ×3 → `profile=null` → Home как free → `global-content` (и abort-гонки). Fix: timeout 15 с, 4 attempt; при полном fail без stale — не снимать `profileLoading` до ещё одного круга fetch (не отпускать сплэш в free).
 

@@ -1,7 +1,7 @@
 import type { DailyForecast, Planet } from "@/modules/daily-engine";
 import { getDailyForecastUrl } from "@/services/communicatorConfig";
 import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
-import { requireSupabase } from "@/services/supabase";
+import { getSupabaseAccessToken } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
@@ -65,11 +65,11 @@ const DAILY_FORECAST_TIMEOUT_MS = 25_000;
 export const ONBOARDING_DAILY_FORECAST_TIMEOUT_MS = DAY_CONTENT_LLM_TIMEOUT_MS;
 
 async function getAccessToken(): Promise<string> {
-  const { data, error } = await requireSupabase().auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Нужна авторизация Supabase для прогноза дня.");
-  return token;
+  try {
+    return await getSupabaseAccessToken();
+  } catch {
+    throw new Error("Нужна авторизация Supabase для прогноза дня.");
+  }
 }
 
 async function readError(res: Response): Promise<Error> {

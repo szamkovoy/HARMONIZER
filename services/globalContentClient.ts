@@ -3,9 +3,8 @@ import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
-import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
-import { requireSupabase } from "@/services/supabase";
+import { getSupabaseAccessToken, requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 import { isCurrentGlobalLongExplanation, normalizeRecommendationText } from "@/_legacy_web/app/api/_utils/recommendationText";
@@ -205,11 +204,13 @@ function rebuildLocalizedGlobalMathLevel(
 }
 
 async function getAccessToken(): Promise<string> {
-  const { data, error } = await requireSupabase().auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Нужна авторизация Supabase для общего прогноза.");
-  return token;
+  // Prefer in-memory/disk snapshot — auth.getSession() can stall on the SDK lock
+  // during token refresh and would block even the Supabase direct-read fast path.
+  try {
+    return await getSupabaseAccessToken();
+  } catch {
+    throw new Error("Нужна авторизация Supabase для общего прогноза.");
+  }
 }
 
 function toneFromGlobal(tone: GlobalContentResponse["primary_tone"]): TodayTone {
@@ -368,7 +369,6 @@ async function fetchGlobalContentOnce(req: {
   responseLocale?: string;
   forceRefresh?: boolean;
 }): Promise<GlobalContentResult> {
-  const token = await getAccessToken();
   let data: GlobalContentResponse | null = null;
   const responseLocale = req.responseLocale ?? getResponseLocale();
   const forceRefresh = req.forceRefresh === true;
@@ -376,20 +376,15 @@ async function fetchGlobalContentOnce(req: {
   let routeError: unknown = null;
 
   // Fast path: read Supabase row directly when usable texts already exist
-  // (cron structural or full LLM). Avoid waiting on the Vercel route on day change.
+  // (cron structural or full LLM). Do this BEFORE token/route work so midnight
+  // cold-start never waits on auth.getSession() or Vercel. Locale mismatch is
+  // OK for first paint — Home keeps RU texts and hydrates locale in background.
   if (!forceRefresh) {
     try {
       const direct = await fetchGlobalContentDirect(req.userLocation.timezone, responseLocale, req.signal);
       const hasUsableTexts =
         Boolean(String(direct.slogan ?? "").trim()) && Boolean(String(direct.short_text ?? "").trim());
-      const localeOk = dayTextsMatchLocale(
-        responseLocale as AppContentLocale,
-        String(direct.slogan ?? ""),
-        String(direct.short_text ?? ""),
-      );
-      // Prefer a real LLM row when present; otherwise still use structural texts
-      // so midnight cold-start does not hang on the Node route / background warm.
-      if (hasUsableTexts && localeOk) {
+      if (hasUsableTexts) {
         data = direct;
       }
     } catch {
@@ -399,6 +394,7 @@ async function fetchGlobalContentOnce(req: {
 
   try {
     if (!data) {
+    const token = await getAccessToken();
     const routeController = new AbortController();
     const routeTimeoutId = setTimeout(() => routeController.abort(), routeTimeoutMs);
     req.signal?.addEventListener("abort", () => routeController.abort(), { once: true });
