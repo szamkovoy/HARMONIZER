@@ -32,7 +32,7 @@ code_refs:
 ## 1. Зависит от
 
 - **`subscription`**  
-  `app/(tabs)/_layout.tsx` — таб «Практики» с `href: null`, если нет `practice_catalog`; `modules/practices/ui/PracticeCatalogScreen.tsx`, `app/asana-practice.tsx` — `canUseFeature` / `UpgradeDialog` для каталога, асан (`asana_practices`) и связанных фич. Парная запись: `docs/02_modules/subscription/dependencies.md` §2.
+  `app/(tabs)/_layout.tsx` — таб «Практики» виден всем (каталог — витрина); `modules/practices/ui/PracticeCatalogScreen.tsx`, `app/(tabs)/day.tsx`, `app/asana-practice.tsx` — `canUseFeature` / `AccountGateDialog` на запуск (`meditations` / `breath_practices` / `asana_practices`). Парная запись: `docs/02_modules/subscription/dependencies.md` §2.
 
 - **`daily_forecast`**  
   Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` forecast-метаданные дня; серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня и вернуть coherent breathing на чакру дня. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.

@@ -16,6 +16,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-21 (Day tab launch gate):** Pending `PracticeCard` на вкладке «День» запускал практику без tier-check (Oracle мог стартовать йогу/дыхание/медитацию). Fix: `app/(tabs)/day.tsx` — `tryLaunchDayPractice` + `AccountGateDialog` по kind (`meditations` / `breath_practices` / `asana_practices`), паритет с `PracticeCatalogScreen`.
+
 - **2026-07-15 (catalog browsable for all tiers):** `PracticeCatalogScreen` — каталог (медитации/дыхание/асаны) теперь **полностью browsable для всех уровней**: переключение групп не вызывает гейт, карточки видны всем. Гейт срабатывает только на «Начать практику»/«Открыть на телефоне»/«Открыть на ТВ», по kind: `meditations` / `breath_practices` / `asana_practices` (раньше гейт срабатывал уже при тапе по группе, а `practice_catalog` был единым ключом для всех). Удалены `catalogAllowed`/`locked` проверки из onPress групп и `masterOnly`-подпись на карточке группы — всегда показывается счётчик.
 
 - **2026-07-13:** `PracticeCard` перешёл на общий **`ComboBox` / `ComboBoxRow`** (`modules/ui/ComboBox.tsx`): панель опций под рядом триггеров (соседи в ряду не переносятся), тап вне комбо сворачивает без смены значения.

@@ -58,7 +58,8 @@ code_refs:
 
 - **`practices`**  
   `app/(tabs)/_layout.tsx` — таб «Практики» виден всем уровням (каталог — витрина).  
-  `modules/practices/ui/PracticeCatalogScreen.tsx` — гейт на «Начать практику» через `practice_catalog` / `asana_practices`, `AccountGateDialog`.  
+  `modules/practices/ui/PracticeCatalogScreen.tsx` — гейт на «Начать практику» через `meditations` / `breath_practices` / `asana_practices`, `AccountGateDialog`.  
+  `app/(tabs)/day.tsx` — тот же гейт на запуск pending-практики с вкладки «День».  
   `app/asana-practice.tsx` — без `asana_practices` не загружается контент Vimeo и показывается `AccountGateDialog`.
 
 - **`biofeedback`** (косвенно)  

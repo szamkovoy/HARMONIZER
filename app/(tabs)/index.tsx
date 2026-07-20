@@ -504,12 +504,12 @@ export default function HomeScreen() {
     };
   }, [birthFingerprint, needsPersonalForecast, profile?.id]);
 
-  // After Home is fully ready, idle-prefetch /api/day so the first visit to the
-  // Day tab paints instantly (same path as dialog/practice pre-warm).
+  // As soon as Home has a usable day shell, idle-prefetch /api/day (do not wait
+  // for homeTextsLoading — Day tab does not need morning LLM texts).
   const dayPrefetchKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (status !== "ready" && status !== "stale_ready") return;
-    if (loading || homeTextsLoading) return;
+    if (loading) return;
     if (!authUser?.id || !forecast?.date) return;
     const key = `${authUser.id}:${accessMode}:${forecast.date}:${appLocale}`;
     if (dayPrefetchKeyRef.current === key) return;
@@ -528,20 +528,12 @@ export default function HomeScreen() {
           if (dayPrefetchKeyRef.current === key) dayPrefetchKeyRef.current = null;
           console.warn("[Home] Failed to prefetch Day tab after home ready", prefetchError);
         });
-    }, 350);
+    }, 0);
     return () => {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [
-    accessMode,
-    appLocale,
-    authUser?.id,
-    forecast?.date,
-    homeTextsLoading,
-    loading,
-    status,
-  ]);
+  }, [accessMode, appLocale, authUser?.id, forecast?.date, loading, status]);
 
   useFocusEffect(
     useCallback(() => {

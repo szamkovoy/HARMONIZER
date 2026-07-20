@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-import { useAccess } from "@/modules/access";
+import { AccountGateDialog, useAccess, type FeatureKey } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import {
   CHAKRA_SEGMENT_COLORS,
@@ -33,7 +33,6 @@ import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { BlockingStatusToast } from "@/modules/ui/BlockingStatusToast";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SurfaceCardTitleRow } from "@/modules/ui/SurfaceCardTitleRow";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
@@ -420,9 +419,16 @@ function chooseYogaByBucket(catalog: PracticeCatalog, bucket: "20-30" | "31-40" 
   }) ?? catalog.yoga[0] ?? null;
 }
 
+function featureKeyForPracticeKind(kind: PracticeSummary["kind"]): FeatureKey {
+  if (kind === "meditation") return "meditations";
+  if (kind === "breath") return "breath_practices";
+  return "asana_practices";
+}
+
 export default function DayTabRoute() {
   const theme = useTheme();
   const { authUser } = useAuth();
+  const { canUseFeature } = useAccess();
   const { locale: appLocale } = useAppLocale();
   const dayStrings = useMemo(() => getDayStrings(appLocale), [appLocale]);
   const reportLocale = appLocale;
@@ -437,6 +443,7 @@ export default function DayTabRoute() {
   const [catalog, setCatalog] = useState<PracticeCatalog | null>(null);
   const [practiceMenuLevel, setPracticeMenuLevel] = useState<PracticeMenuLevel>("closed");
   const [sectionHelp, setSectionHelp] = useState<"actions" | "yoga" | null>(null);
+  const [lockedFeature, setLockedFeature] = useState<FeatureKey | null>(null);
 
   // Mirrors of state read inside the stable callbacks below. Keeping `refresh`
   // and the focus effect dependency-free prevents a feedback loop where every
@@ -447,11 +454,18 @@ export default function DayTabRoute() {
   const assistantSessionRef = useRef<AssistantSession | null>(null);
   assistantSessionRef.current = assistantSession;
 
-  const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean }) => {
+  const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean; silent?: boolean }) => {
     // Keep the in-dialog experience stable once the day plan is on screen, but never
     // block the initial load (or recovery after a failed load) while the modal is open.
     if (assistantSessionRef.current && !options?.force && planRef.current) return;
-    setLoading((current) => (planRef.current && !options?.showRefreshing ? current : true));
+    // Silent / already-have-plan: never flip loading → subtle refresh spinner.
+    // (Focus used to setPlan(prefetch) then call refresh() before planRef synced,
+    // so the spinner showed over already-visible content.)
+    const keepQuiet =
+      options?.silent === true || (Boolean(planRef.current) && options?.showRefreshing !== true);
+    if (!keepQuiet) {
+      setLoading(true);
+    }
     setError(null);
     try {
       setPlan(await loadDayPlan());
@@ -488,30 +502,32 @@ export default function DayTabRoute() {
   useFocusEffect(
     useCallback(() => {
       if (assistantSessionRef.current && planRef.current) return;
-      let cancelled = false;
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       });
       // Drop wrong-date or post-mutation in-memory plan immediately.
       if (consumeDayPlanStale() || (planRef.current && !isDayPlanCurrent(planRef.current))) {
+        planRef.current = null;
         setPlan(null);
         setLoading(true);
       }
-      // Same-session prefetch is OK (just produced by Home/Day dialog).
-      // Never paint SecureStore/persisted cache on focus — after app restart it
-      // shows yesterday's sections for 1–2s until /api/day returns.
+      // Same-session prefetch (Home idle / dialog) — paint immediately and sync
+      // planRef before refresh so silent background fetch does not show the spinner.
       const prefetched = consumePrefetchedDayPlan();
       if (prefetched && isDayPlanCurrent(prefetched)) {
+        planRef.current = prefetched;
         setPlan(prefetched);
         setError(null);
         setLoading(false);
-      } else if (!planRef.current) {
-        setLoading(true);
+        void refresh({ silent: true });
+        return;
       }
+      if (planRef.current) {
+        void refresh({ silent: true });
+        return;
+      }
+      setLoading(true);
       void refresh();
-      return () => {
-        cancelled = true;
-      };
     }, [refresh]),
   );
 
@@ -535,7 +551,19 @@ export default function DayTabRoute() {
     () => (todaySection?.sphereStats ?? []).filter((item) => item.value > 0.001),
     [todaySection?.sphereStats],
   );
-  const showRefreshingBanner = loading && Boolean(plan);
+  const showSubtleRefresh = loading && Boolean(plan);
+
+  const tryLaunchDayPractice = useCallback(
+    (practice: PracticeSummary) => {
+      const feature = featureKeyForPracticeKind(practice.kind);
+      if (!canUseFeature(feature)) {
+        setLockedFeature(feature);
+        return;
+      }
+      launchPractice(practice.launch, { launchSource: "day" });
+    },
+    [canUseFeature],
+  );
 
   const saveOffer = async (practice: PracticeSummary) => {
     if (!plan) return;
@@ -696,9 +724,7 @@ export default function DayTabRoute() {
                         <View style={styles.pendingPractice}>
                           <PracticeCard
                             practice={plan.pendingPractice.practice_summary}
-                            onLaunch={(practice) => {
-                              launchPractice(practice.launch, { launchSource: "day" });
-                            }}
+                            onLaunch={tryLaunchDayPractice}
                           />
                           <AppButton
                             label={dayStrings.cancelPracticeButton}
@@ -767,10 +793,19 @@ export default function DayTabRoute() {
         ) : null}
       </TabScrollView>
 
-      <BlockingStatusToast
-        visible={showRefreshingBanner}
-        message={dayStrings.refreshingHint}
-      />
+      {showSubtleRefresh ? (
+        <View style={styles.subtleRefreshOverlay} pointerEvents="none">
+          <ActivityIndicator size="small" color={theme.colors.accent} />
+        </View>
+      ) : null}
+
+      {lockedFeature ? (
+        <AccountGateDialog
+          visible
+          feature={lockedFeature}
+          onClose={() => setLockedFeature(null)}
+        />
+      ) : null}
 
       <SurfaceHelpModal
         visible={sectionHelp != null}
@@ -819,6 +854,11 @@ export default function DayTabRoute() {
 const styles = StyleSheet.create({
   sectionGroup: {
     gap: 12,
+  },
+  subtleRefreshOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
   },
   card: {
     borderRadius: SURFACE_CARD.borderRadius,

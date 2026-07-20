@@ -1,3 +1,5 @@
+- 2026-07-21 (209): Day tab — гейт запуска практики для Oracle как в каталоге (`AccountGateDialog` по kind); мутации дня — тихий `ActivityIndicator` вместо `BlockingStatusToast` «Обновляем день…». Docs `practices/*`, `subscription/*`, `daily_forecast/*`.
+- 2026-07-21 (208): Day prefetch: не ждать `homeTextsLoading`; на focus при prefetch — `refresh({silent:true})` без toast «Обновляем день…» поверх уже видимого плана. Docs `daily_forecast/history`.
 - 2026-07-21 (207): После полной готовности Home фоновый prefetch `/api/day` → `storePrefetchedDayPlan`, чтобы первое открытие вкладки «День» было мгновенным. Docs `daily_forecast/history`.
 - 2026-07-21 (206): GeoGate на каждом открытии Home делал `checking→granted` → `refresh({forceRefresh:true})` → paid ждал LLM, хотя cron warm был готов. Fix: onGranted только после `denied→granted`; обычный refresh без force. Docs `daily_forecast/history`.
 - 2026-07-21 (205): Paid morning cache больше не отбрасывается из‑за `modelUsed` ≠ текущего `AI_MODEL_*` (cron gemini vs Vercel deepseek → ложный cold LLM). Soft validity + sync Edge `AI_MODEL_*`. Docs `daily_forecast/history`.
