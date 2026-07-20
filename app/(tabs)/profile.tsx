@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 
@@ -10,7 +10,7 @@ import {
   useAccess,
   type FeatureKey,
 } from "@/modules/access";
-import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import { deleteAccountRemote, openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
 import { useAuth } from "@/modules/auth";
 import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
 import { APP_LOCALE_OPTIONS, getResponseLocale, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
@@ -93,7 +93,7 @@ function errorMessage(value: unknown, fallback = "Неизвестная оши�
 
 export default function ProfileTabRoute() {
   const theme = useTheme();
-  const { authUser, profile, refreshProfile } = useAuth();
+  const { authUser, profile, refreshProfile, signOut } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const { locale, setLocale, testMode } = useAppLocale();
   const { t } = useTranslate();
@@ -206,17 +206,16 @@ export default function ProfileTabRoute() {
         commitLocale(params.code);
       } catch (error) {
         if (controller.signal.aborted) return;
-        const raw = errorMessage(error, t("profile.language.rebuildError"));
-        const isTechnicalMismatch =
-          /language mismatch|LOCALE_MISMATCH|wrong language/i.test(raw) ||
-          raw.startsWith("Day content language mismatch");
+        // Диалог всегда на целевом языке (как toast «Идёт перевод…»); технические
+        // EN-сообщения вроде «timed out after 25s» пользователю не показываем.
+        void error;
         setOptimisticLocale(null);
         setLocaleRebuild({
           phase: "error",
           pendingLocale: params.code,
           previousLocale: params.previousLocale,
           accessMode: params.accessMode,
-          message: isTechnicalMismatch ? t("profile.language.rebuildError") : raw || t("profile.language.rebuildError"),
+          message: translate(params.code, "profile.language.rebuildError"),
         });
       } finally {
         if (localeEnsureAbortRef.current === controller) {
@@ -342,6 +341,10 @@ export default function ProfileTabRoute() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [cabinetOpening, setCabinetOpening] = useState(false);
   const [cabinetError, setCabinetError] = useState<string | null>(null);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [accountActionBusy, setAccountActionBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const linksEnabled = useAccountLinksEnabled();
 
   // «Мои данные»: имя, тариф, email и (для тарифов с персональным прогнозом)
@@ -383,6 +386,32 @@ export default function ProfileTabRoute() {
       setCabinetOpening(false);
     }
   }, []);
+
+  const onConfirmSignOut = useCallback(async () => {
+    logRuntimeTap("profile_sign_out", {});
+    setAccountActionBusy(true);
+    try {
+      setSignOutConfirmOpen(false);
+      await signOut();
+    } finally {
+      setAccountActionBusy(false);
+    }
+  }, [signOut]);
+
+  const onConfirmDeleteAccount = useCallback(async () => {
+    logRuntimeTap("profile_delete_account", {});
+    setDeleteError(null);
+    setAccountActionBusy(true);
+    try {
+      await deleteAccountRemote();
+      setDeleteConfirmOpen(false);
+      await signOut();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAccountActionBusy(false);
+    }
+  }, [signOut]);
 
   const localeOptions = useMemo(
     () =>
@@ -503,6 +532,7 @@ export default function ProfileTabRoute() {
               timezone: birthData.location.timezone,
             },
             forceRefresh: true,
+            forceStructuralRefresh: true,
           })
             .then((warmed) => publishLocaleDayContentWarm(warmed))
             .catch(() => undefined);
@@ -533,7 +563,13 @@ export default function ProfileTabRoute() {
         <TabScrollView contentOptions={{ maxWidth: 460 }} {...donutScrollProps}>
         <ScreenHeader title={t("profile.title")} subtitle={t("profile.subtitle")} />
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
+        <View
+          style={[
+            styles.card,
+            styles.localeCard,
+            { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder },
+          ]}
+        >
           <AppText variant="sectionTitle">{t("profile.myData.title")}</AppText>
           <AppText variant="dialogBody">
             {displayName
@@ -541,12 +577,34 @@ export default function ProfileTabRoute() {
               : tariffLabel}
           </AppText>
           {email ? <AppText variant="dialogBody" tone="muted">{email}</AppText> : null}
+
+          <AppText variant="dialogBody">{t("profile.language.appLabel")}</AppText>
+          <ComboBox
+            variant="pill"
+            id="profile-locale"
+            label={t("profile.language.appLabel")}
+            value={optimisticLocale ?? locale}
+            displayValue={localeDisplayValue}
+            options={localeOptions}
+            open={localeOpen}
+            onOpenChange={setLocaleOpen}
+            onChange={(code) => {
+              void handleLocalePick(code);
+            }}
+          />
+          {testMode ? (
+            <AppText variant="technicalCaption" tone="muted">
+              {t("profile.language.testModeNote")}
+            </AppText>
+          ) : null}
+          <ComboBoxDismissOverlay active={localeOpen} onDismiss={() => setLocaleOpen(false)} />
+
           {linksEnabled ? (
             <>
               <AppButton
                 label={cabinetOpening ? "…" : t("gate.openCabinet")}
                 onPress={() => void onOpenCabinet()}
-                disabled={cabinetOpening}
+                disabled={cabinetOpening || accountActionBusy}
               />
               {cabinetError ? (
                 <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>
@@ -555,6 +613,35 @@ export default function ProfileTabRoute() {
               ) : null}
             </>
           ) : null}
+
+          <View style={styles.accountLinksRow}>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => setSignOutConfirmOpen(true)}
+              disabled={accountActionBusy}
+              hitSlop={8}
+            >
+              <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                {t("profile.account.signOut")}
+              </AppText>
+            </Pressable>
+            <AppText variant="screenHint" tone="muted">
+              ·
+            </AppText>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => {
+                setDeleteError(null);
+                setDeleteConfirmOpen(true);
+              }}
+              disabled={accountActionBusy}
+              hitSlop={8}
+            >
+              <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                {t("profile.account.delete")}
+              </AppText>
+            </Pressable>
+          </View>
 
           {showBirthData ? (
             <>
@@ -628,54 +715,38 @@ export default function ProfileTabRoute() {
           <AppButton label={t("support.openButton")} variant="secondary" onPress={() => setSupportOpen(true)} />
         </View>
 
-        <View
-          style={[
-            styles.card,
-            styles.localeCard,
-            { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder },
-          ]}
-        >
-          <AppText variant="sectionTitle">{t("profile.language.title")}</AppText>
-          <AppText variant="screenHint" tone="muted">
-            {t("profile.language.hint")}
-          </AppText>
-          <ComboBox
-            variant="pill"
-            id="profile-locale"
-            label={t("profile.language.title")}
-            value={optimisticLocale ?? locale}
-            displayValue={localeDisplayValue}
-            options={localeOptions}
-            open={localeOpen}
-            onOpenChange={setLocaleOpen}
-            onChange={(code) => {
-              void handleLocalePick(code);
-            }}
-          />
-          {testMode ? (
-            <AppText variant="technicalCaption" tone="muted">
-              {t("profile.language.testModeNote")}
-            </AppText>
-          ) : null}
-          <ComboBoxDismissOverlay active={localeOpen} onDismiss={() => setLocaleOpen(false)} />
-        </View>
-
         <AppDialog
           visible={localeRebuild.phase === "confirm" || localeRebuild.phase === "error"}
-          title={t("profile.language.rebuildTitle")}
+          title={
+            localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
+              ? translate(localeRebuild.pendingLocale, "profile.language.rebuildTitle")
+              : t("profile.language.rebuildTitle")
+          }
           message={
-            localeRebuild.phase === "error" ? localeRebuild.message : t("profile.language.rebuildMessage")
+            localeRebuild.phase === "error"
+              ? localeRebuild.message
+              : localeRebuild.phase === "confirm"
+                ? translate(localeRebuild.pendingLocale, "profile.language.rebuildMessage")
+                : t("profile.language.rebuildMessage")
           }
           onRequestClose={cancelLocaleRebuild}
           actions={
             <>
               <AppButton
-                label={t("profile.language.rebuildCancel")}
+                label={
+                  localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
+                    ? translate(localeRebuild.pendingLocale, "profile.language.rebuildCancel")
+                    : t("profile.language.rebuildCancel")
+                }
                 variant="secondary"
                 onPress={cancelLocaleRebuild}
               />
               <AppButton
-                label={t("profile.language.rebuildContinue")}
+                label={
+                  localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
+                    ? translate(localeRebuild.pendingLocale, "profile.language.rebuildContinue")
+                    : t("profile.language.rebuildContinue")
+                }
                 onPress={() => {
                   void continueLocaleRebuild();
                 }}
@@ -787,6 +858,65 @@ export default function ProfileTabRoute() {
       </TabScrollView>
 
       <SupportModal visible={supportOpen} onClose={() => setSupportOpen(false)} />
+      <AppDialog
+        visible={signOutConfirmOpen}
+        title={t("profile.account.signOutTitle")}
+        message={t("profile.account.signOutMessage")}
+        onRequestClose={() => {
+          if (!accountActionBusy) setSignOutConfirmOpen(false);
+        }}
+        actions={
+          <>
+            <AppButton
+              label={t("profile.account.signOutCancel")}
+              variant="secondary"
+              onPress={() => setSignOutConfirmOpen(false)}
+              disabled={accountActionBusy}
+            />
+            <AppButton
+              label={t("profile.account.signOutConfirm")}
+              onPress={() => void onConfirmSignOut()}
+              disabled={accountActionBusy}
+            />
+          </>
+        }
+      />
+      <AppDialog
+        visible={deleteConfirmOpen || Boolean(deleteError)}
+        title={t("profile.account.deleteTitle")}
+        message={deleteError ? t("profile.account.deleteError") : t("profile.account.deleteMessage")}
+        onRequestClose={() => {
+          if (accountActionBusy) return;
+          setDeleteConfirmOpen(false);
+          setDeleteError(null);
+        }}
+        actions={
+          deleteError ? (
+            <AppButton
+              label={t("common.close")}
+              variant="secondary"
+              onPress={() => {
+                setDeleteConfirmOpen(false);
+                setDeleteError(null);
+              }}
+            />
+          ) : (
+            <>
+              <AppButton
+                label={t("profile.account.deleteCancel")}
+                variant="secondary"
+                onPress={() => setDeleteConfirmOpen(false)}
+                disabled={accountActionBusy}
+              />
+              <AppButton
+                label={accountActionBusy ? t("profile.account.deleteWorking") : t("profile.account.deleteConfirm")}
+                onPress={() => void onConfirmDeleteAccount()}
+                disabled={accountActionBusy}
+              />
+            </>
+          )
+        }
+      />
       <NatalBirthDataModal
         visible={natalModalOpen}
         saving={natalSaving}
@@ -849,6 +979,17 @@ const styles = StyleSheet.create({
   },
   myDataSpacer: {
     height: 8,
+  },
+  accountLinksRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    paddingTop: 4,
+  },
+  accountLink: {
+    textDecorationLine: "underline",
   },
   myDataBirthActions: {
     flexDirection: "row",

@@ -2356,7 +2356,7 @@ export type Database = {
         Returns: undefined
       }
       set_signin_name_hint: {
-        Args: { p_email: string; p_name: string }
+        Args: { p_email: string; p_name: string; p_locale: string }
         Returns: undefined
       }
       get_posts_feed: {

@@ -9,6 +9,12 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-20 (l):** Rebuild языка — диалог confirm/error целиком на **целевом** языке (`translate(pendingLocale, …)`); технические EN-таймауты в message не показываем (`rebuildError`). Таймаут/эфемериды — см. `daily_forecast/history` (locale timeout). Текст `rebuildMessage` — «до двух минут».
+
+- **2026-07-20 (k):** Комбобокс языка перенесён в «Мои данные» под email (лейбл `profile.language.appLabel` «Язык приложения:»); отдельная карточка «Язык» убрана. Логика probe/ensure/rebuild без изменений.
+
+- **2026-07-20 (j):** Профиль — ссылки «Выйти» / «Удалить аккаунт» под «Личный кабинет» (одна строка, по центру). Подтверждение через `AppDialog` (`profile.account.*`, 8 локалей). Выход — `signOut()`. Удаление — `deleteAccountRemote` → `DELETE /api/account/delete` (отмена подписок у всех провайдеров, сохранение payment ledger, `auth.admin.deleteUser`) → `signOut()`. Ссылки не зависят от kill-switch кабинета. См. `account_web/history.md`.
+
 - **2026-07-20 (i):** Первое открытие «Изменить» — пустое «Место рождения» при заполненном профиле. Root cause в `BirthPlacePicker` (не синхронизировал текст с `value` после mount); см. `onboarding/history.md` (2026-07-20 d). `geoPlaceFromProfileBirthPlace` устойчивее к string coords / `lng`.
 
 - **2026-07-20 (h):** Ожидание после Save натала — UI карточки, не splash. Алгоритм (`markHomeDayContentBlockingReload` → Home focus → `refresh({ blockingReload })`) уже работал; пользователь видел полную заставку со сменяющимися `startup.step.*`, потому что `AppStartupProvider` рисовал только splash. Теперь `blockingReload` запрашивает presentation `day_card` («Готовим ваш день» / `wizard.warm.*`). См. `daily_forecast/history.md` (day_card).

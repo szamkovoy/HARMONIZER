@@ -215,7 +215,11 @@ Two resolvers — do not conflate layer B and layer C:
   (`templates/{en,de,fr,it,es,pt,nl}.json` + `templates/.sync-meta.json`);
   registered in `i18n-sync.mjs` as the `auth-email` flat source.
 - Runtime: the edge function imports the JSONs at deploy time and picks the
-  template by `user_metadata.locale` (fallback `ru`).
+  template by **live sign-in UI locale** from `signin_name_hints.locale`
+  (written by the client with `getResponseLocale()` before `signInWithOtp`),
+  then falls back to `user_metadata.locale`, then `ru`. Relying only on
+  `user_metadata.locale` is wrong for returning users: GoTrue does not update
+  metadata on subsequent OTP requests.
 - **Placeholders removed (2026-07-17):** the app name and the «Что делать?»
   button label are baked directly into each locale's template text — no
   `{app}`/`{cta}` runtime substitution. Since every template is fully in one
@@ -239,17 +243,17 @@ Two resolvers — do not conflate layer B and layer C:
   generic `greeting` is used. Locale-appropriate greeting punctuation is baked in (RU
   «Здравствуйте, {name}!», FR «Bonjour {name} !», ES «¡Hola, {name}!», etc.).
   Plain-text body remains single-`\n`-joined.
-- **Name source for the greeting (2026-07-17):** `signInWithOtp` does NOT update
-  `user_metadata` for an existing user (only on creation), so the hook would see
-  a stale `user_metadata.full_name` (e.g. an old DB name) instead of the name just
-  typed on wizard step 1. Fix: a side-channel table `public.signin_name_hints
-  (email PK, name, updated_at)` + anon-callable RPC `set_signin_name_hint`
-  (security definer, validated; migration `20260717130000`). The client
-  (`modules/auth/sign-in-email.ts`) upserts the freshly-typed name by email right
-  before `signInWithOtp`; the edge function reads it by `user.email` via the
-  Supabase REST API with `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS), and falls
-  back to `user_metadata.full_name` when no hint exists. Priority: hint →
-  `user_metadata.full_name` → generic `greeting`.
+- **Name + locale side-channel (2026-07-17 name; 2026-07-20 locale):**
+  `signInWithOtp` does NOT update `user_metadata` for an existing user (only on
+  creation). Without a side-channel the hook would see a stale
+  `full_name` / `locale` from first registration (e.g. wizard UI `ru` + email
+  template `pt`). Table `public.signin_name_hints (email PK, name, locale,
+  updated_at)` + RPC `set_signin_name_hint(p_email, p_name, p_locale)`
+  (migrations `20260717130000`, `20260720095058`). Client upserts typed name +
+  `getResponseLocale()` before OTP; edge function reads both via service-role
+  REST. Priority: hint → `user_metadata` → generic greeting / `ru`. After
+  successful `verifyOtp`, client also `updateUser({ data: { locale } })` to heal
+  auth metadata for the next time.
 - SMTP transport (2026-07-15): rewritten to use built-in `Deno.connectTls`
   (raw SMTP: EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT) instead of
   the `denomailer` module which was unavailable for Supabase Edge Function

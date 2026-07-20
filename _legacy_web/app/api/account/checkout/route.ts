@@ -122,6 +122,7 @@ async function startSubscriptionCheckout(
 
   const { error: insertError } = await db.from("payment_contracts").insert({
     user_id: userId,
+    buyer_email: email,
     contract_id: invoice.id,
     tier,
     currency,
@@ -185,6 +186,7 @@ async function startWebinarCheckout(
 
   const { error: insertError } = await db.from("payment_contracts").insert({
     user_id: userId,
+    buyer_email: email,
     contract_id: invoice.id,
     tier: "webinar",
     currency,
@@ -212,6 +214,7 @@ async function startBookCheckout(
 
   const { error: insertError } = await db.from("payment_contracts").insert({
     user_id: userId,
+    buyer_email: email,
     contract_id: invoice.id,
     tier: "book",
     currency,

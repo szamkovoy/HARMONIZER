@@ -1,9 +1,30 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.5
-updated: 2026-07-19
+version: 1.6
+updated: 2026-07-20
 ---
+
+## 2026-07-20 — Кабинет: standalone HTML вне WordPress (ISPManager)
+
+- **Решение:** `web_cabinet/cabinet.html` — полноценная HTML5-страница (`DOCTYPE`, `viewport`, charset, Google Fonts Hanken Grotesk, `theme-color`, `noindex`). Деплой на хостинг как `https://zamkovoi.yoga/cabinet/` **без** темы WP (ISPManager), чтобы убрать Thrive/jQuery/GTM/amoCRM.
+- URL приложения и CORS не меняются (`Origin: https://zamkovoi.yoga`). Оферта по-прежнему с Vercel по клику.
+- Альтернатива «всё на Vercel» отвергнута для бренда оплаты на zamkovoi.yoga; при желании позже можно проксировать тот же файл с Vercel на тот же path.
+
+## 2026-07-20 — Медленный вход в Личный кабинет (белый экран / поздний спиннер)
+
+- **Симптомы:** долгий белый экран в Safari после «Личный кабинет»; «Загружаем ваш кабинет…» появляется поздно или не появляется; полоска загрузки Safari остаётся частичной после показа контента.
+- **Причины:** (1) `resolveBillingCurrency` мог держать `openURL` на медленном `reverseGeocodeAsync`; (2) в WP-блок был вшит ~57 KB `HZ_OFFER` — текст «Загружаем…» и `POST /session` стартовали только после парсинга всего скрипта; (3) `buildAccountOverview` последовательно ждал цены Lava; (4) тема WordPress (Thrive/jQuery/GTM/amoCRM) продолжает грузить ассеты — Safari считает документ незавершённым.
+- **Фикс:** персист + таймаут 800 мс для валюты; early boot в `cabinet.html` (спиннер + session сразу); оферта вынесена из WP и грузится **только по клику**, по одному языку (`/cabinet/offer/{lang}.json`); цены Lava в overview — `Promise.all`. Продуктово оставлен полный спиннер до готового overview (не поэтапная шапка).
+- **Деплой:** обновить HTML-блок на `zamkovoi.yoga/cabinet/` **и** Vercel (`public/cabinet/offer/*.json` + overview). Полоска Safari после готовности кабинета — ограничение WP-шелла (см. `dependencies.md`).
+
+## 2026-07-20 — Удаление аккаунта из приложения + сохранение платёжного леджера
+
+- **UI:** на Профиле под «Личный кабинет» — ссылки «Выйти» / «Удалить аккаунт» (см. `profile/history`).
+- **API:** `DELETE /api/account/delete` (Bearer JWT) → `cancelActiveSubscriptionsForUser` (диспетчер `provider`: сейчас только `lavatop`; неизвестный провайдер — ошибка, delete не продолжается) → snapshot `buyer_email` → `auth.admin.deleteUser`.
+- **Миграция** `20260720092052_payment_ledger_survive_user_delete.sql` (applied remote): `payment_contracts`/`payments` — `user_id` nullable + `ON DELETE SET NULL`, колонка `buyer_email`. Checkout пишет `buyer_email` при insert.
+- **Кабинетная отмена** `DELETE /api/account/subscription` переведена на тот же диспетчер (все active subscription пользователя).
+- Клиент: `modules/account/core/deleteAccountClient.ts`.
 
 ## 2026-07-19 — Кнопка «Личный кабинет» падала после долгого фона: упреждающий refresh JWT
 

@@ -1,5 +1,6 @@
 import type { DailyForecast, Planet } from "@/modules/daily-engine";
 import { getDailyForecastUrl } from "@/services/communicatorConfig";
+import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
@@ -17,7 +18,10 @@ export interface DailyForecastRequest {
   forceRefresh?: boolean;
   responseLocale?: string;
   signal?: AbortSignal;
-  /** Переопределение клиентского HTTP-таймаута (по умолчанию 25s). Для онбординг-прогрева — до 90s. */
+  /**
+   * Переопределение клиентского HTTP-таймаута.
+   * По умолчанию: 25s (cache/structural); при `forceRefresh` — `DAY_CONTENT_LLM_TIMEOUT_MS` (120s).
+   */
   timeoutMs?: number;
 }
 
@@ -55,9 +59,10 @@ type DailyForecastResponse = {
   error?: unknown;
 };
 
-const DAILY_FORECAST_TIMEOUT_MS = 25000;
-/** Онбординг ждёт LLM-тексты дня — 25s часто мало. */
-export const ONBOARDING_DAILY_FORECAST_TIMEOUT_MS = 90_000;
+/** Быстрый путь: кэш / structural каркас без ожидания LLM. */
+const DAILY_FORECAST_TIMEOUT_MS = 25_000;
+/** Онбординг / LLM-пути — тот же бюджет, что смена языка и monologue. */
+export const ONBOARDING_DAILY_FORECAST_TIMEOUT_MS = DAY_CONTENT_LLM_TIMEOUT_MS;
 
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
@@ -141,7 +146,11 @@ export async function fetchDailyForecast(req: DailyForecastRequest): Promise<Dai
       const token = await getAccessToken();
       const url = getDailyForecastUrl();
       const timeoutMs =
-        typeof req.timeoutMs === "number" && req.timeoutMs > 0 ? req.timeoutMs : DAILY_FORECAST_TIMEOUT_MS;
+        typeof req.timeoutMs === "number" && req.timeoutMs > 0
+          ? req.timeoutMs
+          : req.forceRefresh === true
+            ? DAY_CONTENT_LLM_TIMEOUT_MS
+            : DAILY_FORECAST_TIMEOUT_MS;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       req.signal?.addEventListener("abort", () => controller.abort(), { once: true });

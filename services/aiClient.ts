@@ -1,5 +1,6 @@
 import { getResponseLocale } from "@/modules/i18n/localeStore";
 import { getAiMonologueUrl } from "@/services/communicatorConfig";
+import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
@@ -29,16 +30,12 @@ export type MorningRecommendationResponse = MonologueResponse<{
 }>;
 
 /**
- * Верхняя граница ожидания монолога на клиенте. Серверная retry/fallback-цепочка
- * `generateGeminiJson` может длиться до ~90s в худшем случае: primary-модель из
- * `AI_MODEL_STANDARD/PREMIUM` (DeepSeek — `DEFAULT_DEEPSEEK_TIMEOUT_MS` 60s, либо
- * Gemini 30s) → при retryable-сбое `AI_MODEL_FALLBACK` (ещё до 30–60s) — модель
- * берётся из `.env.local`, хардкода нет. Плюс DB-обвязка. 105s даёт запас поверх
- * 90s серверной цепочки + DB; по истечении бросаем ошибку, которую фоновый слой
- * Home ловит и заменяет на детерминированный fallback-текст. Сервер при этом может
- * ещё дозаписать cache — следующий откроет уже настоящий текст.
+ * Верхняя граница ожидания монолога на клиенте — общий бюджет
+ * `DAY_CONTENT_LLM_TIMEOUT_MS` (120s): серверная retry/fallback-цепочка
+ * `generateGeminiJson` до ~90s + запас. По истечении фоновый слой Home ловит
+ * ошибку и показывает детерминированный fallback; сервер может ещё дозаписать cache.
  */
-const MONOLOGUE_TIMEOUT_MS = 105_000;
+const MONOLOGUE_TIMEOUT_MS = DAY_CONTENT_LLM_TIMEOUT_MS;
 
 async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();

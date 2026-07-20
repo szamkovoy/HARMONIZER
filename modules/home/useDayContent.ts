@@ -17,6 +17,7 @@ import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } f
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
+import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
 import { getResponseLocale, subscribeAppLocale, type AppLocale } from "@/modules/i18n/localeStore";
 import { stripHomeLlmTexts } from "@/modules/home/stripHomeLlmTexts";
 import { sanitizeRecommendationDisplay } from "@/modules/home/sanitizeRecommendationDisplay";
@@ -138,8 +139,8 @@ function hasHomeCardTexts(forecast: DailyForecast | null | undefined): boolean {
   return Boolean(forecast?.slogan?.trim() && forecast?.recommendationShortText?.trim());
 }
 
-/** Сколько оверлей «Готовим ваш день» держится в paid-пути, ожидая LLM-тексты (страховка, как в onboarding). */
-const HOME_WARM_TEXTS_TIMEOUT_MS = 90_000;
+/** Сколько оверлей «Готовим ваш день» держится в paid-пути, ожидая LLM-тексты. */
+const HOME_WARM_TEXTS_TIMEOUT_MS = DAY_CONTENT_LLM_TIMEOUT_MS;
 
 async function enrichWithMorningContent(
   forecast: DailyForecast,

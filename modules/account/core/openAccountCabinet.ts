@@ -89,6 +89,7 @@ export async function clearCabinetVisit(userId: string): Promise<void> {
 export async function openAccountCabinet(ctx: CabinetContext = "tier"): Promise<void> {
   const session = await getSupabaseSessionSnapshot();
   const userId = session?.user?.id ?? null;
+  // currency: кэш/таймаут ≤800мс — не блокируем openURL долгим reverse-geocode.
   const [ott, currency] = await Promise.all([requestOneTimeToken(), resolveBillingCurrency(userId)]);
   const url = new URL(getAccountCabinetUrl());
   url.searchParams.set("ott", ott);

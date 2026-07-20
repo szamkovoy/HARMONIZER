@@ -145,24 +145,8 @@ export async function buildAccountOverview(
   const currency: LavaCurrency = isLavaCurrency(currencyParam) ? currencyParam : "EUR";
   const purchaseMode = resolvePurchaseMode(currency);
 
-  const upgradeTiers: AccountUpgradeTier[] = [];
-  for (const tier of candidateTiers) {
-    // practitioner не продаётся через Lava; VISIBLE_PAID_PRODUCT_TIERS его не
-    // содержит, но на всякий случай пропускаем.
-    if (tier === "practitioner") continue;
-    let price: { amount: number; currency: LavaCurrency } | null = null;
-    try {
-      price = await resolveLavaPrice(db, tier as SellableTier, userLocale, currency, "MONTHLY");
-    } catch {
-      // оффер не сконфигурирован для этой локали/fallback — цена недоступна,
-      // кабинет покажет уровень без цены (или скроет кнопку).
-    }
-    upgradeTiers.push({ tier, purchase: { mode: purchaseMode, price, url: null } });
-  }
-
-  // Ближайший опубликованный вебинар + цена разового участия (ONE_TIME).
-  let webinarId: string | null = null;
-  const { data: nearestWebinar } = await db
+  // Ближайший опубликованный вебинар (параллельно с ценами Lava).
+  const nearestWebinarPromise = db
     .from("webinars")
     .select("id")
     .eq("is_published", true)
@@ -170,8 +154,30 @@ export async function buildAccountOverview(
     .order("starts_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (nearestWebinar) webinarId = nearestWebinar.id;
 
+  // Цены Lava — параллельно (общий in-memory кэш products на 10 мин).
+  const sellableUpgradeTiers = candidateTiers.filter((tier) => tier !== "practitioner");
+  const [upgradePrices, nearestWebinar, bookPrice] = await Promise.all([
+    Promise.all(
+      sellableUpgradeTiers.map(async (tier) => {
+        try {
+          return await resolveLavaPrice(db, tier as SellableTier, userLocale, currency, "MONTHLY");
+        } catch {
+          // оффер не сконфигурирован — кабинет покажет уровень без цены.
+          return null;
+        }
+      }),
+    ),
+    nearestWebinarPromise,
+    resolveLavaPrice(db, "book", userLocale, currency, "ONE_TIME" as LavaPeriodicity).catch(() => null),
+  ]);
+
+  const upgradeTiers: AccountUpgradeTier[] = sellableUpgradeTiers.map((tier, i) => ({
+    tier,
+    purchase: { mode: purchaseMode, price: upgradePrices[i] ?? null, url: null },
+  }));
+
+  const webinarId = nearestWebinar.data?.id ?? null;
   let webinarPrice: { amount: number; currency: LavaCurrency } | null = null;
   if (webinarId) {
     try {
@@ -179,14 +185,6 @@ export async function buildAccountOverview(
     } catch {
       // оффер вебинара не сконфигурирован — цена недоступна
     }
-  }
-
-  // Цена разовой покупки книги (ONE_TIME).
-  let bookPrice: { amount: number; currency: LavaCurrency } | null = null;
-  try {
-    bookPrice = await resolveLavaPrice(db, "book", userLocale, currency, "ONE_TIME" as LavaPeriodicity);
-  } catch {
-    // оффер книги не сконфигурирован — цена недоступна
   }
 
   return {

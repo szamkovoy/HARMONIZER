@@ -37,8 +37,11 @@ code_refs:
 - **`practices` (агрегаты)**  
   Экран профиля читает **`loadDailyPracticeStatsInRange`** / **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица `user_daily_stats` / завершённые сессии). Запись сессий выполняется из flow практик, не из таба профиля.
 
+- **`account_web`**  
+  Кнопка «Личный кабинет» → `openAccountCabinet`; **«Удалить аккаунт»** → `deleteAccountRemote()` → `DELETE /api/account/delete` (JWT). Выход из аккаунта — локальный `useAuth().signOut()` без account API.
+
 - **`i18n` / `life-spheres`**  
-  Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
+  Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`, `profile.account.*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
 
 - **`charts`**  
   Donut-отчёты рендерятся через **`DonutChart`** (`modules/charts/`): сегменты, дуга баланса, центр `{balance}%`, scroll-triggered animation; **`app/(tabs)/profile.tsx`** — **`DonutVisibilityProvider`**, **`useDonutScrollProps`** на `ScrollView`, **`useDonutVisibilityRefresh`** + **`useFocusEffect`** при фокусе таба (как на Day tab).

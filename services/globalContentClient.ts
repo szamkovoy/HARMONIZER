@@ -4,6 +4,7 @@ import type { DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { computeWindowsForFreeUser } from "@/modules/daily-engine";
 import { getAiGlobalContentUrl } from "@/services/communicatorConfig";
 import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
+import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
 import { requireSupabase } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
@@ -48,7 +49,7 @@ type GlobalContentResponse = {
 /** Ordinary load returns structural/cache immediately; keep a short bound. */
 const GLOBAL_CONTENT_TIMEOUT_MS = 25_000;
 /** Profile language rebuild / explicit ensure awaits LLM + i18n. */
-const GLOBAL_CONTENT_FORCE_REFRESH_TIMEOUT_MS = 105_000;
+const GLOBAL_CONTENT_FORCE_REFRESH_TIMEOUT_MS = DAY_CONTENT_LLM_TIMEOUT_MS;
 const GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS = 8_000;
 
 type GlobalTextFields = {

@@ -1,6 +1,6 @@
 import { createServiceSupabase, errorResponse } from "../../_utils/supabase";
+import { cancelActiveSubscriptionsForUser } from "../cancelActiveSubscriptions";
 import { cabinetBearerUserId, corsJson, corsPreflight, withCors } from "../_utils";
-import { cancelLavaSubscription } from "../lava";
 
 // Текущая подписка пользователя (GET) и её отмена (DELETE).
 // Вызывается страницей Личного кабинета (кабинетная сессия, CORS сайта).
@@ -61,21 +61,12 @@ export async function DELETE(req: Request) {
     const email = authData?.user?.email;
     if (!email) return corsJson({ error: "User has no email" }, { status: 409 });
 
-    await cancelLavaSubscription({ contractId: contract.contract_id, email });
+    // Диспетчер по provider (сейчас Lava; позже Яндекс.Касса и др.).
+    // Кабинет отменяет «текущую» active — helper отменяет все active subscription.
+    await cancelActiveSubscriptionsForUser(db, { userId, email });
 
-    // Помечаем сразу (вебхук subscription.cancelled продублирует идемпотентно).
     // Доступ у пользователя остаётся до current_period_end: users.membership_*
     // не трогаем — тариф "сгорит" сам по membership_expires_at.
-    const { error: updateError } = await db
-      .from("payment_contracts")
-      .update({
-        status: "cancelled",
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("contract_id", contract.contract_id);
-    if (updateError) throw updateError;
-
     return corsJson({
       cancelled: true,
       accessUntil: contract.current_period_end,

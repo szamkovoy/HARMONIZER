@@ -32,13 +32,19 @@ export async function requestEmailOtpCode(email: string, displayName?: string): 
   const supabase = requireSupabase();
   const name = displayName?.trim();
   const normalized = normalizeEmail(email);
-  // Side-channel для приветствия в письме: signInWithOtp НЕ обновляет
-  // user_metadata для существующего пользователя, поэтому edge-функция иначе
-  // увидела бы устаревшее имя из БД. Пишем свежее имя в signin_name_hints
-  // (best-effort — не блокируем отправку кода при сбое).
+  const locale = getResponseLocale();
+  // Side-channel для OTP-письма: signInWithOtp НЕ обновляет user_metadata
+  // для существующего пользователя (только при создании). Без подсказки
+  // edge-функция увидела бы устаревшие full_name и locale первой регистрации
+  // (UI уже на другом языке — типичный баг «мастер на RU, письмо на PT»).
+  // Best-effort: сбой hint не блокирует отправку кода.
   if (name) {
     await supabase
-      .rpc("set_signin_name_hint", { p_email: normalized, p_name: name })
+      .rpc("set_signin_name_hint", {
+        p_email: normalized,
+        p_name: name,
+        p_locale: locale,
+      })
       .then(({ error }) => {
         if (error) console.warn("set_signin_name_hint failed", error.message);
       });
@@ -49,7 +55,7 @@ export async function requestEmailOtpCode(email: string, displayName?: string): 
       shouldCreateUser: true,
       data: {
         ...(name ? { full_name: name } : {}),
-        locale: getResponseLocale(),
+        locale,
       },
     },
   });
@@ -65,4 +71,10 @@ export async function verifyEmailOtpCode(email: string, code: string): Promise<v
     type: "email",
   });
   if (error) throw error;
+  // Подлечиваем устаревший user_metadata.locale (язык первой регистрации),
+  // чтобы следующий OTP без side-channel тоже шёл на языке текущего UI.
+  const locale = getResponseLocale();
+  await supabase.auth.updateUser({ data: { locale } }).then(({ error: metaError }) => {
+    if (metaError) console.warn("updateUser locale after OTP failed", metaError.message);
+  });
 }

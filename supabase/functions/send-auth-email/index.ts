@@ -22,15 +22,17 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;");
 }
 
-/** Свежее имя со страницы входа (таблица signin_name_hints). Edge-функция
- *  запускается под service-role, обходит RLS. Возвращает пустую строку при сбое
- *  или отсутствии подсказки — тогда используем fallback user_metadata.full_name. */
-async function fetchSigninNameHint(email: string): Promise<string> {
+type SigninHint = { name: string; locale: string };
+
+/** Свежие имя + locale со страницы входа (signin_name_hints). Service-role,
+ *  обходит RLS. Пустые поля → fallback на user_metadata. */
+async function fetchSigninHint(email: string): Promise<SigninHint> {
+  const empty: SigninHint = { name: "", locale: "" };
   const supabaseUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !serviceRoleKey || !email) return "";
+  if (!supabaseUrl || !serviceRoleKey || !email) return empty;
   try {
-    const url = `${supabaseUrl}/rest/v1/signin_name_hints?email=eq.${encodeURIComponent(email.toLowerCase())}&select=name&limit=1`;
+    const url = `${supabaseUrl}/rest/v1/signin_name_hints?email=eq.${encodeURIComponent(email.toLowerCase())}&select=name,locale&limit=1`;
     const res = await fetch(url, {
       headers: {
         apikey: serviceRoleKey,
@@ -38,12 +40,16 @@ async function fetchSigninNameHint(email: string): Promise<string> {
         Accept: "application/json",
       },
     });
-    if (!res.ok) return "";
+    if (!res.ok) return empty;
     const data = await res.json();
-    const name = Array.isArray(data) && data[0]?.name ? String(data[0].name) : "";
-    return name.trim();
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row) return empty;
+    return {
+      name: row.name ? String(row.name).trim() : "",
+      locale: row.locale ? String(row.locale).trim() : "",
+    };
   } catch {
-    return "";
+    return empty;
   }
 }
 function renderEmail(
@@ -182,17 +188,19 @@ Deno.serve(async (req) => {
     return hookError("Missing user.email or email_data.token", 400);
   }
 
-  const locale = resolveLocale(user?.user_metadata?.locale);
-  const tpl = resolveTemplate(user?.user_metadata?.locale);
+  // Приоритет locale/имени: свежая подсказка со страницы входа (язык UI мастера
+  // в момент OTP) → user_metadata (язык первой регистрации) → ru.
+  // Без hint существующий пользователь получал письмо на языке signup-а,
+  // хотя мастер уже был на другом (типично SecureStore ru vs metadata pt).
+  const hint = await fetchSigninHint(String(to ?? ""));
+  const locale = resolveLocale(hint.locale || user?.user_metadata?.locale);
+  const tpl = resolveTemplate(locale);
   // Имя отправителя и подпись в теле: RU «Сергей Замковой», иначе «Sergei Zamkovoi»
   // (override: MAIL_FROM_NAME); non-ASCII → RFC 2047.
   const signName = SENDER_NAMES[locale] ?? DEFAULT_SENDER_NAME;
   const fromName = Deno.env.get("MAIL_FROM_NAME")?.trim() || signName;
-  // Приоритет имени для приветствия: свежая подсказка со страницы входа
-  // (signin_name_hints) → user_metadata.full_name → пусто (generic greeting).
-  const hintName = await fetchSigninNameHint(String(to ?? ""));
   const metaName = String(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? "");
-  const userName = hintName || metaName;
+  const userName = hint.name || metaName;
   const rendered = renderEmail(tpl, String(code), signName, userName, locale);
 
   const client = new SESv2Client({

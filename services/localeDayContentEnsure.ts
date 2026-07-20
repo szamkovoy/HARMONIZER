@@ -12,6 +12,7 @@ import {
 } from "@/services/dayContentCache";
 import { isDayContentComplete, isFreeDayContentRenderable } from "@/services/dayContentIntegrity";
 import { assertDayTextsMatchLocale, dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
+import { DAY_CONTENT_LLM_TIMEOUT_MS } from "@/services/dayContentTimeouts";
 import { fetchGlobalContent } from "@/services/globalContentClient";
 import type { LocaleDayContentWarmPayload } from "@/services/localeDayContentBridge";
 
@@ -24,8 +25,16 @@ export type EnsureLocaleDayContentParams = {
   birthDate?: string | null;
   birthTime?: string | null;
   birthPlace?: unknown;
-  /** When true, regenerates missing/stale locale texts (profile rebuild). */
+  /**
+   * Пересобрать LLM-тексты дня на `locale` (смена языка / miss в кэше).
+   * Само по себе НЕ форсирует пересчёт эфемерид — см. `forceStructuralRefresh`.
+   */
   forceRefresh?: boolean;
+  /**
+   * Пересчитать числовой каркас дня (эфемериды) + инвалидировать morning на сервере.
+   * Нужен после смены натала; при одной смене языка оставлять false.
+   */
+  forceStructuralRefresh?: boolean;
   signal?: AbortSignal;
 };
 
@@ -261,14 +270,18 @@ export async function ensureLocaleDayContent(
     monologue = await fetchMorningMonologue(params.locale, true, params.signal);
   }
 
-  // forceRefresh обязан доходить и до daily-forecast: иначе сервер может отдать
-  // новый числовой каркас + старые morning-тексты из scenario_cache (до инвалидации
-  // натала) либо пропустить regen morning в том же запросе.
+  // Смена языка: только LLM-тексты (monologue выше) + кэш/structural forecast.
+  // Смена натала: forceStructuralRefresh → сервер пересчитывает эфемериды и
+  // morning (иначе новый каркас + stale scenario_cache). Без этого флага
+  // forceRefresh на daily-forecast ложно запускал Astronomía + второй LLM
+  // и упирался в короткий 25s HTTP-таймаут («timed out after 25s»).
+  const structuralRefresh = params.forceStructuralRefresh === true;
   const daily = await fetchDailyForecast({
     forecastDate,
     userLocation: params.userLocation,
     responseLocale: params.locale,
-    forceRefresh,
+    forceRefresh: structuralRefresh,
+    timeoutMs: DAY_CONTENT_LLM_TIMEOUT_MS,
     signal: params.signal,
   });
 
