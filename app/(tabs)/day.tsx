@@ -49,6 +49,7 @@ import {
   savePendingDayPractice,
   type DayAction,
   type DayPlan,
+  type DayPracticeOffer,
   type DaySection,
   type DaySphereStat,
 } from "@/services/dayPlan";
@@ -204,14 +205,75 @@ function practiceForDayTarget(practice: PracticeSummary, target: 1 | 2 | 3 | 4 |
   };
 }
 
+function isOptimisticPracticeOfferId(id: string): boolean {
+  return id.startsWith("optimistic-");
+}
+
+function buildPendingPracticeOffer(practice: PracticeSummary, optimisticId: string): DayPracticeOffer {
+  return {
+    id: optimisticId,
+    practice_kind: practice.kind,
+    practice_id: practice.id,
+    practice_slug: practice.slug,
+    title: practice.title,
+    duration_sec: practice.defaultDurationSec ?? null,
+    launch: practice.launch,
+    practice_summary: practice,
+    status: "pending",
+    created_at: new Date().toISOString(),
+  };
+}
+
+/** Keep Day mode in sync when pending practice appears/disappears without a full reload. */
+function planWithPendingPractice(plan: DayPlan, pendingPractice: DayPracticeOffer | null): DayPlan {
+  if (plan.mode === "overdue_summary") {
+    return { ...plan, pendingPractice };
+  }
+  const sectionHasContent = plan.sections.some(
+    (section) => section.actions.length > 0 || section.practices.length > 0,
+  );
+  const mode = sectionHasContent || pendingPractice ? "current_day" : "empty_today";
+  return { ...plan, pendingPractice, mode };
+}
+
+function planWithRenamedAction(plan: DayPlan, actionId: string, title: string): DayPlan {
+  return {
+    ...plan,
+    sections: plan.sections.map((section) => ({
+      ...section,
+      actions: section.actions.map((action) =>
+        action.id === actionId ? { ...action, title } : action,
+      ),
+    })),
+  };
+}
+
+function planWithoutAction(plan: DayPlan, actionId: string): DayPlan {
+  const sections = plan.sections.map((section) => ({
+    ...section,
+    actions: section.actions.filter((action) => action.id !== actionId),
+  }));
+  const hasOpenActions = sections.some((section) =>
+    section.actions.some((action) => action.status !== "summarized"),
+  );
+  return {
+    ...plan,
+    sections,
+    // Approximate until silent refresh syncs server-derived flags/sphere chart.
+    canSummarizeCurrentDay: plan.canSummarizeCurrentDay && hasOpenActions,
+  };
+}
+
 function DayActionRow({
   action,
-  onChanged,
+  onRename,
+  onDelete,
   readonly = false,
   strings,
 }: {
   action: DayAction;
-  onChanged: () => void;
+  onRename: (actionId: string, title: string) => void;
+  onDelete: (actionId: string) => void;
   readonly?: boolean;
   strings: DayStrings;
 }) {
@@ -222,16 +284,19 @@ function DayActionRow({
   const inputRef = useRef<TextInput>(null);
   const summarized = action.status === "summarized";
 
-  const save = async () => {
+  useEffect(() => {
+    if (!editing) setDraft(action.title);
+  }, [action.title, editing]);
+
+  const save = () => {
     const next = draft.trim();
     if (!next || next === action.title) {
       setEditing(false);
       setDraft(action.title);
       return;
     }
-    await renameDayAction(action.id, next);
     setEditing(false);
-    onChanged();
+    onRename(action.id, next);
   };
 
   const remove = () => {
@@ -240,9 +305,7 @@ function DayActionRow({
       {
         text: strings.deleteButton,
         style: "destructive",
-        onPress: () => {
-          void deleteDayAction(action.id).then(onChanged);
-        },
+        onPress: () => onDelete(action.id),
       },
     ]);
   };
@@ -317,7 +380,7 @@ function DayActionRow({
       </Pressable>
       {editing ? (
         <View style={styles.editActions}>
-          <AppButton label={strings.saveButton} onPress={() => void save()} style={styles.smallButton} />
+          <AppButton label={strings.saveButton} onPress={save} style={styles.smallButton} />
           <AppButton label={strings.cancelButton} variant="secondary" onPress={() => {
             setDraft(action.title);
             setEditing(false);
@@ -453,6 +516,10 @@ export default function DayTabRoute() {
   planRef.current = plan;
   const assistantSessionRef = useRef<AssistantSession | null>(null);
   assistantSessionRef.current = assistantSession;
+  /** Invalidates in-flight save/cancel when the user picks another practice or cancels mid-request. */
+  const pendingPracticeMutationSeqRef = useRef(0);
+  /** Serialize offer POST/PATCH so rapid picks cannot race on the server. */
+  const pendingPracticePersistChainRef = useRef(Promise.resolve());
 
   const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean; silent?: boolean }) => {
     // Keep the in-dialog experience stable once the day plan is on screen, but never
@@ -565,12 +632,102 @@ export default function DayTabRoute() {
     [canUseFeature],
   );
 
-  const saveOffer = async (practice: PracticeSummary) => {
-    if (!plan) return;
-    await savePendingDayPractice(plan.currentLocalDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
+  const saveOffer = useCallback((practice: PracticeSummary) => {
+    const current = planRef.current;
+    if (!current) return;
+    const localDate = current.currentLocalDate;
+    const targeted = practiceForDayTarget(practice, dayTargetChakra(current));
+    const seq = ++pendingPracticeMutationSeqRef.current;
+    const optimisticId = `optimistic-${seq}`;
+    const optimistic = buildPendingPracticeOffer(targeted, optimisticId);
     setPracticeMenuLevel("closed");
-    await refresh({ showRefreshing: true });
-  };
+    setError(null);
+    setPlan((prev) => (prev ? planWithPendingPractice(prev, optimistic) : prev));
+
+    pendingPracticePersistChainRef.current = pendingPracticePersistChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const { id } = await savePendingDayPractice(localDate, targeted);
+          if (pendingPracticeMutationSeqRef.current !== seq) {
+            // User cancelled/replaced while this POST was queued or in flight.
+            if (id) await cancelPendingDayPractice(id).catch(() => undefined);
+            return;
+          }
+          if (!id) return;
+          setPlan((prev) => {
+            if (!prev?.pendingPractice || prev.pendingPractice.id !== optimisticId) return prev;
+            return {
+              ...prev,
+              pendingPractice: { ...prev.pendingPractice, id },
+            };
+          });
+        } catch (saveError) {
+          if (pendingPracticeMutationSeqRef.current !== seq) return;
+          setPlan((prev) => {
+            if (!prev?.pendingPractice || prev.pendingPractice.id !== optimisticId) return prev;
+            return planWithPendingPractice(prev, null);
+          });
+          setError(saveError instanceof Error ? saveError.message : dayStrings.loadPracticesError);
+        }
+      });
+  }, [dayStrings.loadPracticesError]);
+
+  const cancelPendingPractice = useCallback(() => {
+    const current = planRef.current;
+    const offer = current?.pendingPractice;
+    if (!current || !offer) return;
+    const seq = ++pendingPracticeMutationSeqRef.current;
+    setError(null);
+    setPlan((prev) => (prev ? planWithPendingPractice(prev, null) : prev));
+
+    if (isOptimisticPracticeOfferId(offer.id)) {
+      // Queued/in-flight POST is invalidated by seq; its completion cancels the orphaned id.
+      return;
+    }
+
+    pendingPracticePersistChainRef.current = pendingPracticePersistChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await cancelPendingDayPractice(offer.id);
+        } catch (cancelError) {
+          if (pendingPracticeMutationSeqRef.current !== seq) return;
+          setPlan((prev) => {
+            if (!prev || prev.pendingPractice) return prev;
+            return planWithPendingPractice(prev, offer);
+          });
+          setError(cancelError instanceof Error ? cancelError.message : dayStrings.loadPracticesError);
+        }
+      });
+  }, [dayStrings.loadPracticesError]);
+
+  const renameActionOptimistic = useCallback((actionId: string, title: string) => {
+    const current = planRef.current;
+    if (!current) return;
+    const previousTitle =
+      current.sections.flatMap((section) => section.actions).find((action) => action.id === actionId)?.title;
+    if (previousTitle == null) return;
+    setError(null);
+    setPlan((prev) => (prev ? planWithRenamedAction(prev, actionId, title) : prev));
+    void renameDayAction(actionId, title).catch((renameError) => {
+      setPlan((prev) => (prev ? planWithRenamedAction(prev, actionId, previousTitle) : prev));
+      setError(renameError instanceof Error ? renameError.message : dayStrings.loadDayError);
+    });
+  }, [dayStrings.loadDayError]);
+
+  const deleteActionOptimistic = useCallback((actionId: string) => {
+    const snapshot = planRef.current;
+    if (!snapshot) return;
+    setError(null);
+    setPlan(planWithoutAction(snapshot, actionId));
+    void deleteDayAction(actionId)
+      .then(() => refresh({ silent: true }))
+      .catch((deleteError) => {
+        setPlan(snapshot);
+        setError(deleteError instanceof Error ? deleteError.message : dayStrings.loadDayError);
+      });
+  }, [dayStrings.loadDayError, refresh]);
 
   const prefetchDayPlan = useCallback(async () => {
     try {
@@ -663,7 +820,8 @@ export default function DayTabRoute() {
                         key={action.id}
                         action={action}
                         readonly={plan.mode === "overdue_summary"}
-                        onChanged={() => void refresh({ showRefreshing: true })}
+                        onRename={renameActionOptimistic}
+                        onDelete={deleteActionOptimistic}
                         strings={dayStrings}
                       />
                     ))
@@ -729,9 +887,7 @@ export default function DayTabRoute() {
                           <AppButton
                             label={dayStrings.cancelPracticeButton}
                             variant="secondary"
-                            onPress={() => {
-                              void cancelPendingDayPractice(plan.pendingPractice!.id).then(() => refresh({ showRefreshing: true }));
-                            }}
+                            onPress={cancelPendingPractice}
                           />
                         </View>
                       ) : (
@@ -827,10 +983,8 @@ export default function DayTabRoute() {
         visible={assistantSession != null}
         session={assistantSession}
         onAssistantMessage={handleAssistantMessage}
-        onPracticeOffered={async (practice) => {
-          if (!plan) return;
-          await savePendingDayPractice(plan.currentLocalDate, practiceForDayTarget(practice, dayTargetChakra(plan)));
-          await prefetchDayPlan();
+        onPracticeOffered={(practice) => {
+          saveOffer(practice);
         }}
         onClose={() => {
           setAssistantSession(null);

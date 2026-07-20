@@ -23,6 +23,10 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-21 (Day actions optimistic UX):** Rename/delete действий в «Психо-практики» ждали PATCH + `refresh({ showRefreshing })` со спиннером. Fix: optimistic update списка сразу; rename без reload; delete + тихий `refresh` для сфер; откат при ошибке.
+
+- **2026-07-21 (Day practice optimistic UX):** Выбор/отмена практики на «День» ждали `POST/PATCH` + полный `refresh` → лаг ~1с, закрытие меню без карточки, спиннер, второе обновление, иногда смена duration/chakra. Fix: optimistic `pendingPractice` сразу; сеть в фоне; после POST только patch `id`; cancel инвалидирует in-flight через seq + cancel orphaned id; без full reload.
+
 - **2026-07-21 (Day practice gate + subtle refresh):** Oracle на вкладке «День» мог запустить pending-практику без гейта (каталог гейтил, Day — нет). Fix: `tryLaunchDayPractice` → `AccountGateDialog` по kind (`meditations` / `breath_practices` / `asana_practices`), как в каталоге. Мутации списка (add/cancel practice, rename/delete action) больше не показывают `BlockingStatusToast` «Обновляем день…» — только тихий центральный `ActivityIndicator` без backdrop.
 
 - **2026-07-21 (Day tab idle prefetch):** Первое открытие вкладки «День» после cold Home ждало `/api/day` / показывало «Обновляем день…» поверх уже видимого контента. Prefetch с Home клал plan, но focus звал `refresh()` до sync `planRef` → toast. Плюс prefetch ждал `homeTextsLoading`. Fix: (1) Home prefetch сразу при `ready`/`stale_ready` без ожидания morning texts; (2) Day focus: sync `planRef` + `refresh({silent:true})` при prefetch/in-memory plan — без BlockingStatusToast.

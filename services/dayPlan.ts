@@ -141,8 +141,11 @@ export async function cancelPendingDayPractice(offerId: string): Promise<void> {
   });
 }
 
-export async function savePendingDayPractice(localDate: string, practice: PracticeSummary): Promise<void> {
-  await fetchDayJson<{ ok: boolean; id: string | null }>(getDayUrl(), {
+export async function savePendingDayPractice(
+  localDate: string,
+  practice: PracticeSummary,
+): Promise<{ id: string | null }> {
+  const result = await fetchDayJson<{ ok: boolean; id: string | null }>(getDayUrl(), {
     method: "POST",
     body: JSON.stringify({
       localDate,
@@ -157,4 +160,5 @@ export async function savePendingDayPractice(localDate: string, practice: Practi
       },
     }),
   });
+  return { id: result.id ?? null };
 }

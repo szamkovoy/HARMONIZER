@@ -1,3 +1,5 @@
+- 2026-07-21 (211): Day «Психо-практики» — оптимистичные rename/delete действий (список сразу, без спиннера; после delete — тихий sync сфер). Docs `daily_forecast/*`.
+- 2026-07-21 (210): Day «Выбрать практику»/отмена — оптимистичный UI (карточка сразу, без спиннера и полного reload); POST/PATCH в фоне с сериализацией. Docs `daily_forecast/*`.
 - 2026-07-21 (209): Day tab — гейт запуска практики для Oracle как в каталоге (`AccountGateDialog` по kind); мутации дня — тихий `ActivityIndicator` вместо `BlockingStatusToast` «Обновляем день…». Docs `practices/*`, `subscription/*`, `daily_forecast/*`.
 - 2026-07-21 (208): Day prefetch: не ждать `homeTextsLoading`; на focus при prefetch — `refresh({silent:true})` без toast «Обновляем день…» поверх уже видимого плана. Docs `daily_forecast/history`.
 - 2026-07-21 (207): После полной готовности Home фоновый prefetch `/api/day` → `storePrefetchedDayPlan`, чтобы первое открытие вкладки «День» было мгновенным. Docs `daily_forecast/history`.
