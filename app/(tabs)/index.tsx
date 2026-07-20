@@ -504,6 +504,45 @@ export default function HomeScreen() {
     };
   }, [birthFingerprint, needsPersonalForecast, profile?.id]);
 
+  // After Home is fully ready, idle-prefetch /api/day so the first visit to the
+  // Day tab paints instantly (same path as dialog/practice pre-warm).
+  const dayPrefetchKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (status !== "ready" && status !== "stale_ready") return;
+    if (loading || homeTextsLoading) return;
+    if (!authUser?.id || !forecast?.date) return;
+    const key = `${authUser.id}:${accessMode}:${forecast.date}:${appLocale}`;
+    if (dayPrefetchKeyRef.current === key) return;
+    dayPrefetchKeyRef.current = key;
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      void loadDayPlan()
+        .then((plan) => {
+          if (cancelled) return;
+          storePrefetchedDayPlan(plan);
+          logRuntimeEvent("home:day_tab_prefetch", { forecastDate: forecast.date, accessMode });
+        })
+        .catch((prefetchError) => {
+          if (cancelled) return;
+          // Allow a later Home ready cycle to retry.
+          if (dayPrefetchKeyRef.current === key) dayPrefetchKeyRef.current = null;
+          console.warn("[Home] Failed to prefetch Day tab after home ready", prefetchError);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [
+    accessMode,
+    appLocale,
+    authUser?.id,
+    forecast?.date,
+    homeTextsLoading,
+    loading,
+    status,
+  ]);
+
   useFocusEffect(
     useCallback(() => {
       const pending = consumeHomeDayContentBlockingReload();

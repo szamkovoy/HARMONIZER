@@ -1,3 +1,4 @@
+- 2026-07-21 (207): После полной готовности Home фоновый prefetch `/api/day` → `storePrefetchedDayPlan`, чтобы первое открытие вкладки «День» было мгновенным. Docs `daily_forecast/history`.
 - 2026-07-21 (206): GeoGate на каждом открытии Home делал `checking→granted` → `refresh({forceRefresh:true})` → paid ждал LLM, хотя cron warm был готов. Fix: onGranted только после `denied→granted`; обычный refresh без force. Docs `daily_forecast/history`.
 - 2026-07-21 (205): Paid morning cache больше не отбрасывается из‑за `modelUsed` ≠ текущего `AI_MODEL_*` (cron gemini vs Vercel deepseek → ложный cold LLM). Soft validity + sync Edge `AI_MODEL_*`. Docs `daily_forecast/history`.
 - 2026-07-21 (204): Cron self-heal — `ensure_harmonizer_cron_jobs()` + watchdog `*/15 * * * *` (free/paid precompute, stories cleanup, membership reconcile); restore missing `invoke_reconcile_expired_memberships`. Миграции `20260721010000`, `20260721011000`. Docs `infra/*`, `daily_forecast/history`.
