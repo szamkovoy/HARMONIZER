@@ -32,4 +32,20 @@ describe("outputLanguagePrompt locale guard", () => {
       ),
     ).toBe(false);
   });
+
+  it("serves usable morning cache even when modelUsed differs from current env model", () => {
+    expect(
+      isMorningRecommendationCacheValid(
+        {
+          outputLocale: "ru",
+          slogan: "Очистите ум от шума для обретения ясности",
+          short_text: "Сегодня Меркурий просит ясности в деталях и спокойного внимания.",
+          math_level: { markdown: "x" },
+          modelUsed: "gemini-3-flash-preview",
+        },
+        "deepseek-v4-pro",
+        "ru",
+      ),
+    ).toBe(true);
+  });
 });

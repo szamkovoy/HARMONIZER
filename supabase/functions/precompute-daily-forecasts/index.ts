@@ -407,7 +407,12 @@ async function loadFreshMorningCache(
   const cached = data?.data;
   if (!cached?.math_level) return null;
   if (cached?.[MORNING_CACHE_OUTPUT_LOCALE_KEY] !== locale) return null;
-  if (typeof cached?.modelUsed !== "string" || cached.modelUsed.trim() !== expectedModel) return null;
+  const slogan = String(cached?.slogan ?? "").trim();
+  const shortText = String(cached?.short_text ?? "").trim();
+  if (!slogan || !shortText) return null;
+  // Do not require modelUsed === expectedModel: after AI_MODEL_* cutovers Edge and
+  // Vercel may disagree briefly; a full warm row is still a valid midnight cache hit.
+  void expectedModel;
   return cached;
 }
 

@@ -24,19 +24,26 @@ export function morningTextsMatchLocale(
   return !textLooksLikeRussian(slogan) && !textLooksLikeRussian(shortText);
 }
 
+/**
+ * Usable morning cache for instant Home open.
+ *
+ * Intentionally does **not** require `modelUsed === expectedModel`: cron/Edge and
+ * Vercel can temporarily disagree on `AI_MODEL_*` after a model cutover, and a
+ * strict pin discarded a full warm row → paid users waited on LLM again.
+ * Locale + math_level + non-empty locale-matching texts are enough to serve.
+ * (`expectedModel` kept in the signature for call-site compatibility.)
+ */
 export function isMorningRecommendationCacheValid(
   cached: Record<string, unknown>,
-  expectedModel: string | null,
+  _expectedModel: string | null,
   responseLocale: AppContentLocale,
 ): boolean {
   if (!cached.math_level) return false;
   if (cached[MORNING_CACHE_OUTPUT_LOCALE_KEY] !== responseLocale) return false;
   const slogan = String(cached.slogan ?? "").trim();
   const shortText = String(cached.short_text ?? "").trim();
-  if (!morningTextsMatchLocale(responseLocale, slogan, shortText)) return false;
-  if (!expectedModel) return true;
-  const used = typeof cached.modelUsed === "string" ? cached.modelUsed.trim() : "";
-  return Boolean(used) && used === expectedModel;
+  if (!slogan || !shortText) return false;
+  return morningTextsMatchLocale(responseLocale, slogan, shortText);
 }
 
 /**

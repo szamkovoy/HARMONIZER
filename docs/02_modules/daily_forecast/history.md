@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.29
+version: 2.30
 updated: 2026-07-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-21 (morning model pin):** Paid Home всё ещё ждал LLM при уже готовом `scenario_cache`: `isMorningRecommendationCacheValid` требовал `modelUsed === AI_MODEL_PREMIUM` (Vercel=`deepseek-v4-pro`), а cron/Edge писал `gemini-3-flash-preview` (устаревшие Edge secrets). Кэш отбрасывался → `holdWarmForTexts`. Fix: serve по locale+math_level+текстам (без pin модели); Edge `AI_MODEL_*` синхронизированы с `.env.local`; тот же soft-hit в `precompute-daily-forecasts`.
 
 - **2026-07-21 (paid cron missing):** В prod `cron.job` не было hourly invoke для `precompute-daily-forecasts` (только free global). У Master на 2026-07-21 не было `user_daily_forecasts` / morning `scenario_cache` → cold start ждал LLM. Root: schedule жил только в `DEPLOY.md`/README, без SQL-миграции. Fix: `20260721003000` (schedule) + `20260721010000` (`ensure_harmonizer_cron_jobs` watchdog, re-assert free+paid) + force-warm Master на сегодня. См. `infra/history`.
 
