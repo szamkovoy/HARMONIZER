@@ -4,6 +4,7 @@ import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import { SOURCE_LOCALE } from "@legacy/app/api/_utils/contentLocales";
 import {
   chakraAttentionPrefixFor,
+  chakraOrdinalLabel,
   getDialogScaffoldStrings,
   interpolate,
 } from "@legacy/app/api/_utils/dialogScaffold";
@@ -298,6 +299,11 @@ function fallbackPracticeQuestion(locale: AppContentLocale): string {
   return getDialogScaffoldStrings(locale).fallbackPracticeQuestion;
 }
 
+function fallbackSoftPracticeClose(locale: AppContentLocale, targetChakraNumber: number): string {
+  const ordinal = chakraOrdinalLabel(locale, targetChakraNumber);
+  return interpolate(getDialogScaffoldStrings(locale).fallbackSoftPracticeClose, { ordinal });
+}
+
 /** Index of the first numbered action item (`1.` / `1)`), including at start of text. */
 function findNumberedActionListStart(visibleText: string): number {
   const match = /(?:^|\n)(\s*\d+[.)]\s)/m.exec(visibleText);
@@ -430,9 +436,19 @@ export function buildPlanningFinalVisibleText(params: {
   dayFocus: string | null | undefined;
   locale: AppContentLocale;
   includePracticeQuestion: boolean;
+  /** Oracle/Free: soft yoga nudge + Master catalog note (no question). */
+  includeSoftPracticeClose?: boolean;
   targetChakraNumber?: number;
 }): string {
-  const { visibleText, events, dayFocus, locale, includePracticeQuestion, targetChakraNumber } = params;
+  const {
+    visibleText,
+    events,
+    dayFocus,
+    locale,
+    includePracticeQuestion,
+    includeSoftPracticeClose,
+    targetChakraNumber,
+  } = params;
   const parts: string[] = [];
   let focus = extractPlanningIntro(visibleText, dayFocus, events.length);
   if (typeof targetChakraNumber === "number") {
@@ -443,6 +459,8 @@ export function buildPlanningFinalVisibleText(params: {
   parts.push(buildPlanningActionsVisibleBlock(events, locale));
   if (includePracticeQuestion) {
     parts.push(fallbackPracticeQuestion(locale));
+  } else if (includeSoftPracticeClose && typeof targetChakraNumber === "number") {
+    parts.push(fallbackSoftPracticeClose(locale, targetChakraNumber));
   }
   return parts.filter((part) => part.trim()).join("\n\n");
 }
@@ -470,6 +488,12 @@ export function buildPlanningDeclinedReply(locale: AppContentLocale): string {
 export type PlanningTurnInput = {
   isOpening: boolean;
   noPractice: boolean;
+  /**
+   * Oracle/Free home/plan: after wrap-up, soft close about today's chakra practice
+   * + Master catalog note — no kind/duration question. Day-tab add keeps
+   * `noPractice` without this flag (end with no practice paragraph).
+   */
+  softPracticeClose?: boolean;
   noGreeting: boolean;
   /** User signaled they are done naming actions — this turn must emit markers. */
   userSignaledDone: boolean;
@@ -615,8 +639,8 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     "- FORBIDDEN SHAPE: do not write a visible reply like 'question about the current event ... ? And how did the next event go?' If the current event still needs clarification, the next event must be completely absent from this turn — not even as a soft segue.",
     "- Friendly debrief tone; you are NOT playing therapist on intermediate turns. Just find out what happened and how the person lived it.",
     ctx.locale === SOURCE_LOCALE
-      ? "- Ask one main question per event. DEFAULT TO CLOSING: if the user's answer already lets you name a plausible lived state (a mood, a bodily feeling, an emotional tone — even loosely), that is ENOUGH — close the event now and do NOT ask for a finer distinction. A clarifying question is the EXCEPTION, only when the answer says almost nothing about how it was lived (e.g. just «сделал», «нормально», «было»). Never ask a clarifying question twice for the same event, and never split hairs between two nearby states (e.g. which of two adjacent chakras, «растворение в покое» vs «можно выдохнуть») — the user does not think in those terms; pick the closest reading and close."
-      : "- Ask one main question per event. DEFAULT TO CLOSING: if the user's answer already lets you name a plausible lived state (a mood, a bodily feeling, an emotional tone — even loosely), that is ENOUGH — close the event now and do NOT ask for a finer distinction. A clarifying question is the EXCEPTION, only when the answer says almost nothing about how it was lived (e.g. just done / okay / it happened). Never ask a clarifying question twice for the same event, and never split hairs between two nearby states — the user does not think in those terms; pick the closest reading and close.",
+      ? "- Ask one main question per event. DEFAULT TO CLOSING: read the user's WHOLE reply (all sentences). If it already names or clearly implies a lived tone — emotion, beauty, pleasure, calm, warmth, meaning, reflection, «положительные эмоции», «это красиво» — that is ENOUGH: close now with 1–2 chakras and do NOT ask a menu of states. A clarifying question is the EXCEPTION only for bare confirmations with no lived tone (e.g. just «да», «сделал», «нормально», «был»). Never ask twice for the same event; never invent options that contradict the action (no «общение» for a solitary sunset). Prefer tagging two chakras over asking."
+      : "- Ask one main question per event. DEFAULT TO CLOSING: read the user's WHOLE reply (all sentences). If it already names or clearly implies a lived tone — emotion, beauty, pleasure, calm, warmth, meaning, reflection — that is ENOUGH: close now with 1–2 chakras and do NOT ask a menu of states. A clarifying question is the EXCEPTION only for bare confirmations with no lived tone. Never ask twice for the same event; never invent options that contradict the action. Prefer tagging two chakras over asking.",
     ctx.locale === SOURCE_LOCALE
       ? "- CRITICAL — the clarifying question must NOT paraphrase or echo back what the user just said. Two interlocutors do not retell each other's sentences. Do not open with \"Рабочие дела — это когда…\" or \"Вы сказали, что…\". Instead, move the thought forward: briefly note (in one short clause) that a little more detail helps capture the range of inner states for better future recommendations, then ask directly about the states, offering 2-3 concrete options that fit THIS action."
       : "- CRITICAL — the clarifying question must NOT paraphrase or echo back what the user just said. Two interlocutors do not retell each other's sentences. Do not open with phrases like \"So your work was...\" or \"You said that...\". Instead, move the thought forward: briefly note (in one short clause) that a little more detail helps capture the range of inner states for better future recommendations, then ask directly about the states, offering 2-3 concrete options that fit THIS action.",
@@ -795,13 +819,15 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     "  [PLANNED_EVENT: desc=\"short action name, <=40 chars, no trailing ellipsis\" recommendation=\"one short vivid recommendation tied to the target chakra\" display_order=\"1\" spheres=\"<sphere>:<weight>;...\"]",
     "  - desc is the short list label for the Day tab (~30-40 chars); put detail into recommendation, never truncate desc with \"…\".",
     "  - display_order is 1,2,3 by mention order (not by time).",
-    "  - spheres: pick the 1-2 LIFE SPHERES (1..7) the action TRULY belongs to, by its real-life domain — do NOT copy the format example numbers. Quick guide: home / chores / order / repairs / cleaning / safety / sleep / body → 1; rest, leisure, a walk, nature, swimming, a bike ride, food pleasure, recharging → 2; work, money, results, business → 3; time spent WITH friends / family / a partner, relationships, reconciliation → 4; creativity, art, music, self-expression, personal values → 5; learning, understanding, reading to learn, reflection → 6; faith, spirituality, prayer, sacred meaning, calling → 7. Examples of the FORMAT only (always choose your own to fit the action): tidying the dacha → \"1:1\"; a bike ride to the lake with a swim → \"2:0.7;1:0.3\". Weights are 0..1 and roughly sum to 1. Do NOT output chakra cells for planning. Sphere 4 is ONLY for actions that actually involve other people / relationships — it must NEVER be a default.",
+    "  - spheres: pick the 1-2 LIFE SPHERES (1..7) by MEANING against the LIFE SPHERES list above (title + hints) — that list is the ONLY guide. Do NOT invent a parallel numbering scheme and do NOT copy example numbers from anywhere. Match the action's real-life domain to the closest sphere hint; when two spheres fit, use both with weights. Format examples only (choose your own numbers for the real action): tidying the house → \"1:1\"; a bike ride to the lake → \"2:0.7;1:0.3\". Weights are 0..1 and roughly sum to 1. Do NOT output chakra cells for planning. Sphere 4 is ONLY for actions that actually involve other people / relationships — it must NEVER be a default.",
     input.noGreeting
       ? "- Because this is an ADD flow, do NOT emit [CORRECT_RECOMMENDATION] or any day-focus marker; only PLANNED_EVENT markers are allowed."
       : "- Also emit the overall day focus once: [CORRECT_RECOMMENDATION: short_text=\"one short overall recommendation for the day\"]",
-    input.noPractice
-      ? "- This flow has NO practice step. End your finalize message here."
-      : "- After the wrap-up, end with ONE broad question: whether the user wants a practice now, and if yes which kind (meditation / breathing / asanas) and approximate duration. Do not narrow the user to one specific practice yet.",
+    input.softPracticeClose
+      ? `- After the wrap-up, close with a short soft paragraph (2–4 sentences): warmly encourage a yoga practice that supports today's chakra ${ctx.targetChakraNumber}; gently note that the practice catalog can be enabled in the Personal Account at the Master level. Do NOT ask any follow-up question (no kind, no duration, no yes/no). End the dialog here.`
+      : input.noPractice
+        ? "- This flow has NO practice step. End your finalize message here."
+        : "- After the wrap-up, end with ONE broad question: whether the user wants a practice now, and if yes which kind (meditation / breathing / asanas) and approximate duration. Do not narrow the user to one specific practice yet.",
     input.planningLocked
       ? "- Planning finalize already happened in this conversation. Do NOT repeat the planning wrap-up, do NOT emit [PLANNED_EVENT] or [CORRECT_RECOMMENDATION], and do NOT re-list day actions."
       : "",
@@ -813,7 +839,9 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
           : "THIS TURN: the user is adding action(s) from the Day tab — help them name the action(s); do not greet.")
         : "THIS TURN: open the planning — warmly ask what is ahead today.")
       : input.userSignaledDone
-        ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)"
+        ? (input.softPracticeClose
+          ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the soft practice closing with NO question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user."
+          : "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)")
         : input.planningLocked
           ? "THIS TURN: the user is answering the practice-offer question from planning finalize — this is NOT planning. Do not emit planning markers."
           : input.noGreeting

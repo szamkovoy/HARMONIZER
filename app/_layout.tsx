@@ -183,7 +183,7 @@ function useAuthRouteGate() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
-  const { initializing } = useAuth();
+  const { initializing, session, profile, profileLoading } = useAuth();
   const { setHomeRouteActive } = useAppStartup();
   const segments = useSegments();
   useAuthRouteGate();
@@ -191,6 +191,10 @@ function RootLayoutNav() {
 
   const routePath = segments.join("/") || "/";
   const isHomeRoute = (segments[0] as string | undefined) === "(tabs)" && segments[1] == null;
+  // Только первый cold-start, пока `profile` ещё null. Повторный refreshProfile
+  // (foreground / realtime) не должен размонтировать табы и Communicator —
+  // иначе открытый диалог сбрасывается при уходе в Health и обратно.
+  const waitingForProfile = Boolean(session) && profileLoading && profile == null;
 
   useEffect(() => {
     setHomeRouteActive(isHomeRoute);
@@ -211,9 +215,10 @@ function RootLayoutNav() {
     });
   };
 
-  // Пока читаем сессию из SecureStore — держим фон текущей UI-темы, чтобы не мигало
-  // на фоне стартового (tabs). Сплэш-скрин Expo уже скрыт (fonts loaded).
-  if (initializing) {
+  // Пока читаем сессию / профиль — держим фон текущей UI-темы, чтобы не мигало
+  // free-UI (апселл «Навигатор», скрытая вкладка «День») до прихода `users`.
+  // Сплэш-скрин Expo уже скрыт (fonts loaded).
+  if (initializing || waitingForProfile) {
     return (
       <View
         style={{

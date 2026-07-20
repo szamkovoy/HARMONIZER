@@ -1,7 +1,12 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
-import { inferPlannedEventsFromUserHistory, mergePlannedEventMarkers, samePlannedEventIdentity } from "./plannedEventInference";
+import {
+  inferPlannedEventsFromUserHistory,
+  isMetaPlanningIntentDescription,
+  mergePlannedEventMarkers,
+  samePlannedEventIdentity,
+} from "./plannedEventInference";
 
 const TZ = "Europe/Moscow";
 
@@ -38,6 +43,25 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred).toHaveLength(0);
   });
 
+  it("keeps a named action when the turn also says «больше ничего»", () => {
+    const nowLocal = DateTime.fromISO("2026-07-20T18:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [
+        {
+          role: "assistant",
+          content: "Что важного вы хотите запланировать на текущий день?",
+        },
+      ],
+      pendingUserMessage: "Снова хотел бы посмотреть хороший фильм. И больше ничего.",
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+    expect(inferred.length).toBeGreaterThanOrEqual(1);
+    expect(inferred.some((item) => /фильм/i.test(item.desc))).toBe(true);
+    expect(inferred.every((item) => !/больше\s+ничего/i.test(item.desc))).toBe(true);
+  });
+
   it("does not turn an empty-plan refusal into a planned action", () => {
     const nowLocal = DateTime.fromISO("2026-07-11T12:00:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({
@@ -54,6 +78,32 @@ describe("inferPlannedEventsFromUserHistory", () => {
     });
 
     expect(inferred).toHaveLength(0);
+  });
+
+  it("keeps the concrete action and drops meta «добавить действие про…» preamble", () => {
+    const nowLocal = DateTime.fromISO("2026-07-20T23:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [
+        {
+          role: "assistant",
+          content: "Есть что-то ещё, что вы хотели бы добавить к этому дню?",
+        },
+      ],
+      pendingUserMessage:
+        "Да, я решил добавить действие про отдых. Встречусь вечером с друзьями, в кафе посидим, расслабимся, пообщаемся.",
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+    expect(inferred.some((item) => /друзья|кафе/i.test(item.desc))).toBe(true);
+    expect(inferred.every((item) => !/добавить\s+действие/i.test(item.desc))).toBe(true);
+    expect(inferred.every((item) => !/^[,;]/.test(item.desc.trim()))).toBe(true);
+  });
+
+  it("does not treat concrete «добавь пробежку» as meta intent", () => {
+    expect(isMetaPlanningIntentDescription("Добавь еще пробежку")).toBe(false);
+    expect(isMetaPlanningIntentDescription("я решил добавить действие про отдых")).toBe(true);
+    expect(isMetaPlanningIntentDescription(", я решил добавить действие про отдых")).toBe(true);
   });
 
   it("extracts explicit clock time from a planning clause", () => {
@@ -256,6 +306,20 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred).toHaveLength(1);
     expect(inferred[0]?.desc).toContain("погулять");
     expect(inferred[0]?.desc).toContain("подышать свежим воздухом");
+  });
+
+  it("does not turn a summarizing lived-state reply into planned events", () => {
+    const nowLocal = DateTime.fromISO("2026-07-20T19:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [],
+      pendingUserMessage:
+        "Это был прекрасный вечер. Мы сидели, общались. И я получил огромное удовольствие. Почувствовал радость, тепло общения.",
+      nowLocal,
+      relativeNowLocal: nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+    expect(inferred).toHaveLength(0);
   });
 
   it("does not resurrect an old planning topic from too far back in history", () => {

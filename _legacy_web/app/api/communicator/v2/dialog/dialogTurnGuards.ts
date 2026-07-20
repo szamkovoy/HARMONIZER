@@ -16,7 +16,10 @@ import {
   isPlanningGatheringClosureTurn,
   type ClosureHistoryMessage,
 } from "@legacy/app/api/_utils/planningDonePhrases";
-import { samePlannedEventIdentity } from "@legacy/app/api/_utils/plannedEventInference";
+import {
+  isMetaPlanningIntentDescription,
+  samePlannedEventIdentity,
+} from "@legacy/app/api/_utils/plannedEventInference";
 import type { DialogFsmState } from "@legacy/app/api/communicator/v2/dialog/dialogFsm";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 
@@ -148,7 +151,11 @@ export function filterPersistablePlanningMarkers(
 ): PlannedEventMarker[] {
   return filterPlanningDescBlobMarkers(
     filterClosureEchoPlanningMarkers(
-      filterPlanningDoneLikePlannedEvents(filterPracticeLikePlannedEvents(markers)),
+      filterPlanningDoneLikePlannedEvents(
+        filterPracticeLikePlannedEvents(
+          markers.filter((marker) => !isMetaPlanningIntentDescription(marker.desc)),
+        ),
+      ),
       options?.closureUserMessage,
     ),
   );
@@ -381,7 +388,7 @@ export function extractPlanningMarkersFromVisibleFinalize(
       timeNorm: null,
       recommendation,
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : markers.length + 1,
-      cells: inferPlanningSpheresFromText(`${desc} ${recommendation}`),
+      cells: inferPlanningSpheresFromText(desc),
       snippets: [],
     });
     match = pattern.exec(text);
@@ -539,7 +546,7 @@ function summaryEventDomain(eventDescription: string): SummaryEventDomain {
   if (/(?:работ|задач|проект|совещ|клиент|дедлайн|код|разработ|бизнес|дел[ао]\s+по\s+работ|lavor|attivit[aà]\s+lavor|ufficio|progett)/i.test(lower)) {
     return "work";
   }
-  if (/(?:озер|природ|прогул|погул|парк|отдых|купан|море|лес|пляж|кафе|сон|поспать|расслаб|баня|саун|поездк)/i.test(lower)) {
+  if (/(?:озер|природ|прогул|погул|парк|отдых|купан|море|лес|пляж|кафе|сон|поспать|расслаб|баня|саун|поездк|закат|рассвет|гриб|небо|пейзаж)/i.test(lower)) {
     return "rest";
   }
   if (/(?:друз|семь|близк|позвон|встреч[аи]?\s+с|общени|свидани|поговорить|извинит)/i.test(lower)) {
@@ -606,15 +613,17 @@ export function buildSummaryClarifyingQuestion(eventDescription: string, locale:
       "Что это дало внутри: ощущение близости, лёгкости — или что-то, что пришлось проживать непросто?",
     ],
     creative: [
-      "А что это в вас затронуло: спокойствие, интерес, или ощущение смысла?",
-      "Как это отозвалось: отдыхом, вдохновением — или поводом подумать о важном?",
+      // Contrast different lived domains (pleasure/body vs reflection) — never
+      // hair-split three near-synonyms of the same chakra ("calm / interest / meaning").
+      "Больше отозвалось как удовольствие от самого процесса — или как повод задуматься?",
+      "Что было сильнее: простое удовольствие от чтения или размышления о том, что затронуло?",
     ],
     tiny: [
       "А как это вышло: удалось ли, и стало ли от этого чуть спокойнее?",
     ],
     generic: [
-      `А что было сильнее ${phrase}: спокойствие, радость, общение, ясность — или что-то другое?`,
       "А что вы там в основном проживали внутри? Можно совсем коротко.",
+      `А что отозвалось сильнее ${phrase}: спокойствие, радость, ясность — или что-то своё?`,
     ],
   };
   const variants = byDomain[domain];
@@ -690,9 +699,23 @@ export function userAnswerHasSufficientStateForSummary(text: string): boolean {
   if (userSaysEventDidNotHappen(text)) return false;
   const normalized = normalizeLocaleGuardText(text.trim());
   if (!normalized) return false;
-  return /(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected|responsabil|tensione|focalizz|concentr|stress|stanc|soddisf|sentito|sentita|emozion|ansia|calma|seren|tranquill|piaciut|gustos|rinforz|vittori|buon\s+lavoro|mi\s+[èe]\s+piaciut|ho\s+sentit[oa]|sono\s+stat[oa]|mi\s+sono\s+sentit[oa]|emotion|apaise|apais|calme|fatigu|satisfait|soulag|fier|inspire|je\s+me\s+suis\s+senti|ca\s+m['’]a\s+plu|spannung|konzentr|m[uü]d|zufrieden|erleichtert|stolz|ich\s+habe\s+mich|ich\s+fuhlte\s+mich|es\s+hat\s+mir\s+gefallen|ansiedad|relaj|tranquil|cansad|satisfech|alivi|me\s+gusto|me\s+senti|enfocad|claridad|calm|tranquil|cansad|satisfeit|alivi|gostei|me\s+senti|focad|leve|rustig|tevreden|moe|opgelucht|gefocust|helder|ik\s+voelde\s+me|het\s+beviel\s+me)/i.test(
+  // Lived-state backstop: named feelings AND reflective/meaning cues (e.g. «задуматься
+  // о жизни, о смыслах») — enough to close without a clarifying question. Keep this
+  // broader than thin confirmations like bare «да, почитал».
+  // Whole-reply scan: feelings, beauty/aesthetics, positive/negative valence,
+  // reflection — any of these in a multi-word answer is enough to close.
+  if (/(?:чувств|ощущ|состояни|споко|тревог|радост|рад\b|довол|удовлетвор|устал|энерг|внимани|ясн|тишин|довер|смят|напряж|расслаб|присутств|собран|вдохнов|интерес|живост|прият|комфорт|общал|друз|шут|вкус|увидел|увидела|понял|поняла|осознал|осознала|инсайт|общ[ау]ю картин|масштаб|перспектив|связ|широк|фокус|задума|размышл|осмысл|смысл|о\s+жизни|глубин|углуб|тепло\s+общен|удовольств|эмоц|красив|красот|прекрасн|положительн|негативн|восторг|восхищ|умилен|тёпл|тепл|felt|calm|anxious|tired|focused|peaceful|satisfied|glad|happy|clear|clarity|insight|perspective|bigger picture|pleasant|comfortable|connected|reflect|thought.?provok|meaning|made\s+me\s+think|about\s+life|beauty|beautiful|emotion|positive|responsabil|tensione|focalizz|concentr|stress|stanc|soddisf|sentito|sentita|emozion|ansia|calma|seren|tranquill|piaciut|gustos|rinforz|vittori|buon\s+lavoro|mi\s+[èe]\s+piaciut|ho\s+sentit[oa]|sono\s+stat[oa]|mi\s+sono\s+sentit[oa]|riflett|significato|senso\s+della\s+vita|emotion|apaise|apais|calme|fatigu|satisfait|soulag|fier|inspire|je\s+me\s+suis\s+senti|ca\s+m['’]a\s+plu|reflexion|réflexion|sens\s+de|spannung|konzentr|m[uü]d|zufrieden|erleichtert|stolz|ich\s+habe\s+mich|ich\s+fuhlte\s+mich|es\s+hat\s+mir\s+gefallen|nachdenk|sinn\b|ansiedad|relaj|tranquil|cansad|satisfech|alivi|me\s+gusto|me\s+senti|enfocad|claridad|reflexion|sentido|cansad|satisfeit|alivi|gostei|me\s+senti|focad|leve|rustig|tevreden|moe|opgelucht|gefocust|helder|ik\s+voelde\s+me|het\s+beviel\s+me|nadenk|betekenis)/i.test(
     normalized,
-  );
+  )) {
+    return true;
+  }
+  // Soft narrative: several words beyond bare «да/сделал» already give the model
+  // enough to pick 1–2 chakras — do not ask a menu of states.
+  const wordCount = normalized.split(/[^\p{L}\p{N}]+/u).filter(Boolean).length;
+  if (wordCount >= 8 && /(?:посмотр|посетил|побыл|прогул|погул|почитал|прочитал|сделал|получил|был[оаи]?|went|saw|watched|visited|felt|was)/i.test(normalized)) {
+    return true;
+  }
+  return false;
 }
 
 /** User confirms the event happened but names no lived state — needs one clarifying question. */

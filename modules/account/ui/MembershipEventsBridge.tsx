@@ -94,8 +94,12 @@ export function MembershipEventsBridge() {
             .maybeSingle();
           if (error || !data) return;
           const current = profileRef.current;
-          if (membershipFingerprint(data) !== membershipFingerprint(current)) {
-            logRuntimeEvent("membership:foreground_changed", { userId });
+          // Cold-start miss: profile ещё null, а membership уже известен — полный refresh.
+          if (!current || membershipFingerprint(data) !== membershipFingerprint(current)) {
+            logRuntimeEvent("membership:foreground_changed", {
+              userId,
+              reason: current ? "membership_diff" : "profile_missing",
+            });
             await refreshProfile();
           }
         } catch {

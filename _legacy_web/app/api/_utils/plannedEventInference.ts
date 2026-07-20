@@ -362,7 +362,10 @@ function hasStrongPlanningCue(text: string): boolean {
 }
 
 function looksLikeCompletedOutcomeSegment(text: string): boolean {
-  return /(?:^|[\s,.;:!?()])(?:выспал(?:ся|ась|ись)|успел(?:а|и)?|купил(?:а|и)?|куплен(?:о|а|ы)?|получил(?:а|и)?|удалось|удался|удалась|удались|сложил(?:ось|ся)|прош[её]л(?:а|и)?|отдохнул(?:а|и)?|погулял(?:а|и)?|почитал(?:а|и)?|поужинал(?:а|и)?|ужинал(?:а|и)?|вечер\s+был|лег(?:ла|ли)?|л[её]г(?:ла|ли)?|рад(?:ует|овал(?:а|и)?)|довол(?:ен|ьна|ьны))/i.test(text);
+  // Past-tense lived recounting — must not become planning cards when a summarizing
+  // answer is accidentally fed into planning inference (empty-due handoff race).
+  return /(?:^|[\s,.;:!?()])(?:выспал(?:ся|ась|ись)|успел(?:а|и)?|купил(?:а|и)?|куплен(?:о|а|ы)?|получил(?:а|и)?|удалось|удался|удалась|удались|сложил(?:ось|ся)|прош[её]л(?:а|и)?|отдохнул(?:а|и)?|погулял(?:а|и)?|почитал(?:а|и)?|поужинал(?:а|и)?|ужинал(?:а|и)?|вечер\s+был|лег(?:ла|ли)?|л[её]г(?:ла|ли)?|рад(?:ует|овал(?:а|и)?)|довол(?:ен|ьна|ьны)|прекрасн\w*|замечательн\w*|удовольств\w*|почувствовал\w*|задума\w*|тепло\s+общен|радост\w*)/i.test(text)
+    || /(?:это\s+был\w*\s+(?:прекрасн|замечательн|хорош)|получил\w*.{0,40}удовольств|почувствова\w*.{0,40}(?:радост|тепло))/i.test(text);
 }
 
 function isCausalSupportingSegment(
@@ -408,6 +411,43 @@ function isBareTimeClarificationDescription(description: string): boolean {
   return /^(?:на|около|примерно)\s+\d{1,2}(?::\d{2})?$/i.test(description.trim());
 }
 
+/**
+ * Meta / scaffolding about *wanting to add* an action, not a concrete day action.
+ * E.g. «я решил добавить действие про отдых» before naming the real meeting.
+ * Keep this narrow — «добавить пробежку» must still pass.
+ * Note: JS `\w` is ASCII-only even with `/u` — use `\p{L}` for Cyrillic.
+ */
+export function isMetaPlanningIntentDescription(text: string): boolean {
+  const t = text.trim().replace(/^[,;:\s]+/, "");
+  if (!t) return true;
+  // Entire phrase is only "I decided/want to add an action about <domain>".
+  if (
+    /^(?:да[,!]?\s*)?(?:я\s+)?(?:решил\p{L}*|хочу|хотел\p{L}*|собираюсь|буду)\s+добав\p{L}+\s+(?:действи\p{L}*|дел\p{L}*)(?:\s+(?:про|из\s+области|из\s+сферы)\s+[\p{L}-]+)?\.?$/iu.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /^(?:yes[,!]?\s*)?(?:i\s+)?(?:decided\s+to\s+|want\s+to\s+|would\s+like\s+to\s+)?add\s+(?:an?\s+)?(?:action|thing|item)\s+(?:about|for|from)\s+[\p{L}-]+\.?$/iu.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  // Same shape with domain cue, without a concrete activity noun/verb.
+  if (
+    /(?:добав\p{L}+|добавлю).{0,40}(?:действи\p{L}*|дел(?:о|а|у)?)(?:$|[\s,.;:!?])/iu.test(t)
+    && /(?:(?:^|[\s,.;:!?()])про(?:$|[\s,.;:!?()])|из\s+области|из\s+сферы|about)/iu.test(t)
+    && !/(?:встреч|прогул|погул|поехать|сходить|пробеж|кино|фильм|книг|кафе|друзья|друг|спорт|ужин|обед|звон|позвон|магаз|работ\p{L}*\s+над|client|meeting|friends|walk|run|cafe|book|film)/iu.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function inferImplicitTimeNorm(segment: string, locale: string): string | null {
   const lower = segment.toLowerCase();
   const localeSafe = locale.toLowerCase().startsWith("en") ? "en" : "ru";
@@ -444,7 +484,9 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
   }
 
   description = stripTrailingPracticeClause(description)
-    .replace(/^(?:да|ну)(?=$|[\s,.;:!?()])\s*/i, "")
+    // Strip ack particles including the comma: «Да, я…» → «я…», not «, я…».
+    .replace(/^(?:да|ну)(?:\s*[,;:!]|\s+|$)\s*/i, "")
+    .replace(/^[,;:\s]+/, "")
     .replace(/^(?:а\s+еще|а\s+ещё|также|а)\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*что\s+/i, "")
     .replace(/^(?:я\s+)?(?:думаю|надеюсь)\s*,?\s*/i, "")
@@ -579,11 +621,13 @@ export function inferPlannedEventsFromUserHistory(params: {
     const text = userText(message);
     if (!text) continue;
     const historyBefore = timeline.slice(0, index);
-    if (isPlanningGatheringClosureTurn(text, historyBefore)) continue;
+    // Pure closure turns are skipped; "action + больше ничего" still has a
+    // planning cue — keep the turn and drop only done-like segments below.
+    if (isPlanningGatheringClosureTurn(text, historyBefore) && !looksLikeNewPlannedAction(text)) continue;
     const segmentCandidates: Array<{ event: PlannedEventMarker; expectedKey: string; descLen: number }> = [];
 
     for (const segment of splitEventSegments(text)) {
-      if (isPlanningGatheringClosureTurn(segment, historyBefore)) continue;
+      if (isPlanningGatheringClosureTurn(segment, historyBefore) && !looksLikeNewPlannedAction(segment)) continue;
       if (isGenericDayOverviewSegment(segment)) continue;
       if (isPracticeOnlySegment(segment, params.nowLocal, params.tz, params.locale)) continue;
       if (looksLikeCompletedOutcomeSegment(segment) && !hasStrongPlanningCue(segment)) continue;
@@ -611,6 +655,7 @@ export function inferPlannedEventsFromUserHistory(params: {
       const desc = buildEventDescription(segment, parsed.matchedPhrase);
       if (!desc) continue;
       if (isPlanningDoneLikeDescription(desc)) continue;
+      if (isMetaPlanningIntentDescription(segment) || isMetaPlanningIntentDescription(desc)) continue;
       if (isGenericDayOverviewDescription(desc) || isBareTimeClarificationDescription(desc)) continue;
 
       const effectiveTimeSource = implicitTimeNorm ?? desc;

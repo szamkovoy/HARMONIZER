@@ -70,8 +70,11 @@ function isEmptyPlanRefusal(text: string): boolean {
 export function looksLikeNewPlannedAction(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  // Prefer a named action over a trailing «больше ничего» / "that's all" in the
+  // same turn — otherwise "Хочу фильм. И больше ничего." is treated as empty-plan.
+  if (STRONG_PLANNING_CUE_RE.test(stripNegatedWantCues(trimmed))) return true;
   if (isDeclineOfAddingMore(trimmed)) return false;
-  return STRONG_PLANNING_CUE_RE.test(stripNegatedWantCues(trimmed));
+  return false;
 }
 
 const DECLINE_ADDING_MORE_RE =
@@ -137,9 +140,17 @@ export function userDeclinesAddingMoreToPlan(userText: string, history: ClosureH
   return isDeclineOfAddingMore(userText);
 }
 
+/**
+ * True when the user is done naming actions for this gathering turn.
+ * Includes "named action + больше ничего" (finalize with that action) — inference
+ * must still keep the action via {@link looksLikeNewPlannedAction}.
+ */
 export function isPlanningGatheringClosureTurn(userText: string, history: ClosureHistoryMessage[]): boolean {
   if (!userText.trim()) return false;
-  if (looksLikeNewPlannedAction(userText)) return false;
+  if (looksLikeNewPlannedAction(userText)) {
+    // Same turn: name an action and close gathering («… И больше ничего»).
+    return isDeclineOfAddingMore(userText) || minimalUnpromptedDone(userText);
+  }
   if (isDeclineOfAddingMore(userText)) return true;
   if (userDeclinesAddingMoreToPlan(userText, history)) return true;
   if (minimalUnpromptedDone(userText)) return true;

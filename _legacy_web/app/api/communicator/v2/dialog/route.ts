@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
 import { chakraLabelAccusativeRu, chakraLabelGenitiveRu, chakraLabelRu } from "@/modules/chakra/labels";
+import { baseTierFromRow, hasActiveTrial } from "@/modules/access/core/paidAccess";
+import { isProductTier } from "@/modules/access/core/tiers";
 import chakraStatesBaseline from "@/data/chakra_states_baseline.json";
 import { tonalRegisterForPlanet } from "@legacy/app/api/_utils/dialogTonalRegisters";
 import { formatLifeSpheresBaselineForPrompt } from "@legacy/app/api/_utils/lifeSpheresBaseline";
@@ -117,6 +119,7 @@ import {
   type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
+import { looksLikeNewPlannedAction } from "@legacy/app/api/_utils/planningDonePhrases";
 import {
   inferPlannedEventsFromUserHistory,
   samePlannedEventIdentity,
@@ -1036,12 +1039,21 @@ export async function POST(req: Request) {
       }
     }
     if (!fsm || (fsm.branch === "done" && isInitiate)) {
+      // Practice catalog is Master-only (trial = Master). DevTierSwitch sends
+      // `devAccessTierOverride` so local QA matches the on-screen tier without
+      // writing membership_tier in DB (production UI never sends this field).
+      const devTierRaw = triggerMeta.devAccessTierOverride;
+      const devTier = typeof devTierRaw === "string" && isProductTier(devTierRaw) ? devTierRaw : null;
+      const offerCatalogPractice = devTier
+        ? devTier === "master"
+        : hasActiveTrial(context.user) || baseTierFromRow(context.user) === "master";
       fsm = initFsmState({
         tabMode,
         daySummaryRequested,
         hasDueEvents: openDueEvents(context).length > 0,
         targetChakra: context.targetChakra.chakraNumber,
         workingLocalDate,
+        offerCatalogPractice,
       });
       conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, fsm);
     }
@@ -1094,6 +1106,34 @@ export async function POST(req: Request) {
       if (!daySummaryRequested) {
         const nextFsm = advanceBranch(fsm);
         conversationMeta = await writeFsmState(db, userId, conversation.id, conversationMeta, nextFsm);
+        // Critical: never continue THIS user turn as planning. The user just
+        // answered a summarizing question; if due events disappeared (race /
+        // already-closed row), silently switching to planning makes inference
+        // treat their lived-state reply as new planned actions and skips the
+        // summarizing final. Hand off with a deterministic summary close instead.
+        if (!isOpening && !isInitiate) {
+          const locale = resolveDialogScaffoldLocale(context.user.locale);
+          const scaffold = getDialogScaffoldStrings(locale);
+          let handoffText = scaffold.summaryEmptyDueHandoff.trim()
+            || scaffold.summaryToPlanningBridge;
+          if (nextFsm.branch === "planning") {
+            handoffText = ensureSummaryToPlanningBridge(handoffText, locale);
+          }
+          console.warn(
+            "[DIALOG_FSM] Summarizing had no open due events on a user turn — emitting handoff instead of planning on the same reply",
+            JSON.stringify({ conversationId: conversation.id, nextBranch: nextFsm.branch }),
+          );
+          return immediateDialogStream({
+            conversationId: conversation.id,
+            fullText: handoffText,
+            turnMode: nextFsm.branch === "done" ? "final_without_practice" : "inquiry",
+            phaseTime: context.phaseTime,
+            targetChakra: context.targetChakra,
+            shouldClose: nextFsm.branch === "done",
+            branches: ["summarizing"],
+            iteration,
+          });
+        }
         fsm = nextFsm;
       } else {
         await closeConversation(db, userId, conversation.id);
@@ -1169,6 +1209,7 @@ export async function POST(req: Request) {
       prompt = buildPlanningPrompt(brainCtx, {
         isOpening,
         noPractice: fsm.noPractice,
+        softPracticeClose: fsm.softPracticeClose,
         noGreeting: fsm.noGreeting,
         userSignaledDone: planningDoneIntent,
         planningLocked: fsm.planningFinalized,
@@ -1508,12 +1549,23 @@ export async function POST(req: Request) {
             const planningHistory = !fsmAtTurnStart.planningFinalized
               ? collectPlanningBranchUserHistory(history)
               : [];
+            // If planning somehow starts with a summarizing-style lived-state reply
+            // (empty planning history), do not invent planned events from it.
+            const pendingPlanningUserMessage =
+              planningDoneIntent
+              || (
+                planningDialogHistory.length === 0
+                && userAnswerHasSufficientStateForSummary(userMessage)
+                && !looksLikeNewPlannedAction(userMessage)
+              )
+                ? null
+                : userMessage;
             const inferredFromPlanningHistory = !fsmAtTurnStart.planningFinalized
               ? hydrateDeterministicPlanningMarkers(
                   filterPersistablePlanningMarkers(
                     inferPlannedEventsFromUserHistory({
                       history: planningDialogHistory,
-                      pendingUserMessage: planningDoneIntent ? null : userMessage,
+                      pendingUserMessage: pendingPlanningUserMessage,
                       nowLocal: context.nowLocal,
                       relativeNowLocal: context.nowLocal,
                       tz: userTimezone,
@@ -1586,7 +1638,7 @@ export async function POST(req: Request) {
                 }),
               );
             }
-            plannedMarkers = dedupePlanningMarkersByIdentity(
+              plannedMarkers = dedupePlanningMarkersByIdentity(
               plannedMarkers.map((marker) => polishPlanningMarker(marker, locale)),
             );
             resolvedPlanningMarkers = plannedMarkers;
@@ -1990,6 +2042,7 @@ export async function POST(req: Request) {
                 dayFocus,
                 locale,
                 includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                includeSoftPracticeClose: fsmAtTurnStart.softPracticeClose,
                 targetChakraNumber: brainCtx.targetChakraNumber,
               });
             } else {
@@ -2001,6 +2054,7 @@ export async function POST(req: Request) {
                 dayFocus,
                 locale,
                 includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                includeSoftPracticeClose: fsmAtTurnStart.softPracticeClose,
                 targetChakraNumber: brainCtx.targetChakraNumber,
               });
             }
@@ -2039,6 +2093,7 @@ export async function POST(req: Request) {
                     dayFocus: shortText,
                     locale,
                     includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                    includeSoftPracticeClose: fsmAtTurnStart.softPracticeClose,
                     targetChakraNumber: brainCtx.targetChakraNumber,
                   })
                 : buildPlanningFinalVisibleText({
@@ -2047,6 +2102,7 @@ export async function POST(req: Request) {
                     dayFocus: shortText,
                     locale,
                     includePracticeQuestion: !fsmAtTurnStart.noPractice,
+                    includeSoftPracticeClose: fsmAtTurnStart.softPracticeClose,
                     targetChakraNumber: brainCtx.targetChakraNumber,
                   });
             }

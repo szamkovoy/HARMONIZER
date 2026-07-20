@@ -434,7 +434,13 @@ export async function persistSummarizedEvent(params: {
 
   if (outcomeCells.length > 0) {
     await mergeSummarizedEventIntoDailyMatrix(db, userId, event.planned_local_date, outcomeCells, nowIso);
-    await rebuildProfileReportSnapshot(db, userId, nowIso);
+    // Snapshot rebuild scans all summary matrices — can take tens of seconds on
+    // heavier accounts. Never block the dialog SSE on it: the turn already has
+    // outcome_cells merged, and a stuck rebuild left the client on «Думаю» while
+    // a retry could race into planning with the same summarizing reply.
+    void rebuildProfileReportSnapshot(db, userId, nowIso).catch((error) => {
+      console.warn("[DIALOG_FSM] Deferred profile report snapshot rebuild failed", error);
+    });
   }
 
   if (deleteAfterPersist) {

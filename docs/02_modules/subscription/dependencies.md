@@ -50,7 +50,7 @@ code_refs:
   `app/(tabs)/profile.tsx` — отображение `access.label`, `TIER_LABELS[access.tier]`, сырых `membership_tier` / `trial_expires_at`; `canUseFeature("stats")` открывает блок статистики практик и новые HARMONIZER v2 reports; в `__DEV__` рендерится `DevTierSwitch`.
 
 - **`assistant` (сервер)**  
-  `_legacy_web/app/api/communicator/v2/dialog/route.ts` — выборка `membership_tier`, `trial_expires_at` для DTO и связки с `_legacy_web/app/api/_utils/userModelTier.ts` (`dialogSurfaceModelHint` / премиум-модели).
+  `_legacy_web/app/api/communicator/v2/dialog/route.ts` — выборка `membership_tier`, `trial_expires_at` для DTO и связки с `_legacy_web/app/api/_utils/userModelTier.ts` (`dialogSurfaceModelHint` / премиум-модели); `hasActiveTrial` / `baseTierFromRow` задают `offerCatalogPractice` в `initFsmState` (ветка practice только Master/trial).
 
 - **`communicator`**  
   `modules/communicator/ui/Communicator.tsx` — `tierLabelFromProfile` для подписи тарифа в UI (через общий `hasEffectivePremium` из paidAccess).  

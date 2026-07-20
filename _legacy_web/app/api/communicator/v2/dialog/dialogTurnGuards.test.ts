@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
+import { looksLikeNewPlannedAction } from "@legacy/app/api/_utils/planningDonePhrases";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { initFsmState } from "./dialogFsm";
 import {
@@ -67,6 +68,20 @@ describe("dialogTurnGuards", () => {
         "Сегодня я все-таки хочу съездить в магазин, посмотреть лодки, а потом сходить в кино.",
       ),
     ).toBe(false);
+    // Named action + trailing «больше ничего» = finalize WITH the action (not empty plan).
+    expect(
+      userSignalsPlanningDone("Снова хотел бы посмотреть хороший фильм. И больше ничего."),
+    ).toBe(true);
+    expect(
+      userSignalsPlanningDone("I want to watch a movie. And nothing else."),
+    ).toBe(true);
+  });
+
+  it("keeps a named action when the same turn also says nothing else", () => {
+    expect(
+      looksLikeNewPlannedAction("Снова хотел бы посмотреть хороший фильм. И больше ничего."),
+    ).toBe(true);
+    expect(looksLikeNewPlannedAction("И больше ничего.")).toBe(false);
   });
 
   it("does not persist empty-plan refusals as planned actions", () => {
@@ -75,6 +90,30 @@ describe("dialogTurnGuards", () => {
       { desc: "Прогулка в парке", time: null, timeNorm: null, recommendation: "спокойно", displayOrder: 2, cells: [], snippets: [] },
     ]);
     expect(filtered.map((marker) => marker.desc)).toEqual(["Прогулка в парке"]);
+  });
+
+  it("does not persist meta «добавить действие про…» as a planned action", () => {
+    const filtered = filterPersistablePlanningMarkers([
+      {
+        desc: ", я решил добавить действие про отдых",
+        time: null,
+        timeNorm: null,
+        recommendation: null,
+        displayOrder: 1,
+        cells: [],
+        snippets: [],
+      },
+      {
+        desc: "Встречусь с друзьями в кафе",
+        time: null,
+        timeNorm: null,
+        recommendation: "слушайте собеседников",
+        displayOrder: 2,
+        cells: [],
+        snippets: [],
+      },
+    ]);
+    expect(filtered.map((marker) => marker.desc)).toEqual(["Встречусь с друзьями в кафе"]);
   });
 
   it("coerces practice after empty-plan practice offer without numbered wrap-up", () => {
@@ -325,6 +364,19 @@ describe("dialogTurnGuards", () => {
 
   it("detects thin summary answers and event absence", () => {
     expect(userAnswerIsThinForSummary("Да, состоялось, всё хорошо.")).toBe(true);
+    expect(userAnswerIsThinForSummary("Да, книгу прочитал.")).toBe(true);
+    expect(userAnswerHasSufficientStateForSummary(
+      "Да, посетил, посмотрел закат, получил массу положительных эмоций. Это красиво.",
+    )).toBe(true);
+    expect(userAnswerIsThinForSummary(
+      "Да, посетил, посмотрел закат, получил массу положительных эмоций. Это красиво.",
+    )).toBe(false);
+    expect(userAnswerHasSufficientStateForSummary(
+      "Да, книгу почитал и это был роман, заставил меня задуматься о жизни, о смыслах",
+    )).toBe(true);
+    expect(userAnswerIsThinForSummary(
+      "Да, книгу почитал и это был роман, заставил меня задуматься о жизни, о смыслах",
+    )).toBe(false);
     expect(userAnswerIsThinForSummary("Чувствовал спокойствие и лёгкую усталость.")).toBe(false);
     expect(userAnswerIsThinForSummary(
       "Я замечательно погулял по парку. Было время подумать, спланировать проект и увидеть общую картину. Я очень доволен этой прогулкой.",
@@ -355,6 +407,11 @@ describe("dialogTurnGuards", () => {
     expect(workQuestion).not.toContain("(");
     expect(workQuestion).not.toContain("тело, настроение, мысли или отношения");
     expect(/фокус|увлеч|людьми|процесс|выматыв/i.test(workQuestion)).toBe(true);
+
+    // Creative clarifiers contrast lived domains — not three near-synonyms of one chakra.
+    const bookQuestion = buildSummaryClarifyingQuestion("Почитать книгу перед сном", "ru");
+    expect(bookQuestion).not.toMatch(/спокойствие,\s*интерес,\s*или\s*ощущение\s*смысла/i);
+    expect(/удовольств|задума|размышл/i.test(bookQuestion)).toBe(true);
 
     // A tiny action stays light and does not interrogate.
     const tinyQuestion = buildSummaryClarifyingQuestion("Пораньше лечь спать", "ru");

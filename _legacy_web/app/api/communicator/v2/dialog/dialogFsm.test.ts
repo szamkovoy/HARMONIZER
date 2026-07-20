@@ -21,6 +21,7 @@ describe("initFsmState — flow per entry point", () => {
     expect(fsm.flow).toEqual(["summarizing", "planning", "practice"]);
     expect(fsm.branch).toBe("summarizing");
     expect(fsm.noPractice).toBe(false);
+    expect(fsm.softPracticeClose).toBe(false);
     expect(fsm.noGreeting).toBe(false);
     expect(fsm.targetChakra).toBe(4);
   });
@@ -31,10 +32,11 @@ describe("initFsmState — flow per entry point", () => {
     expect(fsm.branch).toBe("planning");
   });
 
-  it("day-tab add: planning only, no practice, no greeting", () => {
+  it("day-tab add: planning only, no practice, no greeting, no soft close", () => {
     const fsm = initFsmState({ tabMode: "add", daySummaryRequested: false, hasDueEvents: true, ...baseInit });
     expect(fsm.flow).toEqual(["planning"]);
     expect(fsm.noPractice).toBe(true);
+    expect(fsm.softPracticeClose).toBe(false);
     expect(fsm.noGreeting).toBe(true);
   });
 
@@ -42,6 +44,7 @@ describe("initFsmState — flow per entry point", () => {
     const fsm = initFsmState({ tabMode: "plan", daySummaryRequested: false, hasDueEvents: true, ...baseInit });
     expect(fsm.flow).toEqual(["summarizing", "planning", "practice"]);
     expect(fsm.noPractice).toBe(false);
+    expect(fsm.softPracticeClose).toBe(false);
     expect(fsm.noGreeting).toBe(false);
   });
 
@@ -55,6 +58,45 @@ describe("initFsmState — flow per entry point", () => {
     const fsm = initFsmState({ tabMode: "summary", daySummaryRequested: true, hasDueEvents: true, ...baseInit });
     expect(fsm.flow).toEqual(["summarizing"]);
     expect(fsm.noPractice).toBe(true);
+    expect(fsm.softPracticeClose).toBe(false);
+  });
+
+  it("oracle/free home: plan without practice branch, soft practice close", () => {
+    const fsm = initFsmState({
+      tabMode: null,
+      daySummaryRequested: false,
+      hasDueEvents: false,
+      offerCatalogPractice: false,
+      ...baseInit,
+    });
+    expect(fsm.flow).toEqual(["planning"]);
+    expect(fsm.noPractice).toBe(true);
+    expect(fsm.softPracticeClose).toBe(true);
+  });
+
+  it("oracle/free home with due events: summarize then plan, soft close", () => {
+    const fsm = initFsmState({
+      tabMode: null,
+      daySummaryRequested: false,
+      hasDueEvents: true,
+      offerCatalogPractice: false,
+      ...baseInit,
+    });
+    expect(fsm.flow).toEqual(["summarizing", "planning"]);
+    expect(fsm.softPracticeClose).toBe(true);
+    expect(fsm.noPractice).toBe(true);
+  });
+
+  it("oracle/free day-tab plan: same soft-close flow as home", () => {
+    const fsm = initFsmState({
+      tabMode: "plan",
+      daySummaryRequested: false,
+      hasDueEvents: false,
+      offerCatalogPractice: false,
+      ...baseInit,
+    });
+    expect(fsm.flow).toEqual(["planning"]);
+    expect(fsm.softPracticeClose).toBe(true);
   });
 });
 
@@ -81,6 +123,7 @@ describe("advanceBranch", () => {
       planningFinalized: false,
       practiceDecided: false,
       noPractice: true,
+      softPracticeClose: false,
       noGreeting: false,
       targetChakra: 4,
       workingLocalDate: "2026-06-09",

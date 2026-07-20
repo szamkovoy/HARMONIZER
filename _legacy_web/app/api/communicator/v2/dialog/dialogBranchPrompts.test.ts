@@ -188,6 +188,7 @@ describe("buildPlanningPrompt", () => {
     const { userInstruction } = buildPlanningPrompt(brainCtx, {
       isOpening: false,
       noPractice: true,
+      softPracticeClose: false,
       noGreeting: true,
       userSignaledDone: true,
       planningLocked: false,
@@ -195,6 +196,27 @@ describe("buildPlanningPrompt", () => {
     });
     expect(userInstruction).toMatch(/NEVER emit \[CORRECT_RECOMMENDATION\]/i);
     expect(userInstruction).toMatch(/only PLANNED_EVENT markers are allowed/i);
+    expect(userInstruction).toMatch(/NO practice step/i);
+    expect(userInstruction).not.toMatch(/Personal Account at the Master level/i);
+  });
+
+  it("oracle/free soft practice close: chakra nudge + Master note, no question", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: true,
+      softPracticeClose: true,
+      noGreeting: false,
+      userSignaledDone: true,
+      planningLocked: false,
+      existingActionCount: 0,
+    });
+    expect(userInstruction).toMatch(/soft paragraph/i);
+    expect(userInstruction).toMatch(/chakra 4/i);
+    expect(userInstruction).toMatch(/Personal Account at the Master level/i);
+    expect(userInstruction).toMatch(/Do NOT ask any follow-up question/i);
+    expect(userInstruction).toMatch(/soft practice closing with NO question/i);
+    expect(userInstruction).not.toMatch(/which kind \(meditation/i);
+    expect(userInstruction).not.toMatch(/NO practice step/i);
   });
 
   it("acknowledges an already-planned day in the add-flow opening", () => {
@@ -278,7 +300,7 @@ describe("buildPlanningPrompt", () => {
     expect(userInstruction).toMatch(/Do NOT finalize on the very first added action/i);
   });
 
-  it("includes the life-spheres guide and an anti-parrot spheres rule", () => {
+  it("includes the life-spheres baseline as the only tagging guide", () => {
     const { userInstruction } = buildPlanningPrompt(brainCtx, {
       isOpening: false,
       noPractice: false,
@@ -287,8 +309,10 @@ describe("buildPlanningPrompt", () => {
       planningLocked: false,
       existingActionCount: 0,
     });
-    expect(userInstruction).toMatch(/do NOT copy the format example numbers/i);
+    expect(userInstruction).toMatch(/by MEANING against the LIFE SPHERES list above/i);
+    expect(userInstruction).toMatch(/that list is the ONLY guide/i);
     expect(userInstruction).toMatch(/Sphere 4 is ONLY for actions/i);
+    expect(userInstruction).not.toMatch(/Quick guide:/i);
     expect(userInstruction).not.toContain('spheres="1:0.6;4:0.4"');
   });
 });
@@ -320,6 +344,24 @@ describe("buildPlanningFinalVisibleText", () => {
       "",
       "Хотите сейчас выполнить практику: медитацию, дыхание или асаны? Если да, назовите тип и примерную длительность — или скажите, что сегодня без практики.",
     ].join("\n"));
+  });
+
+  it("appends soft practice close for Oracle/Free (no practice question)", () => {
+    const result = buildPlanningFinalVisibleText({
+      visibleText: "Сегодня держите ясность.",
+      dayFocus: "Сегодня держите ясность.",
+      locale: "ru",
+      includePracticeQuestion: false,
+      includeSoftPracticeClose: true,
+      targetChakraNumber: 6,
+      events: [
+        { desc: "Почитать книгу", recommendation: "Читайте медленно.", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      ],
+    });
+    expect(result).toContain("1. Почитать книгу");
+    expect(result).toMatch(/шестую чакру/);
+    expect(result).toMatch(/Личном кабинете на уровне Мастер/);
+    expect(result).not.toMatch(/Хотите сейчас выполнить практику/);
   });
 
   it("does not keep a glued model action list inside the intro when rebuilding FINAL", () => {

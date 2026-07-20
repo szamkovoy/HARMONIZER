@@ -1,13 +1,19 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.28
+version: 1.31
 updated: 2026-07-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-20 (o):** QR/dev-client cold start зависал на «Собираем общий настрой дня». Root: `fetchProfile` AbortError за 5 с ×3 → `profile=null` → Home как free → `global-content` (и abort-гонки). Fix: timeout 15 с, 4 attempt; при полном fail без stale — не снимать `profileLoading` до ещё одного круга fetch (не отпускать сплэш в free).
+
+- **2026-07-20 (n):** Уточнение (m): blank только при `profileLoading && profile == null`. Иначе foreground `refreshProfile` (гео/Realtime после Health) размонтировал `(tabs)`/Communicator и диалог самопроизвольно закрывался.
+
+- **2026-07-20 (m):** Cold start Master мигал как «Навигатор» ~10 с (`profile tier: unknown`, free upsell, нет вкладки «День»). Root cause: `RootLayoutNav` снимал blank после `initializing` (сессия), не дожидаясь `syncProfile`; `profile=null` → `getEffectiveAccess` → free; таймаут fetch 10 с оставлял null. Fix: blank пока ждём первый профиль; fetch 3×5 с + keep stale on fail + delayed retry; upsell только при загруженном free-профиле; foreground bridge refresh при `profile_missing`. Логи: client `GET global_daily_content` до появления `users?select=*`.
 
 - **2026-07-20 (l):** Rebuild языка — диалог confirm/error целиком на **целевом** языке (`translate(pendingLocale, …)`); технические EN-таймауты в message не показываем (`rebuildError`). Таймаут/эфемериды — см. `daily_forecast/history` (locale timeout). Текст `rebuildMessage` — «до двух минут».
 

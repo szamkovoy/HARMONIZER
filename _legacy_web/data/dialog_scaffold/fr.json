@@ -9,6 +9,7 @@
   "chakraOrdinal_7": "septième",
   "dayPartEarlyMorning": "Il est après minuit mais la journée calendaire vient de commencer. \"Bonne nuit\" est acceptable, mais ne dites PAS que la journée est \"déjà le soir\", n'associez pas le jour de la semaine avec le soir, et évitez les phrases de détente comme \"le temps de regarder calmement en arrière\" ou \"terminez la journée\".",
   "fallbackPracticeQuestion": "Souhaitez-vous faire une pratique maintenant : méditation, respiration ou asanas ? Si oui, nommez le type et la durée approximative, ou dites que vous allez la sauter aujourd'hui.",
+  "fallbackSoftPracticeClose": "S'il vous reste un moment pour vous, une douce pratique de yoga axée sur le chakra {ordinal} peut soutenir cette journée. Vous pouvez accéder au catalogue des pratiques dans votre espace personnel au niveau Maître.",
   "greetingInstruction": "Si vous saluez, utilisez \"{greeting}\". Ne mélangez pas les salutations de différents moments de la journée.",
   "greeting_evening": "Bonsoir",
   "greeting_midday": "Bon après-midi",
@@ -33,10 +34,10 @@
   "summaryBridge_en": "Je suis désolé que cela ne se soit pas produit. Comment s'est passé \"{next}\" ?",
   "summaryBridge_ruTemplate": "{prefix} Comment s'est passé l'élément suivant{nextSuffix} ?",
   "summaryBridge_sorryPrefix": "Désolé que cela n'ait pas fonctionné.",
-  "summaryClarify_creative_0": "Qu'est-ce que cela a suscité en vous — du calme, un élan d'intérêt, ou un sens ?",
-  "summaryClarify_creative_1": "Comment cela a-t-il atterri — reposant, inspirant, ou qui fait réfléchir ?",
+  "summaryClarify_creative_0": "Cela a-t-il davantage résonné comme le plaisir du processus lui-même — ou comme une invitation à réfléchir ?",
+  "summaryClarify_creative_1": "Qu’est-ce qui a été le plus fort : le simple plaisir de la lecture ou les réflexions sur ce qui a touché ?",
   "summaryClarify_generic_0": "Comment cela a-t-il été ressenti de l'intérieur — dans quel état étiez-vous principalement ?",
-  "summaryClarify_generic_1": "Quel ton intérieur dominait surtout pour vous là — plutôt de l'aisance, de l'effort, de la concentration, de la légèreté, ou autre chose ?",
+  "summaryClarify_generic_1": "Qu'est-ce qui a résonné le plus fort : le calme, la joie, la clarté — ou quelque chose qui vous est propre ?",
   "summaryClarify_rest_0": "Comment avez-vous ressenti cela — plus de relaxation corporelle, un plaisir tranquille, une élévation de l'humeur, ou simplement être présent ?",
   "summaryClarify_rest_1": "Qu'est-ce que cela vous a apporté à l'intérieur — du repos pour le corps, du calme, ou un peu de joie ?",
   "summaryClarify_social_0": "Comment était-ce avec l'autre personne — chaleureux et proche, léger, ou un peu tendu ?",
@@ -45,5 +46,6 @@
   "summaryClarify_work_0": "Qu'est-ce qui a rempli ce travail — étiez-vous absorbé, principalement en coordination avec les gens, en maintenant une concentration intense, ou y a-t-il eu des frictions et des percées ?",
   "summaryClarify_work_1": "Comment avez-vous ressenti ce travail de l'intérieur — motivé et concentré, collaboratif, ou plus épuisant que gratifiant ?",
   "summaryDefaultEvent": "cet événement",
+  "summaryEmptyDueHandoff": "Bien — le regard rétrospectif sur ce qui était prévu est clos. On peut laisser le vécu tel quel.",
   "summaryToPlanningBridge": "Qu'est-ce qui semble important de planifier pour aujourd'hui ?"
 }

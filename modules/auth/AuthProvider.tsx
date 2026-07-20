@@ -31,7 +31,12 @@ import type { AuthContextValue, AuthUserRow } from "./types";
 const AuthContext = createContext<AuthContextValue | null>(null);
 export { AuthContext };
 
-const PROFILE_FETCH_TIMEOUT_MS = 10_000;
+/** Один attempt; при таймауте/сети syncProfile делает несколько коротких попыток.
+ *  5s на cold QR/dev-client часто рвалось AbortError → profile=null → free
+ *  global-content и вечный сплэш «Собираем общий настрой дня». */
+const PROFILE_FETCH_TIMEOUT_MS = 15_000;
+const PROFILE_FETCH_MAX_ATTEMPTS = 4;
+const PROFILE_FETCH_RETRY_GAP_MS = 600;
 /** Если подписка GoTrue по какой-то причине не отдала первое событие — не держим сплэш вечно. */
 const AUTH_BOOTSTRAP_SAFETY_MS = 35_000;
 /**
@@ -53,7 +58,11 @@ function getProfileRequestUrl(userId: string): string {
   return url.toString();
 }
 
-async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchProfileOnce(userId: string): Promise<{ row: AuthUserRow | null; failed: boolean }> {
   const supabase = requireSupabase();
   // eslint-disable-next-line no-console
   console.log("[auth] fetchProfile url", getProfileRequestUrl(userId));
@@ -69,9 +78,9 @@ async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
     if (error) {
       // eslint-disable-next-line no-console
       console.warn("[auth] fetchProfile error", error.message);
-      return null;
+      return { row: null, failed: true };
     }
-    return data;
+    return { row: data, failed: false };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -82,10 +91,25 @@ async function fetchProfile(userId: string): Promise<AuthUserRow | null> {
           ? error.message
           : String(error),
     );
-    return null;
+    return { row: null, failed: true };
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+/** Несколько коротких попыток: холодный PostgREST/JWT часто оживает на 2-й. */
+async function fetchProfile(userId: string): Promise<{ row: AuthUserRow | null; failed: boolean }> {
+  let last: { row: AuthUserRow | null; failed: boolean } = { row: null, failed: true };
+  for (let attempt = 1; attempt <= PROFILE_FETCH_MAX_ATTEMPTS; attempt += 1) {
+    last = await fetchProfileOnce(userId);
+    if (!last.failed) return last;
+    if (attempt < PROFILE_FETCH_MAX_ATTEMPTS) {
+      // eslint-disable-next-line no-console
+      console.warn(`[auth] fetchProfile retry ${attempt}/${PROFILE_FETCH_MAX_ATTEMPTS}`);
+      await sleep(PROFILE_FETCH_RETRY_GAP_MS * attempt);
+    }
+  }
+  return last;
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -116,7 +140,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     lastUserIdRef.current = user.id;
     setProfileLoading(true);
-    const row = await fetchProfile(user.id);
+    const { row: fetched, failed } = await fetchProfile(user.id);
+    let row = fetched;
     // Применяем отложенное имя из формы входа (шаг 1) — независимо от того, будет ли
     // показан шаг 2. Имя обновляется сразу после ввода OTP, а не после онбординга.
     const pendingName = pendingDisplayNameRef.current;
@@ -132,8 +157,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     if (pendingName) pendingDisplayNameRef.current = null;
     if (lastUserIdRef.current === user.id) {
-      setProfile(row);
-      setProfileLoading(false);
+      // Транзиентный сбой: не затираем уже известный профиль в null → иначе
+      // Access считает тариф «Навигатор» и Home грузит global_daily_content.
+      let keptStale = false;
+      setProfile((prev) => {
+        if (row) return row;
+        if (failed && prev?.id === user.id) {
+          keptStale = true;
+          // eslint-disable-next-line no-console
+          console.warn("[auth] fetchProfile failed; keeping previous profile row");
+          return prev;
+        }
+        return null;
+      });
       if (typeof row?.lat === "number" && typeof row?.lon === "number") {
         void saveCachedUserCoords(user.id, {
           lat: row.lat,
@@ -141,6 +177,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           timezone: row.tz?.trim() || "UTC",
         }).catch(() => undefined);
       }
+      // Cold start: все attempt-ы упали и профиля ещё не было — не отпускаем
+      // сплэш в free/global-content: ещё один полный круг fetch, затем снимаем loading.
+      if (failed && !row && !keptStale) {
+        const uid = user.id;
+        setTimeout(() => {
+          if (lastUserIdRef.current !== uid) return;
+          void fetchProfile(uid).then(({ row: retryRow }) => {
+            if (lastUserIdRef.current !== uid) return;
+            if (retryRow) setProfile(retryRow);
+            setProfileLoading(false);
+          });
+        }, 1_500);
+        return;
+      }
+      setProfileLoading(false);
     }
   }, []);
 

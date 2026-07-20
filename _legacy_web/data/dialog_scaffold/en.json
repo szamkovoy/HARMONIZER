@@ -9,6 +9,7 @@
   "chakraOrdinal_7": "seventh",
   "dayPartEarlyMorning": "It is after midnight but the calendar day has just begun. \"Good night\" is fine, but do NOT say the day is \"already evening\", do not pair the weekday with evening, and avoid wind-down phrases like \"time to calmly look back\" or \"wrap up the day\".",
   "fallbackPracticeQuestion": "Would you like to do a practice now: meditation, breathing, or asanas? If yes, name the kind and approximate duration, or say you will skip it today.",
+  "fallbackSoftPracticeClose": "If you find a moment for yourself, a gentle yoga practice focusing on the {ordinal} chakra can support this day. The practice catalog can be opened in your Personal Account at the Master level.",
   "greetingInstruction": "If you greet, use \"{greeting}\". Do not mix greetings from different parts of the day.",
   "greeting_evening": "Good evening",
   "greeting_midday": "Good afternoon",
@@ -33,10 +34,10 @@
   "summaryBridge_en": "I'm sorry it didn't happen. How did \"{next}\" go?",
   "summaryBridge_ruTemplate": "{prefix} How did the next item go{nextSuffix}?",
   "summaryBridge_sorryPrefix": "Sorry it didn't work out.",
-  "summaryClarify_creative_0": "What did it stir in you — calm, a spark of interest, or a sense of meaning?",
-  "summaryClarify_creative_1": "How did it land — restful, inspiring, or thought-provoking?",
+  "summaryClarify_creative_0": "Did it resonate more as enjoyment of the process itself — or as a reason to reflect?",
+  "summaryClarify_creative_1": "Which was stronger: the simple pleasure of reading, or reflecting on what moved you?",
   "summaryClarify_generic_0": "How did that feel from the inside — what state were you mostly in there?",
-  "summaryClarify_generic_1": "What inner tone was strongest there for you — more ease, effort, focus, lightness, or something else?",
+  "summaryClarify_generic_1": "And what resonated most: calm, joy, clarity—or something of your own?",
   "summaryClarify_rest_0": "How did it feel — more bodily relaxation, quiet pleasure, a lift in mood, or simply being present?",
   "summaryClarify_rest_1": "What did that give you inside — rest for the body, calm, or a bit of joy?",
   "summaryClarify_social_0": "How was that with the other person — warm and close, light, or a little tense?",
@@ -45,5 +46,6 @@
   "summaryClarify_work_0": "What filled that work — were you absorbed in it, mostly coordinating with people, holding tight focus, or were there frictions and breakthroughs?",
   "summaryClarify_work_1": "How did the work feel from the inside — driven and focused, collaborative, or more draining than rewarding?",
   "summaryDefaultEvent": "this event",
+  "summaryEmptyDueHandoff": "Alright — the review of earlier plans is now over. You can leave the experience be.",
   "summaryToPlanningBridge": "What feels important to plan for today?"
 }

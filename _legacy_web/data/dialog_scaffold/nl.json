@@ -9,6 +9,7 @@
   "chakraOrdinal_7": "zevende",
   "dayPartEarlyMorning": "Het is na middernacht maar de kalenderdag is net begonnen. 'Goedenacht' is prima, maar zeg NIET dat de dag 'al avond' is, koppel de weekdag niet aan avond, en vermijd afsluitende uitdrukkingen zoals 'tijd om rustig terug te kijken' of 'de dag af te ronden'.",
   "fallbackPracticeQuestion": "Wil je nu een oefening doen: meditatie, ademhaling of asana's? Zo ja, noem het type en de geschatte duur, of zeg dat je het vandaag overslaat.",
+  "fallbackSoftPracticeClose": "Als er een moment voor jezelf is, kan een zachte yogapractice gericht op de {ordinal} chakra deze dag ondersteunen. De catalogus met practices kan worden geopend in het Persoonlijke Dashboard op Meester-niveau.",
   "greetingInstruction": "Als je begroet, gebruik dan \"{greeting}\". Combineer geen begroetingen uit verschillende dagdelen.",
   "greeting_evening": "Goedenavond",
   "greeting_midday": "Goedemiddag",
@@ -33,10 +34,10 @@
   "summaryBridge_en": "Het spijt me dat het niet is gebeurd. Hoe is \"{next}\" gegaan?",
   "summaryBridge_ruTemplate": "{prefix} Hoe is het volgende item gegaan{nextSuffix}?",
   "summaryBridge_sorryPrefix": "Sorry dat het niet is gelukt.",
-  "summaryClarify_creative_0": "Wat riep het bij je op — rust, een vonk van interesse, of een gevoel van betekenis?",
-  "summaryClarify_creative_1": "Hoe kwam het binnen — rustgevend, inspirerend, of uitdagend om over na te denken?",
+  "summaryClarify_creative_0": "Resoneerde het meer als plezier van het proces zelf — of als een aanleiding om na te denken?",
+  "summaryClarify_creative_1": "Wat was sterker: het eenvoudige leesplezier, of de overdenkingen over wat je raakte?",
   "summaryClarify_generic_0": "Hoe voelde dat van binnen — in welke toestand bevond je je daar vooral?",
-  "summaryClarify_generic_1": "Welke innerlijke toon overheerste daar voor je — meer gemak, inspanning, focus, lichtheid, of iets anders?",
+  "summaryClarify_generic_1": "En wat resoneerde het sterkst: rust, vreugde, helderheid — of iets eigens?",
   "summaryClarify_rest_0": "Hoe voelde het — meer lichamelijke ontspanning, stille vreugde, een opkikker in stemming, of gewoon aanwezig zijn?",
   "summaryClarify_rest_1": "Wat gaf dat je van binnen — rust voor het lichaam, kalmte, of een beetje vreugde?",
   "summaryClarify_social_0": "Hoe was dat met de ander — warm en nabij, licht, of een beetje gespannen?",
@@ -45,5 +46,6 @@
   "summaryClarify_work_0": "Wat vulde dat werk — was je erin opgegaan, vooral bezig met coördineren met mensen, strak gefocust, of waren er fricties en doorbraken?",
   "summaryClarify_work_1": "Hoe voelde het werk van binnen — gedreven en gefocust, samenwerkend, of meer uitputtend dan belonend?",
   "summaryDefaultEvent": "deze gebeurtenis",
+  "summaryEmptyDueHandoff": "Goed — de terugblik op wat eerder gepland stond is afgerond. Laat de ervaring zoals ze is.",
   "summaryToPlanningBridge": "Wat voelt belangrijk om vandaag te plannen?"
 }

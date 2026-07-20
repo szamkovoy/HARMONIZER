@@ -27,8 +27,14 @@ export type DialogFsmState = {
   summaryAsked: Record<string, number>;
   planningFinalized: boolean;
   practiceDecided: boolean;
-  /** add/plan day-tab flows never offer a practice. */
+  /** Flows that never enter the practice branch (Day-tab add, or tiers without catalog). */
   noPractice: boolean;
+  /**
+   * Home/plan finalize for Oracle/Free: soft close about today's-chakra practice +
+   * Master catalog note (no kind/duration question). Distinct from Day-tab add
+   * (`noPractice` without this flag), which ends with no practice paragraph.
+   */
+  softPracticeClose: boolean;
   /** add day-tab flow opens without a greeting. */
   noGreeting: boolean;
   /** Target chakra fixed for the whole local day. */
@@ -65,6 +71,7 @@ export function readFsmState(triggerMeta: Record<string, unknown> | null | undef
     planningFinalized: Boolean(candidate.planningFinalized),
     practiceDecided: Boolean(candidate.practiceDecided),
     noPractice: Boolean(candidate.noPractice),
+    softPracticeClose: Boolean(candidate.softPracticeClose),
     noGreeting: Boolean(candidate.noGreeting),
     targetChakra: Number.isInteger(candidate.targetChakra) ? Number(candidate.targetChakra) : 7,
     workingLocalDate: typeof candidate.workingLocalDate === "string" ? candidate.workingLocalDate : "",
@@ -77,27 +84,44 @@ export function initFsmState(params: {
   hasDueEvents: boolean;
   targetChakra: number;
   workingLocalDate: string;
+  /**
+   * Master (or active trial): include practice branch + kind/duration offer.
+   * Oracle/Free (and safety-net Free): omit practice; planning soft-closes instead.
+   * Defaults to true so unit tests and older callers keep the catalog flow.
+   */
+  offerCatalogPractice?: boolean;
 }): DialogFsmState {
   let flow: DialogBranch[];
   let noPractice = false;
+  let softPracticeClose = false;
   let noGreeting = false;
+  const offerCatalogPractice = params.offerCatalogPractice !== false;
 
   if (params.tabMode === "add") {
     flow = ["planning"];
     noPractice = true;
     noGreeting = true;
-  } else if (params.tabMode === "plan") {
-    // Day tab "Что делать?" — same as home: overdue summary first, then plan, then practice.
-    flow = [...(params.hasDueEvents ? (["summarizing"] as DialogBranch[]) : []), "planning", "practice"];
-    noPractice = false;
-    noGreeting = false;
   } else if (params.daySummaryRequested) {
     // "Summarize this day" — close after the wrap-up, no planning/practice.
     flow = ["summarizing"];
     noPractice = true;
+  } else if (params.tabMode === "plan" || params.tabMode === null || params.tabMode === "summary") {
+    // Home / Day-tab "Что делать?" / plan: summarize overdue if any, then plan.
+    // Practice branch only when the user can open the catalog (Master / trial).
+    const withSummary = params.hasDueEvents ? (["summarizing"] as DialogBranch[]) : [];
+    if (offerCatalogPractice) {
+      flow = [...withSummary, "planning", "practice"];
+      noPractice = false;
+      softPracticeClose = false;
+    } else {
+      flow = [...withSummary, "planning"];
+      noPractice = true;
+      softPracticeClose = true;
+    }
+    noGreeting = false;
   } else {
-    // Full daily flow: summarize anything that is due, then plan, then offer a practice.
-    flow = [...(params.hasDueEvents ? (["summarizing"] as DialogBranch[]) : []), "planning", "practice"];
+    flow = ["planning"];
+    noPractice = true;
   }
 
   const branch = flow[0] ?? "planning";
@@ -110,6 +134,7 @@ export function initFsmState(params: {
     planningFinalized: false,
     practiceDecided: false,
     noPractice,
+    softPracticeClose,
     noGreeting,
     targetChakra: params.targetChakra,
     workingLocalDate: params.workingLocalDate,
@@ -119,7 +144,7 @@ export function initFsmState(params: {
 /** Move to the next branch in `flow`, or `done` when the flow is exhausted. */
 export function advanceBranch(state: DialogFsmState): DialogFsmState {
   let nextIndex = state.branchIndex + 1;
-  // Skip the practice branch entirely for add/plan day-tab flows.
+  // Skip the practice branch entirely when noPractice is set.
   while (nextIndex < state.flow.length && state.noPractice && state.flow[nextIndex] === "practice") {
     nextIndex += 1;
   }

@@ -3,19 +3,19 @@
     "id": 1,
     "slug": "body_health",
     "title": "Body and safety",
-    "prompt_hint": "sleep, energy, food, physical state, recovery, symptoms, bodily comfort"
+    "prompt_hint": "sleep, energy, food, physical state, recovery, symptoms, bodily comfort, health, self-care, physical activity, hygiene, contact with nature"
   },
   {
     "id": 2,
     "slug": "relationships",
     "title": "Pleasure and rest",
-    "prompt_hint": "rest, relaxation, pleasure, walk, pause, leisure, pleasant experiences, recovery through rest"
+    "prompt_hint": "rest, relaxation, pleasure, walk, pause, leisure, pleasant experiences, recovery through rest, sex, vacation, travel, spa"
   },
   {
     "id": 3,
     "slug": "work_money",
     "title": "Visibility and money",
-    "prompt_hint": "work, career, tasks, deadlines, income, expenses, stability, results"
+    "prompt_hint": "paid work, career, work tasks, deadlines, income, expenses, finances, salary, business, clients, meetings, career growth, work results"
   },
   {
     "id": 4,
@@ -27,18 +27,18 @@
     "id": 5,
     "slug": "creativity_expression",
     "title": "Values and self-expression",
-    "prompt_hint": "ideas, voice, speaking, writing, creativity, content, visibility, style"
+    "prompt_hint": "ideas, voice, speaking, writing, creativity, content, visibility, style, beauty, aesthetics, art, culture, music"
   },
   {
     "id": 6,
     "slug": "learning_growth",
     "title": "Knowledge and learning",
-    "prompt_hint": "learning, insights, decisions, strategy, skill, choice, understanding, focus"
+    "prompt_hint": "learning, insights, decisions, strategy, skill, choice, understanding, focus, intuition, reflection, science"
   },
   {
     "id": 7,
     "slug": "meaning_service",
     "title": "Higher meaning, faith",
-    "prompt_hint": "values, purpose, service, faith, larger meaning, direction, contribution"
+    "prompt_hint": "values, purpose, service, faith, larger meaning, direction, contribution, prayer, spirituality"
   }
 ]

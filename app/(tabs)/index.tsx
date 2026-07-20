@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/modules/auth";
-import { AccountGateDialog, AccountUpsellPanel, DevTierSwitch as AccessDevTierSwitch, accessModeForTier, useAccess, type FeatureKey } from "@/modules/access";
+import { AccountGateDialog, AccountUpsellPanel, DevTierSwitch as AccessDevTierSwitch, accessModeForTier, useAccess, type FeatureKey, type ProductTier } from "@/modules/access";
 import type { BirthData, NatalProfile } from "@/modules/astro-core";
 import { Communicator } from "@/modules/communicator/ui/Communicator";
 import type { DailyForecast } from "@/modules/daily-engine";
@@ -300,6 +300,7 @@ function CommunicatorOverlay({
   onClose,
   onPracticeStarted,
   remountKey,
+  devAccessTierOverride,
 }: {
   forecast: DailyForecast;
   accessMode: "free" | "premium" | "trial";
@@ -314,6 +315,8 @@ function CommunicatorOverlay({
   onClose: () => void;
   onPracticeStarted: () => void;
   remountKey: number;
+  /** Only when DevTierSwitch is active — server honors for practice-branch FSM. */
+  devAccessTierOverride?: ProductTier | null;
 }) {
   const [practiceHandoff, setPracticeHandoff] = useState(false);
 
@@ -363,6 +366,7 @@ function CommunicatorOverlay({
           ...(workingLocalDate ? { workingLocalDate } : {}),
           ...(dayHealthContext ? { dayHealthContext } : {}),
           ...(timeZone ? { timeZone } : {}),
+          ...(devAccessTierOverride ? { devAccessTierOverride } : {}),
         }}
         memoryWindow={24}
         onPracticeOffered={async (practice) => {
@@ -693,7 +697,7 @@ export default function HomeScreen() {
 
         {forecast ? (
           <>
-            {access.tier === "free" ? <AccountUpsellPanel /> : null}
+            {access.tier === "free" && profile && !profileLoading ? <AccountUpsellPanel /> : null}
             <ChakraFlower
               forecast={forecast}
               strings={strings}
@@ -787,6 +791,7 @@ export default function HomeScreen() {
           remountKey={assistantRemountKey}
           visible={communicatorVisible}
           dismissAnimation={communicatorDismissAnimation}
+          devAccessTierOverride={access.source === "dev_override" ? access.tier : null}
           onDismiss={() => {
             setCommunicatorMounted(false);
             setCommunicatorDismissAnimation("slide");

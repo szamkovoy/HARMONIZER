@@ -1,13 +1,27 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.91
-updated: 2026-07-12
+version: 2.98
+updated: 2026-07-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-20 (7):** Day-tab add-flow QA `текст-4D97…`: вводная «Да, я решил добавить действие про отдых. Встречусь…» сохранялась как отдельное действие `, я решил добавить действие про отдых` (без рекомендации). Root: `splitEventSegments` режет по точке + `buildEventDescription` срезал «Да» и оставлял запятую. Fix (без усложнения промпта): корректный strip `да,`/`ну,`; `isMetaPlanningIntentDescription` отбрасывает meta «добавить действие про…» в inference и в `filterPersistablePlanningMarkers`. Конкретные «добавь пробежку» не трогаем.
+
+- **2026-07-20 (6):** Planning spheres root-cause (после отката keyword-заплаток). Baseline **всегда** инжектится (`formatLifeSpheresBaselineForPrompt` → `LIFE SPHERES` в planning/summarizing). Ошибка «лес за грибами»→sphere 3: (a) англ. Quick guide в том же промпте конкурировал с JSON и давал короткий путь «results/business→3»; (b) `prompt_hint` сферы 3 был слишком широким («активность, достижение, самореализация, фокус…») и перетягивал любое намеренное дело. Fix: убрать Quick guide — tagging только по baseline; сузить sphere 3 до paid work/money/career; убрать prompt/JSON exceptions («НЕ грибы» / CRITICAL) и `reconcilePlanningSpheres`. Salvage `inferPlanningSpheresFromText` снова только для пустых model-cells. Layer A i18n: life_spheres только ru/en (не-en→ru); chakras/planet map — RU; author_voice ru+en (EU→en cadence) — не баг отсутствия переводов.
+
+- **2026-07-20 (5):** QA `текст-4709…`. **(1) Summarizing:** «положительные эмоции / это красиво» не считалось sufficient → generic clarifying с «общением» на закате. Fix: эмоц/красив/положительн + soft narrative (≥8 слов); prompt DEFAULT TO CLOSING по целому ответу; rest-domain включает закат; generic без «общения». **(2) Planning spheres (superseded by (6)):** временные keyword-reconcile / «НЕ грибы» откатили — см. (6).
+
+- **2026-07-20 (4):** QA `текст-4188…` / `текст-4384…`. **(1) Лишнее clarifying в summarizing:** «задуматься о жизни, о смыслах» не попадало в `userAnswerHasSufficientStateForSummary` → thin-deferral + creative scaffold «спокойствие / интерес / смысл». Fix: расширен lived-state backstop (смысл/размышление/meaning…); creative clarifiers контрастируют удовольствие vs размышление, не три синонима одной чакры. **(2) Oracle hang → planning mid-summary:** при `summarizing && due.length===0` route молча `advanceBranch` и продолжал тот же user-turn как planning → inference делал `PLANNED_EVENT` из ответа про встречу («Это был прекрасный вечер…»). Fix: deterministic `summaryEmptyDueHandoff` + bridge вместо planning на том же ходе; inference/route не кормят summarizing lived-state в planning; `rebuildProfileReportSnapshot` после merge матрицы — deferred (не блокирует SSE).
+
+- **2026-07-20 (3):** QA `текст-4597…` (free + DevTierSwitch→Мастер): finalize без вопроса практики и без soft-close (`flow:["planning"]`, `final_without_practice`). Root: (a) сервер смотрит только DB `membership_tier`, не client `Мастер (dev)`; (b) deterministic `buildPlanningFinalVisibleText` срезал LLM soft-close при `noPractice`. Fix: `triggerMeta.devAccessTierOverride` из DevTierSwitch; scaffold `fallbackSoftPracticeClose` в финале при `softPracticeClose`.
+
+- **2026-07-20 (2):** QA `текст-4974…`: «Хотел бы посмотреть фильм. И больше ничего.» давало finalize без действия (`planning_persistence` пуст, только day-focus + вопрос про практику). Root: `looksLikeNewPlannedAction` сначала матчил «больше ничего» как decline → весь ход = empty-plan closure. Fix: planning cue сильнее trailing done-фразы; inference не скипaет turn с action; finalize всё ещё по `userSignalsPlanningDone`. Не связано с softPracticeClose Oracle.
+
+- **2026-07-20:** Oracle/Free daily dialog больше не входит в ветку `practice`. `initFsmState({ offerCatalogPractice })` (route: Master или активный trial) для home/`plan` без каталога ставит `noPractice` + `softPracticeClose` и flow без `practice`. Planning finalize: мягкий абзац про йогу под чакру дня + отсылка к каталогу на уровне Мастер в Личном кабинете (без kind/duration вопроса); Day-tab add по-прежнему «NO practice step» без upsell. Master/demo — прежний practice-offer. Код: `dialogFsm.ts`, `dialogBranchPrompts.ts`, `route.ts`.
 
 - **2026-07-13:** `morning_recommendation` language pipeline: OUTPUT LANGUAGE → one language-retry → **`translateMorningTextFields`** fallback (same as free `text_i18n`) before `502 LOCALE_MISMATCH`. Fixes paid DE→EN where the model kept emitting Russian into an `en` cache key.
 

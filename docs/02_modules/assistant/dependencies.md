@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.28
-updated: 2026-06-26
+version: 1.29
+updated: 2026-07-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
@@ -22,6 +22,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
   - `POST /api/ai/global-content` и `global_daily_content` остаются отдельным free-path: глобальный prompt `global_morning_recommendation` теперь может работать на premium-tier модели, но по-прежнему без натала/персонализации и с собственным deterministic `math_level`.
 - **`profile`**
   - **`users`**: `locale`, **`address_form`**, `tz`, `membership_tier`, `trial_expires_at`, `lat`, `lon` для локального времени, обращения, выбора модели и фиксации day-context.
+- **`subscription` / access**
+  - `hasActiveTrial` / `baseTierFromRow` (`modules/access/core/paidAccess`) в `communicator/v2/dialog/route.ts` → `initFsmState({ offerCatalogPractice })`: ветка practice только для Master / активного trial (зеркало `practice_catalog`).
 - **`i18n`**
   - **`_legacy_web/app/api/_utils/dialogLocale.ts`**: `resolveResponseLocale(userLocale, requestedLocale?)`, `asContentLocale`, `localeToLanguageName`, `resolveDialogScaffoldLocale`. Daily dialog POST/greeting принимают **`responseLocale`** из тела (клиент — `getResponseLocale()`); dialog POST additionally accepts optional **`inputLocale`** (клиент — `getTranscribeLocale()` по умолчанию, либо detected speech locale на test-mode voice turn) для `inputLanguageName` в `dialogBranchPrompts.ts`. Приоритет ENV `DIALOG_RESPONSE_LOCALE` → body → `users.locale` → `ru`. Layer B — `resolveContentLocale` (8 locales); layer C — `getDialogScaffoldStrings(locale)` из `_legacy_web/data/dialog_scaffold/*.json` (8 locales, RU-first sync via `i18n-sync.mjs`). Полный контракт — `docs/02_modules/i18n/spec.md` §3–§4.
 - **`communicator` / `profile` (новый серверный потребитель)**

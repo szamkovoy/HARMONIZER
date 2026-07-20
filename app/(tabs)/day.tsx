@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import { useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import {
   CHAKRA_SEGMENT_COLORS,
@@ -351,6 +352,7 @@ function AssistantModal({
   strings: DayStrings;
   appLocale: AppLocale;
 }) {
+  const { access } = useAccess();
   const [practiceHandoff, setPracticeHandoff] = useState(false);
 
   const finishPracticeLaunch = useCallback(() => {
@@ -387,6 +389,7 @@ function AssistantModal({
           dayActions: session.dayActions,
           dayPractices: session.dayPractices,
           dayHealthContext: session.dayHealthContext,
+          ...(access.source === "dev_override" ? { devAccessTierOverride: access.tier } : {}),
         }}
         memoryWindow={24}
         onPracticeOffered={onPracticeOffered}

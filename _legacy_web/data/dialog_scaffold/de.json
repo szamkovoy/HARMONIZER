@@ -9,6 +9,7 @@
   "chakraOrdinal_7": "siebte",
   "dayPartEarlyMorning": "Es ist nach Mitternacht, aber der Kalendertag hat gerade erst begonnen. \"Gute Nacht\" ist in Ordnung, aber sagen Sie NICHT, der Tag sei \"bereits Abend\", verbinden Sie den Wochentag nicht mit dem Abend und vermeiden Sie Ausklang-Phrasen wie \"Zeit, ruhig zurückzublicken\" oder \"den Tag abzuschließen\".",
   "fallbackPracticeQuestion": "Möchten Sie jetzt eine Übung machen: Meditation, Atmung oder Asanas? Wenn ja, nennen Sie die Art und ungefähre Dauer, oder sagen Sie, dass Sie heute darauf verzichten.",
+  "fallbackSoftPracticeClose": "Wenn du einen Moment für dich findest, kann eine sanfte Yoga-Praxis mit Fokus auf das {ordinal} Chakra diesen Tag unterstützen. Du kannst den Übungskatalog in deinem persönlichen Bereich auf Master-Ebene öffnen.",
   "greetingInstruction": "Wenn Sie grüßen, verwenden Sie \"{greeting}\". Mischen Sie keine Grußformeln aus verschiedenen Tageszeiten.",
   "greeting_evening": "Guten Abend",
   "greeting_midday": "Guten Tag",
@@ -33,10 +34,10 @@
   "summaryBridge_en": "Es tut mir leid, dass es nicht geklappt hat. Wie ist \"{next}\" gelaufen?",
   "summaryBridge_ruTemplate": "{prefix} Wie ist der nächste Punkt gelaufen{nextSuffix}?",
   "summaryBridge_sorryPrefix": "Tut mir leid, dass es nicht geklappt hat.",
-  "summaryClarify_creative_0": "Was hat es in Ihnen bewegt — Ruhe, ein Funke Interesse oder ein Gefühl von Sinn?",
-  "summaryClarify_creative_1": "Wie hat es gewirkt — erholsam, inspirierend oder zum Nachdenken anregend?",
+  "summaryClarify_creative_0": "Hat es mehr als Freude am Prozess selbst — oder als Anlass zum Nachdenken gewirkt?",
+  "summaryClarify_creative_1": "Was war stärker: die einfache Freude am Lesen oder das Nachdenken darüber, was dich berührt hat?",
   "summaryClarify_generic_0": "Wie hat sich das von innen angefühlt — in welchem Zustand waren Sie dabei hauptsächlich?",
-  "summaryClarify_generic_1": "Welcher innere Ton war dort für Sie am stärksten — eher Leichtigkeit, Anstrengung, Konzentration, Lockerheit oder etwas anderes?",
+  "summaryClarify_generic_1": "Und was hat bei dir stärker nachgehallt: Ruhe, Freude, Klarheit – oder etwas ganz Eigenes?",
   "summaryClarify_rest_0": "Wie hat es sich angefühlt — mehr körperliche Entspannung, stille Freude, eine Stimmungsaufhellung oder einfach präsent zu sein?",
   "summaryClarify_rest_1": "Was hat es Ihnen innerlich gegeben — Ruhe für den Körper, Gelassenheit oder ein bisschen Freude?",
   "summaryClarify_social_0": "Wie war das mit der anderen Person — warm und nah, leicht oder ein wenig angespannt?",
@@ -45,5 +46,6 @@
   "summaryClarify_work_0": "Was hat diese Arbeit ausgefüllt — waren Sie darin vertieft, haben Sie hauptsächlich mit Leuten koordiniert, sich stark konzentriert oder gab es Reibungen und Durchbrüche?",
   "summaryClarify_work_1": "Wie hat sich die Arbeit von innen angefühlt — getrieben und fokussiert, gemeinsam, oder eher auslaugend als lohnend?",
   "summaryDefaultEvent": "dieses Ereignis",
+  "summaryEmptyDueHandoff": "Gut — der Rückblick auf das Geplante ist abgeschlossen. Du kannst das Erlebte so belassen, wie es ist.",
   "summaryToPlanningBridge": "Was erscheint Ihnen heute wichtig zu planen?"
 }
