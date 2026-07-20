@@ -63,10 +63,12 @@ export function GeoGate({ children, onCloseApp, onGranted }: GeoGateProps) {
     return () => sub.remove();
   }, [check]);
 
-  // Сообщаем родителю о свежем "granted" — единственный момент, когда имеет
-  // смысл перезапрашивать дневной контент (до этого геолокации не было).
+  // Only when the user newly grants after a denial (or settings return).
+  // Do NOT fire on mount for already-granted: initial status is "checking" →
+  // "granted", and that false edge used to call refresh({ forceRefresh: true })
+  // on every Home open → paid users waited on a full LLM regen despite cron warm.
   useEffect(() => {
-    if (prevStatusRef.current !== "granted" && status === "granted") {
+    if (prevStatusRef.current === "denied" && status === "granted") {
       onGranted?.();
     }
     prevStatusRef.current = status;

@@ -639,7 +639,7 @@ export default function HomeScreen() {
   }, [canUseFeature]);
 
   return (
-    <GeoGate onCloseApp={onCloseAppFromGeoGate} onGranted={() => void refresh({ forceRefresh: true })}>
+    <GeoGate onCloseApp={onCloseAppFromGeoGate} onGranted={() => void refresh()}>
     <TabScreenLayout>
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} homeTextsLoading={homeTextsLoading} />

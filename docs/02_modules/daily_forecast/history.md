@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.30
+version: 2.31
 updated: 2026-07-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-21 (GeoGate forceRefresh):** Master cold open на 21.07 снова ждал ~30s LLM при готовом cron warm. API: upsert `user_daily_forecasts` + POST `scenario_cache` (regen `deepseek-v4-pro`) без prior cache-hit read — признак `forceRefresh:true`. Root: `GeoGate` стартует в `checking`, при уже выданном permission переходит в `granted` и звал `onGranted` → `refresh({forceRefresh:true})` на **каждом** монтировании Home. Fix: `onGranted` только на `denied→granted`; Home вызывает обычный `refresh()` без force.
 
 - **2026-07-21 (morning model pin):** Paid Home всё ещё ждал LLM при уже готовом `scenario_cache`: `isMorningRecommendationCacheValid` требовал `modelUsed === AI_MODEL_PREMIUM` (Vercel=`deepseek-v4-pro`), а cron/Edge писал `gemini-3-flash-preview` (устаревшие Edge secrets). Кэш отбрасывался → `holdWarmForTexts`. Fix: serve по locale+math_level+текстам (без pin модели); Edge `AI_MODEL_*` синхронизированы с `.env.local`; тот же soft-hit в `precompute-daily-forecasts`.
 
