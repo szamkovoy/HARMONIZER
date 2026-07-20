@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from "react-native";
 
 import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
@@ -8,15 +8,27 @@ import { AppText } from "@/modules/ui/AppText";
 
 export type AppStartupPhase = "app_loading" | "initializing" | "loading_day";
 
+/**
+ * `splash` — полная заставка (холодный старт / первая готовность Home).
+ * `day_card` — карточка «Готовим ваш день» поверх уже открытого приложения
+ * (смена натала с Профиля, ролловер дня, повторный blocking reload).
+ */
+export type HomeBootstrapPresentation = "splash" | "day_card";
+
 type HomeBootstrapState = {
   blocking: boolean;
   phase: AppStartupPhase;
-  /** Internal step id (maps to friendly footer copy). */
+  /** Internal step id (maps to friendly footer copy on splash). */
   step: string;
+  presentation: HomeBootstrapPresentation;
 };
 
 type AppStartupContextValue = {
-  beginHomeBootstrap: (phase: AppStartupPhase, step?: string) => void;
+  beginHomeBootstrap: (
+    phase: AppStartupPhase,
+    step?: string,
+    opts?: { presentation?: HomeBootstrapPresentation },
+  ) => void;
   setHomeBootstrapPhase: (phase: AppStartupPhase, step?: string) => void;
   /** Finer-grained step without changing `phase` (same progress curve). */
   setStartupStep: (step: string) => void;
@@ -90,7 +102,50 @@ function useSplashProgress(visible: boolean, progress: Animated.Value) {
   }, [progress, visible]);
 }
 
-function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: AppLocale }) {
+function DayWaitCardOverlay({ visible, locale }: { visible: boolean; locale: AppLocale }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      opacity.stopAnimation();
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setMounted(false);
+    });
+  }, [opacity, visible]);
+
+  if (!mounted) return null;
+
+  return (
+    <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.dayWaitRoot, { opacity }]}>
+      <View style={styles.dayWaitCard}>
+        <ActivityIndicator size="large" color="#11B6B7" />
+        <AppText variant="sectionTitle" style={styles.dayWaitTitle}>
+          {t(locale, "wizard.warm.title")}
+        </AppText>
+        <AppText variant="screenHint" tone="muted" style={styles.dayWaitBody}>
+          {t(locale, "wizard.warm.body")}
+        </AppText>
+      </View>
+    </Animated.View>
+  );
+}
+
+function AppStartupSplashOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: AppLocale }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
@@ -185,7 +240,7 @@ function AppStartupOverlay({ visible, step, locale }: { visible: boolean; step: 
   });
 
   return (
-    <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.overlay, { opacity }]}>
+    <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}>
       {/* Полный кадр как expo.splash (resizeMode: cover): явные размеры экрана — надёжнее, чем absoluteFill для cover */}
       <Animated.View
         style={[
@@ -241,24 +296,41 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
   const appLocale = coerceAppLocale(locale);
 
   const [isHomeRoute, setHomeRouteActive] = useState(true);
+  /** После первого успешного complete — повторные ожидания дня идут карточкой, не полной заставкой. */
+  const hasCompletedHomeOnceRef = useRef(false);
   const [homeBootstrap, setHomeBootstrap] = useState<HomeBootstrapState>({
     blocking: true,
     phase: "app_loading",
     step: "HOME/js_bridge",
+    presentation: "splash",
   });
 
   const visible = initializing || (isHomeRoute && homeBootstrap.blocking);
+  /**
+   * Auth recovery всегда полная заставка.
+   * Иначе — то, что выставил `beginHomeBootstrap` (cold start → splash по умолчанию;
+   * после первого complete / явный `blockingReload` → day_card).
+   */
+  const presentation: HomeBootstrapPresentation = initializing
+    ? "splash"
+    : homeBootstrap.presentation;
 
   const authStep = initializing ? "AUTH/secure_session" : profileLoading ? "AUTH/users_profile" : null;
   const footerStep = authStep ?? homeBootstrap.step;
 
-  const beginHomeBootstrap = useCallback((nextPhase: AppStartupPhase, nextStep?: string) => {
-    setHomeBootstrap((current) => ({
-      blocking: true,
-      phase: nextPhase,
-      step: nextStep ?? current.step,
-    }));
-  }, []);
+  const beginHomeBootstrap = useCallback(
+    (nextPhase: AppStartupPhase, nextStep?: string, opts?: { presentation?: HomeBootstrapPresentation }) => {
+      const nextPresentation =
+        opts?.presentation ?? (hasCompletedHomeOnceRef.current ? "day_card" : "splash");
+      setHomeBootstrap((current) => ({
+        blocking: true,
+        phase: nextPhase,
+        step: nextStep ?? current.step,
+        presentation: nextPresentation,
+      }));
+    },
+    [],
+  );
 
   const setHomeBootstrapPhase = useCallback((nextPhase: AppStartupPhase, nextStep?: string) => {
     setHomeBootstrap((current) =>
@@ -277,12 +349,19 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeHomeBootstrap = useCallback(() => {
+    hasCompletedHomeOnceRef.current = true;
     setHomeBootstrap((current) => ({ ...current, blocking: false }));
   }, []);
 
   useEffect(() => {
     if (initializing) {
-      setHomeBootstrap((current) => ({ ...current, blocking: true, phase: "initializing", step: "AUTH/secure_session" }));
+      setHomeBootstrap((current) => ({
+        ...current,
+        blocking: true,
+        phase: "initializing",
+        step: "AUTH/secure_session",
+        presentation: "splash",
+      }));
       return;
     }
     if (!isHomeRoute) {
@@ -301,11 +380,15 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     [beginHomeBootstrap, completeHomeBootstrap, setHomeBootstrapPhase, setStartupStep],
   );
 
+  const splashVisible = visible && presentation === "splash";
+  const dayCardVisible = visible && presentation === "day_card";
+
   return (
     <AppStartupContext.Provider value={value}>
       <View style={styles.root}>
         {children}
-        <AppStartupOverlay visible={visible} step={footerStep} locale={appLocale} />
+        <AppStartupSplashOverlay visible={splashVisible} step={footerStep} locale={appLocale} />
+        <DayWaitCardOverlay visible={dayCardVisible} locale={appLocale} />
       </View>
     </AppStartupContext.Provider>
   );
@@ -321,7 +404,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  overlay: {
+  splashOverlay: {
     backgroundColor: "#FFFFFF",
   },
   splashImageWrap: {
@@ -363,5 +446,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     lineHeight: 16,
+  },
+  dayWaitRoot: {
+    backgroundColor: "rgba(2, 24, 39, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    zIndex: 20,
+  },
+  dayWaitCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.08)",
+    padding: 22,
+    gap: 12,
+    alignItems: "center",
+  },
+  dayWaitTitle: {
+    textAlign: "center",
+  },
+  dayWaitBody: {
+    textAlign: "center",
   },
 });

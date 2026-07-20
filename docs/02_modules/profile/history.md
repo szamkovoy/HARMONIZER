@@ -9,6 +9,10 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-20 (i):** Первое открытие «Изменить» — пустое «Место рождения» при заполненном профиле. Root cause в `BirthPlacePicker` (не синхронизировал текст с `value` после mount); см. `onboarding/history.md` (2026-07-20 d). `geoPlaceFromProfileBirthPlace` устойчивее к string coords / `lng`.
+
+- **2026-07-20 (h):** Ожидание после Save натала — UI карточки, не splash. Алгоритм (`markHomeDayContentBlockingReload` → Home focus → `refresh({ blockingReload })`) уже работал; пользователь видел полную заставку со сменяющимися `startup.step.*`, потому что `AppStartupProvider` рисовал только splash. Теперь `blockingReload` запрашивает presentation `day_card` («Готовим ваш день» / `wizard.warm.*`). См. `daily_forecast/history.md` (day_card).
+
 - **2026-07-20 (g):** Save натала на Профиле — корректный пересчёт Home. Убран спиннер на Профиле после Save; вместо него: `clearDayContentCache` + фоновый `ensureLocaleDayContent({forceRefresh:true})` + `markHomeDayContentBlockingReload({forceRefresh:true})` — оверлей «Готовим ваш день» на Навигаторе, пока нет слогана+рекомендации. Сервер natal теперь чистит и morning `scenario_cache` (см. daily_forecast/astro history). No-change skip в модалке без изменений сохранён.
 
 - **2026-07-20 (f):** `NatalBirthDataModal` — зазор над клавиатурой и артефакты выделения сегментов. (1) `KeyboardAvoidingView` + `justifyContent:center` центрировал карточку в оставшейся области → большой пустой зазор над клавиатурой при одновременном сжатии карточки (`maxHeight`/`flexShrink`) — поле места рождения визуально схлопывалось до зелёной линии. Заменено на `Keyboard` show/hide: `paddingBottom = keyboardHeight + 8`, при клавиатуре `justifyContent:flex-end` — карточка почти касается клавиатуры и занимает доступную высоту. (2) iOS selection-handles («палочки с шариками») обрезались из‑за узких/низких `TextInput`-сегментов и `overflow` у bordered-контейнера — сегменты `minHeight:28`, шире, `overflow:visible` на row/input. `BirthPlacePicker.root` получил `minHeight:INPUT_HEIGHT`. tsc clean.

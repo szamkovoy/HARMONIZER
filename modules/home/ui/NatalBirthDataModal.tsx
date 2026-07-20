@@ -38,18 +38,35 @@ import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { useTheme } from "@/modules/ui/theme";
 
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /** users.birth_place (jsonb) → GeoPlace для предзаполнения пикера и карты. */
 export function geoPlaceFromProfileBirthPlace(raw: unknown): GeoPlace | null {
   if (!raw || typeof raw !== "object") return null;
-  const place = raw as { name?: unknown; lat?: unknown; lon?: unknown; timezone?: unknown };
-  if (typeof place.lat !== "number" || typeof place.lon !== "number") return null;
+  const place = raw as {
+    name?: unknown;
+    lat?: unknown;
+    lon?: unknown;
+    lng?: unknown;
+    timezone?: unknown;
+  };
+  const lat = asFiniteNumber(place.lat);
+  const lon = asFiniteNumber(place.lon) ?? asFiniteNumber(place.lng);
+  if (lat == null || lon == null) return null;
   return {
-    id: `profile-${place.lat}-${place.lon}`,
-    name: typeof place.name === "string" && place.name.trim() ? place.name : `${place.lat}, ${place.lon}`,
+    id: `profile-${lat}-${lon}`,
+    name: typeof place.name === "string" && place.name.trim() ? place.name : `${lat}, ${lon}`,
     region: null,
     country: null,
-    lat: place.lat,
-    lng: place.lon,
+    lat,
+    lng: lon,
     timezone: typeof place.timezone === "string" && place.timezone.trim() ? place.timezone : "UTC",
   };
 }
@@ -99,7 +116,7 @@ export function NatalBirthDataModal({
   // Padded-слоты (пробел = пусто); длина 8 / 4.
   const [dateSlots, setDateSlots] = useState("");
   const [timeSlots, setTimeSlots] = useState("");
-  const [place, setPlace] = useState<GeoPlace | null>(null);
+  const [place, setPlace] = useState<GeoPlace | null>(() => geoPlaceFromProfileBirthPlace(initialPlace));
   const [errorText, setErrorText] = useState<string | null>(null);
   /** Высота клавиатуры — вручную поднимаем карточку почти вплотную к ней. */
   const [keyboardHeight, setKeyboardHeight] = useState(0);

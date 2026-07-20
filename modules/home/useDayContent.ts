@@ -427,7 +427,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           !(relaxedCache?.freshness === "stale"));
 
       if (shouldBlockSplash) {
-        beginHomeBootstrap("initializing", "HOME/home_overlay_start");
+        // После первого успешного bootstrap AppStartup сам выберет day_card;
+        // для явного blockingReload (смена натала с Профиля) просим карточку
+        // «Готовим ваш день», а не полную заставку со сменяющимися подписями.
+        beginHomeBootstrap("initializing", "HOME/home_overlay_start", {
+          presentation: opts?.blockingReload ? "day_card" : undefined,
+        });
       }
 
       if (needsNatalProfile && options?.hasNatalProfile == null) {

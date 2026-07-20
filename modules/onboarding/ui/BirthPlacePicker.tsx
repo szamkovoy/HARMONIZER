@@ -43,6 +43,14 @@ export function BirthPlacePicker({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeqRef = useRef(0);
 
+  // Родитель часто выставляет `value` после mount (модалка: place=null → из профиля).
+  // Без синка поле остаётся с плейсхолдером, хотя value уже есть (зелёная рамка).
+  // При наборе текста родитель шлёт null — query не трогаем.
+  useEffect(() => {
+    if (!value) return;
+    setQuery(formatGeoPlaceLabel(value));
+  }, [value]);
+
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
