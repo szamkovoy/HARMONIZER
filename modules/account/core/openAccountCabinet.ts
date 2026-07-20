@@ -26,6 +26,7 @@ import { resolveBillingCurrency } from "@/modules/account/core/billingCurrency";
 import { getResponseLocale } from "@/modules/i18n";
 import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
 import { getSupabaseAccessToken, getSupabaseSessionSnapshot } from "@/services/supabase";
+import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
 const DEFAULT_CABINET_URL = "https://zamkovoi.yoga/cabinet/";
 const OTT_TIMEOUT_MS = 12_000;
@@ -40,7 +41,7 @@ export function getAccountCabinetUrl(): string {
   return (explicit || DEFAULT_CABINET_URL).replace(/\/+$/, "/");
 }
 
-async function requestOneTimeToken(): Promise<string> {
+async function requestOneTimeTokenOnce(): Promise<string> {
   const accessToken = await getSupabaseAccessToken();
   if (!accessToken) throw new Error("No active session for account cabinet transition.");
   const controller = new AbortController();
@@ -51,13 +52,24 @@ async function requestOneTimeToken(): Promise<string> {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`account/ott HTTP ${res.status}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(body || `account/ott HTTP ${res.status}`);
+    }
     const data = (await res.json()) as { ott?: string };
     if (!data.ott) throw new Error("account/ott returned no token");
     return data.ott;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+/** Ретраи на PostgREST 503 / schema cache (типичный краткий сбой Supabase). */
+async function requestOneTimeToken(): Promise<string> {
+  return withTransientNetworkRetry(requestOneTimeTokenOnce, {
+    attempts: 3,
+    delaysMs: [400, 900],
+  });
 }
 
 export async function markCabinetVisit(userId: string, ctx: CabinetContext): Promise<void> {

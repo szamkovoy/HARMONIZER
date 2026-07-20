@@ -1,5 +1,5 @@
 import { getProfileLifeMatrixUrl, getProfilePracticeByChakraUrl } from "@/services/communicatorConfig";
-import { requireSupabase } from "@/services/supabase";
+import { getSupabaseAccessToken } from "@/services/supabase";
 import { wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
@@ -24,17 +24,9 @@ export type PracticeByChakraReport = {
   chakraStats: Array<{ chakra: number; label: string; shortLabel: string; color: string; durationSec: number }>;
 };
 
-async function getAccessToken(): Promise<string> {
-  const { data, error } = await requireSupabase().auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Нужна авторизация Supabase для загрузки отчётов.");
-  return token;
-}
-
 async function fetchJson<T>(url: string): Promise<T> {
   return withTransientNetworkRetry(async () => {
-    const accessToken = await getAccessToken();
+    const accessToken = await getSupabaseAccessToken();
     let res: Response;
     try {
       res = await fetch(url, {

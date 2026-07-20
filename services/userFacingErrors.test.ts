@@ -72,4 +72,31 @@ describe("withTransientNetworkRetry", () => {
     expect(result).toBe("ok");
     expect(calls).toBe(2);
   });
+
+  it("retries PostgREST schema-cache / 503 messages", async () => {
+    let calls = 0;
+    const result = await withTransientNetworkRetry(
+      async () => {
+        calls += 1;
+        if (calls < 2) {
+          throw new Error('{"error":"Could not query the database for the schema cache. Retrying."}');
+        }
+        return "ok";
+      },
+      { delaysMs: [1, 1] },
+    );
+    expect(result).toBe("ok");
+    expect(calls).toBe(2);
+  });
+});
+
+describe("classify schema cache", () => {
+  it("maps schema cache to service_busy", async () => {
+    const { classifyUserFacingError } = await import("./userFacingErrors");
+    expect(
+      classifyUserFacingError(
+        new Error('{"error":"Could not query the database for the schema cache. Retrying."}'),
+      ),
+    ).toBe("service_busy");
+  });
 });

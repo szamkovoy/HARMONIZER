@@ -3,13 +3,30 @@ import { appUserErrorKind, isAppUserError } from "@/services/userFacingErrors";
 
 const DEFAULT_DELAYS_MS = [450, 900] as const;
 
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error ?? "");
+}
+
+/** PostgREST «schema cache» / 502–503 — кратковременный сбой API Supabase. */
+function isTransientBackendError(error: unknown): boolean {
+  const message = errorText(error);
+  if (/schema cache/i.test(message)) return true;
+  if (/\bHTTP 502\b|\bHTTP 503\b/i.test(message)) return true;
+  if (/account\/ott HTTP 50[23]/i.test(message)) return true;
+  if (isAppUserError(error) && appUserErrorKind(error) === "service_busy") return true;
+  return false;
+}
+
 function isRetryableNetworkError(error: unknown): boolean {
   if (isLikelyFetchNetworkFailure(error)) return true;
   if (error instanceof Error && /network error for /i.test(error.message)) return true;
   if (isAppUserError(error) && appUserErrorKind(error) === "network") return true;
+  if (isTransientBackendError(error)) return true;
   const cause =
     isAppUserError(error) && error.causeDetail !== undefined ? error.causeDetail : null;
   if (cause && isLikelyFetchNetworkFailure(cause)) return true;
+  if (cause && isTransientBackendError(cause)) return true;
   return false;
 }
 

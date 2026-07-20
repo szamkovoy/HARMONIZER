@@ -35,7 +35,7 @@ code_refs:
 
 - **CORS** — `/api/account/session|overview` отвечают только для `ACCOUNT_CABINET_ALLOWED_ORIGIN`. Смена домена сайта = правка env + `API_BASE` в `cabinet.html`.
 - **Форма `AccountOverview`** — единственный контракт «Vercel API ↔ страница кабинета»; поле `tier` наружу никогда не равно `practitioner` (маппится в `oracle`).
-- **`app_config.account_links_enabled`** — читается клиентом напрямую из Supabase (RLS select authenticated) с fail-safe `false`; удаление строки = скрытие всех кнопок ЛК.
+- **`app_config.account_links_enabled`** — читается клиентом напрямую из Supabase (RLS anon+authenticated на этот ключ) с fail-safe `false`; персист последнего явного значения; удаление строки = скрытие всех кнопок ЛК. Краткий PostgREST 503 (schema cache) не должен оставлять кнопку скрытой навсегда — ретраи + персист.
 - **Realtime на `users`** — требует, чтобы строка оставалась в publication `supabase_realtime` и RLS-select своей строки не сузился; иначе подхват уровня деградирует до foreground-refetch.
 - **Секрет `ACCOUNT_CABINET_SECRET`** — ротация мгновенно инвалидирует активные кабинетные сессии (это ок: страница перезапросит OTT-переход из приложения).
 - **Цены в `cabinet.html`** — больше не захардкожены; единственный источник правды — Lava `GET /api/v2/products` (через `overview.upgradeTiers[].price`). Смена цены в Lava автоматически отражается в кабинете (кэш 10 мин).

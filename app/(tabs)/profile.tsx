@@ -380,8 +380,9 @@ export default function ProfileTabRoute() {
     setCabinetOpening(true);
     try {
       await openAccountCabinet();
-    } catch (error) {
-      setCabinetError(error instanceof Error ? error.message : String(error));
+    } catch {
+      // Технический текст (HTTP 503 / schema cache) пользователю не показываем.
+      setCabinetError("1");
     } finally {
       setCabinetOpening(false);
     }

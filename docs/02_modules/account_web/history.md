@@ -5,6 +5,12 @@ version: 1.6
 updated: 2026-07-20
 ---
 
+## 2026-07-20 — Кнопка «Личный кабинет» мигала / OTT падал на schema cache 503
+
+- **Симптом:** на Профиле кнопка появлялась через несколько секунд; по нажатию — `gate.cabinetError`; LogBox на `profile-life-matrix` / `profile-practice-by-chakra` с `Could not query the database for the schema cache`.
+- **Причина (логи Supabase):** краткий PostgREST 503 — `POST /web_ott_tokens`, чтение `daily_matrices`/`users`; `app_config` ответил позже → kill-switch стартовал с `false`.
+- **Фикс:** персист `accountLinksEnabled` + ретраи чтения kill-switch; OTT через `withTransientNetworkRetry` (schema cache / 503); то же для profile reports; `schema cache` → `service_busy` (warn, не красный LogBox).
+
 ## 2026-07-20 — Кабинет: standalone HTML вне WordPress (ISPManager)
 
 - **Решение:** `web_cabinet/cabinet.html` — полноценная HTML5-страница (`DOCTYPE`, `viewport`, charset, Google Fonts Hanken Grotesk, `theme-color`, `noindex`). Деплой на хостинг как `https://zamkovoi.yoga/cabinet/` **без** темы WP (ISPManager), чтобы убрать Thrive/jQuery/GTM/amoCRM.

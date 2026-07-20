@@ -52,7 +52,8 @@ function isServiceBusyMessage(message: string): boolean {
     /GoogleGenerativeAI/i.test(message) ||
     /resource exhausted/i.test(message) ||
     /overloaded/i.test(message) ||
-    /\bUNAVAILABLE\b/i.test(message)
+    /\bUNAVAILABLE\b/i.test(message) ||
+    /schema cache/i.test(message)
   );
 }
 
@@ -183,7 +184,7 @@ function sanitizeGenericServerMessage(message: string): string | null {
 export function logErrorForDevelopers(scope: string, error: unknown): void {
   const message = errorMessage(error);
   const kind = classifyUserFacingError(error);
-  if (kind === "network" || kind === "timeout") {
+  if (kind === "network" || kind === "timeout" || kind === "service_busy") {
     console.warn(`[${scope}]`, message, error instanceof Error ? error.stack : "");
     return;
   }
