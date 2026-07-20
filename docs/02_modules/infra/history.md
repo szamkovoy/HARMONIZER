@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.8
-updated: 2026-07-08
+version: 1.9
+updated: 2026-07-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
-code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
+code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-21 (8):** Root cause paid midnight cold: Edge `precompute-daily-forecasts` был задеплоен, но `pg_cron` job жил только в runbook (`DEPLOY.md`/`README`), без миграции — в prod schedule отсутствовал месяцами. Параллельно пропал invoker/job `reconcile_expired_memberships_hourly`. Fix: (1) `20260721003000` — schedule paid hourly; (2) `20260721010000` — `ensure_harmonizer_cron_jobs()` как единый реестр + watchdog каждые 15 мин + re-assert из free/paid invokers; (3) `20260721011000` — restore `invoke_reconcile_expired_memberships` и re-schedule через ensure.
 
 - **2026-07-10 (7):** Добавлен hourly membership reconcile: Edge `reconcile-expired-memberships`, SQL RPC `recompute_user_membership` / `reconcile_expired_memberships`, миграция `20260710023000_reconcile_expired_memberships.sql` (`pg_cron` `20 * * * *`, Vault `reconcile_expired_memberships_cron_secret`). Назначение — синхронизировать `users.membership_*` с леджером `payments` после истечения срока без автооплаты store. Документы: `supabase/README.md`, `DEPLOY.md`, `config.toml`.
 

@@ -65,18 +65,24 @@ supabase db execute --file supabase/seed.sql
 
 **Bundling:** Edge Functions деплоятся только с кодом под `supabase/functions/` (включая `_shared/`). Импорты из `modules/` или `_legacy_web/` на remote bundler не резолвятся — дублируйте нужные контракты в `_shared/` (см. `contentLengths.ts`, `mathLevelI18n*.ts`, `dailyForecast.ts`).
 
-Рекомендуемые расписания в Supabase Scheduled Functions:
+Канон расписаний — SQL/`pg_cron`, не Dashboard Scheduled Functions. Реестр и self-heal: `public.ensure_harmonizer_cron_jobs()` (миграция `20260721010000_ensure_harmonizer_cron_watchdog.sql`). Watchdog `ensure_harmonizer_crons_watchdog` (`*/15 * * * *`) пересоздаёт missing/inactive jobs; free/paid invokers тоже вызывают ensure перед HTTP POST. Проверка: `select public.ensure_harmonizer_cron_jobs();` → `ok: true`, `repaired: []`.
+
+```cron
+0 * * * *      precompute_global_recommendations_hourly   → invoke_precompute_global_recommendations
+0 * * * *      precompute_daily_forecasts_hourly          → invoke_precompute_daily_forecasts
+15 * * * *     cleanup_expired_stories_hourly             → invoke_cleanup_expired_stories
+20 * * * *     reconcile_expired_memberships_hourly       → invoke_reconcile_expired_memberships
+*/15 * * * *   ensure_harmonizer_crons_watchdog           → ensure_harmonizer_cron_jobs
+```
+
+Опционально (пока не в ensure-реестре; при необходимости — Dashboard / отдельная миграция):
 
 ```cron
 0 3 * * *      auto-calibrate
-0 * * * *      precompute-daily-forecasts
-0 * * * *      precompute-global-recommendations
 0 4 * * 0      cleanup-expired-proposals
-15 * * * *     cleanup-expired-stories
-20 * * * *     reconcile-expired-memberships
 ```
 
-Для migration-based invoke jobs через `pg_cron` + `pg_net` секрет `CRON_SECRET` нужно также положить в Vault под ожидаемым именем. Для cleanup stories это:
+Для migration-based invoke jobs через `pg_cron` + `pg_net` секрет `CRON_SECRET` нужно также положить в Vault под ожидаемым именем. Free/paid precompute используют Vault `precompute_global_cron_secret`. Для cleanup stories это:
 
 ```sql
 select vault.create_secret(

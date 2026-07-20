@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.27
-updated: 2026-07-20
+version: 2.28
+updated: 2026-07-21
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -19,6 +19,9 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-21 (paid cron missing):** В prod `cron.job` не было hourly invoke для `precompute-daily-forecasts` (только free global). У Master на 2026-07-21 не было `user_daily_forecasts` / morning `scenario_cache` → cold start ждал LLM. Root: schedule жил только в `DEPLOY.md`/README, без SQL-миграции. Fix: `20260721003000` (schedule) + `20260721010000` (`ensure_harmonizer_cron_jobs` watchdog, re-assert free+paid) + force-warm Master на сегодня. См. `infra/history`.
+
 
 - **2026-07-20 (locale timeout):** Смена языка на Профиле падала с «Daily forecast request timed out after 25s». Paid `ensureLocaleDayContent({forceRefresh})` пробрасывал force в `fetchDailyForecast` → сервер пропускал кэш, пересчитывал эфемериды и снова гонял morning LLM, хотя тексты уже собрал клиентский monologue; HTTP-таймаут оставался 25s (онбординг жил на отдельном 90s). Fix: общий `DAY_CONTENT_LLM_TIMEOUT_MS = 120s` (`services/dayContentTimeouts.ts`) для monologue / onboarding / global forceRefresh / home warm / force daily-forecast; параметр `forceStructuralRefresh` — только после смены натала; смена языка берёт structural из кэша. Диалог ошибки на Профиле — целевой язык, без сырого EN.
 

@@ -1,10 +1,10 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.9
-updated: 2026-07-10
+version: 1.10
+updated: 2026-07-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
-code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql]
+code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql]
 ---
 
 ## 1. Назначение
@@ -52,7 +52,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **Сборка API:** Next компилирует маршруты `app/api/*`; общая логика практик может тянуть типы/данные из `modules/practices/**`, что отражено в `.vercelignore`.
 - **Наблюдаемость:** серверная цепочка Sentry стартует из instrumentation → `sentry.server.config`; ошибки маршрутов централизованно пробрасываются в Sentry и в Supabase `user_event_log` через `monitoring.ts`.
 - **Данные:** версионируемая схема и edge-функции живут в `supabase/`; продакшен-изменения проходят через новые SQL-миграции, как зафиксировано в README. Для `author_presence` cleanup-контур `cleanup-expired-stories` удаляет истёкшие сторис и их storage assets вне интерактивного клиентского пути; hourly invoke фиксируется миграцией `pg_cron`, а админский `GET /api/admin/stories` использует тот же helper как safety net. Для `subscription`/`admin_panel` контур `reconcile-expired-memberships` (миграция `20260710023000`, schedule `20 * * * *`) батчево вызывает SQL `reconcile_expired_memberships` → `recompute_user_membership` для пользователей с истёкшим `membership_expires_at`; автооплату store не делает.
-- **Cron-контур free day content:** global free-прогноз подогревается отдельной edge-функцией `precompute-global-recommendations`; расписание хранится вне клиента и может дублироваться как pg_cron invoke + Scheduled Functions runbook, но канон по коду — новые миграции и `DEPLOY.md`. Для LLM в cron/precompute-контуре действует отдельная background policy: целевая primary-модель (`AI_MODEL_STANDARD` или `AI_MODEL_PREMIUM` по `prompt.model_hint`) пробуется до 3 раз подряд с паузой 60s, и только затем один раз используется `AI_MODEL_FALLBACK`.
+- **Cron self-heal:** канон расписаний — `public.ensure_harmonizer_cron_jobs()` (миграция `20260721010000_ensure_harmonizer_cron_watchdog.sql`). Реестр: free `precompute_global_recommendations_hourly` и paid `precompute_daily_forecasts_hourly` (`0 * * * *`), `cleanup_expired_stories_hourly` (`15 * * * *`), `reconcile_expired_memberships_hourly` (`20 * * * *`), плюс watchdog `ensure_harmonizer_crons_watchdog` (`*/15 * * * *`). Функция пересоздаёт missing/inactive/mismatched jobs; вызывается каждые 15 минут и в начале free/paid precompute invokers. Если invoker-функция отсутствует, job пропускается с `missing_invokers` в jsonb-ответе (не падает целиком).
+- **Cron-контур free/paid day content:** free — `precompute-global-recommendations`; paid — `precompute-daily-forecasts` (оба через `pg_cron` + Vault `precompute_global_cron_secret` = Edge `CRON_SECRET`). Runbook в `DEPLOY.md` / `supabase/README.md` не заменяет миграции. Для LLM в cron/precompute-контуре: primary-модель до 3 попыток с паузой 60s, затем один `AI_MODEL_FALLBACK`.
 
 ## 4. Конфигурация и параметры
 
@@ -64,7 +65,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 | Sentry build plugin | `org`, `project`, `tunnelRoute: "/monitoring"` | `withSentryConfig` в `next.config.ts` |
 | Web manifest | `name`, `icons`, `theme_color`, `display` | `_legacy_web/public/manifest.json` |
 | Supabase CLI | `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`, секреты функций | локально `.env.local`; в облаке — Dashboard / secrets |
-| Supabase cron / Edge | `CRON_SECRET`, `verify_jwt = false` для cron-функций, расписание `precompute-global-recommendations` / `cleanup-expired-stories` / `reconcile-expired-memberships` | `DEPLOY.md`, `supabase/config.toml`, SQL-миграции `pg_cron_*` |
+| Supabase cron / Edge | `CRON_SECRET`, Vault `precompute_global_cron_secret` (+ cleanup/reconcile secrets), `verify_jwt = false`, self-heal `ensure_harmonizer_cron_jobs` | `DEPLOY.md`, `supabase/config.toml`, `20260721010000_ensure_harmonizer_cron_watchdog.sql` |
 | Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, optional `language` (8 aliases via `LANGUAGE_ALIASES`; omitted → auto-detect + multilingual domain prompt), `temperature: 0`, `verbose_json` | `_legacy_web/app/api/_utils/whisperTranscription.ts`, `whisperPrompts.ts` |
 | Gemini (Vercel API) | `GEMINI_API_KEY`, `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`, `MAX_DIALOG_LENGTH`, опционально `GEMINI_TIMEOUT_MS`, `ALLOW_LEGACY_GEMINI_MODELS` | Vercel env + `_legacy_web/app/api/_utils/gemini.ts`, `_legacy_web/app/api/_utils/dialogConfig.ts`; interactive paths use `requested tier -> fallback`, cron/precompute retries the requested tier 3x before fallback |
 | Native health | iOS HealthKit entitlement / usage descriptions; Android Health Connect `READ_STEPS`, `READ_ACTIVE_CALORIES_BURNED`, `READ_EXERCISE`, `READ_SLEEP`, minSdk 26, compile/target SDK 35 | `app.config.ts`, `plugins/with-native-health.js`, `services/nativeHealth.ts` |

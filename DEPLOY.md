@@ -19,14 +19,16 @@ Functions to deploy:
 - `cleanup-expired-stories`
 - `reconcile-expired-memberships`
 
-Recommended schedules:
+Recommended schedules (canonical = `pg_cron` via migrations; self-healed by `ensure_harmonizer_cron_jobs`):
 
-- `auto-calibrate`: `0 3 * * *`
-- `precompute-daily-forecasts`: `0 * * * *`
-- `precompute-global-recommendations`: `0 * * * *`
-- `cleanup-expired-proposals`: `0 4 * * 0`
-- `cleanup-expired-stories`: `15 * * * *`
-- `reconcile-expired-memberships`: `20 * * * *`
+- `precompute-daily-forecasts` / `precompute_daily_forecasts_hourly`: `0 * * * *`
+- `precompute-global-recommendations` / `precompute_global_recommendations_hourly`: `0 * * * *`
+- `cleanup-expired-stories` / `cleanup_expired_stories_hourly`: `15 * * * *`
+- `reconcile-expired-memberships` / `reconcile_expired_memberships_hourly`: `20 * * * *`
+- watchdog `ensure_harmonizer_crons_watchdog`: `*/15 * * * *` → `select public.ensure_harmonizer_cron_jobs();`
+- optional (not in ensure registry yet): `auto-calibrate` `0 3 * * *`, `cleanup-expired-proposals` `0 4 * * 0`
+
+After DB restore / project move: run `select public.ensure_harmonizer_cron_jobs();` and confirm Vault secrets (`precompute_global_cron_secret`, cleanup/reconcile secrets) still match Edge `CRON_SECRET`.
 
 ## Next.js Backend (`_legacy_web`)
 
