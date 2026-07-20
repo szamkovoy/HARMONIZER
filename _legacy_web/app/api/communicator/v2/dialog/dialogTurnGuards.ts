@@ -17,6 +17,7 @@ import {
   type ClosureHistoryMessage,
 } from "@legacy/app/api/_utils/planningDonePhrases";
 import {
+  isAddFlowPlanningScaffoldDescription,
   isMetaPlanningIntentDescription,
   samePlannedEventIdentity,
 } from "@legacy/app/api/_utils/plannedEventInference";
@@ -147,13 +148,16 @@ export function filterPlanningDoneLikePlannedEvents(markers: PlannedEventMarker[
 
 export function filterPersistablePlanningMarkers(
   markers: PlannedEventMarker[],
-  options?: { closureUserMessage?: string | null },
+  options?: { closureUserMessage?: string | null; addFlow?: boolean },
 ): PlannedEventMarker[] {
+  const isScaffold = options?.addFlow
+    ? isAddFlowPlanningScaffoldDescription
+    : isMetaPlanningIntentDescription;
   return filterPlanningDescBlobMarkers(
     filterClosureEchoPlanningMarkers(
       filterPlanningDoneLikePlannedEvents(
         filterPracticeLikePlannedEvents(
-          markers.filter((marker) => !isMetaPlanningIntentDescription(marker.desc)),
+          markers.filter((marker) => !isScaffold(marker.desc)),
         ),
       ),
       options?.closureUserMessage,
@@ -408,9 +412,16 @@ export function extractPlanningMarkersFromVisibleFinalize(
 export function mergePlanningMarkersWithVisibleFinalize(
   parsedMarkers: PlannedEventMarker[],
   salvagedMarkers: PlannedEventMarker[],
-  options?: { preferCurrentByDisplayOrder?: boolean },
+  options?: {
+    preferCurrentByDisplayOrder?: boolean;
+    /** When false, only backfill matching rows — do not invent new actions from salvage. */
+    allowSalvageOnlyAdditions?: boolean;
+  },
 ): PlannedEventMarker[] {
-  if (parsedMarkers.length === 0) return [...salvagedMarkers];
+  const allowSalvageOnlyAdditions = options?.allowSalvageOnlyAdditions !== false;
+  if (parsedMarkers.length === 0) {
+    return allowSalvageOnlyAdditions ? [...salvagedMarkers] : [];
+  }
   if (salvagedMarkers.length === 0) return [...parsedMarkers];
 
   if (options?.preferCurrentByDisplayOrder) {
@@ -444,7 +455,7 @@ export function mergePlanningMarkersWithVisibleFinalize(
   for (const salvaged of salvagedMarkers) {
     const matchIndex = merged.findIndex((marker) => samePlannedEventIdentity(marker.desc, salvaged.desc));
     if (matchIndex < 0) {
-      merged.push({ ...salvaged });
+      if (allowSalvageOnlyAdditions) merged.push({ ...salvaged });
       continue;
     }
     const current = merged[matchIndex]!;
@@ -462,11 +473,30 @@ export function mergePlanningMarkersWithVisibleFinalize(
 export function mergeHistoryPlanningMarkers(
   accumulatedMarkers: PlannedEventMarker[],
   currentMarkers: PlannedEventMarker[],
-  options?: { preferCurrentByDisplayOrder?: boolean },
+  options?: { preferCurrentByDisplayOrder?: boolean; allowSalvageOnlyAdditions?: boolean },
 ): PlannedEventMarker[] {
   if (accumulatedMarkers.length === 0) return [...currentMarkers];
   if (currentMarkers.length === 0) return [...accumulatedMarkers];
   return mergePlanningMarkersWithVisibleFinalize(accumulatedMarkers, currentMarkers, options);
+}
+
+/**
+ * Day-tab «Добавить действие»: model [PLANNED_EVENT] markers (+ already-persisted
+ * rows for this conversation) are authoritative. Keyword inference from raw user
+ * text must NOT invent extra actions the model already omitted in its visible reply.
+ */
+export function resolveAddFlowPlanningMarkers(params: {
+  existingConversationMarkers: PlannedEventMarker[];
+  modelMarkers: PlannedEventMarker[];
+}): PlannedEventMarker[] {
+  if (params.modelMarkers.length > 0) {
+    return mergeHistoryPlanningMarkers(params.existingConversationMarkers, params.modelMarkers, {
+      preferCurrentByDisplayOrder: true,
+      allowSalvageOnlyAdditions: true,
+    });
+  }
+  // Model forgot markers this turn — keep what is already saved; do not invent.
+  return [...params.existingConversationMarkers];
 }
 
 /**

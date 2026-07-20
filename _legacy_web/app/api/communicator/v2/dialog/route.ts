@@ -91,6 +91,7 @@ import {
   isPostDialogTurn,
   mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
+  resolveAddFlowPlanningMarkers,
   practiceValidationForTurn,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
@@ -1098,9 +1099,12 @@ export async function POST(req: Request) {
       !isInitiate && fsm.branch === "planning"
         ? userSignalsPlanningDone(userMessage, history)
         : false;
-    const planningMarkerFilterOptions = planningDoneIntent
-      ? { closureUserMessage: userMessage }
-      : undefined;
+    const planningMarkerFilterOptions = {
+      ...(planningDoneIntent ? { closureUserMessage: userMessage } : {}),
+      // Day-tab «Добавить действие» (noGreeting): drop past-tense scaffolding
+      // like «подумал, что стоит добавить что-нибудь из сферы отдыха».
+      ...(fsm.noGreeting ? { addFlow: true as const } : {}),
+    };
 
     if (fsm.branch === "summarizing" && due.length === 0) {
       if (!daySummaryRequested) {
@@ -1546,6 +1550,7 @@ export async function POST(req: Request) {
               : [];
             const rawCurrentPlanningMarkers = filterPersistablePlanningMarkers(markers.plannedEvents, planningMarkerFilterOptions);
             const hadExplicitPlanningMarkers = rawCurrentPlanningMarkers.length > 0;
+            const isAddFlow = fsmAtTurnStart.noGreeting;
             const planningHistory = !fsmAtTurnStart.planningFinalized
               ? collectPlanningBranchUserHistory(history)
               : [];
@@ -1560,12 +1565,15 @@ export async function POST(req: Request) {
               )
                 ? null
                 : userMessage;
-            const inferredFromPlanningHistory = !fsmAtTurnStart.planningFinalized
+            // When the model already emitted markers for this turn, do not
+            // keyword-resegment the current user message (it invents scaffolding
+            // the model correctly ignored in its visible reply).
+            const inferredFromPlanningHistory = !fsmAtTurnStart.planningFinalized && !isAddFlow
               ? hydrateDeterministicPlanningMarkers(
                   filterPersistablePlanningMarkers(
                     inferPlannedEventsFromUserHistory({
                       history: planningDialogHistory,
-                      pendingUserMessage: pendingPlanningUserMessage,
+                      pendingUserMessage: hadExplicitPlanningMarkers ? null : pendingPlanningUserMessage,
                       nowLocal: context.nowLocal,
                       relativeNowLocal: context.nowLocal,
                       tz: userTimezone,
@@ -1587,11 +1595,28 @@ export async function POST(req: Request) {
               ...((dismissedPlanningRows ?? []).map((row) => String((row as { description?: unknown }).description ?? "").trim()).filter(Boolean)),
               ...planningPersistence.cancelled.map((item) => item.title),
             ];
-            let plannedMarkers = hadExplicitPlanningMarkers
-              ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers, {
-                  preferCurrentByDisplayOrder: preferTargetLocaleMarkers || planningDoneIntent,
+            let existingAddFlowMarkers: PlannedEventMarker[] = [];
+            if (isAddFlow && !fsmAtTurnStart.planningFinalized) {
+              const persistedRows = await loadPlannedEventsForLocalDate(routeDb, routeUserId, context.localDate);
+              existingAddFlowMarkers = hydrateDeterministicPlanningMarkers(
+                filterPersistablePlanningMarkers(
+                  persistedRows
+                    .filter((row) => row.conversation_id === conversation.id && row.status === "planned")
+                    .map(plannedRowToMarker),
+                  planningMarkerFilterOptions,
+                ),
+              );
+            }
+            let plannedMarkers = isAddFlow
+              ? resolveAddFlowPlanningMarkers({
+                  existingConversationMarkers: existingAddFlowMarkers,
+                  modelMarkers: rawCurrentPlanningMarkers,
                 })
-              : inferredFromPlanningHistory;
+              : hadExplicitPlanningMarkers
+                ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers, {
+                    preferCurrentByDisplayOrder: preferTargetLocaleMarkers || planningDoneIntent,
+                  })
+                : inferredFromPlanningHistory;
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
             // model finalized this turn even if it forgot the invisible markers or
             // the deterministic done-detector missed the user's phrasing.
@@ -1611,8 +1636,11 @@ export async function POST(req: Request) {
               );
             if (finalizeIntent && salvagedFromVisible.length > 0) {
               const parsedWithoutRecommendationCount = plannedMarkers.filter((marker) => !marker.recommendation?.trim()).length;
+              // Add-flow: only backfill recommendations onto authoritative markers —
+              // never let a hallucinated numbered list invent a new Day-tab card.
               plannedMarkers = mergePlanningMarkersWithVisibleFinalize(plannedMarkers, salvagedFromVisible, {
                 preferCurrentByDisplayOrder: preferTargetLocaleMarkers || planningDoneIntent,
+                allowSalvageOnlyAdditions: !isAddFlow,
               });
               if (plannedMarkers.length === salvagedFromVisible.length && parsedWithoutRecommendationCount === 0) {
                 console.warn(
@@ -1625,6 +1653,15 @@ export async function POST(req: Request) {
                   JSON.stringify({ conversationId: conversation.id, count: parsedWithoutRecommendationCount }),
                 );
               }
+            }
+            // Add-flow finalize with no invisible markers: recover from visible wrap-up.
+            // If rows already exist for this conversation, only backfill recommendations —
+            // do not let a padded numbered list invent cards (QA текст-42FE…).
+            if (isAddFlow && finalizeIntent && !hadExplicitPlanningMarkers && salvagedFromVisible.length > 0) {
+              plannedMarkers = mergeHistoryPlanningMarkers(existingAddFlowMarkers, salvagedFromVisible, {
+                preferCurrentByDisplayOrder: true,
+                allowSalvageOnlyAdditions: existingAddFlowMarkers.length === 0,
+              });
             }
             plannedMarkers = filterDismissedPlanningMarkers(plannedMarkers, dismissedPlanningRefs);
             if (plannedMarkers.length > 0 && inferredFromPlanningHistory.length > 0 && !hadExplicitPlanningMarkers) {

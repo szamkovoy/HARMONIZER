@@ -1,13 +1,17 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.98
+version: 2.100
 updated: 2026-07-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-20 (9):** Day-tab add-flow QA `текст-42FE…`: mid-turn visible reply корректно видел «оперу» и «книгу», но server keyword-inference параллельно писал «Самые интересные действия нужно совершать сразу» в `planned_events`; финал лишь перечислял уже сохранённое. Root: dual path — model markers vs `inferPlannedEventsFromUserHistory` merge. Fix: `resolveAddFlowPlanningMarkers` — в add-flow канон = уже сохранённые rows беседы + `[PLANNED_EVENT]` модели; keyword-inference для add-flow отключён; salvage на finalize только backfill recommendations (`allowSalvageOnlyAdditions: false`), без новых card. Полный summarizing→planning не менялся.
+
+- **2026-07-20 (8):** Day-tab add-flow QA `текст-49DC…`: «Подумал, что стоит добавить что-нибудь из сферы отдыха» всё ещё становилось `planned_event` (слово «отдых» давало leisure daypart). Fix: расширен `isMetaPlanningIntentDescription` (abstract add + domain cue); для `fsm.noGreeting` — `isAddFlowPlanningScaffoldDescription` + `addFlow` в inference/`filterPersistablePlanningMarkers`. Полный summarizing→planning→practice без `addFlow` не ужесточается. Промпт не трогали.
 
 - **2026-07-20 (7):** Day-tab add-flow QA `текст-4D97…`: вводная «Да, я решил добавить действие про отдых. Встречусь…» сохранялась как отдельное действие `, я решил добавить действие про отдых` (без рекомендации). Root: `splitEventSegments` режет по точке + `buildEventDescription` срезал «Да» и оставлял запятую. Fix (без усложнения промпта): корректный strip `да,`/`ну,`; `isMetaPlanningIntentDescription` отбрасывает meta «добавить действие про…» в inference и в `filterPersistablePlanningMarkers`. Конкретные «добавь пробежку» не трогаем.
 

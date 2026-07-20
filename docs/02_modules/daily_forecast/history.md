@@ -10,6 +10,8 @@ code_refs:
     modules/daily-engine/planetDiurnalCurve.ts,
     modules/home/ui/OpportunityWindows.tsx,
     modules/home/useDayContent.ts,
+    app/(tabs)/day.tsx,
+    modules/ui/BlockingStatusToast.tsx,
     supabase/functions/daily-forecast/index.ts,
     supabase/functions/_shared/daily-engine-parity.test.ts,
     services/dayContentCache.ts,
@@ -25,6 +27,7 @@ code_refs:
 
 - **2026-07-21 (free midnight splash):** При новом локальном дне free-аккаунт висел на «Собираем общий настрой дня», хотя hourly cron уже писал полный `global_daily_content` (LLM + § long) за сутки. Логи 00:03 MSK: прямой `GET global_daily_content` с телефона проходил за секунды, splash оставался. Root: (1) Realtime/locale PATCH → `refreshProfile` → `profileLoading` → effect cleanup abort’ил in-flight day fetch; (2) free после locale-mismatch делал `stripHomeLlmTexts` + `holdWarmForTexts` до 90–120s; (3) `fetchGlobalContent` ждал `auth.getSession()` до direct-read и отвергал RU-row при non-RU locale. Fix: silent `refreshProfile` (profile); free dismiss на renderable без holdWarm; не strip free texts на first paint; direct Supabase до token/route; free без GPS-wait; token через `getSupabaseAccessToken`.
 
+- **2026-07-20 (day refresh toast):** Удаление действия во вкладке «День» показывало inline «Обновляем день…» сверху ScrollView → список прыгал вниз/вверх. Заменено на `BlockingStatusToast` поверх экрана (как на Профиле при смене языка); layout списка стабилен, UI блокируется до конца refresh.
 
 - **2026-07-20 (locale timeout):** Смена языка на Профиле падала с «Daily forecast request timed out after 25s». Paid `ensureLocaleDayContent({forceRefresh})` пробрасывал force в `fetchDailyForecast` → сервер пропускал кэш, пересчитывал эфемериды и снова гонял morning LLM, хотя тексты уже собрал клиентский monologue; HTTP-таймаут оставался 25s (онбординг жил на отдельном 90s). Fix: общий `DAY_CONTENT_LLM_TIMEOUT_MS = 120s` (`services/dayContentTimeouts.ts`) для monologue / onboarding / global forceRefresh / home warm / force daily-forecast; параметр `forceStructuralRefresh` — только после смены натала; смена языка берёт structural из кэша. Диалог ошибки на Профиле — целевой язык, без сырого EN.
 

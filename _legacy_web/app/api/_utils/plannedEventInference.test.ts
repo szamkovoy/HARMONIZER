@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   inferPlannedEventsFromUserHistory,
+  isAddFlowPlanningScaffoldDescription,
   isMetaPlanningIntentDescription,
   mergePlannedEventMarkers,
   samePlannedEventIdentity,
@@ -104,6 +105,31 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(isMetaPlanningIntentDescription("Добавь еще пробежку")).toBe(false);
     expect(isMetaPlanningIntentDescription("я решил добавить действие про отдых")).toBe(true);
     expect(isMetaPlanningIntentDescription(", я решил добавить действие про отдых")).toBe(true);
+  });
+
+  it("drops «подумал… из сферы отдыха» scaffolding in add-flow inference", () => {
+    expect(isMetaPlanningIntentDescription("Подумал, что стоит добавить что-нибудь из сферы отдыха")).toBe(true);
+    expect(isAddFlowPlanningScaffoldDescription("Подумал, что стоит добавить что-нибудь из сферы отдыха")).toBe(true);
+    expect(isMetaPlanningIntentDescription("решил добавить вкусный торт")).toBe(false);
+
+    const nowLocal = DateTime.fromISO("2026-07-20T23:20:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [
+        {
+          role: "assistant",
+          content: "Что бы вы хотели добавить к этому дню?",
+        },
+      ],
+      pendingUserMessage:
+        "Да, я подумал, что стоит добавить что-нибудь из сферы отдыха. И поэтому решил добавить вкусный торт, который вечером скушаю.",
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+      addFlow: true,
+    });
+    // Scaffolding must never become a card; the concrete cake may arrive via model markers.
+    expect(inferred.every((item) => !/подумал|сфер\p{L}*\s+отдых/iu.test(item.desc))).toBe(true);
+    expect(inferred.every((item) => !isAddFlowPlanningScaffoldDescription(item.desc))).toBe(true);
   });
 
   it("extracts explicit clock time from a planning clause", () => {

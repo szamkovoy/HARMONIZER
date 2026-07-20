@@ -33,6 +33,7 @@ import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { BlockingStatusToast } from "@/modules/ui/BlockingStatusToast";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SurfaceCardTitleRow } from "@/modules/ui/SurfaceCardTitleRow";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
@@ -604,13 +605,6 @@ export default function DayTabRoute() {
             <AppButton label={dayStrings.retryButton} onPress={() => void refresh()} />
           </View>
         ) : null}
-        {showRefreshingBanner ? (
-          <View style={[styles.card, styles.refreshingBanner, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-            <ActivityIndicator color={theme.colors.accent} />
-            <AppText variant="technicalCaption" tone="muted">{dayStrings.refreshingHint}</AppText>
-          </View>
-        ) : null}
-
         {plan ? (
           <>
             {plan.mode === "overdue_summary" ? (
@@ -773,6 +767,11 @@ export default function DayTabRoute() {
         ) : null}
       </TabScrollView>
 
+      <BlockingStatusToast
+        visible={showRefreshingBanner}
+        message={dayStrings.refreshingHint}
+      />
+
       <SurfaceHelpModal
         visible={sectionHelp != null}
         title={
@@ -886,11 +885,6 @@ const styles = StyleSheet.create({
   },
   actionRecommendation: {
     paddingRight: 8,
-  },
-  refreshingBanner: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
   },
   innerSectionTitle: {
     marginTop: 10,

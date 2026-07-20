@@ -19,6 +19,7 @@ import {
   isPracticeLikePlannedEventDesc,
   mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
+  resolveAddFlowPlanningMarkers,
   userAffirmsPracticeOffer,
   buildSummaryClarifyingQuestion,
   buildSummaryEventDidNotHappenBridge,
@@ -114,6 +115,125 @@ describe("dialogTurnGuards", () => {
       },
     ]);
     expect(filtered.map((marker) => marker.desc)).toEqual(["Встречусь с друзьями в кафе"]);
+  });
+
+  it("add-flow drops past-tense «подумал… из сферы» scaffolding", () => {
+    const filtered = filterPersistablePlanningMarkers(
+      [
+        {
+          desc: "Подумал, что стоит добавить что-нибудь из сферы отдыха",
+          time: null,
+          timeNorm: null,
+          recommendation: null,
+          displayOrder: 1,
+          cells: [],
+          snippets: [],
+        },
+        {
+          desc: "Вкусный торт вечером",
+          time: null,
+          timeNorm: null,
+          recommendation: "ешьте осознанно",
+          displayOrder: 2,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      { addFlow: true },
+    );
+    expect(filtered.map((marker) => marker.desc)).toEqual(["Вкусный торт вечером"]);
+  });
+
+  it("add-flow trusts model markers over keyword-invented scaffolding", () => {
+    const resolved = resolveAddFlowPlanningMarkers({
+      existingConversationMarkers: [
+        {
+          desc: "Пойти в оперу",
+          time: null,
+          timeNorm: null,
+          recommendation: null,
+          displayOrder: 1,
+          cells: [{ sphere: 5, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      modelMarkers: [
+        {
+          desc: "Почитать книгу о главных моментах",
+          time: null,
+          timeNorm: null,
+          recommendation: null,
+          displayOrder: 2,
+          cells: [{ sphere: 6, weight: 1 }],
+          snippets: [],
+        },
+      ],
+    });
+    expect(resolved.map((marker) => marker.desc)).toEqual([
+      "Пойти в оперу",
+      "Почитать книгу о главных моментах",
+    ]);
+  });
+
+  it("add-flow salvage backfills recommendations without inventing extra cards", () => {
+    const merged = mergePlanningMarkersWithVisibleFinalize(
+      [
+        {
+          desc: "Пойти в оперу",
+          time: null,
+          timeNorm: null,
+          recommendation: null,
+          displayOrder: 1,
+          cells: [],
+          snippets: [],
+        },
+        {
+          desc: "Почитать книгу про главные моменты",
+          time: null,
+          timeNorm: null,
+          recommendation: null,
+          displayOrder: 2,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      [
+        {
+          desc: "Самые интересные действия нужно совершать сразу",
+          time: null,
+          timeNorm: null,
+          recommendation: null,
+          displayOrder: 1,
+          cells: [],
+          snippets: [],
+        },
+        {
+          desc: "Пойти в оперу",
+          time: null,
+          timeNorm: null,
+          recommendation: "Настройтесь на восприятие.",
+          displayOrder: 2,
+          cells: [],
+          snippets: [],
+        },
+        {
+          desc: "Почитать книгу про главные моменты",
+          time: null,
+          timeNorm: null,
+          recommendation: "Сформулируйте мысль своими словами.",
+          displayOrder: 3,
+          cells: [],
+          snippets: [],
+        },
+      ],
+      { allowSalvageOnlyAdditions: false },
+    );
+    expect(merged.map((marker) => marker.desc)).toEqual([
+      "Пойти в оперу",
+      "Почитать книгу про главные моменты",
+    ]);
+    expect(merged[0]?.recommendation).toMatch(/восприятие/i);
+    expect(merged[1]?.recommendation).toMatch(/своими словами/i);
   });
 
   it("coerces practice after empty-plan practice offer without numbered wrap-up", () => {

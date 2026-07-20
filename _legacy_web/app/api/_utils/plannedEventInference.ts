@@ -411,15 +411,28 @@ function isBareTimeClarificationDescription(description: string): boolean {
   return /^(?:на|около|примерно)\s+\d{1,2}(?::\d{2})?$/i.test(description.trim());
 }
 
+/** Concrete activity cues — if present, the phrase is a real plan, not meta scaffolding. */
+const CONCRETE_PLANNING_ACTIVITY_RE =
+  /(?:встреч|прогул|погул|поехать|сходить|пробеж|кино|фильм|книг|кафе|друзья|друг|спорт|ужин|обед|звон|позвон|магаз|торт|кекс|работ\p{L}*\s+над|client|meeting|friends|walk|run|cafe|book|film|cake)/iu;
+
+const ABSTRACT_ADD_OBJECT_RE =
+  /(?:что-?\s*нибудь|что-?\s*то|действи\p{L}*|дел(?:о|а|у)?|something|an?\s+action)/iu;
+
+const LIFE_DOMAIN_CUE_RE =
+  /(?:из\s+сфер\p{L}*|из\s+области|про\s+[\p{L}-]{3,}|about\s+[\p{L}-]{3,}|from\s+(?:the\s+)?(?:sphere|area)\s+of)/iu;
+
 /**
  * Meta / scaffolding about *wanting to add* an action, not a concrete day action.
- * E.g. «я решил добавить действие про отдых» before naming the real meeting.
- * Keep this narrow — «добавить пробежку» must still pass.
+ * E.g. «я решил добавить действие про отдых» / «подумал, что стоит добавить
+ * что-нибудь из сферы отдыха» before naming the real cake/meeting.
+ * Keep this narrow — «добавить пробежку» / «добавить торт» must still pass.
  * Note: JS `\w` is ASCII-only even with `/u` — use `\p{L}` for Cyrillic.
  */
 export function isMetaPlanningIntentDescription(text: string): boolean {
   const t = text.trim().replace(/^[,;:\s]+/, "");
   if (!t) return true;
+  if (CONCRETE_PLANNING_ACTIVITY_RE.test(t)) return false;
+
   // Entire phrase is only "I decided/want to add an action about <domain>".
   if (
     /^(?:да[,!]?\s*)?(?:я\s+)?(?:решил\p{L}*|хочу|хотел\p{L}*|собираюсь|буду)\s+добав\p{L}+\s+(?:действи\p{L}*|дел\p{L}*)(?:\s+(?:про|из\s+области|из\s+сферы)\s+[\p{L}-]+)?\.?$/iu.test(
@@ -435,13 +448,47 @@ export function isMetaPlanningIntentDescription(text: string): boolean {
   ) {
     return true;
   }
+  // «подумал, что стоит добавить что-нибудь из сферы отдыха»
+  if (
+    /^(?:я\s+)?(?:подумал\p{L}*|подумала|думал\p{L}*)\s*,?\s*(?:что\s+)?(?:стоит|можно|хорошо\s+бы)?\s*добав\p{L}+\s+(?:что-?\s*нибудь|что-?\s*то)(?:\s+из\s+(?:сферы|области)\s+[\p{L}-]+)?\.?$/iu.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  // Thought/decision + abstract "add something" + life-domain cue, no concrete activity.
+  if (
+    /(?:подумал\p{L}*|подумала|думал\p{L}*|решил\p{L}*|хочу|хотел\p{L}*|собираюсь|thought|decided)/iu.test(t)
+    && /(?:добав\p{L}+|add(?:ing)?\b)/iu.test(t)
+    && ABSTRACT_ADD_OBJECT_RE.test(t)
+    && LIFE_DOMAIN_CUE_RE.test(t)
+  ) {
+    return true;
+  }
   // Same shape with domain cue, without a concrete activity noun/verb.
   if (
     /(?:добав\p{L}+|добавлю).{0,40}(?:действи\p{L}*|дел(?:о|а|у)?)(?:$|[\s,.;:!?])/iu.test(t)
-    && /(?:(?:^|[\s,.;:!?()])про(?:$|[\s,.;:!?()])|из\s+области|из\s+сферы|about)/iu.test(t)
-    && !/(?:встреч|прогул|погул|поехать|сходить|пробеж|кино|фильм|книг|кафе|друзья|друг|спорт|ужин|обед|звон|позвон|магаз|работ\p{L}*\s+над|client|meeting|friends|walk|run|cafe|book|film)/iu.test(
-      t,
-    )
+    && LIFE_DOMAIN_CUE_RE.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Day-tab Add-flow only: past-tense “I thought / I decided …” scaffolding about
+ * adding something, when no concrete activity is named yet. Full planning dialog
+ * keeps the looser {@link isMetaPlanningIntentDescription} only.
+ */
+export function isAddFlowPlanningScaffoldDescription(text: string): boolean {
+  if (isMetaPlanningIntentDescription(text)) return true;
+  const t = text.trim().replace(/^[,;:\s]+/, "");
+  if (!t || CONCRETE_PLANNING_ACTIVITY_RE.test(t)) return false;
+  // Lived thought about adding, not a future action card.
+  if (
+    /^(?:я\s+)?(?:подумал\p{L}*|подумала|думал\p{L}*)\b/iu.test(t)
+    && /(?:добав\p{L}+|add(?:ing)?\b)/iu.test(t)
+    && (ABSTRACT_ADD_OBJECT_RE.test(t) || LIFE_DOMAIN_CUE_RE.test(t))
   ) {
     return true;
   }
@@ -604,6 +651,8 @@ export function inferPlannedEventsFromUserHistory(params: {
   relativeNowLocal?: DateTime;
   tz: string;
   locale: string;
+  /** Day-tab «Добавить действие» — stricter drop of past-tense scaffolding. */
+  addFlow?: boolean;
 }): PlannedEventMarker[] {
   const timeline: HistoryMessage[] = [
     ...params.history.filter(Boolean),
@@ -655,7 +704,10 @@ export function inferPlannedEventsFromUserHistory(params: {
       const desc = buildEventDescription(segment, parsed.matchedPhrase);
       if (!desc) continue;
       if (isPlanningDoneLikeDescription(desc)) continue;
-      if (isMetaPlanningIntentDescription(segment) || isMetaPlanningIntentDescription(desc)) continue;
+      const isScaffold = params.addFlow
+        ? (isAddFlowPlanningScaffoldDescription(segment) || isAddFlowPlanningScaffoldDescription(desc))
+        : (isMetaPlanningIntentDescription(segment) || isMetaPlanningIntentDescription(desc));
+      if (isScaffold) continue;
       if (isGenericDayOverviewDescription(desc) || isBareTimeClarificationDescription(desc)) continue;
 
       const effectiveTimeSource = implicitTimeNorm ?? desc;
