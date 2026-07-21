@@ -1,3 +1,4 @@
+- 2026-07-21 (212): Admin — устойчивый фикс overlay `AuthApiError: Invalid Refresh Token` на `/admin/*` (жёсткий prune localStorage + узкий filter console.error). Docs `admin_panel/*`.
 - 2026-07-21 (211): Day «Психо-практики» — оптимистичные rename/delete действий (список сразу, без спиннера; после delete — тихий sync сфер). Docs `daily_forecast/*`.
 - 2026-07-21 (210): Day «Выбрать практику»/отмена — оптимистичный UI (карточка сразу, без спиннера и полного reload); POST/PATCH в фоне с сериализацией. Docs `daily_forecast/*`.
 - 2026-07-21 (209): Day tab — гейт запуска практики для Oracle как в каталоге (`AccountGateDialog` по kind); мутации дня — тихий `ActivityIndicator` вместо `BlockingStatusToast` «Обновляем день…». Docs `practices/*`, `subscription/*`, `daily_forecast/*`.

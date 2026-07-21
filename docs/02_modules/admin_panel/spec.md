@@ -65,7 +65,7 @@ code_refs:
 
 **Уведомления (реализовано, этап 4):** `GET/POST /api/admin/notifications`, `DELETE|POST /api/admin/notifications/[id]` (удаление); UI с locale strip как Video + история/удаление. Контракт — `02_modules/notifications/spec.md`.
 
-**Клиентский гейт:** `adminFetch` — Bearer + mutex на `refreshSession`, `AdminApiError` со статусом; `AdminChrome` вызывает `signOut` только при 401/403 от `/api/admin/me` (сетевые сбои не разлогинивают). `getBrowserSupabase()` перед созданием клиента подчищает из `localStorage` сессии с истёкшим `access_token` (margin 90 c как у `@supabase/auth-js`), чтобы `_initialize → _recoverAndRefresh` не делал `console.error(AuthApiError)` на отозванном refresh-токене — в dev Next.js перехватывает `console.error` и рисует оверлей; без чистки пользователь молча уходит на `/admin/login`.
+**Клиентский гейт:** `adminFetch` — Bearer + mutex на `refreshSession`, `AdminApiError` со статусом; `AdminChrome` вызывает `signOut` только при 401/403 от `/api/admin/me` (сетевые сбои не разлогинивают). `getBrowserSupabase()` (`supabaseBrowser.ts`): (1) перед `createClient` подчищает из `localStorage` непригодные `*-auth-token` сессии — нет access/refresh, битый JSON, `expires_at`/JWT `exp` в прошлом или в margin 90 c (число или строка; legacy `currentSession`); (2) ставит узкий фильтр `console.error` на известные refresh `AuthApiError` / `AuthSessionMissingError` от supabase-js, чтобы Next.js 15 dev overlay не перекрывал `/admin/login` после отозванного refresh (задание пароля через Auth Admin API). Без этого `_recoverAndRefresh` / auto-refresh пишет `console.error` даже когда сам удаляет сессию.
 
 **Поддержка (реализовано, этап 5):**
 
