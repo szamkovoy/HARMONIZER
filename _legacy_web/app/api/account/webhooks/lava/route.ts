@@ -1,4 +1,5 @@
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
+import { settlePayment } from "../../fx";
 import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
 
 // Приём вебхуков Lava.top (оба типа: «Результат платежа» и «Регулярный платёж»).
@@ -63,11 +64,11 @@ export async function POST(req: Request) {
 
     switch (eventType) {
       case "payment.success":
-        return await handleFirstPaymentSuccess(contractId);
+        return await handleFirstPaymentSuccess(contractId, body);
       case "payment.failed":
         return await handleFirstPaymentFailed(contractId);
       case "subscription.recurring.payment.success":
-        return await handleRenewal(body.parentContractId?.trim() || contractId, body.timestamp);
+        return await handleRenewal(body.parentContractId?.trim() || contractId, body);
       case "subscription.recurring.payment.failed":
         // Lava сама ретраит (8ч/24ч); при финальном провале придёт
         // subscription.cancelled. Здесь только фиксируем факт.
@@ -104,7 +105,46 @@ async function findContract(db: ReturnType<typeof createServiceSupabase>, contra
   return data as ContractRow | null;
 }
 
-async function handleFirstPaymentSuccess(contractId: string): Promise<Response> {
+async function settleLavaCharge(
+  db: ReturnType<typeof createServiceSupabase>,
+  contractId: string,
+  eventType: "payment.success" | "subscription.recurring.payment.success",
+  body: LavaWebhookBody,
+  userId: string | null,
+) {
+  try {
+    const settled = await settlePayment(db, {
+      contractId,
+      eventType,
+      amount: body.amount,
+      currency: body.currency,
+      paidAt: body.timestamp ?? new Date().toISOString(),
+      userId,
+      provider: "lavatop",
+    });
+    if (settled) {
+      console.log("[lava-webhook] settled", {
+        contractId,
+        eventType,
+        inserted: settled.inserted,
+        fx: settled.nets.fx_source,
+        nets: {
+          rub: settled.nets.net_amount_rub,
+          eur: settled.nets.net_amount_eur,
+          usd: settled.nets.net_amount_usd,
+        },
+      });
+    }
+  } catch (settleErr) {
+    // Не валим активацию членства из‑за FX: Lava 2xx; nets можно досчитать позже.
+    console.error("[lava-webhook] settle failed", contractId, settleErr);
+  }
+}
+
+async function handleFirstPaymentSuccess(
+  contractId: string,
+  body: LavaWebhookBody,
+): Promise<Response> {
   const db = createServiceSupabase();
   const contract = await findContract(db, contractId);
   if (!contract) {
@@ -114,6 +154,8 @@ async function handleFirstPaymentSuccess(contractId: string): Promise<Response> 
     return json({ ok: true, unknownContract: true });
   }
   if (contract.status === "active") {
+    // Идемпотентный ретрай вебхука: статус уже active, но settlement мог не записаться.
+    await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
     return json({ ok: true, alreadyActive: true });
   }
 
@@ -128,6 +170,8 @@ async function handleFirstPaymentSuccess(contractId: string): Promise<Response> 
       .update({ status: "active", updated_at: nowIso })
       .eq("contract_id", contractId);
     if (contractError) throw contractError;
+
+    await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
 
     if (contract.tier === "webinar") {
       const webinarId = contract.product_ref;
@@ -156,6 +200,8 @@ async function handleFirstPaymentSuccess(contractId: string): Promise<Response> 
     .update({ status: "active", current_period_end: periodEnd.toISOString(), updated_at: nowIso })
     .eq("contract_id", contractId);
   if (contractError) throw contractError;
+
+  await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
 
   // Апгрейд тарифа пользователя (политика A3: немедленно, без пересчёта).
   const { error: userError } = await db
@@ -209,7 +255,7 @@ async function handleFirstPaymentFailed(contractId: string): Promise<Response> {
   return json({ ok: true, failed: contractId });
 }
 
-async function handleRenewal(parentContractId: string, timestamp?: string): Promise<Response> {
+async function handleRenewal(parentContractId: string, body: LavaWebhookBody): Promise<Response> {
   const db = createServiceSupabase();
   const contract = await findContract(db, parentContractId);
   if (!contract) {
@@ -217,7 +263,7 @@ async function handleRenewal(parentContractId: string, timestamp?: string): Prom
     return json({ ok: true, unknownContract: true });
   }
 
-  const paidAt = timestamp ? new Date(timestamp) : new Date();
+  const paidAt = body.timestamp ? new Date(body.timestamp) : new Date();
   const periodEnd = nextPeriodEnd(Number.isNaN(paidAt.getTime()) ? new Date() : paidAt);
   const nowIso = new Date().toISOString();
 
@@ -226,6 +272,14 @@ async function handleRenewal(parentContractId: string, timestamp?: string): Prom
     .update({ status: "active", current_period_end: periodEnd.toISOString(), updated_at: nowIso })
     .eq("contract_id", contract.contract_id);
   if (contractError) throw contractError;
+
+  await settleLavaCharge(
+    db,
+    contract.contract_id,
+    "subscription.recurring.payment.success",
+    body,
+    contract.user_id,
+  );
 
   const { error: userError } = await db
     .from("users")

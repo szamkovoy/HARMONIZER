@@ -72,6 +72,7 @@ supabase db execute --file supabase/seed.sql
 0 * * * *      precompute_daily_forecasts_hourly          → invoke_precompute_daily_forecasts
 15 * * * *     cleanup_expired_stories_hourly             → invoke_cleanup_expired_stories
 20 * * * *     reconcile_expired_memberships_hourly       → invoke_reconcile_expired_memberships
+35 * * * *     cleanup_unconfirmed_auth_users_hourly      → cleanup_unconfirmed_auth_users (OTP ghosts >24h)
 */15 * * * *   ensure_harmonizer_crons_watchdog           → ensure_harmonizer_cron_jobs
 ```
 

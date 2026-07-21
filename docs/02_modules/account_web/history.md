@@ -1,9 +1,15 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.6
-updated: 2026-07-20
+version: 1.7
+updated: 2026-07-22
 ---
+
+## 2026-07-22 — Settlement / FX nets на успешных платежах Lava
+
+- **Зачем:** отчётная выручка в ₽/€/$ после комиссии эквайринга, без смешивания gross по валютам.
+- **Как:** модуль `_legacy_web/app/api/account/fx/`; вебхук `payment.success` / renewal вызывает `settlePayment` → `payment_settlements` + зеркало nets на `payment_contracts`. Курсы: Т-Банк (`DebitCardsOperations`) → ЦБ (+2% haircut только на ЦБ). USD↔EUR — прямой курс; округление до копеек/центов. Миграция `20260722020000`.
+- **2026-07-22 (уточнение):** Альфа/Газпром/Сравни.ру как резерв не подключены (403/400/404). Суточный кэш курсов `fx_daily_quotes` (Москва); при сбое Т-Банка — ЦБ до следующего дня; активация membership от FX не зависит. Миграция `20260722030000`.
 
 ## 2026-07-20 — Кнопка «Личный кабинет» мигала / OTT падал на schema cache 503
 

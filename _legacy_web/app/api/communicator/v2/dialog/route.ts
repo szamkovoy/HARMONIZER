@@ -21,7 +21,12 @@ import {
   userAnsweredPracticeRequest,
   validateHistoryHasDurationAndType,
 } from "@legacy/app/api/_utils/markers";
-import { reportRouteError, toUserFacingStreamErrorMessage } from "@legacy/app/api/_utils/monitoring";
+import {
+  logDialogTurn,
+  logLlmPromptSize,
+  reportRouteError,
+  toUserFacingStreamErrorMessage,
+} from "@legacy/app/api/_utils/monitoring";
 import { getScenario } from "@legacy/app/api/_utils/scenarios";
 import { dialogTimeOfDayForHour } from "@legacy/app/api/_utils/dialogTimeOfDay";
 import { promptLocalHour, sessionResumeTtlMs } from "@legacy/app/api/_utils/testMode";
@@ -2248,6 +2253,21 @@ export async function POST(req: Request) {
             .select("id")
             .single();
           if (insertError) throw insertError;
+
+          const latencyMs = Date.now() - requestStartedMs;
+          void logDialogTurn(routeDb, routeUserId, {
+            endpoint: "communicator/v2/dialog",
+            latency_ms: latencyMs,
+            turn_mode: turnMode,
+            branch: branchForTurn,
+            conversation_id: conversation.id,
+          });
+          void logLlmPromptSize(routeDb, routeUserId, {
+            endpoint: "communicator/v2/dialog",
+            stage: "responder",
+            // DTO-budget proxy (chars/3.5), same convention as greeting/calibration.
+            total_tokens: Math.round(((userMessage?.length ?? 0) + (cleanText?.length ?? 0)) / 3.5),
+          });
 
           const persistenceConfirmed = planningPersistence.summarized.length > 0
             || planningPersistence.inserted.length > 0

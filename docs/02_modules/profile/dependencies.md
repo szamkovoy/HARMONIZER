@@ -68,6 +68,9 @@ code_refs:
 - **`practices`**  
   Статистика на экране профиля — потребитель `practice_sessions` по `user_id`. Парная пометка добавлена в `docs/02_modules/practices/dependencies.md`.
 
+- **`admin_panel`**  
+  Колонки `users.country_code` / `city` / `last_seen_at` (запись из location + `app_open`) — сырьё geo/activity на админ-пульсе.
+
 ## 3. Контрактные точки риска
 
 - **Форма `birth_place` (jsonb)** и согласованность с `BirthData.location` при сериализации в API натала.

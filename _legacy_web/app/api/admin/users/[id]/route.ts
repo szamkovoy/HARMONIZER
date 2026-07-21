@@ -1,8 +1,10 @@
+import { cancelActiveSubscriptionsForUser } from "../../../account/cancelActiveSubscriptions";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
 import { ALL_TIERS, PAID_TIERS, recomputeUserMembershipFromPayments } from "../../_utils/payments";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -22,22 +24,16 @@ export async function GET(req: Request, ctx: RouteContext) {
     const { id } = await ctx.params;
     const db = createServiceSupabase();
 
-    const { data, error } = await db
-      .from("users")
-      .select("id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at")
-      .eq("id", id)
-      .maybeSingle();
+    const userSelect =
+      "id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at, country_code, city";
+    const { data, error } = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });
     let user = data;
 
     if (membershipLooksStale(user)) {
       await recomputeUserMembershipFromPayments(db, id);
-      const refreshed = await db
-        .from("users")
-        .select("id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at")
-        .eq("id", id)
-        .maybeSingle();
+      const refreshed = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
       if (refreshed.error) throw refreshed.error;
       if (refreshed.data) user = refreshed.data;
     }
@@ -129,6 +125,63 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     if (readError) throw readError;
 
     return json({ user });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+/**
+ * Удаление пользователя админом. Платежи/контракты сохраняются (buyer_email + SET NULL).
+ * Нельзя удалить себя или другого admin.
+ */
+export async function DELETE(req: Request, ctx: RouteContext) {
+  try {
+    const adminId = await requireAdmin(req);
+    const { id } = await ctx.params;
+    if (id === adminId) {
+      return json({ error: "Нельзя удалить собственный аккаунт из админки" }, { status: 400 });
+    }
+
+    const db = createServiceSupabase();
+    const { data: roleRow, error: roleError } = await db
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (roleError) throw roleError;
+    if (roleRow) {
+      return json({ error: "Нельзя удалить пользователя с ролью admin" }, { status: 403 });
+    }
+
+    const { data: authData, error: authLookupError } = await db.auth.admin.getUserById(id);
+    if (authLookupError) throw authLookupError;
+    if (!authData?.user) {
+      return json({ error: "Пользователь не найден в Auth" }, { status: 404 });
+    }
+    const email = authData.user.email?.trim() || null;
+    if (!email) {
+      return json({ error: "У пользователя нет email — удаление отменено" }, { status: 409 });
+    }
+
+    await cancelActiveSubscriptionsForUser(db, { userId: id, email });
+
+    const { error: contractsEmailError } = await db
+      .from("payment_contracts")
+      .update({ buyer_email: email, updated_at: new Date().toISOString() })
+      .eq("user_id", id);
+    if (contractsEmailError) throw contractsEmailError;
+
+    const { error: paymentsEmailError } = await db
+      .from("payments")
+      .update({ buyer_email: email })
+      .eq("user_id", id);
+    if (paymentsEmailError) throw paymentsEmailError;
+
+    const { error: deleteError } = await db.auth.admin.deleteUser(id);
+    if (deleteError) throw deleteError;
+
+    return json({ deleted: true });
   } catch (error) {
     return errorResponse(error);
   }

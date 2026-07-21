@@ -1,13 +1,23 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.1
-updated: 2026-07-13
+version: 1.2
+updated: 2026-07-21
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-22 (Lava net revenue + FX):** Дашборд и payments-stats суммируют `payment_settlements.net_amount_*` (после 8% Lava и конвертации); UI-переключатель ₽/€/$. Источник settlement — вебхук account_web. Миграция `20260722020000`.
+
+- **2026-07-21 (KPI order + brand + city):** Порядок KPI: Пользователи → Распределение → Конверсия → 2-й месяц; сайдбар «Гармонизатор»; город/страна — отдельные поля, фон reverse-geocode + backfill `city` из `location_name`.
+
+- **2026-07-21 (pulse v3 + OTP cleanup):** KPI: пользователи 3-цифры, когортная конверсия рег→покупки, продление 2-го месяца oracle/master, тарифы «сейчас»; большие блоки — воронки Наставник/Мастер (мес. 1–7); итоги в регистрациях/уникальной активности; названия с периодом; LLM упрощён + столбцы токенов. Hourly `cleanup_unconfirmed_auth_users` (строго never-confirmed + never signed-in + 24h). Миграция `20260721160000`.
+
+- **2026-07-21 (dashboard UX feedback):** Убраны subtitle и алерт поддержки; KPI уточнены; даты newest-first; тёмный scrollbar; «Распределение по тарифам» (Демо первым); Lava+«Всего»/гранты + слот Яндекс; блок конверсий; период «Всё время» (только недели); geo по новым за период + backfill RU; серия токенов в LLM; карточка пользователя — местонахождение + DELETE с confirm. Миграция `20260721143000`.
+
+- **2026-07-21 (dashboard pulse):** Главная `/admin` перестроена в «пульс проекта»: убрана сетка «Разделы»; UI `DashboardPulse` + `GET /api/admin/dashboard` + RPC `admin_dashboard_pulse` (миграция `20260721120000`). Live: регистрации, access mix (Навигатор/Демо/Наставник/Мастер), активность, Lava-выручка, LLM load/алерты. Geo/top-tokens честно помечаются `meta.partial`, пока клиент/логи не наполнят. Клиент пишет `users.country_code`/`city`/`last_seen_at`. Dialog логирует `dialog_turn` + `llm_prompt_size`. Stats users/payments усилены зерном day/week и разделением Lava vs гранты.
 
 - **2026-07-21 (refresh AuthApiError overlay):** Оверлей `Invalid Refresh Token: Refresh Token Not Found` на `/admin/login` вернулся. Прежний prune смотрел только numeric `expires_at` и не глушил `console.error` supabase-js (auto-refresh / recover всё ещё логируют AuthApiError → Next.js Issue). Fix в `supabaseBrowser.ts`: discard incomplete/malformed/near-expiry sessions (`expires_at` number|string, JWT `exp`, legacy `currentSession`); + узкий `console.error` filter только для refresh-token AuthApiError / AuthSessionMissingError.
 

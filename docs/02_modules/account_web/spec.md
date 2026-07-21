@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.8
-updated: 2026-07-20
+version: 1.9
+updated: 2026-07-22
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -25,6 +25,7 @@ code_refs:
     _legacy_web/app/api/account/subscription/route.ts,
     _legacy_web/app/api/account/purchases/last/route.ts,
     _legacy_web/app/api/account/webhooks/lava/route.ts,
+    _legacy_web/app/api/account/fx/,
     web_cabinet/cabinet.html,
     supabase/migrations/20260714220000_web_account_ott.sql,
     supabase/migrations/20260715120000_lava_payment_contracts.sql,
@@ -92,20 +93,34 @@ code_refs:
 
 1. Кабинет: `hzStartUpgrade(tier,purchase)` / `hzStartWebinar(purchase)` / `hzStartBook(purchase)` → `POST /api/account/checkout { kind, tier|webinarId, currency }` → строка `payment_contracts` (pending) → redirect на `paymentUrl` Lava.
 2. Вебхуки (`POST /api/account/webhooks/lava`, тело `{ eventType, contractId, parentContractId?, buyer{email}, amount, currency, status, timestamp }`):
-   - `payment.success` (subscription) — контракт → active, `current_period_end = +30 дней`; `users.membership_tier = tier`, `membership_expires_at = period_end + 48ч грейс`; все прочие active-контракты пользователя отменяются в Lava и в БД (политика A3).
-   - `payment.success` (one_time, tier=webinar) — контракт → active; `membership_*` НЕ трогается; upsert `webinar_registrations(webinar_id=product_ref, user_id)`.
-   - `payment.success` (one_time, tier=book) — контракт → active; `membership_*` и регистрации НЕ трогаются; приложение благодарит через `purchases/last`.
+   - `payment.success` (subscription) — контракт → active, `current_period_end = +30 дней`; `users.membership_tier = tier`, `membership_expires_at = period_end + 48ч грейс`; все прочие active-контракты пользователя отменяются в Lava и в БД (политика A3); затем settlement (см. §3.2).
+   - `payment.success` (one_time, tier=webinar) — контракт → active; `membership_*` НЕ трогается; upsert `webinar_registrations(webinar_id=product_ref, user_id)`; settlement.
+   - `payment.success` (one_time, tier=book) — контракт → active; `membership_*` и регистрации НЕ трогаются; приложение благодарит через `purchases/last`; settlement.
    - `payment.failed` — pending → failed;
-   - `subscription.recurring.payment.success` — сдвиг периода и `membership_expires_at` (ключ — `parentContractId`);
+   - `subscription.recurring.payment.success` — сдвиг периода и `membership_expires_at` (ключ — `parentContractId`) + settlement на сумму вебхука;
    - `subscription.recurring.payment.failed` — только лог (Lava ретраит сама);
    - `subscription.cancelled` — контракт → cancelled; `users.membership_*` не трогаем — доступ живёт до `membership_expires_at`, дальше `paidAccess` вернёт free.
-   Неизвестный контракт — ответ 200 (ретраи бессмысленны), транзиентная ошибка БД — 5xx (Lava повторит, до 20 попыток).
+   Неизвестный контракт — ответ 200 (ретраи бессмысленны), транзиентная ошибка БД — 5xx (Lava повторит, до 20 попыток). Сбой FX/settlement логируется, но **не** валит активацию (ответ всё равно 2xx).
 3. Подхват в приложении — Realtime/foreground `MembershipEventsBridge` (модалка «Уровень профиля обновлён»); для вебинара — `WebinarScreen` повторно проверяет `isRegistered` в foreground + модалка «Вы записаны на вебинар» (`gate.webinarPaid.*`); для книги — `purchases/last` + модалка «Спасибо за покупку книги» (`gate.bookPaid.*`).
 4. Даунгрейд = отмена + новая подписка после конца периода (в кабинете после отмены показываются все платные уровни).
 
+### 3.2 Settlement / FX (net в ₽ / € / $)
+
+На каждый успешный charge (`payment.success` и renewal) сервер (`_legacy_web/app/api/account/fx/`):
+
+1. Берёт gross `amount` + `currency` из вебхука (fallback — поля контракта).
+2. Вычитает комиссию эквайринга: Lava **8%** (`LAVA_GATEWAY_FEE_RATE`, default `0.08`); задел Яндекс **2.5%** (`YANDEX_GATEWAY_FEE_RATE`).
+3. Конвертирует остаток в `net_amount_rub` / `net_amount_eur` / `net_amount_usd` по buy/sell:
+   - иностранная → RUB: курс **покупки** банком (`buy`);
+   - RUB → иностранная: курс **продажи** клиенту (`sell`);
+   - USD ↔ EUR: **прямой** курс банка, иначе через RUB;
+   - та же валюта: курс = 1 (только комиссия).
+4. Источник котировок: **Т-Банк** (`DebitCardsOperations`) → **ЦБ РФ**. При коммерческом курсе 2% не вычитаются; при fallback на ЦБ итог × **0,98**. Округление `round` до 2 знаков. Курс кэшируется **на московный день (Europe/Moscow)** в `fx_daily_quotes`: внешний запрос не чаще раза в сутки. Если Т-Банк в этот день не ответил — до завтра только ЦБ (без повторных попыток к Т-Банку).
+5. Пишет строку в `payment_settlements` (идемпотентно) и зеркалит nets на `payment_contracts` (latest). Миграция `20260722020000_payment_settlements_fx_nets.sql`.
+
 ## 4. Конфигурация
 
-- Vercel env: `ACCOUNT_CABINET_SECRET` (обязателен), `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID` (offerId «Наставник»), `LAVATOP_TARIFF_3_ID` (offerId «Мастер»).
+- Vercel env: `ACCOUNT_CABINET_SECRET` (обязателен), `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID` (offerId «Наставник»), `LAVATOP_TARIFF_3_ID` (offerId «Мастер»). Опционально: `LAVA_GATEWAY_FEE_RATE`, `YANDEX_GATEWAY_FEE_RATE`.
 - Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`).
 - Страница: константа `API_BASE` в `cabinet.html` (origin Vercel); оферта — `{API_BASE}/cabinet/offer/{lang}.json`.
 - Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут). Ключ `account_links_enabled` читается и анонимом (политика `20260719000000`), остальные ключи `app_config` — только для authenticated/админов.

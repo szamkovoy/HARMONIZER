@@ -112,7 +112,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
       {/* Сайдбар — desktop */}
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-white/10 p-4 md:flex">
         <div className="mb-6 px-2 text-lg font-bold tracking-wide text-emerald-300">
-          Harmonizer
+          Гармонизатор
           <span className="block text-xs font-normal text-zinc-500">панель управления</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -154,7 +154,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Шапка — mobile */}
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#07080c]/90 px-4 py-3 backdrop-blur md:hidden">
-          <span className="text-base font-bold text-emerald-300">Harmonizer · Админ</span>
+          <span className="text-base font-bold text-emerald-300">Гармонизатор · Админ</span>
           <button type="button" onClick={signOut} aria-label="Выйти" className="p-1 text-zinc-400">
             <LogOut size={20} strokeWidth={1.8} />
           </button>

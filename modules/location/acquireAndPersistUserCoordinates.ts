@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 
+import { scheduleGeoPlaceSyncAfterCoords } from "@/modules/location/syncUserGeoPlace";
 import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
@@ -52,32 +53,17 @@ async function readPosition(): Promise<Location.LocationObject | null> {
   }
 }
 
+/** Быстро пишет lat/lon/tz; страну/город — фоном (не тормозит Home). */
 async function persistCoords(
   userId: string,
   lat: number,
   lon: number,
   tz: string,
 ): Promise<LocationAcquireResult> {
-  let locationName: string | null = null;
-  try {
-    const places = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-    const first = places[0];
-    if (first) {
-      locationName = [first.city, first.region, first.country].filter(Boolean).join(", ");
-    }
-  } catch {
-    /* необязательно */
-  }
-
   const supabase = requireSupabase();
   const { error } = await supabase
     .from("users")
-    .update({
-      lat,
-      lon,
-      tz,
-      ...(locationName ? { location_name: locationName } : {}),
-    })
+    .update({ lat, lon, tz })
     .eq("id", userId);
 
   if (error) {
@@ -85,6 +71,7 @@ async function persistCoords(
     return { ok: false, reason: "persist_failed" };
   }
 
+  scheduleGeoPlaceSyncAfterCoords(userId);
   return { ok: true, coords: { lat, lng: lon, timezone: tz }, persisted: true };
 }
 

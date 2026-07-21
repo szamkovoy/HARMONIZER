@@ -1,3 +1,4 @@
+import { maybeSyncUserGeoPlace } from "@/modules/location/syncUserGeoPlace";
 import { getSupabase } from "@/services/supabase";
 
 /**
@@ -16,13 +17,22 @@ export async function logAppOpen(userId: string): Promise<void> {
 
   const supabase = getSupabase();
   if (!supabase) return;
-  const { error } = await supabase.from("user_event_log").insert({
-    user_id: userId,
-    kind: "app_open",
-    payload: {},
-  });
-  if (error) {
+  const nowIso = new Date().toISOString();
+  const [{ error: eventError }, { error: seenError }] = await Promise.all([
+    supabase.from("user_event_log").insert({
+      user_id: userId,
+      kind: "app_open",
+      payload: {},
+    }),
+    supabase.from("users").update({ last_seen_at: nowIso }).eq("id", userId),
+  ]);
+  if (eventError) {
     lastLoggedAt = 0;
-    console.warn("[metrics] app_open log failed", error.message);
+    console.warn("[metrics] app_open log failed", eventError.message);
   }
+  if (seenError) {
+    console.warn("[metrics] last_seen_at update failed", seenError.message);
+  }
+  // Страна/город — отдельно и не каждый раз: только если пусто или GPS сильно сдвинулся.
+  void maybeSyncUserGeoPlace(userId);
 }

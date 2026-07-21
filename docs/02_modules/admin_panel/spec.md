@@ -1,29 +1,33 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.6
-updated: 2026-07-10
+version: 1.8
+updated: 2026-07-22
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
     _legacy_web/app/admin/layout.tsx,
     _legacy_web/app/admin/_components/AdminChrome.tsx,
-    _legacy_web/app/admin/_components/DashboardMetrics.tsx,
+    _legacy_web/app/admin/_components/DashboardPulse.tsx,
     _legacy_web/app/admin/_lib/supabaseBrowser.ts,
     _legacy_web/app/admin/_lib/adminApi.ts,
     _legacy_web/app/admin/_lib/adminDates.ts,
+    _legacy_web/app/admin/_lib/countryNamesRu.ts,
     _legacy_web/app/admin/login/page.tsx,
     _legacy_web/app/admin/page.tsx,
     _legacy_web/app/admin/payments/page.tsx,
     _legacy_web/app/admin/payments/stats/page.tsx,
     _legacy_web/app/admin/users/stats/page.tsx,
     _legacy_web/app/api/admin/me/route.ts,
+    _legacy_web/app/api/admin/dashboard/route.ts,
     _legacy_web/app/api/admin/feedback/route.ts,
     _legacy_web/app/api/admin/feedback/attachments/[id]/route.ts,
     _legacy_web/app/api/admin/users/route.ts,
     _legacy_web/app/api/admin/users/[id]/route.ts,
+    _legacy_web/app/api/admin/users/stats/route.ts,
     _legacy_web/app/api/admin/payments/route.ts,
     _legacy_web/app/api/admin/payments/[id]/route.ts,
+    _legacy_web/app/api/admin/payments/stats/route.ts,
     _legacy_web/app/api/admin/_utils/payments.ts,
     _legacy_web/app/api/admin/_utils/membershipFromPayments.ts,
     _legacy_web/app/api/admin/metrics/route.ts,
@@ -35,12 +39,14 @@ code_refs:
     modules/access/core/tiers.ts,
     modules/support/core/supportClient.ts,
     modules/metrics/core/appOpen.ts,
+    modules/location/acquireAndPersistUserCoordinates.ts,
     supabase/migrations/20260708010000_admin_panel_tier_foundation.sql,
     supabase/migrations/20260708160000_support_messages.sql,
     supabase/migrations/20260708170000_payments_users_admin.sql,
     supabase/migrations/20260708180000_admin_dashboard_metrics.sql,
     supabase/migrations/20260708190000_payments_edited_at.sql,
     supabase/migrations/20260710023000_reconcile_expired_memberships.sql,
+    supabase/migrations/20260721120000_admin_dashboard_pulse.sql,
   ]
 ---
 
@@ -82,12 +88,14 @@ code_refs:
 - `GET /api/admin/payments` — общий список записей леджера с `display_name`/`email`. `PATCH /api/admin/payments/[id]` `{tier, expires_at?, amount?, comment?}` — редактирование строки леджера; **всегда** пересчитывает `users.membership_tier`/`membership_expires_at` из ещё действующих платежей (`paid_until` null или в будущем): побеждает максимальный тариф по `TIER_ORDER`, при равенстве — более поздний `paid_until` (null побеждает), затем более свежий `created_at`; если действующих нет — `free`. Хелпер: `_legacy_web/app/api/admin/_utils/{payments,membershipFromPayments}.ts`; зеркало в SQL — `recompute_user_membership` / hourly Edge `reconcile-expired-memberships` (см. infra).
 - UI: `/admin/users` (поиск, фильтр, `TierBadge` из `TIER_LABELS_RU` канона `modules/access/core/tiers.ts`, ссылка на статистику, даты тарифа в виде `с ... до ...`), `/admin/users/[id]` (карточка без `trial`, поле `Язык`, модальная кнопка «Добавить платёж», редактируемая история платежей), `/admin/payments` (общий леджер с переходом в карточку пользователя).
 
-**Дашборд метрик (реализовано, этап 7):**
+**Дашборд «пульс» (реализовано, этап 7 → pulse 2026-07-21):**
 
-- RPC `admin_dashboard_metrics()` + `admin_llm_metrics(interval)` (`20260708180000_admin_dashboard_metrics.sql`) — все агрегаты в БД: пользователи по тирам, регистрации 7/30д, DAU/WAU/MAU (distinct `user_id` в `user_event_log`), платежи (count/sum 30д и всего), LLM за 7/30 дней (dialog_turns, avg/p95 `latency_ms` из payload, llm_errors/llm_timeouts/api_errors, prompt-события и сумма `*_tokens` из `llm_prompt_size`).
-- `GET /api/admin/metrics` → `{metrics}`; UI — `DashboardMetrics` на главной `/admin`.
-- `GET /api/admin/users/stats?days=7|30|90` — total users, registrations by day, users by tier, active users 24/72/168h через RPC `admin_active_users_count(p_hours)`. `GET /api/admin/payments/stats?days=7|30|90` — count/sum по дням, тарифам и источникам.
-- Клиентское событие `app_open`: `modules/metrics/core/appOpen.ts` (insert в `user_event_log` под RLS, троттлинг 30 мин на процесс), вызывается из `PushRegistrationBridge` при логине и возврате из фона.
+- Главная `/admin` — `DashboardPulse`. Контролы: `7|30|90|all` + `day|week` (`all` → только `week`).
+- RPC `admin_dashboard_pulse` (v3, `20260721160000`): KPI — пользователи (всего/24ч/7д), когортная конверсия (рег / купили oracle / купили master за период), продление 1→2 мес. по тарифам, распределение тарифов «сейчас»; series с итогами; воронки подписки oracle/master (мес. 1–7, lifetime counts); Lava/Яндекс; LLM 24ч + серия токенов; geo по новым за период.
+- `GET /api/admin/dashboard?range=&grain=` → pulse + alerts (без дубля поддержки).
+- `GET/DELETE /api/admin/users/[id]` — карточка с `country_code`/`city`; delete с confirm, платежи с `buyer_email` сохраняются.
+- Клиент: `app_open` → `last_seen_at`; reverse-geocode → `country_code`/`city`.
+- **Cleanup OTP-ghosts:** hourly `cleanup_unconfirmed_auth_users` (cron `35 * * * *`, в реестре `ensure_harmonizer_cron_jobs`). Удаляет только `auth.users` где `email_confirmed_at IS NULL` **и** `last_sign_in_at IS NULL` **и** `created_at < now()-24h`, без admin/payments/contracts/onboarded/last_seen. Подтверждённые аккаунты при повторном OTP **не** затрагиваются (`email_confirmed_at` остаётся).
 
 **Промпты (реализовано, этап 8):**
 
@@ -123,6 +131,9 @@ code_refs:
 - Вход только email/password: если аккаунт владельца создан через Apple/Google OAuth, пароль нужно один раз задать в Supabase Studio (Authentication → Users).
 - Все разделы этапов 0–8 реализованы; заглушек не осталось.
 - `is_admin()` в RLS остаётся защитой на уровне БД; серверные админ-роуты работают через service role + `requireAdmin` и на RLS не полагаются.
-- Леджер `payments` пока наполняется только ручными назначениями (source=manual); интеграции со сторами нет — при её появлении писать в тот же леджер с source=store. Автооплата/renewal при истечении срока **не** реализованы: cron только пересчитывает membership из уже существующих платежей.
-- DAU/WAU/MAU считаются по любым событиям `user_event_log`; до массового раскатывания клиента с `app_open` активность занижена (только пользователи, дёргающие API).
+- Леджер `payments` — ручные гранты (source=manual); **net**-выручка дашборда / `/admin/payments/stats` — из `payment_settlements` (после комиссии Lava + FX; переключатель ₽/€/$ через `?currency=`). Gross по-прежнему на `payment_contracts.amount`. Интеграции со сторами в `payments` нет. Автооплата/renewal при истечении срока **не** реализованы: cron только пересчитывает membership из уже существующих платежей. Старые контракты без settlement не входят в net-графики, пока не пройдёт новый успешный вебхук.
+- KPI active_24h/7d на пульсе — по `users.last_seen_at` (заполняется с клиента при `app_open`); до раскатки нового клиента цифры занижены. Серия `active_users` в pulse — distinct `user_id` в `user_event_log` за бакет.
+- Geo (`country_code`/`city`) появляется только после раскатки клиента с persist reverse-geocode; исторической ретроспективы нет — `meta.partial` содержит `geo`, пока срез пуст.
+- LLM load/top-tokens зависят от событий `dialog_turn` / `llm_prompt_size` (пишутся из communicator dialog после успешного insert хода). Пока логов мало — `meta.partial` включает `top_tokens_sparse`; карточки не притворяются нулевой истиной без оговорки.
+- Пороги алертов захардкожены в `/api/admin/dashboard` (`TOKEN_ALERT_THRESHOLD_24H=80000`, `LLM_ERROR_ALERT_THRESHOLD_24H=15`); UI настроек порогов пока нет.
 - Stories media pipeline рассчитан на короткий контент: фото до 30 МБ, raw video до 120 МБ и до 90 секунд. Ограничения enforced уже на upload/process-роутах, чтобы `ffmpeg` укладывался в serverless runtime.

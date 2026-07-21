@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.2
-updated: 2026-07-20
+version: 1.3
+updated: 2026-07-22
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -24,11 +24,13 @@ code_refs:
 - **`location`** — `resolveBillingCurrency` читает кэш координат (`userLocationProfileCache`) и `expo-location.reverseGeocodeAsync` для страны → валюты; таймаут 800 мс + персистентный флаг `billingCurrency`, чтобы гео не блокировало `openURL`.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava: вебхук `payment.success` upsert `webinar_registrations`; `MembershipEventsBridge` детектит последнюю one_time-покупку `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет (отмена без возврата денег лишена смысла).
 - **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice` (подписка MONTHLY и разовая ONE_TIME), `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions` (отмена), вебхуки на `/api/account/webhooks/lava` (auth `X-Api-Key`). Маппинг (tier, locale) → offerId в таблице `payment_offers` (fallback `en`; tier ∈ oracle/master/webinar/book/course); контракт/политики/мультиязычность — `lava_integration.md`.
+- **FX-источники (внешние, settlement)** — Т-Банк `GET https://api.tinkoff.ru/v1/currency_rates` (категория `DebitCardsOperations`); ЦБ через `https://www.cbr-xml-daily.ru/daily_json.js`. Цепочка T-Bank → CBR; суточный кэш `fx_daily_quotes` (дата по Москве); при сбое Т-Банка в этот день — только ЦБ до завтра. Результаты — `payment_settlements` + net-колонки на `payment_contracts`.
 
 ## 2. От него зависят
 
 - **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` и `useAccountLinksEnabled()`; все точки гейтинга приложения ведут в кабинет через этот модуль.
 - **`profile`** — ссылки «Выйти» / «Удалить аккаунт» на `app/(tabs)/profile.tsx` (`deleteAccountRemote`).
+- **`admin_panel`** — KPI/графики **net**-выручки и `/admin/payments/stats` читают `payment_settlements` (Lava); ручной леджер `payments` — отдельно как гранты.
 - **Веб-страница кабинета (standalone на zamkovoi.yoga)** — контракт `POST /api/account/session` и `GET /api/account/overview` (форма `AccountOverview`); при изменении полей overview синхронно править `web_cabinet/cabinet.html`. Оферта — статика Vercel `/cabinet/offer/{lang}.json` (только по клику). Страница не должна отдаваться через тему WordPress.
 
 ## 3. Контрактные точки риска

@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-21 (admin geo/last_seen):** `acquireAndPersistUserCoordinates` пишет `users.country_code` + `city` из reverse-geocode; `logAppOpen` обновляет `users.last_seen_at` (тот же 30‑мин троттлинг). Колонки — миграция `20260721120000_admin_dashboard_pulse.sql`; нужны админ-пульсу/geo.
+
 - **2026-07-21:** `refreshProfile` больше не ставит `profileLoading` (silent `syncProfile`). Realtime/foreground membership и locale PATCH иначе мигали loading → `useDayContent` abort’ил загрузку дня и оставлял splash на free midnight. Initial `syncProfile` после login/session по-прежнему blocking.
 
 - **2026-07-20 (o):** QR/dev-client cold start зависал на «Собираем общий настрой дня». Root: `fetchProfile` AbortError за 5 с ×3 → `profile=null` → Home как free → `global-content` (и abort-гонки). Fix: timeout 15 с, 4 attempt; при полном fail без stale — не снимать `profileLoading` до ещё одного круга fetch (не отпускать сплэш в free).

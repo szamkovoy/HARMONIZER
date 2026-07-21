@@ -1,3 +1,11 @@
+- 2026-07-22 (220): FX — суточный кэш курсов `fx_daily_quotes` (Москва); Т-Банк→ЦБ не чаще 1 раза/день. Миграция `20260722030000`. Docs `account_web/*`.
+- 2026-07-22 (219): FX — убран резерв Альфа; цепочка Т-Банк→ЦБ. Docs `account_web/*`.
+- 2026-07-22 (218): Payment FX nets — settlement на вебхуке Lava (`payment_settlements` + `net_amount_*`); курсы Т-Банк→ЦБ; админ выручка net с переключателем ₽/€/$. Миграция `20260722020000`. Docs `account_web/*`, `admin_panel/*`.
+- 2026-07-22 (217): Geo city — Nominatim via `GET /api/geo/reverse` (town/city), порог 100 км + `geo_place_lat/lon`. Миграция `20260722010000`. Docs `profile/spec`.
+- 2026-07-21 (216): Admin — порядок KPI, бренд «Гармонизатор»; фон `country_code`/`city` (reverse-geocode, порог 8 км) + backfill city. Docs `admin_panel/history`, `profile/spec`.
+- 2026-07-21 (215): Admin pulse v3 (когортная конверсия, воронки 1–7 мес., KPI продления) + hourly cleanup неподтверждённых OTP-аккаунтов (строго never-confirmed). Миграция `20260721160000`. Docs `admin_panel/*`, `supabase/README`.
+- 2026-07-21 (214): Admin pulse UX: KPI clarity, conversions, Lava+Yandex slots, all-time/week, geo by cohort, token series, user card location+delete. Миграция `20260721143000`. Docs `admin_panel/*`.
+- 2026-07-21 (213): Admin dashboard «пульс»: `/admin` → KPI/период/графики + `GET /api/admin/dashboard` + RPC `admin_dashboard_pulse`; Lava vs гранты; trial-сегмент; geo/`last_seen_at`; dialog `dialog_turn`/`llm_prompt_size`; усилены users/payments stats. Миграция `20260721120000`. Docs `admin_panel/*`, `profile/*`, `infra/*`, `account_web/dependencies`.
 - 2026-07-21 (212): Admin — устойчивый фикс overlay `AuthApiError: Invalid Refresh Token` на `/admin/*` (жёсткий prune localStorage + узкий filter console.error). Docs `admin_panel/*`.
 - 2026-07-21 (211): Day «Психо-практики» — оптимистичные rename/delete действий (список сразу, без спиннера; после delete — тихий sync сфер). Docs `daily_forecast/*`.
 - 2026-07-21 (210): Day «Выбрать практику»/отмена — оптимистичный UI (карточка сразу, без спиннера и полного reload); POST/PATCH в фоне с сериализацией. Docs `daily_forecast/*`.

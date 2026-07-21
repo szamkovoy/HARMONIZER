@@ -9,6 +9,10 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-21 (OTP ghost cleanup):** `cleanup_unconfirmed_auth_users()` + cron hourly в `ensure_harmonizer_cron_jobs` — удаляет только never-confirmed / never-signed-in аккаунты старше 24ч (без payments/admin/onboarded).
+
+- **2026-07-21 (dialog metrics):** `monitoring.ts` — `logDialogTurn` / `logLlmPromptSize`; communicator `v2/dialog` пишет их после успешного insert хода (оценка `total_tokens` ≈ chars/3.5). Сырьё для админ RPC `admin_llm_metrics` / пульса.
+
 - **2026-07-21 (8):** Root cause paid midnight cold: Edge `precompute-daily-forecasts` был задеплоен, но `pg_cron` job жил только в runbook (`DEPLOY.md`/`README`), без миграции — в prod schedule отсутствовал месяцами. Параллельно пропал invoker/job `reconcile_expired_memberships_hourly`. Fix: (1) `20260721003000` — schedule paid hourly; (2) `20260721010000` — `ensure_harmonizer_cron_jobs()` как единый реестр + watchdog каждые 15 мин + re-assert из free/paid invokers; (3) `20260721011000` — restore `invoke_reconcile_expired_memberships` и re-schedule через ensure.
 
 - **2026-07-10 (7):** Добавлен hourly membership reconcile: Edge `reconcile-expired-memberships`, SQL RPC `recompute_user_membership` / `reconcile_expired_memberships`, миграция `20260710023000_reconcile_expired_memberships.sql` (`pg_cron` `20 * * * *`, Vault `reconcile_expired_memberships_cron_secret`). Назначение — синхронизировать `users.membership_*` с леджером `payments` после истечения срока без автооплаты store. Документы: `supabase/README.md`, `DEPLOY.md`, `config.toml`.

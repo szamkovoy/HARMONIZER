@@ -2189,9 +2189,14 @@ export type Database = {
           birth_date: string | null
           birth_place: Json | null
           birth_time: string | null
+          city: string | null
+          country_code: string | null
           created_at: string | null
           display_name: string | null
+          geo_place_lat: number | null
+          geo_place_lon: number | null
           id: string
+          last_seen_at: string | null
           lat: number | null
           locale: string | null
           location_name: string | null
@@ -2210,9 +2215,14 @@ export type Database = {
           birth_date?: string | null
           birth_place?: Json | null
           birth_time?: string | null
+          city?: string | null
+          country_code?: string | null
           created_at?: string | null
           display_name?: string | null
+          geo_place_lat?: number | null
+          geo_place_lon?: number | null
           id: string
+          last_seen_at?: string | null
           lat?: number | null
           locale?: string | null
           location_name?: string | null
@@ -2231,9 +2241,14 @@ export type Database = {
           birth_date?: string | null
           birth_place?: Json | null
           birth_time?: string | null
+          city?: string | null
+          country_code?: string | null
           created_at?: string | null
           display_name?: string | null
+          geo_place_lat?: number | null
+          geo_place_lon?: number | null
           id?: string
+          last_seen_at?: string | null
           lat?: number | null
           locale?: string | null
           location_name?: string | null

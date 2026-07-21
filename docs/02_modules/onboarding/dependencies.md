@@ -31,6 +31,7 @@ depends_on: [02_modules/onboarding/spec]
 
 ## Сторонние сервисы
 
-- **Open-Meteo Geocoding** (через Vercel-прокси) — поиск города, координаты, IANA-таймзона, локализованные имена.
+- **Open-Meteo Geocoding** (через Vercel-прокси) — поиск города рождения, координаты, IANA-таймзона, локализованные имена.
+- **Nominatim/OSM** (через `GET /api/geo/reverse`) — ближайший город для `users.city` / `country_code` (профиль/админ); ≤1 req/s, кэш, порог 100 км.
 - **Supabase Auth** — `signInWithOtp` / `verifyOtp` (email-OTP); RPC `set_signin_name_hint` (таблица `public.signin_name_hints`).
 - **Edge `send-auth-email`** — OTP-письмо (8 локалей, локализованное имя/тема/приветствие).

@@ -70,6 +70,24 @@ export async function logUserEvent(
   if (error) console.warn(`[monitoring] Failed to log ${kind}`, error);
 }
 
+/** Успешный ход диалога — сырьё для latency/turns на админ-дашборде. */
+export async function logDialogTurn(
+  db: SupabaseClient | null | undefined,
+  userId: string | null | undefined,
+  payload: Record<string, unknown>,
+) {
+  await logUserEvent(db, userId, "dialog_turn", payload);
+}
+
+/** Оценка размера промпта (DTO chars/3.5). Предпочтительно передавать total_tokens. */
+export async function logLlmPromptSize(
+  db: SupabaseClient | null | undefined,
+  userId: string | null | undefined,
+  payload: Record<string, unknown>,
+) {
+  await logUserEvent(db, userId, "llm_prompt_size", payload);
+}
+
 export async function reportRouteError(error: unknown, context: RouteErrorContext) {
   const message = errorMessage(error);
   const timeout = isTimeoutError(error);

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.2
-updated: 2026-07-18
+version: 1.3
+updated: 2026-07-22
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -73,7 +73,7 @@ Lava не поддерживает несколько языков у одног
 1. Кабинет: `hzStartUpgrade(tier, purchase)` → `POST /api/account/checkout { kind:"subscription", tier, currency }`.
 2. Сервер: `resolveLavaOfferId(db, tier, userLocale)` (fallback en) → `POST /api/v2/invoice` (MONTHLY) → строка `payment_contracts` (pending, product_kind=subscription) → ответ `{ paymentUrl, contractId }`.
 3. Кабинет: redirect на `paymentUrl` Lava. По `visibilitychange` (возврат с оплаты) — `GET /api/account/overview?currency=` и перерисовка.
-4. Вебхук `payment.success` → контракт active, `users.membership_tier/expires_at` обновлены (период 30 дней + 48ч грейс), прежние active-подписки пользователя отменены в Lava и БД (политика A3).
+4. Вебхук `payment.success` → контракт active, `users.membership_tier/expires_at` обновлены (период 30 дней + 48ч грейс), прежние active-подписки пользователя отменены в Lava и БД (политика A3); параллельно `settlePayment` пишет net в `payment_settlements` (см. `spec.md` §3.2).
 5. Приложение подхватывает смену уровня через Realtime/foreground (`MembershipEventsBridge`).
 
 ### 5.2 Разовая оплата вебинара (ONE_TIME)
