@@ -43,7 +43,7 @@ This file lists the contracts so a change here is traceable to its blast radius.
 ## Outbound — what i18n provides to other modules
 | Consumer (module) | Uses | Contract |
 |-------------------|------|----------|
-| `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called once in `AccessBridge`; seeds the store at startup. |
+| `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called in `AccessBridge` when `profile?.locale` changes; `users.locale` wins over sticky SecureStore from a previous account. |
 | `bootstrap` (`AppStartupProvider`) | `useAppLocale()`, `t(locale, "startup.step.*")`, `t(locale, "startup.fallback")` | Splash footer copy follows the shared locale store; internal step ids map to catalog keys (`AUTH/foo` → `startup.step.AUTH_foo`). |
 | `practices` (`catalog.ts`, `PracticeCard`) | `useAppLocale()`, `getPracticeCatalogStrings`, `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` | Catalog UI strings + yoga jsonb title lookup for all 8 content locales. |
 | `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")` | Tab labels via catalog; labels refresh on locale change without remounting `<Tabs>` (scroll/state preserved). |

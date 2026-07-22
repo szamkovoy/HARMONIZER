@@ -85,29 +85,47 @@ type MorningCacheRow = {
 };
 
 /**
- * Prefer a row that still carries explicit sourceTexts (true canonical),
- * then a `"generated"` row, then any usable legacy row.
+ * Pick the best canonical source for locale-switch translation.
+ *
+ * Priority (high → low):
+ * 1. `"generated"` row that is self-canonical (`sourceLocale === row.locale`),
+ *    preferring Russian (authoring default);
+ * 2. any other `"generated"` row;
+ * 3. any row with usable texts (including translated — last resort; do not
+ *    chase a missing “original” forever).
+ *
+ * Important: do **not** prefer the first row that merely has `sourceTexts`.
+ * A wrongly full-generated FR row can carry `sourceTexts=fr` and would otherwise
+ * beat a real RU generated cache (FR→RU overwrite bug).
  */
 export function pickBestMorningSource(rows: MorningCacheRow[]): MorningSourceMaterial | null {
   if (!rows.length) return null;
 
-  const withExplicitSource = rows.find((row) => {
-    const texts = readMorningTextFields(row.data[MORNING_SOURCE_TEXTS_KEY]);
-    const locale = asContentLocale(asString(row.data[MORNING_SOURCE_LOCALE_KEY]));
-    return Boolean(texts && locale);
-  });
-  if (withExplicitSource) return extractSourceMaterial(withExplicitSource.data);
-
-  const generated = rows.find(
-    (row) => asString(row.data[MORNING_GENERATION_MODE_KEY]) === "generated",
-  );
-  if (generated) return extractSourceMaterial(generated.data);
+  type Ranked = { score: number; material: MorningSourceMaterial };
+  const ranked: Ranked[] = [];
 
   for (const row of rows) {
     const material = extractSourceMaterial(row.data);
-    if (material) return material;
+    if (!material) continue;
+    const mode = asString(row.data[MORNING_GENERATION_MODE_KEY]);
+    let score = 0;
+    if (mode === "generated" && material.sourceLocale === row.locale) {
+      score += 100;
+    } else if (mode === "generated") {
+      score += 80;
+    } else if (mode === "translated") {
+      score += 10;
+    } else {
+      score += 20; // legacy row without generationMode
+    }
+    if (material.sourceLocale === "ru") score += 25;
+    if (row.locale === "ru") score += 5;
+    ranked.push({ score, material });
   }
-  return null;
+
+  if (!ranked.length) return null;
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked[0]!.material;
 }
 
 export async function listMorningCachesForToday(
@@ -156,11 +174,7 @@ export function withMorningSourceMeta(
  * Fast locale-switch path: translate canonical source texts into `targetLocale`.
  * Throws if no morning cache exists for today (caller should fall back to full generate).
  */
-export async function translateMorningFromCachedSource(params: {
-  db: SupabaseClient;
-  userId: string;
-  targetLocale: AppContentLocale;
-}): Promise<{
+export type MorningLocaleSwitchResult = {
   slogan: string;
   short_text: string;
   long_explanation: string;
@@ -168,8 +182,46 @@ export async function translateMorningFromCachedSource(params: {
   modelUsed: string | null;
   sourceLocale: AppContentLocale;
   sourceTexts: MorningTextFields;
-}> {
+  /** True when the target-locale row was already valid — do not rewrite cache meta. */
+  servedExistingTarget: boolean;
+  generationMode: "generated" | "translated";
+};
+
+export async function translateMorningFromCachedSource(params: {
+  db: SupabaseClient;
+  userId: string;
+  targetLocale: AppContentLocale;
+}): Promise<MorningLocaleSwitchResult> {
   const rows = await listMorningCachesForToday(params.db, params.userId);
+
+  // Target locale already has a valid morning cache — return it as-is.
+  // Do not re-translate and overwrite (e.g. FR→RU when RU warm already exists).
+  const targetRow = rows.find((row) => row.locale === params.targetLocale);
+  if (targetRow) {
+    const targetTexts = readMorningTextFields(targetRow.data);
+    if (
+      targetTexts
+      && morningTextsMatchLocale(params.targetLocale, targetTexts.slogan, targetTexts.short_text)
+    ) {
+      const material = extractSourceMaterial(targetRow.data);
+      const mode = asString(targetRow.data[MORNING_GENERATION_MODE_KEY]);
+      return {
+        slogan: targetTexts.slogan,
+        short_text: targetTexts.short_text,
+        long_explanation: targetTexts.long_explanation,
+        math_level: targetRow.data.math_level ?? material?.math_level ?? null,
+        modelUsed:
+          typeof targetRow.data.modelUsed === "string"
+            ? targetRow.data.modelUsed
+            : (material?.modelUsed ?? null),
+        sourceLocale: material?.sourceLocale ?? params.targetLocale,
+        sourceTexts: material?.texts ?? targetTexts,
+        servedExistingTarget: true,
+        generationMode: mode === "generated" ? "generated" : "translated",
+      };
+    }
+  }
+
   const source = pickBestMorningSource(rows);
   if (!source) {
     throw new Error("No morning source texts available for locale switch");
@@ -184,6 +236,8 @@ export async function translateMorningFromCachedSource(params: {
       modelUsed: source.modelUsed,
       sourceLocale: source.sourceLocale,
       sourceTexts: source.texts,
+      servedExistingTarget: false,
+      generationMode: "generated",
     };
   }
 
@@ -206,5 +260,7 @@ export async function translateMorningFromCachedSource(params: {
     modelUsed: source.modelUsed,
     sourceLocale: source.sourceLocale,
     sourceTexts: source.texts,
+    servedExistingTarget: false,
+    generationMode: "translated",
   };
 }

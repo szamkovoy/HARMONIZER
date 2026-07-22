@@ -5,6 +5,13 @@ version: 1.8
 updated: 2026-07-22
 ---
 
+## 2026-07-23 — Диагностика сбоя «Личный кабинет» (Pixel)
+
+- **Симптом QA:** Дмитрий на Pixel → `gate.cabinetError` сразу после успешного кабинета на iPhone (где был abandoned Lava Master checkout).
+- **Не причина:** `payment_contracts.status=pending` — OTT/кабинет его не проверяют; активная oracle-подписка на месте.
+- **Факт по логам:** с Pixel **не было** `POST /api/account/ott` и нового `web_ott_tokens` (единственный OTT за сессию — iPhone 23:02Z, used). Ошибка на клиенте до успешного OTT (JWT/сеть/WebBrowser); UI глотал текст.
+- **Код:** `openAccountCabinet` / Profile catch пишут `cabinet:open_failed` + `profile:cabinet_error` в runtimeDiagnostics (user-facing текст без изменений).
+
 ## 2026-07-22 — Lava `Incorrect email` + Android reload после кабинета
 
 - **Симптом:** checkout → Lava HTTP 400 `Incorrect email to purchase`; после закрытия Chrome приложение на Pixel иногда «перезагружалось».

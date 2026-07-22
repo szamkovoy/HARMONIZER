@@ -23,6 +23,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-23 (locale switch source + no silent retry):** QA FR→RU на Profile переводил FR→RU и затирал готовый RU warm (~2m20s без dialog). Fix: `pickBestMorningSource` предпочитает self-canonical `generated` (RU); `translateMorningFromCachedSource` отдаёт уже валидный target без overwrite; monologue на cache-miss тоже translate’ит из существующего source (не full-generate чужой локали как канон); `ensureLocaleDayContent` / Profile — без silent второго LLM после timeout.
+
 - **2026-07-22 (paid locale switch = translate source):** Смена языка на Профиле для Master ждала до 120s полной `morning_recommendation` (generate + language retry + translate). Теперь monologue с `localeSwitch: true` переводит канонические `sourceTexts`/`sourceLocale` из кэша дня (IT→DE не через итальянский, а из исходного EN/RU); полный big-prompt — только если source за сегодня нет. Клиент: `ensureLocaleDayContent` передаёт `localeSwitch`. Файлы: `morningLocaleSwitch.ts`, `monologue/route.ts`, `localeDayContentEnsure.ts`, `pretranslateGlobalTexts.ts`.
 
 - **2026-07-22 (Day prefetch tabs-early + disk paint):** Долгий спиннер «День» на Android, когда вкладку открывали до готовности Home / при пустой memory. Fix: `ensureDayPlanPrefetch` с mount tabs (auth+locale), Home только усиливает; Day initial state из prefetch; focus рисует current SecureStore параллельно сети.

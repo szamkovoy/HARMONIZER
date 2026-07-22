@@ -102,10 +102,13 @@ cost never decides layer-C design.
 - Persistence: expo-secure-store on native, `localStorage` on web (key
   `harmonizer.locale.v1`), mirroring `services/dayContentCache.ts`.
 - API:
-  - `hydrateAppLocale(profileLocale?)` — call once at startup (done in
-    `app/_layout.tsx` `AccessBridge`); loads persisted value, else seeds from
-    `users.locale`, else device. Idempotent. **Always write-back** resolved
-    locale to `users.locale` so push language cannot drift from SecureStore.
+  - `hydrateAppLocale(profileLocale?)` — called from `app/_layout.tsx`
+    `AccessBridge` whenever `profile?.locale` changes. **Account locale wins:**
+    `users.locale` overrides a sticky SecureStore value left by a previous
+    account on the same device; if profile is not loaded yet, SecureStore/device
+    is used, then a later call adopts `profileLocale` when it arrives or the
+    account switches. **Always write-back** resolved locale to `users.locale`
+    so push language cannot drift from SecureStore.
   - `getAppLocale()` / `setAppLocale(locale)` / `subscribeAppLocale(cb)`.
     `setAppLocale` persists locally and mirrors to `users.locale`
     via `services/userLocaleClient.ts` (`syncUserLocaleToServer`) even when

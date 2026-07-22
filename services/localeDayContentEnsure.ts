@@ -280,29 +280,17 @@ export async function ensureLocaleDayContent(
   // Locale switch: prefer translating the canonical source texts already cached
   // for today (fast). Full big-prompt regenerate only when no source exists or
   // the caller forced a structural natal refresh.
-  let monologue: MorningMonologue;
+  // No silent retry on timeout — Profile shows the error/confirm dialog instead
+  // of stretching to ~2–2.5 minutes with a second 120s attempt.
   const preferLocaleSwitch = params.forceStructuralRefresh !== true;
-  try {
-    monologue = await fetchMorningMonologue(
-      params.locale,
-      {
-        forceRefresh,
-        localeSwitch: preferLocaleSwitch,
-      },
-      params.signal,
-    );
-  } catch (firstError) {
-    if (params.signal?.aborted) throw firstError;
-    // Retry once: still prefer translate; only drop localeSwitch on structural force.
-    monologue = await fetchMorningMonologue(
-      params.locale,
-      {
-        forceRefresh: true,
-        localeSwitch: preferLocaleSwitch,
-      },
-      params.signal,
-    );
-  }
+  const monologue = await fetchMorningMonologue(
+    params.locale,
+    {
+      forceRefresh,
+      localeSwitch: preferLocaleSwitch,
+    },
+    params.signal,
+  );
 
   // Смена языка: только LLM-тексты (monologue выше) + кэш/structural forecast.
   // Смена натала: forceStructuralRefresh → сервер пересчитывает эфемериды и

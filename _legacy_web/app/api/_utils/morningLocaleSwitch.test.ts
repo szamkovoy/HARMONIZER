@@ -78,6 +78,45 @@ describe("morningLocaleSwitch source selection", () => {
     expect(best?.texts.slogan).toBe("Hello morning");
   });
 
+  it("prefers RU generated over a wrongly full-generated FR sourceTexts row", () => {
+    const best = pickBestMorningSource([
+      {
+        locale: "fr",
+        data: {
+          slogan: "Bonjour le matin",
+          short_text: "Recommandation française assez longue pour heuristique",
+          long_explanation: "FR long",
+          [MORNING_CACHE_OUTPUT_LOCALE_KEY]: "fr",
+          [MORNING_GENERATION_MODE_KEY]: "generated",
+          [MORNING_SOURCE_LOCALE_KEY]: "fr",
+          [MORNING_SOURCE_TEXTS_KEY]: {
+            slogan: "Bonjour le matin",
+            short_text: "Recommandation française assez longue pour heuristique",
+            long_explanation: "FR long",
+          },
+        },
+      },
+      {
+        locale: "ru",
+        data: {
+          slogan: "Доброе утро для практики",
+          short_text: "Сегодня полезно удерживать внимание на теле и дыхании",
+          long_explanation: "RU long",
+          [MORNING_CACHE_OUTPUT_LOCALE_KEY]: "ru",
+          [MORNING_GENERATION_MODE_KEY]: "generated",
+          [MORNING_SOURCE_LOCALE_KEY]: "ru",
+          [MORNING_SOURCE_TEXTS_KEY]: {
+            slogan: "Доброе утро для практики",
+            short_text: "Сегодня полезно удерживать внимание на теле и дыхании",
+            long_explanation: "RU long",
+          },
+        },
+      },
+    ]);
+    expect(best?.sourceLocale).toBe("ru");
+    expect(best?.texts.slogan).toBe("Доброе утро для практики");
+  });
+
   it("stores source meta on generated payloads", () => {
     const saved = withMorningSourceMeta(
       {

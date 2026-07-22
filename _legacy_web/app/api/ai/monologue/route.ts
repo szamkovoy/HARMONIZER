@@ -241,9 +241,14 @@ export async function POST(req: Request) {
       });
     }
 
-    // Profile locale switch: translate canonical source texts instead of a full
-    // morning regenerate (avoids 60–120s big-prompt path when another locale exists).
-    if (scenario.id === "morning_recommendation" && localeSwitch) {
+    // Translate from an existing today's morning source when possible:
+    // - Profile locale switch (`localeSwitch`) always prefers translate;
+    // - ordinary cache-miss (`!forceRefresh`) also translates if another locale
+    //   already has a generated/usable source — do not full-generate FR/DE/…
+    //   and mark that locale as a new canonical while RU (etc.) already exists.
+    // Structural natal refresh (`forceRefresh` without localeSwitch) skips this
+    // and falls through to a full generate.
+    if (scenario.id === "morning_recommendation" && (localeSwitch || !forceRefresh)) {
       endpointStage = "locale_switch_translate";
       try {
         const switched = await translateMorningFromCachedSource({
@@ -273,14 +278,17 @@ export async function POST(req: Request) {
             outputLocale: responseLocale,
             sourceLocale: switched.sourceLocale,
             sourceTexts: switched.sourceTexts,
-            generationMode: "translated",
+            generationMode: switched.generationMode,
           },
         );
-        endpointStage = "cache_save";
-        await saveScenarioCache(scenario, userId, switchedPayload, db, cacheSuffix);
+        // Existing target cache: return without rewrite (preserves generated RU etc.).
+        if (!switched.servedExistingTarget) {
+          endpointStage = "cache_save";
+          await saveScenarioCache(scenario, userId, switchedPayload, db, cacheSuffix);
+        }
         return json({
           ...switchedPayload,
-          cached: false,
+          cached: switched.servedExistingTarget,
           localeSwitch: true,
           scenario_id: scenario.id,
         });

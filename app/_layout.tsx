@@ -90,8 +90,9 @@ export default function RootLayout() {
 function AccessBridge({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   useEffect(() => {
-    // Load the persisted app locale once; seed from the profile locale if nothing
-    // is stored yet. Idempotent — later calls are ignored.
+    // Resolve UI locale: users.locale wins over sticky SecureStore from a
+    // previous account on this device. Re-runs when profile.locale changes
+    // (login / account switch).
     void hydrateAppLocale(profile?.locale);
   }, [profile?.locale]);
   return <AccessProvider profile={profile}>{children}</AccessProvider>;

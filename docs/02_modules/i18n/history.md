@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-23 (account locale over sticky SecureStore):** После логина другого пользователя устройство могло оставить язык предыдущего аккаунта (`harmonizer.locale.v1`) и затереть `users.locale` write-back’ом. `hydrateAppLocale` теперь предпочитает `profile.locale` и при смене аккаунта вызывает `setAppLocale`. Симптом QA: Pavel Master на Pixel открывал день на FR после Егора.
+
 - **2026-07-20 (OTP email — live UI locale via side-channel):** Returning user with `users.locale=ru` and Russian wizard still got a Portuguese OTP email. Root cause: same GoTrue limitation as the name bug — `signInWithOtp({ data: { locale } })` is ignored for existing users, and `send-auth-email` keyed templates only on stale `user_metadata.locale` from first registration. Fix: `signin_name_hints.locale` + RPC `set_signin_name_hint(..., p_locale)`; client writes `getResponseLocale()` with the name; edge prefers hint.locale → metadata → ru; after verify, `updateUser({ data: { locale } })` heals metadata. Migration `20260720095058` applied; edge redeployed. Spec §4.1c.
 
 - **2026-07-18 (notifications pre-permission — reverted):** Откатил введённый 2026-07-17 pre-permission `Alert` перед системным запросом уведомлений: по решению продукта стандартный iOS-системный диалог достаточен и надёжнее (не усложняем). Удалены ключи `reminderPrePermissionTitle/Message/Allow/Cancel` из `modules/home/i18n/home.ts` (RU+EN inline) и оверлеев `modules/i18n/typed/catalog/home/{de,fr,it,es,pt,nl}.json`; `OpportunityWindows.saveReminder` (`modules/home/ui/OpportunityWindows.tsx`) вернул прямой `requestPermissionsAsync` (функция `scheduleReminderNotification` инлайнена обратно в `saveReminder`). `i18n-sync check` зелёный.

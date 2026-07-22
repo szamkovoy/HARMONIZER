@@ -159,23 +159,39 @@ function notify(): void {
 let hydrated = false;
 
 /**
- * Load the persisted locale once at startup. If nothing is stored, optionally
- * seed from the user's profile locale, else keep the device default.
+ * Resolve the active locale from profile / SecureStore / device.
+ *
+ * Account locale (`users.locale`) wins over a sticky SecureStore value left by
+ * a previous account on the same device. On first call without a profile yet,
+ * we keep SecureStore/device; when profile arrives (or the account changes),
+ * a later call adopts `profileLocale` if it differs.
+ *
  * Always mirrors the resolved locale to `users.locale` so server push/inbox
  * match the in-app language even when SecureStore and DB drifted apart.
  */
 export async function hydrateAppLocale(profileLocale?: string | null): Promise<void> {
-  if (hydrated) return;
-  hydrated = true;
-  const stored = await readPersisted();
-  const next = stored ?? (isEnabledLocale(profileLocale) ? (profileLocale as AppLocale) : currentLocale);
-  if (next !== currentLocale) {
-    currentLocale = next;
-    notify();
+  const profileCode = isEnabledLocale(profileLocale) ? (profileLocale as AppLocale) : null;
+
+  if (!hydrated) {
+    hydrated = true;
+    const stored = await readPersisted();
+    // Prefer account locale over device-sticky SecureStore from another login.
+    const next = profileCode ?? stored ?? currentLocale;
+    if (next !== currentLocale) {
+      currentLocale = next;
+      notify();
+    }
+    if (next !== stored) {
+      await persist(next);
+    }
+    void syncUserLocaleToServer(next).catch(() => undefined);
+    return;
   }
-  // Write-back even when already equal in memory: SecureStore may be "it"
-  // while users.locale stayed "ru" (sync failed or language set before write-back).
-  void syncUserLocaleToServer(next).catch(() => undefined);
+
+  // Profile arrived after first hydrate, or user switched accounts.
+  if (profileCode && profileCode !== currentLocale) {
+    await setAppLocale(profileCode);
+  }
 }
 
 export function getAppLocale(): AppLocale {

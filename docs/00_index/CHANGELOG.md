@@ -1,4 +1,5 @@
 - 2026-07-23 (251): `google-services.json` убран из git (GitHub secret scanning); шаблон `.example` + gitignore. Нужна ротация Android API key в Google Cloud.
+- 2026-07-23 (250): Locale switch — account `users.locale` over sticky SecureStore; morning source = generated RU; no overwrite of existing target; no silent LLM retry. Cabinet open failures → runtimeDiagnostics.
 - 2026-07-23 (249): Android FCM — `google-services.json` + FCM V1 key в EAS (`upload-fcm-to-eas.mjs`); старт rebuild Android development.
 - 2026-07-22 (248): Android FCM wiring — `app.config` подхватывает `google-services.json`; чекер `scripts/android-fcm-setup.mjs`; await Android notification channels. Осталось: файлы Firebase + EAS FCM key + rebuild.
 - 2026-07-22 (247): Android remote push — колокольчик после grant делает `registerPushToken`; админ Expo payload с `channelId: harmonizer_remote`; в docs зафиксирован блокер FCM/`google-services.json`.

@@ -50,7 +50,12 @@ import {
 import { PeriodSelector } from "@/modules/profile/ui/PeriodSelector";
 import { PracticeStatsChart } from "@/modules/profile/ui/PracticeStatsChart";
 import { loadDailyPracticeStatsInRange, type DailyPracticeStat } from "@/services/practiceSessions";
-import { clearRuntimeDiagnostics, logRuntimeTap, shareRuntimeDiagnosticsReport } from "@/services/runtimeDiagnostics";
+import {
+  clearRuntimeDiagnostics,
+  logRuntimeEvent,
+  logRuntimeTap,
+  shareRuntimeDiagnosticsReport,
+} from "@/services/runtimeDiagnostics";
 import { markHomeDayContentBlockingReload } from "@/services/homeDayContentReloadRequest";
 import { createNatalProfile } from "@/services/natalProfileClient";
 import { clearDayContentCache } from "@/services/dayContentCache";
@@ -191,16 +196,12 @@ export default function ProfileTabRoute() {
           if (controller.signal.aborted) return;
         }
         if (!peekLocaleDayContentComplete(peekArgs)) {
-          if (params.accessMode === "free") {
-            // Free texts already live in `warmed` / server cache — do not force LLM regen
-            // just because SecureStore peek lags after app restart.
-            if (!warmed) throw new Error(t("profile.language.rebuildError"));
-          } else {
-            warmed = await ensureOnce(true);
-            if (controller.signal.aborted) return;
-            if (!peekLocaleDayContentComplete(peekArgs)) {
-              throw new Error(t("profile.language.rebuildError"));
-            }
+          // Free: texts may already be in `warmed` while SecureStore peek lags.
+          // Paid: do not silently force a second LLM/translate attempt — surface
+          // the rebuild error dialog instead (avoids 2+ minute silent waits).
+          if (!warmed) throw new Error(t("profile.language.rebuildError"));
+          if (params.accessMode !== "free") {
+            throw new Error(t("profile.language.rebuildError"));
           }
         }
 
@@ -383,8 +384,14 @@ export default function ProfileTabRoute() {
     setCabinetOpening(true);
     try {
       await openAccountCabinet();
-    } catch {
-      // Технический текст (HTTP 503 / schema cache) пользователю не показываем.
+    } catch (error) {
+      // Технический текст (HTTP 503 / schema cache) пользователю не показываем;
+      // деталь уже в runtimeDiagnostics (`cabinet:open_failed`).
+      logRuntimeEvent(
+        "profile:cabinet_error",
+        { message: error instanceof Error ? error.message : String(error) },
+        "warn",
+      );
       setCabinetError("1");
     } finally {
       setCabinetOpening(false);

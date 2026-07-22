@@ -27,6 +27,7 @@ import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accoun
 import { resolveBillingCurrency } from "@/modules/account/core/billingCurrency";
 import { getResponseLocale } from "@/modules/i18n";
 import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { getSupabaseAccessToken, getSupabaseSessionSnapshot } from "@/services/supabase";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
@@ -103,18 +104,34 @@ export async function clearCabinetVisit(userId: string): Promise<void> {
 export async function openAccountCabinet(ctx: CabinetContext = "tier"): Promise<void> {
   const session = await getSupabaseSessionSnapshot();
   const userId = session?.user?.id ?? null;
-  // currency: кэш/таймаут ≤800мс — не блокируем openURL долгим reverse-geocode.
-  const [ott, currency] = await Promise.all([requestOneTimeToken(), resolveBillingCurrency(userId)]);
-  const url = new URL(getAccountCabinetUrl());
-  url.searchParams.set("ott", ott);
-  url.searchParams.set("lang", getResponseLocale());
-  url.searchParams.set("currency", currency);
-  url.searchParams.set("ctx", ctx);
-  if (userId) await markCabinetVisit(userId, ctx);
-  // Custom Tabs / SFSafariViewController — still an external browser (App Store /
-  // Play billing rules). createTask:false keeps the Expo activity alive on Android.
-  await WebBrowser.openBrowserAsync(url.toString(), {
-    createTask: Platform.OS === "android" ? false : undefined,
-    showInRecents: true,
-  });
+  try {
+    // currency: кэш/таймаут ≤800мс — не блокируем openURL долгим reverse-geocode.
+    const [ott, currency] = await Promise.all([requestOneTimeToken(), resolveBillingCurrency(userId)]);
+    const url = new URL(getAccountCabinetUrl());
+    url.searchParams.set("ott", ott);
+    url.searchParams.set("lang", getResponseLocale());
+    url.searchParams.set("currency", currency);
+    url.searchParams.set("ctx", ctx);
+    if (userId) await markCabinetVisit(userId, ctx);
+    // Custom Tabs / SFSafariViewController — still an external browser (App Store /
+    // Play billing rules). createTask:false keeps the Expo activity alive on Android.
+    await WebBrowser.openBrowserAsync(url.toString(), {
+      createTask: Platform.OS === "android" ? false : undefined,
+      showInRecents: true,
+    });
+    logRuntimeEvent("cabinet:opened", { ctx, currency, platform: Platform.OS });
+  } catch (error) {
+    logRuntimeEvent(
+      "cabinet:open_failed",
+      {
+        ctx,
+        platform: Platform.OS,
+        hasSession: Boolean(userId),
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : undefined,
+      },
+      "warn",
+    );
+    throw error;
+  }
 }
