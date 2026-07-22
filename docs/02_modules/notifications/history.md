@@ -1,13 +1,15 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.0
-updated: 2026-07-08
+version: 1.1
+updated: 2026-07-22
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-22 (permission policy):** Единый `ensureNotificationPermission(reason)`: мягкий запрос на Главной (cooldown 7 дн. после отказа), колокольчик окон — без cooldown, вебинар (запись / уже записан после оплаты) — cooldown 3 дн. `PushRegistrationBridge` / `registerPushToken` больше не вызывают системный диалог сами. Онбординг не спрашивает. Docs §3.1.
 
 - **2026-07-14 (inbox nav + hang):** «Все уведомления» могло висеть на лоадере (auth ещё `initializing` / запрос без таймаута). Back с пуш-ридера оставлял полупустой Home + splash. Фикс: wait auth, timeout 12s, `replace` stack, title «Уведомление», unread accent / read muted; inbox остаётся только admin deliveries.
 

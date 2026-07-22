@@ -1,16 +1,21 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.1
-updated: 2026-07-14
+version: 1.2
+updated: 2026-07-22
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
     modules/notifications/index.ts,
     modules/notifications/core/pushRegistration.ts,
+    modules/notifications/core/notificationPermissionPolicy.ts,
+    modules/notifications/core/notificationPermissionStore.ts,
     modules/notifications/core/notificationsClient.ts,
     modules/notifications/ui/PushRegistrationBridge.tsx,
     modules/notifications/ui/MyNotificationsScreen.tsx,
+    modules/home/ui/OpportunityWindows.tsx,
+    modules/webinars/ui/WebinarScreen.tsx,
+    app/(tabs)/index.tsx,
     app/my-notifications.tsx,
     app/_layout.tsx,
     app/(tabs)/profile.tsx,
@@ -36,11 +41,11 @@ code_refs:
 **Клиент (`modules/notifications`, barrel `index.ts`):**
 
 - **`resolveNotificationCopy` / `resolveNotificationLocale`** — **единая точка** языка уведомлений (клиент: `modules/notifications/core/resolveNotificationCopy.ts`; сервер: `_legacy_web/app/api/_utils/notificationCopy.ts`). Вход: `users.locale` (remote) или UI-локаль (inbox). Цепочка текста: preferred → en → ru.
-- **`PushRegistrationBridge`** — после логина и при `AppState=active` вызывает `registerPushToken`; тап по push (в т.ч. cold start через `getLastNotificationResponseAsync`) → **`router.replace("/push-message")`** с полным текстом и кликабельными ссылками (`LinkifiedBody` + кнопка `link_url`). `replace` (не `push`), чтобы под ридером не оставался полузагруженный Home.
-- **`PushMessageScreen`** — заголовок «Уведомление»; назад → `replace("/(tabs)")`; «Все уведомления» → `replace("/my-notifications")`; при `notificationId` помечает delivery прочитанной.
-- **`registerPushToken(userId)`** — sync UI → `users.locale`; **`claim_push_token` RPC**.
-- **`MyNotificationsScreen`** — inbox только **рассылок автора** (`notification_deliveries`); ждёт конец auth `initializing`; таймаут 12s + ошибка вместо вечного лоадера; непрочитанные с акцентом/точкой, прочитанные приглушены; при открытии — `markAllNotificationsRead`. Локальные колокольчики окон возможностей и будущие webinar reminders **не** входят в этот список.
-- **Профиль** — «Мои уведомления» с бейджем.
+- **`PushRegistrationBridge`** — после логина / `AppState=active` вызывает `registerPushToken` **без** системного диалога (только если уже granted); тап по push → **`router.replace("/push-message")`**.
+- **`ensureNotificationPermission(reason)`** — единая политика запроса OS-разрешения (см. §3.1).
+- **`registerPushToken(userId)`** — sync UI → `users.locale`; **`claim_push_token` RPC**; **не** вызывает `requestPermissionsAsync`.
+- **`PushMessageScreen`** / **`MyNotificationsScreen`** / Профиль — без изменений контракта inbox.
+- Точки запроса UI: Главная (`home`), колокольчик окон (`opportunity_bell`), экран вебинара при записи / уже записан (`webinar`).
 
 **Админка (гейт `requireAdmin`):**
 
@@ -51,6 +56,21 @@ code_refs:
 
 - **`push_tokens`** + RPC **`claim_push_token`** (`20260714130000`).
 - **`notifications`** / **`notification_deliveries`**.
+- Клиентские флаги cooldown (SecureStore / localStorage): `harmonizer.notif.perm.lastSoftAskAt`, `…lastWebinarAskAt`.
+
+### 3.1 Политика запроса разрешения (алгоритм)
+
+Единая точка: `ensureNotificationPermission(reason)` → при `granted` вызывающий код делает `registerPushToken`.
+
+| reason | Когда | Поведение |
+| --- | --- | --- |
+| `home` | Фокус вкладки Главная (авторизован) | Мягкий запрос. Если `undetermined` — спросить (повтор не чаще 7 дн.). Если уже denied и `canAskAgain` — снова только после 7 дн. Если ОС больше не показывает диалог — skip. |
+| `opportunity_bell` | Сохранение напоминания колокольчиком | Явный жест: спросить сразу (без cooldown). При отказе — Alert «нужно разрешение» (как раньше). |
+| `webinar` | Нажал «Записаться» **или** экран вебинара при `registered=true` (в т.ч. после оплаты в кабинете) | Контекстный запрос, не чаще **1 раза в 3 дня** (чтобы не дёргать при каждом возврате к ссылке на комнату). |
+
+**Не спрашиваем:** в онбординге; из `PushRegistrationBridge` при логине/foreground (только claim токена если уже granted).
+
+**Зачем уведомления сейчас:** remote-рассылки админа (inbox работает и без разрешения); локальные колокольчики окон возможностей. **Будущее:** напоминание о старте вебинара — та же регистрация токена / то же разрешение; планировщик напоминания — отдельная задача.
 
 ## 4. i18n
 
@@ -62,3 +82,5 @@ UI — `notifications.*`. **Язык любого remote push** = только `
 - Пуш не догоняет токены, зарегистрированные после рассылки.
 - Expo receipts не сверяются.
 - Inbox ≠ все пуши устройства: только строки `notification_deliveries`. Напоминания окон возможностей (колокольчик) — локальный `expo-notifications`, в inbox не пишутся.
+- Текст системного iOS-диалога разрешений **не редактируется** (ограничение Apple); pre-permission Alert сознательно не используем (откат 2026-07-18).
+- Если пользователь навсегда запретил уведомления в настройках ОС (`canAskAgain=false`), повторный системный диалог невозможен — только ручное включение в Settings.

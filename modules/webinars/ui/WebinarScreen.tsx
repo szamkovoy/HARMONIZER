@@ -18,6 +18,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountGateDialog, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
+import {
+  ensureNotificationPermission,
+  registerPushToken,
+} from "@/modules/notifications";
 import { CommentsSection, type CommentItem } from "@/modules/posts";
 import { fetchComments } from "@/modules/posts/core/postsClient";
 import { CommentComposer } from "@/modules/posts/ui/CommentsSection";
@@ -35,6 +39,12 @@ import { AppText } from "@/modules/ui/AppText";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { StateCard } from "@/modules/ui/StateCard";
 import { useTheme } from "@/modules/ui/theme";
+
+async function askWebinarNotifications(userId: string | null): Promise<void> {
+  if (!userId || Platform.OS === "web") return;
+  const result = await ensureNotificationPermission("webinar");
+  if (result === "granted") await registerPushToken(userId);
+}
 
 export function WebinarScreen() {
   const theme = useTheme();
@@ -59,7 +69,11 @@ export function WebinarScreen() {
 
   useEffect(() => {
     if (!id || !userId) return;
-    void isRegistered(id, userId).then(setRegisteredState);
+    void isRegistered(id, userId).then((ok) => {
+      setRegisteredState(ok);
+      // Уже записан (в т.ч. после оплаты в кабинете) — контекстный запрос уведомлений.
+      if (ok) void askWebinarNotifications(userId);
+    });
     void fetchComments("webinar", id, userId, locale).then(setQuestions);
   }, [id, userId, locale]);
 
@@ -70,7 +84,10 @@ export function WebinarScreen() {
     if (!id || !userId) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      void isRegistered(id, userId).then(setRegisteredState);
+      void isRegistered(id, userId).then((ok) => {
+        setRegisteredState(ok);
+        if (ok) void askWebinarNotifications(userId);
+      });
     });
     return () => sub.remove();
   }, [id, userId]);
@@ -88,6 +105,7 @@ export function WebinarScreen() {
     }
     setRegisteredState(true);
     void setRegistered(id, userId, true);
+    void askWebinarNotifications(userId);
   }, [canUseFeature, id, userId]);
 
   const onQuestionsChanged = useCallback((next: CommentItem[]) => setQuestions(next), []);

@@ -6,11 +6,15 @@ import { getExpoNotificationsOrNull } from "@/services/localNotifications";
 import { getSupabase } from "@/services/supabase";
 import { syncUserLocaleToServer } from "@/services/userLocaleClient";
 
+import { hasNotificationPermission } from "./notificationPermissionPolicy";
+
 /**
  * Registers Expo push token via claim_push_token RPC (security definer) so the
  * device token is always owned by the signed-in user — plain upsert is blocked
  * by RLS when the token was previously tied to another account.
  * Also mirrors UI locale → users.locale (language for remote pushes).
+ *
+ * Does NOT prompt for permission — use `ensureNotificationPermission` first.
  */
 export async function registerPushToken(userId: string): Promise<void> {
   if (Platform.OS === "web") return;
@@ -21,17 +25,8 @@ export async function registerPushToken(userId: string): Promise<void> {
   try {
     void syncUserLocaleToServer(getAppLocale()).catch(() => undefined);
 
-    let { status } = await Notifications.getPermissionsAsync();
-    if (status === "undetermined") {
-      ({ status } = await Notifications.requestPermissionsAsync({
-        ios: {
-          allowAlert: true,
-          allowBadge: true,
-          allowSound: true,
-        },
-      }));
-    }
-    if (status !== "granted") return;
+    const allowed = await hasNotificationPermission();
+    if (!allowed) return;
 
     const projectId: string | undefined =
       Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
@@ -50,7 +45,6 @@ export async function registerPushToken(userId: string): Promise<void> {
       p_expo_token: true,
     });
     if (error) {
-      // Always log — silent RLS upsert failures caused Russian pushes for IT profiles.
       console.warn("[notifications] claim_push_token failed", error.message);
       return;
     }

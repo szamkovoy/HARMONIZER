@@ -38,6 +38,10 @@ import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { createNatalProfile, fetchActiveNatalProfileCached } from "@/services/natalProfileClient";
 import { LatestPostBanner } from "@/modules/posts";
 import { StoriesRing } from "@/modules/stories";
+import {
+  ensureNotificationPermission,
+  registerPushToken,
+} from "@/modules/notifications";
 import { UpcomingWebinarBanner } from "@/modules/webinars";
 import { requireSupabase } from "@/services/supabase";
 import { StatusBar } from "expo-status-bar";
@@ -538,12 +542,20 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const pending = consumeHomeDayContentBlockingReload();
-      if (!pending) return;
-      void refresh({
-        forceRefresh: pending.forceRefresh,
-        blockingReload: true,
-      });
-    }, [refresh]),
+      if (pending) {
+        void refresh({
+          forceRefresh: pending.forceRefresh,
+          blockingReload: true,
+        });
+      }
+      // Мягкий запрос уведомлений на Главной (cooldown / политика — в notifications).
+      if (authUser?.id && Platform.OS !== "web") {
+        void (async () => {
+          const result = await ensureNotificationPermission("home");
+          if (result === "granted") await registerPushToken(authUser.id);
+        })();
+      }
+    }, [authUser?.id, refresh]),
   );
 
   const prevLocaleRef = useRef(appLocale);

@@ -27,6 +27,7 @@ import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
+import { ensureNotificationPermission } from "@/modules/notifications";
 import {
   buildOpportunityAlarmStyleContent,
   getExpoNotificationsOrNull,
@@ -694,14 +695,8 @@ export function OpportunityWindows({
       return;
     }
 
-    const permissions = await notificationsApi.requestPermissionsAsync({
-      ios: { allowAlert: true, allowSound: true, allowBadge: false },
-    });
-    const iosOk =
-      permissions.ios?.status === notificationsApi.IosAuthorizationStatus.PROVISIONAL ||
-      permissions.ios?.status === notificationsApi.IosAuthorizationStatus.AUTHORIZED;
-    const allowed = permissions.granted || iosOk;
-    if (!allowed) {
+    const perm = await ensureNotificationPermission("opportunity_bell");
+    if (perm !== "granted") {
       Alert.alert(t.reminderNeedPermissionTitle, t.reminderNeedPermissionMessage);
       return;
     }

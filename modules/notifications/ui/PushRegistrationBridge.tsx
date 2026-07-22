@@ -47,8 +47,9 @@ function openPushMessage(response: {
 }
 
 /**
- * Registers push token, syncs locale, and opens the in-app message reader
- * when the user taps a remote notification (including cold start).
+ * Registers push token (только если разрешение уже выдано — без системного
+ * диалога; запросы делает `ensureNotificationPermission` на Home / bell / webinar),
+ * syncs locale, and opens the in-app message reader on notification tap.
  */
 export function PushRegistrationBridge() {
   const { authUser } = useAuth();
@@ -59,6 +60,7 @@ export function PushRegistrationBridge() {
   useEffect(() => {
     if (!userId || registeredForRef.current === userId) return;
     registeredForRef.current = userId;
+    // Без prompt: токен только при уже granted (после Home/bell/webinar).
     void registerPushToken(userId);
     void logAppOpen(userId);
   }, [userId]);
