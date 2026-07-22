@@ -28,6 +28,8 @@ code_refs:
     _legacy_web/app/api/astro/daily-forecast/route.ts,
     _legacy_web/app/api/_utils/dailyForecastPayload.ts,
     _legacy_web/app/api/_utils/morningRecommendation.ts,
+    _legacy_web/app/api/_utils/morningLocaleSwitch.ts,
+    _legacy_web/app/api/ai/monologue/route.ts,
     supabase/functions/daily-forecast/index.ts,
   ]
 ---
@@ -42,7 +44,7 @@ code_refs:
   - Home/Day UI strings через `getHomeStrings(locale)`; `fetchGlobalContent` / monologue — `responseLocale` из `getResponseLocale()`.
   - **`services/globalContentClient.ts`** direct Supabase fallback imports `_legacy_web/app/api/_utils/recommendationText.ts` (`normalizeRecommendationText`, `isCurrentGlobalLongExplanation`) and `mathLevelI18n.ts` to normalize legacy tone/chakra vocabulary, drop unstructured/chakra-heavy `long_explanation`, and rebuild localized free `math_level.markdown` from structured transit payload when `/api/ai/global-content` times out.
   - **`modules/home/sanitizeRecommendationDisplay.ts`** — client-side display pass over `normalizeRecommendationText` in `useDayContent` and `DailyRecommendationCard`.
-  - **`useDayContent`** подписан на **`subscribeAppLocale`**: сначала warmed `dayContentCache` (те же overrides, что Home); иначе `stripHomeLlmTexts` + `refresh({ localeChange: true })` без авто-force второго monologue. Ключ кэша: `resolveDayContentAccessKeys` / `accessModeForTier` + `access.tier`. **`app/(tabs)/profile.tsx`** probe/ensure до commit локали; **не** `markHomeDayContentBlockingReload` на смену языка. **`fetchDailyForecast`** / **`fetchGlobalContent`** передают **`responseLocale`**; profile ensure на free — **`forceRefresh`**.
+  - **`useDayContent`** подписан на **`subscribeAppLocale`**: сначала warmed `dayContentCache` (те же overrides, что Home); иначе `stripHomeLlmTexts` + `refresh({ localeChange: true })` без авто-force второго monologue. Ключ кэша: `resolveDayContentAccessKeys` / `accessModeForTier` + `access.tier`. **`app/(tabs)/profile.tsx`** probe/ensure до commit локали; **не** `markHomeDayContentBlockingReload` на смену языка. Paid ensure: monologue **`localeSwitch`** → translate canonical morning `sourceTexts` (`morningLocaleSwitch.ts`). **`fetchDailyForecast`** / **`fetchGlobalContent`** передают **`responseLocale`**; profile ensure на free — **`forceRefresh`**.
 
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  

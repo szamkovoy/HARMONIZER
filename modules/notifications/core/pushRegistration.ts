@@ -52,6 +52,18 @@ export async function registerPushToken(userId: string): Promise<void> {
       console.log("[notifications] push token claimed", { userId, platform });
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Android remote push needs FCM in the native build; without it getExpoPushTokenAsync fails.
+    if (
+      Platform.OS === "android" &&
+      /firebase|fcm|google.?services|Default FirebaseApp/i.test(message)
+    ) {
+      console.warn(
+        "[notifications] Android Expo push token unavailable — configure FCM (google-services.json + EAS credentials)",
+        message,
+      );
+      return;
+    }
     console.warn("[notifications] push registration failed", error);
   }
 }

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.2
+version: 1.4
 updated: 2026-07-22
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
@@ -26,6 +26,8 @@ code_refs:
     _legacy_web/app/api/admin/notifications/segment.ts,
     _legacy_web/app/api/_utils/contentLocaleFallback.ts,
     services/localNotifications.ts,
+    scripts/android-fcm-setup.mjs,
+    app.config.ts,
     supabase/migrations/20260423080000_init.sql,
     supabase/migrations/20260708150000_notifications.sql,
     supabase/migrations/20260714110000_notifications_i18n_and_feed_locale_fallback.sql,
@@ -50,7 +52,7 @@ code_refs:
 **Админка (гейт `requireAdmin`):**
 
 - `GET/POST /api/admin/notifications`, `DELETE|POST …/[id]` (удаление; UI шлёт POST `{action:"delete"}`).
-- POST: recipients → row + i18n → deliveries → Expo через `resolveNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel`. Expo fetch: `Connection: close`, timeout, полный consume body (защита от `TypeError: terminated` на Vercel). UI при обрыве сети после успеха — показывает «рассылка сохранена» по истории.
+- POST: recipients → row + i18n → deliveries → Expo через `resolveNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel` + Android `channelId: harmonizer_remote`. Expo fetch: `Connection: close`, timeout, полный consume body (защита от `TypeError: terminated` на Vercel). UI при обрыве сети после успеха — показывает «рассылка сохранена» по истории.
 
 ## 3. Данные
 
@@ -84,3 +86,5 @@ UI — `notifications.*`. **Язык любого remote push** = только `
 - Inbox ≠ все пуши устройства: только строки `notification_deliveries`. Напоминания окон возможностей (колокольчик) — локальный `expo-notifications`, в inbox не пишутся.
 - Текст системного iOS-диалога разрешений **не редактируется** (ограничение Apple); pre-permission Alert сознательно не используем (откат 2026-07-18).
 - Если пользователь навсегда запретил уведомления в настройках ОС (`canAskAgain=false`), повторный системный диалог невозможен — только ручное включение в Settings.
+- **Android remote push требует FCM:** разрешение ОС + локальные напоминания (колокольчик) работают без Firebase; доставка **админских** push через Expo Push на Android — только при `google-services.json` в native build (`app.config.ts` подхватывает файл из корня) и FCM v1 credentials в EAS. Чекер: `node scripts/android-fcm-setup.mjs`. Без этого `getExpoPushTokenAsync` на Android падает. См. `open_questions.md`.
+- **Android channels:** `ensureAndroidNotificationChannels()` создаёт `harmonizer_opportunity_high` и `harmonizer_remote` (в Settings → категории могут быть под «Показать неиспользуемые», пока ни одно уведомление не пришло).

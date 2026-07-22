@@ -21,14 +21,22 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-async function translateFields(from: GlobalTextFields, locale: TargetLocale): Promise<GlobalTextFields> {
-  const languageName = languageNameFor(locale);
+async function translateFields(
+  from: GlobalTextFields,
+  toLocale: AppContentLocale,
+  fromLocale: AppContentLocale = SOURCE_LOCALE,
+): Promise<GlobalTextFields> {
+  const fromName = languageNameFor(fromLocale);
+  const toName = languageNameFor(toLocale);
   const result = await generateGeminiJson<GlobalTextFields>({
     prompt: [
-      `Translate the following daily forecast texts from Russian into ${languageName}.`,
+      `Translate the following daily forecast texts from ${fromName} into ${toName}.`,
       "Preserve an empathetic mentor tone suitable for a yoga + psychology app.",
       "Return JSON with keys slogan, short_text, long_explanation only.",
-      "Do not leave any Russian/Cyrillic in the output.",
+      `Do not leave any ${fromName} phrasing in the output.`,
+      toLocale === SOURCE_LOCALE
+        ? "Write the output in Russian."
+        : "Do not use Cyrillic letters unless required by a proper noun.",
       "",
       JSON.stringify(from, null, 2),
     ].join("\n"),
@@ -45,21 +53,22 @@ async function translateFields(from: GlobalTextFields, locale: TargetLocale): Pr
 }
 
 /**
- * Translate RU (or wrong-language) morning slogan/short/long into a target locale.
- * Used as a last-resort fallback when the monologue LLM ignores OUTPUT LANGUAGE.
+ * Translate morning slogan/short/long into a target locale.
+ * Used for Profile locale-switch (preferred) and as a last-resort when the
+ * monologue LLM ignores OUTPUT LANGUAGE.
  */
 export async function translateMorningTextFields(
   from: GlobalTextFields,
   locale: AppContentLocale,
+  fromLocale: AppContentLocale = SOURCE_LOCALE,
 ): Promise<GlobalTextFields> {
-  if (locale === SOURCE_LOCALE) {
-    return {
-      slogan: asString(from.slogan),
-      short_text: asString(from.short_text),
-      long_explanation: asString(from.long_explanation),
-    };
-  }
-  return translateFields(from, locale as TargetLocale);
+  const source: GlobalTextFields = {
+    slogan: asString(from.slogan),
+    short_text: asString(from.short_text),
+    long_explanation: asString(from.long_explanation),
+  };
+  if (locale === fromLocale) return source;
+  return translateFields(source, locale, fromLocale);
 }
 
 /**

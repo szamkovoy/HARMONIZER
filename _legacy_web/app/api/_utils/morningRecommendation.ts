@@ -14,8 +14,11 @@ import {
   buildOutputLanguageRetryBlock,
   isMorningRecommendationCacheValid,
   morningTextsMatchLocale,
-  MORNING_CACHE_OUTPUT_LOCALE_KEY,
 } from "./outputLanguagePrompt";
+import {
+  inferMorningSourceLocale,
+  withMorningSourceMeta,
+} from "./morningLocaleSwitch";
 import { translateMorningTextFields } from "./pretranslateGlobalTexts";
 import { getActivePrompt, renderPrompt } from "./prompts";
 import { checkScenarioCache, saveScenarioCache } from "./scenarioCache";
@@ -254,18 +257,29 @@ export async function ensureMorningRecommendation(params: {
   };
 
   let payload = await generateOnce(false);
+  let sourceTexts = {
+    slogan: payload.slogan,
+    short_text: payload.short_text,
+    long_explanation: payload.long_explanation,
+  };
+  let sourceLocale = responseLocale;
   if (!morningTextsMatchLocale(responseLocale, payload.slogan, payload.short_text)) {
     payload = await generateOnce(true);
+    sourceTexts = {
+      slogan: payload.slogan,
+      short_text: payload.short_text,
+      long_explanation: payload.long_explanation,
+    };
+    sourceLocale = responseLocale;
   }
   if (!morningTextsMatchLocale(responseLocale, payload.slogan, payload.short_text)) {
-    const translated = await translateMorningTextFields(
-      {
-        slogan: payload.slogan,
-        short_text: payload.short_text,
-        long_explanation: payload.long_explanation,
-      },
-      responseLocale,
-    );
+    sourceTexts = {
+      slogan: payload.slogan,
+      short_text: payload.short_text,
+      long_explanation: payload.long_explanation,
+    };
+    sourceLocale = inferMorningSourceLocale(sourceTexts, "en");
+    const translated = await translateMorningTextFields(sourceTexts, responseLocale, sourceLocale);
     payload = {
       ...payload,
       slogan: translated.slogan,
@@ -280,12 +294,19 @@ export async function ensureMorningRecommendation(params: {
   await saveScenarioCache(
     scenario,
     params.userId,
-    {
-      ...payload,
-      math_level: payload.math_level,
-      modelUsed: payload.modelUsed,
-      [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale,
-    },
+    withMorningSourceMeta(
+      {
+        ...payload,
+        math_level: payload.math_level,
+        modelUsed: payload.modelUsed,
+      },
+      {
+        outputLocale: responseLocale,
+        sourceLocale,
+        sourceTexts,
+        generationMode: "generated",
+      },
+    ),
     params.db,
     cacheSuffix,
   );

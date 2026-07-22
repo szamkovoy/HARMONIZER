@@ -23,6 +23,18 @@ import practices_fr from "./catalog/practices/fr.json";
 import practices_it from "./catalog/practices/it.json";
 import practices_nl from "./catalog/practices/nl.json";
 import practices_pt from "./catalog/practices/pt.json";
+import asanaScreen_de from "./catalog/asanaScreen/de.json";
+import asanaScreen_es from "./catalog/asanaScreen/es.json";
+import asanaScreen_fr from "./catalog/asanaScreen/fr.json";
+import asanaScreen_it from "./catalog/asanaScreen/it.json";
+import asanaScreen_nl from "./catalog/asanaScreen/nl.json";
+import asanaScreen_pt from "./catalog/asanaScreen/pt.json";
+import remotePlay_de from "./catalog/remotePlay/de.json";
+import remotePlay_es from "./catalog/remotePlay/es.json";
+import remotePlay_fr from "./catalog/remotePlay/fr.json";
+import remotePlay_it from "./catalog/remotePlay/it.json";
+import remotePlay_nl from "./catalog/remotePlay/nl.json";
+import remotePlay_pt from "./catalog/remotePlay/pt.json";
 import communicator_de from "./catalog/communicator/de.json";
 import communicator_es from "./catalog/communicator/es.json";
 import communicator_fr from "./catalog/communicator/fr.json";
@@ -95,6 +107,22 @@ export const GENERATED_TYPED_OVERLAYS: Record<
     it: practices_it as Record<string, unknown>,
     nl: practices_nl as Record<string, unknown>,
     pt: practices_pt as Record<string, unknown>,
+  },
+  asanaScreen: {
+    de: asanaScreen_de as Record<string, unknown>,
+    es: asanaScreen_es as Record<string, unknown>,
+    fr: asanaScreen_fr as Record<string, unknown>,
+    it: asanaScreen_it as Record<string, unknown>,
+    nl: asanaScreen_nl as Record<string, unknown>,
+    pt: asanaScreen_pt as Record<string, unknown>,
+  },
+  remotePlay: {
+    de: remotePlay_de as Record<string, unknown>,
+    es: remotePlay_es as Record<string, unknown>,
+    fr: remotePlay_fr as Record<string, unknown>,
+    it: remotePlay_it as Record<string, unknown>,
+    nl: remotePlay_nl as Record<string, unknown>,
+    pt: remotePlay_pt as Record<string, unknown>,
   },
   communicator: {
     de: communicator_de as Record<string, unknown>,

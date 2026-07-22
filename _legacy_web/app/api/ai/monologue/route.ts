@@ -15,6 +15,11 @@ import { formatAuthorVoiceForPrompt, getAuthorVoice } from "../../_utils/authorV
 import { generateGeminiJson, getModelByHint } from "../../_utils/gemini";
 import { buildMathLevel } from "../../_utils/mathLevelBuilder";
 import { reportRouteError } from "../../_utils/monitoring";
+import {
+  inferMorningSourceLocale,
+  translateMorningFromCachedSource,
+  withMorningSourceMeta,
+} from "../../_utils/morningLocaleSwitch";
 import { translateMorningTextFields } from "../../_utils/pretranslateGlobalTexts";
 import { getActivePrompt, renderPrompt } from "../../_utils/prompts";
 import { checkScenarioCache, saveScenarioCache } from "../../_utils/scenarioCache";
@@ -217,6 +222,7 @@ export async function POST(req: Request) {
 
     endpointStage = "cache_lookup";
     const forceRefresh = body.variables?.forceRefresh === true || body.variables?.force_refresh === true;
+    const localeSwitch = body.variables?.localeSwitch === true || body.variables?.locale_switch === true;
     const cached = await checkScenarioCache<Record<string, unknown>>(scenario, userId, db, cacheSuffix);
     if (
       !forceRefresh
@@ -234,6 +240,59 @@ export async function POST(req: Request) {
         scenario_id: scenario.id,
       });
     }
+
+    // Profile locale switch: translate canonical source texts instead of a full
+    // morning regenerate (avoids 60–120s big-prompt path when another locale exists).
+    if (scenario.id === "morning_recommendation" && localeSwitch) {
+      endpointStage = "locale_switch_translate";
+      try {
+        const switched = await translateMorningFromCachedSource({
+          db,
+          userId,
+          targetLocale: responseLocale,
+        });
+        endpointStage = "prepare_morning_recommendation";
+        const prepared = await buildMorningRecommendationVariables(
+          db,
+          userId,
+          addScenarioVariables(scenario.id, body.variables ?? {}),
+          responseLocale,
+        );
+        const switchedPayload = withMorningSourceMeta(
+          normalizeRecommendationFields(
+            {
+              slogan: switched.slogan,
+              short_text: switched.short_text,
+              long_explanation: switched.long_explanation,
+              math_level: prepared.mathLevel ?? switched.math_level,
+              modelUsed: switched.modelUsed,
+            },
+            responseLocale,
+          ) as Record<string, unknown>,
+          {
+            outputLocale: responseLocale,
+            sourceLocale: switched.sourceLocale,
+            sourceTexts: switched.sourceTexts,
+            generationMode: "translated",
+          },
+        );
+        endpointStage = "cache_save";
+        await saveScenarioCache(scenario, userId, switchedPayload, db, cacheSuffix);
+        return json({
+          ...switchedPayload,
+          cached: false,
+          localeSwitch: true,
+          scenario_id: scenario.id,
+        });
+      } catch (switchError) {
+        // No source for today → fall through to full generate.
+        console.info(
+          "[ai/monologue] localeSwitch fell back to generate",
+          switchError instanceof Error ? switchError.message : switchError,
+        );
+      }
+    }
+
     let variables = addScenarioVariables(scenario.id, body.variables ?? {});
     let mathLevel: ReturnType<typeof buildMathLevel> | null = null;
     if (scenario.id === "morning_recommendation") {
@@ -284,6 +343,8 @@ export async function POST(req: Request) {
       let slogan = String(morning.slogan ?? "").trim();
       let shortText = String(morning.short_text ?? "").trim();
       let longText = String(morning.long_explanation ?? "").trim();
+      let sourceTexts = { slogan, short_text: shortText, long_explanation: longText };
+      let sourceLocale = responseLocale;
       // Prompt context is RU-heavy; models often ignore OUTPUT LANGUAGE.
       // One language-retry, then the same translate path as free-tier text_i18n.
       if (!morningTextsMatchLocale(responseLocale, slogan, shortText)) {
@@ -293,12 +354,18 @@ export async function POST(req: Request) {
         slogan = String(retry.slogan ?? "").trim();
         shortText = String(retry.short_text ?? "").trim();
         longText = String(retry.long_explanation ?? "").trim();
+        sourceTexts = { slogan, short_text: shortText, long_explanation: longText };
+        sourceLocale = responseLocale;
       }
       if (!morningTextsMatchLocale(responseLocale, slogan, shortText)) {
         endpointStage = "generate_language_translate";
+        // Keep pre-translate LLM output as the canonical source for future switches.
+        sourceTexts = { slogan, short_text: shortText, long_explanation: longText };
+        sourceLocale = inferMorningSourceLocale(sourceTexts, "en");
         const translated = await translateMorningTextFields(
-          { slogan, short_text: shortText, long_explanation: longText },
+          sourceTexts,
           responseLocale,
+          sourceLocale,
         );
         slogan = translated.slogan;
         shortText = translated.short_text;
@@ -309,15 +376,29 @@ export async function POST(req: Request) {
             { status: 502 },
           );
         }
-        const translatedPayload = {
-          ...(payload as Record<string, unknown>),
-          slogan,
-          short_text: shortText,
-          long_explanation: longText,
-          [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale,
-        };
-        payload = normalizeRecommendationFields(translatedPayload, responseLocale) as unknown as typeof payload;
+      } else {
+        sourceTexts = { slogan, short_text: shortText, long_explanation: longText };
+        sourceLocale = responseLocale;
       }
+      const generatedPayload = withMorningSourceMeta(
+        normalizeRecommendationFields(
+          {
+            ...(payload as Record<string, unknown>),
+            slogan,
+            short_text: shortText,
+            long_explanation: longText,
+            [MORNING_CACHE_OUTPUT_LOCALE_KEY]: responseLocale,
+          },
+          responseLocale,
+        ) as Record<string, unknown>,
+        {
+          outputLocale: responseLocale,
+          sourceLocale,
+          sourceTexts,
+          generationMode: "generated",
+        },
+      );
+      payload = generatedPayload as unknown as typeof payload;
     }
 
     endpointStage = "cache_save";

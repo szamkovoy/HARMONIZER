@@ -8,14 +8,22 @@
  *   2. Добавляем `NSLocationWhenInUseUsageDescription` — чтобы иметь право
  *      спрашивать геолокацию на онбординге (для эфемерид: восходы Солнца/Луны
  *      зависят от точных координат пользователя).
+ *   3. Подключаем `android.googleServicesFile`, если в корне лежит
+ *      `google-services.json` (FCM для remote push на Android).
  *
  * Авторизация — только email-OTP (Supabase): нативные плагины Apple/Google
  * Sign-In удалены вместе с их entitlement/URL-scheme (см. modules/auth).
  *
  * Никаких секретных значений в сам файл не кладём — только имена env-переменных.
  */
+import fs from "node:fs";
+import path from "node:path";
+
 import type { ExpoConfig, ConfigContext } from "expo/config";
 import appJson from "./app.json";
+
+const GOOGLE_SERVICES_JSON = path.join(__dirname, "google-services.json");
+const hasGoogleServicesFile = fs.existsSync(GOOGLE_SERVICES_JSON);
 
 /**
  * Локализованное имя приложения и reason-строки разрешений iOS.
@@ -58,6 +66,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       ...base.android,
       ...config.android,
+      ...(hasGoogleServicesFile
+        ? { googleServicesFile: "./google-services.json" }
+        : {}),
       permissions: [
         ...new Set([
           ...((base.android as { permissions?: string[] } | undefined)?.permissions ?? []),

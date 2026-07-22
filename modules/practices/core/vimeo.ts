@@ -14,11 +14,12 @@
  *   `20260503075500_fix_vimeo_ru_audiotrack.sql`). Used by the TV page.
  * - `vimeoEmbedHtml(vimeoId, audiotrack)` — a full HTML document that mounts
  *   that iframe, intended to be loaded via
- *   `WebView source={{ html, baseUrl: VIMEO_EMBED_BASE_URL }}`. The `baseUrl`
- *   makes the WebView document originate from `https://zamkovoi.yoga/`, so the
- *   iframe request to `player.vimeo.com` carries `Referer: https://zamkovoi.yoga/`
- *   and passes Vimeo's domain privacy check on iOS (WKWebView baseURL) and
- *   Android (loadDataWithBaseURL).
+ *   `WebView source={{ html, baseUrl: VIMEO_EMBED_BASE_URL }}` on **iOS**
+ *   (WKWebView baseURL). Android Chromium often leaves this path black /
+ *   PrivacyError-opaque, so the phone player on Android uses
+ *   `vimeoPhoneEmbedPageUrl` → real page `https://zamkovoi.yoga/asana-embed.html`
+ *   (file in `web_cabinet/asana-embed.html`, deploy like cabinet).
+ * - `vimeoPhoneEmbedPageUrl(vimeoId, audiotrack)` — HTTPS URL of that page.
  *
  * Audio language: the asana videos ship exactly two Vimeo audio tracks —
  * Russian (`ru`) and English (`en`); see `scripts/import-vimeo-asanas.mjs`
@@ -36,6 +37,8 @@ export const VIMEO_DEFAULT_AUDIOTRACK = "ru";
 export const VIMEO_RU_AUDIOTRACK = "ru";
 export const VIMEO_EN_AUDIOTRACK = "en";
 export const VIMEO_EMBED_BASE_URL = "https://zamkovoi.yoga/";
+/** Hosted phone player page (same origin as Vimeo allowlist). See `web_cabinet/asana-embed.html`. */
+export const VIMEO_PHONE_EMBED_PAGE_URL = "https://zamkovoi.yoga/asana-embed.html";
 
 export function vimeoAudiotrackForLocale(locale: AppContentLocale): string {
   return locale === "ru" ? VIMEO_RU_AUDIOTRACK : VIMEO_EN_AUDIOTRACK;
@@ -45,6 +48,17 @@ export function vimeoEmbedUrl(vimeoId: string, audiotrack: string = VIMEO_DEFAUL
   const trimmedId = vimeoId.trim();
   const track = (audiotrack ?? VIMEO_DEFAULT_AUDIOTRACK).trim() || VIMEO_DEFAULT_AUDIOTRACK;
   return `${VIMEO_PLAYER_BASE}/${encodeURIComponent(trimmedId)}?audiotrack=${encodeURIComponent(track)}`;
+}
+
+/** Real HTTPS page on zamkovoi.yoga — preferred WebView source on Android. */
+export function vimeoPhoneEmbedPageUrl(
+  vimeoId: string,
+  audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK,
+): string {
+  const trimmedId = vimeoId.trim();
+  const track = (audiotrack ?? VIMEO_DEFAULT_AUDIOTRACK).trim() || VIMEO_DEFAULT_AUDIOTRACK;
+  const qs = new URLSearchParams({ vimeoId: trimmedId, audiotrack: track });
+  return `${VIMEO_PHONE_EMBED_PAGE_URL}?${qs.toString()}`;
 }
 
 export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK): string {
@@ -80,6 +94,13 @@ export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAU
     "        if(!best){for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'){best=qs[i];break;}}}",
     "        if(best){p.setCurrentQuality(best.id).catch(function(){});}",
     "      }).catch(function(){});",
+    "      // Android WebView often leaves the iframe black until an explicit play().",
+    "      p.setVolume(1).catch(function(){});",
+    "      p.setMuted(false).catch(function(){});",
+    "      p.play().then(function(){send({type:'play'});}).catch(function(){",
+    "        p.setMuted(true).catch(function(){});",
+    "        p.play().catch(function(){});",
+    "      });",
     "    }).catch(function(){});}catch(e){}",
     "  }",
     "  attach();",

@@ -269,6 +269,9 @@ function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): Pract
       practiceId: row.id,
       durationMs: defaultDurationSec ? defaultDurationSec * 1000 : undefined,
       chakra: primaryChakra,
+      ...(row.video_external_id?.trim()
+        ? { vimeoId: row.video_external_id.trim() }
+        : {}),
     },
   };
 }

@@ -27,9 +27,11 @@ import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
-import { ensureNotificationPermission } from "@/modules/notifications";
+import { useAuth } from "@/modules/auth";
+import { ensureNotificationPermission, registerPushToken } from "@/modules/notifications";
 import {
   buildOpportunityAlarmStyleContent,
+  ensureAndroidNotificationChannels,
   getExpoNotificationsOrNull,
   OPPORTUNITY_REMINDERS_CHANNEL_ID,
 } from "@/services/localNotifications";
@@ -333,6 +335,7 @@ export function OpportunityWindows({
   userLocation,
 }: OpportunityWindowsProps) {
   const theme = useTheme();
+  const { authUser } = useAuth();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [reminderTitleText, setReminderTitleText] = useState("");
@@ -699,6 +702,17 @@ export function OpportunityWindows({
     if (perm !== "granted") {
       Alert.alert(t.reminderNeedPermissionTitle, t.reminderNeedPermissionMessage);
       return;
+    }
+    // Same contract as Home / webinar: OS grant → claim Expo token for remote admin pushes.
+    if (authUser?.id) void registerPushToken(authUser.id);
+
+    if (Platform.OS === "android") {
+      try {
+        await ensureAndroidNotificationChannels();
+      } catch {
+        Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
+        return;
+      }
     }
 
     const previousId = notificationIdsRef.current[reminderTarget.key];

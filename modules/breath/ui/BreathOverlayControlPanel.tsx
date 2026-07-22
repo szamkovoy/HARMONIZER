@@ -16,11 +16,17 @@
  * цифра для когерентного дыхания или кортеж через дефис для «треугольник/квадрат».
  */
 
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { PracticeOverlayPanel } from "@/modules/ui/PracticeOverlayPanel";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
+
+/** Android under-draws very low-alpha fills; keep control chips readable. */
+const CONTROL_CHIP_BG =
+  Platform.OS === "android" ? "rgba(255,255,255,0.18)" : undefined;
+const CONTROL_CHIP_PRESSED_BG =
+  Platform.OS === "android" ? "rgba(255,255,255,0.28)" : undefined;
 
 /**
  * Что именно рисуется в центральной «пилюле» панели.
@@ -132,8 +138,8 @@ export function BreathOverlayControlPanel(props: BreathOverlayControlPanelProps)
           styles.closeBtnNudge,
           {
             backgroundColor: pressed
-              ? theme.colors.controlButtonPressedBg
-              : theme.colors.controlButtonBg,
+              ? CONTROL_CHIP_PRESSED_BG ?? theme.colors.controlButtonPressedBg
+              : CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
             borderRadius: theme.radius.pill,
           },
         ]}
@@ -153,7 +159,9 @@ export function BreathOverlayControlPanel(props: BreathOverlayControlPanelProps)
           disabled={!canDecrement}
           style={({ pressed }) => [
             styles.chevBtn,
-            pressed && { backgroundColor: theme.colors.controlButtonBg },
+            pressed && {
+              backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
+            },
             !canDecrement && styles.chevDisabled,
           ]}
           hitSlop={10}
@@ -166,7 +174,7 @@ export function BreathOverlayControlPanel(props: BreathOverlayControlPanelProps)
           style={[
             styles.beatsPill,
             {
-              backgroundColor: theme.colors.controlButtonBg,
+              backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
               borderRadius: beatsPillRadius,
               paddingHorizontal: isTriple ? 14 : 16,
             },
@@ -188,7 +196,9 @@ export function BreathOverlayControlPanel(props: BreathOverlayControlPanelProps)
           disabled={!canIncrement}
           style={({ pressed }) => [
             styles.chevBtn,
-            pressed && { backgroundColor: theme.colors.controlButtonBg },
+            pressed && {
+              backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
+            },
             !canIncrement && styles.chevDisabled,
           ]}
           hitSlop={10}

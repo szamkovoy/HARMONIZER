@@ -1,4 +1,12 @@
-# Личный кабинет на zamkovoi.yoga
+# Статика для zamkovoi.yoga
+
+| Файл | Куда на сайте | Назначение |
+| --- | --- | --- |
+| `cabinet.html` | `https://zamkovoi.yoga/cabinet/` (блок HTML в WordPress) | Личный кабинет |
+| `asana-embed.html` | `https://zamkovoi.yoga/asana-embed.html` (файл в корне сайта / ISPManager) | Плеер асан для **Android** WebView |
+| `../docs/remote-play/wordpress-snippet.html` | `https://zamkovoi.yoga/tv/` (блок HTML в WordPress) | Remote Play на ТВ |
+
+## Личный кабинет
 
 `cabinet.html` — самодостаточный HTML+JS-блок для WordPress. Деплой = скопировать
 весь файл в блок «HTML-код» на странице `https://zamkovoi.yoga/cabinet/`.

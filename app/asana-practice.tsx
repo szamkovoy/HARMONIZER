@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { AccountGateDialog, useAccess } from "@/modules/access";
@@ -8,7 +8,12 @@ import { useAuth } from "@/modules/auth";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
 import { resolveYogaPracticeTitle } from "@/modules/practices/core/catalog";
-import { vimeoAudiotrackForLocale, vimeoEmbedHtml, VIMEO_EMBED_BASE_URL } from "@/modules/practices/core/vimeo";
+import {
+  vimeoAudiotrackForLocale,
+  vimeoEmbedHtml,
+  vimeoPhoneEmbedPageUrl,
+  VIMEO_EMBED_BASE_URL,
+} from "@/modules/practices/core/vimeo";
 import { getAsanaScreenStrings } from "@/modules/practices/i18n/asanaScreen";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -56,6 +61,7 @@ export default function AsanaPracticeRoute() {
     durationMs?: string;
     chakra?: string;
     launchSource?: string;
+    vimeoId?: string;
   }>();
   const [metadata, setMetadata] = useState<AsanaMetadata | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,6 +76,8 @@ export default function AsanaPracticeRoute() {
   const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
     ? params.launchSource.trim()
     : "practice_screen";
+  const routeVimeoId =
+    typeof params.vimeoId === "string" && params.vimeoId.trim() ? params.vimeoId.trim() : null;
   useAssistantPracticeOverlayDismiss(launchSource);
 
   const routeDurationMinutes =
@@ -118,7 +126,8 @@ export default function AsanaPracticeRoute() {
   const title = practice
     ? resolveYogaPracticeTitle(practice.title, strings.defaultTitle, locale)
     : strings.defaultTitle;
-  const vimeoId = practice?.video_external_id ?? null;
+  // Prefer catalog-passed id so Android/iOS can mount the player before Supabase returns.
+  const vimeoId = (practice?.video_external_id?.trim() || routeVimeoId || null) as string | null;
   const audiotrack = vimeoAudiotrackForLocale(locale);
   const durationSec =
     practice?.default_duration_sec ?? (routeDurationMinutes ? routeDurationMinutes * 60 : 0);
@@ -231,7 +240,7 @@ export default function AsanaPracticeRoute() {
       <FloatingCloseButton accessibilityLabel={strings.closeA11y} onPress={requestStop} />
       <StackScrollView contentOptions={{ topPadding: 40, bottomPaddingExtra: 40, maxWidth: 720 }}>
         <SurfaceCardView tone="elevated" style={styles.card}>
-          {loading ? <ActivityIndicator color={theme.colors.accent} /> : null}
+          {loading && !vimeoId ? <ActivityIndicator color={theme.colors.accent} /> : null}
           <ScreenHeader title={title} />
 
           {loadError ? (
@@ -243,6 +252,7 @@ export default function AsanaPracticeRoute() {
           <PhonePlayer
             vimeoId={vimeoId}
             audiotrack={audiotrack}
+            loading={loading && !vimeoId}
             strings={strings}
             onMessage={handlePlayerMessage}
           />
@@ -293,15 +303,28 @@ export default function AsanaPracticeRoute() {
 function PhonePlayer({
   vimeoId,
   audiotrack,
+  loading,
   strings,
   onMessage,
 }: {
   vimeoId: string | null;
   audiotrack: string;
+  loading: boolean;
   strings: ReturnType<typeof getAsanaScreenStrings>;
   onMessage: (event: WebViewMessageEvent) => void;
 }) {
   const theme = useTheme();
+  // Android prefers the hosted page; if it 404s (not uploaded yet), fall back to
+  // html+baseUrl with originWhitelist "*". iOS always uses the proven html path.
+  const [androidUseHtmlFallback, setAndroidUseHtmlFallback] = useState(false);
+
+  if (loading) {
+    return (
+      <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
+  }
   if (!vimeoId) {
     return (
       <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
@@ -311,15 +334,35 @@ function PhonePlayer({
       </View>
     );
   }
+
+  const useAndroidHtml = Platform.OS === "android" && androidUseHtmlFallback;
+  const source =
+    Platform.OS === "android" && !useAndroidHtml
+      ? { uri: vimeoPhoneEmbedPageUrl(vimeoId, audiotrack) }
+      : { html: vimeoEmbedHtml(vimeoId, audiotrack), baseUrl: VIMEO_EMBED_BASE_URL };
+
   return (
     <View style={[styles.webViewWrap, { backgroundColor: "#000" }]}>
       <WebView
-        source={{ html: vimeoEmbedHtml(vimeoId, audiotrack), baseUrl: VIMEO_EMBED_BASE_URL }}
-        style={styles.webView}
+        key={useAndroidHtml ? `html-${vimeoId}` : `uri-${vimeoId}`}
+        source={source}
+        style={[styles.webView, Platform.OS === "android" ? styles.webViewAndroid : null]}
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
         allowsFullscreenVideo
         nestedScrollEnabled
+        javaScriptEnabled
+        domStorageEnabled
+        mixedContentMode="always"
+        androidLayerType="hardware"
+        setSupportMultipleWindows={false}
+        // Static HTML on Android needs "*"; never set this on iOS (Safari open regression).
+        {...(useAndroidHtml ? { originWhitelist: ["*"] as const } : {})}
+        onHttpError={(event) => {
+          if (Platform.OS !== "android" || useAndroidHtml) return;
+          const status = event.nativeEvent.statusCode;
+          if (status >= 400) setAndroidUseHtmlFallback(true);
+        }}
         onMessage={onMessage}
       />
     </View>
@@ -346,6 +389,11 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
+    backgroundColor: "#000",
+  },
+  webViewAndroid: {
+    // Known Chromium/WebView glitch: solid black until opacity ≠ 1.
+    opacity: 0.99,
   },
   centerText: {
     textAlign: "center",

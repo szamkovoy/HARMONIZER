@@ -5,7 +5,7 @@
     <div id="hrp-code" class="hrp-code">....</div>
     <div id="hrp-status" class="hrp-status">Creating connection code...</div>
     <div id="hrp-player" class="hrp-player" aria-label="Video player">
-      <div id="hrp-unmute" class="hrp-unmute" role="button" tabindex="0">&#x1F507; <span>Включить звук</span></div>
+      <div id="hrp-unmute" class="hrp-unmute hrp-hidden" role="button" tabindex="0">&#x1F507; <span id="hrp-unmute-label">Tap for sound</span></div>
       <div id="hrp-controls" class="hrp-controls">
         <button id="hrp-mute" class="hrp-ctrl" type="button" aria-label="Mute">&#x1F507;</button>
         <input id="hrp-volume" class="hrp-volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
@@ -25,10 +25,12 @@
 
   // ---- i18n: only the resource strings differ per locale. ------------------
   // `appName` is the localized product name and `remotePlay` is the localized
-  // feature name; together they form the eyebrow. The page resolves the UI
-  // locale from the browser language (navigator.language); if it cannot be
-  // detected or is not one of the supported app locales, the page falls back
-  // to English.
+  // feature name; together they form the eyebrow.
+  // UI locale priority:
+  //   1) URL hint from the app — compact `?pt` (preferred), also `?l=pt` / `?lang=` / `?locale=`
+  //   2) default `ru` when the link has no locale (matches the bare zamkovoi.yoga/tv URL)
+  // Browser language is intentionally NOT used — the TV browser is often Russian
+  // while the user picked another language in the app.
   const STRINGS = {
     ru: {
       appName: "Гармонизатор",
@@ -38,6 +40,8 @@
       connectedIdle: "Подключено. Выберите практику в приложении.",
       starting: "Запускаем видео на ТВ...",
       playing: "Видео запущено",
+      playingMuted: "Видео без звука — нажмите на экран, чтобы включить",
+      unmuteLabel: "Включить звук",
       paused: "Пауза",
       expired: "Сессия истекла. Обновите страницу, чтобы получить новый код.",
       closed: "Сессия закрыта. Обновите страницу, чтобы получить новый код.",
@@ -55,6 +59,8 @@
       connectedIdle: "Connected. Choose a practice in the app.",
       starting: "Starting video on TV...",
       playing: "Video playing",
+      playingMuted: "Playing muted — tap the video to enable sound",
+      unmuteLabel: "Tap for sound",
       paused: "Paused",
       expired: "Session expired. Refresh the page to get a new code.",
       closed: "Session closed. Refresh the page to get a new code.",
@@ -72,6 +78,8 @@
       connectedIdle: "Verbunden. Wählen Sie eine Praxis in der App.",
       starting: "Video wird auf dem TV gestartet...",
       playing: "Video läuft",
+      playingMuted: "Stumm — tippen Sie auf das Video für Ton",
+      unmuteLabel: "Ton einschalten",
       paused: "Pause",
       expired: "Sitzung abgelaufen. Aktualisieren Sie die Seite für einen neuen Code.",
       closed: "Sitzung geschlossen. Aktualisieren Sie die Seite für einen neuen Code.",
@@ -89,6 +97,8 @@
       connectedIdle: "Connecté. Choisissez une pratique dans l'application.",
       starting: "Démarrage de la vidéo sur la TV...",
       playing: "Vidéo en cours",
+      playingMuted: "Sans son — touchez la vidéo pour activer le son",
+      unmuteLabel: "Activer le son",
       paused: "Pause",
       expired: "Session expirée. Actualisez la page pour obtenir un nouveau code.",
       closed: "Session fermée. Actualisez la page pour obtenir un nouveau code.",
@@ -106,6 +116,8 @@
       connectedIdle: "Connesso. Scegli una pratica nell'app.",
       starting: "Avvio del video sulla TV...",
       playing: "Video in riproduzione",
+      playingMuted: "Senza audio — tocca il video per attivarlo",
+      unmuteLabel: "Attiva audio",
       paused: "Pausa",
       expired: "Sessione scaduta. Aggiorna la pagina per un nuovo codice.",
       closed: "Sessione chiusa. Aggiorna la pagina per un nuovo codice.",
@@ -123,6 +135,8 @@
       connectedIdle: "Conectado. Elige una práctica en la app.",
       starting: "Iniciando vídeo en la TV...",
       playing: "Vídeo en reproducción",
+      playingMuted: "Sin sonido — toca el vídeo para activarlo",
+      unmuteLabel: "Activar sonido",
       paused: "Pausa",
       expired: "Sesión caducada. Actualiza la página para un nuevo código.",
       closed: "Sesión cerrada. Actualiza la página para un nuevo código.",
@@ -140,6 +154,8 @@
       connectedIdle: "Conectado. Escolha uma prática no app.",
       starting: "Iniciando o vídeo na TV...",
       playing: "Vídeo em reprodução",
+      playingMuted: "Sem som — toque no vídeo para ativar",
+      unmuteLabel: "Ativar som",
       paused: "Pausa",
       expired: "Sessão expirada. Atualize a página para um novo código.",
       closed: "Sessão encerrada. Atualize a página para um novo código.",
@@ -157,6 +173,8 @@
       connectedIdle: "Verbonden. Kies een oefening in de app.",
       starting: "Video starten op de TV...",
       playing: "Video speelt",
+      playingMuted: "Gedempt — tik op de video voor geluid",
+      unmuteLabel: "Geluid aanzetten",
       paused: "Pauze",
       expired: "Sessie verlopen. Vernieuw de pagina voor een nieuwe code.",
       closed: "Sessie gesloten. Vernieuw de pagina voor een nieuwe code.",
@@ -168,18 +186,51 @@
     },
   };
   const SUPPORTED = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"];
-  // Browser language decides the TV page UI. If detection fails or the browser
-  // language is not one of the supported app locales, fall back to English.
+  const LOCALE_STORAGE_KEY = "hrp.uiLocale.v1";
+  const AUDIO_UNLOCK_KEY = "hrp.audioUnlocked.v1";
   function pickLocale(value) {
     const prefix = String(value ?? "").trim().slice(0, 2).toLowerCase();
-    return SUPPORTED.includes(prefix) ? prefix : "en";
+    return SUPPORTED.includes(prefix) ? prefix : null;
+  }
+  function localeFromUrl() {
+    try {
+      const params = new URLSearchParams(location.search || "");
+      // Preferred compact form from the app: `https://zamkovoi.yoga/tv?pt`
+      for (const key of params.keys()) {
+        const hit = pickLocale(key);
+        if (hit && (params.get(key) === "" || params.get(key) == null)) return hit;
+      }
+      for (const key of ["l", "lang", "locale"]) {
+        const hit = pickLocale(params.get(key));
+        if (hit) return hit;
+      }
+    } catch { /* ignore */ }
+    return null;
   }
   function detectLocale() {
-    const nav = (navigator.languages && navigator.languages[0]) || navigator.language || "";
-    return pickLocale(nav);
+    const fromUrl = localeFromUrl();
+    if (fromUrl) {
+      try { sessionStorage.setItem(LOCALE_STORAGE_KEY, fromUrl); } catch { /* ignore */ }
+      return fromUrl;
+    }
+    try {
+      const stored = pickLocale(sessionStorage.getItem(LOCALE_STORAGE_KEY));
+      if (stored) return stored;
+    } catch { /* ignore */ }
+    // Bare https://zamkovoi.yoga/tv/ → Russian UI (and ru audio fallback).
+    return "ru";
   }
   function stringsFor(locale) {
     return STRINGS[locale] || STRINGS.en;
+  }
+  // Same contract as the mobile app: RU → "ru" audiotrack, everything else → "en".
+  function audiotrackForLocale(locale) {
+    return locale === "ru" ? "ru" : "en";
+  }
+  function resolveAudiotrack(sessionTrack) {
+    const fromSession = sessionTrack && String(sessionTrack).trim();
+    if (fromSession) return fromSession;
+    return audiotrackForLocale(currentLocale);
   }
 
   let currentLocale = detectLocale();
@@ -187,8 +238,10 @@
     return stringsFor(currentLocale)[key];
   }
   function renderStatic() {
-    eyebrowEl.textContent = `${t("appName")} ${t("remotePlay")}`;
-    playerEl.setAttribute("aria-label", t("playerAriaLabel"));
+    if (eyebrowEl) eyebrowEl.textContent = `${t("appName")} ${t("remotePlay")}`;
+    if (playerEl) playerEl.setAttribute("aria-label", t("playerAriaLabel"));
+    const unmuteLabelEl = document.getElementById("hrp-unmute-label");
+    if (unmuteLabelEl) unmuteLabelEl.textContent = t("unmuteLabel");
   }
 
   // ---- Remote Play wiring. -------------------------------------------------
@@ -211,16 +264,51 @@
   }
   function showUnmuteOverlay(show) {
     if (unmuteOverlay) unmuteOverlay.classList.toggle("hrp-hidden", !show);
+    const unmuteLabelEl = document.getElementById("hrp-unmute-label");
+    if (unmuteLabelEl) unmuteLabelEl.textContent = t("unmuteLabel");
   }
+  function audioUnlocked() {
+    try { return sessionStorage.getItem(AUDIO_UNLOCK_KEY) === "1"; } catch { return false; }
+  }
+  function markAudioUnlocked() {
+    try { sessionStorage.setItem(AUDIO_UNLOCK_KEY, "1"); } catch { /* ignore */ }
+  }
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   async function applyUnmute() {
+    // Remember the gesture even before the player exists — mount can unmute later.
+    markAudioUnlocked();
     if (!player) return;
     try {
-      await player.setMuted(false).catch(() => {});
       const v = parseFloat(volumeSlider && volumeSlider.value) || 1;
-      if (v > 0) await player.setVolume(v).catch(() => {});
+      if (volumeSlider && !(parseFloat(volumeSlider.value) > 0)) volumeSlider.value = "1";
+      await player.setVolume(v > 0 ? v : 1).catch(() => {});
+      await player.setMuted(false).catch(() => {});
+      // Some Smart-TV browsers need a second tick after the gesture.
+      await sleep(50);
+      await player.setMuted(false).catch(() => {});
       setMuteIcon(false);
       showUnmuteOverlay(false);
+      if (session && session.status === "playing") {
+        setStatusStable(t("playing"), true);
+      }
     } catch { /* ignore */ }
+  }
+  // Any user gesture on the page unlocks sound for this tab session (Smart TVs
+  // often need an explicit click after autoplay starts muted).
+  function bindGestureUnmute() {
+    const onGesture = () => { void applyUnmute(); };
+    ["pointerdown", "touchstart", "keydown"].forEach((evt) => {
+      document.addEventListener(evt, onGesture, { capture: true });
+    });
+  }
+  bindGestureUnmute();
+  if (playerEl) {
+    playerEl.addEventListener("click", (event) => {
+      if (event.target && event.target.closest && event.target.closest(".hrp-controls")) return;
+      if (unmuteOverlay && !unmuteOverlay.classList.contains("hrp-hidden")) {
+        void applyUnmute();
+      }
+    });
   }
   if (muteBtn) {
     muteBtn.addEventListener("click", async () => {
@@ -291,12 +379,9 @@
     });
   }
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  // Fallback audio track when the mobile client did not write `audiotrack` on
-  // the session row (legacy rows / anonymous waiting sessions). The mobile
-  // client normally writes "ru" or "en" based on the active app locale.
+  // Legacy default only — prefer session.audiotrack, then URL/UI locale mapping.
   const VIMEO_AUDIO_TRACK = "ru";
 
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     realtime: { params: { eventsPerSecond: 3 } },
   });
@@ -386,7 +471,7 @@
   }
 
   function vimeoEmbedUrl(vimeoId, audiotrack) {
-    const track = (audiotrack && String(audiotrack).trim()) || VIMEO_AUDIO_TRACK;
+    const track = resolveAudiotrack(audiotrack) || VIMEO_AUDIO_TRACK;
     // controls=0 hides Vimeo's play/pause/scrub/volume UI — playback is driven
     // solely from the phone remote (autoplay on mount). The only on-screen
     // control the user gets is the custom fullscreen button (#hrp-fullscreen).
@@ -411,7 +496,7 @@
 
   async function mountPlayerIfNeeded(vimeoId, audiotrack) {
     if (!vimeoId) return false;
-    const wantKey = `${vimeoId}|${(audiotrack && String(audiotrack).trim()) || VIMEO_AUDIO_TRACK}`;
+    const wantKey = `${vimeoId}|${resolveAudiotrack(audiotrack)}`;
     if (player && lastVideoKey === wantKey) return !lastPlayerError;
 
     await destroyPlayer();
@@ -456,20 +541,29 @@
           qualityBtn.textContent = shortQualityLabel(curQ ? curQ.label : cur);
         }
       } catch { /* quality API optional */ }
-      // Try unmuted autoplay first; browsers block autoplay-with-sound without a
-      // prior user gesture, so fall back to muted + a "tap to unmute" overlay.
+      // Browsers (and most Smart TVs) block autoplay-with-sound without a prior
+      // user gesture. Start muted for reliability, then unmute when:
+      //   - this tab already unlocked audio earlier (sessionStorage), or
+      //   - the user taps / presses a key (gesture listeners + overlay).
+      await player.setMuted(true).catch(() => {});
+      await player.setVolume(1).catch(() => {});
       try {
-        await player.setMuted(false).catch(() => {});
         await player.play();
-        setMuteIcon(false);
-        showUnmuteOverlay(false);
-      } catch {
-        await player.setMuted(true).catch(() => {});
-        await player.play().catch((error) => {
-          lastPlayerError = error && error.message ? error.message : "";
-        });
+      } catch (error) {
+        lastPlayerError = error && error.message ? error.message : "";
+      }
+      if (audioUnlocked()) {
+        await applyUnmute();
+        const stillMuted = await player.getMuted().catch(() => true);
+        if (stillMuted) {
+          setMuteIcon(true);
+          showUnmuteOverlay(true);
+          setStatusStable(t("playingMuted"), true);
+        }
+      } else {
         setMuteIcon(true);
         showUnmuteOverlay(true);
+        setStatusStable(t("playingMuted"), true);
       }
       return !lastPlayerError;
     } catch {
@@ -522,7 +616,7 @@
     }
 
     if (next.status === "playing" && next.vimeo_id) {
-      const wantKey = `${next.vimeo_id}|${(next.audiotrack && String(next.audiotrack).trim()) || VIMEO_AUDIO_TRACK}`;
+      const wantKey = `${next.vimeo_id}|${resolveAudiotrack(next.audiotrack)}`;
       const already = player && lastVideoKey === wantKey;
       if (!already) setStatusStable(t("starting"), true);
       const mounted = await mountPlayerIfNeeded(next.vimeo_id, next.audiotrack);
@@ -534,14 +628,24 @@
       if (already) {
         applyingRemoteStatus = true;
         try { await player.play().catch(() => {}); } finally { applyingRemoteStatus = false; }
+        if (audioUnlocked()) await applyUnmute();
       }
       lastFingerprint = fp;
-      setStatusStable(t("playing"), true);
+      const mutedNow = await player.getMuted().catch(() => false);
+      if (mutedNow) {
+        showUnmuteOverlay(true);
+        setMuteIcon(true);
+        setStatusStable(t("playingMuted"), true);
+      } else {
+        showUnmuteOverlay(false);
+        setMuteIcon(false);
+        setStatusStable(t("playing"), true);
+      }
       return;
     }
 
     if (next.status === "paused" && next.vimeo_id) {
-      const wantKey = `${next.vimeo_id}|${(next.audiotrack && String(next.audiotrack).trim()) || VIMEO_AUDIO_TRACK}`;
+      const wantKey = `${next.vimeo_id}|${resolveAudiotrack(next.audiotrack)}`;
       const mounted = await mountPlayerIfNeeded(next.vimeo_id, next.audiotrack);
       if (!mounted) {
         lastFingerprint = fp;
@@ -761,21 +865,21 @@
 }
 .hrp-unmute {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 22px;
-  border-radius: 999px;
-  background: rgba(2, 6, 23, 0.78);
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 28px;
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.72);
   color: #f8fafc;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   cursor: pointer;
   z-index: 7;
   transition: background 0.15s ease;
+  text-align: center;
 }
 .hrp-unmute:hover {
   background: rgba(2, 6, 23, 0.95);

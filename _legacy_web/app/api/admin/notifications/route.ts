@@ -2,7 +2,7 @@ import { asContentLocale } from "../../_utils/contentLocales";
 import { parseStringRecord } from "../../_utils/contentLocaleFallback";
 import { resolveNotificationCopy, truncatePushBody } from "../../_utils/notificationCopy";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
-import { sendExpoPushMessages } from "./expoPush";
+import { REMOTE_PUSH_CHANNEL_ID, sendExpoPushMessages } from "./expoPush";
 import { parseSegment, resolveSegmentUserIds, segmentLabel } from "./segment";
 
 export const runtime = "nodejs";
@@ -142,6 +142,7 @@ export async function POST(req: Request) {
         to: token,
         title: pushTitle,
         body: truncatePushBody(pushBody),
+        channelId: REMOTE_PUSH_CHANNEL_ID,
         data: {
           notificationId: notification.id,
           title: pushTitle,

@@ -94,7 +94,7 @@ function asWarmPayload(params: {
 
 async function fetchMorningMonologue(
   locale: AppLocale,
-  forceRefresh: boolean,
+  opts: { forceRefresh?: boolean; localeSwitch?: boolean },
   signal?: AbortSignal,
 ): Promise<MorningMonologue> {
   const monologue = await callMonologue<{
@@ -103,9 +103,18 @@ async function fetchMorningMonologue(
     long_explanation?: string;
     math_level?: unknown;
     model?: string;
+    modelUsed?: string;
     error?: string;
     code?: string;
-  }>("morning_recommendation", { forceRefresh }, signal, locale);
+  }>(
+    "morning_recommendation",
+    {
+      forceRefresh: opts.forceRefresh === true,
+      localeSwitch: opts.localeSwitch === true,
+    },
+    signal,
+    locale,
+  );
   if (monologue.error) throw new Error(monologue.error);
   const slogan = String(monologue.slogan ?? "").trim();
   const short_text = String(monologue.short_text ?? "").trim();
@@ -114,12 +123,18 @@ async function fetchMorningMonologue(
     throw new Error("Morning recommendation ensure returned incomplete texts");
   }
   assertDayTextsMatchLocale(locale, slogan, short_text);
+  const model =
+    typeof monologue.model === "string"
+      ? monologue.model
+      : typeof monologue.modelUsed === "string"
+        ? monologue.modelUsed
+        : undefined;
   return {
     slogan,
     short_text,
     long_explanation,
     math_level: monologue.math_level,
-    model: typeof monologue.model === "string" ? monologue.model : undefined,
+    model,
   };
 }
 
@@ -262,12 +277,31 @@ export async function ensureLocaleDayContent(
     });
   }
 
+  // Locale switch: prefer translating the canonical source texts already cached
+  // for today (fast). Full big-prompt regenerate only when no source exists or
+  // the caller forced a structural natal refresh.
   let monologue: MorningMonologue;
+  const preferLocaleSwitch = params.forceStructuralRefresh !== true;
   try {
-    monologue = await fetchMorningMonologue(params.locale, forceRefresh, params.signal);
+    monologue = await fetchMorningMonologue(
+      params.locale,
+      {
+        forceRefresh,
+        localeSwitch: preferLocaleSwitch,
+      },
+      params.signal,
+    );
   } catch (firstError) {
     if (params.signal?.aborted) throw firstError;
-    monologue = await fetchMorningMonologue(params.locale, true, params.signal);
+    // Retry once: still prefer translate; only drop localeSwitch on structural force.
+    monologue = await fetchMorningMonologue(
+      params.locale,
+      {
+        forceRefresh: true,
+        localeSwitch: preferLocaleSwitch,
+      },
+      params.signal,
+    );
   }
 
   // Смена языка: только LLM-тексты (monologue выше) + кэш/structural forecast.

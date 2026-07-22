@@ -113,7 +113,7 @@
   "wearableCapabilityMetrics": "metriche",
   "wearableCapabilityProbe": "verifica",
   "wearableCapabilityRhythmOnly": "solo ritmo",
-  "wearableConnecting": "Connessione al sensore in corso...",
+  "wearableConnecting": "Collegamento del cardiofrequenzimetro…",
   "wearableIdleHint": "Collega un pulsometro toracico BLE o passa alla fotocamera del telefono.",
   "wearableIdleStartButton": "Collega pulsometro",
   "wearableNoDevicesFound": "Nessun pulsometro BLE adatto trovato. Ripeti la ricerca o seleziona la fotocamera del telefono.",
@@ -135,5 +135,8 @@
   "wearableRunningGuidedOnly": "Metriche HRV disattivate: il sensore guida solo il ritmo respiratorio.",
   "wearableRunningReconnect": "Riconnessione del pulsometro in corso...",
   "wearableScanning": "Ricerca di pulsometri compatibili nelle vicinanze...",
-  "wearableUseCamera": "Fotocamera"
+  "wearableUseCamera": "Fotocamera",
+  "wearablePickerConnectedLabel": "Connesso",
+  "wearablePickerDisconnectButton": "Disconnetti",
+  "wearableAndroidSystemConnectHint": "Se Android chiede in alto — conferma la connessione."
 }

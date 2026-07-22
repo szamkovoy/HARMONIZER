@@ -1,3 +1,20 @@
+- 2026-07-23 (249): Android FCM — `google-services.json` + FCM V1 key в EAS (`upload-fcm-to-eas.mjs`); старт rebuild Android development.
+- 2026-07-22 (248): Android FCM wiring — `app.config` подхватывает `google-services.json`; чекер `scripts/android-fcm-setup.mjs`; await Android notification channels. Осталось: файлы Firebase + EAS FCM key + rebuild.
+- 2026-07-22 (247): Android remote push — колокольчик после grant делает `registerPushToken`; админ Expo payload с `channelId: harmonizer_remote`; в docs зафиксирован блокер FCM/`google-services.json`.
+- 2026-07-22 (246): Paid смена языка — translate канонического morning `sourceTexts` (`localeSwitch`), не полная перегенерация до 2 мин.
+- 2026-07-22 (245): TV URL короче (`tv?pt`); на пульте крупная ссылка + подпись «откройте эту страницу…»; название практики — обычный жирный.
+- 2026-07-22 (244): TV Remote Play — UI locale из `?l=` (ссылка из приложения), не из браузера ТВ; audiotrack + unmute overlay; PT/DE/… строки пульта и «Завершить практику» через typed overlays (`asanaScreen`, `remotePlay`).
+- 2026-07-22 (243): Android asana — `asana-embed.html` на zamkovoi.yoga + vimeoId в launch (без flash «нет Vimeo ID»); iOS html+baseUrl без изменений. Путь к TV HTML: `docs/remote-play/wordpress-snippet.html`.
+- 2026-07-22 (242): Android asana WebView (чёрный экран); Connect TV keyboard lift; BLE picker connected copy + no scan-busy flash; probe hides forgotten Polar; TV unmute CTA в wordpress-snippet.
+- 2026-07-22 (241): Android BLE — «Подключен» после устойчивого HR (не 1 пакет); статусы найден/подключение/подключен; без голого чёрного prep; Android PPG clamp fps (`invalid-fps` 30). iOS BLE без изменений.
+- 2026-07-22 (240): Android BLE — связка в picker (`onConnectLive` + `androidOsLinkReady`); «Подключен» только после HR; старт без баннеров если ready; probe-miss→без пульсометра; короче чёрный prep при warm hold. iOS без изменений.
+- 2026-07-22 (239): Android BLE — live HR до старта практики (`ensureWearableLiveLink`), без MTU/bond API; fail→Retry, не второй connect; iOS не трогаем.
+- 2026-07-22 (238): BLE Android — без mid-practice reconnect/banner при живом HR; iOS без prep-экрана; панель практики плотнее на Android.
+- 2026-07-22 (237): Day prefetch с mount tabs + disk paint; BLE — warm на «Начать практику», minimal prep, fix `connectedDevices` UUID.
+- 2026-07-22 (236): BLE Android — connect на экране подготовки с подсказкой про системный баннер; старт практики только после ready; disconnect в конце.
+- 2026-07-22 (235): Android BLE — без mid-session reconnect/stall-cancel (системный «Запрос подключения» не поднимается); connect `autoConnect`.
+- 2026-07-22 (234): BLE picker без ложного «занят» + Подключен/Отключить; антиспам reconnect (системный «Запрос подключения»); audio без Android duck; кабинет Custom Tabs + Lava `lava_buyer_email_rejected`.
+- 2026-07-22 (233): Stories ring единый контраст iOS/Android; BLE: Polar остаётся в комбо после «Подключить», retry scan busy; splash plugin без imageWidth 300 (меньше мелкого лого на Android).
 - 2026-07-22 (232): «Что делать?» — спиннер без текста до первого ответа ассистента; Android PPG `analyzeFingerRoi` + torch/thermal Expo-модуль (нужен native rebuild).
 - 2026-07-22 (231): Android: контраст кольца сторис; Day prefetch late-arrival + memory paint; «Что делать?» spinner + без HealthConnect crash; PPG камера — явный unavailable (не silent sim); BLE runtime permissions.
 - 2026-07-22 (230): Android UI: DayWait-карточка по теме; палитра light/dark в Профиле (default light); фикс Home→Day prefetch; Health Connect guard + plugin. Стратегия — `docs/04_workspace/multiplatform_ui.md`.

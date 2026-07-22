@@ -20,7 +20,7 @@
  */
 
 import { useEffect, type ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -54,13 +54,12 @@ export interface PracticeOverlayPanelProps {
 export const PANEL_HIDDEN_TRANSLATE_Y = 260;
 export const PANEL_SLIDE_DURATION_MS = 320;
 /**
- * Полупрозрачная заливка карточки панели. Раньше бралась из `theme.colors.surface`
- * (`rgba(30,32,38,0.92)` — почти непрозрачная). На медитации за панелью чёрный
- * canvas + тёмная мандала, поэтому 0.92 читалась как глухо-чёрная. Снижаем alpha
- * до 0.72 — и дыхательная, и медитативная панели одинаково полупрозрачны: сквозь
- * них мягко просвечивает фон (footer-дебаг у дыхания, мандала у медитации).
+ * Полупрозрачная заливка карточки панели. На iOS alpha 0.72 читается как матовое
+ * стекло; на Android низкий alpha у rgba часто «проваливается» в полный
+ * прозрачный (особенно под Reanimated) — держим заметно плотнее.
  */
-const PANEL_CARD_BACKGROUND = "rgba(20, 22, 28, 0.72)";
+const PANEL_CARD_BACKGROUND =
+  Platform.OS === "android" ? "rgba(22, 24, 32, 0.94)" : "rgba(20, 22, 28, 0.78)";
 
 function formatRemaining(remainingMs: number): string {
   const clamped = Math.max(0, remainingMs);
@@ -129,6 +128,9 @@ export function PracticeOverlayPanel(props: PracticeOverlayPanelProps) {
               backgroundColor: PANEL_CARD_BACKGROUND,
               borderRadius: theme.radius.lg,
               borderColor: theme.colors.surfaceBorder,
+              ...(Platform.OS === "android"
+                ? { elevation: 8, shadowColor: "#000", shadowOpacity: 0.35 }
+                : null),
             },
           ]}
           onPress={onInteraction}

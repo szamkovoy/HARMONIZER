@@ -6,7 +6,16 @@
  */
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, Linking, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import {
+  AppState,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 
 import {
@@ -154,7 +163,12 @@ const TARGET_PPG_FPS = 15;
  * `highPrecision` на `normal` → камера переключается на экономный
  * `TARGET_PPG_FPS`. Переход бесшовный для пользователя.
  */
-const HIGH_PRECISION_PPG_FPS = 30;
+/**
+ * Warmup/QC target. Android Camera2 formats on Pixel often max out below 30
+ * (useCameraFormat may still return a format whose maxFps < 30) — requesting
+ * 30 then throws `format/invalid-fps` and kills torch/PPG. Cap Android at 15.
+ */
+const HIGH_PRECISION_PPG_FPS = Platform.OS === "android" ? 15 : 30;
 
 /**
  * Шаг субсэмплинга пикселей в ROI в native frame processor'е.
@@ -341,6 +355,13 @@ function FingerPpgCameraSourceImpl({
     { videoResolution: { width: 640, height: 480 } },
     { fps: formatTargetFps },
   ]);
+  // Never pass fps above format.maxFps — VisionCamera throws and torch never arms.
+  const cameraMaxFps = format
+    ? Math.max(1, Math.min(effectiveMaxFps, format.maxFps))
+    : effectiveMaxFps;
+  const cameraMinFps = format
+    ? Math.max(1, Math.min(format.minFps || 1, cameraMaxFps))
+    : 1;
   /** VisionCamera включает torch только когда сессия активна (у нас всегда так при `isRenderActive`). */
   const shouldEnableTorchViaVisionCamera =
     isCameraSessionActive && cameraReady && torchArmed && Boolean(device?.hasTorch);
@@ -622,8 +643,8 @@ function FingerPpgCameraSourceImpl({
         //    VisionCamera возьмёт ближайшее из диапазона (обычно 10 или 12);
         //  - если формат поддерживает ≤ 15 только «от», диапазон позволяет
         //    гладко деградировать без runtime-ошибки.
-        // В silent — строго 1 fps (см. `formatTargetFps`); иначе — до effectiveMaxFps.
-        fps={silent ? [1, 1] : [1, effectiveMaxFps]}
+        // В silent — строго 1 fps; иначе clamp к возможностям выбранного format.
+        fps={silent ? [1, 1] : [cameraMinFps, cameraMaxFps]}
         onStarted={() => setCameraReady(true)}
       />
     </View>

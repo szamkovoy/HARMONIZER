@@ -68,18 +68,34 @@ export interface PracticeCatalogStrings {
   wearablePickerTitle: string;
   wearablePickerHint: string;
   wearablePickerFoundHint: string;
+  /** When the listed strap already has a verified live link. */
+  wearablePickerConnectedHint: string;
   wearablePickerNotFound: string;
   wearablePickerNotFoundTips: string;
   wearablePickerBluetoothOff: string;
   wearablePickerPermissionDenied: string;
+  wearablePickerScanBusy: string;
   wearablePickerRetry: string;
   wearablePickerClose: string;
   wearablePickerSelectButton: string;
+  wearablePickerConnectedLabel: string;
+  wearablePickerFoundNotConnectedLabel: string;
+  wearablePickerDisconnectButton: string;
   wearablePickerSignalLabel: string;
   wearableBluetoothStateLabel: string;
+  /** Android: while system connect banners + sustained HR. */
+  wearablePickerLinkingHint: string;
+  wearablePickerLinkingButton: string;
+  wearablePickerLinkingStatusLabel: string;
   withPulseSensor: string;
   withoutPulseSensor: string;
   startPractice: string;
+  /** Shown on the start button while GATT is opening for a BLE strap. */
+  connectingWearableButton: string;
+  /** Android: live HR link failed before practice start. */
+  wearableLinkFailedTitle: string;
+  wearableLinkFailedBody: string;
+  wearableLinkRetry: string;
   openOnPhone: string;
   openOnTv: string;
   videoLabel: string;
@@ -145,21 +161,37 @@ const ru: PracticeCatalogStrings = {
   findWearableButton: "Найти пульсометр",
   wearablePickerTitle: "Поиск пульсометра",
   wearablePickerHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
-  wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
+  wearablePickerFoundHint:
+    "Пульсометр найден, но ещё не подключён. Нажмите «Подключить» и подтвердите запросы Android сверху (иногда два раза подряд).",
+  wearablePickerConnectedHint:
+    "Пульсометр найден и подключён. Теперь вы можете закрыть это окно и начать дыхательную практику.",
   wearablePickerNotFound: "Пульсометр не найден. Попробуйте повторить поиск.",
   wearablePickerNotFoundTips:
     "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
   wearablePickerBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
   wearablePickerPermissionDenied:
     "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск.",
+  wearablePickerScanBusy: "Bluetooth занят предыдущим поиском. Закройте окно и нажмите «Найти пульсометр» ещё раз.",
   wearablePickerRetry: "Повторить поиск",
   wearablePickerClose: "Закрыть",
   wearablePickerSelectButton: "Подключить",
+  wearablePickerConnectedLabel: "Подключен · пульс идёт",
+  wearablePickerFoundNotConnectedLabel: "Найден · не подключён",
+  wearablePickerDisconnectButton: "Отключить",
   wearablePickerSignalLabel: "Сигнал",
   wearableBluetoothStateLabel: "Bluetooth",
+  wearablePickerLinkingHint:
+    "Подтвердите запросы Android сверху экрана (может появиться дважды). Не закрывайте окно, пока статус не станет «Подключен · пульс идёт».",
+  wearablePickerLinkingButton: "Подключаем…",
+  wearablePickerLinkingStatusLabel: "Подключение… подтвердите Android сверху",
   withPulseSensor: "с пульсометром",
   withoutPulseSensor: "без пульсометра",
   startPractice: "Начать практику",
+  connectingWearableButton: "Подключаем…",
+  wearableLinkFailedTitle: "Пульсометр не подключился",
+  wearableLinkFailedBody:
+    "Если сверху был запрос Android — подтвердите его и нажмите «Повторить». Держите ремень на груди, Bluetooth включён, другие приложения с этим датчиком закрыты.",
+  wearableLinkRetry: "Повторить",
   openOnPhone: "Открыть на телефоне",
   openOnTv: "Открыть на ТВ",
   videoLabel: "Видео",
@@ -241,21 +273,37 @@ const en: PracticeCatalogStrings = {
   findWearableButton: "Find heart-rate monitor",
   wearablePickerTitle: "Find heart-rate monitor",
   wearablePickerHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
-  wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
+  wearablePickerFoundHint:
+    "Heart-rate monitor found, but not linked yet. Tap Connect and confirm the Android prompts at the top (sometimes twice).",
+  wearablePickerConnectedHint:
+    "Heart-rate monitor found and connected. You can close this window and start the breathing practice.",
   wearablePickerNotFound: "Heart-rate monitor not found. Try scanning again.",
   wearablePickerNotFoundTips:
     "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
   wearablePickerBluetoothOff: "Bluetooth is off. Turn it on and try again.",
   wearablePickerPermissionDenied:
     "Bluetooth permission is required. Allow Bluetooth access in phone settings and scan again.",
+  wearablePickerScanBusy: "Bluetooth is busy from a previous scan. Close this dialog and tap “Find heart-rate monitor” again.",
   wearablePickerRetry: "Scan again",
   wearablePickerClose: "Close",
   wearablePickerSelectButton: "Connect",
+  wearablePickerConnectedLabel: "Connected · pulse live",
+  wearablePickerFoundNotConnectedLabel: "Found · not connected",
+  wearablePickerDisconnectButton: "Disconnect",
   wearablePickerSignalLabel: "Signal",
   wearableBluetoothStateLabel: "Bluetooth",
+  wearablePickerLinkingHint:
+    "Confirm the Android prompts at the top (they may appear twice). Keep this window open until the status says “Connected · pulse live”.",
+  wearablePickerLinkingButton: "Connecting…",
+  wearablePickerLinkingStatusLabel: "Connecting… confirm Android at the top",
   withPulseSensor: "with heart-rate sensor",
   withoutPulseSensor: "without heart-rate sensor",
   startPractice: "Start practice",
+  connectingWearableButton: "Connecting…",
+  wearableLinkFailedTitle: "Heart-rate monitor did not connect",
+  wearableLinkFailedBody:
+    "If Android asked to connect at the top — confirm it, then tap Retry. Keep the strap on your chest, Bluetooth on, and close other apps using this sensor.",
+  wearableLinkRetry: "Retry",
   openOnPhone: "Open on phone",
   openOnTv: "Open on TV",
   videoLabel: "Video",

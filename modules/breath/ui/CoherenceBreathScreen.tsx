@@ -82,6 +82,7 @@ import type {
   WearableScanCandidate,
 } from "@/modules/biofeedback/wearables/types";
 import { WearablePickerDialog } from "@/modules/biofeedback/wearables/WearablePickerDialog";
+import { peekHeldLivePacketAgeMs } from "@/modules/biofeedback/wearables/wearableConnectionHold";
 
 import {
   COHERENCE_PREFLIGHT_BUFFER_MS,
@@ -1880,6 +1881,21 @@ function CoherenceBreathScreenInner({
     });
   }, []);
 
+  const handleWearableDisconnected = useCallback(() => {
+    setSelectedWearableDevice(null);
+    setWearableCapabilityTier("unknown");
+    setWearableRuntime({ state: "idle" });
+    setShowWearablePickerDialog(false);
+    setSourceKey((value) => value + 1);
+    void updateWearablePreferences({
+      preferredSensorMode: "fingerCamera",
+      lastDeviceId: null,
+      lastDeviceName: null,
+      lastProvider: null,
+      lastCapabilityTier: null,
+    });
+  }, []);
+
   const handleWearableRuntimeSnapshot = useCallback((runtime: WearableRuntimeSnapshot) => {
     setWearableRuntime(runtime);
   }, []);
@@ -2608,21 +2624,54 @@ function CoherenceBreathScreenInner({
       if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected" || wearableRuntime.state === "signalLost") {
         setShowQcFailedDialog(true);
       }
+      // Android: still connecting while OS may show «Запрос подключения» — wait, do not
+      // start the black running UI. After a long hang, offer the QC failed dialog.
+      if (
+        Platform.OS === "android" &&
+        (wearableRuntime.state === "connecting" ||
+          wearableRuntime.state === "reconnecting" ||
+          wearableRuntime.state === "probing" ||
+          wearableRuntime.state === "connected")
+      ) {
+        const prepStartedAt = protocolStartedAtMs.current ?? Date.now();
+        if (Date.now() - prepStartedAt > 45_000) {
+          setShowQcFailedDialog(true);
+        }
+      }
       return;
     }
+    // Require a live ready stream — not a half-open GATT waiting on an ignored OS prompt.
+    if (wearableRuntime.state !== "ready") {
+      return;
+    }
+    const heartRateReady = (wearableRuntime.lastHeartRateBpm ?? 0) > 0;
+    const prepStartedAt = protocolStartedAtMs.current ?? Date.now();
+    const prepElapsedMs = Date.now() - prepStartedAt;
+    // Android catalog already verified live HR — enter as soon as practice runtime
+    // sees the first packet (avoid multi-second black qualityCheck wall).
+    const heldWarmAndroid =
+      Platform.OS === "android" &&
+      (() => {
+        const ageMs = peekHeldLivePacketAgeMs();
+        return ageMs != null && ageMs < 30_000;
+      })();
     const rrFresh =
+      heldWarmAndroid ||
       wearableCapabilityTier !== "fullMetrics" ||
       (
         wearableRuntime.lastRrAtMs != null &&
         Date.now() - wearableRuntime.lastRrAtMs <= WEARABLE_LIVE_RR_FRESH_MS
       );
-    const heartRateReady = (wearableRuntime.lastHeartRateBpm ?? 0) > 0;
-    const prepStartedAt = protocolStartedAtMs.current ?? Date.now();
-    const prepElapsedMs = Date.now() - prepStartedAt;
-    if (!heartRateReady || !rrFresh || prepElapsedMs < BREATH_BLE_PREP_MIN_LIVE_PULSE_MS) {
+    const packetReady = heldWarmAndroid
+      ? (wearableRuntime.packetCount ?? 0) >= 1 || heartRateReady
+      : (wearableRuntime.packetCount ?? 0) >= 3;
+    const minLivePulseMs = heldWarmAndroid ? 0 : BREATH_BLE_PREP_MIN_LIVE_PULSE_MS;
+    if (!heartRateReady || !rrFresh || !packetReady || prepElapsedMs < minLivePulseMs) {
       return;
     }
-    if (prepElapsedMs < BREATH_BLE_PREP_SPIN_MS) {
+    const minSpinMs =
+      Platform.OS === "ios" || heldWarmAndroid ? 0 : BREATH_BLE_PREP_SPIN_MS;
+    if (prepElapsedMs < minSpinMs) {
       return;
     }
     const anchor = Date.now();
@@ -2662,6 +2711,7 @@ function CoherenceBreathScreenInner({
     wearableCapabilityTier,
     wearableRuntime.lastHeartRateBpm,
     wearableRuntime.lastRrAtMs,
+    wearableRuntime.packetCount,
     wearableRuntime.state,
   ]);
 
@@ -4368,7 +4418,11 @@ function CoherenceBreathScreenInner({
       setFinalEndAvgBpm(null);
       setFinalStartWindowMs(null);
       setFinalEndWindowMs(null);
-      setSourceKey((k) => k + 1);
+      // Wearable: keep GATT alive across start — remounting BLE cancels the link
+      // and re-triggers Android «Запрос подключения».
+      if (!(isWearableMode && selectedWearableDevice?.id && !forceEmulatedPulse)) {
+        setSourceKey((k) => k + 1);
+      }
       setExportDebug(null);
       setAnalysis(null);
       setResultsGraphs(null);
@@ -4891,14 +4945,9 @@ function CoherenceBreathScreenInner({
    */
   const practiceFooter = useMemo(() => {
     if (phase !== "running") return null;
-    if (useSimulatedPpg) {
-      return (
-        <View style={styles.opticalFooter}>
-          <Text style={styles.opticalCaption}>{str.opticalSimulatedNote}</Text>
-        </View>
-      );
-    }
     const elapsedSec = Math.floor(elapsedMs / 1000);
+    // Wearable sessions must not inherit the Android "no finger PPG plugin" simulated
+    // optical note — that flag is about the camera path only.
     if (isWearableMode) {
       const liveBpm = Math.round(wearableRuntime.lastHeartRateBpm ?? snapshot.pulseRateBpm ?? 0);
       return (
@@ -4913,6 +4962,13 @@ function CoherenceBreathScreenInner({
           <Text style={styles.opticalMetricsMuted}>
             время практики: {elapsedSec} с из {Math.round(practiceTotalMs / 1000)} с
           </Text>
+        </View>
+      );
+    }
+    if (useSimulatedPpg) {
+      return (
+        <View style={styles.opticalFooter}>
+          <Text style={styles.opticalCaption}>{str.opticalSimulatedNote}</Text>
         </View>
       );
     }
@@ -4973,6 +5029,7 @@ function CoherenceBreathScreenInner({
           deviceId={selectedWearableDevice?.id}
           deviceName={selectedWearableDevice?.name}
           initialCapabilityTier={wearableCapabilityTier}
+          // Android: reconnect only after a successful ready link (see BleHeartRateSource).
           autoReconnect={autoReconnect}
           suppressBeatEvents={useEmulatedPulseMode}
           onRuntimeSnapshot={handleWearableRuntimeSnapshot}
@@ -5095,29 +5152,54 @@ function CoherenceBreathScreenInner({
         />
       ) : null}
 
+      {/*
+        BLE prep chrome:
+        - iOS: never (silent connect).
+        - Android: light overlay while qualityCheck waits — never a bare black screen.
+          (Previously we hid chrome when hold was warm, which left a long black gap.)
+      */}
       {sensorUiMounted &&
       (phase === "warmup" ||
         phase === "qualityCheck" ||
-        (!isWearableMode && phase === "running")) ? (
+        (!isWearableMode && phase === "running")) &&
+      !(isWearableMode && Platform.OS === "ios") ? (
         <View
-          style={styles.calib}
+          style={[styles.calib, isWearableMode ? styles.blePrepOverlay : null]}
           pointerEvents={phase === "running" ? "none" : "auto"}
         >
-          {isWearableMode && (phase === "warmup" || phase === "qualityCheck") ? (
-            <View style={styles.blePrepWheelWrap}>
-              <ActivityIndicator color={theme.colors.accent} size="small" />
+          <>
+          {isWearableMode ? (
+            <View style={styles.blePrepMinimal}>
+              <View style={styles.blePrepWheelWrap}>
+                <ActivityIndicator color={theme.colors.accent} size="large" />
+                <AppText variant="dialogBody" tone="primary" style={styles.sensorStatus}>
+                  {selectedWearableDevice?.name
+                    ? str.wearableConnectingWithName(selectedWearableDevice.name)
+                    : str.wearableConnecting}
+                </AppText>
+                {Platform.OS === "android" &&
+                (wearableRuntime.state === "connecting" ||
+                  wearableRuntime.state === "reconnecting" ||
+                  wearableRuntime.state === "waitingForBluetooth") ? (
+                  <AppText variant="technicalCaption" tone="muted" style={styles.blePrepAndroidHint}>
+                    {str.wearableAndroidSystemConnectHint}
+                  </AppText>
+                ) : null}
+              </View>
+              <AppButton
+                variant="secondary"
+                label={str.cancelButton}
+                onPress={() => setPhase("idle")}
+                style={styles.sensorBackBtn}
+              />
             </View>
           ) : (
             <>
           <AppText variant="screenTitle" tone="primary" style={styles.sensorTitle}>
-            {isWearableMode ? str.wearableActivationTitle : str.sensorActivationTitle}
+            {str.sensorActivationTitle}
           </AppText>
           <AppText variant="screenHint" tone="primary" style={styles.sensorHint}>
-            {isWearableMode
-              ? selectedWearableDevice?.name
-                ? str.wearableActivationSelectedHint(selectedWearableDevice.name)
-                : str.wearableActivationNoDeviceHint
-              : str.sensorActivationHint}
+            {str.sensorActivationHint}
           </AppText>
           <View style={styles.sensorTimerWrap}>
             {protocolStartedAtMs.current != null ? (
@@ -5130,81 +5212,14 @@ function CoherenceBreathScreenInner({
             ) : null}
           </View>
           <AppText variant="technicalCaption" tone="muted" style={styles.sensorStatus}>
-            {isWearableMode
-              ? wearableRuntime.state === "waitingForBluetooth"
-                ? str.wearableBluetoothOff
-                : wearableRuntime.state === "connecting" || wearableRuntime.state === "reconnecting"
-                  ? str.wearableConnecting
-                  : wearableRuntime.state === "ready"
-                    ? wearableCapabilityTier === "guidedOnly"
-                      ? str.wearableReadyGuidedOnly
-                      : str.wearableReadyFullMetrics
-                    : wearableRuntime.errorMessage
-                      ? wearableRuntime.errorMessage
-                      : str.sensorActivationStableWait
-              : str.sensorActivationStableWait}
+            {str.sensorActivationStableWait}
           </AppText>
-          {/*
-           * График показываем всё время, пока sensor-UI смонтирован (включая фазу
-           * закрытия чёрной шторы при переходе в `running`). Иначе при смене
-           * `phase` на `running` график пропадал скачком — и блок `sensorBackBtn`
-           * подтягивался вверх, что визуально ощущалось как «дёрганье окна».
-           */}
           <View style={styles.sensorChartWrap}>
-            {!isWearableMode && !useSimulatedPpg ? (
+            {!useSimulatedPpg ? (
               <PpgMiniChart
                 samples={opticalPreviewSamples}
                 beatTimestampsMs={snapshot.mergedBeats}
               />
-            ) : null}
-            {isWearableMode ? (
-              <View style={styles.wearablePickerCard}>
-                <AppText variant="dialogBody" tone="muted" style={styles.wearableMetaLine}>
-                  {selectedWearableDevice?.name
-                    ? str.wearableActivationSelectedHint(selectedWearableDevice.name)
-                    : str.wearableActivationNoDeviceHint}
-                </AppText>
-                {wearableRuntime.errorMessage ? (
-                  <AppText variant="dialogBody" tone="muted" style={styles.wearableMetaLine}>
-                    {wearableRuntime.errorMessage}
-                  </AppText>
-                ) : null}
-                <View style={styles.wearableActionRow}>
-                  <AppButton
-                    variant="secondary"
-                    label={str.wearablePickerTitle}
-                    onPress={() => setShowWearablePickerDialog(true)}
-                    style={styles.wearableActionBtn}
-                  />
-                  <AppButton
-                    variant="secondary"
-                    label={str.wearableUseCamera}
-                    onPress={() => {
-                      void updateWearablePreferences({ preferredSensorMode: "fingerCamera" });
-                      router.replace({
-                        pathname: "/breath-coherence",
-                        params: {
-                          practiceId: practiceIdRef.current,
-                          durationMs: String(practiceTotalMs),
-                          chakra: String(chakra ?? 4),
-                          launchSource: launchSource ?? "catalog",
-                          sensorMode: "fingerCamera",
-                        },
-                      });
-                    }}
-                    style={styles.wearableActionBtn}
-                  />
-                  <AppButton
-                    variant="secondary"
-                    label={str.startWithoutSensorButton}
-                    onPress={() => {
-                      void updateWearablePreferences({ preferredSensorMode: "none" });
-                      beginFromIdle(true);
-                    }}
-                    style={styles.wearableActionBtn}
-                  />
-                </View>
-              </View>
             ) : null}
           </View>
           <AppButton
@@ -5226,19 +5241,20 @@ function CoherenceBreathScreenInner({
           ) : null}
             </>
           )}
+          </>
         </View>
       ) : null}
 
       <AppDialog
-        visible={showQcFailedDialog && !isWearableMode}
-        title={str.qcFailedDialogTitle}
-        message={str.qcFailedDialogMessage}
+        visible={showQcFailedDialog}
+        title={isWearableMode ? str.wearableQcFailedTitle : str.qcFailedDialogTitle}
+        message={isWearableMode ? str.wearableQcFailedMessage : str.qcFailedDialogMessage}
         actionsLayout="column"
         actions={
           <>
             <AppButton
               variant="primary"
-              label={str.qcFailedRetry}
+              label={isWearableMode ? str.wearableRetryScan : str.qcFailedRetry}
               onPress={() => {
                 setShowQcFailedDialog(false);
                 qcStartLogicalMsRef.current = null;
@@ -5299,6 +5315,8 @@ function CoherenceBreathScreenInner({
         visible={showWearablePickerDialog}
         onClose={() => setShowWearablePickerDialog(false)}
         onSelect={handleWearableSelected}
+        onDisconnect={handleWearableDisconnected}
+        selectedDeviceId={selectedWearableDevice?.id ?? wearablePreferences.lastDeviceId}
         alertMessage={phase === "running" ? str.wearablePickerFaultyMessage : null}
         strings={{
           title: str.wearablePickerTitle,
@@ -5310,6 +5328,8 @@ function CoherenceBreathScreenInner({
           retryButton: str.wearableRetryScan,
           closeButton: str.wearablePickerCloseButton,
           selectButton: str.wearablePickerSelectButton,
+          connectedLabel: str.wearablePickerConnectedLabel,
+          disconnectButton: str.wearablePickerDisconnectButton,
           signalLabel: str.wearableRssiLabel,
           bluetoothStateLabel: str.wearableBluetoothLabel,
         }}
@@ -6748,11 +6768,30 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 28,
   },
+  /** Dim overlay instead of a solid “black window” for BLE connect wait. */
+  blePrepOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    zIndex: 50,
+  },
+  blePrepMinimal: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingTop: 48,
+    paddingBottom: 12,
+  },
   blePrepWheelWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    gap: 18,
     minHeight: 220,
+  },
+  blePrepAndroidHint: {
+    textAlign: "center",
+    marginTop: 4,
+    maxWidth: 280,
   },
   sensorStatus: {
     textAlign: "center",

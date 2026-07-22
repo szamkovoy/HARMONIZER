@@ -74,5 +74,9 @@
   "yogaLateHint": "O Supabase está a responder mais devagar do que o habitual. O catálogo já está aberto e as asanas aparecerão aqui automaticamente.",
   "yogaLateLoading": "a carregar...",
   "yogaLateLoadingTitle": "Asanas ainda estão carregando",
-  "yogaTitlePrefix": "Prática"
+  "yogaTitlePrefix": "Prática",
+  "connectingWearableButton": "A ligar…",
+  "wearableLinkFailedTitle": "Monitor cardíaco não ligado",
+  "wearableLinkFailedBody": "Se o Android pedir em cima — confirme e toque em Repetir. Mantenha a cinta, Bluetooth ligado e feche outras apps que usem o sensor.",
+  "wearableLinkRetry": "Repetir"
 }

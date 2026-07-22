@@ -6,7 +6,9 @@ import {
   createLavaOneTimeInvoice,
   createLavaSubscriptionInvoice,
   isLavaCurrency,
+  LavaInvoiceError,
   nextPeriodEnd,
+  normalizeLavaBuyerEmail,
   resolveLavaOfferId,
   resolveLavaOfferIdByName,
   type SellableTier,
@@ -60,8 +62,19 @@ export async function POST(req: Request) {
     if (!row) return corsJson({ error: "User not found" }, { status: 404 });
 
     const { data: authData } = await db.auth.admin.getUserById(userId);
-    const email = authData?.user?.email;
-    if (!email) return corsJson({ error: "User has no email" }, { status: 409 });
+    const emailRaw = authData?.user?.email;
+    if (!emailRaw) return corsJson({ error: "User has no email" }, { status: 409 });
+    const email = normalizeLavaBuyerEmail(emailRaw);
+    if (!email.includes("@")) {
+      return corsJson(
+        {
+          error: "lava_buyer_email_rejected",
+          message:
+            "Account email is not accepted by the payment provider. Sign in with a different email or contact support.",
+        },
+        { status: 400 },
+      );
+    }
 
     const userLocale = typeof row.locale === "string" && row.locale.trim() ? row.locale : "ru";
     const provider = selectPaymentProvider(currency);
@@ -91,6 +104,17 @@ export async function POST(req: Request) {
       body?.tier,
     );
   } catch (error) {
+    if (error instanceof LavaInvoiceError && error.code === "lava_buyer_email_rejected") {
+      return corsJson(
+        {
+          error: "lava_buyer_email_rejected",
+          message:
+            "This email cannot be used for purchase (for example, the seller account email). Use another account email or contact support.",
+          details: error.lavaBody.slice(0, 300),
+        },
+        { status: 400 },
+      );
+    }
     return withCors(errorResponse(error));
   }
 }

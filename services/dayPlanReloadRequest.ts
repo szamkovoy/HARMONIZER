@@ -47,6 +47,14 @@ export function consumePrefetchedDayPlan(): DayPlan | null {
 /** Day tab: apply plan when Home prefetch finishes after the user already focused Day. */
 export function subscribePrefetchedDayPlan(listener: PrefetchListener): () => void {
   prefetchListeners.add(listener);
+  // Replay current snapshot so a late subscriber does not miss an already-stored plan.
+  if (prefetchedDayPlan) {
+    try {
+      listener(prefetchedDayPlan);
+    } catch {
+      /* ignore */
+    }
+  }
   return () => {
     prefetchListeners.delete(listener);
   };

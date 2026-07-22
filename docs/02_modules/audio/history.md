@@ -9,6 +9,8 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 ## Decision Log
 
+- **2026-07-22:** `shouldDuckAndroid: false` в `ExpoMandalaSoundEngine` — системные Android-баннеры BLE «Запрос подключения» при ducking давали короткий скрежет в mandala-sound во время дыхания.
+
 - **2026-05:** `Mandala Sound` введён как встраиваемый слой практики, а не как отдельный режим. Почему: звук должен жить внутри уже существующих breath/meditation flows и использовать тот же session timeline, что и визуальный Bindu-контур. Что изменилось: появились `MandalaSoundProvider`, `useMandalaSoundSync()` и интеграции в `CoherenceBreathScreen` и `SacredSymbolStreamScreen`.
 
 - **2026-05:** Для v1 выбран `expo-av` loop-based движок вместо AudioWorklet/JSI DSP из старого текстового ТЗ. Почему: текущий Expo/RN runtime уже нагружен камерой, PPG pipeline и Skia, поэтому приоритет сместился к предсказуемому low-risk playback. Что изменилось: `ExpoMandalaSoundEngine` управляет только готовыми loops/one-shots и меняет громкости, а историческое ожидание про live-фильтры, `70` текстур и `20` событий не подтверждается текущим кодом.

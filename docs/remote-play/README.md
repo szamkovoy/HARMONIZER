@@ -21,7 +21,13 @@ The table uses short-lived rows:
 
 The migration adds `public.tv_sessions` to the `supabase_realtime` publication. After `supabase db push`, verify in Supabase Dashboard that Realtime is enabled for `tv_sessions` if the publication is not reflected in Studio.
 
-## WordPress
+## WordPress / static files on zamkovoi.yoga
+
+| Файл в репозитории | Куда вставить |
+| --- | --- |
+| **`docs/remote-play/wordpress-snippet.html`** | Страница **`https://zamkovoi.yoga/tv/`** — Custom HTML block (Remote Play) |
+| **`web_cabinet/asana-embed.html`** | Файл **`https://zamkovoi.yoga/asana-embed.html`** (корень сайта; нужен Android-плееру асан) |
+| **`web_cabinet/cabinet.html`** | **`https://zamkovoi.yoga/cabinet/`** — см. `web_cabinet/README.md` |
 
 Paste `docs/remote-play/wordpress-snippet.html` into a WordPress Custom HTML block and replace:
 
@@ -30,14 +36,17 @@ Paste `docs/remote-play/wordpress-snippet.html` into a WordPress Custom HTML blo
 
 The snippet creates a waiting session, shows the code, subscribes to the row, and starts Vimeo playback when Expo writes `vimeo_id`. It also polls the same row every 2 seconds as a fallback in case a browser or WordPress page loses a Realtime event. Vimeo embed URL must be exactly `https://player.vimeo.com/video/<id>?audiotrack=<slug>` (no other query params). The slug is read from the session row's `audiotrack`; when that column is `null` the snippet falls back to `VIMEO_AUDIO_TRACK` (default `ru`). A change of `audiotrack` on the same `vimeo_id` (e.g. the user switches locale and re-launches) re-mounts the player because `audiotrack` is part of the row fingerprint. Do not switch the audio language through the Vimeo Player API after mount: playback depends on the iframe `src` carrying `?audiotrack=<slug>`.
 
-### UI language
+### UI language + audio track
 
-The TV page renders all its text in the **browser's** language (`navigator.language`), not the app's selected language. The strings live in a single inline `STRINGS` table keyed by the 8 content locales (only the resource values differ — no per-language page duplication). The active locale is resolved as:
+The TV page strings live in an inline `STRINGS` table for all 8 content locales. The active **UI** locale is resolved as:
 
-1. `navigator.language` (and `navigator.languages[0]`) mapped to one of the 8 supported locales (`ru`/`en`/`de`/`fr`/`it`/`es`/`pt`/`nl`).
-2. `en` — final fallback if the browser language cannot be detected or is not one of the supported locales.
+1. URL hint from the app — compact `?pt` (preferred: `https://zamkovoi.yoga/tv?pt`); also `?l=pt` / `?lang=` / `?locale=`. The Connect-TV / TV-remote screens show `tvPageUrl(locale)` (`modules/remote-play/core/tvPageUrl.ts`): Russian → `https://zamkovoi.yoga/tv`, every other locale → `https://zamkovoi.yoga/tv?<code>`. On the remote screen the URL is shown large; the practice title is smaller/bold; under the URL — localized caption «Open this page on your TV or computer».
+2. `sessionStorage` remember of a previous URL hint (same browser tab/profile).
+3. **`ru`** — default when the link has no locale (bare `/tv`). Browser `navigator.language` is intentionally **not** used: a Russian Smart-TV browser must not override Portuguese (etc.) chosen in the app.
 
-The app does **not** write a `locale` into the session row anymore (the `tv_sessions.locale` column was dropped). Both the app name (`appName`: Гармонизатор / Harmonizer / Harmonisator / Harmoniseur / Armonizzatore / Armonizador / Harmonizador / Harmoniseerder) and the feature name (`remotePlay`: Удалённый просмотр / Remote Play / Fernwiedergabe / Lecture à distance / Riproduzione remota / Reproducción remota / Reprodução remota / Weergave op afstand) are localized, so the eyebrow `${appName} ${remotePlay}` is fully in the browser's language (no Latin "Remote Play" tail on Russian). The `unavailable` message is localized too. The audio track of the video itself is a separate concern and still follows the app locale via the `audiotrack` column.
+The app does **not** write a `locale` into the session row (the `tv_sessions.locale` column was dropped). Video language is separate and follows the app via `tv_sessions.audiotrack` (`ru` for Russian UI, `en` for every other content locale — same as phone). If `audiotrack` is null, the snippet falls back to the URL/UI locale mapping (`ru`→`ru`, else→`en`), then to hardcoded `ru`.
+
+**Sound:** browsers block unmuted autoplay. The snippet starts muted, shows a full-player “tap for sound” overlay, unlocks audio on any page gesture, and remembers unlock in `sessionStorage` so later plays in the same tab can unmute automatically.
 
 ### Mobile flow
 

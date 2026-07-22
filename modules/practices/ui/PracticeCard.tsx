@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, StyleSheet, View } from "react-native";
+import { Alert, Image, Platform, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
@@ -13,6 +13,11 @@ import {
 import { WearablePickerDialog } from "@/modules/biofeedback/wearables/WearablePickerDialog";
 import type { WearableScanCandidate } from "@/modules/biofeedback/wearables/types";
 import { useRememberedWearableProbe } from "@/modules/biofeedback/wearables/useRememberedWearableProbe";
+import {
+  ensureWearableLiveLink,
+  isWearableLiveLinkReady,
+  releaseWearableConnection,
+} from "@/modules/biofeedback/wearables/wearableConnectionHold";
 import { isFingerFrameProcessorAvailable } from "@/modules/biofeedback-finger-frame-processor/src";
 import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -96,6 +101,8 @@ export const PracticeCard = memo(function PracticeCard({
   const [selectedSensorMode, setSelectedSensorMode] = useState<"fingerCamera" | "ble" | "none">(
     practice.kind === "breath" ? wearablePreferences.preferredSensorMode : "fingerCamera",
   );
+  const [bleWarmLaunching, setBleWarmLaunching] = useState(false);
+  const [androidLiveDeviceId, setAndroidLiveDeviceId] = useState<string | null>(null);
   const [openField, setOpenField] = useState<SelectField>(null);
   const [wearablePickerVisible, setWearablePickerVisible] = useState(false);
 
@@ -178,12 +185,26 @@ export const PracticeCard = memo(function PracticeCard({
   const rememberedWearableName = wearablePreferences.lastDeviceName?.trim() ?? "";
   const rememberedWearableProbe = useRememberedWearableProbe(
     wearablePreferences.lastDeviceId,
-    practice.kind === "breath",
+    // Pause probe while the picker owns the BLE scanner — parallel scans on Android
+    // race with "Cannot start scanning" and used to show a false "Bluetooth busy" banner.
+    practice.kind === "breath" && !wearablePickerVisible,
   );
+  // Android: show Polar only when OS-link was completed AND probe still sees it
+  // (or we have a live hold). After Forget in phone BT settings, probe → false → hide.
   const rememberedWearableVisible =
-    hasRememberedWearable && rememberedWearableProbe.available === true;
+    hasRememberedWearable &&
+    Boolean(rememberedWearableName) &&
+    (selectedSensorMode === "ble" || wearablePreferences.preferredSensorMode === "ble") &&
+    (Platform.OS !== "android" ||
+      (wearablePreferences.androidOsLinkReady &&
+        (isWearableLiveLinkReady(wearablePreferences.lastDeviceId ?? "", 30_000) ||
+          rememberedWearableProbe.available === true ||
+          rememberedWearableProbe.probing)));
   const needsWearableSelection =
-    practice.kind === "breath" && selectedSensorMode === "ble" && !rememberedWearableVisible;
+    practice.kind === "breath" &&
+    selectedSensorMode === "ble" &&
+    (!hasRememberedWearable ||
+      (Platform.OS === "android" && !wearablePreferences.androidOsLinkReady));
 
   useFocusEffect(
     useCallback(() => {
@@ -193,23 +214,46 @@ export const PracticeCard = memo(function PracticeCard({
     }, [practice.kind, rememberedWearableProbe.refresh]),
   );
 
-  // Reflect probe availability on the UI selection WITHOUT wiping the persisted preference.
-  // The persisted `preferredSensorMode` is the user's INTENT (last manually chosen source); a
-  // transient probe failure (e.g. right after returning from a BLE practice — the strap was just
-  // disconnected and may not advertise within the 4 s probe window) must NOT overwrite it, or the
-  // choice silently resets to "phone camera" forever (the catalog-restoration bug). When the strap
-  // is genuinely unavailable we fall back the UI to camera for this view; when the probe succeeds
-  // again (next focus / app open) we restore the "ble" selection. Manual dropdown changes still
-  // write the preference via their own handlers.
+  // Keep UI in sync with persisted BLE intent.
   useEffect(() => {
     if (practice.kind !== "breath") return;
-    if (wearablePreferences.preferredSensorMode !== "ble") return; // user wants camera/none — leave
-    if (rememberedWearableProbe.available === true) {
+    if (wearablePreferences.preferredSensorMode === "ble") {
       setSelectedSensorMode("ble");
-    } else if (rememberedWearableProbe.available === false) {
-      setSelectedSensorMode("fingerCamera");
     }
-  }, [practice.kind, wearablePreferences.preferredSensorMode, rememberedWearableProbe.available]);
+  }, [practice.kind, wearablePreferences.preferredSensorMode]);
+
+  // Sync live-link badge from hold module / prefs (Android).
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const id = wearablePreferences.lastDeviceId?.trim() ?? "";
+    if (id && wearablePreferences.androidOsLinkReady && isWearableLiveLinkReady(id, 30_000)) {
+      setAndroidLiveDeviceId(id);
+    }
+  }, [wearablePreferences.androidOsLinkReady, wearablePreferences.lastDeviceId]);
+
+  // Android: strap gone from radio (BT on, probe finished) → hide + default «без пульсометра».
+  useEffect(() => {
+    if (Platform.OS !== "android" || practice.kind !== "breath") return;
+    if (!hasRememberedWearable) return;
+    if (rememberedWearableProbe.probing) return;
+    if (rememberedWearableProbe.available !== false) return;
+    setSelectedSensorMode("none");
+    setAndroidLiveDeviceId(null);
+    void releaseWearableConnection();
+    void updateWearablePreferences({
+      preferredSensorMode: "none",
+      lastDeviceId: null,
+      lastDeviceName: null,
+      lastProvider: null,
+      lastCapabilityTier: null,
+      androidOsLinkReady: false,
+    });
+  }, [
+    hasRememberedWearable,
+    practice.kind,
+    rememberedWearableProbe.available,
+    rememberedWearableProbe.probing,
+  ]);
 
   const openWearablePicker = () => {
     setOpenField(null);
@@ -220,19 +264,61 @@ export const PracticeCard = memo(function PracticeCard({
     setWearablePickerVisible(false);
   };
 
+  /** Persist selection (iOS closes; Android stays open until live connect succeeds). */
   const selectWearableCandidate = (candidate: WearableScanCandidate) => {
     setSelectedSensorMode("ble");
     void updateWearablePreferences({
       preferredSensorMode: "ble",
       lastDeviceId: candidate.id,
-      lastDeviceName: candidate.name,
+      lastDeviceName: candidate.name.trim() || candidate.id,
       lastProvider: candidate.provider,
       lastCapabilityTier: candidate.capabilityTier === "unknown" ? null : candidate.capabilityTier,
+    });
+    if (Platform.OS !== "android") {
+      closeWearablePicker();
+    }
+  };
+
+  const connectWearableLive = async (candidate: WearableScanCandidate): Promise<boolean> => {
+    const ok = await ensureWearableLiveLink(candidate.id);
+    if (!ok) {
+      setAndroidLiveDeviceId(null);
+      void updateWearablePreferences({ androidOsLinkReady: false });
+      Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
+        { text: strings.wearableLinkRetry, style: "cancel" },
+      ]);
+      return false;
+    }
+    setAndroidLiveDeviceId(candidate.id);
+    setSelectedSensorMode("ble");
+    void updateWearablePreferences({
+      preferredSensorMode: "ble",
+      lastDeviceId: candidate.id,
+      lastDeviceName: candidate.name.trim() || candidate.id,
+      lastProvider: candidate.provider,
+      lastCapabilityTier: candidate.capabilityTier === "unknown" ? null : candidate.capabilityTier,
+      androidOsLinkReady: true,
+    });
+    return true;
+  };
+
+  const disconnectWearable = () => {
+    setSelectedSensorMode("none");
+    setAndroidLiveDeviceId(null);
+    void releaseWearableConnection();
+    void updateWearablePreferences({
+      preferredSensorMode: "none",
+      lastDeviceId: null,
+      lastDeviceName: null,
+      lastProvider: null,
+      lastCapabilityTier: null,
+      androidOsLinkReady: false,
     });
     closeWearablePicker();
   };
 
   const launchConfiguredPractice = () => {
+    if (bleWarmLaunching) return;
     if (needsWearableSelection) {
       openWearablePicker();
       return;
@@ -250,32 +336,77 @@ export const PracticeCard = memo(function PracticeCard({
       Alert.alert(strings.sensorCameraUnavailableTitle, strings.sensorCameraUnavailableBody);
       return;
     }
-    const launch = {
-      ...practice.launch,
-      durationMs: selectedDurationMin * 60_000,
-      chakra: selectedChakra,
-      ...(practice.kind === "breath"
-        ? {
-            sensorMode: selectedSensorMode,
-            deviceId:
-              selectedSensorMode === "ble" ? wearablePreferences.lastDeviceId ?? undefined : undefined,
-            deviceName:
-              selectedSensorMode === "ble" ? wearablePreferences.lastDeviceName ?? undefined : undefined,
-            provider:
-              selectedSensorMode === "ble" ? wearablePreferences.lastProvider ?? undefined : undefined,
-            capabilityTier:
-              selectedSensorMode === "ble"
-                ? wearablePreferences.lastCapabilityTier ?? undefined
-                : selectedSensorMode === "none"
-                  ? "unsupported"
-                  : undefined,
-            autoReconnect:
-              selectedSensorMode === "ble" ? wearablePreferences.autoReconnect : undefined,
-            usePulseSensor: selectedSensorMode !== "none",
+
+    const runLaunch = () => {
+      const launch = {
+        ...practice.launch,
+        durationMs: selectedDurationMin * 60_000,
+        chakra: selectedChakra,
+        ...(practice.kind === "breath"
+          ? {
+              sensorMode: selectedSensorMode,
+              deviceId:
+                selectedSensorMode === "ble" ? wearablePreferences.lastDeviceId ?? undefined : undefined,
+              deviceName:
+                selectedSensorMode === "ble" ? wearablePreferences.lastDeviceName ?? undefined : undefined,
+              provider:
+                selectedSensorMode === "ble" ? wearablePreferences.lastProvider ?? undefined : undefined,
+              capabilityTier:
+                selectedSensorMode === "ble"
+                  ? wearablePreferences.lastCapabilityTier ?? undefined
+                  : selectedSensorMode === "none"
+                    ? "unsupported"
+                    : undefined,
+              autoReconnect:
+                selectedSensorMode === "ble" ? wearablePreferences.autoReconnect : undefined,
+              usePulseSensor: selectedSensorMode !== "none",
+            }
+          : {}),
+      } as PracticeSummary["launch"];
+      onLaunch({ ...practice, launch });
+    };
+
+    // Android: pair/system prompts belong in the picker. Start only reconnects
+    // a previously verified OS link (usually silent). Never open practice unlinked.
+    const bleDeviceId =
+      practice.kind === "breath" && selectedSensorMode === "ble"
+        ? wearablePreferences.lastDeviceId?.trim()
+        : "";
+    if (bleDeviceId && Platform.OS === "android") {
+      if (!wearablePreferences.androidOsLinkReady) {
+        openWearablePicker();
+        return;
+      }
+      // Fresh live stream from picker — open practice without another connectToDevice.
+      if (isWearableLiveLinkReady(bleDeviceId, 30_000)) {
+        runLaunch();
+        return;
+      }
+      setBleWarmLaunching(true);
+      void ensureWearableLiveLink(bleDeviceId)
+        .then((ok) => {
+          // ensure reuses open GATT when possible — avoids a second OS pair banner.
+          if (!ok) {
+            void updateWearablePreferences({ androidOsLinkReady: false });
+            setAndroidLiveDeviceId(null);
+            Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
+              { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
+              { text: strings.wearablePickerClose, style: "cancel" },
+            ]);
+            return;
           }
-        : {}),
-    } as PracticeSummary["launch"];
-    onLaunch({ ...practice, launch });
+          setAndroidLiveDeviceId(bleDeviceId);
+          runLaunch();
+        })
+        .catch(() => {
+          Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
+            { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
+          ]);
+        })
+        .finally(() => setBleWarmLaunching(false));
+      return;
+    }
+    runLaunch();
   };
 
   const sensorDropdownValue =
@@ -291,7 +422,9 @@ export const PracticeCard = memo(function PracticeCard({
       ? strings.openOnPhone
       : needsWearableSelection
         ? strings.findWearableButton
-        : strings.startPractice;
+        : bleWarmLaunching
+          ? strings.connectingWearableButton
+          : strings.startPractice;
 
   return (
     <>
@@ -436,6 +569,7 @@ export const PracticeCard = memo(function PracticeCard({
           <AppButton
             label={primaryButtonLabel}
             onPress={launchConfiguredPractice}
+            disabled={bleWarmLaunching}
             style={styles.button}
           />
           {practice.kind === "yoga" && onRemotePlay ? (
@@ -455,19 +589,33 @@ export const PracticeCard = memo(function PracticeCard({
         visible={wearablePickerVisible}
         onClose={closeWearablePicker}
         onSelect={selectWearableCandidate}
+        onDisconnect={disconnectWearable}
+        selectedDeviceId={wearablePreferences.lastDeviceId}
+        liveLinkedDeviceId={
+          Platform.OS === "android" ? androidLiveDeviceId : wearablePreferences.lastDeviceId
+        }
+        onConnectLive={Platform.OS === "android" ? connectWearableLive : undefined}
         strings={{
           title: strings.wearablePickerTitle,
           searchHint: strings.wearablePickerHint,
           foundHint: strings.wearablePickerFoundHint,
+          connectedHint: strings.wearablePickerConnectedHint,
           notFoundHint: strings.wearablePickerNotFound,
           notFoundTips: strings.wearablePickerNotFoundTips,
           bluetoothOffHint: strings.wearablePickerBluetoothOff,
           permissionDeniedHint: strings.wearablePickerPermissionDenied,
+          scanBusyHint: strings.wearablePickerScanBusy,
           retryButton: strings.wearablePickerRetry,
           closeButton: strings.wearablePickerClose,
           selectButton: strings.wearablePickerSelectButton,
+          connectedLabel: strings.wearablePickerConnectedLabel,
+          foundNotConnectedLabel: strings.wearablePickerFoundNotConnectedLabel,
+          disconnectButton: strings.wearablePickerDisconnectButton,
           signalLabel: strings.wearablePickerSignalLabel,
           bluetoothStateLabel: strings.wearableBluetoothStateLabel,
+          linkingHint: strings.wearablePickerLinkingHint,
+          linkingButton: strings.wearablePickerLinkingButton,
+          linkingStatusLabel: strings.wearablePickerLinkingStatusLabel,
         }}
       />
     </>

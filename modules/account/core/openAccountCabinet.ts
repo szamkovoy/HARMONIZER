@@ -3,9 +3,10 @@
  *
  * Поток OTT (one-time token):
  *   1. POST /api/account/ott (Bearer JWT приложения) → одноразовый токен ~5 мин.
- *   2. `Linking.openURL("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")` —
- *      строго системный браузер (Safari/Chrome), НЕ WebView: оплата внутри
- *      встроенного браузера запрещена правилами Apple/Google.
+ *   2. `WebBrowser.openBrowserAsync(...)` — SFSafariViewController / Chrome Custom Tabs
+ *      (внешний браузер, НЕ WebView). На Android `createTask: false`, чтобы OS не
+ *      убивала Activity приложения при уходе в Chrome (иначе после закрытия кабинета
+ *      кажется, что приложение «перезагрузилось»).
  *   3. Страница кабинета меняет OTT на кабинетную сессию через
  *      POST /api/account/session (CORS только для домена сайта).
  *
@@ -19,7 +20,8 @@
  * foreground MembershipEventsBridge сверяет тариф с сервером (страховка,
  * если Realtime-событие оплаты не дошло).
  */
-import { Linking } from "react-native";
+import { Platform } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 
 import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accountFlagsStore";
 import { resolveBillingCurrency } from "@/modules/account/core/billingCurrency";
@@ -109,5 +111,10 @@ export async function openAccountCabinet(ctx: CabinetContext = "tier"): Promise<
   url.searchParams.set("currency", currency);
   url.searchParams.set("ctx", ctx);
   if (userId) await markCabinetVisit(userId, ctx);
-  await Linking.openURL(url.toString());
+  // Custom Tabs / SFSafariViewController — still an external browser (App Store /
+  // Play billing rules). createTask:false keeps the Expo activity alive on Android.
+  await WebBrowser.openBrowserAsync(url.toString(), {
+    createTask: Platform.OS === "android" ? false : undefined,
+    showInRecents: true,
+  });
 }

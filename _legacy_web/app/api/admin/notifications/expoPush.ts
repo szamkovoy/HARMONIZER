@@ -2,7 +2,7 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const CHUNK = 100; // лимит Expo Push API на один запрос
 const EXPO_FETCH_TIMEOUT_MS = 20_000;
 
-/** Android channel id for future remote pushes (created on device; not required in Expo payload yet). */
+/** Android channel id for remote admin pushes (must match `configureLocalNotifications` on device). */
 export const REMOTE_PUSH_CHANNEL_ID = "harmonizer_remote";
 
 export type ExpoPushMessage = {

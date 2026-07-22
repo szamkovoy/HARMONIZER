@@ -17,6 +17,12 @@ type StoredPreferences = {
   lastDeviceName: string | null;
   lastProvider: WearableDeviceProvider | null;
   lastCapabilityTier: WearableCapabilityTier | null;
+  /**
+   * Android only: user completed GATT + system connect prompts in the picker
+   * (live HR packet seen). «Начать практику» may then reconnect without the
+   * first-time pair dialogs. Cleared on disconnect / probe-miss / failed link.
+   */
+  androidOsLinkReady: boolean;
 };
 
 const DEFAULT_PREFERENCES: StoredPreferences = {
@@ -26,6 +32,7 @@ const DEFAULT_PREFERENCES: StoredPreferences = {
   lastDeviceName: null,
   lastProvider: null,
   lastCapabilityTier: null,
+  androidOsLinkReady: false,
 };
 
 let currentPreferences: StoredPreferences = DEFAULT_PREFERENCES;
@@ -63,6 +70,7 @@ function parseStoredPreferences(raw: string | null): StoredPreferences {
         parsed.lastCapabilityTier === "unknown"
           ? parsed.lastCapabilityTier
           : null,
+      androidOsLinkReady: parsed.androidOsLinkReady === true,
     };
   } catch {
     return DEFAULT_PREFERENCES;

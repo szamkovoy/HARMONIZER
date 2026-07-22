@@ -3,6 +3,8 @@
   { "id": "profile", "file": "modules/profile/i18n/profile.ts", "start": "const ru:", "end": "const en:" },
   { "id": "day", "file": "modules/day/i18n/day.ts", "start": "const ru:", "end": "const en:" },
   { "id": "practices", "file": "modules/practices/i18n/practices.ts", "start": "const ru:", "end": "const en:" },
+  { "id": "asanaScreen", "file": "modules/practices/i18n/asanaScreen.ts", "start": "const ru:", "end": "const en:" },
+  { "id": "remotePlay", "file": "modules/remote-play/i18n/remotePlay.ts", "start": "const ru:", "end": "const en:" },
   { "id": "communicator", "file": "modules/communicator/i18n/communicator.ts", "start": "const ru:", "end": "const en:" },
   { "id": "breath", "file": "modules/breath/i18n/coherence.ts", "start": "const ru:", "end": "const en:" },
   { "id": "mandala", "file": "modules/mandala/i18n/symbolStream.ts", "start": "const ru:", "end": "const en:" },

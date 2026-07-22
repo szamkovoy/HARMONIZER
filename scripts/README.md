@@ -10,6 +10,8 @@ Operational scripts for the HARMONIZER repo.
 | `backfill-practice-thumbnails.mjs` | One-off: backfill practice thumbnails. |
 | `import-vimeo-asanas.mjs` | One-off: import asana videos from Vimeo. |
 | `doctor-ios-biofeedback.sh` | iOS biofeedback build doctor. |
+| `android-fcm-setup.mjs` | Validate `google-services.json` + `fcm-service-account.json` for Android Expo/FCM push. |
+| `upload-fcm-to-eas.mjs` | Upload FCM V1 service account to EAS and assign to `com.zamkovoi.harmonizer` (needs `eas login`). |
 | `sync-vercel-server-modules.mjs` | Copy minimal server i18n slice into `_legacy_web/modules/` before Vercel deploy. |
 
 ## i18n translation sync gate

@@ -113,7 +113,7 @@
   "wearableCapabilityMetrics": "métriques",
   "wearableCapabilityProbe": "vérification",
   "wearableCapabilityRhythmOnly": "rythme uniquement",
-  "wearableConnecting": "Connexion au capteur...",
+  "wearableConnecting": "Connexion du cardiofréquencemètre…",
   "wearableIdleHint": "Connectez un moniteur de fréquence cardiaque thoracique BLE ou passez à la caméra du téléphone.",
   "wearableIdleStartButton": "Connecter le moniteur de fréquence cardiaque",
   "wearableNoDevicesFound": "Aucun moniteur de fréquence cardiaque BLE compatible trouvé pour le moment. Relancez la recherche ou utilisez la caméra du téléphone.",
@@ -135,5 +135,8 @@
   "wearableRunningGuidedOnly": "Métriques HRV désactivées : le capteur guide uniquement le rythme respiratoire.",
   "wearableRunningReconnect": "Le moniteur de fréquence cardiaque se reconnecte...",
   "wearableScanning": "Recherche de moniteurs de fréquence cardiaque compatibles à proximité...",
-  "wearableUseCamera": "Caméra"
+  "wearableUseCamera": "Caméra",
+  "wearablePickerConnectedLabel": "Connecté",
+  "wearablePickerDisconnectButton": "Déconnecter",
+  "wearableAndroidSystemConnectHint": "Si Android demande en haut — confirmez la connexion."
 }

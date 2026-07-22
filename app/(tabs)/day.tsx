@@ -504,8 +504,14 @@ export default function DayTabRoute() {
   const scrollRef = useRef<ScrollView>(null);
   const donutScrollProps = useDonutScrollProps();
   const refreshDonutVisibility = useDonutVisibilityRefresh();
-  const [plan, setPlan] = useState<DayPlan | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState<DayPlan | null>(() => {
+    const prefetched = peekPrefetchedDayPlan();
+    return prefetched && isDayPlanCurrent(prefetched) ? prefetched : null;
+  });
+  const [loading, setLoading] = useState(() => {
+    const prefetched = peekPrefetchedDayPlan();
+    return !(prefetched && isDayPlanCurrent(prefetched));
+  });
   const [error, setError] = useState<string | null>(null);
   const [assistantSession, setAssistantSession] = useState<AssistantSession | null>(null);
   const assistantSessionKeyRef = useRef(0);
@@ -617,7 +623,18 @@ export default function DayTabRoute() {
         return () => undefined;
       }
 
+      // Keep spinner only when we truly have nothing to paint yet.
       setLoading(true);
+      // Cold Android start: SecureStore often has today's plan while memory is empty.
+      // Paint disk (only if current) in parallel with network — no yesterday flash.
+      if (authUser?.id) {
+        void loadCachedDayPlan({ userId: authUser.id, locale: reportLocale }).then((disk) => {
+          if (planRef.current) return;
+          if (disk && isDayPlanCurrent(disk)) {
+            applyPlan(disk, "disk_cache");
+          }
+        });
+      }
       void refresh();
 
       // Late Home prefetch: user opened Day while loadDayPlan was still in flight.

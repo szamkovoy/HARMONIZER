@@ -1,7 +1,7 @@
 ---
 id: 02_modules/notifications/dependencies
 title: Notifications Dependencies
-version: 1.1
+version: 1.2
 updated: 2026-07-22
 depends_on: [02_modules/admin_panel/spec, 02_modules/webinars/spec]
 code_refs:
@@ -18,8 +18,9 @@ code_refs:
 - **`admin_panel`** — отправка только из `/admin/notifications` под `requireAdmin` (service role).
 - **`webinars`** — сегмент `webinar:<id>` читает `webinar_registrations`; список вебинаров для селекта — `GET /api/admin/webinars`. Клиентский `WebinarScreen` вызывает `ensureNotificationPermission("webinar")` при записи / уже записан.
 - **`subscription`** — сегмент `tier:<t>` фильтрует по сырому `users.membership_tier` (не effective tier — истёкший грант остаётся в своём тарифе до фикса данных).
-- **`infra`** — Supabase (`push_tokens` из init-миграции, `notifications`, `notification_deliveries`), Expo Push API (`exp.host`), EAS `projectId` из `app.json`.
-- **`services/localNotifications.ts`** — ленивый загрузчик `expo-notifications` (`getExpoNotificationsOrNull`), общий с локальными напоминаниями.
+- **`infra`** — Supabase (`push_tokens` из init-миграции, `notifications`, `notification_deliveries`), Expo Push API (`exp.host`), EAS `projectId` из `app.json`. **Android remote:** FCM через `google-services.json` + EAS credentials (не в git пока не подключено).
+- **`services/localNotifications.ts`** — ленивый загрузчик `expo-notifications` (`getExpoNotificationsOrNull`), `ensureAndroidNotificationChannels` (`harmonizer_opportunity_high` / `harmonizer_remote`), общий с локальными напоминаниями.
+- **FCM (Android remote):** `google-services.json` в корне (`app.config.ts`) + FCM V1 в EAS (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.
 - **auth / i18n** — userId для токена и доставок; ключи `notifications.*`.
 
 ## 2. От него зависят
@@ -27,7 +28,7 @@ code_refs:
 - **`profile`** — карточка «Мои уведомления» с бейджем в `app/(tabs)/profile.tsx`.
 - **Корневой layout** — `PushRegistrationBridge` в `app/_layout.tsx`.
 - **Home** (`app/(tabs)/index.tsx`) — мягкий `ensureNotificationPermission("home")` на focus.
-- **OpportunityWindows** — `ensureNotificationPermission("opportunity_bell")` при сохранении напоминания.
+- **OpportunityWindows** — `ensureNotificationPermission("opportunity_bell")` + `registerPushToken` при сохранении напоминания.
 
 ## 3. Контрактные точки риска
 

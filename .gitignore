@@ -41,6 +41,11 @@ yarn-error.*
 # выгрузки `vercel env pull` (часто содержат секреты / OIDC)
 .env.vercel*
 
+# FCM: service account private key (upload to EAS only — never commit).
+# `google-services.json` at repo root is OK to commit (public client ids).
+fcm-service-account.json
+*-firebase-adminsdk-*.json
+
 # typescript
 *.tsbuildinfo
 

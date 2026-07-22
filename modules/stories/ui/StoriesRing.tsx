@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "@/modules/auth";
@@ -22,8 +22,8 @@ import { useTheme, type PaletteScheme } from "@/modules/ui/theme";
 
 const RING_SIZE = 58;
 const INNER_SIZE = 50;
-/** Android SVG strokes often render thinner/fainter — keep iOS at 3. */
-const STROKE_WIDTH = Platform.OS === "android" ? 3.5 : 3;
+/** Same stroke on iOS + Android — thin 3px was too faint, especially on Android SVG. */
+const STROKE_WIDTH = 3.5;
 const SVG_SIZE = 58;
 const RADIUS = 27;
 const CENTER = SVG_SIZE / 2;
@@ -32,20 +32,14 @@ const SEGMENT_GAP_DEG = 8;
 const REVEAL_DURATION_MS = 850;
 
 /**
- * Android SVG strokes often look fainter than iOS — stronger ring-only colors.
- * iOS keeps historical unread purple + theme surfaceBorder for read segments.
+ * Ring-only colors (shared iOS/Android). Slightly softer than the first Android
+ * contrast bump; still stronger than theme `surfaceBorder` for viewed segments.
  */
-function storiesRingStrokes(
-  scheme: PaletteScheme,
-  surfaceBorder: string,
-): { unread: string; read: string } {
-  if (Platform.OS !== "android") {
-    return { unread: "#9B5BEB", read: surfaceBorder };
-  }
+function storiesRingStrokes(scheme: PaletteScheme): { unread: string; read: string } {
   if (scheme === "light") {
-    return { unread: "#8B3FE0", read: "rgba(15, 23, 42, 0.38)" };
+    return { unread: "#9756E6", read: "rgba(15, 23, 42, 0.30)" };
   }
-  return { unread: "#C084FC", read: "rgba(255, 255, 255, 0.42)" };
+  return { unread: "#B98AF5", read: "rgba(255, 255, 255, 0.34)" };
 }
 
 function polarToPoint(angleDeg: number): { x: number; y: number } {
@@ -210,10 +204,7 @@ export function StoriesRing() {
   const thumbUri = userId ? avatarThumb(stories, getSessionStoryAvatarThumb(userId)) : null;
   const segments = ringSegments(stories.length);
   const revealEndAngle = START_ANGLE + revealProgress * 360;
-  const ringStrokes = useMemo(
-    () => storiesRingStrokes(theme.scheme, theme.colors.surfaceBorder),
-    [theme.colors.surfaceBorder, theme.scheme],
-  );
+  const ringStrokes = useMemo(() => storiesRingStrokes(theme.scheme), [theme.scheme]);
 
   if (!stories.length) {
     return (

@@ -113,7 +113,7 @@
   "wearableCapabilityMetrics": "metingen",
   "wearableCapabilityProbe": "test",
   "wearableCapabilityRhythmOnly": "alleen ritme",
-  "wearableConnecting": "Verbinding maken met sensor…",
+  "wearableConnecting": "Hartslagmeter verbinden…",
   "wearableIdleHint": "Verbind een borstband BLE-hartslagmeter of schakel over naar de cameramodus.",
   "wearableIdleStartButton": "Hartslagmeter verbinden",
   "wearableNoDevicesFound": "Er zijn nog geen geschikte BLE-hartslagmeters gevonden. Probeer opnieuw te zoeken of kies voor de cameramodus.",
@@ -135,5 +135,8 @@
   "wearableRunningGuidedOnly": "HRV-metingen zijn niet beschikbaar: de sensor begeleidt alleen het ademhalingsritme.",
   "wearableRunningReconnect": "Hartslagmeter wordt opnieuw verbonden…",
   "wearableScanning": "Zoeken naar compatibele hartslagmeters in de buurt…",
-  "wearableUseCamera": "Camera"
+  "wearableUseCamera": "Camera",
+  "wearablePickerConnectedLabel": "Verbonden",
+  "wearablePickerDisconnectButton": "Verbreken",
+  "wearableAndroidSystemConnectHint": "Als Android bovenaan vraagt — bevestig de verbinding."
 }

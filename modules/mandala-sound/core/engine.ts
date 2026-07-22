@@ -60,7 +60,9 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
+        // false: Android system BLE "connection request" banners (and similar) briefly
+        // duck audio when true — heard as a short scratch/glitch during breath sound.
+        shouldDuckAndroid: false,
         staysActiveInBackground: false,
       });
 

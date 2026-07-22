@@ -27,10 +27,10 @@ export const BREATH_CAMERA_EMULATED_FALLBACK_MS = 20_000;
 export const BREATH_CAMERA_EMULATED_START_GRACE_MS = 4_000;
 
 /** Minimum BLE prep time after the strap first reports live HR/RR before `running` starts. */
-export const BREATH_BLE_PREP_MIN_LIVE_PULSE_MS = 2_000;
+export const BREATH_BLE_PREP_MIN_LIVE_PULSE_MS = 3_000;
 
-/** BLE prep UI: one full ring rotation before auto-start (ms). */
-export const BREATH_BLE_PREP_SPIN_MS = 2_500;
+/** BLE prep UI: hold on the connection screen before auto-start (ms). */
+export const BREATH_BLE_PREP_SPIN_MS = 3_500;
 
 /**
  * Camera: up to this beat age we still treat `holding`/recent `tracking` as a live measured pulse

@@ -1,11 +1,12 @@
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
+import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 
 export type AsanaScreenLocale = AppContentLocale;
 
 export type AsanaPlaybackMode = "phone" | "tv";
 
-export type AsanaScreenStrings = {
+type AsanaScreenTable = {
   defaultTitle: string;
   closeA11y: string;
   practiceNotFound: string;
@@ -16,8 +17,8 @@ export type AsanaScreenStrings = {
   phoneVideoMissing: string;
   tvNotConnectedHint: string;
   tvConnectedHint: string;
-  tvConnectedMeta: (pairingCode: string) => string;
-  tvStatus: (value: string) => string;
+  tvConnectedMetaTemplate: string;
+  tvStatusTemplate: string;
   connectTvButton: string;
   launchOnTvButton: string;
   launchingButton: string;
@@ -30,7 +31,12 @@ export type AsanaScreenStrings = {
   closeButton: string;
 };
 
-const ru: AsanaScreenStrings = {
+export type AsanaScreenStrings = Omit<AsanaScreenTable, "tvConnectedMetaTemplate" | "tvStatusTemplate"> & {
+  tvConnectedMeta: (pairingCode: string) => string;
+  tvStatus: (value: string) => string;
+};
+
+const ru: AsanaScreenTable = {
   defaultTitle: "Практика асан",
   closeA11y: "Закрыть практику",
   practiceNotFound: "Практика не найдена.",
@@ -42,8 +48,8 @@ const ru: AsanaScreenStrings = {
   tvNotConnectedHint:
     "Откройте zamkovoi.yoga/tv на телевизоре или компьютере и введите код подключения.",
   tvConnectedHint: "ТВ подключён. Нажмите «Запустить на ТВ», и видео начнётся на большом экране.",
-  tvConnectedMeta: (pairingCode) => `ТВ подключён · код ${pairingCode}`,
-  tvStatus: (value) => `Статус: ${value}`,
+  tvConnectedMetaTemplate: "ТВ подключён · код {code}",
+  tvStatusTemplate: "Статус: {value}",
   connectTvButton: "Подключить ТВ",
   launchOnTvButton: "Запустить на ТВ",
   launchingButton: "Запускаем...",
@@ -56,7 +62,7 @@ const ru: AsanaScreenStrings = {
   closeButton: "Закрыть",
 };
 
-const en: AsanaScreenStrings = {
+const en: AsanaScreenTable = {
   defaultTitle: "Asana practice",
   closeA11y: "Close practice",
   practiceNotFound: "Practice not found.",
@@ -68,8 +74,8 @@ const en: AsanaScreenStrings = {
   tvNotConnectedHint:
     "Open zamkovoi.yoga/tv on your TV or computer and enter the pairing code shown there.",
   tvConnectedHint: "TV is connected. Press “Launch on TV” and the video will start on the big screen.",
-  tvConnectedMeta: (pairingCode) => `TV connected · code ${pairingCode}`,
-  tvStatus: (value) => `Status: ${value}`,
+  tvConnectedMetaTemplate: "TV connected · code {code}",
+  tvStatusTemplate: "Status: {value}",
   connectTvButton: "Connect TV",
   launchOnTvButton: "Launch on TV",
   launchingButton: "Launching...",
@@ -83,5 +89,11 @@ const en: AsanaScreenStrings = {
 };
 
 export function getAsanaScreenStrings(locale: AsanaScreenLocale = "ru"): AsanaScreenStrings {
-  return inlineBaseLocale(locale) === "en" ? en : ru;
+  const base = inlineBaseLocale(locale) === "en" ? en : ru;
+  const table = mergeTypedLocale("asanaScreen", base, locale);
+  return {
+    ...table,
+    tvConnectedMeta: (pairingCode) => table.tvConnectedMetaTemplate.replace("{code}", pairingCode),
+    tvStatus: (value) => table.tvStatusTemplate.replace("{value}", value),
+  };
 }

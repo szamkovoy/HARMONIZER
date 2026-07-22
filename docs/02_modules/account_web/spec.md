@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.10
+version: 1.11
 updated: 2026-07-22
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
@@ -58,7 +58,7 @@ code_refs:
 
 Экспорт `modules/account/index.ts`:
 
-- **`openAccountCabinet(ctx?: CabinetContext): Promise<void>`** — `POST /api/account/ott` (Bearer JWT приложения) → `Linking.openURL("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")`. Бросает ошибку при недоступности OTT (UI показывает `gate.cabinetError`). `ctx`: `"tier"` (default) | `"webinar:<id>"` | `"course:<id>"` — задел под вебинары/курсы. Перед открытием пишет флаг `cabinetVisit.{userId}` (см. `readFreshCabinetVisit`).
+- **`openAccountCabinet(ctx?: CabinetContext): Promise<void>`** — `POST /api/account/ott` (Bearer JWT приложения) → `WebBrowser.openBrowserAsync("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")` (SFSafariViewController / Chrome Custom Tabs; на Android `createTask: false`, чтобы не убивать Activity). Бросает ошибку при недоступности OTT (UI показывает `gate.cabinetError`). `ctx`: `"tier"` (default) | `"webinar:<id>"` | `"course:<id>"` — задел под вебинары/курсы. Перед открытием пишет флаг `cabinetVisit.{userId}` (см. `readFreshCabinetVisit`).
 - **`resolveBillingCurrency(userId): Promise<"RUB"|"USD"|"EUR">`** — валюта цен кабинета по геолокации: reverse-geocode кэшированных координат (`userLocationProfileCache`) → страна → RU=RUB, US=USD, иначе EUR; fallback EUR. In-memory кэш на сессию + персистентный флаг `billingCurrency`; reverse-geocode ограничен **800 мс** (при таймауте сразу EUR, уточнение в фоне) — чтобы `openAccountCabinet` не держал белый Safari до `openURL`.
 - **`getAccountCabinetUrl()`** — URL кабинета; переопределяется `EXPO_PUBLIC_ACCOUNT_CABINET_URL`.
 - **`useAccountLinksEnabled(): boolean`** / **`getAccountLinksEnabled()`** — kill-switch из `app_config` (in-memory TTL 5 мин + персист последнего явного значения; fail-safe `false`). «Нет строк»/сеть/503 schema cache НЕ пишутся как свежее `false`; при ошибке — ретраи, затем прежний кэш/персист. Персист убирает мигание кнопки на Профиле, пока идёт refetch.
@@ -73,7 +73,7 @@ code_refs:
 | `POST /api/account/ott` | Bearer JWT Supabase (приложение) | Выдаёт OTT: 32 байта base64url, в БД только sha256-хэш, TTL 5 мин |
 | `POST /api/account/session` | без auth, body `{ ott }`, CORS = origin сайта | Атомарно гасит OTT (`UPDATE … WHERE used_at IS NULL`), возвращает `{ sessionToken, overview }` |
 | `GET /api/account/overview` | Bearer кабинетной сессии, query `?currency=` | Свежий `overview`; цены: Lava products (USD/EUR и RUB→Lava) или `payment_catalog` (RUB→ЮKassa) |
-| `POST /api/account/checkout` | Bearer кабинетной сессии, body `{ kind, tier?, webinarId?, currency }` | `selectPaymentProvider(currency)` → Lava или ЮKassa. Lava: как раньше (invoice + `provider=lavatop`). ЮKassa (RUB при флагах): pending `payment_contracts` (`provider=yookassa`, `contract_id` = наш uuid) + `POST /v3/payments` → `{ paymentUrl: confirmation_url, contractId }`. Политики kind/апгрейда те же. |
+| `POST /api/account/checkout` | Bearer кабинетной сессии, body `{ kind, tier?, webinarId?, currency }` | `selectPaymentProvider(currency)` → Lava или ЮKassa. Lava: invoice + `provider=lavatop`; buyer email нормализуется; отказ Lava `Incorrect email to purchase` → `400 { error: "lava_buyer_email_rejected" }`. ЮKassa (RUB при флагах): pending `payment_contracts` (`provider=yookassa`, `contract_id` = наш uuid) + `POST /v3/payments` → `{ paymentUrl: confirmation_url, contractId }`. Политики kind/апгрейда те же. |
 | `GET /api/account/purchases/last` | Bearer JWT Supabase (приложение) | Последняя активная one_time-покупка (`{ kind, productRef, createdAt, contractId }` | null). Приложение сверяет `createdAt` с `cabinetVisit` и благодарит за покупку (`gate.bookPaid.*`). Таблица `payment_contracts` закрыта для клиента — чтение только service role |
 | `GET /api/account/subscription` | Bearer кабинетной сессии | Последний контракт со статусом active/cancelled |
 | `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → DB-only, автосписаний пока нет) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |

@@ -74,5 +74,9 @@
   "yogaLateHint": "Supabase antwortet langsamer als gewöhnlich. Der Katalog ist bereits geöffnet und die Asanas erscheinen hier automatisch.",
   "yogaLateLoading": "wird geladen...",
   "yogaLateLoadingTitle": "Asanas werden noch geladen",
-  "yogaTitlePrefix": "Übung"
+  "yogaTitlePrefix": "Übung",
+  "connectingWearableButton": "Verbinde…",
+  "wearableLinkFailedTitle": "Pulsmesser nicht verbunden",
+  "wearableLinkFailedBody": "Wenn Android oben eine Anfrage zeigt — bestätigen und «Erneut versuchen» tippen. Gurt tragen, Bluetooth an, andere Apps mit diesem Sensor schließen.",
+  "wearableLinkRetry": "Erneut versuchen"
 }

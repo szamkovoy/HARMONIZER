@@ -188,6 +188,32 @@ export async function createLavaOneTimeInvoice(params: {
   return createLavaInvoice({ ...params, periodicity: "ONE_TIME" });
 }
 
+/** Normalize buyer email the way Lava expects (trim + lowercase). */
+export function normalizeLavaBuyerEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export class LavaInvoiceError extends Error {
+  readonly status: number;
+  readonly lavaBody: string;
+  readonly code: "lava_buyer_email_rejected" | "lava_invoice_failed";
+
+  constructor(status: number, lavaBody: string) {
+    const isEmail =
+      /incorrect email to purchase/i.test(lavaBody) || /incorrect email/i.test(lavaBody);
+    const code = isEmail ? "lava_buyer_email_rejected" : "lava_invoice_failed";
+    super(
+      isEmail
+        ? "lava_buyer_email_rejected"
+        : `Lava invoice HTTP ${status}: ${lavaBody.slice(0, 300)}`,
+    );
+    this.name = "LavaInvoiceError";
+    this.status = status;
+    this.lavaBody = lavaBody;
+    this.code = code;
+  }
+}
+
 async function createLavaInvoice(params: {
   email: string;
   offerId: string;
@@ -195,6 +221,10 @@ async function createLavaInvoice(params: {
   locale: string;
   periodicity: LavaPeriodicity;
 }): Promise<LavaInvoiceResponse> {
+  const email = normalizeLavaBuyerEmail(params.email);
+  if (!email || !email.includes("@")) {
+    throw new LavaInvoiceError(400, JSON.stringify({ error: "Incorrect email to purchase" }));
+  }
   const res = await fetch(`${LAVA_API_BASE}/api/v2/invoice`, {
     method: "POST",
     headers: {
@@ -203,7 +233,7 @@ async function createLavaInvoice(params: {
       Accept: "application/json",
     },
     body: JSON.stringify({
-      email: params.email,
+      email,
       offerId: params.offerId,
       currency: params.currency,
       periodicity: params.periodicity,
@@ -212,7 +242,7 @@ async function createLavaInvoice(params: {
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Lava invoice HTTP ${res.status}: ${text.slice(0, 300)}`);
+    throw new LavaInvoiceError(res.status, text);
   }
   const data = JSON.parse(text) as LavaInvoiceResponse;
   if (!data.id) throw new Error("Lava invoice: response has no id");

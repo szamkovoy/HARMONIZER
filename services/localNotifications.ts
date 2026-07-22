@@ -31,6 +31,60 @@ function loadExpoNotificationsModule(): ExpoNotificationsModule | null {
 }
 
 let configured = false;
+let androidChannelsReady: Promise<void> | null = null;
+
+/**
+ * Создаёт Android notification channels (идемпотентно).
+ * Без каналов ОС может не показать ни локальные, ни remote уведомления.
+ */
+export async function ensureAndroidNotificationChannels(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  const Notifications = loadExpoNotificationsModule();
+  if (!Notifications) return;
+  if (!androidChannelsReady) {
+    androidChannelsReady = (async () => {
+      try {
+        await Notifications.setNotificationChannelAsync(OPPORTUNITY_REMINDERS_CHANNEL_ID, {
+          name: "Окна возможностей (напоминания)",
+          description: "Заметные напоминания о времени окон возможностей.",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 400, 200, 400, 200, 400, 200, 400, 200, 800],
+          enableVibrate: true,
+          enableLights: true,
+          lightColor: "#FFFF9800",
+          sound: "default",
+          audioAttributes: {
+            usage: Notifications.AndroidAudioUsage.ALARM,
+            contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+            flags: {
+              enforceAudibility: true,
+              requestHardwareAudioVideoSynchronization: false,
+            },
+          },
+        });
+        await Notifications.setNotificationChannelAsync(REMOTE_PUSH_CHANNEL_ID, {
+          name: "Сообщения Harmonizer",
+          description: "Рассылки и важные сообщения из приложения.",
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 150, 250],
+          enableVibrate: true,
+          sound: "default",
+        });
+        if (__DEV__) {
+          console.log("[notifications] Android channels ready", {
+            opportunity: OPPORTUNITY_REMINDERS_CHANNEL_ID,
+            remote: REMOTE_PUSH_CHANNEL_ID,
+          });
+        }
+      } catch (error) {
+        androidChannelsReady = null;
+        console.warn("[notifications] Android channel setup failed", error);
+        throw error;
+      }
+    })();
+  }
+  await androidChannelsReady;
+}
 
 /**
  * Один раз при старте приложения: показ в foreground, каналы Android.
@@ -39,7 +93,10 @@ let configured = false;
 export function configureLocalNotifications(): void {
   if (configured || Platform.OS === "web") return;
   const Notifications = loadExpoNotificationsModule();
-  if (!Notifications) return;
+  if (!Notifications) {
+    if (__DEV__) console.warn("[notifications] expo-notifications native module unavailable");
+    return;
+  }
   configured = true;
 
   Notifications.setNotificationHandler({
@@ -52,32 +109,7 @@ export function configureLocalNotifications(): void {
   });
 
   if (Platform.OS === "android") {
-    void Notifications.setNotificationChannelAsync(OPPORTUNITY_REMINDERS_CHANNEL_ID, {
-      name: "Окна возможностей (напоминания)",
-      description: "Заметные напоминания о времени окон возможностей.",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 400, 200, 400, 200, 400, 200, 400, 200, 800],
-      enableVibrate: true,
-      enableLights: true,
-      lightColor: "#FFFF9800",
-      sound: "default",
-      audioAttributes: {
-        usage: Notifications.AndroidAudioUsage.ALARM,
-        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-        flags: {
-          enforceAudibility: true,
-          requestHardwareAudioVideoSynchronization: false,
-        },
-      },
-    });
-    void Notifications.setNotificationChannelAsync(REMOTE_PUSH_CHANNEL_ID, {
-      name: "Сообщения Harmonizer",
-      description: "Рассылки и важные сообщения из приложения.",
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 150, 250],
-      enableVibrate: true,
-      sound: "default",
-    });
+    void ensureAndroidNotificationChannels().catch(() => undefined);
   }
 }
 

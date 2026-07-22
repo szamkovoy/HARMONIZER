@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.33
-updated: 2026-07-21
+version: 2.34
+updated: 2026-07-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-22 (paid locale switch = translate source):** Смена языка на Профиле для Master ждала до 120s полной `morning_recommendation` (generate + language retry + translate). Теперь monologue с `localeSwitch: true` переводит канонические `sourceTexts`/`sourceLocale` из кэша дня (IT→DE не через итальянский, а из исходного EN/RU); полный big-prompt — только если source за сегодня нет. Клиент: `ensureLocaleDayContent` передаёт `localeSwitch`. Файлы: `morningLocaleSwitch.ts`, `monologue/route.ts`, `localeDayContentEnsure.ts`, `pretranslateGlobalTexts.ts`.
+
+- **2026-07-22 (Day prefetch tabs-early + disk paint):** Долгий спиннер «День» на Android, когда вкладку открывали до готовности Home / при пустой memory. Fix: `ensureDayPlanPrefetch` с mount tabs (auth+locale), Home только усиливает; Day initial state из prefetch; focus рисует current SecureStore параллельно сети.
 
 - **2026-07-21 (Day actions optimistic UX):** Rename/delete действий в «Психо-практики» ждали PATCH + `refresh({ showRefreshing })` со спиннером. Fix: optimistic update списка сразу; rename без reload; delete + тихий `refresh` для сфер; откат при ошибке.
 

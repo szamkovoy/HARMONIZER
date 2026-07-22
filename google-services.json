@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "616610991224",
+    "project_id": "harmonizer-777",
+    "storage_bucket": "harmonizer-777.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:616610991224:android:637e766dd76cf69321f18d",
+        "android_client_info": {
+          "package_name": "com.zamkovoi.harmonizer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "616610991224-rtoik9pm2mhcrejtp08b4hf74oqmffd2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRP1sfbVDkqKYiuybzQzbxeN2L2e2_0D8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "616610991224-rtoik9pm2mhcrejtp08b4hf74oqmffd2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "616610991224-e1jgij21lj5pcniebu9tl333lm2flite.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zamkovoi.harmonizer.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

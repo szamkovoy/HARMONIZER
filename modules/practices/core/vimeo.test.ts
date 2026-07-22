@@ -4,8 +4,10 @@ import {
   vimeoAudiotrackForLocale,
   vimeoEmbedHtml,
   vimeoEmbedUrl,
+  vimeoPhoneEmbedPageUrl,
   VIMEO_DEFAULT_AUDIOTRACK,
   VIMEO_EMBED_BASE_URL,
+  VIMEO_PHONE_EMBED_PAGE_URL,
 } from "@/modules/practices/core/vimeo";
 
 describe("vimeoEmbedUrl", () => {
@@ -55,6 +57,15 @@ describe("vimeoEmbedHtml", () => {
 
   it("exposes the zamkovoi.yoga base URL for the WebView baseUrl", () => {
     expect(VIMEO_EMBED_BASE_URL).toBe("https://zamkovoi.yoga/");
+  });
+});
+
+describe("vimeoPhoneEmbedPageUrl", () => {
+  it("points at the hosted zamkovoi.yoga phone embed page", () => {
+    expect(VIMEO_PHONE_EMBED_PAGE_URL).toBe("https://zamkovoi.yoga/asana-embed.html");
+    expect(vimeoPhoneEmbedPageUrl("1111204587", "en")).toBe(
+      "https://zamkovoi.yoga/asana-embed.html?vimeoId=1111204587&audiotrack=en",
+    );
   });
 });
 

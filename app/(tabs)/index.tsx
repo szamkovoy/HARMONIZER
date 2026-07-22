@@ -28,6 +28,7 @@ import type { DayHealthContext } from "@/services/dayHealthContext";
 import { buildSummarizingHealthSnapshot } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
 import { isDayPlanCurrent, peekCachedDayPlan } from "@/services/dayPlanCache";
+import { ensureDayPlanPrefetch } from "@/services/dayPlanPrefetch";
 import { peekPrefetchedDayPlan, storePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
@@ -515,38 +516,18 @@ export default function HomeScreen() {
     };
   }, [birthFingerprint, needsPersonalForecast, profile?.id]);
 
-  // As soon as Home has a usable day shell, idle-prefetch /api/day (do not wait
-  // for homeTextsLoading — Day tab does not need morning LLM texts).
-  // Important: do not discard a successful plan on effect cleanup (Strict Mode /
-  // dependency churn). Only reset the key if the timer never started, or on error.
-  const dayPrefetchKeyRef = useRef<string | null>(null);
+  // Reinforce tabs-level prefetch once Home shell is usable (disk + /api/day).
+  // Primary kickoff is `app/(tabs)/_layout.tsx` so Day works even before Home ready.
   useEffect(() => {
     if (status !== "ready" && status !== "stale_ready") return;
     if (loading) return;
-    if (!authUser?.id || !forecast?.date) return;
-    const key = `${authUser.id}:${accessMode}:${forecast.date}:${appLocale}`;
-    if (dayPrefetchKeyRef.current === key) return;
-    dayPrefetchKeyRef.current = key;
-    let started = false;
-    const handle = setTimeout(() => {
-      started = true;
-      void loadDayPlan()
-        .then((plan) => {
-          storePrefetchedDayPlan(plan);
-          logRuntimeEvent("home:day_tab_prefetch", { forecastDate: forecast.date, accessMode });
-        })
-        .catch((prefetchError) => {
-          if (dayPrefetchKeyRef.current === key) dayPrefetchKeyRef.current = null;
-          console.warn("[Home] Failed to prefetch Day tab after home ready", prefetchError);
-        });
-    }, 0);
-    return () => {
-      clearTimeout(handle);
-      if (!started && dayPrefetchKeyRef.current === key) {
-        dayPrefetchKeyRef.current = null;
-      }
-    };
-  }, [accessMode, appLocale, authUser?.id, forecast?.date, loading, status]);
+    if (!authUser?.id) return;
+    ensureDayPlanPrefetch({
+      userId: authUser.id,
+      locale: appLocale,
+      reason: "home_ready",
+    });
+  }, [appLocale, authUser?.id, loading, status]);
 
   useFocusEffect(
     useCallback(() => {

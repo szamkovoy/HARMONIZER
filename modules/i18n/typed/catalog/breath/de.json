@@ -113,7 +113,7 @@
   "wearableCapabilityMetrics": "Metriken",
   "wearableCapabilityProbe": "Test",
   "wearableCapabilityRhythmOnly": "nur Rhythmus",
-  "wearableConnecting": "Verbinde mit Sensor...",
+  "wearableConnecting": "Pulsmesser wird verbunden…",
   "wearableIdleHint": "Verbinden Sie einen Brustgurt-BLE-Pulsmesser oder wechseln Sie zur Telefonkamera.",
   "wearableIdleStartButton": "Pulsmesser verbinden",
   "wearableNoDevicesFound": "Noch keine passenden BLE-Pulsmesser gefunden. Wiederholen Sie die Suche oder wählen Sie die Telefonkamera.",
@@ -135,5 +135,8 @@
   "wearableRunningGuidedOnly": "HRV-Metriken deaktiviert: Der Sensor führt nur den Atemrhythmus.",
   "wearableRunningReconnect": "Pulsmesser wird neu verbunden…",
   "wearableScanning": "Suche nach kompatiblen Pulsmessern in der Nähe...",
-  "wearableUseCamera": "Kamera"
+  "wearableUseCamera": "Kamera",
+  "wearablePickerConnectedLabel": "Verbunden",
+  "wearablePickerDisconnectButton": "Trennen",
+  "wearableAndroidSystemConnectHint": "Wenn Android oben fragt — Verbindung bestätigen."
 }

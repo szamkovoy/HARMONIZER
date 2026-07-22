@@ -5,6 +5,7 @@ import { Alert, StyleSheet, View } from "react-native";
 import { useAuth } from "@/modules/auth";
 import { useAppLocale } from "@/modules/i18n";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
+import { tvPageUrl } from "@/modules/remote-play/core/tvPageUrl";
 import { getTvRemoteStrings } from "@/modules/remote-play/i18n/remotePlay";
 import { useRemotePlay } from "@/modules/remote-play/useRemotePlay";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -50,9 +51,10 @@ export function TVRemoteScreen() {
     idleCode: strings?.idleCode || "не активен",
     titleFallback: strings?.titleFallback || "Практика на ТВ",
     meta: metaFn,
-    openOnTvHint:
-      strings?.openOnTvHint ||
-      "Откройте на телевизоре или на компьютере страницу https://zamkovoi.yoga/tv/",
+    tvUrl: strings?.tvUrl || tvPageUrl(locale),
+    openOnTvCaption:
+      strings?.openOnTvCaption ||
+      "Откройте эту страницу на вашем телевизоре или компьютере",
     durationUnknown: strings?.durationUnknown || "Длительность уточняется",
     durationMinutes: durationMinutesFn,
     status: statusFn,
@@ -331,11 +333,14 @@ export function TVRemoteScreen() {
             <AppText variant="technicalCaption" tone="muted">
               {str.meta(remotePlay.session?.pairing_code ?? str.idleCode)}
             </AppText>
-            <AppText variant="screenTitle" accessibilityRole="header">
+            <AppText variant="dialogTitle" accessibilityRole="header">
               {title}
             </AppText>
+            <AppText variant="screenTitle" style={styles.tvUrl}>
+              {str.tvUrl}
+            </AppText>
             <AppText variant="screenHint" tone="muted">
-              {str.openOnTvHint}
+              {str.openOnTvCaption}
             </AppText>
           </View>
 
@@ -452,6 +457,9 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: 8,
+  },
+  tvUrl: {
+    marginTop: 4,
   },
   progressBlock: {
     gap: 8,

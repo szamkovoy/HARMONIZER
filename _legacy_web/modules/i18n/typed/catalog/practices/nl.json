@@ -74,5 +74,9 @@
   "yogaLateHint": "Supabase reageert trager dan normaal. De catalogus is al geopend en de asana's verschijnen hier automatisch.",
   "yogaLateLoading": "laden...",
   "yogaLateLoadingTitle": "Asana's worden nog geladen",
-  "yogaTitlePrefix": "Praktijk"
+  "yogaTitlePrefix": "Praktijk",
+  "connectingWearableButton": "Verbinden…",
+  "wearableLinkFailedTitle": "Hartslagmeter niet verbonden",
+  "wearableLinkFailedBody": "Als Android bovenaan vraagt — bevestig en tik Opnieuw. Houd de band om, Bluetooth aan, andere apps met deze sensor dicht.",
+  "wearableLinkRetry": "Opnieuw"
 }

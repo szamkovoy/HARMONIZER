@@ -69,6 +69,9 @@ export function useWearableScanner() {
     } catch {
       // ignore restart races
     }
+    // Android often rejects an immediate re-scan with "Cannot start scanning operation"
+    // if the previous scan teardown has not finished.
+    await new Promise((resolve) => setTimeout(resolve, 350));
     const state = await manager.state();
     setBluetoothState(state);
     if (state !== "PoweredOn") {
@@ -110,43 +113,90 @@ export function useWearableScanner() {
         if (rightHr !== leftHr) return rightHr - leftHr;
         return (right.rssi ?? -200) - (left.rssi ?? -200);
       });
-      if (next.length > 0) setDevices(next);
+      if (next.length > 0) {
+        setDevices(next);
+        // OS-known devices already answer the user's intent — never surface a
+        // contradictory "Bluetooth busy" banner above a populated list.
+        setScanError(null);
+      }
     } catch {
       // best-effort; scan below still runs
     }
-    await manager.startDeviceScan([HEART_RATE_SERVICE_UUID], BLE_SCAN_OPTIONS, (error, scannedDevice) => {
-      if (error) {
-        setScanError(error.message);
-        setScanState("failed");
+
+    const onScanError = (message: string) => {
+      // If we already seeded Polar from OS-known devices, keep the list usable.
+      if (seenMapRef.current.size > 0) {
+        setScanError(null);
+        setScanState("idle");
         return;
       }
-      if (!scannedDevice) return;
-      const name = scannedDevice.localName?.trim() || scannedDevice.name?.trim() || "";
-      const hasHrService = hasHeartRateServiceUuid(scannedDevice.serviceUUIDs);
-      if (!hasHrService && !NAME_HINT_RE.test(name)) {
+      // "Cannot start scanning" is a transient Android race after stopDeviceScan /
+      // parallel probe — we already retry once. Never show the scary "close the
+      // window" copy for it; keep searching quietly.
+      if (/cannot start scanning/i.test(message)) {
+        setScanError(null);
+        setScanState("idle");
         return;
       }
-      const previous = seenMapRef.current.get(scannedDevice.id);
-      const candidate = describeWearableCandidate({
-        id: scannedDevice.id,
-        name: name || previous?.name || "",
-        localName: scannedDevice.localName ?? previous?.localName,
-        rssi: scannedDevice.rssi ?? previous?.rssi ?? null,
-        hasHeartRateService: hasHrService || (previous?.hasHeartRateService ?? false),
-        isConnectable: scannedDevice.isConnectable ?? previous?.isConnectable ?? null,
-      });
-      if (!candidate.name.trim() && !candidate.hasHeartRateService) {
-        return;
+      setScanError(message);
+      setScanState("failed");
+    };
+
+    const beginLiveScan = async (isRetry: boolean) => {
+      try {
+        await manager.startDeviceScan([HEART_RATE_SERVICE_UUID], BLE_SCAN_OPTIONS, (error, scannedDevice) => {
+          if (error) {
+            if (!isRetry && /cannot start scanning/i.test(error.message ?? "")) {
+              void (async () => {
+                try {
+                  await manager.stopDeviceScan();
+                } catch {
+                  /* ignore */
+                }
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                await beginLiveScan(true);
+              })();
+              return;
+            }
+            onScanError(error.message ?? "scan_failed");
+            return;
+          }
+          if (!scannedDevice) return;
+          const name = scannedDevice.localName?.trim() || scannedDevice.name?.trim() || "";
+          const hasHrService = hasHeartRateServiceUuid(scannedDevice.serviceUUIDs);
+          if (!hasHrService && !NAME_HINT_RE.test(name)) {
+            return;
+          }
+          const previous = seenMapRef.current.get(scannedDevice.id);
+          const candidate = describeWearableCandidate({
+            id: scannedDevice.id,
+            name: name || previous?.name || "",
+            localName: scannedDevice.localName ?? previous?.localName,
+            rssi: scannedDevice.rssi ?? previous?.rssi ?? null,
+            hasHeartRateService: hasHrService || (previous?.hasHeartRateService ?? false),
+            isConnectable: scannedDevice.isConnectable ?? previous?.isConnectable ?? null,
+          });
+          if (!candidate.name.trim() && !candidate.hasHeartRateService) {
+            return;
+          }
+          seenMapRef.current.set(candidate.id, candidate);
+          // A successful advertisement means the adapter is usable — drop a stale
+          // "busy" error that raced with OS-seeded devices from a parallel probe.
+          setScanError(null);
+          const next = [...seenMapRef.current.values()].sort((left, right) => {
+            const leftHr = left.hasHeartRateService ? 1 : 0;
+            const rightHr = right.hasHeartRateService ? 1 : 0;
+            if (rightHr !== leftHr) return rightHr - leftHr;
+            return (right.rssi ?? -200) - (left.rssi ?? -200);
+          });
+          setDevices(next);
+        });
+      } catch (error) {
+        onScanError(error instanceof Error ? error.message : String(error));
       }
-      seenMapRef.current.set(candidate.id, candidate);
-      const next = [...seenMapRef.current.values()].sort((left, right) => {
-        const leftHr = left.hasHeartRateService ? 1 : 0;
-        const rightHr = right.hasHeartRateService ? 1 : 0;
-        if (rightHr !== leftHr) return rightHr - leftHr;
-        return (right.rssi ?? -200) - (left.rssi ?? -200);
-      });
-      setDevices(next);
-    });
+    };
+
+    await beginLiveScan(false);
   }, [manager]);
 
   useEffect(() => {

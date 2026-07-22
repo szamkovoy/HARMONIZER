@@ -147,6 +147,10 @@ export interface CoherenceBreathStrings {
   wearableActivationNoDeviceHint: string;
   wearableBluetoothOff: string;
   wearableConnecting: string;
+  /** Short status while connecting a named strap. */
+  wearableConnectingWithName: (deviceName: string) => string;
+  /** Android: one-line hint if the system «Запрос подключения» banner appears. */
+  wearableAndroidSystemConnectHint: string;
   wearableReadyGuidedOnly: string;
   wearableReadyFullMetrics: string;
   wearableScanning: string;
@@ -169,6 +173,8 @@ export interface CoherenceBreathStrings {
   wearablePickerNotFoundHint: string;
   wearablePickerNotFoundTips: string;
   wearablePickerSelectButton: string;
+  wearablePickerConnectedLabel: string;
+  wearablePickerDisconnectButton: string;
   wearablePickerCloseButton: string;
   wearablePickerFaultyMessage: string;
   /** Отображаемые имена практик (на родном языке). */
@@ -334,7 +340,9 @@ const ru: CoherenceBreathStrings = {
   wearableActivationNoDeviceHint:
     "Найдите и выберите BLE-пульсометр. Подключение выполняется внутри приложения, а не через системный список Bluetooth-устройств.",
   wearableBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
-  wearableConnecting: "Подключаемся к датчику...",
+  wearableConnecting: "Подключаем пульсометр…",
+  wearableConnectingWithName: (deviceName) => `Подключаем ${deviceName}…`,
+  wearableAndroidSystemConnectHint: "Если сверху запрос Android — подтвердите соединение.",
   wearableReadyGuidedOnly: "Датчик подключен. Будем вести практику по пульсу без HRV-метрик.",
   wearableReadyFullMetrics: "Датчик подключен. Полные биометрические метрики доступны.",
   wearableScanning: "Ищем совместимые пульсометры поблизости...",
@@ -360,6 +368,8 @@ const ru: CoherenceBreathStrings = {
   wearablePickerNotFoundTips:
     "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
   wearablePickerSelectButton: "Подключить",
+  wearablePickerConnectedLabel: "Подключен",
+  wearablePickerDisconnectButton: "Отключить",
   wearablePickerCloseButton: "Закрыть",
   wearablePickerFaultyMessage:
     "Выбранный пульсометр работает некорректно. Чтобы продолжить практику, выберите другой пульсометр.",
@@ -514,7 +524,9 @@ const en: CoherenceBreathStrings = {
   wearableActivationNoDeviceHint:
     "Scan and select a BLE heart-rate strap. Connection is handled inside the app, not through the system Bluetooth device list.",
   wearableBluetoothOff: "Bluetooth is off. Turn it on and try scanning again.",
-  wearableConnecting: "Connecting to the sensor...",
+  wearableConnecting: "Connecting heart-rate monitor…",
+  wearableConnectingWithName: (deviceName) => `Connecting ${deviceName}…`,
+  wearableAndroidSystemConnectHint: "If Android asks above — confirm the connection.",
   wearableReadyGuidedOnly: "Sensor connected. Breathing will follow pulse, but HRV metrics stay off.",
   wearableReadyFullMetrics: "Sensor connected. Full biometric metrics are available.",
   wearableScanning: "Scanning for compatible heart-rate straps nearby...",
@@ -540,6 +552,8 @@ const en: CoherenceBreathStrings = {
   wearablePickerNotFoundTips:
     "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
   wearablePickerSelectButton: "Connect",
+  wearablePickerConnectedLabel: "Connected",
+  wearablePickerDisconnectButton: "Disconnect",
   wearablePickerCloseButton: "Close",
   wearablePickerFaultyMessage:
     "The selected heart-rate monitor is not working correctly. Choose another monitor to continue the practice.",

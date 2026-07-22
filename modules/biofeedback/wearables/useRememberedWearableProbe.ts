@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
 import { getWearableBleManager } from "@/modules/biofeedback/wearables/bleManager";
 import { HEART_RATE_SERVICE_UUID } from "@/modules/biofeedback/wearables/heartRateMeasurement";
@@ -53,8 +53,9 @@ export function useRememberedWearableProbe(
         const state = await manager.state();
         if (probeGenerationRef.current !== generation) return;
         if (state !== "PoweredOn") {
+          // Unknown — do not treat as "strap missing" (catalog must not wipe prefs).
           setProbing(false);
-          setAvailable(false);
+          setAvailable(null);
           setCandidate(null);
           return;
         }
@@ -82,37 +83,36 @@ export function useRememberedWearableProbe(
           return;
         }
 
-        // Fall back to OS-known peripherals: a Polar H10 that the user just re-wore may
-        // be system-paired/remembered but not yet advertising (another Central holds it,
-        // or it is in its post-reconnect settle). If the OS still lists it as a
-        // connectable HR-service peripheral, treat it as available — the scan below is
-        // only needed when the strap is genuinely unknown to the stack. This prevents the
-        // catalog probe from flipping to "не найден" right after the picker found it,
-        // which was forcing the sensor-mode dropdown back to camera (the "loop").
-        try {
-          const known = await manager.devices([HEART_RATE_SERVICE_UUID]);
-          if (probeGenerationRef.current !== generation) return;
-          const knownMatch = known.find(
-            (entry) => entry.id === trimmedId && entry.isConnectable !== false,
-          );
-          if (knownMatch) {
-            const name = knownMatch.localName?.trim() || knownMatch.name?.trim() || "";
-            setProbing(false);
-            setAvailable(true);
-            setCandidate(
-              describeWearableCandidate({
-                id: knownMatch.id,
-                name,
-                localName: knownMatch.localName,
-                rssi: knownMatch.rssi ?? null,
-                hasHeartRateService: true,
-                isConnectable: knownMatch.isConnectable ?? null,
-              }),
+        // iOS: OS-known peripherals may not advertise yet but are still connectable.
+        // Android: after «Forget device» the stack can still list Polar in devices()
+        // while it is no longer usable — treat that as unknown and require a live
+        // scan (or connectedDevices above) so the catalog drops the stale combo entry.
+        if (Platform.OS !== "android") {
+          try {
+            const known = await manager.devices([HEART_RATE_SERVICE_UUID]);
+            if (probeGenerationRef.current !== generation) return;
+            const knownMatch = known.find(
+              (entry) => entry.id === trimmedId && entry.isConnectable !== false,
             );
-            return;
+            if (knownMatch) {
+              const name = knownMatch.localName?.trim() || knownMatch.name?.trim() || "";
+              setProbing(false);
+              setAvailable(true);
+              setCandidate(
+                describeWearableCandidate({
+                  id: knownMatch.id,
+                  name,
+                  localName: knownMatch.localName,
+                  rssi: knownMatch.rssi ?? null,
+                  hasHeartRateService: true,
+                  isConnectable: knownMatch.isConnectable ?? null,
+                }),
+              );
+              return;
+            }
+          } catch {
+            // best-effort; fall through to live scan
           }
-        } catch {
-          // best-effort; fall through to live scan
         }
 
         let finished = false;
@@ -143,6 +143,10 @@ export function useRememberedWearableProbe(
           setCandidate(describeWearableCandidate(foundDevice));
         };
 
+        // Let picker scan teardown finish (Android: "Cannot start scanning operation").
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        if (probeGenerationRef.current !== generation) return;
+
         const timeoutId = setTimeout(() => {
           void finishUnavailable();
         }, REMEMBERED_PROBE_TIMEOUT_MS);
@@ -150,6 +154,13 @@ export function useRememberedWearableProbe(
           if (finished || probeGenerationRef.current !== generation) return;
           if (error) {
             clearTimeout(timeoutId);
+            // Busy scanner after picker close — keep "unknown" rather than forcing
+            // catalog UI back to camera; PracticeCard trusts remembered device id.
+            if (/cannot start scanning/i.test(error.message ?? "")) {
+              setProbing(false);
+              setAvailable(null);
+              return;
+            }
             void finishUnavailable();
             return;
           }
@@ -168,8 +179,7 @@ export function useRememberedWearableProbe(
       } catch {
         if (probeGenerationRef.current !== generation) return;
         setProbing(false);
-        setAvailable(false);
-        setCandidate(null);
+        setAvailable(null);
       }
     })();
   }, [deviceId, enabled]);

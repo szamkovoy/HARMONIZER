@@ -1,13 +1,19 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.1
+version: 1.2
 updated: 2026-07-22
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-23 (Android FCM live):** Firebase project `harmonizer-777`; `google-services.json` в корне; FCM V1 service account загружен в EAS и назначен на `com.zamkovoi.harmonizer` (`scripts/upload-fcm-to-eas.mjs`). Rebuild Android development client обязателен для получения Expo push token на устройстве.
+
+- **2026-07-22 (Android FCM wiring):** `app.config.ts` ставит `googleServicesFile` при наличии файла; `ensureAndroidNotificationChannels` await; скрипт `android-fcm-setup.mjs`. Файлы Firebase / EAS FCM key — у владельца (open_questions).
+
+- **2026-07-22 (Android remote gap):** QA: админ-рассылка дошла на iPhone (app killed), не на Pixel (app open, OS permission granted via bell). Root cause кандидаты: (1) в проекте нет FCM/`google-services.json` — Android Expo token не выдаётся, iOS APNs ок; (2) колокольчик запрашивал permission, но не вызывал `registerPushToken` (фикc; Home/webinar уже вызывали). Payload: `channelId: harmonizer_remote`. FCM wiring — open_questions.
 
 - **2026-07-22 (permission policy):** Единый `ensureNotificationPermission(reason)`: мягкий запрос на Главной (cooldown 7 дн. после отказа), колокольчик окон — без cooldown, вебинар (запись / уже записан после оплаты) — cooldown 3 дн. `PushRegistrationBridge` / `registerPushToken` больше не вызывают системный диалог сами. Онбординг не спрашивает. Docs §3.1.
 

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 
 import { useAccess } from "@/modules/access";
-import { useTranslate } from "@/modules/i18n";
+import { useAuth } from "@/modules/auth";
+import { useAppLocale, useTranslate } from "@/modules/i18n";
 import { TabBarIcon } from "@/modules/ui/TabBarIcon";
 import {
   COMPACT_TAB_BAR_ITEM_STYLE,
@@ -10,13 +11,22 @@ import {
   useCompactTabBarStyle,
 } from "@/modules/ui/useCompactTabBarStyle";
 import { useTheme } from "@/modules/ui/theme";
+import { ensureDayPlanPrefetch } from "@/services/dayPlanPrefetch";
 
 export default function TabLayout() {
   const theme = useTheme();
   const { t } = useTranslate();
+  const { authUser } = useAuth();
+  const { locale } = useAppLocale();
   const { canUseFeature } = useAccess();
   const canOpenDay = canUseFeature("day_planning");
   const tabBarStyle = useCompactTabBarStyle(theme.colors);
+
+  // Do not wait for Home forecast ready — Day tab can be opened first on Android.
+  useEffect(() => {
+    if (!canOpenDay || !authUser?.id) return;
+    ensureDayPlanPrefetch({ userId: authUser.id, locale, reason: "tabs_mount" });
+  }, [authUser?.id, canOpenDay, locale]);
 
   return (
     <Tabs

@@ -74,5 +74,9 @@
   "yogaLateHint": "Supabase répond plus lentement que d'habitude. Le catalogue est déjà ouvert, les asanas apparaîtront ici automatiquement.",
   "yogaLateLoading": "Chargement…",
   "yogaLateLoadingTitle": "Les asanas sont encore en cours de chargement",
-  "yogaTitlePrefix": "Pratique"
+  "yogaTitlePrefix": "Pratique",
+  "connectingWearableButton": "Connexion…",
+  "wearableLinkFailedTitle": "Le cardiofréquencemètre n’est pas connecté",
+  "wearableLinkFailedBody": "Si Android demande en haut — confirmez puis appuyez sur Réessayer. Gardez la ceinture, Bluetooth activé, et fermez les autres apps qui utilisent le capteur.",
+  "wearableLinkRetry": "Réessayer"
 }

@@ -16,6 +16,24 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-22 (TV URL + remote layout):** Ссылка короче — `https://zamkovoi.yoga/tv?pt` (ru без query). На пульте: практика `dialogTitle`, URL крупным `screenTitle`, подпись `openOnTvCaption` обычным. wordpress-snippet уже понимает `?pt`.
+
+- **2026-07-22 (TV locale + asana i18n):** Пульт/Connect TV и кнопка «Завершить практику» были только RU/EN (`inlineBaseLocale` → EN для PT). Добавлены typed modules `asanaScreen` + `remotePlay` с overlays для de/fr/it/es/pt/nl. Ссылка на ТВ несёт locale (`tvPageUrl`); wordpress-snippet читает URL (не browser lang), audiotrack из сессии/URL, unmute через gesture + overlay. Нужен re-paste `docs/remote-play/wordpress-snippet.html` на zamkovoi.yoga/tv.
+
+- **2026-07-22 (Android asana embed page):** Flash «нет Vimeo ID» = загрузка metadata; `vimeoId` в launch + spinner. Чёрный плеер Android: WebView грузит `https://zamkovoi.yoga/asana-embed.html` (`web_cabinet/asana-embed.html`); iOS остаётся на `vimeoEmbedHtml`+baseUrl. Fallback html+`originWhitelist:*` если страница 404.
+
+- **2026-07-22 (Android asana + TV + BLE copy):** Pixel — чёрный Vimeo WebView (explicit play + android WebView props); Connect TV — подъём над IME как onboarding; picker connectedHint; scan-busy не пугает; Android probe без `devices()`-false-positive после Forget. TV unmute — `wordpress-snippet.html` (нужен re-paste на zamkovoi.yoga/tv).
+
+- **2026-07-22 (BLE/Android PPG QA):** Чёткие статусы picker; «Подключен» после устойчивого HR; без голого чёрного prep; Android camera fps clamp. См. biofeedback 2026-07-22 (6).
+
+- **2026-07-22 (BLE picker-centric Android):** `PracticeCard` — Connect в модалке ждёт live HR; «Подключен» не по remembered id; старт практики только при `androidOsLinkReady`; отсутствующий ремень → «без пульсометра»; короче чёрный wait при warm hold. См. biofeedback 2026-07-22 (5).
+
+- **2026-07-22 (BLE live link):** Android «Начать»/«Подключить» → `ensureWearableLiveLink` (ждать HR); fail → Retry, практика не стартует. См. biofeedback 2026-07-22 (4).
+
+- **2026-07-22 (BLE start warm):** «Начать практику» с выбранным Polar ждёт `warmWearableConnection` (кнопка «Подключаем…»), затем открывает breath; prep-экран минимальный. См. biofeedback 2026-07-22 (2).
+
+- **2026-07-22 (BLE picker):** `PracticeCard` паузит remembered-probe на время picker; строки «Подключен»/«Отключить»; см. `biofeedback/history` 2026-07-22.
+
 - **2026-07-21 (Day practice optimistic UX):** Выбор/отмена pending-практики на «День» больше не ждут сеть + `loadDayPlan` — карточка появляется/исчезает сразу; см. `daily_forecast/history`.
 
 - **2026-07-21 (Day tab launch gate):** Pending `PracticeCard` на вкладке «День» запускал практику без tier-check (Oracle мог стартовать йогу/дыхание/медитацию). Fix: `app/(tabs)/day.tsx` — `tryLaunchDayPractice` + `AccountGateDialog` по kind (`meditations` / `breath_practices` / `asana_practices`), паритет с `PracticeCatalogScreen`.

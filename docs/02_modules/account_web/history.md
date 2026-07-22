@@ -5,6 +5,12 @@ version: 1.8
 updated: 2026-07-22
 ---
 
+## 2026-07-22 — Lava `Incorrect email` + Android reload после кабинета
+
+- **Симптом:** checkout → Lava HTTP 400 `Incorrect email to purchase`; после закрытия Chrome приложение на Pixel иногда «перезагружалось».
+- **Причина email:** Lava отклоняет buyer email (часто email продавца / невалидный для покупки). Email нормализуем (`trim`+`lower`); API отдаёт `lava_buyer_email_rejected`; кабинет показывает понятный `payErrEmail`.
+- **Причина reload:** `Linking.openURL` на Android уводил в отдельный task → OS могла убить Activity. Фикс: `WebBrowser.openBrowserAsync` + `createTask: false` (Custom Tabs в том же task).
+
 ## 2026-07-22 — ЮKassa для RUB рядом с Lava.top
 
 - **Зачем:** российский эквайринг для RUB без ломки USD/EUR (Lava) и с kill-switch через env.
