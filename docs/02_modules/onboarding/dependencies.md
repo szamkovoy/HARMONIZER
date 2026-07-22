@@ -15,7 +15,8 @@ depends_on: [02_modules/onboarding/spec]
 - **`i18n`** — `useTranslate`/`useAppLocale`, каталоги `wizard.*`/`onboarding.birth.*`/`home.geoGate.*` (8 локалей), `i18n-sync`. Native-имя приложения и reason-строки iOS-разрешений — через `app.config.ts` `expo.locales`.
 - **`daily_forecast`** — прогрев после шага 2: `fetchDailyForecast({ forceRefresh: true, timeoutMs: 90_000 })` + `saveDayContentCache` (те же access/scope ключи, что Home). Экран `warm` — только если тексты ещё не готовы к концу шага 7.
 - **`access`** — `getEffectiveAccess` / `accessModeForTier` для ключей кэша дня (trial → tier `master`, mode `premium`).
-- **`infra`** — `expo-location`, `expo-av`/`expo-notifications`, `react-native-maps`, `KeyboardAvoidingView`, `SafeAreaView`, `windowSoftInputMode="adjustResize"` (Android).
+- **`infra`** — `expo-location`, `expo-av`/`expo-notifications`, `react-native-maps`, `KeyboardAvoidingView` (iOS), Android IME-height padding в `WizardShell`, `SafeAreaView`, `windowSoftInputMode="adjustResize"` + `expo-splash-screen` (белый фон и в dark).
+- **`modules/ui/theme`** — светлая палитра мастера (`buildTheme("light")` / `ThemeProvider` в `WizardShell`); поля — `WizardTextInput`.
 
 ## От него зависят
 

@@ -53,7 +53,7 @@ import {
 } from "@/modules/onboarding/birthDateFormat";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { useTheme } from "@/modules/ui/theme";
+import { buildTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { createNatalProfile } from "@/services/natalProfileClient";
 import {
@@ -63,6 +63,9 @@ import {
 import { saveDayContentCache } from "@/services/dayContentCache";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
+
+/** Мастер всегда светлый (`WizardShell`); не брать системный dark theme с корня. */
+const wizardTheme = buildTheme("light");
 
 const TOTAL_WIZARD_STEPS = 7;
 /** Ждём LLM-тексты дня не дольше этого; потом всё равно открываем главную. */
@@ -127,7 +130,7 @@ function isRepairMode(profile: { onboarded_at?: string | null } | null): boolean
 }
 
 export default function OnboardingScreen() {
-  const theme = useTheme();
+  const theme = wizardTheme;
   const { t } = useTranslate();
   const { authUser, profile, refreshProfile, signOut } = useAuth();
 
@@ -487,11 +490,9 @@ export default function OnboardingScreen() {
               value={birthDate}
               onChangeText={(v) => setBirthDate((prev) => formatDateMask(v, prev))}
               placeholder="ДД-ММ-ГГГГ"
-              placeholderTextColor={theme.colors.textFaint}
               autoCapitalize="none"
               keyboardType="numbers-and-punctuation"
               editable={!busy}
-              style={[styles.input, inputStyle(theme)]}
             />
             <AppText variant="technicalCaption" tone="muted">
               {t("onboarding.birth.timeLabel")}
@@ -500,11 +501,9 @@ export default function OnboardingScreen() {
               value={birthTime}
               onChangeText={(v) => setBirthTime((prev) => formatTimeMask(v, prev))}
               placeholder="ЧЧ:ММ"
-              placeholderTextColor={theme.colors.textFaint}
               autoCapitalize="none"
               keyboardType="numbers-and-punctuation"
               editable={!busy}
-              style={[styles.input, inputStyle(theme)]}
             />
             <AppText variant="technicalCaption" tone="muted">
               {t("onboarding.birth.placeLabel")}
@@ -578,15 +577,6 @@ function IntroStep({ step }: { step: 3 | 4 | 5 | 6 | 7 }) {
   );
 }
 
-function inputStyle(theme: ReturnType<typeof useTheme>) {
-  return {
-    borderWidth: 1,
-    borderRadius: theme.radius.md,
-    borderColor: theme.colors.surfaceBorder,
-    color: theme.colors.textPrimary,
-  };
-}
-
 const styles = StyleSheet.create({
   contentTopGap: {
     paddingTop: 12,
@@ -596,11 +586,6 @@ const styles = StyleSheet.create({
     // Выше футера «Далее», чтобы абсолютный список городов из BirthPlacePicker
     // перекрывал соседний контент, а не рисовался под ним.
     zIndex: 10,
-  },
-  input: {
-    height: 52,
-    fontSize: 16,
-    paddingHorizontal: 14,
   },
   notice: {
     borderWidth: 1,

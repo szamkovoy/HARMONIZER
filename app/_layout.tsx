@@ -25,7 +25,7 @@ import { hydrateAppLocale } from "@/modules/i18n";
 import { PushRegistrationBridge } from "@/modules/notifications";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { StorySessionBootstrap } from "@/modules/stories";
-import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
+import { ThemeProvider as UiThemeProvider, buildTheme } from "@/modules/ui/theme";
 import { configureLocalNotifications } from "@/services/localNotifications";
 import { logRuntimeEvent, logRuntimeTap, useRuntimeDiagnosticsSampler } from "@/services/runtimeDiagnostics";
 
@@ -182,7 +182,6 @@ function useAuthRouteGate() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const theme = useTheme();
   const { initializing, session, profile, profileLoading } = useAuth();
   const { setHomeRouteActive } = useAppStartup();
   const segments = useSegments();
@@ -215,15 +214,15 @@ function RootLayoutNav() {
     });
   };
 
-  // Пока читаем сессию / профиль — держим фон текущей UI-темы, чтобы не мигало
-  // free-UI (апселл «Навигатор», скрытая вкладка «День») до прихода `users`.
-  // Сплэш-скрин Expo уже скрыт (fonts loaded).
+  // Пока читаем сессию / профиль — белый фон как у сплэша (не dark screenBg),
+  // иначе на Android с тёмной системной темой мигает чёрный кадр под оверлеем.
+  // Сплэш-скрин Expo уже скрыт (fonts loaded); JS-оверлей рисует картинку сверху.
   if (initializing || waitingForProfile) {
     return (
       <View
         style={{
           flex: 1,
-          backgroundColor: theme.colors.screenBg,
+          backgroundColor: "#ffffff",
         }}
       />
     );

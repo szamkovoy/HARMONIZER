@@ -33,9 +33,12 @@ import {
 } from "@/modules/onboarding";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { useTheme } from "@/modules/ui/theme";
+import { buildTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
+
+/** Мастер всегда светлый (`WizardShell`); не брать системный dark theme с корня. */
+const wizardTheme = buildTheme("light");
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -47,7 +50,7 @@ const EMAIL_ART = require("@/assets/onboarding/email_600.jpg");
 type SubStep = "welcome" | "confirm";
 
 export default function SignInScreen() {
-  const theme = useTheme();
+  const theme = wizardTheme;
   const { t } = useTranslate();
   const { requestEmailCode, verifyEmailCode, signingIn } = useAuth();
 
@@ -160,18 +163,15 @@ export default function SignInScreen() {
               value={name}
               onChangeText={setName}
               placeholder={t("auth.namePlaceholder")}
-              placeholderTextColor={theme.colors.textFaint}
               autoCapitalize="words"
               autoComplete="name"
               textContentType="name"
               editable={!signingIn}
-              style={[styles.input, inputStyle(theme)]}
             />
             <WizardTextInput
               value={email}
               onChangeText={setEmail}
               placeholder={t("auth.emailPlaceholder")}
-              placeholderTextColor={theme.colors.textFaint}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -179,7 +179,6 @@ export default function SignInScreen() {
               textContentType="emailAddress"
               editable={!signingIn}
               onSubmitEditing={() => void sendCode("initial")}
-              style={[styles.input, inputStyle(theme)]}
             />
           </View>
         </>
@@ -271,15 +270,6 @@ export default function SignInScreen() {
   );
 }
 
-function inputStyle(theme: ReturnType<typeof useTheme>) {
-  return {
-    borderWidth: 1,
-    borderRadius: theme.radius.md,
-    borderColor: theme.colors.surfaceBorder,
-    color: theme.colors.textPrimary,
-  };
-}
-
 function isOtpMismatchError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /otp|token|expired|invalid/i.test(message);
@@ -295,11 +285,6 @@ function resolveAuthErrorText(error: unknown, t: (key: string, params?: Record<s
 const styles = StyleSheet.create({
   form: {
     gap: 10,
-  },
-  input: {
-    height: 52,
-    fontSize: 16,
-    paddingHorizontal: 14,
   },
   codeRow: {
     flexDirection: "row",

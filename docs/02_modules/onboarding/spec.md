@@ -43,8 +43,9 @@ code_refs:
 - **Принудительная светлая тема:** оборачивает содержимое в `ThemeProvider value={lightTheme}` и ставит фон `#ffffff` (тёмный статус-бар). Все экраны мастера — белые, независимо от системной тёмной темы (новые изображения сохранены на белом фоне).
 - **`StepProgress`** — индикатор `currentStep / totalSteps` сверху.
 - **Клавиатура — два режима:**
-  - **A (`footerInContent`)** — welcome шаг 1 и шаг 2: CTA (+ legal) внутри скролла под полями; iOS `KeyboardAvoidingView behavior="padding"`, Android `adjustResize`; один `scrollToEnd({ animated: false })` при открытии; `scrollEnabled={false}` пока клавиатура открыта.
+  - **A (`footerInContent`)** — welcome шаг 1 и шаг 2: CTA (+ legal) внутри скролла под полями; iOS `KeyboardAvoidingView behavior="padding"` + один `scrollToEnd` на `keyboardWillShow`; Android — `paddingBottom` = высота IME и `scrollToEnd` в `useEffect` после layout (не смешивать с iOS — ломает «прилипание»); `scrollEnabled={false}` пока клавиатура открыта.
   - **B (без `footerInContent`)** — OTP-confirm и шаги 3–7: авто-подъём выключен (`behavior={undefined}`), контент остаётся на месте, клавиатура перекрывает низ, скролл ручной. На OTP это нужно, потому что клавиатура уже открыта с welcome и авто-подъём обрезал бы картинку. `app/sign-in.tsx` передаёт `footerInContent={sub === "welcome"}` и `key={sub}` (сброс scroll offset).
+- **Поля ввода:** `WizardTextInput` сам берёт `color` / `border` / `placeholder` из светлой темы `WizardShell` (не из системного dark theme корня) — иначе на Android с тёмной схемой текст и рамка «пропадают» на белом фоне мастера.
 - **`WizardImage`** — картинка шага, `resizeMode="contain"`, высота `WIZARD_IMAGE_HEIGHT = 200`; изображения — `assets/onboarding/*_600.jpg` (600×600, кроме `astrology_600.jpg` 943×600).
 
 ## 4. Шаг 1 — sign-in (`app/sign-in.tsx`)

@@ -11,7 +11,12 @@
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "image": "./assets/images/splash.png",
+        "backgroundColor": "#ffffff",
+        "resizeMode": "cover"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.zamkovoi.harmonizer.app",
@@ -47,6 +52,20 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash.png",
+          "imageWidth": 300,
+          "resizeMode": "cover",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "image": "./assets/images/splash.png",
+            "backgroundColor": "#ffffff",
+            "resizeMode": "cover"
+          }
+        }
+      ],
       "expo-notifications",
       [
         "expo-camera",

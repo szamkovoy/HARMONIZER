@@ -17,7 +17,9 @@
  *
  *  A) `footerInContent` (welcome шаг 1, шаг 2 — формы с полями):
  *     CTA (+ legal) внутри скролла под полями. При открытии клавиатуры:
- *       1) iOS — `KeyboardAvoidingView behavior="padding"`; Android — `adjustResize`;
+ *       1) iOS — `KeyboardAvoidingView behavior="padding"`;
+ *          Android — явный `paddingBottom` = высота клавиатуры (edge-to-edge /
+ *          `adjustResize` на новых Android часто не сжимает окно);
  *       2) один раз `scrollToEnd({ animated: false })`;
  *       3) `scrollEnabled={false}` пока клавиатура открыта (нет jitter при смене фокуса).
  *
@@ -40,6 +42,7 @@ import {
   StyleSheet,
   View,
   type ImageSourcePropType,
+  type KeyboardEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -92,34 +95,44 @@ export function WizardShell({
   /** Режим A: клавиатура открыта — страница зафиксирована. */
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const keyboardOpenRef = useRef(false);
+  /** Android: высота IME — `adjustResize` + edge-to-edge часто не поднимает layout. */
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
 
   useEffect(() => {
     // Режим B (OTP / intro): сбросить состояние подъёма и не слушать клавиатуру.
     if (!footerInContent) {
       keyboardOpenRef.current = false;
       setKeyboardOpen(false);
+      setAndroidKeyboardHeight(0);
       return;
     }
 
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const onShow = () => {
-      // Только при первом открытии: один мгновенный скролл к кнопке.
-      // При переключении полей клавиатура уже открыта — ничего не делаем.
-      if (keyboardOpenRef.current) return;
-      keyboardOpenRef.current = true;
-      setKeyboardOpen(true);
-      // rAF: дождаться, пока KeyboardAvoidingView / adjustResize применит inset,
-      // затем мгновенно поставить контент (без второй анимированной стадии).
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollToEnd({ animated: false });
-      });
+    const onShow = (event: KeyboardEvent) => {
+      if (Platform.OS === "android") {
+        setAndroidKeyboardHeight(Math.max(0, event.endCoordinates?.height ?? 0));
+      }
+      const firstOpen = !keyboardOpenRef.current;
+      if (firstOpen) {
+        keyboardOpenRef.current = true;
+        setKeyboardOpen(true);
+      }
+      // iOS: один scroll при первом открытии — как до Android-фикса.
+      // Не гоняем scrollToEnd из useEffect на iOS: он конфликтует с анимацией
+      // KeyboardAvoidingView и после первой буквы форма «проседает» вниз.
+      if (firstOpen && Platform.OS === "ios") {
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollToEnd({ animated: false });
+        });
+      }
     };
 
     const onHide = () => {
       keyboardOpenRef.current = false;
       setKeyboardOpen(false);
+      setAndroidKeyboardHeight(0);
     };
 
     const showSub = Keyboard.addListener(showEvent, onShow);
@@ -130,9 +143,39 @@ export function WizardShell({
     };
   }, [footerInContent]);
 
-  // Нижний safe-area: в режиме A при открытой клавиатуре его даёт inset клавиатуры.
+  // iOS: нижний inset даёт KeyboardAvoidingView. Android: явный padding = высота IME.
   const rootPaddingBottom =
-    footerInContent && keyboardOpen ? 8 : Math.max(insets.bottom, 12);
+    footerInContent && keyboardOpen
+      ? Platform.OS === "android"
+        ? Math.max(androidKeyboardHeight, 8)
+        : 8
+      : Math.max(insets.bottom, 12);
+
+  // Только Android: scrollToEnd после commit paddingBottom (иначе первый фокус
+  // имени не поднимает форму). iOS сюда не заходим — см. onShow выше.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    if (!footerInContent || !keyboardOpen || androidKeyboardHeight < 1) return;
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const scrollToFooter = () => {
+      if (!cancelled) scrollRef.current?.scrollToEnd({ animated: false });
+    };
+
+    const outer = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToFooter();
+        retryTimer = setTimeout(scrollToFooter, 48);
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [footerInContent, keyboardOpen, androidKeyboardHeight]);
 
   return (
     <ThemeProvider value={lightTheme}>

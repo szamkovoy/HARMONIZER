@@ -1,3 +1,4 @@
+- 2026-07-22 (226): Onboarding Android — видимые поля (`WizardTextInput` + light theme), подъём формы над IME, белый splash в dark. Docs `onboarding/*`.
 - 2026-07-22 (225): Admin dashboard — длиннее горизонтальные полоски графиков (как в stats). Docs `admin_panel/history`.
 - 2026-07-22 (224): Admin — дефолт 7 дн.; выручка шлюзов выше LLM/стран, воронки внизу; топ-3 по токенам. Docs `admin_panel/history`.
 - 2026-07-22 (223): Admin stats — скрыть нулевые продукты; без дублей в динамике/странах; убрано «(net)»; длиннее полоски графиков. Docs `admin_panel/history`.

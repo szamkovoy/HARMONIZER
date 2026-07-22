@@ -83,10 +83,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             minSdkVersion: 26,
             compileSdkVersion: 35,
             targetSdkVersion: 35,
-            // Клавиатура resizing-ает окно — фрейм WizardShell сжимается на высоту
-            // клавиатуры, зафиксированный внизу footer (CTA) поднимается над ней.
-            // Дополняет KeyboardAvoidingView (behavior=padding на iOS; на Android —
-            // adjustResize, поэтому behavior отключён, иначе двойной сдвиг).
+            // Базовый soft-input. На Android 15 + edge-to-edge `adjustResize` часто
+            // не сжимает окно — WizardShell дополнительно поднимает контент через
+            // paddingBottom = высота IME (см. modules/onboarding/wizard/WizardShell.tsx).
             windowSoftInputMode: "adjustResize",
           },
         },
