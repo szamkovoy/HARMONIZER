@@ -5,7 +5,11 @@ import { useEffect, useState } from "react";
 
 import { expiryIsoFromDateInput } from "../../_lib/adminDates";
 import { TIER_LABELS } from "./TierBadge";
-import { EMPTY_PAYMENT_FORM, type PaymentFormValues } from "../_types/payments";
+import {
+  CURRENCY_OPTIONS,
+  EMPTY_PAYMENT_FORM,
+  type PaymentFormValues,
+} from "../_types/payments";
 
 type PaymentFormModalProps = {
   open: boolean;
@@ -65,8 +69,6 @@ export function PaymentFormModal({
           >
             {Object.entries(TIER_LABELS)
               .filter(([value]) => allowFree || value !== "free")
-              // practitioner — скрытый legacy-уровень: новые гранты не выдаём,
-              // но при редактировании существующей записи опция остаётся видимой.
               .filter(([value]) => value !== "practitioner" || form.tier === "practitioner")
               .map(([value, label]) => (
                 <option key={value} value={value}>
@@ -83,13 +85,32 @@ export function PaymentFormModal({
                 onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
                 className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 focus:border-white/25 focus:outline-none"
               />
-              <input
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                placeholder="Сумма, ₽ (0 если бесплатно)"
-                inputMode="decimal"
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
-              />
+              <div className="flex gap-2">
+                <input
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder="Сумма"
+                  inputMode="decimal"
+                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+                />
+                <select
+                  value={form.currency}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      currency: e.target.value as PaymentFormValues["currency"],
+                    }))
+                  }
+                  className="w-[96px] shrink-0 rounded-xl border border-white/10 bg-black/30 px-2 py-2 text-sm text-zinc-100 focus:border-white/25 focus:outline-none"
+                  aria-label="Валюта"
+                >
+                  {CURRENCY_OPTIONS.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <input
                 value={form.comment}
                 onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}

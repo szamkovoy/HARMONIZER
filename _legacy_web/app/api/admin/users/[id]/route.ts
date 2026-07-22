@@ -1,6 +1,8 @@
+import { normalizeFxCurrency, settleGrantPayment } from "../../../account/fx";
 import { cancelActiveSubscriptionsForUser } from "../../../account/cancelActiveSubscriptions";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
+import { loadAdminPaymentLedger } from "../../_utils/paymentLedger";
 import { ALL_TIERS, PAID_TIERS, recomputeUserMembershipFromPayments } from "../../_utils/payments";
 
 export const runtime = "nodejs";
@@ -38,14 +40,9 @@ export async function GET(req: Request, ctx: RouteContext) {
       if (refreshed.data) user = refreshed.data;
     }
 
-    const [emails, paymentsRes, lastEventRes] = await Promise.all([
+    const [emails, payments, lastEventRes] = await Promise.all([
       emailsByUserId(db, [id]),
-      db
-        .from("payments")
-        .select("id, amount, currency, tier, paid_until, source, comment, created_at, edited_at")
-        .eq("user_id", id)
-        .order("created_at", { ascending: false })
-        .limit(100),
+      loadAdminPaymentLedger(db, { userId: id, limit: 100 }),
       db
         .from("user_event_log")
         .select("occurred_at")
@@ -54,7 +51,6 @@ export async function GET(req: Request, ctx: RouteContext) {
         .limit(1)
         .maybeSingle(),
     ]);
-    if (paymentsRes.error) throw paymentsRes.error;
 
     return json({
       user: {
@@ -62,7 +58,7 @@ export async function GET(req: Request, ctx: RouteContext) {
         email: emails.get(id) ?? "—",
         last_activity_at: lastEventRes.data?.occurred_at ?? null,
       },
-      payments: paymentsRes.data ?? [],
+      payments,
     });
   } catch (error) {
     return errorResponse(error);
@@ -73,6 +69,7 @@ type TierUpdatePayload = {
   tier?: string;
   expires_at?: string | null;
   amount?: number;
+  currency?: string;
   comment?: string;
 };
 
@@ -99,15 +96,30 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     const db = createServiceSupabase();
 
     if (isPaid) {
-      const { error: ledgerError } = await db.from("payments").insert({
-        user_id: id,
-        amount: typeof payload.amount === "number" && payload.amount >= 0 ? payload.amount : 0,
-        tier,
-        paid_until: expiresAt,
-        source: "manual",
-        comment: payload.comment?.trim() || null,
-      });
+      const amount =
+        typeof payload.amount === "number" && payload.amount >= 0 ? payload.amount : 0;
+      const currency = normalizeFxCurrency(payload.currency) ?? "RUB";
+      const { data: inserted, error: ledgerError } = await db
+        .from("payments")
+        .insert({
+          user_id: id,
+          amount,
+          currency,
+          tier,
+          paid_until: expiresAt,
+          source: "manual",
+          comment: payload.comment?.trim() || null,
+        })
+        .select("id")
+        .single();
       if (ledgerError) throw ledgerError;
+      if (inserted?.id) {
+        try {
+          await settleGrantPayment(db, { paymentId: inserted.id, amount, currency });
+        } catch (fxErr) {
+          console.error("[admin] grant FX settle failed", inserted.id, fxErr);
+        }
+      }
       await recomputeUserMembershipFromPayments(db, id);
     } else {
       const { error } = await db

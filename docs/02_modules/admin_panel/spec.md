@@ -1,7 +1,7 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.8
+version: 1.9
 updated: 2026-07-22
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
@@ -85,14 +85,15 @@ code_refs:
 - Таблица `payments` (`20260708170000_payments_users_admin.sql` + `20260708190000_payments_edited_at.sql`) — леджер выдачи платных тарифов: `amount/currency/tier/paid_until/source('manual'|'store'|'promo')/comment` + `edited_at` для пометки правок. RLS admin-only.
 - RPC `admin_search_users(p_query, p_tier, p_limit)` — security definer c join на `auth.users` (email не хранится в `public.users`); execute отозван у anon/authenticated, вызывается только service role.
 - `GET /api/admin/users?q=&tier=` — поиск по имени/email + фильтр тарифа (до 100 строк). `GET /api/admin/users/[id]` — карточка: профиль, email, история платежей, последняя активность (max `occurred_at` из `user_event_log`); если у пользователя платный tier с уже истёкшим `membership_expires_at`, перед ответом opportunistically вызывается `recomputeUserMembershipFromPayments`. `PATCH /api/admin/users/[id]` `{tier, expires_at?, amount?, comment?}` — ручное назначение: пишет строку в `payments` (source=manual) и пересчитывает `users.membership_*` из действующих платежей; тариф `free` сбрасывает срок и леджер не пишет.
-- `GET /api/admin/payments` — общий список записей леджера с `display_name`/`email`. `PATCH /api/admin/payments/[id]` `{tier, expires_at?, amount?, comment?}` — редактирование строки леджера; **всегда** пересчитывает `users.membership_tier`/`membership_expires_at` из ещё действующих платежей (`paid_until` null или в будущем): побеждает максимальный тариф по `TIER_ORDER`, при равенстве — более поздний `paid_until` (null побеждает), затем более свежий `created_at`; если действующих нет — `free`. Хелпер: `_legacy_web/app/api/admin/_utils/{payments,membershipFromPayments}.ts`; зеркало в SQL — `recompute_user_membership` / hourly Edge `reconcile-expired-memberships` (см. infra).
-- UI: `/admin/users` (поиск, фильтр, `TierBadge` из `TIER_LABELS_RU` канона `modules/access/core/tiers.ts`, ссылка на статистику, даты тарифа в виде `с ... до ...`), `/admin/users/[id]` (карточка без `trial`, поле `Язык`, модальная кнопка «Добавить платёж», редактируемая история платежей), `/admin/payments` (общий леджер с переходом в карточку пользователя).
+- `GET /api/admin/payments` — единый список: ручные гранты (`payments`) + оплаченные контракты шлюза (`payment_contracts` active/cancelled; Lava.top сейчас, ЮКасса — задел). Суммы **gross** в исходной валюте. `PATCH /api/admin/payments/[id]` — только гранты (`gw:*` запрещён); `{tier, expires_at?, amount?, currency?, comment?}`; пересчёт membership + FX nets гранта без комиссии шлюза. Хелпер списка: `_utils/paymentLedger.ts`; membership — `_utils/{payments,membershipFromPayments}.ts`.
+- `GET /api/admin/payments/stats?days=&grain=&currency=` — **Статистика выручки** (net): сверху тарифы → блоки Lava.top / ЮКасса (сумма, платежи, динамика, продукты) → «Общая динамика выручки» → «Выручка по странам» (`users.country_code` через контракт); период/валюта/зерно из query. UI `/admin/payments/stats`.
+- UI: `/admin/users`…, `/admin/users/[id]` (история = гранты+Lava.top, кнопка «Редактировать» только у грантов; форма гранта — сумма+валюта), `/admin/payments` (тот же единый список). Бренд шлюзов в UI: **Lava.top** / **ЮКасса**.
 
 **Дашборд «пульс» (реализовано, этап 7 → pulse 2026-07-21):**
 
-- Главная `/admin` — `DashboardPulse`. Контролы: `7|30|90|all` + `day|week` (`all` → только `week`).
-- RPC `admin_dashboard_pulse` (v3, `20260721160000`): KPI — пользователи (всего/24ч/7д), когортная конверсия (рег / купили oracle / купили master за период), продление 1→2 мес. по тарифам, распределение тарифов «сейчас»; series с итогами; воронки подписки oracle/master (мес. 1–7, lifetime counts); Lava/Яндекс; LLM 24ч + серия токенов; geo по новым за период.
-- `GET /api/admin/dashboard?range=&grain=` → pulse + alerts (без дубля поддержки).
+- Главная `/admin` — `DashboardPulse`. Контролы: `7|30|90|all` (дефолт **7**) + `day|week` (`all` → только `week`) + валюта ₽/€/$. Порядок блоков: рег/активность → Lava.top/ЮКасса → LLM (топ-3 токенов за 24ч) + страны → воронки Наставник/Мастер.
+- RPC `admin_dashboard_pulse` (v3, `20260721160000`): KPI — пользователи (всего/24ч/7д), когортная конверсия (рег / купили oracle / купили master за период), распределение тарифов «сейчас»; series с итогами; воронки подписки oracle/master (мес. 1–7); LLM 24ч + серия токенов; geo по новым за период. KPI «Выручка» (вместо «Переход на 2-й месяц») — net Lava.top+ЮКасса за период.
+- `GET /api/admin/dashboard?range=&grain=&currency=` → pulse + overlays net-settlements (`revenue_gateways_net` / lava / yukassa series) + alerts.
 - `GET/DELETE /api/admin/users/[id]` — карточка с `country_code`/`city`; delete с confirm, платежи с `buyer_email` сохраняются.
 - Клиент: `app_open` → `last_seen_at`; reverse-geocode → `country_code`/`city`.
 - **Cleanup OTP-ghosts:** hourly `cleanup_unconfirmed_auth_users` (cron `35 * * * *`, в реестре `ensure_harmonizer_cron_jobs`). Удаляет только `auth.users` где `email_confirmed_at IS NULL` **и** `last_sign_in_at IS NULL` **и** `created_at < now()-24h`, без admin/payments/contracts/onboarded/last_seen. Подтверждённые аккаунты при повторном OTP **не** затрагиваются (`email_confirmed_at` остаётся).
@@ -131,7 +132,7 @@ code_refs:
 - Вход только email/password: если аккаунт владельца создан через Apple/Google OAuth, пароль нужно один раз задать в Supabase Studio (Authentication → Users).
 - Все разделы этапов 0–8 реализованы; заглушек не осталось.
 - `is_admin()` в RLS остаётся защитой на уровне БД; серверные админ-роуты работают через service role + `requireAdmin` и на RLS не полагаются.
-- Леджер `payments` — ручные гранты (source=manual); **net**-выручка дашборда / `/admin/payments/stats` — из `payment_settlements` (после комиссии Lava + FX; переключатель ₽/€/$ через `?currency=`). Gross по-прежнему на `payment_contracts.amount`. Интеграции со сторами в `payments` нет. Автооплата/renewal при истечении срока **не** реализованы: cron только пересчитывает membership из уже существующих платежей. Старые контракты без settlement не входят в net-графики, пока не пройдёт новый успешный вебхук.
+- Списки платежей показывают **gross** (как платил пользователь). Выручка (дашборд / `/admin/payments/stats`) — **net** в выбранной валюте: шлюзы из `payment_settlements` (комиссия + FX), гранты из `payments.net_amount_*` (FX без комиссии, миграция `20260722040000`). ЮКасса в UI/API уже как пустой провайдер `yookassa`. Автооплата/renewal при истечении срока **не** реализованы.
 - KPI active_24h/7d на пульсе — по `users.last_seen_at` (заполняется с клиента при `app_open`); до раскатки нового клиента цифры занижены. Серия `active_users` в pulse — distinct `user_id` в `user_event_log` за бакет.
 - Geo (`country_code`/`city`) появляется только после раскатки клиента с persist reverse-geocode; исторической ретроспективы нет — `meta.partial` содержит `geo`, пока срез пуст.
 - LLM load/top-tokens зависят от событий `dialog_turn` / `llm_prompt_size` (пишутся из communicator dialog после успешного insert хода). Пока логов мало — `meta.partial` включает `top_tokens_sparse`; карточки не притворяются нулевой истиной без оговорки.

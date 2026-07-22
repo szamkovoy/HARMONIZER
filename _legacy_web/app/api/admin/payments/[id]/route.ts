@@ -1,3 +1,4 @@
+import { normalizeFxCurrency, settleGrantPayment } from "../../../account/fx";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { PAID_TIERS, recomputeUserMembershipFromPayments } from "../../_utils/payments";
 
@@ -9,14 +10,19 @@ type PaymentUpdatePayload = {
   tier?: string;
   expires_at?: string | null;
   amount?: number;
+  currency?: string;
   comment?: string;
 };
 
-/** Редактирование строки леджера; всегда пересчитывает тариф пользователя из действующих платежей. */
+/** Редактирование строки леджера (только гранты); всегда пересчитывает тариф пользователя. */
 export async function PATCH(req: Request, ctx: RouteContext) {
   try {
     await requireAdmin(req);
     const { id } = await ctx.params;
+    if (id.startsWith("gw:")) {
+      return json({ error: "Платежи платёжного шлюза нельзя редактировать" }, { status: 400 });
+    }
+
     const payload = (await req.json()) as PaymentUpdatePayload;
 
     const tier = payload.tier?.trim() ?? "";
@@ -37,12 +43,17 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     if (readError) throw readError;
     if (!existing) return json({ error: "Платёж не найден" }, { status: 404 });
 
+    const amount =
+      typeof payload.amount === "number" && payload.amount >= 0 ? payload.amount : 0;
+    const currency = normalizeFxCurrency(payload.currency) ?? "RUB";
+
     const { data: payment, error } = await db
       .from("payments")
       .update({
         tier,
         paid_until: expiresAt,
-        amount: typeof payload.amount === "number" && payload.amount >= 0 ? payload.amount : 0,
+        amount,
+        currency,
         comment: payload.comment?.trim() || null,
         edited_at: new Date().toISOString(),
       })
@@ -51,7 +62,15 @@ export async function PATCH(req: Request, ctx: RouteContext) {
       .single();
     if (error) throw error;
 
-    await recomputeUserMembershipFromPayments(db, existing.user_id);
+    try {
+      await settleGrantPayment(db, { paymentId: id, amount, currency });
+    } catch (fxErr) {
+      console.error("[admin] grant FX settle failed on edit", id, fxErr);
+    }
+
+    if (existing.user_id) {
+      await recomputeUserMembershipFromPayments(db, existing.user_id);
+    }
 
     return json({ payment });
   } catch (error) {

@@ -30,14 +30,16 @@ export default function AdminPaymentsPage() {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-zinc-100">Платежи</h1>
-          <p className="text-sm text-zinc-500">Общий список записей леджера. Самые свежие записи — сверху.</p>
+          <p className="text-sm text-zinc-500">
+            Lava.top / ЮКасса и ручные гранты. Суммы — как платил пользователь (без вычета комиссии).
+          </p>
         </div>
         <Link
           href="/admin/payments/stats"
           className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
         >
           <BarChart3 size={16} />
-          Статистика
+          Статистика выручки
         </Link>
       </div>
 

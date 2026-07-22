@@ -24,12 +24,22 @@ type PaymentHistorySectionProps = {
 };
 
 function initialFormFromPayment(payment: AdminPaymentRow): PaymentFormValues {
+  const currency =
+    payment.currency === "EUR" || payment.currency === "USD" || payment.currency === "RUB"
+      ? payment.currency
+      : "RUB";
   return {
     tier: payment.tier,
     expiresAt: dateInputValue(payment.paid_until),
     amount: String(payment.amount ?? 0),
+    currency,
     comment: payment.comment ?? "",
   };
+}
+
+function isEditable(payment: AdminPaymentRow): boolean {
+  if (payment.editable === false || payment.kind === "gateway") return false;
+  return true;
 }
 
 export function PaymentHistorySection({
@@ -67,6 +77,7 @@ export function PaymentHistorySection({
           tier: values.tier,
           expires_at: expiresIso,
           amount: values.amount.trim() ? Number(values.amount.replace(",", ".")) : 0,
+          currency: values.currency,
           comment: values.comment.trim() || undefined,
         }),
       });
@@ -79,7 +90,7 @@ export function PaymentHistorySection({
   }
 
   async function updatePayment(values: PaymentFormValues, expiresIso: string | null) {
-    if (!editing) return;
+    if (!editing || !isEditable(editing)) return;
     setSaving(true);
     setError(null);
     try {
@@ -89,6 +100,7 @@ export function PaymentHistorySection({
           tier: values.tier,
           expires_at: expiresIso,
           amount: values.amount.trim() ? Number(values.amount.replace(",", ".")) : 0,
+          currency: values.currency,
           comment: values.comment.trim() || undefined,
         }),
       });
@@ -121,49 +133,67 @@ export function PaymentHistorySection({
 
       {payments.length === 0 ? <p className="text-sm text-zinc-500">Платежей пока нет.</p> : null}
       <div className="flex flex-col gap-1.5">
-        {payments.map((payment) => (
-          <div key={payment.id} className="rounded-lg border border-white/5 bg-black/20 p-2.5 text-sm">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              {includeUserLink ? (
-                <Link
-                  href={`/admin/users/${payment.user_id}`}
-                  className="font-semibold text-zinc-100 underline-offset-2 hover:text-emerald-300 hover:underline"
-                >
-                  {payment.display_name ?? "Без имени"}
-                </Link>
-              ) : null}
-              <TierBadge tier={payment.tier} />
-              <span className="font-semibold text-zinc-200">
-                {payment.amount > 0 ? `${payment.amount} ${payment.currency}` : `0 ${payment.currency}`}
-              </span>
-              <span className="text-[11px] text-zinc-500">{SOURCE_LABELS[payment.source] ?? payment.source}</span>
-              <span className="text-[11px] text-zinc-500">{formatAdminDateTime(payment.created_at)}</span>
-              <span className="text-[11px] text-zinc-500">
-                {payment.paid_until ? `до ${formatAdminDateTime(payment.paid_until)}` : "бессрочно"}
-              </span>
-              {payment.edited_at ? (
-                <span className="text-[11px] text-zinc-500">
-                  (отредактировано: {formatAdminDateTime(payment.edited_at)})
+        {payments.map((payment) => {
+          const editable = isEditable(payment);
+          const name = payment.display_name ?? "Без имени";
+          return (
+            <div key={payment.id} className="rounded-lg border border-white/5 bg-black/20 p-2.5 text-sm">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {includeUserLink ? (
+                  payment.user_id ? (
+                    <Link
+                      href={`/admin/users/${payment.user_id}`}
+                      className="font-semibold text-zinc-100 underline-offset-2 hover:text-emerald-300 hover:underline"
+                    >
+                      {name}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-zinc-100">{name}</span>
+                  )
+                ) : null}
+                <TierBadge tier={payment.tier} />
+                <span className="font-semibold text-zinc-200">
+                  {payment.amount > 0
+                    ? `${payment.amount} ${payment.currency}`
+                    : `0 ${payment.currency}`}
                 </span>
+                <span className="text-[11px] text-zinc-500">
+                  {SOURCE_LABELS[payment.source] ?? payment.source}
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {formatAdminDateTime(payment.created_at)}
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {payment.paid_until
+                    ? `до ${formatAdminDateTime(payment.paid_until)}`
+                    : "бессрочно"}
+                </span>
+                {payment.edited_at ? (
+                  <span className="text-[11px] text-zinc-500">
+                    (отредактировано: {formatAdminDateTime(payment.edited_at)})
+                  </span>
+                ) : null}
+                {editable ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setEditing(payment);
+                    }}
+                    className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                  >
+                    <Pencil size={12} />
+                    Редактировать
+                  </button>
+                ) : null}
+              </div>
+              {includeUserLink && payment.email ? (
+                <div className="mt-1 text-[11px] text-zinc-500">{payment.email}</div>
               ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setEditing(payment);
-                }}
-                className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
-              >
-                <Pencil size={12} />
-                Редактировать
-              </button>
+              {payment.comment ? <p className="mt-1 text-xs text-zinc-400">{payment.comment}</p> : null}
             </div>
-            {includeUserLink && payment.email ? (
-              <div className="mt-1 text-[11px] text-zinc-500">{payment.email}</div>
-            ) : null}
-            {payment.comment ? <p className="mt-1 text-xs text-zinc-400">{payment.comment}</p> : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <PaymentFormModal

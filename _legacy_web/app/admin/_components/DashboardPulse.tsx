@@ -39,6 +39,8 @@ type DashboardPayload = {
     };
     revenue_lava: Array<{ currency: string; sum: number; count: number }>;
     revenue_lava_net?: { currency: string; sum: number; count: number };
+    revenue_yookassa_net?: { currency: string; sum: number; count: number };
+    revenue_gateways_net?: { currency: string; sum: number; count: number };
     grants_manual: { sum: number; count: number };
   };
   display_currency?: DisplayCurrency;
@@ -47,9 +49,11 @@ type DashboardPayload = {
     registrations: SeriesPoint[];
     active_users: SeriesPoint[];
     revenue: RevenuePoint[];
+    revenue_yookassa?: RevenuePoint[];
     tokens?: TokenPoint[];
   };
   revenue_by_tier: Array<{ tier: string; sum: number; count: number }>;
+  revenue_by_tier_yookassa?: Array<{ tier: string; sum: number; count: number }>;
   load: {
     llm_24h: LlmSlice;
     llm_period: LlmSlice;
@@ -90,11 +94,6 @@ function moneyFmt(n: number | null | undefined, currency: DisplayCurrency): stri
   return `${numFmt.format(Number(n))} ${symbol}`;
 }
 
-function pctOrDash(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "—";
-  return `${numFmt.format(n)}%`;
-}
-
 function formatBucket(bucket: string, grain: Grain): string {
   const raw = String(bucket).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw;
@@ -112,7 +111,7 @@ function SoonBadge() {
 }
 
 export function DashboardPulse() {
-  const [range, setRange] = useState<RangeKey>(30);
+  const [range, setRange] = useState<RangeKey>(7);
   const [grain, setGrain] = useState<Grain>("day");
   const [currency, setCurrency] = useState<DisplayCurrency>("RUB");
   const [data, setData] = useState<DashboardPayload | null>(null);
@@ -159,10 +158,20 @@ export function DashboardPulse() {
       .sort((a, b) => String(b.bucket).localeCompare(String(a.bucket)))
       .map((row) => ({ bucket: row.bucket, sum: Number(row.sum) || 0 }));
   }, [data]);
+  const yukassaByBucket = useMemo(() => {
+    return [...(data?.series.revenue_yookassa ?? [])]
+      .sort((a, b) => String(b.bucket).localeCompare(String(a.bucket)))
+      .map((row) => ({ bucket: row.bucket, sum: Number(row.sum) || 0 }));
+  }, [data]);
   const maxRevenue = Math.max(1, ...revenueByBucket.map((x) => x.sum));
-  const lavaTotal =
-    data?.kpi.revenue_lava_net?.sum ??
-    revenueByBucket.reduce((acc, row) => acc + row.sum, 0);
+  const maxYukassaRevenue = Math.max(1, ...yukassaByBucket.map((x) => x.sum));
+  const lavaTotal = data?.kpi.revenue_lava_net?.sum ?? 0;
+  const yukassaTotal = data?.kpi.revenue_yookassa_net?.sum ?? 0;
+  const gatewaysTotal =
+    data?.kpi.revenue_gateways_net?.sum ?? lavaTotal + yukassaTotal;
+  const gatewaysCount =
+    data?.kpi.revenue_gateways_net?.count ??
+    (data?.kpi.revenue_lava_net?.count ?? 0) + (data?.kpi.revenue_yookassa_net?.count ?? 0);
 
   const tokenSeries = useMemo(() => {
     return [...(data?.series.tokens ?? [])].sort((a, b) =>
@@ -170,6 +179,11 @@ export function DashboardPulse() {
     );
   }, [data]);
   const maxTokens = Math.max(1, ...tokenSeries.map((x) => Number(x.tokens) || 0));
+  const topTokenUsers = useMemo(() => {
+    return [...(data?.load.top_users_tokens_24h ?? [])]
+      .sort((a, b) => Number(b.tokens) - Number(a.tokens))
+      .slice(0, 3);
+  }, [data]);
 
   const access = data?.kpi.access_now;
   const geoEmpty = (data?.geo.by_country.length ?? 0) === 0;
@@ -186,7 +200,6 @@ export function DashboardPulse() {
   }
 
   const cohort = data.kpi.cohort;
-  const renew = data.kpi.renew_m2;
 
   return (
     <div className="mb-2 flex flex-col gap-4">
@@ -288,13 +301,9 @@ export function DashboardPulse() {
           hint="регистрации / купили Наставник / купили Мастер"
         />
         <Kpi
-          title="Переход на 2-й месяц"
-          value={`${pctOrDash(renew?.oracle_pct)} / ${pctOrDash(renew?.master_pct)}`}
-          hint={
-            (renew?.oracle_eligible ?? 0) + (renew?.master_eligible ?? 0) === 0
-              ? "Наставник / Мастер · пока мало данных для расчёта"
-              : "Наставник / Мастер (из тех, у кого прошёл 1-й месяц)"
-          }
+          title="Выручка"
+          value={moneyFmt(gatewaysTotal, displayCurrency)}
+          hint={`${fmt(gatewaysCount)} платеж(ей) · Lava.top + ЮКасса · за ${periodLabel}`}
         />
       </div>
 
@@ -330,14 +339,9 @@ export function DashboardPulse() {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <FunnelCard title="Воронка Наставник" months={data.funnels?.oracle ?? []} />
-        <FunnelCard title="Воронка Мастер" months={data.funnels?.master ?? []} />
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
         <ChartCard
-          title={`Выручка Lava (net) за ${periodLabel}`}
-          hint="После комиссии Lava 8% и конвертации (Т-Банк → ЦБ)"
+          title={`Выручка Lava.top за ${periodLabel}`}
+          hint="После комиссии Lava 8% и конвертации (Т-Банк или ЦБ)"
         >
           <p className="mb-2 text-sm text-zinc-200">
             Всего:{" "}
@@ -345,14 +349,11 @@ export function DashboardPulse() {
             <span className="ml-2 text-xs text-zinc-500">
               · {fmt(data.kpi.revenue_lava_net?.count ?? 0)} платеж(ей)
             </span>
-            {(data.kpi.grants_manual.count ?? 0) > 0 ? (
-              <span className="ml-2 text-xs text-zinc-500">
-                · гранты: {fmt(data.kpi.grants_manual.sum)} ₽ ({fmt(data.kpi.grants_manual.count)} шт)
-              </span>
-            ) : null}
           </p>
           {revenueByBucket.length === 0 ? (
-            <p className="text-sm text-zinc-500">Оплат Lava за период нет (или ещё без net-settlement).</p>
+            <p className="text-sm text-zinc-500">
+              Оплат Lava.top за период нет (или ещё без net-settlement).
+            </p>
           ) : (
             <BarList
               items={revenueByBucket.map((row) => ({
@@ -362,7 +363,7 @@ export function DashboardPulse() {
                 widthPct: (row.sum / maxRevenue) * 100,
                 valueLabel: moneyFmt(row.sum, displayCurrency),
               }))}
-              empty="Оплат Lava за период нет."
+              empty="Оплат Lava.top за период нет."
             />
           )}
           {(data.revenue_by_tier?.length ?? 0) > 0 ? (
@@ -378,11 +379,45 @@ export function DashboardPulse() {
         </ChartCard>
 
         <ChartCard
-          title={`Выручка Яндекс за ${periodLabel}`}
-          badge={<SoonBadge />}
-          hint="Отдельный список, когда подключим эквайринг"
+          title={`Выручка ЮКасса за ${periodLabel}`}
+          badge={yukassaByBucket.length === 0 ? <SoonBadge /> : null}
+          hint="После комиссии ЮКасса 2.5% и конвертации (Т-Банк или ЦБ)"
         >
-          <p className="text-sm text-zinc-500">Пока нет источника данных.</p>
+          {yukassaByBucket.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              Пока не подключена — блок готов к появлению оплат.
+            </p>
+          ) : (
+            <>
+              <p className="mb-2 text-sm text-zinc-200">
+                Всего:{" "}
+                <span className="font-semibold">{moneyFmt(yukassaTotal, displayCurrency)}</span>
+                <span className="ml-2 text-xs text-zinc-500">
+                  · {fmt(data.kpi.revenue_yookassa_net?.count ?? 0)} платеж(ей)
+                </span>
+              </p>
+              <BarList
+                items={yukassaByBucket.map((row) => ({
+                  key: row.bucket,
+                  label: formatBucket(row.bucket, effectiveGrain),
+                  value: row.sum,
+                  widthPct: (row.sum / maxYukassaRevenue) * 100,
+                  valueLabel: moneyFmt(row.sum, displayCurrency),
+                }))}
+                empty="Оплат ЮКасса за период нет."
+              />
+              {(data.revenue_by_tier_yookassa?.length ?? 0) > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-400">
+                  {data.revenue_by_tier_yookassa!.map((row) => (
+                    <span key={row.tier} className="rounded-full border border-white/10 px-2 py-0.5">
+                      {TIER_REV_LABELS[row.tier] ?? row.tier}: {moneyFmt(row.sum, displayCurrency)} (
+                      {fmt(row.count)})
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          )}
         </ChartCard>
       </div>
 
@@ -423,16 +458,32 @@ export function DashboardPulse() {
             <p className="mt-3 text-xs text-zinc-500">Серия токенов появится после диалогов.</p>
           )}
           <div className="mt-3 border-t border-white/5 pt-3">
-            <p className="mb-2 text-xs text-zinc-500">Топ по токенам за 24ч</p>
-            {(data.load.top_users_tokens_24h?.length ?? 0) === 0 ? (
+            <p className="mb-2 text-xs text-zinc-500">Топ-3 по токенам за 24ч</p>
+            {topTokenUsers.length === 0 ? (
               <p className="text-xs text-zinc-500">Пока нет данных.</p>
             ) : (
               <ul className="flex flex-col gap-1.5 text-xs text-zinc-300">
-                {data.load.top_users_tokens_24h.map((u) => (
-                  <li key={u.user_id} className="flex justify-between gap-2">
-                    <Link href={`/admin/users/${u.user_id}`} className="truncate text-emerald-300 hover:underline">
-                      {u.display_name?.trim() || u.user_id.slice(0, 8)}
-                    </Link>
+                {topTokenUsers.map((u, index) => (
+                  <li key={u.user_id} className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
+                          index === 0
+                            ? "bg-amber-400/20 text-amber-200"
+                            : index === 1
+                              ? "bg-zinc-300/15 text-zinc-200"
+                              : "bg-orange-500/15 text-orange-200"
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      <Link
+                        href={`/admin/users/${u.user_id}`}
+                        className="truncate text-emerald-300 hover:underline"
+                      >
+                        {u.display_name?.trim() || u.user_id.slice(0, 8)}
+                      </Link>
+                    </div>
                     <span className="shrink-0 text-zinc-400">~{fmt(u.tokens)}</span>
                   </li>
                 ))}
@@ -465,10 +516,15 @@ export function DashboardPulse() {
             </Link>
             {" · "}
             <Link href="/admin/payments/stats" className="text-emerald-300 hover:underline">
-              статистика оплат
+              статистика выручки
             </Link>
           </div>
         </ChartCard>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <FunnelCard title="Воронка Наставник" months={data.funnels?.oracle ?? []} />
+        <FunnelCard title="Воронка Мастер" months={data.funnels?.master ?? []} />
       </div>
     </div>
   );
@@ -552,23 +608,30 @@ function BarList({
   if (items.length === 0) return <p className="text-sm text-zinc-500">{empty}</p>;
   return (
     <div className={SCROLL_LIST_CLASS}>
-      {items.map((item) => (
-        <div key={item.key} className="grid grid-cols-[88px_1fr_48px] items-center gap-3">
-          <div className="text-xs text-zinc-400">{item.label}</div>
-          <div className="h-2 rounded-full bg-white/5">
-            <div
-              className="h-2 rounded-full bg-emerald-400/80"
-              style={{ width: `${Math.max(item.value ? 6 : 0, item.widthPct)}%` }}
-            />
+      {items.map((item) => {
+        const pct = Math.max(item.value ? 4 : 0, Math.min(100, item.widthPct));
+        return (
+          <div key={item.key} className="flex items-center gap-2">
+            <div className="w-[4.5rem] shrink-0 truncate text-xs text-zinc-400" title={item.label}>
+              {item.label}
+            </div>
+            <div className="h-2 min-w-0 flex-1 rounded-full bg-white/5">
+              <div
+                className="h-2 rounded-full bg-emerald-400/80"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="shrink-0 whitespace-nowrap text-right text-xs text-zinc-300">
+              {item.valueLabel ?? item.value}
+            </div>
           </div>
-          <div className="text-right text-xs text-zinc-300">{item.valueLabel ?? item.value}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-/** Вертикальные столбцы для серии токенов (читаемее горизонтальных полосок). */
+/** Вертикальные столбцы для серии токенов (высота в px — % от flex-колонки не работает). */
 function TokenBars({
   items,
   maxTokens,
@@ -576,21 +639,27 @@ function TokenBars({
   items: Array<{ key: string; label: string; tokens: number }>;
   maxTokens: number;
 }) {
+  const BAR_MAX_PX = 80;
   // Показываем хронологически слева→направо (старые слева).
   const ordered = [...items].reverse();
   return (
     <div className="admin-scroll overflow-x-auto pb-1">
-      <div className="flex h-28 min-w-full items-end gap-1.5 px-0.5">
+      <div className="flex min-w-full items-end gap-1.5 px-0.5">
         {ordered.map((item) => {
-          const h = Math.max(item.tokens ? 8 : 2, (item.tokens / maxTokens) * 100);
+          const hPx =
+            item.tokens > 0
+              ? Math.max(8, Math.round((item.tokens / maxTokens) * BAR_MAX_PX))
+              : 2;
           return (
             <div key={item.key} className="flex min-w-[2.25rem] flex-1 flex-col items-center gap-1">
               <span className="text-[10px] text-zinc-400">{fmt(item.tokens)}</span>
-              <div
-                className="w-full max-w-[1.75rem] rounded-t bg-emerald-400/80"
-                style={{ height: `${h}%` }}
-                title={`${item.label}: ${fmt(item.tokens)}`}
-              />
+              <div className="flex h-20 w-full max-w-[1.75rem] items-end justify-center">
+                <div
+                  className="w-full rounded-t bg-emerald-400/80"
+                  style={{ height: `${hPx}px` }}
+                  title={`${item.label}: ${fmt(item.tokens)}`}
+                />
+              </div>
               <span className="truncate text-[10px] text-zinc-500">{item.label}</span>
             </div>
           );

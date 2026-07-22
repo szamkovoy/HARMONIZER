@@ -4,6 +4,7 @@ import {
   type FxCurrency,
 } from "../../account/fx";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
+import { normalizeGatewayProvider } from "../_utils/paymentLedger";
 
 export const runtime = "nodejs";
 
@@ -15,9 +16,9 @@ type Grain = "day" | "week";
 
 function parseRange(raw: string | null): RangeDays {
   if (raw === "all" || raw === "0") return 0;
-  const n = Number(raw ?? 30);
-  if (n === 7 || n === 90) return n;
-  return 30;
+  const n = Number(raw ?? 7);
+  if (n === 30 || n === 90) return n;
+  return 7;
 }
 
 function parseGrain(raw: string | null, rangeDays: RangeDays): Grain {
@@ -47,6 +48,8 @@ type PulseRow = {
     };
     revenue_lava: Array<{ currency: string; sum: number; count: number }>;
     revenue_lava_net?: { currency: string; sum: number; count: number };
+    revenue_yookassa_net?: { currency: string; sum: number; count: number };
+    revenue_gateways_net?: { currency: string; sum: number; count: number };
     grants_manual: { sum: number; count: number };
   };
   display_currency?: FxCurrency;
@@ -55,9 +58,11 @@ type PulseRow = {
     registrations: Array<{ bucket: string; count: number }>;
     active_users: Array<{ bucket: string; count: number }>;
     revenue: Array<{ bucket: string; currency: string; sum: number; count: number }>;
+    revenue_yookassa?: Array<{ bucket: string; currency: string; sum: number; count: number }>;
     tokens?: Array<{ bucket: string; tokens: number }>;
   };
   revenue_by_tier: Array<{ tier: string; sum: number; count: number }>;
+  revenue_by_tier_yookassa?: Array<{ tier: string; sum: number; count: number }>;
   load: {
     llm_24h: {
       dialog_turns?: number;
@@ -102,15 +107,20 @@ export async function GET(req: Request) {
 
     const pulse = data as PulseRow;
 
-    // Net revenue (after acquiring fee + FX) from payment_settlements.
-    const sinceIso = new Date(
-      Date.now() - Math.max(1, pulse.range_days || rangeDays || 30) * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const settlementsRes = await db
+    // Net revenue (after acquiring fee + FX) from payment_settlements (Lava.top + ЮКасса).
+    const sinceIso =
+      rangeDays === 0
+        ? "1970-01-01T00:00:00.000Z"
+        : new Date(
+            Date.now() - Math.max(1, pulse.range_days || rangeDays || 30) * 24 * 60 * 60 * 1000,
+          ).toISOString();
+    let settlementsQuery = db
       .from("payment_settlements")
-      .select("paid_at, provider, net_amount_rub, net_amount_eur, net_amount_usd, contract_id")
-      .eq("provider", "lavatop")
-      .gte("paid_at", sinceIso);
+      .select("paid_at, provider, net_amount_rub, net_amount_eur, net_amount_usd, contract_id");
+    if (rangeDays !== 0) {
+      settlementsQuery = settlementsQuery.gte("paid_at", sinceIso);
+    }
+    const settlementsRes = await settlementsQuery;
     if (settlementsRes.error) throw settlementsRes.error;
 
     const rawSettlements = settlementsRes.data ?? [];
@@ -129,23 +139,42 @@ export async function GET(req: Request) {
 
     const settlementRows = rawSettlements.map((row) => ({
       paid_at: row.paid_at as string,
-      provider: row.provider as string,
+      provider: normalizeGatewayProvider(row.provider as string),
       net_amount_rub: row.net_amount_rub as number,
       net_amount_eur: row.net_amount_eur as number,
       net_amount_usd: row.net_amount_usd as number,
       tier: tierByContract.get(row.contract_id as string) ?? null,
     }));
-    const netAgg = aggregateSettlementNets(settlementRows, displayCurrency, grain);
+    const lavaRows = settlementRows.filter((r) => r.provider === "lavatop");
+    const yukassaRows = settlementRows.filter((r) => r.provider === "yookassa");
+    const gatewayRows = [...lavaRows, ...yukassaRows];
+
+    const lavaAgg = aggregateSettlementNets(lavaRows, displayCurrency, grain);
+    const yukassaAgg = aggregateSettlementNets(yukassaRows, displayCurrency, grain);
+    const gatewaysAgg = aggregateSettlementNets(gatewayRows, displayCurrency, grain);
+
     pulse.kpi.revenue_lava = [
-      { currency: displayCurrency, sum: netAgg.total, count: netAgg.count },
+      { currency: displayCurrency, sum: lavaAgg.total, count: lavaAgg.count },
     ];
     pulse.kpi.revenue_lava_net = {
       currency: displayCurrency,
-      sum: netAgg.total,
-      count: netAgg.count,
+      sum: lavaAgg.total,
+      count: lavaAgg.count,
     };
-    pulse.series.revenue = netAgg.by_day;
-    pulse.revenue_by_tier = netAgg.by_tier;
+    pulse.kpi.revenue_yookassa_net = {
+      currency: displayCurrency,
+      sum: yukassaAgg.total,
+      count: yukassaAgg.count,
+    };
+    pulse.kpi.revenue_gateways_net = {
+      currency: displayCurrency,
+      sum: gatewaysAgg.total,
+      count: gatewaysAgg.count,
+    };
+    pulse.series.revenue = lavaAgg.by_day;
+    pulse.series.revenue_yookassa = yukassaAgg.by_day;
+    pulse.revenue_by_tier = lavaAgg.by_tier;
+    pulse.revenue_by_tier_yookassa = yukassaAgg.by_tier;
     pulse.display_currency = displayCurrency;
     const alerts: Array<{ id: string; severity: "warn" | "critical"; title: string; detail: string }> = [];
 
