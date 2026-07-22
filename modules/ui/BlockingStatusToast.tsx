@@ -1,6 +1,7 @@
 /**
  * Compact blocking toast: dimmed page + narrow pill with status text (and optional spinner).
  * Prefer this over AppDialog for short in-progress states like «Идёт перевод…».
+ * `message` optional — spinner-only when omitted / empty (e.g. opening dialog).
  */
 import { ActivityIndicator, Modal, StyleSheet, View } from "react-native";
 
@@ -13,10 +14,11 @@ export function BlockingStatusToast({
   showSpinner = true,
 }: {
   visible: boolean;
-  message: string;
+  message?: string;
   showSpinner?: boolean;
 }) {
   const theme = useTheme();
+  const label = typeof message === "string" ? message.trim() : "";
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => undefined}>
       <View style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]} pointerEvents="auto">
@@ -34,9 +36,11 @@ export function BlockingStatusToast({
           ]}
         >
           {showSpinner ? <ActivityIndicator color={theme.colors.accent} /> : null}
-          <AppText variant="dialogBody" tone="primary" style={styles.message}>
-            {message}
-          </AppText>
+          {label ? (
+            <AppText variant="dialogBody" tone="primary" style={styles.message}>
+              {label}
+            </AppText>
+          ) : null}
         </View>
       </View>
     </Modal>

@@ -43,6 +43,7 @@ import {
   subscribeThermalState,
   type ThermalState,
 } from "@/modules/biofeedback-finger-frame-processor/src";
+import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 
 import { BiofeedbackProvider, useBiofeedbackPipeline } from "@/modules/biofeedback/bus/biofeedback-provider";
 import { useBiofeedbackBus, useBiofeedbackChannel } from "@/modules/biofeedback/bus/react";
@@ -4403,6 +4404,16 @@ function CoherenceBreathScreenInner({
       runtimeDiagnosticsStartSeqRef.current = getRuntimeDiagnosticsCurrentSeq();
       clearPpgBannerUi();
 
+      // Camera PPG requested but native plugin missing (Android today / Expo Go):
+      // never silently pretend this is a real optical session.
+      if (!isWearableMode && useSimulatedPpg && !forceEmulatedPulse) {
+        const practiceStrings = getPracticeCatalogStrings(locale);
+        Alert.alert(practiceStrings.sensorCameraUnavailableTitle, practiceStrings.sensorCameraUnavailableBody, [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+        return;
+      }
+
       if (!isWearableMode && (useSimulatedPpg || forceEmulatedPulse)) {
         const now = Date.now();
         const estCycleMs = computeCycleMsForAnalysis(
@@ -4448,6 +4459,7 @@ function CoherenceBreathScreenInner({
       allowAdvancedMetrics,
       clearPpgBannerUi,
       isWearableMode,
+      locale,
       pipeline,
       pulseBpmLast?.medianRrMs,
       selectedWearableDevice?.id,

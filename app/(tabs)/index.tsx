@@ -18,6 +18,7 @@ import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { BlockingStatusToast } from "@/modules/ui/BlockingStatusToast";
 import { StateCard } from "@/modules/ui/StateCard";
 import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -26,7 +27,8 @@ import { postDevDayContentReset, type DevDayContentResetScope } from "@/services
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { buildSummarizingHealthSnapshot } from "@/services/summarizingHealthContext";
 import { loadDayPlan, savePendingDayPractice, type DayPlan } from "@/services/dayPlan";
-import { storePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
+import { isDayPlanCurrent, peekCachedDayPlan } from "@/services/dayPlanCache";
+import { peekPrefetchedDayPlan, storePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
 import { clearHomeDailyDialogCache } from "@/services/dialogSessionCache";
 import {
   buildOpportunityAlarmStyleContent,
@@ -303,6 +305,7 @@ function CommunicatorOverlay({
   onDismiss,
   onClose,
   onPracticeStarted,
+  onFirstAssistantVisible,
   remountKey,
   devAccessTierOverride,
 }: {
@@ -318,6 +321,7 @@ function CommunicatorOverlay({
   onDismiss: () => void;
   onClose: () => void;
   onPracticeStarted: () => void;
+  onFirstAssistantVisible?: () => void;
   remountKey: number;
   /** Only when DevTierSwitch is active — server honors for practice-branch FSM. */
   devAccessTierOverride?: ProductTier | null;
@@ -387,6 +391,8 @@ function CommunicatorOverlay({
               console.warn("[Home] Failed to pre-warm Day during planning final", error);
             });
         }}
+        onFirstAssistantVisible={onFirstAssistantVisible}
+        onError={() => onFirstAssistantVisible?.()}
         onPracticeLaunchStart={() => setPracticeHandoff(true)}
         onPracticeLaunchAbort={() => setPracticeHandoff(false)}
         onPracticePicked={finishPracticeLaunch}
@@ -454,6 +460,7 @@ export default function HomeScreen() {
   const [assistantRemountKey, setAssistantRemountKey] = useState(0);
   const [natalProfile, setNatalProfile] = useState<NatalProfile | null>(null);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+  const [assistantOpening, setAssistantOpening] = useState(false);
   const birthFingerprint = useMemo(
     () =>
       birthFingerprintFromProfile({
@@ -510,6 +517,8 @@ export default function HomeScreen() {
 
   // As soon as Home has a usable day shell, idle-prefetch /api/day (do not wait
   // for homeTextsLoading — Day tab does not need morning LLM texts).
+  // Important: do not discard a successful plan on effect cleanup (Strict Mode /
+  // dependency churn). Only reset the key if the timer never started, or on error.
   const dayPrefetchKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (status !== "ready" && status !== "stale_ready") return;
@@ -518,24 +527,24 @@ export default function HomeScreen() {
     const key = `${authUser.id}:${accessMode}:${forecast.date}:${appLocale}`;
     if (dayPrefetchKeyRef.current === key) return;
     dayPrefetchKeyRef.current = key;
-    let cancelled = false;
+    let started = false;
     const handle = setTimeout(() => {
+      started = true;
       void loadDayPlan()
         .then((plan) => {
-          if (cancelled) return;
           storePrefetchedDayPlan(plan);
           logRuntimeEvent("home:day_tab_prefetch", { forecastDate: forecast.date, accessMode });
         })
         .catch((prefetchError) => {
-          if (cancelled) return;
-          // Allow a later Home ready cycle to retry.
           if (dayPrefetchKeyRef.current === key) dayPrefetchKeyRef.current = null;
           console.warn("[Home] Failed to prefetch Day tab after home ready", prefetchError);
         });
     }, 0);
     return () => {
-      cancelled = true;
       clearTimeout(handle);
+      if (!started && dayPrefetchKeyRef.current === key) {
+        dayPrefetchKeyRef.current = null;
+      }
     };
   }, [accessMode, appLocale, authUser?.id, forecast?.date, loading, status]);
 
@@ -629,17 +638,37 @@ export default function HomeScreen() {
     }
   }, [access.tier, authUser?.id, refresh]);
 
+  const dismissAssistantOpening = useCallback(() => {
+    setAssistantOpening(false);
+  }, []);
+
+  // Safety net if dialog never paints assistant text (network hang).
+  useEffect(() => {
+    if (!assistantOpening) return;
+    const timer = setTimeout(() => setAssistantOpening(false), 45_000);
+    return () => clearTimeout(timer);
+  }, [assistantOpening]);
+
   const onOpenAssistantOrDay = useCallback(async () => {
     if (!canUseFeature("assistant_dialog")) {
       setUpgradeFeature("assistant_dialog");
       return;
     }
+    setAssistantOpening(true);
     try {
       if (canUseFeature("day_planning")) {
-        const dayPlan = await loadDayPlan();
+        // Prefer same-session prefetch/memory before a second /api/day wait.
+        let dayPlan =
+          peekPrefetchedDayPlan() ??
+          (authUser?.id ? peekCachedDayPlan({ userId: authUser.id, locale: appLocale }) : null);
+        if (!dayPlan || !isDayPlanCurrent(dayPlan)) {
+          dayPlan = await loadDayPlan();
+          storePrefetchedDayPlan(dayPlan);
+        }
         if (!dayPlan.hasOverdueSummary && dayPlanHasVisibleContent(dayPlan)) {
           setHomeDayPractices([]);
           setHomeDayHealthContext(null);
+          setAssistantOpening(false);
           router.push("/day");
           return;
         }
@@ -668,6 +697,7 @@ export default function HomeScreen() {
       setCommunicatorDismissAnimation("slide");
       setCommunicatorMounted(true);
       setCommunicatorVisible(true);
+      // Spinner stays until Communicator reports first visible assistant text.
     } catch (loadError) {
       console.warn("[Home] Failed to check day plan before assistant", loadError);
       setHomeDayPractices([]);
@@ -679,7 +709,7 @@ export default function HomeScreen() {
       setCommunicatorMounted(true);
       setCommunicatorVisible(true);
     }
-  }, [canUseFeature]);
+  }, [appLocale, authUser?.id, canUseFeature]);
 
   return (
     <GeoGate onCloseApp={onCloseAppFromGeoGate} onGranted={() => void refresh()}>
@@ -835,11 +865,14 @@ export default function HomeScreen() {
           visible={communicatorVisible}
           dismissAnimation={communicatorDismissAnimation}
           devAccessTierOverride={access.source === "dev_override" ? access.tier : null}
+          onFirstAssistantVisible={dismissAssistantOpening}
           onDismiss={() => {
+            dismissAssistantOpening();
             setCommunicatorMounted(false);
             setCommunicatorDismissAnimation("slide");
           }}
           onPracticeStarted={() => {
+            dismissAssistantOpening();
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setHomeWorkingLocalDate(null);
@@ -853,6 +886,7 @@ export default function HomeScreen() {
               });
           }}
           onClose={() => {
+            dismissAssistantOpening();
             setHomeDayPractices([]);
             setHomeDayHealthContext(null);
             setHomeWorkingLocalDate(null);
@@ -888,6 +922,7 @@ export default function HomeScreen() {
           onClose={() => setUpgradeFeature(null)}
         />
       ) : null}
+      <BlockingStatusToast visible={assistantOpening} />
     </TabScreenLayout>
     </GeoGate>
   );

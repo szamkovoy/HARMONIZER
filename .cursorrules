@@ -34,6 +34,12 @@ The `docs/` folder is the canonical map of the system. Use it.
 3. Skim `docs/04_workspace/open_questions.md` for relevant open issues
    on any of the touched modules.
 
+4. If the task touches **UI, layout, theme, keyboard/safe-area, or
+   platform-specific mobile behavior** (iOS vs Android / OEM), also read
+   `docs/04_workspace/multiplatform_ui.md` and keep changes aligned with
+   the central theme tokens (`modules/ui/theme.ts`). Do not regress the
+   already-polished iPhone experience.
+
 If at any point during the work you discover the task touches a module
 you did not initially identify, go back and read its triad before
 modifying its code.

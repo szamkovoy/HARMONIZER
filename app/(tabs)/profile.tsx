@@ -29,7 +29,8 @@ import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
 import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
-import { useTheme } from "@/modules/ui/theme";
+import { useTheme, type PaletteScheme } from "@/modules/ui/theme";
+import { useThemePreference } from "@/modules/ui/themePreference";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
 import {
   buildPracticeStatsChartModel,
@@ -98,6 +99,8 @@ export default function ProfileTabRoute() {
   const { locale, setLocale, testMode } = useAppLocale();
   const { t } = useTranslate();
   const [localeOpen, setLocaleOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const { scheme: paletteScheme, setScheme: setPaletteScheme } = useThemePreference();
   const [localeRebuild, setLocaleRebuild] = useState<LocaleRebuildState>({ phase: "idle" });
   /** Combo shows the picked language immediately; store locale commits after ensure. */
   const [optimisticLocale, setOptimisticLocale] = useState<AppLocale | null>(null);
@@ -429,6 +432,17 @@ export default function ProfileTabRoute() {
     APP_LOCALE_OPTIONS.find((option) => option.code === (optimisticLocale ?? locale))?.nativeLabel ??
     (optimisticLocale ?? locale);
 
+  const paletteOptions = useMemo(
+    () =>
+      [
+        { value: "light" as const, label: t("profile.palette.light") },
+        { value: "dark" as const, label: t("profile.palette.dark") },
+      ] satisfies { value: PaletteScheme; label: string }[],
+    [t],
+  );
+  const paletteDisplayValue =
+    paletteOptions.find((option) => option.value === paletteScheme)?.label ?? t("profile.palette.light");
+
   useFocusEffect(
     useCallback(() => {
       if (!authUser?.id) return;
@@ -598,7 +612,28 @@ export default function ProfileTabRoute() {
               {t("profile.language.testModeNote")}
             </AppText>
           ) : null}
-          <ComboBoxDismissOverlay active={localeOpen} onDismiss={() => setLocaleOpen(false)} />
+
+          <ComboBox
+            variant="pill"
+            id="profile-palette"
+            label={t("profile.palette.label")}
+            value={paletteScheme}
+            displayValue={paletteDisplayValue}
+            options={paletteOptions}
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            onChange={(value) => {
+              setPaletteScheme(value === "dark" ? "dark" : "light");
+              setPaletteOpen(false);
+            }}
+          />
+          <ComboBoxDismissOverlay
+            active={localeOpen || paletteOpen}
+            onDismiss={() => {
+              setLocaleOpen(false);
+              setPaletteOpen(false);
+            }}
+          />
 
           {linksEnabled ? (
             <>

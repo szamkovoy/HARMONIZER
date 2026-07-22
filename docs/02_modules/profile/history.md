@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-22 (UI palette):** В «Мои данные» — ComboBox палитры (`profile.palette.*`) над «Личный кабинет»; persist `themePreference` (default **light**). Корневой `UiThemeProvider` больше не следует system `useColorScheme`. См. `docs/04_workspace/multiplatform_ui.md`.
+
 - **2026-07-21 (admin geo/last_seen):** `acquireAndPersistUserCoordinates` пишет `users.country_code` + `city` из reverse-geocode; `logAppOpen` обновляет `users.last_seen_at` (тот же 30‑мин троттлинг). Колонки — миграция `20260721120000_admin_dashboard_pulse.sql`; нужны админ-пульсу/geo.
 
 - **2026-07-21:** `refreshProfile` больше не ставит `profileLoading` (silent `syncProfile`). Realtime/foreground membership и locale PATCH иначе мигали loading → `useDayContent` abort’ил загрузку дня и оставлял splash на free midnight. Initial `syncProfile` после login/session по-прежнему blocking.

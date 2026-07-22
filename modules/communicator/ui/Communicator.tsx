@@ -516,6 +516,11 @@ export interface CommunicatorProps {
   startFreshSession?: boolean;
   onEmotionSegment?: (payload: EmotionSegmentPayload) => void;
   onMessage?: (msg: CommunicatorHistoryMessage) => void;
+  /**
+   * Once when the first assistant reply becomes visible (stream text or committed
+   * bubble). Used by Home to dismiss the opening spinner over «Что делать?».
+   */
+  onFirstAssistantVisible?: () => void;
   onPracticeOffered?: (practice: PracticeSummary) => void | Promise<void>;
   /** Сразу при нажатии «Начать практику» — до router.push (заменить чат на handoff-cover). */
   onPracticeLaunchStart?: () => void;
@@ -600,6 +605,7 @@ export function Communicator({
   startFreshSession = false,
   onEmotionSegment,
   onMessage,
+  onFirstAssistantVisible,
   onPracticeOffered,
   onPracticeLaunchStart,
   onPracticeLaunchAbort,
@@ -1220,6 +1226,20 @@ export function Communicator({
     () => stripDialogScaffoldMarkdown(stripStreamingMarkers(assistantText)),
     [assistantText],
   );
+
+  const firstAssistantVisibleNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (!onFirstAssistantVisible || firstAssistantVisibleNotifiedRef.current) return;
+    const streamVisible = strippedStreamTarget.trim().length > 0;
+    const bubbleVisible = messages.some(
+      (message) =>
+        message.role === "assistant" &&
+        stripDialogScaffoldMarkdown(stripStreamingMarkers(message.content)).trim().length > 0,
+    );
+    if (!streamVisible && !bubbleVisible) return;
+    firstAssistantVisibleNotifiedRef.current = true;
+    onFirstAssistantVisible();
+  }, [messages, onFirstAssistantVisible, strippedStreamTarget]);
 
   const communicatorListData = useMemo((): CommunicatorListRow[] => {
     const rows: CommunicatorListRow[] = [];

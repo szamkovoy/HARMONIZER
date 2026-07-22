@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'yoga.harmonizer'
+version = '1.0.0'
+
+android {
+  namespace "com.harmonizer.biofeedbackfingerframeprocessor"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Provided by the host Expo app via autolinking.
+  compileOnly project(':react-native-vision-camera')
+}

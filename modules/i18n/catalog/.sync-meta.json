@@ -275,7 +275,10 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -553,7 +556,10 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -831,7 +837,10 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1109,7 +1118,10 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1387,7 +1399,10 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -1665,7 +1680,10 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -1943,6 +1961,9 @@
     "profile.account.deleteCancel": "Отменить",
     "profile.account.deleteWorking": "Удаляем аккаунт…",
     "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
-    "profile.language.appLabel": "Язык приложения:"
+    "profile.language.appLabel": "Язык приложения:",
+    "profile.palette.label": "Палитра",
+    "profile.palette.light": "Светлая палитра",
+    "profile.palette.dark": "Тёмная палитра"
   }
 }

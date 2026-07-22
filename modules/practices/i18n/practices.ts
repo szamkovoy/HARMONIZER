@@ -58,6 +58,9 @@ export interface PracticeCatalogStrings {
   chakraLabel: string;
   pulseLabel: string;
   sensorCameraOption: string;
+  /** When VisionCamera finger PPG plugin is missing (e.g. Android until native port). */
+  sensorCameraUnavailableTitle: string;
+  sensorCameraUnavailableBody: string;
   sensorBluetoothOption: string;
   sensorBluetoothOtherOption: string;
   sensorNoneOption: string;
@@ -68,6 +71,7 @@ export interface PracticeCatalogStrings {
   wearablePickerNotFound: string;
   wearablePickerNotFoundTips: string;
   wearablePickerBluetoothOff: string;
+  wearablePickerPermissionDenied: string;
   wearablePickerRetry: string;
   wearablePickerClose: string;
   wearablePickerSelectButton: string;
@@ -132,6 +136,9 @@ const ru: PracticeCatalogStrings = {
   chakraLabel: "Чакра",
   pulseLabel: "Источник пульса",
   sensorCameraOption: "пульс с телефона",
+  sensorCameraUnavailableTitle: "Пульс с камеры недоступен",
+  sensorCameraUnavailableBody:
+    "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
   sensorBluetoothOption: "пульсометр Bluetooth",
   sensorBluetoothOtherOption: "другой Bluetooth-пульсометр",
   sensorNoneOption: "без пульсометра",
@@ -143,6 +150,8 @@ const ru: PracticeCatalogStrings = {
   wearablePickerNotFoundTips:
     "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
   wearablePickerBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
+  wearablePickerPermissionDenied:
+    "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск.",
   wearablePickerRetry: "Повторить поиск",
   wearablePickerClose: "Закрыть",
   wearablePickerSelectButton: "Подключить",
@@ -223,6 +232,9 @@ const en: PracticeCatalogStrings = {
   chakraLabel: "Chakra",
   pulseLabel: "Pulse source",
   sensorCameraOption: "pulse from phone",
+  sensorCameraUnavailableTitle: "Camera pulse unavailable",
+  sensorCameraUnavailableBody:
+    "Camera pulse sensing is not available in this build yet. Choose “without heart-rate monitor” or a Bluetooth strap — or update the app when Android camera pulse support ships.",
   sensorBluetoothOption: "Bluetooth heart-rate monitor",
   sensorBluetoothOtherOption: "another Bluetooth heart-rate monitor",
   sensorNoneOption: "without heart-rate monitor",
@@ -234,6 +246,8 @@ const en: PracticeCatalogStrings = {
   wearablePickerNotFoundTips:
     "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
   wearablePickerBluetoothOff: "Bluetooth is off. Turn it on and try again.",
+  wearablePickerPermissionDenied:
+    "Bluetooth permission is required. Allow Bluetooth access in phone settings and scan again.",
   wearablePickerRetry: "Scan again",
   wearablePickerClose: "Close",
   wearablePickerSelectButton: "Connect",

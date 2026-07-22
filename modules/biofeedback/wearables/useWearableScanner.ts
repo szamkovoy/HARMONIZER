@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { State } from "@sfourdrinier/react-native-ble-plx";
 
+import { ensureAndroidBlePermissions } from "@/modules/biofeedback/wearables/androidBlePermissions";
 import { getWearableBleManager } from "@/modules/biofeedback/wearables/bleManager";
 import {
   hasHeartRateServiceUuid,
@@ -57,6 +58,12 @@ export function useWearableScanner() {
     setScanError(null);
     seenMapRef.current = new Map();
     setDevices([]);
+    const blePerms = await ensureAndroidBlePermissions();
+    if (!blePerms.granted) {
+      setScanState("idle");
+      setScanError("bluetooth_permission_denied");
+      return;
+    }
     try {
       await manager.stopDeviceScan();
     } catch {

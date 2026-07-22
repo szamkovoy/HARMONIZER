@@ -1658,7 +1658,8 @@
       "opportunityWindows.reminderPrePermissionTitle": "Напоминания о практиках",
       "opportunityWindows.reminderPrePermissionMessage": "Вы можете получать напоминания в те особенные моменты дня, когда практики наиболее эффективны - если вы будете включать запрос напоминания.",
       "opportunityWindows.reminderPrePermissionAllow": "Разрешить",
-      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас"
+      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас",
+      "recommendation.discussOpening": "Открываю ассистента…"
     },
     "fr": {
       "locale": "ru",
@@ -1790,7 +1791,8 @@
       "opportunityWindows.reminderPrePermissionTitle": "Напоминания о практиках",
       "opportunityWindows.reminderPrePermissionMessage": "Вы можете получать напоминания в те особенные моменты дня, когда практики наиболее эффективны - если вы будете включать запрос напоминания.",
       "opportunityWindows.reminderPrePermissionAllow": "Разрешить",
-      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас"
+      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас",
+      "recommendation.discussOpening": "Открываю ассистента…"
     },
     "it": {
       "locale": "ru",
@@ -1922,7 +1924,8 @@
       "opportunityWindows.reminderPrePermissionTitle": "Напоминания о практиках",
       "opportunityWindows.reminderPrePermissionMessage": "Вы можете получать напоминания в те особенные моменты дня, когда практики наиболее эффективны - если вы будете включать запрос напоминания.",
       "opportunityWindows.reminderPrePermissionAllow": "Разрешить",
-      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас"
+      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас",
+      "recommendation.discussOpening": "Открываю ассистента…"
     },
     "es": {
       "locale": "ru",
@@ -2054,7 +2057,8 @@
       "opportunityWindows.reminderPrePermissionTitle": "Напоминания о практиках",
       "opportunityWindows.reminderPrePermissionMessage": "Вы можете получать напоминания в те особенные моменты дня, когда практики наиболее эффективны - если вы будете включать запрос напоминания.",
       "opportunityWindows.reminderPrePermissionAllow": "Разрешить",
-      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас"
+      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас",
+      "recommendation.discussOpening": "Открываю ассистента…"
     },
     "pt": {
       "locale": "ru",
@@ -2186,7 +2190,8 @@
       "opportunityWindows.reminderPrePermissionTitle": "Напоминания о практиках",
       "opportunityWindows.reminderPrePermissionMessage": "Вы можете получать напоминания в те особенные моменты дня, когда практики наиболее эффективны - если вы будете включать запрос напоминания.",
       "opportunityWindows.reminderPrePermissionAllow": "Разрешить",
-      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас"
+      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас",
+      "recommendation.discussOpening": "Открываю ассистента…"
     },
     "nl": {
       "locale": "ru",
@@ -2318,7 +2323,8 @@
       "opportunityWindows.reminderPrePermissionTitle": "Напоминания о практиках",
       "opportunityWindows.reminderPrePermissionMessage": "Вы можете получать напоминания в те особенные моменты дня, когда практики наиболее эффективны - если вы будете включать запрос напоминания.",
       "opportunityWindows.reminderPrePermissionAllow": "Разрешить",
-      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас"
+      "opportunityWindows.reminderPrePermissionCancel": "Не сейчас",
+      "recommendation.discussOpening": "Открываю ассистента…"
     }
   },
   "mandala": {
@@ -2536,7 +2542,10 @@
       "wearablePickerClose": "Закрыть",
       "wearablePickerSelectButton": "Подключить",
       "wearablePickerSignalLabel": "Сигнал",
-      "wearableBluetoothStateLabel": "Bluetooth"
+      "wearableBluetoothStateLabel": "Bluetooth",
+      "sensorCameraUnavailableTitle": "Пульс с камеры недоступен",
+      "sensorCameraUnavailableBody": "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
+      "wearablePickerPermissionDenied": "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск."
     },
     "fr": {
       "locale": "ru",
@@ -2612,7 +2621,10 @@
       "wearablePickerClose": "Закрыть",
       "wearablePickerSelectButton": "Подключить",
       "wearablePickerSignalLabel": "Сигнал",
-      "wearableBluetoothStateLabel": "Bluetooth"
+      "wearableBluetoothStateLabel": "Bluetooth",
+      "sensorCameraUnavailableTitle": "Пульс с камеры недоступен",
+      "sensorCameraUnavailableBody": "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
+      "wearablePickerPermissionDenied": "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск."
     },
     "it": {
       "locale": "ru",
@@ -2688,7 +2700,10 @@
       "wearablePickerClose": "Закрыть",
       "wearablePickerSelectButton": "Подключить",
       "wearablePickerSignalLabel": "Сигнал",
-      "wearableBluetoothStateLabel": "Bluetooth"
+      "wearableBluetoothStateLabel": "Bluetooth",
+      "sensorCameraUnavailableTitle": "Пульс с камеры недоступен",
+      "sensorCameraUnavailableBody": "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
+      "wearablePickerPermissionDenied": "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск."
     },
     "es": {
       "locale": "ru",
@@ -2764,7 +2779,10 @@
       "wearablePickerClose": "Закрыть",
       "wearablePickerSelectButton": "Подключить",
       "wearablePickerSignalLabel": "Сигнал",
-      "wearableBluetoothStateLabel": "Bluetooth"
+      "wearableBluetoothStateLabel": "Bluetooth",
+      "sensorCameraUnavailableTitle": "Пульс с камеры недоступен",
+      "sensorCameraUnavailableBody": "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
+      "wearablePickerPermissionDenied": "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск."
     },
     "pt": {
       "locale": "ru",
@@ -2840,7 +2858,10 @@
       "wearablePickerClose": "Закрыть",
       "wearablePickerSelectButton": "Подключить",
       "wearablePickerSignalLabel": "Сигнал",
-      "wearableBluetoothStateLabel": "Bluetooth"
+      "wearableBluetoothStateLabel": "Bluetooth",
+      "sensorCameraUnavailableTitle": "Пульс с камеры недоступен",
+      "sensorCameraUnavailableBody": "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
+      "wearablePickerPermissionDenied": "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск."
     },
     "nl": {
       "locale": "ru",
@@ -2916,7 +2937,10 @@
       "wearablePickerClose": "Закрыть",
       "wearablePickerSelectButton": "Подключить",
       "wearablePickerSignalLabel": "Сигнал",
-      "wearableBluetoothStateLabel": "Bluetooth"
+      "wearableBluetoothStateLabel": "Bluetooth",
+      "sensorCameraUnavailableTitle": "Пульс с камеры недоступен",
+      "sensorCameraUnavailableBody": "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
+      "wearablePickerPermissionDenied": "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск."
     }
   },
   "profile": {

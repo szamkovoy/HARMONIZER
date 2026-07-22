@@ -37,14 +37,12 @@ function addHealthConnectMainActivityDelegate(src) {
   if (next.includes("HealthConnectPermissionDelegate.setPermissionDelegate(this)")) {
     return next;
   }
-  const onCreateMatch = next.match(/override fun onCreate\(savedInstanceState: Bundle\?\) \{\n([\s\S]*?)\n  \}/);
-  if (onCreateMatch) {
+  // Expo 54 MainActivity often calls `super.onCreate(null)` after splash theme —
+  // match any super.onCreate(...), not only savedInstanceState.
+  if (/super\.onCreate\([^)]*\)/.test(next)) {
     return next.replace(
-      onCreateMatch[0],
-      onCreateMatch[0].replace(
-        /super\.onCreate\(savedInstanceState\)/,
-        "super.onCreate(savedInstanceState)\n    HealthConnectPermissionDelegate.setPermissionDelegate(this)",
-      ),
+      /super\.onCreate\([^)]*\)/,
+      (match) => `${match}\n    HealthConnectPermissionDelegate.setPermissionDelegate(this)`,
     );
   }
   return next.replace(

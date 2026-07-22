@@ -21,27 +21,19 @@
 
 Функции, которые должны иметь Android-реализацию:
 
-- [ ] `setBackTorchLevel(level: Double)` → на Android используется
-  `CameraManager.setTorchMode(cameraId, enabled=true)` с brightness
-  через `CameraManager.turnOnTorchWithStrengthLevel(cameraId, strengthLevel)`
-  (API 33+). До API 33 — только on/off без уровня. В этом случае
-  игнорируем `level` и просто включаем фонарик.
-- [ ] `turnOffBackTorch()` → `CameraManager.setTorchMode(cameraId, false)`.
-- [ ] `getThermalState()` → Android использует `PowerManager.getCurrentThermalStatus()`
-  (API 29+). Маппинг:
-  - `THERMAL_STATUS_NONE/LIGHT` → `"nominal"`
-  - `THERMAL_STATUS_MODERATE` → `"fair"`
-  - `THERMAL_STATUS_SEVERE` → `"serious"`
-  - `THERMAL_STATUS_CRITICAL/EMERGENCY/SHUTDOWN` → `"critical"`
-- [ ] `subscribeThermalState(callback)` → `PowerManager.addThermalStatusListener(listener)`.
-- [ ] `getMemoryUsageMb()` → `Debug.MemoryInfo().getTotalPss() / 1024` или
-  `ActivityManager.getProcessMemoryInfo(myPid())`.
-- [ ] `getBatteryLevelPct()` → `BatteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)`.
+- [x] `setBackTorchLevel(level: Double)` → `CameraManager.turnOnTorchWithStrengthLevel` (API 33+) / `setTorchMode` fallback (`BiofeedbackFingerFrameProcessorModule.kt`, 2026-07-22).
+- [x] `turnOffBackTorch()` → `CameraManager.setTorchMode(cameraId, false)`.
+- [x] `getThermalState()` → `PowerManager.getCurrentThermalStatus()` + маппинг nominal/fair/serious/critical.
+- [x] `subscribeThermalState(callback)` → `PowerManager.addThermalStatusListener` → event `onThermalStateChanged`.
+- [x] `getMemoryUsageMb()` → `Debug.MemoryInfo().totalPss / 1024`.
+- [x] `getBatteryLevelPct()` → `BatteryManager` / sticky `ACTION_BATTERY_CHANGED`.
 
-**Дополнительно**: frame processor plugin для VisionCamera должен быть
-реализован на Android (Kotlin + JNI) чтобы `analyzeFingerRoi` работал.
-У VisionCamera есть отдельный API для Android frame processor plugins.
-См. https://react-native-vision-camera.com/docs/guides/frame-processors-plugins-overview
+**Frame processor:**
+
+- [x] `analyzeFingerRoi` — `AnalyzeFingerRoiFrameProcessorPlugin.kt` (YUV_420_888 ROI + BT.601, тот же JS-контракт). Регистрация в `OnCreate` через `FrameProcessorPluginRegistry`.
+- [ ] **Проверить на устройстве после native rebuild** (`npx expo prebuild` / EAS): warmup → QC → practice; OEM-различия torch (Pixel / Samsung / Xiaomi); формат UV (pixelStride); тепло на 15–25 fps.
+
+**Продуктовый guard:** если `isFingerFrameProcessorAvailable()` false (старый APK без плагина), `PracticeCard` / `CoherenceBreathScreen` показывают `sensorCameraUnavailable*` вместо silent simulate.
 
 ## 2. Камера и torch — общий гид
 

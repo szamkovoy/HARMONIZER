@@ -53,8 +53,14 @@ import {
   type DaySection,
   type DaySphereStat,
 } from "@/services/dayPlan";
-import { consumeDayPlanStale, consumePrefetchedDayPlan } from "@/services/dayPlanReloadRequest";
-import { isDayPlanCurrent, loadCachedDayPlan } from "@/services/dayPlanCache";
+import {
+  clearPrefetchedDayPlan,
+  consumeDayPlanStale,
+  peekPrefetchedDayPlan,
+  subscribePrefetchedDayPlan,
+} from "@/services/dayPlanReloadRequest";
+import { isDayPlanCurrent, loadCachedDayPlan, peekCachedDayPlan } from "@/services/dayPlanCache";
+import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 const dayActionChevronIcon = require("@/assets/icons/day_action_chevron.png");
 const dayActionPencilIcon = require("@/assets/icons/day_action_pencil.png");
@@ -578,24 +584,52 @@ export default function DayTabRoute() {
         setPlan(null);
         setLoading(true);
       }
-      // Same-session prefetch (Home idle / dialog) — paint immediately and sync
-      // planRef before refresh so silent background fetch does not show the spinner.
-      const prefetched = consumePrefetchedDayPlan();
-      if (prefetched && isDayPlanCurrent(prefetched)) {
-        planRef.current = prefetched;
-        setPlan(prefetched);
+
+      const applyPlan = (next: DayPlan, source: string) => {
+        clearPrefetchedDayPlan();
+        planRef.current = next;
+        setPlan(next);
         setError(null);
         setLoading(false);
+        logRuntimeEvent("day:plan_paint", { source, currentLocalDate: next.currentLocalDate });
         void refresh({ silent: true });
-        return;
+      };
+
+      // Prefer peek (not one-shot consume) so a remount can still see the snapshot.
+      const prefetched = peekPrefetchedDayPlan();
+      if (prefetched && isDayPlanCurrent(prefetched)) {
+        applyPlan(prefetched, "prefetch");
+        return () => undefined;
       }
+
+      // Same-session memory cache from Home's loadDayPlan() — instant paint if
+      // prefetch store was empty but /api/day already completed in-session.
+      if (!planRef.current && authUser?.id) {
+        const cached = peekCachedDayPlan({ userId: authUser.id, locale: reportLocale });
+        if (cached && isDayPlanCurrent(cached)) {
+          applyPlan(cached, "memory_cache");
+          return () => undefined;
+        }
+      }
+
       if (planRef.current) {
         void refresh({ silent: true });
-        return;
+        return () => undefined;
       }
+
       setLoading(true);
       void refresh();
-    }, [refresh]),
+
+      // Late Home prefetch: user opened Day while loadDayPlan was still in flight.
+      const unsubscribe = subscribePrefetchedDayPlan((latePlan) => {
+        if (planRef.current) return;
+        if (!isDayPlanCurrent(latePlan)) return;
+        applyPlan(latePlan, "late_prefetch");
+      });
+      return () => {
+        unsubscribe();
+      };
+    }, [authUser?.id, refresh, reportLocale]),
   );
 
   useFocusEffect(

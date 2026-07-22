@@ -20,6 +20,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-22 (Health Connect crash):** `requestPermission` без `HealthConnectPermissionDelegate` крашил process (`lateinit requestPermission`) — JS try/catch не ловит. **Временно не вызываем** `requestPermission` (только уже выданные grants); plugin `with-native-health.js` вставляет delegate после любого `super.onCreate(...)`. После native rebuild можно снова включить prompt.
+
 - **2026-07-12 (8):** QA `текст-4C05…`: (1) Apple Health — never skip `requestAuthorization` before query (SecureStore backoff caused instant Nitro `Unknown std::runtime_error`); add auth/canary notes to `collectionTrace`. (2) Summarizing «2nd chakra» was loaded from past day's stale `matrix_filtered_by_strength` forecast — refresh to astro primary when summarizing. (3) Day sphere 4 for «родник» — keyword `родн` matched `родник`; fixed to family word-forms + родник→sphere 1.
 
 - **2026-07-12 (7):** QA `текст-446C…` + Apple Health screenshot (11 Jul = 2665 steps): model said «около 8200» while `health_debug.steps=null` — hallucinated from prompt example + yoga-only Health context without no-invent guard. Fix: yoga-only forbids inventing steps; remove «8200» example; strip invented native-health sentences on FINAL; Apple queries use samples-first + client date filter + sequential (parallel Nitro threw `Unknown std::runtime_error`).

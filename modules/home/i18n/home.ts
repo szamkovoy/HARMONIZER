@@ -119,6 +119,8 @@ export interface HomeStrings {
     title: string;
     /** Shown while locale-specific LLM texts are loading (avoid EN/RU fallback flash). */
     loading: string;
+    /** While «Что делать?» checks day plan / opens communicator. */
+    discussOpening: string;
     fallback: (forecast: DailyForecast) => string;
     discussButton: string;
     readMoreButton: string;
@@ -373,6 +375,7 @@ const ru: HomeStrings = {
     discussButton: "Что делать?",
     readMoreButton: "Подробнее",
     loading: "Загружаю текст рекомендации на этот день",
+    discussOpening: "Открываю ассистента…",
     helpButtonAccessibilityLabel: "Пояснение к рекомендациям на день",
     helpModalTitle: "Основа для рекомендации",
     helpBody:
@@ -587,6 +590,7 @@ const en: HomeStrings = {
     discussButton: "What to do?",
     readMoreButton: "More details",
     loading: "Loading today’s recommendation…",
+    discussOpening: "Opening the assistant…",
     helpButtonAccessibilityLabel: "Explain today's recommendation",
     helpModalTitle: "What the recommendation is based on",
     helpBody:

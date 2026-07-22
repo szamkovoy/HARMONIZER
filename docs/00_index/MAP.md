@@ -2,8 +2,8 @@
 
 id: 00_index/MAP
 title: Documentation Map
-version: 1.58
-updated: 2026-07-18
+version: 1.59
+updated: 2026-07-22
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs:
   [
@@ -52,6 +52,17 @@ code_refs:
 
 
 `error_tracking` документируется внутри `02_modules/infra/error_tracking.md` и не считается отдельным модулем в `MAP.md`.
+
+## Где искать: мультиплатформенный UI (iOS + Android)
+
+Сквозная тема: **единые токены темы**, палитра пользователя, safe area / keyboard, тонкие `Platform`-дельты, без регрессии iPhone.
+
+| Вопрос | Канон |
+| --- | --- |
+| Стратегия и правила для агентов | `docs/04_workspace/multiplatform_ui.md` |
+| Токены light/dark, `buildTheme` | `modules/ui/theme.ts` |
+| Выбор палитры (default light) | `modules/ui/themePreference.ts`, Профиль → ComboBox |
+| Forced-light (онбординг) | `modules/onboarding/wizard/WizardShell.tsx` |
 
 ## Где искать: хранение daily dialog (lean storage)
 

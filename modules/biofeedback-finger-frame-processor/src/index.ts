@@ -2,17 +2,10 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import { VisionCameraProxy, type Frame } from "react-native-vision-camera";
 
 /**
- * TAG_ANDROID_ADAPTATION
- *
- * Этот индекс-файл завязан на нативный модуль `BiofeedbackFingerFrameProcessor`,
- * который сейчас реализован только под iOS. Все wrapper-функции ниже
- * (`setBackTorchLevel`, `turnOffBackTorch`, `getThermalState`,
- * `subscribeThermalState`, `getNativeMemoryMb`, `getBatteryLevelPct`)
- * используют pattern "null-safe probe": если нативная функция отсутствует,
- * возвращают `null`/`false`. Поэтому на Android код не ломается, а
- * просто деградирует (thermal trigger недоступен, torch level не
- * регулируется). Полный перечень Android-эквивалентов и план работ:
- *   `/docs/android-adaptation-notes.md`
+ * Wrappers over native `BiofeedbackFingerFrameProcessor` (iOS + Android).
+ * Missing native symbols → null/false (Expo Go / old APK without rebuild).
+ * Android frame plugin: `android/.../AnalyzeFingerRoiFrameProcessorPlugin.kt`
+ * (requires native rebuild). See `docs/android-adaptation-notes.md`.
  *
  * Для **web** см. `index.web.ts` — Metro подменяет модуль и не тянет VisionCamera.
  */

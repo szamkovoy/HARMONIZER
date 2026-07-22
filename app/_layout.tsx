@@ -16,7 +16,6 @@ import { installDevLoadingViewPatch } from "@/modules/dev/patchDevLoadingView";
 
 installDevLoadingViewPatch();
 
-import { useColorScheme } from "@/components/useColorScheme";
 import { AccessProvider } from "@/modules/access";
 import { MembershipEventsBridge } from "@/modules/account";
 import { AuthProvider, useAuth } from "@/modules/auth";
@@ -25,7 +24,8 @@ import { hydrateAppLocale } from "@/modules/i18n";
 import { PushRegistrationBridge } from "@/modules/notifications";
 import { RemotePlayProvider } from "@/modules/remote-play";
 import { StorySessionBootstrap } from "@/modules/stories";
-import { ThemeProvider as UiThemeProvider, buildTheme } from "@/modules/ui/theme";
+import { ThemeProvider as UiThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
+import { useThemePreference } from "@/modules/ui/themePreference";
 import { configureLocalNotifications } from "@/services/localNotifications";
 import { logRuntimeEvent, logRuntimeTap, useRuntimeDiagnosticsSampler } from "@/services/runtimeDiagnostics";
 
@@ -47,8 +47,9 @@ function NativeSplashBridge({ fontsLoaded }: { fontsLoaded: boolean }) {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const uiTheme = useMemo(() => buildTheme(colorScheme === "dark" ? "dark" : "light"), [colorScheme]);
+  // Палитра — явный выбор пользователя (default light), не system color scheme.
+  const { scheme: paletteScheme } = useThemePreference();
+  const uiTheme = useMemo(() => buildTheme(paletteScheme), [paletteScheme]);
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
@@ -181,7 +182,7 @@ function useAuthRouteGate() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const theme = useTheme();
   const { initializing, session, profile, profileLoading } = useAuth();
   const { setHomeRouteActive } = useAppStartup();
   const segments = useSegments();
@@ -230,7 +231,7 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }} onTouchStart={handleRootTouch}>
-      <NavThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={theme.scheme === "dark" ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen

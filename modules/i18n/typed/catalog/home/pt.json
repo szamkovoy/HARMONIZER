@@ -134,7 +134,8 @@
     "readMoreButton": "Saiba mais",
     "helpButtonAccessibilityLabel": "Explicação das recomendações do dia",
     "helpModalTitle": "Base da recomendação",
-    "helpBody": "Esta recomendação descreve o planeta mais forte deste dia como uma imagem arquetípica, segundo a psicologia analítica de Carl Jung. Graças a isso, você perceberá em que estados é favorável agir hoje.\\n\\nSe quiser uma previsão astrológica detalhada, toque no botão \"Saiba mais\". Depois, poderá conhecer a matemática que fundamenta essas recomendações e até ver o horóscopo.\\n\\nOu toque em \"O que fazer?\" — para ver os eventos que o aguardam neste dia pelos olhos desse arquétipo, transformando o dia num conjunto de práticas psicológicas interessantes. E, após uma semana de uso desta função, será formada uma matriz biestocástica dos seus estados, e as recomendações se tornarão mais precisas."
+    "helpBody": "Esta recomendação descreve o planeta mais forte deste dia como uma imagem arquetípica, segundo a psicologia analítica de Carl Jung. Graças a isso, você perceberá em que estados é favorável agir hoje.\\n\\nSe quiser uma previsão astrológica detalhada, toque no botão \"Saiba mais\". Depois, poderá conhecer a matemática que fundamenta essas recomendações e até ver o horóscopo.\\n\\nOu toque em \"O que fazer?\" — para ver os eventos que o aguardam neste dia pelos olhos desse arquétipo, transformando o dia num conjunto de práticas psicológicas interessantes. E, após uma semana de uso desta função, será formada uma matriz biestocástica dos seus estados, e as recomendações se tornarão mais precisas.",
+    "discussOpening": "Abrindo assistente…"
   },
   "refreshAccessibilityLabel": "Atualizar previsão do dia",
   "refreshButton": "Atualizar",

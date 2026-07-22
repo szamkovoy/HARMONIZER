@@ -16,6 +16,7 @@ export interface WearablePickerDialogStrings {
   notFoundHint: string;
   notFoundTips?: string;
   bluetoothOffHint: string;
+  permissionDeniedHint?: string;
   retryButton: string;
   closeButton: string;
   selectButton: string;
@@ -138,7 +139,9 @@ export function WearablePickerDialog({
           ) : null}
           {scanError ? (
             <AppText variant="dialogBody" tone="muted">
-              {scanError}
+              {scanError === "bluetooth_permission_denied"
+                ? strings.permissionDeniedHint ?? strings.bluetoothOffHint
+                : scanError}
             </AppText>
           ) : null}
           {scanState === "scanning" ? (

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Alert, Image, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
@@ -13,6 +13,7 @@ import {
 import { WearablePickerDialog } from "@/modules/biofeedback/wearables/WearablePickerDialog";
 import type { WearableScanCandidate } from "@/modules/biofeedback/wearables/types";
 import { useRememberedWearableProbe } from "@/modules/biofeedback/wearables/useRememberedWearableProbe";
+import { isFingerFrameProcessorAvailable } from "@/modules/biofeedback-finger-frame-processor/src";
 import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -240,6 +241,15 @@ export const PracticeCard = memo(function PracticeCard({
       onLaunch(practice);
       return;
     }
+    // Android (and Expo Go): no finger PPG plugin → do not silently start as "without pulse".
+    if (
+      practice.kind === "breath" &&
+      selectedSensorMode === "fingerCamera" &&
+      !isFingerFrameProcessorAvailable()
+    ) {
+      Alert.alert(strings.sensorCameraUnavailableTitle, strings.sensorCameraUnavailableBody);
+      return;
+    }
     const launch = {
       ...practice.launch,
       durationMs: selectedDurationMin * 60_000,
@@ -452,6 +462,7 @@ export const PracticeCard = memo(function PracticeCard({
           notFoundHint: strings.wearablePickerNotFound,
           notFoundTips: strings.wearablePickerNotFoundTips,
           bluetoothOffHint: strings.wearablePickerBluetoothOff,
+          permissionDeniedHint: strings.wearablePickerPermissionDenied,
           retryButton: strings.wearablePickerRetry,
           closeButton: strings.wearablePickerClose,
           selectButton: strings.wearablePickerSelectButton,

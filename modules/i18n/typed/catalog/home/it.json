@@ -134,7 +134,8 @@
     "readMoreButton": "Leggi di più",
     "helpButtonAccessibilityLabel": "Spiegazione delle raccomandazioni del giorno",
     "helpModalTitle": "Base della raccomandazione",
-    "helpBody": "Questa raccomandazione descrive il pianeta più forte di questo giorno come un'immagine archetipica secondo la psicologia analitica di Carl Jung. Grazie a questo, ti sarà chiaro sulla scia di quali stati è opportuno agire oggi.\\n\\nSe sei interessato a una previsione astrologica dettagliata, clicca il pulsante «Dettagli». In seguito potrai conoscere la matematica alla base di queste raccomandazioni e persino consultare l'oroscopo.\\n\\nOppure clicca il pulsante «Cosa fare?» per vedere gli eventi che ti attendono oggi attraverso gli occhi di questo archetipo e trasformare la giornata in un insieme di interessanti pratiche psicologiche. Dopo una settimana di utilizzo di questa funzione, si formerà una matrice bistocastica dei tuoi stati e le raccomandazioni diventeranno più precise."
+    "helpBody": "Questa raccomandazione descrive il pianeta più forte di questo giorno come un'immagine archetipica secondo la psicologia analitica di Carl Jung. Grazie a questo, ti sarà chiaro sulla scia di quali stati è opportuno agire oggi.\\n\\nSe sei interessato a una previsione astrologica dettagliata, clicca il pulsante «Dettagli». In seguito potrai conoscere la matematica alla base di queste raccomandazioni e persino consultare l'oroscopo.\\n\\nOppure clicca il pulsante «Cosa fare?» per vedere gli eventi che ti attendono oggi attraverso gli occhi di questo archetipo e trasformare la giornata in un insieme di interessanti pratiche psicologiche. Dopo una settimana di utilizzo di questa funzione, si formerà una matrice bistocastica dei tuoi stati e le raccomandazioni diventeranno più precise.",
+    "discussOpening": "Apro l'assistente…"
   },
   "refreshAccessibilityLabel": "Aggiorna previsione del giorno",
   "refreshButton": "Aggiorna",

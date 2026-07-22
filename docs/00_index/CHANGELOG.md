@@ -1,3 +1,6 @@
+- 2026-07-22 (232): «Что делать?» — спиннер без текста до первого ответа ассистента; Android PPG `analyzeFingerRoi` + torch/thermal Expo-модуль (нужен native rebuild).
+- 2026-07-22 (231): Android: контраст кольца сторис; Day prefetch late-arrival + memory paint; «Что делать?» spinner + без HealthConnect crash; PPG камера — явный unavailable (не silent sim); BLE runtime permissions.
+- 2026-07-22 (230): Android UI: DayWait-карточка по теме; палитра light/dark в Профиле (default light); фикс Home→Day prefetch; Health Connect guard + plugin. Стратегия — `docs/04_workspace/multiplatform_ui.md`.
 - 2026-07-22 (229): Единая политика запроса push-разрешений: Home (мягкий), колокольчик окон, вебинар; cooldown; bridge без prompt. Docs `notifications/*`.
 - 2026-07-22 (228): Админка — ЮКасса без «скоро»; каталог SKU (`/admin/payments/catalog`); история/удаление пользователя учитывают ЮКасса. Docs `admin_panel/*`.
 - 2026-07-22 (227): ЮKassa для RUB рядом с Lava — `selectPaymentProvider`, `payment_catalog`, checkout/webhook/settle, cancel stub, кабинет `?paid=1`. Миграция `20260722120000`. Docs `account_web/*`.

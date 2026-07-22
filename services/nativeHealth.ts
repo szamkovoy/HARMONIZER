@@ -756,22 +756,19 @@ async function collectGoogleHealth(localDate: string, timeZone?: string | null):
   }
 
   if (!hasAll) {
-    // No grant yet (or cooldown expired) → ask the user once.
-    trace.permissionPromptAttempted = true;
-    const nextGranted = await healthConnect.requestPermission(PERMISSION_RECORDS);
-    const allowed = PERMISSION_RECORDS.every((permission) =>
-      nextGranted.some((item) => item.accessType === permission.accessType && item.recordType === permission.recordType),
-    );
-    trace.permissionPromptResult = allowed;
-    await recordPermissionResult("google_health", allowed);
-    if (!allowed) {
-      finishTrace(trace, "permission_denied");
-      trace.notes.push("permission_prompt_denied_cooldown_7d");
-      return {
-        ...emptyNativeHealthSignals("google_health", "permission_denied", localDate, timeZone),
-        collectionTrace: trace,
-      };
-    }
+    // Do NOT call healthConnect.requestPermission() here.
+    // Without HealthConnectPermissionDelegate.setPermissionDelegate(this) in
+    // MainActivity.onCreate, that call crashes the process
+    // (UninitializedPropertyAccessException) — not catchable from JS.
+    // Plugin `plugins/with-native-health.js` injects the delegate; after a
+    // native rebuild we can re-enable the prompt. Until then: only use
+    // already-granted permissions (Settings → Health Connect).
+    finishTrace(trace, "unavailable");
+    trace.notes.push("permission_prompt_skipped_no_safe_delegate");
+    return {
+      ...emptyNativeHealthSignals("google_health", "unavailable", localDate, timeZone),
+      collectionTrace: trace,
+    };
   } else if (!backoff.allowed) {
     await recordPermissionResult("google_health", true);
     trace.notes.push("permissions_already_granted");

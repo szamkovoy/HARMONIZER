@@ -13,3 +13,4 @@ globs: **/*
 4. Тон текстов: Эмпатичный психолог-наставник (см. `docs/product_logic.md`).
 5. Чётко разделяй проект на изолированные модули (`modules/`), вызовы API в `services/`. Сначала логика (core / services), затем UI (компоненты React Native). Обновляй `docs/` и `readme.md` модулей при изменении контрактов.
 6. Растровые и векторные изображения для UI храни в **`assets/icons/`** (подключение через `require()` / `Image` / `expo-asset`). В архиве веба (`_legacy_web`) пути могли быть `public/icons/` — для нового кода используй только `assets/icons/`.
+7. Мультиплатформенный UI (iOS + Android): канон — `docs/04_workspace/multiplatform_ui.md`. Тема и токены — `modules/ui/theme.ts` / `themePreference.ts`. Не ломать отлаженный iPhone ради точечного фикса Android.

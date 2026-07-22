@@ -1,6 +1,11 @@
 {
-  "platforms": ["apple"],
+  "platforms": ["apple", "android"],
   "apple": {
     "modules": ["BiofeedbackFingerFrameProcessorModule"]
+  },
+  "android": {
+    "modules": [
+      "com.harmonizer.biofeedbackfingerframeprocessor.BiofeedbackFingerFrameProcessorModule"
+    ]
   }
 }

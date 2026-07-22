@@ -5,6 +5,7 @@ import splashImage from "@/assets/splashSource";
 import { useAuth } from "@/modules/auth";
 import { coerceAppLocale, t, type AppLocale, useAppLocale } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
+import { useTheme } from "@/modules/ui/theme";
 
 export type AppStartupPhase = "app_loading" | "initializing" | "loading_day";
 
@@ -103,6 +104,7 @@ function useSplashProgress(visible: boolean, progress: Animated.Value) {
 }
 
 function DayWaitCardOverlay({ visible, locale }: { visible: boolean; locale: AppLocale }) {
+  const theme = useTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
 
@@ -130,10 +132,24 @@ function DayWaitCardOverlay({ visible, locale }: { visible: boolean; locale: App
 
   if (!mounted) return null;
 
+  const scrim =
+    theme.scheme === "dark" ? "rgba(0, 0, 0, 0.55)" : "rgba(2, 24, 39, 0.45)";
+
   return (
-    <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.dayWaitRoot, { opacity }]}>
-      <View style={styles.dayWaitCard}>
-        <ActivityIndicator size="large" color="#11B6B7" />
+    <Animated.View
+      pointerEvents="auto"
+      style={[StyleSheet.absoluteFill, styles.dayWaitRoot, { opacity, backgroundColor: scrim }]}
+    >
+      <View
+        style={[
+          styles.dayWaitCard,
+          {
+            backgroundColor: theme.colors.surfaceElevated,
+            borderColor: theme.colors.surfaceBorder,
+          },
+        ]}
+      >
+        <ActivityIndicator size="large" color={theme.colors.accent} />
         <AppText variant="sectionTitle" style={styles.dayWaitTitle}>
           {t(locale, "wizard.warm.title")}
         </AppText>
@@ -448,7 +464,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   dayWaitRoot: {
-    backgroundColor: "rgba(2, 24, 39, 0.45)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -458,9 +473,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     borderRadius: 20,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "rgba(15, 23, 42, 0.08)",
     padding: 22,
     gap: 12,
     alignItems: "center",
