@@ -6,7 +6,8 @@
  *   node scripts/android-fcm-setup.mjs
  *
  * Expected files (after Firebase Console setup):
- *   ./google-services.json          — Android app config (package com.zamkovoi.harmonizer)
+ *   ./google-services.json          — Android app config (local only, gitignored;
+ *                                    copy from Firebase Console / see .example)
  *   ./fcm-service-account.json      — FCM V1 private key (gitignored; upload to EAS)
  *
  * Then:

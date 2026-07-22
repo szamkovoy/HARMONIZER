@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-23 (google-services.json out of git):** GitHub secret scanning: public leak `google_api_key` in committed `google-services.json` (`ed1705d`). File removed from tracking + `.gitignore`; template `google-services.json.example`. **Owner must rotate/restrict the leaked Android API key in Google Cloud Console** and close the alert as revoked. Local file stays for builds; not committed.
+
 - **2026-07-23 (Android FCM live):** Firebase project `harmonizer-777`; `google-services.json` в корне; FCM V1 service account загружен в EAS и назначен на `com.zamkovoi.harmonizer` (`scripts/upload-fcm-to-eas.mjs`). Rebuild Android development client обязателен для получения Expo push token на устройстве.
 
 - **2026-07-22 (Android FCM wiring):** `app.config.ts` ставит `googleServicesFile` при наличии файла; `ensureAndroidNotificationChannels` await; скрипт `android-fcm-setup.mjs`. Файлы Firebase / EAS FCM key — у владельца (open_questions).

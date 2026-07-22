@@ -41,8 +41,12 @@ yarn-error.*
 # выгрузки `vercel env pull` (часто содержат секреты / OIDC)
 .env.vercel*
 
-# FCM: service account private key (upload to EAS only — never commit).
-# `google-services.json` at repo root is OK to commit (public client ids).
+# FCM / Firebase Android client config — keep local only (GitHub secret scanning
+# flags the embedded Google API key even when it is a restricted client key).
+# Download from Firebase Console → copy to repo root as `google-services.json`.
+# Template: `google-services.json.example`.
+google-services.json
+# FCM service account private key (upload to EAS only — never commit).
 fcm-service-account.json
 *-firebase-adminsdk-*.json
 

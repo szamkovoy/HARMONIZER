@@ -9,7 +9,7 @@
  *      спрашивать геолокацию на онбординге (для эфемерид: восходы Солнца/Луны
  *      зависят от точных координат пользователя).
  *   3. Подключаем `android.googleServicesFile`, если в корне лежит
- *      `google-services.json` (FCM для remote push на Android).
+ *      локальный `google-services.json` (FCM; файл в `.gitignore`, не коммитить).
  *
  * Авторизация — только email-OTP (Supabase): нативные плагины Apple/Google
  * Sign-In удалены вместе с их entitlement/URL-scheme (см. modules/auth).
