@@ -231,8 +231,7 @@ export default function AdminPaymentStatsPage() {
               stats={stats.providers.yookassa}
               currency={displayCurrency}
               grain={stats.grain}
-              emptyHint="Пока не подключена — блок готов к появлению оплат."
-              soon={stats.providers.yookassa.count === 0}
+              emptyHint="Оплат ЮКасса за период нет."
             />
           </div>
 
@@ -341,7 +340,6 @@ function ProviderCard({
   currency,
   grain,
   emptyHint,
-  soon,
 }: {
   title: string;
   hint: string;
@@ -349,7 +347,6 @@ function ProviderCard({
   currency: DisplayCurrency;
   grain: "day" | "week";
   emptyHint: string;
-  soon?: boolean;
 }) {
   const series = useMemo(
     () => [...stats.daily_series].sort((a, b) => String(b.date).localeCompare(String(a.date))),
@@ -360,23 +357,16 @@ function ProviderCard({
 
   return (
     <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-zinc-100">{title}</h2>
-        {soon ? (
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
-            скоро
-          </span>
-        ) : null}
-      </div>
+      <h2 className="mb-1 text-sm font-bold text-zinc-100">{title}</h2>
       <p className="mb-3 text-[11px] text-zinc-500">{hint}</p>
+      <p className="mb-2 text-sm text-zinc-200">
+        Всего: <span className="font-semibold">{moneyFmt(stats.sum, currency)}</span>
+        <span className="ml-2 text-xs text-zinc-500">· {stats.count} платеж(ей)</span>
+      </p>
       {stats.count === 0 ? (
         <p className="text-sm text-zinc-500">{emptyHint}</p>
       ) : (
         <>
-          <p className="mb-2 text-sm text-zinc-200">
-            Всего: <span className="font-semibold">{moneyFmt(stats.sum, currency)}</span>
-            <span className="ml-2 text-xs text-zinc-500">· {stats.count} платеж(ей)</span>
-          </p>
           <div className={SCROLL_LIST_CLASS}>
             {series.map((item) => (
               <BarRow

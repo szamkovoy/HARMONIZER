@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-22 (ЮКасса в админке + каталог):** Убран бейдж «скоро» / текст «не подключена» у блока ЮКасса (дашборд + stats) — пустое состояние как у Lava. Карточка пользователя: история уже из `payment_contracts` любого provider; текст удаления упоминает ЮКасса. Каталог SKU: `GET/PATCH /api/admin/payment-catalog` + UI `/admin/payments/catalog` (title/description/amount). Воронки и сводные отчёты уже суммируют оба шлюза.
+
 - **2026-07-22 (dashboard bar width):** `BarList` на дашборде — flex без широких колонок суммы/даты (симметричные отступы, длиннее полоски), как на `/admin/payments/stats`.
 
 - **2026-07-22 (dashboard layout defaults):** Дефолтный период 7 дн. (дашборд + stats); порядок блоков: рег/активность → выручка шлюзов → LLM/страны → воронки; топ-3 по токенам за 24ч с рангами 1–3.

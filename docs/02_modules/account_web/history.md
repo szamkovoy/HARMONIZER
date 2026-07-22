@@ -1,9 +1,14 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.7
+version: 1.8
 updated: 2026-07-22
 ---
+
+## 2026-07-22 — ЮKassa для RUB рядом с Lava.top
+
+- **Зачем:** российский эквайринг для RUB без ломки USD/EUR (Lava) и с kill-switch через env.
+- **Как:** `selectPaymentProvider` + `yookassa.ts` + `payment_catalog` (seed oracle/master/webinar/book RUB); checkout/overview ветка; webhook `/api/account/webhooks/yookassa` → `fulfillPaymentContract` + `settlePayment(provider=yookassa)`; cancel `yookassa` = DB-only (нет автосписаний); кабинет `?paid=1` + `sessionStorage` сессии. Первый релиз = 30-дневный grant; `YOOKASSA_RECURRING_ENABLED` + колонки `payment_method_id` / `yookassa_payment_methods` — задел. Чеки 54-ФЗ не передаём. Миграция `20260722120000`.
 
 ## 2026-07-22 — Settlement / FX nets на успешных платежах Lava
 

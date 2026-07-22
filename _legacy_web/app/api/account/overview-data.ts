@@ -3,25 +3,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { baseTierFromRow, hasActiveTrial } from "../../../modules/access/core/paidAccess";
 import { VISIBLE_PAID_PRODUCT_TIERS, TIER_ORDER, type ProductTier } from "../../../modules/access/core/tiers";
 import { isLavaCurrency, resolveLavaPrice, type LavaCurrency, type LavaPeriodicity, type SellableTier } from "./lava";
+import { resolveCatalogPrice, type CatalogTier } from "./paymentCatalog";
+import { selectPaymentProvider } from "./selectPaymentProvider";
 
 /**
- * Данные для страницы Личного кабинета. Страница на WordPress локализует
- * названия уровней сама (по locale) — сервер отдаёт только машинные значения.
+ * Данные для страницы Личного кабинета. Страница локализует названия уровней
+ * сама (по locale) — сервер отдаёт только машинные значения.
  */
 
 /**
  * Как кабинету оформить покупку товара:
  *   - "checkout": POST /api/account/checkout {kind,tier|webinarId,currency} ->
- *     redirect на paymentUrl (сейчас Lava). Универсальный путь.
- *   - "link": прямой внешний URL (задел под российский эквайринг — кнопка
- *     кабинета становится обычной ссылкой на платёжную систему). Цены в этом
- *     случае тоже приходят оттуда, но кабинет просто открывает url.
+ *     redirect на paymentUrl (Lava или ЮKassa). Универсальный путь.
+ *   - "link": прямой внешний URL (задел); кабинет открывает url без POST.
  */
 export type AccountPurchaseMode = "checkout" | "link";
 
 export type AccountPurchase = {
   mode: AccountPurchaseMode;
-  /** Цена в валюте кабинета (из Lava /api/v2/products); null, если не задана. */
+  /** Цена в валюте кабинета (Lava products или payment_catalog); null, если не задана. */
   price: { amount: number; currency: LavaCurrency } | null;
   /** Для mode="link" — внешний URL провайдера; для "checkout" — null. */
   url: string | null;
@@ -79,14 +79,41 @@ export type AccountOverview = {
 };
 
 /**
- * Решение провайдера покупки по валюте. Сейчас всегда Lava (mode="checkout").
- * Задел: когда подключим российский эквайринг, для RUB возвращаем mode="link"
- * с url из конфига — кабинет сам подставит ссылку вместо POST-чеката.
+ * Режим оформления: и Lava, и ЮKassa идут через POST checkout → paymentUrl.
+ * mode="link" остаётся заделом под внешние URL без нашего чекаута.
  */
-function resolvePurchaseMode(currency: LavaCurrency): AccountPurchaseMode {
-  // TODO(ru-acquiring): при currency==="RUB" вернуть "link" + url из env.
-  void currency;
+function resolvePurchaseMode(_currency: LavaCurrency): AccountPurchaseMode {
   return "checkout";
+}
+
+async function resolvePriceForProvider(
+  db: SupabaseClient,
+  params: {
+    provider: ReturnType<typeof selectPaymentProvider>;
+    tier: CatalogTier | SellableTier;
+    userLocale: string;
+    currency: LavaCurrency;
+    periodicity: LavaPeriodicity | "MONTHLY" | "ONE_TIME";
+  },
+): Promise<{ amount: number; currency: LavaCurrency } | null> {
+  if (params.provider === "yookassa") {
+    return resolveCatalogPrice(db, {
+      provider: "yookassa",
+      tier: params.tier as CatalogTier,
+      currency: params.currency,
+    });
+  }
+  try {
+    return await resolveLavaPrice(
+      db,
+      params.tier,
+      params.userLocale,
+      params.currency,
+      params.periodicity as LavaPeriodicity,
+    );
+  } catch {
+    return null;
+  }
 }
 
 export async function buildAccountOverview(
@@ -144,8 +171,9 @@ export async function buildAccountOverview(
   const currencyParam = options?.currency?.trim().toUpperCase() ?? "";
   const currency: LavaCurrency = isLavaCurrency(currencyParam) ? currencyParam : "EUR";
   const purchaseMode = resolvePurchaseMode(currency);
+  const provider = selectPaymentProvider(currency);
 
-  // Ближайший опубликованный вебинар (параллельно с ценами Lava).
+  // Ближайший опубликованный вебинар (параллельно с ценами).
   const nearestWebinarPromise = db
     .from("webinars")
     .select("id")
@@ -155,21 +183,28 @@ export async function buildAccountOverview(
     .limit(1)
     .maybeSingle();
 
-  // Цены Lava — параллельно (общий in-memory кэш products на 10 мин).
+  // Цены: Lava products (кэш 10 мин) или payment_catalog для ЮKassa/RUB.
   const sellableUpgradeTiers = candidateTiers.filter((tier) => tier !== "practitioner");
   const [upgradePrices, nearestWebinar, bookPrice] = await Promise.all([
     Promise.all(
-      sellableUpgradeTiers.map(async (tier) => {
-        try {
-          return await resolveLavaPrice(db, tier as SellableTier, userLocale, currency, "MONTHLY");
-        } catch {
-          // оффер не сконфигурирован — кабинет покажет уровень без цены.
-          return null;
-        }
-      }),
+      sellableUpgradeTiers.map((tier) =>
+        resolvePriceForProvider(db, {
+          provider,
+          tier: tier as SellableTier,
+          userLocale,
+          currency,
+          periodicity: "MONTHLY",
+        }),
+      ),
     ),
     nearestWebinarPromise,
-    resolveLavaPrice(db, "book", userLocale, currency, "ONE_TIME" as LavaPeriodicity).catch(() => null),
+    resolvePriceForProvider(db, {
+      provider,
+      tier: "book",
+      userLocale,
+      currency,
+      periodicity: "ONE_TIME",
+    }),
   ]);
 
   const upgradeTiers: AccountUpgradeTier[] = sellableUpgradeTiers.map((tier, i) => ({
@@ -180,11 +215,13 @@ export async function buildAccountOverview(
   const webinarId = nearestWebinar.data?.id ?? null;
   let webinarPrice: { amount: number; currency: LavaCurrency } | null = null;
   if (webinarId) {
-    try {
-      webinarPrice = await resolveLavaPrice(db, "webinar", userLocale, currency, "ONE_TIME" as LavaPeriodicity);
-    } catch {
-      // оффер вебинара не сконфигурирован — цена недоступна
-    }
+    webinarPrice = await resolvePriceForProvider(db, {
+      provider,
+      tier: "webinar",
+      userLocale,
+      currency,
+      periodicity: "ONE_TIME",
+    });
   }
 
   return {

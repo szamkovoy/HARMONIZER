@@ -134,7 +134,7 @@ export default function AdminUserCardPage() {
             {deleting ? "Удаляю…" : "Удалить пользователя"}
           </button>
           <p className="mt-2 text-[11px] text-zinc-500">
-            Требуется двойное подтверждение. Платежи Lava.top и ручные гранты сохраняются для отчётов.
+            Требуется двойное подтверждение. Платежи Lava.top / ЮКасса и ручные гранты сохраняются для отчётов.
           </p>
         </div>
       </section>

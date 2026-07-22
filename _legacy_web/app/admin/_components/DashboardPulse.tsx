@@ -380,44 +380,39 @@ export function DashboardPulse() {
 
         <ChartCard
           title={`Выручка ЮКасса за ${periodLabel}`}
-          badge={yukassaByBucket.length === 0 ? <SoonBadge /> : null}
           hint="После комиссии ЮКасса 2.5% и конвертации (Т-Банк или ЦБ)"
         >
+          <p className="mb-2 text-sm text-zinc-200">
+            Всего:{" "}
+            <span className="font-semibold">{moneyFmt(yukassaTotal, displayCurrency)}</span>
+            <span className="ml-2 text-xs text-zinc-500">
+              · {fmt(data.kpi.revenue_yookassa_net?.count ?? 0)} платеж(ей)
+            </span>
+          </p>
           {yukassaByBucket.length === 0 ? (
-            <p className="text-sm text-zinc-500">
-              Пока не подключена — блок готов к появлению оплат.
-            </p>
+            <p className="text-sm text-zinc-500">Оплат ЮКасса за период нет.</p>
           ) : (
-            <>
-              <p className="mb-2 text-sm text-zinc-200">
-                Всего:{" "}
-                <span className="font-semibold">{moneyFmt(yukassaTotal, displayCurrency)}</span>
-                <span className="ml-2 text-xs text-zinc-500">
-                  · {fmt(data.kpi.revenue_yookassa_net?.count ?? 0)} платеж(ей)
-                </span>
-              </p>
-              <BarList
-                items={yukassaByBucket.map((row) => ({
-                  key: row.bucket,
-                  label: formatBucket(row.bucket, effectiveGrain),
-                  value: row.sum,
-                  widthPct: (row.sum / maxYukassaRevenue) * 100,
-                  valueLabel: moneyFmt(row.sum, displayCurrency),
-                }))}
-                empty="Оплат ЮКасса за период нет."
-              />
-              {(data.revenue_by_tier_yookassa?.length ?? 0) > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-400">
-                  {data.revenue_by_tier_yookassa!.map((row) => (
-                    <span key={row.tier} className="rounded-full border border-white/10 px-2 py-0.5">
-                      {TIER_REV_LABELS[row.tier] ?? row.tier}: {moneyFmt(row.sum, displayCurrency)} (
-                      {fmt(row.count)})
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </>
+            <BarList
+              items={yukassaByBucket.map((row) => ({
+                key: row.bucket,
+                label: formatBucket(row.bucket, effectiveGrain),
+                value: row.sum,
+                widthPct: (row.sum / maxYukassaRevenue) * 100,
+                valueLabel: moneyFmt(row.sum, displayCurrency),
+              }))}
+              empty="Оплат ЮКасса за период нет."
+            />
           )}
+          {(data.revenue_by_tier_yookassa?.length ?? 0) > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-400">
+              {data.revenue_by_tier_yookassa!.map((row) => (
+                <span key={row.tier} className="rounded-full border border-white/10 px-2 py-0.5">
+                  {TIER_REV_LABELS[row.tier] ?? row.tier}: {moneyFmt(row.sum, displayCurrency)} (
+                  {fmt(row.count)})
+                </span>
+              ))}
+            </div>
+          ) : null}
         </ChartCard>
       </div>
 

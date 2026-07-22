@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Loader2 } from "lucide-react";
+import { BarChart3, Loader2, Package } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { adminFetch } from "../_lib/adminApi";
@@ -34,13 +34,22 @@ export default function AdminPaymentsPage() {
             Lava.top / ЮКасса и ручные гранты. Суммы — как платил пользователь (без вычета комиссии).
           </p>
         </div>
-        <Link
-          href="/admin/payments/stats"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
-        >
-          <BarChart3 size={16} />
-          Статистика выручки
-        </Link>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <Link
+            href="/admin/payments/catalog"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
+          >
+            <Package size={16} />
+            Каталог ЮКасса
+          </Link>
+          <Link
+            href="/admin/payments/stats"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
+          >
+            <BarChart3 size={16} />
+            Статистика выручки
+          </Link>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

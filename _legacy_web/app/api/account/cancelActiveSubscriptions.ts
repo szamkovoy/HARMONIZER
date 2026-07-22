@@ -2,9 +2,8 @@
  * Отмена всех активных recurring-подписок пользователя во всех платёжных
  * провайдерах перед удалением аккаунта (и переиспользуемо для других сценариев).
  *
- * Сейчас реализован только `lavatop`. При подключении Яндекс.Кассы / др.
- * добавить ветку в `cancelByProvider` — delete-account и кабинет пойдут
- * через этот же диспетчер.
+ * Провайдеры: `lavatop` (Lava DELETE), `yookassa` (DB-only до включения
+ * рекуррента — автосписаний нет, API отмены метода не вызываем).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -16,7 +15,10 @@ export type ActiveSubscriptionContract = {
   product_kind: string | null;
 };
 
-async function cancelByProvider(params: {
+/**
+ * Отмена у шлюза (без обновления строки в БД). Для yookassa без saved method — no-op.
+ */
+export async function cancelProviderSubscription(params: {
   provider: string;
   contractId: string;
   email: string;
@@ -24,6 +26,10 @@ async function cancelByProvider(params: {
   switch (params.provider) {
     case "lavatop":
       await cancelLavaSubscription({ contractId: params.contractId, email: params.email });
+      return;
+    case "yookassa":
+      // Первый релиз: подписка = 30-дневный grant без автосписания.
+      // Когда YOOKASSA_RECURRING_ENABLED + payment_method_id — здесь отзовём метод.
       return;
     default:
       // Не молчим: иначе пользователь потеряет аккаунт, а списания продолжатся.
@@ -57,7 +63,7 @@ export async function cancelActiveSubscriptionsForUser(
   const now = new Date().toISOString();
 
   for (const contract of subscriptions) {
-    await cancelByProvider({
+    await cancelProviderSubscription({
       provider: contract.provider || "lavatop",
       contractId: contract.contract_id,
       email: params.email,

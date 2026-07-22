@@ -1,3 +1,5 @@
+- 2026-07-22 (228): Админка — ЮКасса без «скоро»; каталог SKU (`/admin/payments/catalog`); история/удаление пользователя учитывают ЮКасса. Docs `admin_panel/*`.
+- 2026-07-22 (227): ЮKassa для RUB рядом с Lava — `selectPaymentProvider`, `payment_catalog`, checkout/webhook/settle, cancel stub, кабинет `?paid=1`. Миграция `20260722120000`. Docs `account_web/*`.
 - 2026-07-22 (226): Onboarding Android — видимые поля (`WizardTextInput` + light theme), подъём формы над IME, белый splash в dark. Docs `onboarding/*`.
 - 2026-07-22 (225): Admin dashboard — длиннее горизонтальные полоски графиков (как в stats). Docs `admin_panel/history`.
 - 2026-07-22 (224): Admin — дефолт 7 дн.; выручка шлюзов выше LLM/стран, воронки внизу; топ-3 по токенам. Docs `admin_panel/history`.
