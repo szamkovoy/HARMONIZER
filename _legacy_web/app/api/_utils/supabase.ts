@@ -42,6 +42,12 @@ export function bearerToken(req: Request): string | null {
 }
 
 export async function requireUserId(req: Request): Promise<string> {
+  const user = await requireUser(req);
+  return user.id;
+}
+
+/** JWT → id + email. Prefer this over auth.admin.getUserById (flaky with sb_secret keys). */
+export async function requireUser(req: Request): Promise<{ id: string; email: string | null }> {
   const token = bearerToken(req);
   if (!token) throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
 
@@ -50,7 +56,10 @@ export async function requireUserId(req: Request): Promise<string> {
     throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  return data.user.id;
+  return {
+    id: data.user.id,
+    email: data.user.email?.trim() || null,
+  };
 }
 
 /**

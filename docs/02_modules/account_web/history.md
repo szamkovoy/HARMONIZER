@@ -1,9 +1,15 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.8
-updated: 2026-07-22
+version: 1.9
+updated: 2026-07-24
 ---
+
+## 2026-07-24 — Delete account: stats trigger + Admin JWT flake
+
+- **Симптом:** Profile «Удалить аккаунт» → «Не удалось удалить аккаунт» (sezam777). Vercel: `Database error deleting user` / иногда `bad_jwt` ES256 на Admin API.
+- **DB:** CASCADE `practice_sessions` → `recompute_user_daily_stats` вставлял `user_daily_stats.local_date = null` (SELECT `users.tz` не видел строку mid-wipe) → 23502. Fix: early-return + `row_security = off`; `prompts.created_by` → `ON DELETE SET NULL`.
+- **API:** `DELETE /api/account/delete` берёт email из `requireUser(JWT)`, не из `auth.admin.getUserById` (flaky с `sb_secret_*`).
 
 ## 2026-07-23 — Структура `web_cabinet/cabinet/` + favicon
 

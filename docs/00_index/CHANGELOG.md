@@ -1,3 +1,5 @@
+- 2026-07-24 (259): Android Maps — `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` в `eas env` (dev/preview/prod); без этого EAS build падает на BirthPlaceMapModal (`API key not found`).
+- 2026-07-24 (258): Delete account — fix `recompute_user_daily_stats` null `local_date` on cascade wipe; `requireUser` email instead of flaky Admin `getUserById` with `sb_secret_*`.
 - 2026-07-24 (257): Home day-cache scope — `birth_time` канон `HH:MM:SS` (+ legacy `HH:MM` на чтении); чинит trial/paid cold-start timeout после ошибочной нормализации к `HH:MM`.
 - 2026-07-24 (256): Onboarding step 2 polish — title 21pt, place-focus scroll nudge, faster Next (natal∥geo + loading label), Maps API key wiring, warmup cache scope fix + force splash after finish.
 - 2026-07-23 (255): OTP email → Resend (`AUTH_EMAIL_PROVIDER`, `RESEND_ZAMKOVOI_YOGA_API_KEY`); SES оставлен как switchable tail. Каналы yoga/ru разделены; DNS inventory — `docs/04_workspace/email_providers.md`.

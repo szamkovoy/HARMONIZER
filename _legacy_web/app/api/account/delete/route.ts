@@ -1,4 +1,4 @@
-import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
+import { createServiceSupabase, errorResponse, json, requireUser } from "../../_utils/supabase";
 import { cancelActiveSubscriptionsForUser } from "../cancelActiveSubscriptions";
 
 /**
@@ -9,22 +9,21 @@ import { cancelActiveSubscriptionsForUser } from "../cancelActiveSubscriptions";
  * 2) сохранить buyer_email на payment_contracts / payments (отчёты без user_id);
  * 3) auth.admin.deleteUser — каскадом чистит public.users и PII;
  *    payment_contracts / payments остаются (FK ON DELETE SET NULL).
+ *
+ * Email берём из user JWT (requireUser), не из auth.admin.getUserById —
+ * Admin API с `sb_secret_*` ключами периодически отвечает bad_jwt/ES256.
  */
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function DELETE(req: Request) {
   try {
-    const userId = await requireUserId(req);
-    const db = createServiceSupabase();
-
-    const { data: authData, error: authLookupError } = await db.auth.admin.getUserById(userId);
-    if (authLookupError) throw authLookupError;
-    const email = authData?.user?.email?.trim() || null;
+    const { id: userId, email } = await requireUser(req);
     if (!email) {
       return json({ error: "User has no email" }, { status: 409 });
     }
 
+    const db = createServiceSupabase();
     await cancelActiveSubscriptionsForUser(db, { userId, email });
 
     // Снимок email до wipe — отчёты по платежам сохраняют покупателя.

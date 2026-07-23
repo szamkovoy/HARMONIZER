@@ -30,6 +30,13 @@ const GOOGLE_MAPS_API_KEY = (
   process.env.GOOGLE_MAPS_API_KEY ||
   ""
 ).trim();
+if (!GOOGLE_MAPS_API_KEY) {
+  // Native Android builds without this crash MapView with "API key not found".
+  // Local: `.env.local`. EAS: `eas env` → EXPO_PUBLIC_GOOGLE_MAPS_API_KEY (all envs).
+  console.warn(
+    "[app.config] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is empty — Android BirthPlaceMapModal will crash until rebuild with the key.",
+  );
+}
 
 /**
  * Локализованное имя приложения и reason-строки разрешений iOS.

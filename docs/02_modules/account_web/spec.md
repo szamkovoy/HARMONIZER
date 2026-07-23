@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.11
-updated: 2026-07-22
+version: 1.12
+updated: 2026-07-24
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -77,7 +77,7 @@ code_refs:
 | `GET /api/account/purchases/last` | Bearer JWT Supabase (приложение) | Последняя активная one_time-покупка (`{ kind, productRef, createdAt, contractId }` | null). Приложение сверяет `createdAt` с `cabinetVisit` и благодарит за покупку (`gate.bookPaid.*`). Таблица `payment_contracts` закрыта для клиента — чтение только service role |
 | `GET /api/account/subscription` | Bearer кабинетной сессии | Последний контракт со статусом active/cancelled |
 | `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → DB-only, автосписаний пока нет) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |
-| `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта: (1) `cancelActiveSubscriptionsForUser` по всем провайдерам; (2) снимок `buyer_email` на `payment_contracts`/`payments`; (3) `auth.admin.deleteUser` — PII/профиль каскадом, платёжный леджер остаётся (`user_id` SET NULL). Ответ `{ deleted: true }` |
+| `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта: (1) email из user JWT через `requireUser` (не `auth.admin.getUserById` — с `sb_secret_*` Admin GET периодически `bad_jwt`/ES256); (2) `cancelActiveSubscriptionsForUser`; (3) снимок `buyer_email` на `payment_contracts`/`payments`; (4) `auth.admin.deleteUser` — PII/профиль каскадом, платёжный леджер остаётся (`user_id` SET NULL). Ответ `{ deleted: true }`. Wipe не должен падать на `recompute_user_daily_stats` (миграция `20260724024500` + `row_security=off`). |
 | `POST /api/account/webhooks/lava` | заголовок `X-Api-Key` = `LAVATOP_WEBHOOK_SECRET` | Приём событий Lava (см. §3.1) |
 | `POST /api/account/webhooks/yookassa` | опц. `YOOKASSA_WEBHOOK_SECRET` + всегда GET payment у API | События ЮKassa (см. §3.3) |
 
