@@ -1,5 +1,5 @@
-import { SESv2Client, SendEmailCommand } from "npm:@aws-sdk/client-sesv2@3.787.0";
 import { TEMPLATES, DEFAULT_LOCALE } from "./templates.ts";
+import { sendMail } from "./mail/send.ts";
 
 /** Имя отправителя (From) и подписи в теле письма: RU — «Сергей Замковой»,
  *  во всех остальных локализациях — «Sergei Zamkovoi». */
@@ -142,28 +142,10 @@ function hookError(message: string, status = 500) {
   });
 }
 
-/** SES требует 7-bit ASCII в FromEmailAddress; non-ASCII display name — RFC 2047. */
-function formatFromEmailAddress(fromName: string, fromEmail: string): string {
-  const name = fromName.trim();
-  if (!name) return fromEmail;
-  if (/^[\x20-\x7E]+$/.test(name) && !/[<>"]/.test(name)) {
-    return `${name} <${fromEmail}>`;
-  }
-  const bytes = new TextEncoder().encode(name);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return `=?UTF-8?B?${btoa(binary)}?= <${fromEmail}>`;
-}
-
 Deno.serve(async (req) => {
   const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET")?.trim();
-  const accessKeyId = Deno.env.get("SES_ACCESS_KEY_ID")?.trim();
-  const secretAccessKey = Deno.env.get("SES_SECRET_ACCESS_KEY")?.trim();
-  const region = (Deno.env.get("SES_REGION") || "eu-west-1").trim();
-  const fromEmail = (Deno.env.get("MAIL_FROM_EMAIL") || "sergei@zamkovoi.yoga").trim();
-
-  if (!hookSecret || !accessKeyId || !secretAccessKey) {
-    return hookError("send-auth-email: SEND_EMAIL_HOOK_SECRET, SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are required");
+  if (!hookSecret) {
+    return hookError("send-auth-email: SEND_EMAIL_HOOK_SECRET is required");
   }
 
   const payloadText = await req.text();
@@ -176,7 +158,7 @@ Deno.serve(async (req) => {
       "webhook-timestamp": req.headers.get("webhook-timestamp") || "",
       "webhook-signature": req.headers.get("webhook-signature") || "",
     });
-  } catch (e) {
+  } catch (_e) {
     return hookError("Invalid webhook signature", 401);
   }
 
@@ -190,52 +172,38 @@ Deno.serve(async (req) => {
 
   // Приоритет locale/имени: свежая подсказка со страницы входа (язык UI мастера
   // в момент OTP) → user_metadata (язык первой регистрации) → ru.
-  // Без hint существующий пользователь получал письмо на языке signup-а,
-  // хотя мастер уже был на другом (типично SecureStore ru vs metadata pt).
   const hint = await fetchSigninHint(String(to ?? ""));
   const locale = resolveLocale(hint.locale || user?.user_metadata?.locale);
   const tpl = resolveTemplate(locale);
-  // Имя отправителя и подпись в теле: RU «Сергей Замковой», иначе «Sergei Zamkovoi»
-  // (override: MAIL_FROM_NAME); non-ASCII → RFC 2047.
+  // Имя отправителя и подписи в теле: RU «Сергей Замковой», иначе «Sergei Zamkovoi»
+  // (override: MAIL_FROM_NAME); non-ASCII → handled per provider.
   const signName = SENDER_NAMES[locale] ?? DEFAULT_SENDER_NAME;
   const fromName = Deno.env.get("MAIL_FROM_NAME")?.trim() || signName;
   const metaName = String(user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? "");
   const userName = hint.name || metaName;
   const rendered = renderEmail(tpl, String(code), signName, userName, locale);
 
-  const client = new SESv2Client({
-    region,
-    credentials: { accessKeyId, secretAccessKey },
+  // Channel auth_otp → zamkovoi.yoga key only. Marketing (zamkovoi.ru) never
+  // shares this path — see mail/channels.ts + docs/04_workspace/email_providers.md.
+  const sent = await sendMail("auth_otp", {
+    fromName,
+    to: String(to),
+    subject: rendered.subject,
+    text: rendered.text,
+    html: rendered.html,
   });
 
-  try {
-    const cmd = new SendEmailCommand({
-      // Display name через RFC 2047; при сбое SES смотрите detail в логах хука.
-      FromEmailAddress: formatFromEmailAddress(fromName, fromEmail),
-      Destination: { ToAddresses: [to] },
-      Content: {
-        Simple: {
-          Subject: { Data: rendered.subject, Charset: "UTF-8" },
-          Body: {
-            Html: { Data: rendered.html, Charset: "UTF-8" },
-            Text: { Data: rendered.text, Charset: "UTF-8" },
-          },
-        },
-      },
-    });
-    await client.send(cmd);
-  } catch (error: any) {
-    const detail = [
-      error?.name,
-      error?.message,
-      error?.Reason,
-      error?.$metadata?.httpStatusCode,
-    ]
-      .filter((x) => x != null && String(x).length > 0)
-      .join(" | ");
-    console.error("send-auth-email: SES send failed", detail, error);
-    return hookError("SES send failed: " + (detail || String(error)));
+  if (!sent.ok) {
+    console.error(
+      "send-auth-email: send failed",
+      sent.provider,
+      sent.channel,
+      sent.detail,
+    );
+    return hookError(`${sent.provider} send failed: ${sent.detail}`);
   }
 
-  return new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({}), {
+    headers: { "Content-Type": "application/json" },
+  });
 });

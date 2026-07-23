@@ -2,7 +2,7 @@
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
 version: 1.16
-updated: 2026-07-17
+updated: 2026-07-23
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -257,10 +257,12 @@ Two resolvers — do not conflate layer B and layer C:
   REST. Priority: hint → `user_metadata` → generic greeting / `ru`. After
   successful `verifyOtp`, client also `updateUser({ data: { locale } })` to heal
   auth metadata for the next time.
-- SMTP transport (2026-07-15): rewritten to use built-in `Deno.connectTls`
-  (raw SMTP: EHLO → AUTH LOGIN → MAIL FROM → RCPT TO → DATA → QUIT) instead of
-  the `denomailer` module which was unavailable for Supabase Edge Function
-  bundling. Secrets: `SMTP_USERNAME`, `SMTP_PASSWORD`, `SEND_EMAIL_HOOK_SECRET`.
+- Transport (2026-07-23): pluggable via `AUTH_EMAIL_PROVIDER` (`resend` default /
+  `ses` AMAZON SES TAIL). OTP uses mail channel `auth_otp` →
+  `RESEND_ZAMKOVOI_YOGA_API_KEY` + `MAIL_FROM_EMAIL` (`sergei@zamkovoi.yoga`).
+  Future marketing stays on a separate channel/key (`RESEND_ZAMKOVOI_RU_API_KEY`,
+  `zamkovoi.ru`) — see `docs/04_workspace/email_providers.md`. Hook secret:
+  `SEND_EMAIL_HOOK_SECRET`.
 
 ### 4.1d Native app name & iOS permission reasons (build-time, 2026-07-17)
 - Localized app **display name** (under the icon + in system permission/notification

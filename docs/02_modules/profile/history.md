@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-23 (OTP → Resend while SES sandbox pending):** `send-auth-email` switches on `AUTH_EMAIL_PROVIDER` (default Resend, yoga key only). SES path retained as AMAZON SES TAIL. See `docs/04_workspace/email_providers.md`.
+
 - **2026-07-23 (locale ensure — no silent second LLM):** После timeout/peek-fail Profile больше не делает второй `ensureOnce(true)` молча — сразу `rebuildError` dialog. Кабинет: в catch пишется `profile:cabinet_error` / `cabinet:open_failed` (диагностика без смены user-facing текста).
 
 - **2026-07-22 (locale switch translate):** Paid смена языка больше не ждёт полную morning-генерацию до 2 мин — `ensureLocaleDayContent` → monologue `localeSwitch` переводит канонический source из `scenario_cache` (см. `daily_forecast/history`).

@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-23 (auth email providers):** Edge `send-auth-email` — pluggable `resend`/`ses` via `AUTH_EMAIL_PROVIDER`; dual Resend keys (`RESEND_ZAMKOVOI_YOGA_API_KEY` OTP vs `RESEND_ZAMKOVOI_RU_API_KEY` future marketing). SES secrets/DNS documented as tails in `docs/04_workspace/email_providers.md`.
+
 - **2026-07-21 (OTP ghost cleanup):** `cleanup_unconfirmed_auth_users()` + cron hourly в `ensure_harmonizer_cron_jobs` — удаляет только never-confirmed / never-signed-in аккаунты старше 24ч (без payments/admin/onboarded).
 
 - **2026-07-21 (dialog metrics):** `monitoring.ts` — `logDialogTurn` / `logLlmPromptSize`; communicator `v2/dialog` пишет их после успешного insert хода (оценка `total_tokens` ≈ chars/3.5). Сырьё для админ RPC `admin_llm_metrics` / пульса.

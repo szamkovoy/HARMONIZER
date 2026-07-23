@@ -1,44 +1,50 @@
 ---
 id: 04_workspace/external_payments_setup
 title: Внешние платежи — чек-лист настройки инфраструктуры
-version: 1.0
-updated: 2026-07-14
-depends_on: [02_modules/account_web/spec, 02_modules/profile/spec]
-code_refs: [supabase/functions/send-auth-email/index.ts, web_cabinet/cabinet.html]
+version: 1.1
+updated: 2026-07-23
+depends_on: [02_modules/account_web/spec, 02_modules/profile/spec, 04_workspace/email_providers]
+code_refs: [supabase/functions/send-auth-email/index.ts, web_cabinet/cabinet/index.html]
 ---
 
 # Чек-лист ручной настройки (выполняет владелец проекта)
 
 Код задачи «внешние платежи / email-OTP / личный кабинет» уже в репозитории.
-Ниже — шаги, которые нельзя сделать из кода: доступы, консоли, WordPress.
+Ниже — шаги, которые нельзя сделать из кода: доступы, консоли, хостинг.
 
-## 1. Яндекс 360 — почта sergei@zamkovoi.yoga
+**OTP-почта:** канон провайдеров, DNS (Resend + SES tails) и переключение —
+`docs/04_workspace/email_providers.md`.
 
-1. Создать **пароль приложения** (не основной пароль!):
-   Яндекс ID → Безопасность → Пароли приложений → «Почта» → создать.
-   Сохранить строку — это будет `SMTP_PASSWORD`.
-2. В админке Яндекс 360 для домена zamkovoi.yoga проверить, что включён
-   **IMAP/SMTP доступ** для ящика.
-3. Проверить DNS-записи домена (обычно уже настроены при подключении Яндекс 360):
-   - SPF: `v=spf1 redirect=_spf.yandex.net` (или include);
-   - DKIM: селектор `mail._domainkey` из админки Яндекс 360;
-   - DMARC (желательно): `v=DMARC1; p=none; rua=mailto:sergei@zamkovoi.yoga`.
-   Без SPF/DKIM письма с кодами будут падать в спам.
+## 1. Почта — входящий ящик Яндекс 360 + исходящий OTP (Resend)
+
+Входящая почта `sergei@zamkovoi.yoga` остаётся на **Яндекс 360** (MX/SPF/DKIM
+`mail._domainkey` на апексе). Исходящие OTP **не** идут через SMTP Яндекса.
+
+1. В Resend верифицировать домен **`zamkovoi.yoga`** и добавить DNS из их UI
+   (`resend._domainkey` + MAIL FROM `send` MX/TXT) — см. `email_providers.md` §3.
+2. Создать API-ключ только для yoga → `RESEND_ZAMKOVOI_YOGA_API_KEY`
+   (отдельно от будущего marketing-ключа `RESEND_ZAMKOVOI_RU_API_KEY` на `zamkovoi.ru`).
+3. DMARC на апексе (желательно): `v=DMARC1; p=none; rua=mailto:sergei@zamkovoi.yoga`.
+4. **Amazon SES tails** (3 DKIM CNAME + `sesmail` MX/TXT) пока **не удалять** —
+   запасной канал; список в `email_providers.md` §4.
 
 ## 2. Supabase — миграции, edge-функция, Auth Hook
 
 ```bash
 cd /Users/sergey/Desktop/HARMONIZER
-npx supabase db push                       # 20260714210000 (trial 1 день) + 20260714220000 (OTT/app_config/realtime)
+npx supabase db push
 npx supabase functions deploy send-auth-email
 ```
 
-Секреты edge-функции (после шага 3 ниже — хук выдаст SEND_EMAIL_HOOK_SECRET):
+Секреты edge-функции (хук выдаст `SEND_EMAIL_HOOK_SECRET`):
 
 ```bash
-npx supabase secrets set SMTP_USERNAME=sergei@zamkovoi.yoga
-npx supabase secrets set SMTP_PASSWORD=<пароль приложения из шага 1>
+npx supabase secrets set AUTH_EMAIL_PROVIDER=resend
+npx supabase secrets set RESEND_ZAMKOVOI_YOGA_API_KEY=<из .env.local / Resend>
+npx supabase secrets set MAIL_FROM_EMAIL=sergei@zamkovoi.yoga
 npx supabase secrets set SEND_EMAIL_HOOK_SECRET=<из Dashboard после включения хука>
+# AMAZON SES TAIL — оставить, не unset, пока не бросаем SES:
+# SES_ACCESS_KEY_ID / SES_SECRET_ACCESS_KEY / SES_REGION=eu-west-1
 ```
 
 В **Dashboard → Authentication**:
@@ -51,10 +57,12 @@ npx supabase secrets set SEND_EMAIL_HOOK_SECRET=<из Dashboard после вк�
    `SEND_EMAIL_HOOK_SECRET` (см. выше) и передеплоить функцию не нужно —
    секреты подхватываются сразу.
 3. **Rate limits**: поднять «Email sent per hour» до разумного значения
-   (со своим SMTP лимит Supabase не действует, но поле всё равно проверяется).
+   (свой провайдер лимит Supabase SMTP не использует, но поле всё равно проверяется).
 
-Проверка: запросить код на свой email из dev-сборки; письмо должно прийти
-от `Harmonizer <sergei@zamkovoi.yoga>` с темой «123456 — ваш код входа…».
+Проверка: запросить код из dev-сборки; письмо от
+`Сергей Замковой <sergei@zamkovoi.yoga>` (или `Sergei Zamkovoi` вне RU).
+В исходнике: `DKIM-Signature` с `s=resend` (не SES-токен), без предупреждения
+Yandex про чужой домен. Переключение на SES — `email_providers.md` §2.
 
 ## 3. Vercel — env и деплой
 

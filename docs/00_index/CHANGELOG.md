@@ -1,3 +1,4 @@
+- 2026-07-23 (255): OTP email → Resend (`AUTH_EMAIL_PROVIDER`, `RESEND_ZAMKOVOI_YOGA_API_KEY`); SES оставлен как switchable tail. Каналы yoga/ru разделены; DNS inventory — `docs/04_workspace/email_providers.md`.
 - 2026-07-23 (254): `web_cabinet/{cabinet,tv}/` — единая структура (`index.html` + `icons/` + README); wordpress-snippet удалён.
 - 2026-07-23 (253): Remote Play TV → standalone `web_cabinet/tv/` (ISPManager), без WordPress Custom HTML; `?fr`/`?pt` снова работают.
 - 2026-07-23 (252): Favicon набора из `assets/images/icon.png` — админка (Vercel `/icons`), кабинет (`web_cabinet/icons`), TV snippet (inject с Vercel).

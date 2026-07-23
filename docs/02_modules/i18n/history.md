@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-23 (OTP transport → Resend, SES as switchable tail):** OTP again via Resend (`AUTH_EMAIL_PROVIDER=resend`, channel `auth_otp` / `RESEND_ZAMKOVOI_YOGA_API_KEY`); Amazon SES code kept under `mail/providers/ses.ts` for one-secret switchback. Templates/locale side-channel unchanged. Ops DNS inventory: `docs/04_workspace/email_providers.md`.
+
 - **2026-07-23 (account locale over sticky SecureStore):** После логина другого пользователя устройство могло оставить язык предыдущего аккаунта (`harmonizer.locale.v1`) и затереть `users.locale` write-back’ом. `hydrateAppLocale` теперь предпочитает `profile.locale` и при смене аккаунта вызывает `setAppLocale`. Симптом QA: Pavel Master на Pixel открывал день на FR после Егора.
 
 - **2026-07-20 (OTP email — live UI locale via side-channel):** Returning user with `users.locale=ru` and Russian wizard still got a Portuguese OTP email. Root cause: same GoTrue limitation as the name bug — `signInWithOtp({ data: { locale } })` is ignored for existing users, and `send-auth-email` keyed templates only on stale `user_metadata.locale` from first registration. Fix: `signin_name_hints.locale` + RPC `set_signin_name_hint(..., p_locale)`; client writes `getResponseLocale()` with the name; edge prefers hint.locale → metadata → ru; after verify, `updateUser({ data: { locale } })` heals metadata. Migration `20260720095058` applied; edge redeployed. Spec §4.1c.
