@@ -108,6 +108,7 @@
   "warmupTitle": "Sensor opwarmen",
   "wearableActivationNoDeviceHint": "Zoek en kies je BLE-hartslagmeter. Je koppelt hem rechtstreeks in de app, niet via de algemene Bluetooth-lijst van je telefoon.",
   "wearableActivationTitle": "Hartslagmeter koppelen",
+  "wearableAndroidSystemConnectHint": "Als er bovenaan een Android-verzoek verschijnt, bevestig dan de verbinding.",
   "wearableBluetoothLabel": "Bluetooth",
   "wearableBluetoothOff": "Bluetooth staat uit. Zet het aan en probeer opnieuw te zoeken.",
   "wearableCapabilityMetrics": "metingen",
@@ -118,6 +119,8 @@
   "wearableIdleStartButton": "Hartslagmeter verbinden",
   "wearableNoDevicesFound": "Er zijn nog geen geschikte BLE-hartslagmeters gevonden. Probeer opnieuw te zoeken of kies voor de cameramodus.",
   "wearablePickerCloseButton": "Sluiten",
+  "wearablePickerConnectedLabel": "Verbonden",
+  "wearablePickerDisconnectButton": "Ontkoppelen",
   "wearablePickerFaultyMessage": "De gekozen hartslagmeter werkt niet goed. Kies een andere hartslagmeter om verder te gaan met de oefening.",
   "wearablePickerFoundHint": "Hartslagmeter gevonden. Kies een apparaat om te verbinden.",
   "wearablePickerNotFoundHint": "Geen hartslagmeter gevonden. Probeer opnieuw te zoeken.",
@@ -135,8 +138,5 @@
   "wearableRunningGuidedOnly": "HRV-metingen zijn niet beschikbaar: de sensor begeleidt alleen het ademhalingsritme.",
   "wearableRunningReconnect": "Hartslagmeter wordt opnieuw verbonden…",
   "wearableScanning": "Zoeken naar compatibele hartslagmeters in de buurt…",
-  "wearableUseCamera": "Camera",
-  "wearablePickerConnectedLabel": "Verbonden",
-  "wearablePickerDisconnectButton": "Verbreken",
-  "wearableAndroidSystemConnectHint": "Als Android bovenaan vraagt — bevestig de verbinding."
+  "wearableUseCamera": "Camera"
 }

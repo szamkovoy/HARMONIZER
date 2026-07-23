@@ -108,6 +108,7 @@
   "warmupTitle": "Échauffement du capteur",
   "wearableActivationNoDeviceHint": "Recherchez et sélectionnez un moniteur de fréquence cardiaque BLE. La connexion s'effectue dans l'application, pas via la liste système des appareils Bluetooth.",
   "wearableActivationTitle": "Connexion du moniteur de fréquence cardiaque",
+  "wearableAndroidSystemConnectHint": "Si une demande Android apparaît en haut, confirmez la connexion.",
   "wearableBluetoothLabel": "Bluetooth",
   "wearableBluetoothOff": "Bluetooth est désactivé. Activez-le et relancez la recherche.",
   "wearableCapabilityMetrics": "métriques",
@@ -118,6 +119,8 @@
   "wearableIdleStartButton": "Connecter le moniteur de fréquence cardiaque",
   "wearableNoDevicesFound": "Aucun moniteur de fréquence cardiaque BLE compatible trouvé pour le moment. Relancez la recherche ou utilisez la caméra du téléphone.",
   "wearablePickerCloseButton": "Fermer",
+  "wearablePickerConnectedLabel": "Connecté",
+  "wearablePickerDisconnectButton": "Déconnecter",
   "wearablePickerFaultyMessage": "Le moniteur de fréquence cardiaque sélectionné fonctionne de manière incorrecte. Pour continuer la pratique, sélectionnez un autre moniteur.",
   "wearablePickerFoundHint": "Moniteur de fréquence cardiaque trouvé. Sélectionnez l'appareil pour vous connecter.",
   "wearablePickerNotFoundHint": "Aucun moniteur de fréquence cardiaque trouvé. Essayez de relancer la recherche.",
@@ -135,8 +138,5 @@
   "wearableRunningGuidedOnly": "Métriques HRV désactivées : le capteur guide uniquement le rythme respiratoire.",
   "wearableRunningReconnect": "Le moniteur de fréquence cardiaque se reconnecte...",
   "wearableScanning": "Recherche de moniteurs de fréquence cardiaque compatibles à proximité...",
-  "wearableUseCamera": "Caméra",
-  "wearablePickerConnectedLabel": "Connecté",
-  "wearablePickerDisconnectButton": "Déconnecter",
-  "wearableAndroidSystemConnectHint": "Si Android demande en haut — confirmez la connexion."
+  "wearableUseCamera": "Caméra"
 }

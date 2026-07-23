@@ -1,8 +1,8 @@
 {
-  "closeA11y": "Cerrar la práctica",
+  "closeA11y": "Cerrar práctica",
   "closeButton": "Cerrar",
   "completeButton": "Finalizar práctica",
-  "completedHint": "Bien hecho — la práctica se ha registrado. Cierra la ventana para volver.",
+  "completedHint": "¡Felicitaciones! La práctica está contabilizada. Cierra esta ventana para volver atrás.",
   "completedTitle": "Práctica completada",
   "completingButton": "Guardando...",
   "connectTvButton": "Conectar TV",
@@ -12,13 +12,13 @@
   "loadFailed": "No se pudo cargar la práctica.",
   "modePhone": "Teléfono",
   "modeTv": "TV",
-  "openRemoteButton": "Abrir mando",
-  "phoneHint": "El vídeo se abre en el reproductor Vimeo integrado directamente en esta pantalla.",
-  "phoneVideoMissing": "Esta práctica aún no tiene ID de Vimeo — reproducción no disponible.",
+  "openRemoteButton": "Abrir control remoto",
+  "phoneHint": "El video se abrirá en el reproductor Vimeo integrado directamente en la pantalla.",
+  "phoneVideoMissing": "Esta práctica aún no tiene un ID de Vimeo; la reproducción no está disponible.",
   "practiceNotFound": "Práctica no encontrada.",
-  "tvConnectedHint": "TV conectada. Pulsa « Iniciar en TV » y el vídeo empezará en la pantalla grande.",
+  "tvConnectedHint": "TV conectada. Presiona «Iniciar en TV» y el video comenzará en la pantalla grande.",
   "tvConnectedMetaTemplate": "TV conectada · código {code}",
-  "tvNotConnectedHint": "Abre zamkovoi.yoga/tv en el televisor o el ordenador e introduce el código de conexión.",
+  "tvNotConnectedHint": "Abre zamkovoi.yoga/tv en el televisor o la computadora e ingresa el código de conexión.",
   "tvStatusTemplate": "Estado: {value}",
-  "videoReadyTitle": "Vídeo listo para iniciar en la TV"
+  "videoReadyTitle": "Video listo para reproducirse en TV"
 }
