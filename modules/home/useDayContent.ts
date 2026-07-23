@@ -12,6 +12,7 @@ import { fetchDailyForecast, type DailyForecastResult } from "@/services/dailyFo
 import { clearDayContentCache, loadDayContentCache, loadDayContentCacheRelaxed, peekDayContentCache, peekDayContentCacheRelaxed, pruneDayContentCache, saveDayContentCache } from "@/services/dayContentCache";
 import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome, isFreeDayContentRenderable } from "@/services/dayContentIntegrity";
 import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
+import { dayContentNatalScopeKey, dayContentNatalScopeKeyCandidates } from "@/services/dayContentScope";
 import { consumeLocaleDayContentWarm } from "@/services/localeDayContentBridge";
 import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
@@ -179,12 +180,33 @@ function dayContentScopeKey(
     birth_place?: unknown;
   } | null,
 ): string {
-  const raw = [
-    profile?.birth_date ?? "",
-    profile?.birth_time ?? "",
-    typeof profile?.birth_place === "string" ? profile.birth_place : JSON.stringify(profile?.birth_place ?? null),
-  ].join("|");
-  return raw.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "default";
+  return dayContentNatalScopeKey(profile ?? {});
+}
+
+/** Канон + legacy HH:MM — чтобы не промахнуться мимо SecureStore после смены нормализации. */
+function contentScopeKeyCandidates(
+  accessMode: AccessMode,
+  profile: {
+    birth_date?: string | null;
+    birth_time?: string | null;
+    birth_place?: unknown;
+  } | null,
+  locale: AppLocale,
+): string[] {
+  return dayContentNatalScopeKeyCandidates(profile ?? {}).map((natal) =>
+    buildContentScopeKey(accessMode, natal, locale),
+  );
+}
+
+function peekDayContentCacheForScopes<T>(
+  scopes: string[],
+  peek: (scopeKey: string) => T | null,
+): T | null {
+  for (const scopeKey of scopes) {
+    const hit = peek(scopeKey);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export function useDayContent(options?: UseDayContentOptions): UseDayContentResult {
@@ -313,6 +335,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const provisionalForecastDate = localDateIso(provisionalTimezone);
       const contentLocale = getResponseLocale();
       const contentScopeKey = buildContentScopeKey(nextAccessMode, scopeKey, contentLocale);
+      const contentScopeKeys = contentScopeKeyCandidates(nextAccessMode, profile, contentLocale);
       const requestKey = [profileId ?? "anon", nextAccessMode, nextAccessTier, provisionalForecastDate, contentScopeKey].join("|");
 
       // После смены натала Profile мог уже прогреть день (ensure + publish warm /
@@ -324,7 +347,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         const warmedOk =
           bridged &&
           bridged.userId === profileId &&
-          bridged.scopeKey === contentScopeKey &&
+          contentScopeKeys.includes(bridged.scopeKey) &&
           isDayContentComplete(bridged.forecast, nextAccessMode) &&
           forecastTextsMatchLocale(bridged.forecast, contentLocale)
             ? bridged
@@ -332,14 +355,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         const loc = userLocation;
         const cachedHit =
           !warmedOk && loc
-            ? peekDayContentCache({
-                userId: profileId,
-                accessMode: nextAccessMode,
-                accessTier: nextAccessTier,
-                forecastDate: provisionalForecastDate,
-                scopeKey: contentScopeKey,
-                userLocation: loc,
-              })
+            ? peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+                peekDayContentCache({
+                  userId: profileId,
+                  accessMode: nextAccessMode,
+                  accessTier: nextAccessTier,
+                  forecastDate: provisionalForecastDate,
+                  scopeKey: scopeKeyCandidate,
+                  userLocation: loc,
+                }),
+              )
             : null;
         const readyFromCache =
           loc &&
@@ -393,28 +418,31 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
       }
 
-      const relaxedLookupParams = profileId
-        ? {
-            userId: profileId,
-            accessMode: nextAccessMode,
-            accessTier: nextAccessTier,
-            forecastDate: provisionalForecastDate,
-            scopeKey: contentScopeKey,
-            allowStale: true as const,
-          }
-        : null;
       let relaxedCache =
-        !opts?.forceRefresh && relaxedLookupParams ? peekDayContentCacheRelaxed(relaxedLookupParams) : null;
+        !opts?.forceRefresh && profileId
+          ? peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+              peekDayContentCacheRelaxed({
+                userId: profileId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate: provisionalForecastDate,
+                scopeKey: scopeKeyCandidate,
+                allowStale: true as const,
+              }),
+            )
+          : null;
       const instantCached =
         !opts?.forceRefresh && profileId && userLocation
-          ? peekDayContentCache({
-              userId: profileId,
-              accessMode: nextAccessMode,
-              accessTier: nextAccessTier,
-              forecastDate: provisionalForecastDate,
-              scopeKey: contentScopeKey,
-              userLocation,
-            })
+          ? peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+              peekDayContentCache({
+                userId: profileId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate: provisionalForecastDate,
+                scopeKey: scopeKeyCandidate,
+                userLocation,
+              }),
+            )
           : relaxedCache?.freshness === "fresh"
             ? relaxedCache
             : null;
@@ -456,9 +484,19 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       if (!locationForRequest && profileId) {
         locationForRequest = await loadCachedUserCoords(profileId);
       }
-      if (!locationForRequest && relaxedLookupParams && !opts?.forceRefresh && !relaxedCache) {
+      if (!locationForRequest && profileId && !opts?.forceRefresh && !relaxedCache) {
         setHomeBootstrapPhase("initializing", "HOME/day_cache_relaxed_read");
-        relaxedCache = await loadDayContentCacheRelaxed(relaxedLookupParams);
+        for (const scopeKeyCandidate of contentScopeKeys) {
+          relaxedCache = await loadDayContentCacheRelaxed({
+            userId: profileId,
+            accessMode: nextAccessMode,
+            accessTier: nextAccessTier,
+            forecastDate: provisionalForecastDate,
+            scopeKey: scopeKeyCandidate,
+            allowStale: true as const,
+          });
+          if (relaxedCache) break;
+        }
       }
       const offlineStaleCache = relaxedCache?.freshness === "stale" ? relaxedCache : null;
       if (!locationForRequest && relaxedCache?.freshness === "fresh") {
@@ -548,14 +586,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       setResolvedUserLocation(locationForRequest);
       const resolvedInstantCache =
         !opts?.forceRefresh && profileId
-          ? peekDayContentCache({
-              userId: profileId,
-              accessMode: nextAccessMode,
-              accessTier: nextAccessTier,
-              forecastDate: localDateIso(locationForRequest.timezone),
-              scopeKey: contentScopeKey,
-              userLocation: locationForRequest,
-            })
+          ? peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+              peekDayContentCache({
+                userId: profileId,
+                accessMode: nextAccessMode,
+                accessTier: nextAccessTier,
+                forecastDate: localDateIso(locationForRequest.timezone),
+                scopeKey: scopeKeyCandidate,
+                userLocation: locationForRequest,
+              }),
+            )
           : null;
       if (resolvedInstantCache?.freshness === "fresh") {
         const cacheLocaleOk = forecastTextsMatchLocale(resolvedInstantCache.forecast, contentLocale);
@@ -617,15 +657,19 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
 
         if (!opts?.forceRefresh && userId) {
           setStartupStep("HOME/day_cache_async_read");
-          const cached = await loadDayContentCache({
-            userId,
-            accessMode: nextAccessMode,
-            accessTier: nextAccessTier,
-            forecastDate,
-            scopeKey: contentScopeKey,
-            userLocation: locationForRequest,
-            allowStale: true,
-          });
+          let cached = null as Awaited<ReturnType<typeof loadDayContentCache>>;
+          for (const scopeKeyCandidate of contentScopeKeys) {
+            cached = await loadDayContentCache({
+              userId,
+              accessMode: nextAccessMode,
+              accessTier: nextAccessTier,
+              forecastDate,
+              scopeKey: scopeKeyCandidate,
+              userLocation: locationForRequest,
+              allowStale: true,
+            });
+            if (cached) break;
+          }
           if (controller.signal.aborted) return;
           if (cached) {
             if (cached.freshness === "fresh") {
@@ -960,6 +1004,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       const provisionalTimezone = userLocation?.timezone ?? profileTimezone;
       const provisionalForecastDate = localDateIso(provisionalTimezone);
       const contentScopeKey = buildContentScopeKey(nextAccessMode, scopeKey, nextLocale);
+      const contentScopeKeys = contentScopeKeyCandidates(nextAccessMode, profile, nextLocale);
 
       const applyWarmed = (warmed: {
         forecast: DailyForecast;
@@ -1022,14 +1067,16 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           return true;
         }
         if (profileId && userLocation) {
-          const warmed = peekDayContentCache({
-            userId: profileId,
-            accessMode: nextAccessMode,
-            accessTier: nextAccessTier,
-            forecastDate: provisionalForecastDate,
-            scopeKey: contentScopeKey,
-            userLocation,
-          });
+          const warmed = peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+            peekDayContentCache({
+              userId: profileId,
+              accessMode: nextAccessMode,
+              accessTier: nextAccessTier,
+              forecastDate: provisionalForecastDate,
+              scopeKey: scopeKeyCandidate,
+              userLocation,
+            }),
+          );
           if (
             warmed?.freshness === "fresh" &&
             applyWarmed({
@@ -1043,13 +1090,15 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           }
         }
         if (profileId) {
-          const relaxed = peekDayContentCacheRelaxed({
-            userId: profileId,
-            accessMode: nextAccessMode,
-            accessTier: nextAccessTier,
-            forecastDate: provisionalForecastDate,
-            scopeKey: contentScopeKey,
-          });
+          const relaxed = peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+            peekDayContentCacheRelaxed({
+              userId: profileId,
+              accessMode: nextAccessMode,
+              accessTier: nextAccessTier,
+              forecastDate: provisionalForecastDate,
+              scopeKey: scopeKeyCandidate,
+            }),
+          );
           if (
             relaxed?.freshness === "fresh" &&
             applyWarmed({
@@ -1062,13 +1111,17 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             return true;
           }
           // Native peek* is memory-only — Profile may have just written SecureStore.
-          const asyncRelaxed = await loadDayContentCacheRelaxed({
-            userId: profileId,
-            accessMode: nextAccessMode,
-            accessTier: nextAccessTier,
-            forecastDate: provisionalForecastDate,
-            scopeKey: contentScopeKey,
-          });
+          let asyncRelaxed = null as Awaited<ReturnType<typeof loadDayContentCacheRelaxed>>;
+          for (const scopeKeyCandidate of contentScopeKeys) {
+            asyncRelaxed = await loadDayContentCacheRelaxed({
+              userId: profileId,
+              accessMode: nextAccessMode,
+              accessTier: nextAccessTier,
+              forecastDate: provisionalForecastDate,
+              scopeKey: scopeKeyCandidate,
+            });
+            if (asyncRelaxed) break;
+          }
           if (
             asyncRelaxed?.freshness === "fresh" &&
             applyWarmed({

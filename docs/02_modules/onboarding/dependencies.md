@@ -28,7 +28,7 @@ depends_on: [02_modules/onboarding/spec]
 - **`GeoPlace`** (`modules/onboarding/geoSearchClient.ts`) — `{ id, name, region, country, lat, lng, timezone }`. `timezone` — IANA. Источник: Open-Meteo Geocoding через прокси `GET /api/geo/search` (`_legacy_web/app/api/geo/search`), локаль запроса передаётся параметром `lang`.
 - **`BirthData`** (`modules/astro-core/core/types.ts`) — `{ date: "YYYY-MM-DD", timeMode, time?: "HH:MM", location: { lat, lng, timezone } }`. Мастер всегда ставит `timeMode: "precise"`.
 - **`createNatalProfile(birthData, signal?, { placeName? })`** (`services/natalProfileClient.ts`) — POST `/api/astro/natal`, кэширует результат локально с fingerprint-ом `birth_*`.
-- **`WizardShell` props** — `{ totalSteps, currentStep, children, footer?, statusBarStyle?, contentStyle?, footerInContent? }`. При `footerInContent` CTA+legal внутри скролла (шаги 1–2); подъём — `KeyboardAvoidingView behavior="padding"` (iOS) / `adjustResize` (Android) + одноразовый `scrollToEnd` + `scrollEnabled={false}` при открытой клавиатуре.
+- **`WizardShell` props** — `{ totalSteps, currentStep, children, footer?, statusBarStyle?, contentStyle?, footerInContent?, contentBumpKey? }`. При `footerInContent` CTA+legal внутри скролла (шаги 1–2); подъём — `KeyboardAvoidingView behavior="padding"` (iOS) / IME `paddingBottom` (Android) + `scrollToEnd`; `contentBumpKey` — доп. нюдж при росте контента (место рождения).
 
 ## Сторонние сервисы
 

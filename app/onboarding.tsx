@@ -32,7 +32,7 @@ import {
 import * as Location from "expo-location";
 
 import { accessModeForTier, getEffectiveAccess } from "@/modules/access";
-import { useTranslate, getResponseLocale, type AppLocale } from "@/modules/i18n";
+import { useTranslate, getResponseLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import type { DailyForecast } from "@/modules/daily-engine";
 import {
@@ -55,12 +55,17 @@ import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { buildTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
+import { useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import { createNatalProfile } from "@/services/natalProfileClient";
 import {
   fetchDailyForecast,
   ONBOARDING_DAILY_FORECAST_TIMEOUT_MS,
 } from "@/services/dailyForecastClient";
 import { saveDayContentCache } from "@/services/dayContentCache";
+import {
+  dayContentLocaleScopeKey,
+  dayContentNatalScopeKey,
+} from "@/services/dayContentScope";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
@@ -112,16 +117,6 @@ function hasHomeCardTexts(forecast: DailyForecast): boolean {
   return Boolean(forecast.slogan?.trim() && forecast.recommendationShortText?.trim());
 }
 
-function natalScopeKey(parts: { date: string; time: string; place: string }): string {
-  const raw = [parts.date, parts.time, parts.place].join("|");
-  return raw.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "default";
-}
-
-function contentScopeKey(accessMode: "free" | "premium", natalScope: string, locale: AppLocale): string {
-  const base = accessMode === "free" ? "global" : natalScope;
-  return `${base}:${locale}`;
-}
-
 /** Восстановительный режим: у пользователя уже есть onboarded_at, но данные рождения
  *  неполны (краевой сбой). В этом режиме после шага 2 мастер обрывается и ведёт на главную,
  *  без интро-экранов 3-7 и прогрева. Для первого входа (onboarded_at нет) — полный мастер. */
@@ -133,6 +128,7 @@ export default function OnboardingScreen() {
   const theme = wizardTheme;
   const { t } = useTranslate();
   const { authUser, profile, refreshProfile, signOut } = useAuth();
+  const { forceNextHomeBootstrapSplash } = useAppStartup();
 
   const repairMode = isRepairMode(profile);
   // В онбординг попадаем только при неполных данных рождения (роут-гейт в _layout.tsx).
@@ -158,7 +154,11 @@ export default function OnboardingScreen() {
   const prefetchReadyRef = useRef(false);
   const warmStartedRef = useRef(false);
   /** Снимок birth-полей для ключа кэша дня (совпадает с Home scopeKey). */
-  const birthScopeRef = useRef<{ date: string; time: string; place: string } | null>(null);
+  const birthScopeRef = useRef<{
+    date: string;
+    time: string;
+    place: { name: string; lat: number; lon: number; timezone: string };
+  } | null>(null);
 
   const startForecastPrefetch = useCallback(
     (loc: { lat: number; lng: number; timezone: string }) => {
@@ -186,17 +186,20 @@ export default function OnboardingScreen() {
         });
         const accessMode = accessModeForTier(access.tier);
         const accessTier = access.tier;
-        const natalScope = birthScope
-          ? natalScopeKey(birthScope)
-          : natalScopeKey({
-              date: profile?.birth_date ?? "",
-              time: profile?.birth_time ?? "",
-              place:
-                typeof profile?.birth_place === "string"
-                  ? profile.birth_place
-                  : JSON.stringify(profile?.birth_place ?? null),
-            });
-        const scopeKey = contentScopeKey(accessMode, natalScope, locale);
+        const natalScope = dayContentNatalScopeKey(
+          birthScope
+            ? {
+                birth_date: birthScope.date,
+                birth_time: birthScope.time,
+                birth_place: birthScope.place,
+              }
+            : {
+                birth_date: profile?.birth_date,
+                birth_time: profile?.birth_time,
+                birth_place: profile?.birth_place,
+              },
+        );
+        const scopeKey = dayContentLocaleScopeKey(accessMode, natalScope, locale);
         const forecastDate = localDateIso(loc.timezone);
         try {
           await saveDayContentCache({
@@ -239,70 +242,44 @@ export default function OnboardingScreen() {
     [authUser, profile?.birth_date, profile?.birth_place, profile?.birth_time, profile?.membership_expires_at, profile?.membership_tier, profile?.trial_expires_at],
   );
 
-  const saveBirth = useCallback(async (): Promise<boolean> => {
-    if (birthSaved) return true;
+  const validateBirthFields = useCallback((): {
+    isoDate: string;
+    normalizedTime: string;
+    place: GeoPlace;
+    placeName: string;
+  } | null => {
     const normalizedDate = birthDate.trim();
     const normalizedTime = birthTime.trim();
     setError(null);
     const isoDate = ddmmyyyyToIso(normalizedDate);
     if (!isoDate) {
       setError(t("onboarding.birth.dateInvalid"));
-      return false;
+      return null;
     }
     if (!/^\d{2}:\d{2}$/.test(normalizedTime)) {
       setError(t("onboarding.birth.timeInvalid"));
-      return false;
+      return null;
     }
     const hh = Number(normalizedTime.slice(0, 2));
     const mm = Number(normalizedTime.slice(3, 5));
     if (hh > 23 || mm > 59) {
       setError(t("onboarding.birth.timeInvalid"));
-      return false;
+      return null;
     }
     if (!birthPlace) {
       setError(t("onboarding.birth.placeMissing"));
-      return false;
+      return null;
     }
-    setBusy(true);
-    try {
-      const birthData: BirthData = {
-        date: isoDate,
-        time: normalizedTime,
-        timeMode: "precise",
-        location: { lat: birthPlace.lat, lng: birthPlace.lng, timezone: birthPlace.timezone },
-      };
-      const placeName = [birthPlace.name, birthPlace.region, birthPlace.country]
-        .filter(Boolean)
-        .join(", ");
-      await createNatalProfile(birthData, undefined, { placeName });
-      // Тот же JSON, что пишет POST /api/astro/natal в users.birth_place —
-      // иначе Home не попадёт в ключ dayContentCache.
-      birthScopeRef.current = {
-        date: isoDate,
-        time: normalizedTime,
-        place: JSON.stringify({
-          name: placeName,
-          lat: birthPlace.lat,
-          lon: birthPlace.lng,
-          timezone: birthPlace.timezone,
-        }),
-      };
-      await refreshProfile();
-      setBirthSaved(true);
-      return true;
-    } catch (e) {
-      logRuntimeEvent("onboarding_birth_error", {
-        message: e instanceof Error ? e.message : String(e),
-      }, "warn");
-      setError(t("onboarding.birth.saveError"));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }, [birthDate, birthPlace, birthSaved, birthTime, refreshProfile, t]);
+    const placeName = [birthPlace.name, birthPlace.region, birthPlace.country]
+      .filter(Boolean)
+      .join(", ");
+    return { isoDate, normalizedTime, place: birthPlace, placeName };
+  }, [birthDate, birthPlace, birthTime, t]);
 
   const finishOnboarding = useCallback(async () => {
     if (!authUser) return;
+    // Полная заставка Home вместо day_card поверх недогруженной главной.
+    forceNextHomeBootstrapSplash();
     try {
       const supabase = requireSupabase();
       const { error: err } = await supabase
@@ -316,7 +293,7 @@ export default function OnboardingScreen() {
       }, "warn");
     }
     await refreshProfile().catch(() => undefined);
-  }, [authUser, refreshProfile]);
+  }, [authUser, forceNextHomeBootstrapSplash, refreshProfile]);
 
   const onCloseAppFromWizardGeo = useCallback(() => {
     logRuntimeEvent("onboarding_geo_close_app", {});
@@ -328,62 +305,175 @@ export default function OnboardingScreen() {
     void signOut();
   }, [signOut]);
 
-  const requestGeoAndProceed = useCallback(async () => {
+  /**
+   * Шаг 2 → 3: natal + geo параллельно (раньше шли строго друг за другом +
+   * reverseGeocode + await refreshProfile — из‑за этого «Далее» гасла надолго).
+   * Prefetch дня стартует сразу после обоих успехов; refreshProfile — в фоне.
+   */
+  const onStep2Next = useCallback(async () => {
+    logRuntimeTap("wizard_step2_next", {});
     if (!authUser) return;
-    setError(null);
-    setBusy(true);
-    logRuntimeEvent("location:permission_request", { source: "wizard_step2" });
-    const perm = await Location.requestForegroundPermissionsAsync();
-    logRuntimeEvent("location:permission_result", {
-      status: perm.status,
-      canAskAgain: perm.canAskAgain,
-    });
-    if (perm.status !== "granted") {
-      // Остаёмся на шаге 2: без гео дальше не пускаем.
-      setGeoDenied(true);
-      setGeoCanAskAgain(perm.canAskAgain !== false);
-      setBusy(false);
+    if (birthSaved) {
+      // Рождение уже сохранено (повтор после отказа в гео) — только гео.
+      setBusy(true);
+      setError(null);
+      try {
+        logRuntimeEvent("location:permission_request", { source: "wizard_step2_retry" });
+        const perm = await Location.requestForegroundPermissionsAsync();
+        logRuntimeEvent("location:permission_result", {
+          status: perm.status,
+          canAskAgain: perm.canAskAgain,
+        });
+        if (perm.status !== "granted") {
+          setGeoDenied(true);
+          setGeoCanAskAgain(perm.canAskAgain !== false);
+          return;
+        }
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const tz = getDeviceTimeZone();
+        const supabase = requireSupabase();
+        const { error: updErr } = await supabase
+          .from("users")
+          .update({ tz, lat, lon })
+          .eq("id", authUser.id);
+        if (updErr) throw updErr;
+        setGeoDenied(false);
+        if (repairMode) {
+          void finishOnboarding();
+        } else {
+          startForecastPrefetch({ lat, lng: lon, timezone: tz });
+          setStep(3);
+        }
+        void refreshProfile().catch(() => undefined);
+        void Location.reverseGeocodeAsync({ latitude: lat, longitude: lon })
+          .then(async (places) => {
+            const first = places[0];
+            if (!first) return;
+            const locationName = [first.city, first.region, first.country]
+              .filter(Boolean)
+              .join(", ");
+            if (!locationName) return;
+            await requireSupabase()
+              .from("users")
+              .update({ location_name: locationName })
+              .eq("id", authUser.id);
+          })
+          .catch(() => undefined);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
       return;
     }
+
+    const fields = validateBirthFields();
+    if (!fields) return;
+
+    setBusy(true);
+    setError(null);
+    const { isoDate, normalizedTime, place, placeName } = fields;
+    const birthData: BirthData = {
+      date: isoDate,
+      time: normalizedTime,
+      timeMode: "precise",
+      location: { lat: place.lat, lng: place.lng, timezone: place.timezone },
+    };
+    // Тот же объект, что пишет POST /api/astro/natal в users.birth_place.
+    birthScopeRef.current = {
+      date: isoDate,
+      time: normalizedTime,
+      place: {
+        name: placeName,
+        lat: place.lat,
+        lon: place.lng,
+        timezone: place.timezone,
+      },
+    };
+
     try {
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      logRuntimeEvent("location:permission_request", { source: "wizard_step2" });
+      const [natalResult, perm] = await Promise.all([
+        createNatalProfile(birthData, undefined, { placeName }),
+        Location.requestForegroundPermissionsAsync(),
+      ]);
+      void natalResult;
+      logRuntimeEvent("location:permission_result", {
+        status: perm.status,
+        canAskAgain: perm.canAskAgain,
+      });
+      setBirthSaved(true);
+
+      if (perm.status !== "granted") {
+        setGeoDenied(true);
+        setGeoCanAskAgain(perm.canAskAgain !== false);
+        void refreshProfile().catch(() => undefined);
+        return;
+      }
+
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
-      let locationName: string | null = null;
-      try {
-        const places = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-        const first = places[0];
-        if (first) locationName = [first.city, first.region, first.country].filter(Boolean).join(", ");
-      } catch { /* не критично */ }
       const tz = getDeviceTimeZone();
       const supabase = requireSupabase();
       const { error: updErr } = await supabase
         .from("users")
-        .update({ tz, lat, lon, location_name: locationName })
+        .update({ tz, lat, lon })
         .eq("id", authUser.id);
       if (updErr) throw updErr;
       setGeoDenied(false);
+
       if (repairMode) {
-        // Восстановительный режим: данных рождения не хватало — после шага 2 сразу на главную,
-        // без интро 3-7 и прогрева (прогноз загрузит сама главная).
         void finishOnboarding();
       } else {
         startForecastPrefetch({ lat, lng: lon, timezone: tz });
         setStep(3);
       }
+      void refreshProfile().catch(() => undefined);
+      void Location.reverseGeocodeAsync({ latitude: lat, longitude: lon })
+        .then(async (places) => {
+          const first = places[0];
+          if (!first) return;
+          const locationName = [first.city, first.region, first.country]
+            .filter(Boolean)
+            .join(", ");
+          if (!locationName) return;
+          await requireSupabase()
+            .from("users")
+            .update({ location_name: locationName })
+            .eq("id", authUser.id);
+        })
+        .catch(() => undefined);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      logRuntimeEvent("onboarding_birth_error", {
+        message: e instanceof Error ? e.message : String(e),
+      }, "warn");
+      setError(
+        e instanceof Error && /natal|astro|birth/i.test(e.message)
+          ? t("onboarding.birth.saveError")
+          : e instanceof Error
+            ? e.message
+            : t("onboarding.birth.saveError"),
+      );
     } finally {
       setBusy(false);
     }
-  }, [authUser, finishOnboarding, repairMode, startForecastPrefetch]);
-
-  const onStep2Next = useCallback(async () => {
-    logRuntimeTap("wizard_step2_next", {});
-    const ok = await saveBirth();
-    if (!ok) return;
-    await requestGeoAndProceed();
-  }, [requestGeoAndProceed, saveBirth]);
+  }, [
+    authUser,
+    birthSaved,
+    finishOnboarding,
+    refreshProfile,
+    repairMode,
+    startForecastPrefetch,
+    t,
+    validateBirthFields,
+  ]);
 
   const goToNextIntro = useCallback(() => {
     setStep((s) => {
@@ -434,7 +524,13 @@ export default function OnboardingScreen() {
       return (
         <View style={styles.footerGap}>
           <AppButton
-            label={busy ? "…" : geoDenied ? t("home.geoGate.grantButton") : t("wizard.next")}
+            label={
+              busy
+                ? t("wizard.nextLoading")
+                : geoDenied
+                  ? t("home.geoGate.grantButton")
+                  : t("wizard.next")
+            }
             onPress={() => void onStep2Next()}
             disabled={busy}
           />
@@ -472,6 +568,8 @@ export default function OnboardingScreen() {
       currentStep={typeof step === "number" ? step : TOTAL_WIZARD_STEPS}
       footer={footer}
       footerInContent={step === 2}
+      // PLACE_FOCUS_SCROLL_EXTRA (2026-07-24): нюдж при выборе места / кнопке карты.
+      contentBumpKey={step === 2 && birthPlace ? birthPlace.id : null}
       // Небольшой зазор между индикатором прогресса и картинкой (шаги 2–7).
       // На /sign-in (имя/email и OTP) отступ не добавляем — там уже отлажено.
       contentStyle={styles.contentTopGap}

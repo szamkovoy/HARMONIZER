@@ -35,6 +35,11 @@ type AppStartupContextValue = {
   setStartupStep: (step: string) => void;
   completeHomeBootstrap: () => void;
   setHomeRouteActive: (active: boolean) => void;
+  /**
+   * После онбординга: следующий blocking Home — полная заставка «Готовим ваш день»,
+   * а не модальная day_card поверх недогруженной главной.
+   */
+  forceNextHomeBootstrapSplash: () => void;
 };
 
 const AppStartupContext = createContext<AppStartupContextValue | null>(null);
@@ -314,6 +319,8 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
   const [isHomeRoute, setHomeRouteActive] = useState(true);
   /** После первого успешного complete — повторные ожидания дня идут карточкой, не полной заставкой. */
   const hasCompletedHomeOnceRef = useRef(false);
+  /** Онбординг: один раз форсировать splash на первом Home bootstrap (не day_card). */
+  const pendingForcedSplashRef = useRef(false);
   const [homeBootstrap, setHomeBootstrap] = useState<HomeBootstrapState>({
     blocking: true,
     phase: "app_loading",
@@ -336,8 +343,15 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
 
   const beginHomeBootstrap = useCallback(
     (nextPhase: AppStartupPhase, nextStep?: string, opts?: { presentation?: HomeBootstrapPresentation }) => {
-      const nextPresentation =
-        opts?.presentation ?? (hasCompletedHomeOnceRef.current ? "day_card" : "splash");
+      let nextPresentation: HomeBootstrapPresentation;
+      if (opts?.presentation) {
+        nextPresentation = opts.presentation;
+      } else if (pendingForcedSplashRef.current || !hasCompletedHomeOnceRef.current) {
+        nextPresentation = "splash";
+      } else {
+        nextPresentation = "day_card";
+      }
+      pendingForcedSplashRef.current = false;
       setHomeBootstrap((current) => ({
         blocking: true,
         phase: nextPhase,
@@ -369,6 +383,11 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     setHomeBootstrap((current) => ({ ...current, blocking: false }));
   }, []);
 
+  const forceNextHomeBootstrapSplash = useCallback(() => {
+    hasCompletedHomeOnceRef.current = false;
+    pendingForcedSplashRef.current = true;
+  }, []);
+
   useEffect(() => {
     if (initializing) {
       setHomeBootstrap((current) => ({
@@ -392,8 +411,15 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
       setStartupStep,
       completeHomeBootstrap,
       setHomeRouteActive,
+      forceNextHomeBootstrapSplash,
     }),
-    [beginHomeBootstrap, completeHomeBootstrap, setHomeBootstrapPhase, setStartupStep],
+    [
+      beginHomeBootstrap,
+      completeHomeBootstrap,
+      forceNextHomeBootstrapSplash,
+      setHomeBootstrapPhase,
+      setStartupStep,
+    ],
   );
 
   const splashVisible = visible && presentation === "splash";

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.34
-updated: 2026-07-22
+version: 2.35
+updated: 2026-07-24
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-24 (cache scope birth_time):** `dayContentNatalScopeKey` канонизирует `birth_time` как `HH:MM:SS` (совпадает с Postgres/`users.birth_time` и legacy Home-ключами). Краткая нормализация `HH:MM` давала cache miss → cold `fetchDailyForecast` 25s → UI timeout. `useDayContent` при чтении перебирает кандидатов канон + `HH:MM`.
 
 - **2026-07-23 (locale switch source + no silent retry):** QA FR→RU на Profile переводил FR→RU и затирал готовый RU warm (~2m20s без dialog). Fix: `pickBestMorningSource` предпочитает self-canonical `generated` (RU); `translateMorningFromCachedSource` отдаёт уже валидный target без overwrite; monologue на cache-miss тоже translate’ит из существующего source (не full-generate чужой локали как канон); `ensureLocaleDayContent` / Profile — без silent второго LLM после timeout.
 

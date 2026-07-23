@@ -278,7 +278,8 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -559,7 +560,8 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -840,7 +842,8 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1121,7 +1124,8 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1402,7 +1406,8 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -1683,7 +1688,8 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -1964,6 +1970,7 @@
     "profile.language.appLabel": "Язык приложения:",
     "profile.palette.label": "Палитра",
     "profile.palette.light": "Светлая палитра",
-    "profile.palette.dark": "Тёмная палитра"
+    "profile.palette.dark": "Тёмная палитра",
+    "wizard.nextLoading": "Идёт загрузка…"
   }
 }

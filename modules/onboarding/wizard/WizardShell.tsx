@@ -68,6 +68,13 @@ export function WizardShell({
   statusBarStyle,
   contentStyle,
   footerInContent,
+  /**
+   * PLACE_FOCUS_SCROLL_EXTRA (2026-07-24) — откатываемый нюдж:
+   * когда значение меняется при открытой клавиатуре (режим A), один раз
+   * `scrollToEnd`, чтобы «Далее» осталась видимой после появления
+   * «Проверить на карте». Откат: убрать этот prop и effect ниже с тем же маркером.
+   */
+  contentBumpKey,
 }: {
   totalSteps: number;
   /** 1-индекс текущего шага. Сегменты < currentStep — «пройдены», = currentStep — «активный». */
@@ -83,6 +90,7 @@ export function WizardShell({
    *        (у 3–7 footer зафиксирован внизу, у OTP кнопок в footer нет).
    */
   footerInContent?: boolean;
+  contentBumpKey?: string | number | null;
 }) {
   // Мастер всегда светлый (белый фон + тёмный текст), независимо от системной схемы.
   const lightTheme = useMemo(() => buildTheme("light"), []);
@@ -176,6 +184,29 @@ export function WizardShell({
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, [footerInContent, keyboardOpen, androidKeyboardHeight]);
+
+  // PLACE_FOCUS_SCROLL_EXTRA (2026-07-24) — см. prop contentBumpKey. Откат: удалить этот effect.
+  useEffect(() => {
+    if (!footerInContent || !keyboardOpen) return;
+    if (contentBumpKey == null || contentBumpKey === "") return;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const nudge = () => {
+      if (!cancelled) scrollRef.current?.scrollToEnd({ animated: true });
+    };
+    const outer = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        nudge();
+        // После layout кнопки «Проверить на карте» — второй проход.
+        retryTimer = setTimeout(nudge, 64);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [contentBumpKey, footerInContent, keyboardOpen]);
 
   return (
     <ThemeProvider value={lightTheme}>
@@ -347,6 +378,11 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: "center",
+    // На 1pt меньше глобального screenTitle (22) — длинные заголовки мастера
+    // (напр. «Настройка навигатора архетипов») остаются в одну строку на iPhone,
+    // и «Далее» не упирается в safe-area снизу.
+    fontSize: 21,
+    lineHeight: 27,
   },
   body: {
     textAlign: "center",

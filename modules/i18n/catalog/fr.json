@@ -248,6 +248,7 @@
   "wizard.legal.termsLink": "Conditions générales d’utilisation",
   "wizard.legal.termsTitle": "Conditions générales d’utilisation",
   "wizard.next": "Suivant",
+  "wizard.nextLoading": "Chargement en cours…",
   "wizard.placeMap.close": "Terminé",
   "wizard.placeMap.open": "Vérifier sur la carte",
   "wizard.step2.body": "Indiquez la date, l'heure et le lieu de votre naissance pour utiliser le navigateur personnel des états archétypiques. Il relie les cycles planétaires à la psychologie des archétypes de Jung, et chaque jour il vous montre le chemin le plus efficace pour traverser les situations de la vie.",

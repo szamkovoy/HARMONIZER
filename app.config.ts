@@ -24,6 +24,12 @@ import appJson from "./app.json";
 
 const GOOGLE_SERVICES_JSON = path.join(__dirname, "google-services.json");
 const hasGoogleServicesFile = fs.existsSync(GOOGLE_SERVICES_JSON);
+/** Maps SDK for Android (`react-native-maps` / BirthPlaceMapModal). iOS uses Apple Maps. */
+const GOOGLE_MAPS_API_KEY = (
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  process.env.GOOGLE_MAPS_API_KEY ||
+  ""
+).trim();
 
 /**
  * Локализованное имя приложения и reason-строки разрешений iOS.
@@ -69,6 +75,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...(hasGoogleServicesFile
         ? { googleServicesFile: "./google-services.json" }
         : {}),
+      config: {
+        ...((base.android as { config?: Record<string, unknown> } | undefined)?.config ?? {}),
+        ...((config.android as { config?: Record<string, unknown> } | undefined)?.config ?? {}),
+        ...(GOOGLE_MAPS_API_KEY
+          ? { googleMaps: { apiKey: GOOGLE_MAPS_API_KEY } }
+          : {}),
+      },
       permissions: [
         ...new Set([
           ...((base.android as { permissions?: string[] } | undefined)?.permissions ?? []),

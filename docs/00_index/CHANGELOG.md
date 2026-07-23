@@ -1,3 +1,5 @@
+- 2026-07-24 (257): Home day-cache scope — `birth_time` канон `HH:MM:SS` (+ legacy `HH:MM` на чтении); чинит trial/paid cold-start timeout после ошибочной нормализации к `HH:MM`.
+- 2026-07-24 (256): Onboarding step 2 polish — title 21pt, place-focus scroll nudge, faster Next (natal∥geo + loading label), Maps API key wiring, warmup cache scope fix + force splash after finish.
 - 2026-07-23 (255): OTP email → Resend (`AUTH_EMAIL_PROVIDER`, `RESEND_ZAMKOVOI_YOGA_API_KEY`); SES оставлен как switchable tail. Каналы yoga/ru разделены; DNS inventory — `docs/04_workspace/email_providers.md`.
 - 2026-07-23 (254): `web_cabinet/{cabinet,tv}/` — единая структура (`index.html` + `icons/` + README); wordpress-snippet удалён.
 - 2026-07-23 (253): Remote Play TV → standalone `web_cabinet/tv/` (ISPManager), без WordPress Custom HTML; `?fr`/`?pt` снова работают.

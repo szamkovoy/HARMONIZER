@@ -10,6 +10,10 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-24 (scope key HH:MM:SS):** Нормализация `birth_time` в `dayContentScope` — канон `HH:MM:SS` (не `HH:MM`): краткий формат ломал попадание в SecureStore у trial/paid Home (sezam777: ~30s timeout). Home читает кандидатов канон+`HH:MM`.
+
+- **2026-07-24 (step 2 polish + warmup cache):** (1) `WizardTitle` 21/27pt — заголовок шага 2 в одну строку на iPhone. (2) `contentBumpKey` / `PLACE_FOCUS_SCROLL_EXTRA` — доп. `scrollToEnd` при выборе места. (3) Android Maps: `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` → `android.config.googleMaps` (нужен rebuild). (4) Шаг 2: natal∥geo, без await reverseGeocode/refreshProfile; CTA `wizard.nextLoading`. (5) Прогрев: общий `dayContentScope`; `forceNextHomeBootstrapSplash` после мастера — полная заставка, не day_card.
+
 - **2026-07-22 (iOS keyboard regress):** Отложенный `scrollToEnd` из Android-фикса на iOS конфликтовал с `KeyboardAvoidingView` — после первой буквы форма проседала. `useEffect`-scroll только Android; iOS снова один `scrollToEnd` в `keyboardWillShow`.
 
 - **2026-07-22 (Android keyboard first-field):** На Pixel подъём формы срабатывал только при фокусе email: `scrollToEnd` шёл до layout `paddingBottom`. Fix: scroll в `useEffect` после commit высоты (+ double rAF / retry на Android).
