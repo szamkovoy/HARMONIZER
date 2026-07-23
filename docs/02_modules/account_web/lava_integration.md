@@ -13,7 +13,7 @@ code_refs:
     _legacy_web/app/api/account/webhooks/lava/route.ts,
     _legacy_web/app/api/account/overview-data.ts,
     modules/account/core/purchasesClient.ts,
-    web_cabinet/cabinet.html,
+    web_cabinet/cabinet/index.html,
     supabase/migrations/20260715120000_lava_payment_contracts.sql,
     supabase/migrations/20260718150000_payment_offers.sql,
     supabase/migrations/20260718170000_payment_contracts_one_time.sql,

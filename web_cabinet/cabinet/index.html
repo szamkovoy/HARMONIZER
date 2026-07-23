@@ -7,6 +7,10 @@
   <meta name="theme-color" content="#45A29E" />
   <meta name="robots" content="noindex,nofollow" />
   <title>Личный кабинет — Harmonizer</title>
+  <link rel="icon" href="./icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://harmonizer-ten.vercel.app" />
@@ -14,11 +18,10 @@
   <!--
     HARMONIZER — Личный кабинет (standalone HTML для хостинга / ISPManager).
 
-    Деплой:
-      1) загрузить этот файл на https://zamkovoi.yoga/cabinet/ как index.html
-         (или cabinet.html + правило сервера на /cabinet/);
-         страница НЕ должна идти через тему WordPress — иначе снова тяжёлый шелл;
-      2) Vercel deploy — оферта по клику: {API}/cabinet/offer/{lang}.json.
+    Деплой (папка web_cabinet/cabinet/ → public_html/cabinet/):
+      1) index.html + icons/ на https://zamkovoi.yoga/cabinet/;
+         без темы WordPress;
+      2) Vercel — оферта по клику: {API}/cabinet/offer/{lang}.json.
 
     URL из приложения: https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…
     CORS API уже разрешает Origin https://zamkovoi.yoga (ACCOUNT_CABINET_ALLOWED_ORIGIN).

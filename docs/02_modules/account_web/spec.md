@@ -31,7 +31,7 @@ code_refs:
     _legacy_web/app/api/account/webhooks/lava/route.ts,
     _legacy_web/app/api/account/webhooks/yookassa/route.ts,
     _legacy_web/app/api/account/fx/,
-    web_cabinet/cabinet.html,
+    web_cabinet/cabinet/index.html,
     supabase/migrations/20260714220000_web_account_ott.sql,
     supabase/migrations/20260715120000_lava_payment_contracts.sql,
     supabase/migrations/20260718150000_payment_offers.sql,
@@ -52,7 +52,7 @@ code_refs:
 1. **OTT-переход** — безопасный одноразовый вход в веб-кабинет из приложения (системный браузер, не WebView).
 2. **Kill-switch** кнопок «Личный кабинет» на время App Review (`app_config.account_links_enabled`).
 3. **Подхват смены уровня** — Realtime на своей строке `users` + тихий foreground-refetch; модалки «Демонстрационный период завершён» и «Уровень профиля обновлён» (`MembershipEventsBridge`).
-4. **Веб-страницу кабинета** — standalone HTML5 (`web_cabinet/cabinet.html` → `https://zamkovoi.yoga/cabinet/`, без WordPress); UI-словари 8 локалей в файле; оферта — `public/cabinet/offer/{lang}.json` на Vercel, только по клику.
+4. **Веб-страницу кабинета** — standalone HTML5 (`web_cabinet/cabinet/` → `https://zamkovoi.yoga/cabinet/`, без WordPress); UI-словари 8 локалей в файле; оферта — `public/cabinet/offer/{lang}.json` на Vercel, только по клику.
 
 ## 2. Публичный контракт
 
@@ -95,7 +95,7 @@ code_refs:
 - **БД** (`20260718230000_fix_webinar_book_offer_ids.sql`): `UPDATE` `webinar/en`, `book/en` → настоящие offerId из `GET /api/v2/products?feedVisibility=ALL` (`offers[].id`); productId ≠ offerId.
 - **БД** (`20260722120000_yookassa_payment_catalog.sql`): `payment_catalog` (SKU ЮKassa/RUB: oracle 950, master 4950, webinar 950, book 1500); на `payment_contracts` — `provider_payment_id`, `payment_method_id`; таблица `yookassa_payment_methods` (задел рекуррента). RLS без политик — service role.
 - **`MembershipEventsBridge`**: (а) Realtime UPDATE своей строки `users` → `refreshProfile()`; (б) foreground — выборка membership-полей и `refreshProfile()` только при изменении отпечатка; (в) сравнение `baseTierFromRow` с сохранённым `lastTier` → модалка повышения уровня («{from} → {to}», `gate.tierChanged.*`); (г) `trial_expires_at` в прошлом при free-базе → одноразовая модалка `gate.trialEnded.*` (кнопки «Закрыть» / «Личный кабинет»); (д) foreground-проверка последней one_time-покупки через `GET /api/account/purchases/last` при **любом** ctx визита в кабинет (профиль, карточка вебинара, апселл) → если это вебинар или книга, оплаченные после `cabinetVisit.ts`, модалка `gate.webinarPaid.*` / `gate.bookPaid.*` (ретрай 10с на задержку вебхука; флаг `purchaseThanksShown.<uid>.<contractId>`; visit чистится только после показа). Раньше вебинар детектился только при `ctx=webinar:<id>` — оплата из профиля не давала модалки.
-- **Страница кабинета** (`web_cabinet/cabinet.html`): standalone HTML5. Перед redirect на оплату кладёт кабинетную сессию в `sessionStorage` (чтобы вернуться с `?paid=1` без OTT). При `?paid=1` — блок «Спасибо за оплату» (8 локалей). **Деплой страницы:** ISPManager `https://zamkovoi.yoga/cabinet/` без WP; Vercel — API + `offer/*.json`.
+- **Страница кабинета** (`web_cabinet/cabinet/index.html`): standalone HTML5. Перед redirect на оплату кладёт кабинетную сессию в `sessionStorage` (чтобы вернуться с `?paid=1` без OTT). При `?paid=1` — блок «Спасибо за оплату» (8 локалей). **Деплой:** ISPManager папка `cabinet/` → `https://zamkovoi.yoga/cabinet/`; Vercel — API + `offer/*.json`.
 
 ### 3.1 Поток оплаты Lava.top
 
@@ -153,7 +153,7 @@ USD/EUR всегда Lava. Выключение — env без деплоя ко
 - Vercel env (Lava): `ACCOUNT_CABINET_SECRET`, `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID`, `LAVATOP_TARIFF_3_ID`. Опционально: `LAVA_GATEWAY_FEE_RATE`, `YANDEX_GATEWAY_FEE_RATE`.
 - Vercel env (ЮKassa): `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_RETURN_URL`, `YOOKASSA_ENABLED` (`true`/`false`), `PAYMENT_GATEWAY_FOR_RUB` (`lavatop`\|`yookassa`), `YOOKASSA_RECURRING_ENABLED` (`false` до включения автоплатежей в магазине), опц. `YOOKASSA_WEBHOOK_SECRET`.
 - Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`).
-- Страница: константа `API_BASE` в `cabinet.html` (origin Vercel); оферта — `{API_BASE}/cabinet/offer/{lang}.json`.
+- Страница: константа `API_BASE` в `web_cabinet/cabinet/index.html` (origin Vercel); оферта — `{API_BASE}/cabinet/offer/{lang}.json`.
 - Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут). Ключ `account_links_enabled` читается и анонимом (политика `20260719000000`), остальные ключи `app_config` — только для authenticated/админов.
 
 ## 5. Комплаенс-политика текстов (инвариант)

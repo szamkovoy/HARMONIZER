@@ -1,4 +1,39 @@
-<!-- HARMONIZER Remote Play TV page. Paste into a WordPress Custom HTML block. -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Harmonizer Remote Play</title>
+  <link rel="icon" href="./icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+  <!--
+    HARMONIZER — Remote Play TV (standalone HTML for ISPManager).
+
+    Deploy:
+      1) Upload this folder to https://zamkovoi.yoga/tv/ as:
+           tv/index.html
+           tv/icons/*
+      2) Disable / unpublish the WordPress page at /tv/ (or exclude /tv from WP
+         rewrites) so the static file is served instead of the old Custom HTML.
+      3) App links stay the same: https://zamkovoi.yoga/tv and https://zamkovoi.yoga/tv?fr
+  -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: #020617;
+      color: #f8fafc;
+      -webkit-text-size-adjust: 100%;
+    }
+  </style>
+</head>
+<body>
 <div id="harmonizer-remote-play" class="hrp-shell">
   <div class="hrp-card">
     <div id="hrp-eyebrow" class="hrp-eyebrow">Harmonizer Remote Play</div>
@@ -22,6 +57,7 @@
 (() => {
   const SUPABASE_URL = "https://vsdmphhczmcgfrvbwodp.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_8edV2weU2e0ab__u1vEVFg_MFdt8VeF";
+
 
   // ---- i18n: only the resource strings differ per locale. ------------------
   // `appName` is the localized product name and `remotePlay` is the localized
@@ -194,16 +230,19 @@
   }
   function localeFromUrl() {
     try {
-      const params = new URLSearchParams(location.search || "");
-      // Preferred compact form from the app: `https://zamkovoi.yoga/tv?pt`
+      const search = location.search || "";
+      const params = new URLSearchParams(search);
+      // Compact form from the app: `https://zamkovoi.yoga/tv?pt` / `.../tv/?fr`
       for (const key of params.keys()) {
         const hit = pickLocale(key);
-        if (hit && (params.get(key) === "" || params.get(key) == null)) return hit;
+        if (hit) return hit;
       }
       for (const key of ["l", "lang", "locale"]) {
         const hit = pickLocale(params.get(key));
         if (hit) return hit;
       }
+      const m = search.match(/[?&](ru|en|de|fr|it|es|pt|nl)(?:[=&#]|$)/i);
+      if (m) return pickLocale(m[1]);
     } catch { /* ignore */ }
     return null;
   }
@@ -238,7 +277,9 @@
     return stringsFor(currentLocale)[key];
   }
   function renderStatic() {
-    if (eyebrowEl) eyebrowEl.textContent = `${t("appName")} ${t("remotePlay")}`;
+    const title = `${t("appName")} ${t("remotePlay")}`;
+    if (eyebrowEl) eyebrowEl.textContent = title;
+    try { document.title = title; } catch { /* ignore */ }
     if (playerEl) playerEl.setAttribute("aria-label", t("playerAriaLabel"));
     const unmuteLabelEl = document.getElementById("hrp-unmute-label");
     if (unmuteLabelEl) unmuteLabelEl.textContent = t("unmuteLabel");
@@ -888,3 +929,5 @@
   display: none;
 }
 </style>
+</body>
+</html>

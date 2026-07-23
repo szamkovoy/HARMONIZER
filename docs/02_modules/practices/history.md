@@ -16,6 +16,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-23 (TV standalone HTML):** WordPress Custom HTML на `/tv/` не сохранял новый сниппет (оставался старый browser-locale build → `?fr` игнорировался). Канон: `web_cabinet/tv/` (+ симметрично `web_cabinet/cabinet/`) через ISPManager; WP-страницу `/tv/` снять. `docs/remote-play/wordpress-snippet.html` удалён; модульные docs — `docs/remote-play/README.md`.
+
 - **2026-07-22 (TV URL + remote layout):** Ссылка короче — `https://zamkovoi.yoga/tv?pt` (ru без query). На пульте: практика `dialogTitle`, URL крупным `screenTitle`, подпись `openOnTvCaption` обычным. wordpress-snippet уже понимает `?pt`.
 
 - **2026-07-22 (TV locale + asana i18n):** Пульт/Connect TV и кнопка «Завершить практику» были только RU/EN (`inlineBaseLocale` → EN для PT). Добавлены typed modules `asanaScreen` + `remotePlay` с overlays для de/fr/it/es/pt/nl. Ссылка на ТВ несёт locale (`tvPageUrl`); wordpress-snippet читает URL (не browser lang), audiotrack из сессии/URL, unmute через gesture + overlay. Нужен re-paste `docs/remote-play/wordpress-snippet.html` на zamkovoi.yoga/tv.

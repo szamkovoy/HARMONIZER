@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-23 (favicon):** В `_legacy_web/public/icons/` добавлены PNG/ICO из `assets/images/icon.png` (раньше layout ссылался на отсутствующие файлы). Metadata админки/корня указывает favicon 16/32 + apple-touch + 192/512.
+
 - **2026-07-22 (ЮКасса в админке + каталог):** Убран бейдж «скоро» / текст «не подключена» у блока ЮКасса (дашборд + stats) — пустое состояние как у Lava. Карточка пользователя: история уже из `payment_contracts` любого provider; текст удаления упоминает ЮКасса. Каталог SKU: `GET/PATCH /api/admin/payment-catalog` + UI `/admin/payments/catalog` (title/description/amount). Воронки и сводные отчёты уже суммируют оба шлюза.
 
 - **2026-07-22 (dashboard bar width):** `BarList` на дашборде — flex без широких колонок суммы/даты (симметричные отступы, длиннее полоски), как на `/admin/payments/stats`.

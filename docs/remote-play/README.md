@@ -8,7 +8,7 @@ Migrations:
 
 - `supabase/migrations/20260503014500_remote_play_tv_sessions.sql` — base table.
 - `supabase/migrations/20260705190000_remote_play_audiotrack.sql` — `audiotrack text` column (nullable) written by the mobile client on `playVimeo`.
-- `supabase/migrations/20260705193000_remote_play_locale.sql` — `locale text` column (nullable). **Reverted** by `20260705203000_remote_play_drop_locale.sql`: the TV page now resolves its UI language from the browser, so the app no longer writes `locale` into the session. The column is dropped.
+- `supabase/migrations/20260705193000_remote_play_locale.sql` — `locale text` column (nullable). **Reverted** by `20260705203000_remote_play_drop_locale.sql`: UI locale comes from the URL hint (`?fr` / `?pt`), not the browser and not a DB column.
 - `supabase/migrations/20260705203000_remote_play_drop_locale.sql` — drops `tv_sessions.locale`.
 
 The table uses short-lived rows:
@@ -21,20 +21,19 @@ The table uses short-lived rows:
 
 The migration adds `public.tv_sessions` to the `supabase_realtime` publication. After `supabase db push`, verify in Supabase Dashboard that Realtime is enabled for `tv_sessions` if the publication is not reflected in Studio.
 
-## WordPress / static files on zamkovoi.yoga
+## Static files on zamkovoi.yoga (ISPManager)
 
-| Файл в репозитории | Куда вставить |
+Канон деплоя — папки в `web_cabinet/` (см. также `web_cabinet/README.md`, `web_cabinet/tv/README.md`):
+
+| Репо | Сайт |
 | --- | --- |
-| **`docs/remote-play/wordpress-snippet.html`** | Страница **`https://zamkovoi.yoga/tv/`** — Custom HTML block (Remote Play) |
-| **`web_cabinet/asana-embed.html`** | Файл **`https://zamkovoi.yoga/asana-embed.html`** (корень сайта; нужен Android-плееру асан) |
-| **`web_cabinet/cabinet.html`** | **`https://zamkovoi.yoga/cabinet/`** — см. `web_cabinet/README.md` |
+| **`web_cabinet/tv/`** | **`https://zamkovoi.yoga/tv/`** |
+| **`web_cabinet/cabinet/`** | **`https://zamkovoi.yoga/cabinet/`** |
+| **`web_cabinet/asana-embed.html`** | **`https://zamkovoi.yoga/asana-embed.html`** |
 
-Paste `docs/remote-play/wordpress-snippet.html` into a WordPress Custom HTML block and replace:
+WordPress Custom HTML для `/tv/` не используется.
 
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-
-The snippet creates a waiting session, shows the code, subscribes to the row, and starts Vimeo playback when Expo writes `vimeo_id`. It also polls the same row every 2 seconds as a fallback in case a browser or WordPress page loses a Realtime event. Vimeo embed URL must be exactly `https://player.vimeo.com/video/<id>?audiotrack=<slug>` (no other query params). The slug is read from the session row's `audiotrack`; when that column is `null` the snippet falls back to `VIMEO_AUDIO_TRACK` (default `ru`). A change of `audiotrack` on the same `vimeo_id` (e.g. the user switches locale and re-launches) re-mounts the player because `audiotrack` is part of the row fingerprint. Do not switch the audio language through the Vimeo Player API after mount: playback depends on the iframe `src` carrying `?audiotrack=<slug>`.
+The TV page creates a waiting session, shows the code, subscribes to the row, and starts Vimeo playback when Expo writes `vimeo_id`. It also polls every 2 seconds as a Realtime fallback. Vimeo embed URL must be exactly `https://player.vimeo.com/video/<id>?audiotrack=<slug>`. The slug comes from `tv_sessions.audiotrack` (null → UI-locale mapping, then `ru`). Do not switch audio via the Vimeo Player API after mount.
 
 ### UI language + audio track
 

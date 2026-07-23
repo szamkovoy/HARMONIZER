@@ -1,3 +1,6 @@
+- 2026-07-23 (254): `web_cabinet/{cabinet,tv}/` — единая структура (`index.html` + `icons/` + README); wordpress-snippet удалён.
+- 2026-07-23 (253): Remote Play TV → standalone `web_cabinet/tv/` (ISPManager), без WordPress Custom HTML; `?fr`/`?pt` снова работают.
+- 2026-07-23 (252): Favicon набора из `assets/images/icon.png` — админка (Vercel `/icons`), кабинет (`web_cabinet/icons`), TV snippet (inject с Vercel).
 - 2026-07-23 (251): `google-services.json` убран из git (GitHub secret scanning); шаблон `.example` + gitignore. Нужна ротация Android API key в Google Cloud.
 - 2026-07-23 (250): Locale switch — account `users.locale` over sticky SecureStore; morning source = generated RU; no overwrite of existing target; no silent LLM retry. Cabinet open failures → runtimeDiagnostics.
 - 2026-07-23 (249): Android FCM — `google-services.json` + FCM V1 key в EAS (`upload-fcm-to-eas.mjs`); старт rebuild Android development.

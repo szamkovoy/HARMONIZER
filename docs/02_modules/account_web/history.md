@@ -5,6 +5,10 @@ version: 1.8
 updated: 2026-07-22
 ---
 
+## 2026-07-23 — Структура `web_cabinet/cabinet/` + favicon
+
+- Кабинет как у TV: `web_cabinet/cabinet/{index.html,icons/,README.md}` (раньше `cabinet.html` + `icons/` в корне). На ISPManager путь `/cabinet/` не меняется. Favicon из app icon 1024.
+
 ## 2026-07-23 — Диагностика сбоя «Личный кабинет» (Pixel)
 
 - **Симптом QA:** Дмитрий на Pixel → `gate.cabinetError` сразу после успешного кабинета на iPhone (где был abandoned Lava Master checkout).
