@@ -231,8 +231,8 @@ export function DashboardPulse() {
               onClick={() => setRange(value)}
               className={`rounded-xl px-3 py-1.5 text-sm ${
                 range === value
-                  ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                  : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                  ? "bg-emerald-600 font-semibold text-white"
+                  : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
               }`}
             >
               {value === "all" ? "Всё время" : `${value} дн.`}
@@ -252,10 +252,10 @@ export function DashboardPulse() {
                 onClick={() => setGrain(value)}
                 className={`rounded-xl px-3 py-1.5 text-sm ${
                   disabled
-                    ? "cursor-not-allowed border border-white/5 text-zinc-600"
+                    ? "cursor-not-allowed border border-zinc-100 text-zinc-600"
                     : effectiveGrain === value
-                      ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                      : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                      ? "bg-emerald-600 font-semibold text-white"
+                      : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
                 {label}
@@ -274,8 +274,8 @@ export function DashboardPulse() {
               onClick={() => setCurrency(value)}
               className={`rounded-xl px-3 py-1.5 text-sm ${
                 currency === value
-                  ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                  : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                  ? "bg-emerald-600 font-semibold text-white"
+                  : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
               }`}
             >
               {label}
@@ -309,7 +309,7 @@ export function DashboardPulse() {
 
       <div className="grid gap-3 lg:grid-cols-2">
         <ChartCard title={`Регистрации за ${periodLabel}`}>
-          <p className="mb-2 text-sm text-zinc-200">
+          <p className="mb-2 text-sm text-zinc-800">
             Всего: <span className="font-semibold">{fmt(data.kpi.reg_period)}</span>
           </p>
           <BarList
@@ -323,7 +323,7 @@ export function DashboardPulse() {
           />
         </ChartCard>
         <ChartCard title={`Активность пользователей за ${periodLabel}`}>
-          <p className="mb-2 text-sm text-zinc-200">
+          <p className="mb-2 text-sm text-zinc-800">
             Всего уникальных: <span className="font-semibold">{fmt(data.kpi.active_period)}</span>
           </p>
           <BarList
@@ -343,7 +343,7 @@ export function DashboardPulse() {
           title={`Выручка Lava.top за ${periodLabel}`}
           hint="После комиссии Lava 8% и конвертации (Т-Банк или ЦБ)"
         >
-          <p className="mb-2 text-sm text-zinc-200">
+          <p className="mb-2 text-sm text-zinc-800">
             Всего:{" "}
             <span className="font-semibold">{moneyFmt(lavaTotal, displayCurrency)}</span>
             <span className="ml-2 text-xs text-zinc-500">
@@ -369,7 +369,7 @@ export function DashboardPulse() {
           {(data.revenue_by_tier?.length ?? 0) > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-400">
               {data.revenue_by_tier.map((row) => (
-                <span key={row.tier} className="rounded-full border border-white/10 px-2 py-0.5">
+                <span key={row.tier} className="rounded-full border border-zinc-200 px-2 py-0.5">
                   {TIER_REV_LABELS[row.tier] ?? row.tier}: {moneyFmt(row.sum, displayCurrency)} (
                   {fmt(row.count)})
                 </span>
@@ -382,7 +382,7 @@ export function DashboardPulse() {
           title={`Выручка ЮКасса за ${periodLabel}`}
           hint="После комиссии ЮКасса 2.5% и конвертации (Т-Банк или ЦБ)"
         >
-          <p className="mb-2 text-sm text-zinc-200">
+          <p className="mb-2 text-sm text-zinc-800">
             Всего:{" "}
             <span className="font-semibold">{moneyFmt(yukassaTotal, displayCurrency)}</span>
             <span className="ml-2 text-xs text-zinc-500">
@@ -406,7 +406,7 @@ export function DashboardPulse() {
           {(data.revenue_by_tier_yookassa?.length ?? 0) > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-400">
               {data.revenue_by_tier_yookassa!.map((row) => (
-                <span key={row.tier} className="rounded-full border border-white/10 px-2 py-0.5">
+                <span key={row.tier} className="rounded-full border border-zinc-200 px-2 py-0.5">
                   {TIER_REV_LABELS[row.tier] ?? row.tier}: {moneyFmt(row.sum, displayCurrency)} (
                   {fmt(row.count)})
                 </span>
@@ -436,7 +436,7 @@ export function DashboardPulse() {
             <Stat label={`Токены за ${periodLabel}`} value={fmt(data.load.llm_period.prompt_tokens)} />
           </dl>
           {tokenSeries.length > 0 ? (
-            <div className="mt-3 border-t border-white/5 pt-3">
+            <div className="mt-3 border-t border-zinc-100 pt-3">
               <p className="mb-2 text-xs text-zinc-500">
                 Токены по {effectiveGrain === "week" ? "неделям" : "дням"}
               </p>
@@ -452,12 +452,12 @@ export function DashboardPulse() {
           ) : (
             <p className="mt-3 text-xs text-zinc-500">Серия токенов появится после диалогов.</p>
           )}
-          <div className="mt-3 border-t border-white/5 pt-3">
+          <div className="mt-3 border-t border-zinc-100 pt-3">
             <p className="mb-2 text-xs text-zinc-500">Топ-3 по токенам за 24ч</p>
             {topTokenUsers.length === 0 ? (
               <p className="text-xs text-zinc-500">Пока нет данных.</p>
             ) : (
-              <ul className="flex flex-col gap-1.5 text-xs text-zinc-300">
+              <ul className="flex flex-col gap-1.5 text-xs text-zinc-700">
                 {topTokenUsers.map((u, index) => (
                   <li key={u.user_id} className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
@@ -466,7 +466,7 @@ export function DashboardPulse() {
                           index === 0
                             ? "bg-amber-400/20 text-amber-200"
                             : index === 1
-                              ? "bg-zinc-300/15 text-zinc-200"
+                              ? "bg-zinc-300/15 text-zinc-800"
                               : "bg-orange-500/15 text-orange-200"
                         }`}
                       >
@@ -474,7 +474,7 @@ export function DashboardPulse() {
                       </span>
                       <Link
                         href={`/admin/users/${u.user_id}`}
-                        className="truncate text-emerald-300 hover:underline"
+                        className="truncate text-emerald-700 hover:underline"
                       >
                         {u.display_name?.trim() || u.user_id.slice(0, 8)}
                       </Link>
@@ -506,11 +506,11 @@ export function DashboardPulse() {
           )}
           <div className="mt-3 text-[11px] text-zinc-500">
             Подробнее:{" "}
-            <Link href="/admin/users/stats" className="text-emerald-300 hover:underline">
+            <Link href="/admin/users/stats" className="text-emerald-700 hover:underline">
               статистика пользователей
             </Link>
             {" · "}
-            <Link href="/admin/payments/stats" className="text-emerald-300 hover:underline">
+            <Link href="/admin/payments/stats" className="text-emerald-700 hover:underline">
               статистика выручки
             </Link>
           </div>
@@ -527,9 +527,9 @@ export function DashboardPulse() {
 
 function Kpi({ title, value, hint }: { title: string; value: string; hint: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
       <p className="text-xs text-zinc-500">{title}</p>
-      <p className="mt-1 text-xl font-bold text-zinc-100">{value}</p>
+      <p className="mt-1 text-xl font-bold text-zinc-900">{value}</p>
       <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{hint}</p>
     </div>
   );
@@ -547,9 +547,9 @@ function ChartCard({
   hint?: string;
 }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+    <section className="rounded-2xl border border-zinc-200 bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-zinc-100">{title}</h2>
+        <h2 className="text-sm font-bold text-zinc-900">{title}</h2>
         {badge}
       </div>
       {hint ? <p className="mb-2 text-[11px] text-zinc-500">{hint}</p> : null}
@@ -573,7 +573,7 @@ function FunnelCard({ title, months }: { title: string; months: number[] }) {
             <div key={idx} className="flex flex-col items-center gap-1">
               <div className="flex w-full items-center justify-between text-[11px] text-zinc-400">
                 <span>{idx + 1}-й месяц</span>
-                <span className="text-zinc-300">
+                <span className="text-zinc-700">
                   {fmt(count)}
                   {m1 > 0 ? <span className="text-zinc-500"> · {pctOfM1}%</span> : null}
                 </span>
@@ -610,13 +610,13 @@ function BarList({
             <div className="w-[4.5rem] shrink-0 truncate text-xs text-zinc-400" title={item.label}>
               {item.label}
             </div>
-            <div className="h-2 min-w-0 flex-1 rounded-full bg-white/5">
+            <div className="h-2 min-w-0 flex-1 rounded-full bg-zinc-100">
               <div
                 className="h-2 rounded-full bg-emerald-400/80"
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="shrink-0 whitespace-nowrap text-right text-xs text-zinc-300">
+            <div className="shrink-0 whitespace-nowrap text-right text-xs text-zinc-700">
               {item.valueLabel ?? item.value}
             </div>
           </div>
@@ -668,7 +668,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-[11px] text-zinc-500">{label}</dt>
-      <dd className="font-semibold text-zinc-200">{value}</dd>
+      <dd className="font-semibold text-zinc-800">{value}</dd>
     </div>
   );
 }

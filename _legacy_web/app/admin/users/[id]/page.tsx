@@ -105,9 +105,9 @@ export default function AdminUserCardPage() {
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-      <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-bold text-zinc-100">{user.display_name?.trim() || "Без имени"}</h1>
+          <h1 className="text-lg font-bold text-zinc-900">{user.display_name?.trim() || "Без имени"}</h1>
           <TierBadge tier={user.membership_tier} />
         </div>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
@@ -124,7 +124,7 @@ export default function AdminUserCardPage() {
           <InfoRow label="ID" value={user.id} mono />
         </dl>
 
-        <div className="mt-4 border-t border-white/5 pt-4">
+        <div className="mt-4 border-t border-zinc-100 pt-4">
           <button
             type="button"
             disabled={deleting}
@@ -146,7 +146,7 @@ export default function AdminUserCardPage() {
 
 function BackLink() {
   return (
-    <Link href="/admin/users" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200">
+    <Link href="/admin/users" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-800">
       <ArrowLeft size={15} /> Все пользователи
     </Link>
   );
@@ -156,7 +156,7 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
   return (
     <div className="flex justify-between gap-3 sm:block">
       <dt className="text-zinc-500">{label}</dt>
-      <dd className={`text-zinc-200 ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</dd>
+      <dd className={`text-zinc-800 ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</dd>
     </div>
   );
 }

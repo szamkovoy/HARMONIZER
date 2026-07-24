@@ -156,7 +156,7 @@ function createCoverUploadCache() {
 }
 
 const inputCls =
-  "w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50";
+  "w-full min-w-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500";
 
 export function WebinarEditor({
   webinar,
@@ -439,12 +439,12 @@ export function WebinarEditor({
   ) {
     return (
       <div className="mb-4">
-        <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-black/30 p-1">
+        <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-white p-1">
           <button
             type="button"
             onClick={() => setActive("ru")}
             className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              active === "ru" ? "bg-emerald-500 text-emerald-950" : "text-zinc-400 hover:text-zinc-200"
+              active === "ru" ? "bg-emerald-500 text-white" : "text-zinc-400 hover:text-zinc-800"
             }`}
           >
             RU
@@ -460,7 +460,7 @@ export function WebinarEditor({
                 type="button"
                 onClick={() => setActive(locale)}
                 className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  active === locale ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                  active === locale ? "bg-white/10 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
                 }`}
                 title={LOCALE_FULL_NAMES[locale]}
               >
@@ -476,7 +476,7 @@ export function WebinarEditor({
               type="button"
               onClick={onTranslate}
               disabled={translating || busy}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-60"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-60"
               title="Перевести пустые языки и скопировать обложку источника (RU → EN → …)"
             >
               {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
@@ -498,15 +498,15 @@ export function WebinarEditor({
     return (
       <div className="mb-4 w-full min-w-0">
         <div
-          className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-black/30 ${
-            src ? "border border-white/10" : "border border-dashed border-white/15"
+          className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-white ${
+            src ? "border border-zinc-200" : "border border-dashed border-zinc-300"
           }`}
         >
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={src} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
           ) : (
-            <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40 hover:text-zinc-300">
+            <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40 hover:text-zinc-700">
               <ImagePlus size={22} strokeWidth={1.6} />
               Добавить обложку
               <input
@@ -538,14 +538,14 @@ export function WebinarEditor({
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl overflow-x-hidden">
-      <h1 className="mb-4 text-xl font-bold text-zinc-100">{webinar ? "Вебинар" : "Новый вебинар"}</h1>
+      <h1 className="mb-4 text-xl font-bold text-zinc-900">{webinar ? "Вебинар" : "Новый вебинар"}</h1>
 
       <div className="mb-4 flex gap-2">
         <button
           type="button"
           onClick={() => setTab("announce")}
           className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-            tab === "announce" ? "bg-emerald-500 text-emerald-950" : "bg-white/5 text-zinc-300"
+            tab === "announce" ? "bg-emerald-500 text-white" : "bg-zinc-100 text-zinc-700"
           }`}
         >
           Анонс
@@ -555,7 +555,7 @@ export function WebinarEditor({
             type="button"
             onClick={() => setTab("recording")}
             className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-              tab === "recording" ? "bg-emerald-500 text-emerald-950" : "bg-white/5 text-zinc-300"
+              tab === "recording" ? "bg-emerald-500 text-white" : "bg-zinc-100 text-zinc-700"
             }`}
           >
             Запись
@@ -570,7 +570,7 @@ export function WebinarEditor({
       {tab === "announce" ? (
         <form
           onSubmit={saveAnnounce}
-          className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4"
+          className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-zinc-200 bg-white p-4"
         >
           {renderLocaleBar(
             activeLocale,
@@ -646,7 +646,7 @@ export function WebinarEditor({
             </label>
           </div>
 
-          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
+          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-700">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -674,7 +674,7 @@ export function WebinarEditor({
             <button
               type="submit"
               disabled={busy}
-              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
             >
               {busy ? "Сохраняю…" : webinar ? "Сохранить" : "Создать"}
             </button>
@@ -693,7 +693,7 @@ export function WebinarEditor({
       ) : (
         <form
           onSubmit={saveRecording}
-          className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4"
+          className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-zinc-200 bg-white p-4"
         >
           {renderLocaleBar(
             recActiveLocale,
@@ -747,7 +747,7 @@ export function WebinarEditor({
             />
           )}
 
-          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
+          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-700">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -775,7 +775,7 @@ export function WebinarEditor({
             <button
               type="submit"
               disabled={busy}
-              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
             >
               {busy ? "Сохраняю…" : savedRecording ? "Сохранить" : "Создать запись"}
             </button>
@@ -827,15 +827,15 @@ function LocaleFields({
     <>
       <div className="mb-4 w-full min-w-0">
         <div
-          className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-black/30 ${
-            src ? "border border-white/10" : "border border-dashed border-white/15"
+          className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-white ${
+            src ? "border border-zinc-200" : "border border-dashed border-zinc-300"
           }`}
         >
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={src} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
           ) : (
-            <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-300">
+            <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-700">
               <ImagePlus size={22} strokeWidth={1.6} />
               Добавить обложку
               <input
@@ -916,7 +916,7 @@ function QuestionsModeration({ initial, title }: { initial: AdminWebinarQuestion
 
   return (
     <div className="mt-6">
-      <h2 className="mb-3 text-base font-semibold text-zinc-100">
+      <h2 className="mb-3 text-base font-semibold text-zinc-900">
         {title} ({questions.length})
       </h2>
       {questions.length === 0 ? <p className="text-sm text-zinc-500">Вопросов пока нет.</p> : null}
@@ -924,19 +924,19 @@ function QuestionsModeration({ initial, title }: { initial: AdminWebinarQuestion
         {questions.map((question) => (
           <div
             key={question.id}
-            className={`flex items-start gap-3 rounded-xl border border-white/10 p-3 ${
-              question.is_hidden ? "bg-black/20 opacity-60" : "bg-[rgba(30,32,38,0.92)]"
+            className={`flex items-start gap-3 rounded-xl border border-zinc-200 p-3 ${
+              question.is_hidden ? "bg-zinc-50 opacity-60" : "bg-white"
             }`}
           >
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-emerald-300">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
               <ThumbsUp size={12} /> {question.vote_count}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="font-semibold text-zinc-300">{question.display_name}</span>
+                <span className="font-semibold text-zinc-700">{question.display_name}</span>
                 <span>{formatAdminDateTime(question.created_at)}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{question.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{question.body}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {busyId === question.id ? <Loader2 size={16} className="animate-spin text-zinc-500" /> : null}
@@ -944,7 +944,7 @@ function QuestionsModeration({ initial, title }: { initial: AdminWebinarQuestion
                 type="button"
                 onClick={() => toggleHidden(question)}
                 disabled={busyId === question.id}
-                className="rounded-lg p-2 text-zinc-400 hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50"
               >
                 {question.is_hidden ? <Eye size={16} /> : <EyeOff size={16} />}
               </button>
@@ -996,22 +996,22 @@ function CommentsModeration({ initial, title }: { initial: AdminWebinarComment[]
 
   return (
     <div className="mt-6">
-      <h2 className="mb-3 text-base font-semibold text-zinc-100">{title}</h2>
+      <h2 className="mb-3 text-base font-semibold text-zinc-900">{title}</h2>
       {comments.length === 0 ? <p className="text-sm text-zinc-500">Комментариев пока нет.</p> : null}
       <div className="flex flex-col gap-2">
         {comments.map((comment) => (
           <div
             key={comment.id}
-            className={`flex items-start gap-3 rounded-xl border border-white/10 p-3 ${
-              comment.is_hidden ? "bg-black/20 opacity-60" : "bg-[rgba(30,32,38,0.92)]"
+            className={`flex items-start gap-3 rounded-xl border border-zinc-200 p-3 ${
+              comment.is_hidden ? "bg-zinc-50 opacity-60" : "bg-white"
             }`}
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="font-semibold text-zinc-300">{comment.display_name}</span>
+                <span className="font-semibold text-zinc-700">{comment.display_name}</span>
                 <span>{formatAdminDateTime(comment.created_at)}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{comment.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{comment.body}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {busyId === comment.id ? <Loader2 size={16} className="animate-spin text-zinc-500" /> : null}
@@ -1019,7 +1019,7 @@ function CommentsModeration({ initial, title }: { initial: AdminWebinarComment[]
                 type="button"
                 onClick={() => toggleHidden(comment)}
                 disabled={busyId === comment.id}
-                className="rounded-lg p-2 text-zinc-400 hover:bg-white/5 disabled:opacity-50"
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 disabled:opacity-50"
               >
                 {comment.is_hidden ? <Eye size={16} /> : <EyeOff size={16} />}
               </button>
@@ -1053,7 +1053,7 @@ function RegistrationsList({
       <button
         type="button"
         onClick={onToggle}
-        className="mb-3 flex items-center gap-2 text-base font-semibold text-zinc-100 hover:text-emerald-300"
+        className="mb-3 flex items-center gap-2 text-base font-semibold text-zinc-900 hover:text-emerald-700"
       >
         <Users size={18} /> Записавшиеся ({registrations.length})
         {registrations.length > 0 ? <span className="text-xs font-normal text-zinc-500">{open ? "скрыть" : "показать"}</span> : null}
@@ -1066,11 +1066,11 @@ function RegistrationsList({
             <Link
               key={reg.user_id}
               href={`/admin/users/${reg.user_id}`}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] px-3 py-2 text-sm transition-colors hover:border-emerald-400/30"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm transition-colors hover:border-emerald-400/30"
             >
-              <span className="font-medium text-zinc-200">{reg.display_name}</span>
+              <span className="font-medium text-zinc-800">{reg.display_name}</span>
               <span className="text-zinc-500">{reg.email}</span>
-              <span className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
+              <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-400">
                 {TIER_LABELS_RU[reg.membership_tier as keyof typeof TIER_LABELS_RU] ?? reg.membership_tier}
               </span>
             </Link>

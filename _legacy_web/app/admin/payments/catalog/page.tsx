@@ -104,11 +104,11 @@ export default function AdminPaymentCatalogPage() {
     <div className="mx-auto max-w-3xl">
       <Link
         href="/admin/payments"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-800"
       >
         <ArrowLeft size={15} /> Платежи
       </Link>
-      <h1 className="text-xl font-bold text-zinc-100">Каталог ЮКасса</h1>
+      <h1 className="text-xl font-bold text-zinc-900">Каталог ЮКасса</h1>
       <p className="mb-5 text-sm text-zinc-500">
         Название и описание уходят в платёж ЮKassa (до 128 символов). Тип продукта и валюта
         зафиксированы; стоимость можно менять — она сразу попадёт в кабинет и checkout.
@@ -127,13 +127,13 @@ export default function AdminPaymentCatalogPage() {
           return (
             <section
               key={item.id}
-              className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4"
+              className="rounded-xl border border-zinc-200 bg-white p-4"
             >
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-300">
+                <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-zinc-700">
                   {PROVIDER_LABELS[item.provider] ?? item.provider}
                 </span>
-                <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-300">
+                <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-zinc-700">
                   {TIER_LABELS[item.tier] ?? item.tier}
                 </span>
                 <span>{KIND_LABELS[item.product_kind] ?? item.product_kind}</span>
@@ -153,7 +153,7 @@ export default function AdminPaymentCatalogPage() {
                       value={draftTitle}
                       onChange={(e) => setDraftTitle(e.target.value)}
                       maxLength={128}
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100"
+                      className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
                     />
                   </label>
                   <label className="block text-xs text-zinc-500">
@@ -163,7 +163,7 @@ export default function AdminPaymentCatalogPage() {
                       onChange={(e) => setDraftDescription(e.target.value)}
                       maxLength={128}
                       rows={3}
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100"
+                      className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
                     />
                     <span className="mt-0.5 block text-[11px] text-zinc-600">
                       {draftDescription.length}/128
@@ -175,7 +175,7 @@ export default function AdminPaymentCatalogPage() {
                       value={draftAmount}
                       onChange={(e) => setDraftAmount(e.target.value)}
                       inputMode="decimal"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100"
+                      className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
                     />
                   </label>
                   {saveError ? <p className="text-sm text-red-400">{saveError}</p> : null}
@@ -184,7 +184,7 @@ export default function AdminPaymentCatalogPage() {
                       type="button"
                       disabled={saving}
                       onClick={() => void saveEdit(item.id)}
-                      className="rounded-xl bg-emerald-500/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-50"
+                      className="rounded-xl bg-emerald-500/20 px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-500/30 disabled:opacity-50"
                     >
                       {saving ? "Сохраняю…" : "Сохранить"}
                     </button>
@@ -192,7 +192,7 @@ export default function AdminPaymentCatalogPage() {
                       type="button"
                       disabled={saving}
                       onClick={cancelEdit}
-                      className="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-400 hover:bg-white/5"
+                      className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-100"
                     >
                       Отмена
                     </button>
@@ -200,14 +200,14 @@ export default function AdminPaymentCatalogPage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-base font-semibold text-zinc-100">{item.title}</h2>
+                  <h2 className="text-base font-semibold text-zinc-900">{item.title}</h2>
                   <p className="mt-1 text-sm text-zinc-400">
                     {item.description?.trim() || "— без описания —"}
                   </p>
                   <button
                     type="button"
                     onClick={() => startEdit(item)}
-                    className="mt-3 text-sm text-emerald-300 hover:underline"
+                    className="mt-3 text-sm text-emerald-700 hover:underline"
                   >
                     Редактировать
                   </button>

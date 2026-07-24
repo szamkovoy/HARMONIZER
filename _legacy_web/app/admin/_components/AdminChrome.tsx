@@ -10,6 +10,7 @@ import {
   Gauge,
   LifeBuoy,
   LogOut,
+  Mail,
   MessagesSquare,
   Newspaper,
   SlidersHorizontal,
@@ -26,13 +27,13 @@ const NAV_ITEMS = [
   { href: "/admin/posts", label: "Видео", icon: Newspaper },
   { href: "/admin/webinars", label: "Вебинары", icon: Video },
   { href: "/admin/notifications", label: "Уведомления", icon: BellRing },
+  { href: "/admin/email", label: "Рассылки", icon: Mail },
   { href: "/admin/feedback", label: "Поддержка", icon: LifeBuoy },
   { href: "/admin/users", label: "Пользователи", icon: CircleUserRound },
   { href: "/admin/payments", label: "Платежи", icon: CreditCard },
   { href: "/admin/prompts", label: "Промпты", icon: SlidersHorizontal },
 ] as const;
 
-/** На мобильном в нижней панели помещается 5 пунктов; остальные — в «Ещё» не делаем, просто скроллим. */
 type AuthPhase = "checking" | "admin" | "anonymous";
 
 export function AdminChrome({ children }: { children: ReactNode }) {
@@ -58,8 +59,6 @@ export function AdminChrome({ children }: { children: ReactNode }) {
       setSupportBadge(me.unprocessedSupportCount ?? 0);
       setPhase("admin");
     } catch (err) {
-      // Только явный отказ в доступе — иначе сетевой сбой / terminated при DELETE
-      // разлогинивал админа и обрывал сам запрос удаления.
       const status = err instanceof AdminApiError ? err.status : 0;
       if (status === 401 || status === 403) {
         await supabase.auth.signOut();
@@ -79,7 +78,6 @@ export function AdminChrome({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [verifyAdmin]);
 
-  // Refresh badge when leaving/entering support inbox.
   useEffect(() => {
     if (phase !== "admin") return;
     void adminFetch<{ unprocessedSupportCount?: number }>("/api/admin/me")
@@ -101,7 +99,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
 
   if (phase !== "admin") {
     return (
-      <div className="flex min-h-dvh items-center justify-center text-sm text-zinc-400">
+      <div className="flex min-h-dvh items-center justify-center text-sm text-zinc-500">
         Проверяю доступ…
       </div>
     );
@@ -109,9 +107,8 @@ export function AdminChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full min-w-0 max-w-6xl overflow-x-clip">
-      {/* Сайдбар — desktop */}
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-white/10 p-4 md:flex">
-        <div className="mb-6 px-2 text-lg font-bold tracking-wide text-emerald-300">
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-zinc-200 bg-white p-4 md:flex">
+        <div className="mb-6 px-2 text-lg font-bold tracking-wide text-emerald-700">
           Гармонизатор
           <span className="block text-xs font-normal text-zinc-500">панель управления</span>
         </div>
@@ -125,14 +122,14 @@ export function AdminChrome({ children }: { children: ReactNode }) {
                 href={href}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
                   active
-                    ? "bg-emerald-400/10 font-semibold text-emerald-300"
-                    : "text-zinc-300 hover:bg-white/5"
+                    ? "bg-emerald-50 font-semibold text-emerald-800"
+                    : "text-zinc-600 hover:bg-zinc-100"
                 }`}
               >
                 <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
                 <span className="flex-1">{label}</span>
                 {badge > 0 ? (
-                  <span className="rounded-full bg-emerald-400/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 ) : null}
@@ -143,19 +140,17 @@ export function AdminChrome({ children }: { children: ReactNode }) {
         <button
           type="button"
           onClick={signOut}
-          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
         >
           <LogOut size={18} strokeWidth={1.8} />
           Выйти
         </button>
       </aside>
 
-      {/* Контент */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Шапка — mobile */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#07080c]/90 px-4 py-3 backdrop-blur md:hidden">
-          <span className="text-base font-bold text-emerald-300">Гармонизатор · Админ</span>
-          <button type="button" onClick={signOut} aria-label="Выйти" className="p-1 text-zinc-400">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+          <span className="text-base font-bold text-emerald-700">Гармонизатор · Админ</span>
+          <button type="button" onClick={signOut} aria-label="Выйти" className="p-1 text-zinc-500">
             <LogOut size={20} strokeWidth={1.8} />
           </button>
         </header>
@@ -164,8 +159,7 @@ export function AdminChrome({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        {/* Нижняя навигация — mobile (горизонтальный скролл, все разделы) */}
-        <nav className="fixed inset-x-0 bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-white/10 bg-[#0b0d12]/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-zinc-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur md:hidden">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
             const badge = href === "/admin/feedback" && supportBadge > 0 ? supportBadge : 0;
@@ -174,13 +168,13 @@ export function AdminChrome({ children }: { children: ReactNode }) {
                 key={href}
                 href={href}
                 className={`relative flex min-w-[64px] flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] ${
-                  active ? "text-emerald-300" : "text-zinc-400"
+                  active ? "text-emerald-700" : "text-zinc-500"
                 }`}
               >
                 <span className="relative">
                   <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />
                   {badge > 0 ? (
-                    <span className="absolute -right-2 -top-1 rounded-full bg-emerald-400 px-1 text-[8px] font-bold leading-3 text-emerald-950">
+                    <span className="absolute -right-2 -top-1 rounded-full bg-emerald-500 px-1 text-[8px] font-bold leading-3 text-white">
                       {badge > 99 ? "99+" : badge}
                     </span>
                   ) : null}
@@ -195,13 +189,12 @@ export function AdminChrome({ children }: { children: ReactNode }) {
   );
 }
 
-/** Заглушка раздела до его этапа реализации. */
 export function AdminSectionPlaceholder({ title, stage }: { title: string; stage: string }) {
   const Icon = MessagesSquare;
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] px-6 py-16 text-center">
-      <Icon size={28} className="text-zinc-500" strokeWidth={1.5} />
-      <h1 className="text-lg font-semibold text-zinc-200">{title}</h1>
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-center">
+      <Icon size={28} className="text-zinc-400" strokeWidth={1.5} />
+      <h1 className="text-lg font-semibold text-zinc-800">{title}</h1>
       <p className="max-w-sm text-sm text-zinc-500">
         Раздел появится на этапе «{stage}» — по плану внедрения админ-панели.
       </p>

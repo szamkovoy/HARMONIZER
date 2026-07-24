@@ -23,13 +23,13 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "HRM Админ",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#07080c",
+  themeColor: "#f4f4f5",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh min-w-0 overflow-x-clip bg-[#07080c] text-zinc-100 [scrollbar-gutter:stable]">
+    <div className="min-h-dvh min-w-0 overflow-x-clip bg-zinc-50 text-zinc-900 [scrollbar-gutter:stable]">
       <AdminChrome>{children}</AdminChrome>
     </div>
   );

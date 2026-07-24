@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-25 (admin light + Рассылки):** Светлая тема всей админки; пункт меню «Рассылки»; UX preview/editor. См. `marketing_email/history`.
+
+- **2026-07-24 (marketing_email phase A):** Пункт меню «Письма»; консоль модуля `marketing_email` (кампании Resend ru). См. `marketing_email/history`.
+
 - **2026-07-24 (notifications exact locale):** Рассылка — только exact copy на `users.locale` (очищенная вкладка = пропуск получателя); UI сбрасывает «Отправлено…» при правке черновика. Детали — `notifications/history`.
 
 - **2026-07-24 (support upload InvalidSignature):** Native PUT падал `400 InvalidSignature` — в URL не было имени bucket (`…/sign/{path}` вместо `…/sign/support-attachments/{path}`), затем тихий fallback в base64 (~минуты). Фикс: URL как у supabase-js + API отдаёт `signedUrl`; fallback `fetch(uri).arrayBuffer()` вместо base64.

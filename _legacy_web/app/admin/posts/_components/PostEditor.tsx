@@ -430,16 +430,16 @@ export function PostEditor({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-4 text-xl font-bold text-zinc-100">{post ? "Видео" : "Новое видео"}</h1>
+      <h1 className="mb-4 text-xl font-bold text-zinc-900">{post ? "Видео" : "Новое видео"}</h1>
 
-      <form onSubmit={handleSubmit} className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+      <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-200 bg-white p-4">
         <div className="mb-4">
-          <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-black/30 p-1">
+          <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-white p-1">
             <button
               type="button"
               onClick={() => setActiveTab("ru")}
               className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeTab === "ru" ? "bg-emerald-500 text-emerald-950" : "text-zinc-400 hover:text-zinc-200"
+                activeTab === "ru" ? "bg-emerald-500 text-white" : "text-zinc-400 hover:text-zinc-800"
               }`}
             >
               RU
@@ -455,7 +455,7 @@ export function PostEditor({
                   type="button"
                   onClick={() => setActiveTab(locale)}
                   className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeTab === locale ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                    activeTab === locale ? "bg-white/10 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
                   }`}
                   title={LOCALE_FULL_NAMES[locale]}
                 >
@@ -472,7 +472,7 @@ export function PostEditor({
                 type="button"
                 onClick={() => void runTranslate()}
                 disabled={translating}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-60"
                 title="Перевести пустые языки и скопировать обложку источника (RU → EN → …)"
               >
                 {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
@@ -491,13 +491,13 @@ export function PostEditor({
                 <img
                   src={ruCoverShown}
                   alt="Обложка"
-                  className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
+                  className="mb-1.5 h-40 w-full rounded-xl border border-zinc-200 bg-white object-contain"
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => fileInput.current?.click()}
-                  className="mb-1.5 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40"
+                  className="mb-1.5 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-300 bg-white text-xs text-zinc-500 transition-colors hover:border-emerald-400/40"
                 >
                   <ImagePlus size={22} strokeWidth={1.6} />
                   Добавить обложку
@@ -526,7 +526,7 @@ export function PostEditor({
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
               />
             </label>
 
@@ -538,7 +538,7 @@ export function PostEditor({
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 rows={10}
-                className="w-full resize-y rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+                className="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
               />
             </label>
           </>
@@ -559,7 +559,7 @@ export function PostEditor({
           ) : null,
         )}
 
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-700">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -587,7 +587,7 @@ export function PostEditor({
           <button
             type="submit"
             disabled={busy !== null}
-            className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+            className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
           >
             {busy ?? (isEditing ? "Сохранить" : "Опубликовать")}
           </button>
@@ -640,13 +640,13 @@ function LocaleTabFields({
           <img
             src={coverShown}
             alt="Обложка"
-            className="mb-1.5 h-40 w-full rounded-xl border border-white/10 bg-black/30 object-contain"
+            className="mb-1.5 h-40 w-full rounded-xl border border-zinc-200 bg-white object-contain"
           />
         ) : (
           <button
             type="button"
             onClick={() => localFileInput.current?.click()}
-            className="mb-1.5 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-black/30 text-xs text-zinc-500 transition-colors hover:border-emerald-400/40"
+            className="mb-1.5 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-300 bg-white text-xs text-zinc-500 transition-colors hover:border-emerald-400/40"
           >
             <ImagePlus size={22} strokeWidth={1.6} />
             Добавить обложку
@@ -678,7 +678,7 @@ function LocaleTabFields({
         <input
           value={data.title}
           onChange={(e) => onChange({ title: e.target.value })}
-          className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
         />
       </label>
 
@@ -688,7 +688,7 @@ function LocaleTabFields({
           value={data.body}
           onChange={(e) => onChange({ body: e.target.value })}
           rows={10}
-          className="w-full resize-y rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+          className="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
         />
       </label>
     </>
@@ -729,30 +729,30 @@ function CommentsModeration({ initial }: { initial: AdminComment[] }) {
 
   return (
     <div className="mt-6">
-      <h2 className="mb-3 text-base font-semibold text-zinc-100">Комментарии ({comments.length})</h2>
+      <h2 className="mb-3 text-base font-semibold text-zinc-900">Комментарии ({comments.length})</h2>
       {comments.length === 0 ? <p className="text-sm text-zinc-500">Комментариев пока нет.</p> : null}
       <div className="flex flex-col gap-2">
         {comments.map((comment) => (
           <div
             key={comment.id}
-            className={`flex items-start gap-3 rounded-xl border border-white/10 p-3 ${
-              comment.is_hidden ? "bg-black/20 opacity-60" : "bg-[rgba(30,32,38,0.92)]"
+            className={`flex items-start gap-3 rounded-xl border border-zinc-200 p-3 ${
+              comment.is_hidden ? "bg-zinc-50 opacity-60" : "bg-white"
             }`}
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
                 <Link
                   href={`/admin/users/${comment.user_id}`}
-                  className="font-semibold text-emerald-300 hover:underline"
+                  className="font-semibold text-emerald-700 hover:underline"
                 >
                   {comment.display_name}
                 </Link>
                 <span>{formatAdminDateTime(comment.created_at)}</span>
                 {comment.is_hidden ? (
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">Скрыт</span>
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-400">Скрыт</span>
                 ) : null}
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{comment.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{comment.body}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {busyId === comment.id ? <Loader2 size={16} className="animate-spin text-zinc-500" /> : null}
@@ -761,7 +761,7 @@ function CommentsModeration({ initial }: { initial: AdminComment[] }) {
                 onClick={() => void toggleHidden(comment)}
                 disabled={busyId === comment.id}
                 title={comment.is_hidden ? "Показать" : "Скрыть"}
-                className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+                className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50"
               >
                 {comment.is_hidden ? <Eye size={16} strokeWidth={1.8} /> : <EyeOff size={16} strokeWidth={1.8} />}
               </button>

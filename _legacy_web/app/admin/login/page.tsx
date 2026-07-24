@@ -45,13 +45,13 @@ export default function AdminLoginPage() {
     <div className="flex min-h-dvh items-center justify-center px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-6"
+        className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6"
       >
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
             <LockKeyhole size={22} strokeWidth={1.8} />
           </span>
-          <h1 className="text-lg font-bold text-zinc-100">Админ-панель Harmonizer</h1>
+          <h1 className="text-lg font-bold text-zinc-900">Админ-панель Harmonizer</h1>
           <p className="text-xs text-zinc-500">Вход только для администратора</p>
         </div>
 
@@ -63,7 +63,7 @@ export default function AdminLoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
           />
         </label>
         <label className="mb-4 block">
@@ -74,7 +74,7 @@ export default function AdminLoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
           />
         </label>
 
@@ -83,7 +83,7 @@ export default function AdminLoginPage() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+          className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
         >
           {busy ? "Входим…" : "Войти"}
         </button>

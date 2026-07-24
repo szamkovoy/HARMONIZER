@@ -180,7 +180,7 @@ export default function AdminPromptKeyPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <BackLink />
       <div>
-        <h1 className="font-mono text-lg font-bold text-zinc-100">{params.key}</h1>
+        <h1 className="font-mono text-lg font-bold text-zinc-900">{params.key}</h1>
         <p className="text-xs text-zinc-500">
           {selected.prompt_type}
           {selected.use_case ? ` · ${selected.use_case}` : ""} · модель: {selected.model_hint ?? "по умолчанию"} · t=
@@ -189,8 +189,8 @@ export default function AdminPromptKeyPage() {
         </p>
       </div>
 
-      <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3">
-        <h2 className="mb-2 text-sm font-bold text-zinc-100">Версии</h2>
+      <section className="rounded-xl border border-zinc-200 bg-white p-3">
+        <h2 className="mb-2 text-sm font-bold text-zinc-900">Версии</h2>
         <div className="flex flex-wrap gap-1.5">
           {versions.map((version) => (
             <button
@@ -199,8 +199,8 @@ export default function AdminPromptKeyPage() {
               onClick={() => selectVersion(version)}
               className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                 version.id === selected.id
-                  ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-200"
-                  : "border-white/10 bg-black/20 text-zinc-400 hover:border-white/25"
+                  ? "border-emerald-400/50 bg-emerald-50 text-emerald-800"
+                  : "border-zinc-200 bg-zinc-50 text-zinc-400 hover:border-zinc-300"
               }`}
               title={`${formatAdminDateTime(version.created_at)}${version.notes ? ` — ${version.notes}` : ""}`}
             >
@@ -219,7 +219,7 @@ export default function AdminPromptKeyPage() {
             <button
               type="button"
               onClick={() => void activateVersion(selected)}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/25"
             >
               <CheckCircle2 size={13} /> Сделать активной
             </button>
@@ -227,28 +227,28 @@ export default function AdminPromptKeyPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3">
-        <h2 className="mb-2 text-sm font-bold text-zinc-100">Шаблон</h2>
+      <section className="rounded-xl border border-zinc-200 bg-white p-3">
+        <h2 className="mb-2 text-sm font-bold text-zinc-900">Шаблон</h2>
         <textarea
           value={template}
           onChange={(e) => setTemplate(e.target.value)}
           rows={16}
           spellCheck={false}
-          className="w-full rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs leading-relaxed text-zinc-100 focus:border-white/25 focus:outline-none"
+          className="w-full rounded-xl border border-zinc-200 bg-white p-3 font-mono text-xs leading-relaxed text-zinc-900 focus:border-emerald-500 focus:outline-none"
         />
         <div className="mt-2 flex flex-col gap-2">
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Заметка к новой версии (что изменили и зачем)"
-            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
           />
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => void saveNewVersion()}
               disabled={saving || !templateChanged}
-              className="rounded-xl bg-emerald-500/90 px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 disabled:opacity-50"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-400 disabled:opacity-50"
             >
               {saving ? "Сохраняю…" : `Сохранить как v${(versions[0]?.version ?? 0) + 1}`}
             </button>
@@ -262,8 +262,8 @@ export default function AdminPromptKeyPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3">
-        <h2 className="mb-1 text-sm font-bold text-zinc-100">Playground</h2>
+      <section className="rounded-xl border border-zinc-200 bg-white p-3">
+        <h2 className="mb-1 text-sm font-bold text-zinc-900">Playground</h2>
         <p className="mb-2 text-xs text-zinc-500">
           Текущий шаблон из редактора выше прогоняется через боевой Gemini-пайплайн с этими переменными. В БД ничего не
           пишется.
@@ -273,7 +273,7 @@ export default function AdminPromptKeyPage() {
           onChange={(e) => setVarsJson(e.target.value)}
           rows={8}
           spellCheck={false}
-          className="w-full rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs leading-relaxed text-zinc-100 focus:border-white/25 focus:outline-none"
+          className="w-full rounded-xl border border-zinc-200 bg-white p-3 font-mono text-xs leading-relaxed text-zinc-900 focus:border-emerald-500 focus:outline-none"
         />
         <div className="mt-2 flex items-center gap-3">
           <button
@@ -293,7 +293,7 @@ export default function AdminPromptKeyPage() {
           ) : null}
         </div>
         {testResult ? (
-          <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/30 p-3 text-xs leading-relaxed text-zinc-200">
+          <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-100 bg-white p-3 text-xs leading-relaxed text-zinc-800">
             {testResult.output}
           </pre>
         ) : null}
@@ -304,7 +304,7 @@ export default function AdminPromptKeyPage() {
 
 function BackLink() {
   return (
-    <Link href="/admin/prompts" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200">
+    <Link href="/admin/prompts" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-800">
       <ArrowLeft size={15} /> Все промпты
     </Link>
   );

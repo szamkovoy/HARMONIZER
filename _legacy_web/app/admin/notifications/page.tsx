@@ -75,7 +75,7 @@ const TIER_OPTIONS = PRODUCT_TIERS.map((tier) => ({
 }));
 
 const inputCls =
-  "w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50";
+  "w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500";
 
 export default function AdminNotificationsPage() {
   const [history, setHistory] = useState<NotificationRow[] | null>(null);
@@ -304,21 +304,21 @@ export default function AdminNotificationsPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-bold text-zinc-100">Уведомления</h1>
+      <h1 className="text-xl font-bold text-zinc-900">Уведомления</h1>
       <p className="mb-5 text-sm text-zinc-500">
         Push + копия в «Мои уведомления». Текст строго на языке профиля (`users.locale`):
         без перевода на вкладке языка получатель пропускается (нет fallback EN→RU). Зелёная
         точка = есть заголовок на этом языке.
       </p>
 
-      <form onSubmit={handleSend} className="mb-6 rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+      <form onSubmit={handleSend} className="mb-6 rounded-2xl border border-zinc-200 bg-white p-4">
         <div className="mb-4">
-          <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-black/30 p-1">
+          <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-white p-1">
             <button
               type="button"
               onClick={() => setActiveTab("ru")}
               className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeTab === "ru" ? "bg-emerald-500 text-emerald-950" : "text-zinc-400 hover:text-zinc-200"
+                activeTab === "ru" ? "bg-emerald-500 text-white" : "text-zinc-400 hover:text-zinc-800"
               }`}
             >
               RU
@@ -334,7 +334,7 @@ export default function AdminNotificationsPage() {
                   type="button"
                   onClick={() => setActiveTab(locale)}
                   className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeTab === locale ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                    activeTab === locale ? "bg-white/10 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
                   }`}
                   title={LOCALE_FULL_NAMES[locale]}
                 >
@@ -350,7 +350,7 @@ export default function AdminNotificationsPage() {
                 type="button"
                 onClick={() => void runTranslate()}
                 disabled={translating || sending}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-60"
                 title="Перевести пустые языки (RU → EN → …)"
               >
                 {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
@@ -464,7 +464,7 @@ export default function AdminNotificationsPage() {
 
         {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
         {sentInfo ? (
-          <p className="mb-3 flex items-center gap-1.5 text-sm text-emerald-300">
+          <p className="mb-3 flex items-center gap-1.5 text-sm text-emerald-700">
             <CheckCircle2 size={15} /> {sentInfo}
           </p>
         ) : null}
@@ -472,14 +472,14 @@ export default function AdminNotificationsPage() {
         <button
           type="submit"
           disabled={sending}
-          className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
         >
           {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={2} />}
           {sending ? "Отправляю…" : "Отправить"}
         </button>
       </form>
 
-      <h2 className="mb-3 text-base font-semibold text-zinc-100">История</h2>
+      <h2 className="mb-3 text-base font-semibold text-zinc-900">История</h2>
       {history === null ? (
         <p className="flex items-center gap-2 text-sm text-zinc-500">
           <Loader2 size={16} className="animate-spin" /> Загружаю…
@@ -489,16 +489,16 @@ export default function AdminNotificationsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {history.map((item) => (
-            <div key={item.id} className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3">
-              <p className="font-semibold text-zinc-100">{item.title}</p>
+            <div key={item.id} className="rounded-xl border border-zinc-200 bg-white p-3">
+              <p className="font-semibold text-zinc-900">{item.title}</p>
               {item.body ? <p className="mt-0.5 whitespace-pre-wrap text-sm text-zinc-400">{item.body}</p> : null}
               {item.link_url ? (
-                <a href={item.link_url} target="_blank" rel="noreferrer" className="text-xs text-emerald-300 underline">
+                <a href={item.link_url} target="_blank" rel="noreferrer" className="text-xs text-emerald-700 underline">
                   {item.link_url}
                 </a>
               ) : null}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="rounded-full bg-white/5 px-2 py-0.5">{item.segment_label}</span>
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5">{item.segment_label}</span>
                 <span>{formatAdminDateTime(item.created_at)}</span>
                 <span>
                   получателей {item.recipient_count} · push {item.push_sent_count}

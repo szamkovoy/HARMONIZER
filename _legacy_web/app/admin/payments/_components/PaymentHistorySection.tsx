@@ -113,9 +113,9 @@ export function PaymentHistorySection({
   }
 
   return (
-    <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+    <section className="rounded-xl border border-zinc-200 bg-white p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-zinc-100">{title}</h2>
+        <h2 className="text-sm font-bold text-zinc-900">{title}</h2>
         {ownerUserId ? (
           <button
             type="button"
@@ -123,7 +123,7 @@ export function PaymentHistorySection({
               setError(null);
               setCreateOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/90 px-3 py-2 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-400"
           >
             <Plus size={14} />
             Добавить платёж
@@ -137,22 +137,22 @@ export function PaymentHistorySection({
           const editable = isEditable(payment);
           const name = payment.display_name ?? "Без имени";
           return (
-            <div key={payment.id} className="rounded-lg border border-white/5 bg-black/20 p-2.5 text-sm">
+            <div key={payment.id} className="rounded-lg border border-zinc-100 bg-zinc-50 p-2.5 text-sm">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 {includeUserLink ? (
                   payment.user_id ? (
                     <Link
                       href={`/admin/users/${payment.user_id}`}
-                      className="font-semibold text-zinc-100 underline-offset-2 hover:text-emerald-300 hover:underline"
+                      className="font-semibold text-zinc-900 underline-offset-2 hover:text-emerald-700 hover:underline"
                     >
                       {name}
                     </Link>
                   ) : (
-                    <span className="font-semibold text-zinc-100">{name}</span>
+                    <span className="font-semibold text-zinc-900">{name}</span>
                   )
                 ) : null}
                 <TierBadge tier={payment.tier} />
-                <span className="font-semibold text-zinc-200">
+                <span className="font-semibold text-zinc-800">
                   {payment.amount > 0
                     ? `${payment.amount} ${payment.currency}`
                     : `0 ${payment.currency}`}
@@ -180,7 +180,7 @@ export function PaymentHistorySection({
                       setError(null);
                       setEditing(payment);
                     }}
-                    className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                    className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-800"
                   >
                     <Pencil size={12} />
                     Редактировать

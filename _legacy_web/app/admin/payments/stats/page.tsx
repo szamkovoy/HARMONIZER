@@ -101,14 +101,14 @@ export default function AdminPaymentStatsPage() {
     <div className="mx-auto max-w-4xl">
       <Link
         href="/admin/payments"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-800"
       >
         <ArrowLeft size={15} /> К списку платежей
       </Link>
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Статистика выручки</h1>
+          <h1 className="text-xl font-bold text-zinc-900">Статистика выручки</h1>
           <p className="text-sm text-zinc-500">
             Net после комиссии шлюза и конвертации. Lava.top + ЮКасса.
           </p>
@@ -126,8 +126,8 @@ export default function AdminPaymentStatsPage() {
               onClick={() => setDays(value)}
               className={`rounded-xl px-3 py-2 text-sm ${
                 days === value
-                  ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                  : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                  ? "bg-emerald-600 font-semibold text-white"
+                  : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
               }`}
             >
               {value} дн.
@@ -138,8 +138,8 @@ export default function AdminPaymentStatsPage() {
             onClick={() => setGrain("day")}
             className={`rounded-xl px-3 py-2 text-sm ${
               grain === "day"
-                ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                ? "bg-emerald-600 font-semibold text-white"
+                : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
             }`}
           >
             Дни
@@ -149,8 +149,8 @@ export default function AdminPaymentStatsPage() {
             onClick={() => setGrain("week")}
             className={`rounded-xl px-3 py-2 text-sm ${
               grain === "week"
-                ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                ? "bg-emerald-600 font-semibold text-white"
+                : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
             }`}
           >
             Недели
@@ -163,8 +163,8 @@ export default function AdminPaymentStatsPage() {
               onClick={() => setCurrency(code)}
               className={`rounded-xl px-3 py-2 text-sm ${
                 currency === code
-                  ? "bg-emerald-500/90 font-semibold text-emerald-950"
-                  : "border border-white/10 text-zinc-300 hover:bg-white/5"
+                  ? "bg-emerald-600 font-semibold text-white"
+                  : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
               }`}
             >
               {label}
@@ -182,8 +182,8 @@ export default function AdminPaymentStatsPage() {
 
       {stats ? (
         <div className="flex flex-col gap-4">
-          <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-            <h2 className="mb-1 text-sm font-bold text-zinc-100">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <h2 className="mb-1 text-sm font-bold text-zinc-900">
               По тарифам / продуктам за {periodLabel}
             </h2>
             <p className="mb-3 text-[11px] text-zinc-500">Lava.top + ЮКасса</p>
@@ -202,9 +202,9 @@ export default function AdminPaymentStatsPage() {
                 }`}
               >
                 {activeTiers.map((tier) => (
-                  <div key={tier} className="rounded-lg border border-white/5 bg-black/20 p-3">
+                  <div key={tier} className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
                     <div className="text-xs text-zinc-500">{TIER_LABELS[tier]}</div>
-                    <div className="text-lg font-bold text-zinc-100">
+                    <div className="text-lg font-bold text-zinc-900">
                       {moneyFmt(stats.by_tier[tier]?.sum ?? 0, displayCurrency)}
                     </div>
                     <div className="text-[11px] text-zinc-500">
@@ -235,12 +235,12 @@ export default function AdminPaymentStatsPage() {
             />
           </div>
 
-          <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-            <h2 className="mb-1 text-sm font-bold text-zinc-100">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <h2 className="mb-1 text-sm font-bold text-zinc-900">
               Общая динамика выручки за {periodLabel}
             </h2>
             <p className="mb-2 text-[11px] text-zinc-500">Lava.top + ЮКасса</p>
-            <p className="mb-3 text-sm text-zinc-200">
+            <p className="mb-3 text-sm text-zinc-800">
               Всего:{" "}
               <span className="font-semibold">{moneyFmt(stats.total.sum, displayCurrency)}</span>
               <span className="ml-2 text-xs text-zinc-500">
@@ -264,8 +264,8 @@ export default function AdminPaymentStatsPage() {
             )}
           </section>
 
-          <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-            <h2 className="mb-1 text-sm font-bold text-zinc-100">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <h2 className="mb-1 text-sm font-bold text-zinc-900">
               Выручка по странам за {periodLabel}
             </h2>
             <p className="mb-3 text-[11px] text-zinc-500">Lava.top + ЮКасса</p>
@@ -317,13 +317,13 @@ function BarRow({
       >
         {label}
       </div>
-      <div className="h-2 min-w-0 flex-1 rounded-full bg-white/5">
+      <div className="h-2 min-w-0 flex-1 rounded-full bg-zinc-100">
         <div
           className="h-2 rounded-full bg-emerald-400/80"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="shrink-0 whitespace-nowrap text-right text-xs text-zinc-300">
+      <div className="shrink-0 whitespace-nowrap text-right text-xs text-zinc-700">
         {valueLabel}
       </div>
       {count != null ? (
@@ -356,10 +356,10 @@ function ProviderCard({
   const tierEntries = Object.entries(stats.by_tier).filter(([, v]) => v.count > 0 || v.sum > 0);
 
   return (
-    <section className="rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
-      <h2 className="mb-1 text-sm font-bold text-zinc-100">{title}</h2>
+    <section className="rounded-xl border border-zinc-200 bg-white p-4">
+      <h2 className="mb-1 text-sm font-bold text-zinc-900">{title}</h2>
       <p className="mb-3 text-[11px] text-zinc-500">{hint}</p>
-      <p className="mb-2 text-sm text-zinc-200">
+      <p className="mb-2 text-sm text-zinc-800">
         Всего: <span className="font-semibold">{moneyFmt(stats.sum, currency)}</span>
         <span className="ml-2 text-xs text-zinc-500">· {stats.count} платеж(ей)</span>
       </p>
@@ -380,7 +380,7 @@ function ProviderCard({
           {tierEntries.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-400">
               {tierEntries.map(([tier, row]) => (
-                <span key={tier} className="rounded-full border border-white/10 px-2 py-0.5">
+                <span key={tier} className="rounded-full border border-zinc-200 px-2 py-0.5">
                   {TIER_LABELS[tier] ?? tier}: {moneyFmt(row.sum, currency)} ({row.count})
                 </span>
               ))}

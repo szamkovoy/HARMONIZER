@@ -148,7 +148,7 @@ export default function AdminFeedbackPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Поддержка</h1>
+          <h1 className="text-xl font-bold text-zinc-900">Поддержка</h1>
           <p className="text-sm text-zinc-500">
             Сообщения из формы «Написать в поддержку» в Профиле.
             {unprocessed > 0 ? ` Необработанных: ${unprocessed}.` : ""}
@@ -159,7 +159,7 @@ export default function AdminFeedbackPage() {
             <button
               type="button"
               onClick={toggleSelectAll}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:text-zinc-200"
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:text-zinc-800"
             >
               {allSelected ? "Снять выбор" : "Выбрать все"}
             </button>
@@ -188,8 +188,8 @@ export default function AdminFeedbackPage() {
         {messages?.map((message) => (
           <div
             key={message.id}
-            className={`flex items-start gap-3 rounded-xl border border-white/10 p-3 ${
-              message.processed_at ? "bg-black/20 opacity-70" : "bg-[rgba(30,32,38,0.92)]"
+            className={`flex items-start gap-3 rounded-xl border border-zinc-200 p-3 ${
+              message.processed_at ? "bg-zinc-50 opacity-70" : "bg-white"
             }`}
           >
             <input
@@ -204,7 +204,7 @@ export default function AdminFeedbackPage() {
               onClick={() => void toggleProcessed(message)}
               disabled={busyId === message.id}
               title={message.processed_at ? "Снять отметку" : "Отметить обработанным"}
-              className="mt-0.5 shrink-0 text-zinc-400 transition-colors hover:text-emerald-300 disabled:opacity-50"
+              className="mt-0.5 shrink-0 text-zinc-400 transition-colors hover:text-emerald-700 disabled:opacity-50"
             >
               {busyId === message.id ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -216,14 +216,14 @@ export default function AdminFeedbackPage() {
             </button>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-500">
-                <span className="font-semibold text-zinc-300">{message.display_name}</span>
+                <span className="font-semibold text-zinc-700">{message.display_name}</span>
                 <span>{message.email}</span>
-                <span className="rounded-full bg-white/5 px-2 py-0.5">
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5">
                   {TIER_LABELS_RU[message.membership_tier as keyof typeof TIER_LABELS_RU] ?? message.membership_tier}
                 </span>
                 <span>{formatAdminDateTime(message.created_at)}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{message.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{message.body}</p>
               {message.attachments?.length ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {message.attachments.map((att, index) => (
@@ -233,7 +233,7 @@ export default function AdminFeedbackPage() {
                       disabled={downloadingId === att.id}
                       onClick={() => void downloadAttachment(att, index)}
                       title={`Скачать скриншот ${index + 1}`}
-                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-100 px-2.5 py-1.5 text-xs text-zinc-700 transition-colors hover:border-emerald-400/40 hover:text-emerald-800 disabled:opacity-40"
                     >
                       {downloadingId === att.id ? (
                         <Loader2 size={14} className="animate-spin" />

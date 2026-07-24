@@ -28,7 +28,7 @@ export default function AdminPromptsPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-bold text-zinc-100">Промпты</h1>
+      <h1 className="text-xl font-bold text-zinc-900">Промпты</h1>
       <p className="mb-5 text-sm text-zinc-500">
         Версии системных промптов. Активная версия используется боевым кодом; новая версия создаётся поверх, старые
         остаются в истории.
@@ -46,13 +46,13 @@ export default function AdminPromptsPage() {
           <Link
             key={prompt.prompt_key}
             href={`/admin/prompts/${prompt.prompt_key}`}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3 transition-colors hover:border-white/25"
+            className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 transition-colors hover:border-zinc-300"
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-mono text-sm font-semibold text-zinc-100">{prompt.prompt_key}</span>
+                <span className="truncate font-mono text-sm font-semibold text-zinc-900">{prompt.prompt_key}</span>
                 {prompt.active_version !== null ? (
-                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                     v{prompt.active_version} активна
                   </span>
                 ) : (

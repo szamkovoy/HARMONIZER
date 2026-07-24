@@ -29,7 +29,7 @@ export default function AdminPaymentsPage() {
     <div className="mx-auto max-w-4xl">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Платежи</h1>
+          <h1 className="text-xl font-bold text-zinc-900">Платежи</h1>
           <p className="text-sm text-zinc-500">
             Lava.top / ЮКасса и ручные гранты. Суммы — как платил пользователь (без вычета комиссии).
           </p>
@@ -37,14 +37,14 @@ export default function AdminPaymentsPage() {
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           <Link
             href="/admin/payments/catalog"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
           >
             <Package size={16} />
             Каталог ЮКасса
           </Link>
           <Link
             href="/admin/payments/stats"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
           >
             <BarChart3 size={16} />
             Статистика выручки

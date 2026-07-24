@@ -1,3 +1,7 @@
+- 2026-07-25 (280): Marketing email — inline preview (page flow), fix last_seen/email segment filters, B1 welcome runner + cron. Migration `20260725020000`.
+- 2026-07-25 (279): Fix email contact sync (pgcrypto); auto-sync on segment refresh; full-height preview; drop list Sync button. Migration `20260725010000`.
+- 2026-07-25 (278): Рассылки UX — light admin theme, block editor, campaign `name`/`blocks_i18n`, segment chips + refresh count. Migration `20260724210000`.
+- 2026-07-24 (277): Marketing email module phase A — contacts, campaigns, Resend zamkovoi.ru, webhooks, admin `/admin/email`. Docs `marketing_email/*`, migration `20260724200000`.
 - 2026-07-24 (276): Unified notification inbox (admin/opportunity/webinar_start) + auto webinar-start push at `starts_at` (Edge minutely, `users.locale`). Migration `20260724193000`.
 - 2026-07-24 (275): Notification deliveries retention — weekly pg_cron prune rows older than 30d (`cleanup_stale_notification_deliveries`, low-priority batches). Migrations `20260724190000`/`190500`.
 - 2026-07-24 (274): Admin notifications — exact `users.locale` only (no EN→RU); skip recipients without that tab; clear stale «Отправлено» on draft edit; client locale hydrate/push sync so shade language matches inbox.

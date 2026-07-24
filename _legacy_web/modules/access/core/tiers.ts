@@ -28,7 +28,7 @@ export const TIER_LABELS: Record<ProductTier, string> = {
 
 /** Русские названия уровней для админ-панели (единственный RU-канон имён). */
 export const TIER_LABELS_RU: Record<ProductTier, string> = {
-  free: "Навигатор (бесплатный)",
+  free: "Навигатор",
   oracle: "Наставник",
   practitioner: "Наставник (legacy)",
   master: "Мастер",

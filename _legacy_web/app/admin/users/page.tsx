@@ -48,12 +48,12 @@ export default function AdminUsersPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Пользователи</h1>
+          <h1 className="text-xl font-bold text-zinc-900">Пользователи</h1>
           <p className="text-sm text-zinc-500">Поиск по имени или email, фильтр по тарифу. Показываются до 100 записей.</p>
         </div>
         <Link
           href="/admin/users/stats"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/5"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
         >
           <BarChart3 size={16} />
           Статистика
@@ -67,13 +67,13 @@ export default function AdminUsersPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Имя или email…"
-            className="w-full rounded-xl border border-white/10 bg-black/30 py-2 pl-9 pr-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+            className="w-full rounded-xl border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
           />
         </label>
         <select
           value={tier}
           onChange={(e) => setTier(e.target.value)}
-          className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 focus:border-white/25 focus:outline-none"
+          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none"
         >
           <option value="">Все тарифы</option>
           {Object.entries(TIER_LABELS).map(([value, label]) => (
@@ -97,11 +97,11 @@ export default function AdminUsersPage() {
           <Link
             key={user.id}
             href={`/admin/users/${user.id}`}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3 transition-colors hover:border-white/25"
+            className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 transition-colors hover:border-zinc-300"
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate text-sm font-semibold text-zinc-100">
+                <span className="truncate text-sm font-semibold text-zinc-900">
                   {user.display_name?.trim() || "Без имени"}
                 </span>
                 <TierBadge tier={user.membership_tier} />

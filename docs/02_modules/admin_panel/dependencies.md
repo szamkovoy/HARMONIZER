@@ -23,7 +23,7 @@ code_refs:
 - **`infra`** — Supabase (`user_roles`, `is_admin`, service role), Vercel-деплой `_legacy_web`, Tailwind v4, PWA-манифест. Хелперы `createServiceSupabase` / `requireUserId` / `requireAdmin` в `app/api/_utils/supabase.ts`. Пульс читает `user_event_log` (`dialog_turn`, `llm_*`, `api_error`, `app_open`, `llm_prompt_size`) и колонки `users.last_seen_at` / `country_code` / `city`.
 - **`subscription`** — модель тарифов: канон имён/порядка/фич в `modules/access/core/{tiers,features}.ts` (`TIER_LABELS_RU`, `PAID_PRODUCT_TIERS`, `TIER_ORDER`); runtime-доступ по полям `users` — `paidAccess.ts`. Сегмент **trial** на дашборде — `trial_expires_at > now()` (даже при `membership_tier=free`). Ручной грант пишет `payments`; **net**-выручка — `payment_settlements` (пишет account_web на вебхуке Lava). Hourly reconcile — Edge/SQL в infra.
 - **`account_web`** — `payment_settlements` + FX; админка только читает nets. Контракты Lava.top/ЮКасса → списки и воронки; `payment_catalog` редактируется из админки (цены/тексты для ЮKassa checkout).
-- **`author_presence`** (сторис/публикации/комментарии), **`webinars`**, **`notifications`** — admin_panel их управляющая консоль; продуктовые контракты в спеках этих модулей.
+- **`author_presence`** (сторис/публикации/комментарии), **`webinars`**, **`notifications`**, **`marketing_email`** — admin_panel их управляющая консоль; продуктовые контракты в спеках этих модулей.
 - **`assistant`** — таблица `prompts`; playground Gemini; dialog-путь пишет `dialog_turn` / `llm_prompt_size` через `logDialogTurn` / `logLlmPromptSize` (`monitoring.ts`) — сырьё LLM-блока пульса.
 - **`profile`** — карточка «Поддержка» → `SupportModal`; geo/last_seen пишутся в `users` с клиента (`acquireAndPersistUserCoordinates`, `logAppOpen`).
 

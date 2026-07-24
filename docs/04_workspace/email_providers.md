@@ -24,7 +24,7 @@ Operational map for transactional OTP and the future marketing branch.
 | Channel | Purpose | From | Resend API key env | Code entry |
 | --- | --- | --- | --- | --- |
 | `auth_otp` | Sign-in OTP via Supabase Send Email Hook | `sergei@zamkovoi.yoga` (`MAIL_FROM_EMAIL`) | **`RESEND_ZAMKOVOI_YOGA_API_KEY`** | `sendMail("auth_otp", …)` in `send-auth-email` |
-| `marketing` | Future admin broadcasts | `sergei@zamkovoi.ru` (`MAIL_MARKETING_FROM_EMAIL`) | **`RESEND_ZAMKOVOI_RU_API_KEY`** | same `sendMail("marketing", …)` helper — **not wired yet** |
+| `marketing` | Admin broadcasts (`marketing_email`) | `sergei@zamkovoi.ru` (`MAIL_MARKETING_FROM_EMAIL`) | **`RESEND_ZAMKOVOI_RU_API_KEY`** | Vercel `_legacy_web/app/api/_utils/marketingMail.ts` (never Auth OTP hook) |
 
 Do **not** reuse the yoga key for marketing or the ru key for OTP.
 Reputation (spam / bulk) on `zamkovoi.ru` must never affect OTP deliverability on `zamkovoi.yoga`.
@@ -121,7 +121,21 @@ Keep until you decide to drop Amazon entirely:
 | `SEND_EMAIL_HOOK_SECRET` | Supabase Auth → edge hook HMAC |
 | `MAIL_FROM_EMAIL` | OTP From address (default `sergei@zamkovoi.yoga`) |
 | `MAIL_FROM_NAME` | Optional From display-name override |
-| `MAIL_MARKETING_FROM_EMAIL` | Future marketing From (default `sergei@zamkovoi.ru`) |
+| `MAIL_MARKETING_FROM_EMAIL` | Marketing From (default `sergei@zamkovoi.ru`) |
+| `RESEND_ZAMKOVOI_RU_API_KEY` | Marketing Resend key — **Vercel** production (not OTP edge) |
+| `RESEND_MARKETING_WEBHOOK_SECRET` | Verify `POST /api/webhooks/resend-marketing` — Resend Svix `whsec_…` **or** `Authorization: Bearer <secret>` (plain hex OK for phase A) |
+| `EMAIL_UNSUBSCRIBE_SECRET` | HMAC for `/unsubscribe/email?t=` tokens |
+
+## 5b. Marketing DNS — `zamkovoi.ru` (ops checklist)
+
+1. Add domain in Resend dashboard (same account or separate — key must be RU key only).
+2. Publish DKIM / SPF / MX for Resend on `zamkovoi.ru` (mirror yoga pattern; values from Resend UI).
+3. Configure **custom tracking subdomain** (open/click) on `zamkovoi.ru` — avoid shared Resend tracking host.
+4. Point webhook to `https://harmonizer-ten.vercel.app/api/webhooks/resend-marketing`.  
+   **Events to enable:** `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.opened`, `email.clicked`, `email.bounced`, `email.complained`.  
+   **Skip:** `email.received`, `email.scheduled`, `email.suppressed`, `email.failed`, `suppression.*` (not used by our handler).  
+   Put the Resend signing secret (`whsec_…`) into Vercel `RESEND_MARKETING_WEBHOOK_SECRET` (Svix headers).
+5. Never put `RESEND_ZAMKOVOI_RU_API_KEY` into OTP-only secrets unless intentionally shared read — prefer Vercel-only for send path.
 
 ## 6. History note (2026-07-17 trap)
 

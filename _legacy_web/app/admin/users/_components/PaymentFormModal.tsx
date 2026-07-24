@@ -47,11 +47,11 @@ export function PaymentFormModal({
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#12141a] p-4 shadow-xl"
+        className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl"
       >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-zinc-100">{title}</h3>
-          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-zinc-300" aria-label="Закрыть">
+          <h3 className="text-sm font-bold text-zinc-900">{title}</h3>
+          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-zinc-700" aria-label="Закрыть">
             <X size={18} />
           </button>
         </div>
@@ -65,7 +65,7 @@ export function PaymentFormModal({
           <select
             value={form.tier}
             onChange={(e) => setForm((f) => ({ ...f, tier: e.target.value }))}
-            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 focus:border-white/25 focus:outline-none"
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none"
           >
             {Object.entries(TIER_LABELS)
               .filter(([value]) => allowFree || value !== "free")
@@ -83,7 +83,7 @@ export function PaymentFormModal({
                 type="date"
                 value={form.expiresAt}
                 onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 focus:border-white/25 focus:outline-none"
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none"
               />
               <div className="flex gap-2">
                 <input
@@ -91,7 +91,7 @@ export function PaymentFormModal({
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                   placeholder="Сумма"
                   inputMode="decimal"
-                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+                  className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
                 />
                 <select
                   value={form.currency}
@@ -101,7 +101,7 @@ export function PaymentFormModal({
                       currency: e.target.value as PaymentFormValues["currency"],
                     }))
                   }
-                  className="w-[96px] shrink-0 rounded-xl border border-white/10 bg-black/30 px-2 py-2 text-sm text-zinc-100 focus:border-white/25 focus:outline-none"
+                  className="w-[96px] shrink-0 rounded-xl border border-zinc-200 bg-white px-2 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none"
                   aria-label="Валюта"
                 >
                   {CURRENCY_OPTIONS.map((code) => (
@@ -115,7 +115,7 @@ export function PaymentFormModal({
                 value={form.comment}
                 onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
                 placeholder="Комментарий"
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-white/25 focus:outline-none"
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
               />
             </>
           ) : null}
@@ -127,7 +127,7 @@ export function PaymentFormModal({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+              className="flex-1 rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
             >
               Отмена
             </button>
@@ -135,7 +135,7 @@ export function PaymentFormModal({
               type="button"
               disabled={saving}
               onClick={() => void onSubmit(form, isPaid ? expiryIsoFromDateInput(form.expiresAt) : null)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500/90 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : null}
               {saving ? "Сохраняю…" : "Сохранить"}

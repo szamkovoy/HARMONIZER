@@ -7,11 +7,11 @@ export const TIER_LABELS: Record<string, string> = {
 };
 
 const TIER_BADGE: Record<string, string> = {
-  free: "bg-white/5 text-zinc-400",
+  free: "bg-zinc-100 text-zinc-400",
   oracle: "bg-sky-500/15 text-sky-300",
   practitioner: "bg-violet-500/15 text-violet-300",
   master: "bg-amber-500/15 text-amber-300",
-  webinar: "bg-emerald-500/15 text-emerald-300",
+  webinar: "bg-emerald-500/15 text-emerald-700",
   book: "bg-fuchsia-500/15 text-fuchsia-300",
 };
 

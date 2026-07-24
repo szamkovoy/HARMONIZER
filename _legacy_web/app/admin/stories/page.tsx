@@ -50,13 +50,13 @@ const LOCALE_LABELS: Record<TargetLocale, string> = {
 type StoryTranslations = Record<TargetLocale, string>;
 
 function storyStatus(s: StoryRow): { label: string; cls: string } {
-  if (!s.is_published) return { label: "Черновик", cls: "bg-white/5 text-zinc-400" };
+  if (!s.is_published) return { label: "Черновик", cls: "bg-zinc-100 text-zinc-400" };
   const now = Date.now();
   if (s.publish_at && new Date(s.publish_at).getTime() > now)
     return { label: `Запланирована · ${formatAdminDateTime(s.publish_at)}`, cls: "bg-sky-400/10 text-sky-300" };
   if (!s.is_evergreen && s.expires_at && new Date(s.expires_at).getTime() <= now)
-    return { label: "Истекла", cls: "bg-white/5 text-zinc-500" };
-  return { label: "Активна", cls: "bg-emerald-400/10 text-emerald-300" };
+    return { label: "Истекла", cls: "bg-zinc-100 text-zinc-500" };
+  return { label: "Активна", cls: "bg-emerald-50 text-emerald-700" };
 }
 
 // ─── Translation accordion ────────────────────────────────────────────────────
@@ -71,11 +71,11 @@ function TranslationAccordion({ translations, onChange }: TranslationAccordionPr
   const hasTranslations = TARGET_LOCALES.some((l) => translations[l]);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20">
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200"
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-800"
       >
         <span className="flex-1 text-left">
           Переводы подписи
@@ -89,7 +89,7 @@ function TranslationAccordion({ translations, onChange }: TranslationAccordionPr
       </button>
 
       {expanded ? (
-        <div className="flex flex-col gap-2 border-t border-white/5 px-3 pb-3 pt-2">
+        <div className="flex flex-col gap-2 border-t border-zinc-100 px-3 pb-3 pt-2">
           {TARGET_LOCALES.map((locale) => (
             <label key={locale} className="block">
               <span className="mb-1 block text-[11px] text-zinc-500">{LOCALE_LABELS[locale]}</span>
@@ -99,7 +99,7 @@ function TranslationAccordion({ translations, onChange }: TranslationAccordionPr
                   onChange({ ...translations, [locale]: e.target.value })
                 }
                 rows={2}
-                className="w-full resize-none rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-zinc-100 outline-none focus:border-emerald-400/50"
+                className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 outline-none focus:border-emerald-500"
               />
             </label>
           ))}
@@ -219,12 +219,12 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-200 bg-white p-4">
       <div className="flex flex-col gap-4 sm:flex-row">
         <button
           type="button"
           onClick={() => fileInput.current?.click()}
-          className="flex h-40 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 transition-colors hover:border-emerald-400/40 sm:w-28"
+          className="flex h-40 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-zinc-300 bg-white text-zinc-500 transition-colors hover:border-emerald-400/40 sm:w-28"
         >
           {previewUrl ? (
             isVideo ? (
@@ -256,11 +256,11 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+              className="w-full resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
             />
           </label>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-300">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-700">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={publishNow} onChange={(e) => setPublishNow(e.target.checked)} className="accent-emerald-500" />
               Опубликовать сразу
@@ -271,7 +271,7 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
                 required
                 value={publishAt}
                 onChange={(e) => setPublishAt(e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-sm text-zinc-100 outline-none [color-scheme:dark] focus:border-emerald-400/50"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-900 outline-none [color-scheme:dark] focus:border-emerald-500"
               />
             ) : null}
             <label className="flex items-center gap-2" title="Не скрывать через 24 часа">
@@ -318,7 +318,7 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
           <button
             type="submit"
             disabled={busy !== null}
-            className="mt-auto self-start rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+            className="mt-auto self-start rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
           >
             {busy ?? "Опубликовать сторис"}
           </button>
@@ -431,10 +431,10 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-[rgba(24,26,32,0.98)] p-5 shadow-2xl">
+      <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-zinc-200 bg-[rgba(24,26,32,0.98)] p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-zinc-100">Редактирование сторис</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/5 hover:text-zinc-200">
+          <h2 className="text-base font-semibold text-zinc-900">Редактирование сторис</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800">
             <X size={18} />
           </button>
         </div>
@@ -445,7 +445,7 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
-              className="relative flex h-36 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/30 text-zinc-500 hover:border-emerald-400/40"
+              className="relative flex h-36 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-zinc-300 bg-white text-zinc-500 hover:border-emerald-400/40"
               title="Нажмите, чтобы заменить медиафайл"
             >
               {currentPreview ? (
@@ -458,7 +458,7 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
                 )
               ) : null}
               <span className="absolute bottom-1 right-1 rounded-md bg-black/60 p-0.5">
-                <Pencil size={11} className="text-zinc-300" />
+                <Pencil size={11} className="text-zinc-700" />
               </span>
             </button>
             <input
@@ -484,7 +484,7 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-400/50"
+              className="w-full resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500"
             />
           </label>
 
@@ -494,7 +494,7 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
               type="button"
               onClick={runTranslate}
               disabled={translating}
-              className="flex items-center gap-1.5 rounded-lg border border-emerald-400/30 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-400/10 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-400/30 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-50 disabled:opacity-60"
             >
               {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               Перегенерировать переводы
@@ -509,7 +509,7 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
           />
 
           {/* Checkboxes */}
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-zinc-300">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-zinc-700">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="accent-emerald-500" />
               Опубликована
@@ -526,14 +526,14 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
             <button
               type="submit"
               disabled={busy !== null}
-              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition-opacity disabled:opacity-60"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
             >
               {busy ?? "Сохранить"}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-4 py-2 text-sm text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+              className="rounded-xl px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800"
             >
               Отмена
             </button>
@@ -586,8 +586,8 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
 
   return (
     <>
-      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-3">
-        <div className="h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-black/40">
+      <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3">
+        <div className="h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-zinc-200">
           {preview ? (
             story.kind === "video" && !story.cover_url ? (
               // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -617,7 +617,7 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
               </span>
             ) : null}
           </div>
-          <p className="mt-1 truncate text-sm text-zinc-300">
+          <p className="mt-1 truncate text-sm text-zinc-700">
             {story.caption?.text?.trim() || <span className="text-zinc-600">Без подписи</span>}
           </p>
           {actionError ? <p className="mt-1 text-xs text-red-400">{actionError}</p> : null}
@@ -629,7 +629,7 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
             onClick={() => setEditOpen(true)}
             disabled={busy}
             title="Редактировать"
-            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50"
           >
             <Pencil size={18} strokeWidth={1.8} />
           </button>
@@ -638,7 +638,7 @@ function StoryCard({ story, onChanged }: { story: StoryRow; onChanged: () => Pro
             onClick={togglePublished}
             disabled={busy}
             title={story.is_published ? "Снять с публикации" : "Опубликовать"}
-            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50"
           >
             {story.is_published ? <EyeOff size={18} strokeWidth={1.8} /> : <Eye size={18} strokeWidth={1.8} />}
           </button>
@@ -687,7 +687,7 @@ export default function AdminStoriesPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-1 text-xl font-bold text-zinc-100">Сторис</h1>
+      <h1 className="mb-1 text-xl font-bold text-zinc-900">Сторис</h1>
       <p className="mb-5 text-sm text-zinc-500">
         Фото и видео проходят server-side оптимизацию перед публикацией. Пользователи видят их кольцом в левом аватаре на главном экране приложения.
       </p>
