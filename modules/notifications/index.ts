@@ -6,6 +6,7 @@ export {
   type MyNotification,
 } from "@/modules/notifications/core/notificationsClient";
 export {
+  resolveExactNotificationCopy,
   resolveNotificationCopy,
   resolveNotificationLocale,
   type NotificationCopySource,

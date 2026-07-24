@@ -154,25 +154,31 @@ function notify(): void {
 }
 
 let hydrated = false;
+/** Last auth user id seen by hydrate — distinguishes account switch vs stale DB locale. */
+let hydratedUserId: string | null = null;
 
 /**
  * Resolve the active locale from profile / SecureStore / device.
  *
- * Account locale (`users.locale`) wins over a sticky SecureStore value left by
- * a previous account on the same device. On first call without a profile yet,
- * we keep SecureStore/device; when profile arrives (or the account changes),
- * a later call adopts `profileLocale` if it differs.
- *
- * Always mirrors the resolved locale to `users.locale` so server push/inbox
- * match the in-app language even when SecureStore and DB drifted apart.
+ * - First hydrate / account switch: `users.locale` wins over sticky SecureStore
+ *   from a previous login on the same device.
+ * - Same account, profile arrives later with a different locale: keep UI
+ *   (SecureStore may already be newer) and write UI → `users.locale` so remote
+ *   push matches inbox (stale DB was the Android RU-push / EN-inbox race).
  */
-export async function hydrateAppLocale(profileLocale?: string | null): Promise<void> {
+export async function hydrateAppLocale(
+  profileLocale?: string | null,
+  userId?: string | null,
+): Promise<void> {
   const profileCode = isEnabledLocale(profileLocale) ? (profileLocale as AppLocale) : null;
+  const nextUserId = userId ?? null;
+  const accountChanged = nextUserId !== hydratedUserId;
 
-  if (!hydrated) {
+  if (!hydrated || accountChanged) {
     hydrated = true;
+    hydratedUserId = nextUserId;
     const stored = await readPersisted();
-    // Prefer account locale over device-sticky SecureStore from another login.
+    // On account switch / first pass: prefer account locale over device sticky store.
     const next = profileCode ?? stored ?? currentLocale;
     if (next !== currentLocale) {
       currentLocale = next;
@@ -185,9 +191,9 @@ export async function hydrateAppLocale(profileLocale?: string | null): Promise<v
     return;
   }
 
-  // Profile arrived after first hydrate, or user switched accounts.
+  // Same account: do not overwrite UI with a lagging users.locale — re-sync UI → DB.
   if (profileCode && profileCode !== currentLocale) {
-    await setAppLocale(profileCode);
+    void syncUserLocaleToServer(currentLocale).catch(() => undefined);
   }
 }
 

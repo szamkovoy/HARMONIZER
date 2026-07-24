@@ -114,7 +114,12 @@ export default function AdminNotificationsPage() {
       .catch(() => setWebinars([]));
   }, []);
 
+  function clearSentInfo() {
+    if (sentInfo) setSentInfo(null);
+  }
+
   function updateLocaleTab(locale: TargetLocale, patch: Partial<LocaleTab>) {
+    clearSentInfo();
     setLocaleTabs((prev) => ({ ...prev, [locale]: { ...prev[locale], ...patch } }));
   }
 
@@ -153,6 +158,7 @@ export default function AdminNotificationsPage() {
     }
     setTranslating(true);
     setTranslateError(null);
+    clearSentInfo();
     try {
       const { translations } = await adminFetch<{
         translations: Record<string, { title: string; body: string }>;
@@ -189,6 +195,7 @@ export default function AdminNotificationsPage() {
   function clearActiveTranslation() {
     if (activeTab === "ru") {
       if (!window.confirm("Очистить русский заголовок и текст?")) return;
+      clearSentInfo();
       setTitle("");
       setBody("");
       return;
@@ -216,7 +223,10 @@ export default function AdminNotificationsPage() {
         if (localeTabs[locale].title.trim()) title_i18n[locale] = localeTabs[locale].title.trim();
         if (localeTabs[locale].body.trim()) body_i18n[locale] = localeTabs[locale].body;
       }
-      const { notification } = await adminFetch<{ notification: NotificationRow }>("/api/admin/notifications", {
+      const { notification, skipped_no_locale_copy } = await adminFetch<{
+        notification: NotificationRow;
+        skipped_no_locale_copy?: number;
+      }>("/api/admin/notifications", {
         method: "POST",
         body: JSON.stringify({
           title,
@@ -227,8 +237,12 @@ export default function AdminNotificationsPage() {
           segment,
         }),
       });
+      const skipped =
+        typeof skipped_no_locale_copy === "number" && skipped_no_locale_copy > 0
+          ? `, без перевода языка профиля пропущено ${skipped_no_locale_copy}`
+          : "";
       setSentInfo(
-        `Отправлено: получателей ${notification.recipient_count}, push ушло ${notification.push_sent_count}, ошибок ${notification.push_error_count}.`,
+        `Отправлено: получателей ${notification.recipient_count}, push ушло ${notification.push_sent_count}, ошибок ${notification.push_error_count}${skipped}.`,
       );
       setTitle("");
       setBody("");
@@ -281,18 +295,20 @@ export default function AdminNotificationsPage() {
     }
   }
 
-  const ruHasContent = Boolean(title.trim() || body.trim());
+  /** Green dot / eligibility = authored title (matches server exact-copy gate). */
+  const ruHasContent = Boolean(title.trim());
   const activeHasTranslation =
-    activeTab === "ru"
-      ? ruHasContent
-      : Boolean(localeTabs[activeTab].title.trim() || localeTabs[activeTab].body.trim());
+    activeTab === "ru" ? Boolean(title.trim() || body.trim()) : Boolean(
+      localeTabs[activeTab].title.trim() || localeTabs[activeTab].body.trim(),
+    );
 
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-xl font-bold text-zinc-100">Уведомления</h1>
       <p className="mb-5 text-sm text-zinc-500">
-        Push + гарантированная копия в «Мои уведомления». Текст каждому — по языку профиля
-        (`users.locale`, одна точка: resolveNotificationCopy; нет перевода → EN → RU).
+        Push + копия в «Мои уведомления». Текст строго на языке профиля (`users.locale`):
+        без перевода на вкладке языка получатель пропускается (нет fallback EN→RU). Зелёная
+        точка = есть заголовок на этом языке.
       </p>
 
       <form onSubmit={handleSend} className="mb-6 rounded-2xl border border-white/10 bg-[rgba(30,32,38,0.92)] p-4">
@@ -311,7 +327,7 @@ export default function AdminNotificationsPage() {
               ) : null}
             </button>
             {TARGET_LOCALES.map((locale) => {
-              const hasContent = Boolean(localeTabs[locale].title.trim() || localeTabs[locale].body.trim());
+              const hasContent = Boolean(localeTabs[locale].title.trim());
               return (
                 <button
                   key={locale}
@@ -349,11 +365,26 @@ export default function AdminNotificationsPage() {
           <>
             <label className="mb-3 block">
               <span className="mb-1 block text-xs text-zinc-400">Заголовок (Русский)</span>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+              <input
+                value={title}
+                onChange={(e) => {
+                  clearSentInfo();
+                  setTitle(e.target.value);
+                }}
+                className={inputCls}
+              />
             </label>
             <label className="mb-4 block">
               <span className="mb-1 block text-xs text-zinc-400">Текст (Русский)</span>
-              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} className={`${inputCls} resize-y`} />
+              <textarea
+                value={body}
+                onChange={(e) => {
+                  clearSentInfo();
+                  setBody(e.target.value);
+                }}
+                rows={3}
+                className={`${inputCls} resize-y`}
+              />
             </label>
           </>
         ) : (
@@ -386,14 +417,24 @@ export default function AdminNotificationsPage() {
             <input
               type="url"
               value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
+              onChange={(e) => {
+                clearSentInfo();
+                setLinkUrl(e.target.value);
+              }}
               placeholder="https://…"
               className={inputCls}
             />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-zinc-400">Сегмент</span>
-            <select value={segment} onChange={(e) => setSegment(e.target.value)} className={inputCls}>
+            <select
+              value={segment}
+              onChange={(e) => {
+                clearSentInfo();
+                setSegment(e.target.value);
+              }}
+              className={inputCls}
+            >
               <option value="all">Все пользователи</option>
               {TIER_OPTIONS.map((tier) => (
                 <option key={tier.value} value={tier.value}>

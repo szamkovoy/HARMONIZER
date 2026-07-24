@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.4
-updated: 2026-07-22
+version: 1.6
+updated: 2026-07-24
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -31,6 +31,7 @@ code_refs:
     supabase/migrations/20260423080000_init.sql,
     supabase/migrations/20260708150000_notifications.sql,
     supabase/migrations/20260714110000_notifications_i18n_and_feed_locale_fallback.sql,
+    supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql,
   ]
 ---
 
@@ -42,22 +43,24 @@ code_refs:
 
 **Клиент (`modules/notifications`, barrel `index.ts`):**
 
-- **`resolveNotificationCopy` / `resolveNotificationLocale`** — **единая точка** языка уведомлений (клиент: `modules/notifications/core/resolveNotificationCopy.ts`; сервер: `_legacy_web/app/api/_utils/notificationCopy.ts`). Вход: `users.locale` (remote) или UI-локаль (inbox). Цепочка текста: preferred → en → ru.
+- **`resolveExactNotificationCopy` / `resolveNotificationLocale`** — язык **отправки** remote push + deliveries (клиент mirror + сервер `_legacy_web/app/api/_utils/notificationCopy.ts`). Только точный текст для `users.locale` (RU-колонка или `title_i18n[L]`); иначе получатель **пропускается** (нет EN→RU).
+- **`resolveNotificationCopy`** — soft preferred → en → ru для **отображения** уже доставленных строк в inbox.
 - **`PushRegistrationBridge`** — после логина / `AppState=active` вызывает `registerPushToken` **без** системного диалога (только если уже granted); тап по push → **`router.replace("/push-message")`**.
 - **`ensureNotificationPermission(reason)`** — единая политика запроса OS-разрешения (см. §3.1).
-- **`registerPushToken(userId)`** — sync UI → `users.locale`; **`claim_push_token` RPC**; **не** вызывает `requestPermissionsAsync`.
+- **`registerPushToken(userId)`** — **await** sync UI → `users.locale`, затем **`claim_push_token` RPC**; **не** вызывает `requestPermissionsAsync`.
 - **`PushMessageScreen`** / **`MyNotificationsScreen`** / Профиль — без изменений контракта inbox.
 - Точки запроса UI: Главная (`home`), колокольчик окон (`opportunity_bell`), экран вебинара при записи / уже записан (`webinar`).
 
 **Админка (гейт `requireAdmin`):**
 
 - `GET/POST /api/admin/notifications`, `DELETE|POST …/[id]` (удаление; UI шлёт POST `{action:"delete"}`).
-- POST: recipients → row + i18n → deliveries → Expo через `resolveNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel` + Android `channelId: harmonizer_remote`. Expo fetch: `Connection: close`, timeout, полный consume body (защита от `TypeError: terminated` на Vercel). UI при обрыве сети после успеха — показывает «рассылка сохранена» по истории.
+- POST: сегмент → фильтр eligible по exact copy → row + i18n → deliveries только eligible → Expo через `resolveExactNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel` + Android `channelId: harmonizer_remote`. Ответ: `skipped_no_locale_copy`. Если eligible=0 → 400. Expo fetch: `Connection: close`, timeout, полный consume body. UI: статус «Отправлено…» сбрасывается при правке черновика; зелёная точка = есть заголовок на языке.
 
 ## 3. Данные
 
 - **`push_tokens`** + RPC **`claim_push_token`** (`20260714130000`).
-- **`notifications`** / **`notification_deliveries`**.
+- **`notifications`** / **`notification_deliveries`** — delivery только на момент рассылки (не ретроактивно).
+- **Retention deliveries:** `cleanup_stale_notification_deliveries(interval, batch, max_batches)` удаляет строки старше **30 дней** батчами (`FOR UPDATE SKIP LOCKED`, sleep между батчами). Cron weekly `37 4 * * 0` (вс 04:37 UTC) в реестре `ensure_harmonizer_cron_jobs`. Строки `notifications` (история админки) не трогает.
 - Клиентские флаги cooldown (SecureStore / localStorage): `harmonizer.notif.perm.lastSoftAskAt`, `…lastWebinarAskAt`.
 
 ### 3.1 Политика запроса разрешения (алгоритм)
@@ -76,7 +79,7 @@ code_refs:
 
 ## 4. i18n
 
-UI — `notifications.*`. **Язык любого remote push** = только `resolveNotificationCopy(users.locale, …)` (не язык ОС телефона). Локальные окна возможностей — `getAppLocale()` + `getHomeStrings` при schedule (тот же принцип «язык профиля/приложения»). Будущие webinar reminders — тот же helper.
+UI — `notifications.*`. **Язык remote push / delivery** = `resolveExactNotificationCopy(users.locale, …)` (не язык ОС). Нет точного перевода — пользователь не в рассылке. Inbox может soft-resolve для старых строк. Локальные окна возможностей — `getAppLocale()` + `getHomeStrings`.
 
 ## 5. Известные ограничения
 

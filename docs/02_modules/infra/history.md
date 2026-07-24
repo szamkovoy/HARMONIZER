@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.9
-updated: 2026-07-21
+version: 1.10
+updated: 2026-07-24
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
-code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql]
+code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-24 (notification deliveries retention):** Weekly SQL cron `cleanup_stale_notification_deliveries_weekly` (`37 4 * * 0`) в `ensure_harmonizer_cron_jobs` — батчевый prune `notification_deliveries` старше 30 дней (`SKIP LOCKED`, lock/statement timeout). Без Edge/Vault. Миграции `20260724190000`, `20260724190500`.
 
 - **2026-07-23 (auth email providers):** Edge `send-auth-email` — pluggable `resend`/`ses` via `AUTH_EMAIL_PROVIDER`; dual Resend keys (`RESEND_ZAMKOVOI_YOGA_API_KEY` OTP vs `RESEND_ZAMKOVOI_RU_API_KEY` future marketing). SES secrets/DNS documented as tails in `docs/04_workspace/email_providers.md`.
 

@@ -1,6 +1,9 @@
 import { asContentLocale } from "../../_utils/contentLocales";
 import { parseStringRecord } from "../../_utils/contentLocaleFallback";
-import { resolveNotificationCopy, truncatePushBody } from "../../_utils/notificationCopy";
+import {
+  resolveExactNotificationCopy,
+  truncatePushBody,
+} from "../../_utils/notificationCopy";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
 import { REMOTE_PUSH_CHANNEL_ID, sendExpoPushMessages } from "./expoPush";
 import { parseSegment, resolveSegmentUserIds, segmentLabel } from "./segment";
@@ -47,7 +50,7 @@ function cleanI18nMap(raw: Record<string, string> | undefined): Record<string, s
 
 /**
  * Создаёт рассылку: notification → deliveries → Expo push.
- * Copy language = users.locale via resolveNotificationCopy (single server entry).
+ * Получатели только с точным переводом на `users.locale` (без EN→RU fallback).
  */
 export async function POST(req: Request) {
   try {
@@ -66,9 +69,51 @@ export async function POST(req: Request) {
 
     const segment = parseSegment(payload.segment);
     const db = createServiceSupabase();
-    const userIds = await resolveSegmentUserIds(db, segment);
-    if (userIds.length === 0) {
+    const segmentUserIds = await resolveSegmentUserIds(db, segment);
+    if (segmentUserIds.length === 0) {
       return json({ error: "В выбранном сегменте нет пользователей" }, { status: 400 });
+    }
+
+    const copySource = {
+      title: title || titleI18n.en || Object.values(titleI18n).find((value) => value.trim()) || "",
+      body,
+      titleI18n,
+      bodyI18n,
+    };
+
+    const { data: userRows, error: usersError } = await db
+      .from("users")
+      .select("id, locale")
+      .in("id", segmentUserIds);
+    if (usersError) throw usersError;
+
+    const localeByUser = new Map<string, string | null>();
+    for (const row of userRows ?? []) {
+      localeByUser.set(row.id, row.locale ?? null);
+    }
+
+    const eligibleUserIds: string[] = [];
+    const skippedNoLocaleCopy: string[] = [];
+    for (const userId of segmentUserIds) {
+      const exact = resolveExactNotificationCopy(localeByUser.get(userId) ?? "ru", {
+        title: title || copySource.title,
+        body,
+        titleI18n,
+        bodyI18n,
+      });
+      if (exact) eligibleUserIds.push(userId);
+      else skippedNoLocaleCopy.push(userId);
+    }
+
+    if (eligibleUserIds.length === 0) {
+      return json(
+        {
+          error:
+            "Нет получателей с переводом на язык их профиля. Заполните вкладки языков или смените сегмент.",
+          skipped_no_locale_copy: skippedNoLocaleCopy.length,
+        },
+        { status: 400 },
+      );
     }
 
     const displayTitle =
@@ -87,16 +132,16 @@ export async function POST(req: Request) {
         link_url: payload.link_url?.trim() || null,
         segment: payload.segment,
         segment_label: await segmentLabel(db, segment),
-        recipient_count: userIds.length,
+        recipient_count: eligibleUserIds.length,
       })
       .select("*")
       .single();
     if (insertError) throw insertError;
 
     const DELIVERY_CHUNK = 500;
-    for (let i = 0; i < userIds.length; i += DELIVERY_CHUNK) {
+    for (let i = 0; i < eligibleUserIds.length; i += DELIVERY_CHUNK) {
       const { error: deliveryError } = await db.from("notification_deliveries").insert(
-        userIds.slice(i, i + DELIVERY_CHUNK).map((userId) => ({
+        eligibleUserIds.slice(i, i + DELIVERY_CHUNK).map((userId) => ({
           notification_id: notification.id,
           user_id: userId,
         })),
@@ -104,21 +149,11 @@ export async function POST(req: Request) {
       if (deliveryError) throw deliveryError;
     }
 
-    const { data: userRows, error: usersError } = await db
-      .from("users")
-      .select("id, locale")
-      .in("id", userIds);
-    if (usersError) throw usersError;
-    const localeByUser = new Map<string, string | null>();
-    for (const row of userRows ?? []) {
-      localeByUser.set(row.id, row.locale ?? null);
-    }
-
     const { data: tokens, error: tokensError } = await db
       .from("push_tokens")
       .select("token, user_id")
       .eq("is_active", true)
-      .in("user_id", userIds);
+      .in("user_id", eligibleUserIds);
     if (tokensError) throw tokensError;
 
     const storedTitle = notification.title as string;
@@ -126,31 +161,30 @@ export async function POST(req: Request) {
     const storedTitleI18n = parseStringRecord(notification.title_i18n);
     const storedBodyI18n = parseStringRecord(notification.body_i18n);
     const linkUrl = (notification.link_url as string | null) ?? null;
-    const copySource = {
+    const storedSource = {
       title: storedTitle,
       body: storedBody,
       titleI18n: storedTitleI18n,
       bodyI18n: storedBodyI18n,
     };
 
-    const messages = (tokens ?? []).map(({ token, user_id }) => {
-      const { title: pushTitle, body: pushBody } = resolveNotificationCopy(
-        localeByUser.get(user_id) ?? "ru",
-        copySource,
-      );
-      return {
-        to: token,
-        title: pushTitle,
-        body: truncatePushBody(pushBody),
-        channelId: REMOTE_PUSH_CHANNEL_ID,
-        data: {
-          notificationId: notification.id,
-          title: pushTitle,
-          // Full body for in-app reader (alert body stays truncated).
-          body: pushBody.slice(0, 2000),
-          ...(linkUrl ? { url: linkUrl } : {}),
+    const messages = (tokens ?? []).flatMap(({ token, user_id }) => {
+      const exact = resolveExactNotificationCopy(localeByUser.get(user_id) ?? "ru", storedSource);
+      if (!exact) return [];
+      return [
+        {
+          to: token,
+          title: exact.title,
+          body: truncatePushBody(exact.body),
+          channelId: REMOTE_PUSH_CHANNEL_ID,
+          data: {
+            notificationId: notification.id,
+            title: exact.title,
+            body: exact.body.slice(0, 2000),
+            ...(linkUrl ? { url: linkUrl } : {}),
+          },
         },
-      };
+      ];
     });
 
     let outcome = { okCount: 0, errorCount: 0, staleTokens: [] as string[] };
@@ -172,7 +206,6 @@ export async function POST(req: Request) {
       };
     }
 
-    // Finalize row before returning so a late undici socket close cannot leave sent_at null.
     const { data: updated, error: updateError } = await db
       .from("notifications")
       .update({
@@ -181,11 +214,16 @@ export async function POST(req: Request) {
         sent_at: new Date().toISOString(),
       })
       .eq("id", notification.id)
-      .select("id, title, body, title_i18n, body_i18n, link_url, segment, segment_label, recipient_count, push_sent_count, push_error_count, sent_at, created_at")
+      .select(
+        "id, title, body, title_i18n, body_i18n, link_url, segment, segment_label, recipient_count, push_sent_count, push_error_count, sent_at, created_at",
+      )
       .single();
     if (updateError) throw updateError;
 
-    return json({ notification: updated });
+    return json({
+      notification: updated,
+      skipped_no_locale_copy: skippedNoLocaleCopy.length,
+    });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,3 +1,5 @@
+- 2026-07-24 (275): Notification deliveries retention — weekly pg_cron prune rows older than 30d (`cleanup_stale_notification_deliveries`, low-priority batches). Migrations `20260724190000`/`190500`.
+- 2026-07-24 (274): Admin notifications — exact `users.locale` only (no EN→RU); skip recipients without that tab; clear stale «Отправлено» on draft edit; client locale hydrate/push sync so shade language matches inbox.
 - 2026-07-24 (273): Profile — legal modal +10pt top; matrixNotReady copy; practice stats 90d empty fix + lighter scrub line.
 - 2026-07-24 (272): Support upload — fix signed PUT URL (bucket in path → InvalidSignature→slow base64); buffer fallback via fetch(uri).
 - 2026-07-24 (271): Support attach — native `uploadAsync` (fix Android base64 hang); gallery warm + progress copy; no image-manipulator resize.

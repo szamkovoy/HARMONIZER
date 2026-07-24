@@ -23,7 +23,12 @@ export async function registerPushToken(userId: string): Promise<void> {
   if (!Notifications || !supabase) return;
 
   try {
-    void syncUserLocaleToServer(getAppLocale()).catch(() => undefined);
+    // Await so remote push language matches UI before Expo claim (avoids RU push / EN inbox).
+    try {
+      await syncUserLocaleToServer(getAppLocale());
+    } catch {
+      // Non-fatal — token claim still proceeds.
+    }
 
     const allowed = await hasNotificationPermission();
     if (!allowed) return;

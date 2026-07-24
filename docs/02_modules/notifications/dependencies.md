@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/dependencies
 title: Notifications Dependencies
-version: 1.2
-updated: 2026-07-22
+version: 1.3
+updated: 2026-07-24
 depends_on: [02_modules/admin_panel/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -18,10 +18,10 @@ code_refs:
 - **`admin_panel`** — отправка только из `/admin/notifications` под `requireAdmin` (service role).
 - **`webinars`** — сегмент `webinar:<id>` читает `webinar_registrations`; список вебинаров для селекта — `GET /api/admin/webinars`. Клиентский `WebinarScreen` вызывает `ensureNotificationPermission("webinar")` при записи / уже записан.
 - **`subscription`** — сегмент `tier:<t>` фильтрует по сырому `users.membership_tier` (не effective tier — истёкший грант остаётся в своём тарифе до фикса данных).
-- **`infra`** — Supabase (`push_tokens` из init-миграции, `notifications`, `notification_deliveries`), Expo Push API (`exp.host`), EAS `projectId` из `app.json`. **Android remote:** FCM через `google-services.json` + EAS credentials (не в git пока не подключено).
+- **`infra`** — Supabase (`push_tokens` из init-миграции, `notifications`, `notification_deliveries`), weekly SQL prune `cleanup_stale_notification_deliveries` в `ensure_harmonizer_cron_jobs`, Expo Push API (`exp.host`), EAS `projectId` из `app.json`. **Android remote:** FCM через `google-services.json` + EAS credentials.
 - **`services/localNotifications.ts`** — ленивый загрузчик `expo-notifications` (`getExpoNotificationsOrNull`), `ensureAndroidNotificationChannels` (`harmonizer_opportunity_high` / `harmonizer_remote`), общий с локальными напоминаниями.
 - **FCM (Android remote):** локальный `google-services.json` в корне (**gitignore**, шаблон `.example`) **и** EAS file-env `GOOGLE_SERVICES_JSON` (иначе remote build без FCM); FCM V1 key в EAS credentials (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.
-- **auth / i18n** — userId для токена и доставок; ключи `notifications.*`.
+- **auth / i18n** — userId для токена и доставок; ключи `notifications.*`; язык remote push = exact `users.locale` via `resolveExactNotificationCopy` / `pickExactLocalizedText` (soft `pickLocalizedText` только для inbox).
 
 ## 2. От него зависят
 

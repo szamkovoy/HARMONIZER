@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.16
-updated: 2026-07-23
+version: 1.17
+updated: 2026-07-24
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -105,13 +105,12 @@ cost never decides layer-C design.
 - Persistence: expo-secure-store on native, `localStorage` on web (key
   `harmonizer.locale.v1`), mirroring `services/dayContentCache.ts`.
 - API:
-  - `hydrateAppLocale(profileLocale?)` — called from `app/_layout.tsx`
-    `AccessBridge` whenever `profile?.locale` changes. **Account locale wins:**
-    `users.locale` overrides a sticky SecureStore value left by a previous
-    account on the same device; if profile is not loaded yet, SecureStore/device
-    is used, then a later call adopts `profileLocale` when it arrives or the
-    account switches. **Always write-back** resolved locale to `users.locale`
-    so push language cannot drift from SecureStore.
+  - `hydrateAppLocale(profileLocale?, userId?)` — called from `app/_layout.tsx`
+    `AccessBridge` whenever `profile?.locale` / `authUser?.id` changes.
+    **First hydrate / account switch:** `users.locale` wins over sticky
+    SecureStore from a previous login. **Same account, late profile with a
+    different locale:** keep UI and write-back UI → `users.locale` (stale DB
+    must not force remote push into the old language).
   - `getAppLocale()` / `setAppLocale(locale)` / `subscribeAppLocale(cb)`.
     `setAppLocale` persists locally and mirrors to `users.locale`
     via `services/userLocaleClient.ts` (`syncUserLocaleToServer`) even when

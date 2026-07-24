@@ -1,13 +1,17 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.2
-updated: 2026-07-22
+version: 1.3
+updated: 2026-07-24
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-24 (delivery retention 30d):** Weekly low-priority pg_cron `cleanup_stale_notification_deliveries_weekly` (`37 4 * * 0`) → SQL `cleanup_stale_notification_deliveries(30d, 1000, 20)` (батчи, SKIP LOCKED). Inbox и так ≤10; старые deliveries — только рост таблицы. Миграции `20260724190000`, `20260724190500`.
+
+- **2026-07-24 (exact locale send):** Админ-рассылка больше не делает EN→RU fallback. `resolveExactNotificationCopy`: нет заголовка на `users.locale` → нет delivery и нет push (можно слать языковым группам, очищая вкладки). Inbox по-прежнему soft-resolve для уже доставленных. QA Pixel: shade RU при inbox EN — `users.locale` отставал от UI; hydrate same-account больше не откатывает UI на stale DB, `registerPushToken` await sync. Админка: сброс «Отправлено…» при правке черновика; зелёная точка = заголовок.
 
 - **2026-07-24 (inbox polish):** Экран «Недавние уведомления» + `listHint`; лимит списка 10; ссылка только на цифре в «Мои данные»; fetch не ждёт полный auth bootstrap, если `userId` уже есть; `paddingTop` заголовка ~18 (как вкладки).
 

@@ -3,7 +3,11 @@
  * Keep in sync — admin Expo push and any future server-side reminders.
  */
 import { asContentLocale, type AppContentLocale } from "./contentLocales";
-import { pickLocalizedText } from "./contentLocaleFallback";
+import {
+  hasExactLocalizedTitle,
+  pickExactLocalizedText,
+  pickLocalizedText,
+} from "./contentLocaleFallback";
 
 export type NotificationCopySource = {
   title: string;
@@ -16,6 +20,9 @@ export function resolveNotificationLocale(userLocale: string | null | undefined)
   return asContentLocale(userLocale) ?? "ru";
 }
 
+/**
+ * Soft resolve (preferred → en → ru) for inbox display of already-delivered rows.
+ */
 export function resolveNotificationCopy(
   userLocale: string | null | undefined,
   source: NotificationCopySource,
@@ -24,6 +31,23 @@ export function resolveNotificationCopy(
   const title =
     pickLocalizedText(locale, source.title, source.titleI18n) || source.title.trim() || "";
   const body = pickLocalizedText(locale, source.body ?? "", source.bodyI18n);
+  return { locale, title, body };
+}
+
+/**
+ * Exact authored copy for `users.locale` only — no EN/RU fallback.
+ * Used when building admin remote push + deliveries. Null = skip recipient.
+ */
+export function resolveExactNotificationCopy(
+  userLocale: string | null | undefined,
+  source: NotificationCopySource,
+): { locale: AppContentLocale; title: string; body: string } | null {
+  const locale = resolveNotificationLocale(userLocale);
+  if (!hasExactLocalizedTitle(locale, source.title, source.titleI18n)) {
+    return null;
+  }
+  const title = pickExactLocalizedText(locale, source.title, source.titleI18n);
+  const body = pickExactLocalizedText(locale, source.body ?? "", source.bodyI18n);
   return { locale, title, body };
 }
 

@@ -88,13 +88,12 @@ export default function RootLayout() {
 }
 
 function AccessBridge({ children }: { children: ReactNode }) {
-  const { profile } = useAuth();
+  const { profile, authUser } = useAuth();
   useEffect(() => {
-    // Resolve UI locale: users.locale wins over sticky SecureStore from a
-    // previous account on this device. Re-runs when profile.locale changes
-    // (login / account switch).
-    void hydrateAppLocale(profile?.locale);
-  }, [profile?.locale]);
+    // First login / account switch: users.locale wins over sticky SecureStore.
+    // Same account: UI wins if DB lagged (see hydrateAppLocale).
+    void hydrateAppLocale(profile?.locale, authUser?.id ?? null);
+  }, [authUser?.id, profile?.locale]);
   return <AccessProvider profile={profile}>{children}</AccessProvider>;
 }
 
