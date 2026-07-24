@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-24 (unified inbox + webinar start):** `notification_deliveries` — `id` PK, `kind` (admin/opportunity/webinar_start), snapshot title/body/link, `source_key`. Inbox = 10 последних любых kind. Opportunity → RPC `record_inbox_notification` при fire. Webinar start — Edge `notify-webinar-start` minutely ровно около `starts_at` (не заранее), copy по `users.locale`, нужен `join_url`, флаг `webinars.start_notified_at`. Миграция `20260724193000`.
+
 - **2026-07-24 (delivery retention 30d):** Weekly low-priority pg_cron `cleanup_stale_notification_deliveries_weekly` (`37 4 * * 0`) → SQL `cleanup_stale_notification_deliveries(30d, 1000, 20)` (батчи, SKIP LOCKED). Inbox и так ≤10; старые deliveries — только рост таблицы. Миграции `20260724190000`, `20260724190500`.
 
 - **2026-07-24 (exact locale send):** Админ-рассылка больше не делает EN→RU fallback. `resolveExactNotificationCopy`: нет заголовка на `users.locale` → нет delivery и нет push (можно слать языковым группам, очищая вкладки). Inbox по-прежнему soft-resolve для уже доставленных. QA Pixel: shade RU при inbox EN — `users.locale` отставал от UI; hydrate same-account больше не откатывает UI на stale DB, `registerPushToken` await sync. Админка: сброс «Отправлено…» при правке черновика; зелёная точка = заголовок.

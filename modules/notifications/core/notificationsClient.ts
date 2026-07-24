@@ -3,7 +3,11 @@ import { resolveNotificationCopy } from "@/modules/notifications/core/resolveNot
 import { getSupabase } from "@/services/supabase";
 
 export type MyNotification = {
-  notificationId: string;
+  /** Surrogate delivery id (stable list key / mark-read). */
+  id: string;
+  /** Admin broadcast id when kind=admin; otherwise null. */
+  notificationId: string | null;
+  kind: "admin" | "opportunity" | "webinar_start" | string;
   title: string;
   body: string;
   linkUrl: string | null;
@@ -12,12 +16,18 @@ export type MyNotification = {
 };
 
 const LIST_FETCH_TIMEOUT_MS = 12_000;
-/** Inbox на клиенте: только недавние рассылки (продуктовый лимит UI). */
+/** Inbox на клиенте: только недавние доставки (продуктовый лимит UI). */
 export const MY_NOTIFICATIONS_LIST_LIMIT = 10;
 
 type DeliveryListRow = {
+  id: string;
+  kind: string;
+  title: string | null;
+  body: string | null;
+  link_url: string | null;
   read_at: string | null;
   created_at: string;
+  notification_id: string | null;
   notifications: {
     id: string;
     title: string;
@@ -45,7 +55,7 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Pro
   });
 }
 
-/** Лента «Мои уведомления»: deliveries + текст через resolveNotificationCopy. */
+/** Лента «Мои уведомления»: snapshot на delivery, fallback soft-resolve для старых admin rows. */
 export async function fetchMyNotifications(
   userId: string,
   locale: string,
@@ -57,7 +67,7 @@ export async function fetchMyNotifications(
       supabase
         .from("notification_deliveries")
         .select(
-          "read_at, created_at, notifications(id, title, body, title_i18n, body_i18n, link_url, created_at)",
+          "id, kind, title, body, link_url, read_at, created_at, notification_id, notifications(id, title, body, title_i18n, body_i18n, link_url, created_at)",
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
@@ -71,6 +81,21 @@ export async function fetchMyNotifications(
     }
     return ((data ?? []) as unknown as DeliveryListRow[])
       .map((row) => {
+        const snapshotTitle = (row.title ?? "").trim();
+        const snapshotBody = row.body ?? "";
+        const snapshotLink = row.link_url ?? null;
+        if (snapshotTitle) {
+          return {
+            id: row.id,
+            notificationId: row.notification_id,
+            kind: row.kind ?? "admin",
+            title: snapshotTitle,
+            body: snapshotBody,
+            linkUrl: snapshotLink,
+            createdAt: row.created_at,
+            readAt: row.read_at ?? null,
+          };
+        }
         const n = row.notifications;
         if (!n) return null;
         const { title, body } = resolveNotificationCopy(locale, {
@@ -80,10 +105,12 @@ export async function fetchMyNotifications(
           bodyI18n: parseStringRecord(n.body_i18n),
         });
         return {
+          id: row.id,
           notificationId: n.id,
+          kind: row.kind ?? "admin",
           title,
           body,
-          linkUrl: n.link_url ?? null,
+          linkUrl: snapshotLink ?? n.link_url ?? null,
           createdAt: n.created_at,
           readAt: row.read_at ?? null,
         };
@@ -105,7 +132,7 @@ export async function fetchUnreadNotificationCount(userId: string): Promise<numb
   if (!supabase) return 0;
   const { count, error } = await supabase
     .from("notification_deliveries")
-    .select("notification_id", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .is("read_at", null);
   if (error) {
@@ -126,17 +153,28 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
   if (error && __DEV__) console.warn("[notifications] mark read failed", error.message);
 }
 
+/** Mark one delivery read by surrogate id or admin notification_id. */
 export async function markNotificationRead(
   userId: string,
-  notificationId: string,
+  deliveryOrNotificationId: string,
 ): Promise<void> {
   const supabase = getSupabase();
-  if (!supabase || !notificationId) return;
+  if (!supabase || !deliveryOrNotificationId) return;
+  const now = new Date().toISOString();
+  const { data: byPk } = await supabase
+    .from("notification_deliveries")
+    .update({ read_at: now })
+    .eq("user_id", userId)
+    .eq("id", deliveryOrNotificationId)
+    .is("read_at", null)
+    .select("id");
+  if (byPk && byPk.length > 0) return;
+
   const { error } = await supabase
     .from("notification_deliveries")
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: now })
     .eq("user_id", userId)
-    .eq("notification_id", notificationId)
+    .eq("notification_id", deliveryOrNotificationId)
     .is("read_at", null);
-  if (error && __DEV__) console.warn("[notifications] mark one read failed", error.message);
+  if (error && __DEV__) console.warn("[notifications] mark one failed", error.message);
 }

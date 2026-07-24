@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708140000_webinars.sql]
 
 ## Decision Log
 
+- **2026-07-24 (auto start push):** Авто-уведомление записавшимся в момент `starts_at` (Edge minutely + `start_notified_at`), язык `users.locale`, ссылка `join_url`. Inbox `kind=webinar_start`. См. `notifications/history`.
+
 - **2026-07-19 (9):** `WebinarScreen` — убрана кнопка «Отменить запись» (отмена без возврата денег лишена смысла; для разовой оплаты вебинара регистрация ставится вебхуком Lava автоматически, для Master — ручная «Записаться» без отмены). `toggleRegistration` → `register` (только false→true). Спасибо-модалка за вебинар теперь показывается при возврате из кабинета с **любым** ctx (раньше только `ctx=webinar:<id>`) — см. `account_web`.
 
 - **2026-07-14 (8):** `fetchUpcomingWebinar(locale)` skips announces without exact UI-locale title.

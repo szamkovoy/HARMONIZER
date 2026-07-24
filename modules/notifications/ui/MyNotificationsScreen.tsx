@@ -81,7 +81,7 @@ export function MyNotificationsScreen() {
 
       <FlatList
         data={items ?? []}
-        keyExtractor={(item) => item.notificationId}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={contentProps.contentContainerStyle}
         scrollIndicatorInsets={contentProps.scrollIndicatorInsets}
         ListEmptyComponent={

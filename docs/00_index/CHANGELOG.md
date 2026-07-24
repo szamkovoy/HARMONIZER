@@ -1,3 +1,4 @@
+- 2026-07-24 (276): Unified notification inbox (admin/opportunity/webinar_start) + auto webinar-start push at `starts_at` (Edge minutely, `users.locale`). Migration `20260724193000`.
 - 2026-07-24 (275): Notification deliveries retention — weekly pg_cron prune rows older than 30d (`cleanup_stale_notification_deliveries`, low-priority batches). Migrations `20260724190000`/`190500`.
 - 2026-07-24 (274): Admin notifications — exact `users.locale` only (no EN→RU); skip recipients without that tab; clear stale «Отправлено» on draft edit; client locale hydrate/push sync so shade language matches inbox.
 - 2026-07-24 (273): Profile — legal modal +10pt top; matrixNotReady copy; practice stats 90d empty fix + lighter scrub line.

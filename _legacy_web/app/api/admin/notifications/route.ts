@@ -138,24 +138,6 @@ export async function POST(req: Request) {
       .single();
     if (insertError) throw insertError;
 
-    const DELIVERY_CHUNK = 500;
-    for (let i = 0; i < eligibleUserIds.length; i += DELIVERY_CHUNK) {
-      const { error: deliveryError } = await db.from("notification_deliveries").insert(
-        eligibleUserIds.slice(i, i + DELIVERY_CHUNK).map((userId) => ({
-          notification_id: notification.id,
-          user_id: userId,
-        })),
-      );
-      if (deliveryError) throw deliveryError;
-    }
-
-    const { data: tokens, error: tokensError } = await db
-      .from("push_tokens")
-      .select("token, user_id")
-      .eq("is_active", true)
-      .in("user_id", eligibleUserIds);
-    if (tokensError) throw tokensError;
-
     const storedTitle = notification.title as string;
     const storedBody = (notification.body as string) ?? "";
     const storedTitleI18n = parseStringRecord(notification.title_i18n);
@@ -167,6 +149,36 @@ export async function POST(req: Request) {
       titleI18n: storedTitleI18n,
       bodyI18n: storedBodyI18n,
     };
+
+    const deliveryRows = eligibleUserIds.flatMap((userId) => {
+      const exact = resolveExactNotificationCopy(localeByUser.get(userId) ?? "ru", storedSource);
+      if (!exact) return [];
+      return [
+        {
+          notification_id: notification.id,
+          user_id: userId,
+          kind: "admin" as const,
+          title: exact.title,
+          body: exact.body,
+          link_url: linkUrl,
+        },
+      ];
+    });
+
+    const DELIVERY_CHUNK = 500;
+    for (let i = 0; i < deliveryRows.length; i += DELIVERY_CHUNK) {
+      const { error: deliveryError } = await db
+        .from("notification_deliveries")
+        .insert(deliveryRows.slice(i, i + DELIVERY_CHUNK));
+      if (deliveryError) throw deliveryError;
+    }
+
+    const { data: tokens, error: tokensError } = await db
+      .from("push_tokens")
+      .select("token, user_id")
+      .eq("is_active", true)
+      .in("user_id", eligibleUserIds);
+    if (tokensError) throw tokensError;
 
     const messages = (tokens ?? []).flatMap(({ token, user_id }) => {
       const exact = resolveExactNotificationCopy(localeByUser.get(user_id) ?? "ru", storedSource);

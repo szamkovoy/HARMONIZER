@@ -1,7 +1,7 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.6
+version: 1.7
 updated: 2026-07-24
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
@@ -32,12 +32,14 @@ code_refs:
     supabase/migrations/20260708150000_notifications.sql,
     supabase/migrations/20260714110000_notifications_i18n_and_feed_locale_fallback.sql,
     supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql,
+    supabase/migrations/20260724193000_inbox_kinds_and_webinar_start.sql,
+    supabase/functions/notify-webinar-start/index.ts,
   ]
 ---
 
 ## 1. Назначение (продукт)
 
-Рассылки владельца сегментам пользователей: push через Expo **плюс гарантированная копия** в списке **«Недавние уведомления»** (`/my-notifications`, лимит **10** последних deliveries) — сообщение (например, ссылка на запись вебинара) доходит и при выключенных push-разрешениях. Вход с Профиля: в «Мои данные» подпись `notifications.myDataLabel` + кликабельная цифра непрочитанных (при 0 тоже открывает список). На экране — `notifications.listHint` (системные колокольчики окон сюда не попадают). Этап 4 плана админ-панели.
+Рассылки владельца + авто-события: push через Expo **плюс копия** в **«Недавние уведомления»** (`/my-notifications`, лимит **10**). Inbox объединяет `kind`: `admin` (ручная рассылка), `webinar_start` (авто в `starts_at`), `opportunity` (сработавший локальный колокольчик). Вход с Профиля: «Уведомления:» + цифра. Этап 4 плана админ-панели + авто-старт вебинара.
 
 ## 2. Публичный контракт
 
@@ -59,9 +61,11 @@ code_refs:
 ## 3. Данные
 
 - **`push_tokens`** + RPC **`claim_push_token`** (`20260714130000`).
-- **`notifications`** / **`notification_deliveries`** — delivery только на момент рассылки (не ретроактивно).
-- **Retention deliveries:** `cleanup_stale_notification_deliveries(interval, batch, max_batches)` удаляет строки старше **30 дней** батчами (`FOR UPDATE SKIP LOCKED`, sleep между батчами). Cron weekly `37 4 * * 0` (вс 04:37 UTC) в реестре `ensure_harmonizer_cron_jobs`. Строки `notifications` (история админки) не трогает.
-- Клиентские флаги cooldown (SecureStore / localStorage): `harmonizer.notif.perm.lastSoftAskAt`, `…lastWebinarAskAt`.
+- **`notifications`** (только admin broadcast) / **`notification_deliveries`** (`id` PK; `kind`; nullable `notification_id`; snapshot `title`/`body`/`link_url`; `source_key` для идемпотентности personal).
+- **`record_inbox_notification`** — authenticated RPC для `kind=opportunity`.
+- **Webinar start:** `webinars.start_notified_at`; Edge `notify-webinar-start` minutely (`ensure_harmonizer_cron_jobs`); текст по `users.locale` + exact название вебинара; нужен `join_url`.
+- **Retention:** `cleanup_stale_notification_deliveries` — deliveries старше **30 дней**, weekly `37 4 * * 0`.
+- Клиентские флаги cooldown: `harmonizer.notif.perm.lastSoftAskAt`, `…lastWebinarAskAt`.
 
 ### 3.1 Политика запроса разрешения (алгоритм)
 
@@ -75,7 +79,7 @@ code_refs:
 
 **Не спрашиваем:** в онбординге; из `PushRegistrationBridge` при логине/foreground (только claim токена если уже granted).
 
-**Зачем уведомления сейчас:** remote-рассылки админа (inbox работает и без разрешения); локальные колокольчики окон возможностей. **Будущее:** напоминание о старте вебинара — та же регистрация токена / то же разрешение; планировщик напоминания — отдельная задача.
+**Зачем уведомления:** remote admin; авто-старт вебинара (remote); локальные окна → inbox при срабатывании. Разрешение по-прежнему нужно для push; inbox admin/webinar_start пишется на сервере и без разрешения.
 
 ## 4. i18n
 
@@ -86,7 +90,7 @@ UI — `notifications.*`. **Язык remote push / delivery** = `resolveExactNot
 - Синхронная serverless-рассылка; при тысячах получателей — очередь.
 - Пуш не догоняет токены, зарегистрированные после рассылки.
 - Expo receipts не сверяются.
-- Inbox ≠ все пуши устройства: только строки `notification_deliveries`. Напоминания окон возможностей (колокольчик) — локальный `expo-notifications`, в inbox не пишутся.
+- Inbox = `notification_deliveries` (admin + webinar_start + opportunity при fire). Локальный schedule окон остаётся на устройстве; в inbox попадает при received/tap.
 - Текст системного iOS-диалога разрешений **не редактируется** (ограничение Apple); pre-permission Alert сознательно не используем (откат 2026-07-18).
 - Если пользователь навсегда запретил уведомления в настройках ОС (`canAskAgain=false`), повторный системный диалог невозможен — только ручное включение в Settings.
 - **Android remote push требует FCM:** разрешение ОС + локальные напоминания (колокольчик) работают без Firebase; доставка **админских** push через Expo Push на Android — только если native build включает `google-services.json`: локально файл в корне (gitignore), на EAS — file-env **`GOOGLE_SERVICES_JSON`** (`app.config.ts` → `android.googleServicesFile`), плюс FCM V1 service account в EAS credentials. Чекер: `node scripts/android-fcm-setup.mjs`. Без файла в билде `getExpoPushTokenAsync` на Android падает → в `push_tokens` нет android-строк → рассылка шлёт только iOS.

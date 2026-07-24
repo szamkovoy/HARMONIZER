@@ -5,6 +5,7 @@ import { router, type Href } from "expo-router";
 import { useAuth } from "@/modules/auth";
 import { logAppOpen } from "@/modules/metrics/core/appOpen";
 import { setPendingPushMessage } from "@/modules/notifications/core/pendingPushMessage";
+import { recordInboxNotification } from "@/modules/notifications/core/recordInboxNotification";
 import { registerPushToken } from "@/modules/notifications/core/pushRegistration";
 import { getExpoNotificationsOrNull } from "@/services/localNotifications";
 
@@ -46,16 +47,43 @@ function openPushMessage(response: {
   router.replace("/push-message" as Href);
 }
 
+async function maybeRecordOpportunityFromContent(content: {
+  title?: string | null;
+  body?: string | null;
+  data?: unknown;
+}): Promise<void> {
+  const data = asDataRecord(content.data);
+  if (data.source !== "home_opportunity_window") return;
+  const key = typeof data.key === "string" ? data.key : "";
+  const forecastDate = typeof data.forecastDate === "string" ? data.forecastDate : "";
+  const reminderMode = typeof data.reminderMode === "string" ? data.reminderMode : "";
+  if (!key || !forecastDate) return;
+  const title =
+    (typeof data.displayTitle === "string" && data.displayTitle.trim()) ||
+    (typeof content.title === "string" ? content.title.trim() : "") ||
+    "";
+  const body = typeof content.body === "string" ? content.body : "";
+  if (!title) return;
+  await recordInboxNotification({
+    kind: "opportunity",
+    title,
+    body,
+    sourceKey: `opportunity:${key}:${forecastDate}:${reminderMode || "exact"}`,
+  });
+}
+
 /**
  * Registers push token (только если разрешение уже выдано — без системного
  * диалога; запросы делает `ensureNotificationPermission` на Home / bell / webinar),
- * syncs locale, and opens the in-app message reader on notification tap.
+ * syncs locale, records opportunity firings into inbox, and opens the in-app
+ * message reader on notification tap.
  */
 export function PushRegistrationBridge() {
   const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
   const registeredForRef = useRef<string | null>(null);
   const handledResponseIdRef = useRef<string | null>(null);
+  const recordedOpportunityRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!userId || registeredForRef.current === userId) return;
@@ -77,26 +105,47 @@ export function PushRegistrationBridge() {
   }, [userId]);
 
   useEffect(() => {
-    if (Platform.OS === "web") return;
+    if (Platform.OS === "web" || !userId) return;
     const Notifications = getExpoNotificationsOrNull();
     if (!Notifications) return;
 
-    const handle = (response: {
+    const recordOnce = (content: {
+      title?: string | null;
+      body?: string | null;
+      data?: unknown;
+    }) => {
+      const data = asDataRecord(content.data);
+      if (data.source !== "home_opportunity_window") return;
+      const key = typeof data.key === "string" ? data.key : "";
+      const forecastDate = typeof data.forecastDate === "string" ? data.forecastDate : "";
+      const reminderMode = typeof data.reminderMode === "string" ? data.reminderMode : "exact";
+      const dedupe = `${key}:${forecastDate}:${reminderMode}`;
+      if (!key || recordedOpportunityRef.current.has(dedupe)) return;
+      recordedOpportunityRef.current.add(dedupe);
+      void maybeRecordOpportunityFromContent(content);
+    };
+
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      recordOnce(notification.request.content);
+    });
+
+    const handleResponse = (response: {
       notification: {
         request: { identifier?: string; content: { title?: string | null; body?: string | null; data?: unknown } };
       };
     }) => {
+      recordOnce(response.notification.request.content);
       const id = response.notification.request.identifier ?? JSON.stringify(response.notification.request.content);
       if (handledResponseIdRef.current === id) return;
       handledResponseIdRef.current = id;
       openPushMessage(response);
     };
 
-    const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+    const responseSub = Notifications.addNotificationResponseReceivedListener(handleResponse);
 
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
-      handle(response);
+      handleResponse(response);
       try {
         void Notifications.clearLastNotificationResponseAsync();
       } catch {
@@ -104,8 +153,11 @@ export function PushRegistrationBridge() {
       }
     });
 
-    return () => subscription.remove();
-  }, []);
+    return () => {
+      receivedSub.remove();
+      responseSub.remove();
+    };
+  }, [userId]);
 
   return null;
 }

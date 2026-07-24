@@ -5,6 +5,7 @@ export {
   markNotificationRead,
   type MyNotification,
 } from "@/modules/notifications/core/notificationsClient";
+export { recordInboxNotification } from "@/modules/notifications/core/recordInboxNotification";
 export {
   resolveExactNotificationCopy,
   resolveNotificationCopy,

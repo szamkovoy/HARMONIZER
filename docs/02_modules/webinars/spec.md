@@ -1,8 +1,8 @@
 ---
 id: 02_modules/webinars/spec
 title: Webinars Spec
-version: 3.4
-updated: 2026-07-14
+version: 3.5
+updated: 2026-07-24
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -52,7 +52,8 @@ code_refs:
 
 ### Данные
 
-- `webinars`: + `cover_url`, `title_i18n`, `description_i18n`, `cover_url_i18n`, `translations_updated_at`; `is_published` = анонс; `recording_url` deprecated.
+- `webinars`: + `cover_url`, `title_i18n`, `description_i18n`, `cover_url_i18n`, `translations_updated_at`; `is_published` = анонс; `recording_url` deprecated; **`start_notified_at`** — после авто-пуша старта (Edge `notify-webinar-start`, см. `notifications`).
+- **Авто-пуш старта:** minutely cron → записавшимся с `join_url`, текст на `users.locale` («вебинар начинается» + ссылка). Не вручную из админки.
 - `posts.kind` ∈ (`video`, `webinar_recording`), `posts.webinar_id`; unique one recording per webinar.
 - RLS + `get_posts_feed`: published `webinar_recording` виден как обычное video (миграция `20260714003000_webinar_recording_feed_like_video.sql`); live `join_url` по-прежнему через регистрацию.
 - Вопросы: `comments` `target_type='webinar'`; комментарии записи: `target_type='post'`.

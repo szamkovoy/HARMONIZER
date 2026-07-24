@@ -27,7 +27,7 @@ code_refs:
 
 - **`daily_forecast` (Home)** — `UpcomingWebinarBanner` (join-окно до `starts_at+1h`).
 - **`author_presence`** — recording cards в общей ленте «Видео» (анонсы на вкладке не показываются).
-- **`notifications`** — сегмент `webinar_registrations` для будущих пушей; `WebinarScreen` вызывает `ensureNotificationPermission("webinar")` при записи / уже записан (в т.ч. после оплаты в кабинете), cooldown 3 дн.
+- **`notifications`** — сегмент `webinar:*` для ручных рассылок; авто-пуш старта (`notify-webinar-start`); `WebinarScreen` → `ensureNotificationPermission("webinar")` (cooldown 3 дн.).
 
 ## 3. Риски
 

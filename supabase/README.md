@@ -60,6 +60,7 @@ supabase db execute --file supabase/seed.sql
 - `cleanup-expired-proposals` — еженедельная очистка `ai_state_proposals`.
 - `cleanup-expired-stories` — регулярная очистка истёкших stories + их файлов в `story-media`.
 - `reconcile-expired-memberships` — hourly пересчёт `users.membership_*` из леджера `payments`, когда срок оплаты истёк (без автооплаты store).
+- `notify-webinar-start` — minutely: авто-пуш + inbox для записавшихся в момент `starts_at`.
 
 Секреты: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, опционально `CRON_SECRET`, для LLM-анализа `GEMINI_API_KEY`.
 
@@ -74,6 +75,7 @@ supabase db execute --file supabase/seed.sql
 20 * * * *     reconcile_expired_memberships_hourly       → invoke_reconcile_expired_memberships
 35 * * * *     cleanup_unconfirmed_auth_users_hourly      → cleanup_unconfirmed_auth_users (OTP ghosts >24h)
 37 4 * * 0     cleanup_stale_notification_deliveries_weekly → cleanup_stale_notification_deliveries(30d, 1000, 20)
+* * * * *      notify_webinar_start_minutely               → invoke_notify_webinar_start
 */15 * * * *   ensure_harmonizer_crons_watchdog           → ensure_harmonizer_cron_jobs
 ```
 

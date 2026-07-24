@@ -390,6 +390,9 @@ verify_jwt = false
 [functions.reconcile-expired-memberships]
 verify_jwt = false
 
+[functions.notify-webinar-start]
+verify_jwt = false
+
 [functions.daily-forecast]
 verify_jwt = false
 

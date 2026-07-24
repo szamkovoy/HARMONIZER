@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-24 (webinar start notify cron):** `notify_webinar_start_minutely` → Edge `notify-webinar-start` (Vault secret fallback chain). Миграция `20260724193000`.
+
 - **2026-07-24 (notification deliveries retention):** Weekly SQL cron `cleanup_stale_notification_deliveries_weekly` (`37 4 * * 0`) в `ensure_harmonizer_cron_jobs` — батчевый prune `notification_deliveries` старше 30 дней (`SKIP LOCKED`, lock/statement timeout). Без Edge/Vault. Миграции `20260724190000`, `20260724190500`.
 
 - **2026-07-23 (auth email providers):** Edge `send-auth-email` — pluggable `resend`/`ses` via `AUTH_EMAIL_PROVIDER`; dual Resend keys (`RESEND_ZAMKOVOI_YOGA_API_KEY` OTP vs `RESEND_ZAMKOVOI_RU_API_KEY` future marketing). SES secrets/DNS documented as tails in `docs/04_workspace/email_providers.md`.
