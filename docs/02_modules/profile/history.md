@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-24 (reports polish):** `matrixNotReady` — новый copy про 7 дней и «Что делать?». Practice stats 90д: недельное среднее без `Math.round` (1 мин → empty); scrub-линия светлее (`textFaint`). Legal modal `paddingTop: 10` — в onboarding.
+
 - **2026-07-24 (delete account):** Сбой «Удалить аккаунт» на Profile — не UI, а сервер/БД (`recompute_user_daily_stats` + flaky Admin getUserById). Фикс в `account_web` / миграциях; см. `account_web/history.md`.
 
 - **2026-07-23 (OTP → Resend while SES sandbox pending):** `send-auth-email` switches on `AUTH_EMAIL_PROVIDER` (default Resend, yoga key only). SES path retained as AMAZON SES TAIL. See `docs/04_workspace/email_providers.md`.
@@ -34,6 +36,12 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 - **2026-07-20 (k):** Комбобокс языка перенесён в «Мои данные» под email (лейбл `profile.language.appLabel` «Язык приложения:»); отдельная карточка «Язык» убрана. Логика probe/ensure/rebuild без изменений.
 
 - **2026-07-20 (j):** Профиль — ссылки «Выйти» / «Удалить аккаунт» под «Личный кабинет» (одна строка, по центру). Подтверждение через `AppDialog` (`profile.account.*`, 8 локалей). Выход — `signOut()`. Удаление — `deleteAccountRemote` → `DELETE /api/account/delete` (отмена подписок у всех провайдеров, сохранение payment ledger, `auth.admin.deleteUser`) → `signOut()`. Ссылки не зависят от kill-switch кабинета. См. `account_web/history.md`.
+
+- **2026-07-24 (notifications digit link):** В «Мои данные» кликабельна только цифра непрочитанных; подпись «Уведомления:» обычным текстом.
+
+- **2026-07-24 (notifications + support copy):** Карточка «Мои уведомления» убрана; в «Мои данные» под email — ссылка на inbox. Тексты `support.profileHint` / `hint` / `sentMessage` обновлены (i18n fill).
+
+- **2026-07-24 (legal footer):** Внизу вкладки Профиль — `LegalFooter tone="links"` (те же юр. документы / модалка, что шаг 1 мастера; скролл не сбрасывается).
 
 - **2026-07-24:** `NatalBirthDataModal` обёрнут в `WizardOverlayProvider` — список городов рождения без второго RN Modal (на Android Modal прятал IME). См. `onboarding/history.md` (birth place IME).
 

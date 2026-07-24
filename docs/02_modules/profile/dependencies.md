@@ -43,6 +43,9 @@ code_refs:
 - **`i18n` / `life-spheres`**  
   Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`, `profile.account.*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
 
+- **`onboarding` (legal)**  
+  Внизу `app/(tabs)/profile.tsx` — **`LegalFooter tone="links"`** (`modules/onboarding/wizard/LegalDocuments.tsx`); тексты `wizard.legal.*` из каталога i18n в текущей локали.
+
 - **`charts`**  
   Donut-отчёты рендерятся через **`DonutChart`** (`modules/charts/`): сегменты, дуга баланса, центр `{balance}%`, scroll-triggered animation; **`app/(tabs)/profile.tsx`** — **`DonutVisibilityProvider`**, **`useDonutScrollProps`** на `ScrollView`, **`useDonutVisibilityRefresh`** + **`useFocusEffect`** при фокусе таба (как на Day tab).
 

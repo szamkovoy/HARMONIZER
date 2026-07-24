@@ -9,6 +9,14 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-24 (support upload InvalidSignature):** Native PUT падал `400 InvalidSignature` — в URL не было имени bucket (`…/sign/{path}` вместо `…/sign/support-attachments/{path}`), затем тихий fallback в base64 (~минуты). Фикс: URL как у supabase-js + API отдаёт `signedUrl`; fallback `fetch(uri).arrayBuffer()` вместо base64.
+
+- **2026-07-24 (support upload perf):** Android: долгая отправка ~1 МБ из‑за `readAsStringAsync(base64)` + JS decode. Upload → `FileSystem.uploadAsync`; warm галереи + spinner. Resize manipulator не добавляли.
+
+- **2026-07-24 (support keyboard + theme):** Android IME перекрывал «Отправить». iOS оставлен на `KeyboardAvoidingView`; Android — `paddingBottom = IME height` + `flex-end` (absolute overlay не в resized-зоне; без padding форма уезжала вниз). Подтверждение через `AppDialog`.
+
+- **2026-07-24 (support picker overlay):** PHPicker из RN `Modal` ломал тачи; hide-on-pick убирал форму с экрана. `SupportModal` → absolute View-overlay (форма остаётся), пикер поверх; `Compatible` для HEIC. iOS + Android. Metro reload.
+
 - **2026-07-23 (favicon):** В `_legacy_web/public/icons/` добавлены PNG/ICO из `assets/images/icon.png` (раньше layout ссылался на отсутствующие файлы). Metadata админки/корня указывает favicon 16/32 + apple-touch + 192/512.
 
 - **2026-07-22 (ЮКасса в админке + каталог):** Убран бейдж «скоро» / текст «не подключена» у блока ЮКасса (дашборд + stats) — пустое состояние как у Lava. Карточка пользователя: история уже из `payment_contracts` любого provider; текст удаления упоминает ЮКасса. Каталог SKU: `GET/PATCH /api/admin/payment-catalog` + UI `/admin/payments/catalog` (title/description/amount). Воронки и сводные отчёты уже суммируют оба шлюза.

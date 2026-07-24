@@ -12,6 +12,8 @@ export type MyNotification = {
 };
 
 const LIST_FETCH_TIMEOUT_MS = 12_000;
+/** Inbox на клиенте: только недавние рассылки (продуктовый лимит UI). */
+export const MY_NOTIFICATIONS_LIST_LIMIT = 10;
 
 type DeliveryListRow = {
   read_at: string | null;
@@ -59,7 +61,7 @@ export async function fetchMyNotifications(
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(100),
+        .limit(MY_NOTIFICATIONS_LIST_LIMIT),
       LIST_FETCH_TIMEOUT_MS,
       "notifications list",
     );

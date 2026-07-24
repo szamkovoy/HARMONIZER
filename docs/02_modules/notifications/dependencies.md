@@ -20,12 +20,12 @@ code_refs:
 - **`subscription`** — сегмент `tier:<t>` фильтрует по сырому `users.membership_tier` (не effective tier — истёкший грант остаётся в своём тарифе до фикса данных).
 - **`infra`** — Supabase (`push_tokens` из init-миграции, `notifications`, `notification_deliveries`), Expo Push API (`exp.host`), EAS `projectId` из `app.json`. **Android remote:** FCM через `google-services.json` + EAS credentials (не в git пока не подключено).
 - **`services/localNotifications.ts`** — ленивый загрузчик `expo-notifications` (`getExpoNotificationsOrNull`), `ensureAndroidNotificationChannels` (`harmonizer_opportunity_high` / `harmonizer_remote`), общий с локальными напоминаниями.
-- **FCM (Android remote):** локальный `google-services.json` в корне (**gitignore**, шаблон `google-services.json.example`; `app.config.ts`) + FCM V1 в EAS (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.
+- **FCM (Android remote):** локальный `google-services.json` в корне (**gitignore**, шаблон `.example`) **и** EAS file-env `GOOGLE_SERVICES_JSON` (иначе remote build без FCM); FCM V1 key в EAS credentials (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.
 - **auth / i18n** — userId для токена и доставок; ключи `notifications.*`.
 
 ## 2. От него зависят
 
-- **`profile`** — карточка «Мои уведомления» с бейджем в `app/(tabs)/profile.tsx`.
+- **`profile`** — в «Мои данные» подпись + кликабельная цифра непрочитанных → `/my-notifications` (`app/(tabs)/profile.tsx`).
 - **Корневой layout** — `PushRegistrationBridge` в `app/_layout.tsx`.
 - **Home** (`app/(tabs)/index.tsx`) — мягкий `ensureNotificationPermission("home")` на focus.
 - **OpportunityWindows** — `ensureNotificationPermission("opportunity_bell")` + `registerPushToken` при сохранении напоминания.

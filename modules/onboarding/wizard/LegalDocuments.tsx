@@ -1,9 +1,12 @@
 /**
- * Юридическая строка внизу шагов мастера + модальные окна с текстами
+ * Юридическая строка + модальные окна с текстами
  * «Пользовательское соглашение» и «Политика конфиденциальности».
  *
- * Тексты документов и подписи ссылок берутся из i18n-каталога
- * (`wizard.legal.*`), чтобы работать на всех 8 локалях.
+ * Тексты документов и подписи ссылок — из i18n-каталога (`wizard.legal.*`),
+ * активная локаль приложения (мастер / Профиль — один и тот же store).
+ *
+ * `tone="consent"` — фраза «Продолжая, вы соглашаетесь…» (шаг 1 мастера).
+ * `tone="links"` — только две ссылки (Профиль); модалка та же.
  */
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -15,7 +18,7 @@ import { useTranslate } from "@/modules/i18n";
 
 type LegalDoc = "terms" | "privacy";
 
-export function LegalFooter() {
+export function LegalFooter({ tone = "consent" }: { tone?: "consent" | "links" }) {
   const theme = useTheme();
   const { t } = useTranslate();
   const [openDoc, setOpenDoc] = useState<LegalDoc | null>(null);
@@ -31,16 +34,19 @@ export function LegalFooter() {
     fontWeight: "400" as const,
   };
 
+  const termsLabel = tone === "links" ? t("wizard.legal.termsTitle") : t("wizard.legal.termsLink");
+  const privacyLabel = tone === "links" ? t("wizard.legal.privacyTitle") : t("wizard.legal.privacyLink");
+
   return (
     <View style={styles.wrap}>
       <Text style={[baseStyle, styles.text]} accessibilityRole="text">
-        <Text>{t("wizard.legal.prefix")}</Text>
+        {tone === "consent" ? <Text>{t("wizard.legal.prefix")}</Text> : null}
         <Text
           accessibilityRole="link"
           onPress={() => setOpenDoc("terms")}
           style={linkStyle}
         >
-          {t("wizard.legal.termsLink")}
+          {termsLabel}
         </Text>
         <Text>{t("wizard.legal.and")}</Text>
         <Text
@@ -48,7 +54,7 @@ export function LegalFooter() {
           onPress={() => setOpenDoc("privacy")}
           style={linkStyle}
         >
-          {t("wizard.legal.privacyLink")}
+          {privacyLabel}
         </Text>
       </Text>
 
@@ -116,6 +122,8 @@ const styles = StyleSheet.create({
   },
   docContent: {
     flexGrow: 1,
+    // Чуть больше воздуха над первой строкой юртекста (оба документа).
+    paddingTop: 10,
   },
   docText: {
     lineHeight: 22,

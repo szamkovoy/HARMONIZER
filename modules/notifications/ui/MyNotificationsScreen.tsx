@@ -14,20 +14,21 @@ import { StackScreenLayout, useStackScreenContentProps } from "@/modules/ui/Stac
 import { StateCard } from "@/modules/ui/StateCard";
 import { useTheme } from "@/modules/ui/theme";
 
-/** «Мои уведомления»: гарантированная витрина рассылок автора (не локальные колокольчики). */
+/** «Недавние уведомления»: гарантированная витрина рассылок автора (не локальные колокольчики). */
 export function MyNotificationsScreen() {
   const theme = useTheme();
   const { t, locale } = useTranslate();
   const { authUser, initializing } = useAuth();
   const userId = authUser?.id ?? null;
-  const contentProps = useStackScreenContentProps({ topPadding: 4, gap: 10 });
+  const contentProps = useStackScreenContentProps({ topPadding: 8, gap: 10 });
 
   const [items, setItems] = useState<MyNotification[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initializing) return;
+    // Не ждём полный auth bootstrap, если userId уже есть — иначе inbox «висит» на лоадере.
     if (!userId) {
+      if (initializing) return;
       setItems([]);
       setLoadError(null);
       return;
@@ -73,6 +74,10 @@ export function MyNotificationsScreen() {
           {t("notifications.title")}
         </AppText>
       </View>
+
+      <AppText variant="screenHint" tone="muted" style={styles.listHint}>
+        {t("notifications.listHint")}
+      </AppText>
 
       <FlatList
         data={items ?? []}
@@ -142,7 +147,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 14,
     paddingHorizontal: 20,
-    paddingVertical: 4,
+    // Как TabScrollView topPadding (~20): safe-area уже в StackScreenLayout.
+    paddingTop: 18,
+    paddingBottom: 4,
+  },
+  listHint: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   card: {
     borderRadius: 16,

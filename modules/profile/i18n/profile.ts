@@ -52,7 +52,8 @@ const ru: ProfileReportStrings = {
   lifeStatesTitle: "Проживаемые состояния",
   spheresLegendPrefix: "Сферы жизни:",
   practicesNotDone: "Практики не выполнялись",
-  matrixNotReady: "Отчёт появится после 5 подытоженных событий и 5 дней от первого из них",
+  matrixNotReady:
+    "Отчёт появится после 7 дней планирования и подытоживания своих действий. Кнопка «Что делать?» на главной странице как раз для этого.",
   reportsLoading: "Загружаем отчёты...",
   reportsUpgradeHint: "Отчёты доступны на тарифах Практик и Мастер.",
   openTiersButton: "Открыть тарифы",
@@ -83,7 +84,8 @@ const en: ProfileReportStrings = {
   lifeStatesTitle: "States lived",
   spheresLegendPrefix: "Life spheres:",
   practicesNotDone: "No practices completed",
-  matrixNotReady: "The report will appear after 5 summarized events and 5 days from the first one",
+  matrixNotReady:
+    "The report will appear after 7 days of planning and summarizing your actions. The \"What should I do?\" button on the home screen is for that.",
   reportsLoading: "Loading reports...",
   reportsUpgradeHint: "Reports are available on Practitioner and Master tiers.",
   openTiersButton: "View tiers",

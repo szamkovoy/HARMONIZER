@@ -7,6 +7,7 @@ depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/c
 code_refs:
   [
     modules/i18n/localeStore.ts,
+    modules/i18n/resolveDeviceAppLocale.ts,
     modules/i18n/t.ts,
     modules/i18n/useAppLocale.ts,
     modules/i18n/useTranslate.ts,
@@ -89,14 +90,16 @@ cost never decides layer-C design.
   `enabled` is `true` for all eight locales after bulk `fill --all` (2026-06-15).
   Layer C dialog scaffolding is localized for all eight via `dialog_scaffold` catalogs (2026-06-15).
 - `DEFAULT_APP_LOCALE = "ru"`.
-- **`deviceLocale()`** — first-launch device language. Reads the OS **ordered** list of
-  preferred languages via `expo-localization` `getLocales()` and returns the first that
-  matches an **enabled** app locale (correctly handles an unsupported primary, e.g.
-  `zh`/`kk`, with a supported second preference). Terminal fallback is **English**
-  (`DEVICE_LOCALE_FALLBACK = "en"`, per product decision: an unknown user gets EN,
-  not RU); `ru` remains the ultimate last resort via `DEFAULT_APP_LOCALE` if `en` is
-  somehow disabled. Previously used `Intl.DateTimeFormat().resolvedOptions().locale`
-  (single primary locale only).
+- **`deviceLocale()` / `resolveDeviceAppLocale(codes)`** — first-launch device language
+  when SecureStore and `users.locale` are absent. Reads the OS **ordered** preferred
+  languages via `expo-localization` `getLocales()` and resolves:
+  1. first code that matches an **enabled** app locale among the 8;
+  2. else if any preferred code is in **`DEVICE_LOCALE_RU_CLUSTER`**
+     (`be`/`uk`/`kk`/`ky`/`uz`/`tg`) → **`ru`**;
+  3. else → **`en`** (`DEVICE_LOCALE_FALLBACK`).
+  Returning installs / updates keep persisted SecureStore or account `users.locale`
+  via `hydrateAppLocale` (never re-forced from the device list). `ru` remains the
+  ultimate last resort via `DEFAULT_APP_LOCALE` if `en` is somehow disabled.
 - `I18N_TEST_MODE` — parsed from `EXPO_PUBLIC_I18N_TEST_MODE`.
 - State: a module-level `currentLocale` + listener set (powers `useSyncExternalStore`).
 - Persistence: expo-secure-store on native, `localStorage` on web (key

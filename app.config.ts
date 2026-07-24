@@ -8,8 +8,10 @@
  *   2. Добавляем `NSLocationWhenInUseUsageDescription` — чтобы иметь право
  *      спрашивать геолокацию на онбординге (для эфемерид: восходы Солнца/Луны
  *      зависят от точных координат пользователя).
- *   3. Подключаем `android.googleServicesFile`, если в корне лежит
- *      локальный `google-services.json` (FCM; файл в `.gitignore`, не коммитить).
+ *   3. Подключаем `android.googleServicesFile` для FCM (remote push):
+ *      - локально: `./google-services.json` в корне (gitignore);
+ *      - на EAS: file-env `GOOGLE_SERVICES_JSON` (путь подставляет билдер).
+ *      Без этого Android не получает Expo push token → админ-пуши не уходят.
  *
  * Авторизация — только email-OTP (Supabase): нативные плагины Apple/Google
  * Sign-In удалены вместе с их entitlement/URL-scheme (см. modules/auth).
@@ -22,8 +24,17 @@ import path from "node:path";
 import type { ExpoConfig, ConfigContext } from "expo/config";
 import appJson from "./app.json";
 
-const GOOGLE_SERVICES_JSON = path.join(__dirname, "google-services.json");
-const hasGoogleServicesFile = fs.existsSync(GOOGLE_SERVICES_JSON);
+/** EAS file env path, or local gitignored file for `eas build --local` / prebuild. */
+const GOOGLE_SERVICES_FILE =
+  (process.env.GOOGLE_SERVICES_JSON || "").trim() ||
+  (fs.existsSync(path.join(__dirname, "google-services.json"))
+    ? "./google-services.json"
+    : "");
+if (!GOOGLE_SERVICES_FILE) {
+  console.warn(
+    "[app.config] google-services.json missing — Android remote push will not register an Expo token until the file is present locally or as EAS env GOOGLE_SERVICES_JSON.",
+  );
+}
 /** Maps SDK for Android (`react-native-maps` / BirthPlaceMapModal). iOS uses Apple Maps. */
 const GOOGLE_MAPS_API_KEY = (
   process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -79,9 +90,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       ...base.android,
       ...config.android,
-      ...(hasGoogleServicesFile
-        ? { googleServicesFile: "./google-services.json" }
-        : {}),
+      ...(GOOGLE_SERVICES_FILE ? { googleServicesFile: GOOGLE_SERVICES_FILE } : {}),
       config: {
         ...((base.android as { config?: Record<string, unknown> } | undefined)?.config ?? {}),
         ...((config.android as { config?: Record<string, unknown> } | undefined)?.config ?? {}),

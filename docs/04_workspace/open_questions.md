@@ -10,7 +10,7 @@ code_refs: []
 
 ## `notifications` / Android remote push (FCM, 2026-07-22)
 
-- **~~Админский push на Android не доходит~~** — закрыто 2026-07-23: Firebase `harmonizer-777` + `google-services.json` + FCM V1 key в EAS (`scripts/upload-fcm-to-eas.mjs`); нужен rebuild Android binary и проверка `push_tokens.platform=android` + тестовая рассылка. См. `notifications/history`.
+- **~~Админский push на Android не доходит~~** — закрыто 2026-07-23 (FCM V1 в EAS); уточнение 2026-07-24: gitignore `google-services.json` не попадал в EAS build → 0 android tokens. Залит EAS file-env `GOOGLE_SERVICES_JSON`; нужен rebuild + проверка `push_tokens.platform=android`. См. `notifications/history`.
 
 ## `daily_forecast` / стартовая пауза главного экрана (наблюдение пользователя, 2026-07-20)
 

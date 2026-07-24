@@ -1,6 +1,7 @@
 export {
   sendSupportMessage,
   pickSupportScreenshots,
+  warmSupportImagePicker,
   MAX_SUPPORT_MESSAGE_LENGTH,
   MAX_SUPPORT_ATTACHMENTS,
   MAX_SUPPORT_ATTACHMENT_BYTES,

@@ -10,6 +10,7 @@ import {
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 import {
   defaultPracticeStatsSelectionIndex,
+  formatPracticeStatsCalloutMinutes,
   formatPracticeStatsScrubDate,
   nearestPracticeStatsBarIndex,
   practiceStatsBarCenterX,
@@ -182,7 +183,7 @@ export function PracticeStatsChart(props: {
                   </AppText>
                   <View style={styles.calloutValueRow}>
                     <AppText variant="sectionTitle" style={styles.calloutValue}>
-                      {selectedBar.minutes}
+                      {formatPracticeStatsCalloutMinutes(selectedBar.minutes)}
                     </AppText>
                     <AppText variant="technicalCaption" tone="muted">
                       {props.minutesUnit}
@@ -250,7 +251,9 @@ export function PracticeStatsChart(props: {
                   {
                     left: selectionX - SELECTION_LINE_WIDTH / 2,
                     top: SCRUB_CALLOUT_HEIGHT - 2,
-                    backgroundColor: theme.colors.textMuted,
+                    // Светлее textMuted — линия-указатель не конкурирует с барами.
+                    backgroundColor: theme.colors.textFaint,
+                    opacity: 0.55,
                   },
                 ]}
               />

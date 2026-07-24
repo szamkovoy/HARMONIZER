@@ -36,7 +36,7 @@ code_refs:
 
 ## 1. Назначение (продукт)
 
-Рассылки владельца сегментам пользователей: push через Expo **плюс гарантированная копия** в списке «Мои уведомления» в Профиле — сообщение (например, ссылка на запись вебинара) доходит и при выключенных push-разрешениях. Этап 4 плана админ-панели.
+Рассылки владельца сегментам пользователей: push через Expo **плюс гарантированная копия** в списке **«Недавние уведомления»** (`/my-notifications`, лимит **10** последних deliveries) — сообщение (например, ссылка на запись вебинара) доходит и при выключенных push-разрешениях. Вход с Профиля: в «Мои данные» подпись `notifications.myDataLabel` + кликабельная цифра непрочитанных (при 0 тоже открывает список). На экране — `notifications.listHint` (системные колокольчики окон сюда не попадают). Этап 4 плана админ-панели.
 
 ## 2. Публичный контракт
 
@@ -86,5 +86,5 @@ UI — `notifications.*`. **Язык любого remote push** = только `
 - Inbox ≠ все пуши устройства: только строки `notification_deliveries`. Напоминания окон возможностей (колокольчик) — локальный `expo-notifications`, в inbox не пишутся.
 - Текст системного iOS-диалога разрешений **не редактируется** (ограничение Apple); pre-permission Alert сознательно не используем (откат 2026-07-18).
 - Если пользователь навсегда запретил уведомления в настройках ОС (`canAskAgain=false`), повторный системный диалог невозможен — только ручное включение в Settings.
-- **Android remote push требует FCM:** разрешение ОС + локальные напоминания (колокольчик) работают без Firebase; доставка **админских** push через Expo Push на Android — только при локальном `google-services.json` в native build (`app.config.ts` подхватывает файл из корня; **не в git** — см. `google-services.json.example`) и FCM v1 credentials в EAS. Чекер: `node scripts/android-fcm-setup.mjs`. Без этого `getExpoPushTokenAsync` на Android падает.
+- **Android remote push требует FCM:** разрешение ОС + локальные напоминания (колокольчик) работают без Firebase; доставка **админских** push через Expo Push на Android — только если native build включает `google-services.json`: локально файл в корне (gitignore), на EAS — file-env **`GOOGLE_SERVICES_JSON`** (`app.config.ts` → `android.googleServicesFile`), плюс FCM V1 service account в EAS credentials. Чекер: `node scripts/android-fcm-setup.mjs`. Без файла в билде `getExpoPushTokenAsync` на Android падает → в `push_tokens` нет android-строк → рассылка шлёт только iOS.
 - **Android channels:** `ensureAndroidNotificationChannels()` создаёт `harmonizer_opportunity_high` и `harmonizer_remote` (в Settings → категории могут быть под «Показать неиспользуемые», пока ни одно уведомление не пришло).

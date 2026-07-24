@@ -1,3 +1,11 @@
+- 2026-07-24 (273): Profile — legal modal +10pt top; matrixNotReady copy; practice stats 90d empty fix + lighter scrub line.
+- 2026-07-24 (272): Support upload — fix signed PUT URL (bucket in path → InvalidSignature→slow base64); buffer fallback via fetch(uri).
+- 2026-07-24 (271): Support attach — native `uploadAsync` (fix Android base64 hang); gallery warm + progress copy; no image-manipulator resize.
+- 2026-07-24 (270): SupportModal Android — keyboard keeps Send visible; success via AppDialog (app theme). Inbox: digit-only link, title/hint, limit 10.
+- 2026-07-24 (269): Profile — support copy refresh (8 locales); notifications card → «Уведомления: N» link in My data.
+- 2026-07-24 (268): Support attach — View overlay instead of RN Modal so picker opens over the form (no flash / dead PHPicker buttons).
+- 2026-07-24 (267): Android remote push — EAS file-env `GOOGLE_SERVICES_JSON` (gitignore ломал FCM в APK → 0 android tokens).
+- 2026-07-24 (266): First-launch locale — supported → RU-cluster (be/uk/kk/ky/uz/tg) → EN; Profile legal links (`LegalFooter`).
 - 2026-07-24 (265): Birth-place overlay Android — hostRect из onLayout корня (пустой absolute-слой давал height=0).
 - 2026-07-24 (264): WizardTitle iOS `21→20` pt — заголовок шага 2 в одну строку; Android без изменений.
 - 2026-07-24 (263): Birth-place suggestions — низ списка привязан к полю (`bottom`), при укорочении не отрывается вверх.

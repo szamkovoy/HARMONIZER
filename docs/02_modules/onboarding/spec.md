@@ -90,7 +90,7 @@ code_refs:
 
 ## 8. Legal (`modules/onboarding/wizard/LegalDocuments.tsx`)
 
-`LegalFooter` — кликабельные ссылки «Пользовательское соглашение» / «Политика конфиденциальности» → `LegalDocumentModal`. Модалка: backdrop — абсолютный `Pressable`-ловец за листом, лист — `View` (не `Pressable`, чтобы не ломать скролл), тело в `ScrollView` `flex:1` (скроллится), «Закрыть» зафиксирована внизу. Тексты — `wizard.legal.{termsBody,privacyBody,close,prefix,...}`.
+`LegalFooter` — кликабельные ссылки «Пользовательское соглашение» / «Политика конфиденциальности» → `LegalDocumentModal`. Проп `tone`: `"consent"` (мастер шаг 1 — префикс «Продолжая…» + genitive link labels) | `"links"` (Профиль — только две ссылки в именительном через `termsTitle`/`privacyTitle`). Модалка: backdrop — абсолютный `Pressable`-ловец за листом, лист — `View` (не `Pressable`, чтобы не ломать скролл), тело в `ScrollView` `flex:1` (скроллится), `contentContainerStyle.paddingTop: 10` над первой строкой; «Закрыть» зафиксирована внизу; закрытие не размонтирует экран под модалкой (скролл Профиля сохраняется). Тексты — `wizard.legal.*` в активной локали приложения.
 
 ## 9. Geo-gate на главной (`modules/home/ui/GeoGate.tsx`)
 

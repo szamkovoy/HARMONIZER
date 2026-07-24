@@ -56,6 +56,17 @@ export function secondsToPracticeMinutes(seconds: number | null | undefined): nu
   return Math.round(safe / 60);
 }
 
+/** Callout label: whole minutes, or one decimal for small weekly averages. */
+export function formatPracticeStatsCalloutMinutes(minutes: number): string {
+  const safe = Number(minutes);
+  if (!Number.isFinite(safe) || safe <= 0) return "0";
+  if (Number.isInteger(safe) || Math.abs(safe - Math.round(safe)) < 1e-6) {
+    return String(Math.round(safe));
+  }
+  if (safe < 1) return safe.toFixed(1);
+  return String(Math.round(safe));
+}
+
 /** Nice Y-axis ceiling so ticks stay round (1 / 2 / 5 × 10^n). */
 export function niceScaleMaxMinutes(value: number): number {
   const safe = Math.max(0, Number(value) || 0);
@@ -197,7 +208,8 @@ function buildWeekBars(dailyMinutes: Map<string, number>, dates: string[]): Prac
     const startLocalDate = chunk[0]!;
     const endLocalDate = chunk[chunk.length - 1]!;
     const totalMinutes = chunk.reduce((sum, date) => sum + (dailyMinutes.get(date) ?? 0), 0);
-    const minutes = Math.round(totalMinutes / chunk.length);
+    // Не Math.round: 1 мин за неделю → round(1/7)=0 и график ошибочно «пустой».
+    const minutes = chunk.length > 0 ? totalMinutes / chunk.length : 0;
     bars.push({
       key: `${startLocalDate}_${endLocalDate}`,
       minutes,
@@ -242,7 +254,8 @@ export function buildPracticeStatsChartModel(input: {
 
   const maxMinutes = Math.max(0, ...bars.map((bar) => bar.minutes));
   const scaleMaxMinutes = niceScaleMaxMinutes(Math.max(1, maxMinutes));
-  const hasAnyPractice = bars.some((bar) => bar.minutes > 0);
+  // По сырым дням: недельное среднее <0.5 иначе округлялось к 0 и прятало практику.
+  const hasAnyPractice = Array.from(dailyMinutes.values()).some((minutes) => minutes > 0);
 
   return {
     mode,

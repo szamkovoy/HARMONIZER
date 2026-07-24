@@ -12,6 +12,10 @@ export {
   type AppLocale,
   type AppLocaleOption,
 } from "@/modules/i18n/localeStore";
+export {
+  DEVICE_LOCALE_RU_CLUSTER,
+  resolveDeviceAppLocale,
+} from "@/modules/i18n/resolveDeviceAppLocale";
 export { useAppLocale, type UseAppLocaleResult } from "@/modules/i18n/useAppLocale";
 export { t, tCount, pluralCategory } from "@/modules/i18n/t";
 export {

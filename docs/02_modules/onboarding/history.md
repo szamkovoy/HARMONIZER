@@ -10,6 +10,10 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-24 (legal modal padding):** `LegalDocumentModal` — `paddingTop: 10` над первой строкой terms/privacy (мастер + Профиль).
+
+- **2026-07-24 (LegalFooter на Профиле):** `LegalFooter` получил `tone="links"|"consent"`; Профиль рендерит `tone="links"` внизу таба (та же модалка / каталог `wizard.legal.*`). См. `profile/history.md`.
+
 - **2026-07-24 (birth place Android hostRect):** Список городов снова пропал на Android: `measureInWindow` пустого overlay-слоя → height=0 → `hostRect` null → оверлей не монтировался. Fix: rect хоста из `onLayout` flex-корня в `WizardOverlayProvider`; не сбрасывать оверлей пока ждём якорь. Metro reload.
 
 - **2026-07-24 (WizardTitle iOS 20pt):** Заголовок шага 2 на iPhone всё ещё переносился; `WizardTitle` iOS `21→20` / `lineHeight 26` (Android без изменений, 21). Metro reload.

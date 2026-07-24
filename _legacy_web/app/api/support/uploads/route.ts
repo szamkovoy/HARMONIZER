@@ -47,6 +47,8 @@ export async function POST(req: Request) {
     return json({
       path: data.path,
       token: data.token,
+      // Полный URL с bucket в path — клиент шлёт PUT напрямую (uploadAsync).
+      signedUrl: data.signedUrl,
       contentType,
       maxBytes: MAX_BYTES,
     });

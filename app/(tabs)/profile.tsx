@@ -16,7 +16,7 @@ import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh
 import { APP_LOCALE_OPTIONS, getResponseLocale, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
 import { NatalBirthDataModal, geoPlaceFromProfileBirthPlace } from "@/modules/home/ui/NatalBirthDataModal";
-import { BirthPlaceMapModal, formatGeoPlaceLabel, type GeoPlace } from "@/modules/onboarding";
+import { BirthPlaceMapModal, LegalFooter, formatGeoPlaceLabel, type GeoPlace } from "@/modules/onboarding";
 import { isoToDdmmyyyy } from "@/modules/onboarding/birthDateFormat";
 import { fetchUnreadNotificationCount } from "@/modules/notifications";
 import { SupportModal } from "@/modules/support";
@@ -600,6 +600,23 @@ export default function ProfileTabRoute() {
           </AppText>
           {email ? <AppText variant="dialogBody" tone="muted">{email}</AppText> : null}
 
+          <View style={styles.notificationsRow}>
+            <AppText variant="dialogBody">{t("notifications.myDataLabel")} </AppText>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`${t("notifications.myDataLabel")} ${unreadNotifications}`}
+              onPress={() => {
+                setUnreadNotifications(0);
+                router.push("/my-notifications" as never);
+              }}
+              hitSlop={8}
+            >
+              <AppText variant="dialogBody" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                {unreadNotifications}
+              </AppText>
+            </Pressable>
+          </View>
+
           <AppText variant="dialogBody">{t("profile.language.appLabel")}</AppText>
           <ComboBox
             variant="pill"
@@ -729,25 +746,6 @@ export default function ProfileTabRoute() {
           <AppText variant="technicalCaption" tone="muted">
             {t("profile.access.birthHint")}
           </AppText>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">{t("notifications.title")}</AppText>
-          <AppText variant="screenHint" tone="muted">
-            {t("notifications.profileHint")}
-          </AppText>
-          <AppButton
-            label={
-              unreadNotifications > 0
-                ? `${t("notifications.openButton")} (${unreadNotifications})`
-                : t("notifications.openButton")
-            }
-            variant="secondary"
-            onPress={() => {
-              setUnreadNotifications(0);
-              router.push("/my-notifications" as never);
-            }}
-          />
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
@@ -898,6 +896,11 @@ export default function ProfileTabRoute() {
             {t("profile.comingSoon.body")}
           </AppText>
         </View>
+
+        {/* Те же юр. документы, что на шаге 1 мастера; Modal не сбрасывает скролл. */}
+        <View style={styles.legalFooter}>
+          <LegalFooter tone="links" />
+        </View>
       </TabScrollView>
 
       <SupportModal visible={supportOpen} onClose={() => setSupportOpen(false)} />
@@ -1034,6 +1037,11 @@ const styles = StyleSheet.create({
   accountLink: {
     textDecorationLine: "underline",
   },
+  notificationsRow: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
   myDataBirthActions: {
     flexDirection: "row",
     gap: 10,
@@ -1041,5 +1049,10 @@ const styles = StyleSheet.create({
   },
   myDataActionBtn: {
     flex: 1,
+  },
+  legalFooter: {
+    alignItems: "center",
+    paddingBottom: 8,
+    paddingTop: 4,
   },
 });

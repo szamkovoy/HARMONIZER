@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-24 (device locale RU-cluster + EN default):** First-launch без SecureStore/`users.locale`: (1) первый из 8 supported в ordered `getLocales()`; (2) иначе be/uk/kk/ky/uz/tg → `ru`; (3) иначе `en`. Чистый `resolveDeviceAppLocale` + vitest. Возврат/обновление — по-прежнему stored/profile. См. CHANGELOG (266).
+
 - **2026-07-23 (OTP transport → Resend, SES as switchable tail):** OTP again via Resend (`AUTH_EMAIL_PROVIDER=resend`, channel `auth_otp` / `RESEND_ZAMKOVOI_YOGA_API_KEY`); Amazon SES code kept under `mail/providers/ses.ts` for one-secret switchback. Templates/locale side-channel unchanged. Ops DNS inventory: `docs/04_workspace/email_providers.md`.
 
 - **2026-07-23 (account locale over sticky SecureStore):** После логина другого пользователя устройство могло оставить язык предыдущего аккаунта (`harmonizer.locale.v1`) и затереть `users.locale` write-back’ом. `hydrateAppLocale` теперь предпочитает `profile.locale` и при смене аккаунта вызывает `setAppLocale`. Симптом QA: Pavel Master на Pixel открывал день на FR после Егора.

@@ -85,8 +85,10 @@ if (!fs.existsSync(serviceAccountPath)) {
           "  → pick a build profile (development or production)\n" +
           "  → Google Service Account → Manage FCM V1 → Upload\n" +
           "  → select fcm-service-account.json\n" +
+          "Also: eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json\n" +
+          "  (gitignore hides the file from EAS upload; file-env is required)\n" +
           "Then rebuild the Android binary (dev-client must include google-services.json).",
-      );
+        );
     }
   } catch (error) {
     fail(`fcm-service-account.json is not valid JSON: ${error.message}`);

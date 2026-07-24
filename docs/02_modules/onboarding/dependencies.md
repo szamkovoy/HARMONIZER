@@ -21,7 +21,7 @@ depends_on: [02_modules/onboarding/spec]
 ## От него зависят
 
 - **`home`** — после `finishOnboarding` пользователь попадает в `(tabs)/index.tsx`; `GeoGate` (этот модуль) используется Home-вкладкой.
-- **`profile`** — `NatalBirthDataModal` (`modules/home/ui/NatalBirthDataModal.tsx`) переиспользует `BirthPlacePicker`, `formatGeoPlaceLabel`, `GeoPlace` из `modules/onboarding`, общие хелперы маски/валидации даты-времени рождения из `modules/onboarding/birthDateFormat.ts` (`formatDateMask`/`formatTimeMask`/`ddmmyyyyToIso`/`isoToDdmmyyyy`), а также **`MaskedTextInput`** (`modules/onboarding/MaskedTextInput.tsx`) — сегментный ввод даты/времени (каждый сегмент DD/MM/YYYY/HH — отдельный `TextInput` с `selectTextOnFocus`, сегменты изолированы — правка одного не сдвигает другой); `BirthPlaceMapModal` используется в блоке «Мои данные» Профиля для сверки сохранённого места рождения.
+- **`profile`** — `NatalBirthDataModal` (`modules/home/ui/NatalBirthDataModal.tsx`) переиспользует `BirthPlacePicker`, `formatGeoPlaceLabel`, `GeoPlace` из `modules/onboarding`, общие хелперы маски/валидации даты-времени рождения из `modules/onboarding/birthDateFormat.ts` (`formatDateMask`/`formatTimeMask`/`ddmmyyyyToIso`/`isoToDdmmyyyy`), а также **`MaskedTextInput`** (`modules/onboarding/MaskedTextInput.tsx`) — сегментный ввод даты/времени (каждый сегмент DD/MM/YYYY/HH — отдельный `TextInput` с `selectTextOnFocus`, сегменты изолированы — правка одного не сдвигает другой); `BirthPlaceMapModal` используется в блоке «Мои данные» Профиля для сверки сохранённого места рождения; внизу вкладки Профиль — **`LegalFooter tone="links"`** (те же юр. документы / модалка, что на шаге 1 мастера).
 
 ## Контракты
 

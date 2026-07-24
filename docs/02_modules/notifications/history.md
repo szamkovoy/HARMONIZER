@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-24 (inbox polish):** Экран «Недавние уведомления» + `listHint`; лимит списка 10; ссылка только на цифре в «Мои данные»; fetch не ждёт полный auth bootstrap, если `userId` уже есть; `paddingTop` заголовка ~18 (как вкладки).
+
+- **2026-07-24 (Profile entry):** Отдельная карточка «Мои уведомления» на Профиле убрана. Вход в inbox — «Уведомления:» + кликабельная цифра в «Мои данные»; при 0 тоже открывает `/my-notifications`.
+
+- **2026-07-24 (Android push: no token):** QA «Проверка связи 2»: iPhone ок, Android нет. В БД **0** `push_tokens.platform=android` (только 1 iOS у Павла); рассылка `push_sent_count=1`. Причина: `google-services.json` в `.gitignore` → EAS build без FCM в APK → `getExpoPushTokenAsync` на Android падает → токен не claim’ится. Fix: EAS file-env `GOOGLE_SERVICES_JSON` + `app.config` читает `process.env.GOOGLE_SERVICES_JSON`. Нужен **rebuild** Android development + установить APK + открыть приложение с granted notifications → появится android-токен → повторная рассылка.
+
 - **2026-07-23 (google-services.json out of git):** GitHub secret scanning: public leak `google_api_key` in committed `google-services.json` (`ed1705d`). File removed from tracking + `.gitignore`; template `google-services.json.example`. **Owner must rotate/restrict the leaked Android API key in Google Cloud Console** and close the alert as revoked. Local file stays for builds; not committed.
 
 - **2026-07-23 (Android FCM live):** Firebase project `harmonizer-777`; `google-services.json` в корне; FCM V1 service account загружен в EAS и назначен на `com.zamkovoi.harmonizer` (`scripts/upload-fcm-to-eas.mjs`). Rebuild Android development client обязателен для получения Expo push token на устройстве.

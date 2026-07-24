@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { getLocales } from "expo-localization";
 
+import { resolveDeviceAppLocale } from "@/modules/i18n/resolveDeviceAppLocale";
 import { syncUserLocaleToServer } from "@/services/userLocaleClient";
 
 /**
@@ -61,31 +62,27 @@ export function coerceAppLocale(value: string | null | undefined): AppLocale {
 }
 
 /**
- * Device language at first launch.
- *
- * Reads the OS *ordered* list of preferred languages (`expo-localization`
- * `getLocales()`) and picks the first one that matches an enabled app locale.
- * This correctly handles e.g. a device whose primary locale is unsupported
- * (zh, kk, …) but whose second/third preference is ru/en.
- *
- * Terminal fallback is English (per product decision: when no device language
- * matches the 8 supported locales, show English rather than Russian). `ru`
- * remains the ultimate last-resort via DEFAULT_APP_LOCALE if `en` is somehow
- * disabled.
+ * Device language at first launch (no SecureStore / no `users.locale` yet).
+ * See `resolveDeviceAppLocale.ts` for the ordered rules (supported → RU-cluster → EN).
+ * Returning installs keep SecureStore / profile locale via `hydrateAppLocale`.
  */
-const DEVICE_LOCALE_FALLBACK: AppLocale = "en";
+function deviceLocaleLanguageCodes(): string[] {
+  try {
+    const codes: string[] = [];
+    for (const loc of getLocales()) {
+      const fromCode = (loc.languageCode ?? "").trim().slice(0, 2).toLowerCase();
+      const fromTag = (loc.languageTag ?? "").trim().split(/[-_]/)[0]?.toLowerCase() ?? "";
+      const code = fromCode || fromTag;
+      if (code.length === 2 && !codes.includes(code)) codes.push(code);
+    }
+    return codes;
+  } catch {
+    return [];
+  }
+}
 
 function deviceLocale(): AppLocale {
-  try {
-    const locales = getLocales();
-    for (const loc of locales) {
-      const code = (loc.languageCode ?? "").trim().slice(0, 2).toLowerCase();
-      if (isEnabledLocale(code)) return code as AppLocale;
-    }
-  } catch {
-    /* fall through to fallback */
-  }
-  return isEnabledLocale(DEVICE_LOCALE_FALLBACK) ? DEVICE_LOCALE_FALLBACK : DEFAULT_APP_LOCALE;
+  return resolveDeviceAppLocale(deviceLocaleLanguageCodes()) as AppLocale;
 }
 
 let currentLocale: AppLocale = deviceLocale();

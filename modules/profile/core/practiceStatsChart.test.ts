@@ -113,8 +113,23 @@ describe("practiceStatsChart", () => {
 
     expect(model.mode).toBe("week");
     expect(model.bars.length).toBe(13);
-    expect(model.bars[0]?.minutes).toBe(Math.round(60 / 7));
+    expect(model.bars[0]?.minutes).toBeCloseTo(60 / 7, 5);
     expect(model.bars[model.bars.length - 1]?.minutes).toBeGreaterThan(0);
     expect(model.bars.filter((bar) => bar.showDateLabel).length).toBeLessThanOrEqual(5);
+  });
+
+  it("keeps 90-day chart non-empty when only one short practice day exists", () => {
+    const now = DateTime.fromISO("2026-07-24T12:00:00", { zone: "UTC" });
+    const model = buildPracticeStatsChartModel({
+      periodDays: 90,
+      timezone: "UTC",
+      now,
+      rows: [{ local_date: "2026-07-24", total_practice_seconds: 60 }],
+    });
+
+    expect(model.mode).toBe("week");
+    expect(model.hasAnyPractice).toBe(true);
+    expect(model.bars[model.bars.length - 1]?.minutes).toBeGreaterThan(0);
+    expect(model.bars[model.bars.length - 1]?.minutes).toBeLessThan(1);
   });
 });
