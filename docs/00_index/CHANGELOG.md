@@ -1,3 +1,9 @@
+- 2026-07-24 (265): Birth-place overlay Android — hostRect из onLayout корня (пустой absolute-слой давал height=0).
+- 2026-07-24 (264): WizardTitle iOS `21→20` pt — заголовок шага 2 в одну строку; Android без изменений.
+- 2026-07-24 (263): Birth-place suggestions — низ списка привязан к полю (`bottom`), при укорочении не отрывается вверх.
+- 2026-07-24 (262): Birth-place suggestions — снова WizardOverlayHost (без RN Modal): на Android Modal прятал IME; coords = anchor − host.
+- 2026-07-24 (261): Birth-place suggestions — overlay via WizardOverlayHost (no form shift); ignore abort; 401 refresh+retry remembers session.
+- 2026-07-24 (260): Android birth-place search — in-flow city suggestions (absolute clipped); `EXPO_PUBLIC_COMMUNICATOR_API_URL` в `eas env`.
 - 2026-07-24 (259): Android Maps — `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` в `eas env` (dev/preview/prod); без этого EAS build падает на BirthPlaceMapModal (`API key not found`).
 - 2026-07-24 (258): Delete account — fix `recompute_user_daily_stats` null `local_date` on cascade wipe; `requireUser` email instead of flaky Admin `getUserById` with `sb_secret_*`.
 - 2026-07-24 (257): Home day-cache scope — `birth_time` канон `HH:MM:SS` (+ legacy `HH:MM` на чтении); чинит trial/paid cold-start timeout после ошибочной нормализации к `HH:MM`.

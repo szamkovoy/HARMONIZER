@@ -5,7 +5,11 @@
  * возвращает координаты и IANA-таймзону места.
  */
 import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
-import { getSupabaseAccessToken } from "@/services/supabase";
+import {
+  getSupabaseAccessToken,
+  rememberSupabaseSession,
+  requireSupabase,
+} from "@/services/supabase";
 
 export interface GeoPlace {
   id: string;
@@ -28,6 +32,25 @@ export function formatGeoPlaceLabel(place: GeoPlace): string {
 
 const SEARCH_TIMEOUT_MS = 8_000;
 
+async function fetchGeoSearch(
+  url: string,
+  accessToken: string,
+  signal: AbortSignal,
+): Promise<GeoPlace[]> {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal,
+  });
+  if (res.status === 401) {
+    const err = new Error("geo/search HTTP 401");
+    (err as Error & { status: number }).status = 401;
+    throw err;
+  }
+  if (!res.ok) throw new Error(`geo/search HTTP ${res.status}`);
+  const data = (await res.json()) as { places?: GeoPlace[] };
+  return Array.isArray(data.places) ? data.places : [];
+}
+
 export async function searchBirthPlaces(
   query: string,
   locale: string,
@@ -35,25 +58,36 @@ export async function searchBirthPlaces(
 ): Promise<GeoPlace[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) throw new Error("Auth session required for geo search.");
 
   const url = new URL(`${getCommunicatorApiBaseUrl()}/api/geo/search`);
   url.searchParams.set("q", trimmed);
   url.searchParams.set("lang", locale);
+  const href = url.toString();
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
-  signal?.addEventListener("abort", () => controller.abort(), { once: true });
+  const onOuterAbort = () => controller.abort();
+  signal?.addEventListener("abort", onOuterAbort, { once: true });
   try {
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`geo/search HTTP ${res.status}`);
-    const data = (await res.json()) as { places?: GeoPlace[] };
-    return Array.isArray(data.places) ? data.places : [];
+    let accessToken = await getSupabaseAccessToken();
+    if (!accessToken) throw new Error("Auth session required for geo search.");
+
+    try {
+      return await fetchGeoSearch(href, accessToken, controller.signal);
+    } catch (err) {
+      if (controller.signal.aborted) throw err;
+      // Протухший JWT — один refresh + retry (и кладём сессию в снимок).
+      if (!(err instanceof Error) || !("status" in err) || (err as { status?: number }).status !== 401) {
+        throw err;
+      }
+      const { data, error } = await requireSupabase().auth.refreshSession();
+      if (error || !data.session?.access_token) throw err;
+      rememberSupabaseSession(data.session);
+      accessToken = data.session.access_token;
+      return await fetchGeoSearch(href, accessToken, controller.signal);
+    }
   } finally {
     clearTimeout(timeoutId);
+    signal?.removeEventListener("abort", onOuterAbort);
   }
 }

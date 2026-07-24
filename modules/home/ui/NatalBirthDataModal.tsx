@@ -32,6 +32,7 @@ import {
   isoToDdmmyyyy,
 } from "@/modules/onboarding/birthDateFormat";
 import { MaskedTextInput, maskDigitsOnly } from "@/modules/onboarding/MaskedTextInput";
+import { WizardOverlayProvider } from "@/modules/onboarding/wizard/wizardOverlay";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
@@ -202,84 +203,87 @@ export function NatalBirthDataModal({
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <View
-        style={[
-          styles.backdrop,
-          {
-            backgroundColor: theme.colors.modalBackdrop,
-            // Почти вплотную к клавиатуре (8px), без «пустого колодца» под карточкой.
-            paddingBottom: keyboardOpen ? keyboardHeight + 8 : 24,
-            justifyContent: keyboardOpen ? "flex-end" : "center",
-          },
-        ]}
-      >
-        <SurfaceCardView tone="elevated" style={styles.card}>
-          <ScreenHeader
-            title={t("onboarding.birth.title")}
-            subtitle={t("onboarding.birth.subtitle")}
-          />
-          <ScrollView
-            style={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            contentContainerStyle={styles.fields}
-          >
-            <AppText variant="technicalCaption" tone="muted">
-              {t("onboarding.birth.dateLabel")}
-            </AppText>
-            <MaskedTextInput
-              mask={DATE_MASK}
-              value={dateSlots}
-              onDigitsChange={setDateSlots}
-              placeholderTextColor={theme.colors.textFaint}
-              keyboardType="number-pad"
-              editable={!saving}
-              style={[styles.input, { borderColor: theme.colors.surfaceBorder }]}
-              segmentStyle={{ color: theme.colors.textPrimary, fontSize: 16 }}
-              separatorStyle={{ color: theme.colors.textFaint }}
+      {/* Хост оверлея городов — без второго RN Modal (на Android второй Modal прячет IME). */}
+      <WizardOverlayProvider>
+        <View
+          style={[
+            styles.backdrop,
+            {
+              backgroundColor: theme.colors.modalBackdrop,
+              // Почти вплотную к клавиатуре (8px), без «пустого колодца» под карточкой.
+              paddingBottom: keyboardOpen ? keyboardHeight + 8 : 24,
+              justifyContent: keyboardOpen ? "flex-end" : "center",
+            },
+          ]}
+        >
+          <SurfaceCardView tone="elevated" style={styles.card}>
+            <ScreenHeader
+              title={t("onboarding.birth.title")}
+              subtitle={t("onboarding.birth.subtitle")}
             />
-            <AppText variant="technicalCaption" tone="muted">
-              {t("onboarding.birth.timeLabel")}
-            </AppText>
-            <MaskedTextInput
-              mask={TIME_MASK}
-              value={timeSlots}
-              onDigitsChange={setTimeSlots}
-              placeholderTextColor={theme.colors.textFaint}
-              keyboardType="number-pad"
-              editable={!saving}
-              style={[styles.input, { borderColor: theme.colors.surfaceBorder }]}
-              segmentStyle={{ color: theme.colors.textPrimary, fontSize: 16 }}
-              separatorStyle={{ color: theme.colors.textFaint }}
-            />
-            <AppText variant="technicalCaption" tone="muted">
-              {t("onboarding.birth.placeLabel")}
-            </AppText>
-            <BirthPlacePicker value={place} onSelect={setPlace} disabled={saving} />
-            {errorText ? (
-              <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>
-                {errorText}
+            <ScrollView
+              style={styles.scroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={styles.fields}
+            >
+              <AppText variant="technicalCaption" tone="muted">
+                {t("onboarding.birth.dateLabel")}
               </AppText>
-            ) : null}
-          </ScrollView>
-          <View style={styles.actions}>
-            <AppButton
-              label={t("gate.close")}
-              variant="secondary"
-              onPress={onClose}
-              disabled={saving}
-              style={styles.actionBtn}
-            />
-            <AppButton
-              label={saving ? t("onboarding.birth.saving") : t("onboarding.birth.save")}
-              onPress={submit}
-              disabled={saving}
-              style={styles.actionBtn}
-            />
-          </View>
-        </SurfaceCardView>
-      </View>
+              <MaskedTextInput
+                mask={DATE_MASK}
+                value={dateSlots}
+                onDigitsChange={setDateSlots}
+                placeholderTextColor={theme.colors.textFaint}
+                keyboardType="number-pad"
+                editable={!saving}
+                style={[styles.input, { borderColor: theme.colors.surfaceBorder }]}
+                segmentStyle={{ color: theme.colors.textPrimary, fontSize: 16 }}
+                separatorStyle={{ color: theme.colors.textFaint }}
+              />
+              <AppText variant="technicalCaption" tone="muted">
+                {t("onboarding.birth.timeLabel")}
+              </AppText>
+              <MaskedTextInput
+                mask={TIME_MASK}
+                value={timeSlots}
+                onDigitsChange={setTimeSlots}
+                placeholderTextColor={theme.colors.textFaint}
+                keyboardType="number-pad"
+                editable={!saving}
+                style={[styles.input, { borderColor: theme.colors.surfaceBorder }]}
+                segmentStyle={{ color: theme.colors.textPrimary, fontSize: 16 }}
+                separatorStyle={{ color: theme.colors.textFaint }}
+              />
+              <AppText variant="technicalCaption" tone="muted">
+                {t("onboarding.birth.placeLabel")}
+              </AppText>
+              <BirthPlacePicker value={place} onSelect={setPlace} disabled={saving} />
+              {errorText ? (
+                <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>
+                  {errorText}
+                </AppText>
+              ) : null}
+            </ScrollView>
+            <View style={styles.actions}>
+              <AppButton
+                label={t("gate.close")}
+                variant="secondary"
+                onPress={onClose}
+                disabled={saving}
+                style={styles.actionBtn}
+              />
+              <AppButton
+                label={saving ? t("onboarding.birth.saving") : t("onboarding.birth.save")}
+                onPress={submit}
+                disabled={saving}
+                style={styles.actionBtn}
+              />
+            </View>
+          </SurfaceCardView>
+        </View>
+      </WizardOverlayProvider>
     </Modal>
   );
 }

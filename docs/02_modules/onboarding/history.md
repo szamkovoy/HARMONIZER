@@ -10,6 +10,20 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-24 (birth place Android hostRect):** Список городов снова пропал на Android: `measureInWindow` пустого overlay-слоя → height=0 → `hostRect` null → оверлей не монтировался. Fix: rect хоста из `onLayout` flex-корня в `WizardOverlayProvider`; не сбрасывать оверлей пока ждём якорь. Metro reload.
+
+- **2026-07-24 (WizardTitle iOS 20pt):** Заголовок шага 2 на iPhone всё ещё переносился; `WizardTitle` iOS `21→20` / `lineHeight 26` (Android без изменений, 21). Metro reload.
+
+- **2026-07-24 (birth place anchor):** Список городов якорился через `top` от `maxHeight` → при меньшем числе подсказок отрывался вверх от поля. Fix: `bottom` к верху инпута (сжимается сверху). iOS + Android.
+
+- **2026-07-24 (birth place IME):** Transparent Modal для списка городов на Android снимал фокус с `TextInput` → IME пропадала при появлении подсказок (iOS ок). Вернули `WizardOverlayHost` вне ScrollView; координаты `anchor − host` в window; хост в `WizardShell` + `NatalBirthDataModal`. Metro reload, без rebuild.
+
+- **2026-07-24 (birth place Modal):** Хост-оверлей в SafeArea ломал Android (window-coords vs слой). Список — transparent Modal + `top` от `measureInWindow`. Metro reload, без rebuild.
+
+- **2026-07-24 (birth place overlay):** In-flow список толкал поле под клавиатуру. Попытка WizardOverlayHost — см. запись Modal выше.
+
+- **2026-07-24 (birth place search Android):** Список городов / «Не удалось выполнить поиск». Корневая причина по логам — `GET /api/geo/search` → **401** (на Vercel остались старые JWT anon/service keys, клиент уже на `sb_publishable`/`sb_secret`). Синхронизированы ключи на Vercel; `requireUser` — fallback через service `getUser`; клиент при 401 делает refresh+retry.
+
 - **2026-07-24 (Android Maps EAS env):** `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` был только в `.env.local`; EAS development build его не видел → crash MapView. Ключ добавлен в `eas env` (development/preview/production); нужен новый Android rebuild.
 
 - **2026-07-24 (scope key HH:MM:SS):** Нормализация `birth_time` в `dayContentScope` — канон `HH:MM:SS` (не `HH:MM`): краткий формат ломал попадание в SecureStore у trial/paid Home (sezam777: ~30s timeout). Home читает кандидатов канон+`HH:MM`.

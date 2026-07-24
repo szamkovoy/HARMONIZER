@@ -51,15 +51,25 @@ export async function requireUser(req: Request): Promise<{ id: string; email: st
   const token = bearerToken(req);
   if (!token) throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
 
-  const { data, error } = await createAnonSupabase().auth.getUser(token);
-  if (error || !data.user) {
-    throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  // Anon first; if apikey/JWT signing keys рассинхронились — service-role getUser
+  // (тот же Auth /user, другой apikey). Не путать с admin.getUserById.
+  const anon = await createAnonSupabase().auth.getUser(token);
+  if (!anon.error && anon.data.user) {
+    return {
+      id: anon.data.user.id,
+      email: anon.data.user.email?.trim() || null,
+    };
   }
 
-  return {
-    id: data.user.id,
-    email: data.user.email?.trim() || null,
-  };
+  const viaService = await createServiceSupabase().auth.getUser(token);
+  if (!viaService.error && viaService.data.user) {
+    return {
+      id: viaService.data.user.id,
+      email: viaService.data.user.email?.trim() || null,
+    };
+  }
+
+  throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
 }
 
 /**

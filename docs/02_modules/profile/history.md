@@ -35,6 +35,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 - **2026-07-20 (j):** Профиль — ссылки «Выйти» / «Удалить аккаунт» под «Личный кабинет» (одна строка, по центру). Подтверждение через `AppDialog` (`profile.account.*`, 8 локалей). Выход — `signOut()`. Удаление — `deleteAccountRemote` → `DELETE /api/account/delete` (отмена подписок у всех провайдеров, сохранение payment ledger, `auth.admin.deleteUser`) → `signOut()`. Ссылки не зависят от kill-switch кабинета. См. `account_web/history.md`.
 
+- **2026-07-24:** `NatalBirthDataModal` обёрнут в `WizardOverlayProvider` — список городов рождения без второго RN Modal (на Android Modal прятал IME). См. `onboarding/history.md` (birth place IME).
+
 - **2026-07-20 (i):** Первое открытие «Изменить» — пустое «Место рождения» при заполненном профиле. Root cause в `BirthPlacePicker` (не синхронизировал текст с `value` после mount); см. `onboarding/history.md` (2026-07-20 d). `geoPlaceFromProfileBirthPlace` устойчивее к string coords / `lng`.
 
 - **2026-07-20 (h):** Ожидание после Save натала — UI карточки, не splash. Алгоритм (`markHomeDayContentBlockingReload` → Home focus → `refresh({ blockingReload })`) уже работал; пользователь видел полную заставку со сменяющимися `startup.step.*`, потому что `AppStartupProvider` рисовал только splash. Теперь `blockingReload` запрашивает presentation `day_card` («Готовим ваш день» / `wizard.warm.*`). См. `daily_forecast/history.md` (day_card).

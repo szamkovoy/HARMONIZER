@@ -52,6 +52,8 @@ import { StackScreenLayout } from "@/modules/ui/StackScreenLayout";
 import { AppText } from "@/modules/ui/AppText";
 import { ThemeProvider, buildTheme, useTheme } from "@/modules/ui/theme";
 
+import { WizardOverlayProvider } from "./wizardOverlay";
+
 /** Фиксированная высота картинки-героя — единая для всех шагов. Подбирается под ~9:5. */
 export const WIZARD_IMAGE_HEIGHT = 200;
 /** Рекомендуемый размер исходной картинки-героя (для оптимизации в Photoshop). */
@@ -210,46 +212,49 @@ export function WizardShell({
 
   return (
     <ThemeProvider value={lightTheme}>
-      <StackScreenLayout
-        statusBarStyle={resolvedStatusBar}
-        edges={["top"]}
-        style={{ backgroundColor: WIZARD_BG }}
-      >
-        <KeyboardAvoidingView
-          style={[styles.root, { paddingBottom: rootPaddingBottom }]}
-          // Подъём только в режиме A. На OTP/intro behavior выключен — контент
-          // остаётся на месте, клавиатура перекрывает низ, скролл ручной.
-          behavior={Platform.OS === "ios" && footerInContent ? "padding" : undefined}
+      {/* Overlay вне ScrollView: список городов без Modal (Modal на Android прячет IME). */}
+      <WizardOverlayProvider>
+        <StackScreenLayout
+          statusBarStyle={resolvedStatusBar}
+          edges={["top"]}
+          style={{ backgroundColor: WIZARD_BG }}
         >
-          <StepProgress
-            totalSteps={totalSteps}
-            currentStep={currentStep}
-            style={styles.progress}
-          />
-          <ScrollView
-            ref={scrollRef}
-            style={styles.scroll}
-            contentContainerStyle={[
-              styles.scrollContent,
-              // В режиме формы (A) не растягиваем контент на всю высоту —
-              // иначе между полями и CTA появляется пустой «резиновый» зазор.
-              !footerInContent ? styles.scrollContentGrow : null,
-              contentStyle,
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            // Режим A + клавиатура: фиксируем offset. Режим B: всегда можно скроллить.
-            scrollEnabled={!footerInContent || !keyboardOpen}
-            automaticallyAdjustKeyboardInsets={false}
-            automaticallyAdjustContentInsets={false}
-            contentInsetAdjustmentBehavior="never"
+          <KeyboardAvoidingView
+            style={[styles.root, { paddingBottom: rootPaddingBottom }]}
+            // Подъём только в режиме A. На OTP/intro behavior выключен — контент
+            // остаётся на месте, клавиатура перекрывает низ, скролл ручной.
+            behavior={Platform.OS === "ios" && footerInContent ? "padding" : undefined}
           >
-            {children}
-            {footerInContent && footer ? <View style={styles.footer}>{footer}</View> : null}
-          </ScrollView>
-          {!footerInContent && footer ? <View style={styles.footer}>{footer}</View> : null}
-        </KeyboardAvoidingView>
-      </StackScreenLayout>
+            <StepProgress
+              totalSteps={totalSteps}
+              currentStep={currentStep}
+              style={styles.progress}
+            />
+            <ScrollView
+              ref={scrollRef}
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.scrollContent,
+                // В режиме формы (A) не растягиваем контент на всю высоту —
+                // иначе между полями и CTA появляется пустой «резиновый» зазор.
+                !footerInContent ? styles.scrollContentGrow : null,
+                contentStyle,
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              // Режим A + клавиатура: фиксируем offset. Режим B: всегда можно скроллить.
+              scrollEnabled={!footerInContent || !keyboardOpen}
+              automaticallyAdjustKeyboardInsets={false}
+              automaticallyAdjustContentInsets={false}
+              contentInsetAdjustmentBehavior="never"
+            >
+              {children}
+              {footerInContent && footer ? <View style={styles.footer}>{footer}</View> : null}
+            </ScrollView>
+            {!footerInContent && footer ? <View style={styles.footer}>{footer}</View> : null}
+          </KeyboardAvoidingView>
+        </StackScreenLayout>
+      </WizardOverlayProvider>
     </ThemeProvider>
   );
 }
@@ -378,11 +383,10 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: "center",
-    // На 1pt меньше глобального screenTitle (22) — длинные заголовки мастера
-    // (напр. «Настройка навигатора архетипов») остаются в одну строку на iPhone,
-    // и «Далее» не упирается в safe-area снизу.
-    fontSize: 21,
-    lineHeight: 27,
+    // screenTitle = 22; Android −1pt; iOS −2pt — длинный заголовок шага 2
+    // («Настройка навигатора архетипов») в одну строку на узком iPhone.
+    fontSize: Platform.OS === "ios" ? 20 : 21,
+    lineHeight: Platform.OS === "ios" ? 26 : 27,
   },
   body: {
     textAlign: "center",

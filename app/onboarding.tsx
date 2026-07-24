@@ -681,9 +681,6 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 8,
-    // Выше футера «Далее», чтобы абсолютный список городов из BirthPlacePicker
-    // перекрывал соседний контент, а не рисовался под ним.
-    zIndex: 10,
   },
   notice: {
     borderWidth: 1,
