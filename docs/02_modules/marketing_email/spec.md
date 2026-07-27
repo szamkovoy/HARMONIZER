@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.2
+version: 1.4
 updated: 2026-07-27
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
@@ -10,6 +10,9 @@ code_refs:
     _legacy_web/app/admin/email/[id]/page.tsx,
     _legacy_web/app/admin/email/automations/page.tsx,
     _legacy_web/app/admin/email/automations/[id]/page.tsx,
+    _legacy_web/app/admin/email/automations/[id]/steps/[stepId]/page.tsx,
+    _legacy_web/app/admin/email/_components/EmailMessageWorkspace.tsx,
+    _legacy_web/app/admin/email/_components/EmailListRow.tsx,
     _legacy_web/app/admin/email/deliverability/page.tsx,
     _legacy_web/app/api/admin/email/deliverability/route.ts,
     _legacy_web/app/api/admin/email/campaigns/route.ts,
@@ -43,6 +46,10 @@ OTP на `zamkovoi.yoga` изолирован и **не** использует �
 **Админка (`requireAdmin`):**
 
 - Кампании / сегмент / assets / automations / steps — как ранее
+- Карточка кампании `/admin/email/[id]`: заголовок «Рассылка»; статус RU (`черновик` / `отправлено · дата`); после send — KPI-карточки, read-only имя/сегмент/контент, без блока «Отправка»; копирование доступно
+- Общий UI-фундамент: `EmailListRow` (список рассылок + письма в цепочке), `EmailDeliveryStats`, `EmailMessageWorkspace` (локали / preview / block editor / тест). Письмо цепочки: `/admin/email/automations/[id]/steps/[stepId]` — тот же workspace без сегмента, с delay; `POST …/steps/[stepId]/send` `{test_to}`
+- Сегмент JSON дополнительно: `account_created_on_or_after|before` (`users.created_at`), `onboarded_on_or_after|before` (`users.onboarded_at`) — границы включительно (≥ / ≤)
+- From display name: RU «Сергей Замковой», иначе «Sergei Zamkovoi» (`marketingSenderName`, как OTP); footer unsubscribe 12.5px; block fonts web-safe (system/arial/verdana/georgia/times); блоки: heading/text/image/button (legacy `logo` → `image` при parse)
 - `GET /api/admin/email/deliverability?days=7|30|90` — KPI, series, recent problems (с `user_id` / `display_name`), Resend suppressions
 - `POST /api/admin/email/deliverability` — `{action:"suppress"|"unsuppress", email?}`
 - UI: `/admin/email/deliverability` (метрики + просмотр Resend list; без sync на GET)

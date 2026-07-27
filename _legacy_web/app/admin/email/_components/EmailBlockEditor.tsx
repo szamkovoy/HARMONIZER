@@ -11,8 +11,10 @@ import {
   X,
 } from "lucide-react";
 
+import { adminFetch } from "../../_lib/adminApi";
 import {
   createEmptyBlock,
+  FONT_FAMILY_OPTIONS,
   newBlockId,
   type BlockAlign,
   type BlockFontFamily,
@@ -21,7 +23,6 @@ import {
 } from "../_lib/blocks";
 
 const ADD_TYPES: { type: EmailBlock["type"]; label: string }[] = [
-  { type: "logo", label: "Логотип" },
   { type: "heading", label: "Заголовок" },
   { type: "text", label: "Текст" },
   { type: "image", label: "Изображение" },
@@ -124,7 +125,7 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
             disabled={saving}
             className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Сохранить
+            {saving ? "Сохранение…" : "Сохранить"}
           </button>
           <button
             type="button"
@@ -132,12 +133,13 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
             disabled={saving}
             className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Сохранить и выйти
+            {saving ? "Сохранение…" : "Сохранить и выйти"}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            disabled={saving}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
           >
             Закрыть
           </button>
@@ -301,7 +303,7 @@ function BlockPreview({ block, onOpen }: { block: EmailBlock; onOpen: () => void
         />
       ) : (
         <span className="text-xs text-zinc-400">
-          {block.type === "logo" ? "Логотип — нажмите, чтобы загрузить" : "Картинка — нажмите, чтобы загрузить"}
+          Изображение — нажмите, чтобы загрузить
         </span>
       )}
     </button>
@@ -318,26 +320,27 @@ function BlockSettingsModal({
   onClose: () => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function uploadFile(file: File) {
     setUploading(true);
+    setUploadError(null);
     try {
       const form = new FormData();
       form.append("file", file);
-      const session = await import("../../_lib/supabaseBrowser").then((m) =>
-        m.getBrowserSupabase().auth.getSession(),
-      );
-      const token = session.data.session?.access_token;
-      const res = await fetch("/api/admin/email/assets", {
+      // Same auth/refresh path as the rest of admin — raw fetch skipped token refresh
+      // and surfaced bare "Unauthorized" via alert(), leaving Save stuck on a hung refresh.
+      const data = await adminFetch<{ public_url?: string }>("/api/admin/email/assets", {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
       });
-      const data = (await res.json()) as { public_url?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      if (data.public_url) onChange({ src: data.public_url } as Partial<EmailBlock>);
+      if (data.public_url) {
+        onChange({ src: data.public_url } as Partial<EmailBlock>);
+      } else {
+        setUploadError("Сервер не вернул ссылку на файл");
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка загрузки");
+      setUploadError(err instanceof Error ? err.message : "Ошибка загрузки");
     } finally {
       setUploading(false);
     }
@@ -375,8 +378,11 @@ function BlockSettingsModal({
                       } as Partial<EmailBlock>)
                     }
                   >
-                    <option value="system">System sans</option>
-                    <option value="georgia">Georgia</option>
+                    {FONT_FAMILY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className="text-xs text-zinc-500">
@@ -403,9 +409,15 @@ function BlockSettingsModal({
                 className="min-h-[140px] rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
                 style={{
                   fontFamily:
-                    (block.fontFamily ?? "system") === "georgia"
+                    block.fontFamily === "georgia"
                       ? "Georgia, serif"
-                      : "system-ui, sans-serif",
+                      : block.fontFamily === "times"
+                        ? "'Times New Roman', Times, serif"
+                        : block.fontFamily === "verdana"
+                          ? "Verdana, Geneva, sans-serif"
+                          : block.fontFamily === "arial"
+                            ? "Arial, Helvetica, sans-serif"
+                            : "system-ui, sans-serif",
                 }}
                 contentEditable
                 suppressContentEditableWarning
@@ -418,14 +430,14 @@ function BlockSettingsModal({
             </>
           )}
 
-          {(block.type === "image" || block.type === "logo") && (
+          {block.type === "image" && (
             <>
               {block.src ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={block.src} alt={block.alt} className="mx-auto max-h-40 object-contain" />
               ) : null}
               <label className="block text-xs text-zinc-500">
-                Файл
+                Файл {uploading ? "(загрузка…)" : ""}
                 <input
                   type="file"
                   accept="image/*"
@@ -434,9 +446,13 @@ function BlockSettingsModal({
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) void uploadFile(f);
+                    e.target.value = "";
                   }}
                 />
               </label>
+              {uploadError ? (
+                <p className="text-sm text-rose-600">{uploadError}</p>
+              ) : null}
               <label className="block text-xs text-zinc-500">
                 ALT (если картинки отключены)
                 <input

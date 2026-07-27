@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.7
-updated: 2026-07-24
+version: 1.8
+updated: 2026-07-27
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -55,7 +55,8 @@ code_refs:
 
 **Админка (гейт `requireAdmin`):**
 
-- `GET/POST /api/admin/notifications`, `DELETE|POST …/[id]` (удаление; UI шлёт POST `{action:"delete"}`).
+- `GET/POST /api/admin/notifications`, `GET …/[id]` (detail + `title_i18n`/`body_i18n`), `DELETE|POST …/[id]` (удаление; UI шлёт POST `{action:"delete"}`).
+- UI detail `/admin/notifications/[id]`: заголовок «Уведомления», KPI, вкладки RU…NL с зелёной точкой если есть copy на языке (как у рассылок).
 - POST: сегмент → фильтр eligible по exact copy → row + i18n → deliveries только eligible → Expo через `resolveExactNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel` + Android `channelId: harmonizer_remote`. Ответ: `skipped_no_locale_copy`. Если eligible=0 → 400. Expo fetch: `Connection: close`, timeout, полный consume body. UI: статус «Отправлено…» сбрасывается при правке черновика; зелёная точка = есть заголовок на языке.
 
 ## 3. Данные

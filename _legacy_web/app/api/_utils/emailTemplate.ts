@@ -34,8 +34,8 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:12px;line-height:1.55;color:#6b7280;text-align:center;">
-              <p style="margin:0;">
+            <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:12.5px;line-height:1.5;color:#6b7280;text-align:center;">
+              <p style="margin:0;font-size:12.5px;line-height:1.5;">
                 Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового.
                 Если вы не хотите получать мои письма, вы можете
                 <a href="${opts.unsubscribeUrl}" style="color:${BRAND_COLOR};text-decoration:underline;">отписаться</a>.

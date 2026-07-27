@@ -118,6 +118,7 @@ export async function POST(req: Request, ctx: Ctx) {
         html,
         text: htmlToPlaintext(html),
         unsubscribeUrl,
+        locale: exact.locale,
         tags: [
           { name: "campaign_id", value: campaign.id },
           { name: "kind", value: "user_card" },

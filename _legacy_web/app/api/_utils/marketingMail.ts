@@ -9,6 +9,8 @@ export type MarketingSendInput = {
   html: string;
   text: string;
   unsubscribeUrl: string;
+  /** Content locale for From display name (ru → Сергей Замковой, else Sergei Zamkovoi). */
+  locale?: string | null;
   tags?: { name: string; value: string }[];
 };
 
@@ -17,7 +19,13 @@ export type MarketingSendResult =
   | { ok: false; detail: string };
 
 const DEFAULT_FROM = "sergei@zamkovoi.ru";
-const DEFAULT_FROM_NAME = "Гармонизатор";
+
+/** Same rule as Auth OTP: RU Cyrillic name, otherwise Latin. */
+export function marketingSenderName(locale?: string | null): string {
+  const loc = (locale ?? "ru").trim().toLowerCase().slice(0, 2);
+  if (loc === "ru") return "Сергей Замковой";
+  return "Sergei Zamkovoi";
+}
 
 function formatFrom(fromName: string, fromEmail: string): string {
   const name = fromName.trim();
@@ -27,11 +35,16 @@ function formatFrom(fromName: string, fromEmail: string): string {
   return `"${escaped}" <${fromEmail}>`;
 }
 
-export function getMarketingFrom(): { fromEmail: string; fromName: string } {
+export function getMarketingFrom(locale?: string | null): {
+  fromEmail: string;
+  fromName: string;
+} {
+  // Display name always follows locale (same as OTP). Do not override with a
+  // static env string — that would force one name for all languages.
   return {
     fromEmail:
       process.env.MAIL_MARKETING_FROM_EMAIL?.trim() || DEFAULT_FROM,
-    fromName: process.env.MAIL_MARKETING_FROM_NAME?.trim() || DEFAULT_FROM_NAME,
+    fromName: marketingSenderName(locale),
   };
 }
 
@@ -69,7 +82,7 @@ export async function sendMarketingEmail(
   if (!apiKey) {
     return { ok: false, detail: "RESEND_ZAMKOVOI_RU_API_KEY is not set" };
   }
-  const { fromEmail, fromName } = getMarketingFrom();
+  const { fromEmail, fromName } = getMarketingFrom(input.locale);
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

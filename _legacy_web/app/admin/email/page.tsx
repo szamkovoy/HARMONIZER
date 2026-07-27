@@ -6,6 +6,7 @@ import { Activity, Loader2, Mail, Plus, Workflow } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+import { EmailListRow } from "./_components/EmailListRow";
 
 type CampaignRow = {
   id: string;
@@ -20,6 +21,7 @@ type CampaignRow = {
   bounced_count: number;
   complained_count: number;
   unsubscribed_count: number;
+  error_count?: number;
   sent_at: string | null;
   created_at: string;
 };
@@ -122,43 +124,39 @@ export default function AdminEmailListPage() {
         </div>
       ) : (
         <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
-          {campaigns.map((c) => (
-            <li key={c.id}>
-              <Link
+          {campaigns.map((c) => {
+            const showStats = c.status === "sent" || c.status === "sending";
+            return (
+              <EmailListRow
+                key={c.id}
                 href={`/admin/email/${c.id}`}
-                className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-zinc-50 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <div className="truncate font-medium text-zinc-900">
-                    {c.name.trim() || c.subject.trim() || "Без названия"}
-                  </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
-                    {STATUS_RU[c.status] ?? c.status}
-                    {" · "}
-                    {formatAdminDateTime(c.sent_at || c.created_at)}
-                    {c.subject.trim() && c.name.trim() ? ` · ${c.subject}` : ""}
-                  </div>
-                </div>
-                <div className="shrink-0 text-[11px] leading-relaxed text-zinc-500 sm:text-right">
-                  {c.status === "sent" || c.status === "sending" ? (
-                    <span>
-                      отпр. {c.sent_count}
-                      {" · "}дост. {c.delivered_count}
-                      {" · "}откр. {c.opened_count}
-                      {" · "}клики {c.clicked_count}
-                      {" · "}отказ {c.bounced_count}
-                      {c.complained_count > 0 ? ` · спам ${c.complained_count}` : ""}
-                      {c.unsubscribed_count > 0
-                        ? ` · отпис. ${c.unsubscribed_count}`
-                        : ""}
-                    </span>
-                  ) : (
-                    <span>черновик</span>
-                  )}
-                </div>
-              </Link>
-            </li>
-          ))}
+                title={c.name.trim() || c.subject.trim() || "Без названия"}
+                subtitle={[
+                  STATUS_RU[c.status] ?? c.status,
+                  formatAdminDateTime(c.sent_at || c.created_at),
+                  c.subject.trim() && c.name.trim() ? c.subject : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                showStats={showStats}
+                idleLabel="черновик"
+                stats={
+                  showStats
+                    ? {
+                        sent_count: c.sent_count,
+                        delivered_count: c.delivered_count,
+                        opened_count: c.opened_count,
+                        clicked_count: c.clicked_count,
+                        bounced_count: c.bounced_count,
+                        complained_count: c.complained_count,
+                        unsubscribed_count: c.unsubscribed_count,
+                        error_count: c.error_count,
+                      }
+                    : undefined
+                }
+              />
+            );
+          })}
         </ul>
       )}
     </div>

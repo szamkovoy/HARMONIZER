@@ -14,17 +14,40 @@ export class AdminApiError extends Error {
 /** Один refresh за раз — иначе два параллельных refreshSession сжигают single-use refresh token → SIGNED_OUT. */
 let refreshInFlight: Promise<string | null> | null = null;
 
+const REFRESH_TIMEOUT_MS = 12_000;
+
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshInFlight) {
-    refreshInFlight = getBrowserSupabase()
-      .auth.refreshSession()
-      .then(({ data }) => data.session?.access_token ?? null)
-      .catch(() => null)
-      .finally(() => {
+    refreshInFlight = (async () => {
+      try {
+        const sessionPromise = getBrowserSupabase()
+          .auth.refreshSession()
+          .then(({ data }) => data.session?.access_token ?? null);
+        const timeoutPromise = new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS);
+        });
+        return await Promise.race([sessionPromise, timeoutPromise]);
+      } catch {
+        return null;
+      } finally {
         refreshInFlight = null;
-      });
+      }
+    })();
   }
   return refreshInFlight;
+}
+
+function authErrorMessage(status: number, bodyError?: string | null): string {
+  if (status === 401) {
+    if (!bodyError || bodyError === "Unauthorized") {
+      return "Сессия истекла — обновите страницу и войдите снова";
+    }
+    return bodyError;
+  }
+  if (status === 403 && (!bodyError || bodyError === "Forbidden")) {
+    return "Нет прав администратора";
+  }
+  return bodyError?.trim() || `Ошибка сервера (HTTP ${status})`;
 }
 
 /** fetch к /api/admin/* с Bearer-токеном текущей сессии. Бросает AdminApiError / Error. */
@@ -74,7 +97,7 @@ export async function adminFetch<T>(
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new AdminApiError(body?.error ?? `Ошибка сервера (HTTP ${res.status})`, res.status);
+    throw new AdminApiError(authErrorMessage(res.status, body?.error), res.status);
   }
 
   const text = await res.text();
@@ -119,7 +142,7 @@ export async function adminFetchBlob(
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new AdminApiError(body?.error ?? `Ошибка сервера (HTTP ${res.status})`, res.status);
+    throw new AdminApiError(authErrorMessage(res.status, body?.error), res.status);
   }
   return res.blob();
 }

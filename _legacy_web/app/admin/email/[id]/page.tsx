@@ -2,46 +2,34 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   Copy,
   Loader2,
-  Pencil,
   RefreshCw,
   Save,
-  Send,
   Trash2,
 } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
 import { formatAdminDateTime } from "../../_lib/adminDates";
-import { EmailBlockEditor } from "../_components/EmailBlockEditor";
-import { EmailInlinePreview } from "../_components/EmailInlinePreview";
 import {
-  blocksForLocale,
+  EmailDeliveryStats,
+  hasDeliveryActivity,
+} from "../_components/EmailDeliveryStats";
+import {
+  EmailMessageWorkspace,
+  translateEmptyEmailLocales,
+} from "../_components/EmailMessageWorkspace";
+import {
   blocksToHtml,
   ensureBlocksFromHtml,
-  localeHasEmailCopy,
   parseBlocksI18n,
   type BlocksByLocale,
   type EmailBlock,
 } from "../_lib/blocks";
-
-const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
-type TargetLocale = (typeof TARGET_LOCALES)[number];
-type ContentLocale = "ru" | TargetLocale;
-
-const LOCALE_LABELS: Record<ContentLocale, string> = {
-  ru: "RU",
-  en: "EN",
-  de: "DE",
-  fr: "FR",
-  it: "IT",
-  es: "ES",
-  pt: "PT",
-  nl: "NL",
-};
+import type { ContentLocale } from "../_lib/emailLocales";
 
 type Campaign = {
   id: string;
@@ -73,6 +61,10 @@ type SegmentState = {
   membership_tiers: Array<"free" | "oracle" | "master">;
   last_seen_within_days: string;
   last_seen_older_than_days: string;
+  account_created_on_or_after: string;
+  account_created_on_or_before: string;
+  onboarded_on_or_after: string;
+  onboarded_on_or_before: string;
   email_contains: string;
 };
 
@@ -82,7 +74,18 @@ const DEFAULT_SEGMENT: SegmentState = {
   membership_tiers: [],
   last_seen_within_days: "",
   last_seen_older_than_days: "",
+  account_created_on_or_after: "",
+  account_created_on_or_before: "",
+  onboarded_on_or_after: "",
+  onboarded_on_or_before: "",
   email_contains: "",
+};
+
+const STATUS_RU: Record<string, string> = {
+  draft: "черновик",
+  sending: "отправка…",
+  sent: "отправлено",
+  failed: "ошибка",
 };
 
 const inputCls =
@@ -93,14 +96,27 @@ function positiveDays(raw: string): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+function dateOnly(raw: string): string | undefined {
+  const t = raw.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : undefined;
+}
+
 function segmentToQuery(s: SegmentState): Record<string, unknown> {
   const within = positiveDays(s.last_seen_within_days);
   const older = positiveDays(s.last_seen_older_than_days);
   const email = s.email_contains.trim().toLowerCase() || undefined;
+  const accAfter = dateOnly(s.account_created_on_or_after);
+  const accBefore = dateOnly(s.account_created_on_or_before);
+  const onbAfter = dateOnly(s.onboarded_on_or_after);
+  const onbBefore = dateOnly(s.onboarded_on_or_before);
   const base = {
     marketing_statuses: ["active"] as string[],
     ...(within != null ? { last_seen_within_days: within } : {}),
     ...(older != null ? { last_seen_older_than_days: older } : {}),
+    ...(accAfter ? { account_created_on_or_after: accAfter } : {}),
+    ...(accBefore ? { account_created_on_or_before: accBefore } : {}),
+    ...(onbAfter ? { onboarded_on_or_after: onbAfter } : {}),
+    ...(onbBefore ? { onboarded_on_or_before: onbBefore } : {}),
     ...(email ? { email_contains: email } : {}),
   };
   if (s.all_installed) {
@@ -131,8 +147,19 @@ function queryToSegment(raw: Record<string, unknown> | null | undefined): Segmen
   if (raw.last_seen_older_than_days != null && String(raw.last_seen_older_than_days).trim()) {
     s.last_seen_older_than_days = String(raw.last_seen_older_than_days);
   }
+  if (typeof raw.account_created_on_or_after === "string") {
+    s.account_created_on_or_after = raw.account_created_on_or_after;
+  }
+  if (typeof raw.account_created_on_or_before === "string") {
+    s.account_created_on_or_before = raw.account_created_on_or_before;
+  }
+  if (typeof raw.onboarded_on_or_after === "string") {
+    s.onboarded_on_or_after = raw.onboarded_on_or_after;
+  }
+  if (typeof raw.onboarded_on_or_before === "string") {
+    s.onboarded_on_or_before = raw.onboarded_on_or_before;
+  }
   if (typeof raw.email_contains === "string") s.email_contains = raw.email_contains;
-  // Migrate old linked_only-only drafts
   if (
     !s.all_installed &&
     !s.include_demo &&
@@ -152,7 +179,6 @@ export default function AdminEmailCampaignPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ContentLocale>("ru");
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [subjectI18n, setSubjectI18n] = useState<Record<string, string>>({});
@@ -165,7 +191,6 @@ export default function AdminEmailCampaignPage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [translating, setTranslating] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
   const [testTo, setTestTo] = useState("");
 
   const readOnly = campaign?.status === "sent" || campaign?.status === "sending";
@@ -197,23 +222,6 @@ export default function AdminEmailCampaignPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const previewSubject = useMemo(() => {
-    return activeTab === "ru" ? subject : (subjectI18n[activeTab] ?? "");
-  }, [activeTab, subject, subjectI18n]);
-
-  const previewBodyHtml = useMemo(() => {
-    const blocks = blocksForLocale(blocksI18n, activeTab);
-    let body = blocksToHtml(blocks);
-    if (!body) {
-      body = activeTab === "ru" ? htmlBody : (htmlI18n[activeTab] ?? "");
-    }
-    return body;
-  }, [activeTab, blocksI18n, htmlBody, htmlI18n]);
-
-  function hasCopy(locale: ContentLocale): boolean {
-    return localeHasEmailCopy(locale, subject, subjectI18n, htmlBody, htmlI18n, blocksI18n);
-  }
 
   async function refreshCount() {
     setCounting(true);
@@ -254,20 +262,24 @@ export default function AdminEmailCampaignPage() {
     }
   }
 
-  async function saveLocaleContent(nextSubject: string, nextBlocks: EmailBlock[]) {
-    const nextBlocksI18n = { ...blocksI18n, [activeTab]: nextBlocks };
+  async function saveLocaleContent(
+    locale: ContentLocale,
+    nextSubject: string,
+    nextBlocks: EmailBlock[],
+  ) {
+    const nextBlocksI18n = { ...blocksI18n, [locale]: nextBlocks };
     const rendered = blocksToHtml(nextBlocks);
     let nextSubjectRu = subject;
     let nextSubjectI18n = { ...subjectI18n };
     let nextHtmlRu = htmlBody;
     let nextHtmlI18n = { ...htmlI18n };
 
-    if (activeTab === "ru") {
+    if (locale === "ru") {
       nextSubjectRu = nextSubject;
       nextHtmlRu = rendered;
     } else {
-      nextSubjectI18n = { ...nextSubjectI18n, [activeTab]: nextSubject };
-      nextHtmlI18n = { ...nextHtmlI18n, [activeTab]: rendered };
+      nextSubjectI18n = { ...nextSubjectI18n, [locale]: nextSubject };
+      nextHtmlI18n = { ...nextHtmlI18n, [locale]: rendered };
     }
 
     const { campaign: row } = await adminFetch<{ campaign: Campaign }>(
@@ -293,79 +305,41 @@ export default function AdminEmailCampaignPage() {
   }
 
   async function runTranslate() {
-    const sourceLocale: ContentLocale = hasCopy("ru")
-      ? "ru"
-      : (TARGET_LOCALES.find((l) => hasCopy(l)) ?? "ru");
-    const sourceSubject =
-      sourceLocale === "ru" ? subject.trim() : (subjectI18n[sourceLocale] ?? "").trim();
-    const sourceBlocks = blocksForLocale(blocksI18n, sourceLocale);
-    const sourceBody =
-      blocksToHtml(sourceBlocks) ||
-      (sourceLocale === "ru" ? htmlBody : (htmlI18n[sourceLocale] ?? ""));
-    if (!sourceSubject) {
-      setError("Заполните тему хотя бы на одном языке");
-      return;
-    }
-    const fillLocales = (["ru", ...TARGET_LOCALES] as ContentLocale[]).filter(
-      (locale) => locale !== sourceLocale && !hasCopy(locale),
-    );
-    if (fillLocales.length === 0) {
-      setInfo("Все вкладки уже заполнены");
-      return;
-    }
     setTranslating(true);
     setError(null);
     try {
-      const { translations } = await adminFetch<{
-        translations: Record<string, { title: string; body: string }>;
-      }>("/api/admin/translate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "post",
-          source_locale: sourceLocale,
-          source_title: sourceSubject,
-          source_body: sourceBody,
-          fill_locales: fillLocales,
-        }),
+      const next = await translateEmptyEmailLocales({
+        content: {
+          subject,
+          subjectI18n,
+          htmlBody,
+          htmlI18n,
+          blocksI18n,
+        },
+        adminFetch,
       });
-
-      let nextSubject = subject;
-      const nextSubjectI18n = { ...subjectI18n };
-      let nextHtml = htmlBody;
-      const nextHtmlI18n = { ...htmlI18n };
-      let nextBlocks = { ...blocksI18n };
-
-      if (translations.ru && !hasCopy("ru")) {
-        nextSubject = translations.ru.title;
-        nextHtml = translations.ru.body;
-        nextBlocks = { ...nextBlocks, ru: ensureBlocksFromHtml(translations.ru.body) };
-      }
-      for (const locale of TARGET_LOCALES) {
-        const t = translations[locale];
-        if (!t || hasCopy(locale)) continue;
-        nextSubjectI18n[locale] = t.title;
-        nextHtmlI18n[locale] = t.body;
-        nextBlocks[locale] = ensureBlocksFromHtml(t.body);
-      }
-
       await adminFetch(`/api/admin/email/campaigns/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          subject: nextSubject,
-          html_body: nextHtml,
-          subject_i18n: nextSubjectI18n,
-          html_body_i18n: nextHtmlI18n,
-          blocks_i18n: nextBlocks,
+          subject: next.subject,
+          html_body: next.htmlBody,
+          subject_i18n: next.subjectI18n,
+          html_body_i18n: next.htmlI18n,
+          blocks_i18n: next.blocksI18n,
         }),
       });
-      setSubject(nextSubject);
-      setSubjectI18n(nextSubjectI18n);
-      setHtmlBody(nextHtml);
-      setHtmlI18n(nextHtmlI18n);
-      setBlocksI18n(nextBlocks);
+      setSubject(next.subject);
+      setSubjectI18n(next.subjectI18n);
+      setHtmlBody(next.htmlBody);
+      setHtmlI18n(next.htmlI18n);
+      setBlocksI18n(next.blocksI18n);
       setInfo("Переводы заполнены");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Перевод не удался");
+      if (err instanceof Error && err.message === "ALL_FILLED") {
+        setInfo("Все вкладки уже заполнены");
+      } else {
+        setError(err instanceof Error ? err.message : "Перевод не удался");
+      }
     } finally {
       setTranslating(false);
     }
@@ -477,13 +451,6 @@ export default function AdminEmailCampaignPage() {
     setRecipientCount(null);
   }
 
-  const editorBlocks = useMemo(() => {
-    const existing = blocksForLocale(blocksI18n, activeTab);
-    if (existing.length) return existing;
-    const html = activeTab === "ru" ? htmlBody : (htmlI18n[activeTab] ?? "");
-    return ensureBlocksFromHtml(html);
-  }, [activeTab, blocksI18n, htmlBody, htmlI18n]);
-
   if (!campaign && !error) {
     return (
       <div className="flex items-center gap-2 text-sm text-zinc-500">
@@ -491,6 +458,12 @@ export default function AdminEmailCampaignPage() {
       </div>
     );
   }
+
+  const statusLabel = STATUS_RU[campaign?.status ?? "draft"] ?? campaign?.status ?? "черновик";
+  const statusLine =
+    campaign?.status === "sent" && campaign.sent_at
+      ? `${statusLabel} · ${formatAdminDateTime(campaign.sent_at)}`
+      : statusLabel;
 
   return (
     <div className="space-y-6">
@@ -500,13 +473,8 @@ export default function AdminEmailCampaignPage() {
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-zinc-900">
-              {name.trim() || "Рассылка"}
-            </h1>
-            <p className="text-xs text-zinc-500">
-              {campaign?.status}
-              {campaign?.sent_at ? ` · ${formatAdminDateTime(campaign.sent_at)}` : ""}
-            </p>
+            <h1 className="text-xl font-bold text-zinc-900">Рассылка</h1>
+            <p className="text-xs text-zinc-500">{statusLine}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -551,6 +519,10 @@ export default function AdminEmailCampaignPage() {
         </div>
       ) : null}
 
+      {campaign && hasDeliveryActivity(campaign) ? (
+        <EmailDeliveryStats counts={campaign} showUnsubscribed />
+      ) : null}
+
       <label className="block text-xs font-medium text-zinc-500">
         Название рассылки
         <input
@@ -562,231 +534,212 @@ export default function AdminEmailCampaignPage() {
         />
       </label>
 
-      {campaign && (campaign.status === "sent" || campaign.sent_count > 0) ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-8">
-          {[
-            ["Отправлено", campaign.sent_count],
-            ["Доставлено", campaign.delivered_count],
-            ["Открыто", campaign.opened_count],
-            ["Клики", campaign.clicked_count],
-            ["Отказ", campaign.bounced_count],
-            ["Спам", campaign.complained_count],
-            ["Отписались", campaign.unsubscribed_count],
-            ["Ошибки", campaign.error_count],
-          ].map(([label, value]) => (
-            <div
-              key={String(label)}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center"
-            >
-              <div className="text-lg font-semibold text-zinc-900">{value}</div>
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <EmailMessageWorkspace
+        readOnly={readOnly}
+        content={{
+          subject,
+          subjectI18n,
+          htmlBody,
+          htmlI18n,
+          blocksI18n,
+        }}
+        onSaveLocaleContent={saveLocaleContent}
+        onTranslateEmpty={runTranslate}
+        translating={translating}
+        testTo={testTo}
+        onTestToChange={setTestTo}
+        onSendTest={sendTest}
+        sending={sending}
+        showSendBlock={!readOnly}
+        onBulkSend={!readOnly ? sendCampaign : undefined}
+        afterPreview={
+          <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-zinc-800">Сегмент</h2>
+              <div className="flex items-center gap-2 text-sm text-emerald-700">
+                <span>
+                  Получателей:{" "}
+                  {recipientCount === null ? "— нажмите обновить" : recipientCount}
+                </span>
+                <button
+                  type="button"
+                  title="Обновить число получателей"
+                  onClick={() => void refreshCount()}
+                  disabled={counting || readOnly}
+                  className="rounded-lg border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  {counting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={16} />
+                  )}
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
-      ) : null}
 
-      <div className="flex flex-wrap items-center gap-1">
-        {(Object.keys(LOCALE_LABELS) as ContentLocale[]).map((locale) => (
-          <button
-            key={locale}
-            type="button"
-            onClick={() => setActiveTab(locale)}
-            className={`relative rounded-lg px-2.5 py-1 text-xs font-semibold ${
-              activeTab === locale
-                ? "bg-emerald-600 text-white"
-                : "text-zinc-500 hover:bg-zinc-100"
-            }`}
-          >
-            {LOCALE_LABELS[locale]}
-            {hasCopy(locale) ? (
-              <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-300" />
-            ) : null}
-          </button>
-        ))}
-        {!readOnly ? (
-          <>
-            <button
-              type="button"
-              onClick={() => void runTranslate()}
-              disabled={translating}
-              className="ml-2 rounded-lg px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-            >
-              {translating ? "Перевод…" : "Перевести пустые"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditorOpen(true)}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500"
-            >
-              <Pencil size={14} /> Редактировать
-            </button>
-          </>
-        ) : null}
-      </div>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  {
+                    key: "demo",
+                    label: "Демо",
+                    on: segment.include_demo && !segment.all_installed,
+                  },
+                  {
+                    key: "free",
+                    label: "Навигатор",
+                    on:
+                      segment.membership_tiers.includes("free") && !segment.all_installed,
+                  },
+                  {
+                    key: "oracle",
+                    label: "Наставник",
+                    on:
+                      segment.membership_tiers.includes("oracle") &&
+                      !segment.all_installed,
+                  },
+                  {
+                    key: "master",
+                    label: "Мастер",
+                    on:
+                      segment.membership_tiers.includes("master") &&
+                      !segment.all_installed,
+                  },
+                  { key: "all", label: "Все установившие", on: segment.all_installed },
+                ] as const
+              ).map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  disabled={readOnly}
+                  onClick={() => {
+                    if (chip.key === "all") selectAllInstalled();
+                    else if (chip.key === "demo") toggleDemo();
+                    else toggleTier(chip.key);
+                  }}
+                  className={`rounded-lg px-2.5 py-1 text-xs ${
+                    chip.on
+                      ? "bg-emerald-600 text-white"
+                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
 
-      <EmailInlinePreview
-        subject={previewSubject}
-        localeLabel={LOCALE_LABELS[activeTab]}
-        bodyHtml={previewBodyHtml}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs text-zinc-500">
+                Был в приложении ≤ N дней назад
+                <input
+                  className={`${inputCls} mt-1`}
+                  value={segment.last_seen_within_days}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({ ...p, last_seen_within_days: e.target.value }));
+                    setRecipientCount(null);
+                  }}
+                  placeholder="например 7"
+                  inputMode="numeric"
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Не заходил ≥ N дней
+                <input
+                  className={`${inputCls} mt-1`}
+                  value={segment.last_seen_older_than_days}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({
+                      ...p,
+                      last_seen_older_than_days: e.target.value,
+                    }));
+                    setRecipientCount(null);
+                  }}
+                  placeholder="например 30"
+                  inputMode="numeric"
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Регистрация в системе ≥
+                <input
+                  type="date"
+                  className={`${inputCls} mt-1`}
+                  value={segment.account_created_on_or_after}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({
+                      ...p,
+                      account_created_on_or_after: e.target.value,
+                    }));
+                    setRecipientCount(null);
+                  }}
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Регистрация в системе ≤
+                <input
+                  type="date"
+                  className={`${inputCls} mt-1`}
+                  value={segment.account_created_on_or_before}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({
+                      ...p,
+                      account_created_on_or_before: e.target.value,
+                    }));
+                    setRecipientCount(null);
+                  }}
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Регистрация в Гармонизаторе ≥
+                <input
+                  type="date"
+                  className={`${inputCls} mt-1`}
+                  value={segment.onboarded_on_or_after}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({
+                      ...p,
+                      onboarded_on_or_after: e.target.value,
+                    }));
+                    setRecipientCount(null);
+                  }}
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Регистрация в Гармонизаторе ≤
+                <input
+                  type="date"
+                  className={`${inputCls} mt-1`}
+                  value={segment.onboarded_on_or_before}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({
+                      ...p,
+                      onboarded_on_or_before: e.target.value,
+                    }));
+                    setRecipientCount(null);
+                  }}
+                />
+              </label>
+              <label className="text-xs text-zinc-500 sm:col-span-2">
+                Email содержит
+                <input
+                  className={`${inputCls} mt-1`}
+                  value={segment.email_contains}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({ ...p, email_contains: e.target.value }));
+                    setRecipientCount(null);
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+        }
       />
-
-      <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-800">Сегмент</h2>
-          <div className="flex items-center gap-2 text-sm text-emerald-700">
-            <span>
-              Получателей:{" "}
-              {recipientCount === null ? "— нажмите обновить" : recipientCount}
-            </span>
-            <button
-              type="button"
-              title="Обновить число получателей"
-              onClick={() => void refreshCount()}
-              disabled={counting || readOnly}
-              className="rounded-lg border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-            >
-              {counting ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <RefreshCw size={16} />
-              )}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { key: "demo", label: "Демо", on: segment.include_demo && !segment.all_installed },
-              {
-                key: "free",
-                label: "Навигатор",
-                on: segment.membership_tiers.includes("free") && !segment.all_installed,
-              },
-              {
-                key: "oracle",
-                label: "Наставник",
-                on: segment.membership_tiers.includes("oracle") && !segment.all_installed,
-              },
-              {
-                key: "master",
-                label: "Мастер",
-                on: segment.membership_tiers.includes("master") && !segment.all_installed,
-              },
-              { key: "all", label: "Все установившие", on: segment.all_installed },
-            ] as const
-          ).map((chip) => (
-            <button
-              key={chip.key}
-              type="button"
-              disabled={readOnly}
-              onClick={() => {
-                if (chip.key === "all") selectAllInstalled();
-                else if (chip.key === "demo") toggleDemo();
-                else toggleTier(chip.key);
-              }}
-              className={`rounded-lg px-2.5 py-1 text-xs ${
-                chip.on
-                  ? "bg-emerald-600 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs text-zinc-500">
-            Был в приложении ≤ N дней назад
-            <input
-              className={`${inputCls} mt-1`}
-              value={segment.last_seen_within_days}
-              disabled={readOnly}
-              onChange={(e) => {
-                setSegment((p) => ({ ...p, last_seen_within_days: e.target.value }));
-                setRecipientCount(null);
-              }}
-              placeholder="например 7"
-              inputMode="numeric"
-            />
-          </label>
-          <label className="text-xs text-zinc-500">
-            Не заходил ≥ N дней
-            <input
-              className={`${inputCls} mt-1`}
-              value={segment.last_seen_older_than_days}
-              disabled={readOnly}
-              onChange={(e) => {
-                setSegment((p) => ({ ...p, last_seen_older_than_days: e.target.value }));
-                setRecipientCount(null);
-              }}
-              placeholder="например 30"
-              inputMode="numeric"
-            />
-          </label>
-          <label className="text-xs text-zinc-500 sm:col-span-2">
-            Email содержит
-            <input
-              className={`${inputCls} mt-1`}
-              value={segment.email_contains}
-              disabled={readOnly}
-              onChange={(e) => {
-                setSegment((p) => ({ ...p, email_contains: e.target.value }));
-                setRecipientCount(null);
-              }}
-            />
-          </label>
-        </div>
-      </section>
-
-      <form
-        onSubmit={(e) => void sendCampaign(e)}
-        className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4"
-      >
-        <h2 className="text-sm font-semibold text-zinc-800">Отправка</h2>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="min-w-[200px] flex-1 text-xs text-zinc-500">
-            Тест на email
-            <input
-              className={`${inputCls} mt-1`}
-              value={testTo}
-              onChange={(e) => setTestTo(e.target.value)}
-              placeholder="you@example.com"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => void sendTest()}
-            disabled={sending || !testTo.trim()}
-            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            Тест
-          </button>
-          {!readOnly ? (
-            <button
-              type="submit"
-              disabled={sending}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-            >
-              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              Отправить сегменту
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      {editorOpen ? (
-        <EmailBlockEditor
-          localeLabel={LOCALE_LABELS[activeTab]}
-          subject={activeTab === "ru" ? subject : (subjectI18n[activeTab] ?? "")}
-          blocks={editorBlocks}
-          onClose={() => setEditorOpen(false)}
-          onSave={async ({ subject: s, blocks }) => {
-            await saveLocaleContent(s, blocks);
-          }}
-        />
-      ) : null}
     </div>
   );
 }

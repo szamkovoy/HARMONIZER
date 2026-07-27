@@ -18,7 +18,7 @@ code_refs:
 
 ## 1. Зависит от
 
-- **`admin_panel`** — UI `/admin/email*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
+- **`admin_panel`** — UI `/admin/email*`, `/admin/email/automations/*/steps/*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
 - **`infra`** — Supabase tables/storage, Vercel env (`RESEND_ZAMKOVOI_RU_API_KEY`, webhook secret, `CRON_SECRET`), Resend (send + webhooks + Suppressions/Domains API); pg_cron → `invoke_run_email_automations` → Vercel `/api/cron/email-automations`; daily `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync`.
 - **`i18n`** — 8 content locales; exact copy per contact locale; admin translate (`type=post` reuse for subject/body HTML).
 - **`profile` / auth** — `email_contacts.user_id` → `users`; `auth.users.email_confirmed_at` для welcome; `skip_email_automations` / `last_seen_at` / `display_name`.

@@ -9,6 +9,14 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-27 (notification detail UX):** Карточка `/admin/notifications/[id]` — заголовок «Уведомления», название над текстом; KPI с пояснениями (получатели / в приложении / push).
+
+- **2026-07-27 (email assets auth):** Загрузка картинок в редакторе писем через `adminFetch` (refresh JWT); timeout refresh 12s; без `alert(Unauthorized)`; кнопки Save показывают «Сохранение…».
+
+- **2026-07-27 (email shared foundation):** Рассылки и цепочки на общем UI (список + workspace); страница письма цепочки; тест шага.
+
+- **2026-07-27 (campaign/notification parity):** Рассылка — заголовок/статус RU, KPI, read-only после send; уведомление — вкладки языков; сегмент email — даты регистрации.
+
 - **2026-07-27 (user card messaging UX):** Фикс истории уведомлений (битый select `status`); лёгкие списки писем/пушей со ссылками; confirm перед отправкой; комбо рассылок — 10 недавних; карточка уведомления `/admin/notifications/[id]`.
 
 - **2026-07-27 (deliverability):** Ссылка «Deliverability» со списка рассылок → `/admin/email/deliverability`. См. `marketing_email/history`.

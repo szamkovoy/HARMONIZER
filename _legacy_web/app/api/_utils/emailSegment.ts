@@ -11,6 +11,12 @@ export type EmailSegmentQuery = {
   membership_tiers?: VisibleTier[];
   last_seen_within_days?: number | null;
   last_seen_older_than_days?: number | null;
+  /** Account created in system (users.created_at), YYYY-MM-DD inclusive. */
+  account_created_on_or_after?: string | null;
+  account_created_on_or_before?: string | null;
+  /** Harmonizer onboarding (users.onboarded_at), YYYY-MM-DD inclusive. */
+  onboarded_on_or_after?: string | null;
+  onboarded_on_or_before?: string | null;
   country_codes?: string[];
   locales?: string[];
   email_contains?: string;
@@ -43,6 +49,23 @@ function asPositiveInt(value: unknown): number | null {
   return null;
 }
 
+/** YYYY-MM-DD only. */
+function asDateOnly(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const t = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+  const ms = Date.parse(`${t}T00:00:00.000Z`);
+  return Number.isFinite(ms) ? t : null;
+}
+
+function dayStartMs(dateOnly: string): number {
+  return Date.parse(`${dateOnly}T00:00:00.000Z`);
+}
+
+function dayEndMs(dateOnly: string): number {
+  return Date.parse(`${dateOnly}T23:59:59.999Z`);
+}
+
 /** Parse / sanitize segment JSON from admin UI. */
 export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
   const q = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -72,6 +95,10 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
 
   out.last_seen_within_days = asPositiveInt(q.last_seen_within_days);
   out.last_seen_older_than_days = asPositiveInt(q.last_seen_older_than_days);
+  out.account_created_on_or_after = asDateOnly(q.account_created_on_or_after);
+  out.account_created_on_or_before = asDateOnly(q.account_created_on_or_before);
+  out.onboarded_on_or_after = asDateOnly(q.onboarded_on_or_after);
+  out.onboarded_on_or_before = asDateOnly(q.onboarded_on_or_before);
 
   if (Array.isArray(q.country_codes)) {
     out.country_codes = q.country_codes
@@ -147,6 +174,7 @@ export async function resolveEmailSegment(
       last_seen_at: string | null;
       country_code: string | null;
       created_at: string | null;
+      onboarded_at: string | null;
     }
   >();
 
@@ -155,7 +183,7 @@ export async function resolveEmailSegment(
     const chunk = userIds.slice(i, i + CHUNK);
     const { data: users, error: usersError } = await db
       .from("users")
-      .select("id, membership_tier, last_seen_at, country_code, created_at")
+      .select("id, membership_tier, last_seen_at, country_code, created_at, onboarded_at")
       .in("id", chunk);
     if (usersError) throw usersError;
     for (const u of users ?? []) {
@@ -164,6 +192,7 @@ export async function resolveEmailSegment(
         last_seen_at: u.last_seen_at,
         country_code: u.country_code,
         created_at: u.created_at,
+        onboarded_at: u.onboarded_at,
       });
     }
   }
@@ -198,6 +227,40 @@ export async function resolveEmailSegment(
       } else {
         const ageDays = (now - new Date(u.last_seen_at).getTime()) / 86400000;
         if (ageDays < query.last_seen_older_than_days) return false;
+      }
+    }
+
+    if (query.account_created_on_or_after || query.account_created_on_or_before) {
+      if (!u.created_at) return false;
+      const t = new Date(u.created_at).getTime();
+      if (
+        query.account_created_on_or_after &&
+        t < dayStartMs(query.account_created_on_or_after)
+      ) {
+        return false;
+      }
+      if (
+        query.account_created_on_or_before &&
+        t > dayEndMs(query.account_created_on_or_before)
+      ) {
+        return false;
+      }
+    }
+
+    if (query.onboarded_on_or_after || query.onboarded_on_or_before) {
+      if (!u.onboarded_at) return false;
+      const t = new Date(u.onboarded_at).getTime();
+      if (
+        query.onboarded_on_or_after &&
+        t < dayStartMs(query.onboarded_on_or_after)
+      ) {
+        return false;
+      }
+      if (
+        query.onboarded_on_or_before &&
+        t > dayEndMs(query.onboarded_on_or_before)
+      ) {
+        return false;
       }
     }
 

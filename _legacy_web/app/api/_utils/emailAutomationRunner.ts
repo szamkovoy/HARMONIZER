@@ -538,6 +538,7 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
       html,
       text: htmlToPlaintext(html),
       unsubscribeUrl,
+      locale: contact.locale,
       tags: [
         { name: "automation_id", value: enrollment.automation_id },
         { name: "step", value: String(step.position) },

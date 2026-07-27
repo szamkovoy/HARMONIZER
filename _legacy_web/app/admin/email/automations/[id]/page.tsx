@@ -2,26 +2,19 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Loader2,
-  Pencil,
   Plus,
   Save,
   Trash2,
 } from "lucide-react";
 
 import { adminFetch } from "../../../_lib/adminApi";
-import { EmailBlockEditor } from "../../_components/EmailBlockEditor";
-import {
-  blocksToHtml,
-  ensureBlocksFromHtml,
-  parseBlocksI18n,
-  type EmailBlock,
-} from "../../_lib/blocks";
+import { EmailListRow } from "../../_components/EmailListRow";
 
 type Automation = {
   id: string;
@@ -72,7 +65,6 @@ export default function AdminEmailAutomationDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [editorStepId, setEditorStepId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -92,18 +84,6 @@ export default function AdminEmailAutomationDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const editorStep = useMemo(
-    () => steps.find((s) => s.id === editorStepId) ?? null,
-    [steps, editorStepId],
-  );
-
-  const editorBlocks: EmailBlock[] = useMemo(() => {
-    if (!editorStep) return [];
-    const blocks = parseBlocksI18n(editorStep.blocks_i18n);
-    if (blocks.ru?.length) return blocks.ru;
-    return ensureBlocksFromHtml(editorStep.html_body || "");
-  }, [editorStep]);
 
   async function saveMeta() {
     setSaving(true);
@@ -147,15 +127,18 @@ export default function AdminEmailAutomationDetailPage() {
 
   async function addStep() {
     try {
-      await adminFetch(`/api/admin/email/automations/${id}/steps`, {
-        method: "POST",
-        body: JSON.stringify({
-          delay_hours: 0,
-          subject: "Новое письмо",
-          html_body: "<p>Текст…</p>",
-        }),
-      });
-      await load();
+      const { step } = await adminFetch<{ step: { id: string } }>(
+        `/api/admin/email/automations/${id}/steps`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            delay_hours: 0,
+            subject: "Новое письмо",
+            html_body: "<p>Текст…</p>",
+          }),
+        },
+      );
+      router.push(`/admin/email/automations/${id}/steps/${step.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось добавить");
     }
@@ -203,21 +186,6 @@ export default function AdminEmailAutomationDetailPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить");
     }
-  }
-
-  async function saveStepContent(next: { subject: string; blocks: EmailBlock[] }) {
-    if (!editorStepId) return;
-    const html = blocksToHtml(next.blocks);
-    const blocks_i18n = { ru: next.blocks };
-    await adminFetch(`/api/admin/email/automations/${id}/steps/${editorStepId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        subject: next.subject,
-        html_body: html,
-        blocks_i18n,
-      }),
-    });
-    await load();
   }
 
   async function removeChain() {
@@ -332,7 +300,7 @@ export default function AdminEmailAutomationDetailPage() {
         </p>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
+      <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-800">Письма в цепочке</h2>
           <button
@@ -345,118 +313,106 @@ export default function AdminEmailAutomationDetailPage() {
         </div>
 
         {steps.length === 0 ? (
-          <p className="text-sm text-zinc-500">Пока нет писем — добавьте первое.</p>
+          <p className="rounded-2xl border border-zinc-200 bg-white px-4 py-8 text-center text-sm text-zinc-500">
+            Пока нет писем — добавьте первое.
+          </p>
         ) : (
-          <ul className="space-y-3">
-            {steps.map((s, index) => (
-              <li
-                key={s.id}
-                className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-semibold text-zinc-500">
-                      Письмо {index + 1}
-                    </div>
-                    <div className="font-medium text-zinc-900">
-                      {s.subject.trim() || "без темы"}
-                    </div>
-                    {(s.sent_count ?? 0) > 0 || (s.failed_count ?? 0) > 0 ? (
-                      <div className="mt-1 text-[11px] text-zinc-500">
-                        отпр. {s.sent_count ?? 0}
-                        {" · "}дост. {s.delivered_count ?? 0}
-                        {" · "}откр. {s.opened_count ?? 0}
-                        {" · "}клики {s.clicked_count ?? 0}
-                        {" · "}отказ {s.bounced_count ?? 0}
-                        {(s.complained_count ?? 0) > 0
-                          ? ` · спам ${s.complained_count}`
-                          : ""}
-                        {(s.failed_count ?? 0) > 0
-                          ? ` · ошиб. ${s.failed_count}`
-                          : ""}
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-[11px] text-zinc-400">
-                        статистика появится после отправок
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <button
-                      type="button"
-                      title="Вверх"
-                      onClick={() => void moveStep(index, -1)}
-                      className="rounded border border-zinc-200 bg-white p-1.5 text-zinc-600"
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Вниз"
-                      onClick={() => void moveStep(index, 1)}
-                      className="rounded border border-zinc-200 bg-white p-1.5 text-zinc-600"
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditorStepId(s.id)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white"
-                    >
-                      <Pencil size={12} /> Редактировать
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void removeStep(s.id)}
-                      className="rounded border border-rose-200 p-1.5 text-rose-600"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-                <label className="mt-2 block text-xs text-zinc-500">
-                  Задержка перед отправкой (часов)
-                  <input
-                    type="number"
-                    min={0}
-                    className={`${inputCls} mt-1 max-w-[160px]`}
-                    value={s.delay_hours}
-                    onChange={(e) => {
-                      const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                      setSteps((prev) =>
-                        prev.map((x) =>
-                          x.id === s.id ? { ...x, delay_hours: n } : x,
-                        ),
-                      );
-                    }}
-                    onBlur={(e) => {
-                      const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                      void updateDelay(s.id, n);
-                    }}
-                  />
-                  <span className="mt-1 block text-[11px] text-zinc-400">
-                    {index === 0
-                      ? "После срабатывания условия цепочки"
-                      : "После предыдущего письма"}
-                  </span>
-                </label>
-              </li>
-            ))}
+          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
+            {steps.map((s, index) => {
+              const hasStats = (s.sent_count ?? 0) > 0 || (s.failed_count ?? 0) > 0;
+              return (
+                <EmailListRow
+                  key={s.id}
+                  href={`/admin/email/automations/${id}/steps/${s.id}`}
+                  title={s.subject.trim() || "Без темы"}
+                  subtitle={`Письмо ${index + 1} · +${s.delay_hours}ч`}
+                  showStats={hasStats}
+                  idleLabel="ещё не отправлялось"
+                  stats={
+                    hasStats
+                      ? {
+                          sent_count: s.sent_count ?? 0,
+                          delivered_count: s.delivered_count ?? 0,
+                          opened_count: s.opened_count ?? 0,
+                          clicked_count: s.clicked_count ?? 0,
+                          bounced_count: s.bounced_count ?? 0,
+                          complained_count: s.complained_count ?? 0,
+                          failed_count: s.failed_count ?? 0,
+                        }
+                      : undefined
+                  }
+                  trailingActions={
+                    <>
+                      <button
+                        type="button"
+                        title="Вверх"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          void moveStep(index, -1);
+                        }}
+                        className="rounded border border-zinc-200 bg-white p-1.5 text-zinc-600 hover:bg-zinc-50"
+                      >
+                        <ArrowUp size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Вниз"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          void moveStep(index, 1);
+                        }}
+                        className="rounded border border-zinc-200 bg-white p-1.5 text-zinc-600 hover:bg-zinc-50"
+                      >
+                        <ArrowDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Удалить"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          void removeStep(s.id);
+                        }}
+                        className="rounded border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  }
+                  below={
+                    <label className="block text-xs text-zinc-500">
+                      Задержка (часов)
+                      <input
+                        type="number"
+                        min={0}
+                        className={`${inputCls} mt-1 max-w-[160px]`}
+                        value={s.delay_hours}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                          setSteps((prev) =>
+                            prev.map((x) =>
+                              x.id === s.id ? { ...x, delay_hours: n } : x,
+                            ),
+                          );
+                        }}
+                        onBlur={(e) => {
+                          const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                          void updateDelay(s.id, n);
+                        }}
+                      />
+                      <span className="mt-1 block text-[11px] text-zinc-400">
+                        {index === 0
+                          ? "После срабатывания условия цепочки"
+                          : "После предыдущего письма"}
+                      </span>
+                    </label>
+                  }
+                />
+              );
+            })}
           </ul>
         )}
       </section>
-
-      {editorStep ? (
-        <EmailBlockEditor
-          localeLabel="RU"
-          subject={editorStep.subject}
-          blocks={editorBlocks}
-          onSave={async (next) => {
-            await saveStepContent(next);
-          }}
-          onClose={() => setEditorStepId(null)}
-        />
-      ) : null}
     </div>
   );
 }

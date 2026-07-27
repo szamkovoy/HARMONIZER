@@ -1,11 +1,28 @@
 export type BlockAlign = "left" | "center" | "right";
-export type BlockFontFamily = "system" | "georgia";
+/** Web-safe stacks only — email clients ignore arbitrary fonts. */
+export type BlockFontFamily =
+  | "system"
+  | "arial"
+  | "verdana"
+  | "georgia"
+  | "times";
 export type BlockFontSize = "sm" | "md" | "lg" | "xl";
 
 const FONT_CSS: Record<BlockFontFamily, string> = {
   system: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+  arial: "Arial,Helvetica,sans-serif",
+  verdana: "Verdana,Geneva,sans-serif",
   georgia: "Georgia,'Times New Roman',serif",
+  times: "'Times New Roman',Times,serif",
 };
+
+export const FONT_FAMILY_OPTIONS: { value: BlockFontFamily; label: string }[] = [
+  { value: "system", label: "System sans" },
+  { value: "arial", label: "Arial" },
+  { value: "verdana", label: "Verdana" },
+  { value: "georgia", label: "Georgia" },
+  { value: "times", label: "Times New Roman" },
+];
 
 const SIZE_CSS: Record<BlockFontSize, string> = {
   sm: "14px",
@@ -17,7 +34,7 @@ const SIZE_CSS: Record<BlockFontSize, string> = {
 export type EmailBlock =
   | {
       id: string;
-      type: "logo" | "image";
+      type: "image";
       src: string;
       alt: string;
       href?: string;
@@ -66,13 +83,12 @@ export function newBlockId(): string {
 export function createEmptyBlock(type: EmailBlock["type"]): EmailBlock {
   const id = newBlockId();
   switch (type) {
-    case "logo":
     case "image":
       return {
         id,
-        type,
+        type: "image",
         src: "",
-        alt: type === "logo" ? "Логотип" : "",
+        alt: "",
         href: "",
         width: "100%",
         align: "center",
@@ -163,15 +179,38 @@ export function parseBlocksI18n(raw: unknown): BlocksByLocale {
   const out: BlocksByLocale = {};
   for (const [locale, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!Array.isArray(value)) continue;
-    out[locale] = value.filter(isEmailBlock);
+    out[locale] = value
+      .map(normalizeBlock)
+      .filter((b): b is EmailBlock => b != null);
   }
   return out;
 }
 
-function isEmailBlock(value: unknown): value is EmailBlock {
-  if (!value || typeof value !== "object") return false;
-  const t = (value as { type?: string }).type;
-  return t === "logo" || t === "image" || t === "heading" || t === "text" || t === "button";
+/** Legacy `logo` blocks become `image` (same renderer). */
+function normalizeBlock(value: unknown): EmailBlock | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const t = raw.type;
+  if (t === "logo") {
+    return {
+      id: typeof raw.id === "string" ? raw.id : newBlockId(),
+      type: "image",
+      src: typeof raw.src === "string" ? raw.src : "",
+      alt: typeof raw.alt === "string" ? raw.alt : "",
+      href: typeof raw.href === "string" ? raw.href : "",
+      width: typeof raw.width === "string" ? raw.width : "100%",
+      align:
+        raw.align === "left" || raw.align === "center" || raw.align === "right"
+          ? raw.align
+          : "center",
+      marginTop: typeof raw.marginTop === "number" ? raw.marginTop : 8,
+      marginBottom: typeof raw.marginBottom === "number" ? raw.marginBottom : 8,
+    };
+  }
+  if (t === "image" || t === "heading" || t === "text" || t === "button") {
+    return value as EmailBlock;
+  }
+  return null;
 }
 
 export function localeHasEmailCopy(

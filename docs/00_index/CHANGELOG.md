@@ -1,3 +1,7 @@
+- 2026-07-27 (290): Admin email editor — asset upload via adminFetch (JWT refresh); refresh timeout; no Unauthorized alert; Save loading label.
+- 2026-07-27 (289): Marketing email block editor — remove «Логотип»; keep «Изображение» only (legacy logo → image on parse).
+- 2026-07-27 (288): Marketing email — shared UI foundation for campaigns + automation steps (list row, message workspace, step page + test send); footer 12.5px; web-safe fonts; logo vs image defaults.
+- 2026-07-27 (287): Admin email/notification UX parity — campaign «Рассылка» + RU status + KPI/read-only after send; segment registration dates; notification locale tabs; From Сергей Замковой / Sergei Zamkovoi; smaller footer.
 - 2026-07-27 (286): Deliverability dashboard — drop Resend domain health + top bounce-domain blocks.
 - 2026-07-27 (285): Resend suppressions → contacts sync moved to daily pg_cron (`sync_email_suppressions_daily` → `/api/cron/email-suppressions-sync`). Migration `20260727180000`.
 - 2026-07-27 (284): User-card messaging UX — fix notification history query; light linked lists; send confirm; campaigns picker limit 10.

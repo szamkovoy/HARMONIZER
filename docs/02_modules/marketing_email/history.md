@@ -13,6 +13,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-27 (drop logo block):** В редакторе только «Изображение»; старые `type:logo` нормализуются в `image` при parse.
+
+- **2026-07-27 (shared email UI foundation):** Список и редактор писем общие для рассылок и цепочек (`EmailListRow`, `EmailMessageWorkspace`, `EmailDeliveryStats`). Шаг цепочки — отдельная страница как карточка рассылки (без сегмента, с delay + тест). Footer 12.5px; больше web-safe шрифтов.
+
+- **2026-07-27 (campaign UX + segment dates + From):** Карточка «Рассылка» как у уведомлений: RU-статус, KPI после send, read-only + без «Отправка». Сегмент: даты регистрации в системе / в Гармонизаторе (≥/≤). From: Сергей Замковой / Sergei Zamkovoi по locale; footer 11px. OTP уже так же.
+
 - **2026-07-27 (deliverability trim):** Убраны блоки «Домен отправки» и «Откуда чаще отказы» с дашборда (и запросы Domains API).
 
 - **2026-07-27 (suppressions daily cron):** Синхронизация Resend → контакты — суточный cron `sync_email_suppressions_daily` (`20 5 * * *`), не при открытии дашборда. Миграция `20260727180000`.
@@ -35,7 +41,7 @@ code_refs:
 
 ## Smoke / ops (фаза A)
 
-1. Vercel: `RESEND_ZAMKOVOI_RU_API_KEY`, `RESEND_MARKETING_WEBHOOK_SECRET`, `EMAIL_UNSUBSCRIBE_SECRET` (optional HMAC), `MAIL_MARKETING_FROM_EMAIL`, optional `EMAIL_PUBLIC_BASE_URL`.
+1. Vercel: `RESEND_ZAMKOVOI_RU_API_KEY`, `RESEND_MARKETING_WEBHOOK_SECRET`, `EMAIL_UNSUBSCRIBE_SECRET` (optional HMAC), optional `MAIL_MARKETING_FROM_EMAIL` / `EMAIL_PUBLIC_BASE_URL`. From **name** всегда по locale (не env).
 2. Resend: DNS + tracking на `zamkovoi.ru`; webhook → `/api/webhooks/resend-marketing` (sent/delivered/delivery_delayed/opened/clicked/bounced/complained/failed/suppressed/suppression.added/suppression.removed).
 3. Админка: «Рассылки» → draft → Перевести → сегмент → Тест → counters; «Deliverability» для KPI и suppressions.
 4. Unsubscribe link в футере → `marketing_status=unsubscribed`; OTP yoga не затронут.
