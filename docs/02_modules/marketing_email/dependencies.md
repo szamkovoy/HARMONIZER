@@ -2,28 +2,32 @@
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
 version: 1.0
-updated: 2026-07-25
+updated: 2026-07-27
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec]
 code_refs:
   [
     _legacy_web/app/api/_utils/marketingMail.ts,
     _legacy_web/app/api/_utils/emailAutomationRunner.ts,
+    _legacy_web/app/api/_utils/emailDeliverability.ts,
+    _legacy_web/app/api/_utils/resendMarketingApi.ts,
     supabase/migrations/20260724200000_marketing_email.sql,
-    supabase/migrations/20260725020000_email_automation_runner.sql,
+    supabase/migrations/20260727150000_email_automations_b2_c1_c2.sql,
+    supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
 
 ## 1. Зависит от
 
-- **`admin_panel`** — UI `/admin/email*`, `requireAdmin`, translate API.
-- **`infra`** — Supabase tables/storage, Vercel env (`RESEND_ZAMKOVOI_RU_API_KEY`, webhook secret, `CRON_SECRET`), Resend; pg_cron → `invoke_run_email_automations` → Vercel `/api/cron/email-automations`.
+- **`admin_panel`** — UI `/admin/email*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
+- **`infra`** — Supabase tables/storage, Vercel env (`RESEND_ZAMKOVOI_RU_API_KEY`, webhook secret, `CRON_SECRET`), Resend (send + webhooks + Suppressions/Domains API); pg_cron → `invoke_run_email_automations` → Vercel `/api/cron/email-automations`; daily `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync`.
 - **`i18n`** — 8 content locales; exact copy per contact locale; admin translate (`type=post` reuse for subject/body HTML).
-- **`profile` / auth** — link `email_contacts.user_id` → `users` + email from `auth.users`; locale/`country_code`/`membership_*`/`last_seen_at` for segments.
-- **`subscription` / payments** — segment filters via `payment_contracts` / `membership_tier`.
+- **`profile` / auth** — `email_contacts.user_id` → `users`; `auth.users.email_confirmed_at` для welcome; `skip_email_automations` / `last_seen_at` / `display_name`.
+- **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier).
+- **`notifications`** — user-card push через `segment=user:<id>`.
 
 ## 2. От него зависят
 
-- Нет (Expo client не читает marketing tables в фазе A).
+- **`admin_panel`** — карточка пользователя читает sends / запускает цепочки.
 
 ## 3. Риски
 

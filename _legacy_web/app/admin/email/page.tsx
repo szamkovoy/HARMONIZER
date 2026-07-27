@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Loader2, Mail, Plus, Workflow } from "lucide-react";
+import { Activity, Loader2, Mail, Plus, Workflow } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
@@ -18,6 +18,8 @@ type CampaignRow = {
   opened_count: number;
   clicked_count: number;
   bounced_count: number;
+  complained_count: number;
+  unsubscribed_count: number;
   sent_at: string | null;
   created_at: string;
 };
@@ -78,6 +80,13 @@ export default function AdminEmailListPage() {
         <h1 className="text-xl font-bold text-zinc-900">Рассылки</h1>
         <div className="flex flex-wrap gap-2">
           <Link
+            href="/admin/email/deliverability"
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+          >
+            <Activity size={16} />
+            Доставляемость
+          </Link>
+          <Link
             href="/admin/email/automations"
             className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
           >
@@ -130,11 +139,18 @@ export default function AdminEmailListPage() {
                     {c.subject.trim() && c.name.trim() ? ` · ${c.subject}` : ""}
                   </div>
                 </div>
-                <div className="shrink-0 text-xs text-zinc-500">
+                <div className="shrink-0 text-[11px] leading-relaxed text-zinc-500 sm:text-right">
                   {c.status === "sent" || c.status === "sending" ? (
                     <span>
-                      {c.sent_count}/{c.recipient_count} · доставл. {c.delivered_count} · откр.{" "}
-                      {c.opened_count}
+                      отпр. {c.sent_count}
+                      {" · "}дост. {c.delivered_count}
+                      {" · "}откр. {c.opened_count}
+                      {" · "}клики {c.clicked_count}
+                      {" · "}отказ {c.bounced_count}
+                      {c.complained_count > 0 ? ` · спам ${c.complained_count}` : ""}
+                      {c.unsubscribed_count > 0
+                        ? ` · отпис. ${c.unsubscribed_count}`
+                        : ""}
                     </span>
                   ) : (
                     <span>черновик</span>

@@ -27,7 +27,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     const db = createServiceSupabase();
 
     const userSelect =
-      "id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at, country_code, city";
+      "id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at, country_code, city, skip_email_automations, last_seen_at";
     const { data, error } = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });
@@ -40,7 +40,7 @@ export async function GET(req: Request, ctx: RouteContext) {
       if (refreshed.data) user = refreshed.data;
     }
 
-    const [emails, payments, lastEventRes] = await Promise.all([
+    const [emails, payments, lastEventRes, contactRes, notifRes] = await Promise.all([
       emailsByUserId(db, [id]),
       loadAdminPaymentLedger(db, { userId: id, limit: 100 }),
       db
@@ -50,7 +50,109 @@ export async function GET(req: Request, ctx: RouteContext) {
         .order("occurred_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      db
+        .from("email_contacts")
+        .select("id, email, marketing_status")
+        .eq("user_id", id)
+        .maybeSingle(),
+      db
+        .from("notification_deliveries")
+        .select(
+          "id, title, body, created_at, notification_id, read_at, kind, notifications(id, title, body, sent_at, recipient_count, push_sent_count, push_error_count)",
+        )
+        .eq("user_id", id)
+        .order("created_at", { ascending: false })
+        .limit(30),
     ]);
+    if (notifRes.error) throw notifRes.error;
+
+    let emailHistory: {
+      kind: string;
+      subject: string;
+      status: string;
+      created_at: string;
+      campaign_id: string | null;
+      automation_id: string | null;
+    }[] = [];
+    if (contactRes.data?.id) {
+      const contactId = contactRes.data.id;
+      const [campaignSends, autoSends] = await Promise.all([
+        db
+          .from("email_campaign_sends")
+          .select("status, created_at, campaign_id, email_campaigns(name, subject)")
+          .eq("contact_id", contactId)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        db
+          .from("email_automation_sends")
+          .select("status, subject, created_at, automation_id, email_automations(name)")
+          .eq("contact_id", contactId)
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ]);
+      for (const row of campaignSends.data ?? []) {
+        const raw = row.email_campaigns as
+          | { name?: string; subject?: string }
+          | { name?: string; subject?: string }[]
+          | null;
+        const camp = Array.isArray(raw) ? raw[0] : raw;
+        emailHistory.push({
+          kind: "campaign",
+          subject: camp?.name || camp?.subject || "Рассылка",
+          status: row.status,
+          created_at: row.created_at,
+          campaign_id: row.campaign_id ?? null,
+          automation_id: null,
+        });
+      }
+      for (const row of autoSends.data ?? []) {
+        const raw = row.email_automations as
+          | { name?: string }
+          | { name?: string }[]
+          | null;
+        const auto = Array.isArray(raw) ? raw[0] : raw;
+        emailHistory.push({
+          kind: "automation",
+          subject: row.subject || auto?.name || "Цепочка",
+          status: row.status,
+          created_at: row.created_at,
+          campaign_id: null,
+          automation_id: row.automation_id ?? null,
+        });
+      }
+      emailHistory.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      emailHistory = emailHistory.slice(0, 30);
+    }
+
+    const notifications = (notifRes.data ?? []).map((d) => {
+      const raw = d.notifications as
+        | {
+            id?: string;
+            title?: string;
+            body?: string;
+            sent_at?: string;
+          }
+        | {
+            id?: string;
+            title?: string;
+            body?: string;
+            sent_at?: string;
+          }[]
+        | null;
+      const n = Array.isArray(raw) ? raw[0] : raw;
+      return {
+        id: d.id,
+        notification_id: d.notification_id ?? n?.id ?? null,
+        title: d.title || n?.title || "Уведомление",
+        body: d.body || n?.body || "",
+        created_at: d.created_at,
+        sent_at: n?.sent_at ?? null,
+        read_at: d.read_at ?? null,
+        kind: d.kind ?? "admin",
+      };
+    });
 
     return json({
       user: {
@@ -59,6 +161,9 @@ export async function GET(req: Request, ctx: RouteContext) {
         last_activity_at: lastEventRes.data?.occurred_at ?? null,
       },
       payments,
+      contact: contactRes.data ?? null,
+      email_history: emailHistory,
+      notifications,
     });
   } catch (error) {
     return errorResponse(error);
@@ -71,17 +176,31 @@ type TierUpdatePayload = {
   amount?: number;
   currency?: string;
   comment?: string;
+  skip_email_automations?: boolean;
 };
 
 /**
  * Ручное назначение тарифа: обновляет users и пишет строку в леджер (source=manual).
  * expires_at приходит с клиента уже с текущим временем на выбранную дату.
+ * Также: skip_email_automations без смены тарифа.
  */
 export async function PATCH(req: Request, ctx: RouteContext) {
   try {
     await requireAdmin(req);
     const { id } = await ctx.params;
     const payload = (await req.json()) as TierUpdatePayload;
+
+    if (typeof payload.skip_email_automations === "boolean" && !payload.tier) {
+      const db = createServiceSupabase();
+      const { data: user, error } = await db
+        .from("users")
+        .update({ skip_email_automations: payload.skip_email_automations })
+        .eq("id", id)
+        .select("id, skip_email_automations")
+        .single();
+      if (error) throw error;
+      return json({ user });
+    }
 
     const tier = payload.tier?.trim() ?? "";
     if (!ALL_TIERS.has(tier)) {

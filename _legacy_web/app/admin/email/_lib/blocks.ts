@@ -1,4 +1,18 @@
 export type BlockAlign = "left" | "center" | "right";
+export type BlockFontFamily = "system" | "georgia";
+export type BlockFontSize = "sm" | "md" | "lg" | "xl";
+
+const FONT_CSS: Record<BlockFontFamily, string> = {
+  system: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+  georgia: "Georgia,'Times New Roman',serif",
+};
+
+const SIZE_CSS: Record<BlockFontSize, string> = {
+  sm: "14px",
+  md: "16px",
+  lg: "18px",
+  xl: "22px",
+};
 
 export type EmailBlock =
   | {
@@ -17,6 +31,8 @@ export type EmailBlock =
       type: "heading";
       html: string;
       align?: BlockAlign;
+      fontFamily?: BlockFontFamily;
+      fontSize?: BlockFontSize;
       marginTop?: number;
       marginBottom?: number;
     }
@@ -25,6 +41,8 @@ export type EmailBlock =
       type: "text";
       html: string;
       align?: BlockAlign;
+      fontFamily?: BlockFontFamily;
+      fontSize?: BlockFontSize;
       marginTop?: number;
       marginBottom?: number;
     }
@@ -67,6 +85,8 @@ export function createEmptyBlock(type: EmailBlock["type"]): EmailBlock {
         type: "heading",
         html: "<h2>Заголовок</h2>",
         align: "left",
+        fontFamily: "system",
+        fontSize: "xl",
         marginTop: 12,
         marginBottom: 8,
       };
@@ -76,6 +96,8 @@ export function createEmptyBlock(type: EmailBlock["type"]): EmailBlock {
         type: "text",
         html: "<p>Текст письма…</p>",
         align: "left",
+        fontFamily: "system",
+        fontSize: "md",
         marginTop: 8,
         marginBottom: 8,
       };
@@ -104,7 +126,10 @@ function blockToHtml(block: EmailBlock): string {
   const pad = `margin:${mt}px 0 ${mb}px;text-align:${align};`;
 
   if (block.type === "heading" || block.type === "text") {
-    return `<div style="${pad}">${block.html || ""}</div>`;
+    const family = FONT_CSS[block.fontFamily ?? "system"];
+    const size = SIZE_CSS[block.fontSize ?? (block.type === "heading" ? "xl" : "md")];
+    const weight = block.type === "heading" ? "font-weight:700;" : "";
+    return `<div style="${pad}font-family:${family};font-size:${size};line-height:1.55;${weight}">${block.html || ""}</div>`;
   }
 
   if (block.type === "button") {
@@ -116,7 +141,6 @@ function blockToHtml(block: EmailBlock): string {
 </div>`;
   }
 
-  // image / logo
   if (!block.src) return "";
   const src = escapeAttr(block.src);
   const alt = escapeAttr(block.alt || "");
@@ -150,7 +174,6 @@ function isEmailBlock(value: unknown): value is EmailBlock {
   return t === "logo" || t === "image" || t === "heading" || t === "text" || t === "button";
 }
 
-/** Locale has authored content if subject + non-empty body (blocks or html). */
 export function localeHasEmailCopy(
   locale: string,
   subjectRu: string,
@@ -175,7 +198,6 @@ export function blocksForLocale(
   return blocksI18n[locale] ?? [];
 }
 
-/** Seed a single text block from legacy html_body when blocks empty. */
 export function ensureBlocksFromHtml(html: string): EmailBlock[] {
   const trimmed = html.trim();
   if (!trimmed) return [createEmptyBlock("text")];
@@ -185,6 +207,8 @@ export function ensureBlocksFromHtml(html: string): EmailBlock[] {
       type: "text",
       html: trimmed,
       align: "left",
+      fontFamily: "system",
+      fontSize: "md",
       marginTop: 8,
       marginBottom: 8,
     },

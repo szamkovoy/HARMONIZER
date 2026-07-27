@@ -15,17 +15,23 @@ function cleanI18nMap(raw: Record<string, string> | undefined): Record<string, s
   return out;
 }
 
-/** List campaigns (newest first). */
+/** List campaigns (newest first). `?limit=10` for compact pickers. */
 export async function GET(req: Request) {
   try {
     await requireAdmin(req);
+    const url = new URL(req.url);
+    const rawLimit = Number(url.searchParams.get("limit"));
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(100, Math.floor(rawLimit))
+        : 100;
     const { data, error } = await createServiceSupabase()
       .from("email_campaigns")
       .select(
         "id, status, name, subject, recipient_count, skipped_locale_count, sent_count, delivered_count, opened_count, clicked_count, bounced_count, complained_count, unsubscribed_count, error_count, sent_at, created_at, updated_at",
       )
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(limit);
     if (error) throw error;
     return json({ campaigns: data ?? [] });
   } catch (error) {

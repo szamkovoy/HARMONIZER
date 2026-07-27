@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-27 (user card messaging UX):** Фикс истории уведомлений (битый select `status`); лёгкие списки писем/пушей со ссылками; confirm перед отправкой; комбо рассылок — 10 недавних; карточка уведомления `/admin/notifications/[id]`.
+
+- **2026-07-27 (deliverability):** Ссылка «Deliverability» со списка рассылок → `/admin/email/deliverability`. См. `marketing_email/history`.
+
+- **2026-07-27 (user card messaging + chains):** Карточка пользователя — списки писем/уведомлений, отправка, запуск цепочки, opt-out автоцепочек. Сегмент push `user:<id>`. См. `marketing_email/history`.
+
 - **2026-07-25 (admin light + Рассылки):** Светлая тема всей админки; пункт меню «Рассылки»; UX preview/editor. См. `marketing_email/history`.
 
 - **2026-07-24 (marketing_email phase A):** Пункт меню «Письма»; консоль модуля `marketing_email` (кампании Resend ru). См. `marketing_email/history`.

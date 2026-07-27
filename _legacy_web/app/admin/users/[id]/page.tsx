@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Send } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
 import { countryNameRu } from "../../_lib/countryNamesRu";
@@ -22,9 +22,31 @@ type AdminUserCard = {
   created_at: string | null;
   onboarded_at: string | null;
   last_activity_at: string | null;
+  last_seen_at: string | null;
   country_code: string | null;
   city: string | null;
+  skip_email_automations?: boolean;
 };
+
+type EmailHist = {
+  kind: string;
+  subject: string;
+  status: string;
+  created_at: string;
+  campaign_id: string | null;
+  automation_id: string | null;
+};
+
+type NotifHist = {
+  id: string;
+  notification_id: string | null;
+  title: string;
+  body: string;
+  created_at: string;
+};
+
+type CampaignOpt = { id: string; name: string; subject: string; status: string };
+type AutomationOpt = { id: string; name: string; is_active: boolean };
 
 function formatLocation(user: AdminUserCard): string {
   const country = user.country_code ? countryNameRu(user.country_code) : null;
@@ -40,16 +62,33 @@ export default function AdminUserCardPage() {
   const router = useRouter();
   const [user, setUser] = useState<AdminUserCard | null>(null);
   const [payments, setPayments] = useState<AdminPaymentRow[]>([]);
+  const [emailHistory, setEmailHistory] = useState<EmailHist[]>([]);
+  const [notifications, setNotifications] = useState<NotifHist[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignOpt[]>([]);
+  const [automations, setAutomations] = useState<AutomationOpt[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [campaignId, setCampaignId] = useState("");
+  const [automationId, setAutomationId] = useState("");
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const data = await adminFetch<{ user: AdminUserCard; payments: AdminPaymentRow[] }>(
-        `/api/admin/users/${params.id}`,
-      );
+      const data = await adminFetch<{
+        user: AdminUserCard;
+        payments: AdminPaymentRow[];
+        email_history?: EmailHist[];
+        notifications?: NotifHist[];
+      }>(`/api/admin/users/${params.id}`);
       setUser(data.user);
       setPayments(data.payments);
+      setEmailHistory(data.email_history ?? []);
+      setNotifications(data.notifications ?? []);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить пользователя");
     }
@@ -58,6 +97,25 @@ export default function AdminUserCardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [c, a] = await Promise.all([
+          adminFetch<{ campaigns: CampaignOpt[] }>(
+            "/api/admin/email/campaigns?limit=10",
+          ),
+          adminFetch<{ automations: AutomationOpt[] }>("/api/admin/email/automations"),
+        ]);
+        setCampaigns(c.campaigns ?? []);
+        setAutomations(a.automations ?? []);
+        if (c.campaigns?.[0]) setCampaignId(c.campaigns[0].id);
+        if (a.automations?.[0]) setAutomationId(a.automations[0].id);
+      } catch {
+        /* optional */
+      }
+    })();
+  }, []);
 
   async function handleDelete() {
     if (!user) return;
@@ -80,11 +138,117 @@ export default function AdminUserCardPage() {
     }
   }
 
+  async function toggleSkip(next: boolean) {
+    if (!user) return;
+    setBusy(true);
+    try {
+      await adminFetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ skip_email_automations: next }),
+      });
+      setUser({ ...user, skip_email_automations: next });
+      setInfo(next ? "Автоцепочки отключены" : "Автоцепочки разрешены");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function launchChain() {
+    if (!user || !automationId) return;
+    const chainName =
+      automations.find((a) => a.id === automationId)?.name ?? "цепочку";
+    if (!window.confirm(`Запустить цепочку «${chainName}» для этого пользователя?`)) {
+      return;
+    }
+    setBusy(true);
+    setInfo(null);
+    try {
+      await adminFetch(`/api/admin/users/${user.id}/messaging`, {
+        method: "POST",
+        body: JSON.stringify({ action: "launch_chain", automation_id: automationId }),
+      });
+      setInfo("Цепочка запущена");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось запустить");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendCampaign() {
+    if (!user || !campaignId) return;
+    const camp = campaigns.find((c) => c.id === campaignId);
+    const label = camp?.name || camp?.subject || "рассылку";
+    if (
+      !window.confirm(
+        `Отправить письмо «${label}» на ${user.email}?`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setInfo(null);
+    try {
+      await adminFetch(`/api/admin/users/${user.id}/messaging`, {
+        method: "POST",
+        body: JSON.stringify({ action: "send_campaign", campaign_id: campaignId }),
+      });
+      setInfo("Письмо отправлено");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отправить письмо");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendPush() {
+    if (!user || !pushTitle.trim()) return;
+    if (
+      !window.confirm(
+        `Отправить уведомление «${pushTitle.trim()}» этому пользователю?`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setInfo(null);
+    try {
+      await adminFetch("/api/admin/notifications", {
+        method: "POST",
+        body: JSON.stringify({
+          title: pushTitle.trim(),
+          body: pushBody.trim(),
+          segment: `user:${user.id}`,
+        }),
+      });
+      setInfo("Уведомление отправлено");
+      setPushTitle("");
+      setPushBody("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отправить уведомление");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function emailHref(e: EmailHist): string | null {
+    if (e.kind === "campaign" && e.campaign_id) return `/admin/email/${e.campaign_id}`;
+    if (e.kind === "automation" && e.automation_id) {
+      return `/admin/email/automations/${e.automation_id}`;
+    }
+    return null;
+  }
+
   if (error && !user) {
     return (
       <div className="mx-auto max-w-3xl">
         <BackLink />
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-rose-600">{error}</p>
       </div>
     );
   }
@@ -103,11 +267,18 @@ export default function AdminUserCardPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <BackLink />
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      {info ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {info}
+        </p>
+      ) : null}
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-bold text-zinc-900">{user.display_name?.trim() || "Без имени"}</h1>
+          <h1 className="text-lg font-bold text-zinc-900">
+            {user.display_name?.trim() || "Без имени"}
+          </h1>
           <TierBadge tier={user.membership_tier} />
         </div>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
@@ -118,25 +289,204 @@ export default function AdminUserCardPage() {
           <InfoRow label="Заполнил профиль" value={formatAdminDate(user.onboarded_at)} />
           <InfoRow
             label="Тариф до"
-            value={user.membership_expires_at ? formatAdminDateTime(user.membership_expires_at) : "бессрочно"}
+            value={
+              user.membership_expires_at
+                ? formatAdminDateTime(user.membership_expires_at)
+                : "бессрочно"
+            }
           />
-          <InfoRow label="Последняя активность" value={formatAdminDateTime(user.last_activity_at)} />
+          <InfoRow
+            label="Последняя активность"
+            value={formatAdminDateTime(user.last_activity_at)}
+          />
+          <InfoRow label="Last seen" value={formatAdminDateTime(user.last_seen_at)} />
           <InfoRow label="ID" value={user.id} mono />
         </dl>
+
+        <label className="mt-4 flex items-center gap-2 text-sm text-zinc-700">
+          <input
+            type="checkbox"
+            checked={Boolean(user.skip_email_automations)}
+            disabled={busy}
+            onChange={(e) => void toggleSkip(e.target.checked)}
+          />
+          Не отправлять автоцепочки писем (тестовые / модератор)
+        </label>
 
         <div className="mt-4 border-t border-zinc-100 pt-4">
           <button
             type="button"
             disabled={deleting}
             onClick={() => void handleDelete()}
-            className="rounded-xl border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+            className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100 disabled:opacity-50"
           >
             {deleting ? "Удаляю…" : "Удалить пользователя"}
           </button>
-          <p className="mt-2 text-[11px] text-zinc-500">
-            Требуется двойное подтверждение. Платежи Lava.top / ЮКасса и ручные гранты сохраняются для отчётов.
-          </p>
         </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Цепочка писем</h2>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-[200px] flex-1 text-xs text-zinc-500">
+            Запустить цепочку
+            <select
+              className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
+              value={automationId}
+              onChange={(e) => setAutomationId(e.target.value)}
+            >
+              {automations.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.is_active ? "" : " (выкл.)"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={busy || !automationId}
+            onClick={() => void launchChain()}
+            className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            <Send size={14} /> Запустить
+          </button>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Письма</h2>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-[200px] flex-1 text-xs text-zinc-500">
+            Отправить письмо (10 недавних рассылок)
+            <select
+              className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
+              value={campaignId}
+              onChange={(e) => setCampaignId(e.target.value)}
+            >
+              {campaigns.length === 0 ? (
+                <option value="">Нет рассылок</option>
+              ) : (
+                campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {(c.name || c.subject || c.id).slice(0, 60)}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={busy || !campaignId}
+            onClick={() => void sendCampaign()}
+            className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            <Send size={14} /> Отправить письмо
+          </button>
+        </div>
+        <ul className="divide-y divide-zinc-100 text-sm">
+          {emailHistory.length === 0 ? (
+            <li className="py-2 text-zinc-400">Пока нет отправок</li>
+          ) : (
+            emailHistory.map((e, i) => {
+              const href = emailHref(e);
+              const row = (
+                <span className="flex w-full items-center justify-between gap-2 py-2">
+                  <span className="min-w-0 truncate font-normal text-zinc-800">
+                    <span className="text-xs text-zinc-400">
+                      {e.kind === "automation" ? "цепочка" : "рассылка"} ·{" "}
+                    </span>
+                    {e.subject}
+                  </span>
+                  <span className="shrink-0 text-xs text-zinc-400">
+                    {formatAdminDateTime(e.created_at)}
+                  </span>
+                </span>
+              );
+              return (
+                <li key={`${e.created_at}-${i}`}>
+                  {href ? (
+                    <Link
+                      href={href}
+                      className="block transition-colors hover:bg-zinc-50"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    row
+                  )}
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Уведомления</h2>
+        <div className="space-y-2">
+          <label className="block text-xs text-zinc-500">
+            Заголовок
+            <input
+              className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
+              value={pushTitle}
+              onChange={(e) => setPushTitle(e.target.value)}
+              placeholder="Заголовок push"
+            />
+          </label>
+          <label className="block text-xs text-zinc-500">
+            Текст
+            <textarea
+              className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
+              rows={2}
+              value={pushBody}
+              onChange={(e) => setPushBody(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy || !pushTitle.trim()}
+            onClick={() => void sendPush()}
+            className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            <Send size={14} /> Отправить уведомление
+          </button>
+        </div>
+        <ul className="divide-y divide-zinc-100 text-sm">
+          {notifications.length === 0 ? (
+            <li className="py-2 text-zinc-400">Пока нет доставок</li>
+          ) : (
+            notifications.map((n) => {
+              const href = n.notification_id
+                ? `/admin/notifications/${n.notification_id}`
+                : null;
+              const row = (
+                <span className="flex w-full items-center justify-between gap-2 py-2">
+                  <span className="min-w-0 truncate font-normal text-zinc-800">
+                    {n.title}
+                  </span>
+                  <span className="shrink-0 text-xs text-zinc-400">
+                    {formatAdminDateTime(n.created_at)}
+                  </span>
+                </span>
+              );
+              return (
+                <li key={n.id}>
+                  {href ? (
+                    <Link
+                      href={href}
+                      className="block transition-colors hover:bg-zinc-50"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    row
+                  )}
+                </li>
+              );
+            })
+          )}
+        </ul>
       </section>
 
       <PaymentHistorySection payments={payments} ownerUserId={user.id} onChanged={load} />
@@ -146,7 +496,10 @@ export default function AdminUserCardPage() {
 
 function BackLink() {
   return (
-    <Link href="/admin/users" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-800">
+    <Link
+      href="/admin/users"
+      className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800"
+    >
       <ArrowLeft size={15} /> Все пользователи
     </Link>
   );

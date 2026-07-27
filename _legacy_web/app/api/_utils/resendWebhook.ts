@@ -53,31 +53,80 @@ export function verifyResendMarketingWebhook(
 
 export type ResendWebhookPayload = {
   type?: string;
+  created_at?: string;
   data?: {
     email_id?: string;
     created_at?: string;
+    from?: string;
     to?: string[];
-    click?: { link?: string };
-    bounce?: { message?: string };
+    subject?: string;
+    click?: { link?: string; userAgent?: string; ipAddress?: string };
+    bounce?: {
+      message?: string;
+      type?: string | null;
+      subType?: string | null;
+      diagnosticCode?: string[];
+    };
+    failed?: { reason?: string };
+    suppressed?: {
+      message?: string;
+      reason?: string;
+      type?: string;
+      diagnosticCode?: string[];
+    };
+    /** suppression.added / suppression.removed */
+    email?: string;
+    id?: string;
+    origin?: string;
   };
 };
 
-/** Map Resend event type → our send status / counters. */
-export function mapResendEventType(type: string): {
+export type MappedResendEvent = {
   eventType: string;
   sendStatus: string | null;
   campaignCounter: string | null;
-  suppressStatus: "suppressed" | "complained" | null;
-} {
+  /** Local contact marketing_status to set (only active → this). */
+  suppressStatus: "suppressed" | "complained" | "active" | null;
+  /** Mirror to Resend /suppressions API. */
+  addToResendSuppressions: boolean;
+  removeFromResendSuppressions: boolean;
+  /** Hard bounce only — soft/transient does not suppress. */
+  isHardBounce: boolean;
+};
+
+function bounceIsHard(payload: ResendWebhookPayload): boolean {
+  const t = (payload.data?.bounce?.type ?? "").toLowerCase();
+  if (t === "permanent") return true;
+  if (t === "transient") return false;
+  // Unknown type: treat as hard (safer for reputation).
+  return true;
+}
+
+/** Map Resend event type → our send status / counters / suppress actions. */
+export function mapResendEventType(
+  type: string,
+  payload?: ResendWebhookPayload,
+): MappedResendEvent {
   switch (type) {
     case "email.sent":
-      return { eventType: type, sendStatus: "sent", campaignCounter: null, suppressStatus: null };
+      return {
+        eventType: type,
+        sendStatus: "sent",
+        campaignCounter: null,
+        suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
     case "email.delivered":
       return {
         eventType: type,
         sendStatus: "delivered",
         campaignCounter: "delivered_count",
         suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
       };
     case "email.opened":
       return {
@@ -85,6 +134,9 @@ export function mapResendEventType(type: string): {
         sendStatus: "opened",
         campaignCounter: "opened_count",
         suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
       };
     case "email.clicked":
       return {
@@ -92,24 +144,100 @@ export function mapResendEventType(type: string): {
         sendStatus: "clicked",
         campaignCounter: "clicked_count",
         suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
       };
-    case "email.bounced":
+    case "email.bounced": {
+      const hard = bounceIsHard(payload ?? {});
       return {
         eventType: type,
         sendStatus: "bounced",
         campaignCounter: "bounced_count",
-        suppressStatus: "suppressed",
+        suppressStatus: hard ? "suppressed" : null,
+        addToResendSuppressions: hard,
+        removeFromResendSuppressions: false,
+        isHardBounce: hard,
       };
+    }
     case "email.complained":
       return {
         eventType: type,
         sendStatus: "complained",
         campaignCounter: "complained_count",
         suppressStatus: "complained",
+        addToResendSuppressions: true,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
       };
     case "email.delivery_delayed":
-      return { eventType: type, sendStatus: null, campaignCounter: null, suppressStatus: null };
+      return {
+        eventType: type,
+        sendStatus: null,
+        campaignCounter: null,
+        suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
+    case "email.failed":
+      return {
+        eventType: type,
+        sendStatus: "failed",
+        campaignCounter: null,
+        suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
+    case "email.suppressed":
+      return {
+        eventType: type,
+        sendStatus: "skipped",
+        campaignCounter: null,
+        suppressStatus: "suppressed",
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
+    case "suppression.added":
+      return {
+        eventType: type,
+        sendStatus: null,
+        campaignCounter: null,
+        suppressStatus: "suppressed",
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
+    case "suppression.removed":
+      return {
+        eventType: type,
+        sendStatus: null,
+        campaignCounter: null,
+        suppressStatus: "active",
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
     default:
-      return { eventType: type, sendStatus: null, campaignCounter: null, suppressStatus: null };
+      return {
+        eventType: type,
+        sendStatus: null,
+        campaignCounter: null,
+        suppressStatus: null,
+        addToResendSuppressions: false,
+        removeFromResendSuppressions: false,
+        isHardBounce: false,
+      };
   }
+}
+
+export function extractRecipientEmails(payload: ResendWebhookPayload): string[] {
+  const fromData = payload.data?.to;
+  if (Array.isArray(fromData) && fromData.length) {
+    return fromData.map((e) => String(e).trim().toLowerCase()).filter(Boolean);
+  }
+  const single = payload.data?.email?.trim().toLowerCase();
+  return single ? [single] : [];
 }

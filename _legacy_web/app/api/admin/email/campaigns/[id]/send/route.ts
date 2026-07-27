@@ -4,7 +4,10 @@ import {
   parseEmailSegmentQuery,
   resolveEmailSegment,
 } from "../../../../../_utils/emailSegment";
-import { wrapMarketingEmailHtml } from "../../../../../_utils/emailTemplate";
+import {
+  applyEmailPlaceholders,
+  wrapMarketingEmailHtml,
+} from "../../../../../_utils/emailTemplate";
 import { buildSignedUnsubscribeUrl, generateUnsubscribeToken } from "../../../../../_utils/emailUnsubscribe";
 import {
   htmlToPlaintext,
@@ -176,11 +179,25 @@ export async function POST(req: Request, ctx: Ctx) {
           .eq("id", row.contact.id);
       }
 
+      let displayName = "";
+      if (row.contact.user_id) {
+        const { data: u } = await db
+          .from("users")
+          .select("display_name")
+          .eq("id", row.contact.user_id)
+          .maybeSingle();
+        displayName = (u?.display_name ?? "").trim();
+      }
+      const name =
+        displayName || row.contact.email.split("@")[0] || "";
+      const subject = applyEmailPlaceholders(row.subject, { name });
+      const bodyHtml = applyEmailPlaceholders(row.htmlBody, { name });
+
       const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
       const html = wrapMarketingEmailHtml({
-        bodyHtml: row.htmlBody,
+        bodyHtml,
         unsubscribeUrl,
-        previewText: row.subject,
+        previewText: subject,
       });
 
       const { data: sendRow, error: sendInsertError } = await db
@@ -203,7 +220,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
       const result = await sendMarketingEmail({
         to: row.contact.email,
-        subject: row.subject,
+        subject,
         html,
         text: htmlToPlaintext(html),
         unsubscribeUrl,

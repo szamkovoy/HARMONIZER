@@ -1,3 +1,9 @@
+- 2026-07-27 (286): Deliverability dashboard — drop Resend domain health + top bounce-domain blocks.
+- 2026-07-27 (285): Resend suppressions → contacts sync moved to daily pg_cron (`sync_email_suppressions_daily` → `/api/cron/email-suppressions-sync`). Migration `20260727180000`.
+- 2026-07-27 (284): User-card messaging UX — fix notification history query; light linked lists; send confirm; campaigns picker limit 10.
+- 2026-07-27 (283): Deliverability UX (RU) + campaign/step stats in list/editor; automation step counters migration `20260727170000`.
+- 2026-07-27 (282): Marketing email D — deliverability dashboard + auto-suppress (hard bounce/complaint → Resend suppressions); webhook events failed/suppressed/suppression.*; indexes `20260727160000`.
+- 2026-07-27 (281): Marketing email B2+C1+C2 — chain editor, registration/expired/inactive triggers, template footer/placeholders, user-card messaging. Migration `20260727150000`.
 - 2026-07-25 (280): Marketing email — inline preview (page flow), fix last_seen/email segment filters, B1 welcome runner + cron. Migration `20260725020000`.
 - 2026-07-25 (279): Fix email contact sync (pgcrypto); auto-sync on segment refresh; full-height preview; drop list Sync button. Migration `20260725010000`.
 - 2026-07-25 (278): Рассылки UX — light admin theme, block editor, campaign `name`/`blocks_i18n`, segment chips + refresh count. Migration `20260724210000`.

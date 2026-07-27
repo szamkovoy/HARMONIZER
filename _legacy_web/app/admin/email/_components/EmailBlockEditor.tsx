@@ -15,6 +15,8 @@ import {
   createEmptyBlock,
   newBlockId,
   type BlockAlign,
+  type BlockFontFamily,
+  type BlockFontSize,
   type EmailBlock,
 } from "../_lib/blocks";
 
@@ -357,14 +359,62 @@ function BlockSettingsModal({
                 onCommand={(cmd) => {
                   document.execCommand(cmd);
                 }}
+                onInsertName={() => {
+                  document.execCommand("insertText", false, "{{name}}");
+                }}
               />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-zinc-500">
+                  Шрифт
+                  <select
+                    className={`${inputCls} mt-1`}
+                    value={block.fontFamily ?? "system"}
+                    onChange={(e) =>
+                      onChange({
+                        fontFamily: e.target.value as BlockFontFamily,
+                      } as Partial<EmailBlock>)
+                    }
+                  >
+                    <option value="system">System sans</option>
+                    <option value="georgia">Georgia</option>
+                  </select>
+                </label>
+                <label className="text-xs text-zinc-500">
+                  Размер
+                  <select
+                    className={`${inputCls} mt-1`}
+                    value={
+                      block.fontSize ?? (block.type === "heading" ? "xl" : "md")
+                    }
+                    onChange={(e) =>
+                      onChange({
+                        fontSize: e.target.value as BlockFontSize,
+                      } as Partial<EmailBlock>)
+                    }
+                  >
+                    <option value="sm">Мелкий</option>
+                    <option value="md">Обычный</option>
+                    <option value="lg">Крупный</option>
+                    <option value="xl">Заголовок</option>
+                  </select>
+                </label>
+              </div>
               <div
                 className="min-h-[140px] rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                style={{
+                  fontFamily:
+                    (block.fontFamily ?? "system") === "georgia"
+                      ? "Georgia, serif"
+                      : "system-ui, sans-serif",
+                }}
                 contentEditable
                 suppressContentEditableWarning
                 dangerouslySetInnerHTML={{ __html: block.html }}
                 onBlur={(e) => onChange({ html: e.currentTarget.innerHTML } as Partial<EmailBlock>)}
               />
+              <p className="text-[11px] text-zinc-400">
+                Плейсхолдер {"{{name}}"} подставится именем пользователя при отправке.
+              </p>
             </>
           )}
 
@@ -487,7 +537,13 @@ function BlockSettingsModal({
   );
 }
 
-function RichToolbar({ onCommand }: { onCommand: (cmd: string) => void }) {
+function RichToolbar({
+  onCommand,
+  onInsertName,
+}: {
+  onCommand: (cmd: string) => void;
+  onInsertName: () => void;
+}) {
   return (
     <div className="flex flex-wrap gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
       {[
@@ -514,6 +570,17 @@ function RichToolbar({ onCommand }: { onCommand: (cmd: string) => void }) {
           {label}
         </button>
       ))}
+      <button
+        type="button"
+        className="rounded px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-white"
+        title="Вставить имя"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onInsertName();
+        }}
+      >
+        {"{{name}}"}
+      </button>
     </div>
   );
 }

@@ -132,9 +132,10 @@ Keep until you decide to drop Amazon entirely:
 2. Publish DKIM / SPF / MX for Resend on `zamkovoi.ru` (mirror yoga pattern; values from Resend UI).
 3. Configure **custom tracking subdomain** (open/click) on `zamkovoi.ru` — avoid shared Resend tracking host.
 4. Point webhook to `https://harmonizer-ten.vercel.app/api/webhooks/resend-marketing`.  
-   **Events to enable:** `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.opened`, `email.clicked`, `email.bounced`, `email.complained`.  
-   **Skip:** `email.received`, `email.scheduled`, `email.suppressed`, `email.failed`, `suppression.*` (not used by our handler).  
-   Put the Resend signing secret (`whsec_…`) into Vercel `RESEND_MARKETING_WEBHOOK_SECRET` (Svix headers).
+   **Events to enable:** `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.opened`, `email.clicked`, `email.bounced`, `email.complained`, `email.failed`, `email.suppressed`, `suppression.added`, `suppression.removed`.  
+   **Skip:** `email.received`, `email.scheduled` (not used).  
+   Put the Resend signing secret (`whsec_…`) into Vercel `RESEND_MARKETING_WEBHOOK_SECRET` (Svix headers).  
+   Hard bounce + complaint → local `email_contacts` suppress/complained **and** Resend `/suppressions` API. Soft (Transient) bounce does not suppress.
 5. Never put `RESEND_ZAMKOVOI_RU_API_KEY` into OTP-only secrets unless intentionally shared read — prefer Vercel-only for send path.
 
 ## 6. History note (2026-07-17 trap)

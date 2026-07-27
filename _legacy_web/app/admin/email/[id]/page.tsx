@@ -61,6 +61,7 @@ type Campaign = {
   clicked_count: number;
   bounced_count: number;
   complained_count: number;
+  unsubscribed_count: number;
   error_count: number;
   sent_at: string | null;
   created_at: string;
@@ -562,14 +563,15 @@ export default function AdminEmailCampaignPage() {
       </label>
 
       {campaign && (campaign.status === "sent" || campaign.sent_count > 0) ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-7">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-8">
           {[
-            ["Отпр.", campaign.sent_count],
-            ["Дост.", campaign.delivered_count],
-            ["Откр.", campaign.opened_count],
-            ["Клик", campaign.clicked_count],
-            ["Bounce", campaign.bounced_count],
-            ["Жалобы", campaign.complained_count],
+            ["Отправлено", campaign.sent_count],
+            ["Доставлено", campaign.delivered_count],
+            ["Открыто", campaign.opened_count],
+            ["Клики", campaign.clicked_count],
+            ["Отказ", campaign.bounced_count],
+            ["Спам", campaign.complained_count],
+            ["Отписались", campaign.unsubscribed_count],
             ["Ошибки", campaign.error_count],
           ].map(([label, value]) => (
             <div

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, RefreshCw, Send, Trash2 } from "lucide-react";
 
@@ -490,13 +491,12 @@ export default function AdminNotificationsPage() {
         <div className="flex flex-col gap-2">
           {history.map((item) => (
             <div key={item.id} className="rounded-xl border border-zinc-200 bg-white p-3">
-              <p className="font-semibold text-zinc-900">{item.title}</p>
-              {item.body ? <p className="mt-0.5 whitespace-pre-wrap text-sm text-zinc-400">{item.body}</p> : null}
-              {item.link_url ? (
-                <a href={item.link_url} target="_blank" rel="noreferrer" className="text-xs text-emerald-700 underline">
-                  {item.link_url}
-                </a>
-              ) : null}
+              <Link
+                href={`/admin/notifications/${item.id}`}
+                className="font-semibold text-zinc-900 hover:text-emerald-800 hover:underline"
+              >
+                {item.title}
+              </Link>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
                 <span className="rounded-full bg-zinc-100 px-2 py-0.5">{item.segment_label}</span>
                 <span>{formatAdminDateTime(item.created_at)}</span>
